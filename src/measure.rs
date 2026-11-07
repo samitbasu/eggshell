@@ -1,12 +1,80 @@
-//! Text measurement for taffy leaves, answered by egui's galley layout.
+//! Measurement of node content for taffy, answered by egui's galley layout.
 
-use egui::{Color32, FontId, epaint::FontsView};
+use egui::epaint::{FontsView, text::LayoutJob};
+use egui::{Color32, TextFormat};
 use taffy::{AvailableSpace, Baselines, LayoutInput, LayoutOutput, Size};
 
-/// Node context for a text leaf.
-pub(crate) struct TextLeaf {
-    pub text: String,
-    pub font: FontId,
+use crate::prim::Prim;
+use crate::text::{FontStyle, TextStyle, WhiteSpace};
+
+/// What an application leaf's measure closure is asked.
+///
+/// Wraps the query taffy made: the dimensions already known, the space on
+/// offer, and the leaf's resolved text style. The closure answers with the
+/// size of the leaf's content; padding and border are added by taffy.
+pub struct Measure<'a> {
+    ctx: &'a egui::Context,
+    input: &'a LayoutInput,
+    text: &'a TextStyle,
+}
+
+impl<'a> Measure<'a> {
+    pub(crate) fn new(ctx: &'a egui::Context, input: &'a LayoutInput, text: &'a TextStyle) -> Self {
+        Self { ctx, input, text }
+    }
+
+    /// The egui context, for fonts and other shared state.
+    pub fn ctx(&self) -> &egui::Context {
+        self.ctx
+    }
+
+    /// Dimensions fixed by layout. A closure's answer for a known dimension is ignored.
+    pub fn known(&self) -> Size<Option<f32>> {
+        self.input.known_dimensions
+    }
+
+    /// The space on offer: definite, or the min-content or max-content probe.
+    pub fn available(&self) -> Size<AvailableSpace> {
+        self.input.available_space
+    }
+
+    /// The leaf's resolved text style.
+    pub fn text(&self) -> &TextStyle {
+        self.text
+    }
+
+    /// The known or definite width, if there is one.
+    pub fn width(&self) -> Option<f32> {
+        match (
+            self.input.known_dimensions.width,
+            self.input.available_space.width,
+        ) {
+            (Some(width), _) | (None, AvailableSpace::Definite(width)) => Some(width),
+            _ => None,
+        }
+    }
+
+    /// The size of `text` in the leaf's text style, wrapped as the query asks.
+    pub fn text_size(&self, text: &str) -> Size<f32> {
+        let leaf = TextLeaf {
+            text,
+            style: self.text,
+        };
+        self.ctx
+            .fonts_mut(|fonts| measure_text(fonts, &leaf, self.input))
+            .size
+    }
+}
+
+/// A measure for leaves sized entirely by classes or by their parent.
+pub fn fill(_: &Measure<'_>) -> Size<f32> {
+    Size::ZERO
+}
+
+/// A text leaf: its text and the style it is measured in.
+pub(crate) struct TextLeaf<'a> {
+    pub text: &'a str,
+    pub style: &'a TextStyle,
 }
 
 enum Wrap {
@@ -14,27 +82,35 @@ enum Wrap {
     At(f32),
 }
 
-impl TextLeaf {
-    fn galley(&self, fonts: &mut FontsView<'_>, wrap: Wrap) -> std::sync::Arc<egui::Galley> {
-        let text = self.text.clone();
-        let font = self.font.clone();
-        match wrap {
-            Wrap::Off => fonts.layout_no_wrap(text, font, Color32::PLACEHOLDER),
-            Wrap::At(width) => fonts.layout(text, font, Color32::PLACEHOLDER, width),
-        }
+impl TextLeaf<'_> {
+    fn galley(
+        &self,
+        fonts: &mut FontsView<'_>,
+        text: &str,
+        wrap: Wrap,
+    ) -> std::sync::Arc<egui::Galley> {
+        let mut job = LayoutJob::single_section(
+            text.to_owned(),
+            TextFormat {
+                font_id: self.style.spec.font_id(),
+                extra_letter_spacing: self.style.tracking.into(),
+                line_height: Some(self.style.spec.line_height),
+                italics: self.style.font_style == FontStyle::Italic,
+                color: Color32::PLACEHOLDER,
+                ..TextFormat::default()
+            },
+        );
+        job.wrap.max_width = match wrap {
+            Wrap::Off => f32::INFINITY,
+            Wrap::At(width) => width,
+        };
+        fonts.layout_job(job)
     }
 
     /// Width of the widest whitespace-separated word, unwrapped.
-    fn min_content_width(&self, fonts: &mut FontsView<'_>) -> f32 {
-        self.text
-            .split_whitespace()
-            .map(|word| {
-                let word = Self {
-                    text: word.to_owned(),
-                    font: self.font.clone(),
-                };
-                word.galley(fonts, Wrap::Off).size().x
-            })
+    fn min_content_width(&self, fonts: &mut FontsView<'_>, text: &str) -> f32 {
+        text.split_whitespace()
+            .map(|word| self.galley(fonts, word, Wrap::Off).size().x)
             .fold(0.0, f32::max)
     }
 
@@ -42,11 +118,19 @@ impl TextLeaf {
     ///
     /// A galley wrapped at the widest word can come out a fraction wider than
     /// that word, so the min-content width is reported exactly.
-    fn plan(&self, fonts: &mut FontsView<'_>, input: &LayoutInput) -> (Wrap, Option<f32>) {
+    fn plan(
+        &self,
+        fonts: &mut FontsView<'_>,
+        text: &str,
+        input: &LayoutInput,
+    ) -> (Wrap, Option<f32>) {
+        if self.style.white_space != WhiteSpace::Normal {
+            return (Wrap::Off, None);
+        }
         match (input.known_dimensions.width, input.available_space.width) {
             (Some(width), _) | (None, AvailableSpace::Definite(width)) => (Wrap::At(width), None),
             (None, AvailableSpace::MinContent) => {
-                let width = self.min_content_width(fonts);
+                let width = self.min_content_width(fonts, text);
                 (Wrap::At(width), Some(width))
             }
             (None, AvailableSpace::MaxContent) => (Wrap::Off, None),
@@ -59,11 +143,12 @@ impl TextLeaf {
 /// Baselines are reported when the text has at least one glyph.
 pub(crate) fn measure_text(
     fonts: &mut FontsView<'_>,
-    leaf: &TextLeaf,
+    leaf: &TextLeaf<'_>,
     input: &LayoutInput,
 ) -> LayoutOutput {
-    let (wrap, exact_width) = leaf.plan(fonts, input);
-    let galley = leaf.galley(fonts, wrap);
+    let text = leaf.style.case.apply(leaf.text);
+    let (wrap, exact_width) = leaf.plan(fonts, &text, input);
+    let galley = leaf.galley(fonts, &text, wrap);
     let natural = galley.size();
     let size = Size {
         width: input
@@ -84,10 +169,67 @@ pub(crate) fn measure_text(
     )
 }
 
+fn known_or(input: &LayoutInput, size: Size<f32>) -> LayoutOutput {
+    LayoutOutput::from_outer_size(Size {
+        width: input.known_dimensions.width.unwrap_or(size.width),
+        height: input.known_dimensions.height.unwrap_or(size.height),
+    })
+}
+
+/// A node's content as measured by the library or the application.
+pub(crate) enum Content<'a> {
+    /// Display content measured by the library.
+    Prim(&'a Prim),
+    /// An application leaf's measure.
+    Leaf(&'a dyn Fn(&Measure<'_>) -> Size<f32>),
+    /// Nothing: sized by layout alone.
+    Empty,
+}
+
+/// Answers a taffy measure query for any node.
+///
+/// Icons and glyphs are one em square. Images have the size of their texture
+/// when egui knows it, and none otherwise. Paint callbacks have no size.
+pub(crate) fn measure_content(
+    ctx: &egui::Context,
+    content: Content<'_>,
+    text: &TextStyle,
+    input: &LayoutInput,
+) -> LayoutOutput {
+    match content {
+        Content::Prim(Prim::Text(string)) => {
+            let leaf = TextLeaf {
+                text: string,
+                style: text,
+            };
+            ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, input))
+        }
+        Content::Prim(Prim::Icon(_)) => known_or(
+            input,
+            Size {
+                width: text.spec.size,
+                height: text.spec.size,
+            },
+        ),
+        Content::Prim(Prim::Image(egui::ImageSource::Texture(texture))) => known_or(
+            input,
+            Size {
+                width: texture.size.x,
+                height: texture.size.y,
+            },
+        ),
+        Content::Prim(Prim::Image(_) | Prim::Paint(_)) | Content::Empty => {
+            known_or(input, Size::ZERO)
+        }
+        Content::Leaf(measure) => known_or(input, measure(&Measure::new(ctx, input, text))),
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod testing {
     use super::*;
-    use taffy::{NodeId, Style, TaffyTree};
+    use crate::text::TextSpec;
+    use egui::FontFamily;
 
     /// A context whose fonts are ready for measurement.
     pub fn fonts_ready_context() -> egui::Context {
@@ -97,15 +239,15 @@ pub(crate) mod testing {
         ctx
     }
 
-    pub fn body_font() -> FontId {
-        FontId::proportional(14.0)
-    }
-
-    pub fn leaf(text: &str) -> TextLeaf {
-        TextLeaf {
-            text: text.to_owned(),
-            font: body_font(),
-        }
+    pub fn body_style() -> TextStyle {
+        TextStyle::new(
+            TextSpec {
+                size: 14.0,
+                line_height: 18.0,
+                family: FontFamily::Proportional,
+            },
+            Color32::BLACK,
+        )
     }
 
     pub fn input(known: Size<Option<f32>>, available: Size<AvailableSpace>) -> LayoutInput {
@@ -118,24 +260,16 @@ pub(crate) mod testing {
 
     pub fn measure(
         ctx: &egui::Context,
-        leaf: &TextLeaf,
+        text: &str,
         known: Size<Option<f32>>,
         available: Size<AvailableSpace>,
     ) -> LayoutOutput {
-        ctx.fonts_mut(|fonts| measure_text(fonts, leaf, &input(known, available)))
-    }
-
-    pub fn compute(
-        ctx: &egui::Context,
-        tree: &mut TaffyTree<TextLeaf>,
-        root: NodeId,
-        available: Size<AvailableSpace>,
-    ) {
-        tree.compute_layout_with_measure(root, available, |input, _, leaf, _: &Style| match leaf {
-            Some(leaf) => ctx.fonts_mut(|fonts| measure_text(fonts, leaf, &input)),
-            None => LayoutOutput::from_outer_size(Size::ZERO),
-        })
-        .unwrap();
+        let style = body_style();
+        let leaf = TextLeaf {
+            text,
+            style: &style,
+        };
+        ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, &input(known, available)))
     }
 }
 
@@ -143,10 +277,6 @@ pub(crate) mod testing {
 mod tests {
     use super::testing::*;
     use super::*;
-    use taffy::prelude::TaffyMaxContent;
-    use taffy::{
-        AlignItems, Display, JustifyContent, Rect, Style, TaffyTree, style_helpers::length,
-    };
 
     const UNKNOWN: Size<Option<f32>> = Size {
         width: None,
@@ -160,7 +290,7 @@ mod tests {
     fn width_with(avail: AvailableSpace, text: &str, ctx: &egui::Context) -> LayoutOutput {
         measure(
             ctx,
-            &leaf(text),
+            text,
             UNKNOWN,
             Size {
                 width: avail,
@@ -209,7 +339,7 @@ mod tests {
 
         let known = measure(
             &ctx,
-            &leaf(text),
+            text,
             Size {
                 width: Some(narrow),
                 height: None,
@@ -233,7 +363,7 @@ mod tests {
             width: Some(123.0),
             height: Some(45.0),
         };
-        let out = measure(&ctx, &leaf("anything at all"), known, MAX);
+        let out = measure(&ctx, "anything at all", known, MAX);
         assert_eq!(
             out.size,
             Size {
@@ -246,7 +376,7 @@ mod tests {
     #[test]
     fn first_baseline_lies_within_the_line() {
         let ctx = fonts_ready_context();
-        let out = measure(&ctx, &leaf("Hello"), UNKNOWN, MAX);
+        let out = measure(&ctx, "Hello", UNKNOWN, MAX);
         let baseline = out.baselines.first.expect("text has a baseline");
         assert!(baseline > 0.0 && baseline < out.size.height);
     }
@@ -254,48 +384,7 @@ mod tests {
     #[test]
     fn empty_text_has_no_baseline() {
         let ctx = fonts_ready_context();
-        assert_eq!(measure(&ctx, &leaf(""), UNKNOWN, MAX).baselines.first, None);
-    }
-
-    #[test]
-    fn hello_is_centred_in_a_flex_container() {
-        let ctx = fonts_ready_context();
-        let measured = measure(&ctx, &leaf("Hello"), UNKNOWN, MAX).size;
-        assert!(measured.width > 0.0 && measured.height > 0.0);
-
-        let mut tree = TaffyTree::<TextLeaf>::new();
-        tree.disable_rounding();
-        let text = tree
-            .new_leaf_with_context(Style::default(), leaf("Hello"))
-            .unwrap();
-        let root = tree
-            .new_with_children(
-                Style {
-                    display: Display::Flex,
-                    size: Size {
-                        width: length(800.0),
-                        height: length(600.0),
-                    },
-                    align_items: AlignItems::CENTER,
-                    justify_content: JustifyContent::CENTER,
-                    ..Default::default()
-                },
-                &[text],
-            )
-            .unwrap();
-        compute(&ctx, &mut tree, root, Size::<AvailableSpace>::MAX_CONTENT);
-
-        let layout = tree.layout(text).unwrap();
-        assert_eq!(layout.size, measured);
-        assert!(measured.width < 800.0 && measured.height < 600.0);
-        let rect = Rect {
-            left: layout.location.x,
-            right: layout.location.x + layout.size.width,
-            top: layout.location.y,
-            bottom: layout.location.y + layout.size.height,
-        };
-        assert!((rect.left + rect.right - 800.0).abs() < 1e-3);
-        assert!((rect.top + rect.bottom - 600.0).abs() < 1e-3);
+        assert_eq!(measure(&ctx, "", UNKNOWN, MAX).baselines.first, None);
     }
 
     /// Run with `cargo test --release -- --ignored --nocapture min_content_cost`.

@@ -38,9 +38,9 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 |---|---|---|
 | D1 | Rebuild the taffy tree every frame. | No reconciliation. taffy is fast enough. Allocations are reused. |
 | D2 | One taffy tree per frame. Overlays and scroll contents are additional roots in the same tree. | Content-dependent sizing is solved per root in one pass. Only leaves are measured. |
-| D3 | **Identity is a key path.** `scope`, identified groups and roots each push a key; identified nodes add their own. A key is any `Hash + Debug` value: a name, a data key, or both (`("pin", pin_key)`). | Explicit identity without a type per component. Keys stay next to the code that uses them. |
+| D3 | **Identity is a key path.** `scope`, identified groups and roots each push a key; identified nodes add their own. A key is any `Hash + Debug + 'static` value: a name, a data key, or both (`("pin", pin_key)`). | Explicit identity without a type per component. Keys stay next to the code that uses them. |
 | D4 | Dynamic items use stable data keys, never `Vec` indices. | Index IDs reintroduce reorder bugs. |
-| D5 | **A node's egui ID is the hash of its key path.** Uniqueness is checked: debug builds assert that no path occurs twice per frame and report the readable path. Enum-valued keys that share a scope are named (`("lettering", l)`), because `#[derive(Hash)]` does not hash the type. | One identity system for layout, egui widget state and local state. Collisions surface on the first frame (the reference shell hit one). |
+| D5 | **A node's egui ID is the hash of its key path.** Uniqueness is checked: debug builds assert that no path occurs twice per frame and report the readable path. Each segment hashes the key's type name with its value, so keys of different types never collide (`#[derive(Hash)]` alone does not hash the type). | One identity system for layout, egui widget state and local state. Collisions surface on the first frame (the reference shell hit one). |
 | D6 | The builder is **nested closures**: `b.div(tw, \|b\| …)` attaches children to the current parent automatically. | Reads like HTML. Inherited text classes resolve at build time. No `Vec<NodeId>` juggling. |
 | D7 | `b.scope(key, \|b\| …)` pushes a key. `div_id`, `scroll`, `region`, `overlay` and virtual-list rows scope their children under their own key. | Keys only need to be unique among siblings. |
 | D8 | Per-frame build data lives in a private `BuildState` (plus the frame's closures). The only way to get a `Builder` is `LayoutState::build(\|b\| …)`, which returns `Built`. `Built::layout` returns `Placed`, and `Placed::draw` draws. | Module privacy plus typestate enforce the tree's invariants and the build → layout → draw order. |
@@ -88,7 +88,7 @@ The node's egui ID is the running hash of its path (D5): `egui::Id` of the paren
 Rules:
 - **Keys come from data, never from position** (D4). Lists use data keys (`BlockKey`, `RevKey`), not indices.
 - **Uniqueness is required only among siblings in one scope.** The path makes it global. `div_id` and the roots scope their children under their own key, so keys inside a row only need to be unique within that row.
-- **Name enum-valued keys when two enums share a scope.** `#[derive(Hash)]` hashes an enum's variant index and fields, not its type, so `Appearance::Light` and `Lettering::Basic` (both variant 0) collide as bare keys in the same scope. The reference shell hit exactly this. Write `("appearance", a)` and `("lettering", l)`. The same goes for bare integers and newtypes over them: `1u32` and `BlockKey(1)` hash the same.
+- **Keys of different types never collide.** Each segment hashes `(std::any::type_name::<K>(), key)`. `#[derive(Hash)]` alone hashes an enum's variant index and fields, not its type, so without the type name `Appearance::Light` and `Lettering::Basic` (both variant 0) would collide as bare keys in the same scope; the reference shell hit exactly this. The same holds for `1u32` and `BlockKey(1)`. `type_name` (not `TypeId`) keeps IDs stable across runs, so state egui persists survives a restart. A collision that remains is a genuine duplicate: same type, same value, same scope.
 - **Duplicates are detected.** In debug builds the builder asserts that no path occurs twice in a frame, and reports the readable path (built from each key's `Debug` text, e.g. `/"viewport"/Settings/"scroll"/Basic`).
 - **Only identified nodes get keys:** nodes with a draw (interactive or tooltip), anchors, scroll areas, regions, overlays, virtual-list rows. Pure decoration is anonymous (`text`, `glyph`, `rule`, `div`).
 - **Refer to another node with `b.id_of(key)`**, evaluated in the scope where that node is (or will be) declared. Used for overlay anchors and for reading local state at build time (D11). Keep such keys in one place (a constant, or compute the ID once and pass it on) so a typo cannot split them.
@@ -154,14 +154,17 @@ pub struct LayoutState { st: BuildState }
 impl LayoutState {
     /// The ONLY way to obtain a Builder. Clears all per-frame state first.
     /// `'f` covers this borrow and the application data the frame's measure and region closures capture.
-    pub fn build<'f, A>(&'f mut self, base: TextStyle, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> Built<'f, A>;
+    /// The root text style is `with_base_text` if set, else `TextStyle::from_egui(ctx)`.
+    pub fn build<'f, A>(&'f mut self, ctx: &'f egui::Context, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> Built<'f, A>;
+    /// Replaces the egui-derived default root text style for every build.
+    pub fn with_base_text(self, base: TextStyle) -> Self;
 }
 
 pub struct Built<'f, A> { /* &mut BuildState, Frame<'f, A>, base root */ }
 impl<'f, A> Built<'f, A> {
     /// Calls each leaf's measure, runs regions, lays out every root. Drops the measure and
     /// region closures (ending their borrows of application data); keeps the draw closures.
-    pub fn layout(self, ctx: &egui::Context, area: Rect) -> Placed<A>;
+    pub fn layout(self, area: Rect) -> Placed<A>;
 }
 
 pub struct Placed<A> { /* owned: draw lists per root, overlay placements, draw and dismiss closures */ }
@@ -400,7 +403,7 @@ Not expressible on a single node, so do not implement: `space-x-*`, `space-y-*` 
 
 ### 7.4 Inheritance
 
-Text classes (`role`, `text`, `font`, `italic`, `underline`, `tracking`, `uppercase`, `capitalize`, `text_*` alignment, `truncate`, `whitespace_nowrap`) are inherited: `div` merges its text classes over the inherited style for its children. A node's own classes override field by field *(compiled)*. The root's inherited style comes from `LayoutState::build(base, …)`. Overlays inherit from their declaration point.
+Text classes (`role`, `text`, `font`, `italic`, `underline`, `tracking`, `uppercase`, `capitalize`, `text_*` alignment, `truncate`, `whitespace_nowrap`) are inherited: `div` merges its text classes over the inherited style for its children. A node's own classes override field by field *(compiled)*. The root's inherited style is `LayoutState::with_base_text` if set, else `TextStyle::from_egui(ctx)` (egui's `Body` font, text colour and row height, recomputed per build so theme changes apply). Overlays inherit from their declaration point.
 
 The library also applies the node's resolved text style to the leaf's `Ui` (font override and text color ⚠), so egui widgets drawn by the application pick it up.
 
@@ -675,10 +678,9 @@ struct Shell { app: App, layout: LayoutState }
 
 // eframe::App::update, inside a CentralPanel with Frame::NONE
 let area = ui.max_rect();
-let base = self.app.theme.base_text();
 let placed = self.layout
-    .build(base, |b| self.app.build(b))
-    .layout(ui.ctx(), area);
+    .build(ui.ctx(), |b| self.app.build(b))
+    .layout(area);
 placed.draw(&mut self.app, ui);          // each node's draw, then overlay dismissal
 ```
 
