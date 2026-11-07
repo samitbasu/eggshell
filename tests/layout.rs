@@ -110,6 +110,9 @@ fn assert_centre(actual: Rect, expected: Pos2) {
 
 // ---------------------------------------------------------------- M0 exit
 
+/// ```html
+/// <div class="flex size-full items-center justify-center">Hello</div>
+/// ```
 #[test]
 fn hello_is_centred_in_a_flex_container() {
     let placed = place(|b| {
@@ -129,6 +132,11 @@ fn hello_is_centred_in_a_flex_container() {
 
 // ---------------------------------------------------------------- kaolin 1
 
+/// ```html
+/// <div class="flex size-full items-center justify-center bg-white">
+///   <span class="text-[48px]/[60px] text-black">Hello, World!</span>
+/// </div>
+/// ```
 #[test]
 fn kaolin_hello_world() {
     let placed = place(|b: &mut B| {
@@ -156,6 +164,11 @@ fn kaolin_hello_world() {
 
 // ---------------------------------------------------------------- kaolin 2
 
+/// Container classes shared by the direction tests; the test adds the size.
+///
+/// ```html
+/// <div class="flex flex-row items-center justify-center gap-2.5"> ... </div>
+/// ```
 fn direction_and_alignment() -> bullseye::Tw {
     tw().flex()
         .flex_row()
@@ -164,12 +177,24 @@ fn direction_and_alignment() -> bullseye::Tw {
         .gap(2.5)
 }
 
+/// ```html
+/// <div class="w-[40px] h-[20px]"></div>
+/// <!-- x3, widths 40/50/60px -->
+/// ```
 fn three_boxes(b: &mut B<'_, '_>) {
     for width in [40.0, 50.0, 60.0] {
         b.div(tw().w_px(width).h_px(20.0), |_| {});
     }
 }
 
+/// ```html
+/// <div class="flex flex-row items-center justify-center gap-2.5 w-[300px] h-[100px]">
+///   <div class="w-[40px] h-[20px]"></div>
+///   <div class="w-[50px] h-[20px]"></div>
+///   <div class="w-[60px] h-[20px]"></div>
+/// </div>
+/// <!-- variants of the container: flex-row-reverse, flex-col, flex-col-reverse (in place of flex-row) -->
+/// ```
 #[test]
 fn kaolin_direction_and_alignment() {
     let container = || direction_and_alignment().w_px(300.0).h_px(100.0);
@@ -208,6 +233,18 @@ fn kaolin_direction_and_alignment() {
 
 // ---------------------------------------------------------------- kaolin 3
 
+/// The eight sizing modes, as the classes on the child:
+///
+/// ```html
+/// <div class="w-[200px] h-[100px]"></div>
+/// <div class="size-[150px]"></div>
+/// <div></div>
+/// <div class="max-w-[320px]"></div>
+/// <div class="min-w-[120px] max-w-[320px]"></div>
+/// <div class="flex-1"></div>
+/// <div class="grow-[2]"></div>
+/// <div class="flex-1 min-w-[120px] max-w-[480px]"></div>
+/// ```
 fn sizing_modes() -> [bullseye::Tw; 8] {
     [
         tw().w_px(200.0).h_px(100.0),
@@ -222,6 +259,11 @@ fn sizing_modes() -> [bullseye::Tw; 8] {
 }
 
 /// The first child of a 600 x 300 row that does not stretch its children.
+/// ```html
+/// <div class="flex w-[600px] h-[300px] items-start">
+///   <div class="..."><!-- one of the sizing modes, with the content text if any --></div>
+/// </div>
+/// ```
 fn sized_child(style: bullseye::Tw, content: &'static str) -> Rect {
     let placed = place(|b| {
         b.div(tw().flex().w_px(600.0).h_px(300.0).items_start(), |b| {
@@ -237,6 +279,10 @@ fn sized_child(style: bullseye::Tw, content: &'static str) -> Rect {
 
 const LONG: &str = "This is a long text that will automatically wrap to multiple lines of text";
 
+/// ```html
+/// <div class="w-[200px] h-[100px]"></div>
+/// <div class="size-[150px]"></div>
+/// ```
 #[test]
 fn kaolin_sizing_fixed() {
     let [fixed, square, ..] = sizing_modes();
@@ -244,6 +290,9 @@ fn kaolin_sizing_fixed() {
     assert_eq!(sized_child(square, "").size(), vec2(150.0, 150.0));
 }
 
+/// ```html
+/// <div>Fit me</div>
+/// ```
 #[test]
 fn kaolin_sizing_fit() {
     let [_, _, fit, ..] = sizing_modes();
@@ -251,6 +300,9 @@ fn kaolin_sizing_fit() {
     assert_eq!(sized_child(fit, "Fit me").size(), vec2(width, 20.0));
 }
 
+/// ```html
+/// <div class="max-w-[320px]">This is a long text that will automatically wrap to multiple lines of text</div>
+/// ```
 #[test]
 fn kaolin_sizing_fit_with_max_width() {
     let [_, _, _, max, ..] = sizing_modes();
@@ -264,6 +316,9 @@ fn kaolin_sizing_fit_with_max_width() {
     assert_eq!(rect.height() % 20.0, 0.0);
 }
 
+/// ```html
+/// <div class="min-w-[120px] max-w-[320px]">Hi</div>
+/// ```
 #[test]
 fn kaolin_sizing_fit_with_min_and_max_width() {
     let [_, _, _, _, bounded, ..] = sizing_modes();
@@ -274,12 +329,23 @@ fn kaolin_sizing_fit_with_min_and_max_width() {
     assert_eq!(sized_child(bounded, "Hi").width(), 120.0);
 }
 
+/// ```html
+/// <div class="flex w-[600px] h-[300px] items-start">
+///   <div class="flex-1"></div>
+/// </div>
+/// ```
 #[test]
 fn kaolin_sizing_grow() {
     let [.., grow, _, _] = sizing_modes();
     assert_eq!(sized_child(grow, "").width(), 600.0);
 }
 
+/// ```html
+/// <div class="flex w-[600px] h-[300px]">
+///   <div class="grow-[2]"></div>
+///   <div class="grow"></div>
+/// </div>
+/// ```
 #[test]
 fn kaolin_sizing_proportional_grow_factor() {
     let [.., _, double, _] = sizing_modes();
@@ -293,6 +359,11 @@ fn kaolin_sizing_proportional_grow_factor() {
     assert_eq!((divs[1].width(), divs[2].width()), (400.0, 200.0));
 }
 
+/// ```html
+/// <div class="flex w-[600px] h-[300px] items-start">
+///   <div class="flex-1 min-w-[120px] max-w-[480px]"></div>
+/// </div>
+/// ```
 #[test]
 fn kaolin_sizing_grow_with_bounds() {
     let [.., bounded] = sizing_modes();
@@ -301,6 +372,11 @@ fn kaolin_sizing_grow_with_bounds() {
 
 // ---------------------------------------------------------------- kaolin 4
 
+/// ```html
+/// <div class="bg-[#0000ff] rounded-lg p-4 border-2 border-black">
+///   <span class="font-mono text-[24px]/[30px] text-white">Styled text</span>
+/// </div>
+/// ```
 #[test]
 fn kaolin_styling() {
     let placed = place(|b| {
@@ -330,6 +406,13 @@ fn kaolin_styling() {
 
 // ---------------------------------------------------------------- kaolin 5
 
+/// ```html
+/// <div class="flex flex-col size-full">
+///   <div class="w-full h-[60px] bg-[#00008b] text-white">Header</div>
+///   <div class="w-full flex-1 bg-[#dcdcdc]">Main Content</div>
+///   <div class="w-full h-[40px] bg-[#606060] text-white">Footer</div>
+/// </div>
+/// ```
 #[test]
 fn kaolin_responsive() {
     let placed = place(|b: &mut B| {
@@ -371,6 +454,12 @@ fn kaolin_responsive() {
     assert_eq!(texts[2].text().color, Color32::WHITE);
 }
 
+/// ```html
+/// <div class="flex flex-col size-full">
+///   <div class="w-full h-[60px]"></div>
+///   <div class="w-full flex-1"></div>
+/// </div>
+/// ```
 #[test]
 fn kaolin_responsive_follows_the_area() {
     let placed = place_in(
@@ -389,6 +478,12 @@ fn kaolin_responsive_follows_the_area() {
 
 // ---------------------------------------------------------------- kaolin 6
 
+/// ```html
+/// <div class="flex flex-row gap-5 size-full">
+///   <div class="w-[200px] flex-none bg-[#a0a0a0]">Sidebar</div>
+///   <div class="flex-1 bg-white">Main Content</div>
+/// </div>
+/// ```
 #[test]
 fn kaolin_multi_column() {
     let placed = place(|b: &mut B| {
@@ -408,6 +503,9 @@ fn kaolin_multi_column() {
 
 // ---------------------------------------------------------------- kaolin 7
 
+/// ```html
+/// <div class="w-[200px]">This is a long text that will automatically wrap to multiple lines</div>
+/// ```
 #[test]
 fn kaolin_text_wrapping() {
     let text = "This is a long text that will automatically wrap to multiple lines";
@@ -433,6 +531,12 @@ fn kaolin_text_wrapping() {
 
 // ---------------------------------------------------------------- kaolin 8
 
+/// ```html
+/// <div class="flex flex-row size-full">
+///   <div class="grow-[1] bg-[#dcdcdc]"></div>
+///   <div class="grow-[3] bg-[#a0a0a0]"></div>
+/// </div>
+/// ```
 #[test]
 fn kaolin_proportional_growth() {
     let placed = place(|b: &mut B| {
@@ -448,6 +552,9 @@ fn kaolin_proportional_growth() {
 
 // ---------------------------------------------------------------- kaolin 9
 
+/// ```html
+/// <div class="p-2 rounded-md bg-white border border-[#a0a0a0]">label</div>
+/// ```
 fn card(b: &mut B<'_, '_>, label: &str) {
     b.div(
         tw().p(2.0)
@@ -459,6 +566,14 @@ fn card(b: &mut B<'_, '_>, label: &str) {
     );
 }
 
+/// ```html
+/// <div class="flex flex-col gap-2 p-4">
+///   <div class="p-2 bg-[#dcdcdc]">Content 1</div>
+///   <div class="p-2 bg-[#dcdcdc]">
+///     <div class="p-2 rounded-md bg-white border border-[#a0a0a0]">Nested content</div>
+///   </div>
+/// </div>
+/// ```
 #[test]
 fn kaolin_nested() {
     let placed = place(|b: &mut B| {
@@ -484,6 +599,15 @@ fn kaolin_nested() {
 
 // ---------------------------------------------------------------- kaolin 10
 
+/// ```html
+/// <div class="flex flex-col size-full items-center justify-center bg-black text-white">
+///   <div class="flex flex-row gap-1">
+///     <span class="font-mono text-[10px]/[12.5px]">Hello, World!</span>
+///     <img class="size-[16px]" src="bytes://logo">
+///   </div>
+///   Kaolin Renderer
+/// </div>
+/// ```
 #[test]
 fn kaolin_embedded_layout() {
     let logo = egui::ImageSource::Uri("bytes://logo".into());
@@ -706,6 +830,17 @@ fn text_styles(placed: &Placed<()>) -> Vec<TextStyle> {
         .collect()
 }
 
+/// ```html
+/// outside
+/// <div class="text-[#ff0000] italic text-[30px]/[37.5px]">
+///   inherits all
+///   <div class="text-[#00ff00]">
+///     green, still italic and large
+///     <span class="not-italic text-[10px]/[12.5px]">overrides</span>
+///   </div>
+/// </div>
+/// after
+/// ```
 #[test]
 fn text_classes_inherit_down_and_override_field_by_field() {
     let placed = place(|b| {
@@ -742,6 +877,12 @@ fn text_classes_inherit_down_and_override_field_by_field() {
     assert_eq!(styles[3].spec, sized(10.0));
 }
 
+/// ```html
+/// <div class="text-[#ff0000]">
+///   <div data-key="d" class="underline">deep</div>
+/// </div>
+/// <!-- the scope "s" has no markup: it only namespaces keys -->
+/// ```
 #[test]
 fn inheritance_crosses_scopes_and_identified_containers() {
     let placed = place(|b| {
@@ -756,6 +897,10 @@ fn inheritance_crosses_scopes_and_identified_containers() {
     assert_eq!(style.decoration, TextDecoration::Underline);
 }
 
+/// ```html
+/// <span data-key="s" class="text-[#0000ff] uppercase">x</span>
+/// <img class="text-[#ff0000]" src="bytes://i"> <!-- the glyph: an icon coloured by text-* -->
+/// ```
 #[test]
 fn the_nodes_own_classes_apply_to_its_own_content() {
     let placed = place(|b| {
@@ -772,6 +917,10 @@ fn the_nodes_own_classes_apply_to_its_own_content() {
     assert_eq!(nodes[2].text().case, bullseye::TextCase::Normal);
 }
 
+/// ```html
+/// one line
+/// <span class="text-[16px]/[40px]">one line</span>
+/// ```
 #[test]
 fn line_height_comes_from_the_role() {
     let placed = place(|b| {
@@ -793,6 +942,12 @@ fn line_height_comes_from_the_role() {
 
 // ---------------------------------------------------------------- measures
 
+/// ```html
+/// <div class="flex items-start">
+///   wide wide
+///   <span class="uppercase">wide wide</span>
+/// </div>
+/// ```
 #[test]
 fn case_changes_the_measured_width() {
     let placed = place(|b| {
@@ -806,6 +961,10 @@ fn case_changes_the_measured_width() {
     assert_eq!(texts[1].width(), width_of(&BODY, "WIDE WIDE"));
 }
 
+/// ```html
+/// <div class="w-[100px]"><span class="whitespace-nowrap">several words that would wrap</span></div>
+/// <div class="w-[100px]">several words that would wrap</div>
+/// ```
 #[test]
 fn nowrap_text_keeps_one_line_in_a_narrow_box() {
     let text = "several words that would wrap";
@@ -819,6 +978,13 @@ fn nowrap_text_keeps_one_line_in_a_narrow_box() {
     assert!(texts[1].height() > 20.0);
 }
 
+/// ```html
+/// <div class="flex items-start">
+///   <div data-key="note"><!-- sized by the application's measure closure --></div>
+///   <div data-key="fixed"><!-- 30 x 12, from the measure closure --></div>
+///   <div data-key="sized by classes" class="w-[7px] h-[9px]"></div>
+/// </div>
+/// ```
 #[test]
 fn application_leaves_are_measured_with_borrowed_data() {
     let note = String::from("borrowed from the application");
@@ -851,6 +1017,15 @@ fn application_leaves_are_measured_with_borrowed_data() {
     assert_eq!(leaves[2].size(), vec2(7.0, 9.0));
 }
 
+/// ```html
+/// <div class="flex items-start">
+///   <img class="size-[1em]" src="bytes://icon">
+///   <img class="size-[1em] text-[30px]/[37.5px]" src="bytes://icon">
+///   <img class="size-[11px]" src="bytes://icon">
+///   <img data-key="i" class="size-[1em]" src="bytes://icon">
+/// </div>
+/// <!-- bullseye glyphs and icons default to one em; HTML images have no such default, hence size-[1em] -->
+/// ```
 #[test]
 fn glyphs_are_one_em_square_and_classes_override() {
     let src = || egui::ImageSource::Uri("bytes://icon".into());
@@ -878,6 +1053,11 @@ fn glyphs_are_one_em_square_and_classes_override() {
     );
 }
 
+/// ```html
+/// <div class="flex flex-col w-[100px]">
+///   <div class="h-[1px] w-full bg-[#a0a0a0]"></div>
+/// </div>
+/// ```
 #[test]
 fn rules_are_boxes_sized_by_classes() {
     let placed = place(|b| {
@@ -888,12 +1068,23 @@ fn rules_are_boxes_sized_by_classes() {
     assert_eq!(rects(&placed, NodeKind::Rule)[0].size(), vec2(100.0, 1.0));
 }
 
+/// ```html
+/// <canvas class="size-[20px]"></canvas>
+/// ```
 #[test]
 fn paint_nodes_are_laid_out_by_their_classes() {
     let placed = place(|b| b.paint(tw().size_px(20.0), |_, _| {}));
     assert_eq!(rects(&placed, NodeKind::Paint)[0].size(), vec2(20.0, 20.0));
 }
 
+/// ```html
+/// <div class="flex w-[100px]">
+///   <div class="flex-1"></div>
+///   <div class="flex-1"></div>
+///   <div class="flex-1"></div>
+/// </div>
+/// <!-- no pixel snapping: browsers snap layout to device pixels, bullseye does not -->
+/// ```
 #[test]
 fn rounding_is_disabled() {
     let placed = place(|b| {
@@ -910,6 +1101,12 @@ fn rounding_is_disabled() {
     assert!((widths[0] - 100.0 / 3.0).abs() < 1e-3, "{widths:?}");
 }
 
+/// ```html
+/// <div class="flex flex-col w-[500px]">
+///   <div>stretched</div>
+///   <div class="w-fit">fitted</div>
+/// </div>
+/// ```
 #[test]
 fn w_fit_does_not_stretch_in_a_column() {
     let placed = place(|b| {
@@ -925,6 +1122,12 @@ fn w_fit_does_not_stretch_in_a_column() {
 
 // ---------------------------------------------------------------- grid
 
+/// ```html
+/// <div class="grid w-[600px] grid-cols-[48px_minmax(0,1fr)_68px_73.6px_48px_20px]">
+///   <div class="h-[10px]"></div>
+///   <!-- x6 -->
+/// </div>
+/// ```
 #[test]
 fn grid_with_an_arbitrary_track_list() {
     let tracks = [
@@ -952,6 +1155,13 @@ fn grid_with_an_arbitrary_track_list() {
     }
 }
 
+/// ```html
+/// <div class="grid w-[300px] grid-cols-3 gap-0">
+///   <div class="h-[10px] col-span-2"></div>
+///   <div class="h-[10px]"></div>
+///   <div class="h-[10px] col-span-full"></div>
+/// </div>
+/// ```
 #[test]
 fn grid_columns_share_space_evenly_and_spans_cross_them() {
     let placed = place(|b| {
@@ -969,6 +1179,12 @@ fn grid_columns_share_space_evenly_and_spans_cross_them() {
 
 // ---------------------------------------------------------------- positioning
 
+/// ```html
+/// <div class="relative w-[200px] h-[100px]">
+///   <div class="absolute inset-0"></div>
+///   <div class="absolute top-[5px] right-[7px] size-[10px]"></div>
+/// </div>
+/// ```
 #[test]
 fn absolute_children_are_positioned_in_a_relative_parent() {
     let placed = place(|b| {
@@ -985,6 +1201,10 @@ fn absolute_children_are_positioned_in_a_relative_parent() {
     assert_rect(divs[2], [183.0, 5.0, 193.0, 15.0]);
 }
 
+/// ```html
+/// <div class="z-30"></div>
+/// <div class="pointer-events-none"></div> <!-- nearest to bullseye's inert(): no event handling, no equivalent for layout -->
+/// ```
 #[test]
 fn z_is_recorded_without_affecting_layout() {
     let placed = place(|b| {
