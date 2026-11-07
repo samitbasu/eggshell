@@ -13,6 +13,7 @@
 //! The design brief lives in `docs/design.md`.
 
 mod builder;
+mod draw;
 mod key;
 mod measure;
 mod pipeline;

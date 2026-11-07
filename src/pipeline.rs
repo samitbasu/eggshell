@@ -4,14 +4,17 @@
 use std::collections::HashMap;
 
 use egui::{Id, Rect, vec2};
-use taffy::{AvailableSpace, Display, NodeId, Size, Style, TaffyTree, style_helpers::length};
+use taffy::{
+    AvailableSpace, Display, NodeId, Overflow, Point, Position, Size, Style, TaffyTree,
+    style_helpers::length,
+};
 
 use crate::builder::Builder;
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
 use crate::text::TextStyle;
-use crate::tw::BoxPaint;
+use crate::tw::{BoxPaint, Sides};
 
 /// The kind of a node, for diagnostics.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -233,6 +236,7 @@ impl<'f, A> Built<'f, A> {
         let mut nodes = Vec::new();
         let mut prims = Vec::new();
         collect(&mut st.tree, root, area.min, 0, &mut nodes, &mut prims);
+        let draws = draws.into_iter().map(Some).collect();
         let by_id = nodes
             .iter()
             .enumerate()
@@ -241,7 +245,8 @@ impl<'f, A> Built<'f, A> {
         Placed {
             nodes,
             by_id,
-            pending: PendingDraw { prims, draws },
+            prims,
+            draws,
         }
     }
 }
@@ -257,16 +262,36 @@ fn collect(
     let layout = *tree.layout(id).expect("node exists");
     let min = parent_origin + vec2(layout.location.x, layout.location.y);
     let rect = Rect::from_min_size(min, vec2(layout.size.width, layout.size.height));
+    let style = tree.style(id).expect("node exists");
+    let flow = match (style.display, style.position) {
+        (Display::None, _) => Flow::Hidden,
+        (_, Position::Absolute) => Flow::Absolute,
+        _ => Flow::Normal,
+    };
+    let overflow = style.overflow;
+    let edges = |rect: taffy::Rect<f32>| Sides {
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        left: rect.left,
+    };
+    let (border, padding) = (edges(layout.border), edges(layout.padding));
     let node = tree
         .get_node_context_mut(id)
         .expect("every node has a context");
     prims.push(node.prim.take());
+    let index = nodes.len();
     nodes.push(PlacedNode {
         id: node.id,
         path: std::mem::take(&mut node.path),
         kind: node.kind,
         depth,
+        end: index + 1,
         rect,
+        border,
+        padding,
+        overflow,
+        flow,
         paint: node.paint,
         text: node.text.clone(),
         z: node.z,
@@ -276,6 +301,16 @@ fn collect(
     for child in tree.children(id).expect("node exists") {
         collect(tree, child, min, depth + 1, nodes, prims);
     }
+    nodes[index].end = nodes.len();
+}
+
+/// How a node takes part in its parent's layout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Flow {
+    Normal,
+    Absolute,
+    /// `display: none`: neither laid out nor drawn.
+    Hidden,
 }
 
 /// One node of a laid-out frame.
@@ -285,12 +320,18 @@ pub struct PlacedNode {
     path: String,
     kind: NodeKind,
     depth: usize,
+    /// One past the last descendant's index.
+    pub(crate) end: usize,
     rect: Rect,
+    pub(crate) border: Sides<f32>,
+    pub(crate) padding: Sides<f32>,
+    pub(crate) overflow: Point<Overflow>,
+    pub(crate) flow: Flow,
     paint: BoxPaint,
     text: TextStyle,
     z: i16,
     inert: bool,
-    draw: Option<usize>,
+    pub(crate) draw: Option<usize>,
 }
 
 impl PlacedNode {
@@ -345,19 +386,13 @@ impl PlacedNode {
     }
 }
 
-#[expect(dead_code, reason = "consumed by Placed::draw in M2")]
-struct PendingDraw<A> {
-    prims: Vec<Option<Prim>>,
-    draws: Vec<DrawFn<A>>,
-}
-
 /// A laid-out frame. Nodes are in pre-order: the root first, then each
 /// node followed by its descendants.
 pub struct Placed<A> {
-    nodes: Vec<PlacedNode>,
+    pub(crate) nodes: Vec<PlacedNode>,
     by_id: HashMap<Id, usize>,
-    #[expect(dead_code, reason = "consumed by Placed::draw in M2")]
-    pending: PendingDraw<A>,
+    pub(crate) prims: Vec<Option<Prim>>,
+    pub(crate) draws: Vec<Option<DrawFn<A>>>,
 }
 
 impl<A> Placed<A> {

@@ -10,37 +10,17 @@ use bullseye::{
     Builder, FontStyle, Icon, LayoutState, NodeKind, Placed, TextDecoration, TextSpec, TextStyle,
     Track, none, tw,
 };
-use egui::epaint::text::LayoutJob;
-use egui::{Color32, Context, FontFamily, Id, Pos2, Rect, pos2, vec2};
 
-type B<'b, 'f> = Builder<'b, 'f, ()>;
+#[path = "../examples/kaolin/layouts.rs"]
+mod layouts;
+use egui::epaint::text::LayoutJob;
+use egui::{Color32, Context, Id, Pos2, Rect, pos2, vec2};
+use layouts::{BODY, LONG, WRAPPING, mono, sized};
 
 const AREA: Rect = Rect {
     min: pos2(0.0, 0.0),
     max: pos2(800.0, 600.0),
 };
-
-const BODY: TextSpec = TextSpec {
-    size: 16.0,
-    line_height: 20.0,
-    family: FontFamily::Proportional,
-};
-
-fn sized(size: f32) -> TextSpec {
-    TextSpec {
-        size,
-        line_height: size * 1.25,
-        family: FontFamily::Proportional,
-    }
-}
-
-fn mono(size: f32) -> TextSpec {
-    TextSpec {
-        size,
-        line_height: size * 1.25,
-        family: FontFamily::Monospace,
-    }
-}
 
 fn base() -> TextStyle {
     TextStyle::new(BODY, Color32::BLACK)
@@ -136,25 +116,10 @@ fn hello_is_centred_in_a_flex_container() {
 
 // ---------------------------------------------------------------- kaolin 1
 
-/// ```html
-/// <div class="flex size-full items-center justify-center bg-white">
-///   <span class="text-[48px]/[60px] text-black">Hello, World!</span>
-/// </div>
-/// ```
+/// See [`layouts::hello_world`].
 #[test]
 fn kaolin_hello_world() {
-    let placed = place(|b: &mut B| {
-        b.div(
-            tw().flex()
-                .size_full()
-                .items_center()
-                .justify_center()
-                .bg(Color32::WHITE),
-            |b| {
-                b.text(tw().role(sized(48.0)).text(Color32::BLACK), "Hello, World!");
-            },
-        );
-    });
+    let placed = place(layouts::hello_world);
     let div = rects(&placed, NodeKind::Div)[0];
     assert_rect(div, [0.0, 0.0, 800.0, 600.0]);
     let text = rects(&placed, NodeKind::Text)[0];
@@ -168,29 +133,6 @@ fn kaolin_hello_world() {
 
 // ---------------------------------------------------------------- kaolin 2
 
-/// Container classes shared by the direction tests; the test adds the size.
-///
-/// ```html
-/// <div class="flex flex-row items-center justify-center gap-2.5"> ... </div>
-/// ```
-fn direction_and_alignment() -> bullseye::Tw {
-    tw().flex()
-        .flex_row()
-        .items_center()
-        .justify_center()
-        .gap(2.5)
-}
-
-/// ```html
-/// <div class="w-[40px] h-[20px]"></div>
-/// <!-- x3, widths 40/50/60px -->
-/// ```
-fn three_boxes(b: &mut B<'_, '_>) {
-    for width in [40.0, 50.0, 60.0] {
-        b.div(tw().w_px(width).h_px(20.0), |_| {});
-    }
-}
-
 /// ```html
 /// <div class="flex flex-row items-center justify-center gap-2.5 w-[300px] h-[100px]">
 ///   <div class="w-[40px] h-[20px]"></div>
@@ -201,14 +143,14 @@ fn three_boxes(b: &mut B<'_, '_>) {
 /// ```
 #[test]
 fn kaolin_direction_and_alignment() {
-    let container = || direction_and_alignment().w_px(300.0).h_px(100.0);
+    let container = || layouts::direction_and_alignment().w_px(300.0).h_px(100.0);
     let rects_of = |tw: bullseye::Tw| {
-        let placed = place(|b| b.div(tw, |b| three_boxes(b)));
+        let placed = place(|b| b.div(tw, layouts::three_boxes));
         rects(&placed, NodeKind::Div)[1..].to_vec()
     };
 
     assert_eq!(
-        direction_and_alignment().style().gap.width,
+        layouts::direction_and_alignment().style().gap.width,
         taffy::LengthPercentage::length(10.0)
     );
 
@@ -237,31 +179,6 @@ fn kaolin_direction_and_alignment() {
 
 // ---------------------------------------------------------------- kaolin 3
 
-/// The eight sizing modes, as the classes on the child:
-///
-/// ```html
-/// <div class="w-[200px] h-[100px]"></div>
-/// <div class="size-[150px]"></div>
-/// <div></div>
-/// <div class="max-w-[320px]"></div>
-/// <div class="min-w-[120px] max-w-[320px]"></div>
-/// <div class="flex-1"></div>
-/// <div class="grow-[2]"></div>
-/// <div class="flex-1 min-w-[120px] max-w-[480px]"></div>
-/// ```
-fn sizing_modes() -> [bullseye::Tw; 8] {
-    [
-        tw().w_px(200.0).h_px(100.0),
-        tw().size_px(150.0),
-        tw(),
-        tw().max_w_px(320.0),
-        tw().min_w_px(120.0).max_w_px(320.0),
-        tw().flex_1(),
-        tw().grow_by(2.0),
-        tw().flex_1().min_w_px(120.0).max_w_px(480.0),
-    ]
-}
-
 /// The first child of a 600 x 300 row that does not stretch its children.
 /// ```html
 /// <div class="flex w-[600px] h-[300px] items-start">
@@ -281,15 +198,13 @@ fn sized_child(style: bullseye::Tw, content: &'static str) -> Rect {
     rects(&placed, NodeKind::Div)[1]
 }
 
-const LONG: &str = "This is a long text that will automatically wrap to multiple lines of text";
-
 /// ```html
 /// <div class="w-[200px] h-[100px]"></div>
 /// <div class="size-[150px]"></div>
 /// ```
 #[test]
 fn kaolin_sizing_fixed() {
-    let [fixed, square, ..] = sizing_modes();
+    let [fixed, square, ..] = layouts::sizing_modes();
     assert_eq!(sized_child(fixed, "").size(), vec2(200.0, 100.0));
     assert_eq!(sized_child(square, "").size(), vec2(150.0, 150.0));
 }
@@ -299,7 +214,7 @@ fn kaolin_sizing_fixed() {
 /// ```
 #[test]
 fn kaolin_sizing_fit() {
-    let [_, _, fit, ..] = sizing_modes();
+    let [_, _, fit, ..] = layouts::sizing_modes();
     let width = width_of(&BODY, "Fit me");
     assert_eq!(sized_child(fit, "Fit me").size(), vec2(width, 20.0));
 }
@@ -309,7 +224,7 @@ fn kaolin_sizing_fit() {
 /// ```
 #[test]
 fn kaolin_sizing_fit_with_max_width() {
-    let [_, _, _, max, ..] = sizing_modes();
+    let [_, _, _, max, ..] = layouts::sizing_modes();
     assert!(
         width_of(&BODY, LONG) > 320.0,
         "precondition: the text overflows"
@@ -325,7 +240,7 @@ fn kaolin_sizing_fit_with_max_width() {
 /// ```
 #[test]
 fn kaolin_sizing_fit_with_min_and_max_width() {
-    let [_, _, _, _, bounded, ..] = sizing_modes();
+    let [_, _, _, _, bounded, ..] = layouts::sizing_modes();
     assert!(
         width_of(&BODY, "Hi") < 120.0,
         "precondition: the text is narrower than the minimum"
@@ -340,7 +255,7 @@ fn kaolin_sizing_fit_with_min_and_max_width() {
 /// ```
 #[test]
 fn kaolin_sizing_grow() {
-    let [.., grow, _, _] = sizing_modes();
+    let [.., grow, _, _] = layouts::sizing_modes();
     assert_eq!(sized_child(grow, "").width(), 600.0);
 }
 
@@ -352,7 +267,7 @@ fn kaolin_sizing_grow() {
 /// ```
 #[test]
 fn kaolin_sizing_proportional_grow_factor() {
-    let [.., _, double, _] = sizing_modes();
+    let [.., _, double, _] = layouts::sizing_modes();
     let placed = place(|b| {
         b.div(tw().flex().w_px(600.0).h_px(300.0), |b| {
             b.div(double, |_| {});
@@ -370,31 +285,16 @@ fn kaolin_sizing_proportional_grow_factor() {
 /// ```
 #[test]
 fn kaolin_sizing_grow_with_bounds() {
-    let [.., bounded] = sizing_modes();
+    let [.., bounded] = layouts::sizing_modes();
     assert_eq!(sized_child(bounded, "").width(), 480.0);
 }
 
 // ---------------------------------------------------------------- kaolin 4
 
-/// ```html
-/// <div class="bg-[#0000ff] rounded-lg p-4 border-2 border-black">
-///   <span class="font-mono text-[24px]/[30px] text-white">Styled text</span>
-/// </div>
-/// ```
+/// See [`layouts::styling`].
 #[test]
 fn kaolin_styling() {
-    let placed = place(|b| {
-        b.div(
-            tw().bg(Color32::BLUE)
-                .rounded_lg()
-                .p(4.0)
-                .border(2.0)
-                .border_color(Color32::BLACK),
-            |b| {
-                b.text(tw().role(mono(24.0)).text(Color32::WHITE), "Styled text");
-            },
-        );
-    });
+    let placed = place(layouts::styling);
     let width = width_of(&mono(24.0), "Styled text");
     assert!(width + 36.0 < 800.0, "precondition: the text fits");
     let styled = rects(&placed, NodeKind::Div)[0];
@@ -410,36 +310,10 @@ fn kaolin_styling() {
 
 // ---------------------------------------------------------------- kaolin 5
 
-/// ```html
-/// <div class="flex flex-col size-full">
-///   <div class="w-full h-[60px] bg-[#00008b] text-white">Header</div>
-///   <div class="w-full flex-1 bg-[#dcdcdc]">Main Content</div>
-///   <div class="w-full h-[40px] bg-[#606060] text-white">Footer</div>
-/// </div>
-/// ```
+/// See [`layouts::responsive`].
 #[test]
 fn kaolin_responsive() {
-    let placed = place(|b: &mut B| {
-        b.div(tw().flex().flex_col().size_full(), |b| {
-            b.div(
-                tw().w_full()
-                    .h_px(60.0)
-                    .bg(Color32::DARK_BLUE)
-                    .text(Color32::WHITE),
-                |b| b.text(tw(), "Header"),
-            );
-            b.div(tw().w_full().flex_1().bg(Color32::LIGHT_GRAY), |b| {
-                b.text(tw(), "Main Content")
-            });
-            b.div(
-                tw().w_full()
-                    .h_px(40.0)
-                    .bg(Color32::DARK_GRAY)
-                    .text(Color32::WHITE),
-                |b| b.text(tw(), "Footer"),
-            );
-        });
-    });
+    let placed = place(layouts::responsive);
     let divs = rects(&placed, NodeKind::Div);
     assert_rect(divs[1], [0.0, 0.0, 800.0, 60.0]);
     assert_rect(divs[2], [0.0, 60.0, 800.0, 560.0]);
@@ -482,24 +356,10 @@ fn kaolin_responsive_follows_the_area() {
 
 // ---------------------------------------------------------------- kaolin 6
 
-/// ```html
-/// <div class="flex flex-row gap-5 size-full">
-///   <div class="w-[200px] flex-none bg-[#a0a0a0]">Sidebar</div>
-///   <div class="flex-1 bg-white">Main Content</div>
-/// </div>
-/// ```
+/// See [`layouts::multi_column`].
 #[test]
 fn kaolin_multi_column() {
-    let placed = place(|b: &mut B| {
-        b.div(tw().flex().flex_row().gap(5.0).size_full(), |b| {
-            b.div(tw().w_px(200.0).flex_none().bg(Color32::GRAY), |b| {
-                b.text(tw(), "Sidebar")
-            });
-            b.div(tw().flex_1().bg(Color32::WHITE), |b| {
-                b.text(tw(), "Main Content")
-            });
-        });
-    });
+    let placed = place(layouts::multi_column);
     let divs = rects(&placed, NodeKind::Div);
     assert_rect(divs[1], [0.0, 0.0, 200.0, 600.0]);
     assert_rect(divs[2], [220.0, 0.0, 800.0, 600.0]);
@@ -507,19 +367,14 @@ fn kaolin_multi_column() {
 
 // ---------------------------------------------------------------- kaolin 7
 
-/// ```html
-/// <div class="w-[200px]">This is a long text that will automatically wrap to multiple lines</div>
-/// ```
+/// See [`layouts::text_wrapping`].
 #[test]
 fn kaolin_text_wrapping() {
-    let text = "This is a long text that will automatically wrap to multiple lines";
     assert!(
-        width_of(&BODY, text) > 200.0,
+        width_of(&BODY, WRAPPING) > 200.0,
         "precondition: the text does not fit one line"
     );
-    let placed = place(|b: &mut B| {
-        b.div(tw().w_px(200.0), |b| b.text(tw(), text));
-    });
+    let placed = place(layouts::text_wrapping);
     let container = rects(&placed, NodeKind::Div)[0];
     let wrapped = rects(&placed, NodeKind::Text)[0];
     assert_eq!(container.width(), 200.0);
@@ -535,20 +390,10 @@ fn kaolin_text_wrapping() {
 
 // ---------------------------------------------------------------- kaolin 8
 
-/// ```html
-/// <div class="flex flex-row size-full">
-///   <div class="grow-[1] bg-[#dcdcdc]"></div>
-///   <div class="grow-[3] bg-[#a0a0a0]"></div>
-/// </div>
-/// ```
+/// See [`layouts::proportional_growth`].
 #[test]
 fn kaolin_proportional_growth() {
-    let placed = place(|b: &mut B| {
-        b.div(tw().flex().flex_row().size_full(), |b| {
-            b.div(tw().grow_by(1.0).bg(Color32::LIGHT_GRAY), |_| {});
-            b.div(tw().grow_by(3.0).bg(Color32::GRAY), |_| {});
-        });
-    });
+    let placed = place(layouts::proportional_growth);
     let divs = rects(&placed, NodeKind::Div);
     assert_rect(divs[1], [0.0, 0.0, 200.0, 600.0]);
     assert_rect(divs[2], [200.0, 0.0, 800.0, 600.0]);
@@ -556,40 +401,10 @@ fn kaolin_proportional_growth() {
 
 // ---------------------------------------------------------------- kaolin 9
 
-/// ```html
-/// <div class="p-2 rounded-md bg-white border border-[#a0a0a0]">label</div>
-/// ```
-fn card(b: &mut B<'_, '_>, label: &str) {
-    b.div(
-        tw().p(2.0)
-            .rounded_md()
-            .bg(Color32::WHITE)
-            .border(1.0)
-            .border_color(Color32::GRAY),
-        |b| b.text(tw(), label),
-    );
-}
-
-/// ```html
-/// <div class="flex flex-col gap-2 p-4">
-///   <div class="p-2 bg-[#dcdcdc]">Content 1</div>
-///   <div class="p-2 bg-[#dcdcdc]">
-///     <div class="p-2 rounded-md bg-white border border-[#a0a0a0]">Nested content</div>
-///   </div>
-/// </div>
-/// ```
+/// See [`layouts::nested`].
 #[test]
 fn kaolin_nested() {
-    let placed = place(|b: &mut B| {
-        b.div(tw().flex().flex_col().gap(2.0).p(4.0), |b| {
-            b.div(tw().p(2.0).bg(Color32::LIGHT_GRAY), |b| {
-                b.text(tw(), "Content 1")
-            });
-            b.div(tw().p(2.0).bg(Color32::LIGHT_GRAY), |b| {
-                card(b, "Nested content");
-            });
-        });
-    });
+    let placed = place(layouts::nested);
     let divs = rects(&placed, NodeKind::Div);
     assert_eq!(divs.len(), 4, "outer, two inner, one card");
     assert_rect(divs[0], [0.0, 0.0, 800.0, 16.0 + 36.0 + 8.0 + 54.0 + 16.0]);
@@ -603,36 +418,11 @@ fn kaolin_nested() {
 
 // ---------------------------------------------------------------- kaolin 10
 
-/// ```html
-/// <div class="flex flex-col size-full items-center justify-center bg-black text-white">
-///   <div class="flex flex-row gap-1">
-///     <span class="font-mono text-[10px]/[12.5px]">Hello, World!</span>
-///     <img class="size-[16px]" src="bytes://logo">
-///   </div>
-///   Kaolin Renderer
-/// </div>
-/// ```
+/// See [`layouts::embedded_layout`].
 #[test]
 fn kaolin_embedded_layout() {
     let logo = egui::ImageSource::Uri("bytes://logo".into());
-    let placed = place(move |b: &mut B| {
-        b.div(
-            tw().flex()
-                .flex_col()
-                .size_full()
-                .items_center()
-                .justify_center()
-                .bg(Color32::BLACK)
-                .text(Color32::WHITE),
-            |b| {
-                b.div(tw().flex().flex_row().gap(1.0), |b| {
-                    b.text(tw().role(mono(10.0)), "Hello, World!");
-                    b.image(tw().size_px(16.0), logo);
-                });
-                b.text(tw(), "Kaolin Renderer");
-            },
-        );
-    });
+    let placed = place(move |b| layouts::embedded_layout(b, logo));
     let hello = width_of(&mono(10.0), "Hello, World!");
     let kaolin = width_of(&BODY, "Kaolin Renderer");
     let row_width = hello + 4.0 + 16.0;
