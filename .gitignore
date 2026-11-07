@@ -23,3 +23,7 @@ rustc-ice-*.txt
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 lcov.info
+
+# Failed snapshot checks
+tests/snapshots/**/*.new.png
+tests/snapshots/**/*.diff.png

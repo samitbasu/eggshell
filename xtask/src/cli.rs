@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use crate::examples;
+use crate::snapshots::{self, Mode};
 use crate::steps::{self, FmtMode, Profile, ReportFormat, Step};
 
 /// Project automation for bullseye.
@@ -43,6 +44,18 @@ pub enum Command {
         #[arg(long)]
         release: bool,
     },
+    /// Check the golden images against a fresh render, with Mesa lavapipe
+    Snapshots {
+        /// Regenerate the goldens and list the added, modified and removed ones
+        #[arg(long, conflicts_with = "clean")]
+        update: bool,
+        /// Delete the stray .new.png and .diff.png files of failed checks
+        #[arg(long, conflicts_with = "filter")]
+        clean: bool,
+        /// Only run the snapshot tests whose name contains this
+        #[arg(long)]
+        filter: Option<String>,
+    },
 }
 
 impl Command {
@@ -77,6 +90,18 @@ impl Command {
                     Profile::Debug
                 };
                 Step::run(&steps::example(&name, profile))
+            }
+            Command::Snapshots {
+                update,
+                clean,
+                filter,
+            } => {
+                let mode = match (clean, update) {
+                    (true, _) => Mode::Clean,
+                    (false, true) => Mode::Update,
+                    (false, false) => Mode::Check,
+                };
+                snapshots::run(&snapshots::Plan { mode, filter })
             }
         }
     }
@@ -150,6 +175,30 @@ mod tests {
         };
         assert_eq!(name.as_deref(), Some("hello"));
         assert!(release);
+    }
+
+    #[test]
+    fn snapshots_parses_its_modes_and_rejects_conflicts() {
+        let Command::Snapshots {
+            update,
+            clean,
+            filter,
+        } = parse(&["snapshots", "--update", "--filter", "nested"])
+        else {
+            panic!("expected snapshots")
+        };
+        assert!(update && !clean);
+        assert_eq!(filter.as_deref(), Some("nested"));
+        assert!(matches!(
+            parse(&["snapshots", "--clean"]),
+            Command::Snapshots {
+                clean: true,
+                update: false,
+                filter: None
+            }
+        ));
+        assert!(Cli::try_parse_from(["xtask", "snapshots", "--update", "--clean"]).is_err());
+        assert!(Cli::try_parse_from(["xtask", "snapshots", "--clean", "--filter", "x"]).is_err());
     }
 
     #[test]

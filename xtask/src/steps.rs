@@ -11,7 +11,7 @@ use crate::process;
 pub struct Step {
     pub name: &'static str,
     pub args: Vec<String>,
-    pub env: Vec<(&'static str, &'static str)>,
+    pub env: Vec<(&'static str, String)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,7 +33,7 @@ pub enum ReportFormat {
 }
 
 impl Step {
-    fn cargo(name: &'static str, args: &[&str]) -> Self {
+    pub fn cargo(name: &'static str, args: &[&str]) -> Self {
         Self {
             name,
             args: args.iter().map(|arg| (*arg).to_owned()).collect(),
@@ -41,8 +41,8 @@ impl Step {
         }
     }
 
-    fn with_env(mut self, key: &'static str, value: &'static str) -> Self {
-        self.env.push((key, value));
+    pub fn with_env(mut self, key: &'static str, value: impl Into<String>) -> Self {
+        self.env.push((key, value.into()));
         self
     }
 
@@ -89,7 +89,11 @@ pub fn example(name: &str, profile: Profile) -> Step {
     step
 }
 
-/// What CI runs, in order. The snapshot check (#5) is appended here.
+/// What CI runs, in order.
+///
+/// `cargo xtask snapshots` is deliberately not here: it needs Mesa lavapipe
+/// on the runner, which is a separate decision. Until then the snapshot check
+/// is local, and the PR template asks for it.
 pub fn ci_steps() -> Vec<Step> {
     vec![
         fmt(FmtMode::Check),

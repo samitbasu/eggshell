@@ -3,7 +3,10 @@
 mod cli;
 mod examples;
 mod process;
+mod snapshots;
 mod steps;
+#[cfg(test)]
+mod testing;
 
 use std::process::ExitCode;
 

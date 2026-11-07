@@ -2,7 +2,7 @@
 //! ends on drop and on SIGINT/SIGTERM, so nothing outlives it.
 
 use std::path::{Path, PathBuf};
-use std::process::ExitStatus;
+use std::process::{ExitStatus, Output};
 use std::sync::{Mutex, PoisonError};
 
 use anyhow::{Context, Result};
@@ -25,12 +25,26 @@ pub fn install_signal_handler() -> Result<()> {
     .context("installing the SIGINT/SIGTERM handler")
 }
 
-pub fn run_cargo(args: &[String], env: &[(&str, &str)]) -> Result<ExitStatus> {
+pub fn run_cargo(args: &[String], env: &[(&'static str, String)]) -> Result<ExitStatus> {
     let mut expression = duct::cmd("cargo", args).dir(workspace_root());
     for (key, value) in env {
         expression = expression.env(key, value);
     }
-    run(expression)
+    Ok(run(expression)?.status)
+}
+
+/// Runs `git` in the workspace root and returns its standard output.
+pub fn git(args: &[&str]) -> Result<String> {
+    let output = run(duct::cmd("git", args)
+        .dir(workspace_root())
+        .stdout_capture())?;
+    anyhow::ensure!(
+        output.status.success(),
+        "`git {}` failed ({})",
+        args.join(" "),
+        output.status
+    );
+    String::from_utf8(output.stdout).context("git printed non-UTF-8 output")
 }
 
 /// Whether `cargo <name>` resolves to an installed subcommand.
@@ -38,10 +52,10 @@ pub fn cargo_subcommand_exists(name: &str) -> Result<bool> {
     let probe = duct::cmd("cargo", [name, "--version"])
         .stdout_null()
         .stderr_null();
-    Ok(run(probe)?.success())
+    Ok(run(probe)?.status.success())
 }
 
-fn run(expression: Expression) -> Result<ExitStatus> {
+fn run(expression: Expression) -> Result<Output> {
     let handle = expression
         .before_spawn(|command| {
             put_in_own_process_group(command);
@@ -52,7 +66,7 @@ fn run(expression: Expression) -> Result<ExitStatus> {
         .context("starting subprocess")?;
     let _group = handle.pids().first().map(|&pid| GroupGuard::register(pid));
     let output = handle.wait().context("waiting for subprocess")?;
-    Ok(output.status)
+    Ok(output.clone())
 }
 
 /// Owns a child's process group (its pgid is the child's pid).

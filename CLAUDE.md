@@ -152,3 +152,14 @@ copying this file elsewhere.
 - `cargo xtask ci` is the single definition of "CI passes". Also available:
   `fmt [--check]`, `test [-- ARGS]`, `coverage [--lcov]`,
   `example [NAME] [--release]`. See `cargo xtask --help`.
+- Golden images (`tests/snapshots/`, rendered by `tests/snapshots.rs` behind the
+  `snapshots` cargo feature) are checked with `cargo xtask snapshots`, which
+  forces Mesa lavapipe so every machine renders the same pixels. It is not in
+  `cargo xtask ci` yet. After a change that can move pixels, run it; on a
+  mismatch open the `.diff.png` files it prints. If the change is intended,
+  `cargo xtask snapshots --update` regenerates the goldens and lists the
+  added, modified and removed ones: look at each image (the PNG diff is the
+  review, as in a code diff) before committing, and say in the commit message
+  what changed and why. Never update goldens to silence a failure.
+  `--filter NAME` limits the run; `--clean` deletes stray `.new.png` and
+  `.diff.png` files.
