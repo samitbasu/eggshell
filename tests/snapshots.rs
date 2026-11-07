@@ -3,6 +3,11 @@
 //! Run them with `cargo xtask snapshots`, which selects a deterministic
 //! software renderer; see the README for reviewing and updating goldens.
 
+#![allow(
+    clippy::duplicate_mod,
+    reason = "each example includes the shared examples/common module"
+)]
+
 use std::sync::Once;
 
 use bullseye::{Builder, LayoutState, TextStyle, tw};
@@ -11,6 +16,34 @@ use egui_kittest::Harness;
 
 #[path = "../examples/kaolin/layouts.rs"]
 mod layouts;
+
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/custom_background.rs"]
+mod custom_background;
+
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flex.rs"]
+mod flex;
+
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flex_grid.rs"]
+mod flex_grid;
+
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flex_wrap.rs"]
+mod flex_wrap;
+
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flexbox_guide.rs"]
+mod flexbox_guide;
+
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/grow.rs"]
+mod grow;
+
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/holy_grail.rs"]
+mod holy_grail;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 
@@ -177,5 +210,84 @@ fn chrome_stacked_by_z() {
                 },
             );
         }),
+    );
+}
+
+#[test]
+fn port_flex() {
+    snapshot("port_flex", plain(|b| flex::layout(b, &())));
+}
+
+#[test]
+fn port_flex_wrap() {
+    snapshot(
+        "port_flex_wrap",
+        plain(|b| flex_wrap::layout(b, &flex_wrap::State::default())),
+    );
+}
+
+#[test]
+fn port_flex_grid() {
+    snapshot(
+        "port_flex_grid",
+        plain(|b| flex_grid::layout(b, &flex_grid::State::default())),
+    );
+}
+
+#[test]
+fn port_grow() {
+    snapshot(
+        "port_grow",
+        plain(|b| grow::layout(b, &grow::State::default())),
+    );
+}
+
+#[test]
+fn port_holy_grail() {
+    snapshot("port_holy_grail", plain(|b| holy_grail::layout(b, &())));
+}
+
+#[test]
+fn port_custom_background() {
+    snapshot(
+        "port_custom_background",
+        plain(|b| custom_background::layout(b, &custom_background::State::default())),
+    );
+}
+
+#[test]
+fn flexbox_guide_centering() {
+    snapshot(
+        "flexbox_guide_centering",
+        plain(|b| flexbox_guide::layout(b, &flexbox_guide::State::showing("Perfect centering", 0))),
+    );
+}
+
+#[test]
+fn flexbox_guide_six_items() {
+    snapshot(
+        "flexbox_guide_six_items",
+        plain(|b| {
+            flexbox_guide::layout(
+                b,
+                &flexbox_guide::State::showing("Six items, evenly distributed", 0),
+            )
+        }),
+    );
+}
+
+#[test]
+fn flexbox_guide_align_content_stretch() {
+    snapshot(
+        "flexbox_guide_align_content_stretch",
+        plain(|b| flexbox_guide::layout(b, &flexbox_guide::State::showing("align-content", 6))),
+    );
+}
+
+#[test]
+fn flexbox_guide_justify_space_evenly() {
+    snapshot(
+        "flexbox_guide_justify_space_evenly",
+        plain(|b| flexbox_guide::layout(b, &flexbox_guide::State::showing("justify-content", 5))),
     );
 }

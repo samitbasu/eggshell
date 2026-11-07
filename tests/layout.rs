@@ -4,6 +4,11 @@
 //! preconditions (the text is wide enough to wrap, the siblings differ) so it
 //! cannot silently stop testing anything.
 
+#![allow(
+    clippy::duplicate_mod,
+    reason = "each example includes the shared examples/common module"
+)]
+
 use std::sync::OnceLock;
 
 use bullseye::{
@@ -11,6 +16,27 @@ use bullseye::{
     Track, none, tw,
 };
 
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/custom_background.rs"]
+mod custom_background;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flex.rs"]
+mod flex;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flex_grid.rs"]
+mod flex_grid;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flex_wrap.rs"]
+mod flex_wrap;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flexbox_guide.rs"]
+mod flexbox_guide;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/grow.rs"]
+mod grow;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/holy_grail.rs"]
+mod holy_grail;
 #[path = "../examples/kaolin/layouts.rs"]
 mod layouts;
 use egui::epaint::text::LayoutJob;
@@ -1057,4 +1083,239 @@ fn the_default_follows_the_theme() {
     ctx.set_visuals(egui::Visuals::light());
     let light = root_text(&mut state, &ctx).color;
     assert_ne!(dark, light);
+}
+
+fn guide(title: &str, choice: usize) -> Placed<()> {
+    let state = flexbox_guide::State::showing(title, choice);
+    place(|b| flexbox_guide::layout(b, &state))
+}
+
+fn divs(placed: &Placed<()>) -> Vec<Rect> {
+    rects(placed, NodeKind::Div)
+}
+
+/// Tolerance for sums of fractional lengths.
+#[track_caller]
+fn assert_close(actual: f32, expected: f32) {
+    assert!(
+        (actual - expected).abs() < 1e-2,
+        "expected {expected}, got {actual}"
+    );
+}
+
+/// The padding and border of the guide's nav bars: 8 and 1 points.
+const BAR_INSET: f32 = 9.0;
+
+#[test]
+fn guide_auto_margins_centre_the_child_on_both_axes() {
+    let divs = divs(&guide("Perfect centering", 0));
+    let (bar, child) = (divs[1], divs[2]);
+    assert_eq!(bar.height(), 300.0);
+    assert!(child.width() < bar.width() / 2.0, "room to centre in");
+    assert_centre(child, bar.center());
+}
+
+#[test]
+fn guide_six_items_distribute_evenly_and_wrap_with_the_window() {
+    let state = flexbox_guide::State::showing("Six items, evenly distributed", 0);
+    let at_width = |width: f32| {
+        let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 600.0));
+        let divs = divs(&place_in(area, |b| flexbox_guide::layout(b, &state)));
+        (divs[1], divs[2..8].to_vec())
+    };
+
+    let (bar, items) = at_width(800.0);
+    assert!(items.iter().all(|item| item.min.y == items[0].min.y));
+    let between = items[1].min.x - items[0].max.x;
+    let edge = items[0].min.x - (bar.min.x + BAR_INSET);
+    assert!(edge > 1.0, "free space to distribute");
+    assert_close(between - 8.0, 2.0 * edge);
+
+    let (bar, items) = at_width(400.0);
+    assert!(items.iter().any(|item| item.min.y > items[0].min.y));
+    assert!(items.iter().all(|item| bar.contains_rect(*item)));
+}
+
+#[test]
+fn guide_space_evenly_leaves_equal_space_at_the_ends_and_between() {
+    let divs = divs(&guide("justify-content", 5));
+    let (bar, items) = (divs[1], &divs[2..7]);
+    let between = items[1].min.x - items[0].max.x;
+    assert!(between > 9.0, "free space to distribute");
+    assert_close(items[0].min.x - (bar.min.x + BAR_INSET), between - 8.0);
+    assert_close(bar.max.x - BAR_INSET - items[4].max.x, between - 8.0);
+}
+
+#[test]
+fn guide_align_content_stretch_grows_the_lines_to_fill_the_bar() {
+    let packed = divs(&guide("align-content", 0));
+    let stretched = divs(&guide("align-content", 6));
+    let (bar, items) = (stretched[1], &stretched[2..7]);
+    assert!(items[4].min.y > items[0].max.y, "two lines");
+    assert!(items[0].height() > packed[2].height() + 20.0);
+    assert_close(items[0].min.y, bar.min.y + BAR_INSET);
+    assert_close(items[4].max.y, bar.max.y - BAR_INSET);
+    assert!(packed[6].max.y < packed[1].max.y - BAR_INSET - 20.0);
+}
+
+#[test]
+fn guide_shrink_zero_keeps_its_width_while_the_others_shrink() {
+    let all = divs(&guide("flex-shrink", 0));
+    let first = divs(&guide("flex-shrink", 1));
+    assert!(all[2..7].iter().all(|link| link.width() < 100.0));
+    assert_eq!(first[2].width(), 100.0);
+    assert!(first[3..7].iter().all(|link| link.width() < 100.0));
+}
+
+#[test]
+fn guide_baseline_aligns_text_of_different_sizes() {
+    let tops = |choice| {
+        let divs = divs(&guide("align-items", choice));
+        divs[2..7].iter().map(|link| link.min.y).collect::<Vec<_>>()
+    };
+    let start = tops(1);
+    assert!(start.iter().all(|top| *top == start[0]));
+    let baseline = tops(4);
+    assert!(baseline.iter().any(|top| *top != baseline[0]));
+    let texts = rects(&guide("align-items", 4), NodeKind::Text);
+    let baselines: Vec<f32> = texts.iter().skip(1).map(|text| text.min.y).collect();
+    assert_eq!(baselines.len(), 5);
+    assert!(baselines.iter().any(|y| *y != baselines[0]));
+}
+
+#[test]
+fn guide_align_self_moves_only_the_third_link() {
+    let divs = divs(&guide("align-self", 2));
+    let (bar, links) = (divs[1], &divs[2..7]);
+    assert_close(links[2].max.y, bar.max.y - BAR_INSET);
+    for index in [0, 1, 3, 4] {
+        assert_close(links[index].center().y, bar.center().y);
+    }
+}
+
+#[test]
+fn guide_order_is_the_build_order() {
+    let widths = |choice| {
+        let divs = divs(&guide("order", choice));
+        divs[2..7]
+            .iter()
+            .map(|link| link.width())
+            .collect::<Vec<_>>()
+    };
+    let source = widths(0);
+    assert!(source.iter().any(|width| *width != source[0]));
+    let reordered = widths(1);
+    for (position, index) in [2, 0, 3, 4, 1].into_iter().enumerate() {
+        assert_close(reordered[position], source[index]);
+    }
+}
+
+#[test]
+fn every_guide_demo_builds_for_every_value() {
+    let demos = flexbox_guide::State::default().demos;
+    for (demo, entry) in demos.iter().enumerate() {
+        for choice in 0..entry.choices.len().max(1) {
+            let state = flexbox_guide::State {
+                demo,
+                choice,
+                ..flexbox_guide::State::default()
+            };
+            let placed = place(|b| flexbox_guide::layout(b, &state));
+            assert!(placed.len() > 3, "{} builds its demo", entry.title);
+        }
+    }
+}
+
+#[test]
+fn flex_stretch_with_grow_fills_the_row_and_without_it_packs_at_the_start() {
+    let divs = divs(&place(|b| flex::layout(b, &())));
+    let row = |index: usize| {
+        let first = 1 + index * 7;
+        (divs[first + 2], divs[first + 3..first + 7].to_vec())
+    };
+    let (packed, items) = row(2);
+    assert_close(items[0].min.x, packed.min.x + BAR_INSET);
+    assert!(items[3].max.x < packed.max.x - 100.0);
+
+    let (grown, items) = row(3);
+    assert_close(items[0].min.x, grown.min.x + BAR_INSET);
+    assert_close(items[3].max.x, grown.max.x - BAR_INSET);
+}
+
+#[test]
+fn flex_wrap_wraps_and_grows_each_line_to_the_edge() {
+    let words = |wrapping| {
+        let state = flex_wrap::State {
+            wrapping,
+            ..flex_wrap::State::default()
+        };
+        divs(&place(|b| flex_wrap::layout(b, &state)))[3..21].to_vec()
+    };
+    let nowrap = words(flex_wrap::Wrapping::NoWrap);
+    assert!(nowrap.iter().all(|word| word.min.y == nowrap[0].min.y));
+    let wrapped = words(flex_wrap::Wrapping::Wrap);
+    let last_of_first_line = wrapped
+        .iter()
+        .rposition(|word| word.min.y == wrapped[0].min.y)
+        .expect("the first word is on the first line");
+    assert!(last_of_first_line < wrapped.len() - 1, "more than one line");
+    let first_edge = wrapped[last_of_first_line].max.x;
+    assert_close(wrapped[wrapped.len() - 1].max.x, first_edge);
+}
+
+#[test]
+fn flex_grid_spans_and_aligns_within_cells() {
+    let divs = divs(&place(|b| {
+        flex_grid::layout(b, &flex_grid::State::default())
+    }));
+    let (grid, span_cols, span_rows) = (divs[0], divs[1], divs[2]);
+    assert_close(span_rows.height(), grid.height() - 2.0 * 8.0);
+    assert_eq!(span_cols.min.y, span_rows.min.y);
+    assert!(span_cols.max.x < span_rows.min.x);
+
+    let (header_start, header_stretch) = (divs[4], divs[7]);
+    let (row_header_stretch, start_start, stretch_stretch) = (divs[23], divs[9], divs[27]);
+    assert!(start_start.width() < header_start.width());
+    assert!(start_start.height() < row_header_stretch.height());
+    assert_close(stretch_stretch.width(), header_stretch.width());
+    assert_close(stretch_stretch.height(), row_header_stretch.height());
+}
+
+#[test]
+fn grow_shares_the_free_space_by_factor() {
+    let divs = divs(&place(|b| grow::layout(b, &grow::State::default())));
+    let heights: Vec<f32> = divs[1..5].iter().map(|item| item.height()).collect();
+    let unit = heights[1] - heights[0];
+    assert!(unit > 1.0, "free space to share");
+    assert_close(heights[2] - heights[0], 2.0 * unit);
+    assert_close(heights[3] - heights[0], 3.0 * unit);
+
+    let nested: Vec<f32> = divs[6..10].iter().map(|item| item.height()).collect();
+    let unit = nested[1] - nested[0];
+    assert!(unit > 1.0, "free space to share");
+    assert_close(nested[3] - nested[0], 3.0 * unit);
+}
+
+#[test]
+fn holy_grail_areas_fill_the_grid_around_the_content() {
+    let divs = divs(&place(|b| holy_grail::layout(b, &())));
+    assert_eq!(AREA.size(), vec2(800.0, 600.0));
+    assert_rect(divs[1], [0.0, 0.0, 800.0, 100.0]);
+    assert_rect(divs[2], [0.0, 100.0, 100.0, 500.0]);
+    assert_rect(divs[3], [100.0, 100.0, 700.0, 500.0]);
+    assert_rect(divs[4], [700.0, 100.0, 800.0, 500.0]);
+    assert_rect(divs[5], [0.0, 500.0, 800.0, 600.0]);
+}
+
+#[test]
+fn custom_background_boxes_wrap_into_rows_of_the_slider_size() {
+    let boxes = |size| {
+        let state = custom_background::State { size };
+        divs(&place(|b| custom_background::layout(b, &state)))[2..8].to_vec()
+    };
+    let big = boxes(200.0);
+    assert!(big.iter().all(|rect| rect.size() == vec2(200.0, 200.0)));
+    assert!(big[2].min.y == big[0].min.y && big[3].min.y > big[2].min.y);
+    let small = boxes(100.0);
+    assert!(small.iter().all(|rect| rect.min.y == small[0].min.y));
 }
