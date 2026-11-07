@@ -12,7 +12,19 @@
 //!
 //! The design brief lives in `docs/design.md`.
 
-#[cfg_attr(not(test), expect(dead_code, reason = "consumed by the builder in M1"))]
+mod builder;
+mod key;
 mod measure;
+mod pipeline;
+mod prim;
 #[cfg(test)]
 mod spikes;
+mod text;
+mod tw;
+
+pub use builder::{Builder, none};
+pub use measure::{Measure, fill};
+pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
+pub use prim::Icon;
+pub use text::{TextAlign, TextCase, TextClasses, TextSpec, TextStyle, Tracking, WhiteSpace};
+pub use tw::{Angle, BoxPaint, Divide, Flip, Opacity, Ring, Sides, Track, Tw, tw};
