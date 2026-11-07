@@ -49,14 +49,35 @@ impl Command {
     pub fn run(self) -> Result<()> {
         match self {
             Command::Ci => steps::run_all(&steps::ci_steps()),
-            Command::Fmt { check } => steps::run_all(&[steps::fmt(FmtMode::from(check))]),
+            Command::Fmt { check } => {
+                let mode = if check {
+                    FmtMode::Check
+                } else {
+                    FmtMode::Write
+                };
+                steps::run_all(&[steps::fmt(mode)])
+            }
             Command::Test { args } => steps::run_all(&[steps::test(&args)]),
-            Command::Coverage { lcov } => steps::coverage(ReportFormat::from(lcov)),
+            Command::Coverage { lcov } => {
+                let format = if lcov {
+                    ReportFormat::Lcov
+                } else {
+                    ReportFormat::Html
+                };
+                steps::coverage(format)
+            }
             Command::Example { name: None, .. } => examples::print_listing(),
             Command::Example {
                 name: Some(name),
                 release,
-            } => Step::run(&steps::example(&name, Profile::from(release))),
+            } => {
+                let profile = if release {
+                    Profile::Release
+                } else {
+                    Profile::Debug
+                };
+                Step::run(&steps::example(&name, profile))
+            }
         }
     }
 }

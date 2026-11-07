@@ -20,34 +20,16 @@ pub enum FmtMode {
     Check,
 }
 
-impl From<bool> for FmtMode {
-    fn from(check: bool) -> Self {
-        if check { Self::Check } else { Self::Write }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Profile {
     Debug,
     Release,
 }
 
-impl From<bool> for Profile {
-    fn from(release: bool) -> Self {
-        if release { Self::Release } else { Self::Debug }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReportFormat {
     Html,
     Lcov,
-}
-
-impl From<bool> for ReportFormat {
-    fn from(lcov: bool) -> Self {
-        if lcov { Self::Lcov } else { Self::Html }
-    }
 }
 
 impl Step {
