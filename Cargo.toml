@@ -15,3 +15,6 @@ egui = "0.37"
 egui = { version = "0.37", features = ["default_fonts"] }
 eframe = "0.37"
 egui_kittest = "0.37"
+
+[workspace]
+members = ["xtask"]

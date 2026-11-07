@@ -144,3 +144,11 @@ copying this file elsewhere.
   stand in for their own hands on it.
 
 ---
+
+## Project-specific notes
+
+- Repetitive work and scripts go through `cargo xtask`, never shell scripts,
+  Makefiles or justfiles. CI calls the same commands a developer runs.
+- `cargo xtask ci` is the single definition of "CI passes". Also available:
+  `fmt [--check]`, `test [-- ARGS]`, `coverage [--lcov]`,
+  `example [NAME] [--release]`. See `cargo xtask --help`.
