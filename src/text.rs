@@ -48,6 +48,26 @@ pub enum TextAlign {
     Right,
 }
 
+/// Upright or slanted glyphs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FontStyle {
+    /// Upright.
+    #[default]
+    Normal,
+    /// Slanted.
+    Italic,
+}
+
+/// A line drawn with the text.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextDecoration {
+    /// No line.
+    #[default]
+    None,
+    /// A line under the text.
+    Underline,
+}
+
 /// Capitalisation applied to text before it is measured and drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextCase {
@@ -117,10 +137,10 @@ pub struct TextStyle {
     pub spec: TextSpec,
     /// Text colour.
     pub color: Color32,
-    /// Italic text.
-    pub italic: bool,
-    /// Underlined text.
-    pub underline: bool,
+    /// Upright or italic.
+    pub font_style: FontStyle,
+    /// Underline.
+    pub decoration: TextDecoration,
     /// Wrapping behaviour.
     pub white_space: WhiteSpace,
     /// Horizontal alignment.
@@ -137,8 +157,8 @@ impl TextStyle {
         Self {
             spec,
             color,
-            italic: false,
-            underline: false,
+            font_style: FontStyle::default(),
+            decoration: TextDecoration::default(),
             white_space: WhiteSpace::default(),
             align: TextAlign::default(),
             tracking: Tracking::default(),
@@ -154,8 +174,8 @@ pub struct TextClasses {
     pub(crate) line_height: Option<f32>,
     pub(crate) family: Option<FontFamily>,
     pub(crate) color: Option<Color32>,
-    pub(crate) italic: Option<bool>,
-    pub(crate) underline: Option<bool>,
+    pub(crate) font_style: Option<FontStyle>,
+    pub(crate) decoration: Option<TextDecoration>,
     pub(crate) white_space: Option<WhiteSpace>,
     pub(crate) align: Option<TextAlign>,
     pub(crate) tracking: Option<Tracking>,
@@ -175,8 +195,8 @@ impl TextClasses {
                     .unwrap_or_else(|| inherited.spec.family.clone()),
             },
             color: self.color.unwrap_or(inherited.color),
-            italic: self.italic.unwrap_or(inherited.italic),
-            underline: self.underline.unwrap_or(inherited.underline),
+            font_style: self.font_style.unwrap_or(inherited.font_style),
+            decoration: self.decoration.unwrap_or(inherited.decoration),
             white_space: self.white_space.unwrap_or(inherited.white_space),
             align: self.align.unwrap_or(inherited.align),
             tracking: self.tracking.unwrap_or(inherited.tracking),
@@ -209,16 +229,16 @@ mod tests {
     fn each_class_overrides_only_its_field() {
         let classes = TextClasses {
             color: Some(Color32::RED),
-            italic: Some(true),
+            font_style: Some(FontStyle::Italic),
             ..Default::default()
         };
         let resolved = classes.over(&base());
         assert_eq!(resolved.color, Color32::RED);
-        assert!(resolved.italic);
+        assert_eq!(resolved.font_style, FontStyle::Italic);
         assert_eq!(
             TextStyle {
                 color: base().color,
-                italic: false,
+                font_style: FontStyle::Normal,
                 ..resolved
             },
             base()
@@ -228,14 +248,14 @@ mod tests {
     #[test]
     fn explicit_unset_overrides_an_inherited_flag() {
         let inherited = TextStyle {
-            italic: true,
+            font_style: FontStyle::Italic,
             ..base()
         };
         let classes = TextClasses {
-            italic: Some(false),
+            font_style: Some(FontStyle::Normal),
             ..Default::default()
         };
-        assert!(!classes.over(&inherited).italic);
+        assert_eq!(classes.over(&inherited).font_style, FontStyle::Normal);
     }
 
     #[test]

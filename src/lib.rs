@@ -26,5 +26,8 @@ pub use builder::{Builder, none};
 pub use measure::{Measure, fill};
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
 pub use prim::Icon;
-pub use text::{TextAlign, TextCase, TextClasses, TextSpec, TextStyle, Tracking, WhiteSpace};
+pub use text::{
+    FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle, Tracking,
+    WhiteSpace,
+};
 pub use tw::{Angle, BoxPaint, Divide, Flip, Opacity, Ring, Sides, Track, Tw, tw};

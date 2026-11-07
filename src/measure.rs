@@ -5,7 +5,7 @@ use egui::{Color32, TextFormat};
 use taffy::{AvailableSpace, Baselines, LayoutInput, LayoutOutput, Size};
 
 use crate::prim::Prim;
-use crate::text::{TextStyle, WhiteSpace};
+use crate::text::{FontStyle, TextStyle, WhiteSpace};
 
 /// What an application leaf's measure closure is asked.
 ///
@@ -95,7 +95,7 @@ impl TextLeaf<'_> {
                 font_id: self.style.spec.font_id(),
                 extra_letter_spacing: self.style.tracking.into(),
                 line_height: Some(self.style.spec.line_height),
-                italics: self.style.italic,
+                italics: self.style.font_style == FontStyle::Italic,
                 color: Color32::PLACEHOLDER,
                 ..TextFormat::default()
             },

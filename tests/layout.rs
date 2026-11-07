@@ -7,7 +7,8 @@
 use std::sync::OnceLock;
 
 use bullseye::{
-    Builder, Icon, LayoutState, NodeKind, Placed, TextSpec, TextStyle, Track, none, tw,
+    Builder, FontStyle, Icon, LayoutState, NodeKind, Placed, TextDecoration, TextSpec, TextStyle,
+    Track, none, tw,
 };
 use egui::epaint::text::LayoutJob;
 use egui::{Color32, Context, FontFamily, Id, Pos2, Rect, pos2, vec2};
@@ -725,11 +726,11 @@ fn text_classes_inherit_down_and_override_field_by_field() {
     assert_eq!(styles[4], base(), "the siblings after are unaffected");
 
     assert_eq!(styles[1].color, Color32::RED);
-    assert!(styles[1].italic);
+    assert_eq!(styles[1].font_style, FontStyle::Italic);
     assert_eq!(styles[1].spec, big);
 
     assert_eq!(styles[2].color, Color32::GREEN);
-    assert!(styles[2].italic);
+    assert_eq!(styles[2].font_style, FontStyle::Italic);
     assert_eq!(styles[2].spec, big);
 
     assert_eq!(
@@ -737,7 +738,7 @@ fn text_classes_inherit_down_and_override_field_by_field() {
         Color32::GREEN,
         "the colour is still inherited"
     );
-    assert!(!styles[3].italic);
+    assert_eq!(styles[3].font_style, FontStyle::Normal);
     assert_eq!(styles[3].spec, sized(10.0));
 }
 
@@ -752,7 +753,7 @@ fn inheritance_crosses_scopes_and_identified_containers() {
     });
     let style = &text_styles(&placed)[0];
     assert_eq!(style.color, Color32::RED);
-    assert!(style.underline);
+    assert_eq!(style.decoration, TextDecoration::Underline);
 }
 
 #[test]

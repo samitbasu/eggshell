@@ -3,7 +3,9 @@
 use egui::{Color32, FontFamily};
 
 use super::Tw;
-use crate::text::{TextAlign, TextCase, TextClasses, TextSpec, Tracking, WhiteSpace};
+use crate::text::{
+    FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, Tracking, WhiteSpace,
+};
 
 macro_rules! text_flags {
     ($($name:ident, $doc:literal, |$t:ident| $set:expr;)*) => {$(
@@ -45,10 +47,10 @@ impl Tw {
     }
 
     text_flags! {
-        italic, "`italic`.", |t| t.italic = Some(true);
-        not_italic, "`not-italic`.", |t| t.italic = Some(false);
-        underline, "`underline`.", |t| t.underline = Some(true);
-        no_underline, "`no-underline`.", |t| t.underline = Some(false);
+        italic, "`italic`.", |t| t.font_style = Some(FontStyle::Italic);
+        not_italic, "`not-italic`.", |t| t.font_style = Some(FontStyle::Normal);
+        underline, "`underline`.", |t| t.decoration = Some(TextDecoration::Underline);
+        no_underline, "`no-underline`.", |t| t.decoration = Some(TextDecoration::None);
         whitespace_nowrap, "`whitespace-nowrap`.", |t| t.white_space = Some(WhiteSpace::NoWrap);
         whitespace_normal, "`whitespace-normal`.", |t| t.white_space = Some(WhiteSpace::Normal);
         text_left, "`text-left`.", |t| t.align = Some(TextAlign::Left);
@@ -129,10 +131,19 @@ mod tests {
     #[test]
     fn flags_and_values() {
         assert_eq!(resolved(tw().text(Color32::RED)).color, Color32::RED);
-        assert!(resolved(tw().italic()).italic);
-        assert!(!resolved(tw().italic().not_italic()).italic);
-        assert!(resolved(tw().underline()).underline);
-        assert!(!resolved(tw().underline().no_underline()).underline);
+        assert_eq!(resolved(tw().italic()).font_style, FontStyle::Italic);
+        assert_eq!(
+            resolved(tw().italic().not_italic()).font_style,
+            FontStyle::Normal
+        );
+        assert_eq!(
+            resolved(tw().underline()).decoration,
+            TextDecoration::Underline
+        );
+        assert_eq!(
+            resolved(tw().underline().no_underline()).decoration,
+            TextDecoration::None
+        );
         assert_eq!(
             resolved(tw().whitespace_nowrap()).white_space,
             WhiteSpace::NoWrap
