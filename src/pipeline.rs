@@ -71,8 +71,14 @@ pub(crate) struct Frame<'f, A> {
 }
 
 /// Owns the state a frame is built in; reuse one across frames.
+///
+/// The root's text style defaults to [`TextStyle::from_egui`], recomputed on
+/// every build so theme changes apply. [`with_base_text`](Self::with_base_text)
+/// replaces it. Any subtree can still override fields with text classes on a
+/// div.
 pub struct LayoutState {
     st: BuildState,
+    base_text: Option<TextStyle>,
 }
 
 impl Default for LayoutState {
@@ -92,18 +98,33 @@ impl LayoutState {
                 seen: Seen::default(),
                 names: ReadablePath::default(),
             },
+            base_text: None,
         }
+    }
+
+    /// Uses `base` as the root text style of every build instead of the
+    /// egui-derived default.
+    pub fn with_base_text(mut self, base: TextStyle) -> Self {
+        self.base_text = Some(base);
+        self
     }
 
     /// Builds one frame. This is the only way to obtain a [`Builder`].
     ///
-    /// `base` is the text style the root inherits. `'f` covers this borrow
-    /// and the application data that the frame's measure closures capture.
+    /// The root inherits the override from
+    /// [`with_base_text`](Self::with_base_text) if set, else
+    /// [`TextStyle::from_egui`] of `ctx`. `ctx` is also used by
+    /// [`Built::layout`] to measure text. `'f` covers this borrow, `ctx`, and
+    /// the application data that the frame's measure closures capture.
     pub fn build<'f, A>(
         &'f mut self,
-        base: TextStyle,
+        ctx: &'f egui::Context,
         f: impl FnOnce(&mut Builder<'_, 'f, A>),
     ) -> Built<'f, A> {
+        let base = self
+            .base_text
+            .clone()
+            .unwrap_or_else(|| TextStyle::from_egui(ctx));
         let st = &mut self.st;
         st.tree.clear();
         st.tree.disable_rounding();
@@ -142,13 +163,19 @@ impl LayoutState {
                 }),
             )
             .expect("root was just created");
-        Built { st, frame, root }
+        Built {
+            st,
+            ctx,
+            frame,
+            root,
+        }
     }
 }
 
 /// A built frame, ready to be laid out.
 pub struct Built<'f, A> {
     st: &'f mut BuildState,
+    ctx: &'f egui::Context,
     frame: Frame<'f, A>,
     root: NodeId,
 }
@@ -156,11 +183,17 @@ pub struct Built<'f, A> {
 impl<'f, A> Built<'f, A> {
     /// Solves layout in `area`, calling each application leaf's measure.
     ///
-    /// Fonts must be available: run at least one egui pass on `ctx` first.
+    /// Fonts must be available: run at least one egui pass on the context
+    /// given to [`LayoutState::build`] first.
     /// The measure closures are dropped here, ending their borrows of
     /// application data. Rounding is disabled; rects are exact.
-    pub fn layout(self, ctx: &egui::Context, area: Rect) -> Placed<A> {
-        let Self { st, frame, root } = self;
+    pub fn layout(self, area: Rect) -> Placed<A> {
+        let Self {
+            st,
+            ctx,
+            frame,
+            root,
+        } = self;
         let Frame { measures, draws } = frame;
         st.tree
             .set_style(

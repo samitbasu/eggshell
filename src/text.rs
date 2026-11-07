@@ -165,6 +165,32 @@ impl TextStyle {
             case: TextCase::default(),
         }
     }
+
+    /// The style egui itself would give body text: [`egui::TextStyle::Body`]'s
+    /// font, the visuals' text colour, and egui's row height for that font as
+    /// the line height.
+    ///
+    /// This is the default base of every [`LayoutState`](crate::LayoutState)
+    /// build. It reads the context's current style, so a theme change is
+    /// reflected on the next call. Fonts must be available: run at least one
+    /// egui pass on `ctx` first.
+    pub fn from_egui(ctx: &egui::Context) -> Self {
+        let style = ctx.global_style();
+        let font_id = style
+            .text_styles
+            .get(&egui::TextStyle::Body)
+            .cloned()
+            .unwrap_or_default();
+        let line_height = ctx.fonts_mut(|fonts| fonts.row_height(&font_id));
+        Self::new(
+            TextSpec {
+                size: font_id.size,
+                line_height,
+                family: font_id.family,
+            },
+            style.visuals.text_color(),
+        )
+    }
 }
 
 /// The text classes one node sets; fields it leaves unset are inherited.

@@ -56,12 +56,16 @@ fn ctx() -> &'static Context {
     })
 }
 
+fn fixed_state() -> LayoutState {
+    LayoutState::new().with_base_text(base())
+}
+
 fn place(f: impl for<'f> FnOnce(&mut Builder<'_, 'f, ()>)) -> Placed<()> {
     place_in(AREA, f)
 }
 
 fn place_in(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, ()>)) -> Placed<()> {
-    LayoutState::new().build(base(), f).layout(ctx(), area)
+    fixed_state().build(ctx(), f).layout(area)
 }
 
 /// The unwrapped width of `text`, from egui directly.
@@ -812,11 +816,11 @@ fn duplicate_identified_containers_panic() {
 
 #[test]
 fn a_new_build_forgets_the_previous_frames_paths() {
-    let mut state = LayoutState::new();
+    let mut state = fixed_state();
     for _ in 0..2 {
         state
-            .build::<()>(base(), |b| b.span("same", tw(), "x", none))
-            .layout(ctx(), AREA);
+            .build::<()>(ctx(), |b| b.span("same", tw(), "x", none))
+            .layout(AREA);
     }
 }
 
@@ -988,9 +992,9 @@ fn nowrap_text_keeps_one_line_in_a_narrow_box() {
 #[test]
 fn application_leaves_are_measured_with_borrowed_data() {
     let note = String::from("borrowed from the application");
-    let mut state = LayoutState::new();
+    let mut state = fixed_state();
     let placed = state
-        .build::<()>(base(), |b| {
+        .build::<()>(ctx(), |b| {
             b.div(tw().flex().items_start(), |b| {
                 b.leaf("note", tw(), |m| m.text_size(&note), none);
                 b.leaf(
@@ -1010,7 +1014,7 @@ fn application_leaves_are_measured_with_borrowed_data() {
                 );
             })
         })
-        .layout(ctx(), AREA);
+        .layout(AREA);
     let leaves = rects(&placed, NodeKind::Leaf);
     assert_eq!(leaves[0].size(), vec2(width_of(&BODY, &note), 20.0));
     assert_eq!(leaves[1].size(), vec2(30.0, 12.0));
@@ -1214,4 +1218,53 @@ fn z_is_recorded_without_affecting_layout() {
     let nodes: Vec<_> = placed.nodes().collect();
     assert_eq!(nodes[1].z(), 30);
     assert!(nodes[2].is_inert() && !nodes[1].is_inert());
+}
+
+// ------------------------------------------------------------ base text style
+
+fn root_text(state: &mut LayoutState, ctx: &Context) -> TextStyle {
+    let placed = state.build::<()>(ctx, |_| {}).layout(AREA);
+    let root = placed
+        .nodes()
+        .find(|n| n.kind() == NodeKind::Root)
+        .expect("every frame has a root");
+    root.text().clone()
+}
+
+fn fresh_ctx() -> Context {
+    let ctx = Context::default();
+    ctx.run_ui(Default::default(), |_| {})
+        .drop_without_applying_deltas();
+    ctx
+}
+
+#[test]
+fn the_default_root_text_style_is_eguis() {
+    let ctx = fresh_ctx();
+    let expected = TextStyle::from_egui(&ctx);
+    assert_ne!(
+        expected,
+        base(),
+        "the default must differ from the override"
+    );
+    assert_eq!(root_text(&mut LayoutState::new(), &ctx), expected);
+}
+
+#[test]
+fn the_override_replaces_the_default() {
+    let ctx = fresh_ctx();
+    let mut state = LayoutState::new().with_base_text(base());
+    assert_ne!(TextStyle::from_egui(&ctx), base());
+    assert_eq!(root_text(&mut state, &ctx), base());
+}
+
+#[test]
+fn the_default_follows_the_theme() {
+    let ctx = fresh_ctx();
+    let mut state = LayoutState::new();
+    ctx.set_visuals(egui::Visuals::dark());
+    let dark = root_text(&mut state, &ctx).color;
+    ctx.set_visuals(egui::Visuals::light());
+    let light = root_text(&mut state, &ctx).color;
+    assert_ne!(dark, light);
 }

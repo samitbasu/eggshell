@@ -154,14 +154,17 @@ pub struct LayoutState { st: BuildState }
 impl LayoutState {
     /// The ONLY way to obtain a Builder. Clears all per-frame state first.
     /// `'f` covers this borrow and the application data the frame's measure and region closures capture.
-    pub fn build<'f, A>(&'f mut self, base: TextStyle, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> Built<'f, A>;
+    /// The root text style is `with_base_text` if set, else `TextStyle::from_egui(ctx)`.
+    pub fn build<'f, A>(&'f mut self, ctx: &'f egui::Context, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> Built<'f, A>;
+    /// Replaces the egui-derived default root text style for every build.
+    pub fn with_base_text(self, base: TextStyle) -> Self;
 }
 
 pub struct Built<'f, A> { /* &mut BuildState, Frame<'f, A>, base root */ }
 impl<'f, A> Built<'f, A> {
     /// Calls each leaf's measure, runs regions, lays out every root. Drops the measure and
     /// region closures (ending their borrows of application data); keeps the draw closures.
-    pub fn layout(self, ctx: &egui::Context, area: Rect) -> Placed<A>;
+    pub fn layout(self, area: Rect) -> Placed<A>;
 }
 
 pub struct Placed<A> { /* owned: draw lists per root, overlay placements, draw and dismiss closures */ }
@@ -400,7 +403,7 @@ Not expressible on a single node, so do not implement: `space-x-*`, `space-y-*` 
 
 ### 7.4 Inheritance
 
-Text classes (`role`, `text`, `font`, `italic`, `underline`, `tracking`, `uppercase`, `capitalize`, `text_*` alignment, `truncate`, `whitespace_nowrap`) are inherited: `div` merges its text classes over the inherited style for its children. A node's own classes override field by field *(compiled)*. The root's inherited style comes from `LayoutState::build(base, …)`. Overlays inherit from their declaration point.
+Text classes (`role`, `text`, `font`, `italic`, `underline`, `tracking`, `uppercase`, `capitalize`, `text_*` alignment, `truncate`, `whitespace_nowrap`) are inherited: `div` merges its text classes over the inherited style for its children. A node's own classes override field by field *(compiled)*. The root's inherited style is `LayoutState::with_base_text` if set, else `TextStyle::from_egui(ctx)` (egui's `Body` font, text colour and row height, recomputed per build so theme changes apply). Overlays inherit from their declaration point.
 
 The library also applies the node's resolved text style to the leaf's `Ui` (font override and text color ⚠), so egui widgets drawn by the application pick it up.
 
@@ -675,10 +678,9 @@ struct Shell { app: App, layout: LayoutState }
 
 // eframe::App::update, inside a CentralPanel with Frame::NONE
 let area = ui.max_rect();
-let base = self.app.theme.base_text();
 let placed = self.layout
-    .build(base, |b| self.app.build(b))
-    .layout(ui.ctx(), area);
+    .build(ui.ctx(), |b| self.app.build(b))
+    .layout(area);
 placed.draw(&mut self.app, ui);          // each node's draw, then overlay dismissal
 ```
 
