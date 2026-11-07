@@ -1,0 +1,17 @@
+[package]
+name = "bullseye"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+description = "taffy lays out, egui draws and interacts"
+repository = "https://github.com/samitbasu/bullseye"
+
+[dependencies]
+taffy = "0.15.1"
+egui = "0.37"
+
+[dev-dependencies]
+egui = { version = "0.37", features = ["default_fonts"] }
+eframe = "0.37"
+egui_kittest = "0.37"
