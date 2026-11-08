@@ -34,7 +34,6 @@ type B<'b, 'f> = Builder<'b, 'f, State>;
 const COMPUTED: Color32 = Color32::from_rgb(0x2a, 0x6f, 0xdb);
 const DRAWN: Color32 = Color32::from_rgb(0xe0, 0x8a, 0x00);
 const FLAG: Color32 = Color32::from_rgb(0xd0, 0x20, 0x20);
-const STAGE: Color32 = Color32::from_gray(246);
 
 /// How far the rect egui allocated may be from the leaf's, in points, before
 /// a cell is flagged. Drawing snaps each edge of a layout rect to a physical
@@ -82,12 +81,12 @@ pub enum TextSize {
 
 impl TextSize {
     pub const ALL: [(Self, &'static str); 3] =
-        [(Self::Small, "12"), (Self::Body, "16"), (Self::Large, "22")];
+        [(Self::Small, "12"), (Self::Body, "14"), (Self::Large, "22")];
 
     fn points(self) -> f32 {
         match self {
             Self::Small => 12.0,
-            Self::Body => 16.0,
+            Self::Body => 14.0,
             Self::Large => 22.0,
         }
     }
@@ -104,14 +103,14 @@ pub enum Padding {
 impl Padding {
     pub const ALL: [(Self, &'static str); 3] = [
         (Self::Tight, "0, 0"),
-        (Self::Standard, "4, 1"),
+        (Self::Standard, "16, 8"),
         (Self::Roomy, "12, 6"),
     ];
 
     fn size(self) -> egui::Vec2 {
         match self {
             Self::Tight => vec2(0.0, 0.0),
-            Self::Standard => vec2(4.0, 1.0),
+            Self::Standard => vec2(16.0, 8.0),
             Self::Roomy => vec2(12.0, 6.0),
         }
     }
@@ -128,15 +127,15 @@ pub enum Interact {
 impl Interact {
     pub const ALL: [(Self, &'static str); 3] = [
         (Self::Small, "24, 14"),
-        (Self::Standard, "40, 18"),
-        (Self::Tall, "64, 36"),
+        (Self::Standard, "40, 36"),
+        (Self::Tall, "64, 48"),
     ];
 
     fn size(self) -> egui::Vec2 {
         match self {
             Self::Small => vec2(24.0, 14.0),
-            Self::Standard => vec2(40.0, 18.0),
-            Self::Tall => vec2(64.0, 36.0),
+            Self::Standard => vec2(40.0, 36.0),
+            Self::Tall => vec2(64.0, 48.0),
         }
     }
 }
@@ -580,20 +579,31 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 },
             );
         }
-        Control::Segmented => segmented(
-            b,
-            control,
-            tw().flex().flex_wrap().gap(1.0),
-            state.unit,
-            &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-            common::segment,
-            |s| &mut s.unit,
-        ),
+        Control::Segmented => {
+            let classes = common::segmented_classes(b.ctx());
+            segmented(
+                b,
+                control,
+                classes.container(),
+                state.unit,
+                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+                |cell| classes.cell(cell),
+                |s| &mut s.unit,
+            )
+        }
     }
 }
 
 const MULTI: Lines = Lines::Multi { min: 2, max: None };
 const ONE_ROW: Lines = Lines::Multi { min: 1, max: None };
+
+/// Pads an input as the preset says inputs are padded, which egui shares with
+/// buttons.
+fn input_padded(ui: &mut Ui) {
+    if let Some(tokens) = bullseye::style::tokens(ui.ctx()) {
+        ui.spacing_mut().button_padding = tokens.input_padding;
+    }
+}
 
 /// A text edit as egui sizes it on its own, `width` wide.
 fn natural_edit(ui: &mut Ui, text: &str, lines: Lines, width: f32, hint: Option<&str>) -> Response {
@@ -606,7 +616,11 @@ fn natural_edit(ui: &mut Ui, text: &str, lines: Lines, width: f32, hint: Option<
     if let Some(hint) = hint {
         edit = edit.hint_text(hint);
     }
-    ui.add(edit)
+    ui.scope(|ui| {
+        input_padded(ui);
+        ui.add(edit)
+    })
+    .inner
 }
 
 /// The text of the widest value a drag value is sized for.
@@ -621,10 +635,14 @@ fn select_labels(label: &'static str) -> [&'static str; 3] {
 
 /// A combo box header showing `selected`, as egui sizes it on its own.
 fn combo(ui: &mut Ui, selected: &str) -> Response {
-    egui::ComboBox::from_id_salt(selected)
-        .selected_text(selected)
-        .show_ui(ui, |_| {})
-        .response
+    ui.scope(|ui| {
+        input_padded(ui);
+        egui::ComboBox::from_id_salt(selected)
+            .selected_text(selected)
+            .show_ui(ui, |_| {})
+            .response
+    })
+    .inner
 }
 
 /// The rect of the header of each of `labels`, each added at the same place:
@@ -644,12 +662,12 @@ fn widest_combo(ui: &mut Ui, labels: &[&str]) -> Rect {
 }
 
 /// What a cell's caption says about its report.
-fn status(state: &State, control: Control) -> (String, Color32) {
+fn status(state: &State, control: Control, muted: Color32) -> (String, Color32) {
     match (control.is_checked(), state.reports.get(&control)) {
-        (false, _) => ("drawn by the library".to_owned(), common::MUTED),
-        (true, None) => (String::new(), common::MUTED),
+        (false, _) => ("drawn by the library".to_owned(), muted),
+        (true, None) => (String::new(), muted),
         (true, Some(report)) => match report.mismatch() {
-            None => ("ok".to_owned(), common::MUTED),
+            None => ("ok".to_owned(), muted),
             Some(off) => (format!("MISMATCH {:.1} x {:.1}", off.x, off.y), FLAG),
         },
     }
@@ -658,15 +676,16 @@ fn status(state: &State, control: Control) -> (String, Color32) {
 /// A thin handle at a stage's right edge that drags the cell width.
 ///
 /// ```html
-/// <div class="w-2 rounded cursor-col-resize bg-[#b0b0b0] hover:bg-[#6f8fb3]"></div>
+/// <div class="w-2 rounded cursor-col-resize bg-border hover:bg-ring"></div>
 /// ```
 fn handle(b: &mut B<'_, '_>, control: Control) {
+    let t = common::tokens(b.ctx());
     b.div_id(
         ("handle", control),
         tw().w_px(8.0)
             .rounded()
-            .bg(common::EDGE)
-            .hover(|p| p.bg(common::SELECTED))
+            .bg(t.border)
+            .hover(|p| p.bg(t.ring))
             .sense_drag()
             .focusable_none(),
         |state: &mut State, ui| {
@@ -687,28 +706,30 @@ fn handle(b: &mut B<'_, '_>, control: Control) {
 /// control's leaf in it and a handle beside it.
 ///
 /// ```html
-/// <div class="flex flex-col gap-1 p-2 border border-[#b0b0b0] rounded-md bg-white">
-///   <div class="flex justify-between gap-2"><span>widget::Button</span><span class="text-[#646464]">ok</span></div>
+/// <div class="flex flex-col gap-1 p-2 border border-border rounded-xl bg-card">
+///   <div class="flex justify-between gap-2"><span>widget::Button</span><span class="text-muted-foreground">ok</span></div>
 ///   <div class="flex gap-1">
-///     <div class="flex flex-col items-start w-[200px] p-1 bg-[#f6f6f6] border border-[#b0b0b0]">…leaf…</div>
-///     <div class="w-2 rounded bg-[#b0b0b0]"></div>
+///     <div class="flex flex-col items-start w-[200px] p-1 bg-muted border border-border">…leaf…</div>
+///     <div class="w-2 rounded bg-border"></div>
 ///   </div>
 /// </div>
 /// ```
 fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
-    let (status, colour) = status(state, control);
+    let t = common::tokens(b.ctx());
+    let (status, colour) = status(state, control, t.muted_foreground);
     b.div(
         tw().flex()
             .flex_col()
             .gap(1.0)
             .p(2.0)
             .border(1.0)
-            .border_color(common::EDGE)
-            .rounded_md()
-            .bg(Color32::WHITE),
+            .border_color(t.border)
+            .rounded_px(f32::from(t.radius))
+            .bg(t.card)
+            .text(t.card_foreground),
         |b| {
             b.div(tw().flex().justify_between().gap(2.0), |b| {
-                b.text(tw().text(common::INK), control.name());
+                b.text(tw(), control.name());
                 b.text(tw().text(colour), status);
             });
             b.div(tw().flex().gap(1.0), |b| {
@@ -719,9 +740,9 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
                         .items_start()
                         .w_px(f32::from(state.cell_width))
                         .p(1.0)
-                        .bg(STAGE)
+                        .bg(t.muted)
                         .border(1.0)
-                        .border_color(common::EDGE),
+                        .border_color(t.border),
                     |b| leaf(b, state, control),
                 );
                 handle(b, control);
@@ -768,13 +789,14 @@ fn controls(b: &mut B<'_, '_>, state: &State) {
 }
 
 /// ```html
-/// <div class="flex flex-col gap-1 text-[#646464]">
+/// <div class="flex flex-col gap-1 text-muted-foreground">
 ///   <span><span class="text-[#2a6fdb]">blue</span>: the rect the library computed</span>
 ///   <span><span class="text-[#e08a00]">orange</span>: the rect egui returned</span>
 ///   <span><span class="text-[#d02020]">red</span>: they differ by more than 1 point</span>
 /// </div>
 /// ```
 fn legend(b: &mut B<'_, '_>) {
+    let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().flex_col().gap(1.0), |b| {
         for (colour, name, meaning) in [
             (COMPUTED, "Blue", "the rect the library computed"),
@@ -783,7 +805,7 @@ fn legend(b: &mut B<'_, '_>) {
         ] {
             b.div(tw().flex().items_start().gap(2.0), |b| {
                 b.rule(tw().w_px(10.0).h_px(10.0).mt(1.5).bg(colour));
-                b.text(tw().text(common::MUTED), format!("{name}: {meaning}"));
+                b.text(tw().text(muted), format!("{name}: {meaning}"));
             });
         }
     });
@@ -819,7 +841,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
 
 /// The text style the gallery's layout starts from.
 pub fn base_text() -> TextStyle {
-    common::base_text()
+    common::base_text(egui::Theme::Light)
 }
 
 fn main() -> eframe::Result {

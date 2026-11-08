@@ -167,16 +167,14 @@ impl State {
 ///
 /// ```html
 /// <div class="flex items-start gap-4">
-///   <label class="w-28 shrink-0 pt-1 text-[#646464]">Name</label>
+///   <label class="w-28 shrink-0 pt-1 text-muted-foreground">Name</label>
 ///   <div class="grow min-w-0">…</div>
 /// </div>
 /// ```
 fn row<'f>(b: &mut B<'_, 'f>, label: &str, control: impl FnOnce(&mut B<'_, 'f>)) {
+    let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().items_start().gap(4.0), |b| {
-        b.text(
-            tw().w_px(112.0).shrink_0().pt(1.0).text(common::MUTED),
-            label,
-        );
+        b.text(tw().w_px(112.0).shrink_0().pt(1.0).text(muted), label);
         b.div(tw().grow().min_w_0(), control);
     });
 }
@@ -185,12 +183,13 @@ fn row<'f>(b: &mut B<'_, 'f>, label: &str, control: impl FnOnce(&mut B<'_, 'f>))
 ///
 /// ```html
 /// <section class="flex flex-col gap-3">
-///   <h2 class="pb-1 border-b border-[#b0b0b0] text-[18px]">Profile</h2>…
+///   <h2 class="pb-1 border-b border-border text-[18px]">Profile</h2>…
 /// </section>
 /// ```
 fn section<'f>(b: &mut B<'_, 'f>, title: &str, rows: impl FnOnce(&mut B<'_, 'f>)) {
+    let border = common::tokens(b.ctx()).border;
     b.div(tw().flex().flex_col().gap(3.0), |b| {
-        b.div(tw().pb(1.0).border_b(1.0).border_color(common::EDGE), |b| {
+        b.div(tw().pb(1.0).border_b(1.0).border_color(border), |b| {
             b.text(tw().role(common::sized(18.0)), title)
         });
         rows(b);
@@ -232,24 +231,25 @@ fn switch(b: &mut B<'_, '_>, key: Part, live: Tw, label: &str, lens: fn(&mut Sta
 /// A toggle button: pressed while its mark is on, independent of the others.
 ///
 /// ```html
-/// <button aria-pressed="true" class="flex items-center justify-center size-8 rounded-md border border-[#b0b0b0]
-///   bg-[#aac4e8] focus-visible:ring-2 focus-visible:ring-[#4678c8]">B</button>
+/// <button aria-pressed="true" class="flex items-center justify-center size-8 rounded-md border border-input
+///   bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50">B</button>
 /// ```
 fn toggle(b: &mut B<'_, '_>, state: &State, mark: Mark) {
     let on = state.marks.contains(&mark);
+    let t = common::tokens(b.ctx());
     let look = tw()
         .flex()
         .items_center()
         .justify_center()
         .size_px(32.0)
-        .rounded_md()
+        .rounded_px(f32::from(t.radius_md()))
         .border(1.0)
-        .border_color(common::EDGE)
-        .focus(|p| p.ring(2.0, common::FOCUS));
+        .border_color(t.input)
+        .focus(|p| p.ring(3.0, common::ring(&t)));
     let look = if on {
-        look.bg(common::SELECTED)
+        look.bg(t.accent).text(t.accent_foreground)
     } else {
-        look.hover(|p| p.bg(common::HOVER))
+        look.hover(|p| p.bg(t.accent))
     };
     b.div_id(
         Part::Mark(mark),
@@ -270,24 +270,25 @@ fn toggle(b: &mut B<'_, '_>, state: &State, mark: Mark) {
 /// A swatch: a coloured square that is ringed while it is the accent.
 ///
 /// ```html
-/// <div role="radio" aria-checked="true" class="h-8 rounded-md border-2 border-[#141414] bg-[#7fa8d0]
-///   focus-visible:ring-2 focus-visible:ring-[#4678c8]"></div>
+/// <div role="radio" aria-checked="true" class="h-8 rounded-md border-2 border-foreground bg-[#7fa8d0]
+///   focus-visible:ring-[3px] focus-visible:ring-ring/50"></div>
 /// ```
 fn swatch(b: &mut B<'_, '_>, state: &State, swatch: Swatch) {
     let chosen = state.accent == swatch;
+    let t = common::tokens(b.ctx());
     let edge = if chosen {
-        common::INK
+        t.foreground
     } else {
         Color32::TRANSPARENT
     };
     b.div_id(
         Part::Accent(swatch.name),
         tw().h_px(32.0)
-            .rounded_md()
+            .rounded_px(f32::from(t.radius_md()))
             .bg(swatch.color)
             .border(2.0)
             .border_color(edge)
-            .focus(|p| p.ring(2.0, common::FOCUS)),
+            .focus(|p| p.ring(3.0, common::ring(&t))),
         move |state: &mut State, ui| {
             let response = ui.node_response();
             if response.clicked() {
@@ -421,11 +422,12 @@ fn preferences(b: &mut B<'_, '_>, state: &State) {
 /// ```html
 /// <div class="flex items-center gap-3">
 ///   <button class="self-start opacity-50" disabled>Save</button>
-///   <span class="text-[#646464]">Enter a name and an email address to save.</span>
+///   <span class="text-muted-foreground">Enter a name and an email address to save.</span>
 /// </div>
 /// ```
 fn save(b: &mut B<'_, '_>, state: &State) {
     let live = if state.can_save() { tw() } else { disabled() };
+    let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().items_center().gap(3.0), |b| {
         b.widget(
             Part::Save,
@@ -443,22 +445,23 @@ fn save(b: &mut B<'_, '_>, state: &State) {
             (1, true) => "Saved once.".to_owned(),
             (times, true) => format!("Saved {times} times."),
         };
-        b.text(tw().text(common::MUTED), note);
+        b.text(tw().text(muted), note);
     });
 }
 
 /// ```html
-/// <main class="flex justify-center size-full p-6 bg-white text-[#141414]">
+/// <main class="flex justify-center size-full p-6 bg-background text-foreground">
 ///   <form class="flex flex-col gap-5 w-full max-w-[560px]">…</form>
 /// </main>
 /// ```
 pub fn layout(b: &mut B<'_, '_>, state: &State) {
+    let t = common::tokens(b.ctx());
     b.div(
         tw().flex()
             .justify_center()
             .size_full()
             .p(6.0)
-            .bg(Color32::WHITE),
+            .bg(t.background),
         |b| {
             b.div(
                 tw().flex()
@@ -466,7 +469,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                     .gap(5.0)
                     .w_full()
                     .max_w_px(560.0)
-                    .text(common::INK),
+                    .text(t.foreground),
                 |b| {
                     profile(b, state);
                     notifications(b);

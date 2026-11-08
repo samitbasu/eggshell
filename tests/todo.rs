@@ -27,7 +27,7 @@ const ACTION_HOVER: u8 = 208;
 fn harness() -> Harness<'static, Rig<State>> {
     support::harness(
         vec2(520.0, 320.0),
-        common::base_text(),
+        common::base_text(egui::Theme::Light),
         State::default(),
         todo::layout,
     )

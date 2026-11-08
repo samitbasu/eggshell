@@ -231,7 +231,8 @@ fn add_bar(ui: &mut egui::Ui, state: &mut State) {
 
 fn main() -> eframe::Result {
     let mut state = State::default();
-    let mut layout_state = bullseye::LayoutState::new().with_base_text(common::base_text());
+    let mut layout_state =
+        bullseye::LayoutState::new().with_base_text(common::base_text(egui::Theme::Light));
     eframe::run_ui_native("todo", eframe::NativeOptions::default(), move |ui, _| {
         ui.ctx().set_theme(egui::Theme::Light);
         egui::Panel::top("add").show(ui, |ui| add_bar(ui, &mut state));

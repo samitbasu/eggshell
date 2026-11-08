@@ -78,6 +78,9 @@ pub fn harness_scaled<A: 'static>(
                     nodes,
                     ids,
                 } = rig;
+                if bullseye::style::tokens(ui.ctx()).is_none() {
+                    bullseye::style::Shadcn::apply_both(ui.ctx());
+                }
                 prepare(ui.ctx(), &*app);
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *nodes = placed

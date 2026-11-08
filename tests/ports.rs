@@ -39,7 +39,7 @@ mod buttons {
     fn harness() -> Harness<'static, Rig<State>> {
         support::harness(
             vec2(400.0, 520.0),
-            common::base_text(),
+            common::base_text(egui::Theme::Light),
             State::default(),
             button::layout,
         )
@@ -95,7 +95,7 @@ mod backgrounds {
     fn harness() -> Harness<'static, Rig<State>> {
         support::harness(
             vec2(1400.0, 700.0),
-            common::base_text(),
+            common::base_text(egui::Theme::Light),
             State::default(),
             custom_background::layout,
         )
@@ -149,7 +149,7 @@ mod navigation {
     fn harness() -> Harness<'static, Rig<State>> {
         support::harness(
             vec2(800.0, 800.0),
-            common::base_text(),
+            common::base_text(egui::Theme::Light),
             State::default(),
             sidebar::layout,
         )

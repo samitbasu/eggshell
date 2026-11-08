@@ -25,7 +25,8 @@ use support::{Rig, click_node, focused_node, rect_of};
 const WINDOW: Vec2 = vec2(760.0, 900.0);
 
 fn harness_with(state: State) -> Harness<'static, Rig<State>> {
-    let mut harness = support::harness(WINDOW, common::base_text(), state, layout);
+    let mut harness =
+        support::harness(WINDOW, common::base_text(egui::Theme::Light), state, layout);
     harness.run_steps(3);
     harness
 }
@@ -255,9 +256,10 @@ fn exactly_one_swatch_is_the_accent() {
 /// painted last frame.
 fn rings(harness: &Harness<'_, Rig<State>>, node: &str) -> bool {
     let node = rect_of(harness, node);
+    let ring = common::ring(&common::tokens(&harness.ctx));
     harness.output().shapes.iter().any(|clipped| {
         matches!(&clipped.shape, egui::epaint::Shape::Rect(rect)
-            if rect.stroke.color == common::FOCUS && rect.rect.expand(1.0).contains_rect(node))
+            if rect.stroke.color == ring && rect.rect.expand(1.0).contains_rect(node))
     })
 }
 

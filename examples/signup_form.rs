@@ -16,11 +16,9 @@ mod common;
 use bullseye::prim::text_field::Field;
 use bullseye::widget::{Button, Checkbox, DragValue};
 use bullseye::{Builder, Tw, tw};
-use egui::{Color32, Role, WidgetInfo};
+use egui::{Role, WidgetInfo};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
-
-const ERROR: Color32 = Color32::from_rgb(0xb0, 0x30, 0x30);
 
 /// The fields of the form, in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -170,7 +168,7 @@ impl State {
 /// <div class="flex flex-col gap-1">
 ///   <label>First Name</label>
 ///   <input>
-///   <span class="text-[#b03030]">Must be between 2 and 50 characters long</span>
+///   <span class="text-destructive">Must be between 2 and 50 characters long</span>
 /// </div>
 /// ```
 /// The line under a field that holds its error. It keeps its height while
@@ -178,13 +176,14 @@ impl State {
 /// of the form.
 ///
 /// ```html
-/// <p class="min-h-[16.25px] text-[13px]/[16.25px] text-[#b03030]">Invalid email</p>
+/// <p class="min-h-[16.25px] text-[13px]/[16.25px] text-destructive">Invalid email</p>
 /// ```
 fn error_line(b: &mut B<'_, '_>, error: Option<&'static str>) {
+    let t = common::tokens(b.ctx());
     let role = common::sized(13.0);
     b.div(tw().min_h_px(role.line_height), |b| {
         if let Some(error) = error {
-            b.text(tw().text(ERROR).role(role), error);
+            b.text(tw().text(t.destructive).role(role), error);
         }
     });
 }
@@ -273,8 +272,9 @@ fn check(
 /// </form>
 /// ```
 fn form(b: &mut B<'_, '_>, state: &State) {
+    let muted = common::tokens(b.ctx()).muted_foreground;
     b.text(
-        tw().text(common::MUTED),
+        tw().text(muted),
         "This is an example signup form. Try signing up with invalid data to see the \
          validation errors. Errors show up after editing a field or after trying to submit.",
     );
@@ -362,14 +362,15 @@ fn form(b: &mut B<'_, '_>, state: &State) {
 /// <div class="flex flex-col items-start gap-3">
 ///   <strong>Thank you for signing up!</strong>
 ///   <p>Here are the details you submitted:</p>
-///   <pre class="font-mono p-2 bg-[#f5f5f5] rounded">…</pre>
+///   <pre class="font-mono p-2 bg-muted rounded">…</pre>
 ///   <button>Reset</button>
 /// </div>
 /// ```
 fn thanks(b: &mut B<'_, '_>, state: &State) {
     b.text(tw().role(common::sized(20.0)), "Thank you for signing up!");
     b.text(tw(), "Here are the details you submitted:");
-    b.div(tw().p(2.0).rounded().bg(common::PANEL), |b| {
+    let t = common::tokens(b.ctx());
+    b.div(tw().p(2.0).rounded().bg(t.muted), |b| {
         b.text(
             tw().role(common::mono(13.0)),
             format!("{:#?}", state.fields),
@@ -388,17 +389,18 @@ fn thanks(b: &mut B<'_, '_>, state: &State) {
 }
 
 /// ```html
-/// <main class="flex justify-center size-full p-4 bg-white text-[#141414]">
+/// <main class="flex justify-center size-full p-4 bg-background text-foreground">
 ///   <div class="flex flex-col gap-3 w-full max-w-[480px]">…</div>
 /// </main>
 /// ```
 pub fn layout(b: &mut B<'_, '_>, state: &State) {
+    let t = common::tokens(b.ctx());
     b.div(
         tw().flex()
             .justify_center()
             .size_full()
             .p(4.0)
-            .bg(Color32::WHITE),
+            .bg(t.background),
         |b| {
             let column: Tw = tw()
                 .flex()
@@ -407,7 +409,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                 .gap(3.0)
                 .w_full()
                 .max_w_px(480.0)
-                .text(common::INK);
+                .text(t.foreground);
             b.div(column, |b| match state.progress {
                 Progress::Submitted => thanks(b, state),
                 Progress::Editing | Progress::Rejected => form(b, state),

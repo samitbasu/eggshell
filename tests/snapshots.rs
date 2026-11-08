@@ -430,62 +430,103 @@ fn port_sidebar() {
     );
 }
 
-/// The chat shell with the pointer over a recent session.
-#[test]
-fn chat_shell() {
-    let app = chat_shell::state::App::default();
-    let base = app.theme.base_text();
+/// The chat shell showing `appearance`, with `edit` applied to the app.
+#[allow(
+    clippy::field_reassign_with_default,
+    reason = "App has private fields, so a struct update is not available here"
+)]
+fn chat_shell_in(
+    name: &str,
+    appearance: chat_shell::state::Appearance,
+    edit: impl FnOnce(&mut chat_shell::state::App),
+    pointer: Option<egui::Pos2>,
+) {
+    let mut app = chat_shell::state::App::default();
+    app.appearance = appearance;
+    edit(&mut app);
+    let theme = match appearance {
+        chat_shell::state::Appearance::Light => egui::Theme::Light,
+        chat_shell::state::Appearance::Dark | chat_shell::state::Appearance::System => {
+            egui::Theme::Dark
+        }
+    };
+    let base = chat_shell::theme::Theme::new(theme).base_text();
     snapshot_themed(
-        "chat_shell",
+        name,
         Vec2::new(1200.0, 760.0),
         (app, chat_shell::view::layout, base),
+        pointer,
+        (theme, chat_shell::view::prepare),
+    );
+}
+
+/// The chat shell in the light theme with the pointer over a recent session.
+#[test]
+fn chat_shell_light() {
+    chat_shell_in(
+        "chat_shell_light",
+        chat_shell::state::Appearance::Light,
+        |_| {},
         Some(egui::pos2(120.0, 400.0)),
-        (egui::Theme::Dark, chat_shell::view::prepare),
+    );
+}
+
+/// The chat shell in the dark theme with the pointer over a recent session.
+#[test]
+fn chat_shell_dark() {
+    chat_shell_in(
+        "chat_shell_dark",
+        chat_shell::state::Appearance::Dark,
+        |_| {},
+        Some(egui::pos2(120.0, 400.0)),
     );
 }
 
 /// The chat shell with a six-line draft, the thorough mode and the second
 /// model: the composer has grown and the conversation has made room.
-#[allow(
-    clippy::field_reassign_with_default,
-    reason = "App has private fields, so a struct update is not available here"
-)]
 #[test]
 fn chat_shell_composer_grown() {
-    let mut app = chat_shell::state::App::default();
-    app.draft = "First line\nSecond line\nThird line\nFourth line\nFifth line\nSixth line".into();
-    app.mode = chat_shell::state::Mode::Thorough;
-    app.model = 1;
-    let base = app.theme.base_text();
-    snapshot_themed(
+    chat_shell_in(
         "chat_shell_composer_grown",
-        Vec2::new(1200.0, 760.0),
-        (app, chat_shell::view::layout, base),
+        chat_shell::state::Appearance::Dark,
+        |app| {
+            app.draft =
+                "First line\nSecond line\nThird line\nFourth line\nFifth line\nSixth line".into();
+            app.mode = chat_shell::state::Mode::Thorough;
+            app.model = 1;
+        },
         None,
-        (egui::Theme::Dark, chat_shell::view::prepare),
     );
 }
 
-/// The chat shell with an eleven-line draft, past the composer's cap: the
-/// text scrolls, and the fade at its edge blends into the composer's surface.
-#[allow(
-    clippy::field_reassign_with_default,
-    reason = "App has private fields, so a struct update is not available here"
-)]
-#[test]
-fn chat_shell_composer_scrolling() {
-    let mut app = chat_shell::state::App::default();
+fn eleven_lines(app: &mut chat_shell::state::App) {
     app.draft = (1..=11)
         .map(|line| format!("Line number {line} of a long draft"))
         .collect::<Vec<_>>()
         .join("\n");
-    let base = app.theme.base_text();
-    snapshot_themed(
+}
+
+/// The chat shell with an eleven-line draft, past the composer's cap: the
+/// text scrolls, and the fade at its edge blends into the composer's surface.
+#[test]
+fn chat_shell_composer_scrolling() {
+    chat_shell_in(
         "chat_shell_composer_scrolling",
-        Vec2::new(1200.0, 760.0),
-        (app, chat_shell::view::layout, base),
+        chat_shell::state::Appearance::Dark,
+        eleven_lines,
         None,
-        (egui::Theme::Dark, chat_shell::view::prepare),
+    );
+}
+
+/// [`chat_shell_composer_scrolling`] in the light theme, where the surface the
+/// fade blends into is a different colour.
+#[test]
+fn chat_shell_composer_scrolling_light() {
+    chat_shell_in(
+        "chat_shell_composer_scrolling_light",
+        chat_shell::state::Appearance::Light,
+        eleven_lines,
+        None,
     );
 }
 

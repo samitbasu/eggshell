@@ -40,7 +40,7 @@ use support::{Rig, click_node, drag, rect_of};
 const WINDOW: Vec2 = vec2(1100.0, 700.0);
 
 fn harness<A: 'static>(app: A, view: support::View<A>) -> Harness<'static, Rig<A>> {
-    let mut harness = support::harness(WINDOW, common::base_text(), app, view);
+    let mut harness = support::harness(WINDOW, common::base_text(egui::Theme::Light), app, view);
     harness.run_steps(2);
     harness
 }
