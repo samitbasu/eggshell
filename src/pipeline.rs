@@ -97,7 +97,8 @@ pub(crate) struct Frame<'f, A> {
 ///
 /// The root's text style defaults to [`TextStyle::from_egui`], recomputed on
 /// every build so theme changes apply. [`with_base_text`](Self::with_base_text)
-/// replaces it. Any subtree can still override fields with text classes on a
+/// replaces it, and [`set_base_text`](Self::set_base_text) changes or clears
+/// that between builds. Any subtree can still override fields with text classes on a
 /// div.
 pub struct LayoutState {
     st: BuildState,
@@ -130,6 +131,12 @@ impl LayoutState {
     pub fn with_base_text(mut self, base: TextStyle) -> Self {
         self.base_text = Some(base);
         self
+    }
+
+    /// Sets, or with `None` clears, the root text style of the builds that
+    /// follow. Without one each build follows egui's style.
+    pub fn set_base_text(&mut self, base: Option<TextStyle>) {
+        self.base_text = base;
     }
 
     /// Builds one frame. This is the only way to obtain a [`Builder`].
