@@ -72,6 +72,9 @@ struct Boxes {
     border: Rect,
     padding: Rect,
     content: Rect,
+    /// The unsnapped content width. Text wraps at this width, the one it was
+    /// measured at: egui breaks a word wrapped a fraction narrower than itself.
+    wrap_width: f32,
 }
 
 fn inset(rect: Rect, sides: Sides<f32>) -> Rect {
@@ -92,10 +95,12 @@ fn add(a: Sides<f32>, b: Sides<f32>) -> Sides<f32> {
 impl Boxes {
     fn of(node: &PlacedNode, grid: PixelGrid) -> Self {
         let rect = node.rect();
+        let content = inset(rect, add(node.border, node.padding));
         Self {
             border: grid.rect(rect),
             padding: grid.rect(inset(rect, node.border)),
-            content: grid.rect(inset(rect, add(node.border, node.padding))),
+            content: grid.rect(content),
+            wrap_width: content.width(),
         }
     }
 
@@ -334,7 +339,7 @@ impl<A> Walk<'_, A> {
             inertness: parent.inertness.or(node.is_inert().into()),
         };
         if let Some(prim) = self.prims[index].take() {
-            self.paint_prim(prim, node.text(), boxes.content, inherited);
+            self.paint_prim(prim, node.text(), &boxes, inherited);
         }
         if let Some(draw) = node.draw.and_then(|slot| self.draws[slot].take()) {
             let id = node.id().expect("a node with a draw closure is identified");
@@ -354,7 +359,8 @@ impl<A> Walk<'_, A> {
         self.paint_dividers(index, &in_layout_order, inherited);
     }
 
-    fn paint_prim(&mut self, prim: Prim, text: &TextStyle, content: Rect, inherited: Inherited) {
+    fn paint_prim(&mut self, prim: Prim, text: &TextStyle, boxes: &Boxes, inherited: Inherited) {
+        let content = boxes.content;
         match prim {
             Prim::Text(string) => {
                 let leaf = TextLeaf {
@@ -364,7 +370,7 @@ impl<A> Walk<'_, A> {
                 let galley = self
                     .ui
                     .ctx()
-                    .fonts_mut(|fonts| leaf.drawn_galley(fonts, content.width()));
+                    .fonts_mut(|fonts| leaf.drawn_galley(fonts, boxes.wrap_width));
                 let anchor: Pos2 = match text.align {
                     TextAlign::Left => content.left_top(),
                     TextAlign::Center => content.center_top(),

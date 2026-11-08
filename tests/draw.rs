@@ -526,6 +526,44 @@ fn normal_text_wraps_in_its_box() {
     assert!(shape.galley.size().x <= 60.0);
 }
 
+/// The word must not break where pixel snapping narrows its box.
+///
+/// ```html
+/// <div class="flex">
+///   <div class="ml-[Npx]">Blog</div>
+/// </div>
+/// ```
+#[test]
+fn a_word_stays_on_one_row_where_snapping_narrows_its_box() {
+    const SCALE: f32 = 3.0;
+    let ctx = egui::Context::default();
+    ctx.set_pixels_per_point(SCALE);
+    ctx.run_ui(RawInput::default(), |_| {})
+        .drop_without_applying_deltas();
+    let galley = |width: f32| {
+        let mut job = egui::text::LayoutJob::single_section(
+            "Blog".to_owned(),
+            egui::TextFormat::simple(base().spec.font_id(), Color32::BLACK),
+        );
+        job.wrap.max_width = width;
+        ctx.fonts_mut(|fonts| fonts.layout_job(job))
+    };
+    let width = galley(f32::INFINITY).size().x;
+    let snap = |value: f32| (value * SCALE).round() / SCALE;
+    let offset = (0..12)
+        .map(|step| 10.0 + step as f32 / 12.0)
+        .find(|&offset| galley(snap(offset + width) - snap(offset)).rows.len() > 1)
+        .expect("precondition: at some offset the snapped box is too narrow for the word");
+
+    let shapes = shapes(&mut (), SCALE, |b| {
+        b.div(tw().flex(), |b| {
+            b.div(tw().ml(offset / 4.0), |b| b.text(tw(), "Blog"));
+        });
+    });
+    let (shape, _) = text_of(&shapes, "Blog");
+    assert_eq!(shape.galley.rows.len(), 1, "broke at x = {offset}");
+}
+
 /// ```html
 /// <svg class="size-[16px] text-[#ff0000]"> ... </svg>
 /// ```
