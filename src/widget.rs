@@ -118,8 +118,16 @@ fn icon_row(sizer: &Sizer<'_>, icon: Vec2, label: Option<&String>, min_size: Vec
 #[derive(Clone, Debug)]
 pub struct Button {
     label: String,
-    variant: ButtonVariant,
+    appearance: Appearance,
     name: Option<String>,
+}
+
+/// How a button is drawn: as one of the variants, or as a toggle that is on
+/// or off.
+#[derive(Clone, Copy, Debug)]
+enum Appearance {
+    Variant(ButtonVariant),
+    Selectable(Mark),
 }
 
 impl Button {
@@ -127,14 +135,23 @@ impl Button {
     pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: label.into(),
-            variant: ButtonVariant::default(),
+            appearance: Appearance::Variant(ButtonVariant::default()),
             name: None,
+        }
+    }
+
+    /// A button that shows whether it is `mark`ed on, like `egui::Button::selectable`.
+    /// It is the same size as [`new`](Self::new).
+    pub fn selectable(label: impl Into<String>, mark: Mark) -> Self {
+        Self {
+            appearance: Appearance::Selectable(mark),
+            ..Self::new(label)
         }
     }
 
     /// Draws the button as `variant`.
     pub fn variant(mut self, variant: ButtonVariant) -> Self {
-        self.variant = variant;
+        self.appearance = Appearance::Variant(variant);
         self
     }
 
@@ -172,9 +189,14 @@ impl Button {
     /// Adds the button to `ui`, filling its rect.
     pub fn show(self, ui: &mut Ui) -> Response {
         let preset = Shadcn::of(ui.ctx());
-        let response = place(ui, |ui: &mut Ui| {
-            preset.style_button(self.variant, ui.visuals_mut());
-            ui.add(egui::Button::new(self.label))
+        let response = place(ui, |ui: &mut Ui| match self.appearance {
+            Appearance::Variant(variant) => {
+                preset.style_button(variant, ui.visuals_mut());
+                ui.add(egui::Button::new(self.label))
+            }
+            Appearance::Selectable(mark) => {
+                ui.add(egui::Button::selectable(mark == Mark::On, self.label))
+            }
         });
         announce(&response, self.name.as_deref());
         response
@@ -188,7 +210,10 @@ impl Stock for Button {
         let row = Row {
             pieces: vec![Piece::Text(WidgetText::from(self.label.as_str()))],
             gap: spacing.icon_spacing,
-            frame: sizer.button_frame(),
+            frame: match self.appearance {
+                Appearance::Variant(_) => sizer.button_frame(),
+                Appearance::Selectable(_) => sizer.forced_button_frame(),
+            },
             min_size: vec2(0.0, spacing.interact_size.y),
             wrap: TextWrapMode::Wrap,
         };

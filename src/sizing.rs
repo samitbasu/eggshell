@@ -143,10 +143,19 @@ impl<'a> Sizer<'a> {
         self.padded_button_frame(self.input_padding())
     }
 
+    /// The frame of a button that always has one, as `Button::selectable` does.
+    pub fn forced_button_frame(&self) -> Frame {
+        self.button_frame_with(self.style.spacing.button_padding)
+    }
+
     fn padded_button_frame(&self, padding: Vec2) -> Frame {
         if !self.style.visuals.button_frame {
             return Frame::new();
         }
+        self.button_frame_with(padding)
+    }
+
+    fn button_frame_with(&self, padding: Vec2) -> Frame {
         let visuals = self.style.visuals.widgets.inactive;
         Frame {
             fill: visuals.weak_bg_fill,

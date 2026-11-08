@@ -3,7 +3,7 @@
 //! widget. Each case varies the label, the font size and the style, and a
 //! width that makes labels wrap.
 
-use bullseye::style::{ButtonVariant, Shadcn};
+use bullseye::style::{ButtonVariant, Mark, Shadcn};
 use bullseye::widget::{
     Button, Checkbox, ComboBox, DragValue, Lines, RadioButton, Slider, Stock, TextEdit,
 };
@@ -216,6 +216,23 @@ fn button_variants_are_the_size_of_a_button() {
                         Shadcn::of(ui.ctx()).style_button(variant, ui.visuals_mut());
                         ui.add(egui::Button::new(label.clone()))
                     }
+                }),
+            },
+            &LABELS,
+        );
+        assert!(wrapped, "precondition: a long label wraps");
+    }
+}
+
+#[test]
+fn selectable_buttons_are_the_size_of_a_button_in_either_state() {
+    for mark in [Mark::Off, Mark::On] {
+        let wrapped = agrees(
+            |label| Case {
+                widget: Button::selectable(label, mark),
+                add: Box::new({
+                    let label = label.to_owned();
+                    move |ui, _| ui.add(egui::Button::selectable(mark == Mark::On, label.clone()))
                 }),
             },
             &LABELS,

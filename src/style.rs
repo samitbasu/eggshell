@@ -585,10 +585,13 @@ pub enum ButtonVariant {
     Ghost,
 }
 
-/// Whether a checkbox is ticked or a radio button chosen.
+/// Whether a checkbox is ticked, a radio button chosen or a selectable
+/// button selected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Mark {
+pub enum Mark {
+    /// Unticked, unchosen or unselected.
     Off,
+    /// Ticked, chosen or selected.
     On,
 }
 

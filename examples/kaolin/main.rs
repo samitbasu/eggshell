@@ -4,18 +4,20 @@
 mod common;
 mod layouts;
 
+use bullseye::style::Mark;
+use bullseye::widget::Button;
 use bullseye::{Builder, LayoutState, TextStyle, tw};
 use egui::load::SizedTexture;
-use egui::{Button, ImageSource, TextureHandle, TextureOptions};
+use egui::{ImageSource, TextureHandle, TextureOptions};
 
 /// What the gallery keeps between frames.
 pub struct Gallery {
     pub selected: usize,
 }
 
-type Build = fn(&mut Builder<'_, '_, Gallery>, ImageSource<'static>);
+pub type Build = fn(&mut Builder<'_, '_, Gallery>, ImageSource<'static>);
 
-const ENTRIES: [(&str, Build); 10] = [
+pub const ENTRIES: [(&str, Build); 10] = [
     ("Hello World", |b, _| layouts::hello_world(b)),
     ("Directions", |b, _| layouts::directions(b)),
     ("Sizing", |b, _| layouts::sizing(b)),
@@ -35,7 +37,7 @@ const ENTRIES: [(&str, Build); 10] = [
 /// ```html
 /// <div class="flex flex-row size-full">
 ///   <nav class="flex flex-col w-[200px] flex-none gap-1 p-2 bg-muted border-r border-border text-foreground">
-///     <button class="w-full h-[26px]">Hello World</button>
+///     <button class="w-full">Hello World</button>
 ///     <!-- one button per layout -->
 ///   </nav>
 ///   <main class="relative flex-1 bg-background"><!-- the selected layout --></main>
@@ -57,16 +59,15 @@ pub fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSour
                 .text(t.foreground),
             |b| {
                 for (index, (name, _)) in ENTRIES.into_iter().enumerate() {
-                    b.div_id(
+                    b.widget(
                         ("entry", index),
-                        tw().w_full().h_px(26.0),
-                        move |gallery, ui| {
-                            let button = Button::selectable(index == gallery.selected, name);
-                            if ui.add_sized(ui.max_rect().size(), button).clicked() {
+                        tw().w_full(),
+                        Button::selectable(name, Mark::from(index == selected)),
+                        move |gallery, ui, button| {
+                            if button.show(ui).clicked() {
                                 gallery.selected = index;
                             }
                         },
-                        |_| {},
                     );
                 }
             },
