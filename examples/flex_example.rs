@@ -75,21 +75,21 @@ impl Default for State {
 /// A framed box that grows, with its content centred in it.
 ///
 /// ```html
-/// <div class="flex items-center justify-center grow p-1.5 border border-[#b0b0b0] rounded-md">…</div>
+/// <div class="flex items-center justify-center grow p-1.5 border border-border rounded-md">…</div>
 /// ```
-fn framed(base: Tw) -> Tw {
+fn framed<A>(b: &Builder<'_, '_, A>, base: Tw) -> Tw {
     base.flex()
         .items_center()
         .justify_center()
         .grow()
         .p(1.5)
         .border(1.0)
-        .border_color(common::EDGE)
+        .border_color(common::tokens(b.ctx()).border)
         .rounded_md()
 }
 
 fn text<A>(b: &mut Builder<'_, '_, A>, class: Tw, content: &str) {
-    b.div(framed(class), |b| b.text(tw(), content));
+    b.div(framed(b, class), |b| b.text(tw(), content));
 }
 
 /// A stock button that grows with its flex item.
@@ -107,7 +107,7 @@ fn button(b: &mut B<'_, '_>, key: Part, class: Tw, label: &str) {
 /// ```
 fn stacked(b: &mut B<'_, '_>) {
     b.div(
-        framed(tw())
+        framed(b, tw())
             .flex_col()
             .items_stretch()
             .justify_start()
@@ -164,7 +164,7 @@ fn items(b: &mut B<'_, '_>, state: &State) {
 
     let field = Field::singleline(&state.text);
     let measured = field.clone();
-    b.div(framed(tw()).basis_px(200.0), |b| {
+    b.div(framed(b, tw()).basis_px(200.0), |b| {
         b.leaf(
             Part::Text,
             tw().w_full(),

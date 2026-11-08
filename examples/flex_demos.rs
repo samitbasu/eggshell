@@ -135,12 +135,12 @@ impl Default for State {
 /// The classes of a framed box, `Frame::group`.
 ///
 /// ```html
-/// <div class="p-1.5 border border-[#b0b0b0] rounded-md">…</div>
+/// <div class="p-1.5 border border-border rounded-md">…</div>
 /// ```
-fn framed(base: Tw) -> Tw {
+fn framed<A>(b: &Builder<'_, '_, A>, base: Tw) -> Tw {
     base.p(1.5)
         .border(1.0)
-        .border_color(common::EDGE)
+        .border_color(common::tokens(b.ctx()).border)
         .rounded_md()
 }
 
@@ -151,7 +151,7 @@ fn spread(state: &State, base: Tw) -> Tw {
 
 /// A framed text box.
 fn label<A>(b: &mut Builder<'_, '_, A>, class: Tw, text: &str) {
-    b.div(framed(class), |b| b.text(tw(), text));
+    b.div(framed(b, class), |b| b.text(tw(), text));
 }
 
 /// ```html
@@ -165,7 +165,7 @@ fn align_group(b: &mut B<'_, '_>, state: &State) {
     for align in ALIGNS {
         b.div_id(
             Part::Aligned(align),
-            align.apply(spread(state, framed(tw()))),
+            align.apply(spread(state, framed(b, tw()))),
             none,
             |b| b.text(tw(), align.name()),
         );
@@ -187,7 +187,7 @@ fn grow_group(b: &mut B<'_, '_>) {
     for factor in 0..4u8 {
         b.div_id(
             Part::Growing(factor),
-            framed(tw()).grow_by(f32::from(factor)),
+            framed(b, tw()).grow_by(f32::from(factor)),
             none,
             |b| b.text(tw(), factor.to_string()),
         );
@@ -205,7 +205,7 @@ fn basis_group(b: &mut B<'_, '_>, state: &State) {
         let index = u8::try_from(index).expect("four bases");
         b.div_id(
             Part::Based(index),
-            spread(state, framed(tw())).basis_px(basis),
+            spread(state, framed(b, tw())).basis_px(basis),
             none,
             |b| b.text(tw(), format!("{basis}")),
         );
@@ -221,14 +221,14 @@ fn basis_group(b: &mut B<'_, '_>, state: &State) {
 fn justify_group(b: &mut B<'_, '_>, state: &State) {
     let direction = state.direction;
     b.div(
-        framed(direction.opposite().flex(tw()))
+        framed(b, direction.opposite().flex(tw()))
             .gap(2.0)
             .items_stretch()
             .grow(),
         |b| {
             for (name, justify) in JUSTIFIES {
                 b.div(
-                    spread(state, justify(framed(direction.flex(tw())).gap(2.0))),
+                    spread(state, justify(framed(b, direction.flex(tw())).gap(2.0))),
                     |b| {
                         for text in [name, "two", "three"] {
                             b.text(tw(), text);
@@ -252,14 +252,14 @@ fn justify_group(b: &mut B<'_, '_>, state: &State) {
 /// ```
 fn nested_group(b: &mut B<'_, '_>, state: &State) {
     let (demo, main) = (state.direction, state.direction.opposite());
-    b.div(spread(state, framed(main.flex(tw())).gap(2.0)), |b| {
+    b.div(spread(state, framed(b, main.flex(tw())).gap(2.0)), |b| {
         label(b, spread(state, tw()), "one");
-        b.div(spread(state, framed(demo.flex(tw())).gap(2.0)), |b| {
+        b.div(spread(state, framed(b, demo.flex(tw())).gap(2.0)), |b| {
             label(b, spread(state, tw()), "two");
             label(b, spread(state, tw()), "three");
         });
     });
-    b.div(spread(state, framed(main.flex(tw())).gap(2.0)), |b| {
+    b.div(spread(state, framed(b, main.flex(tw())).gap(2.0)), |b| {
         for text in ["one", "two", "three"] {
             label(b, spread(state, tw()), text);
         }
@@ -292,7 +292,7 @@ fn content_group(b: &mut B<'_, '_>, state: &State) {
     for align in ALIGNS {
         b.div_id(
             Part::SelfContent(align),
-            align.apply(spread(state, place(framed(tw()).flex()))),
+            align.apply(spread(state, place(framed(b, tw()).flex()))),
             none,
             |b| b.text(tw(), align.name()),
         );
@@ -308,12 +308,12 @@ fn content_group(b: &mut B<'_, '_>, state: &State) {
 /// flex container in the demo direction.
 ///
 /// ```html
-/// <div class="flex flex-col grow p-1.5 border border-[#b0b0b0] rounded-md">
+/// <div class="flex flex-col grow p-1.5 border border-border rounded-md">
 ///   <div class="flex flex-row gap-2 grow"><h3 class="grow-0 text-[20px]">Align</h3>…</div>
 /// </div>
 /// ```
 fn group<'f>(b: &mut B<'_, 'f>, state: &State, title: &str, items: impl FnOnce(&mut B<'_, 'f>)) {
-    b.div(framed(tw()).flex().flex_col().grow(), |b| {
+    b.div(framed(b, tw()).flex().flex_col().grow(), |b| {
         b.div(
             state
                 .direction

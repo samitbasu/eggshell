@@ -17,21 +17,23 @@ mod support;
 
 use chat_shell::sidebar::Link;
 use chat_shell::state::{App, Pane, SessionKey};
-use chat_shell::theme::Tok;
+use chat_shell::theme::{Theme, Tok};
 use chat_shell::view::{Part, layout, prepare};
 use support::{Rig, click_node, drag, fill_of, hover_node, hover_over, rect_of};
 
 const WINDOW: Vec2 = vec2(1200.0, 760.0);
 
 fn harness_with(app: App) -> Harness<'static, Rig<App>> {
-    support::harness_prepared(
-        WINDOW,
-        app.theme.base_text(),
-        app,
-        layout,
-        support::Accessibility::Checked,
-        prepare,
-    )
+    harness_in(egui::Theme::Dark, app)
+}
+
+/// A harness showing `theme`, which the tests pick so that they do not depend
+/// on the machine's theme.
+fn harness_in(theme: egui::Theme, app: App) -> Harness<'static, Rig<App>> {
+    let harness =
+        support::harness_prepared(WINDOW, Theme::new(theme).base_text(), app, layout, prepare);
+    harness.ctx.set_theme(theme);
+    harness
 }
 
 fn harness() -> Harness<'static, Rig<App>> {
@@ -55,7 +57,7 @@ fn width(harness: &Harness<'_, Rig<App>>, pane: Pane) -> f32 {
 }
 
 fn color(harness: &Harness<'_, Rig<App>>, token: Tok) -> egui::Color32 {
-    harness.state().app.theme[token]
+    Theme::of(&harness.ctx)[token]
 }
 
 /// Drags the splitter of `pane` by `dx` points.
@@ -464,7 +466,7 @@ fn the_mode_control_has_one_pressed_cell_and_a_click_changes_it() {
     harness.run_steps(3);
     assert_eq!(harness.state().app.mode, Mode::Thorough);
 
-    let selected = color(&harness, Tok::Selected);
+    let selected = color(&harness, Tok::Line);
     let pressed: Vec<Mode> = Mode::ALL
         .iter()
         .map(|(mode, _)| *mode)
@@ -531,16 +533,15 @@ mod composer_growth {
     const FIELD: &str = "/Centre/Composer/Field";
 
     fn scaled_harness(pixels_per_point: f32) -> Harness<'static, Rig<App>> {
-        let app = App::default();
         let mut harness = support::harness_scaled(
             WINDOW,
             pixels_per_point,
-            app.theme.base_text(),
-            app,
+            Theme::new(egui::Theme::Dark).base_text(),
+            App::default(),
             layout,
-            support::Accessibility::Checked,
             prepare,
         );
+        harness.ctx.set_theme(egui::Theme::Dark);
         harness.run();
         click_node(&mut harness, "/Centre/Composer/Field");
         harness.run();
@@ -562,7 +563,7 @@ mod composer_growth {
         let width = rect_of(harness, FIELD).width();
         field.size(
             &harness.ctx,
-            &app.theme.base_text(),
+            &Theme::of(&harness.ctx).base_text(),
             Some(Width::new(width)),
         )
     }
@@ -621,6 +622,276 @@ mod composer_growth {
                         );
                     }
                 }
+            }
+        }
+    }
+}
+
+mod appearance {
+    use super::*;
+
+    const LIGHT: &str = "/Sidebar/Account/Appearance/Light";
+    const DARK: &str = "/Sidebar/Account/Appearance/Dark";
+    const SYSTEM: &str = "/Sidebar/Account/Appearance/System";
+    const NAV_ROW: &str = "/Sidebar/Link(Projects)";
+    const MODEL: &str = "/Centre/TopBar/Model";
+
+    fn settle(harness: &mut Harness<'_, Rig<App>>) {
+        harness.run_steps(10);
+    }
+
+    /// The fill of the model select's header, which egui draws from its
+    /// widget visuals.
+    fn select_fill(harness: &Harness<'_, Rig<App>>) -> Option<egui::Color32> {
+        fill_of(harness, MODEL)
+    }
+
+    #[test]
+    fn the_theme_the_app_shows_is_the_egui_theme() {
+        let mut harness = harness();
+        assert_eq!(harness.ctx.theme(), egui::Theme::Dark, "precondition");
+
+        click_node(&mut harness, LIGHT);
+        settle(&mut harness);
+        assert_eq!(harness.ctx.theme(), egui::Theme::Light);
+
+        click_node(&mut harness, DARK);
+        settle(&mut harness);
+        assert_eq!(harness.ctx.theme(), egui::Theme::Dark);
+
+        click_node(&mut harness, SYSTEM);
+        settle(&mut harness);
+        assert_eq!(
+            harness.ctx.options(|options| options.theme_preference),
+            egui::ThemePreference::System
+        );
+    }
+
+    #[test]
+    fn switching_recolours_the_next_frame_and_back() {
+        let mut harness = harness();
+        let sidebar = "/Sidebar";
+        let composer = "/Centre/Composer";
+        let dark = Theme::new(egui::Theme::Dark);
+        let light = Theme::new(egui::Theme::Light);
+        assert_ne!(dark[Tok::Panel], light[Tok::Panel], "precondition");
+        assert_ne!(dark[Tok::Surface], light[Tok::Surface], "precondition");
+        settle(&mut harness);
+        assert_eq!(fill_of(&harness, sidebar), Some(dark[Tok::Panel]));
+        assert_eq!(fill_of(&harness, composer), Some(dark[Tok::Surface]));
+        let dark_select = select_fill(&harness);
+        assert!(
+            dark_select.is_some(),
+            "precondition: the select draws a fill"
+        );
+
+        click_node(&mut harness, LIGHT);
+        harness.step();
+        assert_eq!(
+            fill_of(&harness, sidebar),
+            Some(light[Tok::Panel]),
+            "the frame after the click already has the new palette"
+        );
+        assert_eq!(fill_of(&harness, composer), Some(light[Tok::Surface]));
+        settle(&mut harness);
+        assert_ne!(select_fill(&harness), dark_select, "egui's widgets follow");
+        let light_widgets = harness
+            .ctx
+            .global_style()
+            .visuals
+            .widgets
+            .inactive
+            .weak_bg_fill;
+        assert_eq!(select_fill(&harness), Some(light_widgets));
+        assert_eq!(
+            light_widgets,
+            bullseye::style::Tokens::light().secondary,
+            "the select is drawn with the preset's light widgets"
+        );
+
+        click_node(&mut harness, DARK);
+        harness.step();
+        assert_eq!(fill_of(&harness, sidebar), Some(dark[Tok::Panel]));
+        assert_eq!(fill_of(&harness, composer), Some(dark[Tok::Surface]));
+        settle(&mut harness);
+        assert_eq!(select_fill(&harness), dark_select);
+    }
+
+    #[test]
+    fn a_row_part_way_through_its_hover_transition_takes_the_new_palette() {
+        let mut harness = harness();
+        let dark = Theme::new(egui::Theme::Dark);
+        let light = Theme::new(egui::Theme::Light);
+        assert_ne!(dark[Tok::Hover], light[Tok::Hover], "precondition");
+
+        harness.hover_at(rect_of(&harness, NAV_ROW).center());
+        harness.run_steps(2);
+        let midway = fill_of(&harness, NAV_ROW);
+        assert!(
+            midway.is_some_and(|fill| fill.a() > 0 && fill.a() < 255),
+            "precondition: the row is part-way to its hover fill: {midway:?}"
+        );
+
+        harness.ctx.set_theme(egui::Theme::Light);
+        harness.step();
+        let after = fill_of(&harness, NAV_ROW);
+        assert!(
+            after.is_some_and(|fill| fill.a() > 0 && fill.r() > dark[Tok::Hover].r()),
+            "the row keeps the old palette's fill: {after:?}"
+        );
+        settle(&mut harness);
+        assert_eq!(fill_of(&harness, NAV_ROW), Some(light[Tok::Hover]));
+    }
+}
+
+mod accents {
+    use super::*;
+    use bullseye::style::Accent;
+    use egui::epaint::Shape;
+
+    fn text_colors(harness: &Harness<'_, Rig<App>>, text: &str) -> Vec<egui::Color32> {
+        harness
+            .output()
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                Shape::Text(shape) if shape.galley.text() == text => {
+                    Some(shape.override_text_color.unwrap_or(shape.fallback_color))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_accent_colours_the_busy_marks_and_green_and_red_the_change_counts() {
+        for theme in [egui::Theme::Light, egui::Theme::Dark] {
+            let mut harness = harness_in(theme, App::default());
+            harness.run_steps(3);
+            let k = Theme::of(&harness.ctx);
+            assert_eq!(text_colors(&harness, "+24"), [k[Tok::Success]], "{theme:?}");
+            assert_eq!(text_colors(&harness, "-8"), [k[Tok::Danger]]);
+            assert_eq!(text_colors(&harness, "Running"), [k[Tok::Accent]]);
+            assert_ne!(k[Tok::Success], k[Tok::Danger], "precondition");
+            assert_eq!(
+                bullseye::style::Shadcn::of(&harness.ctx).tokens.primary,
+                bullseye::style::Shadcn::for_theme(theme)
+                    .accent(Accent::Blue)
+                    .tokens
+                    .primary,
+                "the example's accent is blue"
+            );
+            let meter = rect_of(
+                &harness,
+                "/Details/\"Context\"/Group/Row(\"Context window\")/Meter",
+            );
+            assert!(meter.is_positive(), "precondition: the meter is laid out");
+            assert!(
+                harness.output().shapes.iter().any(|clipped| matches!(
+                    &clipped.shape,
+                    Shape::Rect(r) if r.fill == k[Tok::Accent]
+                        && r.rect.left() >= meter.left() - 1.0
+                        && r.rect.top() >= meter.top() - 1.0
+                        && r.rect.bottom() <= meter.bottom() + 1.0
+                )),
+                "the meter's fill is the accent"
+            );
+        }
+    }
+}
+
+mod grouped_form {
+    use super::*;
+    use egui::epaint::Shape;
+
+    fn text_rect(harness: &Harness<'_, Rig<App>>, within: egui::Rect, text: &str) -> egui::Rect {
+        let rects: Vec<egui::Rect> = harness
+            .output()
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                Shape::Text(shape) if shape.galley.text() == text => {
+                    Some(shape.galley.rect.translate(shape.pos.to_vec2()))
+                }
+                _ => None,
+            })
+            .filter(|rect| within.contains_rect(*rect))
+            .collect();
+        assert_eq!(rects.len(), 1, "{text} is painted once in the group");
+        rects[0]
+    }
+
+    #[test]
+    fn rows_in_a_group_are_divided_by_lines_and_their_values_sit_at_the_right_edge() {
+        for theme in [egui::Theme::Light, egui::Theme::Dark] {
+            let mut harness = harness_in(theme, App::default());
+            harness.run_steps(3);
+            let line = Theme::of(&harness.ctx)[Tok::Line];
+            let group = rect_of(&harness, "/Details/\"Environment\"/Group");
+            let rows = ["Branch", "Runtime", "Model"].map(|label| {
+                rect_of(
+                    &harness,
+                    &format!("/Details/\"Environment\"/Group/Row(\"{label}\")"),
+                )
+            });
+            assert!(
+                rows.windows(2)
+                    .all(|pair| pair[0].bottom() <= pair[1].top()),
+                "precondition: the rows are stacked in order"
+            );
+
+            let rules: Vec<egui::Rect> = harness
+                .output()
+                .shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    Shape::Rect(r)
+                        if r.fill == line
+                            && r.rect.height() <= 1.0
+                            && r.rect.width() > 100.0
+                            && group.contains_rect(r.rect.expand(1.0)) =>
+                    {
+                        Some(r.rect)
+                    }
+                    _ => None,
+                })
+                .collect();
+            for pair in rows.windows(2) {
+                assert_eq!(
+                    rules
+                        .iter()
+                        .filter(|rule| rule.center().y >= pair[0].bottom() - 1.0
+                            && rule.center().y <= pair[1].top() + 1.0)
+                        .count(),
+                    1,
+                    "{theme:?}: one divide line between {:?} and {:?}: {rules:?}",
+                    pair[0],
+                    pair[1]
+                );
+            }
+            assert_eq!(
+                rules.len(),
+                2,
+                "{theme:?}: none above the first or below the last"
+            );
+
+            let padding_edge = group.right() - 1.0;
+            for (row, (label, value)) in rows.iter().zip([
+                ("Branch", "main"),
+                ("Runtime", "local"),
+                ("Model", MODELS[0]),
+            ]) {
+                assert_eq!(
+                    row.right(),
+                    padding_edge,
+                    "{label}: the row fills the group"
+                );
+                let value = text_rect(&harness, group, value);
+                assert!(
+                    (value.right() - (padding_edge - 12.0)).abs() <= 0.5,
+                    "{label}: {value:?}"
+                );
+                assert!(text_rect(&harness, group, label).left() - row.left() <= 12.5);
             }
         }
     }

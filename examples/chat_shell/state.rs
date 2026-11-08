@@ -1,8 +1,7 @@
 //! What the application keeps between frames.
 
 use bullseye::Progress;
-
-use super::theme::Theme;
+use bullseye::style::Accent;
 
 /// A pane whose width the user drags.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -107,7 +106,9 @@ pub enum Message {
 }
 
 pub struct App {
-    pub theme: Theme,
+    /// The shadcn theme colour that tints the meter, the send button, the
+    /// busy markers and focus.
+    pub accent: Accent,
     pub sessions: Vec<Session>,
     pub selected: SessionKey,
     pub conversation: Vec<Message>,
@@ -137,7 +138,7 @@ impl Default for App {
             status,
         };
         Self {
-            theme: Theme::dark(),
+            accent: Accent::Blue,
             sessions: vec![
                 session(1, "Refactor the tokenizer", None),
                 session(2, "Why does the build fail on CI?", Some(Status::Working)),

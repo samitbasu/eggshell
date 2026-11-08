@@ -158,7 +158,10 @@ fn kaolin_hello_world() {
     assert_eq!(text.size(), vec2(width, 60.0));
     assert_centre(text, AREA.center());
     let div_node = placed.nodes().find(|n| n.kind() == NodeKind::Div).unwrap();
-    assert_eq!(div_node.paint().background, Some(Color32::WHITE));
+    assert_eq!(
+        div_node.paint().background,
+        Some(bullseye::style::Shadcn::of(ctx()).tokens.background)
+    );
 }
 
 // ---------------------------------------------------------------- kaolin 2

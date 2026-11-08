@@ -16,7 +16,7 @@ use egui_kittest::kittest::Queryable as _;
 
 mod support;
 
-use support::{Accessibility, Rig, click_node, rect_of};
+use support::{Rig, click_node, rect_of};
 
 fn base_text() -> TextStyle {
     TextStyle::new(
@@ -64,7 +64,9 @@ fn controls(b: &mut Builder<'_, '_, App>, app: &App) {
         b.widget(
             "name",
             tw().w_px(220.0),
-            TextEdit::singleline(&app.one_line).hint("Name"),
+            TextEdit::singleline(&app.one_line)
+                .hint("Name")
+                .named("Name"),
             |app, ui, field| {
                 let response = field.show(ui, &mut app.one_line);
                 app.used.insert("name", response.rect.size());
@@ -73,7 +75,10 @@ fn controls(b: &mut Builder<'_, '_, App>, app: &App) {
         b.widget(
             "notes",
             tw().w_px(220.0),
-            TextEdit::multiline(&app.notes, 2).max_rows(4).hint("Notes"),
+            TextEdit::multiline(&app.notes, 2)
+                .max_rows(4)
+                .hint("Notes")
+                .named("Notes"),
             |app, ui, field| {
                 let response = field.show(ui, &mut app.notes);
                 app.used.insert("notes", response.rect.size());
@@ -83,24 +88,28 @@ fn controls(b: &mut Builder<'_, '_, App>, app: &App) {
             let response = switch.show(ui, &mut app.on);
             app.used.insert("wifi", response.rect.size());
         });
-        b.widget("bare", tw(), Switch::unlabelled(), |app, ui, switch| {
-            switch.show(ui, &mut app.on);
-        });
-        b.widget("pick", tw(), choices(), |app, ui, options| {
-            let response = select::show(ui, &mut app.pick, &options);
-            app.used.insert("pick", response.rect.size());
-        });
+        b.widget(
+            "bare",
+            tw(),
+            Switch::unlabelled().named("Bare switch"),
+            |app, ui, switch| {
+                switch.show(ui, &mut app.on);
+            },
+        );
+        b.widget(
+            "pick",
+            tw(),
+            choices().named("Direction"),
+            |app, ui, options| {
+                let response = select::show(ui, &mut app.pick, &options);
+                app.used.insert("pick", response.rect.size());
+            },
+        );
     });
 }
 
 fn harness_of(view: support::View<App>, app: App) -> Harness<'static, Rig<App>> {
-    support::harness_with(
-        vec2(400.0, 500.0),
-        base_text(),
-        app,
-        view,
-        Accessibility::Unchecked,
-    )
+    support::harness(vec2(400.0, 500.0), base_text(), app, view)
 }
 
 fn harness() -> Harness<'static, Rig<App>> {
@@ -273,7 +282,7 @@ fn rows(b: &mut Builder<'_, '_, App>, app: &App) {
             b.widget(
                 ("row", key),
                 tw().w_px(200.0),
-                TextEdit::singleline(text),
+                TextEdit::singleline(text).named(format!("Row {key}")),
                 move |app, ui, field| {
                     let Some((_, text)) = app.rows.iter_mut().find(|(k, _)| *k == key) else {
                         return;
@@ -515,4 +524,124 @@ fn an_inert_segmented_control_does_not_change() {
     choose(&mut harness, Mode::Month);
     assert_eq!(harness.state().app.mode, Mode::Day);
     assert_eq!(pressed(&harness), [Mode::Day]);
+}
+
+#[derive(Default)]
+struct Centred {
+    height: f32,
+    text: String,
+    multi: bool,
+    bare: bool,
+}
+
+fn centred(b: &mut Builder<'_, '_, Centred>, app: &Centred) {
+    let field = if app.multi {
+        TextEdit::multiline(&app.text, 1)
+    } else {
+        TextEdit::singleline(&app.text)
+    };
+    let field = if app.bare { field.bare() } else { field };
+    b.widget(
+        "field",
+        tw().w_px(200.0).h_px(app.height),
+        field.named("Field"),
+        |app, ui, field| {
+            field.show(ui, &mut app.text);
+        },
+    );
+}
+
+/// The vertical extent of the text the field painted.
+fn painted_text(harness: &Harness<'_, Rig<Centred>>) -> (f32, f32) {
+    harness
+        .output()
+        .shapes
+        .iter()
+        .find_map(|clipped| match &clipped.shape {
+            Shape::Text(text) if text.galley.text() == "Hxg" => Some((
+                text.pos.y + text.galley.rect.min.y,
+                text.pos.y + text.galley.rect.max.y,
+            )),
+            _ => None,
+        })
+        .expect("the field painted its text")
+}
+
+#[test]
+fn a_single_line_field_centres_its_line_in_a_taller_leaf() {
+    for ppp in [1.0, 1.7, 2.0] {
+        for size in [12.0, 16.0, 24.0] {
+            for height in [60.0, 80.0, 110.0] {
+                for bare in [false, true] {
+                    let app = Centred {
+                        height,
+                        text: "Hxg".to_owned(),
+                        bare,
+                        ..Centred::default()
+                    };
+                    let mut base = base_text();
+                    base.spec.size = size;
+                    base.spec.line_height = size * 1.25;
+                    let mut harness = support::harness_scaled(
+                        vec2(300.0, 200.0),
+                        ppp,
+                        base,
+                        app,
+                        centred,
+                        |_, _| {},
+                    );
+                    harness.run_steps(3);
+                    let leaf = rect_of(&harness, "/\"field\"");
+                    let (top, bottom) = painted_text(&harness);
+                    assert!(
+                        leaf.height() > bottom - top + 12.0,
+                        "precondition: the leaf is taller than the line ({leaf:?}, {top}..{bottom})"
+                    );
+                    let centre = (top + bottom) / 2.0;
+                    assert!(
+                        (centre - leaf.center().y).abs() <= 1.0,
+                        "ppp {ppp}, size {size}, height {height}, bare {bare}: \
+                         text centre {centre}, leaf centre {}",
+                        leaf.center().y
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_multi_line_field_keeps_its_text_at_the_top() {
+    for ppp in [1.0, 2.0] {
+        let app = Centred {
+            height: 90.0,
+            text: "Hxg".to_owned(),
+            multi: true,
+            ..Centred::default()
+        };
+        let mut harness = support::harness_scaled(
+            vec2(300.0, 200.0),
+            ppp,
+            base_text(),
+            app,
+            centred,
+            |_, _| {},
+        );
+        harness.run_steps(3);
+        let leaf = rect_of(&harness, "/\"field\"");
+        let (top, _) = painted_text(&harness);
+        assert!(leaf.height() >= 90.0, "precondition: a tall leaf");
+        assert!(
+            top - leaf.top() <= 6.0,
+            "ppp {ppp}: text starts at the top, {top} in {leaf:?}"
+        );
+    }
+}
+
+#[test]
+fn named_primitives_are_found_by_their_accessible_name() {
+    let harness = harness();
+    for name in ["Name", "Notes", "Bare switch", "Direction"] {
+        let _ = harness.get_by_label(name);
+    }
 }

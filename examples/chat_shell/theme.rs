@@ -1,11 +1,13 @@
 //! The application's palette and text roles, defined once as tokens indexed
-//! into resolved values (the pattern of the design brief's Appendix A). Swap
-//! the tables to restyle the whole example.
+//! into resolved values (the pattern of the design brief's Appendix A). The
+//! palette is the shadcn preset's: each token names the preset colour it
+//! takes, in light and in dark.
 
 use core::ops::Index;
 
+use bullseye::style::Shadcn;
 use bullseye::{TextSpec, TextStyle};
-use egui::{Color32, FontFamily};
+use egui::{Color32, Context, FontFamily};
 
 /// A colour by what it is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -16,7 +18,7 @@ pub enum Tok {
     Panel,
     /// Bubbles, the composer and chips.
     Surface,
-    /// A row under the pointer.
+    /// A row under the pointer: half the strength of the selected row.
     Hover,
     /// The selected row.
     Selected,
@@ -34,10 +36,14 @@ pub enum Tok {
     AccentHover,
     /// Text on the accent.
     OnAccent,
+    /// Additions.
+    Success,
+    /// Removals.
+    Danger,
 }
 
 impl Tok {
-    const ALL: [Self; 12] = [
+    const ALL: [Self; 14] = [
         Self::Ground,
         Self::Panel,
         Self::Surface,
@@ -50,22 +56,27 @@ impl Tok {
         Self::Accent,
         Self::AccentHover,
         Self::OnAccent,
+        Self::Success,
+        Self::Danger,
     ];
 
-    fn dark(self) -> Color32 {
+    /// The preset colour this token stands for.
+    fn resolve(self, preset: &Shadcn) -> Color32 {
+        let t = &preset.tokens;
         match self {
-            Self::Ground => Color32::from_rgb(0x1f, 0x1f, 0x1f),
-            Self::Panel => Color32::from_rgb(0x25, 0x25, 0x25),
-            Self::Surface => Color32::from_rgb(0x2b, 0x2b, 0x2b),
-            Self::Hover => Color32::from_rgb(0x2e, 0x2e, 0x2e),
-            Self::Selected => Color32::from_rgb(0x33, 0x3a, 0x44),
-            Self::Line => Color32::from_rgb(0x38, 0x38, 0x38),
-            Self::Ink => Color32::from_rgb(0xec, 0xec, 0xec),
-            Self::InkMid => Color32::from_rgb(0xa8, 0xa8, 0xa8),
-            Self::InkDim => Color32::from_rgb(0x7c, 0x7c, 0x7c),
-            Self::Accent => Color32::from_rgb(0x6f, 0x8f, 0xb3),
-            Self::AccentHover => Color32::from_rgb(0x84, 0xa2, 0xc4),
-            Self::OnAccent => Color32::from_rgb(0x14, 0x18, 0x1d),
+            Self::Ground => t.background,
+            Self::Panel => t.card,
+            Self::Surface => t.muted,
+            Self::Hover => t.accent_50(),
+            Self::Selected => t.accent,
+            Self::Line => t.border,
+            Self::Ink => t.foreground,
+            Self::InkMid | Self::InkDim => t.muted_foreground,
+            Self::Accent => t.primary,
+            Self::AccentHover => t.primary_90(),
+            Self::OnAccent => t.primary_foreground,
+            Self::Success => t.success,
+            Self::Danger => t.destructive,
         }
     }
 }
@@ -114,44 +125,22 @@ pub struct Theme {
 }
 
 impl Theme {
-    pub fn dark() -> Self {
-        Self {
-            colors: Tok::ALL.map(Tok::dark),
-            roles: Role::ALL.map(Role::spec),
-        }
+    /// The palette of the preset applied to `ctx` for its current theme, or
+    /// the preset's own if none was.
+    pub fn of(ctx: &Context) -> Self {
+        Self::from_preset(&Shadcn::of(ctx))
     }
 
-    /// Sets the colours of egui's stock widgets, so that a select or a text
-    /// field looks like the rest of the shell, in the dark theme the shell runs
-    /// in.
-    pub fn apply(&self, ctx: &egui::Context) {
-        let radius = egui::CornerRadius::same(8);
-        let ink = |token| egui::Stroke::new(1.0, self[token]);
-        let mut visuals = egui::Visuals::dark();
-        visuals.panel_fill = self[Tok::Ground];
-        visuals.window_fill = self[Tok::Panel];
-        visuals.window_stroke = ink(Tok::Line);
-        visuals.extreme_bg_color = self[Tok::Surface];
-        visuals.selection.bg_fill = self[Tok::Selected];
-        visuals.selection.stroke = ink(Tok::Accent);
-        let states = [
-            (&mut visuals.widgets.inactive, Tok::Surface, Tok::InkMid),
-            (&mut visuals.widgets.hovered, Tok::Hover, Tok::Ink),
-            (&mut visuals.widgets.active, Tok::Selected, Tok::Ink),
-            (&mut visuals.widgets.open, Tok::Hover, Tok::Ink),
-        ];
-        for (widget, fill, text) in states {
-            widget.weak_bg_fill = self[fill];
-            widget.bg_fill = self[fill];
-            widget.bg_stroke = ink(Tok::Line);
-            widget.fg_stroke = ink(text);
-            widget.corner_radius = radius;
+    /// The palette of the preset for `theme`.
+    pub fn new(theme: egui::Theme) -> Self {
+        Self::from_preset(&Shadcn::for_theme(theme))
+    }
+
+    fn from_preset(preset: &Shadcn) -> Self {
+        Self {
+            colors: Tok::ALL.map(|token| token.resolve(preset)),
+            roles: Role::ALL.map(Role::spec),
         }
-        ctx.style_mut_of(egui::Theme::Dark, |style| {
-            if style.visuals != visuals {
-                style.visuals = visuals;
-            }
-        });
     }
 
     /// The text every layout starts from.

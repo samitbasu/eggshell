@@ -103,6 +103,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.st.names.pop_to(mark);
     }
 
+    /// The egui context the frame is built with, for reading the local state
+    /// that draw closures keep in egui's memory under ids from
+    /// [`id_of`](Self::id_of).
+    pub fn ctx(&self) -> &egui::Context {
+        self.frame.ctx
+    }
+
     /// The id a node declared with `key` has in this scope.
     ///
     /// For overlay anchors and for reading local state at build time. Keep

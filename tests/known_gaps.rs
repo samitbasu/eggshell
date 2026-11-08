@@ -27,7 +27,7 @@ fn draw(build: impl for<'f> FnOnce(&mut bullseye::Builder<'_, 'f, ()>)) -> Vec<C
     let mut output = ctx.run_ui(input, |ui| {
         let build = build.take().expect("one pass");
         bullseye::LayoutState::new()
-            .with_base_text(known_gaps::base_text())
+            .with_base_text(known_gaps::base_text(egui::Theme::Light))
             .build(ui.ctx(), build)
             .layout(SCREEN)
             .draw(&mut (), ui);

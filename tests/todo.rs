@@ -22,12 +22,10 @@ mod support;
 use support::{Rig, fill_of, hover_over, press_and_release, rect_of};
 use todo::{ItemKey, State};
 
-const ACTION_HOVER: u8 = 208;
-
 fn harness() -> Harness<'static, Rig<State>> {
     support::harness(
         vec2(520.0, 320.0),
-        common::base_text(),
+        common::base_text(egui::Theme::Light),
         State::default(),
         todo::layout,
     )
@@ -95,14 +93,15 @@ fn a_button_that_cannot_move_its_row_is_inert_and_does_not_highlight() {
         let at = rect_of(harness, &button_path(key, "up")).center();
         hover_over(harness, at);
         harness.run_steps(10);
-        fill_of(harness, &button_path(key, "up")).map(|c| c.r())
+        fill_of(harness, &button_path(key, "up"))
     };
+    let action_hover = common::ring(&common::tokens(&harness.ctx));
     assert_eq!(
         lit_by_hover(&mut harness, item(1)),
-        Some(ACTION_HOVER),
+        Some(action_hover),
         "precondition: a live Up button highlights"
     );
-    assert_ne!(lit_by_hover(&mut harness, item(0)), Some(ACTION_HOVER));
+    assert_ne!(lit_by_hover(&mut harness, item(0)), Some(action_hover));
 }
 
 #[test]

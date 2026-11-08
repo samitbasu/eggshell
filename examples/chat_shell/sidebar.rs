@@ -4,6 +4,7 @@ use core::time::Duration;
 
 use bullseye::{Builder, NodeUi, Tw, none, tw};
 
+use super::common;
 use super::icons::{self, Glyph};
 use super::state::{App, Pane, Session, Status};
 use super::theme::{Role, Theme, Tok};
@@ -58,7 +59,7 @@ impl Link {
 /// The look every row shares; `hover` is how it responds to the pointer.
 ///
 /// ```html
-/// <div class="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[#a8a8a8]">...</div>
+/// <div class="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-muted-foreground">...</div>
 /// ```
 fn row(k: &Theme) -> Tw {
     tw().flex()
@@ -74,10 +75,10 @@ fn row(k: &Theme) -> Tw {
 /// A link row: icon, label and an optional keyboard hint on the right.
 ///
 /// ```html
-/// <a class="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[#a8a8a8]
-///           hover:bg-[#2e2e2e] hover:text-[#ececec] transition duration-100">
+/// <a class="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-muted-foreground
+///           hover:bg-accent hover:text-foreground transition duration-100">
 ///   <svg class="size-4 shrink-0"/> <span class="grow truncate">New</span>
-///   <span class="text-[11px] text-[#7c7c7c]">Ctrl+N</span>
+///   <span class="text-[11px] text-muted-foreground">Ctrl+N</span>
 /// </a>
 /// ```
 fn link(b: &mut B<'_, '_>, k: &Theme, link: Link) {
@@ -111,12 +112,12 @@ fn status_color(k: &Theme, status: Status) -> egui::Color32 {
 /// hover; the others do.
 ///
 /// ```html
-/// <a class="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[#a8a8a8]
-///           hover:bg-[#2e2e2e] hover:text-[#ececec] transition duration-100 cursor-pointer">
+/// <a class="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-muted-foreground
+///           hover:bg-accent hover:text-foreground transition duration-100 cursor-pointer">
 ///   <span class="grow truncate">Why does the build fail on CI?</span>
-///   <span class="size-1.5 rounded-full bg-[#6f8fb3]"></span>
+///   <span class="size-1.5 rounded-full bg-primary"></span>
 /// </a>
-/// <a class="... bg-[#333a44] text-[#ececec]">Refactor the tokenizer</a>
+/// <a class="... bg-border text-foreground">Refactor the tokenizer</a>
 /// ```
 fn recent(b: &mut B<'_, '_>, k: &Theme, session: &Session, selected: bool) {
     let key = session.key;
@@ -150,58 +151,63 @@ fn recent(b: &mut B<'_, '_>, k: &Theme, session: &Session, selected: bool) {
 }
 
 /// ```html
-/// <div class="flex items-center gap-2.5 pt-2 border-t border-[#383838]">
-///   <div class="flex items-center justify-center size-8 rounded-full bg-[#6f8fb3] text-[#14181d]">A</div>
-///   <div class="flex flex-col"><span>Alex Doe</span><span class="text-[11px] text-[#7c7c7c]">Free plan</span></div>
+/// <div class="flex flex-col gap-2 pt-2 border-t border-border">
+///   <div class="flex items-center gap-2.5 px-2.5">
+///     <div class="flex items-center justify-center size-8 rounded-full bg-primary text-primary-foreground">A</div>
+///     <div class="flex flex-col"><span>Alex Doe</span><span class="text-[11px] text-muted-foreground">Free plan</span></div>
+///   </div>
+///   <div class="tab-list">System Light Dark</div>
 /// </div>
 /// ```
 fn account(b: &mut B<'_, '_>, k: &Theme) {
     b.div_id(
         Part::Account,
         tw().flex()
-            .items_center()
-            .gap(2.5)
-            .px(2.5)
+            .flex_col()
+            .gap(2.0)
             .pt(2.0)
             .border_t(1.0)
             .border_color(k[Tok::Line]),
         none,
         |b| {
-            b.div(
-                tw().flex()
-                    .items_center()
-                    .justify_center()
-                    .size_px(32.0)
-                    .shrink_0()
-                    .rounded_full()
-                    .bg(k[Tok::Accent])
-                    .text(k[Tok::OnAccent])
-                    .role(k[Role::Title].clone()),
-                |b| b.text(tw(), "A"),
-            );
-            b.div(tw().flex().flex_col(), |b| {
-                b.text(tw(), "Alex Doe");
-                b.text(
-                    tw().role(k[Role::Meta].clone()).text(k[Tok::InkDim]),
-                    "Free plan",
+            b.div(tw().flex().items_center().gap(2.5).px(2.5), |b| {
+                b.div(
+                    tw().flex()
+                        .items_center()
+                        .justify_center()
+                        .size_px(32.0)
+                        .shrink_0()
+                        .rounded_full()
+                        .bg(k[Tok::Accent])
+                        .text(k[Tok::OnAccent])
+                        .role(k[Role::Title].clone()),
+                    |b| b.text(tw(), "A"),
                 );
+                b.div(tw().flex().flex_col(), |b| {
+                    b.text(tw(), "Alex Doe");
+                    b.text(
+                        tw().role(k[Role::Meta].clone()).text(k[Tok::InkDim]),
+                        "Free plan",
+                    );
+                });
             });
+            common::theme_toggle(b, Part::Appearance);
         },
     );
 }
 
 /// ```html
-/// <aside class="flex flex-col shrink-0 gap-0.5 p-2 bg-[#252525]" style="width: 260px">
+/// <aside class="flex flex-col shrink-0 gap-0.5 p-2 bg-card" style="width: 260px">
 ///   <h1 class="px-2.5 py-2 text-[15px]">Assistant</h1>
 ///   <a>New</a> <a>Search</a>
 ///   <hr class="my-2"> <a>Projects</a> <a>Artifacts</a> <a>Customize</a> <a>More</a>
-///   <h2 class="px-2.5 pt-4 pb-1 text-[11px] text-[#7c7c7c]">Recents</h2>
+///   <h2 class="px-2.5 pt-4 pb-1 text-[11px] text-muted-foreground">Recents</h2>
 ///   <div class="flex flex-col grow min-h-0 overflow-hidden">...</div>
 ///   <div>account</div>
 /// </aside>
 /// ```
 pub fn sidebar(b: &mut B<'_, '_>, app: &App) {
-    let k = &app.theme;
+    let k = &Theme::of(b.ctx());
     b.div_id(
         Part::Sidebar,
         tw().flex()

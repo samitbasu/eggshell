@@ -10,18 +10,10 @@ mod common;
 
 use core::time::Duration;
 
+use bullseye::style::Tokens;
 use bullseye::{Builder, Opacity, Tw, tw};
-use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
-
-const ROW: Color32 = Color32::from_gray(245);
-const ROW_HOVER: Color32 = Color32::from_gray(229);
-const BORDER: Color32 = Color32::from_gray(208);
-const MUTED: Color32 = Color32::from_gray(110);
-const INK: Color32 = Color32::from_gray(20);
-const ACTION_HOVER: Color32 = Color32::from_gray(208);
-const ACTION_PRESSED: Color32 = Color32::from_gray(188);
 
 const FAST: Duration = Duration::from_millis(150);
 
@@ -95,16 +87,16 @@ impl State {
 /// A small text button.
 ///
 /// ```html
-/// <button class="px-2 py-0.5 rounded text-[#6e6e6e] hover:bg-[#d0d0d0] hover:text-[#141414]
-///                active:bg-[#bcbcbc] transition duration-150">Up</button>
+/// <button class="px-2 py-0.5 rounded text-muted-foreground hover:bg-ring/50 hover:text-foreground
+///                active:bg-ring transition duration-150">Up</button>
 /// ```
-fn action() -> Tw {
+fn action(t: &Tokens) -> Tw {
     tw().px(2.0)
         .py(0.5)
         .rounded()
-        .text(MUTED)
-        .hover(|p| p.bg(ACTION_HOVER).text(INK))
-        .active(|p| p.bg(ACTION_PRESSED))
+        .text(t.muted_foreground)
+        .hover(|p| p.bg(common::ring(t)).text(t.foreground))
+        .active(|p| p.bg(t.ring))
         .transition(FAST)
 }
 
@@ -112,8 +104,8 @@ fn action() -> Tw {
 /// Remove is revealed while the row, or anything in it, is hovered.
 ///
 /// ```html
-/// <li class="group flex items-center gap-2 h-10 px-3 rounded-md border border-[#d0d0d0]
-///            bg-[#f5f5f5] hover:bg-[#e5e5e5] transition duration-150">
+/// <li class="group flex items-center gap-2 h-10 px-3 rounded-md border border-input
+///            bg-muted hover:bg-border transition duration-150">
 ///   <span class="grow truncate">Lay it out</span>
 ///   <button class="px-2 py-0.5 rounded ...">Up</button>
 ///   <button class="px-2 py-0.5 rounded ... inert opacity-30">Down</button>
@@ -121,6 +113,7 @@ fn action() -> Tw {
 /// </li>
 /// ```
 fn row(b: &mut B<'_, '_, State>, item: &Item, position: Position) {
+    let t = common::tokens(b.ctx());
     let key = item.key;
     let movable = |tw: Tw, blocked_at: Position| {
         if position == blocked_at || position == Position::Only {
@@ -138,29 +131,29 @@ fn row(b: &mut B<'_, '_, State>, item: &Item, position: Position) {
             .px(3.0)
             .rounded_md()
             .border(1.0)
-            .border_color(BORDER)
-            .bg(ROW)
+            .border_color(t.input)
+            .bg(t.muted)
             .group()
-            .hover(|p| p.bg(ROW_HOVER))
+            .hover(|p| p.bg(t.border))
             .transition(FAST),
         bullseye::none,
         |b| {
             b.text(tw().grow().truncate(), &item.title);
             b.span(
                 "up",
-                movable(action(), Position::First),
+                movable(action(&t), Position::First),
                 "Up",
                 common::on_click::<State>(move |state| state.shift(key, Direction::Up)),
             );
             b.span(
                 "down",
-                movable(action(), Position::Last),
+                movable(action(&t), Position::Last),
                 "Down",
                 common::on_click::<State>(move |state| state.shift(key, Direction::Down)),
             );
             b.span(
                 "remove",
-                action()
+                action(&t)
                     .opacity(Opacity::TRANSPARENT)
                     .group_hover(|p| p.opacity(Opacity::OPAQUE)),
                 "Remove",
@@ -193,10 +186,11 @@ impl Position {
 /// ```html
 /// <ul class="flex flex-col gap-1 w-full max-w-[480px] mx-auto p-4">
 ///   <li>...</li>
-///   <li class="py-2 text-center text-[#6e6e6e]">Nothing to do</li>
+///   <li class="py-2 text-center text-muted-foreground">Nothing to do</li>
 /// </ul>
 /// ```
 pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+    let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(
         tw().flex()
             .flex_col()
@@ -207,7 +201,7 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
             .p(4.0),
         |b| {
             if state.items.is_empty() {
-                b.text(tw().py(2.0).text(MUTED).text_center(), "Nothing to do");
+                b.text(tw().py(2.0).text(muted).text_center(), "Nothing to do");
             }
             for (index, item) in state.items.iter().enumerate() {
                 row(b, item, Position::of(index, state.items.len()));
@@ -231,12 +225,16 @@ fn add_bar(ui: &mut egui::Ui, state: &mut State) {
 
 fn main() -> eframe::Result {
     let mut state = State::default();
-    let mut layout_state = bullseye::LayoutState::new().with_base_text(common::base_text());
+    let mut layout_state = bullseye::LayoutState::new();
+    let mut theme_bar = common::ThemeBar::new();
     eframe::run_ui_native("todo", eframe::NativeOptions::default(), move |ui, _| {
-        ui.ctx().set_theme(egui::Theme::Light);
+        let ctx = ui.ctx().clone();
+        common::use_preset(&ctx);
+        theme_bar.show(ui);
+        layout_state.set_base_text(Some(common::base_text(ctx.theme())));
         egui::Panel::top("add").show(ui, |ui| add_bar(ui, &mut state));
         egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.fill(Color32::WHITE))
+            .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
             .show(ui, |ui| {
                 let area = ui.max_rect();
                 let built = layout_state.build(ui.ctx(), |b| layout(b, &state));

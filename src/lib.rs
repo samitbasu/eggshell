@@ -20,6 +20,7 @@ mod measure;
 mod pipeline;
 pub mod prim;
 mod sizing;
+pub mod style;
 mod text;
 mod tw;
 pub mod widget;

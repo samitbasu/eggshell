@@ -31,7 +31,7 @@ mod support;
 use support::{Rig, click_node, drag, focused_node, rect_of};
 
 fn harness<A: 'static>(size: Vec2, app: A, view: support::View<A>) -> Harness<'static, Rig<A>> {
-    let mut harness = support::harness(size, common::base_text(), app, view);
+    let mut harness = support::harness(size, common::base_text(egui::Theme::Light), app, view);
     harness.run_steps(3);
     harness
 }
@@ -165,6 +165,8 @@ mod demos {
 
         click_node(&mut harness, "/Content");
         harness.run_steps(3);
+        harness.get_by_label("Right bottom").scroll_to_me();
+        harness.run_steps(3);
         harness.get_by_label("Right bottom").click();
         harness.run_steps(3);
         assert_eq!(harness.state().app.anchor, 8);
@@ -191,6 +193,7 @@ mod example {
             .filter(|(path, _)| path == "/<div>")
             .map(|(_, rect)| rect.min.y.round() as i32)
             .collect();
+        tops.sort_unstable();
         tops.dedup();
         tops
     }

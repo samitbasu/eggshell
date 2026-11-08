@@ -209,6 +209,45 @@ fn ring_is_outside_the_box_and_shadow_is_under_it() {
 }
 
 /// ```html
+/// <div class="w-[100px] h-[50px] shadow-[0_4px_8px_#00000050]"></div>
+/// ```
+#[test]
+fn a_shadow_never_shows_inside_a_box_that_does_not_cover_it() {
+    let shadow = egui::Shadow {
+        offset: [0, 4],
+        blur: 8,
+        spread: 0,
+        color: Color32::from_black_alpha(80),
+    };
+    for background in [None, Some(Color32::from_white_alpha(100))] {
+        let shapes = shapes(&mut (), 1.0, |b| {
+            let look = tw().w_px(100.0).h_px(50.0).shadow(shadow);
+            b.div(background.map_or(look.clone(), |c| look.bg(c)), |_| {});
+        });
+        let border = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 50.0));
+        let painted: Vec<_> = rects(&shapes)
+            .into_iter()
+            .filter(|(rect, _)| rect.fill == shadow.color && rect.blur_width > 0.0)
+            .collect();
+        assert!(!painted.is_empty(), "precondition: the shadow is painted");
+        for (rect, clip) in &painted {
+            assert!(
+                rect.rect.intersects(border),
+                "precondition: it is cast around the box: {rect:?}"
+            );
+            assert!(
+                !clip.intersects(border.shrink(0.5)),
+                "{background:?}: shadow clip {clip:?} reaches into {border:?}"
+            );
+        }
+        let beside = |x: f32, y: f32| painted.iter().any(|(_, clip)| clip.contains(pos2(x, y)));
+        assert!(beside(50.0, 52.0), "it still shows below");
+        assert!(beside(102.0, 25.0), "and to the right");
+        assert!(!beside(50.0, 25.0), "but not in the middle");
+    }
+}
+
+/// ```html
 /// <div class="flex w-[300px] h-[40px] divide-x-2 divide-[#808080]">
 ///   <div class="w-[100px]"></div> <div class="w-[100px]"></div> <div class="w-[100px]"></div>
 /// </div>

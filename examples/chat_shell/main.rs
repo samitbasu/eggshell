@@ -10,6 +10,8 @@
 //! control. Scrolling arrives with M5; for now overflow is clipped.
 
 pub mod centre;
+#[path = "../common/mod.rs"]
+pub mod common;
 pub mod details;
 pub mod icons;
 pub mod sidebar;
@@ -18,23 +20,24 @@ pub mod theme;
 pub mod view;
 
 use bullseye::LayoutState;
-use egui::Color32;
+use theme::{Theme, Tok};
 
 use state::App;
 use view::layout;
 
 fn main() -> eframe::Result {
     let mut app = App::default();
-    let mut layout_state = LayoutState::new().with_base_text(app.theme.base_text());
+    let mut layout_state = LayoutState::new();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1280.0, 800.0]),
         ..Default::default()
     };
     eframe::run_ui_native("chat_shell", options, move |ui, _| {
-        ui.ctx().set_theme(egui::Theme::Dark);
         view::prepare(ui.ctx(), &app);
+        let k = Theme::of(ui.ctx());
+        layout_state.set_base_text(Some(k.base_text()));
         egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.fill(Color32::BLACK))
+            .frame(egui::Frame::NONE.fill(k[Tok::Ground]))
             .show(ui, |ui| {
                 let area = ui.max_rect();
                 layout_state

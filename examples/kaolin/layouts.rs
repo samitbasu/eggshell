@@ -9,6 +9,7 @@
     reason = "each crate that includes this file uses a subset of it"
 )]
 
+use bullseye::style::{Shadcn, Tokens};
 use bullseye::{Builder, TextSpec, Tw, tw};
 use egui::{Color32, FontFamily, ImageSource};
 
@@ -20,6 +21,37 @@ pub const BODY: TextSpec = TextSpec {
     line_height: 20.0,
     family: FontFamily::Proportional,
 };
+
+/// The greys of the README's layouts, as the theme's surfaces. The colours
+/// that are the subject of a demo (the blues, the dark grey footer, the black
+/// embedded stage) are not here: they are the same in both themes.
+struct Greys {
+    /// The stage a layout sits on: kaolin's white, with black text.
+    stage: Color32,
+    ink: Color32,
+    /// A container on the stage: kaolin's light grey.
+    panel: Color32,
+    /// A panel beside a panel, and an edge: kaolin's grey.
+    deep: Color32,
+    /// A card on a panel: kaolin's white.
+    card: Color32,
+}
+
+impl Greys {
+    fn of(tokens: &Tokens) -> Self {
+        Self {
+            stage: tokens.background,
+            ink: tokens.foreground,
+            panel: tokens.muted,
+            deep: tokens.ring,
+            card: tokens.card,
+        }
+    }
+}
+
+fn greys<A>(b: &B<'_, '_, A>) -> Greys {
+    Greys::of(&Shadcn::of(b.ctx()).tokens)
+}
 
 /// A proportional text role of `size` points.
 pub fn sized(size: f32) -> TextSpec {
@@ -40,19 +72,20 @@ pub fn mono(size: f32) -> TextSpec {
 }
 
 /// ```html
-/// <div class="flex size-full items-center justify-center bg-white">
-///   <span class="text-[48px]/[60px] text-black">Hello, World!</span>
+/// <div class="flex size-full items-center justify-center bg-background">
+///   <span class="text-[48px]/[60px] text-foreground">Hello, World!</span>
 /// </div>
 /// ```
 pub fn hello_world<A>(b: &mut B<'_, '_, A>) {
+    let greys = greys(b);
     b.div(
         tw().flex()
             .size_full()
             .items_center()
             .justify_center()
-            .bg(Color32::WHITE),
+            .bg(greys.stage),
         |b| {
-            b.text(tw().role(sized(48.0)).text(Color32::BLACK), "Hello, World!");
+            b.text(tw().role(sized(48.0)).text(greys.ink), "Hello, World!");
         },
     );
 }
@@ -84,7 +117,7 @@ pub fn three_boxes<A>(b: &mut B<'_, '_, A>) {
 ///
 /// ```html
 /// <div class="flex flex-col gap-2 p-2">
-///   <div class="flex flex-row items-center justify-center gap-2.5 w-[300px] h-[100px] bg-[#dcdcdc]">
+///   <div class="flex flex-row items-center justify-center gap-2.5 w-[300px] h-[100px] bg-muted">
 ///     <div class="w-[40px] h-[20px] bg-[#00008b]"></div>
 ///     <div class="w-[50px] h-[20px] bg-[#00008b]"></div>
 ///     <div class="w-[60px] h-[20px] bg-[#00008b]"></div>
@@ -93,12 +126,8 @@ pub fn three_boxes<A>(b: &mut B<'_, '_, A>) {
 /// </div>
 /// ```
 pub fn directions<A>(b: &mut B<'_, '_, A>) {
-    let container = || {
-        direction_and_alignment()
-            .w_px(300.0)
-            .h_px(100.0)
-            .bg(Color32::LIGHT_GRAY)
-    };
+    let panel = greys(b).panel;
+    let container = || direction_and_alignment().w_px(300.0).h_px(100.0).bg(panel);
     b.div(tw().flex().flex_col().gap(2.0).p(2.0), |b| {
         for direction in [
             container(),
@@ -145,35 +174,30 @@ pub const LONG: &str = "This is a long text that will automatically wrap to mult
 /// One sizing mode in a 600 point row that does not stretch its child.
 ///
 /// ```html
-/// <div class="flex w-[600px] items-start bg-[#dcdcdc]">
+/// <div class="flex w-[600px] items-start bg-muted">
 ///   <div class="min-h-[16px] bg-[#00008b] text-white"><!-- one of the sizing modes --></div>
 /// </div>
 /// ```
 pub fn sized_child<A>(b: &mut B<'_, '_, A>, style: Tw, content: &'static str) {
-    b.div(
-        tw().flex()
-            .w_px(600.0)
-            .items_start()
-            .bg(Color32::LIGHT_GRAY),
-        |b| {
-            b.div(
-                style
-                    .min_h_px(16.0)
-                    .bg(Color32::DARK_BLUE)
-                    .text(Color32::WHITE),
-                |b| {
-                    if !content.is_empty() {
-                        b.text(tw(), content)
-                    }
-                },
-            )
-        },
-    );
+    let panel = greys(b).panel;
+    b.div(tw().flex().w_px(600.0).items_start().bg(panel), |b| {
+        b.div(
+            style
+                .min_h_px(16.0)
+                .bg(Color32::DARK_BLUE)
+                .text(Color32::WHITE),
+            |b| {
+                if !content.is_empty() {
+                    b.text(tw(), content)
+                }
+            },
+        )
+    });
 }
 
 /// ```html
 /// <div class="flex flex-col gap-1 p-2">
-///   <div class="flex w-[600px] items-start bg-[#dcdcdc]">
+///   <div class="flex w-[600px] items-start bg-muted">
 ///     <div class="w-[200px] h-[100px] min-h-[16px] bg-[#00008b] text-white"></div>
 ///   </div>
 ///   <!-- seven more rows, one per sizing mode -->
@@ -208,11 +232,12 @@ pub fn styling<A>(b: &mut B<'_, '_, A>) {
 /// ```html
 /// <div class="flex flex-col size-full">
 ///   <div class="w-full h-[60px] bg-[#00008b] text-white">Header</div>
-///   <div class="w-full flex-1 bg-[#dcdcdc]">Main Content</div>
+///   <div class="w-full flex-1 bg-muted">Main Content</div>
 ///   <div class="w-full h-[40px] bg-[#606060] text-white">Footer</div>
 /// </div>
 /// ```
 pub fn responsive<A>(b: &mut B<'_, '_, A>) {
+    let panel = greys(b).panel;
     b.div(tw().flex().flex_col().size_full(), |b| {
         b.div(
             tw().w_full()
@@ -221,7 +246,7 @@ pub fn responsive<A>(b: &mut B<'_, '_, A>) {
                 .text(Color32::WHITE),
             |b| b.text(tw(), "Header"),
         );
-        b.div(tw().w_full().flex_1().bg(Color32::LIGHT_GRAY), |b| {
+        b.div(tw().w_full().flex_1().bg(panel), |b| {
             b.text(tw(), "Main Content")
         });
         b.div(
@@ -236,16 +261,17 @@ pub fn responsive<A>(b: &mut B<'_, '_, A>) {
 
 /// ```html
 /// <div class="flex flex-row gap-5 size-full">
-///   <div class="w-[200px] flex-none bg-[#a0a0a0]">Sidebar</div>
-///   <div class="flex-1 bg-white">Main Content</div>
+///   <div class="w-[200px] flex-none bg-ring">Sidebar</div>
+///   <div class="flex-1 bg-background">Main Content</div>
 /// </div>
 /// ```
 pub fn multi_column<A>(b: &mut B<'_, '_, A>) {
+    let greys = greys(b);
     b.div(tw().flex().flex_row().gap(5.0).size_full(), |b| {
-        b.div(tw().w_px(200.0).flex_none().bg(Color32::GRAY), |b| {
+        b.div(tw().w_px(200.0).flex_none().bg(greys.deep), |b| {
             b.text(tw(), "Sidebar")
         });
-        b.div(tw().flex_1().bg(Color32::WHITE), |b| {
+        b.div(tw().flex_1().bg(greys.stage), |b| {
             b.text(tw(), "Main Content")
         });
     });
@@ -263,45 +289,46 @@ pub fn text_wrapping<A>(b: &mut B<'_, '_, A>) {
 
 /// ```html
 /// <div class="flex flex-row size-full">
-///   <div class="grow-[1] bg-[#dcdcdc]"></div>
-///   <div class="grow-[3] bg-[#a0a0a0]"></div>
+///   <div class="grow-[1] bg-muted"></div>
+///   <div class="grow-[3] bg-ring"></div>
 /// </div>
 /// ```
 pub fn proportional_growth<A>(b: &mut B<'_, '_, A>) {
+    let greys = greys(b);
     b.div(tw().flex().flex_row().size_full(), |b| {
-        b.div(tw().grow_by(1.0).bg(Color32::LIGHT_GRAY), |_| {});
-        b.div(tw().grow_by(3.0).bg(Color32::GRAY), |_| {});
+        b.div(tw().grow_by(1.0).bg(greys.panel), |_| {});
+        b.div(tw().grow_by(3.0).bg(greys.deep), |_| {});
     });
 }
 
 /// ```html
-/// <div class="p-2 rounded-md bg-white border border-[#a0a0a0]">label</div>
+/// <div class="p-2 rounded-md bg-card border border-ring">label</div>
 /// ```
 pub fn card<A>(b: &mut B<'_, '_, A>, label: &str) {
+    let greys = greys(b);
     b.div(
         tw().p(2.0)
             .rounded_md()
-            .bg(Color32::WHITE)
+            .bg(greys.card)
             .border(1.0)
-            .border_color(Color32::GRAY),
+            .border_color(greys.deep),
         |b| b.text(tw(), label),
     );
 }
 
 /// ```html
 /// <div class="flex flex-col gap-2 p-4">
-///   <div class="p-2 bg-[#dcdcdc]">Content 1</div>
-///   <div class="p-2 bg-[#dcdcdc]">
-///     <div class="p-2 rounded-md bg-white border border-[#a0a0a0]">Nested content</div>
+///   <div class="p-2 bg-muted">Content 1</div>
+///   <div class="p-2 bg-muted">
+///     <div class="p-2 rounded-md bg-card border border-ring">Nested content</div>
 ///   </div>
 /// </div>
 /// ```
 pub fn nested<A>(b: &mut B<'_, '_, A>) {
+    let panel = greys(b).panel;
     b.div(tw().flex().flex_col().gap(2.0).p(4.0), |b| {
-        b.div(tw().p(2.0).bg(Color32::LIGHT_GRAY), |b| {
-            b.text(tw(), "Content 1")
-        });
-        b.div(tw().p(2.0).bg(Color32::LIGHT_GRAY), |b| {
+        b.div(tw().p(2.0).bg(panel), |b| b.text(tw(), "Content 1"));
+        b.div(tw().p(2.0).bg(panel), |b| {
             card(b, "Nested content");
         });
     });

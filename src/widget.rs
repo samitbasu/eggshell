@@ -30,6 +30,7 @@ use egui::{
 use taffy::Size;
 
 use crate::sizing::{Piece, Row, Sizer};
+use crate::style::{ButtonVariant, Mark, Shadcn};
 use crate::{Measure, TextStyle, Width};
 
 /// A stock widget the builder can size.
@@ -49,6 +50,15 @@ pub trait Stock: Clone + 'static {
     }
 }
 
+/// Gives the widget its accessible name, the `aria-label` of the web.
+fn announce(response: &Response, name: Option<&str>) {
+    if let Some(name) = name {
+        response
+            .ctx
+            .accesskit_node_builder(response.id, |node| node.set_label(name));
+    }
+}
+
 fn place(ui: &mut Ui, widget: impl egui::Widget) -> Response {
     ui.put(ui.max_rect(), widget)
 }
@@ -58,15 +68,29 @@ fn place(ui: &mut Ui, widget: impl egui::Widget) -> Response {
 /// and label in a leaf that is wider than they are. The layout is a column
 /// because egui wraps labels only in vertical layouts, and the estimate
 /// wraps them.
-fn place_start(ui: &mut Ui, widget: impl egui::Widget) -> Response {
+fn place_start(
+    ui: &mut Ui,
+    restyle: impl FnOnce(&mut egui::style::Widgets),
+    widget: impl egui::Widget,
+) -> Response {
     let layout = egui::Layout::top_down(egui::Align::Min);
     ui.scope_builder(
         egui::UiBuilder::new()
             .max_rect(ui.max_rect())
             .layout(layout),
-        |ui| ui.add(widget),
+        |ui| {
+            restyle(&mut ui.visuals_mut().widgets);
+            ui.add(widget)
+        },
     )
     .inner
+}
+
+/// A label in the preset's text colour when one is applied, which the
+/// checked look of a box would otherwise change, and egui's own otherwise.
+fn label_text(preset: Option<&Shadcn>, label: String) -> RichText {
+    let text = RichText::new(label);
+    preset.map_or(text.clone(), |preset| text.color(preset.label_color()))
 }
 
 fn icon_row(sizer: &Sizer<'_>, icon: Vec2, label: Option<&String>, min_size: Vec2) -> Row {
@@ -83,9 +107,27 @@ fn icon_row(sizer: &Sizer<'_>, icon: Vec2, label: Option<&String>, min_size: Vec
 }
 
 /// `egui::Button` with a text label.
+///
+/// The variants are shadcn's, drawn from the applied preset's tokens
+/// (the default preset's when none was applied): [`primary`](Self::primary),
+/// [`secondary`](Self::secondary), which is egui's own look,
+/// [`destructive`](Self::destructive), [`outline`](Self::outline) and
+/// [`ghost`](Self::ghost). They differ in colour only, so the size is the
+/// same for all of them. A button in a disabled `Ui` is drawn at half
+/// opacity.
 #[derive(Clone, Debug)]
 pub struct Button {
     label: String,
+    appearance: Appearance,
+    name: Option<String>,
+}
+
+/// How a button is drawn: as one of the variants, or as a toggle that is on
+/// or off.
+#[derive(Clone, Copy, Debug)]
+enum Appearance {
+    Variant(ButtonVariant),
+    Selectable(Mark),
 }
 
 impl Button {
@@ -93,12 +135,72 @@ impl Button {
     pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: label.into(),
+            appearance: Appearance::Variant(ButtonVariant::default()),
+            name: None,
         }
+    }
+
+    /// A button that shows whether it is `mark`ed on, like `egui::Button::selectable`.
+    /// It is the same size as [`new`](Self::new).
+    pub fn selectable(label: impl Into<String>, mark: Mark) -> Self {
+        Self {
+            appearance: Appearance::Selectable(mark),
+            ..Self::new(label)
+        }
+    }
+
+    /// Draws the button as `variant`.
+    pub fn variant(mut self, variant: ButtonVariant) -> Self {
+        self.appearance = Appearance::Variant(variant);
+        self
+    }
+
+    /// The `default` variant: the primary colour.
+    pub fn primary(self) -> Self {
+        self.variant(ButtonVariant::Primary)
+    }
+
+    /// The `secondary` variant, the default.
+    pub fn secondary(self) -> Self {
+        self.variant(ButtonVariant::Secondary)
+    }
+
+    /// The `destructive` variant.
+    pub fn destructive(self) -> Self {
+        self.variant(ButtonVariant::Destructive)
+    }
+
+    /// The `outline` variant.
+    pub fn outline(self) -> Self {
+        self.variant(ButtonVariant::Outline)
+    }
+
+    /// The `ghost` variant.
+    pub fn ghost(self) -> Self {
+        self.variant(ButtonVariant::Ghost)
+    }
+
+    /// The accessible name, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// Adds the button to `ui`, filling its rect.
     pub fn show(self, ui: &mut Ui) -> Response {
-        place(ui, egui::Button::new(self.label))
+        let preset = Shadcn::of(ui.ctx());
+        let response = place(ui, |ui: &mut Ui| match self.appearance {
+            Appearance::Variant(variant) => {
+                preset.style_button(variant, ui.visuals_mut());
+                ui.add(egui::Button::new(self.label))
+            }
+            Appearance::Selectable(mark) => {
+                preset.style_toggle(mark, ui.visuals_mut());
+                ui.add(egui::Button::selectable(mark == Mark::On, self.label))
+            }
+        });
+        announce(&response, self.name.as_deref());
+        response
     }
 }
 
@@ -109,7 +211,10 @@ impl Stock for Button {
         let row = Row {
             pieces: vec![Piece::Text(WidgetText::from(self.label.as_str()))],
             gap: spacing.icon_spacing,
-            frame: sizer.button_frame(),
+            frame: match self.appearance {
+                Appearance::Variant(_) => sizer.button_frame(),
+                Appearance::Selectable(_) => sizer.forced_button_frame(),
+            },
             min_size: vec2(0.0, spacing.interact_size.y),
             wrap: TextWrapMode::Wrap,
         };
@@ -121,6 +226,7 @@ impl Stock for Button {
 #[derive(Clone, Debug)]
 pub struct Checkbox {
     label: Option<String>,
+    name: Option<String>,
 }
 
 impl Checkbox {
@@ -128,21 +234,43 @@ impl Checkbox {
     pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: Some(label.into()),
+            name: None,
         }
     }
 
     /// A checkbox without a label.
     pub fn unlabelled() -> Self {
-        Self { label: None }
+        Self {
+            label: None,
+            name: None,
+        }
+    }
+
+    /// The accessible name, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// Adds the checkbox to `ui`, at the top left of its rect. A click
     /// toggles `checked`.
     pub fn show(self, ui: &mut Ui, checked: &mut bool) -> Response {
-        match self.label {
-            Some(label) => place_start(ui, egui::Checkbox::new(checked, label)),
-            None => place_start(ui, egui::Checkbox::without_text(checked)),
-        }
+        let preset = Shadcn::applied(ui.ctx());
+        let mark = Mark::from(*checked);
+        let restyle = |widgets: &mut egui::style::Widgets| {
+            if let Some(preset) = &preset {
+                preset.style_checkbox(mark, widgets);
+            }
+        };
+        let response = match self.label {
+            Some(label) => {
+                let text = label_text(preset.as_ref(), label);
+                place_start(ui, restyle, egui::Checkbox::new(checked, text))
+            }
+            None => place_start(ui, restyle, egui::Checkbox::without_text(checked)),
+        };
+        announce(&response, self.name.as_deref());
+        response
     }
 }
 
@@ -165,6 +293,7 @@ impl Stock for Checkbox {
 #[derive(Clone, Debug)]
 pub struct RadioButton {
     label: Option<String>,
+    name: Option<String>,
 }
 
 impl RadioButton {
@@ -172,20 +301,41 @@ impl RadioButton {
     pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: Some(label.into()),
+            name: None,
         }
     }
 
     /// A radio button without a label.
     pub fn unlabelled() -> Self {
-        Self { label: None }
+        Self {
+            label: None,
+            name: None,
+        }
+    }
+
+    /// The accessible name, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// Adds the radio button to `ui`, at the top left of its rect.
     pub fn show(self, ui: &mut Ui, selected: bool) -> Response {
-        match self.label {
-            Some(label) => place_start(ui, egui::RadioButton::new(selected, label)),
-            None => place_start(ui, egui::RadioButton::new(selected, ())),
-        }
+        let preset = Shadcn::applied(ui.ctx());
+        let restyle = |widgets: &mut egui::style::Widgets| {
+            if let Some(preset) = &preset {
+                preset.style_radio(widgets);
+            }
+        };
+        let response = match self.label {
+            Some(label) => {
+                let text = label_text(preset.as_ref(), label);
+                place_start(ui, restyle, egui::RadioButton::new(selected, text))
+            }
+            None => place_start(ui, restyle, egui::RadioButton::new(selected, ())),
+        };
+        announce(&response, self.name.as_deref());
+        response
     }
 }
 
@@ -207,12 +357,20 @@ impl Stock for RadioButton {
 /// The rail takes the width the leaf is given and `Spacing::slider_width`
 /// otherwise; show the value with a text node beside it.
 #[derive(Clone, Debug, Default)]
-pub struct Slider;
+pub struct Slider {
+    name: Option<String>,
+}
 
 impl Slider {
     /// A slider.
     pub fn new() -> Self {
-        Self
+        Self::default()
+    }
+
+    /// The accessible name, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// Adds the slider to `ui`, its rail as wide as the rect. Dragging
@@ -220,7 +378,31 @@ impl Slider {
     pub fn show(self, ui: &mut Ui, value: &mut f64, range: RangeInclusive<f64>) -> Response {
         let rect = ui.max_rect();
         ui.spacing_mut().slider_width = rect.width();
-        place(ui, egui::Slider::new(value, range).show_value(false))
+        let preset = Shadcn::applied(ui.ctx());
+        let response = place(ui, |ui: &mut Ui| {
+            let Some(preset) = preset else {
+                return ui.add(egui::Slider::new(value, range).show_value(false));
+            };
+            preset.style_slider(ui.style_mut());
+            let layer = ui.layer_id();
+            let painted = ui
+                .ctx()
+                .graphics_mut(|graphics| graphics.entry(layer).next_idx());
+            let response = ui.add(egui::Slider::new(value, range).show_value(false));
+            ui.ctx().graphics_mut(|graphics| {
+                let shapes = graphics.entry(layer);
+                for idx in (painted.0..shapes.next_idx().0).map(egui::layers::ShapeIdx) {
+                    shapes.mutate_shape(idx, |clipped| {
+                        if let egui::Shape::Circle(thumb) = &mut clipped.shape {
+                            thumb.fill = preset.tokens.background;
+                        }
+                    });
+                }
+            });
+            response
+        });
+        announce(&response, self.name.as_deref());
+        response
     }
 }
 
@@ -229,7 +411,9 @@ impl Stock for Slider {
         let sizer = Sizer::new(ctx, text);
         let spacing = &sizer.style.spacing;
         let body = egui::TextStyle::Body.resolve(&sizer.style);
-        let thickness = sizer.row_height(&body).at_least(spacing.interact_size.y);
+        let interact_height = crate::style::tokens(ctx)
+            .map_or(spacing.interact_size.y, |tokens| tokens.slider_height());
+        let thickness = sizer.row_height(&body).at_least(interact_height);
         vec2(width.map_or(spacing.slider_width, f32::from), thickness)
     }
 }
@@ -238,6 +422,7 @@ impl Stock for Slider {
 #[derive(Clone, Debug)]
 pub struct DragValue {
     template: String,
+    name: Option<String>,
 }
 
 impl DragValue {
@@ -248,18 +433,27 @@ impl DragValue {
     pub fn new(template: impl Into<String>) -> Self {
         Self {
             template: template.into(),
+            name: None,
         }
+    }
+
+    /// The accessible name, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// Adds the drag value to `ui`, filling its rect. `range` bounds `value`.
     pub fn show(self, ui: &mut Ui, value: &mut f64, range: RangeInclusive<f64>) -> Response {
         let decimals = self.template.split('.').nth(1).map_or(0, str::len);
-        place(
+        let response = place(
             ui,
             egui::DragValue::new(value)
                 .range(range)
                 .fixed_decimals(decimals),
-        )
+        );
+        announce(&response, self.name.as_deref());
+        response
     }
 }
 
@@ -281,6 +475,7 @@ impl Stock for DragValue {
 #[derive(Clone, Debug)]
 pub struct ComboBox {
     selected: String,
+    name: Option<String>,
 }
 
 impl ComboBox {
@@ -288,7 +483,14 @@ impl ComboBox {
     pub fn new(selected: impl Into<String>) -> Self {
         Self {
             selected: selected.into(),
+            name: None,
         }
+    }
+
+    /// The accessible name, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// Adds the combo box to `ui`, its header filling the rect. `items`
@@ -298,7 +500,13 @@ impl ComboBox {
         let combo = egui::ComboBox::from_id_salt(ui.make_persistent_id("combo"))
             .selected_text(self.selected)
             .width(rect.width());
-        place(ui, |ui: &mut Ui| combo.show_ui(ui, items).response)
+        let padding = Sizer::for_ui(ui).input_padding();
+        let response = place(ui, |ui: &mut Ui| {
+            ui.spacing_mut().button_padding = padding;
+            combo.show_ui(ui, items).response
+        });
+        announce(&response, self.name.as_deref());
+        response
     }
 }
 
@@ -312,7 +520,7 @@ impl Stock for ComboBox {
                 Piece::Fixed(Vec2::splat(spacing.icon_width)),
             ],
             gap: spacing.icon_spacing,
-            frame: sizer.button_frame(),
+            frame: sizer.select_frame(),
             min_size: vec2(spacing.combo_width, spacing.interact_size.y),
             wrap: TextWrapMode::Wrap,
         };
@@ -360,6 +568,7 @@ pub struct TextEdit {
     lines: Lines,
     masking: Masking,
     framing: Framing,
+    name: Option<String>,
 }
 
 impl TextEdit {
@@ -371,6 +580,7 @@ impl TextEdit {
             lines: Lines::Single,
             masking: Masking::Shown,
             framing: Framing::Framed,
+            name: None,
         }
     }
 
@@ -382,6 +592,7 @@ impl TextEdit {
             lines: Lines::Multi { min, max: None },
             masking: Masking::Shown,
             framing: Framing::Framed,
+            name: None,
         }
     }
 
@@ -394,6 +605,12 @@ impl TextEdit {
                 max: Some(max.at_least(min)),
             };
         }
+        self
+    }
+
+    /// The accessible name, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
         self
     }
 
@@ -444,8 +661,16 @@ impl TextEdit {
         .id(id)
         .password(self.masking == Masking::Hidden)
         .desired_width(rect.width());
-        if self.framing == Framing::Bare {
-            edit = edit.frame(Frame::NONE);
+        match (self.framing, self.lines) {
+            (Framing::Bare, _) => edit = edit.frame(Frame::NONE),
+            (Framing::Framed, _) => {
+                edit = edit.margin(egui::Margin::from(Sizer::for_ui(ui).input_padding()));
+            }
+        }
+        if self.lines == Lines::Single {
+            edit = edit
+                .align(egui::Align2::LEFT_CENTER)
+                .min_size(vec2(0.0, rect.height()));
         }
         if let Some(hint) = &self.hint {
             edit = edit.hint_text(hint.as_str());
@@ -464,6 +689,7 @@ impl TextEdit {
             }
             _ => place(ui, edit),
         };
+        announce(&response, self.name.as_deref());
         if response.changed() && *text != before_text {
             let after = self.fit(&Sizer::for_ui(ui), text, Some(width));
             if after.size.y != before.size.y {
@@ -545,7 +771,7 @@ impl Stock for TextEdit {
 fn text_edit_frame(sizer: &Sizer<'_>) -> Frame {
     let visuals = sizer.style.visuals.widgets.inactive;
     Frame {
-        inner_margin: sizer.style.spacing.button_padding.into(),
+        inner_margin: sizer.input_padding().into(),
         ..Frame::default()
     }
     .apply_stroke_and_expansion_without_layout_shift(visuals.bg_stroke, visuals.expansion)

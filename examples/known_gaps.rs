@@ -28,19 +28,19 @@
 //! and Bold files (`egui_system_font_provider` is a glyph fallback, not a weight
 //! lookup), and shows a note when it finds none. No font files are committed.
 
+#[path = "common/mod.rs"]
+mod common;
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use bullseye::style::Tokens;
 use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Tw, tw};
 use egui::epaint::RectShape;
-use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, Rect, Shadow};
+use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, Rect, Shadow, Theme};
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
-
-const INK: Color32 = Color32::from_rgb(0x11, 0x18, 0x27);
-const MUTED: Color32 = Color32::from_rgb(0x6b, 0x72, 0x80);
-const PAGE: Color32 = Color32::from_rgb(0xf3, 0xf4, 0xf6);
 
 pub const CARD_SIZE: [f32; 2] = [140.0, 72.0];
 /// `rounded-lg`.
@@ -60,9 +60,9 @@ const fn text_spec(size: f32, family: FontFamily) -> TextSpec {
     }
 }
 
-/// The base text of the example.
-pub fn base_text() -> TextStyle {
-    TextStyle::new(BODY, INK)
+/// The base text of the example in `theme`.
+pub fn base_text(theme: Theme) -> TextStyle {
+    TextStyle::new(BODY, Tokens::for_theme(theme).foreground)
 }
 
 /// One layer of a CSS `box-shadow` of the form `0 <y>px <blur>px <spread>px rgb(0 0 0 / <alpha>)`,
@@ -294,9 +294,21 @@ pub fn register(ctx: &egui::Context, faces: &Faces) -> std::io::Result<()> {
     Ok(())
 }
 
+/// The tokens of the surface the shadow comparison sits on. Shadows are
+/// black at 5 to 10 percent, which is invisible on a dark surface, so the
+/// comparison stays on the light theme's surface in both themes.
+fn specimen() -> Tokens {
+    Tokens::light()
+}
+
 /// The text that says which rendering a card is.
 fn card_text<A>(b: &mut B<'_, '_, A>, label: &'static str) {
-    b.text(tw().role(SMALL).text(MUTED).text_center(), label);
+    b.text(
+        tw().role(SMALL)
+            .text(specimen().muted_foreground)
+            .text_center(),
+        label,
+    );
 }
 
 fn card_box() -> Tw {
@@ -306,7 +318,7 @@ fn card_box() -> Tw {
         .w_px(CARD_SIZE[0])
         .h_px(CARD_SIZE[1])
         .rounded_lg()
-        .bg(Color32::WHITE)
+        .bg(specimen().card)
 }
 
 /// One card per `ShadowClass`, shadowed by CSS's layers.
@@ -352,57 +364,75 @@ fn today_card<A>(b: &mut B<'_, '_, A>, class: ShadowClass) {
 /// ```
 fn shadow_column<A>(b: &mut B<'_, '_, A>, class: ShadowClass) {
     b.div(tw().flex().flex_col().items_center().gap(10.0), move |b| {
-        b.text(tw().role(MONO).text(INK), class.class);
+        b.text(tw().role(MONO).text(specimen().foreground), class.class);
         reference_card(b, class);
         today_card(b, class);
         b.div(tw().flex().flex_col().items_center(), |b| {
             for layer in class.layers {
-                b.text(tw().role(MONO).text(MUTED).whitespace_nowrap(), layer.css());
+                b.text(
+                    tw().role(MONO)
+                        .text(specimen().muted_foreground)
+                        .whitespace_nowrap(),
+                    layer.css(),
+                );
             }
         });
     });
 }
 
-/// The shadow comparison.
+/// The shadow comparison, on a light stage in both themes.
 ///
 /// ```html
-/// <section class="flex flex-col gap-6 p-8 bg-gray-100">
+/// <section class="flex flex-col gap-6 p-8 size-full bg-muted text-foreground">
 ///   <h2 class="text-lg">Negative-spread shadows (#12)</h2>
-///   <div class="flex flex-row gap-8"><!-- one column per shadow class --></div>
+///   <p class="text-xs text-muted-foreground">…</p>
+///   <div class="flex flex-row gap-8 p-6 rounded-lg bg-[light muted]">
+///     <!-- one column per shadow class -->
+///   </div>
 /// </section>
 /// ```
 pub fn shadows<A>(b: &mut B<'_, '_, A>) {
+    let t = common::tokens(b.ctx());
     b.div(
         tw().flex()
             .flex_col()
             .gap(6.0)
             .p(8.0)
             .size_full()
-            .bg(PAGE)
-            .text(INK),
+            .bg(t.muted)
+            .text(t.foreground),
         |b| {
             b.text(
                 tw().role(HEADING),
                 "Negative-spread shadows (#12): CSS reference above, bullseye today below",
             );
             b.text(
-                tw().role(SMALL).text(MUTED),
+                tw().role(SMALL).text(t.muted_foreground),
                 "Each layer is box-shadow: 0 <y> <blur> <spread> rgb(0 0 0 / <alpha>); the reference stacks them, bullseye keeps the first with spread 0.",
             );
-            b.div(tw().flex().flex_row().gap(8.0), |b| {
-                for class in SHADOWS {
-                    shadow_column(b, class);
-                }
-            });
+            b.div(
+                tw().flex()
+                    .flex_row()
+                    .gap(8.0)
+                    .p(6.0)
+                    .rounded_lg()
+                    .bg(specimen().muted),
+                |b| {
+                    for class in SHADOWS {
+                        shadow_column(b, class);
+                    }
+                },
+            );
         },
     );
 }
 
 fn weight_row<A>(b: &mut B<'_, '_, A>, weight: Weight, faces: Option<&Faces>) {
+    let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().flex_row().items_center().gap(6.0), |b| {
         b.div(tw().w_px(150.0).flex_none(), |b| {
             b.text(
-                tw().role(MONO).text(MUTED),
+                tw().role(MONO).text(muted),
                 format!("{} ({})", weight.class, weight.number),
             );
         });
@@ -421,7 +451,7 @@ fn weight_row<A>(b: &mut B<'_, '_, A>, weight: Weight, faces: Option<&Faces>) {
 /// The weights comparison. `faces` is what [`register`] installed, if anything.
 ///
 /// ```html
-/// <section class="flex flex-col gap-4 p-8 bg-white">
+/// <section class="flex flex-col gap-4 p-8 bg-background text-foreground">
 ///   <h2 class="text-lg">Font weights (#13)</h2>
 ///   <div class="flex items-center gap-6">
 ///     <code class="w-[150px]">font-semibold (600)</code>
@@ -432,22 +462,23 @@ fn weight_row<A>(b: &mut B<'_, '_, A>, weight: Weight, faces: Option<&Faces>) {
 /// </section>
 /// ```
 pub fn weights<A>(b: &mut B<'_, '_, A>, faces: Option<&Faces>) {
+    let t = common::tokens(b.ctx());
     b.div(
         tw().flex()
             .flex_col()
             .gap(4.0)
             .p(8.0)
-            .bg(Color32::WHITE)
-            .text(INK),
+            .bg(t.background)
+            .text(t.foreground),
         |b| {
             b.text(tw().role(HEADING), "Font weights (#13)");
             b.div(tw().flex().flex_row().gap(6.0), |b| {
                 b.div(tw().w_px(150.0).flex_none(), |_| {});
                 b.div(tw().w_px(340.0).flex_none(), |b| {
-                    b.text(tw().role(SMALL).text(MUTED), "bullseye today");
+                    b.text(tw().role(SMALL).text(t.muted_foreground), "bullseye today");
                 });
                 b.text(
-                    tw().role(SMALL).text(MUTED),
+                    tw().role(SMALL).text(t.muted_foreground),
                     match faces {
                         Some(faces) => format!("with real faces ({})", faces.name),
                         None => "with real faces".to_owned(),
@@ -459,7 +490,7 @@ pub fn weights<A>(b: &mut B<'_, '_, A>, faces: Option<&Faces>) {
             }
             if faces.is_none() {
                 b.text(
-                    tw().role(BODY).text(Color32::from_rgb(0xb4, 0x53, 0x09)),
+                    tw().role(BODY).text(t.warning),
                     format!(
                         "No weighted faces found: looked for {} with Regular, Medium, SemiBold and Bold files in the system font directories.",
                         FAMILIES.join(", ")
@@ -484,9 +515,10 @@ pub fn window<A>(b: &mut B<'_, '_, A>, faces: Option<&Faces>) {
 }
 
 fn main() -> eframe::Result {
-    let mut layout = LayoutState::new().with_base_text(base_text());
+    let mut layout = LayoutState::new();
     let mut faces: Option<Faces> = None;
     let mut registered = false;
+    let mut theme_bar = common::ThemeBar::new();
     eframe::run_ui_native(
         "known_gaps",
         eframe::NativeOptions {
@@ -495,7 +527,6 @@ fn main() -> eframe::Result {
         },
         move |ui, _| {
             let ctx = ui.ctx().clone();
-            ctx.set_theme(egui::Theme::Light);
             if !registered {
                 registered = true;
                 faces = find_faces(&font_roots());
@@ -510,6 +541,9 @@ fn main() -> eframe::Result {
                 ctx.request_repaint();
                 return;
             }
+            common::use_preset(&ctx);
+            theme_bar.show(ui);
+            layout.set_base_text(Some(base_text(ctx.theme())));
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE)
                 .show(ui, |ui| {

@@ -121,6 +121,7 @@ impl State {
 /// ```
 fn controls(b: &mut B<'_, '_, State>, state: &State) {
     b.div(tw().flex().flex_col().gap(0.5), |b| {
+        let t = common::tokens(b.ctx());
         for (index, demo) in state.demos.iter().enumerate() {
             let cell = if index == state.demo {
                 Cell::Pressed
@@ -129,7 +130,7 @@ fn controls(b: &mut B<'_, '_, State>, state: &State) {
             };
             b.span(
                 demo.title,
-                common::segment(cell).sense_click(),
+                common::menu_item(&t, cell).sense_click(),
                 demo.title,
                 common::on_click::<State>(move |state| (state.demo, state.choice) = (index, 0)),
             );
