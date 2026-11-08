@@ -38,7 +38,7 @@
 
 use egui::{
     Color32, Context, CornerRadius, Id, Margin, Shadow, Stroke, Style, TextStyle, Theme, Vec2,
-    style::{Visuals, WidgetVisuals, Widgets},
+    style::{HandleShape, Visuals, WidgetVisuals, Widgets},
     vec2,
 };
 
@@ -123,6 +123,8 @@ pub struct Tokens {
     pub switch_track: Vec2,
     /// A switch's thumb diameter at the default track (`size-4`).
     pub switch_thumb: f32,
+    /// The slider thumb's diameter: shadcn's `size-4`.
+    pub slider_thumb: f32,
     /// The track of a checked switch.
     pub switch_track_on: Color32,
     /// The track of an unchecked switch.
@@ -263,6 +265,7 @@ impl Tokens {
             input_padding: vec2(12.0, 4.0),
             switch_track: vec2(32.0, 18.4),
             switch_thumb: 16.0,
+            slider_thumb: 16.0,
             switch_track_on: none,
             switch_track_off: none,
             switch_thumb_on: none,
@@ -365,6 +368,12 @@ impl Tokens {
             line_height: 20.0,
             family: egui::FontFamily::Proportional,
         }
+    }
+
+    /// The height of a slider whose thumb is [`slider_thumb`](Self::slider_thumb)
+    /// across: egui's circular handle is 0.4 of the slider's height.
+    pub fn slider_height(&self) -> f32 {
+        self.slider_thumb * 1.25
     }
 
     /// The thumb of a switch whose track is `track`: the default thumb's
@@ -703,6 +712,29 @@ impl Shadcn {
 
     /// Restyles `widgets` for a checkbox: the background in an `input`
     /// border, `primary` with a `primary-foreground` tick when ticked.
+    /// Styles a slider: the rail `muted` with the range in `primary`, and the
+    /// thumb a `primary` outline round an opaque `background` (shadcn's
+    /// `border-primary bg-background`). egui paints the rail and the resting
+    /// thumb with the same `inactive.bg_fill`, so the resting thumb's fill is
+    /// set by [`crate::widget::Slider`] after drawing.
+    pub(crate) fn style_slider(&self, style: &mut Style) {
+        let t = &self.tokens;
+        let visuals = &mut style.visuals;
+        visuals.selection.bg_fill = t.primary;
+        visuals.widgets.inactive.bg_fill = t.muted;
+        for widget in [&mut visuals.widgets.hovered, &mut visuals.widgets.active] {
+            widget.bg_fill = t.background;
+        }
+        for widget in [
+            &mut visuals.widgets.inactive,
+            &mut visuals.widgets.hovered,
+            &mut visuals.widgets.active,
+        ] {
+            widget.fg_stroke = Stroke::new(1.0, t.primary);
+        }
+        style.spacing.interact_size.y = t.slider_height();
+    }
+
     pub(crate) fn style_checkbox(&self, mark: Mark, widgets: &mut Widgets) {
         let t = &self.tokens;
         let look = match mark {
@@ -876,6 +908,8 @@ impl Tokens {
             Stroke::new(1.0, t.input),
             t.accent_foreground,
         );
+        v.handle_shape = HandleShape::Circle;
+        v.slider_trailing_fill = true;
         v.selection.bg_fill = t.primary.gamma_multiply(0.3);
         v.selection.stroke = Stroke::new(1.0, t.foreground);
         v.hyperlink_color = t.ring;

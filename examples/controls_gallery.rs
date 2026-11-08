@@ -489,6 +489,9 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                     },
                     |ui, width| {
                         ui.spacing_mut().slider_width = width;
+                        if let Some(tokens) = bullseye::style::tokens(ui.ctx()) {
+                            ui.spacing_mut().interact_size.y = tokens.slider_height();
+                        }
                         ui.add(egui::Slider::new(&mut 0.0, 0.0..=100.0).show_value(false))
                             .rect
                     },

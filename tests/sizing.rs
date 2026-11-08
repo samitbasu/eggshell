@@ -307,6 +307,9 @@ fn slider() {
                 if let Some(width) = width {
                     ui.spacing_mut().slider_width = width;
                 }
+                if let Some(tokens) = bullseye::style::tokens(ui.ctx()) {
+                    ui.spacing_mut().interact_size.y = tokens.slider_height();
+                }
                 let mut value = 0.5;
                 ui.add(egui::Slider::new(&mut value, 0.0..=1.0).show_value(false))
             }),

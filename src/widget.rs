@@ -377,7 +377,29 @@ impl Slider {
     pub fn show(self, ui: &mut Ui, value: &mut f64, range: RangeInclusive<f64>) -> Response {
         let rect = ui.max_rect();
         ui.spacing_mut().slider_width = rect.width();
-        let response = place(ui, egui::Slider::new(value, range).show_value(false));
+        let preset = Shadcn::applied(ui.ctx());
+        let response = place(ui, |ui: &mut Ui| {
+            let Some(preset) = preset else {
+                return ui.add(egui::Slider::new(value, range).show_value(false));
+            };
+            preset.style_slider(ui.style_mut());
+            let layer = ui.layer_id();
+            let painted = ui
+                .ctx()
+                .graphics_mut(|graphics| graphics.entry(layer).next_idx());
+            let response = ui.add(egui::Slider::new(value, range).show_value(false));
+            ui.ctx().graphics_mut(|graphics| {
+                let shapes = graphics.entry(layer);
+                for idx in (painted.0..shapes.next_idx().0).map(egui::layers::ShapeIdx) {
+                    shapes.mutate_shape(idx, |clipped| {
+                        if let egui::Shape::Circle(thumb) = &mut clipped.shape {
+                            thumb.fill = preset.tokens.background;
+                        }
+                    });
+                }
+            });
+            response
+        });
         announce(&response, self.name.as_deref());
         response
     }
@@ -388,7 +410,9 @@ impl Stock for Slider {
         let sizer = Sizer::new(ctx, text);
         let spacing = &sizer.style.spacing;
         let body = egui::TextStyle::Body.resolve(&sizer.style);
-        let thickness = sizer.row_height(&body).at_least(spacing.interact_size.y);
+        let interact_height = crate::style::tokens(ctx)
+            .map_or(spacing.interact_size.y, |tokens| tokens.slider_height());
+        let thickness = sizer.row_height(&body).at_least(interact_height);
         vec2(width.map_or(spacing.slider_width, f32::from), thickness)
     }
 }

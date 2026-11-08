@@ -92,6 +92,8 @@ fn applying_the_light_preset_maps_tokens_onto_egui() {
         assert_eq!(widget.expansion, 0.0);
     }
     assert_eq!(v.window_corner_radius, egui::CornerRadius::same(10));
+    assert_eq!(v.handle_shape, egui::style::HandleShape::Circle);
+    assert!(v.slider_trailing_fill);
 
     assert_eq!(s.interact_size.y, 36.0);
     assert_eq!(s.button_padding, vec2(16.0, 8.0));
