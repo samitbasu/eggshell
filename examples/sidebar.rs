@@ -202,5 +202,5 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
 }
 
 fn main() -> eframe::Result {
-    common::run_app("sidebar", State::default(), None, layout)
+    common::run_app("sidebar", State::default(), layout)
 }

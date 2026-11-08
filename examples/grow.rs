@@ -3,8 +3,8 @@
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
 //! rebuilt with bullseye: taffy places, egui draws. The gap, margin and
-//! padding sliders are plain egui widgets beside the layout, in spacing units;
-//! they move inside once M4 measures stock egui widgets in the same frame.
+//! padding sliders are stock egui sliders in leaves of the same tree, in
+//! spacing units.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -31,15 +31,36 @@ impl Default for State {
     }
 }
 
-fn controls(ui: &mut egui::Ui, state: &mut State) {
-    for (label, value) in [
-        ("Gap", &mut state.gap),
-        ("Margin", &mut state.margin),
-        ("Padding", &mut state.padding),
-    ] {
-        ui.label(format!("{label} (spacing units)"));
-        ui.add(egui::Slider::new(value, 0.0..=12.0));
-    }
+/// ```html
+/// <aside class="flex flex-col gap-3 p-3 w-[240px]">
+///   <!-- three range inputs, each with its caption and value -->
+/// </aside>
+/// ```
+fn controls(b: &mut B<'_, '_, State>, state: &State) {
+    common::slider_row(
+        b,
+        "gap",
+        "Gap (spacing units)",
+        state.gap,
+        0.0..=12.0,
+        |s| &mut s.gap,
+    );
+    common::slider_row(
+        b,
+        "margin",
+        "Margin (spacing units)",
+        state.margin,
+        0.0..=12.0,
+        |s| &mut s.margin,
+    );
+    common::slider_row(
+        b,
+        "padding",
+        "Padding (spacing units)",
+        state.padding,
+        0.0..=12.0,
+        |s| &mut s.padding,
+    );
 }
 
 /// ```html
@@ -70,7 +91,7 @@ fn spaced(state: &State, base: Tw) -> Tw {
 ///   </div>
 /// </div>
 /// ```
-pub fn layout<A>(b: &mut B<'_, '_, A>, state: &State) {
+pub fn demo<A>(b: &mut B<'_, '_, A>, state: &State) {
     b.div(
         tw().flex()
             .flex_col()
@@ -100,6 +121,11 @@ pub fn layout<A>(b: &mut B<'_, '_, A>, state: &State) {
     );
 }
 
+/// The controls beside the demo.
+pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+    common::with_controls(b, |b| controls(b, state), |b| demo(b, state));
+}
+
 fn main() -> eframe::Result {
-    common::run("grow", State::default(), Some(controls), layout)
+    common::run_app("grow", State::default(), layout)
 }

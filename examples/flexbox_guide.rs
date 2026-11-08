@@ -3,8 +3,7 @@
 //! Rebuilt with bullseye (taffy places, egui draws) from the guide's
 //! descriptions: perfect centering, a fluid six-item grid, and one demo per
 //! container and item property over a row of navigation links. The selector is
-//! a plain egui side panel outside the bullseye tree; it moves inside once M4
-//! measures stock egui widgets in the same frame.
+//! a list of clickable nodes and a segmented control inside the tree.
 //!
 //! Taffy has no `order` property: the "order" demo builds the children in the
 //! desired order instead. The guide's responsive navigation and three-column
@@ -14,6 +13,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use bullseye::prim::segmented::Cell;
 use bullseye::{Builder, Tw, tw};
 use common::{mono, sized};
 use egui::Color32;
@@ -27,7 +27,7 @@ type Class = fn(Tw) -> Tw;
 type ItemClass = fn(Tw, usize) -> Tw;
 
 /// Builds a demo for the selected value.
-type Build = Box<dyn Fn(&mut B<'_, '_, ()>, usize)>;
+type Build = Box<dyn Fn(&mut B<'_, '_, State>, usize)>;
 
 /// One demo: a title, the values the selector offers, and how to build it for one.
 pub struct Demo {
@@ -37,7 +37,7 @@ pub struct Demo {
 }
 
 impl Demo {
-    fn fixed(title: &'static str, layout: fn(&mut B<'_, '_, ()>)) -> Self {
+    fn fixed(title: &'static str, layout: fn(&mut B<'_, '_, State>)) -> Self {
         Self {
             title,
             choices: Vec::new(),
@@ -48,7 +48,7 @@ impl Demo {
     fn choosing<T: Copy + 'static>(
         title: &'static str,
         table: &'static [(&'static str, T)],
-        layout: fn(&mut B<'_, '_, ()>, T),
+        layout: fn(&mut B<'_, '_, State>, T),
     ) -> Self {
         Self {
             title,
@@ -106,18 +106,39 @@ impl State {
     }
 }
 
-fn controls(ui: &mut egui::Ui, state: &mut State) {
-    for (index, demo) in state.demos.iter().enumerate() {
-        if ui
-            .selectable_label(state.demo == index, demo.title)
-            .clicked()
-        {
-            (state.demo, state.choice) = (index, 0);
+/// The demos as a column of rows, the selected one pressed, and the values
+/// of that demo as a segmented control. Choosing a demo shows its first value.
+///
+/// ```html
+/// <aside class="flex flex-col gap-3 p-3 w-[240px]">
+///   <div class="flex flex-col gap-0.5">
+///     <span class="px-2.5 py-1 rounded bg-[#aac4e8]">Perfect centering</span>
+///     <span class="px-2.5 py-1 rounded hover:bg-[#e4e4e4]">flex-direction</span>
+///     <!-- one per demo -->
+///   </div>
+///   <div class="flex flex-wrap gap-1 p-0.5 border border-[#b0b0b0] rounded-md">…</div>
+/// </aside>
+/// ```
+fn controls(b: &mut B<'_, '_, State>, state: &State) {
+    b.div(tw().flex().flex_col().gap(0.5), |b| {
+        for (index, demo) in state.demos.iter().enumerate() {
+            let cell = if index == state.demo {
+                Cell::Pressed
+            } else {
+                Cell::Released
+            };
+            b.span(
+                demo.title,
+                common::segment(cell).sense_click(),
+                demo.title,
+                common::on_click::<State>(move |state| (state.demo, state.choice) = (index, 0)),
+            );
         }
-    }
-    ui.separator();
-    for (index, name) in state.demos[state.demo].choices.iter().enumerate() {
-        ui.selectable_value(&mut state.choice, index, *name);
+    });
+    let choices = &state.demos[state.demo].choices;
+    if !choices.is_empty() {
+        let options: Vec<_> = choices.iter().copied().enumerate().collect();
+        common::choice(b, "choices", state.choice, &options, |s| &mut s.choice);
     }
 }
 
@@ -129,7 +150,7 @@ fn controls(ui: &mut egui::Ui, state: &mut State) {
 ///   <!-- the demo -->
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_, ()>, state: &State) {
+pub fn guide(b: &mut B<'_, '_, State>, state: &State) {
     let demo = &state.demos[state.demo];
     let title = match demo.choices.get(state.choice) {
         Some(choice) => format!("{}: {choice}", demo.title),
@@ -187,7 +208,7 @@ fn links<A>(b: &mut B<'_, '_, A>, style: impl Fn(usize) -> Tw) {
 ///   <div class="m-auto size-[100px] bg-[#00008b] text-white text-center">m-auto</div>
 /// </div>
 /// ```
-pub fn centering(b: &mut B<'_, '_, ()>) {
+pub fn centering<A>(b: &mut B<'_, '_, A>) {
     b.div(bar().h_px(300.0), |b| {
         b.div(
             tw().m_auto()
@@ -208,7 +229,7 @@ pub fn centering(b: &mut B<'_, '_, ()>) {
 ///   <!-- 2 to 6 -->
 /// </div>
 /// ```
-pub fn six_items(b: &mut B<'_, '_, ()>) {
+pub fn six_items<A>(b: &mut B<'_, '_, A>) {
     b.div(bar().flex_row().flex_wrap().justify_around(), |b| {
         for number in 1..=6 {
             b.div(
@@ -236,7 +257,7 @@ static DIRECTIONS: [(&str, Class); 4] = [
 ///   <!-- About, Pricing, Blog, Contact -->
 /// </nav>
 /// ```
-pub fn flex_direction(b: &mut B<'_, '_, ()>, class: Class) {
+pub fn flex_direction<A>(b: &mut B<'_, '_, A>, class: Class) {
     b.div(class(bar().items_start().h_px(260.0)), |b| {
         links(b, |_| link())
     });
@@ -254,7 +275,7 @@ static WRAPS: [(&str, Class); 3] = [
 ///   <!-- About, Pricing, Blog, Contact -->
 /// </nav>
 /// ```
-pub fn flex_wrap(b: &mut B<'_, '_, ()>, class: Class) {
+pub fn flex_wrap<A>(b: &mut B<'_, '_, A>, class: Class) {
     b.div(class(bar().items_start().w_px(340.0).h_px(200.0)), |b| {
         links(b, |_| fixed_link())
     });
@@ -273,7 +294,7 @@ static GAPS: [(&str, Class); 4] = [
 ///   <!-- About, Pricing, Blog, Contact -->
 /// </nav>
 /// ```
-pub fn gap(b: &mut B<'_, '_, ()>, class: Class) {
+pub fn gap<A>(b: &mut B<'_, '_, A>, class: Class) {
     b.div(class(bar().flex_wrap().items_start().w_px(340.0)), |b| {
         links(b, |_| fixed_link())
     });
@@ -294,7 +315,7 @@ static JUSTIFIES: [(&str, Class); 6] = [
 ///   <!-- About, Pricing, Blog, Contact -->
 /// </nav>
 /// ```
-pub fn justify_content(b: &mut B<'_, '_, ()>, class: Class) {
+pub fn justify_content<A>(b: &mut B<'_, '_, A>, class: Class) {
     b.div(class(bar().items_start()), |b| links(b, |_| fixed_link()));
 }
 
@@ -316,7 +337,7 @@ const LINK_TEXT_SIZES: [f32; 5] = [14.0, 20.0, 16.0, 28.0, 16.0];
 ///   <!-- About 20px, Pricing 16px, Blog 28px, Contact 16px -->
 /// </nav>
 /// ```
-pub fn align_items(b: &mut B<'_, '_, ()>, class: Class) {
+pub fn align_items<A>(b: &mut B<'_, '_, A>, class: Class) {
     b.div(class(bar().h_px(140.0)), |b| {
         links(b, |index| fixed_link().role(sized(LINK_TEXT_SIZES[index])))
     });
@@ -340,7 +361,7 @@ static ALIGN_CONTENT: [(&str, Class); 7] = [
 ///   <!-- About, Pricing, Blog, Contact -->
 /// </nav>
 /// ```
-pub fn align_content(b: &mut B<'_, '_, ()>, class: Class) {
+pub fn align_content<A>(b: &mut B<'_, '_, A>, class: Class) {
     b.div(class(bar().flex_wrap().w_px(340.0).h_px(300.0)), |b| {
         links(b, |_| fixed_link())
     });
@@ -360,7 +381,7 @@ static GROWS: [(&str, ItemClass); 3] = [
 ///   <!-- About, Pricing, Blog, Contact -->
 /// </nav>
 /// ```
-pub fn flex_grow(b: &mut B<'_, '_, ()>, class: ItemClass) {
+pub fn flex_grow<A>(b: &mut B<'_, '_, A>, class: ItemClass) {
     b.div(bar().items_start(), |b| {
         links(b, |index| class(link().text_center(), index))
     });
@@ -385,7 +406,7 @@ static SHRINKS: [(&str, ItemClass); 3] = [
 ///   <!-- About, Pricing, Blog, Contact -->
 /// </nav>
 /// ```
-pub fn flex_shrink(b: &mut B<'_, '_, ()>, class: ItemClass) {
+pub fn flex_shrink<A>(b: &mut B<'_, '_, A>, class: ItemClass) {
     b.div(bar().items_start().w_px(460.0).overflow_hidden(), |b| {
         links(b, |index| class(link().w_px(100.0).text_center(), index))
     });
@@ -409,7 +430,7 @@ static BASES: [(&str, ItemClass); 3] = [
 ///   <!-- About, Pricing, Blog, Contact -->
 /// </nav>
 /// ```
-pub fn flex_basis(b: &mut B<'_, '_, ()>, class: ItemClass) {
+pub fn flex_basis<A>(b: &mut B<'_, '_, A>, class: ItemClass) {
     b.div(bar().items_start(), |b| {
         links(b, |index| class(link().text_center(), index))
     });
@@ -443,7 +464,7 @@ static ALIGN_SELVES: [(&str, ItemClass); 5] = [
 ///   <!-- About, Blog, Contact -->
 /// </nav>
 /// ```
-pub fn align_self(b: &mut B<'_, '_, ()>, class: ItemClass) {
+pub fn align_self<A>(b: &mut B<'_, '_, A>, class: ItemClass) {
     b.div(bar().items_center().h_px(140.0), |b| {
         links(b, |index| class(fixed_link(), index))
     });
@@ -462,7 +483,7 @@ static ORDERS: [(&str, [usize; 5]); 2] = [
 ///   <!-- Home, Blog, Contact, About -->
 /// </nav>
 /// ```
-pub fn order(b: &mut B<'_, '_, ()>, order: [usize; 5]) {
+pub fn order<A>(b: &mut B<'_, '_, A>, order: [usize; 5]) {
     b.text(
         tw(),
         "Taffy has no `order` property: build the children in the order to show.",
@@ -474,6 +495,11 @@ pub fn order(b: &mut B<'_, '_, ()>, order: [usize; 5]) {
     });
 }
 
+/// The selector beside the guide.
+pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+    common::with_controls(b, |b| controls(b, state), |b| guide(b, state));
+}
+
 fn main() -> eframe::Result {
-    common::run("flexbox_guide", State::default(), Some(controls), layout)
+    common::run_app("flexbox_guide", State::default(), layout)
 }

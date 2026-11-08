@@ -21,7 +21,8 @@ pub enum Part {
     Link(Link),
     Account,
     TopBar,
-    ModelChip,
+    Model,
+    Mode,
     Conversation,
     Composer,
     Attach,
@@ -48,6 +49,7 @@ fn splitter(b: &mut B<'_, '_>, app: &App, pane: Pane) {
             .shrink_0()
             .bg(k[Tok::Ground])
             .sense_drag()
+            .focusable_none()
             .group(),
         move |app: &mut App, ui| {
             let response = ui.node_response();
@@ -76,6 +78,12 @@ fn splitter(b: &mut B<'_, '_>, app: &App, pane: Pane) {
             );
         },
     );
+}
+
+/// Gives egui's stock widgets, which the select and the composer's field are,
+/// the theme's colours.
+pub fn prepare(ctx: &egui::Context, app: &App) {
+    app.theme.apply(ctx);
 }
 
 /// ```html

@@ -4,8 +4,7 @@
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
 //! rebuilt with bullseye: taffy places, egui draws. The original's buttons are
 //! plain boxes here, and its rows scroll where these are clipped. The demo has
-//! no controls; the other ports' controls sit outside the bullseye tree and
-//! move inside once M4 measures stock egui widgets in the same frame.
+//! no controls.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -117,5 +116,5 @@ pub fn layout<A>(b: &mut B<'_, '_, A>, _: &()) {
 }
 
 fn main() -> eframe::Result {
-    common::run("flex", (), None, layout)
+    common::run("flex", (), layout)
 }

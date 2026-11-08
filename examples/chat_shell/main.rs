@@ -5,9 +5,9 @@
 //! The capstone of the builder pattern so far: one theme of tokens resolved
 //! once, identified nodes that sense hover, clicks and drags, paint variants
 //! for every interactive state, and layout that follows the widths held in
-//! application state. The composer's text field has a fixed height until
-//! M4 sizes widgets by their content, and scrolling arrives with M5; for now
-//! overflow is clipped.
+//! application state. The composer's field is a stock text edit that grows
+//! with its text up to a cap, the model is a select, and the mode a segmented
+//! control. Scrolling arrives with M5; for now overflow is clipped.
 
 pub mod centre;
 pub mod details;
@@ -32,6 +32,7 @@ fn main() -> eframe::Result {
     };
     eframe::run_ui_native("chat_shell", options, move |ui, _| {
         ui.ctx().set_theme(egui::Theme::Dark);
+        view::prepare(ui.ctx(), &app);
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(Color32::BLACK))
             .show(ui, |ui| {

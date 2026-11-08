@@ -4,12 +4,13 @@
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
 //! rebuilt with bullseye. A button is a `div_id` that senses clicks, with
 //! hover and active paint as variants; being selected is app state known at
-//! build time, so it is base paint. The reset button is a plain egui widget
-//! beside the layout until M4 measures stock widgets inside leaves.
+//! build time, so it is base paint. The reset button is a stock egui button in
+//! a leaf of the same tree.
 
 #[path = "common/mod.rs"]
 mod common;
 
+use bullseye::widget::Button;
 use bullseye::{Builder, Tw, tw};
 use egui::Color32;
 
@@ -28,10 +29,20 @@ pub struct State {
     pub selected: bool,
 }
 
-fn controls(ui: &mut egui::Ui, state: &mut State) {
-    if ui.button("Reset").clicked() {
-        *state = State::default();
-    }
+/// ```html
+/// <aside class="flex flex-col gap-3 p-3 w-[240px]"><button>Reset</button></aside>
+/// ```
+fn controls(b: &mut B<'_, '_, State>) {
+    b.widget(
+        "reset",
+        tw().self_start(),
+        Button::new("Reset"),
+        |state, ui, button| {
+            if button.show(ui).clicked() {
+                *state = State::default();
+            }
+        },
+    );
 }
 
 type Align = fn(Tw) -> Tw;
@@ -95,7 +106,7 @@ fn content<A>(b: &mut B<'_, '_, A>, title: &str) {
 ///   <span>Selected: false</span>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn demo(b: &mut B<'_, '_, State>, state: &State) {
     b.div(
         tw().flex()
             .flex_col()
@@ -124,6 +135,11 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
     );
 }
 
+/// The controls beside the demo.
+pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+    common::with_controls(b, controls, |b| demo(b, state));
+}
+
 fn main() -> eframe::Result {
-    common::run_app("button", State::default(), Some(controls), layout)
+    common::run_app("button", State::default(), layout)
 }

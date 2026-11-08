@@ -6,8 +6,7 @@
 //! rebuilt with bullseye: taffy places, egui draws. A paint variant cannot
 //! change a border's width, which would move layout; where the demo widens a
 //! border on hover, the buttons add a ring instead. The box size slider is a
-//! plain egui widget beside the layout; it moves inside once M4 measures
-//! stock egui widgets in the same frame.
+//! stock egui slider in a leaf of the same tree.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -41,9 +40,20 @@ impl Default for State {
     }
 }
 
-fn controls(ui: &mut egui::Ui, state: &mut State) {
-    ui.label("Box size");
-    ui.add(egui::Slider::new(&mut state.size, 80.0..=300.0));
+/// ```html
+/// <aside class="flex flex-col gap-3 p-3 w-[240px]">
+///   <!-- a range input for the box size, with its caption and value -->
+/// </aside>
+/// ```
+fn controls(b: &mut B<'_, '_, State>, state: &State) {
+    common::slider_row(
+        b,
+        "size",
+        "Box size (points)",
+        state.size,
+        80.0..=300.0,
+        |s| &mut s.size,
+    );
 }
 
 /// ```html
@@ -78,7 +88,7 @@ fn background_box(b: &mut B<'_, '_, State>, state: &State, paint: Tw, text: Colo
 ///   <div class="flex gap-5 uppercase"><span>clicked: 0x</span><span>selected: false</span></div>
 /// </div>
 /// ```
-pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+pub fn demo(b: &mut B<'_, '_, State>, state: &State) {
     let white = Color32::WHITE;
     b.div(
         tw().flex()
@@ -261,11 +271,11 @@ fn buttons(b: &mut B<'_, '_, State>, state: &State) {
     );
 }
 
+/// The controls beside the demo.
+pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+    common::with_controls(b, |b| controls(b, state), |b| demo(b, state));
+}
+
 fn main() -> eframe::Result {
-    common::run_app(
-        "custom_background",
-        State::default(),
-        Some(controls),
-        layout,
-    )
+    common::run_app("custom_background", State::default(), layout)
 }

@@ -71,6 +71,10 @@ fn place(f: impl for<'f> FnOnce(&mut Builder<'_, 'f, ()>)) -> Placed<()> {
 }
 
 fn place_in(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, ()>)) -> Placed<()> {
+    place_app(area, f)
+}
+
+fn place_app<A>(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
     fixed_state().build(ctx(), f).layout(area)
 }
 
@@ -1085,9 +1089,9 @@ fn the_default_follows_the_theme() {
     assert_ne!(dark, light);
 }
 
-fn guide(title: &str, choice: usize) -> Placed<()> {
+fn guide(title: &str, choice: usize) -> Placed<flexbox_guide::State> {
     let state = flexbox_guide::State::showing(title, choice);
-    place(|b| flexbox_guide::layout(b, &state))
+    place_app(AREA, |b| flexbox_guide::guide(b, &state))
 }
 
 fn divs<A>(placed: &Placed<A>) -> Vec<Rect> {
@@ -1120,7 +1124,7 @@ fn guide_six_items_distribute_evenly_and_wrap_with_the_window() {
     let state = flexbox_guide::State::showing("Six items, evenly distributed", 0);
     let at_width = |width: f32| {
         let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 600.0));
-        let divs = divs(&place_in(area, |b| flexbox_guide::layout(b, &state)));
+        let divs = divs(&place_app(area, |b| flexbox_guide::guide(b, &state)));
         (divs[1], divs[2..8].to_vec())
     };
 
@@ -1220,7 +1224,7 @@ fn every_guide_demo_builds_for_every_value() {
                 choice,
                 ..flexbox_guide::State::default()
             };
-            let placed = place(|b| flexbox_guide::layout(b, &state));
+            let placed = place_app(AREA, |b| flexbox_guide::guide(b, &state));
             assert!(placed.len() > 3, "{} builds its demo", entry.title);
         }
     }
@@ -1249,7 +1253,7 @@ fn flex_wrap_wraps_and_grows_each_line_to_the_edge() {
             wrapping,
             ..flex_wrap::State::default()
         };
-        divs(&place(|b| flex_wrap::layout(b, &state)))[3..21].to_vec()
+        divs(&place(|b| flex_wrap::demo(b, &state)))[3..21].to_vec()
     };
     let nowrap = words(flex_wrap::Wrapping::NoWrap);
     assert!(nowrap.iter().all(|word| word.min.y == nowrap[0].min.y));
@@ -1265,9 +1269,7 @@ fn flex_wrap_wraps_and_grows_each_line_to_the_edge() {
 
 #[test]
 fn flex_grid_spans_and_aligns_within_cells() {
-    let divs = divs(&place(|b| {
-        flex_grid::layout(b, &flex_grid::State::default())
-    }));
+    let divs = divs(&place(|b| flex_grid::demo(b, &flex_grid::State::default())));
     let (grid, span_cols, span_rows) = (divs[0], divs[1], divs[2]);
     assert_close(span_rows.height(), grid.height() - 2.0 * 8.0);
     assert_eq!(span_cols.min.y, span_rows.min.y);
@@ -1283,7 +1285,7 @@ fn flex_grid_spans_and_aligns_within_cells() {
 
 #[test]
 fn grow_shares_the_free_space_by_factor() {
-    let divs = divs(&place(|b| grow::layout(b, &grow::State::default())));
+    let divs = divs(&place(|b| grow::demo(b, &grow::State::default())));
     let heights: Vec<f32> = divs[1..5].iter().map(|item| item.height()).collect();
     let unit = heights[1] - heights[0];
     assert!(unit > 1.0, "free space to share");
@@ -1315,7 +1317,7 @@ fn custom_background_boxes_wrap_into_rows_of_the_slider_size() {
             ..Default::default()
         };
         let placed = fixed_state()
-            .build(ctx(), |b| custom_background::layout(b, &state))
+            .build(ctx(), |b| custom_background::demo(b, &state))
             .layout(AREA);
         divs(&placed)[2..8].to_vec()
     };
@@ -1376,4 +1378,34 @@ fn baseline_alignment_counts_a_leafs_padding() {
         plain.min.y,
         "the text lines up: {padded:?} {plain:?}"
     );
+}
+
+/// A text leaf stretched across a column wraps at the width inside its
+/// padding, and is as tall as the lines it wraps to.
+///
+/// ```html
+/// <div class="flex flex-col w-[…]">
+///   <span class="px-2">Six items, evenly distributed</span>
+/// </div>
+/// ```
+#[test]
+fn a_stretched_padded_text_leaf_is_as_tall_as_its_wrapped_lines() {
+    let text = "Six items, evenly distributed";
+    let natural = width_of(&BODY, text);
+    let padding = 8.0;
+    let column = natural + padding;
+    assert!(
+        column - 2.0 * padding < natural && column > natural * 0.6,
+        "precondition: the text fits the column but not inside the padding"
+    );
+    let placed = place(|b| {
+        b.div(tw().flex().flex_col().w_px(column), |b| {
+            b.span("padded", tw().px(2.0), text, none);
+        });
+    });
+    let [padded] = rects(&placed, NodeKind::Span)[..] else {
+        panic!("one span")
+    };
+    assert_eq!(padded.width(), column);
+    assert_eq!(padded.height(), 40.0, "two lines of 20: {padded:?}");
 }

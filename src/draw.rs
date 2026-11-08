@@ -5,11 +5,12 @@ use egui::epaint::{RectShape, StrokeKind};
 use std::borrow::Cow;
 
 use egui::{
-    Align, Color32, Image, Layout, Painter, Pos2, Rect, Response, Sense, Stroke, Ui, UiBuilder,
-    Vec2, pos2, vec2,
+    Align, Color32, Frame, Id, Image, Layout, Painter, Pos2, Rect, Response, Sense, Stroke, Ui,
+    UiBuilder, UiKind, UiStackInfo, Vec2, pos2, vec2,
 };
 use taffy::Overflow;
 
+use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
@@ -85,6 +86,10 @@ struct Inherited {
     /// A text colour a variant of an ancestor set, for descendants that
     /// inherit their colour.
     text_color: Option<Color32>,
+    /// The backgrounds of the node and its ancestors, composited. egui widgets
+    /// that fade toward `ui.stack().bg_color()` read it from the `Ui`'s stack
+    /// info, as bullseye paints backgrounds without egui `Frame`s.
+    backdrop: Color32,
 }
 
 /// A node's boxes, snapped to physical pixels.
@@ -295,7 +300,13 @@ fn node_ui(
     text: Option<&TextStyle>,
     add_contents: impl FnOnce(&mut Ui),
 ) {
-    let mut child = parent.new_child(builder.layout(Layout::top_down(Align::Min)));
+    let stack_info =
+        UiStackInfo::new(UiKind::GenericArea).with_frame(Frame::NONE.fill(inherited.backdrop));
+    let mut child = parent.new_child(
+        builder
+            .layout(Layout::top_down(Align::Min))
+            .ui_stack_info(stack_info),
+    );
     child.set_clip_rect(inherited.clip);
     if inherited.inertness == Inertness::Inert {
         child.disable();
@@ -330,6 +341,7 @@ struct Walk<'a, A> {
     prims: Vec<Option<Prim>>,
     draws: Vec<Option<DrawFn<A>>>,
     grid: PixelGrid,
+    subtrees: Vec<(Id, Box<[Id]>)>,
 }
 
 impl<A> Walk<'_, A> {
@@ -355,7 +367,10 @@ impl<A> Walk<'_, A> {
     /// order: later wins, and the walk is pre-order with siblings by `z`.
     fn interact(&mut self, node: &PlacedNode, boxes: &Boxes, inherited: Inherited) -> Response {
         let id = node.id().expect("a sensing node is identified");
-        let sense = Sense::from(node.interaction.sensing);
+        let sense = node
+            .interaction
+            .focusability
+            .sense(node.interaction.sensing);
         let mut response = None;
         node_ui(
             self.ui,
@@ -407,6 +422,10 @@ impl<A> Walk<'_, A> {
                     group == Some(Hovering::Over)
                 }
                 State::Hover => hovering == Some(Hovering::Over),
+                State::Focus => response.is_some_and(Response::has_focus),
+                State::FocusWithin => node
+                    .id()
+                    .is_some_and(|id| focus::focus_within(self.ui.ctx(), id)),
                 State::Active => {
                     response.is_some_and(|r| r.hovered() && r.is_pointer_button_down_on())
                 }
@@ -424,11 +443,27 @@ impl<A> Walk<'_, A> {
         Presence {
             group_hover: progress(State::GroupHover),
             hover: progress(State::Hover),
+            focus_within: progress(State::FocusWithin),
+            focus: progress(State::Focus),
             active: progress(State::Active),
         }
     }
 
+    /// Visits the node and its subtree, noting which focusable widgets the
+    /// subtree registered if the node is identified.
     fn visit(&mut self, index: usize, parent: Inherited) {
+        let layer = self.ui.layer_id();
+        let before = self.nodes[index]
+            .id()
+            .map(|id| (id, focus::registered(self.ui.ctx(), layer)));
+        self.visit_node(index, parent);
+        if let Some((id, from)) = before {
+            let widgets = focus::focusable_since(self.ui.ctx(), layer, from);
+            self.subtrees.push((id, widgets));
+        }
+    }
+
+    fn visit_node(&mut self, index: usize, parent: Inherited) {
         let nodes = self.nodes;
         let node = &nodes[index];
         if node.flow == Flow::Hidden {
@@ -491,7 +526,11 @@ impl<A> Walk<'_, A> {
             self.grid,
         );
 
+        let painted_background = look.paint.background.map_or(Color32::TRANSPARENT, |fill| {
+            fill.gamma_multiply(f32::from(opacity))
+        });
         let inherited = Inherited {
+            backdrop: parent.backdrop.blend(painted_background),
             clip: content_clip(parent.clip, boxes.padding, node.overflow),
             opacity,
             inertness,
@@ -625,16 +664,19 @@ impl<A> Placed<A> {
             inertness: Inertness::Live,
             group: None,
             text_color: None,
+            backdrop: Color32::TRANSPARENT,
         };
-        Walk {
+        let mut walk = Walk {
             app,
             ui,
             nodes: &nodes,
             prims,
             draws,
             grid,
-        }
-        .visit(0, root);
+            subtrees: Vec::new(),
+        };
+        walk.visit(0, root);
+        focus::store(walk.ui.ctx(), walk.subtrees);
     }
 }
 
@@ -661,6 +703,10 @@ pub trait NodeUi {
     /// The [`scope_id`](Ui::scope_id) of the draw closure's `Ui` is derived
     /// from it, so ids made with `make_persistent_id` are stable per node.
     fn node_id(&self) -> egui::Id;
+
+    /// Whether the node, or a widget inside it, has keyboard focus. See
+    /// [`focus_within`](crate::focus_within).
+    fn has_focus_within(&self) -> bool;
 }
 
 impl NodeUi for Ui {
@@ -668,6 +714,10 @@ impl NodeUi for Ui {
         self.data(|data| data.get_temp::<NodeIdTag>(self.unique_id()))
             .map(|tag| tag.0)
             .expect("node_response and node_id are called on the Ui a draw closure is given")
+    }
+
+    fn has_focus_within(&self) -> bool {
+        focus::focus_within(self.ctx(), self.node_id())
     }
 
     fn node_response(&self) -> Response {

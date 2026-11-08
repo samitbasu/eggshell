@@ -2,10 +2,9 @@
 //! wrapping row of bordered words.
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
-//! rebuilt with bullseye: taffy places, egui draws. The gap slider and the wrap
-//! choice are plain egui widgets beside the layout; they move inside once M4
-//! measures stock egui widgets in the same frame. The original's stock egui
-//! labels and buttons are text boxes here.
+//! rebuilt with bullseye: taffy places, egui draws. The gap slider is a stock
+//! egui slider and the wrap choice a segmented control, both inside the tree.
+//! The original's stock egui labels and buttons are text boxes here.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -37,7 +36,7 @@ const WORDS: [&str; 18] = [
 ];
 
 /// Whether the row of words wraps.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Wrapping {
     Wrap,
     NoWrap,
@@ -67,12 +66,32 @@ impl Default for State {
     }
 }
 
-fn controls(ui: &mut egui::Ui, state: &mut State) {
-    ui.label("Gap (spacing units)");
-    ui.add(egui::Slider::new(&mut state.gap, 0.0..=12.0));
-    ui.label("Words");
-    ui.selectable_value(&mut state.wrapping, Wrapping::Wrap, "flex-wrap");
-    ui.selectable_value(&mut state.wrapping, Wrapping::NoWrap, "flex-nowrap");
+/// ```html
+/// <aside class="flex flex-col gap-3 p-3 w-[240px]">
+///   <!-- a range input for the gap, and a two-way choice for the words -->
+/// </aside>
+/// ```
+fn controls(b: &mut B<'_, '_, State>, state: &State) {
+    common::slider_row(
+        b,
+        "gap",
+        "Gap (spacing units)",
+        state.gap,
+        0.0..=12.0,
+        |s| &mut s.gap,
+    );
+    common::captioned(b, "Words", |b| {
+        common::choice(
+            b,
+            "wrapping",
+            state.wrapping,
+            &[
+                (Wrapping::Wrap, "flex-wrap"),
+                (Wrapping::NoWrap, "flex-nowrap"),
+            ],
+            |s| &mut s.wrapping,
+        );
+    });
 }
 
 /// ```html
@@ -107,7 +126,7 @@ fn separator<A>(b: &mut B<'_, '_, A>) {
 ///   </div>
 /// </div>
 /// ```
-pub fn layout<A>(b: &mut B<'_, '_, A>, state: &State) {
+pub fn demo<A>(b: &mut B<'_, '_, A>, state: &State) {
     b.div(
         tw().flex()
             .flex_col()
@@ -142,6 +161,11 @@ pub fn layout<A>(b: &mut B<'_, '_, A>, state: &State) {
     );
 }
 
+/// The controls beside the demo.
+pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+    common::with_controls(b, |b| controls(b, state), |b| demo(b, state));
+}
+
 fn main() -> eframe::Result {
-    common::run("flex_wrap", State::default(), Some(controls), layout)
+    common::run_app("flex_wrap", State::default(), layout)
 }

@@ -1,21 +1,26 @@
 //! The middle pane: title bar, conversation and composer.
 
-use bullseye::{Builder, NodeUi, Opacity, Tw, fill, none, tw};
-use egui::{Frame, Key, TextEdit, WidgetInfo};
+use bullseye::prim::segmented::{Cell, segmented};
+use bullseye::prim::select::{self, Options};
+use bullseye::prim::text_field::{self, Field};
+use bullseye::{Builder, NodeUi, Opacity, Tw, none, tw};
+use egui::{Key, WidgetInfo};
 
 use super::icons::{self, Glyph};
-use super::state::{App, Block, Message};
+use super::state::{App, Block, MODELS, Message, Mode};
 use super::theme::{Role, Theme, Tok};
 use super::view::Part;
 
 type B<'b, 'f> = Builder<'b, 'f, App>;
 
+/// The model select, in the shape of a chip.
+///
 /// ```html
 /// <header class="flex items-center justify-between h-12 shrink-0 px-4 border-b border-[#383838]">
 ///   <h2 class="text-[15px]">Refactor the tokenizer</h2>
-///   <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#383838] text-[#a8a8a8]">
-///     <span>Assistant 1</span><svg class="size-3"/>
-///   </div>
+///   <select class="rounded-lg border border-[#383838] bg-[#2b2b2b] px-2.5 py-1 text-[13px] text-[#a8a8a8]">
+///     <option>Assistant 1</option> <!-- Assistant 2, Assistant 3 -->
+///   </select>
 /// </header>
 /// ```
 fn top_bar(b: &mut B<'_, '_>, app: &App) {
@@ -38,25 +43,17 @@ fn top_bar(b: &mut B<'_, '_>, app: &App) {
         none,
         |b| {
             b.text(tw().role(k[Role::Title].clone()).truncate(), title);
-            b.div_id(
-                Part::ModelChip,
-                tw().flex()
-                    .items_center()
-                    .gap(1.5)
-                    .px(2.5)
-                    .py(1.0)
-                    .rounded_lg()
-                    .border(1.0)
-                    .border_color(k[Tok::Line])
-                    .text(k[Tok::InkMid])
-                    .role(k[Role::Small].clone()),
-                none,
-                |b| {
-                    b.text(tw(), "Assistant 1");
-                    b.paint(
-                        tw().size_px(12.0),
-                        icons::glyph(Glyph::Chevron, k[Tok::InkMid]),
-                    );
+            let models = Options::new(MODELS);
+            let measured = models.clone();
+            b.leaf(
+                Part::Model,
+                tw().role(k[Role::Small].clone()),
+                move |m| select::measure(m, &measured),
+                move |app: &mut App, ui| {
+                    let response = select::show(ui, &mut app.model, &models);
+                    response.widget_info(|| {
+                        WidgetInfo::labeled(egui::Role::ComboBox, ui.is_enabled(), "Model")
+                    });
                 },
             );
         },
@@ -155,21 +152,68 @@ fn tool_button(k: &Theme, shape: Tw) -> Tw {
         .hover(|p| p.bg(k[Tok::Hover]))
 }
 
-/// The reply field fills its leaf; Ctrl+Enter (Cmd+Enter on macOS) sends.
-fn field(app: &mut App, ui: &mut egui::Ui) {
-    let response = ui.add_sized(
-        ui.available_size(),
-        TextEdit::multiline(&mut app.draft)
-            .frame(Frame::NONE)
-            .hint_text("Reply…"),
+/// The reply field is as tall as its text, from `COMPOSER_MIN_ROWS` rows to
+/// `COMPOSER_MAX_ROWS`, and scrolls beyond that. Ctrl+Enter (Cmd+Enter on
+/// macOS) sends.
+const COMPOSER_MIN_ROWS: usize = 3;
+const COMPOSER_MAX_ROWS: usize = 8;
+
+fn field(b: &mut B<'_, '_>, app: &App) {
+    let field = Field::multiline(&app.draft, COMPOSER_MIN_ROWS)
+        .max_rows(COMPOSER_MAX_ROWS)
+        .hint("Reply…")
+        .bare();
+    let measured = field.clone();
+    b.leaf(
+        Part::Field,
+        tw().w_full().px(1.0),
+        move |m| text_field::measure(m, &measured),
+        move |app: &mut App, ui| {
+            let response = text_field::show(ui, &mut app.draft, &field);
+            response.widget_info(|| {
+                WidgetInfo::labeled(egui::Role::MultilineTextInput, ui.is_enabled(), "Message")
+            });
+            let chord = ui.input(|input| input.modifiers.command && input.key_pressed(Key::Enter));
+            if chord && response.has_focus() {
+                app.send();
+            }
+        },
     );
-    response.widget_info(|| {
-        WidgetInfo::labeled(egui::Role::MultilineTextInput, ui.is_enabled(), "Message")
-    });
-    let chord = ui.input(|input| input.modifiers.command && input.key_pressed(Key::Enter));
-    if chord && response.has_focus() {
-        app.send();
-    }
+}
+
+/// The mode, as a segmented control of small cells.
+///
+/// ```html
+/// <div class="flex items-center gap-0.5 text-[13px]">
+///   <span class="px-2.5 py-1 rounded-lg text-[#a8a8a8] hover:bg-[#2e2e2e] focus-visible:ring-2">Quick</span>
+///   <span class="px-2.5 py-1 rounded-lg bg-[#333a44] text-[#ececec]">Standard</span> <!-- pressed -->
+///   <span class="px-2.5 py-1 rounded-lg text-[#a8a8a8] hover:bg-[#2e2e2e]">Thorough</span>
+/// </div>
+/// ```
+fn mode(b: &mut B<'_, '_>, app: &App) {
+    let k = &app.theme;
+    segmented(
+        b,
+        Part::Mode,
+        tw().flex()
+            .items_center()
+            .gap(0.5)
+            .role(k[Role::Small].clone()),
+        app.mode,
+        &Mode::ALL,
+        |cell| {
+            let look = tw()
+                .px(2.5)
+                .py(1.0)
+                .rounded_lg()
+                .focus(|p| p.ring(2.0, k[Tok::Accent]));
+            match cell {
+                Cell::Pressed => look.bg(k[Tok::Selected]).text(k[Tok::Ink]),
+                Cell::Released => look.text(k[Tok::InkMid]).hover(|p| p.bg(k[Tok::Hover])),
+            }
+        },
+        |app| &mut app.mode,
+    );
 }
 
 /// The composer is the last child of a column whose conversation grows, so it
@@ -178,9 +222,12 @@ fn field(app: &mut App, ui: &mut egui::Ui) {
 /// ```html
 /// <div class="flex justify-center shrink-0 px-4 pb-4">
 ///   <div class="flex flex-col gap-3 w-full max-w-[720px] p-3 rounded-2xl border border-[#383838] bg-[#2b2b2b]">
-///     <textarea class="w-full h-14 px-1 resize-none bg-transparent outline-none" placeholder="Reply…"></textarea>
+///     <textarea class="w-full px-1 resize-none bg-transparent outline-none" rows="3" placeholder="Reply…"></textarea> <!-- grows to 8 rows -->
 ///     <div class="flex items-center justify-between">
-///       <button class="size-8 rounded-lg hover:bg-[#2e2e2e]">+</button>
+///       <div class="flex items-center gap-1.5">
+///         <button class="size-8 rounded-lg hover:bg-[#2e2e2e]">+</button>
+///         <div class="segmented">Quick Standard Thorough</div>
+///       </div>
 ///       <button class="size-8 rounded-full bg-[#6f8fb3] hover:bg-[#84a2c4] disabled:opacity-50">↑</button>
 ///     </div>
 ///   </div>
@@ -212,13 +259,16 @@ fn composer(b: &mut B<'_, '_>, app: &App) {
                     .bg(k[Tok::Surface]),
                 none,
                 |b| {
-                    b.leaf(Part::Field, tw().w_full().h_px(56.0).px(1.0), fill, field);
+                    field(b, app);
                     b.div(tw().flex().items_center().justify_between(), |b| {
-                        b.div_id(Part::Attach, tool_button(k, tw().rounded_lg()), none, |b| {
-                            b.paint(
-                                tw().size_px(18.0),
-                                icons::glyph(Glyph::Plus, k[Tok::InkMid]),
-                            );
+                        b.div(tw().flex().items_center().gap(1.5), |b| {
+                            b.div_id(Part::Attach, tool_button(k, tw().rounded_lg()), none, |b| {
+                                b.paint(
+                                    tw().size_px(18.0),
+                                    icons::glyph(Glyph::Plus, k[Tok::InkMid]),
+                                );
+                            });
+                            mode(b, app);
                         });
                         b.div_id(
                             Part::Send,

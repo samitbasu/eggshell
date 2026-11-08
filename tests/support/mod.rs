@@ -17,8 +17,17 @@ pub struct Rig<A> {
     layout: LayoutState,
     pub app: A,
     view: View<A>,
+    prepare: fn(&egui::Context, &A),
     /// Every node of the last frame: its readable path and border box.
     pub nodes: Vec<(String, Rect)>,
+    ids: Vec<(String, egui::Id)>,
+}
+
+/// Whether kittest rejects widgets without an accessible name.
+#[derive(Clone, Copy)]
+pub enum Accessibility {
+    Checked,
+    Unchecked,
 }
 
 pub fn harness<A: 'static>(
@@ -27,15 +36,56 @@ pub fn harness<A: 'static>(
     app: A,
     view: View<A>,
 ) -> Harness<'static, Rig<A>> {
+    harness_with(size, base_text, app, view, Accessibility::Checked)
+}
+
+pub fn harness_with<A: 'static>(
+    size: Vec2,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    accessibility: Accessibility,
+) -> Harness<'static, Rig<A>> {
+    harness_prepared(size, base_text, app, view, accessibility, |_, _| {})
+}
+
+/// [`harness_with`] for an app that sets egui's style: `prepare` runs before
+/// every frame is built.
+pub fn harness_prepared<A: 'static>(
+    size: Vec2,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    accessibility: Accessibility,
+    prepare: fn(&egui::Context, &A),
+) -> Harness<'static, Rig<A>> {
+    harness_scaled(size, 1.0, base_text, app, view, accessibility, prepare)
+}
+
+/// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
+/// points.
+pub fn harness_scaled<A: 'static>(
+    size: Vec2,
+    pixels_per_point: f32,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    accessibility: Accessibility,
+    prepare: fn(&egui::Context, &A),
+) -> Harness<'static, Rig<A>> {
     let rig = Rig {
         layout: LayoutState::new().with_base_text(base_text),
         app,
         view,
+        prepare,
         nodes: Vec::new(),
+        ids: Vec::new(),
     };
     Harness::builder()
         .with_size(size)
+        .with_pixels_per_point(pixels_per_point)
         .with_step_dt(0.05)
+        .with_accessibility_check(matches!(accessibility, Accessibility::Checked))
         .build_ui_state(
             |ui, rig: &mut Rig<A>| {
                 let area = ui.max_rect();
@@ -43,12 +93,19 @@ pub fn harness<A: 'static>(
                     layout,
                     app,
                     view,
+                    prepare,
                     nodes,
+                    ids,
                 } = rig;
+                prepare(ui.ctx(), &*app);
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *nodes = placed
                     .nodes()
                     .map(|node| (node.path().to_owned(), node.rect()))
+                    .collect();
+                *ids = placed
+                    .nodes()
+                    .filter_map(|node| Some((node.path().to_owned(), node.id()?)))
                     .collect();
                 placed.draw(app, ui);
             },
@@ -121,4 +178,29 @@ pub fn click_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
     let at = rect_of(harness, path).center();
     hover_over(harness, at);
     press_and_release(harness, at);
+}
+
+/// The deepest node that has keyboard focus or holds a widget that does: the
+/// leaf a `text_field` or `select` sits in, or a node that is itself focused.
+pub fn focused_node<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
+    harness
+        .state()
+        .ids
+        .iter()
+        .rfind(|(_, id)| bullseye::focus_within(&harness.ctx, *id))
+        .map(|(path, _)| path.clone())
+}
+
+/// What has keyboard focus: the readable path of an identified node, or
+/// `<widget>` for an egui widget that is not a node (a text edit inside one).
+pub fn focused_path<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
+    let focused = harness.ctx.memory(|memory| memory.focused())?;
+    Some(
+        harness
+            .state()
+            .ids
+            .iter()
+            .find(|(_, id)| *id == focused)
+            .map_or_else(|| "<widget>".to_owned(), |(path, _)| path.clone()),
+    )
 }
