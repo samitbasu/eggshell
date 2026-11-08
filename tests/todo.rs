@@ -6,9 +6,8 @@
     reason = "each test crate includes the shared examples/common module"
 )]
 
-use bullseye::LayoutState;
 use egui::epaint::Shape;
-use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, vec2};
+use egui::vec2;
 use egui_kittest::Harness;
 
 #[path = "../examples/common/mod.rs"]
@@ -18,55 +17,23 @@ mod common;
 #[path = "../examples/todo.rs"]
 mod todo;
 
+mod support;
+
+use support::{Rig, fill_of, hover_over, press_and_release, rect_of};
 use todo::{ItemKey, State};
 
 const ACTION_HOVER: u8 = 208;
 
-struct Rig {
-    layout: LayoutState,
-    app: State,
-    nodes: Vec<(String, Rect)>,
+fn harness() -> Harness<'static, Rig<State>> {
+    support::harness(
+        vec2(520.0, 320.0),
+        common::base_text(),
+        State::default(),
+        todo::layout,
+    )
 }
 
-fn harness() -> Harness<'static, Rig> {
-    let rig = Rig {
-        layout: LayoutState::new().with_base_text(common::base_text()),
-        app: State::default(),
-        nodes: Vec::new(),
-    };
-    Harness::builder()
-        .with_size(vec2(520.0, 320.0))
-        .with_step_dt(0.05)
-        .build_ui_state(
-            |ui, rig: &mut Rig| {
-                let area = ui.max_rect();
-                let Rig {
-                    layout, app, nodes, ..
-                } = rig;
-                let placed = layout
-                    .build(ui.ctx(), |b| todo::layout(b, &*app))
-                    .layout(area);
-                *nodes = placed
-                    .nodes()
-                    .map(|node| (node.path().to_owned(), node.rect()))
-                    .collect();
-                placed.draw(app, ui);
-            },
-            rig,
-        )
-}
-
-fn rect_of(harness: &Harness<'_, Rig>, path: &str) -> Rect {
-    harness
-        .state()
-        .nodes
-        .iter()
-        .find(|(candidate, _)| candidate == path)
-        .unwrap_or_else(|| panic!("no node {path}: {:?}", harness.state().nodes))
-        .1
-}
-
-fn keys(harness: &Harness<'_, Rig>) -> Vec<ItemKey> {
+fn keys(harness: &Harness<'_, Rig<State>>) -> Vec<ItemKey> {
     harness.state().app.items.iter().map(|i| i.key).collect()
 }
 
@@ -78,24 +45,7 @@ fn button_path(key: ItemKey, button: &str) -> String {
     format!("/{key:?}/{button:?}")
 }
 
-fn hover_over(harness: &mut Harness<'_, Rig>, at: Pos2) {
-    harness.hover_at(at);
-    harness.run_steps(3);
-}
-
-fn press_and_release(harness: &mut Harness<'_, Rig>, at: Pos2) {
-    for pressed in [true, false] {
-        harness.event(Event::PointerButton {
-            pos: at,
-            button: PointerButton::Primary,
-            pressed,
-            modifiers: Modifiers::NONE,
-        });
-        harness.step();
-    }
-}
-
-fn click_button(harness: &mut Harness<'_, Rig>, key: ItemKey, button: &str) {
+fn click_button(harness: &mut Harness<'_, Rig<State>>, key: ItemKey, button: &str) {
     let at = rect_of(harness, &button_path(key, button)).center();
     press_and_release(harness, at);
 }
@@ -104,7 +54,7 @@ fn item(n: usize) -> ItemKey {
     State::default().items[n].key
 }
 
-fn remove_opacity(harness: &Harness<'_, Rig>) -> Option<f32> {
+fn remove_opacity(harness: &Harness<'_, Rig<State>>) -> Option<f32> {
     harness
         .output()
         .shapes
@@ -113,19 +63,6 @@ fn remove_opacity(harness: &Harness<'_, Rig>) -> Option<f32> {
             Shape::Text(text) if text.galley.text() == "Remove" => Some(text.opacity_factor),
             _ => None,
         })
-}
-
-fn fill_of(harness: &Harness<'_, Rig>, path: &str) -> Option<Color32> {
-    let min = rect_of(harness, path).min;
-    harness
-        .output()
-        .shapes
-        .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            Shape::Rect(rect) if (rect.rect.min - min).length() < 1.0 => Some(rect.fill),
-            _ => None,
-        })
-        .next_back()
 }
 
 #[test]
@@ -154,7 +91,7 @@ fn down_moves_a_row_and_up_moves_it_back() {
 #[test]
 fn a_button_that_cannot_move_its_row_is_inert_and_does_not_highlight() {
     let mut harness = harness();
-    let lit_by_hover = |harness: &mut Harness<'_, Rig>, key: ItemKey| {
+    let lit_by_hover = |harness: &mut Harness<'_, Rig<State>>, key: ItemKey| {
         let at = rect_of(harness, &button_path(key, "up")).center();
         hover_over(harness, at);
         harness.run_steps(10);
