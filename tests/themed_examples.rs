@@ -156,7 +156,12 @@ fn kaolin_gallery_chrome_takes_the_themes_tokens() {
             .nodes()
             .find(|node| node.rect().width() == 200.0)
             .expect("the sidebar is 200 points wide");
-        assert_eq!(sidebar.paint().background, Some(t.muted), "{theme:?}");
+        assert_eq!(sidebar.paint().background, Some(t.background), "{theme:?}");
+        assert_ne!(
+            sidebar.paint().background,
+            Some(t.accent),
+            "{theme:?}: the selected row (accent) shows on the sidebar"
+        );
         assert_eq!(sidebar.text().color, t.foreground, "{theme:?}");
         assert!(
             backgrounds(&placed).contains(&t.background),

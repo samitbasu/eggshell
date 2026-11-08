@@ -36,7 +36,7 @@ pub const ENTRIES: [(&str, Build); 10] = [
 ///
 /// ```html
 /// <div class="flex flex-row size-full">
-///   <nav class="flex flex-col w-[200px] flex-none gap-1 p-2 bg-muted border-r border-border text-foreground">
+///   <nav class="flex flex-col w-[200px] flex-none gap-1 p-2 bg-background border-r border-border text-foreground">
 ///     <button class="w-full">Hello World</button>
 ///     <!-- one button per layout -->
 ///   </nav>
@@ -53,7 +53,7 @@ pub fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSour
                 .flex_none()
                 .gap(1.0)
                 .p(2.0)
-                .bg(t.muted)
+                .bg(t.background)
                 .border_r(1.0)
                 .border_color(t.border)
                 .text(t.foreground),
