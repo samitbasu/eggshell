@@ -6,11 +6,11 @@ mod layouts;
 
 use bullseye::{Builder, LayoutState, TextStyle, tw};
 use egui::load::SizedTexture;
-use egui::{Button, Color32, ImageSource, TextureHandle, TextureOptions};
+use egui::{Button, ImageSource, TextureHandle, TextureOptions};
 
 /// What the gallery keeps between frames.
-struct Gallery {
-    selected: usize,
+pub struct Gallery {
+    pub selected: usize,
 }
 
 type Build = fn(&mut Builder<'_, '_, Gallery>, ImageSource<'static>);
@@ -34,14 +34,15 @@ const ENTRIES: [(&str, Build); 10] = [
 ///
 /// ```html
 /// <div class="flex flex-row size-full">
-///   <nav class="flex flex-col w-[200px] flex-none gap-1 p-2 bg-[#dcdcdc] text-black">
+///   <nav class="flex flex-col w-[200px] flex-none gap-1 p-2 bg-muted border-r border-border text-foreground">
 ///     <button class="w-full h-[26px]">Hello World</button>
 ///     <!-- one button per layout -->
 ///   </nav>
-///   <main class="relative flex-1 bg-white"><!-- the selected layout --></main>
+///   <main class="relative flex-1 bg-background"><!-- the selected layout --></main>
 /// </div>
 /// ```
-fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSource<'static>) {
+pub fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSource<'static>) {
+    let t = common::tokens(b.ctx());
     b.div(tw().flex().flex_row().size_full(), |b| {
         b.div(
             tw().flex()
@@ -50,8 +51,10 @@ fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSource<'
                 .flex_none()
                 .gap(1.0)
                 .p(2.0)
-                .bg(Color32::LIGHT_GRAY)
-                .text(Color32::BLACK),
+                .bg(t.muted)
+                .border_r(1.0)
+                .border_color(t.border)
+                .text(t.foreground),
             |b| {
                 for (index, (name, _)) in ENTRIES.into_iter().enumerate() {
                     b.div_id(
@@ -68,7 +71,7 @@ fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSource<'
                 }
             },
         );
-        b.div(tw().relative().flex_1().bg(Color32::WHITE), |b| {
+        b.div(tw().relative().flex_1().bg(t.background), |b| {
             let (_, build) = ENTRIES[selected];
             build(b, logo);
         });
@@ -81,12 +84,17 @@ fn logo(ctx: &egui::Context) -> TextureHandle {
 
 fn main() -> eframe::Result {
     let mut gallery = Gallery { selected: 0 };
-    let mut layout =
-        LayoutState::new().with_base_text(TextStyle::new(layouts::BODY, Color32::BLACK));
+    let mut layout = LayoutState::new();
     let mut logo_texture: Option<TextureHandle> = None;
     let mut theme_bar = common::ThemeBar::new();
     eframe::run_ui_native("kaolin", eframe::NativeOptions::default(), move |ui, _| {
+        let ctx = ui.ctx().clone();
+        common::use_preset(&ctx);
         theme_bar.show(ui);
+        layout.set_base_text(Some(TextStyle::new(
+            layouts::BODY,
+            common::tokens(&ctx).foreground,
+        )));
         let logo = logo_texture.get_or_insert_with(|| logo(ui.ctx()));
         let source = ImageSource::Texture(SizedTexture::from_handle(logo));
         egui::CentralPanel::default()

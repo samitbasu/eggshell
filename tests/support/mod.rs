@@ -13,7 +13,18 @@ use egui_kittest::Harness;
 
 pub type View<A> = for<'b, 'f> fn(&mut Builder<'b, 'f, A>, &A);
 
+/// What the rig paints under the layout.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Page {
+    /// Nothing: the harness's own clear colour shows.
+    #[default]
+    Bare,
+    /// The theme's `background`, as the examples' central panel does.
+    Themed,
+}
+
 pub struct Rig<A> {
+    pub page: Page,
     layout: LayoutState,
     pub app: A,
     view: View<A>,
@@ -55,6 +66,7 @@ pub fn harness_scaled<A: 'static>(
     prepare: fn(&egui::Context, &A),
 ) -> Harness<'static, Rig<A>> {
     let rig = Rig {
+        page: Page::default(),
         layout: LayoutState::new().with_base_text(base_text),
         app,
         view,
@@ -71,6 +83,7 @@ pub fn harness_scaled<A: 'static>(
             |ui, rig: &mut Rig<A>| {
                 let area = ui.max_rect();
                 let Rig {
+                    page,
                     layout,
                     app,
                     view,
@@ -82,6 +95,10 @@ pub fn harness_scaled<A: 'static>(
                     bullseye::style::Shadcn::apply_both(ui.ctx());
                 }
                 prepare(ui.ctx(), &*app);
+                if *page == Page::Themed {
+                    let background = bullseye::style::Shadcn::of(ui.ctx()).tokens.background;
+                    ui.painter().rect_filled(area, 0.0, background);
+                }
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *nodes = placed
                     .nodes()

@@ -10,9 +10,13 @@
 
 use std::sync::Once;
 
+use bullseye::style::Tokens;
 use bullseye::{Builder, LayoutState, TextStyle, tw};
 use egui::{Color32, ImageSource, TextureHandle, TextureOptions, Vec2, load::SizedTexture};
 use egui_kittest::Harness;
+
+#[path = "../examples/common/mod.rs"]
+mod common;
 
 #[path = "../examples/kaolin/layouts.rs"]
 mod layouts;
@@ -20,6 +24,10 @@ mod layouts;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../examples/button.rs"]
 mod button;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/kaolin/main.rs"]
+mod kaolin_gallery;
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
 #[path = "../examples/custom_background.rs"]
@@ -102,22 +110,44 @@ fn report_renderer() {
 
 /// Draws `layout` over an 800 x 600 screen and compares it with the golden `name`.
 fn snapshot(name: &str, layout: impl for<'f> Fn(&mut Builder<'_, 'f, ()>, ImageSource<'static>)) {
+    snapshot_ink(name, (Color32::BLACK, egui::Theme::Dark), layout);
+}
+
+/// [`snapshot`] for the kaolin layouts, whose text is the light theme's foreground.
+fn kaolin_snapshot(
+    name: &str,
+    layout: impl for<'f> Fn(&mut Builder<'_, 'f, ()>, ImageSource<'static>),
+) {
+    snapshot_ink(
+        name,
+        (Tokens::light().foreground, egui::Theme::Light),
+        layout,
+    );
+}
+
+fn snapshot_ink(
+    name: &str,
+    (ink, theme): (Color32, egui::Theme),
+    layout: impl for<'f> Fn(&mut Builder<'_, 'f, ()>, ImageSource<'static>),
+) {
     report_renderer();
-    let mut state =
-        LayoutState::new().with_base_text(TextStyle::new(layouts::BODY, Color32::BLACK));
+    let mut state = LayoutState::new().with_base_text(TextStyle::new(layouts::BODY, ink));
     let mut logo: Option<TextureHandle> = None;
-    let mut harness = Harness::builder().with_size(SIZE).build_ui(|ui| {
-        let logo = logo.get_or_insert_with(|| {
-            ui.ctx()
-                .load_texture("logo", layouts::logo_image(), TextureOptions::NEAREST)
+    let mut harness = Harness::builder()
+        .with_size(SIZE)
+        .with_theme(theme)
+        .build_ui(|ui| {
+            let logo = logo.get_or_insert_with(|| {
+                ui.ctx()
+                    .load_texture("logo", layouts::logo_image(), TextureOptions::NEAREST)
+            });
+            let source = ImageSource::Texture(SizedTexture::from_handle(logo));
+            let area = ui.max_rect();
+            state
+                .build(ui.ctx(), |b| layout(b, source))
+                .layout(area)
+                .draw(&mut (), ui);
         });
-        let source = ImageSource::Texture(SizedTexture::from_handle(logo));
-        let area = ui.max_rect();
-        state
-            .build(ui.ctx(), |b| layout(b, source))
-            .layout(area)
-            .draw(&mut (), ui);
-    });
     harness.snapshot(name);
 }
 
@@ -130,17 +160,17 @@ fn plain(
 
 #[test]
 fn kaolin_hello_world() {
-    snapshot("kaolin_hello_world", plain(layouts::hello_world));
+    kaolin_snapshot("kaolin_hello_world", plain(layouts::hello_world));
 }
 
 #[test]
 fn kaolin_directions() {
-    snapshot("kaolin_directions", plain(layouts::directions));
+    kaolin_snapshot("kaolin_directions", plain(layouts::directions));
 }
 
 #[test]
 fn kaolin_sizing() {
-    snapshot("kaolin_sizing", plain(layouts::sizing));
+    kaolin_snapshot("kaolin_sizing", plain(layouts::sizing));
 }
 
 #[test]
@@ -150,22 +180,22 @@ fn kaolin_styling() {
 
 #[test]
 fn kaolin_responsive() {
-    snapshot("kaolin_responsive", plain(layouts::responsive));
+    kaolin_snapshot("kaolin_responsive", plain(layouts::responsive));
 }
 
 #[test]
 fn kaolin_multi_column() {
-    snapshot("kaolin_multi_column", plain(layouts::multi_column));
+    kaolin_snapshot("kaolin_multi_column", plain(layouts::multi_column));
 }
 
 #[test]
 fn kaolin_text_wrapping() {
-    snapshot("kaolin_text_wrapping", plain(layouts::text_wrapping));
+    kaolin_snapshot("kaolin_text_wrapping", plain(layouts::text_wrapping));
 }
 
 #[test]
 fn kaolin_proportional_growth() {
-    snapshot(
+    kaolin_snapshot(
         "kaolin_proportional_growth",
         plain(layouts::proportional_growth),
     );
@@ -173,7 +203,7 @@ fn kaolin_proportional_growth() {
 
 #[test]
 fn kaolin_nested() {
-    snapshot("kaolin_nested", plain(layouts::nested));
+    kaolin_snapshot("kaolin_nested", plain(layouts::nested));
 }
 
 #[test]
@@ -352,6 +382,15 @@ fn snapshot_app<A: 'static>(
     );
 }
 
+/// The light goldens predate the themed page and keep the harness's own clear
+/// colour; a dark one needs the page, which the examples' central panel paints.
+fn page_of(theme: egui::Theme) -> support::Page {
+    match theme {
+        egui::Theme::Light => support::Page::Bare,
+        egui::Theme::Dark => support::Page::Themed,
+    }
+}
+
 /// [`snapshot_app`] in `theme`, which stock widgets draw themselves in.
 fn snapshot_themed<A: 'static>(
     name: &str,
@@ -362,6 +401,7 @@ fn snapshot_themed<A: 'static>(
 ) {
     report_renderer();
     let mut harness = support::harness_prepared(size, base_text, app, view, prepare);
+    harness.state_mut().page = page_of(theme);
     harness.ctx.set_theme(theme);
     harness.run_steps(2);
     if let Some(pointer) = pointer {
@@ -375,13 +415,25 @@ fn snapshot_themed<A: 'static>(
 /// Remove action revealed by group hover.
 #[test]
 fn todo_row_hovered() {
-    snapshot_app(
-        "todo_row_hovered",
+    todo_hovered("todo_row_hovered", egui::Theme::Light);
+}
+
+#[test]
+fn todo_row_hovered_dark() {
+    todo_hovered("todo_row_hovered_dark", egui::Theme::Dark);
+}
+
+fn todo_hovered(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
         Vec2::new(520.0, 260.0),
-        todo::State::default(),
-        TextStyle::new(layouts::BODY, Color32::BLACK),
-        todo::layout,
+        (
+            todo::State::default(),
+            todo::layout,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        ),
         Some(egui::pos2(200.0, 88.0)),
+        (theme, |_, _| {}),
     );
 }
 
@@ -401,16 +453,28 @@ fn port_custom_background() {
 /// The selectable button selected, the counting button under the pointer.
 #[test]
 fn port_button() {
-    snapshot_app(
-        "port_button",
+    port_button_in("port_button", egui::Theme::Light);
+}
+
+#[test]
+fn port_button_dark() {
+    port_button_in("port_button_dark", egui::Theme::Dark);
+}
+
+fn port_button_in(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
         Vec2::new(640.0, 520.0),
-        button::State {
-            clicks: 3,
-            selected: true,
-        },
-        TextStyle::new(layouts::BODY, Color32::BLACK),
-        button::layout,
+        (
+            button::State {
+                clicks: 3,
+                selected: true,
+            },
+            button::layout,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        ),
         Some(egui::pos2(440.0, 120.0)),
+        (theme, |_, _| {}),
     );
 }
 
@@ -522,6 +586,10 @@ fn chat_shell_composer_scrolling_light() {
 /// The controls gallery with every cell `width` points wide: the golden, and
 /// the assertion that no widget's rect differs from the library's.
 fn gallery(name: &str, width: f32) {
+    gallery_in(name, width, egui::Theme::Light);
+}
+
+fn gallery_in(name: &str, width: f32, theme: egui::Theme) {
     report_renderer();
     let state = controls_gallery::State {
         cell_width: controls_gallery::CellWidth::new(width),
@@ -529,12 +597,13 @@ fn gallery(name: &str, width: f32) {
     };
     let mut harness = support::harness_prepared(
         Vec2::new(1400.0, 800.0),
-        controls_gallery::base_text(),
+        common::base_text(theme),
         state,
         controls_gallery::layout,
         controls_gallery::prepare,
     );
-    harness.ctx.set_theme(egui::Theme::Light);
+    harness.state_mut().page = page_of(theme);
+    harness.ctx.set_theme(theme);
     harness.run_steps(4);
     let reports = &harness.state().app.reports;
     assert!(
@@ -561,6 +630,11 @@ fn controls_gallery_narrow() {
 #[test]
 fn controls_gallery_default() {
     gallery("controls_gallery_default", 200.0);
+}
+
+#[test]
+fn controls_gallery_dark() {
+    gallery_in("controls_gallery_dark", 200.0, egui::Theme::Dark);
 }
 
 #[test]
@@ -691,10 +765,21 @@ fn signup_form_rejected() {
 /// fonts installed on the machine, so it has no golden.
 #[test]
 fn known_gaps_shadows() {
+    known_gaps_in("known_gaps_shadows", egui::Theme::Light);
+}
+
+/// The shadow stage stays light, so the comparison still reads.
+#[test]
+fn known_gaps_shadows_dark() {
+    known_gaps_in("known_gaps_shadows_dark", egui::Theme::Dark);
+}
+
+fn known_gaps_in(name: &str, theme: egui::Theme) {
     report_renderer();
-    let mut state = LayoutState::new().with_base_text(known_gaps::base_text());
+    let mut state = LayoutState::new().with_base_text(known_gaps::base_text(theme));
     let mut harness = Harness::builder()
         .with_size(Vec2::new(1100.0, 560.0))
+        .with_theme(theme)
         .build_ui(|ui| {
             let area = ui.max_rect();
             state
@@ -702,5 +787,37 @@ fn known_gaps_shadows() {
                 .layout(area)
                 .draw(&mut (), ui);
         });
-    harness.snapshot("known_gaps_shadows");
+    harness.snapshot(name);
+}
+
+fn kaolin_window(
+    b: &mut Builder<'_, '_, kaolin_gallery::Gallery>,
+    gallery: &kaolin_gallery::Gallery,
+) {
+    kaolin_gallery::window(b, gallery.selected, ImageSource::Uri("bytes://logo".into()));
+}
+
+/// The gallery's sidebar and stage, with Directions selected.
+#[test]
+fn kaolin_gallery_light() {
+    kaolin_gallery_in("kaolin_gallery_light", egui::Theme::Light);
+}
+
+#[test]
+fn kaolin_gallery_dark() {
+    kaolin_gallery_in("kaolin_gallery_dark", egui::Theme::Dark);
+}
+
+fn kaolin_gallery_in(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
+        Vec2::new(900.0, 560.0),
+        (
+            kaolin_gallery::Gallery { selected: 1 },
+            kaolin_window,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
 }

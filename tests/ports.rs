@@ -34,7 +34,7 @@ fn settle<A>(harness: &mut Harness<'_, Rig<A>>) {
 
 mod buttons {
     use super::*;
-    use button::{FILL, FILL_HOVER, FILL_PRESSED, FILL_SELECTED, State};
+    use button::{Fills, State};
 
     fn harness() -> Harness<'static, Rig<State>> {
         support::harness(
@@ -45,19 +45,23 @@ mod buttons {
         )
     }
 
+    fn fills(harness: &Harness<'static, Rig<State>>) -> Fills {
+        Fills::of(&common::tokens(&harness.ctx))
+    }
+
     #[test]
     fn a_button_counts_clicks_and_hover_and_press_repaint_it() {
         let mut harness = harness();
         let node = "/\"button\"";
-        assert_eq!(fill_of(&harness, node), Some(FILL));
+        assert_eq!(fill_of(&harness, node), Some(fills(&harness).rest));
 
         hover_node(&mut harness, node);
-        assert_eq!(fill_of(&harness, node), Some(FILL_HOVER));
+        assert_eq!(fill_of(&harness, node), Some(fills(&harness).hover));
 
         let at = rect_of(&harness, node).center();
         harness.drag_at(at);
         settle(&mut harness);
-        assert_eq!(fill_of(&harness, node), Some(FILL_PRESSED));
+        assert_eq!(fill_of(&harness, node), Some(fills(&harness).pressed));
         harness.drop_at(at);
         settle(&mut harness);
 
@@ -70,12 +74,12 @@ mod buttons {
     fn a_selectable_button_toggles_and_keeps_its_selected_fill_under_the_pointer() {
         let mut harness = harness();
         let node = "/\"selectable\"";
-        assert_eq!(fill_of(&harness, node), Some(FILL));
+        assert_eq!(fill_of(&harness, node), Some(fills(&harness).rest));
 
         click_node(&mut harness, node);
         settle(&mut harness);
         assert!(harness.state().app.selected);
-        assert_eq!(fill_of(&harness, node), Some(FILL_SELECTED));
+        assert_eq!(fill_of(&harness, node), Some(fills(&harness).selected));
         assert_eq!(
             harness.state().app.clicks,
             0,
