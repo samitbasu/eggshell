@@ -353,6 +353,53 @@ fn a_masked_one_line_field_is_the_size_of_a_shown_one() {
     );
 }
 
+fn bare_case(text: &str, lines: Lines) -> Case<TextEdit> {
+    let widget = match lines {
+        Lines::Single => TextEdit::singleline(text),
+        Lines::Multi { min, .. } => TextEdit::multiline(text, min),
+    };
+    let text = text.to_owned();
+    Case {
+        widget: widget.hint("Reply").bare(),
+        add: Box::new(move |ui, width| {
+            let mut buffer = text.clone();
+            let mut edit = match lines {
+                Lines::Single => egui::TextEdit::singleline(&mut buffer),
+                Lines::Multi { min, .. } => {
+                    egui::TextEdit::multiline(&mut buffer).desired_rows(min)
+                }
+            };
+            if let Some(width) = width {
+                edit = edit.desired_width(width);
+            }
+            ui.add(edit.hint_text("Reply").frame(egui::Frame::NONE))
+        }),
+    }
+}
+
+#[test]
+fn bare_text_edits_have_no_margin() {
+    let mut wrapped = false;
+    for lines in [
+        Lines::Single,
+        Lines::Multi { min: 1, max: None },
+        Lines::Multi { min: 3, max: None },
+    ] {
+        wrapped |= agrees(|text| bare_case(text, lines), &TEXTS);
+    }
+    assert!(wrapped, "precondition: long text wraps in a narrow width");
+    let ctx = context(&TWEAKS[0]);
+    let text = text_style(14.0);
+    let framed = estimate(&ctx, &text, Some(200.0), &TextEdit::multiline("x", 3));
+    let bare = estimate(
+        &ctx,
+        &text,
+        Some(200.0),
+        &TextEdit::multiline("x", 3).bare(),
+    );
+    assert!(bare.y < framed.y, "the margin is gone: {bare:?} {framed:?}");
+}
+
 #[test]
 fn multi_line_text_edit() {
     let mut wrapped = false;

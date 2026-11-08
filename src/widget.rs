@@ -335,6 +335,13 @@ pub enum Lines {
     },
 }
 
+/// Whether a text edit draws its frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Framing {
+    Framed,
+    Bare,
+}
+
 /// Whether a one-line field shows what is typed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Masking {
@@ -352,6 +359,7 @@ pub struct TextEdit {
     hint: Option<String>,
     lines: Lines,
     masking: Masking,
+    framing: Framing,
 }
 
 impl TextEdit {
@@ -362,6 +370,7 @@ impl TextEdit {
             hint: None,
             lines: Lines::Single,
             masking: Masking::Shown,
+            framing: Framing::Framed,
         }
     }
 
@@ -372,6 +381,7 @@ impl TextEdit {
             hint: None,
             lines: Lines::Multi { min, max: None },
             masking: Masking::Shown,
+            framing: Framing::Framed,
         }
     }
 
@@ -391,6 +401,13 @@ impl TextEdit {
     /// field's size does not depend on its text, so the size is unchanged.
     pub fn masked(mut self) -> Self {
         self.masking = Masking::Hidden;
+        self
+    }
+
+    /// Draws no frame, margin or background: the field is its text, for a
+    /// field that sits inside a box of the application's own.
+    pub fn bare(mut self) -> Self {
+        self.framing = Framing::Bare;
         self
     }
 
@@ -419,6 +436,9 @@ impl TextEdit {
         .id(id)
         .password(self.masking == Masking::Hidden)
         .desired_width(rect.width());
+        if self.framing == Framing::Bare {
+            edit = edit.frame(Frame::NONE);
+        }
         if let Some(hint) = &self.hint {
             edit = edit.hint_text(hint.as_str());
         }
@@ -442,7 +462,10 @@ impl Stock for TextEdit {
     fn size(&self, ctx: &Context, text: &TextStyle, width: Option<Width>) -> Vec2 {
         let sizer = Sizer::new(ctx, text);
         let spacing = &sizer.style.spacing;
-        let frame = text_edit_frame(&sizer);
+        let frame = match self.framing {
+            Framing::Framed => text_edit_frame(&sizer),
+            Framing::Bare => Frame::NONE,
+        };
         let margin = frame.total_margin().sum();
         let line = sizer.line_height();
         let allocate = width.map_or(spacing.text_edit_width, f32::from);
