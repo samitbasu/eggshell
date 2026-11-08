@@ -4,6 +4,8 @@
 //! so a row's hover state and transition follow the item when it moves up or
 //! down. The text field sits outside the bullseye tree in a plain egui panel
 //! until M4 measures stock egui widgets in the same frame.
+//!
+//! F12 toggles the layout debug overlay.
 
 #[path = "common/mod.rs"]
 mod common;

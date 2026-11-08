@@ -10,6 +10,7 @@ use egui::{
 };
 use taffy::Overflow;
 
+use crate::debug::{self, Debug};
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
@@ -19,16 +20,16 @@ use crate::tw::{BoxPaint, Flip, Grouping, Look, Opacity, Presence, Progress, Sid
 
 /// Rounds coordinates to whole physical pixels.
 #[derive(Clone, Copy)]
-struct PixelGrid {
-    pixels_per_point: f32,
+pub(crate) struct PixelGrid {
+    pub(crate) pixels_per_point: f32,
 }
 
 impl PixelGrid {
-    fn coord(self, value: f32) -> f32 {
+    pub(crate) fn coord(self, value: f32) -> f32 {
         (value * self.pixels_per_point).round() / self.pixels_per_point
     }
 
-    fn rect(self, rect: Rect) -> Rect {
+    pub(crate) fn rect(self, rect: Rect) -> Rect {
         Rect::from_min_max(
             pos2(self.coord(rect.min.x), self.coord(rect.min.y)),
             pos2(self.coord(rect.max.x), self.coord(rect.max.y)),
@@ -36,7 +37,7 @@ impl PixelGrid {
     }
 
     /// `width` as a whole number of pixels, at least one.
-    fn line_width(self, width: f32) -> f32 {
+    pub(crate) fn line_width(self, width: f32) -> f32 {
         (width * self.pixels_per_point).round().max(1.0) / self.pixels_per_point
     }
 }
@@ -102,13 +103,13 @@ struct Boxes {
     wrap_width: f32,
 }
 
-fn inset(rect: Rect, sides: Sides<f32>) -> Rect {
+pub(crate) fn inset(rect: Rect, sides: Sides<f32>) -> Rect {
     let min = rect.min + vec2(sides.left, sides.top);
     let max = rect.max - vec2(sides.right, sides.bottom);
     Rect::from_min_max(min, max.max(min))
 }
 
-fn add(a: Sides<f32>, b: Sides<f32>) -> Sides<f32> {
+pub(crate) fn add(a: Sides<f32>, b: Sides<f32>) -> Sides<f32> {
     Sides {
         top: a.top + b.top,
         right: a.right + b.right,
@@ -704,7 +705,11 @@ impl<A> Placed<A> {
             subtrees: Vec::new(),
         };
         walk.visit(0, root);
-        focus::store(walk.ui.ctx(), walk.subtrees);
+        let ctx = walk.ui.ctx().clone();
+        focus::store(&ctx, walk.subtrees);
+        if Debug::of(&ctx) == Debug::Outlines {
+            debug::paint(&ctx, &nodes);
+        }
     }
 }
 

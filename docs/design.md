@@ -706,7 +706,7 @@ fn node_ui(ui: &mut egui::Ui, content: Rect, clip: Rect, id: egui::Id, text: &Te
 Recommended defaults:
 - `TaffyTree::disable_rounding()`, then round rects to physical pixels at draw time using `pixels_per_point`. taffy's default rounds to whole points, which misaligns on HiDPI.
 - After drawing, if an application leaf's used size differs from its measured size, call `ctx.request_repaint()`.
-- A debug overlay (toggle): outline every rect, show the readable path on hover, flag leaves that drew outside their rect.
+- A debug overlay (`Debug::Outlines`, set on the egui context, `src/debug.rs`): a one-pixel outline of every node's border box, in red where the node's content did not fit (a leaf's measured content size exceeds its content box, or an in-flow child extends past a non-clipping parent's padding box), and the readable path and rect of the hovered node. The examples toggle it with F12.
 - Layout tests without drawing: build + layout, then assert rects by path.
 
 ## 14. Interaction model

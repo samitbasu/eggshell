@@ -27,6 +27,8 @@
 //! system font directories for the first family with Regular, Medium, SemiBold
 //! and Bold files (`egui_system_font_provider` is a glyph fallback, not a weight
 //! lookup), and shows a note when it finds none. No font files are committed.
+//!
+//! F12 toggles the layout debug overlay.
 
 #[path = "common/mod.rs"]
 mod common;

@@ -428,6 +428,26 @@ fn todo_hovered(name: &str, theme: egui::Theme) {
     );
 }
 
+/// The todo list with the layout debug overlay on and the pointer over the
+/// second row: every node's hairline, and the hovered node's path and rect.
+#[test]
+fn debug_overlay_todo() {
+    let theme = egui::Theme::Light;
+    snapshot_themed(
+        "debug_overlay_todo",
+        Vec2::new(520.0, 260.0),
+        (
+            todo::State::default(),
+            todo::layout,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        ),
+        Some(egui::pos2(200.0, 88.0)),
+        (theme, |ctx, _| {
+            bullseye::Debug::set(ctx, bullseye::Debug::Outlines)
+        }),
+    );
+}
+
 /// Every box of the demo, with the pointer over the `ext clickable` button.
 #[test]
 fn port_custom_background() {
