@@ -155,7 +155,16 @@ copying this file elsewhere.
   runner's disk. Add new test files as modules there, not as `tests/*.rs`.
 - `cargo xtask ci` is the single definition of "CI passes". Also available:
   `fmt [--check]`, `test [-- ARGS]`, `coverage [--lcov]`,
-  `example [NAME] [--release]`. See `cargo xtask --help`.
+  `example [NAME] [--release]`, `web NAME [--release] [--port N]`. See
+  `cargo xtask --help`.
+- The library and every example build for the browser (`wasm32-unknown-unknown`,
+  checked by `cargo xtask ci`). Examples end in `common::launch`, which is
+  native or web by target, so add no per-example web entry. Library code reads
+  time from egui's clock only: `std::time::Instant`/`SystemTime` outside
+  `#[cfg(test)]` fail the CI `clock` check. Try a UI change in the browser
+  (`cargo xtask web NAME`) as well as natively: a browser repaints only on
+  input, so one-frame-stale layout shows there. `web` needs a `wasm-bindgen`
+  CLI matching `Cargo.lock`; it prints the install command if not.
 - Golden images (`tests/snapshots/`, rendered by `tests/it/snapshots.rs` behind the
   `snapshots` cargo feature) are checked with `cargo xtask snapshots`, which
   forces Mesa lavapipe so every machine renders the same pixels. It is not in

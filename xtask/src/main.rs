@@ -1,6 +1,7 @@
 //! Project automation: `cargo xtask --help`.
 
 mod cli;
+mod clock;
 mod examples;
 mod process;
 mod snapshots;
@@ -8,6 +9,7 @@ mod steps;
 mod summary;
 #[cfg(test)]
 mod testing;
+mod web;
 
 use std::process::ExitCode;
 

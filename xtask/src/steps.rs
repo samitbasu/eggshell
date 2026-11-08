@@ -1,17 +1,19 @@
 use std::fmt;
 use std::path::PathBuf;
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 
-use crate::{process, summary};
+use crate::{clock, process, summary};
 
 /// One cargo invocation. Every task is a list of these, so each is announced
 /// and failure-reported the same way.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Step {
     pub name: &'static str,
     pub args: Vec<String>,
     pub env: Vec<(&'static str, String)>,
+    /// A check run in this process instead of a cargo invocation.
+    pub internal: Option<fn() -> Result<()>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +40,16 @@ impl Step {
             name,
             args: args.iter().map(|arg| (*arg).to_owned()).collect(),
             env: Vec::new(),
+            internal: None,
+        }
+    }
+
+    pub fn internal(name: &'static str, check: fn() -> Result<()>) -> Self {
+        Self {
+            name,
+            args: Vec::new(),
+            env: Vec::new(),
+            internal: Some(check),
         }
     }
 
@@ -48,6 +60,9 @@ impl Step {
 
     pub fn run(&self) -> Result<()> {
         eprintln!("==> {}: {self}", self.name);
+        if let Some(check) = self.internal {
+            return check().with_context(|| format!("{} failed", self.name));
+        }
         let (status, output) = process::run_cargo(&self.args, &self.env)?;
         if !status.success() {
             bail!(
@@ -61,6 +76,9 @@ impl Step {
 
 impl fmt::Display for Step {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.internal.is_some() {
+            return write!(f, "built-in {} check", self.name);
+        }
         for (key, value) in &self.env {
             write!(f, "{key}={value:?} ")?;
         }
@@ -92,6 +110,16 @@ pub fn example(name: &str, profile: Profile) -> Step {
     step
 }
 
+/// The library and every example must build for the browser.
+pub fn wasm() -> Step {
+    Step::cargo(
+        "wasm",
+        &["check", "--target", WASM_TARGET, "--lib", "--examples"],
+    )
+}
+
+pub const WASM_TARGET: &str = "wasm32-unknown-unknown";
+
 /// What CI runs, in order.
 ///
 /// `cargo xtask snapshots` is deliberately not here: it needs Mesa lavapipe
@@ -100,6 +128,7 @@ pub fn example(name: &str, profile: Profile) -> Step {
 pub fn ci_steps() -> Vec<Step> {
     vec![
         fmt(FmtMode::Check),
+        Step::internal("clock", clock::check_library),
         Step::cargo(
             "clippy",
             &[
@@ -114,6 +143,7 @@ pub fn ci_steps() -> Vec<Step> {
         Step::cargo("test", &["test", "--workspace", "--all-targets"]),
         Step::cargo("doctest", &["test", "--workspace", "--doc"]),
         Step::cargo("rustdoc", &["doc", "--no-deps"]).with_env("RUSTDOCFLAGS", "-D warnings"),
+        wasm(),
     ]
 }
 
@@ -172,10 +202,12 @@ mod tests {
             commands(&ci_steps()),
             [
                 "cargo fmt --all --check",
+                "built-in clock check",
                 "cargo clippy --workspace --all-targets -- -D warnings",
                 "cargo test --workspace --all-targets",
                 "cargo test --workspace --doc",
                 "RUSTDOCFLAGS=\"-D warnings\" cargo doc --no-deps",
+                "cargo check --target wasm32-unknown-unknown --lib --examples",
             ]
         );
     }
