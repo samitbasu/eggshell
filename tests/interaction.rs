@@ -313,6 +313,38 @@ fn higher_z_wins_among_overlapping_siblings_and_ties_go_to_the_later_one() {
     );
 }
 
+/// ```html
+/// <div class="w-[200px] h-[40px] bg-[#141414] hover:bg-[#dc1414]">
+///   <button class="w-[50px] h-[40px]"></button>
+/// </div>
+/// ```
+fn row_with_button(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id(
+        "row",
+        tw().w_px(200.0).h_px(40.0).bg(BASE).hover(|p| p.bg(LIT)),
+        none,
+        |b| {
+            b.div_id(
+                "button",
+                tw().w_px(50.0).h_px(40.0).sense_click(),
+                none,
+                |_| {},
+            );
+        },
+    );
+}
+
+#[test]
+fn a_row_stays_hovered_while_the_pointer_is_over_its_button() {
+    let mut harness = harness((), row_with_button);
+    hover(&mut harness, 150.0, 20.0);
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT), "precondition: row");
+    hover(&mut harness, 10.0, 20.0);
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT), "over the button");
+    hover(&mut harness, 300.0, 200.0);
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+}
+
 // ---------------------------------------------------------------- group hover
 
 /// ```html

@@ -290,15 +290,16 @@ impl Tw {
     }
 
     /// `group`: marks the node whose hover its descendants' `group_hover`
-    /// variants follow. The node must sense something, and hovering any
-    /// sensing descendant counts as hovering the group, as in CSS.
+    /// variants follow. The node must sense something; it is hovered as
+    /// [`hover`](Self::hover) defines.
     pub fn group(mut self) -> Self {
         self.grouping = Grouping::Group;
         self
     }
 
-    /// `hover:`. The pointer is over the node's border box and nothing
-    /// sensing is above it. Implies [`sense_hover`](Self::sense_hover).
+    /// `hover:`. The pointer is over the node's border box with no sensing
+    /// node above it, or over a sensing descendant, as `:hover` is in CSS.
+    /// Implies [`sense_hover`](Self::sense_hover).
     /// `style` receives the paint set so far, so calls accumulate.
     pub fn hover(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
         self.variants.hover = Some(style(self.variants.hover.unwrap_or_default()));

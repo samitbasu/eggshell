@@ -360,9 +360,9 @@ impl<A> Walk<'_, A> {
         response.expect("node_ui runs its contents")
     }
 
-    /// Hovering the group's node or any sensing descendant hovers the group,
-    /// as `:hover` does in CSS.
-    fn group_hovering(&self, index: usize, own: &Response) -> Hovering {
+    /// Hovering the node or any sensing descendant hovers the node, as
+    /// `:hover` does in CSS.
+    fn hovering(&self, index: usize, own: &Response) -> Hovering {
         let ctx = self.ui.ctx();
         let node = &self.nodes[index];
         let descendants = &self.nodes[index + 1..node.end];
@@ -382,10 +382,10 @@ impl<A> Walk<'_, A> {
         &self,
         node: &PlacedNode,
         response: Option<&Response>,
+        hovering: Option<Hovering>,
         group: Option<Hovering>,
     ) -> Presence {
         let variants = &node.interaction.variants;
-        let hovered = response.is_some_and(Response::hovered);
         let progress = |state: State| {
             if variants.get(state).is_none() {
                 return Progress::START;
@@ -399,9 +399,9 @@ impl<A> Walk<'_, A> {
                     );
                     group == Some(Hovering::Over)
                 }
-                State::Hover => hovered,
+                State::Hover => hovering == Some(Hovering::Over),
                 State::Active => {
-                    hovered && response.is_some_and(Response::is_pointer_button_down_on)
+                    response.is_some_and(|r| r.hovered() && r.is_pointer_button_down_on())
                 }
             };
             let target = if on { Progress::END } else { Progress::START };
@@ -441,10 +441,16 @@ impl<A> Walk<'_, A> {
                 },
             )
         });
-        let presence = self.presence(node, response.as_ref(), parent.group);
-        let group = match (interaction.grouping, &response) {
-            (Grouping::Group, Some(own)) => Some(self.group_hovering(index, own)),
-            _ => parent.group,
+        let needs_hovering = interaction.grouping == Grouping::Group
+            || interaction.variants.get(State::Hover).is_some();
+        let hovering = response
+            .as_ref()
+            .filter(|_| needs_hovering)
+            .map(|own| self.hovering(index, own));
+        let presence = self.presence(node, response.as_ref(), hovering, parent.group);
+        let group = match interaction.grouping {
+            Grouping::Group => hovering,
+            Grouping::Ungrouped => parent.group,
         };
 
         let base_color = match (interaction.color_source, parent.text_color) {
