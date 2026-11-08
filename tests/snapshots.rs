@@ -342,11 +342,9 @@ fn snapshot_app<A: 'static>(
     snapshot_themed(
         name,
         size,
-        app,
-        base_text,
-        view,
+        (app, view, base_text),
         pointer,
-        egui::Theme::Light,
+        (egui::Theme::Light, |_, _| {}),
     );
 }
 
@@ -354,14 +352,19 @@ fn snapshot_app<A: 'static>(
 fn snapshot_themed<A: 'static>(
     name: &str,
     size: Vec2,
-    app: A,
-    base_text: TextStyle,
-    view: support::View<A>,
+    (app, view, base_text): (A, support::View<A>, TextStyle),
     pointer: Option<egui::Pos2>,
-    theme: egui::Theme,
+    (theme, prepare): (egui::Theme, fn(&egui::Context, &A)),
 ) {
     report_renderer();
-    let mut harness = support::harness(size, base_text, app, view);
+    let mut harness = support::harness_prepared(
+        size,
+        base_text,
+        app,
+        view,
+        support::Accessibility::Checked,
+        prepare,
+    );
     harness.ctx.set_theme(theme);
     harness.run_steps(2);
     if let Some(pointer) = pointer {
@@ -438,11 +441,31 @@ fn chat_shell() {
     snapshot_themed(
         "chat_shell",
         Vec2::new(1200.0, 760.0),
-        app,
-        base,
-        chat_shell::view::layout,
+        (app, chat_shell::view::layout, base),
         Some(egui::pos2(120.0, 400.0)),
-        egui::Theme::Dark,
+        (egui::Theme::Dark, chat_shell::view::prepare),
+    );
+}
+
+/// The chat shell with a six-line draft, the thorough mode and the second
+/// model: the composer has grown and the conversation has made room.
+#[allow(
+    clippy::field_reassign_with_default,
+    reason = "App has private fields, so a struct update is not available here"
+)]
+#[test]
+fn chat_shell_composer_grown() {
+    let mut app = chat_shell::state::App::default();
+    app.draft = "First line\nSecond line\nThird line\nFourth line\nFifth line\nSixth line".into();
+    app.mode = chat_shell::state::Mode::Thorough;
+    app.model = 1;
+    let base = app.theme.base_text();
+    snapshot_themed(
+        "chat_shell_composer_grown",
+        Vec2::new(1200.0, 760.0),
+        (app, chat_shell::view::layout, base),
+        None,
+        (egui::Theme::Dark, chat_shell::view::prepare),
     );
 }
 

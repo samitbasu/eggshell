@@ -65,6 +65,25 @@ struct Drag {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SessionKey(pub u32);
 
+/// The models the top bar's select offers.
+pub const MODELS: [&str; 3] = ["Assistant 1", "Assistant 2", "Assistant 3"];
+
+/// How much care the assistant takes with a reply.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Mode {
+    Quick,
+    Standard,
+    Thorough,
+}
+
+impl Mode {
+    pub const ALL: [(Self, &'static str); 3] = [
+        (Self::Quick, "Quick"),
+        (Self::Standard, "Standard"),
+        (Self::Thorough, "Thorough"),
+    ];
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Status {
     Working,
@@ -94,6 +113,9 @@ pub struct App {
     pub conversation: Vec<Message>,
     pub context_used: Progress,
     pub draft: String,
+    /// An index into [`MODELS`].
+    pub model: usize,
+    pub mode: Mode,
     sidebar: PaneWidth,
     details: PaneWidth,
     drag: Option<Drag>,
@@ -149,6 +171,8 @@ impl Default for App {
             ],
             context_used: Progress::new(0.42),
             draft: String::new(),
+            model: 0,
+            mode: Mode::Standard,
             sidebar: PaneWidth::new(Pane::Sidebar, Pane::Sidebar.default_width()),
             details: PaneWidth::new(Pane::Details, Pane::Details.default_width()),
             drag: None,

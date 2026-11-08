@@ -3,17 +3,11 @@
 use bullseye::{Builder, none, tw};
 use egui::Color32;
 
-use super::state::{App, Pane};
+use super::state::{App, MODELS, Pane};
 use super::theme::{Role, Theme, Tok};
 use super::view::Part;
 
 type B<'b, 'f> = Builder<'b, 'f, App>;
-
-const ENVIRONMENT: [(&str, &str); 3] = [
-    ("Branch", "main"),
-    ("Runtime", "local"),
-    ("Model", "Assistant 1"),
-];
 
 const CHANGES: [(&str, &str, &str); 3] = [
     ("src/lexer.rs", "+24", "-8"),
@@ -140,7 +134,11 @@ pub fn details(b: &mut B<'_, '_>, app: &App) {
         none,
         |b| {
             section(b, k, "Environment", |b| {
-                for (label, value) in ENVIRONMENT {
+                for (label, value) in [
+                    ("Branch", "main"),
+                    ("Runtime", "local"),
+                    ("Model", MODELS[app.model]),
+                ] {
                     row(b, k, label, |b| b.text(tw().truncate(), value));
                 }
             });

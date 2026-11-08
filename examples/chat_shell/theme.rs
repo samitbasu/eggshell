@@ -121,6 +121,39 @@ impl Theme {
         }
     }
 
+    /// Sets the colours of egui's stock widgets, so that a select or a text
+    /// field looks like the rest of the shell, in the dark theme the shell runs
+    /// in.
+    pub fn apply(&self, ctx: &egui::Context) {
+        let radius = egui::CornerRadius::same(8);
+        let ink = |token| egui::Stroke::new(1.0, self[token]);
+        let mut visuals = egui::Visuals::dark();
+        visuals.panel_fill = self[Tok::Ground];
+        visuals.window_fill = self[Tok::Panel];
+        visuals.window_stroke = ink(Tok::Line);
+        visuals.extreme_bg_color = self[Tok::Surface];
+        visuals.selection.bg_fill = self[Tok::Selected];
+        visuals.selection.stroke = ink(Tok::Accent);
+        let states = [
+            (&mut visuals.widgets.inactive, Tok::Surface, Tok::InkMid),
+            (&mut visuals.widgets.hovered, Tok::Hover, Tok::Ink),
+            (&mut visuals.widgets.active, Tok::Selected, Tok::Ink),
+            (&mut visuals.widgets.open, Tok::Hover, Tok::Ink),
+        ];
+        for (widget, fill, text) in states {
+            widget.weak_bg_fill = self[fill];
+            widget.bg_fill = self[fill];
+            widget.bg_stroke = ink(Tok::Line);
+            widget.fg_stroke = ink(text);
+            widget.corner_radius = radius;
+        }
+        ctx.style_mut_of(egui::Theme::Dark, |style| {
+            if style.visuals != visuals {
+                style.visuals = visuals;
+            }
+        });
+    }
+
     /// The text every layout starts from.
     pub fn base_text(&self) -> TextStyle {
         TextStyle::new(self[Role::Body].clone(), self[Tok::Ink])

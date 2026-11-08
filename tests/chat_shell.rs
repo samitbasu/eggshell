@@ -18,13 +18,20 @@ mod support;
 use chat_shell::sidebar::Link;
 use chat_shell::state::{App, Pane, SessionKey};
 use chat_shell::theme::Tok;
-use chat_shell::view::{Part, layout};
+use chat_shell::view::{Part, layout, prepare};
 use support::{Rig, click_node, drag, fill_of, hover_node, hover_over, rect_of};
 
 const WINDOW: Vec2 = vec2(1200.0, 760.0);
 
 fn harness_with(app: App) -> Harness<'static, Rig<App>> {
-    support::harness(WINDOW, app.theme.base_text(), app, layout)
+    support::harness_prepared(
+        WINDOW,
+        app.theme.base_text(),
+        app,
+        layout,
+        support::Accessibility::Checked,
+        prepare,
+    )
 }
 
 fn harness() -> Harness<'static, Rig<App>> {
@@ -354,4 +361,161 @@ fn tab_walks_the_sidebar_in_order_and_skips_the_splitters() {
         order.iter().all(|path| !path.contains("Splitter")),
         "{order:?}"
     );
+}
+
+// ------------------------------------------------- composer growth, selectors
+
+use chat_shell::state::{MODELS, Mode};
+
+fn composer_heights(harness: &mut Harness<'_, Rig<App>>, lines: usize) -> (f32, f32) {
+    harness.state_mut().app.draft = vec!["line"; lines].join("\n");
+    harness.run_steps(3);
+    (
+        rect_of(harness, "/Centre/Composer/Field").height(),
+        rect_of(harness, "/Centre/Composer").height(),
+    )
+}
+
+#[test]
+fn the_composer_grows_with_its_text_up_to_a_cap_and_stays_at_the_bottom() {
+    let mut harness = harness();
+    let (field, composer): (Vec<f32>, Vec<f32>) = (1..=12)
+        .map(|lines| composer_heights(&mut harness, lines))
+        .unzip();
+    assert_eq!(field[0], field[2], "three rows are the minimum: {field:?}");
+    assert!(
+        field[2..8].windows(2).all(|pair| pair[1] > pair[0]),
+        "each row up to the cap grows it: {field:?}"
+    );
+    assert!(
+        field[8..].iter().all(|&height| height == field[8]),
+        "beyond eight rows it scrolls at the cap: {field:?}"
+    );
+    assert!(field[8] >= field[7], "{field:?}");
+    assert_eq!(
+        composer[11] - composer[0],
+        field[11] - field[0],
+        "the composer grows by what the field does"
+    );
+
+    let centre = rect(&harness, Part::Centre);
+    let composer = rect_of(&harness, "/Centre/Composer");
+    assert_eq!(centre.max.y - composer.max.y, 16.0, "still pinned");
+    assert!(
+        rect_of(&harness, "/Centre/Conversation").max.y <= composer.min.y,
+        "the conversation gave way"
+    );
+}
+
+#[test]
+fn a_capped_field_still_edits_and_enter_makes_a_row() {
+    let mut harness = harness();
+    let (_, _) = composer_heights(&mut harness, 12);
+    let capped = rect_of(&harness, "/Centre/Composer/Field").height();
+    type_reply(&mut harness, "tail");
+    assert!(harness.state().app.draft.contains("tail"));
+    assert_eq!(rect_of(&harness, "/Centre/Composer/Field").height(), capped);
+
+    harness.state_mut().app.draft.clear();
+    harness.run_steps(3);
+    let resting = rect_of(&harness, "/Centre/Composer/Field").height();
+    click_node(&mut harness, "/Centre/Composer/Field");
+    harness.run_steps(2);
+    for _ in 0..4 {
+        harness.key_press(egui::Key::Enter);
+        harness.run_steps(2);
+    }
+    assert!(
+        rect_of(&harness, "/Centre/Composer/Field").height() > resting,
+        "four newlines make a fifth row"
+    );
+}
+
+#[test]
+fn the_model_select_changes_the_model_and_the_details_follow() {
+    let mut harness = harness();
+    let before = rect(&harness, Part::Centre);
+    assert_eq!(harness.state().app.model, 0, "precondition");
+
+    click_node(&mut harness, "/Centre/TopBar/Model");
+    harness.run_steps(3);
+    harness.get_by_label(MODELS[2]).click();
+    harness.run_steps(3);
+    assert_eq!(harness.state().app.model, 2);
+    assert_eq!(rect(&harness, Part::Centre), before, "nothing moved");
+
+    let painted = harness
+        .output()
+        .shapes
+        .iter()
+        .filter(|clipped| {
+            matches!(&clipped.shape, egui::epaint::Shape::Text(text)
+                if text.galley.text() == MODELS[2])
+        })
+        .count();
+    assert_eq!(painted, 2, "the select's header and the details row");
+}
+
+#[test]
+fn the_mode_control_has_one_pressed_cell_and_a_click_changes_it() {
+    let mut harness = harness();
+    assert_eq!(harness.state().app.mode, Mode::Standard);
+    click_node(&mut harness, "/Centre/Composer/Mode/Thorough");
+    harness.run_steps(3);
+    assert_eq!(harness.state().app.mode, Mode::Thorough);
+
+    let selected = color(&harness, Tok::Selected);
+    let pressed: Vec<Mode> = Mode::ALL
+        .iter()
+        .map(|(mode, _)| *mode)
+        .filter(|mode| {
+            fill_of(&harness, &format!("/Centre/Composer/Mode/{mode:?}")) == Some(selected)
+        })
+        .collect();
+    assert_eq!(pressed, [Mode::Thorough]);
+}
+
+#[test]
+fn tab_reaches_the_model_then_the_composer_in_order_and_skips_an_inert_send() {
+    let mut harness = harness();
+    let mut order = Vec::new();
+    for _ in 0..40 {
+        harness.key_press(egui::Key::Tab);
+        harness.run_steps(2);
+        let stop = support::focused_node(&harness).expect("a stop");
+        if order.first() == Some(&stop) {
+            break;
+        }
+        order.push(stop);
+    }
+    let centre: Vec<&str> = order
+        .iter()
+        .map(String::as_str)
+        .filter(|stop| stop.starts_with("/Centre/"))
+        .collect();
+    assert_eq!(
+        centre,
+        [
+            "/Centre/TopBar/Model",
+            "/Centre/Composer/Field",
+            "/Centre/Composer/Mode/Quick",
+            "/Centre/Composer/Mode/Standard",
+            "/Centre/Composer/Mode/Thorough",
+        ],
+        "Send is inert while the draft is empty: {order:?}"
+    );
+
+    harness.state_mut().app.draft = "x".into();
+    harness.run_steps(3);
+    let mut with_send = Vec::new();
+    for _ in 0..40 {
+        harness.key_press(egui::Key::Tab);
+        harness.run_steps(2);
+        let stop = support::focused_node(&harness).expect("a stop");
+        if with_send.first() == Some(&stop) {
+            break;
+        }
+        with_send.push(stop);
+    }
+    assert!(with_send.iter().any(|stop| stop == "/Centre/Composer/Send"));
 }
