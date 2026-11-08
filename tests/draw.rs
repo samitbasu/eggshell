@@ -4,7 +4,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use bullseye::{Icon, LayoutState, Opacity, TextSpec, TextStyle, Tracking, none, tw};
+use bullseye::{Icon, LayoutState, NodeUi, Opacity, TextSpec, TextStyle, Tracking, none, tw};
 use egui::epaint::{ClippedShape, Shape};
 use egui::{Color32, FontFamily, FontId, Id, Pos2, RawInput, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -693,7 +693,7 @@ enum Host {
     Layer,
 }
 
-/// The node's id as built, and the ids its `Ui` reports when drawn from `host`.
+/// The node's id as built, and the node and scope ids its `Ui` reports when drawn from `host`.
 fn node_ui_ids(host: Host) -> (Id, Vec<(Id, Id)>) {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let expected = Rc::new(Cell::new(Id::NULL));
@@ -706,7 +706,7 @@ fn node_ui_ids(host: Host) -> (Id, Vec<(Id, Id)>) {
                 b.div_id(
                     "node",
                     tw().w_px(10.0).h_px(10.0),
-                    move |_: &mut (), ui| probe.borrow_mut().push((ui.scope_id(), ui.unique_id())),
+                    move |_: &mut (), ui| probe.borrow_mut().push((ui.node_id(), ui.scope_id())),
                     |_| {},
                 );
             })
@@ -737,10 +737,20 @@ fn node_ui_ids(host: Host) -> (Id, Vec<(Id, Id)>) {
 /// <div id="node"></div>
 /// ```
 #[test]
-fn a_node_ui_has_the_nodes_id_under_any_parent_or_layer() {
+fn a_node_ui_knows_the_nodes_id_and_has_a_stable_scope_under_any_parent_or_layer() {
+    let mut scopes = Vec::new();
     for host in [Host::Root, Host::PushedId, Host::SaltedScope, Host::Layer] {
         let (id, seen) = node_ui_ids(host);
         assert_ne!(id, Id::NULL, "precondition: the node has an id");
-        assert_eq!(seen, [(id, id)], "{host:?}");
+        let [(node, scope)] = seen[..] else {
+            panic!("{host:?}: one draw, saw {seen:?}")
+        };
+        assert_eq!(node, id, "{host:?}");
+        assert_ne!(scope, id, "{host:?}: the node's own id is its widget's");
+        scopes.push(scope);
     }
+    assert!(
+        scopes.windows(2).all(|pair| pair[0] == pair[1]),
+        "{scopes:?}"
+    );
 }

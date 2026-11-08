@@ -14,7 +14,7 @@ use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
 use crate::text::TextStyle;
-use crate::tw::{BoxPaint, Sides};
+use crate::tw::{BoxPaint, Grouping, Sensing, Sides, Variants};
 
 /// The kind of a node, for diagnostics.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,6 +55,24 @@ pub(crate) struct Node {
     pub draw: Option<usize>,
     pub z: i16,
     pub inert: bool,
+    pub interaction: Interaction,
+}
+
+/// Where a node's text colour comes from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ColorSource {
+    #[default]
+    Own,
+    Inherited,
+}
+
+/// What a node does when the pointer meets it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct Interaction {
+    pub sensing: Sensing,
+    pub grouping: Grouping,
+    pub variants: Variants,
+    pub color_source: ColorSource,
 }
 
 pub(crate) type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
@@ -163,6 +181,7 @@ impl LayoutState {
                     draw: None,
                     z: 0,
                     inert: false,
+                    interaction: Interaction::default(),
                 }),
             )
             .expect("root was just created");
@@ -296,6 +315,7 @@ fn collect(
         text: node.text.clone(),
         z: node.z,
         inert: node.inert,
+        interaction: node.interaction,
         draw: node.draw,
     });
     for child in tree.children(id).expect("node exists") {
@@ -331,6 +351,7 @@ pub struct PlacedNode {
     text: TextStyle,
     z: i16,
     inert: bool,
+    pub(crate) interaction: Interaction,
     pub(crate) draw: Option<usize>,
 }
 
@@ -378,6 +399,12 @@ impl PlacedNode {
     /// Whether the node was marked inert.
     pub fn is_inert(&self) -> bool {
         self.inert
+    }
+
+    /// Whether the node declares a sense, directly or through a variant, and
+    /// so gets one hit test.
+    pub fn senses(&self) -> bool {
+        !self.interaction.sensing.is_none()
     }
 
     /// Whether the node carries a draw closure.

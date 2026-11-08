@@ -8,10 +8,12 @@ use taffy::{NodeId, Size};
 
 use crate::key::child_id;
 use crate::measure::Measure;
-use crate::pipeline::{BuildState, DrawFn, Frame, MeasureFn, Node, NodeKind};
+use crate::pipeline::{
+    BuildState, ColorSource, DrawFn, Frame, Interaction, MeasureFn, Node, NodeKind,
+};
 use crate::prim::{Icon, Prim};
 use crate::text::TextStyle;
-use crate::tw::Tw;
+use crate::tw::{Grouping, Tw};
 
 /// What a node is made of, besides its classes.
 struct Parts {
@@ -249,6 +251,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     fn node(&self, tw: &Tw, parts: Parts) -> Node {
+        debug_assert!(
+            parts.id.is_some() || !tw.is_interactive(),
+            "{}: only identified nodes (div_id, leaf, span, icon) may sense, group or have variants",
+            parts.path,
+        );
+        debug_assert!(
+            tw.grouping != Grouping::Group || !tw.sensing.is_none(),
+            "{}: a group must sense something to be hovered",
+            parts.path,
+        );
+        let color_source = if tw.text.color.is_some() {
+            ColorSource::Own
+        } else {
+            ColorSource::Inherited
+        };
         Node {
             id: parts.id,
             path: parts.path,
@@ -260,6 +277,12 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             draw: parts.draw,
             z: tw.z,
             inert: tw.inert,
+            interaction: Interaction {
+                sensing: tw.sensing,
+                grouping: tw.grouping,
+                variants: tw.variants,
+                color_source,
+            },
         }
     }
 

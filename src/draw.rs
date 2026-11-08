@@ -2,16 +2,19 @@
 //! tree in pre-order and paints box, primitive and draw closure per node.
 
 use egui::epaint::{RectShape, StrokeKind};
+use std::borrow::Cow;
+
 use egui::{
-    Align, Color32, Image, Layout, Painter, Pos2, Rect, Stroke, Ui, UiBuilder, Vec2, pos2, vec2,
+    Align, Color32, Image, Layout, Painter, Pos2, Rect, Response, Sense, Stroke, Ui, UiBuilder,
+    Vec2, pos2, vec2,
 };
 use taffy::Overflow;
 
 use crate::measure::TextLeaf;
-use crate::pipeline::{DrawFn, Flow, Placed, PlacedNode};
+use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
 use crate::text::{TextAlign, TextStyle};
-use crate::tw::{BoxPaint, Flip, Opacity, Sides};
+use crate::tw::{BoxPaint, Flip, Grouping, Look, Opacity, Presence, Progress, Sides, State};
 
 /// Rounds coordinates to whole physical pixels.
 #[derive(Clone, Copy)]
@@ -59,12 +62,29 @@ impl Inertness {
     }
 }
 
+/// Whether the nearest `group` ancestor is hovered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Hovering {
+    Over,
+    Away,
+}
+
+impl Hovering {
+    fn of(over: bool) -> Self {
+        if over { Self::Over } else { Self::Away }
+    }
+}
+
 /// What a node passes down to its subtree.
 #[derive(Clone, Copy)]
 struct Inherited {
     clip: Rect,
     opacity: Opacity,
     inertness: Inertness,
+    group: Option<Hovering>,
+    /// A text colour a variant of an ancestor set, for descendants that
+    /// inherit their colour.
+    text_color: Option<Color32>,
 }
 
 /// A node's boxes, snapped to physical pixels.
@@ -323,6 +343,84 @@ impl<A> Walk<'_, A> {
         children
     }
 
+    /// The node's one hit test, made before anything is painted so that
+    /// hover styling and clicks agree. Registration order is egui's hit
+    /// order: later wins, and the walk is pre-order with siblings by `z`.
+    fn interact(&mut self, node: &PlacedNode, boxes: &Boxes, inherited: Inherited) -> Response {
+        let id = node.id().expect("a sensing node is identified");
+        let sense = Sense::from(node.interaction.sensing);
+        let mut response = None;
+        node_ui(
+            self.ui,
+            UiBuilder::new().max_rect(boxes.border),
+            inherited,
+            None,
+            |ui| response = Some(ui.interact(boxes.border, id, sense)),
+        );
+        response.expect("node_ui runs its contents")
+    }
+
+    /// Hovering the group's node or any sensing descendant hovers the group,
+    /// as `:hover` does in CSS.
+    fn group_hovering(&self, index: usize, own: &Response) -> Hovering {
+        let ctx = self.ui.ctx();
+        let node = &self.nodes[index];
+        let descendants = &self.nodes[index + 1..node.end];
+        Hovering::of(
+            own.hovered()
+                || descendants
+                    .iter()
+                    .filter(|descendant| descendant.senses())
+                    .filter_map(PlacedNode::id)
+                    .any(|id| ctx.read_response(id).is_some_and(|r| r.hovered())),
+        )
+    }
+
+    /// How far each state variant has taken hold, animated when the node has
+    /// a `transition`.
+    fn presence(
+        &self,
+        node: &PlacedNode,
+        response: Option<&Response>,
+        group: Option<Hovering>,
+    ) -> Presence {
+        let variants = &node.interaction.variants;
+        let hovered = response.is_some_and(Response::hovered);
+        let progress = |state: State| {
+            if variants.get(state).is_none() {
+                return Progress::START;
+            }
+            let on = match state {
+                State::GroupHover => {
+                    debug_assert!(
+                        group.is_some(),
+                        "{}: group_hover needs an ancestor marked group()",
+                        node.path()
+                    );
+                    group == Some(Hovering::Over)
+                }
+                State::Hover => hovered,
+                State::Active => {
+                    hovered && response.is_some_and(Response::is_pointer_button_down_on)
+                }
+            };
+            let target = if on { Progress::END } else { Progress::START };
+            match (variants.transition, node.id()) {
+                (Some(duration), Some(id)) => Progress::new(self.ui.ctx().animate_value_with_time(
+                    id.with(("bullseye-state", state as u8)),
+                    target.into(),
+                    duration.as_secs_f32(),
+                )),
+                _ => target,
+            }
+        };
+        Presence {
+            group_hover: progress(State::GroupHover),
+            hover: progress(State::Hover),
+            active: progress(State::Active),
+        }
+    }
+
     fn visit(&mut self, index: usize, parent: Inherited) {
         let nodes = self.nodes;
         let node = &nodes[index];
@@ -330,22 +428,74 @@ impl<A> Walk<'_, A> {
             return;
         }
         let boxes = Boxes::of(node, self.grid);
-        let opacity = parent.opacity * node.paint().opacity;
-        paint_box(&self.painter(parent.clip, opacity), node.paint(), &boxes);
+        let inertness = parent.inertness.or(node.is_inert().into());
+        let interaction = &node.interaction;
+
+        let response = node.senses().then(|| {
+            self.interact(
+                node,
+                &boxes,
+                Inherited {
+                    inertness,
+                    ..parent
+                },
+            )
+        });
+        let presence = self.presence(node, response.as_ref(), parent.group);
+        let group = match (interaction.grouping, &response) {
+            (Grouping::Group, Some(own)) => Some(self.group_hovering(index, own)),
+            _ => parent.group,
+        };
+
+        let base_color = match (interaction.color_source, parent.text_color) {
+            (ColorSource::Inherited, Some(inherited)) => inherited,
+            _ => node.text().color,
+        };
+        let look = interaction.variants.resolve(
+            Look {
+                paint: *node.paint(),
+                text: base_color,
+                decoration: node.text().decoration,
+            },
+            presence,
+        );
+        let text = if look.text == node.text().color && look.decoration == node.text().decoration {
+            Cow::Borrowed(node.text())
+        } else {
+            Cow::Owned(TextStyle {
+                color: look.text,
+                decoration: look.decoration,
+                ..node.text().clone()
+            })
+        };
+
+        let opacity = parent.opacity * look.paint.opacity;
+        paint_box(&self.painter(parent.clip, opacity), &look.paint, &boxes);
 
         let inherited = Inherited {
             clip: content_clip(parent.clip, boxes.padding, node.overflow),
             opacity,
-            inertness: parent.inertness.or(node.is_inert().into()),
+            inertness,
+            group,
+            text_color: if interaction.variants.sets_text_color() {
+                Some(look.text)
+            } else if interaction.color_source == ColorSource::Inherited {
+                parent.text_color
+            } else {
+                None
+            },
         };
         if let Some(prim) = self.prims[index].take() {
-            self.paint_prim(prim, node.text(), &boxes, inherited);
+            self.paint_prim(prim, &text, &boxes, inherited);
         }
         if let Some(draw) = node.draw.and_then(|slot| self.draws[slot].take()) {
             let id = node.id().expect("a node with a draw closure is identified");
-            let builder = UiBuilder::new().max_rect(boxes.content).scope_id(id);
+            let builder = UiBuilder::new()
+                .max_rect(boxes.content)
+                .scope_id(id.with(DRAW_SCOPE));
             let app = &mut *self.app;
-            node_ui(self.ui, builder, inherited, Some(node.text()), |ui| {
+            node_ui(self.ui, builder, inherited, Some(&text), |ui| {
+                ui.data_mut(|data| data.insert_temp(ui.unique_id(), NodeIdTag(id)));
                 draw(app, ui)
             });
         }
@@ -418,7 +568,14 @@ impl<A> Walk<'_, A> {
 impl<A> Placed<A> {
     /// Paints the frame into `ui`.
     ///
-    /// Nodes are visited in pre-order. For each node the library paints, in
+    /// Nodes are visited in pre-order. A node that declares a sense (see
+    /// [`sense_click`](crate::Tw::sense_click)) is first given its one
+    /// `ui.interact` over its border box, so egui's hit order is the paint
+    /// order: pre-order, siblings by [`z`](crate::PlacedNode::z), later on
+    /// top. An [`inert`](crate::Tw::inert) subtree is interacted with as
+    /// disabled. The node's `hover`, `active` and `group_hover` variants are
+    /// then resolved, animated if the node has a `transition`, and used for
+    /// everything painted for the node. For each node the library paints, in
     /// order: shadow, background, borders and ring (clipped by the ancestors'
     /// `overflow`); then its text, icon, image or custom paint; then the draw
     /// closure of an identified node; then its children stable-sorted by
@@ -426,8 +583,8 @@ impl<A> Placed<A> {
     /// hairlines between its in-flow children.
     ///
     /// Each draw closure runs with `app` in its own child [`Ui`] whose
-    /// [`scope_id`](Ui::scope_id) is the node's [`Id`](egui::Id), whatever `ui`
-    /// is, and whose rect is the node's content box. The `Ui` carries the node's
+    /// [`scope_id`](Ui::scope_id) is derived from the node's [`Id`](egui::Id)
+    /// ([`NodeUi::node_id`]), whatever `ui` is, and whose rect is the node's content box. The `Ui` carries the node's
     /// text colour and font as egui overrides, the clip of the ancestors'
     /// `overflow`, the multiplied opacity of the node and its ancestors, and is
     /// disabled below an [`inert`](crate::Tw::inert) node.
@@ -447,6 +604,8 @@ impl<A> Placed<A> {
             clip: ui.clip_rect(),
             opacity: Opacity::OPAQUE,
             inertness: Inertness::Live,
+            group: None,
+            text_color: None,
         };
         Walk {
             app,
@@ -457,5 +616,45 @@ impl<A> Placed<A> {
             grid,
         }
         .visit(0, root);
+    }
+}
+
+/// Salt of a draw closure's [`Ui`] ids. The `Ui` registers a widget under its
+/// own id, which must not be the node's, whose widget is the border box.
+const DRAW_SCOPE: &str = "bullseye-draw";
+
+#[derive(Clone, Copy)]
+struct NodeIdTag(egui::Id);
+
+/// Reads the response the library gave the node whose draw closure is
+/// running.
+pub trait NodeUi {
+    /// The node's response: clicks, drags, hover, pointer position, tooltips.
+    ///
+    /// The library made the node's one hit test before painting it, with its
+    /// border box, so hover styling and this response agree. A node that
+    /// declares no sense gets a response that senses nothing. Call it on the
+    /// [`Ui`] the draw closure is given, not on a nested one, and never
+    /// interact with the node's own id yourself.
+    fn node_response(&self) -> Response;
+
+    /// The node's egui id: its key path, the one `Builder::id_of` reports.
+    /// The [`scope_id`](Ui::scope_id) of the draw closure's `Ui` is derived
+    /// from it, so ids made with `make_persistent_id` are stable per node.
+    fn node_id(&self) -> egui::Id;
+}
+
+impl NodeUi for Ui {
+    fn node_id(&self) -> egui::Id {
+        self.data(|data| data.get_temp::<NodeIdTag>(self.unique_id()))
+            .map(|tag| tag.0)
+            .expect("node_response and node_id are called on the Ui a draw closure is given")
+    }
+
+    fn node_response(&self) -> Response {
+        let id = self.node_id();
+        self.ctx()
+            .read_response(id)
+            .unwrap_or_else(|| self.interact(self.max_rect(), id, Sense::hover()))
     }
 }
