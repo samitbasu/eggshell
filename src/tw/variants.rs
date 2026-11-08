@@ -1,5 +1,6 @@
 //! Interaction classes: what a node senses, groups, and the paint-only state
-//! variants (`hover:`, `active:`, `group-hover:`) with their transition.
+//! variants (`hover:`, `active:`, `focus:`, `focus-within:`, `group-hover:`)
+//! with their transition.
 
 use core::time::Duration;
 
@@ -63,6 +64,25 @@ impl From<Sensing> for Sense {
             Sensing::Click => Sense::click(),
             Sensing::Drag => Sense::drag(),
             Sensing::ClickDrag => Sense::click_and_drag(),
+        }
+    }
+}
+
+/// Whether a sensing node takes part in keyboard navigation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Focusability {
+    #[default]
+    Tab,
+    Skip,
+}
+
+impl Focusability {
+    /// The egui sense for `sensing`, focusable unless the node opts out.
+    pub(crate) fn sense(self, sensing: Sensing) -> Sense {
+        let sense = Sense::from(sensing);
+        match self {
+            Self::Tab => sense,
+            Self::Skip => sense - Sense::FOCUSABLE,
         }
     }
 }
@@ -187,17 +207,25 @@ impl Paint {
     }
 }
 
-/// The three states a node can be styled for, in the order they override
-/// one another.
+/// The states a node can be styled for, in the order they override one
+/// another (the order Tailwind emits them in).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum State {
     GroupHover,
     Hover,
+    FocusWithin,
+    Focus,
     Active,
 }
 
 impl State {
-    pub(crate) const ALL: [Self; 3] = [Self::GroupHover, Self::Hover, Self::Active];
+    pub(crate) const ALL: [Self; 5] = [
+        Self::GroupHover,
+        Self::Hover,
+        Self::FocusWithin,
+        Self::Focus,
+        Self::Active,
+    ];
 }
 
 /// How far each state has taken hold.
@@ -205,6 +233,8 @@ impl State {
 pub(crate) struct Presence {
     pub group_hover: Progress,
     pub hover: Progress,
+    pub focus_within: Progress,
+    pub focus: Progress,
     pub active: Progress,
 }
 
@@ -213,6 +243,8 @@ impl Presence {
         match state {
             State::GroupHover => self.group_hover,
             State::Hover => self.hover,
+            State::FocusWithin => self.focus_within,
+            State::Focus => self.focus,
             State::Active => self.active,
         }
     }
@@ -232,6 +264,8 @@ pub(crate) struct Variants {
     hover: Option<Paint>,
     active: Option<Paint>,
     group_hover: Option<Paint>,
+    focus: Option<Paint>,
+    focus_within: Option<Paint>,
     pub(crate) transition: Option<Duration>,
 }
 
@@ -240,6 +274,8 @@ impl Variants {
         match state {
             State::GroupHover => self.group_hover.as_ref(),
             State::Hover => self.hover.as_ref(),
+            State::FocusWithin => self.focus_within.as_ref(),
+            State::Focus => self.focus.as_ref(),
             State::Active => self.active.as_ref(),
         }
     }
@@ -318,6 +354,32 @@ impl Tw {
         self
     }
 
+    /// `focus-visible:`. The node has keyboard focus. Implies at least
+    /// [`sense_click`](Self::sense_click), which makes the node a Tab stop
+    /// (see [`focusable_none`](Self::focusable_none)). egui does not give
+    /// focus to a node on a click, so this is `focus-visible`, not `focus`.
+    pub fn focus(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variants.focus = Some(style(self.variants.focus.unwrap_or_default()));
+        self.sensing = self.sensing.pressable();
+        self
+    }
+
+    /// `focus-within:`. The node, or a widget its draw closure or a
+    /// descendant's registered, has keyboard focus. Needs an identified node
+    /// but no sense. Widgets that appear this frame count from the next one.
+    pub fn focus_within(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variants.focus_within = Some(style(self.variants.focus_within.unwrap_or_default()));
+        self
+    }
+
+    /// Leaves a sensing node out of keyboard navigation, like a splitter
+    /// that only a pointer drags. It still senses clicks and drags, and
+    /// `focus` variants never apply to it.
+    pub fn focusable_none(mut self) -> Self {
+        self.focusability = Focusability::Skip;
+        self
+    }
+
     /// `transition duration-*`: animates the node's variant changes over
     /// `duration` instead of switching.
     pub fn transition(mut self, duration: Duration) -> Self {
@@ -334,6 +396,8 @@ impl Tw {
             || self.grouping == Grouping::Group
             || self.variants.get(State::Hover).is_some()
             || self.variants.get(State::Active).is_some()
+            || self.variants.get(State::Focus).is_some()
+            || self.variants.get(State::FocusWithin).is_some()
             || self.variants.transition.is_some()
     }
 }
@@ -383,6 +447,50 @@ mod tests {
                 .style(),
             *tw().style()
         );
+    }
+
+    #[test]
+    fn focus_implies_a_focusable_sense_and_focus_within_none() {
+        assert_eq!(tw().focus(|p| p.underline()).sensing, Sensing::Click);
+        assert_eq!(tw().focus_within(|p| p.underline()).sensing, Sensing::None);
+        assert!(tw().focus(|p| p.underline()).needs_identity());
+        assert!(tw().focus_within(|p| p.underline()).needs_identity());
+        assert_eq!(
+            *tw().focus(|p| p.underline()).style(),
+            *tw().style(),
+            "focus never touches layout"
+        );
+    }
+
+    #[test]
+    fn opting_out_removes_only_the_focusable_flag() {
+        let focusable = Focusability::Tab.sense(Sensing::Click);
+        let skipped = Focusability::Skip.sense(Sensing::Click);
+        assert!(focusable.is_focusable() && focusable.senses_click());
+        assert!(!skipped.is_focusable() && skipped.senses_click());
+        assert!(!Focusability::Tab.sense(Sensing::Hover).is_focusable());
+        assert!(Focusability::Skip.sense(Sensing::Drag).senses_drag());
+    }
+
+    #[test]
+    fn focus_overrides_hover_and_active_overrides_focus() {
+        let variants = tw()
+            .hover(|p| p.bg(Color32::RED))
+            .focus(|p| p.bg(Color32::GREEN))
+            .active(|p| p.bg(Color32::BLUE))
+            .variants;
+        let presence = |hover, focus, active| Presence {
+            group_hover: Progress::START,
+            hover,
+            focus_within: Progress::START,
+            focus,
+            active,
+        };
+        let background = |presence| variants.resolve(look(), presence).paint.background;
+        let (on, off) = (Progress::END, Progress::START);
+        assert_eq!(background(presence(on, on, off)), Some(Color32::GREEN));
+        assert_eq!(background(presence(on, on, on)), Some(Color32::BLUE));
+        assert_eq!(background(presence(on, off, off)), Some(Color32::RED));
     }
 
     #[test]
@@ -443,6 +551,8 @@ mod tests {
         let on = Presence {
             group_hover: Progress::END,
             hover: Progress::END,
+            focus_within: Progress::START,
+            focus: Progress::START,
             active: Progress::START,
         };
         assert_eq!(

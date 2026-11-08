@@ -14,17 +14,17 @@
 
 mod builder;
 mod draw;
+mod focus;
 mod key;
 mod measure;
 mod pipeline;
 mod prim;
-#[cfg(test)]
-mod spikes;
 mod text;
 mod tw;
 
 pub use builder::{Builder, none};
 pub use draw::NodeUi;
+pub use focus::focus_within;
 pub use measure::{Measure, fill};
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
 pub use prim::Icon;

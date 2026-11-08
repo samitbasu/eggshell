@@ -19,6 +19,7 @@ pub struct Rig<A> {
     view: View<A>,
     /// Every node of the last frame: its readable path and border box.
     pub nodes: Vec<(String, Rect)>,
+    ids: Vec<(String, egui::Id)>,
 }
 
 pub fn harness<A: 'static>(
@@ -32,6 +33,7 @@ pub fn harness<A: 'static>(
         app,
         view,
         nodes: Vec::new(),
+        ids: Vec::new(),
     };
     Harness::builder()
         .with_size(size)
@@ -44,11 +46,16 @@ pub fn harness<A: 'static>(
                     app,
                     view,
                     nodes,
+                    ids,
                 } = rig;
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *nodes = placed
                     .nodes()
                     .map(|node| (node.path().to_owned(), node.rect()))
+                    .collect();
+                *ids = placed
+                    .nodes()
+                    .filter_map(|node| Some((node.path().to_owned(), node.id()?)))
                     .collect();
                 placed.draw(app, ui);
             },
@@ -121,4 +128,18 @@ pub fn click_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
     let at = rect_of(harness, path).center();
     hover_over(harness, at);
     press_and_release(harness, at);
+}
+
+/// What has keyboard focus: the readable path of an identified node, or
+/// `<widget>` for an egui widget that is not a node (a text edit inside one).
+pub fn focused_path<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
+    let focused = harness.ctx.memory(|memory| memory.focused())?;
+    Some(
+        harness
+            .state()
+            .ids
+            .iter()
+            .find(|(_, id)| *id == focused)
+            .map_or_else(|| "<widget>".to_owned(), |(path, _)| path.clone()),
+    )
 }

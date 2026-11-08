@@ -319,3 +319,39 @@ fn send_is_inert_while_the_draft_is_empty() {
         dimmed(&harness)
     );
 }
+
+#[test]
+fn tab_walks_the_sidebar_in_order_and_skips_the_splitters() {
+    let mut harness = harness();
+    let mut order = Vec::new();
+    for _ in 0..40 {
+        harness.key_press(egui::Key::Tab);
+        harness.run_steps(2);
+        let path = support::focused_path(&harness).expect("Tab always lands on a stop");
+        if order.first() == Some(&path) {
+            break;
+        }
+        order.push(path);
+    }
+    let sessions: Vec<_> = order
+        .iter()
+        .filter(|path| path.starts_with("/Sidebar/"))
+        .collect();
+    assert!(
+        sessions.len() > 2,
+        "precondition: the sidebar has several stops: {order:?}"
+    );
+    assert!(
+        sessions.is_sorted_by_key(|path| rect_of(&harness, path).min.y as i32),
+        "registration order is paint order, top to bottom: {sessions:?}"
+    );
+    assert_eq!(
+        order.first().map(String::as_str),
+        Some(sessions[0].as_str()),
+        "the sidebar paints before the centre: {order:?}"
+    );
+    assert!(
+        order.iter().all(|path| !path.contains("Splitter")),
+        "{order:?}"
+    );
+}

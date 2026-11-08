@@ -110,6 +110,22 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         child_id(self.path, &key)
     }
 
+    /// Whether the node declared with `key` in this scope has keyboard focus.
+    ///
+    /// Reads the focus egui held at the start of the frame, so it works before
+    /// the node exists. A change of focus shows up in the layout one frame
+    /// later, as a single relayout; layout never moves focus, so this cannot
+    /// oscillate.
+    pub fn has_focus<K: Hash + Debug + 'static>(&self, key: K) -> bool {
+        crate::focus::holds_focus(self.frame.ctx, self.id_of(key))
+    }
+
+    /// Whether the node declared with `key` in this scope, or a widget
+    /// inside it, has keyboard focus. See [`focus_within`](crate::focus_within).
+    pub fn has_focus_within<K: Hash + Debug + 'static>(&self, key: K) -> bool {
+        crate::focus::focus_within(self.frame.ctx, self.id_of(key))
+    }
+
     /// An anonymous container. Its text classes are inherited by `body`.
     pub fn div(&mut self, tw: Tw, body: impl FnOnce(&mut Builder<'_, 'f, A>)) {
         let path = self.anonymous_path(NodeKind::Div);
@@ -279,6 +295,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             inert: tw.inert,
             interaction: Interaction {
                 sensing: tw.sensing,
+                focusability: tw.focusability,
                 grouping: tw.grouping,
                 variants: tw.variants,
                 color_source,

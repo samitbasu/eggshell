@@ -24,7 +24,7 @@ pub use grid::Track;
 pub use paint::{BoxPaint, Divide, Ring, Sides};
 pub use units::{Angle, Flip, Opacity, Progress};
 pub use variants::Paint;
-pub(crate) use variants::{Grouping, Look, Presence, Sensing, State, Variants};
+pub(crate) use variants::{Focusability, Grouping, Look, Presence, Sensing, State, Variants};
 
 /// One Tailwind space unit, in points.
 const SPACE_UNIT: f32 = 4.0;
@@ -38,6 +38,7 @@ pub struct Tw {
     pub(crate) z: i16,
     pub(crate) inert: bool,
     pub(crate) sensing: Sensing,
+    pub(crate) focusability: Focusability,
     pub(crate) grouping: Grouping,
     pub(crate) variants: Variants,
 }
@@ -54,6 +55,7 @@ pub fn tw() -> Tw {
         z: 0,
         inert: false,
         sensing: Sensing::None,
+        focusability: Focusability::Tab,
         grouping: Grouping::Ungrouped,
         variants: Variants::default(),
     }

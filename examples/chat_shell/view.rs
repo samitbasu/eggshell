@@ -48,6 +48,7 @@ fn splitter(b: &mut B<'_, '_>, app: &App, pane: Pane) {
             .shrink_0()
             .bg(k[Tok::Ground])
             .sense_drag()
+            .focusable_none()
             .group(),
         move |app: &mut App, ui| {
             let response = ui.node_response();
