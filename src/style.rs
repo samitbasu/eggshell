@@ -389,6 +389,10 @@ impl Tokens {
 /// In the dark theme an accent departs from shadcn's registry, which uses
 /// its 700/800 shade for `primary`: that is dim on near-black, so `primary`
 /// is the 500 shade (the `ring`) with a black `primary-foreground`.
+///
+/// Dark violet is nudged from its 500 shade `#8e51ff` to `#8e52ff`, the
+/// smallest step that lifts links (which use `primary`) from 4.498:1 to
+/// 4.53:1 on the dark page; black on it is 4.8:1.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Accent {
     /// The default: black in light, light grey in dark.
@@ -445,7 +449,7 @@ impl Accent {
             (Self::Blue, Theme::Light) => (0x1447e6, 0xeff6ff, 0x2b7fff),
             (Self::Blue, Theme::Dark) => (0x2b7fff, BRIGHT_ON, 0x2b7fff),
             (Self::Violet, Theme::Light) => (0x7008e7, 0xf5f3ff, 0x8e51ff),
-            (Self::Violet, Theme::Dark) => (0x8e51ff, BRIGHT_ON, 0x8e51ff),
+            (Self::Violet, Theme::Dark) => (0x8e52ff, BRIGHT_ON, 0x8e52ff),
             (Self::Green, Theme::Light) => (0x008236, 0xf0fdf4, 0x00c950),
             (Self::Green, Theme::Dark) => (0x00c950, BRIGHT_ON, 0x00c950),
             (Self::Orange, Theme::Light) => (0xca3500, 0xfff7ed, 0xff6900),

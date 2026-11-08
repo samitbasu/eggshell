@@ -534,15 +534,8 @@ fn hyperlinks_are_primary_and_readable_on_the_page() {
                 "{accent:?} {theme:?}"
             );
             let ratio = contrast(preset.tokens.primary, preset.tokens.background);
-            // Violet-500 on the dark page is 4.498:1, a hair under AA. The colour
-            // is the user's to change, so it is a named exception, not a lowered bar.
-            let floor = if (accent, theme) == (Accent::Violet, Theme::Dark) {
-                4.49
-            } else {
-                4.5
-            };
             assert!(
-                ratio >= floor,
+                ratio >= 4.5,
                 "{accent:?} {theme:?}: link text is {ratio:.3}:1 on the page"
             );
         }
