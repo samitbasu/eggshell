@@ -477,8 +477,62 @@ fn an_accent_retints_primary_and_ring_and_nothing_else() {
     }
     let blue = |theme| Shadcn::for_theme(theme).accent(Accent::Blue).tokens;
     assert_eq!(blue(Theme::Light).primary, rgb(0x14, 0x47, 0xe6));
-    assert_eq!(blue(Theme::Dark).primary, rgb(0x19, 0x3c, 0xb8));
-    assert_eq!(blue(Theme::Dark).primary_foreground, rgb(0xef, 0xf6, 0xff));
+    assert_eq!(blue(Theme::Dark).primary, rgb(0x2b, 0x7f, 0xff));
+    assert_eq!(blue(Theme::Dark).primary_foreground, rgb(0, 0, 0));
+}
+
+fn luminance(c: egui::Color32) -> f32 {
+    let linear = |v: u8| {
+        let v = f32::from(v) / 255.0;
+        if v <= 0.03928 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * linear(c.r()) + 0.7152 * linear(c.g()) + 0.0722 * linear(c.b())
+}
+
+fn contrast(a: egui::Color32, b: egui::Color32) -> f32 {
+    let (a, b) = (luminance(a), luminance(b));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
+#[test]
+fn a_dark_accent_fills_with_its_bright_shade_and_keeps_its_label_readable() {
+    let neutral = Shadcn::dark().tokens;
+    for accent in Accent::ALL.into_iter().filter(|a| *a != Accent::Neutral) {
+        let t = Shadcn::dark().accent(accent).tokens;
+        assert_eq!(t.primary, t.ring, "{accent:?}: the 500 shade");
+        assert!(
+            contrast(t.primary, t.primary_foreground) >= 4.5,
+            "{accent:?}: {}",
+            contrast(t.primary, t.primary_foreground)
+        );
+        assert!(
+            contrast(t.primary, neutral.background) >= 3.0,
+            "{accent:?} stands out on the page"
+        );
+    }
+    let neutral_accent = Shadcn::dark().accent(Accent::Neutral).tokens;
+    assert_eq!(neutral_accent, neutral, "neutral dark is shadcn's");
+    assert_eq!(neutral.primary, rgb(0xe5, 0xe5, 0xe5));
+}
+
+#[test]
+fn hyperlinks_are_the_ring_shade() {
+    for theme in [Theme::Light, Theme::Dark] {
+        for accent in Accent::ALL {
+            let ctx = context(theme);
+            let preset = Shadcn::for_theme(theme).accent(accent);
+            preset.apply(&ctx);
+            assert_eq!(
+                ctx.style_of(theme).visuals.hyperlink_color,
+                preset.tokens.ring,
+                "{accent:?} {theme:?}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -487,7 +541,7 @@ fn an_accent_reaches_egui_when_applied() {
     Shadcn::light().accent(Accent::Violet).apply(&ctx);
     assert_eq!(
         ctx.style_of(Theme::Light).visuals.hyperlink_color,
-        rgb(0x70, 0x08, 0xe7)
+        rgb(0x8e, 0x51, 0xff)
     );
     assert_eq!(Shadcn::of(&ctx).tokens.primary, rgb(0x70, 0x08, 0xe7));
 }
