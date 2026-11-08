@@ -10,7 +10,7 @@ mod common;
 
 use core::time::Duration;
 
-use bullseye::{Builder, NodeUi, Opacity, Tw, tw};
+use bullseye::{Builder, Opacity, Tw, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
@@ -92,18 +92,6 @@ impl State {
     }
 }
 
-/// A draw closure that runs `act` on the application when the node is clicked.
-fn on_click(
-    act: impl FnOnce(&mut State) + 'static,
-) -> impl FnOnce(&mut State, &mut egui::Ui) + 'static {
-    move |state, ui| {
-        if ui.node_response().clicked() {
-            act(state);
-            ui.ctx().request_repaint();
-        }
-    }
-}
-
 /// A small text button.
 ///
 /// ```html
@@ -162,13 +150,13 @@ fn row(b: &mut B<'_, '_, State>, item: &Item, position: Position) {
                 "up",
                 movable(action(), Position::First),
                 "Up",
-                on_click(move |state| state.shift(key, Direction::Up)),
+                common::on_click::<State>(move |state| state.shift(key, Direction::Up)),
             );
             b.span(
                 "down",
                 movable(action(), Position::Last),
                 "Down",
-                on_click(move |state| state.shift(key, Direction::Down)),
+                common::on_click::<State>(move |state| state.shift(key, Direction::Down)),
             );
             b.span(
                 "remove",
@@ -176,7 +164,7 @@ fn row(b: &mut B<'_, '_, State>, item: &Item, position: Position) {
                     .opacity(Opacity::TRANSPARENT)
                     .group_hover(|p| p.opacity(Opacity::OPAQUE)),
                 "Remove",
-                on_click(move |state| state.remove(key)),
+                common::on_click::<State>(move |state| state.remove(key)),
             );
         },
     );
