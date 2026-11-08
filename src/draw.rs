@@ -582,7 +582,8 @@ impl<A> Walk<'_, A> {
                 .scope_id(id.with(DRAW_SCOPE));
             let app = &mut *self.app;
             node_ui(self.ui, builder, inherited, Some(&text), |ui| {
-                ui.data_mut(|data| data.insert_temp(ui.unique_id(), NodeIdTag(id)));
+                let scope = ui.unique_id();
+                ui.data_mut(|data| data.insert_temp(scope, NodeIdTag(id)));
                 draw(app, ui)
             });
         }
@@ -744,7 +745,8 @@ pub trait NodeUi {
 
 impl NodeUi for Ui {
     fn node_id(&self) -> egui::Id {
-        self.data(|data| data.get_temp::<NodeIdTag>(self.unique_id()))
+        let scope = self.unique_id();
+        self.data(|data| data.get_temp::<NodeIdTag>(scope))
             .map(|tag| tag.0)
             .expect("node_response and node_id are called on the Ui a draw closure is given")
     }

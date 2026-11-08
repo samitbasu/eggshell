@@ -1,6 +1,7 @@
 //! Subprocess execution. Every child gets its own process group, which xtask
 //! ends on drop and on SIGINT/SIGTERM, so nothing outlives it.
 
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Output};
 use std::sync::{Mutex, PoisonError};
@@ -25,12 +26,44 @@ pub fn install_signal_handler() -> Result<()> {
     .context("installing the SIGINT/SIGTERM handler")
 }
 
-pub fn run_cargo(args: &[String], env: &[(&'static str, String)]) -> Result<ExitStatus> {
+/// Runs `cargo`, streaming its output (standard error merged into standard
+/// output) to our standard error as it arrives, and returns it with the exit
+/// status.
+pub fn run_cargo(args: &[String], env: &[(&'static str, String)]) -> Result<(ExitStatus, String)> {
     let mut expression = duct::cmd("cargo", args).dir(workspace_root());
     for (key, value) in env {
         expression = expression.env(key, value);
     }
-    Ok(run(expression)?.status)
+    let reader = expression
+        .stderr_to_stdout()
+        .before_spawn(|command| {
+            put_in_own_process_group(command);
+            Ok(())
+        })
+        .unchecked()
+        .reader()
+        .context("starting subprocess")?;
+    let _group = reader.pids().first().map(|&pid| GroupGuard::register(pid));
+    let mut captured = Vec::new();
+    let mut chunk = [0u8; 8192];
+    let mut stderr = std::io::stderr().lock();
+    loop {
+        let read = (&reader)
+            .read(&mut chunk)
+            .context("reading subprocess output")?;
+        if read == 0 {
+            break;
+        }
+        captured.extend_from_slice(&chunk[..read]);
+        // A closed stderr must not hide the capture.
+        let _ = stderr.write_all(&chunk[..read]);
+    }
+    let status = reader
+        .try_wait()
+        .context("waiting for subprocess")?
+        .map(|output| output.status)
+        .context("subprocess output ended before it exited")?;
+    Ok((status, String::from_utf8_lossy(&captured).into_owned()))
 }
 
 /// Runs `git` in the workspace root and returns its standard output.
