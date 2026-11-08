@@ -338,8 +338,10 @@ impl Default for State {
     }
 }
 
-/// Sets the egui style the widgets are sized and drawn with.
+/// Tints the preset with the examples' accent, then sets the egui style the
+/// widgets are sized and drawn with.
 pub fn prepare(ctx: &Context, state: &State) {
+    common::use_accent(ctx, state);
     ctx.all_styles_mut(|style| {
         style.spacing.button_padding = state.padding.size();
         style.spacing.interact_size = state.interact.size();
