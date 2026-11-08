@@ -1,30 +1,25 @@
 //! The interactive ports (button, custom_background, sidebar) through real
 //! pointer events: clicks reach the draw closures and variants repaint.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples/common module"
-)]
-
 use egui::vec2;
 use egui_kittest::Harness;
 
-#[path = "../examples/common/mod.rs"]
+#[path = "../../examples/common/mod.rs"]
 mod common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/button.rs"]
+#[path = "../../examples/button.rs"]
 mod button;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/custom_background.rs"]
+#[path = "../../examples/custom_background.rs"]
 mod custom_background;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/sidebar.rs"]
+#[path = "../../examples/sidebar.rs"]
 mod sidebar;
 
-mod support;
+use crate::support;
 
 use support::{Rig, click_node, fill_of, hover_node, rect_of};
 

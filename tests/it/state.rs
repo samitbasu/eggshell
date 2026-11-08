@@ -5,7 +5,7 @@ use bullseye::{Builder, LayoutState, TextSpec, TextStyle, tw};
 use egui::{Color32, Context, FontFamily, Rect, Theme, pos2, vec2};
 use egui_kittest::Harness;
 
-mod support;
+use crate::support;
 
 use support::{Rig, rect_of};
 

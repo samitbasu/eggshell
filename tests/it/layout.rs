@@ -4,11 +4,6 @@
 //! preconditions (the text is wide enough to wrap, the siblings differ) so it
 //! cannot silently stop testing anything.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each example includes the shared examples/common module"
-)]
-
 use std::sync::OnceLock;
 
 use bullseye::{
@@ -17,27 +12,27 @@ use bullseye::{
 };
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/custom_background.rs"]
+#[path = "../../examples/custom_background.rs"]
 mod custom_background;
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/flex.rs"]
+#[path = "../../examples/flex.rs"]
 mod flex;
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/flex_grid.rs"]
+#[path = "../../examples/flex_grid.rs"]
 mod flex_grid;
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/flex_wrap.rs"]
+#[path = "../../examples/flex_wrap.rs"]
 mod flex_wrap;
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/flexbox_guide.rs"]
+#[path = "../../examples/flexbox_guide.rs"]
 mod flexbox_guide;
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/grow.rs"]
+#[path = "../../examples/grow.rs"]
 mod grow;
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/holy_grail.rs"]
+#[path = "../../examples/holy_grail.rs"]
 mod holy_grail;
-#[path = "../examples/kaolin/layouts.rs"]
+#[path = "../../examples/kaolin/layouts.rs"]
 mod layouts;
 use egui::epaint::text::LayoutJob;
 use egui::{Color32, Context, Id, Pos2, Rect, pos2, vec2};

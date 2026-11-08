@@ -1,0 +1,27 @@
+[1m[91merror[0m: could not compile `bullseye` (test "layout")
+
+Caused by:
+  process didn't exit successfully: `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name layout --edition=2024 tests/layout.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --te
+[1m[33mwarning[0m: build failed, waiting for other jobs to finish...
+[1m[91merror[0m[1m: linking with `cc` failed: exit status: 1[0m
+  [1m[94m|[0m
+  [1m[94m= [0m[1mnote[0m:  "cc" "-m64" "/home/runner/work/bullseye/bullseye/target/debug/deps/rustcTywsjv/symbols.o" "<17 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "/home/runner/work/bullseye/bullseye/target/debug/deps/{libeframe-7da361bd445a09ca,libpollster-6ae2718257919479,libeg
+  [1m[94m= [0m[1mnote[0m: some arguments are omitted. use `--verbose` to show all linker arguments
+  [1m[94m= [0m[1mnote[0m: PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace and instructions to reproduce the bug.
+          Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+          0  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f4ca4b40ada llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) + 42
+          1  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f4ca4b4145d
+          2  libc.so.6                          0x00007f4c9e445330
+          3  libc.so.6                          0x00007f4c9e589087
+          4  rust-lld                           0x00005628228e7254
+          5  rust-lld                           0x000056282296a37b
+          6  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f4ca4ae70e3
+          7  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f4ca4ae6f63
+          8  libLLVM.so.23.1-rust-1.99.1-stable 0x00007f4ca4a57a70
+          9  libc.so.6                          0x00007f4c9e49cb84
+          10 libc.so.6                          0x00007f4c9e529ecc
+          collect2: fatal error: ld terminated with signal 7 [Bus error], core dumped
+          compilation terminated.
+          
+
+[1m[91merror[0m: could not compile `bullseye` (test "controls") due to 1 previous error

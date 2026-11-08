@@ -11,6 +11,10 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Test binaries statically link egui; full debuginfo made them hundreds of MB
+  # each and filled the runner's disk. Line tables keep file:line in panics.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
 
 jobs:
   ci:
@@ -22,6 +26,11 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo xtask ci
+      - name: Disk usage
+        if: always()
+        run: |
+          df -h
+          du -sh target
 
   msrv:
     runs-on: ubuntu-latest
@@ -41,6 +50,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
       - run: cargo xtask coverage --lcov
+      - name: Disk usage
+        if: always()
+        run: |
+          df -h
+          du -sh target
       - uses: actions/upload-artifact@v4
         with:
           name: lcov

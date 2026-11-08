@@ -5,7 +5,7 @@ use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{RawInput, Rect, pos2};
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/known_gaps.rs"]
+#[path = "../../examples/known_gaps.rs"]
 mod known_gaps;
 
 use known_gaps::{CARD_RADIUS, CARD_SIZE, SHADOWS, WEIGHTS, find_faces};

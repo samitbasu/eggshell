@@ -1,4 +1,6 @@
 //! A window with a label; the smallest thing `cargo xtask example` can run.
+//!
+//! F12 toggles the layout debug overlay.
 
 #[path = "common/mod.rs"]
 mod common;

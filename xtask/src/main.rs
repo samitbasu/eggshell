@@ -5,6 +5,7 @@ mod examples;
 mod process;
 mod snapshots;
 mod steps;
+mod summary;
 #[cfg(test)]
 mod testing;
 

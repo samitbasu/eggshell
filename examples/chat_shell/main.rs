@@ -8,6 +8,8 @@
 //! application state. The composer's field is a stock text edit that grows
 //! with its text up to a cap, the model is a select, and the mode a segmented
 //! control. Scrolling arrives with M5; for now overflow is clipped.
+//!
+//! F12 toggles the layout debug overlay.
 
 pub mod centre;
 #[path = "../common/mod.rs"]
@@ -33,6 +35,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_ui_native("chat_shell", options, move |ui, _| {
+        common::toggle_debug(ui.ctx());
         view::prepare(ui.ctx(), &app);
         let k = Theme::of(ui.ctx());
         layout_state.set_base_text(Some(k.base_text()));

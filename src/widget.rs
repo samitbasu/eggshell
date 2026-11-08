@@ -19,7 +19,7 @@
 //! ```
 //!
 //! A widget the layout sizes (a slider that fills its row) takes the width
-//! the leaf is given. `tests/sizing.rs` asserts, for every widget here, that
+//! the leaf is given. `tests/it/sizing.rs` asserts, for every widget here, that
 //! the size equals what egui allocates when it draws the widget.
 
 use std::ops::RangeInclusive;

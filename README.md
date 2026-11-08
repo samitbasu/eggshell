@@ -35,7 +35,7 @@ yet.
   run only) and lists the added, modified and removed ones. Regenerating is a
   reviewed step, not a way to silence a failure: look at every changed image, and
   state in the commit message what changed and why.
-- `--filter NAME` runs only the tests whose name contains `NAME`.
+- `--filter NAME` runs only the goldens whose test name starts with `NAME` (they live in the `snapshots` module of the `it` test binary, so `NAME` is matched after `snapshots::`).
 - `--clean` deletes the stray `.new.png` and `.diff.png` files.
 
 ## License

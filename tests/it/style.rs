@@ -10,7 +10,7 @@ use egui::epaint::Shape;
 use egui::{Color32, Context, FontFamily, Rect, Theme, Vec2, vec2};
 use egui_kittest::Harness;
 
-mod support;
+use crate::support;
 
 use support::{Rig, click_node, hover_over, rect_of};
 

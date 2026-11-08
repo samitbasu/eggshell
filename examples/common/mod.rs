@@ -1,6 +1,9 @@
 //! What the examples share: the base text role, the eframe shell, and the
 //! controls panel the demos put beside their layout, built from bullseye
 //! widgets inside the same tree.
+//!
+//! F12 toggles the layout debug overlay ([`bullseye::Debug`]) in every example
+//! that shows a [`ThemeBar`] or calls [`toggle_debug`].
 #![allow(
     dead_code,
     reason = "each crate that includes this file uses a subset of it"
@@ -15,7 +18,7 @@ use bullseye::prim::text_field::{self, Field};
 use bullseye::style::{Accent, Shadcn, Tokens};
 use bullseye::widget::Slider;
 use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
-use egui::{Color32, Context, FontFamily, Role, Theme, ThemePreference, WidgetInfo};
+use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
 /// The controls panel's width.
 const PANEL_WIDTH: f32 = 240.0;
@@ -39,6 +42,11 @@ pub const APPEARANCES: [(ThemePreference, &str); 3] = [
     (ThemePreference::Light, "Light"),
     (ThemePreference::Dark, "Dark"),
 ];
+
+/// F12 flips the layout debug overlay.
+pub fn toggle_debug(ctx: &Context) {
+    bullseye::Debug::toggle_on(ctx, Key::F12);
+}
 
 /// The tokens the examples are drawn with: the preset applied to the
 /// context, or the preset's own for its current theme.
@@ -213,6 +221,7 @@ impl ThemeBar {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         use_preset(&ctx);
+        toggle_debug(&ctx);
         self.layout.set_base_text(Some(base_text(ctx.theme())));
         let t = tokens(&ctx);
         egui::Panel::top("theme_bar")

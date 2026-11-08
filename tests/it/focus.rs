@@ -7,7 +7,7 @@ use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Key, Rect, vec2};
 use egui_kittest::Harness;
 
-mod support;
+use crate::support;
 
 use support::{Rig, hover_over, press_and_release, rect_of};
 

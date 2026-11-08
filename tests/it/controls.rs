@@ -2,38 +2,33 @@
 //! events: stock sliders, buttons and segmented controls change the demo's
 //! state, and the demo follows.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples/common module"
-)]
-
 use egui::{Vec2, vec2};
 use egui_kittest::Harness;
 
-#[path = "../examples/common/mod.rs"]
+#[path = "../../examples/common/mod.rs"]
 mod common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/button.rs"]
+#[path = "../../examples/button.rs"]
 mod button;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/custom_background.rs"]
+#[path = "../../examples/custom_background.rs"]
 mod custom_background;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/flex_wrap.rs"]
+#[path = "../../examples/flex_wrap.rs"]
 mod flex_wrap;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/flexbox_guide.rs"]
+#[path = "../../examples/flexbox_guide.rs"]
 mod flexbox_guide;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/grow.rs"]
+#[path = "../../examples/grow.rs"]
 mod grow;
 
-mod support;
+use crate::support;
 
 use support::{Rig, click_node, drag, rect_of};
 

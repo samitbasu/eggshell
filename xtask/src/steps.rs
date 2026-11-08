@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::{Result, bail};
 
-use crate::process;
+use crate::{process, summary};
 
 /// One cargo invocation. Every task is a list of these, so each is announced
 /// and failure-reported the same way.
@@ -48,9 +48,12 @@ impl Step {
 
     pub fn run(&self) -> Result<()> {
         eprintln!("==> {}: {self}", self.name);
-        let status = process::run_cargo(&self.args, &self.env)?;
+        let (status, output) = process::run_cargo(&self.args, &self.env)?;
         if !status.success() {
-            bail!("step `{}` failed ({status})", self.name);
+            bail!(
+                "{}",
+                summary::failure_line(self.name, &status.to_string(), &output)
+            );
         }
         Ok(())
     }
@@ -114,8 +117,19 @@ pub fn ci_steps() -> Vec<Step> {
     ]
 }
 
+/// Runs every step, so a failure does not hide the next one, and ends with
+/// one line per failed step, which is the error `main` prints last.
 pub fn run_all(steps: &[Step]) -> Result<()> {
-    steps.iter().try_for_each(Step::run)
+    let failures: Vec<String> = steps
+        .iter()
+        .filter_map(|step| step.run().err())
+        .map(|error| format!("{error:#}"))
+        .collect();
+    if failures.is_empty() {
+        return Ok(());
+    }
+    eprintln!("==> {} of {} step(s) failed", failures.len(), steps.len());
+    bail!("{}", failures.join("\n       "))
 }
 
 pub fn coverage(format: ReportFormat) -> Result<()> {

@@ -2,19 +2,14 @@
 //! by the library and drawn by egui, and the two agree at every width, text
 //! size, style and label the controls offer.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples/common module"
-)]
-
 use egui::{Vec2, vec2};
 use egui_kittest::Harness;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/controls_gallery.rs"]
+#[path = "../../examples/controls_gallery.rs"]
 mod controls_gallery;
 
-mod support;
+use crate::support;
 
 use controls_gallery::{
     CellWidth, Control, Interact, Label, Padding, State, TextSize, layout, prepare,

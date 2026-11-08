@@ -1,23 +1,18 @@
 //! The todo example through the full path: pointer events, hit testing,
 //! group-hover reveal, reordering by data key.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples/common module"
-)]
-
 use egui::epaint::Shape;
 use egui::vec2;
 use egui_kittest::Harness;
 
-#[path = "../examples/common/mod.rs"]
+#[path = "../../examples/common/mod.rs"]
 mod common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/todo.rs"]
+#[path = "../../examples/todo.rs"]
 mod todo;
 
-mod support;
+use crate::support;
 
 use support::{Rig, fill_of, hover_over, press_and_release, rect_of};
 use todo::{ItemKey, State};

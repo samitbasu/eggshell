@@ -3,11 +3,6 @@
 //! Run them with `cargo xtask snapshots`, which selects a deterministic
 //! software renderer; see the README for reviewing and updating goldens.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each example includes the shared examples/common module"
-)]
-
 use std::sync::Once;
 
 use bullseye::style::Tokens;
@@ -15,85 +10,85 @@ use bullseye::{Builder, LayoutState, TextStyle, tw};
 use egui::{Color32, ImageSource, TextureHandle, TextureOptions, Vec2, load::SizedTexture};
 use egui_kittest::Harness;
 
-#[path = "../examples/common/mod.rs"]
+#[path = "../../examples/common/mod.rs"]
 mod common;
 
-#[path = "../examples/kaolin/layouts.rs"]
+#[path = "../../examples/kaolin/layouts.rs"]
 mod layouts;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/button.rs"]
+#[path = "../../examples/button.rs"]
 mod button;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/kaolin/main.rs"]
+#[path = "../../examples/kaolin/main.rs"]
 mod kaolin_gallery;
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/custom_background.rs"]
+#[path = "../../examples/custom_background.rs"]
 mod custom_background;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/chat_shell/main.rs"]
+#[path = "../../examples/chat_shell/main.rs"]
 mod chat_shell;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/controls_gallery.rs"]
+#[path = "../../examples/controls_gallery.rs"]
 mod controls_gallery;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/form.rs"]
+#[path = "../../examples/form.rs"]
 mod form;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/signup_form.rs"]
+#[path = "../../examples/signup_form.rs"]
 mod signup_form;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/flex_demos.rs"]
+#[path = "../../examples/flex_demos.rs"]
 mod flex_demos;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/flex_example.rs"]
+#[path = "../../examples/flex_example.rs"]
 mod flex_example;
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/flex.rs"]
+#[path = "../../examples/flex.rs"]
 mod flex;
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/flex_grid.rs"]
+#[path = "../../examples/flex_grid.rs"]
 mod flex_grid;
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/flex_wrap.rs"]
+#[path = "../../examples/flex_wrap.rs"]
 mod flex_wrap;
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/flexbox_guide.rs"]
+#[path = "../../examples/flexbox_guide.rs"]
 mod flexbox_guide;
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/grow.rs"]
+#[path = "../../examples/grow.rs"]
 mod grow;
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
-#[path = "../examples/holy_grail.rs"]
+#[path = "../../examples/holy_grail.rs"]
 mod holy_grail;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/known_gaps.rs"]
+#[path = "../../examples/known_gaps.rs"]
 mod known_gaps;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/sidebar.rs"]
+#[path = "../../examples/sidebar.rs"]
 mod sidebar;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/todo.rs"]
+#[path = "../../examples/todo.rs"]
 mod todo;
 
-mod support;
+use crate::support;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 
@@ -425,6 +420,26 @@ fn todo_hovered(name: &str, theme: egui::Theme) {
         ),
         Some(egui::pos2(200.0, 88.0)),
         (theme, |_, _| {}),
+    );
+}
+
+/// The todo list with the layout debug overlay on and the pointer over the
+/// second row: every node's hairline, and the hovered node's path and rect.
+#[test]
+fn debug_overlay_todo() {
+    let theme = egui::Theme::Light;
+    snapshot_themed(
+        "debug_overlay_todo",
+        Vec2::new(520.0, 260.0),
+        (
+            todo::State::default(),
+            todo::layout,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        ),
+        Some(egui::pos2(200.0, 88.0)),
+        (theme, |ctx, _| {
+            bullseye::Debug::set(ctx, bullseye::Debug::Outlines)
+        }),
     );
 }
 

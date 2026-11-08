@@ -1,36 +1,31 @@
 //! The examples that once hard-coded light palettes, built under each theme:
 //! their main surfaces carry that theme's tokens. Shapes only, no GPU.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples/common module"
-)]
-
 use bullseye::style::{Accent, Shadcn, Tokens};
 use bullseye::{Builder, LayoutState, NodeKind, Placed, PlacedNode};
 use egui::{Color32, Context, ImageSource, Rect, Theme, pos2};
 
-#[path = "../examples/common/mod.rs"]
+#[path = "../../examples/common/mod.rs"]
 mod common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/button.rs"]
+#[path = "../../examples/button.rs"]
 mod button;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/controls_gallery.rs"]
+#[path = "../../examples/controls_gallery.rs"]
 mod controls_gallery;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/kaolin/main.rs"]
+#[path = "../../examples/kaolin/main.rs"]
 mod kaolin;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/known_gaps.rs"]
+#[path = "../../examples/known_gaps.rs"]
 mod known_gaps;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/todo.rs"]
+#[path = "../../examples/todo.rs"]
 mod todo;
 
 const AREA: Rect = Rect {

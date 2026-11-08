@@ -10,10 +10,11 @@ use taffy::{
 };
 
 use crate::builder::Builder;
+use crate::debug::Debug;
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
-use crate::text::TextStyle;
+use crate::text::{TextStyle, WhiteSpace};
 use crate::tw::{BoxPaint, Focusability, Grouping, Sensing, Sides, Variants};
 
 /// The kind of a node, for diagnostics.
@@ -255,22 +256,29 @@ impl<'f, A> Built<'f, A> {
                             LayoutOutput::from_outer_size(Size::ZERO)
                         });
                     };
-                    let content = match (&node.prim, node.measure) {
-                        (Some(prim), _) => Content::Prim(prim),
-                        (None, Some(index)) => Content::Leaf(&*measures[index]),
-                        (None, None) => Content::Empty,
-                    };
                     leaf_layout(input, style, |input| {
-                        measure_content(ctx, content, &node.text, &input)
+                        measure_content(ctx, node_content(node, &measures), &node.text, &input)
                     })
                 },
             )
             .expect("tree is well formed");
-        drop(measures);
 
         let mut nodes = Vec::new();
         let mut prims = Vec::new();
-        collect(&mut st.tree, root, area.min, 0, &mut nodes, &mut prims);
+        let probe = (Debug::of(ctx) == Debug::Outlines).then_some(Probe {
+            ctx,
+            measures: &measures,
+        });
+        collect(
+            &mut st.tree,
+            root,
+            area.min,
+            0,
+            probe.as_ref(),
+            &mut nodes,
+            &mut prims,
+        );
+        drop(measures);
         let draws = draws.into_iter().map(Some).collect();
         let by_id = nodes
             .iter()
@@ -342,11 +350,52 @@ fn leaf_layout(
     output
 }
 
+fn node_content<'a>(node: &'a Node, measures: &'a [MeasureFn<'_>]) -> Content<'a> {
+    match (&node.prim, node.measure) {
+        (Some(prim), _) => Content::Prim(prim),
+        (None, Some(index)) => Content::Leaf(&*measures[index]),
+        (None, None) => Content::Empty,
+    }
+}
+
+/// Measures leaves again at their final content width, for the debug overlay.
+struct Probe<'a, 'f> {
+    ctx: &'a egui::Context,
+    measures: &'a [MeasureFn<'f>],
+}
+
+impl Probe<'_, '_> {
+    /// The size the leaf's content wants in a content box `content` wide, or
+    /// `None` for a leaf with no content. Truncated text is cut to the box
+    /// by design, so it never wants more than the box's width.
+    fn wanted(&self, node: &Node, content: Size<f32>) -> Option<egui::Vec2> {
+        let content_of = node_content(node, self.measures);
+        if matches!(content_of, Content::Empty) {
+            return None;
+        }
+        let input = LayoutInput {
+            known_dimensions: Size::NONE,
+            available_space: Size {
+                width: AvailableSpace::Definite(content.width),
+                height: AvailableSpace::MaxContent,
+            },
+            ..LayoutInput::HIDDEN
+        };
+        let size = measure_content(self.ctx, content_of, &node.text, &input).size;
+        let width = match node.text.white_space {
+            WhiteSpace::Truncate => size.width.min(content.width),
+            _ => size.width,
+        };
+        Some(vec2(width, size.height))
+    }
+}
+
 fn collect(
     tree: &mut TaffyTree<Node>,
     id: NodeId,
     parent_origin: egui::Pos2,
     depth: usize,
+    probe: Option<&Probe<'_, '_>>,
     nodes: &mut Vec<PlacedNode>,
     prims: &mut Vec<Option<Prim>>,
 ) {
@@ -367,9 +416,31 @@ fn collect(
         left: rect.left,
     };
     let (border, padding) = (edges(layout.border), edges(layout.padding));
+    let is_leaf = tree.children(id).expect("node exists").is_empty();
     let node = tree
         .get_node_context_mut(id)
         .expect("every node has a context");
+    let measured = probe
+        .filter(|_| is_leaf && flow != Flow::Hidden)
+        .and_then(|probe| {
+            let inset = Size {
+                width: layout.padding.left
+                    + layout.padding.right
+                    + layout.border.left
+                    + layout.border.right,
+                height: layout.padding.top
+                    + layout.padding.bottom
+                    + layout.border.top
+                    + layout.border.bottom,
+            };
+            probe.wanted(
+                node,
+                Size {
+                    width: (layout.size.width - inset.width).max(0.0),
+                    height: (layout.size.height - inset.height).max(0.0),
+                },
+            )
+        });
     prims.push(node.prim.take());
     let index = nodes.len();
     nodes.push(PlacedNode {
@@ -389,9 +460,10 @@ fn collect(
         inert: node.inert,
         interaction: node.interaction,
         draw: node.draw,
+        measured,
     });
     for child in tree.children(id).expect("node exists") {
-        collect(tree, child, min, depth + 1, nodes, prims);
+        collect(tree, child, min, depth + 1, probe, nodes, prims);
     }
     nodes[index].end = nodes.len();
 }
@@ -425,6 +497,9 @@ pub struct PlacedNode {
     inert: bool,
     pub(crate) interaction: Interaction,
     pub(crate) draw: Option<usize>,
+    /// What the content of a leaf wants at its final width; recorded only
+    /// while [`Debug::Outlines`] is set.
+    pub(crate) measured: Option<egui::Vec2>,
 }
 
 impl PlacedNode {
