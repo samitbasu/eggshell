@@ -475,7 +475,7 @@ fn the_mode_control_has_one_pressed_cell_and_a_click_changes_it() {
     harness.run_steps(3);
     assert_eq!(harness.state().app.mode, Mode::Thorough);
 
-    let selected = color(&harness, Tok::Selected);
+    let selected = color(&harness, Tok::Line);
     let pressed: Vec<Mode> = Mode::ALL
         .iter()
         .map(|(mode, _)| *mode)

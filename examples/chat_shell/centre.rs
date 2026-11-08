@@ -208,7 +208,7 @@ fn mode(b: &mut B<'_, '_>, app: &App) {
                 .rounded_lg()
                 .focus(|p| p.ring(2.0, k[Tok::Accent]));
             match cell {
-                Cell::Pressed => look.bg(k[Tok::Selected]).text(k[Tok::Ink]),
+                Cell::Pressed => look.bg(k[Tok::Line]).text(k[Tok::Ink]),
                 Cell::Released => look.text(k[Tok::InkMid]).hover(|p| p.bg(k[Tok::Hover])),
             }
         },
