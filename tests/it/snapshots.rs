@@ -643,6 +643,37 @@ fn controls_gallery_dark() {
     gallery_in("controls_gallery_dark", 200.0, egui::Theme::Dark);
 }
 
+/// The owned section: wrapped egui controls beside the same ones built from
+/// nodes, with the checkbox ticked and the toggle on.
+fn owned_section(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let state = controls_gallery::State {
+        section: controls_gallery::Section::Owned,
+        ..Default::default()
+    };
+    let mut harness = support::harness_prepared(
+        Vec2::new(900.0, 800.0),
+        common::base_text(theme),
+        state,
+        controls_gallery::layout,
+        controls_gallery::prepare,
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(12);
+    harness.snapshot(name);
+}
+
+#[test]
+fn controls_gallery_owned_light() {
+    owned_section("controls_gallery_owned_light", egui::Theme::Light);
+}
+
+#[test]
+fn controls_gallery_owned_dark() {
+    owned_section("controls_gallery_owned_dark", egui::Theme::Dark);
+}
+
 #[test]
 fn controls_gallery_wide() {
     gallery("controls_gallery_wide", 300.0);

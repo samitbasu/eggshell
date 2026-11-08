@@ -19,11 +19,12 @@ mod common;
 
 use std::collections::BTreeMap;
 
+use bullseye::owned::{self, variant};
 use bullseye::prim::segmented::segmented;
 use bullseye::prim::select::{self, Options};
 use bullseye::prim::switch::Switch;
 use bullseye::prim::text_field::{self, Field};
-use bullseye::style::ButtonVariant;
+use bullseye::style::{ButtonVariant, Mark};
 use bullseye::widget::{
     Button, Checkbox, ComboBox, DragValue, Lines, RadioButton, Slider, TextEdit,
 };
@@ -293,6 +294,7 @@ pub struct State {
     pub label: Label,
     /// The last frame's report for each cell.
     pub reports: BTreeMap<Control, Report>,
+    pub section: Section,
     pub checked: bool,
     pub selected: bool,
     pub level: f64,
@@ -305,6 +307,24 @@ pub struct State {
     pub on: bool,
     pub choice: usize,
     pub unit: Unit,
+    /// What the owned section's checkboxes and toggle hold.
+    pub owned_checked: bool,
+    pub owned_toggled: bool,
+    /// How often an owned button was clicked.
+    pub owned_clicks: u32,
+}
+
+/// What the gallery's main area shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Section {
+    /// Each wrapped widget in a cell outlined with its computed and drawn rects.
+    Cells,
+    /// Wrapped widgets beside the same controls built from bullseye nodes.
+    Owned,
+}
+
+impl Section {
+    const ALL: [(Self, &'static str); 2] = [(Self::Cells, "cells"), (Self::Owned, "owned")];
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -334,6 +354,10 @@ impl Default for State {
             on: true,
             choice: 0,
             unit: Unit::Metric,
+            section: Section::Cells,
+            owned_checked: true,
+            owned_toggled: true,
+            owned_clicks: 0,
         }
     }
 }
@@ -819,6 +843,11 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
 /// </aside>
 /// ```
 fn controls(b: &mut B<'_, '_>, state: &State) {
+    common::captioned(b, "Section", |b| {
+        common::choice(b, "section", state.section, &Section::ALL, |s| {
+            &mut s.section
+        });
+    });
     common::slider_row(
         b,
         "width",
@@ -881,8 +910,8 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
     common::with_controls(
         b,
         |b| controls(b, state),
-        |b| {
-            b.div(
+        |b| match state.section {
+            Section::Cells => b.div(
                 tw().flex()
                     .flex_wrap()
                     .content_start()
@@ -894,9 +923,159 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                         cell(b, state, control);
                     }
                 },
-            );
+            ),
+            Section::Owned => owned_section(b, state),
         },
     );
+}
+
+const WRAPPED_VARIANTS: [(ButtonVariant, &str, &str); 5] = [
+    (ButtonVariant::Primary, "primary", variant::PRIMARY),
+    (ButtonVariant::Secondary, "secondary", variant::SECONDARY),
+    (
+        ButtonVariant::Destructive,
+        "destructive",
+        variant::DESTRUCTIVE,
+    ),
+    (ButtonVariant::Outline, "outline", variant::OUTLINE),
+    (ButtonVariant::Ghost, "ghost", variant::GHOST),
+];
+
+/// One row of the comparison: a name, the wrapped control, the owned one.
+fn comparison_row<'f>(
+    b: &mut B<'_, 'f>,
+    name: &str,
+    wrapped: impl FnOnce(&mut B<'_, 'f>),
+    owned: impl FnOnce(&mut B<'_, 'f>),
+) {
+    b.div(tw().flex().items_center().gap(4.0), |b| {
+        b.div(
+            tw().w_px(130.0)
+                .shrink_0()
+                .text(common::tokens(b.ctx()).muted_foreground),
+            |b| {
+                b.text(tw(), name);
+            },
+        );
+        b.div(tw().w_px(170.0).shrink_0().flex().items_center(), wrapped);
+        b.div(tw().w_px(170.0).shrink_0().flex().items_center(), owned);
+    });
+}
+
+fn owned_enablement(enablement: Enablement) -> owned::Enablement {
+    match enablement {
+        Enablement::Enabled => owned::Enablement::Enabled,
+        Enablement::Disabled => owned::Enablement::Disabled,
+    }
+}
+
+fn wrapped_leaf(enablement: Enablement) -> Tw {
+    match enablement {
+        Enablement::Enabled => tw(),
+        Enablement::Disabled => tw().inert().opacity(bullseye::Opacity::new(0.5)),
+    }
+}
+
+/// The wrapped egui controls beside the same ones built from nodes.
+///
+/// ```html
+/// <div class="flex flex-col gap-3 p-3">
+///   <div class="flex gap-4"><span class="w-[130px]">name</span> wrapped owned</div>
+///   …a row per button variant, enabled and disabled, the toggle and the checkbox…
+/// </div>
+/// ```
+fn owned_section(b: &mut B<'_, '_>, state: &State) {
+    b.div(tw().flex().flex_col().gap(3.0).p(3.0), |b| {
+        comparison_row(
+            b,
+            "",
+            |b| b.text(tw(), "wrapped egui"),
+            |b| b.text(tw(), "owned nodes"),
+        );
+        for enablement in [Enablement::Enabled, Enablement::Disabled] {
+            for (wrapped, name, owned_name) in WRAPPED_VARIANTS {
+                let label = match enablement {
+                    Enablement::Enabled => name.to_owned(),
+                    Enablement::Disabled => format!("{name}, disabled"),
+                };
+                comparison_row(
+                    b,
+                    &label,
+                    |b| {
+                        b.widget(
+                            ("wrapped", name, enablement),
+                            wrapped_leaf(enablement),
+                            Button::new("Button").variant(wrapped),
+                            |_, ui, button| {
+                                button.show(ui);
+                            },
+                        );
+                    },
+                    |b| {
+                        owned::Button::new("Button")
+                            .variant(owned_name)
+                            .enablement(owned_enablement(enablement))
+                            .show(b, ("owned", name, enablement), |s: &mut State| {
+                                s.owned_clicks += 1;
+                            });
+                    },
+                );
+            }
+        }
+        let toggled = Mark::from(state.owned_toggled);
+        comparison_row(
+            b,
+            "toggle",
+            |b| {
+                b.widget(
+                    "wrapped-toggle",
+                    tw(),
+                    Button::selectable("Toggle", toggled),
+                    |s: &mut State, ui, button| {
+                        if button.show(ui).clicked() {
+                            s.owned_toggled = !s.owned_toggled;
+                        }
+                    },
+                );
+            },
+            |b| {
+                owned::Button::toggle("Toggle", toggled).show(
+                    b,
+                    "owned-toggle",
+                    |s: &mut State| {
+                        s.owned_toggled = !s.owned_toggled;
+                    },
+                );
+            },
+        );
+        for enablement in [Enablement::Enabled, Enablement::Disabled] {
+            let label = match enablement {
+                Enablement::Enabled => "checkbox",
+                Enablement::Disabled => "checkbox, disabled",
+            };
+            comparison_row(
+                b,
+                label,
+                |b| {
+                    b.widget(
+                        ("wrapped-checkbox", enablement),
+                        wrapped_leaf(enablement),
+                        Checkbox::new("Accept terms"),
+                        |s: &mut State, ui, checkbox| {
+                            checkbox.show(ui, &mut s.owned_checked);
+                        },
+                    );
+                },
+                |b| {
+                    owned::Checkbox::new("Accept terms", Mark::from(state.owned_checked))
+                        .enablement(owned_enablement(enablement))
+                        .show(b, ("owned-checkbox", enablement), |s: &mut State| {
+                            s.owned_checked = !s.owned_checked;
+                        });
+                },
+            );
+        }
+    });
 }
 
 /// The text style the gallery's layout starts from.

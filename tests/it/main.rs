@@ -19,6 +19,7 @@ mod interaction;
 mod kaolin_sidebar;
 mod known_gaps_demo;
 mod layout;
+mod owned;
 mod ports;
 mod prims;
 mod sizing;
