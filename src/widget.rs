@@ -340,7 +340,8 @@ impl TextEdit {
         }
     }
 
-    /// Stops a multi-line field growing after `max` rows. It scrolls instead.
+    /// Stops a multi-line field growing at the height of a field `max` rows
+    /// tall (egui's `desired_rows`). It scrolls instead.
     pub fn max_rows(mut self, max: usize) -> Self {
         if let Lines::Multi { min, .. } = self.lines {
             self.lines = Lines::Multi {

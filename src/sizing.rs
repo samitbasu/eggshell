@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use egui::epaint::text::TextWrapping;
 use egui::{
-    Align, Context, FontId, Frame, Galley, NumExt as _, Style, TextWrapMode, Vec2, WidgetText,
+    Align, Context, FontId, Frame, Galley, NumExt as _, Style, TextWrapMode, Ui, Vec2, WidgetText,
 };
 
 use crate::TextStyle;
@@ -93,6 +93,21 @@ impl<'a> Sizer<'a> {
         let mut style = (*ctx.global_style()).clone();
         style.override_font_id = Some(font.clone());
         Self { ctx, style, font }
+    }
+
+    /// The sizer for widgets drawn in `ui`, whose style the draw phase has
+    /// already given the node's font.
+    pub fn for_ui(ui: &'a Ui) -> Self {
+        let style = (**ui.style()).clone();
+        let font = style
+            .override_font_id
+            .clone()
+            .unwrap_or_else(|| egui::TextStyle::Body.resolve(&style));
+        Self {
+            ctx: ui.ctx(),
+            style,
+            font,
+        }
     }
 
     pub fn row_height(&self, font: &FontId) -> f32 {

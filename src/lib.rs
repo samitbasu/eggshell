@@ -18,7 +18,7 @@ mod focus;
 mod key;
 mod measure;
 mod pipeline;
-mod prim;
+pub mod prim;
 mod sizing;
 mod text;
 mod tw;
