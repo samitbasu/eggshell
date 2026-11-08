@@ -329,12 +329,15 @@ impl Tw {
         self
     }
 
-    /// Whether the classes declare any sense, group or variant, which only an
-    /// identified node can carry.
-    pub(crate) fn is_interactive(&self) -> bool {
+    /// Whether the classes declare a sense, a group, a `hover` or `active`
+    /// variant or a transition, which only an identified node can carry.
+    /// `group_hover` alone reads its group's state and needs no identity of
+    /// its own, so an anonymous child can follow its parent's hover.
+    pub(crate) fn needs_identity(&self) -> bool {
         !self.sensing.is_none()
             || self.grouping == Grouping::Group
-            || !self.variants.is_empty()
+            || self.variants.get(State::Hover).is_some()
+            || self.variants.get(State::Active).is_some()
             || self.variants.transition.is_some()
     }
 }
@@ -399,10 +402,17 @@ mod tests {
 
     #[test]
     fn plain_classes_are_not_interactive() {
-        assert!(!tw().bg(Color32::RED).is_interactive());
-        assert!(tw().sense_hover().is_interactive());
-        assert!(tw().group().is_interactive());
-        assert!(tw().transition(Duration::from_millis(1)).is_interactive());
+        assert!(!tw().bg(Color32::RED).needs_identity());
+        assert!(tw().sense_hover().needs_identity());
+        assert!(tw().group().needs_identity());
+        assert!(tw().transition(Duration::from_millis(1)).needs_identity());
+        assert!(tw().hover(|p| p.bg(Color32::RED)).needs_identity());
+        assert!(tw().active(|p| p.bg(Color32::RED)).needs_identity());
+    }
+
+    #[test]
+    fn group_hover_alone_needs_no_identity() {
+        assert!(!tw().group_hover(|p| p.bg(Color32::RED)).needs_identity());
     }
 
     #[test]

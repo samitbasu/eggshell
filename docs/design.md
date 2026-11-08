@@ -421,7 +421,7 @@ b.div_id(("row", key), tw().flex().h(7.0).items_center().gap(1.0).rounded_md()
 });
 ```
 
-**Sense.** `sense_click()`, `sense_drag()`, `sense_click_drag()`, `sense_hover()`. A node with `hover` / `active` implies at least the matching sense. Only identified nodes (`div_id`, `leaf`, `span`, `icon`) may declare a sense or variants. Variants on an anonymous node are a build error (debug assertion).
+**Sense.** `sense_click()`, `sense_drag()`, `sense_click_drag()`, `sense_hover()`. A node with `hover` / `active` implies at least the matching sense. Only identified nodes (`div_id`, `leaf`, `span`, `icon`) may declare a sense, a group, `hover` / `active` variants or a `transition`; on an anonymous node that is a build error (debug assertion). `group_hover` alone is the exception: it only reads the group's state, so an anonymous child may follow its parent's hover (a `transition` on it needs an identified node).
 
 **Variants (v1).**
 - `hover(|p| …)`: pointer over the node's border box with no sensing node above it in its layer, or over a sensing descendant (CSS `:hover`, so a row stays highlighted over its buttons). Calls accumulate: the closure receives the paint so far.

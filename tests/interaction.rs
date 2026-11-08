@@ -549,6 +549,58 @@ fn variants_on_an_anonymous_node_are_a_build_error() {
     });
 }
 
+/// ```html
+/// <div class="group w-[100px] h-[40px] bg-[#141414] hover:bg-[#dc1414]">
+///   <div class="w-[10px] h-[10px] bg-[#141414] group-hover:bg-[#dc1414]"></div>
+/// </div>
+/// ```
+fn anonymous_child(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id(
+        "parent",
+        tw().w_px(100.0).h_px(40.0).bg(BASE).group().sense_hover(),
+        none,
+        |b| {
+            b.rule(
+                tw().w_px(10.0)
+                    .h_px(10.0)
+                    .bg(BASE)
+                    .group_hover(|p| p.bg(LIT)),
+            );
+        },
+    );
+}
+
+#[test]
+fn an_anonymous_child_follows_its_groups_hover() {
+    let mut harness = harness((), anonymous_child);
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    hover(&mut harness, 80.0, 30.0);
+    assert_eq!(
+        fill_at(&harness, 0.0, 0.0),
+        Some(LIT),
+        "the child lights while the pointer is elsewhere in the group"
+    );
+    hover(&mut harness, 300.0, 200.0);
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+}
+
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "only identified nodes")]
+fn a_transition_on_an_anonymous_node_is_a_build_error() {
+    let mut layout = LayoutState::new();
+    let ctx = egui::Context::default();
+    ctx.run_ui(egui::RawInput::default(), |_| {})
+        .drop_without_applying_deltas();
+    layout.build::<()>(&ctx, |b| {
+        b.div(
+            tw().group_hover(|p| p.bg(Color32::RED))
+                .transition(Duration::from_millis(100)),
+            |_| {},
+        );
+    });
+}
+
 #[cfg(debug_assertions)]
 #[test]
 #[should_panic(expected = "only identified nodes")]
