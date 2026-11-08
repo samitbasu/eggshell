@@ -59,6 +59,20 @@ pub fn harness_prepared<A: 'static>(
     accessibility: Accessibility,
     prepare: fn(&egui::Context, &A),
 ) -> Harness<'static, Rig<A>> {
+    harness_scaled(size, 1.0, base_text, app, view, accessibility, prepare)
+}
+
+/// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
+/// points.
+pub fn harness_scaled<A: 'static>(
+    size: Vec2,
+    pixels_per_point: f32,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    accessibility: Accessibility,
+    prepare: fn(&egui::Context, &A),
+) -> Harness<'static, Rig<A>> {
     let rig = Rig {
         layout: LayoutState::new().with_base_text(base_text),
         app,
@@ -69,6 +83,7 @@ pub fn harness_prepared<A: 'static>(
     };
     Harness::builder()
         .with_size(size)
+        .with_pixels_per_point(pixels_per_point)
         .with_step_dt(0.05)
         .with_accessibility_check(matches!(accessibility, Accessibility::Checked))
         .build_ui_state(

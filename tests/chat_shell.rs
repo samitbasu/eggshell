@@ -519,3 +519,109 @@ fn tab_reaches_the_model_then_the_composer_in_order_and_skips_an_inert_send() {
     }
     assert!(with_send.iter().any(|stop| stop == "/Centre/Composer/Send"));
 }
+
+mod composer_growth {
+    use super::*;
+    use bullseye::Width;
+    use bullseye::widget::Stock as _;
+    use egui::{Event, Key};
+
+    const MIN_ROWS: usize = 3;
+    const MAX_ROWS: usize = 8;
+    const FIELD: &str = "/Centre/Composer/Field";
+
+    fn scaled_harness(pixels_per_point: f32) -> Harness<'static, Rig<App>> {
+        let app = App::default();
+        let mut harness = support::harness_scaled(
+            WINDOW,
+            pixels_per_point,
+            app.theme.base_text(),
+            app,
+            layout,
+            support::Accessibility::Checked,
+            prepare,
+        );
+        harness.run();
+        click_node(&mut harness, "/Centre/Composer/Field");
+        harness.run();
+        harness
+    }
+
+    /// The rect egui drew the text edit at: its whole content, not the part
+    /// a scroll area shows.
+    fn edit_rect(harness: &Harness<'_, Rig<App>>) -> egui::Rect {
+        harness.get_by_label("Message").rect()
+    }
+
+    fn estimate(harness: &Harness<'_, Rig<App>>) -> Vec2 {
+        let app = &harness.state().app;
+        let field = bullseye::prim::text_field::Field::multiline(&app.draft, MIN_ROWS)
+            .max_rows(MAX_ROWS)
+            .hint("Reply…")
+            .bare();
+        let width = rect_of(harness, FIELD).width();
+        field.size(
+            &harness.ctx,
+            &app.theme.base_text(),
+            Some(Width::new(width)),
+        )
+    }
+
+    /// A new line, one frame, and what the composer looks like in it.
+    fn new_line(harness: &mut Harness<'_, Rig<App>>) {
+        harness.event(Event::Text("x".into()));
+        harness.key_press(Key::Enter);
+        harness.step();
+    }
+
+    #[test]
+    fn the_field_is_laid_out_at_the_height_egui_draws_it_in_the_frame_of_the_keystroke() {
+        for pixels_per_point in [1.0, 1.5, 2.0] {
+            let mut harness = scaled_harness(pixels_per_point);
+            let snap = 1.0 / pixels_per_point;
+            for rows in 1..=MAX_ROWS + 1 {
+                new_line(&mut harness);
+                let drawn_rows = rows + 1;
+                let field = rect_of(&harness, FIELD);
+                let edit = edit_rect(&harness);
+                let estimate = estimate(&harness);
+                let context = format!("ppp {pixels_per_point}, {rows} lines");
+                assert!(
+                    (field.height() - estimate.y).abs() <= snap,
+                    "{context}: leaf {field:?} vs estimate {estimate:?}"
+                );
+                if drawn_rows <= MAX_ROWS {
+                    assert!(
+                        (edit.height() - field.height()).abs() <= snap,
+                        "{context}: the field draws {edit:?} in a leaf of {field:?}"
+                    );
+                    assert!(
+                        (edit.height() - estimate.y).abs() <= snap,
+                        "{context}: estimate {estimate:?} vs drawn {edit:?}"
+                    );
+                } else {
+                    assert!(
+                        edit.height() > field.height(),
+                        "{context}: precondition: the text is taller than the cap"
+                    );
+                }
+                let scrolling = drawn_rows > MAX_ROWS;
+                for _ in 0..3 {
+                    harness.step();
+                    assert_eq!(
+                        rect_of(&harness, FIELD),
+                        field,
+                        "{context}: the leaf moved with no input"
+                    );
+                    if !scrolling {
+                        assert_eq!(
+                            edit_rect(&harness),
+                            edit,
+                            "{context}: the field moved with no input"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

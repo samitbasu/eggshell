@@ -426,9 +426,17 @@ impl TextEdit {
 
     /// Adds the field to `ui`, filling its rect, editing `text`. Focus and
     /// the cursor follow the leaf's identity.
+    ///
+    /// The leaf was sized from the text as it was when the frame was built.
+    /// A keystroke that changes the field's height asks egui for another
+    /// pass, so the frame that is painted is laid out for the new text
+    /// instead of showing one row too many or too few for a frame.
     pub fn show(&self, ui: &mut Ui, text: &mut String) -> Response {
         let rect = ui.max_rect();
         let id = ui.make_persistent_id("text");
+        let width = Width::new(rect.width());
+        let before = self.fit(&Sizer::for_ui(ui), text, Some(width));
+        let before_text = text.clone();
         let mut edit = match self.lines {
             Lines::Single => egui::TextEdit::singleline(text),
             Lines::Multi { .. } => egui::TextEdit::multiline(text).desired_rows(self.rows()),
@@ -442,28 +450,35 @@ impl TextEdit {
         if let Some(hint) = &self.hint {
             edit = edit.hint_text(hint.as_str());
         }
-        match self.lines {
-            Lines::Multi { max: Some(_), .. } => {
+        let response = match self.lines {
+            Lines::Multi { max: Some(_), .. } if before.scrolls() => {
                 ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
                     egui::ScrollArea::vertical()
                         .id_salt(id.with("scroll"))
                         .auto_shrink(false)
+                        .min_scrolled_height(0.0)
                         .show(ui, |ui| ui.add(edit))
                         .inner
                 })
                 .inner
             }
             _ => place(ui, edit),
+        };
+        if response.changed() && *text != before_text {
+            let after = self.fit(&Sizer::for_ui(ui), text, Some(width));
+            if after.size.y != before.size.y {
+                ui.ctx().request_discard("text field changed height");
+            }
         }
+        response
     }
-}
 
-impl Stock for TextEdit {
-    fn size(&self, ctx: &Context, text: &TextStyle, width: Option<Width>) -> Vec2 {
-        let sizer = Sizer::new(ctx, text);
+    /// The size the field takes with `text` in it, and how tall its text
+    /// would be if the cap did not stop it.
+    fn fit(&self, sizer: &Sizer<'_>, text: &str, width: Option<Width>) -> Fit {
         let spacing = &sizer.style.spacing;
         let frame = match self.framing {
-            Framing::Framed => text_edit_frame(&sizer),
+            Framing::Framed => text_edit_frame(sizer),
             Framing::Bare => Frame::NONE,
         };
         let margin = frame.total_margin().sum();
@@ -476,7 +491,7 @@ impl Stock for TextEdit {
             (min_inner_height + margin.y).at_least(spacing.interact_size.y),
         );
 
-        let inner = match (&self.hint, self.text.is_empty()) {
+        let inner = match (&self.hint, text.is_empty()) {
             (Some(hint), true) => {
                 let wrap = match self.lines {
                     Lines::Single => TextWrapMode::Truncate,
@@ -486,7 +501,7 @@ impl Stock for TextEdit {
                 sizer.galley(hint.into(), wrap, inner_width).size()
             }
             _ => {
-                let galley = text_edit_galley(&sizer, &self.text, self.lines, inner_width, line);
+                let galley = text_edit_galley(sizer, text, self.lines, inner_width, line);
                 let mut size = galley.size();
                 size.y = size.y.at_least(min_inner_height);
                 if self.lines == Lines::Single {
@@ -495,14 +510,34 @@ impl Stock for TextEdit {
                 size
             }
         };
-        let outer = (inner + margin).at_least(min_size);
-        match self.lines {
-            Lines::Multi { max: Some(max), .. } => outer.at_most(vec2(
+        let natural = (inner + margin).at_least(min_size);
+        let size = match self.lines {
+            Lines::Multi { max: Some(max), .. } => natural.at_most(vec2(
                 f32::INFINITY,
                 (max as f32 * line + margin.y).at_least(min_size.y),
             )),
-            _ => outer,
-        }
+            _ => natural,
+        };
+        Fit { natural, size }
+    }
+}
+
+/// What a text edit takes, and what it would take without a cap.
+struct Fit {
+    natural: Vec2,
+    size: Vec2,
+}
+
+impl Fit {
+    /// Whether the cap hides some of the text, which then scrolls.
+    fn scrolls(&self) -> bool {
+        self.natural.y > self.size.y
+    }
+}
+
+impl Stock for TextEdit {
+    fn size(&self, ctx: &Context, text: &TextStyle, width: Option<Width>) -> Vec2 {
+        self.fit(&Sizer::new(ctx, text), &self.text, width).size
     }
 }
 
