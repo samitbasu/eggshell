@@ -1,6 +1,7 @@
 //! The middle pane: title bar, conversation and composer.
 
-use bullseye::{Builder, Tw, none, tw};
+use bullseye::{Builder, NodeUi, Opacity, Tw, fill, none, tw};
+use egui::{Frame, Key, TextEdit, WidgetInfo};
 
 use super::icons::{self, Glyph};
 use super::state::{App, Block, Message};
@@ -154,21 +155,46 @@ fn tool_button(k: &Theme, shape: Tw) -> Tw {
         .hover(|p| p.bg(k[Tok::Hover]))
 }
 
+/// The reply field fills its leaf; Ctrl+Enter (Cmd+Enter on macOS) sends.
+fn field(app: &mut App, ui: &mut egui::Ui) {
+    let response = ui.add_sized(
+        ui.available_size(),
+        TextEdit::multiline(&mut app.draft)
+            .frame(Frame::NONE)
+            .hint_text("Reply…"),
+    );
+    response.widget_info(|| {
+        WidgetInfo::labeled(egui::Role::MultilineTextInput, ui.is_enabled(), "Message")
+    });
+    let chord = ui.input(|input| input.modifiers.command && input.key_pressed(Key::Enter));
+    if chord && response.has_focus() {
+        app.send();
+    }
+}
+
 /// The composer is the last child of a column whose conversation grows, so it
 /// sits at the bottom whatever the conversation holds.
 ///
 /// ```html
 /// <div class="flex justify-center shrink-0 px-4 pb-4">
 ///   <div class="flex flex-col gap-3 w-full max-w-[720px] p-3 rounded-2xl border border-[#383838] bg-[#2b2b2b]">
-///     <span class="text-[#7c7c7c]">Reply…</span>
+///     <textarea class="w-full h-14 px-1 resize-none bg-transparent outline-none" placeholder="Reply…"></textarea>
 ///     <div class="flex items-center justify-between">
 ///       <button class="size-8 rounded-lg hover:bg-[#2e2e2e]">+</button>
-///       <button class="size-8 rounded-full bg-[#6f8fb3] hover:bg-[#84a2c4]">↑</button>
+///       <button class="size-8 rounded-full bg-[#6f8fb3] hover:bg-[#84a2c4] disabled:opacity-50">↑</button>
 ///     </div>
 ///   </div>
 /// </div>
 /// ```
-fn composer(b: &mut B<'_, '_>, k: &Theme) {
+fn composer(b: &mut B<'_, '_>, app: &App) {
+    let k = &app.theme;
+    let send_button = |shape: Tw| {
+        if app.draft.trim().is_empty() {
+            shape.inert().opacity(Opacity::new(0.4))
+        } else {
+            shape
+        }
+    };
     b.div(
         tw().flex().justify_center().shrink_0().px(4.0).pb(4.0),
         |b| {
@@ -186,7 +212,7 @@ fn composer(b: &mut B<'_, '_>, k: &Theme) {
                     .bg(k[Tok::Surface]),
                 none,
                 |b| {
-                    b.text(tw().text(k[Tok::InkDim]).px(1.0), "Reply…");
+                    b.leaf(Part::Field, tw().w_full().h_px(56.0).px(1.0), fill, field);
                     b.div(tw().flex().items_center().justify_between(), |b| {
                         b.div_id(Part::Attach, tool_button(k, tw().rounded_lg()), none, |b| {
                             b.paint(
@@ -196,9 +222,16 @@ fn composer(b: &mut B<'_, '_>, k: &Theme) {
                         });
                         b.div_id(
                             Part::Send,
-                            tool_button(k, tw().rounded_full().bg(k[Tok::Accent]))
-                                .hover(|p| p.bg(k[Tok::AccentHover])),
-                            none,
+                            send_button(
+                                tool_button(k, tw().rounded_full().bg(k[Tok::Accent]))
+                                    .hover(|p| p.bg(k[Tok::AccentHover]))
+                                    .sense_click(),
+                            ),
+                            |app: &mut App, ui| {
+                                if ui.node_response().clicked() {
+                                    app.send();
+                                }
+                            },
                             |b| {
                                 b.paint(
                                     tw().size_px(18.0),
@@ -233,7 +266,7 @@ pub fn centre(b: &mut B<'_, '_>, app: &App) {
         |b| {
             top_bar(b, app);
             conversation(b, app);
-            composer(b, &app.theme);
+            composer(b, app);
         },
     );
 }

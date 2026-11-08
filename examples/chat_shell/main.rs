@@ -5,8 +5,9 @@
 //! The capstone of the builder pattern so far: one theme of tokens resolved
 //! once, identified nodes that sense hover, clicks and drags, paint variants
 //! for every interactive state, and layout that follows the widths held in
-//! application state. The composer's text field arrives with M4 and scrolling
-//! with M5; for now the placeholder is static and overflow is clipped.
+//! application state. The composer's text field has a fixed height until
+//! M4 sizes widgets by their content, and scrolling arrives with M5; for now
+//! overflow is clipped.
 
 pub mod centre;
 pub mod details;

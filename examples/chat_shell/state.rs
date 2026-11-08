@@ -93,6 +93,7 @@ pub struct App {
     pub selected: SessionKey,
     pub conversation: Vec<Message>,
     pub context_used: Progress,
+    pub draft: String,
     sidebar: PaneWidth,
     details: PaneWidth,
     drag: Option<Drag>,
@@ -147,6 +148,7 @@ impl Default for App {
                 )]),
             ],
             context_used: Progress::new(0.42),
+            draft: String::new(),
             sidebar: PaneWidth::new(Pane::Sidebar, Pane::Sidebar.default_width()),
             details: PaneWidth::new(Pane::Details, Pane::Details.default_width()),
             drag: None,
@@ -167,6 +169,17 @@ impl App {
             Pane::Sidebar => &mut self.sidebar,
             Pane::Details => &mut self.details,
         }
+    }
+
+    /// Appends the trimmed draft to the conversation as a user message and
+    /// clears it; an empty draft does nothing.
+    pub fn send(&mut self) {
+        let text = self.draft.trim();
+        if text.is_empty() {
+            return;
+        }
+        self.conversation.push(Message::User(text.to_owned()));
+        self.draft.clear();
     }
 
     pub fn begin_drag(&mut self, pane: Pane, pointer_x: f32) {

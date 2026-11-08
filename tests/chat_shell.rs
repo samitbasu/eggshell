@@ -224,3 +224,98 @@ fn recents_light_under_the_pointer_but_the_selected_one_keeps_its_fill() {
     );
     assert_ne!(fill_of(&harness, &session_path(other)), Some(hover));
 }
+
+// -------------------------------------------------------------------- composer
+
+use egui::accesskit::Role as AccessRole;
+use egui_kittest::kittest::{NodeT, Queryable};
+
+fn user_messages(harness: &Harness<'_, Rig<App>>) -> Vec<String> {
+    harness
+        .state()
+        .app
+        .conversation
+        .iter()
+        .filter_map(|message| match message {
+            chat_shell::state::Message::User(text) => Some(text.clone()),
+            chat_shell::state::Message::Assistant(_) => None,
+        })
+        .collect()
+}
+
+/// Focuses the reply field by clicking it and types `text` into it.
+fn type_reply(harness: &mut Harness<'_, Rig<App>>, text: &str) {
+    click_node(harness, "/Centre/Composer/Field");
+    harness.run_steps(2);
+    harness.get_by_label("Message").type_text(text);
+    harness.run_steps(3);
+}
+
+#[test]
+fn typing_into_the_reply_field_updates_the_draft() {
+    let mut harness = harness();
+    assert!(harness.state().app.draft.is_empty(), "precondition");
+    assert_eq!(
+        harness.get_by_label("Message").accesskit_node().role(),
+        AccessRole::MultilineTextInput
+    );
+
+    type_reply(&mut harness, "hello there");
+    assert_eq!(harness.state().app.draft, "hello there");
+}
+
+#[test]
+fn clicking_send_appends_the_trimmed_draft_and_clears_it() {
+    let mut harness = harness();
+    let before = user_messages(&harness);
+    type_reply(&mut harness, "  a question \n");
+    assert_eq!(harness.state().app.draft, "  a question \n");
+
+    click_node(&mut harness, "/Centre/Composer/Send");
+    harness.run_steps(3);
+    let mut expected = before;
+    expected.push("a question".into());
+    assert_eq!(user_messages(&harness), expected);
+    assert!(harness.state().app.draft.is_empty());
+}
+
+#[test]
+fn ctrl_enter_in_the_field_sends() {
+    let mut harness = harness();
+    let before = user_messages(&harness).len();
+    type_reply(&mut harness, "via keyboard");
+
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Enter);
+    harness.run_steps(3);
+    assert_eq!(user_messages(&harness).len(), before + 1);
+    assert_eq!(user_messages(&harness).last().unwrap(), "via keyboard");
+    assert!(harness.state().app.draft.is_empty());
+}
+
+#[test]
+fn send_is_inert_while_the_draft_is_empty() {
+    let mut harness = harness();
+    let before = user_messages(&harness);
+    let dimmed = |harness: &Harness<'_, Rig<App>>| {
+        fill_of(harness, "/Centre/Composer/Send").map(|fill| fill.a())
+    };
+    let empty = dimmed(&harness);
+
+    click_node(&mut harness, "/Centre/Composer/Send");
+    harness.run_steps(3);
+    assert_eq!(user_messages(&harness), before, "nothing to send");
+
+    harness.state_mut().app.draft = "   ".into();
+    harness.run_steps(2);
+    click_node(&mut harness, "/Centre/Composer/Send");
+    harness.run_steps(3);
+    assert_eq!(user_messages(&harness), before, "whitespace is empty");
+
+    harness.state_mut().app.draft = "x".into();
+    harness.run_steps(2);
+    assert!(
+        dimmed(&harness) > empty,
+        "a draft makes the button opaque: {empty:?} -> {:?}",
+        dimmed(&harness)
+    );
+}

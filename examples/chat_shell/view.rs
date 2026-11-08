@@ -26,6 +26,7 @@ pub enum Part {
     Composer,
     Attach,
     Send,
+    Field,
     Meter,
 }
 
