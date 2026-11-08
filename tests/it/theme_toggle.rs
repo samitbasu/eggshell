@@ -1,11 +1,6 @@
 //! The System / Light / Dark toggle every example shows, through the real
 //! path: the strip the examples' loops share, clicked with the pointer.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples/common module"
-)]
-
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -13,7 +8,7 @@ use egui::ThemePreference;
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-#[path = "../examples/common/mod.rs"]
+#[path = "../../examples/common/mod.rs"]
 mod common;
 
 fn preference(harness: &Harness<'_, common::ThemeBar>) -> ThemePreference {

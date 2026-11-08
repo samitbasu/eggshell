@@ -6,7 +6,7 @@ use egui::epaint::{ClippedShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, Vec2};
 use egui_kittest::Harness;
 
-mod support;
+use crate::support;
 use support::Rig;
 
 const SIZE: Vec2 = Vec2::new(400.0, 300.0);

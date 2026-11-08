@@ -10,7 +10,7 @@ use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-mod support;
+use crate::support;
 
 use support::{Rig, click_node, drag, rect_of};
 

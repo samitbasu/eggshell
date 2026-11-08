@@ -2,31 +2,26 @@
 //! their items, and the controls and widgets inside them driven by pointer
 //! and keyboard events.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples/common module"
-)]
-
 use egui::{Rect, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-#[path = "../examples/common/mod.rs"]
+#[path = "../../examples/common/mod.rs"]
 mod common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/flex_demos.rs"]
+#[path = "../../examples/flex_demos.rs"]
 mod flex_demos;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/flex_example.rs"]
+#[path = "../../examples/flex_example.rs"]
 mod flex_example;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/signup_form.rs"]
+#[path = "../../examples/signup_form.rs"]
 mod signup_form;
 
-mod support;
+use crate::support;
 
 use support::{Rig, click_node, drag, focused_node, rect_of};
 

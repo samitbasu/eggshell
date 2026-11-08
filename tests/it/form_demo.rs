@@ -1,23 +1,18 @@
 //! The form through the full path: Tab order, typing, inert leaves, the
 //! selects, toggle buttons and swatches, with accessible names checked.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples/common module"
-)]
-
 use egui::{Key, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-#[path = "../examples/common/mod.rs"]
+#[path = "../../examples/common/mod.rs"]
 mod common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/form.rs"]
+#[path = "../../examples/form.rs"]
 mod form;
 
-mod support;
+use crate::support;
 
 use form::{Mark, Part, State, Theme, layout};
 use support::{Rig, click_node, focused_node, rect_of};

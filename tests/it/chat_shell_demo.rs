@@ -1,19 +1,14 @@
 //! The chat shell through the full path: pointer events, hit testing, drag
 //! handling in the draw closures, and the geometry the layout promises.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples modules"
-)]
-
 use egui::{CursorIcon, Vec2, vec2};
 use egui_kittest::Harness;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/chat_shell/main.rs"]
+#[path = "../../examples/chat_shell/main.rs"]
 mod chat_shell;
 
-mod support;
+use crate::support;
 
 use chat_shell::sidebar::Link;
 use chat_shell::state::{App, Pane, SessionKey};

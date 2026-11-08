@@ -1,22 +1,17 @@
 //! The kaolin gallery's sidebar rows hold stock buttons the library sizes:
 //! no row overlaps the next, and each button is drawn inside its row.
 
-#![allow(
-    clippy::duplicate_mod,
-    reason = "each test crate includes the shared examples/common module"
-)]
-
 use bullseye::LayoutState;
 use egui::accesskit::Role;
 use egui::{ImageSource, Rect, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-#[path = "../examples/common/mod.rs"]
+#[path = "../../examples/common/mod.rs"]
 mod common;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../examples/kaolin/main.rs"]
+#[path = "../../examples/kaolin/main.rs"]
 mod kaolin;
 
 #[derive(Clone, Copy, Debug)]

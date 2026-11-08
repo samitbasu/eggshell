@@ -149,10 +149,14 @@ copying this file elsewhere.
 
 - Repetitive work and scripts go through `cargo xtask`, never shell scripts,
   Makefiles or justfiles. CI calls the same commands a developer runs.
+- All integration tests are one binary, `tests/it/main.rs`, with one module
+  per former test file (`cargo test --test it layout::`). Each test crate
+  statically links egui and friends, and a binary per file exhausted the CI
+  runner's disk. Add new test files as modules there, not as `tests/*.rs`.
 - `cargo xtask ci` is the single definition of "CI passes". Also available:
   `fmt [--check]`, `test [-- ARGS]`, `coverage [--lcov]`,
   `example [NAME] [--release]`. See `cargo xtask --help`.
-- Golden images (`tests/snapshots/`, rendered by `tests/snapshots.rs` behind the
+- Golden images (`tests/snapshots/`, rendered by `tests/it/snapshots.rs` behind the
   `snapshots` cargo feature) are checked with `cargo xtask snapshots`, which
   forces Mesa lavapipe so every machine renders the same pixels. It is not in
   `cargo xtask ci` yet. After a change that can move pixels, run it; on a
@@ -161,5 +165,5 @@ copying this file elsewhere.
   added, modified and removed ones: look at each image (the PNG diff is the
   review, as in a code diff) before committing, and say in the commit message
   what changed and why. Never update goldens to silence a failure.
-  `--filter NAME` limits the run; `--clean` deletes stray `.new.png` and
+  `--filter NAME` limits the run to goldens whose test name starts with `NAME`; `--clean` deletes stray `.new.png` and
   `.diff.png` files.

@@ -90,7 +90,7 @@ fn renderer_step(plan: &Plan, icd: &Path) -> Step {
             "--features",
             "snapshots",
             "--test",
-            "snapshots",
+            "it",
             "--",
             "--nocapture",
         ],
@@ -100,8 +100,14 @@ fn renderer_step(plan: &Plan, icd: &Path) -> Step {
     if plan.mode == Mode::Update {
         step = step.with_env("UPDATE_SNAPSHOTS", "1");
     }
-    step.args.extend(plan.filter.clone());
+    step.args.push(snapshot_filter(plan.filter.as_deref()));
     step
+}
+
+/// The libtest filter selecting the `snapshots` module of the `it` binary,
+/// narrowed to the golden whose name starts with `name`.
+fn snapshot_filter(name: Option<&str>) -> String {
+    format!("snapshots::{}", name.unwrap_or_default())
 }
 
 fn is_stray(file_name: &str) -> bool {
@@ -240,7 +246,7 @@ mod tests {
         assert_eq!(
             step.to_string(),
             "VK_ICD_FILENAMES=\"/icd/lvp.json\" VK_DRIVER_FILES=\"/icd/lvp.json\" \
-             cargo test --package bullseye --features snapshots --test snapshots -- --nocapture"
+             cargo test --package bullseye --features snapshots --test it -- --nocapture snapshots::"
         );
     }
 
@@ -251,7 +257,10 @@ mod tests {
             Path::new("/i.json"),
         );
         assert!(step.env.contains(&("UPDATE_SNAPSHOTS", "1".to_owned())));
-        assert_eq!(step.args.last().map(String::as_str), Some("kaolin_nested"));
+        assert_eq!(
+            step.args.last().map(String::as_str),
+            Some("snapshots::kaolin_nested")
+        );
         let separator = step.args.iter().position(|arg| arg == "--").unwrap();
         assert!(step.args.len() > separator + 1);
     }

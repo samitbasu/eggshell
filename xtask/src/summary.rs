@@ -15,6 +15,11 @@ struct Findings {
     first_panic: Option<String>,
     /// The first compiler, rustfmt or cargo complaint.
     first_error: Option<String>,
+    /// The first `fatal error:` line, which is how a crashed linker reports.
+    first_fatal: Option<String>,
+    /// The crate and target of the last build cargo gave up on, as in
+    /// `bullseye (test "controls")`.
+    uncompiled: Option<String>,
 }
 
 /// One line describing why `step` failed with `status`, from its `output`.
@@ -31,18 +36,48 @@ pub fn failure_line(step: &str, status: &str, output: &str) -> String {
     if let Some(panic) = &findings.first_panic {
         let _ = write!(line, "; first panic: {panic}");
     }
-    if findings.failed_tests.is_empty()
-        && findings.first_panic.is_none()
-        && let Some(error) = &findings.first_error
-    {
-        let _ = write!(line, "; {error}");
+    if findings.failed_tests.is_empty() && findings.first_panic.is_none() {
+        let error = findings.first_fatal.or(findings.first_error);
+        match (&findings.uncompiled, error) {
+            (Some(target), Some(error)) => {
+                let _ = write!(line, "; could not compile {target}: {error}");
+            }
+            (Some(target), None) => {
+                let _ = write!(line, "; could not compile {target}");
+            }
+            (None, Some(error)) => {
+                let _ = write!(line, "; {error}");
+            }
+            (None, None) => {}
+        }
     }
     line
+}
+
+/// `text` without terminal colour and cursor escapes, which `CARGO_TERM_COLOR=always`
+/// puts in CI logs.
+fn strip_ansi(text: &str) -> String {
+    let mut plain = String::with_capacity(text.len());
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        if c != '\x1b' {
+            plain.push(c);
+        } else if chars.as_str().starts_with('[') {
+            chars.next();
+            for c in chars.by_ref() {
+                if ('@'..='~').contains(&c) {
+                    break;
+                }
+            }
+        }
+    }
+    plain
 }
 
 fn scan(output: &str) -> Findings {
     let mut findings = Findings::default();
     let mut binary = None;
+    let output = strip_ansi(output);
     let mut lines = output.lines();
     while let Some(line) = lines.next() {
         if let Some(path) = line.trim_start().strip_prefix("Running ") {
@@ -68,10 +103,14 @@ fn scan(output: &str) -> Findings {
                 };
                 findings.first_panic = Some(clip(&message));
             }
+        } else if let Some(rest) = line.strip_prefix("error: could not compile ") {
+            let target = rest.split(" due to ").next().unwrap_or(rest);
+            findings.uncompiled = Some(target.replace('`', ""));
+        } else if findings.first_fatal.is_none() && line.trim_start().contains("fatal error:") {
+            findings.first_fatal = Some(clip(line.trim()));
         } else if findings.first_error.is_none()
             && (line.starts_with("error") || line.starts_with("Diff in "))
             && !line.starts_with("error: test failed")
-            && !line.starts_with("error: could not compile")
             && !line.starts_with("error: process didn't exit")
         {
             findings.first_error = Some(clip(line.trim()));
@@ -180,7 +219,34 @@ error: could not compile `bullseye` (test \"debug\") due to 1 previous error
         assert_eq!(
             failure_line("clippy", "exit status: 101", output),
             "step `clippy` failed (exit status: 101); \
+             could not compile bullseye (test \"debug\"): \
              error[E0599]: no method named `p_px` found for struct `Tw` in the current scope"
+        );
+    }
+
+    #[test]
+    fn a_crashed_linker_is_named_with_the_target_it_was_linking() {
+        let output = include_str!("summary_fixtures/linker_bus_error.log");
+        assert!(
+            output.contains('\x1b'),
+            "the fixture must keep its ANSI codes"
+        );
+        assert_eq!(
+            failure_line("test", "exit status: 101", output),
+            "step `test` failed (exit status: 101); \
+             could not compile bullseye (test \"controls\"): \
+             collect2: fatal error: ld terminated with signal 7 [Bus error], core dumped"
+        );
+    }
+
+    #[test]
+    fn ansi_escapes_are_stripped_before_parsing() {
+        assert_eq!(strip_ansi("\x1b[1m\x1b[91merror\x1b[0m: x"), "error: x");
+        let output =
+            "\x1b[1m\x1b[91merror\x1b[0m: could not compile `a` (lib) due to 1 previous error\n";
+        assert_eq!(
+            failure_line("c", "exit status: 101", output),
+            "step `c` failed (exit status: 101); could not compile a (lib)"
         );
     }
 

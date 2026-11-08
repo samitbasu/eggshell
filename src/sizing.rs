@@ -5,7 +5,7 @@
 //! fixed-size pieces and text galleys, of which the first text shrinks to
 //! the width on offer. [`Sizer::lay_out`] repeats that arithmetic from the
 //! egui [`Style`], taking galleys and frames from egui itself. Each widget
-//! states which pieces and style values it feeds in, and `tests/sizing.rs`
+//! states which pieces and style values it feeds in, and `tests/it/sizing.rs`
 //! asserts the result equals what egui allocates, so an egui upgrade that
 //! changes a widget fails the build instead of drifting.
 //!
