@@ -255,7 +255,7 @@ fn prepare_light(ctx: &Context, _: &App) {
     Shadcn::light().apply(ctx);
 }
 
-fn harness(view: support::View<App>) -> Harness<'static, Rig<App>> {
+fn harness_of(view: support::View<App>) -> Harness<'static, Rig<App>> {
     let mut harness = support::harness_prepared(
         vec2(400.0, 300.0),
         base_text(),
@@ -302,7 +302,7 @@ fn thumb_in(harness: &Harness<'_, Rig<App>>, rect: Rect) -> egui::epaint::Circle
 
 #[test]
 fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
-    let mut harness = harness(switches);
+    let mut harness = harness_of(switches);
     let tokens = Tokens::light();
     let default = rect_of(&harness, "/\"default\"");
     assert_eq!(default.width(), 32.0, "w-8");
@@ -398,7 +398,7 @@ fn raised_cells(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
 
 #[test]
 fn the_shadcn_segmented_classes_raise_exactly_the_pressed_cell() {
-    let mut harness = harness(segments);
+    let mut harness = harness_of(segments);
     let track = rect_of(&harness, "/\"units\"");
     assert_eq!(track.height(), 36.0, "h-9");
     let metric = rect_of(&harness, "/\"units\"/Metric");
@@ -437,7 +437,7 @@ fn a_text_field_under_the_preset_is_h9_with_px3() {
             },
         );
     }
-    let harness = harness(field);
+    let harness = harness_of(field);
     let rect = rect_of(&harness, "/\"field\"");
     assert_eq!(rect.size(), vec2(200.0, 36.0));
     let hint = harness
@@ -553,4 +553,55 @@ fn hover_variants_are_translucent_steps_of_their_token() {
     assert_eq!(t.primary_90().a(), 230);
     let d = Tokens::dark();
     assert!(d.input_30().a() < d.input_50().a() && d.input_50().a() < d.input.a());
+}
+
+fn many_segments(b: &mut Builder<'_, '_, App>, app: &App) {
+    let classes = Shadcn::light().segmented().wrapping();
+    b.div(tw().w_px(160.0).p(2.0), |b| {
+        segmented(
+            b,
+            "wrapped",
+            classes.container(),
+            app.unit,
+            &[
+                (Unit::Metric, "Metric"),
+                (Unit::Imperial, "Imperial"),
+                (Unit::Nautical, "Nautical"),
+            ],
+            |cell| classes.cell(cell),
+            |app| &mut app.unit,
+        );
+    });
+}
+
+#[test]
+fn segmented_classes_fit_their_cells_and_can_wrap() {
+    let harness = harness_of(segments);
+    let track = rect_of(&harness, "/\"units\"");
+    let cells =
+        ["Metric", "Imperial", "Nautical"].map(|c| rect_of(&harness, &format!("/\"units\"/{c}")));
+    let widest_row = cells.iter().map(|c| c.width()).sum::<f32>() + 6.0;
+    assert!(
+        track.width() < 395.0,
+        "precondition: the window is wider: {track:?}"
+    );
+    assert!(
+        (track.width() - widest_row).abs() < 0.5,
+        "w-fit: {} for cells {widest_row}",
+        track.width()
+    );
+
+    let harness = harness_of(many_segments);
+    let track = rect_of(&harness, "/\"wrapped\"");
+    let cells =
+        ["Metric", "Imperial", "Nautical"].map(|c| rect_of(&harness, &format!("/\"wrapped\"/{c}")));
+    assert!(
+        cells[2].top() > cells[0].top(),
+        "precondition: the cells do not fit one row: {cells:?}"
+    );
+    assert!(
+        track.height() > 36.0,
+        "the track grows with its rows: {track:?}"
+    );
+    assert!(track.width() <= 160.0);
 }
