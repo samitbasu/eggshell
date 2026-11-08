@@ -31,6 +31,8 @@ pub enum Part {
     Send,
     Field,
     Meter,
+    Group,
+    Row(&'static str),
 }
 
 /// A thin node between two panes: a drag handle with a one-point line that

@@ -45,12 +45,12 @@ impl TaskState {
     }
 }
 
-/// A section: a small header over its rows.
+/// A section: a small header over a grouped form.
 ///
 /// ```html
 /// <section class="flex flex-col gap-1.5">
 ///   <h3 class="text-[11px] uppercase text-muted-foreground">Environment</h3>
-///   ...rows
+///   <div class="flex flex-col rounded-lg border bg-background divide-y">...rows</div>
 /// </section>
 /// ```
 fn section(b: &mut B<'_, '_>, k: &Theme, title: &'static str, rows: impl FnOnce(&mut B<'_, '_>)) {
@@ -62,22 +62,38 @@ fn section(b: &mut B<'_, '_>, k: &Theme, title: &'static str, rows: impl FnOnce(
                 .pb(0.5),
             title,
         );
-        rows(b);
+        b.div_id(
+            Part::Group,
+            tw().flex()
+                .flex_col()
+                .border(1.0)
+                .border_color(k[Tok::Line])
+                .rounded_lg()
+                .bg(k[Tok::Ground])
+                .divide_y(1.0, k[Tok::Line])
+                .overflow_hidden(),
+            none,
+            rows,
+        );
     });
 }
 
 /// ```html
-/// <div class="flex items-center justify-between gap-2 text-[13px]">
+/// <div class="flex items-center justify-between gap-2 px-3 py-2 text-[13px]">
 ///   <span class="text-muted-foreground">Branch</span><span class="truncate">main</span>
 /// </div>
 /// ```
-fn row(b: &mut B<'_, '_>, k: &Theme, label: &str, value: impl FnOnce(&mut B<'_, '_>)) {
-    b.div(
+fn row(b: &mut B<'_, '_>, k: &Theme, label: &'static str, value: impl FnOnce(&mut B<'_, '_>)) {
+    b.div_id(
+        Part::Row(label),
         tw().flex()
             .items_center()
             .justify_between()
             .gap(2.0)
+            .px(3.0)
+            .py(2.0)
             .role(k[Role::Small].clone()),
+        none,
         |b| {
             b.text(tw().text(k[Tok::InkMid]), label);
             value(b);
@@ -86,31 +102,46 @@ fn row(b: &mut B<'_, '_>, k: &Theme, label: &str, value: impl FnOnce(&mut B<'_, 
 }
 
 /// ```html
-/// <div class="flex justify-between"><span>Context window</span><span>42%</span></div>
-/// <div class="w-full h-1 rounded-full overflow-hidden bg-border">
-///   <div class="h-full rounded-full bg-primary" style="width: 42%"></div>
+/// <div class="flex flex-col gap-2 px-3 py-2 text-[13px]">
+///   <div class="flex justify-between"><span>Context window</span><span>42%</span></div>
+///   <div class="w-full h-1 rounded-full overflow-hidden bg-border">
+///     <div class="h-full rounded-full bg-primary" style="width: 42%"></div>
+///   </div>
 /// </div>
 /// ```
 fn context(b: &mut B<'_, '_>, app: &App) {
     let k = &Theme::of(b.ctx());
     let used = f32::from(app.context_used);
-    row(b, k, "Context window", |b| {
-        b.text(tw(), format!("{:.0}%", used * 100.0));
-    });
     b.div_id(
-        Part::Meter,
-        tw().w_full()
-            .h_px(4.0)
-            .rounded_full()
-            .overflow_hidden()
-            .bg(k[Tok::Line]),
+        Part::Row("Context window"),
+        tw().flex()
+            .flex_col()
+            .gap(2.0)
+            .px(3.0)
+            .py(2.0)
+            .role(k[Role::Small].clone()),
         none,
         |b| {
-            b.rule(
-                tw().w_frac(used, 1.0)
-                    .h_full()
+            b.div(tw().flex().items_center().justify_between(), |b| {
+                b.text(tw().text(k[Tok::InkMid]), "Context window");
+                b.text(tw(), format!("{:.0}%", used * 100.0));
+            });
+            b.div_id(
+                Part::Meter,
+                tw().w_full()
+                    .h_px(4.0)
                     .rounded_full()
-                    .bg(k[Tok::Accent]),
+                    .overflow_hidden()
+                    .bg(k[Tok::Line]),
+                none,
+                |b| {
+                    b.rule(
+                        tw().w_frac(used, 1.0)
+                            .h_full()
+                            .rounded_full()
+                            .bg(k[Tok::Accent]),
+                    );
+                },
             );
         },
     );

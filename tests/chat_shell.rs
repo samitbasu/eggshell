@@ -781,7 +781,10 @@ mod accents {
                     .primary,
                 "the example's accent is blue"
             );
-            let meter = rect_of(&harness, "/Details/\"Context\"/Meter");
+            let meter = rect_of(
+                &harness,
+                "/Details/\"Context\"/Group/Row(\"Context window\")/Meter",
+            );
             assert!(meter.is_positive(), "precondition: the meter is laid out");
             assert!(
                 harness.output().shapes.iter().any(|clipped| matches!(
@@ -793,6 +796,103 @@ mod accents {
                 )),
                 "the meter's fill is the accent"
             );
+        }
+    }
+}
+
+mod grouped_form {
+    use super::*;
+    use egui::epaint::Shape;
+
+    fn text_rect(harness: &Harness<'_, Rig<App>>, within: egui::Rect, text: &str) -> egui::Rect {
+        let rects: Vec<egui::Rect> = harness
+            .output()
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                Shape::Text(shape) if shape.galley.text() == text => {
+                    Some(shape.galley.rect.translate(shape.pos.to_vec2()))
+                }
+                _ => None,
+            })
+            .filter(|rect| within.contains_rect(*rect))
+            .collect();
+        assert_eq!(rects.len(), 1, "{text} is painted once in the group");
+        rects[0]
+    }
+
+    #[test]
+    fn rows_in_a_group_are_divided_by_lines_and_their_values_sit_at_the_right_edge() {
+        for theme in [egui::Theme::Light, egui::Theme::Dark] {
+            let mut harness = harness_in(theme, App::default());
+            harness.run_steps(3);
+            let line = Theme::of(&harness.ctx)[Tok::Line];
+            let group = rect_of(&harness, "/Details/\"Environment\"/Group");
+            let rows = ["Branch", "Runtime", "Model"].map(|label| {
+                rect_of(
+                    &harness,
+                    &format!("/Details/\"Environment\"/Group/Row(\"{label}\")"),
+                )
+            });
+            assert!(
+                rows.windows(2)
+                    .all(|pair| pair[0].bottom() <= pair[1].top()),
+                "precondition: the rows are stacked in order"
+            );
+
+            let rules: Vec<egui::Rect> = harness
+                .output()
+                .shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    Shape::Rect(r)
+                        if r.fill == line
+                            && r.rect.height() <= 1.0
+                            && r.rect.width() > 100.0
+                            && group.contains_rect(r.rect.expand(1.0)) =>
+                    {
+                        Some(r.rect)
+                    }
+                    _ => None,
+                })
+                .collect();
+            for pair in rows.windows(2) {
+                assert_eq!(
+                    rules
+                        .iter()
+                        .filter(|rule| rule.center().y >= pair[0].bottom() - 1.0
+                            && rule.center().y <= pair[1].top() + 1.0)
+                        .count(),
+                    1,
+                    "{theme:?}: one divide line between {:?} and {:?}: {rules:?}",
+                    pair[0],
+                    pair[1]
+                );
+            }
+            assert_eq!(
+                rules.len(),
+                2,
+                "{theme:?}: none above the first or below the last"
+            );
+
+            let padding_edge = group.right() - 1.0;
+            for (row, (label, value)) in rows.iter().zip([
+                ("Branch", "main"),
+                ("Runtime", "local"),
+                ("Model", MODELS[0]),
+            ]) {
+                assert_eq!(
+                    row.right(),
+                    padding_edge,
+                    "{label}: the row fills the group"
+                );
+                let value = text_rect(&harness, group, value);
+                assert!(
+                    (value.right() - (padding_edge - 12.0)).abs() <= 0.5,
+                    "{label}: {value:?}"
+                );
+                assert!(text_rect(&harness, group, label).left() - row.left() <= 12.5);
+            }
         }
     }
 }
