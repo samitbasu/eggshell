@@ -3,7 +3,7 @@
 
 use bullseye::prim::segmented::segmented;
 use bullseye::prim::switch::Switch;
-use bullseye::style::{Shadcn, Tokens, tokens};
+use bullseye::style::{Accent, Shadcn, Tokens, tokens};
 use bullseye::widget::{Button, ComboBox, Stock, TextEdit};
 use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Width, tw};
 use egui::epaint::Shape;
@@ -62,8 +62,21 @@ fn applying_the_light_preset_maps_tokens_onto_egui() {
     assert_eq!(v.widgets.inactive.weak_bg_fill, rgb(0xf5, 0xf5, 0xf5));
     assert_eq!(v.widgets.inactive.bg_fill, rgb(0xe5, 0xe5, 0xe5));
     assert_eq!(v.widgets.inactive.fg_stroke.color, rgb(0x17, 0x17, 0x17));
-    assert_eq!(v.selection.bg_fill, rgb(0x17, 0x17, 0x17));
-    assert_eq!(v.selection.stroke.color, rgb(0xa1, 0xa1, 0xa1));
+    assert_eq!(
+        v.selection.bg_fill,
+        rgb(0x17, 0x17, 0x17).gamma_multiply(0.3),
+        "primary/30, under text drawn in foreground"
+    );
+    assert_eq!(
+        v.selection.stroke.color,
+        rgb(0x0a, 0x0a, 0x0a),
+        "foreground: the focus border and selected text"
+    );
+    let row = s.interact_size.y + s.item_spacing.y;
+    assert!(
+        s.combo_height >= 9.0 * row - s.item_spacing.y,
+        "nine select rows fit the popup"
+    );
     for widget in [
         v.widgets.noninteractive,
         v.widgets.inactive,
@@ -105,7 +118,11 @@ fn applying_the_dark_preset_maps_the_dark_tokens() {
     assert_eq!(v.panel_fill, rgb(0x0a, 0x0a, 0x0a));
     assert_eq!(v.window_fill, rgb(0x17, 0x17, 0x17));
     assert_eq!(v.widgets.inactive.weak_bg_fill, rgb(0x26, 0x26, 0x26));
-    assert_eq!(v.selection.bg_fill, rgb(0xe5, 0xe5, 0xe5));
+    assert_eq!(
+        v.selection.bg_fill,
+        rgb(0xe5, 0xe5, 0xe5).gamma_multiply(0.3)
+    );
+    assert_eq!(v.selection.stroke.color, rgb(0xfa, 0xfa, 0xfa));
     assert_eq!(v.error_fg_color, rgb(0xff, 0x64, 0x67));
     assert_eq!(
         v.widgets.noninteractive.bg_stroke.color,
@@ -124,7 +141,10 @@ fn every_token_can_be_overridden() {
     preset.tokens.control_height = 40.0;
     preset.apply(&ctx);
     let style = ctx.style_of(Theme::Light);
-    assert_eq!(style.visuals.selection.bg_fill, rgb(0x12, 0x34, 0x56));
+    assert_eq!(
+        style.visuals.selection.bg_fill,
+        rgb(0x12, 0x34, 0x56).gamma_multiply(0.3)
+    );
     assert_eq!(
         style.visuals.widgets.inactive.corner_radius,
         egui::CornerRadius::same(4)
@@ -430,4 +450,107 @@ fn a_text_field_under_the_preset_is_h9_with_px3() {
         })
         .expect("the hint is painted");
     assert_eq!(hint.x - rect.left(), 12.0, "px-3");
+}
+
+#[test]
+fn an_accent_retints_primary_and_ring_and_nothing_else() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let neutral = Shadcn::for_theme(theme);
+        assert_eq!(neutral.clone().accent(Accent::Neutral), neutral);
+        for accent in Accent::ALL.into_iter().filter(|a| *a != Accent::Neutral) {
+            let tinted = neutral.clone().accent(accent);
+            let (a, b) = (&neutral.tokens, &tinted.tokens);
+            assert_ne!(a.primary, b.primary, "{accent:?} {theme:?}");
+            assert_ne!(a.primary_foreground, b.primary_foreground);
+            assert_ne!(a.ring, b.ring);
+            assert_eq!(b.switch_track_on, b.primary, "the switch follows");
+            let same = Tokens {
+                primary: a.primary,
+                primary_foreground: a.primary_foreground,
+                ring: a.ring,
+                switch_track_on: a.switch_track_on,
+                switch_thumb_on: a.switch_thumb_on,
+                ..b.clone()
+            };
+            assert_eq!(&same, a, "{accent:?} {theme:?}: only those change");
+        }
+    }
+    let blue = |theme| Shadcn::for_theme(theme).accent(Accent::Blue).tokens;
+    assert_eq!(blue(Theme::Light).primary, rgb(0x14, 0x47, 0xe6));
+    assert_eq!(blue(Theme::Dark).primary, rgb(0x19, 0x3c, 0xb8));
+    assert_eq!(blue(Theme::Dark).primary_foreground, rgb(0xef, 0xf6, 0xff));
+}
+
+#[test]
+fn an_accent_reaches_egui_when_applied() {
+    let ctx = context(Theme::Light);
+    Shadcn::light().accent(Accent::Violet).apply(&ctx);
+    assert_eq!(
+        ctx.style_of(Theme::Light).visuals.hyperlink_color,
+        rgb(0x70, 0x08, 0xe7)
+    );
+    assert_eq!(Shadcn::of(&ctx).tokens.primary, rgb(0x70, 0x08, 0xe7));
+}
+
+#[test]
+fn of_is_the_applied_preset_for_the_contexts_theme() {
+    let ctx = context(Theme::Light);
+    assert_eq!(
+        Shadcn::of(&ctx),
+        Shadcn::light(),
+        "none applied: the default"
+    );
+    let green = Shadcn::light().accent(Accent::Green);
+    green.apply(&ctx);
+    Shadcn::dark().apply(&ctx);
+    assert_eq!(Shadcn::of(&ctx), green);
+    ctx.set_theme(Theme::Dark);
+    assert_eq!(Shadcn::of(&ctx), Shadcn::dark());
+}
+
+#[test]
+fn semantic_colours_are_defined_in_both_themes() {
+    let light = Tokens::light();
+    let dark = Tokens::dark();
+    assert_eq!(light.success, rgb(0x00, 0xa6, 0x3e), "green-600");
+    assert_eq!(light.warning, rgb(0xfe, 0x9a, 0x00), "amber-500");
+    assert_eq!(light.info, rgb(0x00, 0x84, 0xd1), "sky-600");
+    assert_eq!(dark.success, rgb(0x05, 0xdf, 0x72), "green-400");
+    assert_eq!(dark.warning, rgb(0xff, 0xb9, 0x00), "amber-400");
+    assert_eq!(dark.info, rgb(0x00, 0xbc, 0xff), "sky-400");
+    for t in [light, dark] {
+        let all = [
+            t.destructive,
+            t.success,
+            t.warning,
+            t.info,
+            t.primary,
+            t.muted,
+        ];
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+        for (fill, text) in [
+            (t.destructive, t.destructive_foreground),
+            (t.success, t.success_foreground),
+            (t.warning, t.warning_foreground),
+            (t.info, t.info_foreground),
+        ] {
+            assert_ne!(fill, text, "text is told from its fill");
+        }
+    }
+}
+
+#[test]
+fn hover_variants_are_translucent_steps_of_their_token() {
+    let t = Tokens::light();
+    assert_eq!(t.accent_50(), t.accent.gamma_multiply(0.5));
+    assert_ne!(t.accent_50(), t.accent, "hover differs from selected");
+    assert_ne!(t.muted_50(), t.muted);
+    assert_eq!(t.secondary_80().a(), 204);
+    assert_eq!(t.primary_90().a(), 230);
+    let d = Tokens::dark();
+    assert!(d.input_30().a() < d.input_50().a() && d.input_50().a() < d.input.a());
 }

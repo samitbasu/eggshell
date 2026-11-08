@@ -180,7 +180,7 @@ fn paint_box(
 ) {
     let Boxes { border, .. } = *boxes;
     if let Some(shadow) = paint.shadow {
-        painter.add(shadow.as_shape(border, paint.radius));
+        paint_shadow(painter, shadow, border, paint);
     }
     let uniform = uniform_border(declared_border, paint.border_colors, grid);
     if paint.background.is_some() || uniform.is_some() {
@@ -202,6 +202,34 @@ fn paint_box(
             Stroke::new(ring.width, ring.color),
             StrokeKind::Outside,
         ));
+    }
+}
+
+/// CSS clips a box-shadow to outside the border box, so a box that does not
+/// cover it (no background, or a translucent one) must not show it inside.
+/// The shadow is painted in the four strips around the border box; the
+/// rounded corners' cut-outs are inside the box and stay clean.
+fn paint_shadow(painter: &Painter, shadow: egui::Shadow, border: Rect, paint: &BoxPaint) {
+    let shape = shadow.as_shape(border, paint.radius);
+    if paint.background.is_some_and(|fill| fill.is_opaque()) {
+        painter.add(shape);
+        return;
+    }
+    let clip = painter.clip_rect();
+    let strips = [
+        Rect::from_min_max(clip.min, pos2(clip.max.x, border.min.y)),
+        Rect::from_min_max(pos2(clip.min.x, border.max.y), clip.max),
+        Rect::from_min_max(
+            pos2(clip.min.x, border.min.y),
+            pos2(border.min.x, border.max.y),
+        ),
+        Rect::from_min_max(
+            pos2(border.max.x, border.min.y),
+            pos2(clip.max.x, border.max.y),
+        ),
+    ];
+    for strip in strips.into_iter().filter(|strip| strip.is_positive()) {
+        painter.with_clip_rect(strip).add(shape.clone());
     }
 }
 

@@ -13,11 +13,28 @@
 //! switch's colours and the input's padding, which egui shares with buttons.
 //!
 //! What egui cannot express and the preset therefore approximates: the focus
-//! ring is the 1 pt `ring`-coloured border egui draws around a focused text
-//! edit (no 3 pt halo at half opacity); `shadow-xs` on inputs is not drawn on
-//! stock widgets; font weights (`font-medium`) need a registered family; and
-//! selected text is drawn in the ring colour, because egui takes both from
-//! `selection.stroke`.
+//! ring is the 1 pt border egui draws around a focused text edit (no 3 pt
+//! halo at half opacity); `shadow-xs` on inputs is not drawn on stock
+//! widgets; font weights (`font-medium`) need a registered family; and
+//! egui takes the focus border and the colour of selected text from the one
+//! `selection.stroke`, which is `foreground`, so the selection fill is
+//! `primary/30` to keep that text readable.
+//!
+//! # Hovered and selected
+//!
+//! shadcn's components pair the two as follows, and the helpers on
+//! [`Tokens`] name the pairs:
+//!
+//! | Component | Hovered | Selected |
+//! |---|---|---|
+//! | List or menu row on the page | `accent/50` ([`Tokens::accent_50`]) | `accent` with `accent-foreground` |
+//! | Table row | `muted/50` ([`Tokens::muted_50`]) | `muted` |
+//! | Ghost and outline button | `accent` with `accent-foreground` (dark: `accent/50`, `input/50`) | |
+//! | Secondary, primary, destructive button | `secondary/80`, `primary/90`, `destructive/90` | |
+//!
+//! In the neutral palette `muted`, `accent` and `secondary` are one colour,
+//! so a hover on a `muted` surface needs the half-strength variant of the
+//! selected colour, not a different token.
 
 use egui::{
     Color32, Context, CornerRadius, Id, Margin, Shadow, Stroke, Style, TextStyle, Theme, Vec2,
@@ -69,6 +86,21 @@ pub struct Tokens {
     pub accent_foreground: Color32,
     /// `--destructive`.
     pub destructive: Color32,
+    /// The text on `destructive` (`text-white`).
+    pub destructive_foreground: Color32,
+    /// A positive outcome. Not a shadcn variable: the Tailwind green
+    /// that `destructive` is the red of.
+    pub success: Color32,
+    /// The text on `success`.
+    pub success_foreground: Color32,
+    /// A caution: the Tailwind amber.
+    pub warning: Color32,
+    /// The text on `warning`.
+    pub warning_foreground: Color32,
+    /// Neutral news: the Tailwind sky.
+    pub info: Color32,
+    /// The text on `info`.
+    pub info_foreground: Color32,
     /// `--border`.
     pub border: Color32,
     /// `--input`.
@@ -128,6 +160,13 @@ impl Tokens {
             accent: rgb(0xf5f5f5),
             accent_foreground: primary,
             destructive: rgb(0xe7000b),
+            destructive_foreground: Color32::WHITE,
+            success: rgb(0x00a63e),
+            success_foreground: rgb(0xfafafa),
+            warning: rgb(0xfe9a00),
+            warning_foreground: rgb(0x461901),
+            info: rgb(0x0084d1),
+            info_foreground: rgb(0xfafafa),
             border: input,
             input,
             ring: rgb(0xa1a1a1),
@@ -161,6 +200,13 @@ impl Tokens {
             accent: rgb(0x262626),
             accent_foreground: foreground,
             destructive: rgb(0xff6467),
+            destructive_foreground: Color32::WHITE,
+            success: rgb(0x05df72),
+            success_foreground: rgb(0x032e15),
+            warning: rgb(0xffb900),
+            warning_foreground: rgb(0x461901),
+            info: rgb(0x00bcff),
+            info_foreground: rgb(0x052f4a),
             border: Color32::from_white_alpha(26),
             input,
             ring: rgb(0x737373),
@@ -199,6 +245,13 @@ impl Tokens {
             accent: none,
             accent_foreground: none,
             destructive: none,
+            destructive_foreground: none,
+            success: none,
+            success_foreground: none,
+            warning: none,
+            warning_foreground: none,
+            info: none,
+            info_foreground: none,
             border: none,
             input: none,
             ring: none,
@@ -239,6 +292,71 @@ impl Tokens {
         self.radius.saturating_sub(4)
     }
 
+    /// `accent/50`: the hover fill of a row on the page background, a step
+    /// under [`accent`](Self::accent), which marks the selected row.
+    pub fn accent_50(&self) -> Color32 {
+        self.accent.gamma_multiply(0.5)
+    }
+
+    /// `muted/50`: the hover fill of a table row; selected is `muted`.
+    pub fn muted_50(&self) -> Color32 {
+        self.muted.gamma_multiply(0.5)
+    }
+
+    /// `secondary/80`: a secondary button under the pointer.
+    pub fn secondary_80(&self) -> Color32 {
+        self.secondary.gamma_multiply(0.8)
+    }
+
+    /// `primary/90`: a primary button under the pointer.
+    pub fn primary_90(&self) -> Color32 {
+        self.primary.gamma_multiply(0.9)
+    }
+
+    /// `destructive/90`: a destructive button under the pointer.
+    pub fn destructive_90(&self) -> Color32 {
+        self.destructive.gamma_multiply(0.9)
+    }
+
+    /// `destructive/60`: a destructive button at rest in the dark theme.
+    pub fn destructive_60(&self) -> Color32 {
+        self.destructive.gamma_multiply(0.6)
+    }
+
+    /// `input/30`: the fill of inputs, outline buttons and unchecked boxes in
+    /// the dark theme.
+    pub fn input_30(&self) -> Color32 {
+        self.input.gamma_multiply(0.3)
+    }
+
+    /// `input/50`: an outline button under the pointer in the dark theme.
+    pub fn input_50(&self) -> Color32 {
+        self.input.gamma_multiply(0.5)
+    }
+
+    /// These tokens re-tinted with `accent`'s `primary`, `primary-foreground`
+    /// and `ring` for `theme`, which must be the theme they were made for.
+    #[must_use]
+    pub fn with_accent(self, accent: Accent, theme: Theme) -> Self {
+        let Hues {
+            primary,
+            primary_foreground,
+            ring,
+        } = accent.hues(theme);
+        let (switch_thumb_on, switch_track_on) = match theme {
+            Theme::Light => (self.switch_thumb_on, primary),
+            Theme::Dark => (primary_foreground, primary),
+        };
+        Self {
+            primary,
+            primary_foreground,
+            ring,
+            switch_track_on,
+            switch_thumb_on,
+            ..self
+        }
+    }
+
     /// The text role of `text-sm`: the token's size on a 20 point line.
     pub fn text_role(&self) -> TextSpec {
         TextSpec {
@@ -253,6 +371,81 @@ impl Tokens {
     pub fn switch_thumb_for(&self, track: Vec2) -> f32 {
         track.y * self.switch_thumb / self.switch_track.y
     }
+}
+
+/// One of shadcn's theme colours, which re-tints `primary`,
+/// `primary-foreground` and `ring`. Neutral is shadcn's default.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Accent {
+    /// The default: black in light, light grey in dark.
+    #[default]
+    Neutral,
+    /// `blue`.
+    Blue,
+    /// `violet`.
+    Violet,
+    /// `green`.
+    Green,
+    /// `orange`.
+    Orange,
+    /// `rose`.
+    Rose,
+}
+
+impl Accent {
+    /// Every accent, in the order of the type.
+    pub const ALL: [Self; 6] = [
+        Self::Neutral,
+        Self::Blue,
+        Self::Violet,
+        Self::Green,
+        Self::Orange,
+        Self::Rose,
+    ];
+
+    /// The accent's name, as shadcn's themes page spells it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Neutral => "Neutral",
+            Self::Blue => "Blue",
+            Self::Violet => "Violet",
+            Self::Green => "Green",
+            Self::Orange => "Orange",
+            Self::Rose => "Rose",
+        }
+    }
+
+    /// shadcn's registry themes (`apps/v4/registry/themes.ts`, converted from
+    /// oklch to sRGB): `primary` and `primary-foreground` as the registry
+    /// has them. The registry leaves `ring` neutral; here it is the theme's
+    /// 500 shade (its `chart-2`) so that focus follows the accent.
+    fn hues(self, theme: Theme) -> Hues {
+        let (primary, foreground, ring) = match (self, theme) {
+            (Self::Neutral, Theme::Light) => (0x171717, 0xfafafa, 0xa1a1a1),
+            (Self::Neutral, Theme::Dark) => (0xe5e5e5, 0x171717, 0x737373),
+            (Self::Blue, Theme::Light) => (0x1447e6, 0xeff6ff, 0x2b7fff),
+            (Self::Blue, Theme::Dark) => (0x193cb8, 0xeff6ff, 0x2b7fff),
+            (Self::Violet, Theme::Light) => (0x7008e7, 0xf5f3ff, 0x8e51ff),
+            (Self::Violet, Theme::Dark) => (0x5d0ec0, 0xf5f3ff, 0x8e51ff),
+            (Self::Green, Theme::Light) => (0x008236, 0xf0fdf4, 0x00c950),
+            (Self::Green, Theme::Dark) => (0x016630, 0xf0fdf4, 0x00c950),
+            (Self::Orange, Theme::Light) => (0xca3500, 0xfff7ed, 0xff6900),
+            (Self::Orange, Theme::Dark) => (0x9f2d00, 0xfff7ed, 0xff6900),
+            (Self::Rose, Theme::Light) => (0xc70036, 0xfff1f2, 0xff2056),
+            (Self::Rose, Theme::Dark) => (0xa50036, 0xfff1f2, 0xff2056),
+        };
+        Hues {
+            primary: rgb(primary),
+            primary_foreground: rgb(foreground),
+            ring: rgb(ring),
+        }
+    }
+}
+
+struct Hues {
+    primary: Color32,
+    primary_foreground: Color32,
+    ring: Color32,
 }
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
@@ -283,6 +476,24 @@ impl Shadcn {
         }
     }
 
+    /// This preset with `accent`'s colours for `primary`,
+    /// `primary-foreground` and `ring`.
+    #[must_use]
+    pub fn accent(mut self, accent: Accent) -> Self {
+        self.tokens = self.tokens.with_accent(accent, self.theme);
+        self
+    }
+
+    /// The preset applied to `ctx` for its current theme, or the default
+    /// preset for that theme if none was applied.
+    pub fn of(ctx: &Context) -> Self {
+        let theme = ctx.theme();
+        Self {
+            theme,
+            tokens: tokens(ctx).unwrap_or_else(|| Tokens::for_theme(theme)),
+        }
+    }
+
     /// Applies the light preset to egui's light theme and the dark one to its
     /// dark theme, so that egui's own theme switching picks the right one.
     pub fn apply_both(ctx: &Context) {
@@ -300,13 +511,14 @@ impl Shadcn {
     }
 
     /// The classes of a shadcn tab list or toggle group over [`segmented`]
-    /// cells.
+    /// cells: one row as wide as its cells (`w-fit`).
     ///
     /// [`segmented`]: crate::prim::segmented::segmented
     pub fn segmented(&self) -> SegmentedClasses {
         SegmentedClasses {
             theme: self.theme,
             tokens: self.tokens.clone(),
+            rows: Rows::One,
         }
     }
 }
@@ -321,28 +533,57 @@ pub fn tokens(ctx: &Context) -> Option<Tokens> {
     ctx.data(|data| data.get_temp::<Tokens>(tokens_id(ctx.theme())))
 }
 
+/// Whether a track keeps its cells on one row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Rows {
+    One,
+    Wrapping,
+}
+
 /// The classes of a shadcn tab list or toggle group.
 ///
 /// Pass [`container`](Self::container) and [`cell`](Self::cell) to
 /// [`segmented`](crate::prim::segmented::segmented): a muted track with
 /// padding and `rounded-lg`, in which the pressed cell is raised with the
-/// background fill and `shadow-sm`.
+/// background fill and `shadow-sm`. The track is as wide as its cells; give
+/// it `w_full` to stretch it, or use [`wrapping`](Self::wrapping) for many
+/// options.
+///
+/// ```html
+/// <div class="flex items-center w-fit h-9 p-[3px] rounded-lg bg-muted">
+///   <span class="grow flex items-center justify-center px-2 py-1 rounded-md text-muted-foreground">…</span>
+/// </div>
+/// ```
 #[derive(Clone, Debug)]
 pub struct SegmentedClasses {
     theme: Theme,
     tokens: Tokens,
+    rows: Rows,
 }
 
 impl SegmentedClasses {
+    /// These classes for a track that wraps its cells onto more rows when it
+    /// is narrower than they are, and takes its height from the rows.
+    #[must_use]
+    pub fn wrapping(mut self) -> Self {
+        self.rows = Rows::Wrapping;
+        self
+    }
+
     /// The track.
     pub fn container(&self) -> Tw {
         let t = &self.tokens;
-        tw().flex()
+        let track = tw()
+            .flex()
             .items_center()
-            .h_px(t.control_height)
+            .w_fit()
             .p(t.list_padding / 4.0)
             .rounded_px(f32::from(t.radius))
-            .bg(t.muted)
+            .bg(t.muted);
+        match self.rows {
+            Rows::One => track.h_px(t.control_height),
+            Rows::Wrapping => track.flex_wrap().h_auto().gap(0.5),
+        }
     }
 
     /// One cell.
@@ -350,14 +591,17 @@ impl SegmentedClasses {
         let t = &self.tokens;
         let base = tw()
             .flex()
-            .flex_1()
-            .h_full()
+            .grow()
             .items_center()
             .justify_center()
             .px(2.0)
             .py(1.0)
             .rounded_px(f32::from(t.radius_md()))
             .role(t.text_role());
+        let base = match self.rows {
+            Rows::One => base.h_full(),
+            Rows::Wrapping => base.h_auto(),
+        };
         match (cell, self.theme) {
             (Cell::Released, _) => base.text(t.muted_foreground),
             (Cell::Pressed, Theme::Light) => {
@@ -365,7 +609,7 @@ impl SegmentedClasses {
             }
             (Cell::Pressed, Theme::Dark) => base
                 .text(t.foreground)
-                .bg(t.input.gamma_multiply(0.3))
+                .bg(t.input_30())
                 .border(1.0)
                 .border_color(t.input)
                 .shadow(t.shadow_sm),
@@ -426,14 +670,14 @@ impl Tokens {
             Stroke::new(1.0, t.input),
             t.accent_foreground,
         );
-        v.selection.bg_fill = t.primary;
-        v.selection.stroke = Stroke::new(1.0, t.ring);
+        v.selection.bg_fill = t.primary.gamma_multiply(0.3);
+        v.selection.stroke = Stroke::new(1.0, t.foreground);
         v.hyperlink_color = t.primary;
         v.faint_bg_color = t.muted;
         v.extreme_bg_color = t.background;
         v.text_edit_bg_color = Some(match theme {
             Theme::Light => t.background,
-            Theme::Dark => t.input.gamma_multiply(0.3),
+            Theme::Dark => t.input_30(),
         });
         v.code_bg_color = t.muted;
         v.error_fg_color = t.destructive;
@@ -460,7 +704,7 @@ impl Tokens {
         s.icon_width = t.switch_thumb;
         s.icon_width_inner = t.switch_thumb * 0.625;
         s.icon_spacing = 8.0;
-        s.combo_height = 200.0;
+        s.combo_height = 400.0;
         s.window_margin = Margin::same(16);
         s.menu_margin = Margin::same(4);
 
