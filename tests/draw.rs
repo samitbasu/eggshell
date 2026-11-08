@@ -112,6 +112,44 @@ fn a_uniform_border_and_background_are_one_rounded_rect() {
 }
 
 /// ```html
+/// <div class="ml-[0.3px] w-[100px] h-[50px] rounded-lg border border-[#0000ff]"></div>
+/// ```
+#[test]
+fn a_rounded_border_stays_one_stroke_where_snapping_makes_its_sides_unequal() {
+    const SCALE: f32 = 1.5;
+    let pixels = |value: f32| (value * SCALE).round();
+    let (left, right) = (0.3_f32, 100.3_f32);
+    assert_ne!(
+        pixels(left + 1.0) - pixels(left),
+        pixels(right) - pixels(right - 1.0),
+        "precondition: the snapped left and right borders differ"
+    );
+
+    let shapes = shapes(&mut (), SCALE, |b| {
+        b.div(
+            tw().ml(0.3)
+                .w_px(100.0)
+                .h_px(50.0)
+                .rounded_lg()
+                .border(1.0)
+                .border_color(Color32::BLUE),
+            |_| {},
+        );
+    });
+    let rects = rects(&shapes);
+    assert_eq!(rects.len(), 1, "one shape, no side strips");
+    let stroke = rects[0].0.stroke;
+    assert_eq!(stroke.color, Color32::BLUE);
+    assert_eq!(rects[0].0.corner_radius, egui::CornerRadius::same(8));
+    assert!(stroke.width > 0.0);
+    assert!(
+        (stroke.width * SCALE).fract().abs() < 1e-4,
+        "{} is off the pixel grid",
+        stroke.width
+    );
+}
+
+/// ```html
 /// <div class="w-[100px] h-[50px] border-t-4 border-t-[#0000ff] border-b-2 border-b-[#00ff00]"></div>
 /// ```
 #[test]

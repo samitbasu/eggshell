@@ -123,15 +123,6 @@ impl Boxes {
             wrap_width: content.width(),
         }
     }
-
-    fn border_widths(&self) -> Sides<f32> {
-        Sides {
-            top: self.padding.min.y - self.border.min.y,
-            right: self.border.max.x - self.padding.max.x,
-            bottom: self.border.max.y - self.padding.max.y,
-            left: self.padding.min.x - self.border.min.x,
-        }
-    }
 }
 
 /// The clip a node's content gets: the padding box on each axis that
@@ -150,27 +141,43 @@ fn content_clip(clip: Rect, padding: Rect, overflow: taffy::Point<Overflow>) -> 
     clip
 }
 
-fn paint_box(painter: &Painter, paint: &BoxPaint, boxes: &Boxes) {
+/// The one rounded stroke a border of equal declared widths and colours is
+/// drawn as. Decided from the declared widths: snapping each edge on its own
+/// can make the snapped ones differ, which must not turn a rounded border
+/// into square strips.
+fn uniform_border(
+    declared: Sides<f32>,
+    colors: Sides<Option<Color32>>,
+    grid: PixelGrid,
+) -> Option<Stroke> {
+    match (colors.top, colors.right, colors.bottom, colors.left) {
+        (Some(t), Some(r), Some(b), Some(l))
+            if t == r
+                && r == b
+                && b == l
+                && declared.top > 0.0
+                && declared.top == declared.right
+                && declared.right == declared.bottom
+                && declared.bottom == declared.left =>
+        {
+            Some(Stroke::new(grid.line_width(declared.top), t))
+        }
+        _ => None,
+    }
+}
+
+fn paint_box(
+    painter: &Painter,
+    paint: &BoxPaint,
+    boxes: &Boxes,
+    declared_border: Sides<f32>,
+    grid: PixelGrid,
+) {
     let Boxes { border, .. } = *boxes;
     if let Some(shadow) = paint.shadow {
         painter.add(shadow.as_shape(border, paint.radius));
     }
-    let widths = boxes.border_widths();
-    let colors = paint.border_colors;
-    let uniform = match (colors.top, colors.right, colors.bottom, colors.left) {
-        (Some(c), Some(r), Some(b), Some(l))
-            if c == r
-                && r == b
-                && b == l
-                && widths.top > 0.0
-                && widths.top == widths.right
-                && widths.right == widths.bottom
-                && widths.bottom == widths.left =>
-        {
-            Some(Stroke::new(widths.top, c))
-        }
-        _ => None,
-    };
+    let uniform = uniform_border(declared_border, paint.border_colors, grid);
     if paint.background.is_some() || uniform.is_some() {
         painter.add(RectShape::new(
             border,
@@ -181,7 +188,7 @@ fn paint_box(painter: &Painter, paint: &BoxPaint, boxes: &Boxes) {
         ));
     }
     if uniform.is_none() {
-        paint_side_borders(painter, boxes, colors);
+        paint_side_borders(painter, boxes, paint.border_colors);
     }
     if let Some(ring) = paint.ring {
         painter.add(RectShape::stroke(
@@ -476,7 +483,13 @@ impl<A> Walk<'_, A> {
         };
 
         let opacity = parent.opacity * look.paint.opacity;
-        paint_box(&self.painter(parent.clip, opacity), &look.paint, &boxes);
+        paint_box(
+            &self.painter(parent.clip, opacity),
+            &look.paint,
+            &boxes,
+            node.border,
+            self.grid,
+        );
 
         let inherited = Inherited {
             clip: content_clip(parent.clip, boxes.padding, node.overflow),
