@@ -912,7 +912,7 @@ impl Tokens {
         v.slider_trailing_fill = true;
         v.selection.bg_fill = t.primary.gamma_multiply(0.3);
         v.selection.stroke = Stroke::new(1.0, t.foreground);
-        v.hyperlink_color = t.ring;
+        v.hyperlink_color = t.primary;
         v.faint_bg_color = t.muted;
         v.extreme_bg_color = t.background;
         v.text_edit_bg_color = Some(match theme {
