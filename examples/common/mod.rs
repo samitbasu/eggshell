@@ -157,7 +157,7 @@ fn shell<S: 'static>(
 ) -> eframe::Result {
     let mut layout_state = LayoutState::new();
     let mut theme_bar = ThemeBar::new();
-    eframe::run_ui_native(title, eframe::NativeOptions::default(), move |ui, _| {
+    launch(title, None, move |ui| {
         let ctx = ui.ctx().clone();
         use_preset(&ctx);
         prepare(&ctx, &state);
@@ -170,6 +170,73 @@ fn shell<S: 'static>(
                 frame(&mut state, &mut layout_state, area, ui);
             });
     })
+}
+
+/// The id of the `<canvas>` element the web build draws into.
+pub const WEB_CANVAS_ID: &str = "bullseye_canvas";
+
+/// Runs `ui_fun` as the whole application: in a native window of
+/// `inner_size` (the platform default when `None`), or on the page's
+/// [`WEB_CANVAS_ID`] canvas on wasm32, where this returns once the runner is
+/// spawned. Every example's `main` ends here, so both builds construct the
+/// same app.
+pub fn launch(
+    title: &str,
+    inner_size: Option<egui::Vec2>,
+    ui_fun: impl FnMut(&mut egui::Ui) + 'static,
+) -> eframe::Result {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let mut options = eframe::NativeOptions::default();
+        if let Some(size) = inner_size {
+            options.viewport = egui::ViewportBuilder::default().with_inner_size(size);
+        }
+        let mut ui_fun = ui_fun;
+        eframe::run_ui_native(title, options, move |ui, _| ui_fun(ui))
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = (title, inner_size);
+        web::start(ui_fun);
+        Ok(())
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+mod web {
+    use eframe::wasm_bindgen::JsCast as _;
+
+    struct App<F>(F);
+
+    impl<F: FnMut(&mut egui::Ui)> eframe::App for App<F> {
+        fn ui(&mut self, ui: &mut egui::Ui, _: &mut eframe::Frame) {
+            (self.0)(ui);
+        }
+    }
+
+    pub fn start(ui_fun: impl FnMut(&mut egui::Ui) + 'static) {
+        wasm_bindgen_futures::spawn_local(async move {
+            let canvas = eframe::web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.get_element_by_id(super::WEB_CANVAS_ID))
+                .and_then(|element| {
+                    element
+                        .dyn_into::<eframe::web_sys::HtmlCanvasElement>()
+                        .ok()
+                })
+                .expect("the page has a canvas with id `bullseye_canvas`");
+            let started = eframe::WebRunner::new()
+                .start(
+                    canvas,
+                    eframe::WebOptions::default(),
+                    Box::new(|_| Ok(Box::new(App(ui_fun)))),
+                )
+                .await;
+            if let Err(error) = started {
+                panic!("could not start eframe: {error:?}");
+            }
+        });
+    }
 }
 
 /// The System, Light and Dark choices as the preset's tab list. The choice

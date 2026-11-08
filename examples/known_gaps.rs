@@ -218,6 +218,13 @@ const FAMILIES: [&str; 7] = [
     "IBMPlexSans",
 ];
 
+/// The browser has no font directories to scan.
+#[cfg(target_arch = "wasm32")]
+fn font_roots() -> Vec<PathBuf> {
+    Vec::new()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn font_roots() -> Vec<PathBuf> {
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let mut roots: Vec<PathBuf> = [
@@ -521,40 +528,33 @@ fn main() -> eframe::Result {
     let mut faces: Option<Faces> = None;
     let mut registered = false;
     let mut theme_bar = common::ThemeBar::new();
-    eframe::run_ui_native(
-        "known_gaps",
-        eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default().with_inner_size([1100.0, 860.0]),
-            ..Default::default()
-        },
-        move |ui, _| {
-            let ctx = ui.ctx().clone();
-            if !registered {
-                registered = true;
-                faces = find_faces(&font_roots());
-                if let Some(found) = &faces
-                    && let Err(error) = register(&ctx, found)
-                {
-                    eprintln!("could not load {}: {error}", found.name);
-                    faces = None;
-                }
-                // egui applies new fonts at the start of the next pass, and a
-                // named family used before then panics.
-                ctx.request_repaint();
-                return;
+    common::launch("known_gaps", Some(egui::vec2(1100.0, 860.0)), move |ui| {
+        let ctx = ui.ctx().clone();
+        if !registered {
+            registered = true;
+            faces = find_faces(&font_roots());
+            if let Some(found) = &faces
+                && let Err(error) = register(&ctx, found)
+            {
+                eprintln!("could not load {}: {error}", found.name);
+                faces = None;
             }
-            common::use_preset(&ctx);
-            theme_bar.show(ui);
-            layout.set_base_text(Some(base_text(ctx.theme())));
-            egui::CentralPanel::default()
-                .frame(egui::Frame::NONE)
-                .show(ui, |ui| {
-                    let area = ui.max_rect();
-                    layout
-                        .build(&ctx, |b| window(b, faces.as_ref()))
-                        .layout(area)
-                        .draw(&mut (), ui);
-                });
-        },
-    )
+            // egui applies new fonts at the start of the next pass, and a
+            // named family used before then panics.
+            ctx.request_repaint();
+            return;
+        }
+        common::use_preset(&ctx);
+        theme_bar.show(ui);
+        layout.set_base_text(Some(base_text(ctx.theme())));
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| {
+                let area = ui.max_rect();
+                layout
+                    .build(&ctx, |b| window(b, faces.as_ref()))
+                    .layout(area)
+                    .draw(&mut (), ui);
+            });
+    })
 }
