@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use crate::examples;
+use crate::loc;
 use crate::snapshots::{self, Mode};
 use crate::steps::{self, FmtMode, Profile, ReportFormat, Step};
 use crate::web;
@@ -56,6 +57,13 @@ pub enum Command {
         /// Port to serve on; 0 picks a free one
         #[arg(long, default_value_t = 8080)]
         port: u16,
+    },
+    /// Count lines of code per source file, without comments, blank lines
+    /// or `#[cfg(test)]` items
+    Loc {
+        /// Directory to scan
+        #[arg(default_value = "src")]
+        root: std::path::PathBuf,
     },
     /// Check the golden images against a fresh render, with Mesa lavapipe
     Snapshots {
@@ -117,6 +125,7 @@ impl Command {
                 },
                 port,
             }),
+            Command::Loc { root } => loc::run(&root),
             Command::Snapshots {
                 update,
                 clean,

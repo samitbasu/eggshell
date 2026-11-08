@@ -3,6 +3,7 @@
 mod cli;
 mod clock;
 mod examples;
+mod loc;
 mod process;
 mod snapshots;
 mod steps;
