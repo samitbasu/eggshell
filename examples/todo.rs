@@ -229,7 +229,7 @@ fn main() -> eframe::Result {
     let mut state = State::default();
     let mut layout_state = bullseye::LayoutState::new();
     let mut theme_bar = common::ThemeBar::new();
-    eframe::run_ui_native("todo", eframe::NativeOptions::default(), move |ui, _| {
+    common::launch("todo", None, move |ui| {
         let ctx = ui.ctx().clone();
         common::use_preset(&ctx);
         theme_bar.show(ui);

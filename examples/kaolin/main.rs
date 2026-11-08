@@ -90,7 +90,7 @@ fn main() -> eframe::Result {
     let mut layout = LayoutState::new();
     let mut logo_texture: Option<TextureHandle> = None;
     let mut theme_bar = common::ThemeBar::new();
-    eframe::run_ui_native("kaolin", eframe::NativeOptions::default(), move |ui, _| {
+    common::launch("kaolin", None, move |ui| {
         let ctx = ui.ctx().clone();
         common::use_preset(&ctx);
         theme_bar.show(ui);

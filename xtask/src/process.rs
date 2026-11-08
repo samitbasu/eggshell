@@ -30,7 +30,16 @@ pub fn install_signal_handler() -> Result<()> {
 /// output) to our standard error as it arrives, and returns it with the exit
 /// status.
 pub fn run_cargo(args: &[String], env: &[(&'static str, String)]) -> Result<(ExitStatus, String)> {
-    let mut expression = duct::cmd("cargo", args).dir(workspace_root());
+    run_program("cargo", args, env)
+}
+
+/// [`run_cargo`] for any program, run in the workspace root.
+pub fn run_program(
+    program: &str,
+    args: &[String],
+    env: &[(&'static str, String)],
+) -> Result<(ExitStatus, String)> {
+    let mut expression = duct::cmd(program, args).dir(workspace_root());
     for (key, value) in env {
         expression = expression.env(key, value);
     }
@@ -78,6 +87,21 @@ pub fn git(args: &[&str]) -> Result<String> {
         output.status
     );
     String::from_utf8(output.stdout).context("git printed non-UTF-8 output")
+}
+
+/// The first line of `program --version`, or `None` if it cannot be run.
+pub fn tool_version(program: &str) -> Option<String> {
+    let output = run(duct::cmd(program, ["--version"])
+        .stdout_capture()
+        .stderr_null())
+    .ok()?;
+    output.status.success().then(|| {
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .to_owned()
+    })
 }
 
 /// Whether `cargo <name>` resolves to an installed subcommand.

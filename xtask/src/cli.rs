@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 use crate::examples;
 use crate::snapshots::{self, Mode};
 use crate::steps::{self, FmtMode, Profile, ReportFormat, Step};
+use crate::web;
 
 /// Project automation for bullseye.
 #[derive(Debug, Parser)]
@@ -16,7 +17,8 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Run everything CI runs, in CI's order, stopping at the first failure:
-    /// fmt --check, clippy -D warnings, tests, doctests, rustdoc -D warnings
+    /// fmt --check, the no-wall-clock check, clippy -D warnings, tests,
+    /// doctests, rustdoc -D warnings, wasm32 check
     Ci,
     /// Format the workspace with `cargo fmt --all`
     Fmt {
@@ -43,6 +45,17 @@ pub enum Command {
         /// Build with optimizations
         #[arg(long)]
         release: bool,
+    },
+    /// Build an example for wasm32 and serve it at a local URL until Ctrl+C
+    Web {
+        /// Example to build; see `cargo xtask example`
+        name: String,
+        /// Build with optimizations (slower to build, much faster to run)
+        #[arg(long)]
+        release: bool,
+        /// Port to serve on; 0 picks a free one
+        #[arg(long, default_value_t = 8080)]
+        port: u16,
     },
     /// Check the golden images against a fresh render, with Mesa lavapipe
     Snapshots {
@@ -91,6 +104,19 @@ impl Command {
                 };
                 Step::run(&steps::example(&name, profile))
             }
+            Command::Web {
+                name,
+                release,
+                port,
+            } => web::run(&web::Plan {
+                example: name,
+                profile: if release {
+                    Profile::Release
+                } else {
+                    Profile::Debug
+                },
+                port,
+            }),
             Command::Snapshots {
                 update,
                 clean,
@@ -175,6 +201,28 @@ mod tests {
         };
         assert_eq!(name.as_deref(), Some("hello"));
         assert!(release);
+    }
+
+    #[test]
+    fn web_parses_name_release_and_port() {
+        let Command::Web {
+            name,
+            release,
+            port,
+        } = parse(&["web", "hello"])
+        else {
+            panic!("expected web")
+        };
+        assert_eq!((name.as_str(), release, port), ("hello", false, 8080));
+        assert!(matches!(
+            parse(&["web", "hello", "--release", "--port", "0"]),
+            Command::Web {
+                release: true,
+                port: 0,
+                ..
+            }
+        ));
+        assert!(Cli::try_parse_from(["xtask", "web"]).is_err());
     }
 
     #[test]

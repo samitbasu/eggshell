@@ -16,7 +16,20 @@ Automation lives in the `xtask` crate; run `cargo xtask --help` for the list.
 - `cargo xtask test [-- ARGS]`: all tests and doctests; `ARGS` go to `cargo test`
 - `cargo xtask coverage [--lcov]`: coverage via `cargo-llvm-cov` (HTML report, or `lcov.info`)
 - `cargo xtask example [NAME] [--release]`: run an example, or list them
+- `cargo xtask web NAME [--release] [--port N]`: build an example for the browser (wasm32) and serve it locally until Ctrl+C (see below)
 - `cargo xtask snapshots [--update] [--filter NAME] [--clean]`: golden-image tests (see below)
+
+### Examples in the browser
+
+Every example also runs on the web. `cargo xtask web hello` builds it for
+`wasm32-unknown-unknown`, runs `wasm-bindgen` into `target/web/hello/`, and
+serves it, printing the URL. It needs the wasm target
+(`rustup target add wasm32-unknown-unknown`) and a `wasm-bindgen` CLI of exactly
+the version `Cargo.lock` pins; if yours differs, the command prints the
+`cargo install wasm-bindgen-cli --version X --locked` line to run. `cargo xtask ci`
+checks that the library and all examples compile for wasm32, and that library
+code does not use `std::time::Instant` or `SystemTime` (they panic in the
+browser; use egui's clock). Try UI changes in the browser as well as natively.
 
 ### Golden images
 

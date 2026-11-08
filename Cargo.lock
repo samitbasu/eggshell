@@ -536,6 +536,7 @@ dependencies = [
  "egui_kittest",
  "taffy",
  "trybuild",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

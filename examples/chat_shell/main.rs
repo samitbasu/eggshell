@@ -30,11 +30,7 @@ use view::layout;
 fn main() -> eframe::Result {
     let mut app = App::default();
     let mut layout_state = LayoutState::new();
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1280.0, 800.0]),
-        ..Default::default()
-    };
-    eframe::run_ui_native("chat_shell", options, move |ui, _| {
+    common::launch("chat_shell", Some(egui::vec2(1280.0, 800.0)), move |ui| {
         common::toggle_debug(ui.ctx());
         view::prepare(ui.ctx(), &app);
         let k = Theme::of(ui.ctx());
