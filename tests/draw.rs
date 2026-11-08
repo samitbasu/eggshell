@@ -792,3 +792,72 @@ fn a_node_ui_knows_the_nodes_id_and_has_a_stable_scope_under_any_parent_or_layer
         "{scopes:?}"
     );
 }
+
+// ------------------------------------------------------------------ egui backdrop
+
+/// The `bg_color` each draw closure's `Ui` reports, in a central panel filled
+/// with `PANEL`.
+fn observed_backdrops(
+    build: impl for<'f> FnOnce(&mut bullseye::Builder<'_, 'f, Vec<(&'static str, Color32)>>),
+) -> Vec<(&'static str, Color32)> {
+    const PANEL: Color32 = Color32::from_rgb(10, 20, 30);
+    let ctx = egui::Context::default();
+    let input = RawInput {
+        screen_rect: Some(SCREEN),
+        ..RawInput::default()
+    };
+    let mut seen = Vec::new();
+    let mut build = Some(build);
+    ctx.run_ui(input.clone(), |_| {})
+        .drop_without_applying_deltas();
+    let mut output = ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.fill(PANEL))
+            .show(ui, |ui| {
+                let build = build.take().expect("one pass");
+                LayoutState::new()
+                    .with_base_text(base())
+                    .build(ui.ctx(), build)
+                    .layout(SCREEN)
+                    .draw(&mut seen, ui);
+            });
+    });
+    output.textures_delta.clear();
+    seen
+}
+
+fn probe(
+    name: &'static str,
+) -> impl FnOnce(&mut Vec<(&'static str, Color32)>, &mut egui::Ui) + 'static {
+    move |seen, ui| seen.push((name, ui.stack().bg_color()))
+}
+
+/// ```html
+/// <div class="bg-[#c80000]" id="plain">
+///   <div class="bg-[#0000ff80]" id="nested"></div>
+/// </div>
+/// <div id="sibling"></div>
+/// ```
+#[test]
+fn egui_sees_the_backgrounds_bullseye_painted_as_the_stack_backdrop() {
+    let panel = Color32::from_rgb(10, 20, 30);
+    let under = Color32::from_rgb(200, 0, 0);
+    let over = Color32::from_rgba_unmultiplied(0, 0, 255, 128);
+    let seen = observed_backdrops(|b| {
+        b.div_id("bare", tw(), probe("bare"), |_| {});
+        b.div_id("plain", tw().bg(under), probe("plain"), |b| {
+            b.div_id("nested", tw().bg(over), probe("nested"), |_| {});
+        });
+        b.div_id("sibling", tw(), probe("sibling"), |_| {});
+    });
+    assert_ne!(under.blend(over), over, "precondition: B is translucent");
+    assert_eq!(
+        seen,
+        [
+            ("bare", panel),
+            ("plain", under),
+            ("nested", under.blend(over)),
+            ("sibling", panel),
+        ]
+    );
+}

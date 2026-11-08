@@ -469,6 +469,29 @@ fn chat_shell_composer_grown() {
     );
 }
 
+/// The chat shell with an eleven-line draft, past the composer's cap: the
+/// text scrolls, and the fade at its edge blends into the composer's surface.
+#[allow(
+    clippy::field_reassign_with_default,
+    reason = "App has private fields, so a struct update is not available here"
+)]
+#[test]
+fn chat_shell_composer_scrolling() {
+    let mut app = chat_shell::state::App::default();
+    app.draft = (1..=11)
+        .map(|line| format!("Line number {line} of a long draft"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let base = app.theme.base_text();
+    snapshot_themed(
+        "chat_shell_composer_scrolling",
+        Vec2::new(1200.0, 760.0),
+        (app, chat_shell::view::layout, base),
+        None,
+        (egui::Theme::Dark, chat_shell::view::prepare),
+    );
+}
+
 /// The controls gallery with every cell `width` points wide: the golden, and
 /// the assertion that no widget's rect differs from the library's.
 fn gallery(name: &str, width: f32) {

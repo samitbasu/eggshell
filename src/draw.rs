@@ -5,8 +5,8 @@ use egui::epaint::{RectShape, StrokeKind};
 use std::borrow::Cow;
 
 use egui::{
-    Align, Color32, Id, Image, Layout, Painter, Pos2, Rect, Response, Sense, Stroke, Ui, UiBuilder,
-    Vec2, pos2, vec2,
+    Align, Color32, Frame, Id, Image, Layout, Painter, Pos2, Rect, Response, Sense, Stroke, Ui,
+    UiBuilder, UiKind, UiStackInfo, Vec2, pos2, vec2,
 };
 use taffy::Overflow;
 
@@ -86,6 +86,10 @@ struct Inherited {
     /// A text colour a variant of an ancestor set, for descendants that
     /// inherit their colour.
     text_color: Option<Color32>,
+    /// The backgrounds of the node and its ancestors, composited. egui widgets
+    /// that fade toward `ui.stack().bg_color()` read it from the `Ui`'s stack
+    /// info, as bullseye paints backgrounds without egui `Frame`s.
+    backdrop: Color32,
 }
 
 /// A node's boxes, snapped to physical pixels.
@@ -296,7 +300,13 @@ fn node_ui(
     text: Option<&TextStyle>,
     add_contents: impl FnOnce(&mut Ui),
 ) {
-    let mut child = parent.new_child(builder.layout(Layout::top_down(Align::Min)));
+    let stack_info =
+        UiStackInfo::new(UiKind::GenericArea).with_frame(Frame::NONE.fill(inherited.backdrop));
+    let mut child = parent.new_child(
+        builder
+            .layout(Layout::top_down(Align::Min))
+            .ui_stack_info(stack_info),
+    );
     child.set_clip_rect(inherited.clip);
     if inherited.inertness == Inertness::Inert {
         child.disable();
@@ -516,7 +526,11 @@ impl<A> Walk<'_, A> {
             self.grid,
         );
 
+        let painted_background = look.paint.background.map_or(Color32::TRANSPARENT, |fill| {
+            fill.gamma_multiply(f32::from(opacity))
+        });
         let inherited = Inherited {
+            backdrop: parent.backdrop.blend(painted_background),
             clip: content_clip(parent.clip, boxes.padding, node.overflow),
             opacity,
             inertness,
@@ -650,6 +664,7 @@ impl<A> Placed<A> {
             inertness: Inertness::Live,
             group: None,
             text_color: None,
+            backdrop: Color32::TRANSPARENT,
         };
         let mut walk = Walk {
             app,
