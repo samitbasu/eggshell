@@ -67,6 +67,33 @@ pub fn segmented<A, K, T>(
     K: Hash + Debug + 'static,
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
+    segmented_by(
+        b,
+        key,
+        container,
+        current,
+        options,
+        cell,
+        move |app, _, value| *lens(app) = value,
+    );
+}
+
+/// [`segmented`] for a value that does not live in the application, such as
+/// one held by the egui context: clicking a cell calls `select` with its
+/// value instead of writing through a lens.
+pub fn segmented_by<A, K, T>(
+    b: &mut Builder<'_, '_, A>,
+    key: K,
+    container: Tw,
+    current: T,
+    options: &[(T, &str)],
+    cell: impl Fn(Cell) -> Tw,
+    select: impl Fn(&mut A, &egui::Context, T) + Copy + 'static,
+) where
+    A: 'static,
+    K: Hash + Debug + 'static,
+    T: Copy + PartialEq + Hash + Debug + 'static,
+{
     b.div_id(key, container, none, |b| {
         for &(value, label) in options {
             let state = if value == current {
@@ -78,7 +105,7 @@ pub fn segmented<A, K, T>(
             b.span(value, cell(state).sense_click(), label, move |app, ui| {
                 let response = ui.node_response();
                 if response.clicked() {
-                    *lens(app) = value;
+                    select(app, ui.ctx(), value);
                 }
                 response.widget_info(|| {
                     WidgetInfo::selected(

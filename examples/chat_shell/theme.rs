@@ -5,7 +5,7 @@
 
 use core::ops::Index;
 
-use bullseye::style::{SegmentedClasses, Shadcn};
+use bullseye::style::Shadcn;
 use bullseye::{TextSpec, TextStyle};
 use egui::{Color32, Context, FontFamily};
 
@@ -32,9 +32,6 @@ pub enum Tok {
     InkDim,
     /// The one accent: splitter, meter, send button, busy state.
     Accent,
-    /// The accent as text or a small marker: the accent itself in light, its
-    /// lighter ring shade in dark, where the fill shade is too dim to read.
-    AccentText,
     /// The accent under the pointer.
     AccentHover,
     /// Text on the accent.
@@ -46,7 +43,7 @@ pub enum Tok {
 }
 
 impl Tok {
-    const ALL: [Self; 15] = [
+    const ALL: [Self; 14] = [
         Self::Ground,
         Self::Panel,
         Self::Surface,
@@ -57,7 +54,6 @@ impl Tok {
         Self::InkMid,
         Self::InkDim,
         Self::Accent,
-        Self::AccentText,
         Self::AccentHover,
         Self::OnAccent,
         Self::Success,
@@ -77,10 +73,6 @@ impl Tok {
             Self::Ink => t.foreground,
             Self::InkMid | Self::InkDim => t.muted_foreground,
             Self::Accent => t.primary,
-            Self::AccentText => match preset.theme {
-                egui::Theme::Light => t.primary,
-                egui::Theme::Dark => t.ring,
-            },
             Self::AccentHover => t.primary_90(),
             Self::OnAccent => t.primary_foreground,
             Self::Success => t.success,
@@ -155,11 +147,6 @@ impl Theme {
     pub fn base_text(&self) -> TextStyle {
         TextStyle::new(self[Role::Body].clone(), self[Tok::Ink])
     }
-}
-
-/// The preset's tab list classes for the context's current theme.
-pub fn tab_list(ctx: &Context) -> SegmentedClasses {
-    Shadcn::of(ctx).segmented()
 }
 
 impl Index<Tok> for Theme {

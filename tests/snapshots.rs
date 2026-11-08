@@ -430,26 +430,15 @@ fn port_sidebar() {
     );
 }
 
-/// The chat shell showing `appearance`, with `edit` applied to the app.
-#[allow(
-    clippy::field_reassign_with_default,
-    reason = "App has private fields, so a struct update is not available here"
-)]
+/// The chat shell showing `theme`, with `edit` applied to the app.
 fn chat_shell_in(
     name: &str,
-    appearance: chat_shell::state::Appearance,
+    theme: egui::Theme,
     edit: impl FnOnce(&mut chat_shell::state::App),
     pointer: Option<egui::Pos2>,
 ) {
     let mut app = chat_shell::state::App::default();
-    app.appearance = appearance;
     edit(&mut app);
-    let theme = match appearance {
-        chat_shell::state::Appearance::Light => egui::Theme::Light,
-        chat_shell::state::Appearance::Dark | chat_shell::state::Appearance::System => {
-            egui::Theme::Dark
-        }
-    };
     let base = chat_shell::theme::Theme::new(theme).base_text();
     snapshot_themed(
         name,
@@ -465,7 +454,7 @@ fn chat_shell_in(
 fn chat_shell_light() {
     chat_shell_in(
         "chat_shell_light",
-        chat_shell::state::Appearance::Light,
+        egui::Theme::Light,
         |_| {},
         Some(egui::pos2(120.0, 400.0)),
     );
@@ -476,7 +465,7 @@ fn chat_shell_light() {
 fn chat_shell_dark() {
     chat_shell_in(
         "chat_shell_dark",
-        chat_shell::state::Appearance::Dark,
+        egui::Theme::Dark,
         |_| {},
         Some(egui::pos2(120.0, 400.0)),
     );
@@ -488,7 +477,7 @@ fn chat_shell_dark() {
 fn chat_shell_composer_grown() {
     chat_shell_in(
         "chat_shell_composer_grown",
-        chat_shell::state::Appearance::Dark,
+        egui::Theme::Dark,
         |app| {
             app.draft =
                 "First line\nSecond line\nThird line\nFourth line\nFifth line\nSixth line".into();
@@ -512,7 +501,7 @@ fn eleven_lines(app: &mut chat_shell::state::App) {
 fn chat_shell_composer_scrolling() {
     chat_shell_in(
         "chat_shell_composer_scrolling",
-        chat_shell::state::Appearance::Dark,
+        egui::Theme::Dark,
         eleven_lines,
         None,
     );
@@ -524,7 +513,7 @@ fn chat_shell_composer_scrolling() {
 fn chat_shell_composer_scrolling_light() {
     chat_shell_in(
         "chat_shell_composer_scrolling_light",
-        chat_shell::state::Appearance::Light,
+        egui::Theme::Light,
         eleven_lines,
         None,
     );

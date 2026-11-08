@@ -10,6 +10,8 @@
 //! control. Scrolling arrives with M5; for now overflow is clipped.
 
 pub mod centre;
+#[path = "../common/mod.rs"]
+pub mod common;
 pub mod details;
 pub mod icons;
 pub mod sidebar;

@@ -10,12 +10,12 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
-use bullseye::prim::segmented::{Cell, segmented};
+use bullseye::prim::segmented::{Cell, segmented, segmented_by};
 use bullseye::prim::text_field::{self, Field};
 use bullseye::style::{Accent, Shadcn, Tokens};
 use bullseye::widget::Slider;
 use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
-use egui::{Color32, Context, FontFamily, Role, Theme, WidgetInfo};
+use egui::{Color32, Context, FontFamily, Role, Theme, ThemePreference, WidgetInfo};
 
 /// The controls panel's width.
 const PANEL_WIDTH: f32 = 240.0;
@@ -29,6 +29,16 @@ const RING_WIDTH: f32 = 3.0;
 /// The accent of the examples that use one: the forms' primary button and
 /// focus.
 pub const ACCENT: Accent = Accent::Blue;
+
+/// The height of the strip that holds the theme toggle.
+const THEME_BAR_HEIGHT: f32 = 44.0;
+
+/// The choices of the theme toggle, in order.
+pub const APPEARANCES: [(ThemePreference, &str); 3] = [
+    (ThemePreference::System, "System"),
+    (ThemePreference::Light, "Light"),
+    (ThemePreference::Dark, "Dark"),
+];
 
 /// The tokens the examples are drawn with: the preset applied to the
 /// context, or the preset's own for its current theme.
@@ -138,14 +148,12 @@ fn shell<S: 'static>(
     mut frame: impl FnMut(&mut S, &mut LayoutState, egui::Rect, &mut egui::Ui) + 'static,
 ) -> eframe::Result {
     let mut layout_state = LayoutState::new();
-    let mut first_frame = true;
+    let mut theme_bar = ThemeBar::new();
     eframe::run_ui_native(title, eframe::NativeOptions::default(), move |ui, _| {
         let ctx = ui.ctx().clone();
-        if std::mem::take(&mut first_frame) {
-            ctx.set_theme(Theme::Light);
-        }
         use_preset(&ctx);
         prepare(&ctx, &state);
+        theme_bar.show(ui);
         layout_state.set_base_text(Some(base_text(ctx.theme())));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens(&ctx).background))
@@ -154,6 +162,83 @@ fn shell<S: 'static>(
                 frame(&mut state, &mut layout_state, area, ui);
             });
     })
+}
+
+/// The System, Light and Dark choices as the preset's tab list. The choice
+/// lives in the egui context, which is what follows the OS theme under
+/// [`ThemePreference::System`].
+///
+/// ```html
+/// <div class="flex items-center h-9 p-[3px] rounded-lg bg-muted w-fit">
+///   <span class="… text-muted-foreground">System</span>
+///   <span class="… bg-background text-foreground shadow-sm">Light</span>  <!-- pressed -->
+///   <span class="… text-muted-foreground">Dark</span>
+/// </div>
+/// ```
+pub fn theme_toggle<A, K>(b: &mut Builder<'_, '_, A>, key: K)
+where
+    A: 'static,
+    K: Hash + Debug + 'static,
+{
+    let classes = segmented_classes(b.ctx());
+    let current = b.ctx().options(|options| options.theme_preference);
+    segmented_by(
+        b,
+        key,
+        classes.container(),
+        current,
+        &APPEARANCES,
+        |cell| classes.cell(cell),
+        |_: &mut A, ctx, preference| ctx.set_theme(preference),
+    );
+}
+
+/// The strip every example shows along its top edge, with the theme toggle
+/// at its right: for examples that run their own eframe loop.
+///
+/// ```html
+/// <header class="flex items-center justify-end h-11 px-3 bg-background border-b border-border">…toggle…</header>
+/// ```
+#[derive(Default)]
+pub struct ThemeBar {
+    layout: LayoutState,
+}
+
+impl ThemeBar {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Shows the strip as a top panel of `ui`.
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        let ctx = ui.ctx().clone();
+        use_preset(&ctx);
+        self.layout.set_base_text(Some(base_text(ctx.theme())));
+        let t = tokens(&ctx);
+        egui::Panel::top("theme_bar")
+            .exact_size(THEME_BAR_HEIGHT)
+            .show_separator_line(false)
+            .frame(egui::Frame::NONE.fill(t.background))
+            .show(ui, |ui| {
+                let area = ui.max_rect();
+                self.layout
+                    .build(&ctx, |b| {
+                        b.div(
+                            tw().flex()
+                                .items_center()
+                                .justify_end()
+                                .size_full()
+                                .px(3.0)
+                                .border_b(1.0)
+                                .border_color(t.border)
+                                .text(t.foreground),
+                            |b| theme_toggle(b, "theme"),
+                        );
+                    })
+                    .layout(area)
+                    .draw(&mut (), ui);
+            });
+    }
 }
 
 /// A draw closure that runs `act` on the application when the node is clicked.

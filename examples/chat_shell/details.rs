@@ -39,7 +39,7 @@ impl TaskState {
 
     fn color(self, k: &Theme) -> Color32 {
         match self {
-            Self::Running => k[Tok::AccentText],
+            Self::Running => k[Tok::Accent],
             Self::Queued | Self::Done => k[Tok::InkDim],
         }
     }

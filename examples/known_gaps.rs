@@ -28,6 +28,9 @@
 //! and Bold files (`egui_system_font_provider` is a glyph fallback, not a weight
 //! lookup), and shows a note when it finds none. No font files are committed.
 
+#[path = "common/mod.rs"]
+mod common;
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -487,6 +490,7 @@ fn main() -> eframe::Result {
     let mut layout = LayoutState::new().with_base_text(base_text());
     let mut faces: Option<Faces> = None;
     let mut registered = false;
+    let mut theme_bar = common::ThemeBar::new();
     eframe::run_ui_native(
         "known_gaps",
         eframe::NativeOptions {
@@ -495,7 +499,6 @@ fn main() -> eframe::Result {
         },
         move |ui, _| {
             let ctx = ui.ctx().clone();
-            ctx.set_theme(egui::Theme::Light);
             if !registered {
                 registered = true;
                 faces = find_faces(&font_roots());
@@ -510,6 +513,7 @@ fn main() -> eframe::Result {
                 ctx.request_repaint();
                 return;
             }
+            theme_bar.show(ui);
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE)
                 .show(ui, |ui| {

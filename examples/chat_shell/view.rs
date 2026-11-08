@@ -83,9 +83,8 @@ fn splitter(b: &mut B<'_, '_>, pane: Pane) {
 }
 
 /// Gives egui's stock widgets, which the select and the composer's field are,
-/// the preset's look in both themes, and shows the theme the app asks for.
+/// the preset's look.
 pub fn prepare(ctx: &egui::Context, app: &App) {
-    ctx.set_theme(app.appearance);
     Shadcn::apply_both_with(ctx, app.accent);
 }
 

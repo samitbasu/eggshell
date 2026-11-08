@@ -2,12 +2,12 @@
 
 use core::time::Duration;
 
-use bullseye::prim::segmented::segmented;
 use bullseye::{Builder, NodeUi, Tw, none, tw};
 
+use super::common;
 use super::icons::{self, Glyph};
-use super::state::{App, Appearance, Pane, Session, Status};
-use super::theme::{self, Role, Theme, Tok};
+use super::state::{App, Pane, Session, Status};
+use super::theme::{Role, Theme, Tok};
 use super::view::Part;
 
 type B<'b, 'f> = Builder<'b, 'f, App>;
@@ -103,7 +103,7 @@ fn link(b: &mut B<'_, '_>, k: &Theme, link: Link) {
 
 fn status_color(k: &Theme, status: Status) -> egui::Color32 {
     match status {
-        Status::Working => k[Tok::AccentText],
+        Status::Working => k[Tok::Accent],
         Status::NeedsInput => k[Tok::InkMid],
     }
 }
@@ -159,7 +159,7 @@ fn recent(b: &mut B<'_, '_>, k: &Theme, session: &Session, selected: bool) {
 ///   <div class="tab-list">System Light Dark</div>
 /// </div>
 /// ```
-fn account(b: &mut B<'_, '_>, app: &App, k: &Theme) {
+fn account(b: &mut B<'_, '_>, k: &Theme) {
     b.div_id(
         Part::Account,
         tw().flex()
@@ -191,22 +191,8 @@ fn account(b: &mut B<'_, '_>, app: &App, k: &Theme) {
                     );
                 });
             });
-            appearance(b, app);
+            common::theme_toggle(b, Part::Appearance);
         },
-    );
-}
-
-/// System, Light or Dark, as the preset's tab list.
-fn appearance(b: &mut B<'_, '_>, app: &App) {
-    let classes = theme::tab_list(b.ctx());
-    segmented(
-        b,
-        Part::Appearance,
-        classes.container(),
-        app.appearance,
-        &Appearance::ALL,
-        |cell| classes.cell(cell),
-        |app| &mut app.appearance,
     );
 }
 
@@ -265,7 +251,7 @@ pub fn sidebar(b: &mut B<'_, '_>, app: &App) {
                     }
                 },
             );
-            account(b, app, k);
+            account(b, k);
         },
     );
 }

@@ -233,8 +233,9 @@ fn main() -> eframe::Result {
     let mut state = State::default();
     let mut layout_state =
         bullseye::LayoutState::new().with_base_text(common::base_text(egui::Theme::Light));
+    let mut theme_bar = common::ThemeBar::new();
     eframe::run_ui_native("todo", eframe::NativeOptions::default(), move |ui, _| {
-        ui.ctx().set_theme(egui::Theme::Light);
+        theme_bar.show(ui);
         egui::Panel::top("add").show(ui, |ui| add_bar(ui, &mut state));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(Color32::WHITE))

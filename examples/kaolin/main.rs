@@ -1,5 +1,7 @@
 //! A gallery of the kaolin README layouts, built and drawn by bullseye in eframe.
 
+#[path = "../common/mod.rs"]
+mod common;
 mod layouts;
 
 use bullseye::{Builder, LayoutState, TextStyle, tw};
@@ -82,8 +84,9 @@ fn main() -> eframe::Result {
     let mut layout =
         LayoutState::new().with_base_text(TextStyle::new(layouts::BODY, Color32::BLACK));
     let mut logo_texture: Option<TextureHandle> = None;
+    let mut theme_bar = common::ThemeBar::new();
     eframe::run_ui_native("kaolin", eframe::NativeOptions::default(), move |ui, _| {
-        ui.ctx().set_theme(egui::Theme::Light);
+        theme_bar.show(ui);
         let logo = logo_texture.get_or_insert_with(|| logo(ui.ctx()));
         let source = ImageSource::Texture(SizedTexture::from_handle(logo));
         egui::CentralPanel::default()

@@ -16,7 +16,7 @@ mod chat_shell;
 mod support;
 
 use chat_shell::sidebar::Link;
-use chat_shell::state::{App, Appearance, Pane, SessionKey};
+use chat_shell::state::{App, Pane, SessionKey};
 use chat_shell::theme::{Theme, Tok};
 use chat_shell::view::{Part, layout, prepare};
 use support::{Rig, click_node, drag, fill_of, hover_node, hover_over, rect_of};
@@ -24,29 +24,20 @@ use support::{Rig, click_node, drag, fill_of, hover_node, hover_over, rect_of};
 const WINDOW: Vec2 = vec2(1200.0, 760.0);
 
 fn harness_with(app: App) -> Harness<'static, Rig<App>> {
-    support::harness_prepared(
-        WINDOW,
-        Theme::new(egui::Theme::Dark).base_text(),
-        app,
-        layout,
-        prepare,
-    )
+    harness_in(egui::Theme::Dark, app)
 }
 
-/// The app showing `appearance`, which the tests pick so that they do not
-/// depend on the machine's theme.
-#[allow(
-    clippy::field_reassign_with_default,
-    reason = "App has private fields, so a struct update is not available here"
-)]
-fn app_showing(appearance: Appearance) -> App {
-    let mut app = App::default();
-    app.appearance = appearance;
-    app
+/// A harness showing `theme`, which the tests pick so that they do not depend
+/// on the machine's theme.
+fn harness_in(theme: egui::Theme, app: App) -> Harness<'static, Rig<App>> {
+    let harness =
+        support::harness_prepared(WINDOW, Theme::new(theme).base_text(), app, layout, prepare);
+    harness.ctx.set_theme(theme);
+    harness
 }
 
 fn harness() -> Harness<'static, Rig<App>> {
-    harness_with(app_showing(Appearance::Dark))
+    harness_with(App::default())
 }
 
 fn path(part: Part) -> String {
@@ -542,15 +533,15 @@ mod composer_growth {
     const FIELD: &str = "/Centre/Composer/Field";
 
     fn scaled_harness(pixels_per_point: f32) -> Harness<'static, Rig<App>> {
-        let app = app_showing(Appearance::Dark);
         let mut harness = support::harness_scaled(
             WINDOW,
             pixels_per_point,
             Theme::new(egui::Theme::Dark).base_text(),
-            app,
+            App::default(),
             layout,
             prepare,
         );
+        harness.ctx.set_theme(egui::Theme::Dark);
         harness.run();
         click_node(&mut harness, "/Centre/Composer/Field");
         harness.run();
@@ -662,7 +653,6 @@ mod appearance {
 
         click_node(&mut harness, LIGHT);
         settle(&mut harness);
-        assert_eq!(harness.state().app.appearance, Appearance::Light);
         assert_eq!(harness.ctx.theme(), egui::Theme::Light);
 
         click_node(&mut harness, DARK);
@@ -671,7 +661,6 @@ mod appearance {
 
         click_node(&mut harness, SYSTEM);
         settle(&mut harness);
-        assert_eq!(harness.state().app.appearance, Appearance::System);
         assert_eq!(
             harness.ctx.options(|options| options.theme_preference),
             egui::ThemePreference::System
@@ -743,7 +732,7 @@ mod appearance {
             "precondition: the row is part-way to its hover fill: {midway:?}"
         );
 
-        harness.state_mut().app.appearance = Appearance::Light;
+        harness.ctx.set_theme(egui::Theme::Light);
         harness.step();
         let after = fill_of(&harness, NAV_ROW);
         assert!(
@@ -776,27 +765,20 @@ mod accents {
 
     #[test]
     fn the_accent_colours_the_busy_marks_and_green_and_red_the_change_counts() {
-        for appearance in [Appearance::Light, Appearance::Dark] {
-            let mut harness = harness_with(app_showing(appearance));
+        for theme in [egui::Theme::Light, egui::Theme::Dark] {
+            let mut harness = harness_in(theme, App::default());
             harness.run_steps(3);
             let k = Theme::of(&harness.ctx);
-            assert_eq!(
-                text_colors(&harness, "+24"),
-                [k[Tok::Success]],
-                "{appearance:?}"
-            );
+            assert_eq!(text_colors(&harness, "+24"), [k[Tok::Success]], "{theme:?}");
             assert_eq!(text_colors(&harness, "-8"), [k[Tok::Danger]]);
-            assert_eq!(text_colors(&harness, "Running"), [k[Tok::AccentText]]);
+            assert_eq!(text_colors(&harness, "Running"), [k[Tok::Accent]]);
             assert_ne!(k[Tok::Success], k[Tok::Danger], "precondition");
             assert_eq!(
                 bullseye::style::Shadcn::of(&harness.ctx).tokens.primary,
-                bullseye::style::Shadcn::for_theme(match appearance {
-                    Appearance::Light => egui::Theme::Light,
-                    _ => egui::Theme::Dark,
-                })
-                .accent(Accent::Blue)
-                .tokens
-                .primary,
+                bullseye::style::Shadcn::for_theme(theme)
+                    .accent(Accent::Blue)
+                    .tokens
+                    .primary,
                 "the example's accent is blue"
             );
             let meter = rect_of(&harness, "/Details/\"Context\"/Meter");
