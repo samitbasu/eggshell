@@ -74,6 +74,10 @@ mod grow;
 mod holy_grail;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/known_gaps.rs"]
+mod known_gaps;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../examples/sidebar.rs"]
 mod sidebar;
 
@@ -643,4 +647,23 @@ fn signup_form_rejected() {
         },
         signup_form::layout,
     );
+}
+
+/// The shadow half of `known_gaps` (#12): CSS's layered negative-spread
+/// shadows above, `shadow(..)` clamped below. The weights half depends on the
+/// fonts installed on the machine, so it has no golden.
+#[test]
+fn known_gaps_shadows() {
+    report_renderer();
+    let mut state = LayoutState::new().with_base_text(known_gaps::base_text());
+    let mut harness = Harness::builder()
+        .with_size(Vec2::new(1100.0, 560.0))
+        .build_ui(|ui| {
+            let area = ui.max_rect();
+            state
+                .build(ui.ctx(), known_gaps::shadows)
+                .layout(area)
+                .draw(&mut (), ui);
+        });
+    harness.snapshot("known_gaps_shadows");
 }
