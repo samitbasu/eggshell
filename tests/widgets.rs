@@ -12,7 +12,7 @@ use egui_kittest::kittest::Queryable as _;
 
 mod support;
 
-use support::{Accessibility, Rig, click_node, drag, rect_of};
+use support::{Rig, click_node, drag, rect_of};
 
 fn base_text() -> TextStyle {
     TextStyle::new(
@@ -69,16 +69,26 @@ fn form(b: &mut Builder<'_, '_, App>, app: &App) {
                 },
             );
         }
-        b.widget("level", tw().w_px(200.0), Slider::new(), |app, ui, w| {
-            w.show(ui, &mut app.level, 0.0..=100.0);
-        });
-        b.widget("amount", tw(), DragValue::new("000.0"), |app, ui, w| {
-            w.show(ui, &mut app.amount, 0.0..=1000.0);
-        });
+        b.widget(
+            "level",
+            tw().w_px(200.0),
+            Slider::new().named("Level"),
+            |app, ui, w| {
+                w.show(ui, &mut app.level, 0.0..=100.0);
+            },
+        );
+        b.widget(
+            "amount",
+            tw(),
+            DragValue::new("000.0").named("Amount"),
+            |app, ui, w| {
+                w.show(ui, &mut app.amount, 0.0..=1000.0);
+            },
+        );
         b.widget(
             "pick",
             tw(),
-            ComboBox::new(OPTIONS[app.pick]),
+            ComboBox::new(OPTIONS[app.pick]).named("Pick"),
             |app, ui, w| {
                 w.show(ui, |ui| {
                     for (index, option) in OPTIONS.iter().enumerate() {
@@ -91,13 +101,7 @@ fn form(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn harness() -> Harness<'static, Rig<App>> {
-    support::harness_with(
-        vec2(400.0, 400.0),
-        base_text(),
-        App::default(),
-        form,
-        Accessibility::Unchecked,
-    )
+    support::harness(vec2(400.0, 400.0), base_text(), App::default(), form)
 }
 
 #[test]
@@ -178,7 +182,9 @@ fn secret(b: &mut Builder<'_, '_, Secret>, app: &Secret) {
     b.widget(
         "password",
         tw().w_px(200.0),
-        TextEdit::singleline(&app.password).masked(),
+        TextEdit::singleline(&app.password)
+            .masked()
+            .named("Password"),
         |app, ui, field| {
             field.show(ui, &mut app.password);
         },
@@ -200,13 +206,7 @@ fn painted_text<A>(harness: &Harness<'_, Rig<A>>) -> Vec<String> {
 
 #[test]
 fn a_masked_field_edits_the_text_and_paints_dots() {
-    let mut harness = support::harness_with(
-        vec2(300.0, 100.0),
-        base_text(),
-        Secret::default(),
-        secret,
-        Accessibility::Unchecked,
-    );
+    let mut harness = support::harness(vec2(300.0, 100.0), base_text(), Secret::default(), secret);
     harness.run_steps(2);
     let unmasked = rect_of(&harness, "/\"password\"");
     click_node(&mut harness, "/\"password\"");
@@ -274,13 +274,7 @@ fn wide(b: &mut Builder<'_, '_, Wide>, _: &Wide) {
 
 #[test]
 fn a_checkbox_in_a_wider_leaf_stays_at_the_left_at_its_own_size() {
-    let mut harness = support::harness_with(
-        vec2(400.0, 120.0),
-        base_text(),
-        Wide::default(),
-        wide,
-        Accessibility::Unchecked,
-    );
+    let mut harness = support::harness(vec2(400.0, 120.0), base_text(), Wide::default(), wide);
     harness.run_steps(2);
     let ctx = harness.ctx.clone();
     let text = base_text();
@@ -309,13 +303,7 @@ fn a_checkbox_in_a_wider_leaf_stays_at_the_left_at_its_own_size() {
 
 #[test]
 fn a_checkbox_label_still_wraps_in_a_narrow_leaf() {
-    let mut harness = support::harness_with(
-        vec2(400.0, 200.0),
-        base_text(),
-        Wide::default(),
-        wide,
-        Accessibility::Unchecked,
-    );
+    let mut harness = support::harness(vec2(400.0, 200.0), base_text(), Wide::default(), wide);
     harness.run_steps(2);
     let estimate =
         Checkbox::new(NARROW_LABEL).size(&harness.ctx, &base_text(), Some(Width::new(90.0)));

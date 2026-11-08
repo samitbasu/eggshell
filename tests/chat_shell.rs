@@ -24,14 +24,7 @@ use support::{Rig, click_node, drag, fill_of, hover_node, hover_over, rect_of};
 const WINDOW: Vec2 = vec2(1200.0, 760.0);
 
 fn harness_with(app: App) -> Harness<'static, Rig<App>> {
-    support::harness_prepared(
-        WINDOW,
-        app.theme.base_text(),
-        app,
-        layout,
-        support::Accessibility::Checked,
-        prepare,
-    )
+    support::harness_prepared(WINDOW, app.theme.base_text(), app, layout, prepare)
 }
 
 fn harness() -> Harness<'static, Rig<App>> {
@@ -538,7 +531,6 @@ mod composer_growth {
             app.theme.base_text(),
             app,
             layout,
-            support::Accessibility::Checked,
             prepare,
         );
         harness.run();

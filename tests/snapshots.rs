@@ -361,14 +361,7 @@ fn snapshot_themed<A: 'static>(
     (theme, prepare): (egui::Theme, fn(&egui::Context, &A)),
 ) {
     report_renderer();
-    let mut harness = support::harness_prepared(
-        size,
-        base_text,
-        app,
-        view,
-        support::Accessibility::Checked,
-        prepare,
-    );
+    let mut harness = support::harness_prepared(size, base_text, app, view, prepare);
     harness.ctx.set_theme(theme);
     harness.run_steps(2);
     if let Some(pointer) = pointer {
@@ -509,7 +502,6 @@ fn gallery(name: &str, width: f32) {
         controls_gallery::base_text(),
         state,
         controls_gallery::layout,
-        support::Accessibility::Unchecked,
         controls_gallery::prepare,
     );
     harness.ctx.set_theme(egui::Theme::Light);

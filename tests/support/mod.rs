@@ -23,43 +23,25 @@ pub struct Rig<A> {
     ids: Vec<(String, egui::Id)>,
 }
 
-/// Whether kittest rejects widgets without an accessible name.
-#[derive(Clone, Copy)]
-pub enum Accessibility {
-    Checked,
-    Unchecked,
-}
-
 pub fn harness<A: 'static>(
     size: Vec2,
     base_text: TextStyle,
     app: A,
     view: View<A>,
 ) -> Harness<'static, Rig<A>> {
-    harness_with(size, base_text, app, view, Accessibility::Checked)
+    harness_prepared(size, base_text, app, view, |_, _| {})
 }
 
-pub fn harness_with<A: 'static>(
-    size: Vec2,
-    base_text: TextStyle,
-    app: A,
-    view: View<A>,
-    accessibility: Accessibility,
-) -> Harness<'static, Rig<A>> {
-    harness_prepared(size, base_text, app, view, accessibility, |_, _| {})
-}
-
-/// [`harness_with`] for an app that sets egui's style: `prepare` runs before
+/// [`harness`] for an app that sets egui's style: `prepare` runs before
 /// every frame is built.
 pub fn harness_prepared<A: 'static>(
     size: Vec2,
     base_text: TextStyle,
     app: A,
     view: View<A>,
-    accessibility: Accessibility,
     prepare: fn(&egui::Context, &A),
 ) -> Harness<'static, Rig<A>> {
-    harness_scaled(size, 1.0, base_text, app, view, accessibility, prepare)
+    harness_scaled(size, 1.0, base_text, app, view, prepare)
 }
 
 /// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
@@ -70,7 +52,6 @@ pub fn harness_scaled<A: 'static>(
     base_text: TextStyle,
     app: A,
     view: View<A>,
-    accessibility: Accessibility,
     prepare: fn(&egui::Context, &A),
 ) -> Harness<'static, Rig<A>> {
     let rig = Rig {
@@ -85,7 +66,7 @@ pub fn harness_scaled<A: 'static>(
         .with_size(size)
         .with_pixels_per_point(pixels_per_point)
         .with_step_dt(0.05)
-        .with_accessibility_check(matches!(accessibility, Accessibility::Checked))
+        .with_accessibility_check(true)
         .build_ui_state(
             |ui, rig: &mut Rig<A>| {
                 let area = ui.max_rect();

@@ -19,7 +19,7 @@ mod support;
 use controls_gallery::{
     CellWidth, Control, Interact, Label, Padding, State, TextSize, layout, prepare,
 };
-use support::{Accessibility, Rig, click_node, drag, rect_of};
+use support::{Rig, click_node, drag, rect_of};
 
 const WINDOW: Vec2 = vec2(1500.0, 1100.0);
 
@@ -29,7 +29,6 @@ fn harness(state: State) -> Harness<'static, Rig<State>> {
         controls_gallery::base_text(),
         state,
         layout,
-        Accessibility::Unchecked,
         prepare,
     );
     harness.run_steps(4);

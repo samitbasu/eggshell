@@ -418,27 +418,32 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 );
             });
         }
-        Control::Slider => b.widget(control, fill, Slider::new(), move |s, ui, w| {
-            observed(
-                s,
-                ui,
-                control,
-                Never,
-                |s, ui| {
-                    w.show(ui, &mut s.level, 0.0..=100.0);
-                },
-                |ui, width| {
-                    ui.spacing_mut().slider_width = width;
-                    ui.add(egui::Slider::new(&mut 0.0, 0.0..=100.0).show_value(false))
-                        .rect
-                },
-            );
-        }),
+        Control::Slider => b.widget(
+            control,
+            fill,
+            Slider::new().named(label),
+            move |s, ui, w| {
+                observed(
+                    s,
+                    ui,
+                    control,
+                    Never,
+                    |s, ui| {
+                        w.show(ui, &mut s.level, 0.0..=100.0);
+                    },
+                    |ui, width| {
+                        ui.spacing_mut().slider_width = width;
+                        ui.add(egui::Slider::new(&mut 0.0, 0.0..=100.0).show_value(false))
+                            .rect
+                    },
+                );
+            },
+        ),
         Control::DragValue => {
             b.widget(
                 control,
                 tw(),
-                DragValue::new(DRAG_TEMPLATE),
+                DragValue::new(DRAG_TEMPLATE).named(label),
                 move |s, ui, w| {
                     observed(
                         s,
@@ -456,23 +461,28 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 },
             );
         }
-        Control::ComboBox => b.widget(control, tw(), ComboBox::new(label), move |s, ui, w| {
-            observed(
-                s,
-                ui,
-                control,
-                Never,
-                |_, ui| {
-                    w.show(ui, |ui| {
-                        ui.label(label);
-                    });
-                },
-                |ui, _| combo(ui, label).rect,
-            );
-        }),
+        Control::ComboBox => b.widget(
+            control,
+            tw(),
+            ComboBox::new(label).named(label),
+            move |s, ui, w| {
+                observed(
+                    s,
+                    ui,
+                    control,
+                    Never,
+                    |_, ui| {
+                        w.show(ui, |ui| {
+                            ui.label(label);
+                        });
+                    },
+                    |ui, _| combo(ui, label).rect,
+                );
+            },
+        ),
         Control::TextEdit => {
             let text = state.single.clone();
-            let field = TextEdit::singleline(&text).hint(label);
+            let field = TextEdit::singleline(&text).hint(label).named(label);
             b.widget(control, fill, field, move |s, ui, w| {
                 observed(
                     s,
@@ -488,7 +498,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
         }
         Control::TextEditMulti => {
             let text = state.multi.clone();
-            let field = TextEdit::multiline(&text, 2).hint(label);
+            let field = TextEdit::multiline(&text, 2).hint(label).named(label);
             b.widget(control, fill, field, move |s, ui, w| {
                 observed(
                     s,
@@ -526,7 +536,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
         }
         Control::TextFieldMulti => {
             let text = state.field_multi.clone();
-            let field = Field::multiline(&text, 1).max_rows(FIELD_ROWS);
+            let field = Field::multiline(&text, 1).max_rows(FIELD_ROWS).named(label);
             let measured = field.clone();
             b.leaf(
                 control,
@@ -550,7 +560,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
             w.show(ui, &mut s.on);
         }),
         Control::Select => {
-            let options = Options::new(select_labels(label));
+            let options = Options::new(select_labels(label)).named(label);
             let measured = options.clone();
             b.leaf(
                 control,
