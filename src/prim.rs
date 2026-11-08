@@ -46,9 +46,7 @@ pub(crate) type PaintFn = Box<dyn Fn(&Painter, Rect)>;
 /// What a node displays, when it displays anything.
 pub(crate) enum Prim {
     Text(String),
-    #[expect(dead_code, reason = "drawn in M2")]
     Icon(Icon),
     Image(ImageSource<'static>),
-    #[expect(dead_code, reason = "drawn in M2")]
     Paint(PaintFn),
 }

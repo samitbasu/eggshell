@@ -4,43 +4,49 @@
 //! preconditions (the text is wide enough to wrap, the siblings differ) so it
 //! cannot silently stop testing anything.
 
+#![allow(
+    clippy::duplicate_mod,
+    reason = "each example includes the shared examples/common module"
+)]
+
 use std::sync::OnceLock;
 
 use bullseye::{
     Builder, FontStyle, Icon, LayoutState, NodeKind, Placed, TextDecoration, TextSpec, TextStyle,
     Track, none, tw,
 };
-use egui::epaint::text::LayoutJob;
-use egui::{Color32, Context, FontFamily, Id, Pos2, Rect, pos2, vec2};
 
-type B<'b, 'f> = Builder<'b, 'f, ()>;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/custom_background.rs"]
+mod custom_background;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flex.rs"]
+mod flex;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flex_grid.rs"]
+mod flex_grid;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flex_wrap.rs"]
+mod flex_wrap;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/flexbox_guide.rs"]
+mod flexbox_guide;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/grow.rs"]
+mod grow;
+#[allow(dead_code, reason = "the example's main and controls are not run here")]
+#[path = "../examples/holy_grail.rs"]
+mod holy_grail;
+#[path = "../examples/kaolin/layouts.rs"]
+mod layouts;
+use egui::epaint::text::LayoutJob;
+use egui::{Color32, Context, Id, Pos2, Rect, pos2, vec2};
+use layouts::{BODY, LONG, WRAPPING, mono, sized};
 
 const AREA: Rect = Rect {
     min: pos2(0.0, 0.0),
     max: pos2(800.0, 600.0),
 };
-
-const BODY: TextSpec = TextSpec {
-    size: 16.0,
-    line_height: 20.0,
-    family: FontFamily::Proportional,
-};
-
-fn sized(size: f32) -> TextSpec {
-    TextSpec {
-        size,
-        line_height: size * 1.25,
-        family: FontFamily::Proportional,
-    }
-}
-
-fn mono(size: f32) -> TextSpec {
-    TextSpec {
-        size,
-        line_height: size * 1.25,
-        family: FontFamily::Monospace,
-    }
-}
 
 fn base() -> TextStyle {
     TextStyle::new(BODY, Color32::BLACK)
@@ -136,25 +142,10 @@ fn hello_is_centred_in_a_flex_container() {
 
 // ---------------------------------------------------------------- kaolin 1
 
-/// ```html
-/// <div class="flex size-full items-center justify-center bg-white">
-///   <span class="text-[48px]/[60px] text-black">Hello, World!</span>
-/// </div>
-/// ```
+/// See [`layouts::hello_world`].
 #[test]
 fn kaolin_hello_world() {
-    let placed = place(|b: &mut B| {
-        b.div(
-            tw().flex()
-                .size_full()
-                .items_center()
-                .justify_center()
-                .bg(Color32::WHITE),
-            |b| {
-                b.text(tw().role(sized(48.0)).text(Color32::BLACK), "Hello, World!");
-            },
-        );
-    });
+    let placed = place(layouts::hello_world);
     let div = rects(&placed, NodeKind::Div)[0];
     assert_rect(div, [0.0, 0.0, 800.0, 600.0]);
     let text = rects(&placed, NodeKind::Text)[0];
@@ -168,29 +159,6 @@ fn kaolin_hello_world() {
 
 // ---------------------------------------------------------------- kaolin 2
 
-/// Container classes shared by the direction tests; the test adds the size.
-///
-/// ```html
-/// <div class="flex flex-row items-center justify-center gap-2.5"> ... </div>
-/// ```
-fn direction_and_alignment() -> bullseye::Tw {
-    tw().flex()
-        .flex_row()
-        .items_center()
-        .justify_center()
-        .gap(2.5)
-}
-
-/// ```html
-/// <div class="w-[40px] h-[20px]"></div>
-/// <!-- x3, widths 40/50/60px -->
-/// ```
-fn three_boxes(b: &mut B<'_, '_>) {
-    for width in [40.0, 50.0, 60.0] {
-        b.div(tw().w_px(width).h_px(20.0), |_| {});
-    }
-}
-
 /// ```html
 /// <div class="flex flex-row items-center justify-center gap-2.5 w-[300px] h-[100px]">
 ///   <div class="w-[40px] h-[20px]"></div>
@@ -201,14 +169,14 @@ fn three_boxes(b: &mut B<'_, '_>) {
 /// ```
 #[test]
 fn kaolin_direction_and_alignment() {
-    let container = || direction_and_alignment().w_px(300.0).h_px(100.0);
+    let container = || layouts::direction_and_alignment().w_px(300.0).h_px(100.0);
     let rects_of = |tw: bullseye::Tw| {
-        let placed = place(|b| b.div(tw, |b| three_boxes(b)));
+        let placed = place(|b| b.div(tw, layouts::three_boxes));
         rects(&placed, NodeKind::Div)[1..].to_vec()
     };
 
     assert_eq!(
-        direction_and_alignment().style().gap.width,
+        layouts::direction_and_alignment().style().gap.width,
         taffy::LengthPercentage::length(10.0)
     );
 
@@ -237,31 +205,6 @@ fn kaolin_direction_and_alignment() {
 
 // ---------------------------------------------------------------- kaolin 3
 
-/// The eight sizing modes, as the classes on the child:
-///
-/// ```html
-/// <div class="w-[200px] h-[100px]"></div>
-/// <div class="size-[150px]"></div>
-/// <div></div>
-/// <div class="max-w-[320px]"></div>
-/// <div class="min-w-[120px] max-w-[320px]"></div>
-/// <div class="flex-1"></div>
-/// <div class="grow-[2]"></div>
-/// <div class="flex-1 min-w-[120px] max-w-[480px]"></div>
-/// ```
-fn sizing_modes() -> [bullseye::Tw; 8] {
-    [
-        tw().w_px(200.0).h_px(100.0),
-        tw().size_px(150.0),
-        tw(),
-        tw().max_w_px(320.0),
-        tw().min_w_px(120.0).max_w_px(320.0),
-        tw().flex_1(),
-        tw().grow_by(2.0),
-        tw().flex_1().min_w_px(120.0).max_w_px(480.0),
-    ]
-}
-
 /// The first child of a 600 x 300 row that does not stretch its children.
 /// ```html
 /// <div class="flex w-[600px] h-[300px] items-start">
@@ -281,15 +224,13 @@ fn sized_child(style: bullseye::Tw, content: &'static str) -> Rect {
     rects(&placed, NodeKind::Div)[1]
 }
 
-const LONG: &str = "This is a long text that will automatically wrap to multiple lines of text";
-
 /// ```html
 /// <div class="w-[200px] h-[100px]"></div>
 /// <div class="size-[150px]"></div>
 /// ```
 #[test]
 fn kaolin_sizing_fixed() {
-    let [fixed, square, ..] = sizing_modes();
+    let [fixed, square, ..] = layouts::sizing_modes();
     assert_eq!(sized_child(fixed, "").size(), vec2(200.0, 100.0));
     assert_eq!(sized_child(square, "").size(), vec2(150.0, 150.0));
 }
@@ -299,7 +240,7 @@ fn kaolin_sizing_fixed() {
 /// ```
 #[test]
 fn kaolin_sizing_fit() {
-    let [_, _, fit, ..] = sizing_modes();
+    let [_, _, fit, ..] = layouts::sizing_modes();
     let width = width_of(&BODY, "Fit me");
     assert_eq!(sized_child(fit, "Fit me").size(), vec2(width, 20.0));
 }
@@ -309,7 +250,7 @@ fn kaolin_sizing_fit() {
 /// ```
 #[test]
 fn kaolin_sizing_fit_with_max_width() {
-    let [_, _, _, max, ..] = sizing_modes();
+    let [_, _, _, max, ..] = layouts::sizing_modes();
     assert!(
         width_of(&BODY, LONG) > 320.0,
         "precondition: the text overflows"
@@ -325,7 +266,7 @@ fn kaolin_sizing_fit_with_max_width() {
 /// ```
 #[test]
 fn kaolin_sizing_fit_with_min_and_max_width() {
-    let [_, _, _, _, bounded, ..] = sizing_modes();
+    let [_, _, _, _, bounded, ..] = layouts::sizing_modes();
     assert!(
         width_of(&BODY, "Hi") < 120.0,
         "precondition: the text is narrower than the minimum"
@@ -340,7 +281,7 @@ fn kaolin_sizing_fit_with_min_and_max_width() {
 /// ```
 #[test]
 fn kaolin_sizing_grow() {
-    let [.., grow, _, _] = sizing_modes();
+    let [.., grow, _, _] = layouts::sizing_modes();
     assert_eq!(sized_child(grow, "").width(), 600.0);
 }
 
@@ -352,7 +293,7 @@ fn kaolin_sizing_grow() {
 /// ```
 #[test]
 fn kaolin_sizing_proportional_grow_factor() {
-    let [.., _, double, _] = sizing_modes();
+    let [.., _, double, _] = layouts::sizing_modes();
     let placed = place(|b| {
         b.div(tw().flex().w_px(600.0).h_px(300.0), |b| {
             b.div(double, |_| {});
@@ -370,31 +311,16 @@ fn kaolin_sizing_proportional_grow_factor() {
 /// ```
 #[test]
 fn kaolin_sizing_grow_with_bounds() {
-    let [.., bounded] = sizing_modes();
+    let [.., bounded] = layouts::sizing_modes();
     assert_eq!(sized_child(bounded, "").width(), 480.0);
 }
 
 // ---------------------------------------------------------------- kaolin 4
 
-/// ```html
-/// <div class="bg-[#0000ff] rounded-lg p-4 border-2 border-black">
-///   <span class="font-mono text-[24px]/[30px] text-white">Styled text</span>
-/// </div>
-/// ```
+/// See [`layouts::styling`].
 #[test]
 fn kaolin_styling() {
-    let placed = place(|b| {
-        b.div(
-            tw().bg(Color32::BLUE)
-                .rounded_lg()
-                .p(4.0)
-                .border(2.0)
-                .border_color(Color32::BLACK),
-            |b| {
-                b.text(tw().role(mono(24.0)).text(Color32::WHITE), "Styled text");
-            },
-        );
-    });
+    let placed = place(layouts::styling);
     let width = width_of(&mono(24.0), "Styled text");
     assert!(width + 36.0 < 800.0, "precondition: the text fits");
     let styled = rects(&placed, NodeKind::Div)[0];
@@ -410,36 +336,10 @@ fn kaolin_styling() {
 
 // ---------------------------------------------------------------- kaolin 5
 
-/// ```html
-/// <div class="flex flex-col size-full">
-///   <div class="w-full h-[60px] bg-[#00008b] text-white">Header</div>
-///   <div class="w-full flex-1 bg-[#dcdcdc]">Main Content</div>
-///   <div class="w-full h-[40px] bg-[#606060] text-white">Footer</div>
-/// </div>
-/// ```
+/// See [`layouts::responsive`].
 #[test]
 fn kaolin_responsive() {
-    let placed = place(|b: &mut B| {
-        b.div(tw().flex().flex_col().size_full(), |b| {
-            b.div(
-                tw().w_full()
-                    .h_px(60.0)
-                    .bg(Color32::DARK_BLUE)
-                    .text(Color32::WHITE),
-                |b| b.text(tw(), "Header"),
-            );
-            b.div(tw().w_full().flex_1().bg(Color32::LIGHT_GRAY), |b| {
-                b.text(tw(), "Main Content")
-            });
-            b.div(
-                tw().w_full()
-                    .h_px(40.0)
-                    .bg(Color32::DARK_GRAY)
-                    .text(Color32::WHITE),
-                |b| b.text(tw(), "Footer"),
-            );
-        });
-    });
+    let placed = place(layouts::responsive);
     let divs = rects(&placed, NodeKind::Div);
     assert_rect(divs[1], [0.0, 0.0, 800.0, 60.0]);
     assert_rect(divs[2], [0.0, 60.0, 800.0, 560.0]);
@@ -482,24 +382,10 @@ fn kaolin_responsive_follows_the_area() {
 
 // ---------------------------------------------------------------- kaolin 6
 
-/// ```html
-/// <div class="flex flex-row gap-5 size-full">
-///   <div class="w-[200px] flex-none bg-[#a0a0a0]">Sidebar</div>
-///   <div class="flex-1 bg-white">Main Content</div>
-/// </div>
-/// ```
+/// See [`layouts::multi_column`].
 #[test]
 fn kaolin_multi_column() {
-    let placed = place(|b: &mut B| {
-        b.div(tw().flex().flex_row().gap(5.0).size_full(), |b| {
-            b.div(tw().w_px(200.0).flex_none().bg(Color32::GRAY), |b| {
-                b.text(tw(), "Sidebar")
-            });
-            b.div(tw().flex_1().bg(Color32::WHITE), |b| {
-                b.text(tw(), "Main Content")
-            });
-        });
-    });
+    let placed = place(layouts::multi_column);
     let divs = rects(&placed, NodeKind::Div);
     assert_rect(divs[1], [0.0, 0.0, 200.0, 600.0]);
     assert_rect(divs[2], [220.0, 0.0, 800.0, 600.0]);
@@ -507,19 +393,14 @@ fn kaolin_multi_column() {
 
 // ---------------------------------------------------------------- kaolin 7
 
-/// ```html
-/// <div class="w-[200px]">This is a long text that will automatically wrap to multiple lines</div>
-/// ```
+/// See [`layouts::text_wrapping`].
 #[test]
 fn kaolin_text_wrapping() {
-    let text = "This is a long text that will automatically wrap to multiple lines";
     assert!(
-        width_of(&BODY, text) > 200.0,
+        width_of(&BODY, WRAPPING) > 200.0,
         "precondition: the text does not fit one line"
     );
-    let placed = place(|b: &mut B| {
-        b.div(tw().w_px(200.0), |b| b.text(tw(), text));
-    });
+    let placed = place(layouts::text_wrapping);
     let container = rects(&placed, NodeKind::Div)[0];
     let wrapped = rects(&placed, NodeKind::Text)[0];
     assert_eq!(container.width(), 200.0);
@@ -535,20 +416,10 @@ fn kaolin_text_wrapping() {
 
 // ---------------------------------------------------------------- kaolin 8
 
-/// ```html
-/// <div class="flex flex-row size-full">
-///   <div class="grow-[1] bg-[#dcdcdc]"></div>
-///   <div class="grow-[3] bg-[#a0a0a0]"></div>
-/// </div>
-/// ```
+/// See [`layouts::proportional_growth`].
 #[test]
 fn kaolin_proportional_growth() {
-    let placed = place(|b: &mut B| {
-        b.div(tw().flex().flex_row().size_full(), |b| {
-            b.div(tw().grow_by(1.0).bg(Color32::LIGHT_GRAY), |_| {});
-            b.div(tw().grow_by(3.0).bg(Color32::GRAY), |_| {});
-        });
-    });
+    let placed = place(layouts::proportional_growth);
     let divs = rects(&placed, NodeKind::Div);
     assert_rect(divs[1], [0.0, 0.0, 200.0, 600.0]);
     assert_rect(divs[2], [200.0, 0.0, 800.0, 600.0]);
@@ -556,40 +427,10 @@ fn kaolin_proportional_growth() {
 
 // ---------------------------------------------------------------- kaolin 9
 
-/// ```html
-/// <div class="p-2 rounded-md bg-white border border-[#a0a0a0]">label</div>
-/// ```
-fn card(b: &mut B<'_, '_>, label: &str) {
-    b.div(
-        tw().p(2.0)
-            .rounded_md()
-            .bg(Color32::WHITE)
-            .border(1.0)
-            .border_color(Color32::GRAY),
-        |b| b.text(tw(), label),
-    );
-}
-
-/// ```html
-/// <div class="flex flex-col gap-2 p-4">
-///   <div class="p-2 bg-[#dcdcdc]">Content 1</div>
-///   <div class="p-2 bg-[#dcdcdc]">
-///     <div class="p-2 rounded-md bg-white border border-[#a0a0a0]">Nested content</div>
-///   </div>
-/// </div>
-/// ```
+/// See [`layouts::nested`].
 #[test]
 fn kaolin_nested() {
-    let placed = place(|b: &mut B| {
-        b.div(tw().flex().flex_col().gap(2.0).p(4.0), |b| {
-            b.div(tw().p(2.0).bg(Color32::LIGHT_GRAY), |b| {
-                b.text(tw(), "Content 1")
-            });
-            b.div(tw().p(2.0).bg(Color32::LIGHT_GRAY), |b| {
-                card(b, "Nested content");
-            });
-        });
-    });
+    let placed = place(layouts::nested);
     let divs = rects(&placed, NodeKind::Div);
     assert_eq!(divs.len(), 4, "outer, two inner, one card");
     assert_rect(divs[0], [0.0, 0.0, 800.0, 16.0 + 36.0 + 8.0 + 54.0 + 16.0]);
@@ -603,36 +444,11 @@ fn kaolin_nested() {
 
 // ---------------------------------------------------------------- kaolin 10
 
-/// ```html
-/// <div class="flex flex-col size-full items-center justify-center bg-black text-white">
-///   <div class="flex flex-row gap-1">
-///     <span class="font-mono text-[10px]/[12.5px]">Hello, World!</span>
-///     <img class="size-[16px]" src="bytes://logo">
-///   </div>
-///   Kaolin Renderer
-/// </div>
-/// ```
+/// See [`layouts::embedded_layout`].
 #[test]
 fn kaolin_embedded_layout() {
     let logo = egui::ImageSource::Uri("bytes://logo".into());
-    let placed = place(move |b: &mut B| {
-        b.div(
-            tw().flex()
-                .flex_col()
-                .size_full()
-                .items_center()
-                .justify_center()
-                .bg(Color32::BLACK)
-                .text(Color32::WHITE),
-            |b| {
-                b.div(tw().flex().flex_row().gap(1.0), |b| {
-                    b.text(tw().role(mono(10.0)), "Hello, World!");
-                    b.image(tw().size_px(16.0), logo);
-                });
-                b.text(tw(), "Kaolin Renderer");
-            },
-        );
-    });
+    let placed = place(move |b| layouts::embedded_layout(b, logo));
     let hello = width_of(&mono(10.0), "Hello, World!");
     let kaolin = width_of(&BODY, "Kaolin Renderer");
     let row_width = hello + 4.0 + 16.0;
@@ -1267,4 +1083,239 @@ fn the_default_follows_the_theme() {
     ctx.set_visuals(egui::Visuals::light());
     let light = root_text(&mut state, &ctx).color;
     assert_ne!(dark, light);
+}
+
+fn guide(title: &str, choice: usize) -> Placed<()> {
+    let state = flexbox_guide::State::showing(title, choice);
+    place(|b| flexbox_guide::layout(b, &state))
+}
+
+fn divs(placed: &Placed<()>) -> Vec<Rect> {
+    rects(placed, NodeKind::Div)
+}
+
+/// Tolerance for sums of fractional lengths.
+#[track_caller]
+fn assert_close(actual: f32, expected: f32) {
+    assert!(
+        (actual - expected).abs() < 1e-2,
+        "expected {expected}, got {actual}"
+    );
+}
+
+/// The padding and border of the guide's nav bars: 8 and 1 points.
+const BAR_INSET: f32 = 9.0;
+
+#[test]
+fn guide_auto_margins_centre_the_child_on_both_axes() {
+    let divs = divs(&guide("Perfect centering", 0));
+    let (bar, child) = (divs[1], divs[2]);
+    assert_eq!(bar.height(), 300.0);
+    assert!(child.width() < bar.width() / 2.0, "room to centre in");
+    assert_centre(child, bar.center());
+}
+
+#[test]
+fn guide_six_items_distribute_evenly_and_wrap_with_the_window() {
+    let state = flexbox_guide::State::showing("Six items, evenly distributed", 0);
+    let at_width = |width: f32| {
+        let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 600.0));
+        let divs = divs(&place_in(area, |b| flexbox_guide::layout(b, &state)));
+        (divs[1], divs[2..8].to_vec())
+    };
+
+    let (bar, items) = at_width(800.0);
+    assert!(items.iter().all(|item| item.min.y == items[0].min.y));
+    let between = items[1].min.x - items[0].max.x;
+    let edge = items[0].min.x - (bar.min.x + BAR_INSET);
+    assert!(edge > 1.0, "free space to distribute");
+    assert_close(between - 8.0, 2.0 * edge);
+
+    let (bar, items) = at_width(400.0);
+    assert!(items.iter().any(|item| item.min.y > items[0].min.y));
+    assert!(items.iter().all(|item| bar.contains_rect(*item)));
+}
+
+#[test]
+fn guide_space_evenly_leaves_equal_space_at_the_ends_and_between() {
+    let divs = divs(&guide("justify-content", 5));
+    let (bar, items) = (divs[1], &divs[2..7]);
+    let between = items[1].min.x - items[0].max.x;
+    assert!(between > 9.0, "free space to distribute");
+    assert_close(items[0].min.x - (bar.min.x + BAR_INSET), between - 8.0);
+    assert_close(bar.max.x - BAR_INSET - items[4].max.x, between - 8.0);
+}
+
+#[test]
+fn guide_align_content_stretch_grows_the_lines_to_fill_the_bar() {
+    let packed = divs(&guide("align-content", 0));
+    let stretched = divs(&guide("align-content", 6));
+    let (bar, items) = (stretched[1], &stretched[2..7]);
+    assert!(items[4].min.y > items[0].max.y, "two lines");
+    assert!(items[0].height() > packed[2].height() + 20.0);
+    assert_close(items[0].min.y, bar.min.y + BAR_INSET);
+    assert_close(items[4].max.y, bar.max.y - BAR_INSET);
+    assert!(packed[6].max.y < packed[1].max.y - BAR_INSET - 20.0);
+}
+
+#[test]
+fn guide_shrink_zero_keeps_its_width_while_the_others_shrink() {
+    let all = divs(&guide("flex-shrink", 0));
+    let first = divs(&guide("flex-shrink", 1));
+    assert!(all[2..7].iter().all(|link| link.width() < 100.0));
+    assert_eq!(first[2].width(), 100.0);
+    assert!(first[3..7].iter().all(|link| link.width() < 100.0));
+}
+
+#[test]
+fn guide_baseline_aligns_text_of_different_sizes() {
+    let tops = |choice| {
+        let divs = divs(&guide("align-items", choice));
+        divs[2..7].iter().map(|link| link.min.y).collect::<Vec<_>>()
+    };
+    let start = tops(1);
+    assert!(start.iter().all(|top| *top == start[0]));
+    let baseline = tops(4);
+    assert!(baseline.iter().any(|top| *top != baseline[0]));
+    let texts = rects(&guide("align-items", 4), NodeKind::Text);
+    let baselines: Vec<f32> = texts.iter().skip(1).map(|text| text.min.y).collect();
+    assert_eq!(baselines.len(), 5);
+    assert!(baselines.iter().any(|y| *y != baselines[0]));
+}
+
+#[test]
+fn guide_align_self_moves_only_the_third_link() {
+    let divs = divs(&guide("align-self", 2));
+    let (bar, links) = (divs[1], &divs[2..7]);
+    assert_close(links[2].max.y, bar.max.y - BAR_INSET);
+    for index in [0, 1, 3, 4] {
+        assert_close(links[index].center().y, bar.center().y);
+    }
+}
+
+#[test]
+fn guide_order_is_the_build_order() {
+    let widths = |choice| {
+        let divs = divs(&guide("order", choice));
+        divs[2..7]
+            .iter()
+            .map(|link| link.width())
+            .collect::<Vec<_>>()
+    };
+    let source = widths(0);
+    assert!(source.iter().any(|width| *width != source[0]));
+    let reordered = widths(1);
+    for (position, index) in [2, 0, 3, 4, 1].into_iter().enumerate() {
+        assert_close(reordered[position], source[index]);
+    }
+}
+
+#[test]
+fn every_guide_demo_builds_for_every_value() {
+    let demos = flexbox_guide::State::default().demos;
+    for (demo, entry) in demos.iter().enumerate() {
+        for choice in 0..entry.choices.len().max(1) {
+            let state = flexbox_guide::State {
+                demo,
+                choice,
+                ..flexbox_guide::State::default()
+            };
+            let placed = place(|b| flexbox_guide::layout(b, &state));
+            assert!(placed.len() > 3, "{} builds its demo", entry.title);
+        }
+    }
+}
+
+#[test]
+fn flex_stretch_with_grow_fills_the_row_and_without_it_packs_at_the_start() {
+    let divs = divs(&place(|b| flex::layout(b, &())));
+    let row = |index: usize| {
+        let first = 1 + index * 7;
+        (divs[first + 2], divs[first + 3..first + 7].to_vec())
+    };
+    let (packed, items) = row(2);
+    assert_close(items[0].min.x, packed.min.x + BAR_INSET);
+    assert!(items[3].max.x < packed.max.x - 100.0);
+
+    let (grown, items) = row(3);
+    assert_close(items[0].min.x, grown.min.x + BAR_INSET);
+    assert_close(items[3].max.x, grown.max.x - BAR_INSET);
+}
+
+#[test]
+fn flex_wrap_wraps_and_grows_each_line_to_the_edge() {
+    let words = |wrapping| {
+        let state = flex_wrap::State {
+            wrapping,
+            ..flex_wrap::State::default()
+        };
+        divs(&place(|b| flex_wrap::layout(b, &state)))[3..21].to_vec()
+    };
+    let nowrap = words(flex_wrap::Wrapping::NoWrap);
+    assert!(nowrap.iter().all(|word| word.min.y == nowrap[0].min.y));
+    let wrapped = words(flex_wrap::Wrapping::Wrap);
+    let last_of_first_line = wrapped
+        .iter()
+        .rposition(|word| word.min.y == wrapped[0].min.y)
+        .expect("the first word is on the first line");
+    assert!(last_of_first_line < wrapped.len() - 1, "more than one line");
+    let first_edge = wrapped[last_of_first_line].max.x;
+    assert_close(wrapped[wrapped.len() - 1].max.x, first_edge);
+}
+
+#[test]
+fn flex_grid_spans_and_aligns_within_cells() {
+    let divs = divs(&place(|b| {
+        flex_grid::layout(b, &flex_grid::State::default())
+    }));
+    let (grid, span_cols, span_rows) = (divs[0], divs[1], divs[2]);
+    assert_close(span_rows.height(), grid.height() - 2.0 * 8.0);
+    assert_eq!(span_cols.min.y, span_rows.min.y);
+    assert!(span_cols.max.x < span_rows.min.x);
+
+    let (header_start, header_stretch) = (divs[4], divs[7]);
+    let (row_header_stretch, start_start, stretch_stretch) = (divs[23], divs[9], divs[27]);
+    assert!(start_start.width() < header_start.width());
+    assert!(start_start.height() < row_header_stretch.height());
+    assert_close(stretch_stretch.width(), header_stretch.width());
+    assert_close(stretch_stretch.height(), row_header_stretch.height());
+}
+
+#[test]
+fn grow_shares_the_free_space_by_factor() {
+    let divs = divs(&place(|b| grow::layout(b, &grow::State::default())));
+    let heights: Vec<f32> = divs[1..5].iter().map(|item| item.height()).collect();
+    let unit = heights[1] - heights[0];
+    assert!(unit > 1.0, "free space to share");
+    assert_close(heights[2] - heights[0], 2.0 * unit);
+    assert_close(heights[3] - heights[0], 3.0 * unit);
+
+    let nested: Vec<f32> = divs[6..10].iter().map(|item| item.height()).collect();
+    let unit = nested[1] - nested[0];
+    assert!(unit > 1.0, "free space to share");
+    assert_close(nested[3] - nested[0], 3.0 * unit);
+}
+
+#[test]
+fn holy_grail_areas_fill_the_grid_around_the_content() {
+    let divs = divs(&place(|b| holy_grail::layout(b, &())));
+    assert_eq!(AREA.size(), vec2(800.0, 600.0));
+    assert_rect(divs[1], [0.0, 0.0, 800.0, 100.0]);
+    assert_rect(divs[2], [0.0, 100.0, 100.0, 500.0]);
+    assert_rect(divs[3], [100.0, 100.0, 700.0, 500.0]);
+    assert_rect(divs[4], [700.0, 100.0, 800.0, 500.0]);
+    assert_rect(divs[5], [0.0, 500.0, 800.0, 600.0]);
+}
+
+#[test]
+fn custom_background_boxes_wrap_into_rows_of_the_slider_size() {
+    let boxes = |size| {
+        let state = custom_background::State { size };
+        divs(&place(|b| custom_background::layout(b, &state)))[2..8].to_vec()
+    };
+    let big = boxes(200.0);
+    assert!(big.iter().all(|rect| rect.size() == vec2(200.0, 200.0)));
+    assert!(big[2].min.y == big[0].min.y && big[3].min.y > big[2].min.y);
+    let small = boxes(100.0);
+    assert!(small.iter().all(|rect| rect.min.y == small[0].min.y));
 }

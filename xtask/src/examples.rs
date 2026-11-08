@@ -63,24 +63,7 @@ pub fn print_listing() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    struct TempDir(std::path::PathBuf);
-
-    impl TempDir {
-        fn new(label: &str) -> Self {
-            let path =
-                std::env::temp_dir().join(format!("bullseye-xtask-{label}-{}", std::process::id()));
-            let _ = fs::remove_dir_all(&path);
-            fs::create_dir_all(&path).unwrap();
-            Self(path)
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
-        }
-    }
+    use crate::testing::TempDir;
 
     #[test]
     fn first_doc_line_takes_first_inner_doc_line() {
@@ -98,14 +81,14 @@ mod tests {
     #[test]
     fn list_finds_files_and_directories_sorted() {
         let tmp = TempDir::new("list");
-        fs::write(tmp.0.join("zebra.rs"), "//! Stripes.\nfn main() {}\n").unwrap();
-        fs::write(tmp.0.join("alpha.rs"), "fn main() {}\n").unwrap();
-        fs::write(tmp.0.join("notes.txt"), "//! not an example\n").unwrap();
-        fs::create_dir(tmp.0.join("multi")).unwrap();
-        fs::write(tmp.0.join("multi/main.rs"), "//! Many files.\n").unwrap();
-        fs::create_dir(tmp.0.join("empty")).unwrap();
+        fs::write(tmp.path().join("zebra.rs"), "//! Stripes.\nfn main() {}\n").unwrap();
+        fs::write(tmp.path().join("alpha.rs"), "fn main() {}\n").unwrap();
+        fs::write(tmp.path().join("notes.txt"), "//! not an example\n").unwrap();
+        fs::create_dir(tmp.path().join("multi")).unwrap();
+        fs::write(tmp.path().join("multi/main.rs"), "//! Many files.\n").unwrap();
+        fs::create_dir(tmp.path().join("empty")).unwrap();
 
-        let examples = list(&tmp.0).unwrap();
+        let examples = list(tmp.path()).unwrap();
 
         let expected = [
             ("alpha", ""),
@@ -124,6 +107,6 @@ mod tests {
     #[test]
     fn list_reports_missing_directory() {
         let tmp = TempDir::new("missing");
-        assert!(list(&tmp.0.join("nope")).is_err());
+        assert!(list(&tmp.path().join("nope")).is_err());
     }
 }

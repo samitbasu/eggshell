@@ -1,11 +1,11 @@
 //! Measurement of node content for taffy, answered by egui's galley layout.
 
 use egui::epaint::{FontsView, text::LayoutJob};
-use egui::{Color32, TextFormat};
+use egui::{Align, Color32, Stroke, TextFormat};
 use taffy::{AvailableSpace, Baselines, LayoutInput, LayoutOutput, Size};
 
 use crate::prim::Prim;
-use crate::text::{FontStyle, TextStyle, WhiteSpace};
+use crate::text::{FontStyle, TextAlign, TextDecoration, TextStyle, WhiteSpace};
 
 /// What an application leaf's measure closure is asked.
 ///
@@ -83,13 +83,12 @@ enum Wrap {
 }
 
 impl TextLeaf<'_> {
-    fn galley(
-        &self,
-        fonts: &mut FontsView<'_>,
-        text: &str,
-        wrap: Wrap,
-    ) -> std::sync::Arc<egui::Galley> {
-        let mut job = LayoutJob::single_section(
+    fn job(&self, text: &str) -> LayoutJob {
+        let underline = match self.style.decoration {
+            TextDecoration::None => Stroke::NONE,
+            TextDecoration::Underline => Stroke::new(1.0, Color32::PLACEHOLDER),
+        };
+        LayoutJob::single_section(
             text.to_owned(),
             TextFormat {
                 font_id: self.style.spec.font_id(),
@@ -97,13 +96,50 @@ impl TextLeaf<'_> {
                 line_height: Some(self.style.spec.line_height),
                 italics: self.style.font_style == FontStyle::Italic,
                 color: Color32::PLACEHOLDER,
+                underline,
                 ..TextFormat::default()
             },
-        );
-        job.wrap.max_width = match wrap {
-            Wrap::Off => f32::INFINITY,
-            Wrap::At(width) => width,
+        )
+    }
+
+    fn galley(
+        &self,
+        fonts: &mut FontsView<'_>,
+        text: &str,
+        wrap: Wrap,
+    ) -> std::sync::Arc<egui::Galley> {
+        let mut job = self.job(text);
+        match wrap {
+            Wrap::Off => job.wrap.max_width = f32::INFINITY,
+            Wrap::At(width) => job.wrap.max_width = width,
+        }
+        fonts.layout_job(job)
+    }
+
+    /// The galley to paint in a content box `width` wide, anchored at the box
+    /// edge the text aligns to. Its colour is [`Color32::PLACEHOLDER`], for
+    /// the painter to resolve.
+    pub(crate) fn drawn_galley(
+        &self,
+        fonts: &mut FontsView<'_>,
+        width: f32,
+    ) -> std::sync::Arc<egui::Galley> {
+        let text = self.style.case.apply(self.text);
+        let mut job = self.job(&text);
+        job.halign = match self.style.align {
+            TextAlign::Left => Align::LEFT,
+            TextAlign::Center => Align::Center,
+            TextAlign::Right => Align::RIGHT,
         };
+        match self.style.white_space {
+            WhiteSpace::Normal => job.wrap.max_width = width,
+            WhiteSpace::NoWrap => job.wrap.max_width = f32::INFINITY,
+            WhiteSpace::Truncate => {
+                job.wrap.max_width = width;
+                job.wrap.max_rows = 1;
+                job.wrap.break_anywhere = true;
+            }
+        }
         fonts.layout_job(job)
     }
 

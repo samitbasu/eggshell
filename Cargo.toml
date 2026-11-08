@@ -11,6 +11,15 @@ repository = "https://github.com/samitbasu/bullseye"
 taffy = "0.15.1"
 egui = "0.37"
 
+[features]
+# Golden-image tests: kittest renders them with wgpu, so they need a Vulkan
+# driver. `cargo xtask snapshots` selects a software one.
+snapshots = ["egui_kittest/snapshot", "egui_kittest/wgpu"]
+
+[[test]]
+name = "snapshots"
+required-features = ["snapshots"]
+
 [dev-dependencies]
 egui = { version = "0.37", features = ["default_fonts"] }
 eframe = "0.37"
