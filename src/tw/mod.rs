@@ -72,7 +72,17 @@ impl Tw {
         self
     }
 
-    /// Makes the subtree non-interactive, like `pointer-events: none`.
+    /// Makes the subtree non-interactive, like HTML's `inert` attribute: its
+    /// widgets are disabled and take no input or focus.
+    ///
+    /// As on the web, inert content looks unchanged. To make it look disabled,
+    /// add opacity, which fades boxes, text and widgets together (Tailwind's
+    /// `inert:opacity-50`):
+    ///
+    /// ```
+    /// use bullseye::{Opacity, tw};
+    /// let dimmed = tw().inert().opacity(Opacity::new(0.5));
+    /// ```
     pub fn inert(mut self) -> Self {
         self.inert = true;
         self
