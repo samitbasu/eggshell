@@ -13,6 +13,7 @@ use crate::{Measure, TextStyle, Width};
 #[derive(Clone, Debug)]
 pub struct Options {
     labels: Vec<String>,
+    name: Option<String>,
 }
 
 impl Options {
@@ -20,7 +21,14 @@ impl Options {
     pub fn new<S: Into<String>>(labels: impl IntoIterator<Item = S>) -> Self {
         Self {
             labels: labels.into_iter().map(Into::into).collect(),
+            name: None,
         }
+    }
+
+    /// The accessible name, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     fn label(&self, index: usize) -> &str {
@@ -47,7 +55,12 @@ pub fn measure(m: &Measure<'_>, options: &Options) -> taffy::Size<f32> {
 /// Disable it with [`inert`](crate::Tw::inert) on the leaf.
 pub fn show(ui: &mut Ui, selected: &mut usize, options: &Options) -> Response {
     let chosen = options.label(*selected).to_owned();
-    ComboBox::new(chosen).show(ui, |ui| {
+    let combo = ComboBox::new(chosen);
+    let combo = match &options.name {
+        Some(name) => combo.named(name.as_str()),
+        None => combo,
+    };
+    combo.show(ui, |ui| {
         for (index, label) in options.labels.iter().enumerate() {
             ui.selectable_value(selected, index, label.as_str());
         }

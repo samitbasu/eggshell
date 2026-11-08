@@ -3,11 +3,14 @@
 //! widget. Each case varies the label, the font size and the style, and a
 //! width that makes labels wrap.
 
+use bullseye::style::Shadcn;
 use bullseye::widget::{
     Button, Checkbox, ComboBox, DragValue, Lines, RadioButton, Slider, Stock, TextEdit,
 };
 use bullseye::{TextSpec, TextStyle, Width};
-use egui::{Color32, Context, FontFamily, Rect, Response, Style, Ui, UiBuilder, Vec2, pos2, vec2};
+use egui::{
+    Color32, Context, FontFamily, Rect, Response, Style, Theme, Ui, UiBuilder, Vec2, pos2, vec2,
+};
 
 fn text_style(size: f32) -> TextStyle {
     TextStyle::new(
@@ -24,12 +27,24 @@ fn text_style(size: f32) -> TextStyle {
 struct Tweak {
     name: &'static str,
     apply: fn(&mut Style),
+    preset: Option<Theme>,
 }
 
-const TWEAKS: [Tweak; 6] = [
+const TWEAKS: [Tweak; 8] = [
+    Tweak {
+        name: "shadcn light",
+        apply: |_| {},
+        preset: Some(Theme::Light),
+    },
+    Tweak {
+        name: "shadcn dark",
+        apply: |_| {},
+        preset: Some(Theme::Dark),
+    },
     Tweak {
         name: "default",
         apply: |_| {},
+        preset: None,
     },
     Tweak {
         name: "roomy buttons",
@@ -37,6 +52,7 @@ const TWEAKS: [Tweak; 6] = [
             style.spacing.button_padding = vec2(11.0, 5.0);
             style.spacing.interact_size = vec2(52.0, 31.0);
         },
+        preset: None,
     },
     Tweak {
         name: "big icons",
@@ -44,14 +60,17 @@ const TWEAKS: [Tweak; 6] = [
             style.spacing.icon_width = 19.0;
             style.spacing.icon_spacing = 7.0;
         },
+        preset: None,
     },
     Tweak {
         name: "frameless buttons",
         apply: |style| style.visuals.button_frame = false,
+        preset: None,
     },
     Tweak {
         name: "loose lines",
         apply: |style| style.spacing.extra_text_line_spacing = 3.0,
+        preset: None,
     },
     Tweak {
         name: "wide controls",
@@ -62,6 +81,7 @@ const TWEAKS: [Tweak; 6] = [
             style.visuals.widgets.inactive.bg_stroke = egui::Stroke::new(2.0, Color32::GRAY);
             style.visuals.widgets.inactive.expansion = 2.0;
         },
+        preset: None,
     },
 ];
 
@@ -96,10 +116,22 @@ fn drawn(
     size
 }
 
+/// Pads an input as the preset says inputs are padded, which egui shares with
+/// buttons; a no-op without a preset.
+fn input_padded(ui: &mut Ui) {
+    if let Some(tokens) = bullseye::style::tokens(ui.ctx()) {
+        ui.spacing_mut().button_padding = tokens.input_padding;
+    }
+}
+
 /// A context with the tweak applied and its fonts loaded, which sizes mean
 /// nothing without.
 fn context(tweak: &Tweak) -> Context {
     let ctx = Context::default();
+    if let Some(theme) = tweak.preset {
+        ctx.set_theme(theme);
+        Shadcn::for_theme(theme).apply(&ctx);
+    }
     ctx.global_style_mut(tweak.apply);
     ctx.run_ui(egui::RawInput::default(), |_| {})
         .drop_without_applying_deltas();
@@ -267,6 +299,7 @@ fn combo_box() {
             add: Box::new({
                 let label = label.to_owned();
                 move |ui, _| {
+                    input_padded(ui);
                     egui::ComboBox::from_id_salt("combo")
                         .selected_text(label.clone())
                         .show_ui(ui, |_| {})
@@ -303,6 +336,7 @@ fn text_edit_case(text: &str, hint: Option<&'static str>, lines: Lines) -> Case<
     Case {
         widget,
         add: Box::new(move |ui, width| {
+            input_padded(ui);
             let mut buffer = text.clone();
             let mut edit = match lines {
                 Lines::Single => egui::TextEdit::singleline(&mut buffer),
@@ -340,6 +374,7 @@ fn a_masked_one_line_field_is_the_size_of_a_shown_one() {
             add: Box::new({
                 let text = text.to_owned();
                 move |ui, width| {
+                    input_padded(ui);
                     let mut buffer = text.clone();
                     let mut edit = egui::TextEdit::singleline(&mut buffer).password(true);
                     if let Some(width) = width {

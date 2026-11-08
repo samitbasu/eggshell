@@ -71,10 +71,6 @@ pub(crate) struct Row {
 }
 
 /// A measured row.
-#[allow(
-    dead_code,
-    reason = "painted by the switch, which the next commit adds"
-)]
 pub(crate) struct Laid {
     pub pieces: Vec<Measured>,
     pub outer: Vec2,
@@ -133,6 +129,21 @@ impl<'a> Sizer<'a> {
     /// The frame of a `Button` in its inactive state, with the stroke and
     /// expansion folded into the margin so that they never shift the layout.
     pub fn button_frame(&self) -> Frame {
+        self.padded_button_frame(self.style.spacing.button_padding)
+    }
+
+    /// The padding of inputs and selects: the preset's, which differs from a
+    /// button's, and otherwise egui's `button_padding`.
+    pub fn input_padding(&self) -> Vec2 {
+        crate::style::input_padding(self.ctx).unwrap_or(self.style.spacing.button_padding)
+    }
+
+    /// [`button_frame`](Self::button_frame) with the padding of a select's header.
+    pub fn select_frame(&self) -> Frame {
+        self.padded_button_frame(self.input_padding())
+    }
+
+    fn padded_button_frame(&self, padding: Vec2) -> Frame {
         if !self.style.visuals.button_frame {
             return Frame::new();
         }
@@ -140,7 +151,7 @@ impl<'a> Sizer<'a> {
         Frame {
             fill: visuals.weak_bg_fill,
             corner_radius: visuals.corner_radius,
-            inner_margin: self.style.spacing.button_padding.into(),
+            inner_margin: padding.into(),
             ..Frame::default()
         }
         .apply_stroke_and_expansion_without_layout_shift(visuals.bg_stroke, visuals.expansion)
