@@ -2,9 +2,8 @@
 //! justify-self combination in a six-column grid.
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
-//! rebuilt with bullseye: taffy places, egui draws. The gap slider is a plain
-//! egui widget beside the layout; it moves inside once M4 measures stock egui
-//! widgets in the same frame.
+//! rebuilt with bullseye: taffy places, egui draws. The gap slider is a stock
+//! egui slider in a leaf of the same tree.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -25,9 +24,20 @@ impl Default for State {
     }
 }
 
-fn controls(ui: &mut egui::Ui, state: &mut State) {
-    ui.label("Gap (spacing units)");
-    ui.add(egui::Slider::new(&mut state.gap, 0.0..=12.0));
+/// ```html
+/// <aside class="flex flex-col gap-3 p-3 w-[240px]">
+///   <!-- a range input for the gap, with its caption and value -->
+/// </aside>
+/// ```
+fn controls(b: &mut B<'_, '_, State>, state: &State) {
+    common::slider_row(
+        b,
+        "gap",
+        "Gap (spacing units)",
+        state.gap,
+        0.0..=12.0,
+        |s| &mut s.gap,
+    );
 }
 
 #[derive(Clone, Copy)]
@@ -95,7 +105,7 @@ fn cell<A>(b: &mut B<'_, '_, A>, extra: Tw, label: impl Into<String>) {
 ///   <div class="self-start justify-self-center p-1 flex items-center justify-center border border-[#a0a0a0] rounded-md">Start Center</div>
 /// </div>
 /// ```
-pub fn layout<A>(b: &mut B<'_, '_, A>, state: &State) {
+pub fn demo<A>(b: &mut B<'_, '_, A>, state: &State) {
     let columns = [1.0, 1.0, 1.0, 1.0, 1.0, 1.5].map(Track::fr);
     b.div(
         tw().grid()
@@ -124,6 +134,11 @@ pub fn layout<A>(b: &mut B<'_, '_, A>, state: &State) {
     );
 }
 
+/// The controls beside the demo.
+pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
+    common::with_controls(b, |b| controls(b, state), |b| demo(b, state));
+}
+
 fn main() -> eframe::Result {
-    common::run("flex_grid", State::default(), Some(controls), layout)
+    common::run_app("flex_grid", State::default(), layout)
 }

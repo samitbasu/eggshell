@@ -238,26 +238,25 @@ fn port_flex() {
 
 #[test]
 fn port_flex_wrap() {
-    snapshot(
+    snapshot_controlled(
         "port_flex_wrap",
-        plain(|b| flex_wrap::layout(b, &flex_wrap::State::default())),
+        flex_wrap::State::default(),
+        flex_wrap::layout,
     );
 }
 
 #[test]
 fn port_flex_grid() {
-    snapshot(
+    snapshot_controlled(
         "port_flex_grid",
-        plain(|b| flex_grid::layout(b, &flex_grid::State::default())),
+        flex_grid::State::default(),
+        flex_grid::layout,
     );
 }
 
 #[test]
 fn port_grow() {
-    snapshot(
-        "port_grow",
-        plain(|b| grow::layout(b, &grow::State::default())),
-    );
+    snapshot_controlled("port_grow", grow::State::default(), grow::layout);
 }
 
 #[test]
@@ -265,46 +264,53 @@ fn port_holy_grail() {
     snapshot("port_holy_grail", plain(|b| holy_grail::layout(b, &())));
 }
 
-#[test]
-fn flexbox_guide_centering() {
-    snapshot(
-        "flexbox_guide_centering",
-        plain(|b| flexbox_guide::layout(b, &flexbox_guide::State::showing("Perfect centering", 0))),
+fn guide(name: &str, title: &str, choice: usize) {
+    snapshot_controlled(
+        name,
+        flexbox_guide::State::showing(title, choice),
+        flexbox_guide::layout,
     );
 }
 
 #[test]
+fn flexbox_guide_centering() {
+    guide("flexbox_guide_centering", "Perfect centering", 0);
+}
+
+#[test]
 fn flexbox_guide_six_items() {
-    snapshot(
+    guide(
         "flexbox_guide_six_items",
-        plain(|b| {
-            flexbox_guide::layout(
-                b,
-                &flexbox_guide::State::showing("Six items, evenly distributed", 0),
-            )
-        }),
+        "Six items, evenly distributed",
+        0,
     );
 }
 
 #[test]
 fn flexbox_guide_align_content_stretch() {
-    snapshot(
-        "flexbox_guide_align_content_stretch",
-        plain(|b| flexbox_guide::layout(b, &flexbox_guide::State::showing("align-content", 6))),
-    );
+    guide("flexbox_guide_align_content_stretch", "align-content", 6);
 }
 
 #[test]
 fn flexbox_guide_justify_space_evenly() {
-    snapshot(
-        "flexbox_guide_justify_space_evenly",
-        plain(|b| flexbox_guide::layout(b, &flexbox_guide::State::showing("justify-content", 5))),
+    guide("flexbox_guide_justify_space_evenly", "justify-content", 5);
+}
+
+/// An example with its controls panel beside an 800 x 600 demo.
+fn snapshot_controlled<A: 'static>(name: &str, app: A, view: support::View<A>) {
+    snapshot_app(
+        name,
+        Vec2::new(1040.0, 600.0),
+        app,
+        TextStyle::new(layouts::BODY, Color32::BLACK),
+        view,
+        None,
     );
 }
 
-/// Draws an interactive example of `size` with the pointer at `pointer` (in
-/// the layout's coordinates, 8 points in from the window's corner) and compares
-/// it with the golden `name`.
+/// Draws an interactive example of `size` in the light theme the examples
+/// run in, with the pointer at `pointer` (in the layout's coordinates, 8
+/// points in from the window's corner), and compares it with the golden `name`.
 fn snapshot_app<A: 'static>(
     name: &str,
     size: Vec2,
@@ -313,8 +319,30 @@ fn snapshot_app<A: 'static>(
     view: support::View<A>,
     pointer: Option<egui::Pos2>,
 ) {
+    snapshot_themed(
+        name,
+        size,
+        app,
+        base_text,
+        view,
+        pointer,
+        egui::Theme::Light,
+    );
+}
+
+/// [`snapshot_app`] in `theme`, which stock widgets draw themselves in.
+fn snapshot_themed<A: 'static>(
+    name: &str,
+    size: Vec2,
+    app: A,
+    base_text: TextStyle,
+    view: support::View<A>,
+    pointer: Option<egui::Pos2>,
+    theme: egui::Theme,
+) {
     report_renderer();
     let mut harness = support::harness(size, base_text, app, view);
+    harness.ctx.set_theme(theme);
     if let Some(pointer) = pointer {
         harness.hover_at(pointer);
         harness.run_steps(12);
@@ -341,11 +369,11 @@ fn todo_row_hovered() {
 fn port_custom_background() {
     snapshot_app(
         "port_custom_background",
-        Vec2::new(1400.0, 700.0),
+        Vec2::new(1640.0, 700.0),
         custom_background::State::default(),
         TextStyle::new(layouts::BODY, Color32::BLACK),
         custom_background::layout,
-        Some(egui::pos2(910.0, 490.0)),
+        Some(egui::pos2(1150.0, 490.0)),
     );
 }
 
@@ -354,14 +382,14 @@ fn port_custom_background() {
 fn port_button() {
     snapshot_app(
         "port_button",
-        Vec2::new(400.0, 520.0),
+        Vec2::new(640.0, 520.0),
         button::State {
             clicks: 3,
             selected: true,
         },
         TextStyle::new(layouts::BODY, Color32::BLACK),
         button::layout,
-        Some(egui::pos2(200.0, 120.0)),
+        Some(egui::pos2(440.0, 120.0)),
     );
 }
 
@@ -385,12 +413,13 @@ fn port_sidebar() {
 fn chat_shell() {
     let app = chat_shell::state::App::default();
     let base = app.theme.base_text();
-    snapshot_app(
+    snapshot_themed(
         "chat_shell",
         Vec2::new(1200.0, 760.0),
         app,
         base,
         chat_shell::view::layout,
         Some(egui::pos2(120.0, 400.0)),
+        egui::Theme::Dark,
     );
 }

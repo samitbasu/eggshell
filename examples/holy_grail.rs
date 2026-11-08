@@ -60,5 +60,5 @@ pub fn layout<A>(b: &mut B<'_, '_, A>, _: &()) {
 }
 
 fn main() -> eframe::Result {
-    common::run("holy_grail", (), None, layout)
+    common::run("holy_grail", (), layout)
 }
