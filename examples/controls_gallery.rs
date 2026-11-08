@@ -23,6 +23,7 @@ use bullseye::prim::segmented::segmented;
 use bullseye::prim::select::{self, Options};
 use bullseye::prim::switch::Switch;
 use bullseye::prim::text_field::{self, Field};
+use bullseye::style::ButtonVariant;
 use bullseye::widget::{
     Button, Checkbox, ComboBox, DragValue, Lines, RadioButton, Slider, TextEdit,
 };
@@ -169,6 +170,8 @@ impl Label {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Control {
     Button,
+    /// A button of a variant, in a `Ui` that is enabled or not.
+    Variant(ButtonVariant, Enablement),
     Checkbox,
     RadioButton,
     Slider,
@@ -183,9 +186,36 @@ pub enum Control {
     Segmented,
 }
 
+/// Whether a cell's widget is usable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Enablement {
+    Enabled,
+    Disabled,
+}
+
+impl Enablement {
+    fn is_enabled(self) -> bool {
+        self == Self::Enabled
+    }
+}
+
+const fn variant(variant: ButtonVariant, enablement: Enablement) -> Control {
+    Control::Variant(variant, enablement)
+}
+
 impl Control {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 23] = [
         Self::Button,
+        variant(ButtonVariant::Primary, Enablement::Enabled),
+        variant(ButtonVariant::Primary, Enablement::Disabled),
+        variant(ButtonVariant::Secondary, Enablement::Enabled),
+        variant(ButtonVariant::Secondary, Enablement::Disabled),
+        variant(ButtonVariant::Destructive, Enablement::Enabled),
+        variant(ButtonVariant::Destructive, Enablement::Disabled),
+        variant(ButtonVariant::Outline, Enablement::Enabled),
+        variant(ButtonVariant::Outline, Enablement::Disabled),
+        variant(ButtonVariant::Ghost, Enablement::Enabled),
+        variant(ButtonVariant::Ghost, Enablement::Disabled),
         Self::Checkbox,
         Self::RadioButton,
         Self::Slider,
@@ -207,8 +237,15 @@ impl Control {
         !matches!(self, Self::Switch | Self::Segmented)
     }
 
-    fn name(self) -> &'static str {
-        match self {
+    fn name(self) -> String {
+        let name = match self {
+            Self::Variant(variant, enablement) => {
+                let enablement = match enablement {
+                    Enablement::Enabled => "",
+                    Enablement::Disabled => ", disabled",
+                };
+                return format!("widget::Button, {variant:?}{enablement}");
+            }
             Self::Button => "widget::Button",
             Self::Checkbox => "widget::Checkbox",
             Self::RadioButton => "widget::RadioButton",
@@ -222,7 +259,8 @@ impl Control {
             Self::Switch => "prim::switch",
             Self::Select => "prim::select",
             Self::Segmented => "prim::segmented",
-        }
+        };
+        name.to_owned()
     }
 }
 
@@ -389,6 +427,23 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 |ui, _| ui.add(egui::Button::new(label)).rect,
             );
         }),
+        Control::Variant(variant, enablement) => b.widget(
+            control,
+            tw(),
+            Button::new(label).variant(variant),
+            move |s, ui, w| {
+                observed(
+                    s,
+                    ui,
+                    control,
+                    Never,
+                    |_, ui| {
+                        ui.add_enabled_ui(enablement.is_enabled(), |ui| w.show(ui));
+                    },
+                    |ui, _| ui.add(egui::Button::new(label)).rect,
+                );
+            },
+        ),
         Control::Checkbox => b.widget(control, tw(), Checkbox::new(label), move |s, ui, w| {
             observed(
                 s,
