@@ -13,9 +13,9 @@ mod common;
 
 use bullseye::prim::select::{self, Options};
 use bullseye::prim::switch::Switch;
-use bullseye::prim::text_field::{self, Field};
+use bullseye::prim::text_field::Field;
 use bullseye::widget::Button;
-use bullseye::{Builder, NodeUi as _, Opacity, Tw, none, tw};
+use bullseye::{Builder, NodeUi as _, Opacity, Tw, tw};
 use egui::{Color32, Role, WidgetInfo};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -201,44 +201,6 @@ fn disabled() -> Tw {
     tw().inert().opacity(Opacity::new(0.5))
 }
 
-/// A text field filling its row, in a box that rings while the field has
-/// focus. `name` is its accessible name.
-///
-/// ```html
-/// <div class="w-full border border-[#b0b0b0] rounded-md focus-within:ring-2 focus-within:ring-[#4678c8]">
-///   <input class="w-full" placeholder="Your name">
-/// </div>
-/// ```
-fn field(
-    b: &mut B<'_, '_>,
-    key: Part,
-    (name, role): (&'static str, Role),
-    field: Field,
-    lens: fn(&mut State) -> &mut String,
-) {
-    let measured = field.clone();
-    b.div_id(
-        key,
-        tw().w_full()
-            .border(1.0)
-            .border_color(common::EDGE)
-            .rounded_md()
-            .focus_within(|p| p.ring(2.0, common::FOCUS)),
-        none,
-        |b| {
-            b.leaf(
-                "field",
-                tw().w_full(),
-                move |m| text_field::measure(m, &measured),
-                move |state, ui| {
-                    let response = text_field::show(ui, lens(state), &field);
-                    response.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), name));
-                },
-            );
-        },
-    );
-}
-
 /// A select over `options`, `FIELD_WIDTH` wide.
 fn choose(
     b: &mut B<'_, '_>,
@@ -353,13 +315,13 @@ fn profile(b: &mut B<'_, '_>, state: &State) {
     section(b, "Profile", |b| {
         row(b, "Name", |b| {
             let one = Field::singleline(&state.name).hint("Your name");
-            field(b, Part::Name, ("Name", Role::TextInput), one, |s| {
+            common::text_box(b, Part::Name, ("Name", Role::TextInput), one, |s| {
                 &mut s.name
             });
         });
         row(b, "Email", |b| {
             let one = Field::singleline(&state.email).hint("you@example.com");
-            field(b, Part::Email, ("Email", Role::TextInput), one, |s| {
+            common::text_box(b, Part::Email, ("Email", Role::TextInput), one, |s| {
                 &mut s.email
             });
         });
@@ -367,7 +329,7 @@ fn profile(b: &mut B<'_, '_>, state: &State) {
             let many = Field::multiline(&state.bio, 3)
                 .max_rows(6)
                 .hint("A few words about you");
-            field(b, Part::Bio, ("Bio", Role::MultilineTextInput), many, |s| {
+            common::text_box(b, Part::Bio, ("Bio", Role::MultilineTextInput), many, |s| {
                 &mut s.bio
             });
         });

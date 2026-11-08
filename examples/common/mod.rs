@@ -11,9 +11,10 @@ use std::hash::Hash;
 use std::ops::RangeInclusive;
 
 use bullseye::prim::segmented::{Cell, segmented};
+use bullseye::prim::text_field::{self, Field};
 use bullseye::widget::Slider;
-use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, tw};
-use egui::{Color32, FontFamily, WidgetInfo};
+use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
+use egui::{Color32, FontFamily, Role, WidgetInfo};
 
 /// Text.
 pub const INK: Color32 = Color32::from_gray(20);
@@ -250,14 +251,15 @@ pub fn segment(cell: Cell) -> Tw {
 /// ```html
 /// <div class="flex flex-wrap gap-1 p-0.5 border border-[#b0b0b0] rounded-md">…</div>
 /// ```
-pub fn choice<S, T>(
+pub fn choice<S, K, T>(
     b: &mut Builder<'_, '_, S>,
-    key: &'static str,
+    key: K,
     current: T,
     options: &[(T, &str)],
     lens: fn(&mut S) -> &mut T,
 ) where
     S: 'static,
+    K: Hash + Debug + 'static,
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
     segmented(
@@ -274,5 +276,47 @@ pub fn choice<S, T>(
         options,
         segment,
         lens,
+    );
+}
+
+/// A text field filling its row, in a box that rings while the field has
+/// focus. `name` is its accessible name. The box is the node `key`; the leaf
+/// inside it is `"field"`.
+///
+/// ```html
+/// <div class="w-full border border-[#b0b0b0] rounded-md focus-within:ring-2 focus-within:ring-[#4678c8]">
+///   <input class="w-full" placeholder="Your name">
+/// </div>
+/// ```
+pub fn text_box<S, K>(
+    b: &mut Builder<'_, '_, S>,
+    key: K,
+    (name, role): (&'static str, Role),
+    field: Field,
+    lens: fn(&mut S) -> &mut String,
+) where
+    S: 'static,
+    K: Hash + Debug + 'static,
+{
+    let measured = field.clone();
+    b.div_id(
+        key,
+        tw().w_full()
+            .border(1.0)
+            .border_color(EDGE)
+            .rounded_md()
+            .focus_within(|p| p.ring(2.0, FOCUS)),
+        none,
+        |b| {
+            b.leaf(
+                "field",
+                tw().w_full(),
+                move |m| text_field::measure(m, &measured),
+                move |state, ui| {
+                    let response = text_field::show(ui, lens(state), &field);
+                    response.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), name));
+                },
+            );
+        },
     );
 }

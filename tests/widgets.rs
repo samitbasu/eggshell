@@ -224,11 +224,11 @@ fn a_masked_field_edits_the_text_and_paints_dots() {
 #[test]
 fn a_drag_value_shows_the_decimals_of_its_template() {
     let mut harness = harness();
-    harness.state_mut().app.amount = 3.14159;
+    harness.state_mut().app.amount = 7.46;
     harness.run_steps(3);
     let painted = painted_text(&harness);
     assert!(
-        painted.iter().any(|text| text == "3.1"),
+        painted.iter().any(|text| text == "7.5"),
         "a one-decimal template shows one decimal: {painted:?}"
     );
 }

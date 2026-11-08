@@ -37,6 +37,18 @@ mod controls_gallery;
 #[path = "../examples/form.rs"]
 mod form;
 
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/signup_form.rs"]
+mod signup_form;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/flex_demos.rs"]
+mod flex_demos;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/flex_example.rs"]
+mod flex_example;
+
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
 #[path = "../examples/flex.rs"]
 mod flex;
@@ -405,8 +417,9 @@ fn port_button() {
 /// Grid selected, a crate pill under the pointer.
 #[test]
 fn port_sidebar() {
-    let mut state = sidebar::State::default();
-    state.route = sidebar::Route::Example("Grid");
+    let state = sidebar::State {
+        route: sidebar::Route::Example("Grid"),
+    };
     snapshot_app(
         "port_sidebar",
         Vec2::new(640.0, 760.0),
@@ -504,5 +517,84 @@ fn form() {
         TextStyle::new(layouts::BODY, Color32::BLACK),
         form::layout,
         None,
+    );
+}
+
+fn light_snapshot<A: 'static>(name: &str, size: Vec2, app: A, view: support::View<A>) {
+    snapshot_app(
+        name,
+        size,
+        app,
+        TextStyle::new(layouts::BODY, Color32::BLACK),
+        view,
+        None,
+    );
+}
+
+/// The demos laid out horizontally, items at their natural size.
+#[test]
+fn flex_demos_horizontal() {
+    light_snapshot(
+        "flex_demos_horizontal",
+        Vec2::new(1280.0, 700.0),
+        flex_demos::State::default(),
+        flex_demos::layout,
+    );
+}
+
+/// The demos laid out vertically, with every item growing and the content of
+/// the stretched items at the bottom right.
+#[test]
+fn flex_demos_vertical_grow() {
+    light_snapshot(
+        "flex_demos_vertical_grow",
+        Vec2::new(1280.0, 900.0),
+        flex_demos::State {
+            direction: flex_demos::Direction::Vertical,
+            grow: true,
+            anchor: 8,
+        },
+        flex_demos::layout,
+    );
+}
+
+#[test]
+fn flex_example() {
+    light_snapshot(
+        "flex_example",
+        Vec2::new(900.0, 700.0),
+        flex_example::State::default(),
+        flex_example::layout,
+    );
+}
+
+#[test]
+fn signup_form_empty() {
+    light_snapshot(
+        "signup_form_empty",
+        Vec2::new(640.0, 760.0),
+        signup_form::State::default(),
+        signup_form::layout,
+    );
+}
+
+/// Submit pressed with a short name, a mismatched password and no consent:
+/// every error shows.
+#[test]
+fn signup_form_rejected() {
+    light_snapshot(
+        "signup_form_rejected",
+        Vec2::new(640.0, 900.0),
+        signup_form::State {
+            fields: signup_form::Fields {
+                first_name: "A".into(),
+                email: "ada@example".into(),
+                password: "hunter2".into(),
+                age: 17.0,
+                ..Default::default()
+            },
+            progress: signup_form::Progress::Rejected,
+        },
+        signup_form::layout,
     );
 }
