@@ -89,7 +89,7 @@ fn width_of(spec: &TextSpec, text: &str) -> f32 {
     })
 }
 
-fn rects(placed: &Placed<()>, kind: NodeKind) -> Vec<Rect> {
+fn rects<A>(placed: &Placed<A>, kind: NodeKind) -> Vec<Rect> {
     placed
         .nodes()
         .filter(|node| node.kind() == kind)
@@ -1090,7 +1090,7 @@ fn guide(title: &str, choice: usize) -> Placed<()> {
     place(|b| flexbox_guide::layout(b, &state))
 }
 
-fn divs(placed: &Placed<()>) -> Vec<Rect> {
+fn divs<A>(placed: &Placed<A>) -> Vec<Rect> {
     rects(placed, NodeKind::Div)
 }
 
@@ -1310,8 +1310,14 @@ fn holy_grail_areas_fill_the_grid_around_the_content() {
 #[test]
 fn custom_background_boxes_wrap_into_rows_of_the_slider_size() {
     let boxes = |size| {
-        let state = custom_background::State { size };
-        divs(&place(|b| custom_background::layout(b, &state)))[2..8].to_vec()
+        let state = custom_background::State {
+            size,
+            ..Default::default()
+        };
+        let placed = fixed_state()
+            .build(ctx(), |b| custom_background::layout(b, &state))
+            .layout(AREA);
+        divs(&placed)[2..8].to_vec()
     };
     let big = boxes(200.0);
     assert!(big.iter().all(|rect| rect.size() == vec2(200.0, 200.0)));

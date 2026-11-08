@@ -15,10 +15,10 @@ use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
 
-const FILL: Color32 = Color32::from_gray(232);
-const FILL_HOVER: Color32 = Color32::from_gray(218);
-const FILL_PRESSED: Color32 = Color32::from_gray(200);
-const FILL_SELECTED: Color32 = Color32::from_rgb(170, 196, 232);
+pub const FILL: Color32 = Color32::from_gray(232);
+pub const FILL_HOVER: Color32 = Color32::from_gray(218);
+pub const FILL_PRESSED: Color32 = Color32::from_gray(200);
+pub const FILL_SELECTED: Color32 = Color32::from_rgb(170, 196, 232);
 const EDGE: Color32 = Color32::from_gray(176);
 const INK: Color32 = Color32::from_gray(20);
 
@@ -34,7 +34,9 @@ fn controls(ui: &mut egui::Ui, state: &mut State) {
     }
 }
 
-const ALIGNMENTS: [(&str, fn(Tw) -> Tw); 4] = [
+type Align = fn(Tw) -> Tw;
+
+const ALIGNMENTS: [(&str, Align); 4] = [
     ("START", Tw::self_start),
     ("CENTER", Tw::self_center),
     ("END", Tw::self_end),

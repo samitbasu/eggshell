@@ -74,12 +74,17 @@ pub fn run_app<S: 'static>(
     controls: Option<Controls<S>>,
     layout: AppLayout<S>,
 ) -> eframe::Result {
-    shell(title, state, controls, move |state, layout_state, area, ui| {
-        layout_state
-            .build(ui.ctx(), |b| layout(b, state))
-            .layout(area)
-            .draw(state, ui);
-    })
+    shell(
+        title,
+        state,
+        controls,
+        move |state, layout_state, area, ui| {
+            layout_state
+                .build(ui.ctx(), |b| layout(b, state))
+                .layout(area)
+                .draw(state, ui);
+        },
+    )
 }
 
 fn shell<S: 'static>(

@@ -18,11 +18,11 @@ use egui::Color32;
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
 
 /// The fill and border egui's dark theme gives a non-interactive widget.
-const DEFAULT_FILL: Color32 = Color32::from_gray(27);
+pub const DEFAULT_FILL: Color32 = Color32::from_gray(27);
 const DEFAULT_BORDER: Color32 = Color32::from_gray(60);
 /// The fills egui's dark theme gives a hovered and a pressed button.
-const BUTTON_HOVER: Color32 = Color32::from_gray(70);
-const BUTTON_PRESSED: Color32 = Color32::from_gray(100);
+pub const BUTTON_HOVER: Color32 = Color32::from_gray(70);
+pub const BUTTON_PRESSED: Color32 = Color32::from_gray(100);
 
 pub struct State {
     /// Side of each box, in points.
@@ -172,7 +172,8 @@ fn button(
             .justify_center()
             .size_px(state.size)
             .p(5.0)
-            .text(text),
+            .text(text)
+            .sense_click(),
         common::on_click::<State>(act),
         |b| b.text(tw().uppercase(), label),
     );
