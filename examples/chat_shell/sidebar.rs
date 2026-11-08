@@ -1,0 +1,251 @@
+//! The left pane: actions, navigation, recent sessions and the account.
+
+use core::time::Duration;
+
+use bullseye::{Builder, NodeUi, Tw, none, tw};
+
+use super::icons::{self, Glyph};
+use super::state::{App, Pane, Session, Status};
+use super::theme::{Role, Theme, Tok};
+use super::view::Part;
+
+type B<'b, 'f> = Builder<'b, 'f, App>;
+
+const FAST: Duration = Duration::from_millis(100);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Link {
+    New,
+    Search,
+    Projects,
+    Artifacts,
+    Customize,
+    More,
+}
+
+impl Link {
+    fn label(self) -> &'static str {
+        match self {
+            Self::New => "New",
+            Self::Search => "Search",
+            Self::Projects => "Projects",
+            Self::Artifacts => "Artifacts",
+            Self::Customize => "Customize",
+            Self::More => "More",
+        }
+    }
+
+    fn glyph(self) -> Glyph {
+        match self {
+            Self::New => Glyph::Plus,
+            Self::Search => Glyph::Search,
+            Self::Projects => Glyph::Folder,
+            Self::Artifacts => Glyph::Cube,
+            Self::Customize => Glyph::Sliders,
+            Self::More => Glyph::Dots,
+        }
+    }
+
+    fn hint(self) -> Option<&'static str> {
+        match self {
+            Self::New => Some("Ctrl+N"),
+            Self::Search => Some("Ctrl+K"),
+            _ => None,
+        }
+    }
+}
+
+/// The look every row shares; `hover` is how it responds to the pointer.
+///
+/// ```html
+/// <div class="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[#a8a8a8]">...</div>
+/// ```
+fn row(k: &Theme) -> Tw {
+    tw().flex()
+        .items_center()
+        .gap(2.5)
+        .h_px(32.0)
+        .px(2.5)
+        .rounded_md()
+        .text(k[Tok::InkMid])
+        .role(k[Role::Body].clone())
+}
+
+/// A link row: icon, label and an optional keyboard hint on the right.
+///
+/// ```html
+/// <a class="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[#a8a8a8]
+///           hover:bg-[#2e2e2e] hover:text-[#ececec] transition duration-100">
+///   <svg class="size-4 shrink-0"/> <span class="grow truncate">New</span>
+///   <span class="text-[11px] text-[#7c7c7c]">Ctrl+N</span>
+/// </a>
+/// ```
+fn link(b: &mut B<'_, '_>, k: &Theme, link: Link) {
+    b.div_id(
+        Part::Link(link),
+        row(k)
+            .hover(|p| p.bg(k[Tok::Hover]).text(k[Tok::Ink]))
+            .transition(FAST),
+        none,
+        |b| {
+            b.paint(
+                tw().size_px(16.0).shrink_0(),
+                icons::glyph(link.glyph(), k[Tok::InkMid]),
+            );
+            b.text(tw().grow().truncate(), link.label());
+            if let Some(hint) = link.hint() {
+                b.text(tw().role(k[Role::Meta].clone()).text(k[Tok::InkDim]), hint);
+            }
+        },
+    );
+}
+
+fn status_color(k: &Theme, status: Status) -> egui::Color32 {
+    match status {
+        Status::Working => k[Tok::Accent],
+        Status::NeedsInput => k[Tok::InkMid],
+    }
+}
+
+/// A recent session. The selected one is base paint and does not respond to
+/// hover; the others do.
+///
+/// ```html
+/// <a class="flex items-center gap-2.5 h-8 px-2.5 rounded-md text-[#a8a8a8]
+///           hover:bg-[#2e2e2e] hover:text-[#ececec] transition duration-100 cursor-pointer">
+///   <span class="grow truncate">Why does the build fail on CI?</span>
+///   <span class="size-1.5 rounded-full bg-[#6f8fb3]"></span>
+/// </a>
+/// <a class="... bg-[#333a44] text-[#ececec]">Refactor the tokenizer</a>
+/// ```
+fn recent(b: &mut B<'_, '_>, k: &Theme, session: &Session, selected: bool) {
+    let key = session.key;
+    let look = row(k).sense_click();
+    let look = if selected {
+        look.bg(k[Tok::Selected]).text(k[Tok::Ink])
+    } else {
+        look.hover(|p| p.bg(k[Tok::Hover]).text(k[Tok::Ink]))
+            .transition(FAST)
+    };
+    b.div_id(
+        key,
+        look,
+        move |app: &mut App, ui| {
+            if ui.node_response().clicked() {
+                app.selected = key;
+            }
+        },
+        |b| {
+            b.text(tw().grow().truncate(), session.title);
+            if let Some(status) = session.status {
+                b.rule(
+                    tw().size_px(6.0)
+                        .shrink_0()
+                        .rounded_full()
+                        .bg(status_color(k, status)),
+                );
+            }
+        },
+    );
+}
+
+/// ```html
+/// <div class="flex items-center gap-2.5 pt-2 border-t border-[#383838]">
+///   <div class="flex items-center justify-center size-8 rounded-full bg-[#6f8fb3] text-[#14181d]">A</div>
+///   <div class="flex flex-col"><span>Alex Doe</span><span class="text-[11px] text-[#7c7c7c]">Free plan</span></div>
+/// </div>
+/// ```
+fn account(b: &mut B<'_, '_>, k: &Theme) {
+    b.div_id(
+        Part::Account,
+        tw().flex()
+            .items_center()
+            .gap(2.5)
+            .px(2.5)
+            .pt(2.0)
+            .border_t(1.0)
+            .border_color(k[Tok::Line]),
+        none,
+        |b| {
+            b.div(
+                tw().flex()
+                    .items_center()
+                    .justify_center()
+                    .size_px(32.0)
+                    .shrink_0()
+                    .rounded_full()
+                    .bg(k[Tok::Accent])
+                    .text(k[Tok::OnAccent])
+                    .role(k[Role::Title].clone()),
+                |b| b.text(tw(), "A"),
+            );
+            b.div(tw().flex().flex_col(), |b| {
+                b.text(tw(), "Alex Doe");
+                b.text(
+                    tw().role(k[Role::Meta].clone()).text(k[Tok::InkDim]),
+                    "Free plan",
+                );
+            });
+        },
+    );
+}
+
+/// ```html
+/// <aside class="flex flex-col shrink-0 gap-0.5 p-2 bg-[#252525]" style="width: 260px">
+///   <h1 class="px-2.5 py-2 text-[15px]">Assistant</h1>
+///   <a>New</a> <a>Search</a>
+///   <hr class="my-2"> <a>Projects</a> <a>Artifacts</a> <a>Customize</a> <a>More</a>
+///   <h2 class="px-2.5 pt-4 pb-1 text-[11px] text-[#7c7c7c]">Recents</h2>
+///   <div class="flex flex-col grow min-h-0 overflow-hidden">...</div>
+///   <div>account</div>
+/// </aside>
+/// ```
+pub fn sidebar(b: &mut B<'_, '_>, app: &App) {
+    let k = &app.theme;
+    b.div_id(
+        Part::Sidebar,
+        tw().flex()
+            .flex_col()
+            .w_px(app.width(Pane::Sidebar).into())
+            .shrink_0()
+            .gap(0.5)
+            .p(2.0)
+            .bg(k[Tok::Panel])
+            .overflow_hidden(),
+        none,
+        |b| {
+            b.text(
+                tw().role(k[Role::Title].clone()).px(2.5).py(2.0),
+                "Assistant",
+            );
+            link(b, k, Link::New);
+            link(b, k, Link::Search);
+            b.rule(tw().h_px(1.0).bg(k[Tok::Line]).my(2.0).mx(2.5));
+            for next in [Link::Projects, Link::Artifacts, Link::Customize, Link::More] {
+                link(b, k, next);
+            }
+            b.text(
+                tw().role(k[Role::Meta].clone())
+                    .text(k[Tok::InkDim])
+                    .px(2.5)
+                    .pt(4.0)
+                    .pb(1.0),
+                "Recents",
+            );
+            b.div(
+                tw().flex()
+                    .flex_col()
+                    .gap(0.5)
+                    .grow()
+                    .min_h_0()
+                    .overflow_hidden(),
+                |b| {
+                    for session in &app.sessions {
+                        recent(b, k, session, session.key == app.selected);
+                    }
+                },
+            );
+            account(b, k);
+        },
+    );
+}

@@ -1,0 +1,5 @@
+error[E0599]: no method named `italic` found for struct `bullseye::Paint` in the current scope
+ --> tests/ui/paint_has_no_font_methods.rs:7:44
+  |
+7 |     let _ = tw().group_hover(|paint| paint.italic());
+  |                                            ^^^^^^ method not found in `bullseye::Paint`

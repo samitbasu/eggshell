@@ -89,7 +89,7 @@ fn width_of(spec: &TextSpec, text: &str) -> f32 {
     })
 }
 
-fn rects(placed: &Placed<()>, kind: NodeKind) -> Vec<Rect> {
+fn rects<A>(placed: &Placed<A>, kind: NodeKind) -> Vec<Rect> {
     placed
         .nodes()
         .filter(|node| node.kind() == kind)
@@ -1090,7 +1090,7 @@ fn guide(title: &str, choice: usize) -> Placed<()> {
     place(|b| flexbox_guide::layout(b, &state))
 }
 
-fn divs(placed: &Placed<()>) -> Vec<Rect> {
+fn divs<A>(placed: &Placed<A>) -> Vec<Rect> {
     rects(placed, NodeKind::Div)
 }
 
@@ -1310,12 +1310,70 @@ fn holy_grail_areas_fill_the_grid_around_the_content() {
 #[test]
 fn custom_background_boxes_wrap_into_rows_of_the_slider_size() {
     let boxes = |size| {
-        let state = custom_background::State { size };
-        divs(&place(|b| custom_background::layout(b, &state)))[2..8].to_vec()
+        let state = custom_background::State {
+            size,
+            ..Default::default()
+        };
+        let placed = fixed_state()
+            .build(ctx(), |b| custom_background::layout(b, &state))
+            .layout(AREA);
+        divs(&placed)[2..8].to_vec()
     };
     let big = boxes(200.0);
     assert!(big.iter().all(|rect| rect.size() == vec2(200.0, 200.0)));
     assert!(big[2].min.y == big[0].min.y && big[3].min.y > big[2].min.y);
     let small = boxes(100.0);
     assert!(small.iter().all(|rect| rect.min.y == small[0].min.y));
+}
+
+// ------------------------------------------------------------ leaf padding
+
+/// ```html
+/// <div class="flex">
+///   <span id="padded" class="px-2 py-1 border-2">Hello</span>
+/// </div>
+/// ```
+#[test]
+fn a_leaf_is_as_large_as_its_content_plus_padding_and_border() {
+    let placed = place(|b| {
+        b.div(tw().flex(), |b| {
+            b.span("padded", tw().px(2.0).py(1.0).border(2.0), "Hello", none);
+        });
+    });
+    let width = width_of(&BODY, "Hello");
+    assert!(width > 0.0, "precondition: the text has a width");
+    let [padded] = rects(&placed, NodeKind::Span)[..] else {
+        panic!("one span")
+    };
+    assert_eq!(
+        padded.size(),
+        vec2(width + 2.0 * (8.0 + 2.0), 20.0 + 2.0 * (4.0 + 2.0))
+    );
+}
+
+/// ```html
+/// <div class="flex items-baseline">
+///   <span class="py-3">Hello</span><span>Hello</span>
+/// </div>
+/// ```
+#[test]
+fn baseline_alignment_counts_a_leafs_padding() {
+    let placed = place(|b| {
+        b.div(tw().flex().items_baseline(), |b| {
+            b.span("padded", tw().py(3.0), "Hello", none);
+            b.span("plain", tw(), "Hello", none);
+        });
+    });
+    let [padded, plain] = rects(&placed, NodeKind::Span)[..] else {
+        panic!("two spans")
+    };
+    assert!(
+        padded.height() > plain.height(),
+        "precondition: padding differs"
+    );
+    assert_eq!(
+        padded.min.y + 12.0,
+        plain.min.y,
+        "the text lines up: {padded:?} {plain:?}"
+    );
 }

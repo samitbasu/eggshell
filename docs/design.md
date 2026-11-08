@@ -47,7 +47,7 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 | D9 | **No component trait and no ID enums.** A component is a function that builds a subtree; each identified node carries its own draw closure. | Building, measuring and drawing a control happen in one place. No routing code. |
 | D10 | **Draw closures own their captures and receive `&mut App`.** They narrow to their data with captured keys (`app.doc.block_mut(k)`). Reusable components receive a lens (`impl Fn(&mut App) -> Option<&mut T> + Copy + 'static`). | The borrow checker accepts draw closures created during build, because they hold no borrow of the app. |
 | D11 | State shared between nodes as application meaning lives on `App`. State local to the UI lives in egui memory under an ID derived from a key path: `ui.make_persistent_id(salt)` in draw, or an ID computed once in build (`b.id_of(key).with(salt)`) and captured by the draw that writes it. | Uses egui's memory model, made safe by stable paths. |
-| D12 | Node `Ui`s are created with `UiBuilder::id(path_hash)`, so a node's ID is independent of layer and parent `Ui`. | Build and draw compute identical IDs from the path alone. |
+| D12 | A node's draw `Ui` is created with `UiBuilder::scope_id(path_hash.with("bullseye-draw"))`, so the IDs of widgets inside it are independent of layer and parent `Ui`. The node's own interaction uses `path_hash` itself (`NodeUi::node_id`); the draw `Ui` cannot share it, because egui registers a `Ui`'s scope ID as a widget and that would overwrite the node's border-box widget. | Build and draw compute identical IDs from the path alone. |
 | D13 | Styles are written with a `Tw` builder in Tailwind vocabulary. **`Tw` holds resolved values only**: `Color32`, `TextSpec`, points. Theming is an application concern (Appendix A). | No theme abstraction in the library. Since the tree is rebuilt every frame, resolving at build time is late enough. |
 | D14 | One spacing unit = 4 points. `.p(1.5)` = `p-1.5` = 6 pt. | Tailwind's scale (0.25 rem at 16 px). |
 | D15 | `tw()` starts as `Display::Block` (CSS default). `flex()` / `grid()` must be explicit. | Tailwind code reads the same as on the web. |
@@ -421,13 +421,13 @@ b.div_id(("row", key), tw().flex().h(7.0).items_center().gap(1.0).rounded_md()
 });
 ```
 
-**Sense.** `sense_click()`, `sense_drag()`, `sense_click_drag()`, `sense_hover()`. A node with `hover` / `active` implies at least the matching sense. Only identified nodes (`div_id`, `leaf`, `span`, `icon`) may declare a sense or variants. Variants on an anonymous node are a build error (debug assertion).
+**Sense.** `sense_click()`, `sense_drag()`, `sense_click_drag()`, `sense_hover()`. A node with `hover` / `active` implies at least the matching sense. Only identified nodes (`div_id`, `leaf`, `span`, `icon`) may declare a sense, a group, `hover` / `active` variants or a `transition`; on an anonymous node that is a build error (debug assertion). `group_hover` alone is the exception: it only reads the group's state, so an anonymous child may follow its parent's hover (a `transition` on it needs an identified node).
 
 **Variants (v1).**
-- `hover(|p| …)`: pointer over the node's border box, topmost in its layer.
+- `hover(|p| …)`: pointer over the node's border box with no sensing node above it in its layer, or over a sensing descendant (CSS `:hover`, so a row stays highlighted over its buttons). Calls accumulate: the closure receives the paint so far.
 - `active(|p| …)`: primary button held on the node.
 - `group_hover(|p| …)`: hover of the nearest ancestor marked `.group()`. That ancestor must be identified with a sense. It is drawn before its descendants, so its state is known when they are drawn.
-- `transition(secs)`: animate between base and variant paint with `ctx.animate_value_with_time(node_id.with(variant), …)` ⚠. Applies to colors and opacity.
+- `transition(Duration)`: animate between base and variant paint with `ctx.animate_value_with_time(node_id.with(variant), …)` ⚠. Applies to colors and opacity.
 - Deferred: `focus_within`, `focus_visible`.
 
 States that the application knows at build time (selected, pressed, armed, current, disabled) are conditional classes, not variants. `.tap.dead:hover{background:none}` becomes "do not add `.hover` when dead", plus `inert()`.
@@ -441,7 +441,7 @@ States that the application knows at build time (selected, pressed, armed, curre
 4. The draw reads it through an extension trait: `ui.node_response() -> Response` (clicks, drags, context-click, pointer position, tooltips via `on_hover_text`).
 
 ```rust
-pub trait NodeUi { fn node_response(&self) -> egui::Response; }   // library-provided
+pub trait NodeUi { fn node_response(&self) -> egui::Response; fn node_id(&self) -> egui::Id; }   // library-provided; the draw `Ui`'s scope id is derived from the node id, which egui keeps for the node's border-box widget
 ```
 
 The application may still create its own sub-interactions inside a node using derived IDs (`ui.make_persistent_id("handle")`), e.g. the canvas's own hit testing. Leaves that contain egui widgets with their own IDs (`TextEdit`, `ComboBox`, `Checkbox`) need no node sense: those widgets interact and style themselves.
@@ -695,7 +695,7 @@ Inside `draw`, for each identified node:
 
 ```rust
 fn node_ui(ui: &mut egui::Ui, content: Rect, clip: Rect, id: egui::Id, text: &TextStyle, f: impl FnOnce(&mut egui::Ui)) {
-    ui.scope_builder(egui::UiBuilder::new().max_rect(content).id(id), |ui| {   // D12
+    ui.scope_builder(egui::UiBuilder::new().max_rect(content).scope_id(id.with("bullseye-draw")), |ui| {   // D12
         ui.set_clip_rect(clip);
         apply_text_style(ui, text);   // font + color overrides ⚠
         f(ui);                        // interaction (D24), then the node's draw closure with &mut A

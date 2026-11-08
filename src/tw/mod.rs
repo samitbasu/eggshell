@@ -14,6 +14,7 @@ mod layout;
 mod paint;
 mod text;
 mod units;
+mod variants;
 
 use taffy::{Display, Style};
 
@@ -21,7 +22,9 @@ use crate::text::TextClasses;
 
 pub use grid::Track;
 pub use paint::{BoxPaint, Divide, Ring, Sides};
-pub use units::{Angle, Flip, Opacity};
+pub use units::{Angle, Flip, Opacity, Progress};
+pub use variants::Paint;
+pub(crate) use variants::{Grouping, Look, Presence, Sensing, State, Variants};
 
 /// One Tailwind space unit, in points.
 const SPACE_UNIT: f32 = 4.0;
@@ -34,6 +37,9 @@ pub struct Tw {
     pub(crate) text: TextClasses,
     pub(crate) z: i16,
     pub(crate) inert: bool,
+    pub(crate) sensing: Sensing,
+    pub(crate) grouping: Grouping,
+    pub(crate) variants: Variants,
 }
 
 /// A fresh class list. Like CSS, it starts as `display: block`.
@@ -47,6 +53,9 @@ pub fn tw() -> Tw {
         text: TextClasses::default(),
         z: 0,
         inert: false,
+        sensing: Sensing::None,
+        grouping: Grouping::Ungrouped,
+        variants: Variants::default(),
     }
 }
 

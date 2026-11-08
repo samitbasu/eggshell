@@ -17,9 +17,17 @@ use egui_kittest::Harness;
 #[path = "../examples/kaolin/layouts.rs"]
 mod layouts;
 
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/button.rs"]
+mod button;
+
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
 #[path = "../examples/custom_background.rs"]
 mod custom_background;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/chat_shell/main.rs"]
+mod chat_shell;
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
 #[path = "../examples/flex.rs"]
@@ -44,6 +52,16 @@ mod grow;
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
 #[path = "../examples/holy_grail.rs"]
 mod holy_grail;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/sidebar.rs"]
+mod sidebar;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/todo.rs"]
+mod todo;
+
+mod support;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 
@@ -248,14 +266,6 @@ fn port_holy_grail() {
 }
 
 #[test]
-fn port_custom_background() {
-    snapshot(
-        "port_custom_background",
-        plain(|b| custom_background::layout(b, &custom_background::State::default())),
-    );
-}
-
-#[test]
 fn flexbox_guide_centering() {
     snapshot(
         "flexbox_guide_centering",
@@ -289,5 +299,98 @@ fn flexbox_guide_justify_space_evenly() {
     snapshot(
         "flexbox_guide_justify_space_evenly",
         plain(|b| flexbox_guide::layout(b, &flexbox_guide::State::showing("justify-content", 5))),
+    );
+}
+
+/// Draws an interactive example of `size` with the pointer at `pointer` (in
+/// the layout's coordinates, 8 points in from the window's corner) and compares
+/// it with the golden `name`.
+fn snapshot_app<A: 'static>(
+    name: &str,
+    size: Vec2,
+    app: A,
+    base_text: TextStyle,
+    view: support::View<A>,
+    pointer: Option<egui::Pos2>,
+) {
+    report_renderer();
+    let mut harness = support::harness(size, base_text, app, view);
+    if let Some(pointer) = pointer {
+        harness.hover_at(pointer);
+        harness.run_steps(12);
+    }
+    harness.snapshot(name);
+}
+
+/// The todo list with the pointer over the second row: its highlight, and the
+/// Remove action revealed by group hover.
+#[test]
+fn todo_row_hovered() {
+    snapshot_app(
+        "todo_row_hovered",
+        Vec2::new(520.0, 260.0),
+        todo::State::default(),
+        TextStyle::new(layouts::BODY, Color32::BLACK),
+        todo::layout,
+        Some(egui::pos2(200.0, 88.0)),
+    );
+}
+
+/// Every box of the demo, with the pointer over the `ext clickable` button.
+#[test]
+fn port_custom_background() {
+    snapshot_app(
+        "port_custom_background",
+        Vec2::new(1400.0, 700.0),
+        custom_background::State::default(),
+        TextStyle::new(layouts::BODY, Color32::BLACK),
+        custom_background::layout,
+        Some(egui::pos2(910.0, 490.0)),
+    );
+}
+
+/// The selectable button selected, the counting button under the pointer.
+#[test]
+fn port_button() {
+    snapshot_app(
+        "port_button",
+        Vec2::new(400.0, 520.0),
+        button::State {
+            clicks: 3,
+            selected: true,
+        },
+        TextStyle::new(layouts::BODY, Color32::BLACK),
+        button::layout,
+        Some(egui::pos2(200.0, 120.0)),
+    );
+}
+
+/// Grid selected, a crate pill under the pointer.
+#[test]
+fn port_sidebar() {
+    let mut state = sidebar::State::default();
+    state.route = sidebar::Route::Example("Grid");
+    snapshot_app(
+        "port_sidebar",
+        Vec2::new(640.0, 760.0),
+        state,
+        TextStyle::new(layouts::BODY, Color32::BLACK),
+        sidebar::layout,
+        Some(egui::pos2(60.0, 560.0)),
+    );
+}
+
+/// The chat shell with the pointer over a recent session.
+#[test]
+fn chat_shell() {
+    let app = chat_shell::state::App::default();
+    let base = app.theme.base_text();
+    snapshot_app(
+        "chat_shell",
+        Vec2::new(1200.0, 760.0),
+        app,
+        base,
+        chat_shell::view::layout,
+        Some(egui::pos2(120.0, 400.0)),
     );
 }

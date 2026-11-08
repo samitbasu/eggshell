@@ -60,6 +60,39 @@ impl From<Opacity> for f32 {
     }
 }
 
+/// How far a transition has come, in the closed unit interval.
+///
+/// Construction clamps, and NaN becomes [`Progress::START`].
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct Progress(f32);
+
+impl Progress {
+    /// Not started: the base paint.
+    pub const START: Self = Self(0.0);
+    /// Arrived: the variant paint.
+    pub const END: Self = Self(1.0);
+
+    /// Clamps `value` to `0.0..=1.0`; NaN becomes [`Progress::START`].
+    pub fn new(value: f32) -> Self {
+        if value.is_nan() {
+            Self::START
+        } else {
+            Self(value.clamp(0.0, 1.0))
+        }
+    }
+
+    /// `from` moved this far towards `to`.
+    pub fn lerp(self, from: f32, to: f32) -> f32 {
+        from + (to - from) * self.0
+    }
+}
+
+impl From<Progress> for f32 {
+    fn from(progress: Progress) -> f32 {
+        progress.0
+    }
+}
+
 /// A rotation. Non-finite input becomes no rotation.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Angle(f32);
@@ -115,6 +148,13 @@ mod tests {
         assert_eq!(Opacity::new(f32::NAN), Opacity::TRANSPARENT);
         assert!(Opacity::new(0.25) < Opacity::new(0.75));
         assert_eq!(Opacity::default(), Opacity::OPAQUE);
+    }
+
+    #[test]
+    fn progress_clamps_and_interpolates() {
+        assert_eq!(Progress::new(2.0), Progress::END);
+        assert_eq!(Progress::new(f32::NAN), Progress::START);
+        assert_eq!(Progress::new(0.25).lerp(10.0, 20.0), 12.5);
     }
 
     #[test]
