@@ -30,6 +30,7 @@ use egui::{
 use taffy::Size;
 
 use crate::sizing::{Piece, Row, Sizer};
+use crate::style::{ButtonVariant, Mark, Shadcn};
 use crate::{Measure, TextStyle, Width};
 
 /// A stock widget the builder can size.
@@ -67,15 +68,29 @@ fn place(ui: &mut Ui, widget: impl egui::Widget) -> Response {
 /// and label in a leaf that is wider than they are. The layout is a column
 /// because egui wraps labels only in vertical layouts, and the estimate
 /// wraps them.
-fn place_start(ui: &mut Ui, widget: impl egui::Widget) -> Response {
+fn place_start(
+    ui: &mut Ui,
+    restyle: impl FnOnce(&mut egui::style::Widgets),
+    widget: impl egui::Widget,
+) -> Response {
     let layout = egui::Layout::top_down(egui::Align::Min);
     ui.scope_builder(
         egui::UiBuilder::new()
             .max_rect(ui.max_rect())
             .layout(layout),
-        |ui| ui.add(widget),
+        |ui| {
+            restyle(&mut ui.visuals_mut().widgets);
+            ui.add(widget)
+        },
     )
     .inner
+}
+
+/// A label in the preset's text colour when one is applied, which the
+/// checked look of a box would otherwise change, and egui's own otherwise.
+fn label_text(preset: Option<&Shadcn>, label: String) -> RichText {
+    let text = RichText::new(label);
+    preset.map_or(text.clone(), |preset| text.color(preset.label_color()))
 }
 
 fn icon_row(sizer: &Sizer<'_>, icon: Vec2, label: Option<&String>, min_size: Vec2) -> Row {
@@ -92,9 +107,18 @@ fn icon_row(sizer: &Sizer<'_>, icon: Vec2, label: Option<&String>, min_size: Vec
 }
 
 /// `egui::Button` with a text label.
+///
+/// The variants are shadcn's, drawn from the applied preset's tokens
+/// (the default preset's when none was applied): [`primary`](Self::primary),
+/// [`secondary`](Self::secondary), which is egui's own look,
+/// [`destructive`](Self::destructive), [`outline`](Self::outline) and
+/// [`ghost`](Self::ghost). They differ in colour only, so the size is the
+/// same for all of them. A button in a disabled `Ui` is drawn at half
+/// opacity.
 #[derive(Clone, Debug)]
 pub struct Button {
     label: String,
+    variant: ButtonVariant,
     name: Option<String>,
 }
 
@@ -103,8 +127,40 @@ impl Button {
     pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: label.into(),
+            variant: ButtonVariant::default(),
             name: None,
         }
+    }
+
+    /// Draws the button as `variant`.
+    pub fn variant(mut self, variant: ButtonVariant) -> Self {
+        self.variant = variant;
+        self
+    }
+
+    /// The `default` variant: the primary colour.
+    pub fn primary(self) -> Self {
+        self.variant(ButtonVariant::Primary)
+    }
+
+    /// The `secondary` variant, the default.
+    pub fn secondary(self) -> Self {
+        self.variant(ButtonVariant::Secondary)
+    }
+
+    /// The `destructive` variant.
+    pub fn destructive(self) -> Self {
+        self.variant(ButtonVariant::Destructive)
+    }
+
+    /// The `outline` variant.
+    pub fn outline(self) -> Self {
+        self.variant(ButtonVariant::Outline)
+    }
+
+    /// The `ghost` variant.
+    pub fn ghost(self) -> Self {
+        self.variant(ButtonVariant::Ghost)
     }
 
     /// The accessible name, the equivalent of `aria-label`.
@@ -115,7 +171,11 @@ impl Button {
 
     /// Adds the button to `ui`, filling its rect.
     pub fn show(self, ui: &mut Ui) -> Response {
-        let response = place(ui, egui::Button::new(self.label));
+        let preset = Shadcn::of(ui.ctx());
+        let response = place(ui, |ui: &mut Ui| {
+            preset.style_button(self.variant, &mut ui.visuals_mut().widgets);
+            ui.add(egui::Button::new(self.label))
+        });
         announce(&response, self.name.as_deref());
         response
     }
@@ -169,9 +229,19 @@ impl Checkbox {
     /// Adds the checkbox to `ui`, at the top left of its rect. A click
     /// toggles `checked`.
     pub fn show(self, ui: &mut Ui, checked: &mut bool) -> Response {
+        let preset = Shadcn::applied(ui.ctx());
+        let mark = Mark::from(*checked);
+        let restyle = |widgets: &mut egui::style::Widgets| {
+            if let Some(preset) = &preset {
+                preset.style_checkbox(mark, widgets);
+            }
+        };
         let response = match self.label {
-            Some(label) => place_start(ui, egui::Checkbox::new(checked, label)),
-            None => place_start(ui, egui::Checkbox::without_text(checked)),
+            Some(label) => {
+                let text = label_text(preset.as_ref(), label);
+                place_start(ui, restyle, egui::Checkbox::new(checked, text))
+            }
+            None => place_start(ui, restyle, egui::Checkbox::without_text(checked)),
         };
         announce(&response, self.name.as_deref());
         response
@@ -225,9 +295,18 @@ impl RadioButton {
 
     /// Adds the radio button to `ui`, at the top left of its rect.
     pub fn show(self, ui: &mut Ui, selected: bool) -> Response {
+        let preset = Shadcn::applied(ui.ctx());
+        let restyle = |widgets: &mut egui::style::Widgets| {
+            if let Some(preset) = &preset {
+                preset.style_radio(widgets);
+            }
+        };
         let response = match self.label {
-            Some(label) => place_start(ui, egui::RadioButton::new(selected, label)),
-            None => place_start(ui, egui::RadioButton::new(selected, ())),
+            Some(label) => {
+                let text = label_text(preset.as_ref(), label);
+                place_start(ui, restyle, egui::RadioButton::new(selected, text))
+            }
+            None => place_start(ui, restyle, egui::RadioButton::new(selected, ())),
         };
         announce(&response, self.name.as_deref());
         response
