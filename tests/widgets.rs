@@ -232,3 +232,101 @@ fn a_drag_value_shows_the_decimals_of_its_template() {
         "a one-decimal template shows one decimal: {painted:?}"
     );
 }
+
+const NARROW_LABEL: &str = "A label that has to wrap";
+
+#[derive(Default)]
+struct Wide {
+    seen: Vec<(&'static str, egui::Rect)>,
+}
+
+fn wide(b: &mut Builder<'_, '_, Wide>, _: &Wide) {
+    b.div(tw().flex().flex_col().gap(2.0), |b| {
+        b.widget(
+            "check",
+            tw().w_px(300.0),
+            Checkbox::new("Wide"),
+            |app, ui, w| {
+                let response = w.show(ui, &mut false);
+                app.seen.push(("check", response.rect));
+            },
+        );
+        b.widget(
+            "radio",
+            tw().w_px(300.0),
+            RadioButton::new("Wide"),
+            |app, ui, w| {
+                let response = w.show(ui, false);
+                app.seen.push(("radio", response.rect));
+            },
+        );
+        b.widget(
+            "narrow",
+            tw().w_px(90.0),
+            Checkbox::new(NARROW_LABEL),
+            |app, ui, w| {
+                let response = w.show(ui, &mut false);
+                app.seen.push(("narrow", response.rect));
+            },
+        );
+    });
+}
+
+#[test]
+fn a_checkbox_in_a_wider_leaf_stays_at_the_left_at_its_own_size() {
+    let mut harness = support::harness_with(
+        vec2(400.0, 120.0),
+        base_text(),
+        Wide::default(),
+        wide,
+        Accessibility::Unchecked,
+    );
+    harness.run_steps(2);
+    let ctx = harness.ctx.clone();
+    let text = base_text();
+    for (name, estimate) in [
+        ("check", Checkbox::new("Wide").size(&ctx, &text, None)),
+        ("radio", RadioButton::new("Wide").size(&ctx, &text, None)),
+    ] {
+        let leaf = rect_of(&harness, &format!("/\"{name}\""));
+        let (_, drawn) = *harness
+            .state()
+            .app
+            .seen
+            .iter()
+            .rfind(|(seen, _)| *seen == name)
+            .expect("drawn");
+        assert_eq!(leaf.width(), 300.0, "precondition: a wide leaf");
+        assert!(estimate.x < 200.0, "precondition: the widget is narrower");
+        assert_eq!(drawn.min.x, leaf.min.x, "{name} starts at the left edge");
+        assert_eq!(
+            drawn.size(),
+            estimate,
+            "{name} keeps the size egui gives it"
+        );
+    }
+}
+
+#[test]
+fn a_checkbox_label_still_wraps_in_a_narrow_leaf() {
+    let mut harness = support::harness_with(
+        vec2(400.0, 200.0),
+        base_text(),
+        Wide::default(),
+        wide,
+        Accessibility::Unchecked,
+    );
+    harness.run_steps(2);
+    let estimate =
+        Checkbox::new(NARROW_LABEL).size(&harness.ctx, &base_text(), Some(Width::new(90.0)));
+    let one_line = Checkbox::new(NARROW_LABEL).size(&harness.ctx, &base_text(), None);
+    let (_, drawn) = *harness
+        .state()
+        .app
+        .seen
+        .iter()
+        .rfind(|(seen, _)| *seen == "narrow")
+        .expect("drawn");
+    assert!(estimate.y > one_line.y, "precondition: the label wraps");
+    assert_eq!(drawn.size(), estimate);
+}

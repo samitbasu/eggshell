@@ -53,6 +53,22 @@ fn place(ui: &mut Ui, widget: impl egui::Widget) -> Response {
     ui.put(ui.max_rect(), widget)
 }
 
+/// Adds `widget` at the top left of the leaf, at the size egui gives it.
+/// `place` would justify it to the whole rect, which centres a checkbox's box
+/// and label in a leaf that is wider than they are. The layout is a column
+/// because egui wraps labels only in vertical layouts, and the estimate
+/// wraps them.
+fn place_start(ui: &mut Ui, widget: impl egui::Widget) -> Response {
+    let layout = egui::Layout::top_down(egui::Align::Min);
+    ui.scope_builder(
+        egui::UiBuilder::new()
+            .max_rect(ui.max_rect())
+            .layout(layout),
+        |ui| ui.add(widget),
+    )
+    .inner
+}
+
 fn icon_row(sizer: &Sizer<'_>, icon: Vec2, label: Option<&String>, min_size: Vec2) -> Row {
     let spacing = &sizer.style.spacing;
     Row {
@@ -120,11 +136,12 @@ impl Checkbox {
         Self { label: None }
     }
 
-    /// Adds the checkbox to `ui`, filling its rect. A click toggles `checked`.
+    /// Adds the checkbox to `ui`, at the top left of its rect. A click
+    /// toggles `checked`.
     pub fn show(self, ui: &mut Ui, checked: &mut bool) -> Response {
         match self.label {
-            Some(label) => place(ui, egui::Checkbox::new(checked, label)),
-            None => place(ui, egui::Checkbox::without_text(checked)),
+            Some(label) => place_start(ui, egui::Checkbox::new(checked, label)),
+            None => place_start(ui, egui::Checkbox::without_text(checked)),
         }
     }
 }
@@ -163,11 +180,11 @@ impl RadioButton {
         Self { label: None }
     }
 
-    /// Adds the radio button to `ui`, filling its rect.
+    /// Adds the radio button to `ui`, at the top left of its rect.
     pub fn show(self, ui: &mut Ui, selected: bool) -> Response {
         match self.label {
-            Some(label) => place(ui, egui::RadioButton::new(selected, label)),
-            None => place(ui, egui::RadioButton::new(selected, ())),
+            Some(label) => place_start(ui, egui::RadioButton::new(selected, label)),
+            None => place_start(ui, egui::RadioButton::new(selected, ())),
         }
     }
 }
