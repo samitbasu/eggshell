@@ -287,7 +287,7 @@ fn chrome_stacked_by_z() {
 
 #[test]
 fn port_flex() {
-    snapshot("port_flex", plain(|b| flex::layout(b, &())));
+    light_snapshot("port_flex", SIZE, (), flex::layout);
 }
 
 #[test]
@@ -315,7 +315,7 @@ fn port_grow() {
 
 #[test]
 fn port_holy_grail() {
-    snapshot("port_holy_grail", plain(|b| holy_grail::layout(b, &())));
+    light_snapshot("port_holy_grail", SIZE, (), holy_grail::layout);
 }
 
 fn guide(name: &str, title: &str, choice: usize) {
@@ -382,15 +382,6 @@ fn snapshot_app<A: 'static>(
     );
 }
 
-/// The light goldens predate the themed page and keep the harness's own clear
-/// colour; a dark one needs the page, which the examples' central panel paints.
-fn page_of(theme: egui::Theme) -> support::Page {
-    match theme {
-        egui::Theme::Light => support::Page::Bare,
-        egui::Theme::Dark => support::Page::Themed,
-    }
-}
-
 /// [`snapshot_app`] in `theme`, which stock widgets draw themselves in.
 fn snapshot_themed<A: 'static>(
     name: &str,
@@ -401,7 +392,7 @@ fn snapshot_themed<A: 'static>(
 ) {
     report_renderer();
     let mut harness = support::harness_prepared(size, base_text, app, view, prepare);
-    harness.state_mut().page = page_of(theme);
+    harness.state_mut().page = support::Page::Themed;
     harness.ctx.set_theme(theme);
     harness.run_steps(2);
     if let Some(pointer) = pointer {
@@ -602,7 +593,7 @@ fn gallery_in(name: &str, width: f32, theme: egui::Theme) {
         controls_gallery::layout,
         controls_gallery::prepare,
     );
-    harness.state_mut().page = page_of(theme);
+    harness.state_mut().page = support::Page::Themed;
     harness.ctx.set_theme(theme);
     harness.run_steps(4);
     let reports = &harness.state().app.reports;
@@ -775,19 +766,17 @@ fn known_gaps_shadows_dark() {
 }
 
 fn known_gaps_in(name: &str, theme: egui::Theme) {
-    report_renderer();
-    let mut state = LayoutState::new().with_base_text(known_gaps::base_text(theme));
-    let mut harness = Harness::builder()
-        .with_size(Vec2::new(1100.0, 560.0))
-        .with_theme(theme)
-        .build_ui(|ui| {
-            let area = ui.max_rect();
-            state
-                .build(ui.ctx(), known_gaps::shadows)
-                .layout(area)
-                .draw(&mut (), ui);
-        });
-    harness.snapshot(name);
+    snapshot_themed(
+        name,
+        Vec2::new(1100.0, 560.0),
+        (
+            (),
+            |b, _| known_gaps::shadows(b),
+            known_gaps::base_text(theme),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
 }
 
 fn kaolin_window(

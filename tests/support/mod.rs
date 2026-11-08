@@ -19,7 +19,8 @@ pub enum Page {
     /// Nothing: the harness's own clear colour shows.
     #[default]
     Bare,
-    /// The theme's `background`, as the examples' central panel does.
+    /// The theme's `background` over the whole window, as the examples' central
+    /// panel does.
     Themed,
 }
 
@@ -97,7 +98,8 @@ pub fn harness_scaled<A: 'static>(
                 prepare(ui.ctx(), &*app);
                 if *page == Page::Themed {
                     let background = bullseye::style::Shadcn::of(ui.ctx()).tokens.background;
-                    ui.painter().rect_filled(area, 0.0, background);
+                    ui.painter()
+                        .rect_filled(ui.ctx().content_rect(), 0.0, background);
                 }
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *nodes = placed
