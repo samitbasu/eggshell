@@ -244,10 +244,6 @@ impl Variants {
         }
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
-        State::ALL.iter().all(|&state| self.get(state).is_none())
-    }
-
     /// Whether any variant changes the text colour.
     pub(crate) fn sets_text_color(&self) -> bool {
         State::ALL
