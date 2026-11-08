@@ -19,8 +19,10 @@ mod key;
 mod measure;
 mod pipeline;
 mod prim;
+mod sizing;
 mod text;
 mod tw;
+pub mod widget;
 
 pub use builder::{Builder, none};
 pub use draw::NodeUi;
@@ -28,6 +30,7 @@ pub use focus::focus_within;
 pub use measure::{Measure, fill};
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
 pub use prim::Icon;
+pub use sizing::Width;
 pub use text::{
     FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle, Tracking,
     WhiteSpace,

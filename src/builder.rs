@@ -14,6 +14,7 @@ use crate::pipeline::{
 use crate::prim::{Icon, Prim};
 use crate::text::TextStyle;
 use crate::tw::{Grouping, Tw};
+use crate::widget::Stock;
 
 /// What a node is made of, besides its classes.
 struct Parts {
@@ -173,6 +174,26 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             ..Parts::anonymous(NodeKind::Leaf, path)
         };
         self.leaf_node(tw, parts);
+    }
+
+    /// An identified leaf holding a stock egui widget, sized by the library
+    /// from the widget's content (see [`widget`](crate::widget)).
+    ///
+    /// `draw` gets the widget back to `show` it with the application's data.
+    pub fn widget<K: Hash + Debug + 'static, W: Stock>(
+        &mut self,
+        key: K,
+        tw: Tw,
+        widget: W,
+        draw: impl FnOnce(&mut A, &mut egui::Ui, W) + 'static,
+    ) {
+        let measured = widget.clone();
+        self.leaf(
+            key,
+            tw,
+            move |m| measured.measure(m),
+            move |app, ui| draw(app, ui, widget),
+        );
     }
 
     /// An identified text leaf, measured and painted by the library.
