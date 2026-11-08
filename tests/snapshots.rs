@@ -33,6 +33,10 @@ mod chat_shell;
 #[path = "../examples/controls_gallery.rs"]
 mod controls_gallery;
 
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/form.rs"]
+mod form;
+
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
 #[path = "../examples/flex.rs"]
 mod flex;
@@ -347,6 +351,7 @@ fn snapshot_themed<A: 'static>(
     report_renderer();
     let mut harness = support::harness(size, base_text, app, view);
     harness.ctx.set_theme(theme);
+    harness.run_steps(2);
     if let Some(pointer) = pointer {
         harness.hover_at(pointer);
         harness.run_steps(12);
@@ -476,4 +481,28 @@ fn controls_gallery_default() {
 #[test]
 fn controls_gallery_wide() {
     gallery("controls_gallery_wide", 300.0);
+}
+
+/// The form part-way through: a name, the push switch on, the beta switch and
+/// region select inert, two marks on, another accent, and Save inert for want
+/// of an email.
+#[test]
+fn form() {
+    let state = form::State {
+        name: "Ada Lovelace".into(),
+        push_alerts: true,
+        language: 1,
+        theme: form::Theme::Dark,
+        marks: vec![form::Mark::Bold, form::Mark::Underline],
+        accent: form::SWATCHES[4],
+        ..Default::default()
+    };
+    snapshot_app(
+        "form",
+        Vec2::new(760.0, 900.0),
+        state,
+        TextStyle::new(layouts::BODY, Color32::BLACK),
+        form::layout,
+        None,
+    );
 }

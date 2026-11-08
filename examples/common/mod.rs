@@ -25,7 +25,10 @@ pub const EDGE: Color32 = Color32::from_gray(176);
 pub const PANEL: Color32 = Color32::from_gray(245);
 /// The chosen cell of a segmented control.
 pub const SELECTED: Color32 = Color32::from_rgb(170, 196, 232);
-const HOVER: Color32 = Color32::from_gray(228);
+/// A control under the pointer.
+pub const HOVER: Color32 = Color32::from_gray(228);
+/// The ring of a control with keyboard focus.
+pub const FOCUS: Color32 = Color32::from_rgb(70, 120, 200);
 
 /// The controls panel's width.
 const PANEL_WIDTH: f32 = 240.0;
@@ -231,11 +234,11 @@ pub fn slider_row<S: 'static>(
 /// The look of a segmented control's cells.
 ///
 /// ```html
-/// <span class="px-2.5 py-1 rounded hover:bg-[#e4e4e4]">flex-wrap</span>
+/// <span class="px-2.5 py-1 rounded hover:bg-[#e4e4e4] focus-visible:ring-2 focus-visible:ring-[#4678c8]">flex-wrap</span>
 /// <span class="px-2.5 py-1 rounded bg-[#aac4e8]">flex-nowrap</span>  <!-- pressed -->
 /// ```
 pub fn segment(cell: Cell) -> Tw {
-    let look = tw().px(2.5).py(1.0).rounded();
+    let look = tw().px(2.5).py(1.0).rounded().focus(|p| p.ring(2.0, FOCUS));
     match cell {
         Cell::Pressed => look.bg(SELECTED),
         Cell::Released => look.hover(|p| p.bg(HOVER)),

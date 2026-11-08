@@ -165,6 +165,17 @@ pub fn click_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
     press_and_release(harness, at);
 }
 
+/// The deepest node that has keyboard focus or holds a widget that does: the
+/// leaf a `text_field` or `select` sits in, or a node that is itself focused.
+pub fn focused_node<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
+    harness
+        .state()
+        .ids
+        .iter()
+        .rfind(|(_, id)| bullseye::focus_within(&harness.ctx, *id))
+        .map(|(path, _)| path.clone())
+}
+
 /// What has keyboard focus: the readable path of an identified node, or
 /// `<widget>` for an egui widget that is not a node (a text edit inside one).
 pub fn focused_path<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
