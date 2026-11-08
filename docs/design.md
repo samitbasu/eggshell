@@ -424,7 +424,7 @@ b.div_id(("row", key), tw().flex().h(7.0).items_center().gap(1.0).rounded_md()
 **Sense.** `sense_click()`, `sense_drag()`, `sense_click_drag()`, `sense_hover()`. A node with `hover` / `active` implies at least the matching sense. Only identified nodes (`div_id`, `leaf`, `span`, `icon`) may declare a sense or variants. Variants on an anonymous node are a build error (debug assertion).
 
 **Variants (v1).**
-- `hover(|p| …)`: pointer over the node's border box, topmost in its layer.
+- `hover(|p| …)`: pointer over the node's border box with no sensing node above it in its layer, or over a sensing descendant (CSS `:hover`, so a row stays highlighted over its buttons). Calls accumulate: the closure receives the paint so far.
 - `active(|p| …)`: primary button held on the node.
 - `group_hover(|p| …)`: hover of the nearest ancestor marked `.group()`. That ancestor must be identified with a sense. It is drawn before its descendants, so its state is known when they are drawn.
 - `transition(secs)`: animate between base and variant paint with `ctx.animate_value_with_time(node_id.with(variant), …)` ⚠. Applies to colors and opacity.
@@ -441,7 +441,7 @@ States that the application knows at build time (selected, pressed, armed, curre
 4. The draw reads it through an extension trait: `ui.node_response() -> Response` (clicks, drags, context-click, pointer position, tooltips via `on_hover_text`).
 
 ```rust
-pub trait NodeUi { fn node_response(&self) -> egui::Response; }   // library-provided
+pub trait NodeUi { fn node_response(&self) -> egui::Response; fn node_id(&self) -> egui::Id; }   // library-provided; the draw `Ui`'s scope id is derived from the node id, which egui keeps for the node's border-box widget
 ```
 
 The application may still create its own sub-interactions inside a node using derived IDs (`ui.make_persistent_id("handle")`), e.g. the canvas's own hit testing. Leaves that contain egui widgets with their own IDs (`TextEdit`, `ComboBox`, `Checkbox`) need no node sense: those widgets interact and style themselves.

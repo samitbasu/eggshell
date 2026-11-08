@@ -45,6 +45,10 @@ mod grow;
 #[path = "../examples/holy_grail.rs"]
 mod holy_grail;
 
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/todo.rs"]
+mod todo;
+
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 
 fn report_renderer() {
@@ -290,4 +294,29 @@ fn flexbox_guide_justify_space_evenly() {
         "flexbox_guide_justify_space_evenly",
         plain(|b| flexbox_guide::layout(b, &flexbox_guide::State::showing("justify-content", 5))),
     );
+}
+
+/// The todo list with the pointer over the second row: its highlight, and the
+/// Remove action revealed by group hover.
+#[test]
+fn todo_row_hovered() {
+    report_renderer();
+    let mut layout =
+        LayoutState::new().with_base_text(TextStyle::new(layouts::BODY, Color32::BLACK));
+    let mut harness = Harness::builder()
+        .with_size(Vec2::new(520.0, 260.0))
+        .with_step_dt(0.05)
+        .build_ui_state(
+            |ui, state: &mut todo::State| {
+                let area = ui.max_rect();
+                layout
+                    .build(ui.ctx(), |b| todo::layout(b, &*state))
+                    .layout(area)
+                    .draw(state, ui);
+            },
+            todo::State::default(),
+        );
+    harness.hover_at(egui::pos2(200.0, 88.0));
+    harness.run_steps(12);
+    harness.snapshot("todo_row_hovered");
 }
