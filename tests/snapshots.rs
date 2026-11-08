@@ -29,6 +29,10 @@ mod custom_background;
 #[path = "../examples/chat_shell/main.rs"]
 mod chat_shell;
 
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../examples/controls_gallery.rs"]
+mod controls_gallery;
+
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
 #[path = "../examples/flex.rs"]
 mod flex;
@@ -422,4 +426,54 @@ fn chat_shell() {
         Some(egui::pos2(120.0, 400.0)),
         egui::Theme::Dark,
     );
+}
+
+/// The controls gallery with every cell `width` points wide: the golden, and
+/// the assertion that no widget's rect differs from the library's.
+fn gallery(name: &str, width: f32) {
+    report_renderer();
+    let state = controls_gallery::State {
+        cell_width: controls_gallery::CellWidth::new(width),
+        ..Default::default()
+    };
+    let mut harness = support::harness_prepared(
+        Vec2::new(1400.0, 800.0),
+        controls_gallery::base_text(),
+        state,
+        controls_gallery::layout,
+        support::Accessibility::Unchecked,
+        controls_gallery::prepare,
+    );
+    harness.ctx.set_theme(egui::Theme::Light);
+    harness.run_steps(4);
+    let reports = &harness.state().app.reports;
+    assert!(
+        controls_gallery::Control::ALL
+            .iter()
+            .filter(|control| control.is_checked())
+            .all(|control| reports.contains_key(control)),
+        "precondition: every checked cell drew: {:?}",
+        reports.keys()
+    );
+    let mismatched: Vec<_> = reports
+        .iter()
+        .filter(|(_, report)| report.mismatch().is_some())
+        .collect();
+    assert!(mismatched.is_empty(), "{mismatched:?}");
+    harness.snapshot(name);
+}
+
+#[test]
+fn controls_gallery_narrow() {
+    gallery("controls_gallery_narrow", 110.0);
+}
+
+#[test]
+fn controls_gallery_default() {
+    gallery("controls_gallery_default", 200.0);
+}
+
+#[test]
+fn controls_gallery_wide() {
+    gallery("controls_gallery_wide", 300.0);
 }

@@ -17,6 +17,7 @@ pub struct Rig<A> {
     layout: LayoutState,
     pub app: A,
     view: View<A>,
+    prepare: fn(&egui::Context, &A),
     /// Every node of the last frame: its readable path and border box.
     pub nodes: Vec<(String, Rect)>,
     ids: Vec<(String, egui::Id)>,
@@ -45,10 +46,24 @@ pub fn harness_with<A: 'static>(
     view: View<A>,
     accessibility: Accessibility,
 ) -> Harness<'static, Rig<A>> {
+    harness_prepared(size, base_text, app, view, accessibility, |_, _| {})
+}
+
+/// [`harness_with`] for an app that sets egui's style: `prepare` runs before
+/// every frame is built.
+pub fn harness_prepared<A: 'static>(
+    size: Vec2,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    accessibility: Accessibility,
+    prepare: fn(&egui::Context, &A),
+) -> Harness<'static, Rig<A>> {
     let rig = Rig {
         layout: LayoutState::new().with_base_text(base_text),
         app,
         view,
+        prepare,
         nodes: Vec::new(),
         ids: Vec::new(),
     };
@@ -63,9 +78,11 @@ pub fn harness_with<A: 'static>(
                     layout,
                     app,
                     view,
+                    prepare,
                     nodes,
                     ids,
                 } = rig;
+                prepare(ui.ctx(), &*app);
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *nodes = placed
                     .nodes()
