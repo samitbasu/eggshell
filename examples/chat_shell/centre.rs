@@ -16,15 +16,15 @@ type B<'b, 'f> = Builder<'b, 'f, App>;
 /// The model select, in the shape of a chip.
 ///
 /// ```html
-/// <header class="flex items-center justify-between h-12 shrink-0 px-4 border-b border-[#383838]">
+/// <header class="flex items-center justify-between h-12 shrink-0 px-4 border-b border-border">
 ///   <h2 class="text-[15px]">Refactor the tokenizer</h2>
-///   <select class="rounded-lg border border-[#383838] bg-[#2b2b2b] px-2.5 py-1 text-[13px] text-[#a8a8a8]">
+///   <select class="rounded-lg border border-border bg-muted px-2.5 py-1 text-[13px] text-muted-foreground">
 ///     <option>Assistant 1</option> <!-- Assistant 2, Assistant 3 -->
 ///   </select>
 /// </header>
 /// ```
 fn top_bar(b: &mut B<'_, '_>, app: &App) {
-    let k = &app.theme;
+    let k = &Theme::of(b.ctx());
     let title = app
         .sessions
         .iter()
@@ -65,7 +65,7 @@ fn top_bar(b: &mut B<'_, '_>, app: &App) {
 /// ```html
 /// <div class="flex flex-col gap-2.5 text-[15px] leading-6">
 ///   <p>Yes. Most tokens are slices of the input...</p>
-///   <code class="self-start px-2 py-0.5 rounded bg-[#2b2b2b] font-mono text-[13px]">...</code>
+///   <code class="self-start px-2 py-0.5 rounded bg-muted font-mono text-[13px]">...</code>
 /// </div>
 /// ```
 fn assistant(b: &mut B<'_, '_>, k: &Theme, blocks: &[Block]) {
@@ -95,7 +95,7 @@ fn assistant(b: &mut B<'_, '_>, k: &Theme, blocks: &[Block]) {
 }
 
 /// ```html
-/// <div class="self-end max-w-[480px] px-4 py-2.5 rounded-2xl bg-[#2b2b2b] text-[15px] leading-6">...</div>
+/// <div class="self-end max-w-[480px] px-4 py-2.5 rounded-2xl bg-muted text-[15px] leading-6">...</div>
 /// ```
 fn user(b: &mut B<'_, '_>, k: &Theme, text: &str) {
     b.div(
@@ -111,7 +111,7 @@ fn user(b: &mut B<'_, '_>, k: &Theme, text: &str) {
 }
 
 fn conversation(b: &mut B<'_, '_>, app: &App) {
-    let k = &app.theme;
+    let k = &Theme::of(b.ctx());
     b.div_id(
         Part::Conversation,
         tw().flex()
@@ -149,7 +149,7 @@ fn tool_button(k: &Theme, shape: Tw) -> Tw {
         .justify_center()
         .size_px(32.0)
         .shrink_0()
-        .hover(|p| p.bg(k[Tok::Hover]))
+        .hover(|p| p.bg(k[Tok::Line]))
 }
 
 /// The reply field is as tall as its text, from `COMPOSER_MIN_ROWS` rows to
@@ -185,13 +185,13 @@ fn field(b: &mut B<'_, '_>, app: &App) {
 ///
 /// ```html
 /// <div class="flex items-center gap-0.5 text-[13px]">
-///   <span class="px-2.5 py-1 rounded-lg text-[#a8a8a8] hover:bg-[#2e2e2e] focus-visible:ring-2">Quick</span>
-///   <span class="px-2.5 py-1 rounded-lg bg-[#333a44] text-[#ececec]">Standard</span> <!-- pressed -->
-///   <span class="px-2.5 py-1 rounded-lg text-[#a8a8a8] hover:bg-[#2e2e2e]">Thorough</span>
+///   <span class="px-2.5 py-1 rounded-lg text-muted-foreground hover:bg-accent focus-visible:ring-2">Quick</span>
+///   <span class="px-2.5 py-1 rounded-lg bg-border text-foreground">Standard</span> <!-- pressed -->
+///   <span class="px-2.5 py-1 rounded-lg text-muted-foreground hover:bg-accent">Thorough</span>
 /// </div>
 /// ```
 fn mode(b: &mut B<'_, '_>, app: &App) {
-    let k = &app.theme;
+    let k = &Theme::of(b.ctx());
     segmented(
         b,
         Part::Mode,
@@ -221,20 +221,20 @@ fn mode(b: &mut B<'_, '_>, app: &App) {
 ///
 /// ```html
 /// <div class="flex justify-center shrink-0 px-4 pb-4">
-///   <div class="flex flex-col gap-3 w-full max-w-[720px] p-3 rounded-2xl border border-[#383838] bg-[#2b2b2b]">
+///   <div class="flex flex-col gap-3 w-full max-w-[720px] p-3 rounded-2xl border border-border bg-muted">
 ///     <textarea class="w-full px-1 resize-none bg-transparent outline-none" rows="3" placeholder="Reply…"></textarea> <!-- grows to 8 rows -->
 ///     <div class="flex items-center justify-between">
 ///       <div class="flex items-center gap-1.5">
-///         <button class="size-8 rounded-lg hover:bg-[#2e2e2e]">+</button>
+///         <button class="size-8 rounded-lg hover:bg-accent">+</button>
 ///         <div class="segmented">Quick Standard Thorough</div>
 ///       </div>
-///       <button class="size-8 rounded-full bg-[#6f8fb3] hover:bg-[#84a2c4] disabled:opacity-50">↑</button>
+///       <button class="size-8 rounded-full bg-primary hover:bg-primary/90 disabled:opacity-50">↑</button>
 ///     </div>
 ///   </div>
 /// </div>
 /// ```
 fn composer(b: &mut B<'_, '_>, app: &App) {
-    let k = &app.theme;
+    let k = &Theme::of(b.ctx());
     let send_button = |shape: Tw| {
         if app.draft.trim().is_empty() {
             shape.inert().opacity(Opacity::new(0.4))
@@ -297,7 +297,7 @@ fn composer(b: &mut B<'_, '_>, app: &App) {
 }
 
 /// ```html
-/// <main class="flex flex-col grow min-w-0 overflow-hidden bg-[#1f1f1f]">
+/// <main class="flex flex-col grow min-w-0 overflow-hidden bg-background">
 ///   <header>...</header>
 ///   <div class="flex flex-col items-center grow min-h-0 overflow-hidden">...</div>
 ///   <div class="composer">...</div>
@@ -311,7 +311,7 @@ pub fn centre(b: &mut B<'_, '_>, app: &App) {
             .grow()
             .min_w_0()
             .overflow_hidden()
-            .bg(app.theme[Tok::Ground]),
+            .bg(Theme::of(b.ctx())[Tok::Ground]),
         none,
         |b| {
             top_bar(b, app);

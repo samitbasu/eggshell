@@ -16,19 +16,37 @@ mod chat_shell;
 mod support;
 
 use chat_shell::sidebar::Link;
-use chat_shell::state::{App, Pane, SessionKey};
-use chat_shell::theme::Tok;
+use chat_shell::state::{App, Appearance, Pane, SessionKey};
+use chat_shell::theme::{Theme, Tok};
 use chat_shell::view::{Part, layout, prepare};
 use support::{Rig, click_node, drag, fill_of, hover_node, hover_over, rect_of};
 
 const WINDOW: Vec2 = vec2(1200.0, 760.0);
 
 fn harness_with(app: App) -> Harness<'static, Rig<App>> {
-    support::harness_prepared(WINDOW, app.theme.base_text(), app, layout, prepare)
+    support::harness_prepared(
+        WINDOW,
+        Theme::new(egui::Theme::Dark).base_text(),
+        app,
+        layout,
+        prepare,
+    )
+}
+
+/// The app showing `appearance`, which the tests pick so that they do not
+/// depend on the machine's theme.
+#[allow(
+    clippy::field_reassign_with_default,
+    reason = "App has private fields, so a struct update is not available here"
+)]
+fn app_showing(appearance: Appearance) -> App {
+    let mut app = App::default();
+    app.appearance = appearance;
+    app
 }
 
 fn harness() -> Harness<'static, Rig<App>> {
-    harness_with(App::default())
+    harness_with(app_showing(Appearance::Dark))
 }
 
 fn path(part: Part) -> String {
@@ -48,7 +66,7 @@ fn width(harness: &Harness<'_, Rig<App>>, pane: Pane) -> f32 {
 }
 
 fn color(harness: &Harness<'_, Rig<App>>, token: Tok) -> egui::Color32 {
-    harness.state().app.theme[token]
+    Theme::of(&harness.ctx)[token]
 }
 
 /// Drags the splitter of `pane` by `dx` points.
@@ -524,11 +542,11 @@ mod composer_growth {
     const FIELD: &str = "/Centre/Composer/Field";
 
     fn scaled_harness(pixels_per_point: f32) -> Harness<'static, Rig<App>> {
-        let app = App::default();
+        let app = app_showing(Appearance::Dark);
         let mut harness = support::harness_scaled(
             WINDOW,
             pixels_per_point,
-            app.theme.base_text(),
+            Theme::new(egui::Theme::Dark).base_text(),
             app,
             layout,
             prepare,
@@ -554,7 +572,7 @@ mod composer_growth {
         let width = rect_of(harness, FIELD).width();
         field.size(
             &harness.ctx,
-            &app.theme.base_text(),
+            &Theme::of(&harness.ctx).base_text(),
             Some(Width::new(width)),
         )
     }
@@ -615,5 +633,124 @@ mod composer_growth {
                 }
             }
         }
+    }
+}
+
+mod appearance {
+    use super::*;
+
+    const LIGHT: &str = "/Sidebar/Account/Appearance/Light";
+    const DARK: &str = "/Sidebar/Account/Appearance/Dark";
+    const SYSTEM: &str = "/Sidebar/Account/Appearance/System";
+    const NAV_ROW: &str = "/Sidebar/Link(Projects)";
+    const MODEL: &str = "/Centre/TopBar/Model";
+
+    fn settle(harness: &mut Harness<'_, Rig<App>>) {
+        harness.run_steps(10);
+    }
+
+    /// The fill of the model select's header, which egui draws from its
+    /// widget visuals.
+    fn select_fill(harness: &Harness<'_, Rig<App>>) -> Option<egui::Color32> {
+        fill_of(harness, MODEL)
+    }
+
+    #[test]
+    fn the_theme_the_app_shows_is_the_egui_theme() {
+        let mut harness = harness();
+        assert_eq!(harness.ctx.theme(), egui::Theme::Dark, "precondition");
+
+        click_node(&mut harness, LIGHT);
+        settle(&mut harness);
+        assert_eq!(harness.state().app.appearance, Appearance::Light);
+        assert_eq!(harness.ctx.theme(), egui::Theme::Light);
+
+        click_node(&mut harness, DARK);
+        settle(&mut harness);
+        assert_eq!(harness.ctx.theme(), egui::Theme::Dark);
+
+        click_node(&mut harness, SYSTEM);
+        settle(&mut harness);
+        assert_eq!(harness.state().app.appearance, Appearance::System);
+        assert_eq!(
+            harness.ctx.options(|options| options.theme_preference),
+            egui::ThemePreference::System
+        );
+    }
+
+    #[test]
+    fn switching_recolours_the_next_frame_and_back() {
+        let mut harness = harness();
+        let sidebar = "/Sidebar";
+        let composer = "/Centre/Composer";
+        let dark = Theme::new(egui::Theme::Dark);
+        let light = Theme::new(egui::Theme::Light);
+        assert_ne!(dark[Tok::Panel], light[Tok::Panel], "precondition");
+        assert_ne!(dark[Tok::Surface], light[Tok::Surface], "precondition");
+        settle(&mut harness);
+        assert_eq!(fill_of(&harness, sidebar), Some(dark[Tok::Panel]));
+        assert_eq!(fill_of(&harness, composer), Some(dark[Tok::Surface]));
+        let dark_select = select_fill(&harness);
+        assert!(
+            dark_select.is_some(),
+            "precondition: the select draws a fill"
+        );
+
+        click_node(&mut harness, LIGHT);
+        harness.step();
+        assert_eq!(
+            fill_of(&harness, sidebar),
+            Some(light[Tok::Panel]),
+            "the frame after the click already has the new palette"
+        );
+        assert_eq!(fill_of(&harness, composer), Some(light[Tok::Surface]));
+        settle(&mut harness);
+        assert_ne!(select_fill(&harness), dark_select, "egui's widgets follow");
+        let light_widgets = harness
+            .ctx
+            .global_style()
+            .visuals
+            .widgets
+            .inactive
+            .weak_bg_fill;
+        assert_eq!(select_fill(&harness), Some(light_widgets));
+        assert_eq!(
+            light_widgets,
+            bullseye::style::Tokens::light().secondary,
+            "the select is drawn with the preset's light widgets"
+        );
+
+        click_node(&mut harness, DARK);
+        harness.step();
+        assert_eq!(fill_of(&harness, sidebar), Some(dark[Tok::Panel]));
+        assert_eq!(fill_of(&harness, composer), Some(dark[Tok::Surface]));
+        settle(&mut harness);
+        assert_eq!(select_fill(&harness), dark_select);
+    }
+
+    #[test]
+    fn a_row_part_way_through_its_hover_transition_takes_the_new_palette() {
+        let mut harness = harness();
+        let dark = Theme::new(egui::Theme::Dark);
+        let light = Theme::new(egui::Theme::Light);
+        assert_ne!(dark[Tok::Hover], light[Tok::Hover], "precondition");
+
+        harness.hover_at(rect_of(&harness, NAV_ROW).center());
+        harness.run_steps(2);
+        let midway = fill_of(&harness, NAV_ROW);
+        assert!(
+            midway.is_some_and(|fill| fill.a() > 0 && fill.a() < 255),
+            "precondition: the row is part-way to its hover fill: {midway:?}"
+        );
+
+        harness.state_mut().app.appearance = Appearance::Light;
+        harness.step();
+        let after = fill_of(&harness, NAV_ROW);
+        assert!(
+            after.is_some_and(|fill| fill.a() > 0 && fill.r() > dark[Tok::Hover].r()),
+            "the row keeps the old palette's fill: {after:?}"
+        );
+        settle(&mut harness);
+        assert_eq!(fill_of(&harness, NAV_ROW), Some(light[Tok::Hover]));
     }
 }

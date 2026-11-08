@@ -1,5 +1,6 @@
 //! The three-pane frame and the splitters between the panes.
 
+use bullseye::style::Shadcn;
 use bullseye::{Builder, NodeUi, tw};
 use egui::CursorIcon;
 
@@ -7,7 +8,7 @@ use super::centre::centre;
 use super::details::details;
 use super::sidebar::{Link, sidebar};
 use super::state::{App, Pane};
-use super::theme::Tok;
+use super::theme::{Theme, Tok};
 
 type B<'b, 'f> = Builder<'b, 'f, App>;
 
@@ -20,6 +21,7 @@ pub enum Part {
     Splitter(Pane),
     Link(Link),
     Account,
+    Appearance,
     TopBar,
     Model,
     Mode,
@@ -36,11 +38,11 @@ pub enum Part {
 ///
 /// ```html
 /// <div class="group flex justify-center w-1.5 shrink-0 cursor-col-resize">
-///   <div class="w-px h-full bg-[#383838] group-hover:bg-[#6f8fb3]"></div>
+///   <div class="w-px h-full bg-border group-hover:bg-primary"></div>
 /// </div>
 /// ```
-fn splitter(b: &mut B<'_, '_>, app: &App, pane: Pane) {
-    let k = &app.theme;
+fn splitter(b: &mut B<'_, '_>, pane: Pane) {
+    let k = &Theme::of(b.ctx());
     b.div_id(
         Part::Splitter(pane),
         tw().flex()
@@ -81,28 +83,32 @@ fn splitter(b: &mut B<'_, '_>, app: &App, pane: Pane) {
 }
 
 /// Gives egui's stock widgets, which the select and the composer's field are,
-/// the theme's colours.
+/// the preset's look in both themes, and shows the theme the app asks for.
 pub fn prepare(ctx: &egui::Context, app: &App) {
-    app.theme.apply(ctx);
+    if bullseye::style::tokens(ctx).is_none() {
+        Shadcn::apply_both(ctx);
+    }
+    ctx.set_theme(app.appearance);
 }
 
 /// ```html
-/// <div class="flex size-full overflow-hidden bg-[#1f1f1f] text-[#ececec]">
+/// <div class="flex size-full overflow-hidden bg-background text-foreground">
 ///   <aside/> <div class="splitter"/> <main/> <div class="splitter"/> <aside/>
 /// </div>
 /// ```
 pub fn layout(b: &mut B<'_, '_>, app: &App) {
+    let k = Theme::of(b.ctx());
     b.div(
         tw().flex()
             .size_full()
             .overflow_hidden()
-            .bg(app.theme[Tok::Ground])
-            .text(app.theme[Tok::Ink]),
+            .bg(k[Tok::Ground])
+            .text(k[Tok::Ink]),
         |b| {
             sidebar(b, app);
-            splitter(b, app, Pane::Sidebar);
+            splitter(b, Pane::Sidebar);
             centre(b, app);
-            splitter(b, app, Pane::Details);
+            splitter(b, Pane::Details);
             details(b, app);
         },
     );

@@ -2,8 +2,6 @@
 
 use bullseye::Progress;
 
-use super::theme::Theme;
-
 /// A pane whose width the user drags.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Pane {
@@ -84,6 +82,32 @@ impl Mode {
     ];
 }
 
+/// Which egui theme the shell shows: the system's, or one it insists on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Appearance {
+    System,
+    Light,
+    Dark,
+}
+
+impl Appearance {
+    pub const ALL: [(Self, &'static str); 3] = [
+        (Self::System, "System"),
+        (Self::Light, "Light"),
+        (Self::Dark, "Dark"),
+    ];
+}
+
+impl From<Appearance> for egui::ThemePreference {
+    fn from(appearance: Appearance) -> Self {
+        match appearance {
+            Appearance::System => Self::System,
+            Appearance::Light => Self::Light,
+            Appearance::Dark => Self::Dark,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Status {
     Working,
@@ -107,7 +131,7 @@ pub enum Message {
 }
 
 pub struct App {
-    pub theme: Theme,
+    pub appearance: Appearance,
     pub sessions: Vec<Session>,
     pub selected: SessionKey,
     pub conversation: Vec<Message>,
@@ -137,7 +161,7 @@ impl Default for App {
             status,
         };
         Self {
-            theme: Theme::dark(),
+            appearance: Appearance::System,
             sessions: vec![
                 session(1, "Refactor the tokenizer", None),
                 session(2, "Why does the build fail on CI?", Some(Status::Working)),

@@ -49,7 +49,7 @@ impl TaskState {
 ///
 /// ```html
 /// <section class="flex flex-col gap-1.5">
-///   <h3 class="text-[11px] uppercase text-[#7c7c7c]">Environment</h3>
+///   <h3 class="text-[11px] uppercase text-muted-foreground">Environment</h3>
 ///   ...rows
 /// </section>
 /// ```
@@ -68,7 +68,7 @@ fn section(b: &mut B<'_, '_>, k: &Theme, title: &'static str, rows: impl FnOnce(
 
 /// ```html
 /// <div class="flex items-center justify-between gap-2 text-[13px]">
-///   <span class="text-[#a8a8a8]">Branch</span><span class="truncate">main</span>
+///   <span class="text-muted-foreground">Branch</span><span class="truncate">main</span>
 /// </div>
 /// ```
 fn row(b: &mut B<'_, '_>, k: &Theme, label: &str, value: impl FnOnce(&mut B<'_, '_>)) {
@@ -87,12 +87,12 @@ fn row(b: &mut B<'_, '_>, k: &Theme, label: &str, value: impl FnOnce(&mut B<'_, 
 
 /// ```html
 /// <div class="flex justify-between"><span>Context window</span><span>42%</span></div>
-/// <div class="w-full h-1 rounded-full overflow-hidden bg-[#383838]">
-///   <div class="h-full rounded-full bg-[#6f8fb3]" style="width: 42%"></div>
+/// <div class="w-full h-1 rounded-full overflow-hidden bg-border">
+///   <div class="h-full rounded-full bg-primary" style="width: 42%"></div>
 /// </div>
 /// ```
 fn context(b: &mut B<'_, '_>, app: &App) {
-    let k = &app.theme;
+    let k = &Theme::of(b.ctx());
     let used = f32::from(app.context_used);
     row(b, k, "Context window", |b| {
         b.text(tw(), format!("{:.0}%", used * 100.0));
@@ -117,10 +117,10 @@ fn context(b: &mut B<'_, '_>, app: &App) {
 }
 
 /// ```html
-/// <aside class="flex flex-col shrink-0 gap-5 p-4 bg-[#252525] overflow-hidden" style="width: 288px">...</aside>
+/// <aside class="flex flex-col shrink-0 gap-5 p-4 bg-card overflow-hidden" style="width: 288px">...</aside>
 /// ```
 pub fn details(b: &mut B<'_, '_>, app: &App) {
-    let k = &app.theme;
+    let k = &Theme::of(b.ctx());
     b.div_id(
         Part::Details,
         tw().flex()
