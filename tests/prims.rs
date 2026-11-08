@@ -4,6 +4,7 @@
 
 use std::collections::BTreeMap;
 
+use bullseye::prim::segmented::{Cell, segmented};
 use bullseye::prim::select::{self, Options};
 use bullseye::prim::switch::Switch;
 use bullseye::widget::{Stock, TextEdit};
@@ -395,4 +396,123 @@ fn typing_enter_in_a_multi_line_field_grows_it() {
         rect_of(&harness, "/\"notes\"").height() > start,
         "three newlines make a fourth row"
     );
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash, Debug)]
+enum Mode {
+    #[default]
+    Day,
+    Week,
+    Month,
+}
+
+#[derive(Default)]
+struct Picker {
+    mode: Mode,
+    inert: bool,
+}
+
+const ON: Color32 = Color32::from_rgb(20, 100, 220);
+const OFF: Color32 = Color32::from_rgb(50, 50, 50);
+
+/// ```html
+/// <div class="flex gap-px">
+///   <span class="px-3 py-1 bg-[#1464dc]">Day</span>   <!-- the pressed cell -->
+///   <span class="px-3 py-1 bg-[#323232]">Week</span>
+///   <span class="px-3 py-1 bg-[#323232]">Month</span>
+/// </div>
+/// ```
+fn picker(b: &mut Builder<'_, '_, Picker>, app: &Picker) {
+    let container = if app.inert { tw().inert() } else { tw() };
+    segmented(
+        b,
+        "mode",
+        container.flex().gap(1.0).p(2.0),
+        app.mode,
+        &[
+            (Mode::Day, "Day"),
+            (Mode::Week, "Week"),
+            (Mode::Month, "Month"),
+        ],
+        |cell| match cell {
+            Cell::Pressed => tw().px(3.0).py(1.0).bg(ON),
+            Cell::Released => tw().px(3.0).py(1.0).bg(OFF),
+        },
+        |app| &mut app.mode,
+    );
+}
+
+fn picker_harness() -> Harness<'static, Rig<Picker>> {
+    let mut harness = support::harness(vec2(300.0, 100.0), base_text(), Picker::default(), picker);
+    harness.run_steps(3);
+    harness
+}
+
+fn cell_path(mode: Mode) -> String {
+    format!("/\"mode\"/{mode:?}")
+}
+
+/// The modes whose cells are painted pressed.
+fn pressed(harness: &Harness<'_, Rig<Picker>>) -> Vec<Mode> {
+    [Mode::Day, Mode::Week, Mode::Month]
+        .into_iter()
+        .filter(|&mode| support::fill_of(harness, &cell_path(mode)) == Some(ON))
+        .collect()
+}
+
+fn choose(harness: &mut Harness<'_, Rig<Picker>>, mode: Mode) {
+    click_node(harness, &cell_path(mode));
+    harness.run_steps(2);
+}
+
+#[test]
+fn a_segmented_control_has_exactly_one_pressed_cell_and_clicks_change_it() {
+    let mut harness = picker_harness();
+    let rects: Vec<_> = [Mode::Day, Mode::Week, Mode::Month]
+        .map(|mode| rect_of(&harness, &cell_path(mode)))
+        .into();
+    assert!(
+        rects.windows(2).all(|pair| pair[0].max.x < pair[1].min.x),
+        "precondition: three separate cells in a row: {rects:?}"
+    );
+    assert_eq!(pressed(&harness), [Mode::Day]);
+
+    choose(&mut harness, Mode::Month);
+    assert_eq!(harness.state().app.mode, Mode::Month, "through the lens");
+    assert_eq!(pressed(&harness), [Mode::Month]);
+
+    click_node(&mut harness, &cell_path(Mode::Month));
+    assert_eq!(
+        pressed(&harness),
+        [Mode::Month],
+        "clicking the chosen cell keeps it"
+    );
+
+    choose(&mut harness, Mode::Week);
+    assert_eq!(pressed(&harness), [Mode::Week]);
+}
+
+#[test]
+fn the_keyboard_chooses_a_cell() {
+    let mut harness = picker_harness();
+    harness.key_press(Key::Tab);
+    harness.key_press(Key::Tab);
+    harness.run_steps(2);
+    harness.key_press(Key::Enter);
+    harness.run_steps(3);
+    assert_eq!(
+        pressed(&harness),
+        [Mode::Week],
+        "Tab visits cells in order, Enter chooses"
+    );
+}
+
+#[test]
+fn an_inert_segmented_control_does_not_change() {
+    let mut harness = picker_harness();
+    harness.state_mut().app.inert = true;
+    harness.run_steps(3);
+    choose(&mut harness, Mode::Month);
+    assert_eq!(harness.state().app.mode, Mode::Day);
+    assert_eq!(pressed(&harness), [Mode::Day]);
 }
