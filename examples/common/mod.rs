@@ -12,7 +12,7 @@ use std::ops::RangeInclusive;
 
 use bullseye::prim::segmented::{Cell, segmented};
 use bullseye::prim::text_field::{self, Field};
-use bullseye::style::{Shadcn, Tokens};
+use bullseye::style::{Accent, Shadcn, Tokens};
 use bullseye::widget::Slider;
 use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
 use egui::{Color32, Context, FontFamily, Role, Theme, WidgetInfo};
@@ -26,17 +26,26 @@ const MAX_ONE_ROW: usize = 3;
 /// Width of the focus ring, shadcn's `ring-[3px]`.
 const RING_WIDTH: f32 = 3.0;
 
+/// The accent of the examples that use one: the forms' primary button and
+/// focus.
+pub const ACCENT: Accent = Accent::Blue;
+
 /// The tokens the examples are drawn with: the preset applied to the
 /// context, or the preset's own for its current theme.
 pub fn tokens(ctx: &Context) -> Tokens {
-    bullseye::style::tokens(ctx).unwrap_or_else(|| Tokens::for_theme(ctx.theme()))
+    Shadcn::of(ctx).tokens
 }
 
-/// Applies the shadcn preset to both egui themes, once per context.
+/// Applies the neutral shadcn preset to both egui themes, once per context.
 pub fn use_preset(ctx: &Context) {
-    if bullseye::style::tokens(ctx).is_none() {
+    if Shadcn::applied(ctx).is_none() {
         Shadcn::apply_both(ctx);
     }
+}
+
+/// [`use_preset`] with [`ACCENT`], for an example's `prepare`.
+pub fn use_accent<S>(ctx: &Context, _: &S) {
+    Shadcn::apply_both_with(ctx, ACCENT);
 }
 
 /// The colour of the focus ring: `ring-ring/50`.
@@ -250,11 +259,11 @@ pub fn slider_row<S: 'static>(
     });
 }
 
-/// A row in a list of choices: an accent fill under the pointer, and kept
-/// while it is the chosen one.
+/// A row in a list of choices: a half-strength accent fill under the pointer,
+/// and the full accent fill while it is the chosen one.
 ///
 /// ```html
-/// <span class="px-2 py-1 rounded-md text-sm hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50">flex-wrap</span>
+/// <span class="px-2 py-1 rounded-md text-sm hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50">flex-wrap</span>
 /// <span class="px-2 py-1 rounded-md text-sm bg-accent text-accent-foreground">flex-nowrap</span>  <!-- pressed -->
 /// ```
 pub fn menu_item(t: &Tokens, cell: Cell) -> Tw {
@@ -265,22 +274,17 @@ pub fn menu_item(t: &Tokens, cell: Cell) -> Tw {
         .focus(|p| p.ring(RING_WIDTH, ring(t)));
     match cell {
         Cell::Pressed => look.bg(t.accent).text(t.accent_foreground),
-        Cell::Released => look.hover(|p| p.bg(t.accent)),
+        Cell::Released => look.hover(|p| p.bg(t.accent_50())),
     }
 }
 
 /// The shadcn tab-list classes for the context's theme.
 pub fn segmented_classes(ctx: &Context) -> bullseye::style::SegmentedClasses {
-    Shadcn {
-        theme: ctx.theme(),
-        tokens: tokens(ctx),
-    }
-    .segmented()
+    Shadcn::of(ctx).segmented()
 }
 
 /// A row of segments that sets the `T` at `lens`. A track of more than
-/// [`MAX_ONE_ROW`] segments wraps and takes its height from its rows, which
-/// the preset's fixed-height track cannot do.
+/// [`MAX_ONE_ROW`] segments wraps.
 ///
 /// ```html
 /// <div class="flex items-center h-9 p-[3px] rounded-lg bg-muted">
@@ -300,22 +304,18 @@ pub fn choice<S, K, T>(
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
     let classes = segmented_classes(b.ctx());
-    let wraps = options.len() > MAX_ONE_ROW;
-    let track = if wraps {
-        classes.container().flex_wrap().h_auto().gap(0.5)
+    let classes = if options.len() > MAX_ONE_ROW {
+        classes.wrapping()
     } else {
-        classes.container()
+        classes
     };
     segmented(
         b,
         key,
-        track,
+        classes.container(),
         current,
         options,
-        |cell| {
-            let look = classes.cell(cell);
-            if wraps { look.h_auto() } else { look }
-        },
+        |cell| classes.cell(cell),
         lens,
     );
 }

@@ -610,9 +610,9 @@ fn button_look(theme: Theme, variant: ButtonVariant) -> egui::style::Widgets {
     let ctx = context(theme);
     let preset = Shadcn::for_theme(theme);
     preset.apply(&ctx);
-    let mut widgets = ctx.style_of(theme).visuals.widgets.clone();
-    preset.style_button(variant, &mut widgets);
-    widgets
+    let mut visuals = ctx.style_of(theme).visuals.clone();
+    preset.style_button(variant, &mut visuals);
+    visuals.widgets
 }
 
 #[test]
@@ -728,6 +728,32 @@ fn variants_boxes_and_dots_follow_the_tokens_through_the_real_path() {
             && (r.size() - save.size()).abs().max_elem() < 1.0),
         "the primary button is filled with primary: {fills:?} for {save:?}"
     );
+    let text_color =
+        |text: &str| {
+            harness
+                .output()
+                .shapes
+                .iter()
+                .find_map(|clipped| match &clipped.shape {
+                    Shape::Text(shape) if shape.galley.text() == text => {
+                        let drawn = shape.galley.job.sections[0].format.color;
+                        Some(shape.override_text_color.unwrap_or(
+                            if drawn == Color32::PLACEHOLDER {
+                                shape.fallback_color
+                            } else {
+                                drawn
+                            },
+                        ))
+                    }
+                    _ => None,
+                })
+        };
+    assert_eq!(
+        text_color("Save"),
+        Some(t.primary_foreground),
+        "the label is drawn in the variant's text colour, not the node's"
+    );
+    assert_eq!(text_color("Cancel"), Some(t.foreground));
     let send = rect_of(&harness, "/\"disabled\"");
     let faded = harness
         .output()

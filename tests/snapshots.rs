@@ -593,13 +593,30 @@ fn form() {
         accent: form::SWATCHES[4],
         ..Default::default()
     };
-    snapshot_app(
+    snapshot_themed(
         "form",
         Vec2::new(760.0, 900.0),
-        state,
-        TextStyle::new(layouts::BODY, Color32::BLACK),
-        form::layout,
+        (
+            state,
+            form::layout,
+            TextStyle::new(layouts::BODY, Color32::BLACK),
+        ),
         None,
+        (egui::Theme::Light, form::prepare),
+    );
+}
+
+fn signup_snapshot(name: &str, size: Vec2, state: signup_form::State) {
+    snapshot_themed(
+        name,
+        size,
+        (
+            state,
+            signup_form::layout,
+            TextStyle::new(layouts::BODY, Color32::BLACK),
+        ),
+        None,
+        (egui::Theme::Light, signup_form::prepare),
     );
 }
 
@@ -653,11 +670,10 @@ fn flex_example() {
 
 #[test]
 fn signup_form_empty() {
-    light_snapshot(
+    signup_snapshot(
         "signup_form_empty",
         Vec2::new(640.0, 760.0),
         signup_form::State::default(),
-        signup_form::layout,
     );
 }
 
@@ -665,7 +681,7 @@ fn signup_form_empty() {
 /// every error shows.
 #[test]
 fn signup_form_rejected() {
-    light_snapshot(
+    signup_snapshot(
         "signup_form_rejected",
         Vec2::new(640.0, 900.0),
         signup_form::State {
@@ -678,7 +694,6 @@ fn signup_form_rejected() {
             },
             progress: signup_form::Progress::Rejected,
         },
-        signup_form::layout,
     );
 }
 

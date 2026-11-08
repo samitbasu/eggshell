@@ -39,7 +39,7 @@ impl TaskState {
 
     fn color(self, k: &Theme) -> Color32 {
         match self {
-            Self::Running => k[Tok::Accent],
+            Self::Running => k[Tok::AccentText],
             Self::Queued | Self::Done => k[Tok::InkDim],
         }
     }
@@ -147,8 +147,8 @@ pub fn details(b: &mut B<'_, '_>, app: &App) {
                 for (file, added, removed) in CHANGES {
                     row(b, k, file, |b| {
                         b.div(tw().flex().gap(1.5), |b| {
-                            b.text(tw().text(k[Tok::Accent]), added);
-                            b.text(tw().text(k[Tok::InkDim]), removed);
+                            b.text(tw().text(k[Tok::Success]), added);
+                            b.text(tw().text(k[Tok::Danger]), removed);
                         });
                     });
                 }

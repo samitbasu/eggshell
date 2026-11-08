@@ -38,7 +38,7 @@
 
 use egui::{
     Color32, Context, CornerRadius, Id, Margin, Shadow, Stroke, Style, TextStyle, Theme, Vec2,
-    style::{WidgetVisuals, Widgets},
+    style::{Visuals, WidgetVisuals, Widgets},
     vec2,
 };
 
@@ -506,6 +506,17 @@ impl Shadcn {
         Self::dark().apply(ctx);
     }
 
+    /// Applies both themes with `accent`, unless the context's current theme
+    /// already has exactly that preset, so that an application can call it
+    /// every frame.
+    pub fn apply_both_with(ctx: &Context, accent: Accent) {
+        let current = Self::for_theme(ctx.theme()).accent(accent);
+        if Self::applied(ctx).as_ref() != Some(&current) {
+            Self::light().accent(accent).apply(ctx);
+            Self::dark().accent(accent).apply(ctx);
+        }
+    }
+
     /// Sets the egui style of this preset's theme from the tokens and
     /// remembers them for the library's primitives. Safe to call every frame
     /// but only needed again when the tokens change.
@@ -604,10 +615,12 @@ fn set_looks(widgets: &mut Widgets, rest: Look, hover: Look) {
 }
 
 impl Shadcn {
-    /// Restyles `widgets`, the visuals of the `Ui` a button is added to, for
-    /// a button of `variant`. Strokes keep their width and widgets their
-    /// expansion, so the size does not depend on the variant.
-    pub fn style_button(&self, variant: ButtonVariant, widgets: &mut Widgets) {
+    /// Restyles `visuals`, those of the `Ui` a button is added to, for a
+    /// button of `variant`. Strokes keep their width and widgets their
+    /// expansion, so the size does not depend on the variant. A variant
+    /// other than secondary has its own text colours, so it drops the `Ui`'s
+    /// override of the text colour.
+    pub fn style_button(&self, variant: ButtonVariant, visuals: &mut Visuals) {
         let t = &self.tokens;
         let dark = self.theme == Theme::Dark;
         let clear = Color32::TRANSPARENT;
@@ -668,7 +681,8 @@ impl Shadcn {
                 (rest, hover)
             }
         };
-        set_looks(widgets, rest, hover);
+        visuals.override_text_color = None;
+        set_looks(&mut visuals.widgets, rest, hover);
     }
 
     /// Restyles `widgets` for a checkbox: the background in an `input`

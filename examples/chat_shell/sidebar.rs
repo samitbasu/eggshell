@@ -103,7 +103,7 @@ fn link(b: &mut B<'_, '_>, k: &Theme, link: Link) {
 
 fn status_color(k: &Theme, status: Status) -> egui::Color32 {
     match status {
-        Status::Working => k[Tok::Accent],
+        Status::Working => k[Tok::AccentText],
         Status::NeedsInput => k[Tok::InkMid],
     }
 }

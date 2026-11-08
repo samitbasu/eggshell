@@ -754,3 +754,63 @@ mod appearance {
         assert_eq!(fill_of(&harness, NAV_ROW), Some(light[Tok::Hover]));
     }
 }
+
+mod accents {
+    use super::*;
+    use bullseye::style::Accent;
+    use egui::epaint::Shape;
+
+    fn text_colors(harness: &Harness<'_, Rig<App>>, text: &str) -> Vec<egui::Color32> {
+        harness
+            .output()
+            .shapes
+            .iter()
+            .filter_map(|clipped| match &clipped.shape {
+                Shape::Text(shape) if shape.galley.text() == text => {
+                    Some(shape.override_text_color.unwrap_or(shape.fallback_color))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_accent_colours_the_busy_marks_and_green_and_red_the_change_counts() {
+        for appearance in [Appearance::Light, Appearance::Dark] {
+            let mut harness = harness_with(app_showing(appearance));
+            harness.run_steps(3);
+            let k = Theme::of(&harness.ctx);
+            assert_eq!(
+                text_colors(&harness, "+24"),
+                [k[Tok::Success]],
+                "{appearance:?}"
+            );
+            assert_eq!(text_colors(&harness, "-8"), [k[Tok::Danger]]);
+            assert_eq!(text_colors(&harness, "Running"), [k[Tok::AccentText]]);
+            assert_ne!(k[Tok::Success], k[Tok::Danger], "precondition");
+            assert_eq!(
+                bullseye::style::Shadcn::of(&harness.ctx).tokens.primary,
+                bullseye::style::Shadcn::for_theme(match appearance {
+                    Appearance::Light => egui::Theme::Light,
+                    _ => egui::Theme::Dark,
+                })
+                .accent(Accent::Blue)
+                .tokens
+                .primary,
+                "the example's accent is blue"
+            );
+            let meter = rect_of(&harness, "/Details/\"Context\"/Meter");
+            assert!(meter.is_positive(), "precondition: the meter is laid out");
+            assert!(
+                harness.output().shapes.iter().any(|clipped| matches!(
+                    &clipped.shape,
+                    Shape::Rect(r) if r.fill == k[Tok::Accent]
+                        && r.rect.left() >= meter.left() - 1.0
+                        && r.rect.top() >= meter.top() - 1.0
+                        && r.rect.bottom() <= meter.bottom() + 1.0
+                )),
+                "the meter's fill is the accent"
+            );
+        }
+    }
+}

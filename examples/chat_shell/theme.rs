@@ -5,7 +5,7 @@
 
 use core::ops::Index;
 
-use bullseye::style::{SegmentedClasses, Shadcn, Tokens};
+use bullseye::style::{SegmentedClasses, Shadcn};
 use bullseye::{TextSpec, TextStyle};
 use egui::{Color32, Context, FontFamily};
 
@@ -18,7 +18,7 @@ pub enum Tok {
     Panel,
     /// Bubbles, the composer and chips.
     Surface,
-    /// A row under the pointer.
+    /// A row under the pointer: half the strength of the selected row.
     Hover,
     /// The selected row.
     Selected,
@@ -32,14 +32,21 @@ pub enum Tok {
     InkDim,
     /// The one accent: splitter, meter, send button, busy state.
     Accent,
+    /// The accent as text or a small marker: the accent itself in light, its
+    /// lighter ring shade in dark, where the fill shade is too dim to read.
+    AccentText,
     /// The accent under the pointer.
     AccentHover,
     /// Text on the accent.
     OnAccent,
+    /// Additions.
+    Success,
+    /// Removals.
+    Danger,
 }
 
 impl Tok {
-    const ALL: [Self; 12] = [
+    const ALL: [Self; 15] = [
         Self::Ground,
         Self::Panel,
         Self::Surface,
@@ -50,23 +57,34 @@ impl Tok {
         Self::InkMid,
         Self::InkDim,
         Self::Accent,
+        Self::AccentText,
         Self::AccentHover,
         Self::OnAccent,
+        Self::Success,
+        Self::Danger,
     ];
 
     /// The preset colour this token stands for.
-    fn resolve(self, t: &Tokens) -> Color32 {
+    fn resolve(self, preset: &Shadcn) -> Color32 {
+        let t = &preset.tokens;
         match self {
             Self::Ground => t.background,
             Self::Panel => t.card,
             Self::Surface => t.muted,
-            Self::Hover => t.accent,
-            Self::Selected | Self::Line => t.border,
+            Self::Hover => t.accent_50(),
+            Self::Selected => t.accent,
+            Self::Line => t.border,
             Self::Ink => t.foreground,
             Self::InkMid | Self::InkDim => t.muted_foreground,
             Self::Accent => t.primary,
-            Self::AccentHover => t.primary.gamma_multiply(0.9),
+            Self::AccentText => match preset.theme {
+                egui::Theme::Light => t.primary,
+                egui::Theme::Dark => t.ring,
+            },
+            Self::AccentHover => t.primary_90(),
             Self::OnAccent => t.primary_foreground,
+            Self::Success => t.success,
+            Self::Danger => t.destructive,
         }
     }
 }
@@ -118,17 +136,17 @@ impl Theme {
     /// The palette of the preset applied to `ctx` for its current theme, or
     /// the preset's own if none was.
     pub fn of(ctx: &Context) -> Self {
-        Self::from_tokens(&preset_tokens(ctx))
+        Self::from_preset(&Shadcn::of(ctx))
     }
 
     /// The palette of the preset for `theme`.
     pub fn new(theme: egui::Theme) -> Self {
-        Self::from_tokens(&Tokens::for_theme(theme))
+        Self::from_preset(&Shadcn::for_theme(theme))
     }
 
-    fn from_tokens(tokens: &Tokens) -> Self {
+    fn from_preset(preset: &Shadcn) -> Self {
         Self {
-            colors: Tok::ALL.map(|token| token.resolve(tokens)),
+            colors: Tok::ALL.map(|token| token.resolve(preset)),
             roles: Role::ALL.map(Role::spec),
         }
     }
@@ -141,15 +159,7 @@ impl Theme {
 
 /// The preset's tab list classes for the context's current theme.
 pub fn tab_list(ctx: &Context) -> SegmentedClasses {
-    Shadcn {
-        theme: ctx.theme(),
-        tokens: preset_tokens(ctx),
-    }
-    .segmented()
-}
-
-fn preset_tokens(ctx: &Context) -> Tokens {
-    bullseye::style::tokens(ctx).unwrap_or_else(|| Tokens::for_theme(ctx.theme()))
+    Shadcn::of(ctx).segmented()
 }
 
 impl Index<Tok> for Theme {

@@ -347,7 +347,7 @@ fn form(b: &mut B<'_, '_>, state: &State) {
     b.widget(
         Part::Submit,
         tw().w_full().h_px(40.0),
-        Button::new("Submit"),
+        Button::new("Submit").primary(),
         |state, ui, submit| {
             if submit.show(ui).clicked() {
                 state.submit();
@@ -418,6 +418,11 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
     );
 }
 
+/// Tints the primary button and the focus with the examples' accent.
+pub fn prepare(ctx: &egui::Context, state: &State) {
+    common::use_accent(ctx, state);
+}
+
 fn main() -> eframe::Result {
-    common::run_app("signup_form", State::default(), layout)
+    common::run_app_styled("signup_form", State::default(), prepare, layout)
 }

@@ -173,7 +173,7 @@ impl Button {
     pub fn show(self, ui: &mut Ui) -> Response {
         let preset = Shadcn::of(ui.ctx());
         let response = place(ui, |ui: &mut Ui| {
-            preset.style_button(self.variant, &mut ui.visuals_mut().widgets);
+            preset.style_button(self.variant, ui.visuals_mut());
             ui.add(egui::Button::new(self.label))
         });
         announce(&response, self.name.as_deref());

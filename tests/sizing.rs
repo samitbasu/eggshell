@@ -213,7 +213,7 @@ fn button_variants_are_the_size_of_a_button() {
                 add: Box::new({
                     let label = label.to_owned();
                     move |ui, _| {
-                        Shadcn::of(ui.ctx()).style_button(variant, &mut ui.visuals_mut().widgets);
+                        Shadcn::of(ui.ctx()).style_button(variant, ui.visuals_mut());
                         ui.add(egui::Button::new(label.clone()))
                     }
                 }),
