@@ -712,6 +712,33 @@ impl Shadcn {
 
     /// Restyles `widgets` for a checkbox: the background in an `input`
     /// border, `primary` with a `primary-foreground` tick when ticked.
+    /// Styles a selectable button as shadcn's Toggle: transparent at rest,
+    /// `muted` with `muted-foreground` text under the pointer, and `accent`
+    /// with `accent-foreground` text while selected, whatever the pointer
+    /// does. egui paints a selected button from `selection`, which also
+    /// colours selected text, so the selected look is set here, in the
+    /// button's own `Ui`.
+    pub(crate) fn style_toggle(&self, mark: Mark, visuals: &mut Visuals) {
+        let t = &self.tokens;
+        let clear = Color32::TRANSPARENT;
+        let rest = Look {
+            fill: clear,
+            stroke: clear,
+            text: t.foreground,
+        };
+        let hover = Look {
+            fill: t.muted,
+            text: t.muted_foreground,
+            ..rest
+        };
+        visuals.override_text_color = None;
+        set_looks(&mut visuals.widgets, rest, hover);
+        if mark == Mark::On {
+            visuals.selection.bg_fill = t.accent;
+            visuals.selection.stroke.color = t.accent_foreground;
+        }
+    }
+
     /// Styles a slider: the rail `muted` with the range in `primary`, and the
     /// thumb a `primary` outline round an opaque `background` (shadcn's
     /// `border-primary bg-background`). egui paints the rail and the resting

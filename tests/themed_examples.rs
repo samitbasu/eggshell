@@ -85,14 +85,15 @@ fn assert_themes_differ(light: Color32, dark: Color32) {
 fn button_takes_the_themes_tokens() {
     let mut seen = Vec::new();
     for theme in THEMES {
-        let (placed, t) = place(theme, |b| button::layout(b, &button::State::default()));
+        let (placed_off, t) = place(theme, |b| button::layout(b, &button::State::default()));
+        let placed = &placed_off;
         let fills = button::Fills::of(&t);
-        let button = node(&placed, "/\"button\"");
+        let button = node(placed, "/\"button\"");
         assert_eq!(button.paint().background, Some(fills.rest), "{theme:?}");
         assert_eq!(button.text().color, t.foreground, "{theme:?}");
         assert_eq!(button.paint().border_colors.top, Some(t.input), "{theme:?}");
         assert!(
-            backgrounds(&placed).contains(&t.card),
+            backgrounds(placed).contains(&t.card),
             "{theme:?}: the controls panel is a card"
         );
         seen.push(fills.rest);
@@ -107,8 +108,11 @@ fn button_takes_the_themes_tokens() {
             )
         });
         let selected = node(&placed, "/\"selectable\"");
-        assert_eq!(selected.paint().background, Some(fills.selected));
-        assert_eq!(selected.text().color, t.primary_foreground);
+        assert_eq!(selected.paint().background, Some(t.accent));
+        assert_eq!(selected.text().color, t.accent_foreground);
+        let resting = node(&placed_off, "/\"selectable\"");
+        assert_eq!(resting.paint().background, None);
+        assert_eq!(resting.text().color, t.foreground);
     }
     assert_themes_differ(seen[0], seen[1]);
 }

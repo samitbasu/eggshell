@@ -195,6 +195,7 @@ impl Button {
                 ui.add(egui::Button::new(self.label))
             }
             Appearance::Selectable(mark) => {
+                preset.style_toggle(mark, ui.visuals_mut());
                 ui.add(egui::Button::selectable(mark == Mark::On, self.label))
             }
         });

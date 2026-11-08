@@ -2,10 +2,10 @@
 //! path: the shapes egui emits for a slider and a selectable button, in each
 //! theme, with the pointer where the test puts it.
 
-use bullseye::style::{Shadcn, Tokens};
+use bullseye::style::{Mark, Shadcn, Tokens};
 use bullseye::widget::{Button, Slider};
 use bullseye::{Builder, LayoutState, tw};
-use egui::epaint::{CircleShape, RectShape, Shape, TextShape};
+use egui::epaint::{CircleShape, RectShape, Shape};
 use egui::{Color32, Pos2, Rect, Theme, vec2};
 use egui_kittest::Harness;
 
@@ -108,13 +108,13 @@ fn circles(harness: &Harness<'_, Rig>) -> Vec<CircleShape> {
         .collect()
 }
 
-/// The colour the first glyph run of each text shape inside `area` is drawn in.
+/// The colour each text shape starting inside `area` is drawn in.
 fn text_colours(harness: &Harness<'_, Rig>, area: Rect) -> Vec<Color32> {
     shapes(harness)
         .into_iter()
         .filter_map(|shape| match shape {
-            Shape::Text(TextShape { pos, galley, .. }) if area.contains(*pos) => {
-                Some(galley.job.sections[0].format.color)
+            Shape::Text(text) if area.contains(text.pos) => {
+                Some(text.override_text_color.unwrap_or(text.fallback_color))
             }
             _ => None,
         })
@@ -224,5 +224,78 @@ fn a_slider_leaves_every_other_widgets_look_alone() {
             visuals.widgets.hovered.fg_stroke.color,
             t.secondary_foreground
         );
+    }
+}
+
+fn toggle_view(mark: Mark, b: &mut Builder<'_, '_, App>) {
+    b.div(tw().flex().flex_col().gap(8.0).p(8.0), |b| {
+        b.widget(
+            "toggle",
+            tw().self_start(),
+            Button::selectable("Bold", mark),
+            |_, ui, button| {
+                button.show(ui);
+            },
+        );
+    });
+}
+
+fn toggle_off(b: &mut Builder<'_, '_, App>) {
+    toggle_view(Mark::Off, b);
+}
+
+fn toggle_on(b: &mut Builder<'_, '_, App>) {
+    toggle_view(Mark::On, b);
+}
+
+/// The fill painted under the toggle's label, if any, and the label's colour.
+fn toggle_look(harness: &Harness<'_, Rig>) -> (Option<Color32>, Color32) {
+    let area = rect_of(harness, "/\"toggle\"");
+    let fill = rects(harness)
+        .into_iter()
+        .filter(|rect| rect.fill != Color32::TRANSPARENT)
+        .find(|rect| area.expand(0.5).contains_rect(rect.rect))
+        .map(|rect| rect.fill);
+    let text = text_colours(harness, area);
+    assert_eq!(text.len(), 1, "precondition: one label is drawn");
+    (fill, text[0])
+}
+
+#[test]
+fn a_selectable_button_is_a_shadcn_toggle() {
+    for theme in THEMES {
+        let t = Tokens::for_theme(theme);
+
+        let mut off = harness(theme, toggle_off);
+        assert_eq!(toggle_look(&off), (None, t.foreground), "{theme:?}: rest");
+        let centre = rect_of(&off, "/\"toggle\"").center();
+        hover(&mut off, centre);
+        assert_eq!(
+            toggle_look(&off),
+            (Some(t.muted), t.muted_foreground),
+            "{theme:?}: hover"
+        );
+
+        let mut on = harness(theme, toggle_on);
+        assert_eq!(
+            toggle_look(&on),
+            (Some(t.accent), t.accent_foreground),
+            "{theme:?}: selected"
+        );
+        let centre = rect_of(&on, "/\"toggle\"").center();
+        hover(&mut on, centre);
+        assert_eq!(
+            toggle_look(&on),
+            (Some(t.accent), t.accent_foreground),
+            "{theme:?}: selected keeps its fill under the pointer"
+        );
+
+        let selection = &on.ctx.global_style().visuals.selection;
+        assert_eq!(
+            selection.bg_fill,
+            t.primary.gamma_multiply(0.3),
+            "{theme:?}"
+        );
+        assert_eq!(selection.stroke.color, t.foreground, "{theme:?}");
     }
 }

@@ -23,7 +23,6 @@ pub struct Fills {
     pub rest: Color32,
     pub hover: Color32,
     pub pressed: Color32,
-    pub selected: Color32,
 }
 
 impl Fills {
@@ -32,7 +31,6 @@ impl Fills {
             rest: t.secondary,
             hover: t.border,
             pressed: t.ring,
-            selected: t.primary,
         }
     }
 }
@@ -68,30 +66,48 @@ const ALIGNMENTS: [(&str, Align); 4] = [
     ("STRETCH", Tw::self_stretch),
 ];
 
-/// A button's look. A selected one keeps its fill under the pointer.
+/// A button's look.
 ///
 /// ```html
 /// <div class="flex flex-col items-center p-2 rounded border border-input text-foreground
 ///             bg-secondary hover:bg-border active:bg-ring">...</div>
-/// <div class="... bg-primary text-primary-foreground active:bg-ring">...</div>
 /// ```
-fn button(t: &Tokens, selected: bool) -> Tw {
+fn button(t: &Tokens) -> Tw {
     let fills = Fills::of(t);
-    let look = tw()
-        .flex()
+    tw().flex()
         .flex_col()
         .items_center()
         .p(2.0)
         .rounded()
         .border(1.0)
         .border_color(t.input)
-        .active(|p| p.bg(fills.pressed));
+        .active(|p| p.bg(fills.pressed))
+        .bg(fills.rest)
+        .text(t.foreground)
+        .hover(|p| p.bg(fills.hover))
+}
+
+/// A selectable button's look, shadcn's Toggle: a selected one keeps its
+/// `accent` fill under the pointer.
+///
+/// ```html
+/// <div class="flex flex-col items-center p-2 rounded text-foreground
+///             hover:bg-muted hover:text-muted-foreground">...</div>
+/// <div class="... bg-accent text-accent-foreground">...</div>
+/// ```
+fn toggle(t: &Tokens, selected: bool) -> Tw {
+    let look = tw()
+        .flex()
+        .flex_col()
+        .items_center()
+        .p(2.0)
+        .rounded()
+        .sense_click();
     if selected {
-        look.bg(fills.selected).text(t.primary_foreground)
+        look.bg(t.accent).text(t.accent_foreground)
     } else {
-        look.bg(fills.rest)
-            .text(t.foreground)
-            .hover(|p| p.bg(fills.hover))
+        look.text(t.foreground)
+            .hover(|p| p.bg(t.muted).text(t.muted_foreground))
     }
 }
 
@@ -135,7 +151,7 @@ pub fn demo(b: &mut B<'_, '_, State>, state: &State) {
         |b| {
             b.div_id(
                 "button",
-                button(&t, false),
+                button(&t),
                 common::on_click::<State>(|state| state.clicks += 1),
                 |b| content(b, "Button"),
             );
@@ -143,7 +159,7 @@ pub fn demo(b: &mut B<'_, '_, State>, state: &State) {
             b.rule(tw().h_px(1.0).bg(t.border));
             b.div_id(
                 "selectable",
-                button(&t, state.selected),
+                toggle(&t, state.selected),
                 common::on_click::<State>(|state| state.selected = !state.selected),
                 |b| content(b, "Selectable button"),
             );
