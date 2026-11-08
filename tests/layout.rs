@@ -1377,3 +1377,33 @@ fn baseline_alignment_counts_a_leafs_padding() {
         "the text lines up: {padded:?} {plain:?}"
     );
 }
+
+/// A text leaf stretched across a column wraps at the width inside its
+/// padding, and is as tall as the lines it wraps to.
+///
+/// ```html
+/// <div class="flex flex-col w-[…]">
+///   <span class="px-2">Six items, evenly distributed</span>
+/// </div>
+/// ```
+#[test]
+fn a_stretched_padded_text_leaf_is_as_tall_as_its_wrapped_lines() {
+    let text = "Six items, evenly distributed";
+    let natural = width_of(&BODY, text);
+    let padding = 8.0;
+    let column = natural + padding;
+    assert!(
+        column - 2.0 * padding < natural && column > natural * 0.6,
+        "precondition: the text fits the column but not inside the padding"
+    );
+    let placed = place(|b| {
+        b.div(tw().flex().flex_col().w_px(column), |b| {
+            b.span("padded", tw().px(2.0), text, none);
+        });
+    });
+    let [padded] = rects(&placed, NodeKind::Span)[..] else {
+        panic!("one span")
+    };
+    assert_eq!(padded.width(), column);
+    assert_eq!(padded.height(), 40.0, "two lines of 20: {padded:?}");
+}

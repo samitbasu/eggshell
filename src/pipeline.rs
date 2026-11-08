@@ -282,11 +282,29 @@ impl<'f, A> Built<'f, A> {
 /// A leaf's layout: taffy's own, which adds padding and border around what
 /// `measure` reports for the content box, with the content's first baseline
 /// moved down by the top inset.
+///
+/// Taffy hands the measure the content-box size of the space on offer but the
+/// border-box size of a dimension layout has fixed (a stretched flex item);
+/// both reach `measure` as content-box here, so a text leaf wraps at the
+/// width it is drawn at.
 fn leaf_layout(
     input: LayoutInput,
     style: &Style,
     measure: impl FnOnce(LayoutInput) -> LayoutOutput,
 ) -> LayoutOutput {
+    let resolve = |length: taffy::LengthPercentage| {
+        length.resolve_or_zero(input.parent_size.width, |_, _| 0.0)
+    };
+    let inset = Size {
+        width: resolve(style.padding.left)
+            + resolve(style.padding.right)
+            + resolve(style.border.left)
+            + resolve(style.border.right),
+        height: resolve(style.padding.top)
+            + resolve(style.padding.bottom)
+            + resolve(style.border.top)
+            + resolve(style.border.bottom),
+    };
     let mut baselines = Baselines::NONE;
     let mut output = compute_leaf_layout(
         input,
@@ -294,7 +312,14 @@ fn leaf_layout(
         |_, _| 0.0,
         |known_dimensions, available_space| {
             let measured = measure(LayoutInput {
-                known_dimensions,
+                known_dimensions: Size {
+                    width: known_dimensions
+                        .width
+                        .map(|width| (width - inset.width).max(0.0)),
+                    height: known_dimensions
+                        .height
+                        .map(|height| (height - inset.height).max(0.0)),
+                },
                 available_space,
                 ..input
             });
@@ -302,9 +327,6 @@ fn leaf_layout(
             measured.size
         },
     );
-    let resolve = |length: taffy::LengthPercentage| {
-        length.resolve_or_zero(input.parent_size.width, |_, _| 0.0)
-    };
     let inset_top = resolve(style.padding.top) + resolve(style.border.top);
     output.baselines = Baselines {
         first: baselines.first.map(|first| first + inset_top),
