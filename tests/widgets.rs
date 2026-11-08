@@ -2,7 +2,9 @@
 //! with the library's estimate, the draw phase places egui's widget in the
 //! leaf's rect, and pointer events reach it.
 
-use bullseye::widget::{Button, Checkbox, ComboBox, DragValue, RadioButton, Slider, Stock};
+use bullseye::widget::{
+    Button, Checkbox, ComboBox, DragValue, RadioButton, Slider, Stock, TextEdit,
+};
 use bullseye::{Builder, TextSpec, TextStyle, Width, tw};
 use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
@@ -165,4 +167,56 @@ fn a_combo_box_opens_and_selects() {
         ComboBox::new("Gamma").size(&harness.ctx, &base_text(), None),
         "the header follows the selection"
     );
+}
+
+#[derive(Default)]
+struct Secret {
+    password: String,
+}
+
+fn secret(b: &mut Builder<'_, '_, Secret>, app: &Secret) {
+    b.widget(
+        "password",
+        tw().w_px(200.0),
+        TextEdit::singleline(&app.password).masked(),
+        |app, ui, field| {
+            field.show(ui, &mut app.password);
+        },
+    );
+}
+
+/// The text of every galley painted in the last frame.
+fn painted_text(harness: &Harness<'_, Rig<Secret>>) -> Vec<String> {
+    harness
+        .output()
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            egui::epaint::Shape::Text(text) => Some(text.galley.text().to_owned()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_masked_field_edits_the_text_and_paints_dots() {
+    let mut harness = support::harness_with(
+        vec2(300.0, 100.0),
+        base_text(),
+        Secret::default(),
+        secret,
+        Accessibility::Unchecked,
+    );
+    harness.run_steps(2);
+    let unmasked = rect_of(&harness, "/\"password\"");
+    click_node(&mut harness, "/\"password\"");
+    harness.run_steps(2);
+    harness.event(egui::Event::Text("hunter2".to_owned()));
+    harness.run_steps(3);
+
+    assert_eq!(harness.state().app.password, "hunter2");
+    let painted = painted_text(&harness).concat();
+    assert!(!painted.contains("hunter2"), "painted {painted:?}");
+    assert!(painted.contains('•'), "painted {painted:?}");
+    assert_eq!(rect_of(&harness, "/\"password\""), unmasked);
 }

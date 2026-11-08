@@ -333,6 +333,27 @@ fn single_line_text_edit() {
 }
 
 #[test]
+fn a_masked_one_line_field_is_the_size_of_a_shown_one() {
+    agrees(
+        |text| Case {
+            widget: TextEdit::singleline(text).masked(),
+            add: Box::new({
+                let text = text.to_owned();
+                move |ui, width| {
+                    let mut buffer = text.clone();
+                    let mut edit = egui::TextEdit::singleline(&mut buffer).password(true);
+                    if let Some(width) = width {
+                        edit = edit.desired_width(width);
+                    }
+                    ui.add(edit)
+                }
+            }),
+        },
+        &TEXTS,
+    );
+}
+
+#[test]
 fn multi_line_text_edit() {
     let mut wrapped = false;
     for lines in [

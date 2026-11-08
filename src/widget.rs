@@ -310,6 +310,13 @@ pub enum Lines {
     },
 }
 
+/// Whether a one-line field shows what is typed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Masking {
+    Shown,
+    Hidden,
+}
+
 /// `egui::TextEdit`, single- or multi-line, with optional hint text.
 ///
 /// Holds the text as it is when the frame is built: the height of a
@@ -319,6 +326,7 @@ pub struct TextEdit {
     text: String,
     hint: Option<String>,
     lines: Lines,
+    masking: Masking,
 }
 
 impl TextEdit {
@@ -328,6 +336,7 @@ impl TextEdit {
             text: text.into(),
             hint: None,
             lines: Lines::Single,
+            masking: Masking::Shown,
         }
     }
 
@@ -337,6 +346,7 @@ impl TextEdit {
             text: text.into(),
             hint: None,
             lines: Lines::Multi { min, max: None },
+            masking: Masking::Shown,
         }
     }
 
@@ -349,6 +359,13 @@ impl TextEdit {
                 max: Some(max.at_least(min)),
             };
         }
+        self
+    }
+
+    /// Shows dots for what is typed, like a password field. A one-line
+    /// field's size does not depend on its text, so the size is unchanged.
+    pub fn masked(mut self) -> Self {
+        self.masking = Masking::Hidden;
         self
     }
 
@@ -375,6 +392,7 @@ impl TextEdit {
             Lines::Multi { .. } => egui::TextEdit::multiline(text).desired_rows(self.rows()),
         }
         .id(id)
+        .password(self.masking == Masking::Hidden)
         .desired_width(rect.width());
         if let Some(hint) = &self.hint {
             edit = edit.hint_text(hint.as_str());
