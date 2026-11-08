@@ -1319,3 +1319,55 @@ fn custom_background_boxes_wrap_into_rows_of_the_slider_size() {
     let small = boxes(100.0);
     assert!(small.iter().all(|rect| rect.min.y == small[0].min.y));
 }
+
+// ------------------------------------------------------------ leaf padding
+
+/// ```html
+/// <div class="flex">
+///   <span id="padded" class="px-2 py-1 border-2">Hello</span>
+/// </div>
+/// ```
+#[test]
+fn a_leaf_is_as_large_as_its_content_plus_padding_and_border() {
+    let placed = place(|b| {
+        b.div(tw().flex(), |b| {
+            b.span("padded", tw().px(2.0).py(1.0).border(2.0), "Hello", none);
+        });
+    });
+    let width = width_of(&BODY, "Hello");
+    assert!(width > 0.0, "precondition: the text has a width");
+    let [padded] = rects(&placed, NodeKind::Span)[..] else {
+        panic!("one span")
+    };
+    assert_eq!(
+        padded.size(),
+        vec2(width + 2.0 * (8.0 + 2.0), 20.0 + 2.0 * (4.0 + 2.0))
+    );
+}
+
+/// ```html
+/// <div class="flex items-baseline">
+///   <span class="py-3">Hello</span><span>Hello</span>
+/// </div>
+/// ```
+#[test]
+fn baseline_alignment_counts_a_leafs_padding() {
+    let placed = place(|b| {
+        b.div(tw().flex().items_baseline(), |b| {
+            b.span("padded", tw().py(3.0), "Hello", none);
+            b.span("plain", tw(), "Hello", none);
+        });
+    });
+    let [padded, plain] = rects(&placed, NodeKind::Span)[..] else {
+        panic!("two spans")
+    };
+    assert!(
+        padded.height() > plain.height(),
+        "precondition: padding differs"
+    );
+    assert_eq!(
+        padded.min.y + 12.0,
+        plain.min.y,
+        "the text lines up: {padded:?} {plain:?}"
+    );
+}

@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 use egui::{Id, Rect, vec2};
 use taffy::{
-    AvailableSpace, Display, NodeId, Overflow, Point, Position, Size, Style, TaffyTree,
-    style_helpers::length,
+    AvailableSpace, Baselines, Display, LayoutInput, LayoutOutput, NodeId, Overflow, Point,
+    Position, ResolveOrZero, Size, Style, TaffyTree, compute_leaf_layout, style_helpers::length,
 };
 
 use crate::builder::Builder;
@@ -237,16 +237,20 @@ impl<'f, A> Built<'f, A> {
                     width: AvailableSpace::Definite(area.width()),
                     height: AvailableSpace::Definite(area.height()),
                 },
-                |input, _, node, _| {
+                |input, _, node, style| {
                     let Some(node) = node else {
-                        return taffy::LayoutOutput::from_outer_size(Size::ZERO);
+                        return leaf_layout(input, style, |_| {
+                            LayoutOutput::from_outer_size(Size::ZERO)
+                        });
                     };
                     let content = match (&node.prim, node.measure) {
                         (Some(prim), _) => Content::Prim(prim),
                         (None, Some(index)) => Content::Leaf(&*measures[index]),
                         (None, None) => Content::Empty,
                     };
-                    measure_content(ctx, content, &node.text, &input)
+                    leaf_layout(input, style, |input| {
+                        measure_content(ctx, content, &node.text, &input)
+                    })
                 },
             )
             .expect("tree is well formed");
@@ -268,6 +272,40 @@ impl<'f, A> Built<'f, A> {
             draws,
         }
     }
+}
+
+/// A leaf's layout: taffy's own, which adds padding and border around what
+/// `measure` reports for the content box, with the content's first baseline
+/// moved down by the top inset.
+fn leaf_layout(
+    input: LayoutInput,
+    style: &Style,
+    measure: impl FnOnce(LayoutInput) -> LayoutOutput,
+) -> LayoutOutput {
+    let mut baselines = Baselines::NONE;
+    let mut output = compute_leaf_layout(
+        input,
+        style,
+        |_, _| 0.0,
+        |known_dimensions, available_space| {
+            let measured = measure(LayoutInput {
+                known_dimensions,
+                available_space,
+                ..input
+            });
+            baselines = measured.baselines;
+            measured.size
+        },
+    );
+    let resolve = |length: taffy::LengthPercentage| {
+        length.resolve_or_zero(input.parent_size.width, |_, _| 0.0)
+    };
+    let inset_top = resolve(style.padding.top) + resolve(style.border.top);
+    output.baselines = Baselines {
+        first: baselines.first.map(|first| first + inset_top),
+        last: None,
+    };
+    output
 }
 
 fn collect(
