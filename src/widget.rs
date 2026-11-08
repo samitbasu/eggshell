@@ -225,7 +225,9 @@ pub struct DragValue {
 
 impl DragValue {
     /// A drag value sized for `template`, the text of the widest value it
-    /// will show (`"-100.00"`). The field never resizes to the value.
+    /// will show (`"-100.00"`). The field never resizes to the value, and
+    /// shows as many decimals as the template does, so `"100"` shows whole
+    /// numbers and `"-100.00"` two decimals.
     pub fn new(template: impl Into<String>) -> Self {
         Self {
             template: template.into(),
@@ -234,7 +236,13 @@ impl DragValue {
 
     /// Adds the drag value to `ui`, filling its rect. `range` bounds `value`.
     pub fn show(self, ui: &mut Ui, value: &mut f64, range: RangeInclusive<f64>) -> Response {
-        place(ui, egui::DragValue::new(value).range(range))
+        let decimals = self.template.split('.').nth(1).map_or(0, str::len);
+        place(
+            ui,
+            egui::DragValue::new(value)
+                .range(range)
+                .fixed_decimals(decimals),
+        )
     }
 }
 

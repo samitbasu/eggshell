@@ -186,7 +186,7 @@ fn secret(b: &mut Builder<'_, '_, Secret>, app: &Secret) {
 }
 
 /// The text of every galley painted in the last frame.
-fn painted_text(harness: &Harness<'_, Rig<Secret>>) -> Vec<String> {
+fn painted_text<A>(harness: &Harness<'_, Rig<A>>) -> Vec<String> {
     harness
         .output()
         .shapes
@@ -219,4 +219,16 @@ fn a_masked_field_edits_the_text_and_paints_dots() {
     assert!(!painted.contains("hunter2"), "painted {painted:?}");
     assert!(painted.contains('•'), "painted {painted:?}");
     assert_eq!(rect_of(&harness, "/\"password\""), unmasked);
+}
+
+#[test]
+fn a_drag_value_shows_the_decimals_of_its_template() {
+    let mut harness = harness();
+    harness.state_mut().app.amount = 3.14159;
+    harness.run_steps(3);
+    let painted = painted_text(&harness);
+    assert!(
+        painted.iter().any(|text| text == "3.1"),
+        "a one-decimal template shows one decimal: {painted:?}"
+    );
 }
