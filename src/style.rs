@@ -558,7 +558,8 @@ fn tokens_id(theme: Theme) -> Id {
 /// The tokens a preset was applied with for the context's current theme, if
 /// one was.
 pub fn tokens(ctx: &Context) -> Option<Tokens> {
-    ctx.data(|data| data.get_temp::<Tokens>(tokens_id(ctx.theme())))
+    let id = tokens_id(ctx.theme());
+    ctx.data(|data| data.get_temp::<Tokens>(id))
 }
 
 /// Whether a track keeps its cells on one row.
