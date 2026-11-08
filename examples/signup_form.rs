@@ -7,7 +7,7 @@
 //! `egui_form` and `validator` crates become a few functions on the state. An
 //! error shows for a field the user has changed, and for every field once
 //! Submit has been pressed with something invalid. The error appears as text
-//! under its field, so the form re-lays out around it. Two-column rows are
+//! under its field, on a line reserved for it, so the form does not move. Two-column rows are
 //! wrapping flex rows, which stack when the window is narrow.
 
 #[path = "common/mod.rs"]
@@ -173,6 +173,22 @@ impl State {
 ///   <span class="text-[#b03030]">Must be between 2 and 50 characters long</span>
 /// </div>
 /// ```
+/// The line under a field that holds its error. It keeps its height while
+/// the field is valid, so a field's error appearing does not move the rest
+/// of the form.
+///
+/// ```html
+/// <p class="min-h-[16.25px] text-[13px]/[16.25px] text-[#b03030]">Invalid email</p>
+/// ```
+fn error_line(b: &mut B<'_, '_>, error: Option<&'static str>) {
+    let role = common::sized(13.0);
+    b.div(tw().min_h_px(role.line_height), |b| {
+        if let Some(error) = error {
+            b.text(tw().text(ERROR).role(role), error);
+        }
+    });
+}
+
 fn labelled<'f>(
     b: &mut B<'_, 'f>,
     state: &State,
@@ -190,9 +206,7 @@ fn labelled<'f>(
         |b| {
             b.text(tw(), label);
             control(b);
-            if let Some(error) = state.visible_error(part) {
-                b.text(tw().text(ERROR).role(common::sized(13.0)), error);
-            }
+            error_line(b, state.visible_error(part));
         },
     );
 }
@@ -242,9 +256,7 @@ fn check(
                 checkbox.show(ui, lens(state));
             },
         );
-        if let Some(error) = state.visible_error(part) {
-            b.text(tw().text(ERROR).role(common::sized(13.0)), error);
-        }
+        error_line(b, state.visible_error(part));
     });
 }
 
@@ -324,9 +336,7 @@ fn form(b: &mut B<'_, '_>, state: &State) {
                     .widget_info(|| WidgetInfo::slider(ui.is_enabled(), state.fields.age, "Age"));
             },
         );
-        if let Some(error) = state.visible_error(Part::Age) {
-            b.text(tw().text(ERROR).role(common::sized(13.0)), error);
-        }
+        error_line(b, state.visible_error(Part::Age));
     });
     check(b, state, Part::Terms, "I agree to the terms", |s| {
         &mut s.fields.terms

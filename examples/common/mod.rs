@@ -279,13 +279,13 @@ pub fn choice<S, K, T>(
     );
 }
 
-/// A text field filling its row, in a box that rings while the field has
-/// focus. `name` is its accessible name. The box is the node `key`; the leaf
+/// A frameless text field filling its row, in a box that rings while the
+/// field has focus; the box is the field's only frame. `name` is its accessible name. The box is the node `key`; the leaf
 /// inside it is `"field"`.
 ///
 /// ```html
-/// <div class="w-full border border-[#b0b0b0] rounded-md focus-within:ring-2 focus-within:ring-[#4678c8]">
-///   <input class="w-full" placeholder="Your name">
+/// <div class="w-full px-2 py-1 border border-[#b0b0b0] rounded-md focus-within:ring-2 focus-within:ring-[#4678c8]">
+///   <input class="w-full bg-transparent outline-none" placeholder="Your name">
 /// </div>
 /// ```
 pub fn text_box<S, K>(
@@ -298,10 +298,13 @@ pub fn text_box<S, K>(
     S: 'static,
     K: Hash + Debug + 'static,
 {
+    let field = field.bare();
     let measured = field.clone();
     b.div_id(
         key,
         tw().w_full()
+            .px(2.0)
+            .py(1.0)
             .border(1.0)
             .border_color(EDGE)
             .rounded_md()

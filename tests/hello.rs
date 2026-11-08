@@ -283,8 +283,7 @@ mod signup {
         parts
     }
 
-    /// How far down the form the Submit button is, which every error above
-    /// it pushes down.
+    /// How far down the form the Submit button is.
     fn height(harness: &Harness<'_, Rig<State>>) -> f32 {
         rect_of(harness, "/Submit").min.y
     }
@@ -302,29 +301,30 @@ mod signup {
     }
 
     #[test]
-    fn errors_show_for_a_field_once_it_has_been_changed_and_move_the_layout() {
+    fn errors_show_for_a_field_once_it_has_been_changed_without_moving_the_layout() {
         let mut harness = signup(640.0);
         for part in all_parts() {
             assert_eq!(harness.state().app.visible_error(part), None, "{part:?}");
         }
         let resting = height(&harness);
-        let email = rect_of(&harness, "/Email").min.y;
+        let password = rect_of(&harness, "/Password").min.y;
 
-        fill(&mut harness, Part::FirstName, "A");
+        fill(&mut harness, Part::Email, "x");
         assert_eq!(
-            harness.state().app.visible_error(Part::FirstName),
-            Some("Must be between 2 and 50 characters long")
+            harness.state().app.visible_error(Part::Email),
+            Some("Invalid email")
         );
-        assert_eq!(harness.state().app.visible_error(Part::LastName), None);
-        assert!(height(&harness) > resting, "the error text takes room");
-        assert!(
-            rect_of(&harness, "/Email").min.y > email,
-            "and pushes the rows below it down"
-        );
-
-        type_text(&mut harness, "da");
         assert_eq!(harness.state().app.visible_error(Part::FirstName), None);
-        assert_eq!(height(&harness), resting, "the error text is gone");
+        assert_eq!(
+            rect_of(&harness, "/Password").min.y,
+            password,
+            "a one-line error fills the line reserved for it, so the rows below stay put"
+        );
+        assert_eq!(height(&harness), resting);
+
+        type_text(&mut harness, "@example.com");
+        assert_eq!(harness.state().app.visible_error(Part::Email), None);
+        assert_eq!(height(&harness), resting, "and clearing it changes nothing");
     }
 
     #[test]
