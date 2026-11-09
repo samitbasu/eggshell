@@ -175,6 +175,44 @@ fn slider_track_range_and_thumb_are_the_styles() {
 }
 
 #[test]
+fn the_range_is_round_where_the_track_is_round_at_every_value() {
+    for value in [2.0, 40.0, 100.0] {
+        let mut harness = harness(Theme::Light);
+        harness.state_mut().app.volume = value;
+        harness.run_steps(4);
+        let bar_rect = bar(&harness, "volume");
+        let range_rect = range(&harness, "volume");
+        assert!(range_rect.width() > 0.0, "precondition: a range is drawn");
+        assert!(
+            range_rect.height() == bar_rect.height(),
+            "precondition: the range is as tall as the track"
+        );
+        assert_eq!(
+            box_at(&harness, range_rect).corner_radius,
+            box_at(&harness, bar_rect).corner_radius,
+            "value {value}"
+        );
+    }
+}
+
+#[test]
+fn a_disabled_thumb_hides_the_track_beneath_it() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let harness = harness(theme);
+        let bar = bar(&harness, "locked");
+        let thumb = rect_of(&harness, "/\"locked\"/Track/Thumb");
+        assert!(
+            thumb.intersects(bar) && thumb.height() >= bar.height(),
+            "precondition: the thumb lies over the track's full height"
+        );
+        let shape = box_at(&harness, thumb);
+        assert_eq!(shape.fill.a(), 255, "{theme:?} thumb fill");
+        assert_eq!(shape.stroke.color.a(), 255, "{theme:?} thumb border");
+        assert_eq!(shape.corner_radius, egui::CornerRadius::same(u8::MAX));
+    }
+}
+
+#[test]
 fn pressing_the_track_jumps_the_thumb_and_dragging_follows_the_pointer() {
     let mut harness = harness(Theme::Light);
     let track = rect_of(&harness, TRACK);

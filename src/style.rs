@@ -588,7 +588,7 @@ impl Shadcn {
         };
         let states = |rest: Colors, hover: Colors| States {
             focused: focused(rest),
-            ..States::new(rest, hover)
+            ..States::new(rest, hover, t.background)
         };
         let filled = |rest: Colors, hover: Colors| BoxLook::new(states(rest, hover));
 
@@ -736,6 +736,7 @@ impl Shadcn {
                     border: t.input,
                     text: t.foreground,
                 },
+                t.background,
             )
         })
         .bordered(1.0)
@@ -753,7 +754,7 @@ impl Shadcn {
         let mut style = contract::Style::default();
         style.text = t.text_role();
         style.focus = ring;
-        style.label = States::still(flat(clear, t.foreground));
+        style.label = States::still(flat(clear, t.foreground), t.background);
         style.button = {
             let mut button = style.button;
             button.variants = variants;
@@ -812,10 +813,10 @@ impl Shadcn {
             segmented.cell_radius = t.radius_md();
             segmented.cell_padding = vec2(8.0, 4.0);
             segmented.row_gap = 2.0;
-            segmented.selected = BoxLook::new(States::still(selected_cell))
+            segmented.selected = BoxLook::new(States::still(selected_cell, t.muted))
                 .bordered(if dark { 1.0 } else { 0.0 })
                 .shadowed(t.shadow_sm);
-            segmented.unselected = BoxLook::new(States::still(released_cell));
+            segmented.unselected = BoxLook::new(States::still(released_cell, t.muted));
             segmented.transition = transition;
             segmented
         };
@@ -823,9 +824,9 @@ impl Shadcn {
             let mut slider = style.slider;
             slider.track_height = 6.0;
             slider.thumb_size = t.slider_thumb;
-            slider.track = States::still(flat(t.muted, t.foreground));
-            slider.range = States::still(flat(t.primary, t.primary_foreground));
-            slider.thumb = BoxLook::new(States::still(thumb_colors))
+            slider.track = States::still(flat(t.muted, t.foreground), t.background);
+            slider.range = States::still(flat(t.primary, t.primary_foreground), t.background);
+            slider.thumb = BoxLook::new(States::still(thumb_colors, t.background))
                 .bordered(1.0)
                 .shadowed(t.shadow_sm);
             slider.transition = transition;
@@ -840,12 +841,12 @@ impl Shadcn {
             };
             select.chevron = 16.0;
             select.chevron_opacity = Opacity::new(0.5);
-            select.popup = BoxLook::new(States::still(popup_colors))
+            select.popup = BoxLook::new(States::still(popup_colors, t.popover))
                 .bordered(1.0)
                 .shadowed(t.shadow_md);
             select.popup_radius = t.radius_md();
             select.popup_padding = 4.0;
-            select.item = BoxLook::new(States::new(flat(clear, t.popover_foreground), accented));
+            select.item = BoxLook::new(States::new(flat(clear, t.popover_foreground), accented, t.popover));
             select.item_radius = t.radius_sm();
             select.item_padding = vec2(8.0, 6.0);
             select.transition = transition;

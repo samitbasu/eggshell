@@ -154,7 +154,7 @@ fn every_variant_and_state_draws_the_styles_colours() {
                 look.states.disabled.text
             );
             assert_ne!(
-                look.states.disabled.text, look.states.rest.text,
+                look.states.disabled, look.states.rest,
                 "precondition: the disabled colours differ from rest"
             );
         }
@@ -196,7 +196,7 @@ fn vega_values_are_shadcns() {
 }
 
 #[test]
-fn disabled_is_explicit_colours_not_opacity() {
+fn disabled_is_explicit_opaque_colours_not_alpha() {
     let harness = harness(Theme::Light);
     let node = path(variant::PRIMARY, Enablement::Disabled);
     let rect = rect_of(&harness, &node);
@@ -207,11 +207,12 @@ fn disabled_is_explicit_colours_not_opacity() {
         .get(variant::PRIMARY)
         .states
         .rest;
-    assert_eq!(shape.fill, rest.fill.gamma_multiply(0.5));
+    let background = Tokens::light().background;
     assert_eq!(
-        shape.fill.a(),
-        (f32::from(rest.fill.a()) * 0.5).round() as u8
+        shape.fill,
+        rest.faded_over(bullseye::Opacity::new(0.5), background).fill
     );
+    assert_eq!(shape.fill.a(), 255, "opaque, so nothing shows through");
     assert!(
         ring_at(&harness, rect).is_none(),
         "a disabled button never shows a focus ring"

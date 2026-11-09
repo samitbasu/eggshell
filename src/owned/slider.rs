@@ -26,7 +26,7 @@ enum Part {
 /// ```html
 /// <span class="relative flex w-full items-center h-4">
 ///   <span class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-///     <span class="h-full bg-primary" style="width: 40%"></span>
+///     <span class="h-full rounded-full bg-primary" style="width: 40%"></span>
 ///   </span>
 ///   <span role="slider" class="absolute size-4 rounded-full border border-primary bg-background shadow-sm
 ///     focus-visible:ring-[3px] focus-visible:ring-ring/50"></span>
@@ -148,7 +148,10 @@ impl Slider {
                 .overflow_hidden(),
             fill(slider.track),
         );
-        let range = painted(tw().h_full().w_frac(fraction, 1.0), fill(slider.range));
+        let range = painted(
+            tw().h_full().w_frac(fraction, 1.0).rounded_full(),
+            fill(slider.range),
+        );
         let travel = tw().absolute().left_px(0.0).right_px(thumb).inset_y(0.0);
         let knob = slider
             .thumb

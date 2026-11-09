@@ -132,10 +132,29 @@ pub struct Colors {
 }
 
 impl Colors {
-    /// These colours at `opacity`.
+    /// These colours as CSS `opacity` shows them on an opaque `surface`: each
+    /// channel is composited over `surface` and blended `opacity` of the way
+    /// from it, so the result is opaque. A transparent channel stays
+    /// transparent. Unlike a per-shape alpha, the result hides what lies
+    /// beneath it.
     #[must_use]
-    pub fn faded(self, opacity: Opacity) -> Self {
-        let fade = |color: Color32| color.gamma_multiply(opacity.into());
+    pub fn faded_over(self, opacity: Opacity, surface: Color32) -> Self {
+        let t = f32::from(opacity);
+        let fade = |color: Color32| {
+            if color.a() == 0 {
+                return Color32::TRANSPARENT;
+            }
+            let [r, g, b, a] = color.to_srgba_unmultiplied();
+            let a = f32::from(a) / 255.0;
+            let over = |c: u8, s: u8| f32::from(c) * a + f32::from(s) * (1.0 - a);
+            let [sr, sg, sb, _] = surface.to_array();
+            let covered = Color32::from_rgb(
+                over(r, sr).round() as u8,
+                over(g, sg).round() as u8,
+                over(b, sb).round() as u8,
+            );
+            Color32::from_rgb(surface.r(), surface.g(), surface.b()).lerp_to_gamma(covered, t)
+        };
         Self {
             fill: fade(self.fill),
             border: fade(self.border),
@@ -178,20 +197,21 @@ pub struct States {
 
 impl States {
     /// `rest` and `hover`, with the other states derived: pressed is hover,
-    /// focused is rest, disabled is rest at half opacity.
-    pub fn new(rest: Colors, hover: Colors) -> Self {
+    /// focused is rest, disabled is rest at half opacity over `surface`, the
+    /// opaque colour the control sits on.
+    pub fn new(rest: Colors, hover: Colors, surface: Color32) -> Self {
         Self {
             rest,
             hover,
             pressed: hover,
             focused: rest,
-            disabled: rest.faded(Opacity::new(0.5)),
+            disabled: rest.faded_over(Opacity::new(0.5), surface),
         }
     }
 
     /// The same colours in every state but disabled.
-    pub fn still(rest: Colors) -> Self {
-        Self::new(rest, rest)
+    pub fn still(rest: Colors, surface: Color32) -> Self {
+        Self::new(rest, rest, surface)
     }
 }
 
@@ -583,6 +603,7 @@ impl Style {
             (colors(&w.inactive), colors(&w.hovered), colors(&w.active));
         let focus_border = v.selection.stroke.color;
         let faded = Opacity::new(v.disabled_alpha);
+        let surface = v.panel_fill;
         let states = |rest: Colors, hover: Colors, pressed: Colors| States {
             rest,
             hover,
@@ -591,7 +612,7 @@ impl Style {
                 border: focus_border,
                 ..rest
             },
-            disabled: rest.faded(faded),
+            disabled: rest.faded_over(faded, surface),
         };
         let button_states = states(inactive, hovered, active);
         let radius = w.inactive.corner_radius.nw;
@@ -643,6 +664,7 @@ impl Style {
                 border: clear,
                 text: v.text_color(),
             },
+            surface,
         );
         let toggle_metrics = Metrics {
             min_width: metrics.height,
@@ -720,7 +742,7 @@ impl Style {
                     fill: w.active.weak_bg_fill,
                     border: clear,
                     text: v.strong_text_color(),
-                })),
+                }, surface)),
                 unselected: Look::new(States::new(
                     Colors {
                         fill: clear,
@@ -728,6 +750,7 @@ impl Style {
                         text: v.weak_text_color(),
                     },
                     hovered,
+                    surface,
                 )),
                 transition,
             },
@@ -738,12 +761,12 @@ impl Style {
                     fill: w.inactive.bg_fill,
                     border: clear,
                     text: clear,
-                }),
+                }, surface),
                 range: States::still(Colors {
                     fill: selected.fill,
                     border: clear,
                     text: clear,
-                }),
+                }, surface),
                 thumb: Look::new(states(
                     Colors {
                         fill: w.inactive.weak_bg_fill,
@@ -765,7 +788,7 @@ impl Style {
                     fill: v.window_fill,
                     border: v.window_stroke.color,
                     text: v.text_color(),
-                }))
+                }, v.window_fill))
                 .bordered(v.window_stroke.width.max(1.0))
                 .shadowed(v.popup_shadow),
                 popup_radius: radius,
@@ -777,6 +800,7 @@ impl Style {
                         text: v.text_color(),
                     },
                     selected,
+                    v.window_fill,
                 )),
                 item_radius: radius,
                 item_padding: vec2(s.button_padding.x, s.button_padding.y),

@@ -135,3 +135,79 @@ fn core_draws_a_button_with_no_preset() {
         .collect();
     assert!(fills.contains(&button.states.rest.fill), "{fills:?}");
 }
+
+fn disabled_colours(style: &Style) -> Vec<(String, bullseye::contract::Colors)> {
+    let mut all = vec![("label".to_string(), style.label.disabled)];
+    let mut look = |name: &str, look: &bullseye::contract::Look| {
+        all.push((name.to_string(), look.states.disabled));
+    };
+    for key in style.button.variants.keys() {
+        look(&format!("button {key:?}"), style.button.variants.get(key));
+    }
+    look("toggle off", &style.button.toggle_off);
+    look("toggle on", &style.button.toggle_on);
+    look("checkbox off", &style.checkbox.off);
+    look("checkbox on", &style.checkbox.on);
+    look("radio off", &style.radio.off);
+    look("radio on", &style.radio.on);
+    look("switch off", &style.switch.off);
+    look("switch on", &style.switch.on);
+    look("segmented selected", &style.segmented.selected);
+    look("segmented unselected", &style.segmented.unselected);
+    look("slider thumb", &style.slider.thumb);
+    look("select trigger", &style.select.trigger);
+    look("select popup", &style.select.popup);
+    look("select item", &style.select.item);
+    look("stepper field", &style.stepper.field);
+    look("stepper button", &style.stepper.button);
+    all.push(("slider track".to_string(), style.slider.track.disabled));
+    all.push(("slider range".to_string(), style.slider.range.disabled));
+    all
+}
+
+#[test]
+fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
+    let ctx = Context::default();
+    let mut styles = Vec::new();
+    for theme in [Theme::Light, Theme::Dark] {
+        styles.push((
+            format!("egui {theme:?}"),
+            Style::from_egui(&ctx.style_of(theme)),
+        ));
+        styles.push((format!("{theme:?}"), Shadcn::for_theme(theme).style()));
+    }
+    for (which, style) in styles {
+        let all = disabled_colours(&style);
+        assert!(all.len() >= 20, "precondition: the walk reaches every look");
+        for (name, colors) in all {
+            for (part, color) in [
+                ("fill", colors.fill),
+                ("border", colors.border),
+                ("text", colors.text),
+            ] {
+                assert!(
+                    color.a() == 255 || color.a() == 0,
+                    "{which} {name} disabled {part} is {color:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_disabled_colour_is_half_way_to_the_surface_it_sits_on() {
+    use bullseye::contract::Colors;
+    use bullseye::Opacity;
+    let surface = Color32::from_rgb(200, 100, 0);
+    let rest = Colors {
+        fill: Color32::from_rgb(0, 0, 0),
+        border: Color32::TRANSPARENT,
+        text: Color32::from_rgb(200, 100, 0),
+    };
+    let faded = rest.faded_over(Opacity::new(0.5), surface);
+    assert_eq!(faded.border, Color32::TRANSPARENT);
+    assert_eq!(faded.text, surface);
+    let fill = faded.fill;
+    assert_eq!(fill.a(), 255);
+    assert!((i32::from(fill.r()) - 100).abs() <= 8, "{fill:?}");
+}
