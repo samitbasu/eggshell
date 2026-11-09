@@ -22,7 +22,10 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
 
-use egui::{Color32, Id, Painter, Pos2, Rect, Response, Role, Shape, Stroke, Ui, WidgetInfo, pos2};
+use egui::{
+    Color32, Id, Painter, Pos2, Rect, Response, Role, Shape, Stroke, Ui, WidgetInfo, WidgetText,
+    pos2,
+};
 
 pub use button::Button;
 pub use checkbox::Checkbox;
@@ -98,10 +101,23 @@ fn centered(classes: Tw) -> Tw {
     classes.flex().items_center().justify_center()
 }
 
+/// A control's tooltip, if it has one.
+type Tip = Option<WidgetText>;
+
+/// `response` with `tip` shown on hover, also when the control is disabled.
+fn tipped(response: Response, tip: &Tip) -> Response {
+    match tip {
+        Some(tip) => response
+            .on_hover_text(tip.clone())
+            .on_disabled_hover_text(tip.clone()),
+        None => response,
+    }
+}
+
 /// The node's response, described to assistive technology as a `role` named
-/// `name`, and as on or off when it is `selected`.
-fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str) -> Response {
-    let response = ui.node_response();
+/// `name`, and as on or off when it is `selected`, with the tooltip `tip`.
+fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str, tip: &Tip) -> Response {
+    let response = tipped(ui.node_response(), tip);
     response.widget_info(|| match selected {
         Some(mark) => WidgetInfo::selected(role, ui.is_enabled(), mark == Mark::On, name),
         None => WidgetInfo::labeled(role, ui.is_enabled(), name),

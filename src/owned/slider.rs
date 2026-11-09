@@ -8,7 +8,7 @@ use std::ops::RangeInclusive;
 use egui::{Key, Rect, Ui, WidgetInfo};
 
 use super::number::{self, Step};
-use super::{Enablement, painted};
+use super::{Enablement, Tip, painted, tipped};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -38,6 +38,7 @@ pub struct Slider {
     range: RangeInclusive<f64>,
     step: Step,
     name: Option<String>,
+    tooltip: Tip,
     classes: Tw,
     enablement: Enablement,
 }
@@ -92,6 +93,7 @@ impl Slider {
             range,
             step: Step::ONE,
             name: None,
+            tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
         }
@@ -113,6 +115,16 @@ impl Slider {
     /// width or placement; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.classes = classes;
+        self
+    }
+
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it.
+    #[must_use]
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
         self
     }
 
@@ -178,6 +190,7 @@ impl Slider {
             thumb,
         };
         let name = self.name.unwrap_or_default();
+        let (track_tip, thumb_tip) = (self.tooltip.clone(), self.tooltip);
         b.scope(key, |b| {
             let track = b.id_of(Part::Track);
             let on_track = scale.clone();
@@ -185,7 +198,7 @@ impl Slider {
                 Part::Track,
                 hit,
                 move |app, ui| {
-                    let response = ui.node_response();
+                    let response = tipped(ui.node_response(), &track_tip);
                     let pressed = response.is_pointer_button_down_on();
                     if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
                         let value = on_track.at(at.x, response.rect);
@@ -201,7 +214,7 @@ impl Slider {
                             Part::Thumb,
                             knob,
                             move |app, ui| {
-                                let response = ui.node_response();
+                                let response = tipped(ui.node_response(), &thumb_tip);
                                 let track = ui.ctx().read_response(track).map(|r| r.rect);
                                 let pointer = response
                                     .interact_pointer_pos()

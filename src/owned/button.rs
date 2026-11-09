@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use egui::Role;
 
 use super::Mark;
-use super::{Enablement, centered, described};
+use super::{Enablement, Tip, centered, described};
 use crate::contract::{Size, Variant};
 use crate::{Builder, Icon, Style, Tw, tw};
 
@@ -33,6 +33,7 @@ pub struct Button {
     variant: Option<Variant>,
     size: Size,
     name: Option<String>,
+    tooltip: Tip,
     enablement: Enablement,
     press: Press,
     classes: Tw,
@@ -48,6 +49,7 @@ impl Button {
             variant: None,
             size: Size::DEFAULT,
             name: None,
+            tooltip: None,
             enablement: Enablement::Enabled,
             press: Press::Shifts,
             classes: tw(),
@@ -112,6 +114,16 @@ impl Button {
         self
     }
 
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it.
+    #[must_use]
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
     /// Whether the button takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -166,12 +178,13 @@ impl Button {
             .whitespace_nowrap();
         let classes = self.enablement.fade(classes, &style).merge(self.classes);
         let name = self.name.unwrap_or_else(|| self.label.clone());
+        let tooltip = self.tooltip;
         let glyph = metrics.glyph;
         b.div_id(
             key,
             classes,
             move |app, ui| {
-                if described(ui, Role::Button, selected, &name).clicked() {
+                if described(ui, Role::Button, selected, &name, &tooltip).clicked() {
                     on_click(app);
                 }
             },

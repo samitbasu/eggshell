@@ -7,7 +7,7 @@ use std::ops::RangeInclusive;
 use egui::{Key, Role, WidgetInfo};
 
 use super::number::{Step, pressed};
-use super::{Chevron, Enablement, centered, described, field_classes, paint_chevron};
+use super::{Chevron, Enablement, Tip, centered, described, field_classes, paint_chevron, tipped};
 use crate::prim::text_field::{self, Field};
 use crate::{Builder, Style, Tw, tw};
 
@@ -43,6 +43,7 @@ pub struct Stepper {
     range: RangeInclusive<f64>,
     step: Step,
     name: Option<String>,
+    tooltip: Tip,
     classes: Tw,
     enablement: Enablement,
 }
@@ -55,6 +56,7 @@ impl Stepper {
             range,
             step: Step::ONE,
             name: None,
+            tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
         }
@@ -80,6 +82,16 @@ impl Stepper {
         self
     }
 
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it.
+    #[must_use]
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
     /// Whether the stepper takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -100,6 +112,7 @@ impl Stepper {
             range,
             step,
             name,
+            tooltip,
             classes,
             enablement,
         } = self;
@@ -109,6 +122,7 @@ impl Stepper {
             range,
             step,
             name: name.unwrap_or_default(),
+            tooltip,
         };
         let group = enablement
             .fade(
@@ -185,7 +199,9 @@ impl Stepper {
                             part,
                             classes,
                             move |app, ui| {
-                                if described(ui, Role::Button, None, name.trim()).clicked() {
+                                if described(ui, Role::Button, None, name.trim(), &spec.tooltip)
+                                    .clicked()
+                                {
                                     set(app, spec.step.moved(spec.value, steps, &spec.range));
                                 }
                             },
@@ -205,6 +221,7 @@ struct Spec {
     range: RangeInclusive<f64>,
     step: Step,
     name: String,
+    tooltip: Tip,
 }
 
 impl Spec {
@@ -234,7 +251,7 @@ impl Spec {
             }
         }
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
-        let response = text_field::show(ui, &mut text, field);
+        let response = tipped(text_field::show(ui, &mut text, field), &self.tooltip);
         response.widget_info(|| WidgetInfo {
             label: Some(self.name.clone()),
             ..WidgetInfo::drag_value(ui.is_enabled(), value)

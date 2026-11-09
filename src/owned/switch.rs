@@ -7,7 +7,7 @@ use std::hash::Hash;
 use egui::{Role, Vec2};
 
 use super::Mark;
-use super::{Enablement, choice_label, choice_row, described};
+use super::{Enablement, Tip, choice_label, choice_row, described};
 use crate::contract::Size;
 use crate::transition;
 use crate::{Builder, Easing, Progress, Style, Tw, tw};
@@ -27,6 +27,7 @@ enum Part {
 pub struct Switch {
     label: Option<String>,
     name: Option<String>,
+    tooltip: Tip,
     mark: Mark,
     size: Size,
     track: Option<Vec2>,
@@ -40,6 +41,7 @@ impl Switch {
         Self {
             label: Some(label.into()),
             name: None,
+            tooltip: None,
             mark,
             size: Size::DEFAULT,
             track: None,
@@ -81,6 +83,16 @@ impl Switch {
         self
     }
 
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it.
+    #[must_use]
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
     /// Whether the switch takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -110,6 +122,7 @@ impl Switch {
             metrics.thumb_on * thumb_scale,
         );
         let name = self.name.unwrap_or_default();
+        let tooltip = self.tooltip;
         b.scope(key, |b| {
             let control = b.id_of(Part::Track);
             let tint = transition::animate(
@@ -140,7 +153,7 @@ impl Switch {
                     Part::Track,
                     classes,
                     move |app, ui| {
-                        if described(ui, Role::Switch, Some(mark), &name).clicked() {
+                        if described(ui, Role::Switch, Some(mark), &name, &tooltip).clicked() {
                             on_toggle(app);
                         }
                     },

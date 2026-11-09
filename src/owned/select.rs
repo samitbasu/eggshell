@@ -10,7 +10,7 @@ use egui::{
 };
 
 use super::number::{hold_keys, pressed};
-use super::{Chevron, Enablement, paint_check, paint_chevron};
+use super::{Chevron, Enablement, Tip, paint_check, paint_chevron, tipped};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 /// A trigger that shows the chosen option and opens the list of `options`,
@@ -32,6 +32,7 @@ pub struct Select<T> {
     current: T,
     options: Vec<(T, String)>,
     name: Option<String>,
+    tooltip: Tip,
     classes: Tw,
     enablement: Enablement,
 }
@@ -46,6 +47,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
                 .map(|&(value, label)| (value, label.to_owned()))
                 .collect(),
             name: None,
+            tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
         }
@@ -61,6 +63,16 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
     /// which is `w-fit` until then; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.classes = classes;
+        self
+    }
+
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it.
+    #[must_use]
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
         self
     }
 
@@ -100,6 +112,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
             .position(|(value, _)| *value == self.current);
         let shown = current.map_or_else(String::new, |at| self.options[at].1.clone());
         let name = self.name.unwrap_or_default();
+        let tooltip = self.tooltip;
         let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let list = List {
             style: style.clone(),
@@ -111,7 +124,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
             key,
             classes,
             move |app, ui| {
-                let response = ui.node_response();
+                let response = tipped(ui.node_response(), &tooltip);
                 if let Some(chosen) = list.show(ui, &response) {
                     choose(app, ui.ctx(), list.options[chosen].0);
                 }

@@ -7,7 +7,7 @@ use std::hash::Hash;
 use egui::{Context, Role};
 
 use super::Mark;
-use super::{Enablement, centered, described};
+use super::{Enablement, Tip, centered, described};
 use crate::{Builder, Icon, Style, Tw, none, tw};
 
 /// Whether a cell is the chosen one.
@@ -70,6 +70,7 @@ struct Option_<T> {
     value: T,
     label: String,
     icon: Option<Icon>,
+    tooltip: Tip,
 }
 
 impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
@@ -83,6 +84,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
                     value,
                     label: label.to_owned(),
                     icon: None,
+                    tooltip: None,
                 })
                 .collect(),
             rows: Rows::One,
@@ -100,6 +102,19 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
         debug_assert!(option.is_some(), "no option {value:?} to give an icon");
         if let Some(option) = option {
             option.icon = Some(icon);
+        }
+        self
+    }
+
+    /// Shows `text` while the pointer hovers the cell of the option `value`,
+    /// as egui's `on_hover_text` does and also when the control is disabled.
+    /// It adds to the cell's accessible name and does not replace it.
+    #[must_use]
+    pub fn option_tooltip(mut self, value: T, text: impl Into<egui::WidgetText>) -> Self {
+        let option = self.options.iter_mut().find(|option| option.value == value);
+        debug_assert!(option.is_some(), "no option {value:?} to give a tooltip");
+        if let Some(option) = option {
+            option.tooltip = Some(text.into());
         }
         self
     }
@@ -233,7 +248,13 @@ fn cells_in<A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'sta
     select: impl Fn(&mut A, &Context, T) + Copy + 'static,
 ) {
     b.div_id(key, container, none, |b| {
-        for Option_ { value, label, icon } in options {
+        for Option_ {
+            value,
+            label,
+            icon,
+            tooltip,
+        } in options
+        {
             let state = if value == current {
                 Cell::Pressed
             } else {
@@ -243,7 +264,7 @@ fn cells_in<A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'sta
             let name = label.clone();
             let clicked = move |ui: &mut egui::Ui| {
                 let mark = Mark::from(state == Cell::Pressed);
-                described(ui, Role::RadioButton, Some(mark), &name).clicked()
+                described(ui, Role::RadioButton, Some(mark), &name, &tooltip).clicked()
             };
             match icon {
                 None => b.span(value, classes, label, move |app, ui| {

@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{Id, Key, Role, Ui};
+use egui::{Id, Key, Role, Ui, WidgetText};
 
 use super::Mark;
 use super::{Enablement, choice_label, choice_row, described, number};
@@ -24,6 +24,7 @@ enum Part<T> {
 pub struct RadioGroup<T> {
     current: T,
     options: Vec<(T, String)>,
+    tooltips: Vec<(T, WidgetText)>,
     classes: Tw,
     enablement: Enablement,
 }
@@ -38,6 +39,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                 .iter()
                 .map(|&(value, label)| (value, label.to_owned()))
                 .collect(),
+            tooltips: Vec::new(),
             classes: tw(),
             enablement: Enablement::Enabled,
         }
@@ -47,6 +49,19 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
     /// width or placement; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.classes = classes;
+        self
+    }
+
+    /// Shows `text` while the pointer hovers the circle of the option `value`,
+    /// as egui's `on_hover_text` does and also when the group is disabled. It
+    /// adds to the option's accessible name and does not replace it.
+    #[must_use]
+    pub fn option_tooltip(mut self, value: T, text: impl Into<WidgetText>) -> Self {
+        debug_assert!(
+            self.options.iter().any(|&(option, _)| option == value),
+            "no option {value:?} to give a tooltip"
+        );
+        self.tooltips.push((value, text.into()));
         self
     }
 
@@ -96,6 +111,11 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                     } else {
                         circle.focusable_none()
                     };
+                    let tooltip = self
+                        .tooltips
+                        .iter()
+                        .find(|&&(option, _)| option == value)
+                        .map(|(_, text)| text.clone());
                     let around = |offset: usize| {
                         let at = (index + offset) % count;
                         (values[at], ids[at])
@@ -115,6 +135,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                                         Role::RadioButton,
                                         Some(Mark::from(chosen)),
                                         "",
+                                        &tooltip,
                                     );
                                     if response.clicked() {
                                         select(app, value);

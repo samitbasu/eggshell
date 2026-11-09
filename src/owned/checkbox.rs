@@ -7,7 +7,7 @@ use std::hash::Hash;
 use egui::Role;
 
 use super::Mark;
-use super::{Enablement, choice_label, choice_row, described, paint_check};
+use super::{Enablement, Tip, choice_label, choice_row, described, paint_check};
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -21,6 +21,7 @@ enum Part {
 pub struct Checkbox {
     label: Option<String>,
     name: Option<String>,
+    tooltip: Tip,
     mark: Mark,
     classes: Tw,
     enablement: Enablement,
@@ -32,6 +33,7 @@ impl Checkbox {
         Self {
             label: Some(label.into()),
             name: None,
+            tooltip: None,
             mark,
             classes: tw(),
             enablement: Enablement::Enabled,
@@ -56,6 +58,16 @@ impl Checkbox {
     /// width or placement; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.classes = classes;
+        self
+    }
+
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it.
+    #[must_use]
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
         self
     }
 
@@ -90,6 +102,7 @@ impl Checkbox {
         );
         let (glyph, mark) = (checkbox.glyph, self.mark);
         let name = self.name.unwrap_or_default();
+        let tooltip = self.tooltip;
         b.scope(key, |b| {
             let control = b.id_of(Part::Box);
             let row =
@@ -99,7 +112,7 @@ impl Checkbox {
                     Part::Box,
                     box_classes,
                     move |app, ui| {
-                        if described(ui, Role::CheckBox, Some(mark), &name).clicked() {
+                        if described(ui, Role::CheckBox, Some(mark), &name, &tooltip).clicked() {
                             on_toggle(app);
                         }
                     },
