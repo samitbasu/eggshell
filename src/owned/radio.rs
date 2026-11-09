@@ -3,10 +3,11 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{Id, Key, Role, Ui, WidgetInfo};
+use egui::{Id, Key, Role, Ui};
 
-use super::{Enablement, choice_label, choice_row, number};
-use crate::{Builder, NodeUi as _, Style, Tw, tw};
+use super::{Enablement, choice_label, choice_row, described, number};
+use crate::style::Mark;
+use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part<T> {
@@ -80,13 +81,8 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                 for (index, (value, label)) in self.options.into_iter().enumerate() {
                     let chosen = value == self.current;
                     let look = if chosen { &radio.on } else { &radio.off };
-                    let circle = look
-                        .classes(&style, u8::MAX, enablement, radio.transition)
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .shrink_0()
-                        .size_px(radio.size);
+                    let circle =
+                        look.indicator(&style, u8::MAX, enablement, radio.transition, radio.size);
                     let circle = if index == tab_stop {
                         circle
                     } else {
@@ -104,7 +100,8 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                             Part::Circle(value),
                             circle,
                             move |app, ui| {
-                                let response = ui.node_response();
+                                let response =
+                                    described(ui, Role::RadioButton, Some(Mark::from(chosen)), "");
                                 if response.clicked() {
                                     select(app, value);
                                 }
@@ -112,14 +109,6 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                                 if response.has_focus() {
                                     navigate(app, ui, select, previous, next);
                                 }
-                                response.widget_info(|| {
-                                    WidgetInfo::selected(
-                                        Role::RadioButton,
-                                        ui.is_enabled(),
-                                        chosen,
-                                        "",
-                                    )
-                                });
                             },
                             |b| {
                                 if chosen {

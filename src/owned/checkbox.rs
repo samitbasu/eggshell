@@ -4,11 +4,11 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{Role, WidgetInfo};
+use egui::Role;
 
-use super::{Enablement, choice_label, choice_row, paint_check};
+use super::{Enablement, choice_label, choice_row, described, paint_check};
 use crate::style::Mark;
-use crate::{Builder, NodeUi as _, Style, tw};
+use crate::{Builder, Style, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -71,13 +71,13 @@ impl Checkbox {
             Mark::On => &checkbox.on,
         };
         let enablement = self.enablement;
-        let box_classes = look
-            .classes(&style, checkbox.radius, enablement, checkbox.transition)
-            .flex()
-            .items_center()
-            .justify_center()
-            .shrink_0()
-            .size_px(checkbox.size);
+        let box_classes = look.indicator(
+            &style,
+            checkbox.radius,
+            enablement,
+            checkbox.transition,
+            checkbox.size,
+        );
         let (glyph, mark) = (checkbox.glyph, self.mark);
         let name = self.name.unwrap_or_default();
         b.scope(key, |b| {
@@ -87,18 +87,9 @@ impl Checkbox {
                     Part::Box,
                     box_classes,
                     move |app, ui| {
-                        let response = ui.node_response();
-                        if response.clicked() {
+                        if described(ui, Role::CheckBox, Some(mark), &name).clicked() {
                             on_toggle(app);
                         }
-                        response.widget_info(|| {
-                            WidgetInfo::selected(
-                                Role::CheckBox,
-                                ui.is_enabled(),
-                                mark == Mark::On,
-                                &name,
-                            )
-                        });
                     },
                     |b| {
                         if mark == Mark::On {

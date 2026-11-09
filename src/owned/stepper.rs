@@ -7,9 +7,9 @@ use std::ops::RangeInclusive;
 use egui::{Key, Role, WidgetInfo};
 
 use super::number::{Step, pressed};
-use super::{Chevron, Enablement, field_classes, paint_chevron};
+use super::{Chevron, Enablement, centered, described, field_classes, paint_chevron};
 use crate::prim::text_field::{self, Field};
-use crate::{Builder, NodeUi as _, Style, Tw, tw};
+use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -120,20 +120,15 @@ impl Stepper {
             } else {
                 enablement
             };
-            stepper
-                .button
-                .classes(
-                    &style,
-                    stepper.button_radius,
-                    enablement,
-                    stepper.transition,
-                )
-                .flex()
-                .items_center()
-                .justify_center()
-                .focusable_none()
-                .w_px(stepper.button_size.x)
-                .h_px(stepper.button_size.y)
+            centered(stepper.button.classes(
+                &style,
+                stepper.button_radius,
+                enablement,
+                stepper.transition,
+            ))
+            .focusable_none()
+            .w_px(stepper.button_size.x)
+            .h_px(stepper.button_size.y)
         };
         let (up, down) = (button(value >= high), button(value <= low));
         let glyph = stepper.glyph;
@@ -162,13 +157,9 @@ impl Stepper {
                             part,
                             classes,
                             move |app, ui| {
-                                let response = ui.node_response();
-                                if response.clicked() {
+                                if described(ui, Role::Button, None, name.trim()).clicked() {
                                     set(app, spec.step.moved(spec.value, steps, &spec.range));
                                 }
-                                response.widget_info(|| {
-                                    WidgetInfo::labeled(Role::Button, ui.is_enabled(), name.trim())
-                                });
                             },
                             |b| b.paint(tw().size_px(glyph), paint_chevron(chevron)),
                         );

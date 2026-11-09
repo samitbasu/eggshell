@@ -4,10 +4,11 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{Context, Role, WidgetInfo};
+use egui::{Context, Role};
 
-use super::Enablement;
-use crate::{Builder, NodeUi as _, Style, Tw, none, tw};
+use super::{Enablement, centered, described};
+use crate::style::Mark;
+use crate::{Builder, Style, Tw, none, tw};
 
 /// Whether a cell is the chosen one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,15 +115,12 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
                 Cell::Pressed => &seg.selected,
                 Cell::Released => &seg.unselected,
             };
-            let classes = look
-                .classes(&style, seg.cell_radius, enablement, seg.transition)
-                .flex()
-                .grow()
-                .items_center()
-                .justify_center()
-                .px(seg.cell_padding.x / 4.0)
-                .py(seg.cell_padding.y / 4.0)
-                .role(style.text.clone());
+            let classes =
+                centered(look.classes(&style, seg.cell_radius, enablement, seg.transition))
+                    .grow()
+                    .px(seg.cell_padding.x / 4.0)
+                    .py(seg.cell_padding.y / 4.0)
+                    .role(style.text.clone());
             match rows {
                 Rows::One => classes.h_full(),
                 Rows::Wrapping => classes.h_auto(),
@@ -151,18 +149,10 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
                 };
                 let name = label.clone();
                 b.span(value, cell(state).sense_click(), label, move |app, ui| {
-                    let response = ui.node_response();
-                    if response.clicked() {
+                    let mark = Mark::from(state == Cell::Pressed);
+                    if described(ui, Role::RadioButton, Some(mark), &name).clicked() {
                         select(app, ui.ctx(), value);
                     }
-                    response.widget_info(|| {
-                        WidgetInfo::selected(
-                            Role::RadioButton,
-                            ui.is_enabled(),
-                            state == Cell::Pressed,
-                            &name,
-                        )
-                    });
                 });
             }
         });

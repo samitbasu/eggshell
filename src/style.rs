@@ -871,12 +871,6 @@ impl Shadcn {
             selection.text = Some(t.foreground);
             selection
         };
-        style.link = {
-            let mut link = style.link;
-            link.rest = t.primary;
-            link.hover = t.primary;
-            link
-        };
         style
     }
 

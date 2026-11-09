@@ -22,7 +22,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
 
-use egui::{Color32, Id, Painter, Pos2, Rect, Shape, Stroke, pos2};
+use egui::{Color32, Id, Painter, Pos2, Rect, Response, Role, Shape, Stroke, Ui, WidgetInfo, pos2};
 
 pub use button::Button;
 pub use checkbox::Checkbox;
@@ -34,7 +34,8 @@ pub use slider::Slider;
 pub use stepper::Stepper;
 pub use switch::Switch;
 
-use crate::contract::{Colors, Look, Style};
+use crate::contract::{Colors, Look, States, Style};
+use crate::style::Mark;
 use crate::{Builder, NodeUi as _, Tw, tw};
 
 /// Whether a control takes input.
@@ -45,6 +46,40 @@ pub enum Enablement {
     Enabled,
     /// Inert, and drawn in the style's explicit disabled colours.
     Disabled,
+}
+
+impl Enablement {
+    /// `classes`, inert when disabled.
+    fn apply(self, classes: Tw) -> Tw {
+        match self {
+            Self::Enabled => classes,
+            Self::Disabled => classes.inert(),
+        }
+    }
+
+    /// The colours of `states` at rest, or its disabled ones.
+    fn colors(self, states: States) -> Colors {
+        match self {
+            Self::Enabled => states.rest,
+            Self::Disabled => states.disabled,
+        }
+    }
+}
+
+/// `classes` with their content centred in both directions.
+fn centered(classes: Tw) -> Tw {
+    classes.flex().items_center().justify_center()
+}
+
+/// The node's response, described to assistive technology as a `role` named
+/// `name`, and as on or off when it is `selected`.
+fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str) -> Response {
+    let response = ui.node_response();
+    response.widget_info(|| match selected {
+        Some(mark) => WidgetInfo::selected(role, ui.is_enabled(), mark == Mark::On, name),
+        None => WidgetInfo::labeled(role, ui.is_enabled(), name),
+    });
+    response
 }
 
 /// The classes that paint a box with `colors`. A control's text is not
@@ -117,6 +152,23 @@ impl Look {
                 shadow(classes, 1.0)
             }
         }
+    }
+}
+
+impl Look {
+    /// The classes of a checkbox box or radio circle: a `size` square that
+    /// keeps its size and centres what it holds.
+    fn indicator(
+        &self,
+        style: &Style,
+        radius: u8,
+        enablement: Enablement,
+        transition: Duration,
+        size: f32,
+    ) -> Tw {
+        centered(self.classes(style, radius, enablement, transition))
+            .shrink_0()
+            .size_px(size)
     }
 }
 
@@ -194,10 +246,7 @@ fn choice_row(style: &Style, enablement: Enablement, gap: f32) -> Tw {
         })
         .whitespace_nowrap()
         .select_none();
-    match enablement {
-        Enablement::Enabled => row,
-        Enablement::Disabled => row.inert(),
-    }
+    enablement.apply(row)
 }
 
 /// The visible label of the control `control`: clicking it runs `on_click`,
@@ -211,11 +260,7 @@ fn choice_label<A: 'static, K: Hash + Debug + 'static>(
     on_click: impl FnOnce(&mut A) + 'static,
 ) {
     let label = Style::of(b.ctx()).label;
-    let color = match enablement {
-        Enablement::Enabled => label.rest,
-        Enablement::Disabled => label.disabled,
-    }
-    .text;
+    let color = enablement.colors(label).text;
     let name = text.clone();
     b.span(
         key,

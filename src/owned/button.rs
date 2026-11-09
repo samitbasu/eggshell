@@ -3,12 +3,12 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{Role, WidgetInfo};
+use egui::Role;
 
-use super::Enablement;
+use super::{Enablement, centered, described};
 use crate::contract::{Size, Variant};
 use crate::style::Mark;
-use crate::{Builder, NodeUi as _, Style, Tw, tw};
+use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug)]
 enum Kind {
@@ -120,17 +120,14 @@ impl Button {
                     Mark::On => &button.toggle_on,
                 },
                 *button.toggle_sizes.get(self.size),
-                Some(mark == Mark::On),
+                Some(mark),
             ),
         };
         let mut classes = look.classes(&style, metrics.radius, self.enablement, button.transition);
         if self.enablement == Enablement::Enabled && self.press == Press::Shifts {
             classes = classes.active(|p| p.translate_y(button.press_shift));
         }
-        let classes = classes
-            .flex()
-            .items_center()
-            .justify_center()
+        let classes = centered(classes)
             .h_px(metrics.height)
             .min_w_px(metrics.min_width)
             .px(metrics.padding_x / 4.0)
@@ -143,14 +140,9 @@ impl Button {
             key,
             classes,
             move |app, ui| {
-                let response = ui.node_response();
-                if response.clicked() {
+                if described(ui, Role::Button, selected, &name).clicked() {
                     on_click(app);
                 }
-                response.widget_info(|| match selected {
-                    Some(on) => WidgetInfo::selected(Role::Button, ui.is_enabled(), on, &name),
-                    None => WidgetInfo::labeled(Role::Button, ui.is_enabled(), &name),
-                });
             },
             |b| b.text(tw(), self.label),
         );

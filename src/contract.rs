@@ -483,16 +483,6 @@ pub struct Selection {
     pub text: Option<Color32>,
 }
 
-/// Links.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct Link {
-    /// At rest.
-    pub rest: Color32,
-    /// Under the pointer.
-    pub hover: Color32,
-}
-
 /// The look of every widget bullseye draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -522,8 +512,6 @@ pub struct Style {
     pub stepper: StepperStyle,
     /// Selected text.
     pub selection: Selection,
-    /// Links.
-    pub link: Link,
 }
 
 #[derive(Clone)]
@@ -809,10 +797,6 @@ impl Style {
             selection: Selection {
                 fill: v.selection.bg_fill,
                 text: Some(v.selection.stroke.color),
-            },
-            link: Link {
-                rest: v.hyperlink_color,
-                hover: v.hyperlink_color,
             },
         }
     }

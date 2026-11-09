@@ -131,10 +131,7 @@ impl Slider {
             0.0
         };
         let thumb = slider.thumb_size;
-        let fill = |states: crate::contract::States| match enablement {
-            Enablement::Enabled => states.rest,
-            Enablement::Disabled => states.disabled,
-        };
+        let fill = |states| enablement.colors(states);
         let hit = tw()
             .relative()
             .flex()
@@ -143,10 +140,7 @@ impl Slider {
             .h_px(thumb)
             .sense_click_drag()
             .focusable_none();
-        let hit = match enablement {
-            Enablement::Enabled => hit,
-            Enablement::Disabled => hit.inert(),
-        };
+        let hit = enablement.apply(hit);
         let bar = painted(
             tw().w_full()
                 .h_px(slider.track_height)

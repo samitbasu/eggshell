@@ -4,12 +4,12 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{Role, Vec2, WidgetInfo};
+use egui::{Role, Vec2};
 
-use super::{Enablement, choice_label, choice_row};
+use super::{Enablement, choice_label, choice_row, described};
 use crate::contract::Size;
 use crate::style::Mark;
-use crate::{Builder, NodeUi as _, Progress, Style, tw};
+use crate::{Builder, Progress, Style, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -89,7 +89,8 @@ impl Switch {
         let switch = &style.switch;
         let metrics = *switch.sizes.get(self.size);
         let track = self.track.unwrap_or(metrics.track);
-        let on = self.mark == Mark::On;
+        let mark = self.mark;
+        let on = mark == Mark::On;
         let enablement = self.enablement;
         let slide = switch.slide.as_secs_f32();
         let thumb_scale = track.y / metrics.track.y;
@@ -104,10 +105,7 @@ impl Switch {
                 .ctx()
                 .animate_bool_with_time(control.with("slide"), on, slide);
             let look = switch.off.towards(switch.on, Progress::new(tint));
-            let thumb_color = match enablement {
-                Enablement::Enabled => look.states.rest.text,
-                Enablement::Disabled => look.states.disabled.text,
-            };
+            let thumb_color = enablement.colors(look.states).text;
             let classes = look
                 .classes(&style, u8::MAX, enablement, switch.transition)
                 .flex()
@@ -120,13 +118,9 @@ impl Switch {
                     Part::Track,
                     classes,
                     move |app, ui| {
-                        let response = ui.node_response();
-                        if response.clicked() {
+                        if described(ui, Role::Switch, Some(mark), &name).clicked() {
                             on_toggle(app);
                         }
-                        response.widget_info(|| {
-                            WidgetInfo::selected(Role::Switch, ui.is_enabled(), on, &name)
-                        });
                     },
                     |b| {
                         b.paint(tw().w_full().h_full(), move |painter, rect, _| {
