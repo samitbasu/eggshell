@@ -25,6 +25,7 @@ mod owned_choice;
 mod owned_number;
 mod ports;
 mod prims;
+mod selection;
 mod sizing;
 #[cfg(feature = "snapshots")]
 mod snapshots;

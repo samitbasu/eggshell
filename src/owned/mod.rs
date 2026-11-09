@@ -47,9 +47,11 @@ pub enum Enablement {
     Disabled,
 }
 
-/// The classes that paint a box with `colors`.
+/// The classes that paint a box with `colors`. A control's text is not
+/// selectable: pressing it operates the control.
 fn painted(classes: Tw, colors: Colors) -> Tw {
     classes
+        .select_none()
         .bg(colors.fill)
         .border_color(colors.border)
         .text(colors.text)
@@ -190,7 +192,8 @@ fn choice_row(style: &Style, enablement: Enablement, gap: f32) -> Tw {
             line_height: style.text.size,
             ..style.text.clone()
         })
-        .whitespace_nowrap();
+        .whitespace_nowrap()
+        .select_none();
     match enablement {
         Enablement::Enabled => row,
         Enablement::Disabled => row.inert(),

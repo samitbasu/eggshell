@@ -5,19 +5,23 @@ use egui::emath::TSTransform;
 use egui::epaint::{RectShape, StrokeKind};
 use egui::layers::ShapeIdx;
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
 
+use egui::text_selection::LabelSelectionState;
 use egui::{
-    Align, Color32, Frame, Id, Image, Layout, Painter, Pos2, Rect, Response, Role, Sense, Stroke,
-    Ui, UiBuilder, UiKind, UiStackInfo, Vec2, WidgetInfo, pos2, vec2,
+    Align, Color32, Frame, Galley, Id, Image, Layout, Painter, Pos2, Rect, Response, Role, Sense,
+    Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, WidgetInfo, pos2, vec2,
 };
 use taffy::Overflow;
 
+use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug};
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
-use crate::text::{TextAlign, TextStyle};
+use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::tw::{BoxPaint, Flip, Grouping, Look, Opacity, Presence, Progress, Sides, State};
 
 /// Rounds coordinates to whole physical pixels.
@@ -89,6 +93,7 @@ struct Inherited {
     /// A text colour a variant of an ancestor set, for descendants that
     /// inherit their colour.
     text_color: Option<Color32>,
+    interactive: Interactive,
     /// The backgrounds of the node and its ancestors, composited. egui widgets
     /// that fade toward `ui.stack().bg_color()` read it from the `Ui`'s stack
     /// info, as bullseye paints backgrounds without egui `Frame`s.
@@ -373,6 +378,8 @@ struct Walk<'a, A> {
     draws: Vec<Option<DrawFn<A>>>,
     grid: PixelGrid,
     subtrees: Vec<(Id, Box<[Id]>)>,
+    selection: Selection,
+    text_seen: HashMap<Id, u32>,
 }
 
 impl<A> Walk<'_, A> {
@@ -575,9 +582,14 @@ impl<A> Walk<'_, A> {
             } else {
                 None
             },
+            interactive: if node.senses() {
+                Interactive::Within
+            } else {
+                parent.interactive
+            },
         };
         if let Some(prim) = self.prims[index].take() {
-            self.paint_prim(prim, &text, &boxes, inherited);
+            self.paint_prim(prim, node, &text, &boxes, inherited);
         }
         if let Some(draw) = node.draw.and_then(|slot| self.draws[slot].take()) {
             let id = node.id().expect("a node with a draw closure is identified");
@@ -622,7 +634,14 @@ impl<A> Walk<'_, A> {
         });
     }
 
-    fn paint_prim(&mut self, prim: Prim, text: &TextStyle, boxes: &Boxes, inherited: Inherited) {
+    fn paint_prim(
+        &mut self,
+        prim: Prim,
+        node: &PlacedNode,
+        text: &TextStyle,
+        boxes: &Boxes,
+        inherited: Inherited,
+    ) {
         let content = boxes.content;
         match prim {
             Prim::Text(string) => {
@@ -639,8 +658,12 @@ impl<A> Walk<'_, A> {
                     TextAlign::Center => content.center_top(),
                     TextAlign::Right => content.right_top(),
                 };
-                self.painter(inherited.clip, inherited.opacity)
-                    .galley(anchor, galley, text.color);
+                if text.select.selects(inherited.interactive) {
+                    self.select_text(node, galley, anchor, content, text, inherited);
+                } else {
+                    self.painter(inherited.clip, inherited.opacity)
+                        .galley(anchor, galley, text.color);
+                }
             }
             Prim::Icon(icon) => self.paint_image(image_for(icon, text.color), content, inherited),
             Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
@@ -650,6 +673,57 @@ impl<A> Walk<'_, A> {
                 text.color,
             ),
         }
+    }
+
+    /// Paints `galley` through egui's label selection, which draws the
+    /// highlight, follows drags across labels and copies on Ctrl+C. The
+    /// galley and its position are the ones plain painting uses, so layout
+    /// and pixels are the same without a selection. The whole content box
+    /// takes the pointer, so a drag may end in the blank beside the text.
+    fn select_text(
+        &mut self,
+        node: &PlacedNode,
+        galley: Arc<Galley>,
+        anchor: Pos2,
+        content: Rect,
+        text: &TextStyle,
+        inherited: Inherited,
+    ) {
+        let id = self.selection_id(node);
+        let selection = self.selection;
+        node_ui(
+            self.ui,
+            UiBuilder::new().max_rect(content),
+            inherited,
+            Some(text),
+            |ui| {
+                ui.visuals_mut().selection.bg_fill = selection.fill;
+                if let Some(color) = selection.text {
+                    ui.visuals_mut().selection.stroke.color = color;
+                }
+                let response = ui.interact(content, id, Sense::click_and_drag() - Sense::FOCUSABLE);
+                response.widget_info(|| {
+                    WidgetInfo::labeled(Role::Label, ui.is_enabled(), galley.text())
+                });
+                LabelSelectionState::label_text_selection(
+                    ui,
+                    &response,
+                    anchor,
+                    galley,
+                    text.color,
+                    Stroke::NONE,
+                );
+            },
+        );
+    }
+
+    /// A stable id for the node's selectable text: its key path, and the
+    /// order among anonymous nodes that share one.
+    fn selection_id(&mut self, node: &PlacedNode) -> Id {
+        let path = self.ui.scope_id().with(("select", node.path()));
+        let seen = self.text_seen.entry(path).or_insert(0);
+        *seen += 1;
+        path.with(*seen)
     }
 
     fn paint_image(&mut self, image: Image<'static>, content: Rect, inherited: Inherited) {
@@ -723,8 +797,10 @@ impl<A> Placed<A> {
             inertness: Inertness::Live,
             group: None,
             text_color: None,
+            interactive: Interactive::Outside,
             backdrop: Color32::TRANSPARENT,
         };
+        let selection = Style::of(ui.ctx()).selection;
         let mut walk = Walk {
             app,
             ui,
@@ -733,6 +809,8 @@ impl<A> Placed<A> {
             draws,
             grid,
             subtrees: Vec::new(),
+            selection,
+            text_seen: HashMap::new(),
         };
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();

@@ -4,7 +4,8 @@ use egui::{Color32, FontFamily};
 
 use super::Tw;
 use crate::text::{
-    FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, Tracking, WhiteSpace,
+    FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, Tracking, UserSelect,
+    WhiteSpace,
 };
 
 macro_rules! text_flags {
@@ -59,6 +60,8 @@ impl Tw {
         uppercase, "`uppercase`.", |t| t.case = Some(TextCase::Upper);
         capitalize, "`capitalize`.", |t| t.case = Some(TextCase::Capitalize);
         normal_case, "`normal-case`.", |t| t.case = Some(TextCase::Normal);
+        select_text, "`select-text`: selectable even inside a node that senses the pointer.", |t| t.select = Some(UserSelect::Text);
+        select_none, "`select-none`.", |t| t.select = Some(UserSelect::None);
     }
 
     /// `truncate`: no wrapping, an ellipsis at the end, and `overflow-hidden`

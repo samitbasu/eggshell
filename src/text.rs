@@ -106,6 +106,35 @@ impl TextCase {
     }
 }
 
+/// Whether the pointer selects a node's text, like CSS `user-select`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum UserSelect {
+    /// Selectable unless the node, or an ancestor, senses the pointer.
+    #[default]
+    Auto,
+    /// Always selectable, even inside a node that senses the pointer.
+    Text,
+    /// Never selectable.
+    None,
+}
+
+/// Whether a node is, or is inside, one that senses the pointer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Interactive {
+    Within,
+    Outside,
+}
+
+impl UserSelect {
+    pub(crate) fn selects(self, interactive: Interactive) -> bool {
+        match self {
+            Self::Auto => interactive == Interactive::Outside,
+            Self::Text => true,
+            Self::None => false,
+        }
+    }
+}
+
 /// Extra space between letters, in points.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Tracking(f32);
@@ -147,6 +176,8 @@ pub struct TextStyle {
     pub align: TextAlign,
     /// Extra letter spacing.
     pub tracking: Tracking,
+    /// Whether the pointer selects the text.
+    pub select: UserSelect,
     /// Capitalisation.
     pub case: TextCase,
 }
@@ -163,6 +194,7 @@ impl TextStyle {
             align: TextAlign::default(),
             tracking: Tracking::default(),
             case: TextCase::default(),
+            select: UserSelect::default(),
         }
     }
 
@@ -206,6 +238,7 @@ pub struct TextClasses {
     pub(crate) align: Option<TextAlign>,
     pub(crate) tracking: Option<Tracking>,
     pub(crate) case: Option<TextCase>,
+    pub(crate) select: Option<UserSelect>,
 }
 
 impl TextClasses {
@@ -227,6 +260,7 @@ impl TextClasses {
             align: self.align.unwrap_or(inherited.align),
             tracking: self.tracking.unwrap_or(inherited.tracking),
             case: self.case.unwrap_or(inherited.case),
+            select: self.select.unwrap_or(inherited.select),
         }
     }
 }
