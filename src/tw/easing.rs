@@ -4,7 +4,7 @@ use super::Progress;
 
 /// A transition's timing function, as Tailwind's `ease-*` classes.
 ///
-/// Egui's animation supplies the clock as linear [`Progress`]; [`ease`](Self::ease)
+/// The transition clock runs as linear [`Progress`]; [`ease`](Self::ease)
 /// bends it before anything is blended.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Easing {

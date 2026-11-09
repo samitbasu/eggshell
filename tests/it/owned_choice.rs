@@ -304,8 +304,8 @@ fn switch_track_and_thumb_are_the_styles_off_and_on() {
 fn the_thumb_slides_between_the_ends() {
     let mut harness = harness(Theme::Light);
     let (rect, rest) = thumb(&harness, "/\"air\"/Track");
-    click_node(&mut harness, "/\"air\"/Track");
-    harness.step();
+    harness.state_mut().app.on = true;
+    harness.run_steps(2);
     let (_, mid) = thumb(&harness, "/\"air\"/Track");
     harness.run_steps(12);
     let (_, end) = thumb(&harness, "/\"air\"/Track");
@@ -512,8 +512,8 @@ fn the_switch_track_eases_to_its_new_colour() {
     assert_ne!(off, on);
     let track = rect_of(&harness, "/\"air\"/Track");
     assert_eq!(box_at(&harness, track).fill, off);
-    click_node(&mut harness, "/\"air\"/Track");
-    harness.step();
+    harness.state_mut().app.on = true;
+    harness.run_steps(2);
     let mid = box_at(&harness, track).fill;
     assert!(
         mid != off && mid != on,
@@ -521,8 +521,8 @@ fn the_switch_track_eases_to_its_new_colour() {
     );
     harness.run_steps(12);
     assert_eq!(box_at(&harness, track).fill, on);
-    click_node(&mut harness, "/\"air\"/Track");
-    harness.step();
+    harness.state_mut().app.on = false;
+    harness.run_steps(2);
     let back = box_at(&harness, track).fill;
     assert!(back != off && back != on, "and back again");
     harness.run_steps(12);

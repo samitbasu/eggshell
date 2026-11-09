@@ -9,6 +9,7 @@ use egui::{Role, Vec2};
 use super::{Enablement, choice_label, choice_row, described};
 use crate::contract::Size;
 use crate::style::Mark;
+use crate::transition;
 use crate::{Builder, Easing, Progress, Style, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -92,7 +93,8 @@ impl Switch {
         let mark = self.mark;
         let on = mark == Mark::On;
         let enablement = self.enablement;
-        let slide = switch.slide.as_secs_f32();
+        let slide = switch.slide;
+        let target = if on { Progress::END } else { Progress::START };
         let thumb_scale = track.y / metrics.track.y;
         let (thumb_off, thumb_on) = (
             metrics.thumb_off * thumb_scale,
@@ -101,11 +103,13 @@ impl Switch {
         let name = self.name.unwrap_or_default();
         b.scope(key, |b| {
             let control = b.id_of(Part::Track);
-            let tint = Easing::Default.ease(Progress::new(b.ctx().animate_bool_with_time(
+            let tint = transition::animate(
+                b.ctx(),
                 control.with("slide"),
-                on,
+                target,
                 slide,
-            )));
+                Easing::Default,
+            );
             let look = switch.off.towards(switch.on, tint);
             let thumb_color = enablement.colors(look.states).text;
             let classes = look
@@ -132,13 +136,13 @@ impl Switch {
                     },
                     |b| {
                         b.paint(tw().w_full().h_full(), move |painter, rect, _| {
-                            let t = f32::from(Easing::Default.ease(Progress::new(
-                                painter.ctx().animate_bool_with_time(
-                                    control.with("slide"),
-                                    on,
-                                    slide,
-                                ),
-                            )));
+                            let t = f32::from(transition::animate(
+                                painter.ctx(),
+                                control.with("slide"),
+                                target,
+                                slide,
+                                Easing::Default,
+                            ));
                             let diameter = thumb_off + (thumb_on - thumb_off) * t;
                             let inset = rect.height() / 2.0;
                             let x = egui::lerp(rect.left() + inset..=rect.right() - inset, t);

@@ -22,6 +22,7 @@ use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
 use crate::text::{Interactive, TextAlign, TextStyle};
+use crate::transition;
 use crate::tw::{BoxPaint, Flip, Grouping, Look, Opacity, Presence, Progress, Sides, State};
 
 /// Rounds coordinates to whole physical pixels.
@@ -470,14 +471,13 @@ impl<A> Walk<'_, A> {
             };
             let target = if on { Progress::END } else { Progress::START };
             match (variants.transition, node.id()) {
-                (Some(duration), Some(id)) => {
-                    let linear = self.ui.ctx().animate_value_with_time(
-                        id.with(("bullseye-state", state as u8)),
-                        target.into(),
-                        duration.as_secs_f32(),
-                    );
-                    variants.easing.ease(Progress::new(linear))
-                }
+                (Some(duration), Some(id)) => transition::animate(
+                    self.ui.ctx(),
+                    id.with(("bullseye-state", state as u8)),
+                    target,
+                    duration,
+                    variants.easing,
+                ),
                 _ => target,
             }
         };
