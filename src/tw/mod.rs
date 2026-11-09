@@ -12,6 +12,7 @@
 mod easing;
 mod grid;
 mod layout;
+mod merge;
 mod paint;
 mod text;
 mod units;
@@ -23,6 +24,7 @@ use crate::text::TextClasses;
 
 pub use easing::Easing;
 pub use grid::Track;
+use merge::Touched;
 pub use paint::{BoxPaint, Divide, Ring, Sides};
 pub use units::{Angle, Flip, Opacity, Progress};
 pub use variants::Paint;
@@ -37,12 +39,13 @@ pub struct Tw {
     pub(crate) style: Style,
     pub(crate) paint: BoxPaint,
     pub(crate) text: TextClasses,
-    pub(crate) z: i16,
+    pub(crate) z: Option<i16>,
     pub(crate) inert: bool,
     pub(crate) sensing: Sensing,
     pub(crate) focusability: Focusability,
     pub(crate) grouping: Grouping,
     pub(crate) variants: Variants,
+    touched: Touched,
 }
 
 /// A fresh class list. Like CSS, it starts as `display: block`.
@@ -54,12 +57,13 @@ pub fn tw() -> Tw {
         },
         paint: BoxPaint::default(),
         text: TextClasses::default(),
-        z: 0,
+        z: None,
         inert: false,
         sensing: Sensing::None,
         focusability: Focusability::Tab,
         grouping: Grouping::Ungrouped,
         variants: Variants::default(),
+        touched: Touched::default(),
     }
 }
 
@@ -81,7 +85,7 @@ impl Tw {
 
     /// Sibling paint and hit order; never affects layout.
     pub fn z(mut self, z: i16) -> Self {
-        self.z = z;
+        self.z = Some(z);
         self
     }
 
@@ -101,8 +105,8 @@ impl Tw {
         self
     }
 
-    fn styled(mut self, set: impl FnOnce(&mut Style)) -> Self {
-        set(&mut self.style);
+    fn styled(mut self, set: impl Fn(&mut Style)) -> Self {
+        self.write_layout(set);
         self
     }
 }
@@ -131,7 +135,7 @@ mod tests {
     #[test]
     fn z_and_inert_do_not_touch_layout() {
         let styled = tw().z(30).inert();
-        assert_eq!(styled.z, 30);
+        assert_eq!(styled.z, Some(30));
         assert!(styled.inert);
         assert_eq!(*styled.style(), *tw().style());
     }

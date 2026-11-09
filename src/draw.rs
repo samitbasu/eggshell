@@ -656,11 +656,14 @@ impl<A> Walk<'_, A> {
                     .ui
                     .ctx()
                     .fonts_mut(|fonts| leaf.drawn_galley(fonts, boxes.wrap_width));
+                let top = node
+                    .text_valign()
+                    .offset(content.height() - galley.size().y);
                 let anchor: Pos2 = match text.align {
                     TextAlign::Left => content.left_top(),
                     TextAlign::Center => content.center_top(),
                     TextAlign::Right => content.right_top(),
-                };
+                } + vec2(0.0, top);
                 if text.select.selects(inherited.interactive) {
                     self.select_text(node, galley, anchor, content, text, inherited);
                 } else {

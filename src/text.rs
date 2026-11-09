@@ -24,6 +24,64 @@ impl TextSpec {
     }
 }
 
+/// Where a text node places its lines when its box is taller than they are.
+///
+/// A node's text behaves as the single item of the node's own flex (or grid)
+/// container, so the node's own classes decide: `items-center` on a row,
+/// `justify-center` on a column, and their `end` forms. Anything else, such
+/// as a block, puts the text at the top. A parent's alignment never matters
+/// here: it places the node's box, which is already as tall as the text
+/// unless a height class says otherwise.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum VAlign {
+    #[default]
+    Top,
+    Middle,
+    Bottom,
+}
+
+impl VAlign {
+    pub(crate) fn of(style: &taffy::Style) -> Self {
+        use taffy::style::{AlignContent, AlignItems, Display, FlexDirection};
+        let from_items = |items: AlignItems| match items {
+            AlignItems::CENTER => Self::Middle,
+            AlignItems::END | AlignItems::FLEX_END => Self::Bottom,
+            _ => Self::Top,
+        };
+        let from_content = |content: AlignContent| match content {
+            AlignContent::CENTER => Self::Middle,
+            AlignContent::END | AlignContent::FLEX_END => Self::Bottom,
+            _ => Self::Top,
+        };
+        let flipped = |align| match align {
+            Self::Top => Self::Bottom,
+            Self::Bottom => Self::Top,
+            Self::Middle => Self::Middle,
+        };
+        match (style.display, style.flex_direction) {
+            (Display::Grid, _) => from_items(style.align_items),
+            (Display::Flex, FlexDirection::Row | FlexDirection::RowReverse) => {
+                from_items(style.align_items)
+            }
+            (Display::Flex, FlexDirection::Column) => from_content(style.justify_content),
+            (Display::Flex, FlexDirection::ColumnReverse) => {
+                flipped(from_content(style.justify_content))
+            }
+            _ => Self::Top,
+        }
+    }
+
+    /// How far down a box `spare` points taller than the text the text starts.
+    pub(crate) fn offset(self, spare: f32) -> f32 {
+        let spare = spare.max(0.0);
+        match self {
+            Self::Top => 0.0,
+            Self::Middle => spare / 2.0,
+            Self::Bottom => spare,
+        }
+    }
+}
+
 /// How text wraps.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum WhiteSpace {
@@ -242,6 +300,24 @@ pub struct TextClasses {
 }
 
 impl TextClasses {
+    /// These classes with those `other` sets on top.
+    #[must_use]
+    pub(crate) fn merge(self, other: Self) -> Self {
+        Self {
+            size: other.size.or(self.size),
+            line_height: other.line_height.or(self.line_height),
+            family: other.family.or(self.family),
+            color: other.color.or(self.color),
+            font_style: other.font_style.or(self.font_style),
+            decoration: other.decoration.or(self.decoration),
+            white_space: other.white_space.or(self.white_space),
+            align: other.align.or(self.align),
+            tracking: other.tracking.or(self.tracking),
+            case: other.case.or(self.case),
+            select: other.select.or(self.select),
+        }
+    }
+
     /// These classes merged over `inherited`, field by field.
     pub fn over(&self, inherited: &TextStyle) -> TextStyle {
         TextStyle {
