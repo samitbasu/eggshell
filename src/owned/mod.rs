@@ -34,8 +34,8 @@ pub use slider::Slider;
 pub use stepper::Stepper;
 pub use switch::Switch;
 
-use crate::contract::{Colors, Look, Paint, States, Style};
-use crate::{Builder, NodeUi as _, Tw, tw};
+use crate::contract::{Colors, Disabled, Look, Paint, States, Style};
+use crate::{Builder, NodeUi as _, TextSpec, Tw, tw};
 
 /// Whether a checkbox is ticked, a radio button chosen or a selectable
 /// button selected.
@@ -64,19 +64,31 @@ pub enum Enablement {
 }
 
 impl Enablement {
-    /// `classes`, inert when disabled.
-    fn apply(self, classes: Tw) -> Tw {
+    /// `classes`, inert when disabled and, if the style fades disabled
+    /// controls, faded. Apply it to the root of a control: what is inside
+    /// follows the root's opacity.
+    fn apply(self, classes: Tw, style: &Style) -> Tw {
         match self {
             Self::Enabled => classes,
-            Self::Disabled => classes.inert(),
+            Self::Disabled => self.fade(classes.inert(), style),
         }
     }
 
-    /// The colours of `states` at rest, or its disabled ones.
-    fn colors(self, states: States) -> Colors {
-        match self {
-            Self::Enabled => states.rest,
-            Self::Disabled => states.disabled,
+    /// `classes` at the opacity the style gives a disabled control, if it
+    /// fades them.
+    fn fade(self, classes: Tw, style: &Style) -> Tw {
+        match (self, style.disabled) {
+            (Self::Disabled, Disabled::Faded(opacity)) => classes.opacity(opacity),
+            _ => classes,
+        }
+    }
+
+    /// The colours of `states` at rest, or the disabled ones if the style
+    /// has them (a style that fades has the rest colours, faded by the root).
+    fn colors(self, states: States, style: &Style) -> Colors {
+        match (self, style.disabled) {
+            (Self::Disabled, Disabled::Colors) => states.disabled,
+            _ => states.rest,
         }
     }
 }
@@ -146,7 +158,16 @@ impl Paint {
         };
         let states = self.states;
         match enablement {
-            Enablement::Disabled => shadow(painted(base, states.disabled).inert(), 0.5),
+            Enablement::Disabled => {
+                let fade = match style.disabled {
+                    Disabled::Colors => 0.5,
+                    Disabled::Faded(_) => 1.0,
+                };
+                shadow(
+                    painted(base, enablement.colors(states, style)).inert(),
+                    fade,
+                )
+            }
             Enablement::Enabled => {
                 let ring = self.focus.unwrap_or(style.focus);
                 let (rest, focused) = (states.rest, states.focused);
@@ -210,7 +231,7 @@ fn field_classes(look: &Look, style: &Style, radius: u8, enablement: Enablement)
     let base = tw().border(look.border_width).rounded_px(f32::from(radius));
     let (states, shadow, focus) = (look.paint.states, look.paint.shadow, look.paint.focus);
     let classes = match enablement {
-        Enablement::Disabled => painted(base, states.disabled).inert(),
+        Enablement::Disabled => painted(base, enablement.colors(states, style)).inert(),
         Enablement::Enabled => {
             let ring = focus.unwrap_or(style.focus);
             painted(base, states.rest).focus_within(|p| {
@@ -267,18 +288,19 @@ fn paint_chevron(chevron: Chevron) -> impl Fn(&Painter, Rect, Color32) + 'static
 
 /// The classes of the row that holds a checkbox, radio button or switch and
 /// its label.
-fn choice_row(style: &Style, enablement: Enablement, gap: f32) -> Tw {
+fn choice_row(style: &Style, text: &Option<TextSpec>, enablement: Enablement, gap: f32) -> Tw {
+    let text = style.role(text);
     let row = tw()
         .flex()
         .items_center()
         .gap(gap / 4.0)
-        .role(crate::TextSpec {
-            line_height: style.text.size,
-            ..style.text.clone()
+        .role(TextSpec {
+            line_height: text.size,
+            ..text.clone()
         })
         .whitespace_nowrap()
         .select_none();
-    enablement.apply(row)
+    enablement.apply(row, style)
 }
 
 /// The visible label of the control `control`: clicking it runs `on_click`,
@@ -291,8 +313,8 @@ fn choice_label<A: 'static, K: Hash + Debug + 'static>(
     enablement: Enablement,
     on_click: impl FnOnce(&mut A) + 'static,
 ) {
-    let label = Style::of(b.ctx()).label;
-    let color = enablement.colors(label).text;
+    let style = Style::of(b.ctx());
+    let color = enablement.colors(style.label, &style).text;
     let name = text.clone();
     b.span(
         key,

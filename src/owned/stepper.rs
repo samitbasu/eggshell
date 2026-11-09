@@ -43,7 +43,7 @@ pub struct Stepper {
     range: RangeInclusive<f64>,
     step: Step,
     name: Option<String>,
-    adjust: fn(Tw) -> Tw,
+    classes: Tw,
     enablement: Enablement,
 }
 
@@ -55,7 +55,7 @@ impl Stepper {
             range,
             step: Step::ONE,
             name: None,
-            adjust: |classes| classes.w_px(112.0),
+            classes: tw(),
             enablement: Enablement::Enabled,
         }
     }
@@ -72,10 +72,11 @@ impl Stepper {
         self
     }
 
-    /// Changes the classes of the whole stepper, such as its width; it is 112
-    /// points wide until then.
-    pub fn classes(mut self, adjust: fn(Tw) -> Tw) -> Self {
-        self.adjust = adjust;
+    /// Classes merged over the styled ones of the whole stepper, such as its
+    /// width, which is 112 points until then; the later class wins
+    /// ([`Tw::merge`]).
+    pub fn classes(mut self, classes: Tw) -> Self {
+        self.classes = classes;
         self
     }
 
@@ -99,7 +100,7 @@ impl Stepper {
             range,
             step,
             name,
-            adjust,
+            classes,
             enablement,
         } = self;
         let (low, high) = (*range.start(), *range.end());
@@ -109,16 +110,20 @@ impl Stepper {
             step,
             name: name.unwrap_or_default(),
         };
-        let group = adjust(
-            field_classes(&stepper.group, &style, stepper.radius, enablement)
-                .flex()
-                .items_stretch()
-                .gap(1.0 / 4.0)
-                .h_px(stepper.height),
-        );
+        let group = enablement
+            .fade(
+                field_classes(&stepper.group, &style, stepper.radius, enablement)
+                    .flex()
+                    .items_stretch()
+                    .gap(1.0 / 4.0)
+                    .h_px(stepper.height)
+                    .w_px(112.0),
+                &style,
+            )
+            .merge(classes);
         let divider = match enablement {
             Enablement::Enabled => stepper.divider,
-            Enablement::Disabled => stepper.group.paint.states.disabled.border,
+            Enablement::Disabled => enablement.colors(stepper.group.paint.states, &style).border,
         };
         let group = group.divide_x(1.0, divider);
         let field_box = centered(tw())
@@ -157,7 +162,7 @@ impl Stepper {
                     let spec = spec.clone();
                     b.leaf(
                         Part::Field,
-                        tw().w_full(),
+                        tw().w_full().h_full(),
                         move |m| text_field::measure(m, &measured),
                         move |app, ui| spec.run_field(app, ui, &field, editing, set),
                     );

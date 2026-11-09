@@ -151,8 +151,18 @@ fn disabled_colours(style: &Style) -> Vec<(String, bullseye::contract::Colors)> 
             &style.button.variants.get(key).paint,
         );
     }
-    look("toggle off", &style.button.toggle_off);
-    look("toggle on", &style.button.toggle_on);
+    for key in style.button.toggle_off.keys() {
+        look(
+            &format!("toggle off {key:?}"),
+            style.button.toggle_off.get(key),
+        );
+    }
+    for key in style.button.toggle_on.keys() {
+        look(
+            &format!("toggle on {key:?}"),
+            style.button.toggle_on.get(key),
+        );
+    }
     look("checkbox off", &style.checkbox.off);
     look("checkbox on", &style.checkbox.on);
     look("radio off", &style.radio.off);

@@ -32,7 +32,7 @@ pub struct Select<T> {
     current: T,
     options: Vec<(T, String)>,
     name: Option<String>,
-    adjust: fn(Tw) -> Tw,
+    classes: Tw,
     enablement: Enablement,
 }
 
@@ -46,7 +46,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
                 .map(|&(value, label)| (value, label.to_owned()))
                 .collect(),
             name: None,
-            adjust: Tw::w_fit,
+            classes: tw(),
             enablement: Enablement::Enabled,
         }
     }
@@ -57,9 +57,10 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
         self
     }
 
-    /// Changes the trigger's classes, such as its width; it is `w-fit` until then.
-    pub fn classes(mut self, adjust: fn(Tw) -> Tw) -> Self {
-        self.adjust = adjust;
+    /// Classes merged over the styled ones of the trigger, such as its width,
+    /// which is `w-fit` until then; the later class wins ([`Tw::merge`]).
+    pub fn classes(mut self, classes: Tw) -> Self {
+        self.classes = classes;
         self
     }
 
@@ -89,9 +90,10 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
             .h_px(metrics.height)
             .px(metrics.padding_x / 4.0)
             .gap(metrics.gap / 4.0)
-            .role(style.text.clone())
-            .whitespace_nowrap();
-        let classes = (self.adjust)(classes);
+            .role(style.role(&select.text).clone())
+            .whitespace_nowrap()
+            .w_fit();
+        let classes = self.enablement.fade(classes, &style).merge(self.classes);
         let current = self
             .options
             .iter()

@@ -45,6 +45,7 @@ impl ShadcnStyle {
                 t.button_padding = vec2(16.0, 8.0);
                 t.input_padding = vec2(12.0, 4.0);
                 t.control_gap = 8.0;
+                t.icon_size = 16.0;
                 t.toggle_padding_x = 8.0;
                 t.ring_width = 3.0;
                 t.checkbox_radius = 4;
@@ -69,6 +70,7 @@ impl ShadcnStyle {
                 t.button_padding = vec2(10.0, 6.0);
                 t.input_padding = vec2(10.0, 4.0);
                 t.control_gap = 6.0;
+                t.icon_size = 14.0;
                 t.toggle_padding_x = 10.0;
                 t.ring_width = 1.0;
                 t.checkbox_radius = 0;

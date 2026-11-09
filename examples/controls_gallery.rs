@@ -801,7 +801,7 @@ fn values_section(b: &mut B<'_, '_>, state: &State) {
             row(b, &named("select", enablement), |b| {
                 owned::Select::new(state.owned_select, &REGION_OPTIONS)
                     .named("Region")
-                    .classes(|classes| classes.w_px(150.0))
+                    .classes(tw().w_px(150.0))
                     .enablement(enablement)
                     .show(b, ("select", enablement), |s: &mut State, _, region| {
                         s.owned_select = region;

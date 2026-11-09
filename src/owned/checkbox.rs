@@ -8,7 +8,7 @@ use egui::Role;
 
 use super::Mark;
 use super::{Enablement, choice_label, choice_row, described, paint_check};
-use crate::{Builder, Style, tw};
+use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -22,6 +22,7 @@ pub struct Checkbox {
     label: Option<String>,
     name: Option<String>,
     mark: Mark,
+    classes: Tw,
     enablement: Enablement,
 }
 
@@ -32,6 +33,7 @@ impl Checkbox {
             label: Some(label.into()),
             name: None,
             mark,
+            classes: tw(),
             enablement: Enablement::Enabled,
         }
     }
@@ -47,6 +49,13 @@ impl Checkbox {
     /// The accessible name, when it is not the label.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// Classes merged over the styled ones of the whole row, such as its
+    /// width or placement; the later class wins ([`Tw::merge`]).
+    pub fn classes(mut self, classes: Tw) -> Self {
+        self.classes = classes;
         self
     }
 
@@ -83,7 +92,9 @@ impl Checkbox {
         let name = self.name.unwrap_or_default();
         b.scope(key, |b| {
             let control = b.id_of(Part::Box);
-            b.div(choice_row(&style, enablement, checkbox.gap), |b| {
+            let row =
+                choice_row(&style, &checkbox.text, enablement, checkbox.gap).merge(self.classes);
+            b.div(row, |b| {
                 b.div_id(
                     Part::Box,
                     box_classes,

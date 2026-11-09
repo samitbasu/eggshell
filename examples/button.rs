@@ -46,7 +46,7 @@ pub struct State {
 /// ```
 fn controls(b: &mut B<'_, '_, State>) {
     Button::new("Reset")
-        .classes(Tw::self_start)
+        .classes(tw().self_start())
         .show(b, "reset", |state: &mut State| *state = State::default());
 }
 

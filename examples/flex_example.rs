@@ -98,7 +98,7 @@ fn text<A>(b: &mut Builder<'_, '_, A>, class: Tw, content: &str) {
 /// A button that takes the classes `class` gives it.
 fn button(b: &mut B<'_, '_>, key: Part, class: Class, label: &str) {
     Button::new(label)
-        .classes(class)
+        .classes(class(tw()))
         .show(b, key, |_: &mut State| {});
 }
 
@@ -155,7 +155,7 @@ fn items(b: &mut B<'_, '_>, state: &State) {
         "You can toggle my size"
     };
     Button::new(label)
-        .classes(Tw::grow)
+        .classes(tw().grow())
         .show(b, Part::Toggle, |state: &mut State| {
             state.toggle = !state.toggle;
         });

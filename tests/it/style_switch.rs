@@ -154,10 +154,6 @@ fn style_and_theme_colour_are_chosen_independently() {
     );
 }
 
-/// Paths that overflow already in Vega, before the style switch existed:
-/// the stepper's number text, which is wider than its box by a hair.
-const KNOWN_VEGA_OVERFLOW: [&str; 1] = ["/Box/<div>"];
-
 fn overflow<A>(what: &str, placed: &Placed<A>) -> Vec<String> {
     placed
         .overflowing()
@@ -211,23 +207,15 @@ fn overflows_in(style: ShadcnStyle, theme: Theme) -> Vec<String> {
 }
 
 #[test]
-fn every_example_lays_out_without_new_overflow_under_both_styles() {
-    let known = |path: &String| {
-        KNOWN_VEGA_OVERFLOW
-            .iter()
-            .any(|known| path.ends_with(known))
-    };
+fn every_example_lays_out_without_overflow_under_both_styles() {
     for theme in [Theme::Light, Theme::Dark] {
-        let vega = overflows_in(ShadcnStyle::Vega, theme);
-        let lyra = overflows_in(ShadcnStyle::Lyra, theme);
-        assert!(
-            vega.iter().all(known),
-            "{theme:?}: Vega overflows beyond the known: {vega:?}"
-        );
-        assert!(
-            lyra.iter().all(known),
-            "{theme:?}: Lyra overflows beyond the known: {lyra:?}"
-        );
+        for style in ShadcnStyle::ALL {
+            let overflowing = overflows_in(style, theme);
+            assert!(
+                overflowing.is_empty(),
+                "{theme:?} {style:?}: {overflowing:?}"
+            );
+        }
     }
 }
 

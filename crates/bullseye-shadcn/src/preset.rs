@@ -3,11 +3,12 @@ use std::time::Duration;
 use bullseye::Opacity;
 use bullseye::contract::{
     self, Colors, Focus, Keyed, Look as BoxLook, Metrics, Paint, Size, States, SwitchMetrics,
+    Variant,
 };
 use egui::{Color32, Context, Id, Shadow, Theme};
 
 use crate::styles::{DestructiveLook, HoverSurface, SecondaryHover, ShadcnStyle};
-use crate::{ThemeColor, Tokens, variant};
+use crate::{ThemeColor, Tokens, size, variant};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -212,11 +213,17 @@ impl Shadcn {
             padding_x: t.button_padding.x,
             gap: t.control_gap,
             radius: t.radius_md(),
+            glyph: t.icon_size,
         };
         let toggle = Metrics {
             min_width: t.control_height,
             padding_x: t.toggle_padding_x,
             ..control
+        };
+        let square = |metrics: Metrics| Metrics {
+            min_width: t.control_height,
+            padding_x: 0.0,
+            ..metrics
         };
         let accented = flat(t.accent, t.accent_foreground);
         let transition = Duration::from_millis(150);
@@ -308,14 +315,18 @@ impl Shadcn {
         style.button = {
             let mut button = style.button;
             button.variants = variants;
-            button.sizes = Keyed::new(Size::DEFAULT, control);
-            button.toggle_sizes = Keyed::new(Size::DEFAULT, toggle);
+            button.sizes = Keyed::new(Size::DEFAULT, control).with(size::ICON, square(control));
+            button.toggle_sizes =
+                Keyed::new(Size::DEFAULT, toggle).with(size::ICON, square(toggle));
             button.toggle_border_width = 0.0;
-            button.toggle_off = Paint::new(states(
-                flat(clear, t.foreground),
-                flat(t.muted, t.muted_foreground),
-            ));
-            button.toggle_on = Paint::new(states(accented, accented));
+            button.toggle_off = Keyed::new(
+                Variant::DEFAULT,
+                Paint::new(states(
+                    flat(clear, t.foreground),
+                    flat(t.muted, t.muted_foreground),
+                )),
+            );
+            button.toggle_on = Keyed::new(Variant::DEFAULT, Paint::new(states(accented, accented)));
             button.press_shift = 1.0;
             button.transition = transition;
             button
@@ -368,7 +379,10 @@ impl Shadcn {
             segmented.height = t.control_height;
             segmented.cell_radius = t.radius_md();
             segmented.cell_padding = t.cell_padding;
+            segmented.column_gap = 0.0;
             segmented.row_gap = 2.0;
+            segmented.icon_size = t.icon_size;
+            segmented.icon_gap = 6.0;
             segmented.cell_border_width = 1.0;
             segmented.selected = raised(
                 Paint::new(States::still(selected_cell, t.muted)),

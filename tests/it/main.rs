@@ -9,6 +9,7 @@
 mod chat_shell_demo;
 mod compile_fail;
 mod contract;
+mod contract_gaps;
 mod controls;
 mod debug;
 mod draw;

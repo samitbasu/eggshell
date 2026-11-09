@@ -84,6 +84,8 @@ pub struct Tokens {
     pub input_padding: Vec2,
     /// The gap between a control's children (`gap-2`).
     pub control_gap: f32,
+    /// The side of an icon in a button or a segmented cell (`size-4`).
+    pub icon_size: f32,
     /// The left and right padding of a toggle.
     pub toggle_padding_x: f32,
     /// The width of the focus ring (`ring-[3px]`).
@@ -260,6 +262,7 @@ impl Tokens {
             button_padding: Vec2::ZERO,
             input_padding: Vec2::ZERO,
             control_gap: 0.0,
+            icon_size: 0.0,
             toggle_padding_x: 0.0,
             ring_width: 0.0,
             checkbox_radius: 0,

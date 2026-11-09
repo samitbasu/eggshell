@@ -210,7 +210,7 @@ fn choose(
     Select::new(current, &options)
         .named(name)
         .enablement(enablement)
-        .classes(|trigger| trigger.w_px(FIELD_WIDTH))
+        .classes(tw().w_px(FIELD_WIDTH))
         .show(b, key, move |state: &mut State, _, chosen| {
             *lens(state) = chosen;
         });
