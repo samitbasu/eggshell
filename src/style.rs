@@ -627,6 +627,13 @@ impl Shadcn {
         let outline_button = BoxLook::new(states(outline_rest, outline_hover))
             .bordered(1.0)
             .shadowed(t.shadow_xs);
+        let ghost_button = filled(
+            flat(clear, t.foreground),
+            flat(
+                if dark { t.accent_50() } else { t.accent },
+                t.accent_foreground,
+            ),
+        );
         let variants = Keyed::new(
             variant::SECONDARY,
             filled(
@@ -643,16 +650,7 @@ impl Shadcn {
         )
         .with(variant::DESTRUCTIVE, destructive)
         .with(variant::OUTLINE, outline_button)
-        .with(
-            variant::GHOST,
-            filled(
-                flat(clear, t.foreground),
-                flat(
-                    if dark { t.accent_50() } else { t.accent },
-                    t.accent_foreground,
-                ),
-            ),
-        );
+        .with(variant::GHOST, ghost_button);
         let control = Metrics {
             height: t.control_height,
             min_width: 0.0,
@@ -858,15 +856,14 @@ impl Shadcn {
         };
         style.stepper = {
             let mut stepper = style.stepper;
-            stepper.field = input_box;
+            stepper.group = input_box;
             stepper.height = t.control_height;
             stepper.padding_x = t.input_padding.x;
-            stepper.field_radius = t.radius_md();
-            stepper.button = outline_button;
-            stepper.button_size = vec2(24.0, (t.control_height - 1.0) / 2.0);
-            stepper.button_radius = t.radius_sm();
+            stepper.radius = t.radius_md();
+            stepper.button = ghost_button;
+            stepper.button_width = 24.0;
+            stepper.divider = t.input;
             stepper.glyph = 12.0;
-            stepper.gap = 1.0;
             stepper.transition = transition;
             stepper
         };

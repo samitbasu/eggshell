@@ -524,8 +524,8 @@ fn a_disabled_select_cannot_be_opened_or_focused() {
 }
 
 const FIELD: &str = "/\"count\"/Box/Field";
-const UP: &str = "/\"count\"/Up";
-const DOWN: &str = "/\"count\"/Down";
+const UP: &str = "/\"count\"/Box/Buttons/Up";
+const DOWN: &str = "/\"count\"/Box/Buttons/Down";
 
 fn shows(harness: &Harness<'_, Rig<App>>, text: &str) -> bool {
     shapes(harness)
@@ -534,29 +534,88 @@ fn shows(harness: &Harness<'_, Rig<App>>, text: &str) -> bool {
 }
 
 #[test]
-fn stepper_field_and_buttons_are_the_styles() {
+fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
     for theme in [Theme::Light, Theme::Dark] {
         let harness = harness(theme);
         let stepper = style(theme).stepper;
-        let field = rect_of(&harness, "/\"count\"/Box");
-        assert_eq!(field.height(), stepper.height);
-        let shape = box_at(&harness, field);
-        assert_eq!(shape.fill, stepper.field.states.rest.fill, "{theme:?}");
-        assert_eq!(shape.stroke.color, stepper.field.states.rest.border);
+        let group = rect_of(&harness, "/\"count\"/Box");
+        assert_eq!(group.height(), stepper.height);
+        let shape = box_at(&harness, group);
+        assert_eq!(shape.fill, stepper.group.states.rest.fill, "{theme:?}");
+        assert_eq!(shape.stroke.color, stepper.group.states.rest.border);
         assert_eq!(
             shape.corner_radius,
-            egui::CornerRadius::same(stepper.field_radius)
+            egui::CornerRadius::same(stepper.radius)
         );
         let (up, down) = (rect_of(&harness, UP), rect_of(&harness, DOWN));
-        assert_eq!(up.size(), stepper.button_size);
-        assert_eq!(down.size(), stepper.button_size);
-        assert_eq!(down.top() - up.bottom(), stepper.gap, "stacked");
-        assert_eq!(up.left() - field.right(), stepper.gap, "beside the field");
-        assert!(((down.bottom() - up.top()) - stepper.height).abs() < 0.01);
+        assert_eq!(up.width(), stepper.button_width);
+        assert_eq!(down.width(), stepper.button_width);
+        assert_eq!(down.top() - up.bottom(), 1.0, "a divider between");
+        let border = stepper.group.border_width;
+        assert_eq!(up.top() - group.top(), border, "inside the border");
+        assert_eq!(group.bottom() - down.bottom(), border);
+        assert_eq!(group.right() - up.right(), border);
+        assert!(group.contains_rect(rect_of(&harness, FIELD)));
+        assert!(rect_of(&harness, FIELD).right() <= up.left() - 1.0);
         assert_eq!(box_at(&harness, up).fill, stepper.button.states.rest.fill);
+        let inner = f32::from(stepper.radius) - border;
+        let (up_corners, down_corners) = (
+            box_at(&harness, up).corner_radius,
+            box_at(&harness, down).corner_radius,
+        );
+        assert_eq!((up_corners.ne, up_corners.se), (inner as u8, 0));
+        assert_eq!((down_corners.ne, down_corners.se), (0, inner as u8));
         assert!(chevron_in(&harness, up).is_some());
         assert!(shows(&harness, "3"));
     }
+}
+
+#[test]
+fn a_focused_stepper_rings_the_group_and_never_crosses_a_button() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let mut harness = harness(theme);
+        let stepper = style(theme).stepper;
+        let group = rect_of(&harness, "/\"count\"/Box");
+        assert!(ring_at(&harness, group).is_none(), "no ring at rest");
+        click_node(&mut harness, FIELD);
+        harness.run_steps(12);
+        let ring = ring_at(&harness, group).expect("a ring around the group");
+        assert_eq!(ring.stroke.width, 3.0);
+        assert_eq!(
+            box_at(&harness, group).stroke.color,
+            stepper.group.states.focused.border,
+            "the group's border takes the ring colour"
+        );
+        for path in [UP, DOWN] {
+            let button = rect_of(&harness, path);
+            assert!(ring.rect.contains_rect(button), "{path} is enclosed");
+        }
+        for shape in shapes(&harness) {
+            let Shape::Rect(r) = shape else { continue };
+            if r.stroke_kind != egui::StrokeKind::Outside || r.stroke.width == 0.0 {
+                continue;
+            }
+            for path in [UP, DOWN] {
+                let button = rect_of(&harness, path);
+                let band = r.rect.expand(r.stroke.width);
+                let crosses = band.intersects(button) && !r.rect.contains_rect(button);
+                assert!(!crosses, "a ring at {:?} crosses {path}", r.rect);
+            }
+        }
+    }
+}
+
+#[test]
+fn a_disabled_stepper_group_is_painted_in_opaque_disabled_colours() {
+    let harness = harness(Theme::Light);
+    let stepper = style(Theme::Light).stepper;
+    let group = box_at(&harness, rect_of(&harness, "/\"fixed\"/Box"));
+    assert_eq!(group.fill, stepper.group.states.disabled.fill);
+    assert_eq!(group.stroke.color, stepper.group.states.disabled.border);
+    assert_eq!(group.fill.a(), 255);
+    assert_eq!(group.stroke.color.a(), 255);
+    let up = harness.get_by_role_and_label(Role::Button, "Increase Fixed");
+    assert!(up.accesskit_node().is_disabled());
 }
 
 #[test]
@@ -689,17 +748,6 @@ fn a_stepper_is_a_spin_button_and_its_buttons_are_not_tab_stops() {
 }
 
 #[test]
-fn a_focused_field_shows_the_ring_around_the_box() {
-    let mut harness = harness(Theme::Light);
-    click_node(&mut harness, FIELD);
-    harness.run_steps(12);
-    let stepper = style(Theme::Light).stepper;
-    let ring = ring_at(&harness, rect_of(&harness, "/\"count\"/Box")).expect("a ring");
-    assert_eq!(ring.stroke.width, 3.0);
-    let _ = stepper;
-}
-
-#[test]
 fn installing_a_modified_style_changes_the_new_widgets_with_no_code_change() {
     let mut style = style(Theme::Light);
     let red = egui::Color32::from_rgb(200, 30, 30);
@@ -708,8 +756,8 @@ fn installing_a_modified_style_changes_the_new_widgets_with_no_code_change() {
     style.slider.thumb_size = 24.0;
     style.select.trigger.states.rest.fill = red;
     style.select.metrics.height = 44.0;
-    style.stepper.field.states.rest.fill = red;
-    style.stepper.button_size = vec2(40.0, 20.0);
+    style.stepper.group.states.rest.fill = red;
+    style.stepper.button_width = 40.0;
     let mut harness = harness(Theme::Light);
     style.install(&harness.ctx);
     harness.run_steps(6);
@@ -733,7 +781,7 @@ fn installing_a_modified_style_changes_the_new_widgets_with_no_code_change() {
         box_at(&harness, rect_of(&harness, "/\"count\"/Box")).fill,
         red
     );
-    assert_eq!(rect_of(&harness, UP).size(), vec2(40.0, 20.0));
+    assert_eq!(rect_of(&harness, UP).width(), 40.0);
 }
 
 #[test]

@@ -128,6 +128,18 @@ impl Tw {
         self.painted(|p| p.radius = radius(points.round().clamp(0.0, 255.0) as u8))
     }
 
+    /// `rounded-tr-[<r>px]`: top-right corner radius in points, rounded to
+    /// whole points; the other corners keep theirs.
+    pub fn rounded_tr_px(self, points: f32) -> Self {
+        self.painted(|p| p.radius.ne = points.round().clamp(0.0, 255.0) as u8)
+    }
+
+    /// `rounded-br-[<r>px]`: bottom-right corner radius in points, rounded to
+    /// whole points; the other corners keep theirs.
+    pub fn rounded_br_px(self, points: f32) -> Self {
+        self.painted(|p| p.radius.se = points.round().clamp(0.0, 255.0) as u8)
+    }
+
     /// `ring-<width>`: a ring outside the border box.
     pub fn ring(self, width: f32, color: impl Into<Color32>) -> Self {
         let color = color.into();
@@ -232,6 +244,11 @@ mod tests {
         assert_eq!(paint(tw().rounded_full()).radius, radius(255));
         assert_eq!(paint(tw().rounded_px(12.4)).radius, radius(12));
         assert_eq!(paint(tw().rounded_px(1e6)).radius, radius(255));
+        let corners = paint(tw().rounded_tr_px(5.0).rounded_br_px(3.4)).radius;
+        assert_eq!(
+            (corners.ne, corners.se, corners.nw, corners.sw),
+            (5, 3, 0, 0)
+        );
     }
 
     #[test]

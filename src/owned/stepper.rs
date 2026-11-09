@@ -15,6 +15,7 @@ use crate::{Builder, Style, Tw, tw};
 enum Part {
     Box,
     Field,
+    Buttons,
     Up,
     Down,
 }
@@ -28,10 +29,12 @@ enum Part {
 /// range. The buttons are not Tab stops: the keyboard steps in the field.
 ///
 /// ```html
-/// <div class="flex items-start gap-px w-28">
-///   <div class="flex items-center grow h-9 px-3 rounded-md border border-input shadow-xs
-///     focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"><input inputmode="decimal"></div>
-///   <div class="flex flex-col gap-px"><button class="w-6 h-[17.5px]">▲</button><button>▼</button></div>
+/// <div class="flex items-stretch gap-px divide-x divide-input w-28 h-9 rounded-md border border-input shadow-xs
+///   focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+///   <div class="flex items-center grow px-3"><input inputmode="decimal"></div>
+///   <div class="flex flex-col gap-px divide-y divide-input w-6">
+///     <button class="grow rounded-tr-[5px]">▲</button><button class="grow rounded-br-[5px]">▼</button>
+///   </div>
 /// </div>
 /// ```
 #[derive(Clone, Debug)]
@@ -106,38 +109,51 @@ impl Stepper {
             step,
             name: name.unwrap_or_default(),
         };
-        let row = adjust(tw().flex().items_start().gap(stepper.gap / 4.0));
-        let field_box = field_classes(&stepper.field, &style, stepper.field_radius, enablement)
-            .flex()
-            .items_center()
+        let group = adjust(
+            field_classes(&stepper.group, &style, stepper.radius, enablement)
+                .flex()
+                .items_stretch()
+                .gap(1.0 / 4.0)
+                .h_px(stepper.height),
+        );
+        let divider = match enablement {
+            Enablement::Enabled => stepper.divider,
+            Enablement::Disabled => stepper.group.states.disabled.border,
+        };
+        let group = group.divide_x(1.0, divider);
+        let field_box = centered(tw())
+            .justify_start()
             .grow()
             .min_w_0()
-            .h_px(stepper.height)
             .px(stepper.padding_x / 4.0);
-        let button = |at_end: bool| {
+        let inner_radius = f32::from(stepper.radius) - stepper.group.border_width;
+        let button = |at_end: bool, corner: fn(Tw, f32) -> Tw| {
             let enablement = if at_end {
                 Enablement::Disabled
             } else {
                 enablement
             };
-            centered(stepper.button.classes(
+            let classes = centered(stepper.button.classes(
                 &style,
-                stepper.button_radius,
+                0,
                 enablement,
                 stepper.transition,
             ))
             .focusable_none()
-            .w_px(stepper.button_size.x)
-            .h_px(stepper.button_size.y)
+            .grow();
+            corner(classes, inner_radius)
         };
-        let (up, down) = (button(value >= high), button(value <= low));
+        let (up, down) = (
+            button(value >= high, Tw::rounded_tr_px),
+            button(value <= low, Tw::rounded_br_px),
+        );
         let glyph = stepper.glyph;
         let field = Field::singleline("").bare();
         let measured = field.clone();
         b.scope(key, |b| {
             let editing = b.id_of(Part::Field).with("editing");
-            b.div(row, |b| {
-                b.div_id(Part::Box, field_box, crate::none, |b| {
+            b.div_id(Part::Box, group, crate::none, |b| {
+                b.div(field_box, |b| {
                     let spec = spec.clone();
                     b.leaf(
                         Part::Field,
@@ -146,7 +162,14 @@ impl Stepper {
                         move |app, ui| spec.run_field(app, ui, &field, editing, set),
                     );
                 });
-                b.div(tw().flex().flex_col().gap(stepper.gap / 4.0), |b| {
+                let buttons = tw()
+                    .flex()
+                    .flex_col()
+                    .gap(1.0 / 4.0)
+                    .divide_y(1.0, divider)
+                    .w_px(stepper.button_width)
+                    .shrink_0();
+                b.div_id(Part::Buttons, buttons, crate::none, |b| {
                     for (part, classes, chevron, steps, label) in [
                         (Part::Up, up, Chevron::Up, 1, "Increase"),
                         (Part::Down, down, Chevron::Down, -1, "Decrease"),

@@ -467,28 +467,29 @@ pub struct SelectStyle {
     pub transition: Duration,
 }
 
-/// Steppers: a number field with a button above another at its side.
+/// Steppers: a number field and two buttons, one above the other, in a single
+/// bordered group.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct StepperStyle {
-    /// The field's box. Its focus ring shows while the text has focus.
-    pub field: Look,
-    /// Height of the field.
+    /// The group's box. Its focus ring and border show while the text has
+    /// focus.
+    pub group: Look,
+    /// Height of the group.
     pub height: f32,
-    /// Left and right padding of the field.
+    /// Left and right padding of the text.
     pub padding_x: f32,
-    /// Corner radius of the field.
-    pub field_radius: u8,
-    /// The two buttons.
+    /// Corner radius of the group; the buttons round their outer corners to
+    /// fit inside its border.
+    pub radius: u8,
+    /// The two buttons, which have no border of their own.
     pub button: Look,
-    /// Width and height of a button.
-    pub button_size: Vec2,
-    /// Corner radius of a button.
-    pub button_radius: u8,
+    /// Width of the buttons.
+    pub button_width: f32,
+    /// The hairlines between the text and the buttons, and between the buttons.
+    pub divider: Color32,
     /// Side of the chevron glyph.
     pub glyph: f32,
-    /// Gap between the field and the buttons, and between the buttons.
-    pub gap: f32,
     /// How long state changes animate.
     pub transition: Duration,
 }
@@ -819,15 +820,14 @@ impl Style {
                 transition,
             },
             stepper: StepperStyle {
-                field: choice_off,
+                group: choice_off,
                 height: s.interact_size.y,
                 padding_x: s.button_padding.x,
-                field_radius: radius,
-                button: Look::new(button_states).bordered(border_width),
-                button_size: vec2(s.icon_width * 1.5, s.interact_size.y / 2.0 - 0.5),
-                button_radius: radius,
+                radius,
+                button: Look::new(button_states),
+                button_width: s.icon_width * 1.5,
+                divider: choice_off.states.rest.border,
                 glyph: s.icon_width_inner,
-                gap: 1.0,
                 transition,
             },
             selection: Selection {

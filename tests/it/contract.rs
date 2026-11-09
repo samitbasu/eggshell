@@ -158,7 +158,7 @@ fn disabled_colours(style: &Style) -> Vec<(String, bullseye::contract::Colors)> 
     look("select trigger", &style.select.trigger);
     look("select popup", &style.select.popup);
     look("select item", &style.select.item);
-    look("stepper field", &style.stepper.field);
+    look("stepper group", &style.stepper.group);
     look("stepper button", &style.stepper.button);
     all.push(("slider track".to_string(), style.slider.track.disabled));
     all.push(("slider range".to_string(), style.slider.range.disabled));

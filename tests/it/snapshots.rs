@@ -645,6 +645,16 @@ fn controls_gallery_dark() {
 /// One owned section at the size the example opens with: the golden, and the
 /// assertion that everything in it fits the window.
 fn owned_section(name: &str, section: controls_gallery::Section, theme: egui::Theme) {
+    owned_section_after(name, section, theme, |_| {});
+}
+
+/// [`owned_section`] after `act` has driven the harness.
+fn owned_section_after(
+    name: &str,
+    section: controls_gallery::Section,
+    theme: egui::Theme,
+    act: impl FnOnce(&mut Harness<'static, support::Rig<controls_gallery::State>>),
+) {
     report_renderer();
     let state = controls_gallery::State {
         section,
@@ -660,6 +670,7 @@ fn owned_section(name: &str, section: controls_gallery::Section, theme: egui::Th
     harness.state_mut().page = support::Page::Themed;
     harness.ctx.set_theme(theme);
     harness.run_steps(12);
+    act(&mut harness);
     let bottom = harness
         .state()
         .nodes
@@ -692,6 +703,38 @@ owned_section_goldens! {
     controls_gallery_buttons_light, controls_gallery_buttons_dark: Buttons;
     controls_gallery_choices_light, controls_gallery_choices_dark: Choices;
     controls_gallery_values_light, controls_gallery_values_dark: Values;
+}
+
+/// The enabled stepper with its text field focused: the ring surrounds the
+/// whole group and stops short of the buttons.
+fn focused_stepper(name: &str, theme: egui::Theme) {
+    owned_section_after(name, controls_gallery::Section::Values, theme, |harness| {
+        let field = harness
+            .state()
+            .nodes
+            .iter()
+            .map(|(path, _)| path.clone())
+            .find(|path| path.contains("stepper") && path.ends_with("/Box/Field"))
+            .expect("the stepper's field");
+        support::click_node(harness, &field);
+        harness.run_steps(12);
+        let group = field.trim_end_matches("/Field");
+        let group = support::rect_of(harness, group);
+        assert!(
+            support::ring_at(harness, group).is_some(),
+            "the focused stepper is ringed"
+        );
+    });
+}
+
+#[test]
+fn controls_gallery_stepper_focused_light() {
+    focused_stepper("controls_gallery_stepper_focused_light", egui::Theme::Light);
+}
+
+#[test]
+fn controls_gallery_stepper_focused_dark() {
+    focused_stepper("controls_gallery_stepper_focused_dark", egui::Theme::Dark);
 }
 
 #[test]
