@@ -294,8 +294,9 @@ mod signup {
         fill(harness, Part::Repeat, "Sup3r-secret");
         click_node(harness, "/Terms");
         harness.run_steps(2);
-        let age = rect_of(harness, "/Age");
-        drag(harness, age.center(), age.center() + vec2(60.0, 0.0));
+        click_node(harness, "/Age/Box/Field");
+        harness.run_steps(2);
+        type_text(harness, "30");
     }
 
     #[test]
@@ -421,7 +422,7 @@ mod signup {
         ]
         .map(|part| format!("/{part:?}/\"field\""))
         .into_iter()
-        .chain(["/Age", "/Terms", "/Newsletter", "/Submit"].map(String::from))
+        .chain(["/Age/Box/Field", "/Terms", "/Newsletter", "/Submit"].map(String::from))
         .collect();
         assert_eq!(order[..expected.len()], expected[..]);
     }

@@ -1,5 +1,5 @@
-//! Port of hello_egui's signup form: a centred form of text fields, a drag
-//! value and checkboxes, with a validation error under each field that has
+//! Port of hello_egui's signup form: a centred form of text fields, a stepper
+//! and checkboxes, with a validation error under each field that has
 //! one.
 //!
 //! After the fancy-example in hello_egui (https://github.com/lucasmerlin/hello_egui,
@@ -13,10 +13,11 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use bullseye::owned::Stepper;
 use bullseye::prim::text_field::Field;
-use bullseye::widget::{Button, Checkbox, DragValue};
+use bullseye::widget::{Button, Checkbox};
 use bullseye::{Builder, Tw, tw};
-use egui::{Role, WidgetInfo};
+use egui::Role;
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
 
@@ -265,7 +266,7 @@ fn check(
 ///   <div class="flex flex-wrap gap-3">First Name, Last Name</div>
 ///   <div class="flex flex-col gap-1">Email</div>
 ///   <div class="flex flex-wrap gap-3">Password, Repeat Password</div>
-///   <div class="flex flex-col gap-1">Age <input type="number" class="w-[48px]"></div>
+///   <div class="flex flex-col gap-1">Age <input type="number" class="w-28"></div>
 ///   <label><input type="checkbox"> I agree to the terms</label>
 ///   <label><input type="checkbox"> Subscribe to newsletter</label>
 ///   <button class="w-full h-10">Submit</button>
@@ -326,16 +327,12 @@ fn form(b: &mut B<'_, '_>, state: &State) {
     });
     b.div(tw().flex().flex_col().gap(1.0), |b| {
         b.text(tw(), "Age");
-        b.widget(
-            Part::Age,
-            tw().self_start(),
-            DragValue::new("120"),
-            |state, ui, age| {
-                let response = age.show(ui, &mut state.fields.age, 0.0..=150.0);
-                response
-                    .widget_info(|| WidgetInfo::slider(ui.is_enabled(), state.fields.age, "Age"));
-            },
-        );
+        Stepper::new(state.fields.age, 0.0..=150.0)
+            .named("Age")
+            .classes(|classes| classes.w_px(112.0).self_start())
+            .show(b, Part::Age, |state: &mut State, age| {
+                state.fields.age = age
+            });
         error_line(b, state.visible_error(Part::Age));
     });
     check(b, state, Part::Terms, "I agree to the terms", |s| {

@@ -299,6 +299,10 @@ pub struct State {
     pub owned_radio: Unit,
     /// How often an owned button was clicked.
     pub owned_clicks: u32,
+    /// What the owned slider, select and stepper hold.
+    pub owned_slider: f64,
+    pub owned_select: usize,
+    pub owned_stepper: f64,
 }
 
 /// What the gallery's main area shows.
@@ -347,6 +351,9 @@ impl Default for State {
             owned_toggled: true,
             owned_radio: Unit::Metric,
             owned_clicks: 0,
+            owned_slider: 40.0,
+            owned_select: 0,
+            owned_stepper: 3.0,
         }
     }
 }
@@ -1073,6 +1080,83 @@ fn owned_section(b: &mut B<'_, '_>, state: &State) {
         );
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
             let label = match enablement {
+                Enablement::Enabled => "slider",
+                Enablement::Disabled => "slider, disabled",
+            };
+            comparison_row(
+                b,
+                label,
+                |b| {
+                    b.widget(
+                        ("wrapped-slider", enablement),
+                        wrapped_leaf(enablement).w_px(150.0),
+                        Slider::new().named("Volume"),
+                        |s: &mut State, ui, slider| {
+                            slider.show(ui, &mut s.owned_slider, 0.0..=100.0);
+                        },
+                    );
+                },
+                |b| {
+                    owned::Slider::new(state.owned_slider, 0.0..=100.0)
+                        .named("Volume")
+                        .enablement(owned_enablement(enablement))
+                        .show(b, ("owned-slider", enablement), |s: &mut State, value| {
+                            s.owned_slider = value;
+                        });
+                },
+            );
+        }
+        for enablement in [Enablement::Enabled, Enablement::Disabled] {
+            let label = match enablement {
+                Enablement::Enabled => "select",
+                Enablement::Disabled => "select, disabled",
+            };
+            comparison_row(
+                b,
+                label,
+                |b| {
+                    b.widget(
+                        ("wrapped-select", enablement),
+                        wrapped_leaf(enablement),
+                        ComboBox::new(REGIONS[state.owned_select]).named("Region"),
+                        |s: &mut State, ui, combo| {
+                            combo.show(ui, |ui| {
+                                for (index, region) in REGIONS.iter().enumerate() {
+                                    ui.selectable_value(&mut s.owned_select, index, *region);
+                                }
+                            });
+                        },
+                    );
+                },
+                |b| {
+                    owned::Select::new(state.owned_select, &REGION_OPTIONS)
+                        .named("Region")
+                        .classes(|classes| classes.w_px(150.0))
+                        .enablement(owned_enablement(enablement))
+                        .show(
+                            b,
+                            ("owned-select", enablement),
+                            |s: &mut State, _, region| {
+                                s.owned_select = region;
+                            },
+                        );
+                },
+            );
+        }
+        comparison_row(
+            b,
+            "stepper",
+            |b| b.text(tw(), "no wrapped form"),
+            |b| {
+                owned::Stepper::new(state.owned_stepper, 0.0..=10.0)
+                    .named("Count")
+                    .show(b, "owned-stepper", |s: &mut State, value| {
+                        s.owned_stepper = value;
+                    });
+            },
+        );
+        for enablement in [Enablement::Enabled, Enablement::Disabled] {
+            let label = match enablement {
                 Enablement::Enabled => "switch",
                 Enablement::Disabled => "switch, disabled",
             };
@@ -1103,6 +1187,9 @@ fn owned_section(b: &mut B<'_, '_>, state: &State) {
         );
     });
 }
+
+const REGIONS: [&str; 3] = ["Europe", "North America", "Asia Pacific"];
+const REGION_OPTIONS: [(usize, &str); 3] = [(0, REGIONS[0]), (1, REGIONS[1]), (2, REGIONS[2])];
 
 /// The text style the gallery's layout starts from.
 pub fn base_text() -> TextStyle {
