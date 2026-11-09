@@ -10,8 +10,8 @@
 //! given, and vary the text size, `button_padding`, `interact_size` and the
 //! hint text, which is how the computation drifts when it is wrong.
 //!
-//! The owned section shows every control built from bullseye nodes, which
-//! have no size computation to check.
+//! The buttons, choices and values sections show every control built from
+//! bullseye nodes, which have no size computation to check.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -231,17 +231,29 @@ pub struct State {
     pub owned_stepper: f64,
 }
 
+/// The size of the window the example opens with.
+pub const WINDOW: egui::Vec2 = egui::vec2(1280.0, 800.0);
+
 /// What the gallery's main area shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Section {
     /// Each text input in a cell outlined with its computed and drawn rects.
     Cells,
-    /// The controls built from bullseye nodes.
-    Owned,
+    /// The owned buttons: every variant enabled and disabled, and the toggle.
+    Buttons,
+    /// The owned checkbox, radio group, switch and segmented control.
+    Choices,
+    /// The owned slider, select and stepper.
+    Values,
 }
 
 impl Section {
-    const ALL: [(Self, &'static str); 2] = [(Self::Cells, "cells"), (Self::Owned, "owned")];
+    const ALL: [(Self, &'static str); 4] = [
+        (Self::Cells, "cells"),
+        (Self::Buttons, "buttons"),
+        (Self::Choices, "choices"),
+        (Self::Values, "values"),
+    ];
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -645,7 +657,9 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                     }
                 },
             ),
-            Section::Owned => owned_section(b, state),
+            Section::Buttons => buttons_section(b, state),
+            Section::Choices => choices_section(b, state),
+            Section::Values => values_section(b, state),
         },
     );
 }
@@ -684,17 +698,21 @@ fn row<'f>(b: &mut B<'_, 'f>, name: &str, control: impl FnOnce(&mut B<'_, 'f>)) 
     });
 }
 
-/// Every owned control.
+/// A column of rows.
 ///
 /// ```html
 /// <div class="flex flex-col gap-3 p-3">
 ///   <div class="flex gap-4"><span class="w-[130px]">name</span> control</div>
-///   …a row per button variant, enabled and disabled, the toggle, checkbox, radio group,
-///   slider, select, stepper, switch and segmented control…
+///   …
 /// </div>
 /// ```
-fn owned_section(b: &mut B<'_, '_>, state: &State) {
-    b.div(tw().flex().flex_col().gap(3.0).p(3.0), |b| {
+fn rows<'f>(b: &mut B<'_, 'f>, rows: impl FnOnce(&mut B<'_, 'f>)) {
+    b.div(tw().flex().flex_col().gap(3.0).p(3.0), rows);
+}
+
+/// A row per button variant, enabled and disabled, then the toggle.
+fn buttons_section(b: &mut B<'_, '_>, state: &State) {
+    rows(b, |b| {
         for enablement in ENABLEMENTS {
             for (name, variant) in VARIANTS {
                 row(b, &named(name, enablement), |b| {
@@ -714,6 +732,12 @@ fn owned_section(b: &mut B<'_, '_>, state: &State) {
                 |s: &mut State| s.owned_toggled = !s.owned_toggled,
             );
         });
+    });
+}
+
+/// The checkbox, radio group, switch and segmented control.
+fn choices_section(b: &mut B<'_, '_>, state: &State) {
+    rows(b, |b| {
         for enablement in ENABLEMENTS {
             row(b, &named("checkbox", enablement), |b| {
                 owned::Checkbox::new("Accept terms", Mark::from(state.owned_checked))
@@ -730,6 +754,26 @@ fn owned_section(b: &mut B<'_, '_>, state: &State) {
             )
             .show(b, "radio", |s: &mut State, unit| s.owned_radio = unit);
         });
+        for enablement in ENABLEMENTS {
+            row(b, &named("switch", enablement), |b| {
+                owned::Switch::new("Airplane mode", Mark::from(state.on))
+                    .enablement(enablement)
+                    .show(b, ("switch", enablement), |s: &mut State| s.on = !s.on);
+            });
+        }
+        row(b, "segmented", |b| {
+            owned::Segmented::new(
+                state.unit,
+                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+            )
+            .show(b, "segmented", |s: &mut State, _, unit| s.unit = unit);
+        });
+    });
+}
+
+/// The slider and select, enabled and disabled, and the stepper.
+fn values_section(b: &mut B<'_, '_>, state: &State) {
+    rows(b, |b| {
         for enablement in ENABLEMENTS {
             row(b, &named("slider", enablement), |b| {
                 owned::Slider::new(state.owned_slider, 0.0..=100.0)
@@ -751,27 +795,16 @@ fn owned_section(b: &mut B<'_, '_>, state: &State) {
                     });
             });
         }
-        row(b, "stepper", |b| {
-            owned::Stepper::new(state.owned_stepper, 0.0..=10.0)
-                .named("Count")
-                .show(b, "stepper", |s: &mut State, value| {
-                    s.owned_stepper = value;
-                });
-        });
         for enablement in ENABLEMENTS {
-            row(b, &named("switch", enablement), |b| {
-                owned::Switch::new("Airplane mode", Mark::from(state.on))
+            row(b, &named("stepper", enablement), |b| {
+                owned::Stepper::new(state.owned_stepper, 0.0..=10.0)
+                    .named("Count")
                     .enablement(enablement)
-                    .show(b, ("switch", enablement), |s: &mut State| s.on = !s.on);
+                    .show(b, ("stepper", enablement), |s: &mut State, value| {
+                        s.owned_stepper = value;
+                    });
             });
         }
-        row(b, "segmented", |b| {
-            owned::Segmented::new(
-                state.unit,
-                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-            )
-            .show(b, "segmented", |s: &mut State, _, unit| s.unit = unit);
-        });
     });
 }
 
@@ -784,5 +817,11 @@ pub fn base_text() -> TextStyle {
 }
 
 fn main() -> eframe::Result {
-    common::run_app_styled("controls_gallery", State::default(), prepare, layout)
+    common::run_app_sized(
+        "controls_gallery",
+        WINDOW,
+        State::default(),
+        prepare,
+        layout,
+    )
 }

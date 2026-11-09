@@ -92,7 +92,8 @@ fn every_example_shows_the_toggle_and_none_pins_a_theme() {
     for (file, text) in examples {
         let shared_runner = text.contains("common::run(")
             || text.contains("common::run_app(")
-            || text.contains("common::run_app_styled(");
+            || text.contains("common::run_app_styled(")
+            || text.contains("common::run_app_sized(");
         let own_bar = text.contains("ThemeBar::new()") || text.contains("common::theme_toggle(");
         assert!(
             shared_runner || own_bar,

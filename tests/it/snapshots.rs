@@ -642,16 +642,16 @@ fn controls_gallery_dark() {
     gallery_in("controls_gallery_dark", 200.0, egui::Theme::Dark);
 }
 
-/// The owned section: wrapped egui controls beside the same ones built from
-/// nodes, with the checkbox ticked and the toggle on.
-fn owned_section(name: &str, theme: egui::Theme) {
+/// One owned section at the size the example opens with: the golden, and the
+/// assertion that everything in it fits the window.
+fn owned_section(name: &str, section: controls_gallery::Section, theme: egui::Theme) {
     report_renderer();
     let state = controls_gallery::State {
-        section: controls_gallery::Section::Owned,
+        section,
         ..Default::default()
     };
     let mut harness = support::harness_prepared(
-        Vec2::new(900.0, 1160.0),
+        controls_gallery::WINDOW,
         common::base_text(theme),
         state,
         controls_gallery::layout,
@@ -660,17 +660,38 @@ fn owned_section(name: &str, theme: egui::Theme) {
     harness.state_mut().page = support::Page::Themed;
     harness.ctx.set_theme(theme);
     harness.run_steps(12);
+    let bottom = harness
+        .state()
+        .nodes
+        .iter()
+        .map(|(_, rect)| rect.bottom())
+        .fold(0.0, f32::max);
+    assert!(
+        bottom > 100.0 && bottom <= controls_gallery::WINDOW.y,
+        "{name} reaches {bottom} in a {} high window",
+        controls_gallery::WINDOW.y
+    );
     harness.snapshot(name);
 }
 
-#[test]
-fn controls_gallery_owned_light() {
-    owned_section("controls_gallery_owned_light", egui::Theme::Light);
+macro_rules! owned_section_goldens {
+    ($($light:ident, $dark:ident: $section:ident;)*) => {$(
+        #[test]
+        fn $light() {
+            owned_section(stringify!($light), controls_gallery::Section::$section, egui::Theme::Light);
+        }
+
+        #[test]
+        fn $dark() {
+            owned_section(stringify!($dark), controls_gallery::Section::$section, egui::Theme::Dark);
+        }
+    )*};
 }
 
-#[test]
-fn controls_gallery_owned_dark() {
-    owned_section("controls_gallery_owned_dark", egui::Theme::Dark);
+owned_section_goldens! {
+    controls_gallery_buttons_light, controls_gallery_buttons_dark: Buttons;
+    controls_gallery_choices_light, controls_gallery_choices_dark: Choices;
+    controls_gallery_values_light, controls_gallery_values_dark: Values;
 }
 
 #[test]

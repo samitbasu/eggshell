@@ -846,7 +846,11 @@ impl Shadcn {
                 .shadowed(t.shadow_md);
             select.popup_radius = t.radius_md();
             select.popup_padding = 4.0;
-            select.item = BoxLook::new(States::new(flat(clear, t.popover_foreground), accented, t.popover));
+            select.item = BoxLook::new(States::new(
+                flat(clear, t.popover_foreground),
+                accented,
+                t.popover,
+            ));
             select.item_radius = t.radius_sm();
             select.item_padding = vec2(8.0, 6.0);
             select.transition = transition;

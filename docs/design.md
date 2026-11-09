@@ -31,6 +31,7 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 - Retained widget trees, diffing or reconciliation.
 - A component trait or ID enums. Components are plain functions (D9).
 - Backdrop blur (egui cannot blur what is behind a layer; see §13).
+- Rounded clipping and group opacity (egui clips to rectangles and fades shape by shape; see "Differences from CSS" in the crate docs).
 
 ## 3. Settled decisions
 

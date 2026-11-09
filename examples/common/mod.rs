@@ -110,6 +110,7 @@ pub type AppLayout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &S);
 pub fn run<S: 'static>(title: &str, state: S, layout: Layout<S>) -> eframe::Result {
     shell(
         title,
+        None,
         state,
         |_, _| {},
         move |state, built_in, area, ui| {
@@ -135,8 +136,30 @@ pub fn run_app_styled<S: 'static>(
     prepare: fn(&egui::Context, &S),
     layout: AppLayout<S>,
 ) -> eframe::Result {
+    run_styled_in(title, None, state, prepare, layout)
+}
+
+/// [`run_app_styled`] in a native window of `inner_size`.
+pub fn run_app_sized<S: 'static>(
+    title: &str,
+    inner_size: egui::Vec2,
+    state: S,
+    prepare: fn(&egui::Context, &S),
+    layout: AppLayout<S>,
+) -> eframe::Result {
+    run_styled_in(title, Some(inner_size), state, prepare, layout)
+}
+
+fn run_styled_in<S: 'static>(
+    title: &str,
+    inner_size: Option<egui::Vec2>,
+    state: S,
+    prepare: fn(&egui::Context, &S),
+    layout: AppLayout<S>,
+) -> eframe::Result {
     shell(
         title,
+        inner_size,
         state,
         prepare,
         move |state, layout_state, area, ui| {
@@ -150,13 +173,14 @@ pub fn run_app_styled<S: 'static>(
 
 fn shell<S: 'static>(
     title: &str,
+    inner_size: Option<egui::Vec2>,
     mut state: S,
     prepare: fn(&egui::Context, &S),
     mut frame: impl FnMut(&mut S, &mut LayoutState, egui::Rect, &mut egui::Ui) + 'static,
 ) -> eframe::Result {
     let mut layout_state = LayoutState::new();
     let mut theme_bar = ThemeBar::new();
-    launch(title, None, move |ui| {
+    launch(title, inner_size, move |ui| {
         let ctx = ui.ctx().clone();
         use_preset(&ctx);
         prepare(&ctx, &state);

@@ -196,8 +196,8 @@ fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
 
 #[test]
 fn a_disabled_colour_is_half_way_to_the_surface_it_sits_on() {
-    use bullseye::contract::Colors;
     use bullseye::Opacity;
+    use bullseye::contract::Colors;
     let surface = Color32::from_rgb(200, 100, 0);
     let rest = Colors {
         fill: Color32::from_rgb(0, 0, 0),

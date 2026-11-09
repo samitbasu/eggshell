@@ -738,11 +738,14 @@ impl Style {
                 cell_radius: radius,
                 cell_padding: vec2(s.button_padding.x, s.button_padding.y),
                 row_gap: 2.0,
-                selected: Look::new(States::still(Colors {
-                    fill: w.active.weak_bg_fill,
-                    border: clear,
-                    text: v.strong_text_color(),
-                }, surface)),
+                selected: Look::new(States::still(
+                    Colors {
+                        fill: w.active.weak_bg_fill,
+                        border: clear,
+                        text: v.strong_text_color(),
+                    },
+                    surface,
+                )),
                 unselected: Look::new(States::new(
                     Colors {
                         fill: clear,
@@ -757,16 +760,22 @@ impl Style {
             slider: SliderStyle {
                 track_height: s.slider_rail_height,
                 thumb_size: s.icon_width,
-                track: States::still(Colors {
-                    fill: w.inactive.bg_fill,
-                    border: clear,
-                    text: clear,
-                }, surface),
-                range: States::still(Colors {
-                    fill: selected.fill,
-                    border: clear,
-                    text: clear,
-                }, surface),
+                track: States::still(
+                    Colors {
+                        fill: w.inactive.bg_fill,
+                        border: clear,
+                        text: clear,
+                    },
+                    surface,
+                ),
+                range: States::still(
+                    Colors {
+                        fill: selected.fill,
+                        border: clear,
+                        text: clear,
+                    },
+                    surface,
+                ),
                 thumb: Look::new(states(
                     Colors {
                         fill: w.inactive.weak_bg_fill,
@@ -784,11 +793,14 @@ impl Style {
                 metrics,
                 chevron: s.icon_width,
                 chevron_opacity: Opacity::new(0.5),
-                popup: Look::new(States::still(Colors {
-                    fill: v.window_fill,
-                    border: v.window_stroke.color,
-                    text: v.text_color(),
-                }, v.window_fill))
+                popup: Look::new(States::still(
+                    Colors {
+                        fill: v.window_fill,
+                        border: v.window_stroke.color,
+                        text: v.text_color(),
+                    },
+                    v.window_fill,
+                ))
                 .bordered(v.window_stroke.width.max(1.0))
                 .shadowed(v.popup_shadow),
                 popup_radius: radius,

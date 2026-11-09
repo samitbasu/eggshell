@@ -11,6 +11,22 @@
 //!    [`egui::Ui`] per identified node and runs its draw closure.
 //!
 //! The design brief lives in `docs/design.md`.
+//!
+//! # Differences from CSS
+//!
+//! egui paints shapes one at a time into rectangular clip rects, so three
+//! things CSS does are not available:
+//!
+//! - **No backdrop blur.** What is behind a layer cannot be blurred.
+//! - **No rounded clipping.** `overflow_hidden` clips a subtree to the node's
+//!   rectangle, not to its rounded shape. A child that reaches a rounded corner
+//!   must be rounded itself: the owned slider's range is `rounded_full`.
+//! - **No group opacity.** `opacity` and a colour's alpha fade each shape on its
+//!   own, so overlapping shapes show through one another where CSS would fade
+//!   the composited subtree. Disabled looks therefore pre-blend each colour
+//!   against the opaque surface it sits on
+//!   ([`Colors::faded_over`](contract::Colors::faded_over)) and are never
+//!   translucent.
 
 mod builder;
 pub mod contract;

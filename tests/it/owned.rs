@@ -210,7 +210,8 @@ fn disabled_is_explicit_opaque_colours_not_alpha() {
     let background = Tokens::light().background;
     assert_eq!(
         shape.fill,
-        rest.faded_over(bullseye::Opacity::new(0.5), background).fill
+        rest.faded_over(bullseye::Opacity::new(0.5), background)
+            .fill
     );
     assert_eq!(shape.fill.a(), 255, "opaque, so nothing shows through");
     assert!(
