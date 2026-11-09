@@ -4,6 +4,7 @@
 
 use egui::{Vec2, vec2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable as _;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/controls_gallery.rs"]
@@ -159,4 +160,75 @@ fn a_choice_changes_the_hint_and_the_fields_follow() {
         "a hint that wraps makes the empty field taller"
     );
     assert_eq!(mismatches(&harness), Vec::<String>::new());
+}
+
+/// The border boxes of the section control's segments.
+fn section_cells(harness: &Harness<'_, Rig<State>>) -> Vec<egui::Rect> {
+    harness
+        .state()
+        .nodes
+        .iter()
+        .filter(|(path, _)| path.starts_with("/\"section\"/"))
+        .map(|(_, rect)| *rect)
+        .collect()
+}
+
+#[test]
+fn the_four_sections_share_one_row_of_the_aside() {
+    let harness = harness(State::default());
+    let track = rect_of(&harness, "/\"section\"");
+    let caption = rect_of(&harness, "/<text>");
+    assert!(track.right() <= caption.right(), "{track:?} in {caption:?}");
+    let cells = section_cells(&harness);
+    assert!(cells.len() >= 4, "the four segments exist: {cells:?}");
+    for label in ["text", "button", "choice", "value"] {
+        harness.get_by_label(label);
+    }
+    let top = cells[0].top();
+    assert!(
+        cells
+            .iter()
+            .all(|cell| cell.top() == top && track.contains_rect(*cell)),
+        "{cells:?} in {track:?}"
+    );
+    assert!(track.height() < 50.0, "one row: {track:?}");
+}
+
+#[test]
+fn only_the_cells_section_shows_the_cell_controls() {
+    use controls_gallery::Section;
+    for (section, shown) in [
+        (Section::Cells, true),
+        (Section::Buttons, false),
+        (Section::Choices, false),
+        (Section::Values, false),
+    ] {
+        let harness = harness(State {
+            section,
+            ..State::default()
+        });
+        for path in [
+            "/\"text_size\"",
+            "/\"padding\"",
+            "/\"interact\"",
+            "/\"label\"",
+        ] {
+            let present = harness.state().nodes.iter().any(|(p, _)| p == path);
+            assert_eq!(present, shown, "{path} in {section:?}");
+        }
+        assert_eq!(
+            harness.query_all_by_label("Cell width (points)").count() > 0,
+            shown,
+            "the width slider in {section:?}"
+        );
+        assert!(rect_of(&harness, "/\"section\"").height() > 0.0);
+        assert_eq!(
+            harness
+                .query_all_by_label_contains("Blue: the rect")
+                .count()
+                > 0,
+            shown,
+            "the legend in {section:?}"
+        );
+    }
 }

@@ -249,10 +249,10 @@ pub enum Section {
 
 impl Section {
     const ALL: [(Self, &'static str); 4] = [
-        (Self::Cells, "cells"),
-        (Self::Buttons, "buttons"),
-        (Self::Choices, "choices"),
-        (Self::Values, "values"),
+        (Self::Cells, "text"),
+        (Self::Buttons, "button"),
+        (Self::Choices, "choice"),
+        (Self::Values, "value"),
     ];
 }
 
@@ -572,15 +572,25 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
 ///
 /// ```html
 /// <aside class="flex flex-col gap-3 p-3 w-[240px]">
-///   <input type="range"> + four rows of choices, then the legend
+///   the section choice, then for the cells section a range input,
+///   four rows of choices and the legend
 /// </aside>
 /// ```
 fn controls(b: &mut B<'_, '_>, state: &State) {
     common::captioned(b, "Section", |b| {
-        common::choice(b, "section", state.section, &Section::ALL, |s| {
-            &mut s.section
-        });
+        owned::Segmented::new(state.section, &Section::ALL).show(
+            b,
+            "section",
+            |s: &mut State, _, section| s.section = section,
+        );
     });
+    if state.section == Section::Cells {
+        cell_controls(b, state);
+    }
+}
+
+/// The controls that only vary the cells section, and its legend.
+fn cell_controls(b: &mut B<'_, '_>, state: &State) {
     common::slider_row(
         b,
         "width",
