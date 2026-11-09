@@ -47,10 +47,10 @@ use egui::{
     vec2,
 };
 
-use crate::TextSpec;
 use crate::contract::{
     self, Colors, Focus, Keyed, Look as BoxLook, Metrics, Size, States, SwitchMetrics,
 };
+use crate::{Opacity, TextSpec};
 
 /// The names of shadcn's button variants, the keys of the contract's
 /// [`ButtonStyle::variants`](contract::ButtonStyle::variants) this preset defines.
@@ -163,6 +163,8 @@ pub struct Tokens {
     pub shadow_xs: Shadow,
     /// `shadow-sm`.
     pub shadow_sm: Shadow,
+    /// `shadow-md`, without its negative spread.
+    pub shadow_md: Shadow,
 }
 
 impl Tokens {
@@ -304,6 +306,12 @@ impl Tokens {
             shadow_sm: Shadow {
                 offset: [0, 1],
                 blur: 3,
+                spread: 0,
+                color: Color32::from_black_alpha(26),
+            },
+            shadow_md: Shadow {
+                offset: [0, 4],
+                blur: 6,
                 spread: 0,
                 color: Color32::from_black_alpha(26),
             },
@@ -622,6 +630,9 @@ impl Shadcn {
                 flat(t.destructive_90(), t.destructive_foreground),
             )
         };
+        let outline_button = BoxLook::new(states(outline_rest, outline_hover))
+            .bordered(1.0)
+            .shadowed(t.shadow_xs);
         let variants = Keyed::new(
             variant::SECONDARY,
             filled(
@@ -637,12 +648,7 @@ impl Shadcn {
             ),
         )
         .with(variant::DESTRUCTIVE, destructive)
-        .with(
-            variant::OUTLINE,
-            BoxLook::new(states(outline_rest, outline_hover))
-                .bordered(1.0)
-                .shadowed(t.shadow_xs),
-        )
+        .with(variant::OUTLINE, outline_button)
         .with(
             variant::GHOST,
             filled(
@@ -719,6 +725,37 @@ impl Shadcn {
             },
             flat(clear, t.muted_foreground),
         );
+        let input_box = BoxLook::new(States {
+            focused: focused(Colors {
+                fill: self.input_fill(),
+                border: t.input,
+                text: t.foreground,
+            }),
+            ..States::new(
+                Colors {
+                    fill: self.input_fill(),
+                    border: t.input,
+                    text: t.foreground,
+                },
+                Colors {
+                    fill: if dark { t.input_50() } else { t.background },
+                    border: t.input,
+                    text: t.foreground,
+                },
+            )
+        })
+        .bordered(1.0)
+        .shadowed(t.shadow_xs);
+        let thumb_colors = Colors {
+            fill: t.background,
+            border: t.primary,
+            text: t.foreground,
+        };
+        let popup_colors = Colors {
+            fill: t.popover,
+            border: t.border,
+            text: t.popover_foreground,
+        };
         let mut style = contract::Style::default();
         style.text = t.text_role();
         style.focus = ring;
@@ -787,6 +824,52 @@ impl Shadcn {
             segmented.unselected = BoxLook::new(States::still(released_cell));
             segmented.transition = transition;
             segmented
+        };
+        style.slider = {
+            let mut slider = style.slider;
+            slider.track_height = 6.0;
+            slider.thumb_size = t.slider_thumb;
+            slider.track = States::still(flat(t.muted, t.foreground));
+            slider.range = States::still(flat(t.primary, t.primary_foreground));
+            slider.thumb = BoxLook::new(States::still(thumb_colors))
+                .bordered(1.0)
+                .shadowed(t.shadow_sm);
+            slider.transition = transition;
+            slider
+        };
+        style.select = {
+            let mut select = style.select;
+            select.trigger = input_box;
+            select.metrics = Metrics {
+                gap: 8.0,
+                ..control
+            };
+            select.chevron = 16.0;
+            select.chevron_opacity = Opacity::new(0.5);
+            select.popup = BoxLook::new(States::still(popup_colors))
+                .bordered(1.0)
+                .shadowed(t.shadow_md);
+            select.popup_radius = t.radius_md();
+            select.popup_padding = 4.0;
+            select.item = BoxLook::new(States::new(flat(clear, t.popover_foreground), accented));
+            select.item_radius = t.radius_sm();
+            select.item_padding = vec2(8.0, 6.0);
+            select.transition = transition;
+            select
+        };
+        style.stepper = {
+            let mut stepper = style.stepper;
+            stepper.field = input_box;
+            stepper.height = t.control_height;
+            stepper.padding_x = t.input_padding.x;
+            stepper.field_radius = t.radius_md();
+            stepper.button = outline_button;
+            stepper.button_size = vec2(24.0, (t.control_height - 1.0) / 2.0);
+            stepper.button_radius = t.radius_sm();
+            stepper.glyph = 12.0;
+            stepper.gap = 1.0;
+            stepper.transition = transition;
+            stepper
         };
         style.selection = {
             let mut selection = style.selection;

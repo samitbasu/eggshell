@@ -22,6 +22,7 @@ mod known_gaps_demo;
 mod layout;
 mod owned;
 mod owned_choice;
+mod owned_number;
 mod ports;
 mod prims;
 mod sizing;

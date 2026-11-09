@@ -634,6 +634,11 @@ impl TextEdit {
         self
     }
 
+    /// The egui id of the field a leaf's `ui` holds.
+    pub fn id_in(ui: &Ui) -> egui::Id {
+        ui.make_persistent_id("text")
+    }
+
     fn rows(&self) -> usize {
         match self.lines {
             Lines::Single => 1,
@@ -650,7 +655,7 @@ impl TextEdit {
     /// instead of showing one row too many or too few for a frame.
     pub fn show(&self, ui: &mut Ui, text: &mut String) -> Response {
         let rect = ui.max_rect();
-        let id = ui.make_persistent_id("text");
+        let id = Self::id_in(ui);
         let width = Width::new(rect.width());
         let before = self.fit(&Sizer::for_ui(ui), text, Some(width));
         let before_text = text.clone();

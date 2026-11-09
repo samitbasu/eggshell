@@ -4,9 +4,9 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{Color32, Painter, Pos2, Rect, Role, Shape, Stroke, WidgetInfo, pos2};
+use egui::{Role, WidgetInfo};
 
-use super::{Enablement, choice_label, choice_row};
+use super::{Enablement, choice_label, choice_row, paint_check};
 use crate::style::Mark;
 use crate::{Builder, NodeUi as _, Style, tw};
 
@@ -23,20 +23,6 @@ pub struct Checkbox {
     name: Option<String>,
     mark: Mark,
     enablement: Enablement,
-}
-
-/// lucide's `check`, on its 24 point grid.
-const CHECK: [(f32, f32); 3] = [(4.0, 12.0), (9.0, 17.0), (20.0, 6.0)];
-
-fn paint_check(painter: &Painter, rect: Rect, color: Color32) {
-    let scale = rect.width() / 24.0;
-    let at = |(x, y): (f32, f32)| -> Pos2 { rect.min + pos2(x, y).to_vec2() * scale };
-    let width = 2.0 * scale;
-    let points = CHECK.map(at);
-    painter.add(Shape::line(points.to_vec(), Stroke::new(width, color)));
-    for point in points {
-        painter.circle_filled(point, width / 2.0, color);
-    }
 }
 
 impl Checkbox {

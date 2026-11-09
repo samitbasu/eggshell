@@ -10,20 +10,28 @@
 
 mod button;
 mod checkbox;
+mod number;
 mod radio;
 mod segmented;
+mod select;
+mod slider;
+mod stepper;
 mod switch;
 
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
 
-use egui::Id;
+use egui::{Color32, Id, Painter, Pos2, Rect, Shape, Stroke, pos2};
 
 pub use button::Button;
 pub use checkbox::Checkbox;
+pub use number::Step;
 pub use radio::RadioGroup;
 pub use segmented::{Cell, Segmented};
+pub use select::Select;
+pub use slider::Slider;
+pub use stepper::Stepper;
 pub use switch::Switch;
 
 use crate::contract::{Colors, Look, Style};
@@ -107,6 +115,67 @@ impl Look {
                 shadow(classes, 1.0)
             }
         }
+    }
+}
+
+/// A box that holds a text field, drawn in `look`: it does not sense, and shows
+/// the focus ring while a widget inside has focus.
+fn field_classes(look: &Look, style: &Style, radius: u8, enablement: Enablement) -> Tw {
+    let base = tw().border(look.border_width).rounded_px(f32::from(radius));
+    let states = look.states;
+    let classes = match enablement {
+        Enablement::Disabled => painted(base, states.disabled).inert(),
+        Enablement::Enabled => {
+            let ring = look.focus.unwrap_or(style.focus);
+            painted(base, states.rest).focus_within(|p| {
+                p.border_color(states.focused.border)
+                    .ring(ring.width, ring.color)
+            })
+        }
+    };
+    match look.shadow {
+        Some(shadow) => classes.shadow(shadow),
+        None => classes,
+    }
+}
+
+/// lucide's `check`, on its 24 point grid.
+const CHECK: [(f32, f32); 3] = [(4.0, 12.0), (9.0, 17.0), (20.0, 6.0)];
+
+/// lucide's `chevron-down`, on its 24 point grid.
+const CHEVRON_DOWN: [(f32, f32); 3] = [(6.0, 9.0), (12.0, 15.0), (18.0, 9.0)];
+
+/// A 2-point stroke of `points` on a 24 point grid fitted to `rect`, with
+/// round joins, as lucide draws its icons.
+fn paint_strokes(painter: &Painter, rect: Rect, color: Color32, points: [(f32, f32); 3]) {
+    let scale = rect.width() / 24.0;
+    let at = |(x, y): (f32, f32)| -> Pos2 { rect.min + pos2(x, y).to_vec2() * scale };
+    let width = 2.0 * scale;
+    let points = points.map(at);
+    painter.add(Shape::line(points.to_vec(), Stroke::new(width, color)));
+    for point in points {
+        painter.circle_filled(point, width / 2.0, color);
+    }
+}
+
+fn paint_check(painter: &Painter, rect: Rect, color: Color32) {
+    paint_strokes(painter, rect, color, CHECK);
+}
+
+/// Which way a chevron points.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Chevron {
+    Up,
+    Down,
+}
+
+fn paint_chevron(chevron: Chevron) -> impl Fn(&Painter, Rect, Color32) + 'static {
+    move |painter, rect, color| {
+        let points = match chevron {
+            Chevron::Down => CHEVRON_DOWN,
+            Chevron::Up => CHEVRON_DOWN.map(|(x, y)| (x, 24.0 - y)),
+        };
+        paint_strokes(painter, rect, color, points);
     }
 }
 

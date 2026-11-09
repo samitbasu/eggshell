@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use egui::{Color32, Context, FontFamily, Id, Shadow, Theme, Vec2, vec2};
 
-use crate::{Opacity, TextSpec};
+use crate::{Opacity, Progress, TextSpec};
 
 /// A button variant, named by the style that defines it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -144,6 +144,19 @@ impl Colors {
     }
 }
 
+impl Colors {
+    /// These colours `progress` of the way to `other`.
+    #[must_use]
+    pub fn towards(self, other: Self, progress: Progress) -> Self {
+        let t = progress.into();
+        Self {
+            fill: self.fill.lerp_to_gamma(other.fill, t),
+            border: self.border.lerp_to_gamma(other.border, t),
+            text: self.text.lerp_to_gamma(other.text, t),
+        }
+    }
+}
+
 /// A control's colours in each state.
 ///
 /// `focused` only differs from `rest` in the channels the keyboard focus
@@ -179,6 +192,20 @@ impl States {
     /// The same colours in every state but disabled.
     pub fn still(rest: Colors) -> Self {
         Self::new(rest, rest)
+    }
+}
+
+impl States {
+    /// These colours, state by state, `progress` of the way to `other`.
+    #[must_use]
+    pub fn towards(self, other: Self, progress: Progress) -> Self {
+        Self {
+            rest: self.rest.towards(other.rest, progress),
+            hover: self.hover.towards(other.hover, progress),
+            pressed: self.pressed.towards(other.pressed, progress),
+            focused: self.focused.towards(other.focused, progress),
+            disabled: self.disabled.towards(other.disabled, progress),
+        }
     }
 }
 
@@ -221,6 +248,16 @@ impl Look {
         Self {
             border_width: width,
             ..self
+        }
+    }
+
+    /// This look's colours `progress` of the way to those of `other`, which
+    /// supplies everything else.
+    #[must_use]
+    pub fn towards(self, other: Self, progress: Progress) -> Self {
+        Self {
+            states: self.states.towards(other.states, progress),
+            ..other
         }
     }
 
@@ -363,6 +400,79 @@ pub struct SegmentedStyle {
     pub transition: Duration,
 }
 
+/// Sliders. A track holds a range that ends under a thumb.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct SliderStyle {
+    /// Thickness of the track.
+    pub track_height: f32,
+    /// Diameter of the thumb, which is also the slider's height.
+    pub thumb_size: f32,
+    /// The track's fill; only `rest` and `disabled` apply.
+    pub track: States,
+    /// The range's fill; only `rest` and `disabled` apply.
+    pub range: States,
+    /// The thumb. Its focus ring is the keyboard focus indicator.
+    pub thumb: Look,
+    /// How long state changes animate.
+    pub transition: Duration,
+}
+
+/// Select triggers and the list of options they open.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct SelectStyle {
+    /// The trigger, an input-like box.
+    pub trigger: Look,
+    /// Size of the trigger: height, padding, gap between value and chevron,
+    /// and corner radius.
+    pub metrics: Metrics,
+    /// Side of the chevron glyph.
+    pub chevron: f32,
+    /// How much of the trigger's text colour the chevron keeps.
+    pub chevron_opacity: Opacity,
+    /// The list's box: its `rest` colours, border and shadow.
+    pub popup: Look,
+    /// Corner radius of the list.
+    pub popup_radius: u8,
+    /// Padding between the list and its items.
+    pub popup_padding: f32,
+    /// An item; its `hover` colours mark the highlighted one.
+    pub item: Look,
+    /// Corner radius of an item.
+    pub item_radius: u8,
+    /// Left-right and top-bottom padding of an item.
+    pub item_padding: Vec2,
+    /// How long state changes animate.
+    pub transition: Duration,
+}
+
+/// Steppers: a number field with a button above another at its side.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct StepperStyle {
+    /// The field's box. Its focus ring shows while the text has focus.
+    pub field: Look,
+    /// Height of the field.
+    pub height: f32,
+    /// Left and right padding of the field.
+    pub padding_x: f32,
+    /// Corner radius of the field.
+    pub field_radius: u8,
+    /// The two buttons.
+    pub button: Look,
+    /// Width and height of a button.
+    pub button_size: Vec2,
+    /// Corner radius of a button.
+    pub button_radius: u8,
+    /// Side of the chevron glyph.
+    pub glyph: f32,
+    /// Gap between the field and the buttons, and between the buttons.
+    pub gap: f32,
+    /// How long state changes animate.
+    pub transition: Duration,
+}
+
 /// Selected text.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -404,6 +514,12 @@ pub struct Style {
     pub switch: SwitchStyle,
     /// Segmented controls.
     pub segmented: SegmentedStyle,
+    /// Sliders.
+    pub slider: SliderStyle,
+    /// Select triggers.
+    pub select: SelectStyle,
+    /// Steppers.
+    pub stepper: StepperStyle,
     /// Selected text.
     pub selection: Selection,
     /// Links.
@@ -625,6 +741,69 @@ impl Style {
                     },
                     hovered,
                 )),
+                transition,
+            },
+            slider: SliderStyle {
+                track_height: s.slider_rail_height,
+                thumb_size: s.icon_width,
+                track: States::still(Colors {
+                    fill: w.inactive.bg_fill,
+                    border: clear,
+                    text: clear,
+                }),
+                range: States::still(Colors {
+                    fill: selected.fill,
+                    border: clear,
+                    text: clear,
+                }),
+                thumb: Look::new(states(
+                    Colors {
+                        fill: w.inactive.weak_bg_fill,
+                        border: selected.fill,
+                        text: clear,
+                    },
+                    hovered,
+                    active,
+                ))
+                .bordered(border_width.max(1.0)),
+                transition,
+            },
+            select: SelectStyle {
+                trigger: Look::new(button_states).bordered(border_width.max(1.0)),
+                metrics,
+                chevron: s.icon_width,
+                chevron_opacity: Opacity::new(0.5),
+                popup: Look::new(States::still(Colors {
+                    fill: v.window_fill,
+                    border: v.window_stroke.color,
+                    text: v.text_color(),
+                }))
+                .bordered(v.window_stroke.width.max(1.0))
+                .shadowed(v.popup_shadow),
+                popup_radius: radius,
+                popup_padding: 2.0,
+                item: Look::new(States::new(
+                    Colors {
+                        fill: clear,
+                        border: clear,
+                        text: v.text_color(),
+                    },
+                    selected,
+                )),
+                item_radius: radius,
+                item_padding: vec2(s.button_padding.x, s.button_padding.y),
+                transition,
+            },
+            stepper: StepperStyle {
+                field: choice_off,
+                height: s.interact_size.y,
+                padding_x: s.button_padding.x,
+                field_radius: radius,
+                button: Look::new(button_states).bordered(border_width),
+                button_size: vec2(s.icon_width * 1.5, s.interact_size.y / 2.0 - 0.5),
+                button_radius: radius,
+                glyph: s.icon_width_inner,
+                gap: 1.0,
                 transition,
             },
             selection: Selection {
