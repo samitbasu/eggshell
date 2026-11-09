@@ -2,20 +2,20 @@
 //! control, then a toggle-button row and a swatch grid, the patterns that
 //! are built from sensing nodes rather than widgets.
 //!
-//! Stock egui widgets sit in leaves (`text_field`, `select`, `switch` and
-//! `widget::Button`). A leaf marked `inert` is disabled, and opacity dims it:
-//! the beta switch, the region select and Save until the form can be saved.
+//! The controls are the owned ones of `bullseye::owned` (select, switch,
+//! button), and the text fields are `text_field` leaves. A control marked
+//! disabled is drawn in the style's disabled colours: the beta switch, the
+//! region select and Save until the form can be saved.
 //! Tab visits the controls top to bottom, skipping what is inert; Enter or
 //! Space presses a focused toggle or swatch.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::prim::select::{self, Options};
-use bullseye::prim::switch::Switch;
+use bullseye::owned::{Button, Enablement, Select, Switch};
 use bullseye::prim::text_field::Field;
-use bullseye::widget::Button;
-use bullseye::{Builder, NodeUi as _, Opacity, Tw, tw};
+use bullseye::style::variant;
+use bullseye::{Builder, NodeUi as _, Tw, tw};
 use egui::{Color32, Role, WidgetInfo};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -196,36 +196,37 @@ fn section<'f>(b: &mut B<'_, 'f>, title: &str, rows: impl FnOnce(&mut B<'_, 'f>)
     });
 }
 
-fn disabled() -> Tw {
-    tw().inert().opacity(Opacity::new(0.5))
-}
-
 /// A select over `options`, `FIELD_WIDTH` wide.
 fn choose(
     b: &mut B<'_, '_>,
     key: Part,
-    live: Tw,
+    enablement: Enablement,
     name: &'static str,
     options: &[&'static str],
+    current: usize,
     lens: fn(&mut State) -> &mut usize,
 ) {
-    let options = Options::new(options.iter().copied());
-    let measured = options.clone();
-    b.leaf(
-        key,
-        live.w_px(FIELD_WIDTH),
-        move |m| select::measure(m, &measured),
-        move |state, ui| {
-            let response = select::show(ui, lens(state), &options);
-            response.widget_info(|| WidgetInfo::labeled(Role::ComboBox, ui.is_enabled(), name));
-        },
-    );
+    let options: Vec<(usize, &str)> = options.iter().copied().enumerate().collect();
+    Select::new(current, &options)
+        .named(name)
+        .enablement(enablement)
+        .classes(|trigger| trigger.w_px(FIELD_WIDTH))
+        .show(b, key, move |state: &mut State, _, chosen| {
+            *lens(state) = chosen;
+        });
 }
 
-fn switch(b: &mut B<'_, '_>, key: Part, live: Tw, label: &str, lens: fn(&mut State) -> &mut bool) {
-    b.widget(key, live, Switch::new(label), move |state, ui, switch| {
-        switch.show(ui, lens(state));
-    });
+fn switch(
+    b: &mut B<'_, '_>,
+    key: Part,
+    enablement: Enablement,
+    label: &str,
+    on: bool,
+    toggle: fn(&mut State),
+) {
+    Switch::new(label, bullseye::style::Mark::from(on))
+        .enablement(enablement)
+        .show(b, key, toggle);
 }
 
 /// A toggle button: pressed while its mark is on, independent of the others.
@@ -341,26 +342,37 @@ fn profile(b: &mut B<'_, '_>, state: &State) {
 /// <section class="flex flex-col gap-3">
 ///   <h2>Notifications</h2>
 ///   <div class="flex items-start gap-4"><label>Alerts</label>
-///     <div class="flex flex-col gap-2">three switches, the last one inert and at half opacity</div>
+///     <div class="flex flex-col gap-2">three switches, the last one disabled</div>
 ///   </div>
 /// </section>
 /// ```
-fn notifications(b: &mut B<'_, '_>) {
+fn notifications(b: &mut B<'_, '_>, state: &State) {
     section(b, "Notifications", |b| {
         row(b, "Alerts", |b| {
             b.div(tw().flex().flex_col().gap(2.0), |b| {
-                switch(b, Part::EmailAlerts, tw(), "Email alerts", |s| {
-                    &mut s.email_alerts
-                });
-                switch(b, Part::PushAlerts, tw(), "Push notifications", |s| {
-                    &mut s.push_alerts
-                });
+                switch(
+                    b,
+                    Part::EmailAlerts,
+                    Enablement::Enabled,
+                    "Email alerts",
+                    state.email_alerts,
+                    |s| s.email_alerts = !s.email_alerts,
+                );
+                switch(
+                    b,
+                    Part::PushAlerts,
+                    Enablement::Enabled,
+                    "Push notifications",
+                    state.push_alerts,
+                    |s| s.push_alerts = !s.push_alerts,
+                );
                 switch(
                     b,
                     Part::Beta,
-                    disabled(),
+                    Enablement::Disabled,
                     "Beta features (unavailable)",
-                    |s| &mut s.beta,
+                    state.beta,
+                    |s| s.beta = !s.beta,
                 );
             });
         });
@@ -380,14 +392,26 @@ fn notifications(b: &mut B<'_, '_>) {
 fn preferences(b: &mut B<'_, '_>, state: &State) {
     section(b, "Preferences", |b| {
         row(b, "Language", |b| {
-            choose(b, Part::Language, tw(), "Language", &LANGUAGES, |s| {
-                &mut s.language
-            });
+            choose(
+                b,
+                Part::Language,
+                Enablement::Enabled,
+                "Language",
+                &LANGUAGES,
+                state.language,
+                |s| &mut s.language,
+            );
         });
         row(b, "Region", |b| {
-            choose(b, Part::Region, disabled(), "Region", &REGIONS, |s| {
-                &mut s.region
-            });
+            choose(
+                b,
+                Part::Region,
+                Enablement::Disabled,
+                "Region",
+                &REGIONS,
+                state.region,
+                |s| &mut s.region,
+            );
         });
         row(b, "Theme", |b| {
             common::choice(
@@ -426,19 +450,17 @@ fn preferences(b: &mut B<'_, '_>, state: &State) {
 /// </div>
 /// ```
 fn save(b: &mut B<'_, '_>, state: &State) {
-    let live = if state.can_save() { tw() } else { disabled() };
+    let enablement = if state.can_save() {
+        Enablement::Enabled
+    } else {
+        Enablement::Disabled
+    };
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().items_center().gap(3.0), |b| {
-        b.widget(
-            Part::Save,
-            live,
-            Button::new("Save").primary(),
-            |state, ui, button| {
-                if button.show(ui).clicked() {
-                    state.saves += 1;
-                }
-            },
-        );
+        Button::new("Save")
+            .variant(variant::PRIMARY)
+            .enablement(enablement)
+            .show(b, Part::Save, |state: &mut State| state.saves += 1);
         let note = match (state.saves, state.can_save()) {
             (_, false) => "Enter a name and an email address to save.".to_owned(),
             (0, true) => String::new(),
@@ -472,7 +494,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                     .text(t.foreground),
                 |b| {
                     profile(b, state);
-                    notifications(b);
+                    notifications(b, state);
                     preferences(b, state);
                     save(b, state);
                 },

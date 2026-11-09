@@ -537,6 +537,7 @@ dependencies = [
  "taffy",
  "trybuild",
  "wasm-bindgen-futures",
+ "web-time",
 ]
 
 [[package]]

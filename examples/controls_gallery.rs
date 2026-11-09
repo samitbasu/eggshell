@@ -1,32 +1,27 @@
-//! Every stock widget and primitive in its own leaf, with the size the library
-//! computed for it outlined against the size egui gave it.
+//! The text edits in their own leaves, with the size the library computed for
+//! each outlined against the size egui gave it, and the owned controls below.
 //!
-//! A visual cross-check of the size estimates in `bullseye::widget`: each cell
-//! outlines the leaf's rect (what layout reserved from the estimate) in blue
-//! and the rect egui returned when the widget was drawn into it in orange.
-//! They agree to within a point, the slack of snapping a rect's edges to
-//! physical pixels one at a time; beyond that the cell is outlined in red and
-//! says by how much.
-//! Drag a cell's handle or use the slider to change the width the widgets are
+//! A visual cross-check of the size computation in `bullseye::widget`: each
+//! cell outlines the leaf's rect (what layout reserved) in blue and the rect
+//! egui returned when the widget was drawn into it in orange. They agree to
+//! within a point, the slack of snapping a rect's edges to physical pixels one
+//! at a time; beyond that the cell is outlined in red and says by how much.
+//! Drag a cell's handle or use the slider to change the width the fields are
 //! given, and vary the text size, `button_padding`, `interact_size` and the
-//! label text, which is how the estimates drift when they are wrong.
+//! hint text, which is how the computation drifts when it is wrong.
 //!
-//! The widgets the layout sizes (a slider, a text field) take the cell's
-//! width; the others are as wide as their content, wrapping at the cell's edge.
+//! The buttons, choices and values sections show every control built from
+//! bullseye nodes, which have no size computation to check.
 
 #[path = "common/mod.rs"]
 mod common;
 
 use std::collections::BTreeMap;
 
-use bullseye::prim::segmented::segmented;
-use bullseye::prim::select::{self, Options};
-use bullseye::prim::switch::Switch;
+use bullseye::owned;
 use bullseye::prim::text_field::{self, Field};
-use bullseye::style::ButtonVariant;
-use bullseye::widget::{
-    Button, Checkbox, ComboBox, DragValue, Lines, RadioButton, Slider, TextEdit,
-};
+use bullseye::style::{Mark, variant};
+use bullseye::widget::{Lines, TextEdit};
 use bullseye::{Builder, NodeUi as _, TextStyle, Tw, tw};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
@@ -66,6 +61,9 @@ impl State {
 
 /// A stage's padding (`p-1`, 4 points) and border (1 point).
 const STAGE_INSET: f32 = 5.0;
+
+/// Wide enough for the Section control with a border on every cell.
+const PANEL_WIDTH: f32 = 248.0;
 
 impl From<CellWidth> for f32 {
     fn from(width: CellWidth) -> f32 {
@@ -166,101 +164,25 @@ impl Label {
     }
 }
 
-/// The widgets and primitives the gallery shows, in order.
+/// The text inputs the gallery checks, in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Control {
-    Button,
-    /// A button of a variant, in a `Ui` that is enabled or not.
-    Variant(ButtonVariant, Enablement),
-    Checkbox,
-    RadioButton,
-    Slider,
-    DragValue,
-    ComboBox,
-    TextEdit,
-    TextEditMulti,
-    TextField,
-    TextFieldMulti,
-    Switch,
-    Select,
-    Segmented,
-}
-
-/// Whether a cell's widget is usable.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Enablement {
-    Enabled,
-    Disabled,
-}
-
-impl Enablement {
-    fn is_enabled(self) -> bool {
-        self == Self::Enabled
-    }
-}
-
-const fn variant(variant: ButtonVariant, enablement: Enablement) -> Control {
-    Control::Variant(variant, enablement)
+    Edit,
+    EditMulti,
+    Field,
+    FieldMulti,
 }
 
 impl Control {
-    pub const ALL: [Self; 23] = [
-        Self::Button,
-        variant(ButtonVariant::Primary, Enablement::Enabled),
-        variant(ButtonVariant::Primary, Enablement::Disabled),
-        variant(ButtonVariant::Secondary, Enablement::Enabled),
-        variant(ButtonVariant::Secondary, Enablement::Disabled),
-        variant(ButtonVariant::Destructive, Enablement::Enabled),
-        variant(ButtonVariant::Destructive, Enablement::Disabled),
-        variant(ButtonVariant::Outline, Enablement::Enabled),
-        variant(ButtonVariant::Outline, Enablement::Disabled),
-        variant(ButtonVariant::Ghost, Enablement::Enabled),
-        variant(ButtonVariant::Ghost, Enablement::Disabled),
-        Self::Checkbox,
-        Self::RadioButton,
-        Self::Slider,
-        Self::DragValue,
-        Self::ComboBox,
-        Self::TextEdit,
-        Self::TextEditMulti,
-        Self::TextField,
-        Self::TextFieldMulti,
-        Self::Switch,
-        Self::Select,
-        Self::Segmented,
-    ];
+    pub const ALL: [Self; 4] = [Self::Edit, Self::EditMulti, Self::Field, Self::FieldMulti];
 
-    /// The controls that wrap an egui widget in a leaf, whose rect is
-    /// checked. A switch and a segmented control are drawn by the library, so
-    /// egui has no widget to compare them with.
-    pub fn is_checked(self) -> bool {
-        !matches!(self, Self::Switch | Self::Segmented)
-    }
-
-    fn name(self) -> String {
-        let name = match self {
-            Self::Variant(variant, enablement) => {
-                let enablement = match enablement {
-                    Enablement::Enabled => "",
-                    Enablement::Disabled => ", disabled",
-                };
-                return format!("widget::Button, {variant:?}{enablement}");
-            }
-            Self::Button => "widget::Button",
-            Self::Checkbox => "widget::Checkbox",
-            Self::RadioButton => "widget::RadioButton",
-            Self::Slider => "widget::Slider",
-            Self::DragValue => "widget::DragValue",
-            Self::ComboBox => "widget::ComboBox",
-            Self::TextEdit => "widget::TextEdit",
-            Self::TextEditMulti => "widget::TextEdit, multi-line",
-            Self::TextField => "prim::text_field",
-            Self::TextFieldMulti => "prim::text_field, multi-line",
-            Self::Switch => "prim::switch",
-            Self::Select => "prim::select",
-            Self::Segmented => "prim::segmented",
-        };
-        name.to_owned()
+    fn name(self) -> &'static str {
+        match self {
+            Self::Edit => "widget::TextEdit",
+            Self::EditMulti => "widget::TextEdit, multi-line",
+            Self::Field => "prim::text_field",
+            Self::FieldMulti => "prim::text_field, multi-line",
+        }
     }
 }
 
@@ -293,18 +215,48 @@ pub struct State {
     pub label: Label,
     /// The last frame's report for each cell.
     pub reports: BTreeMap<Control, Report>,
-    pub checked: bool,
-    pub selected: bool,
-    pub level: f64,
-    pub amount: f64,
-    pub pick: usize,
+    pub section: Section,
     pub single: String,
     pub multi: String,
     pub field_single: String,
     pub field_multi: String,
     pub on: bool,
-    pub choice: usize,
     pub unit: Unit,
+    /// What the owned section's checkbox, toggle, radio group and switch hold.
+    pub owned_checked: bool,
+    pub owned_toggled: bool,
+    pub owned_radio: Unit,
+    /// How often an owned button was clicked.
+    pub owned_clicks: u32,
+    /// What the owned slider, select and stepper hold.
+    pub owned_slider: f64,
+    pub owned_select: usize,
+    pub owned_stepper: f64,
+}
+
+/// The size of the window the example opens with.
+pub const WINDOW: egui::Vec2 = egui::vec2(1280.0, 800.0);
+
+/// What the gallery's main area shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Section {
+    /// Each text input in a cell outlined with its computed and drawn rects.
+    Cells,
+    /// The owned buttons: every variant enabled and disabled, and the toggle.
+    Buttons,
+    /// The owned checkbox, radio group, switch and segmented control.
+    Choices,
+    /// The owned slider, select and stepper.
+    Values,
+}
+
+impl Section {
+    const ALL: [(Self, &'static str); 4] = [
+        (Self::Cells, "text"),
+        (Self::Buttons, "button"),
+        (Self::Choices, "choice"),
+        (Self::Values, "value"),
+    ];
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -322,18 +274,20 @@ impl Default for State {
             interact: Interact::Standard,
             label: Label::Long,
             reports: BTreeMap::new(),
-            checked: true,
-            selected: true,
-            level: 30.0,
-            amount: 12.5,
-            pick: 0,
             single: "Some text".into(),
             multi: "Several lines of text that wrap\nonto more than one row".into(),
             field_single: String::new(),
             field_multi: "Grows with its content, up to a cap".into(),
             on: true,
-            choice: 0,
             unit: Unit::Metric,
+            section: Section::Cells,
+            owned_checked: true,
+            owned_toggled: true,
+            owned_radio: Unit::Metric,
+            owned_clicks: 0,
+            owned_slider: 40.0,
+            owned_select: 0,
+            owned_stepper: 3.0,
         }
     }
 }
@@ -417,129 +371,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
     let label = state.label.text();
     let fill = tw().w_full();
     match control {
-        Control::Button => b.widget(control, tw(), Button::new(label), move |s, ui, w| {
-            observed(
-                s,
-                ui,
-                control,
-                Never,
-                |_, ui| {
-                    w.show(ui);
-                },
-                |ui, _| ui.add(egui::Button::new(label)).rect,
-            );
-        }),
-        Control::Variant(variant, enablement) => b.widget(
-            control,
-            tw(),
-            Button::new(label).variant(variant),
-            move |s, ui, w| {
-                observed(
-                    s,
-                    ui,
-                    control,
-                    Never,
-                    |_, ui| {
-                        ui.add_enabled_ui(enablement.is_enabled(), |ui| w.show(ui));
-                    },
-                    |ui, _| ui.add(egui::Button::new(label)).rect,
-                );
-            },
-        ),
-        Control::Checkbox => b.widget(control, tw(), Checkbox::new(label), move |s, ui, w| {
-            observed(
-                s,
-                ui,
-                control,
-                Never,
-                |s, ui| {
-                    w.show(ui, &mut s.checked);
-                },
-                |ui, _| ui.add(egui::Checkbox::new(&mut false, label)).rect,
-            );
-        }),
-        Control::RadioButton => {
-            b.widget(control, tw(), RadioButton::new(label), move |s, ui, w| {
-                observed(
-                    s,
-                    ui,
-                    control,
-                    Never,
-                    |s, ui| {
-                        if w.show(ui, s.selected).clicked() {
-                            s.selected = !s.selected;
-                        }
-                    },
-                    |ui, _| ui.add(egui::RadioButton::new(false, label)).rect,
-                );
-            });
-        }
-        Control::Slider => b.widget(
-            control,
-            fill,
-            Slider::new().named(label),
-            move |s, ui, w| {
-                observed(
-                    s,
-                    ui,
-                    control,
-                    Never,
-                    |s, ui| {
-                        w.show(ui, &mut s.level, 0.0..=100.0);
-                    },
-                    |ui, width| {
-                        ui.spacing_mut().slider_width = width;
-                        if let Some(tokens) = bullseye::style::tokens(ui.ctx()) {
-                            ui.spacing_mut().interact_size.y = tokens.slider_height();
-                        }
-                        ui.add(egui::Slider::new(&mut 0.0, 0.0..=100.0).show_value(false))
-                            .rect
-                    },
-                );
-            },
-        ),
-        Control::DragValue => {
-            b.widget(
-                control,
-                tw(),
-                DragValue::new(DRAG_TEMPLATE).named(label),
-                move |s, ui, w| {
-                    observed(
-                        s,
-                        ui,
-                        control,
-                        Never,
-                        |s, ui| {
-                            w.show(ui, &mut s.amount, -100.0..=100.0);
-                        },
-                        |ui, _| {
-                            ui.add(egui::DragValue::new(&mut -100.0).fixed_decimals(2))
-                                .rect
-                        },
-                    );
-                },
-            );
-        }
-        Control::ComboBox => b.widget(
-            control,
-            tw(),
-            ComboBox::new(label).named(label),
-            move |s, ui, w| {
-                observed(
-                    s,
-                    ui,
-                    control,
-                    Never,
-                    |_, ui| {
-                        w.show(ui, |ui| {
-                            ui.label(label);
-                        });
-                    },
-                    |ui, _| combo(ui, label).rect,
-                );
-            },
-        ),
-        Control::TextEdit => {
+        Control::Edit => {
             let text = state.single.clone();
             let field = TextEdit::singleline(&text).hint(label).named(label);
             b.widget(control, fill, field, move |s, ui, w| {
@@ -555,7 +387,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 );
             });
         }
-        Control::TextEditMulti => {
+        Control::EditMulti => {
             let text = state.multi.clone();
             let field = TextEdit::multiline(&text, 2).hint(label).named(label);
             b.widget(control, fill, field, move |s, ui, w| {
@@ -571,7 +403,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 );
             });
         }
-        Control::TextField => {
+        Control::Field => {
             let text = state.field_single.clone();
             let field = Field::singleline(&text).hint(label);
             let measured = field.clone();
@@ -593,7 +425,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 },
             );
         }
-        Control::TextFieldMulti => {
+        Control::FieldMulti => {
             let text = state.field_multi.clone();
             let field = Field::multiline(&text, 1).max_rows(FIELD_ROWS).named(label);
             let measured = field.clone();
@@ -614,42 +446,6 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                     );
                 },
             );
-        }
-        Control::Switch => b.widget(control, tw(), Switch::new(label), move |s, ui, w| {
-            w.show(ui, &mut s.on);
-        }),
-        Control::Select => {
-            let options = Options::new(select_labels(label)).named(label);
-            let measured = options.clone();
-            b.leaf(
-                control,
-                tw(),
-                move |m| select::measure(m, &measured),
-                move |s, ui| {
-                    observed(
-                        s,
-                        ui,
-                        control,
-                        Never,
-                        |s, ui| {
-                            select::show(ui, &mut s.choice, &options);
-                        },
-                        |ui, _| widest_combo(ui, &select_labels(label)),
-                    );
-                },
-            );
-        }
-        Control::Segmented => {
-            let classes = common::segmented_classes(b.ctx());
-            segmented(
-                b,
-                control,
-                classes.container(),
-                state.unit,
-                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-                |cell| classes.cell(cell),
-                |s| &mut s.unit,
-            )
         }
     }
 }
@@ -683,50 +479,14 @@ fn natural_edit(ui: &mut Ui, text: &str, lines: Lines, width: f32, hint: Option<
     .inner
 }
 
-/// The text of the widest value a drag value is sized for.
-const DRAG_TEMPLATE: &str = "-100.00";
-
 /// Rows after which the multi-line field scrolls.
 const FIELD_ROWS: usize = 4;
 
-fn select_labels(label: &'static str) -> [&'static str; 3] {
-    [label, "Second option", "Third"]
-}
-
-/// A combo box header showing `selected`, as egui sizes it on its own.
-fn combo(ui: &mut Ui, selected: &str) -> Response {
-    ui.scope(|ui| {
-        input_padded(ui);
-        egui::ComboBox::from_id_salt(selected)
-            .selected_text(selected)
-            .show_ui(ui, |_| {})
-            .response
-    })
-    .inner
-}
-
-/// The rect of the header of each of `labels`, each added at the same place:
-/// the select is as large as its largest.
-fn widest_combo(ui: &mut Ui, labels: &[&str]) -> Rect {
-    let room = ui.max_rect();
-    let size = labels
-        .iter()
-        .map(|label| {
-            ui.scope_builder(UiBuilder::new().id_salt(label).max_rect(room), |ui| {
-                combo(ui, label).rect.size()
-            })
-            .inner
-        })
-        .fold(egui::Vec2::ZERO, egui::Vec2::max);
-    Rect::from_min_size(room.min, size)
-}
-
 /// What a cell's caption says about its report.
 fn status(state: &State, control: Control, muted: Color32) -> (String, Color32) {
-    match (control.is_checked(), state.reports.get(&control)) {
-        (false, _) => ("drawn by the library".to_owned(), muted),
-        (true, None) => (String::new(), muted),
-        (true, Some(report)) => match report.mismatch() {
+    match state.reports.get(&control) {
+        None => (String::new(), muted),
+        Some(report) => match report.mismatch() {
             None => ("ok".to_owned(), muted),
             Some(off) => (format!("MISMATCH {:.1} x {:.1}", off.x, off.y), FLAG),
         },
@@ -814,11 +574,26 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
 /// The controls that vary what the cells are given.
 ///
 /// ```html
-/// <aside class="flex flex-col gap-3 p-3 w-[240px]">
-///   <input type="range"> + four rows of choices, then the legend
+/// <aside class="flex flex-col gap-3 p-3 w-[248px]">
+///   the section choice, then for the cells section a range input,
+///   four rows of choices and the legend
 /// </aside>
 /// ```
 fn controls(b: &mut B<'_, '_>, state: &State) {
+    common::captioned(b, "Section", |b| {
+        owned::Segmented::new(state.section, &Section::ALL).show(
+            b,
+            "section",
+            |s: &mut State, _, section| s.section = section,
+        );
+    });
+    if state.section == Section::Cells {
+        cell_controls(b, state);
+    }
+}
+
+/// The controls that only vary the cells section, and its legend.
+fn cell_controls(b: &mut B<'_, '_>, state: &State) {
     common::slider_row(
         b,
         "width",
@@ -878,11 +653,12 @@ fn legend(b: &mut B<'_, '_>) {
 /// </div>
 /// ```
 pub fn layout(b: &mut B<'_, '_>, state: &State) {
-    common::with_controls(
+    common::with_panel(
         b,
+        PANEL_WIDTH,
         |b| controls(b, state),
-        |b| {
-            b.div(
+        |b| match state.section {
+            Section::Cells => b.div(
                 tw().flex()
                     .flex_wrap()
                     .content_start()
@@ -894,10 +670,160 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                         cell(b, state, control);
                     }
                 },
-            );
+            ),
+            Section::Buttons => buttons_section(b, state),
+            Section::Choices => choices_section(b, state),
+            Section::Values => values_section(b, state),
         },
     );
 }
+
+const VARIANTS: [(&str, bullseye::contract::Variant); 5] = [
+    ("primary", variant::PRIMARY),
+    ("secondary", variant::SECONDARY),
+    ("destructive", variant::DESTRUCTIVE),
+    ("outline", variant::OUTLINE),
+    ("ghost", variant::GHOST),
+];
+
+const ENABLEMENTS: [owned::Enablement; 2] =
+    [owned::Enablement::Enabled, owned::Enablement::Disabled];
+
+/// `name`, with ", disabled" when `enablement` says so.
+fn named(name: &str, enablement: owned::Enablement) -> String {
+    match enablement {
+        owned::Enablement::Enabled => name.to_owned(),
+        owned::Enablement::Disabled => format!("{name}, disabled"),
+    }
+}
+
+/// One row: a name, then the control.
+fn row<'f>(b: &mut B<'_, 'f>, name: &str, control: impl FnOnce(&mut B<'_, 'f>)) {
+    b.div(tw().flex().items_center().gap(4.0), |b| {
+        b.div(
+            tw().w_px(130.0)
+                .shrink_0()
+                .text(common::tokens(b.ctx()).muted_foreground),
+            |b| {
+                b.text(tw(), name);
+            },
+        );
+        b.div(tw().w_px(170.0).shrink_0().flex().items_center(), control);
+    });
+}
+
+/// A column of rows.
+///
+/// ```html
+/// <div class="flex flex-col gap-3 p-3">
+///   <div class="flex gap-4"><span class="w-[130px]">name</span> control</div>
+///   …
+/// </div>
+/// ```
+fn rows<'f>(b: &mut B<'_, 'f>, rows: impl FnOnce(&mut B<'_, 'f>)) {
+    b.div(tw().flex().flex_col().gap(3.0).p(3.0), rows);
+}
+
+/// A row per button variant, enabled and disabled, then the toggle.
+fn buttons_section(b: &mut B<'_, '_>, state: &State) {
+    rows(b, |b| {
+        for enablement in ENABLEMENTS {
+            for (name, variant) in VARIANTS {
+                row(b, &named(name, enablement), |b| {
+                    owned::Button::new("Button")
+                        .variant(variant)
+                        .enablement(enablement)
+                        .show(b, ("button", name, enablement), |s: &mut State| {
+                            s.owned_clicks += 1;
+                        });
+                });
+            }
+        }
+        row(b, "toggle", |b| {
+            owned::Button::toggle("Toggle", Mark::from(state.owned_toggled)).show(
+                b,
+                "toggle",
+                |s: &mut State| s.owned_toggled = !s.owned_toggled,
+            );
+        });
+    });
+}
+
+/// The checkbox, radio group, switch and segmented control.
+fn choices_section(b: &mut B<'_, '_>, state: &State) {
+    rows(b, |b| {
+        for enablement in ENABLEMENTS {
+            row(b, &named("checkbox", enablement), |b| {
+                owned::Checkbox::new("Accept terms", Mark::from(state.owned_checked))
+                    .enablement(enablement)
+                    .show(b, ("checkbox", enablement), |s: &mut State| {
+                        s.owned_checked = !s.owned_checked;
+                    });
+            });
+        }
+        row(b, "radio group", |b| {
+            owned::RadioGroup::new(
+                state.owned_radio,
+                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+            )
+            .show(b, "radio", |s: &mut State, unit| s.owned_radio = unit);
+        });
+        for enablement in ENABLEMENTS {
+            row(b, &named("switch", enablement), |b| {
+                owned::Switch::new("Airplane mode", Mark::from(state.on))
+                    .enablement(enablement)
+                    .show(b, ("switch", enablement), |s: &mut State| s.on = !s.on);
+            });
+        }
+        row(b, "segmented", |b| {
+            owned::Segmented::new(
+                state.unit,
+                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+            )
+            .show(b, "segmented", |s: &mut State, _, unit| s.unit = unit);
+        });
+    });
+}
+
+/// The slider and select, enabled and disabled, and the stepper.
+fn values_section(b: &mut B<'_, '_>, state: &State) {
+    rows(b, |b| {
+        for enablement in ENABLEMENTS {
+            row(b, &named("slider", enablement), |b| {
+                owned::Slider::new(state.owned_slider, 0.0..=100.0)
+                    .named("Volume")
+                    .enablement(enablement)
+                    .show(b, ("slider", enablement), |s: &mut State, value| {
+                        s.owned_slider = value;
+                    });
+            });
+        }
+        for enablement in ENABLEMENTS {
+            row(b, &named("select", enablement), |b| {
+                owned::Select::new(state.owned_select, &REGION_OPTIONS)
+                    .named("Region")
+                    .classes(|classes| classes.w_px(150.0))
+                    .enablement(enablement)
+                    .show(b, ("select", enablement), |s: &mut State, _, region| {
+                        s.owned_select = region;
+                    });
+            });
+        }
+        for enablement in ENABLEMENTS {
+            row(b, &named("stepper", enablement), |b| {
+                owned::Stepper::new(state.owned_stepper, 0.0..=10.0)
+                    .named("Count")
+                    .enablement(enablement)
+                    .show(b, ("stepper", enablement), |s: &mut State, value| {
+                        s.owned_stepper = value;
+                    });
+            });
+        }
+    });
+}
+
+const REGIONS: [&str; 3] = ["Europe", "North America", "Asia Pacific"];
+const REGION_OPTIONS: [(usize, &str); 3] = [(0, REGIONS[0]), (1, REGIONS[1]), (2, REGIONS[2])];
 
 /// The text style the gallery's layout starts from.
 pub fn base_text() -> TextStyle {
@@ -905,5 +831,11 @@ pub fn base_text() -> TextStyle {
 }
 
 fn main() -> eframe::Result {
-    common::run_app_styled("controls_gallery", State::default(), prepare, layout)
+    common::run_app_sized(
+        "controls_gallery",
+        WINDOW,
+        State::default(),
+        prepare,
+        layout,
+    )
 }

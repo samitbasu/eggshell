@@ -4,7 +4,9 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, LayoutState, NodeUi, Opacity, TextSpec, TextStyle, none, tw};
+use bullseye::{
+    Builder, Easing, LayoutState, NodeUi, Opacity, Progress, TextSpec, TextStyle, none, tw,
+};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -21,6 +23,10 @@ struct Rig<A> {
 const STEP: f32 = 0.05;
 
 fn harness<A: 'static>(app: A, view: View<A>) -> Harness<'static, Rig<A>> {
+    harness_stepping(app, view, STEP)
+}
+
+fn harness_stepping<A: 'static>(app: A, view: View<A>, step_dt: f32) -> Harness<'static, Rig<A>> {
     let layout = LayoutState::new().with_base_text(TextStyle::new(
         TextSpec {
             size: 16.0,
@@ -37,7 +43,7 @@ fn harness<A: 'static>(app: A, view: View<A>) -> Harness<'static, Rig<A>> {
     };
     Harness::builder()
         .with_size(vec2(400.0, 300.0))
-        .with_step_dt(STEP)
+        .with_step_dt(step_dt)
         .build_ui_state(
             |ui, rig: &mut Rig<A>| {
                 let area = ui.max_rect();
@@ -482,6 +488,207 @@ fn a_transition_passes_through_colours_between_base_and_variant() {
     assert!(back.r() < LIT.r() && back.r() > BASE.r(), "fading back");
 }
 
+/// ```html
+/// <div class="w-[100px] h-[40px] bg-[#141414] hover:bg-[#dc1414] transition duration-500 ease-linear"></div>
+/// ```
+fn fading_linearly(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id(
+        "box",
+        tw().w_px(100.0)
+            .h_px(40.0)
+            .bg(BASE)
+            .hover(|p| p.bg(LIT))
+            .transition(Duration::from_millis(500))
+            .ease_linear(),
+        none,
+        |_| {},
+    );
+}
+
+/// The red channel's progress from `BASE` to `LIT`, sampled after each step
+/// of the 500ms transition, starting with the step that sees the hover.
+fn red_progress(view: View<()>) -> Vec<f32> {
+    let mut harness = harness((), view);
+    harness.run_steps(2);
+    let at = point(&harness, 10.0, 10.0);
+    harness.hover_at(at);
+    let span = f32::from(LIT.r() - BASE.r());
+    (0..10)
+        .map(|_| {
+            harness.step();
+            let Some(fill) = fill_at(&harness, 0.0, 0.0) else {
+                panic!("the box is painted")
+            };
+            f32::from(fill.r() - BASE.r()) / span
+        })
+        .collect()
+}
+
+/// Whether `samples` are `easing` of the `clock`, to a byte of colour.
+fn follows(samples: &[f32], clock: &[f32], easing: Easing) -> bool {
+    samples.iter().zip(clock).all(|(got, linear)| {
+        let want: f32 = easing.ease(Progress::new(*linear)).into();
+        (got - want).abs() < 0.01
+    })
+}
+
+#[test]
+fn a_transition_follows_the_default_curve_not_the_linear_clock() {
+    let clock = red_progress(fading_linearly);
+    let samples = red_progress(fading);
+    assert!(
+        follows(&clock, &clock, Easing::Linear)
+            && clock.iter().any(|t| (0.4..0.6).contains(t))
+            && clock.windows(2).all(|pair| pair[0] < pair[1]),
+        "precondition: the linear run is a clock passing the midpoint: {clock:?}"
+    );
+    assert!(
+        !follows(&samples, &clock, Easing::Linear),
+        "not linear: {samples:?}"
+    );
+    assert!(
+        follows(&samples, &clock, Easing::Default),
+        "{samples:?} vs {clock:?}"
+    );
+}
+
+#[test]
+fn a_transition_arrives_exactly_at_the_end() {
+    for view in [fading as View<()>, fading_linearly] {
+        let mut harness = harness((), view);
+        harness.run_steps(2);
+        let at = point(&harness, 10.0, 10.0);
+        harness.hover_at(at);
+        harness.run_steps(14);
+        assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT));
+    }
+}
+
+// ------------------------------------------------------------ transition clock
+
+/// ```html
+/// <div class="w-[100px] h-[40px] bg-[#141414] hover:bg-[#dc1414] transition duration-150"></div>
+/// ```
+fn quick(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id(
+        "box",
+        tw().w_px(100.0)
+            .h_px(40.0)
+            .bg(BASE)
+            .hover(|p| p.bg(LIT))
+            .transition(Duration::from_millis(150)),
+        none,
+        |_| {},
+    );
+}
+
+/// The red channel's progress from `BASE` to `LIT` as drawn.
+fn red<A>(harness: &Harness<'_, Rig<A>>) -> f32 {
+    let Some(fill) = fill_at(harness, 0.0, 0.0) else {
+        panic!("the box is painted")
+    };
+    f32::from(fill.r() - BASE.r()) / f32::from(LIT.r() - BASE.r())
+}
+
+#[test]
+fn a_transition_lasts_its_duration_however_slow_the_frames() {
+    let mut harness = harness_stepping((), quick, 0.2);
+    harness.run_steps(2);
+    let at = point(&harness, 10.0, 10.0);
+    harness.hover_at(at);
+    let seen: Vec<f32> = (0..3)
+        .map(|_| {
+            harness.step();
+            red(&harness)
+        })
+        .collect();
+    assert!(
+        seen.iter().all(|r| *r == 0.0 || *r == 1.0),
+        "200ms frames skip the middle of a 150ms transition: {seen:?}"
+    );
+    assert_eq!(
+        seen.iter().position(|r| *r == 1.0),
+        seen.iter().position(|r| *r == 0.0).map(|p| p + 1),
+        "it arrives on the first frame 200ms after the flip: {seen:?}"
+    );
+}
+
+#[test]
+fn fast_frames_pass_through_intermediate_values_to_the_end_on_time() {
+    let mut harness = harness_stepping((), quick, 0.016);
+    harness.run_steps(2);
+    let at = point(&harness, 10.0, 10.0);
+    harness.hover_at(at);
+    let seen: Vec<f32> = (0..16)
+        .map(|_| {
+            harness.step();
+            red(&harness)
+        })
+        .collect();
+    assert!(seen.iter().filter(|r| **r > 0.0 && **r < 1.0).count() >= 5);
+    assert!(seen.windows(2).all(|pair| pair[0] <= pair[1]), "{seen:?}");
+    assert_eq!(seen[0], 0.0, "precondition: the first frame sees the flip");
+    assert!(seen[8] < 1.0, "not early, 128ms in: {seen:?}");
+    assert_eq!(seen[10], 1.0, "arrived by 160ms in: {seen:?}");
+}
+
+#[test]
+fn a_reversal_mid_flight_starts_from_the_current_value_and_is_shortened() {
+    let mut harness = harness((), fading_linearly);
+    harness.run_steps(2);
+    let at = point(&harness, 10.0, 10.0);
+    harness.hover_at(at);
+    harness.run_steps(6);
+    let halfway = red(&harness);
+    assert!(
+        (0.3..0.7).contains(&halfway),
+        "precondition: about halfway through the 500ms transition: {halfway}"
+    );
+
+    hover(&mut harness, 300.0, 200.0);
+    let mut back = vec![halfway];
+    while red(&harness) > 0.0 && back.len() < 20 {
+        back.push(red(&harness));
+        harness.step();
+    }
+    assert!(
+        back.windows(2).all(|pair| pair[0] >= pair[1]),
+        "monotonic from the current value: {back:?}"
+    );
+    assert!(
+        back.iter().all(|r| *r <= halfway + 0.2),
+        "it did not jump to the end first: {back:?}"
+    );
+    let full = 500.0 / 1000.0 / STEP;
+    assert!(
+        (back.len() as f32) < full * 0.8,
+        "shortened in proportion to the distance left: {} frames of {full}",
+        back.len()
+    );
+}
+
+#[test]
+fn repaints_are_requested_only_while_a_transition_is_in_flight() {
+    let mut harness = harness((), fading_linearly);
+    harness.run_steps(4);
+    harness.step();
+    assert!(!harness.ctx.has_requested_repaint(), "settled");
+
+    let at = point(&harness, 10.0, 10.0);
+    harness.hover_at(at);
+    harness.run_steps(3);
+    assert!(
+        red(&harness) > 0.0 && red(&harness) < 1.0,
+        "precondition: in flight"
+    );
+    assert!(harness.ctx.has_requested_repaint(), "in flight");
+
+    harness.run_steps(14);
+    assert_eq!(red(&harness), 1.0, "precondition: arrived");
+    harness.step();
+    assert!(!harness.ctx.has_requested_repaint(), "settled again");
+}
+
 // ---------------------------------------------------------------------- reorder
 
 struct Order(Vec<u32>);
@@ -532,6 +739,43 @@ fn hover_state_follows_a_keyed_row_through_a_reorder() {
         arrived.is_some_and(|r| r < 100),
         "row 2 did not inherit the red by position: {arrived:?}"
     );
+}
+
+#[test]
+fn a_transition_in_flight_follows_a_keyed_row_through_a_reorder() {
+    let mut harness = harness(Order(vec![1, 2]), keyed_rows);
+    harness.run_steps(2);
+    let at = point(&harness, 10.0, 10.0);
+    harness.hover_at(at);
+    harness.run_steps(6);
+    let before = red_of(&harness, 0.0);
+    assert!(
+        (0.1..0.9).contains(&before),
+        "precondition: row 1 is mid-transition: {before}"
+    );
+    assert_eq!(
+        red_of(&harness, 30.0),
+        0.0,
+        "precondition: row 2 is at rest"
+    );
+
+    harness.state_mut().app.0.reverse();
+    harness.step();
+
+    let moved = red_of(&harness, 30.0);
+    let arrived = red_of(&harness, 0.0);
+    assert!(
+        (moved - before).abs() < 0.25,
+        "row 1 took its progress to its new place: {moved} from {before}"
+    );
+    assert!(arrived < 0.25, "row 2 did not inherit it: {arrived}");
+}
+
+fn red_of<A>(harness: &Harness<'_, Rig<A>>, y: f32) -> f32 {
+    let Some(fill) = fill_at(harness, 0.0, y) else {
+        panic!("the row is painted")
+    };
+    f32::from(fill.r() - BASE.r()) / f32::from(LIT.r() - BASE.r())
 }
 
 // ---------------------------------------------------------------- build errors

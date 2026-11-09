@@ -1,14 +1,14 @@
 //! A gallery of the kaolin README layouts, built and drawn by bullseye in eframe.
 //!
-//! F12 toggles the layout debug overlay.
+//! F12 toggles the layout debug overlay and its frame-timing readout.
 
 #[path = "../common/mod.rs"]
 mod common;
 mod layouts;
 
+use bullseye::owned::Button;
 use bullseye::style::Mark;
-use bullseye::widget::Button;
-use bullseye::{Builder, LayoutState, TextStyle, tw};
+use bullseye::{Builder, LayoutState, TextStyle, Tw, tw};
 use egui::load::SizedTexture;
 use egui::{ImageSource, TextureHandle, TextureOptions};
 
@@ -61,16 +61,11 @@ pub fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSour
                 .text(t.foreground),
             |b| {
                 for (index, (name, _)) in ENTRIES.into_iter().enumerate() {
-                    b.widget(
-                        ("entry", index),
-                        tw().w_full(),
-                        Button::selectable(name, Mark::from(index == selected)),
-                        move |gallery, ui, button| {
-                            if button.show(ui).clicked() {
-                                gallery.selected = index;
-                            }
-                        },
-                    );
+                    Button::toggle(name, Mark::from(index == selected))
+                        .classes(Tw::w_full)
+                        .show(b, ("entry", index), move |gallery: &mut Gallery| {
+                            gallery.selected = index;
+                        });
                 }
             },
         );

@@ -28,7 +28,7 @@
 //! and Bold files (`egui_system_font_provider` is a glyph fallback, not a weight
 //! lookup), and shows a note when it finds none. No font files are committed.
 //!
-//! F12 toggles the layout debug overlay.
+//! F12 toggles the layout debug overlay and its frame-timing readout.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -340,7 +340,7 @@ fn card_box() -> Tw {
 /// ```
 fn reference_card<A>(b: &mut B<'_, '_, A>, class: ShadowClass) {
     b.div(tw().relative().w_px(CARD_SIZE[0]).h_px(CARD_SIZE[1]), |b| {
-        b.paint(tw().absolute().inset(0.0), move |painter, rect| {
+        b.paint(tw().absolute().inset(0.0), move |painter, rect, _| {
             for layer in class.layers.iter().rev() {
                 painter.add(layer.reference(rect, CARD_RADIUS));
             }

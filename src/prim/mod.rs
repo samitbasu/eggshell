@@ -1,18 +1,14 @@
 //! The library's primitives: display content it draws itself, and the
-//! interactive ones (`text_field`, `switch`, `select`, `segmented`) that
-//! applications use as leaves.
+//! interactive `text_field` that applications use as a leaf.
 //!
-//! Each interactive primitive pairs `measure` with `show`; both take their
-//! size from one helper (design decision D21), so what is measured is what is
-//! used. Widget ids are derived from the leaf's `Ui`, so focus, cursor and
-//! open popups follow a node through reordering.
+//! `text_field` pairs `measure` with `show`; both take their size from one
+//! helper (design decision D21), so what is measured is what is used. Widget
+//! ids are derived from the leaf's `Ui`, so focus and cursor follow a node
+//! through reordering.
 
-pub mod segmented;
-pub mod select;
-pub mod switch;
 pub mod text_field;
 
-use egui::{ImageSource, Painter, Rect};
+use egui::{Color32, ImageSource, Painter, Rect};
 
 use crate::{Angle, Flip};
 
@@ -53,7 +49,7 @@ impl Icon {
     }
 }
 
-pub(crate) type PaintFn = Box<dyn Fn(&Painter, Rect)>;
+pub(crate) type PaintFn = Box<dyn Fn(&Painter, Rect, Color32)>;
 
 /// What a node displays, when it displays anything.
 pub(crate) enum Prim {

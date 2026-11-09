@@ -1,7 +1,7 @@
 //! The middle pane: title bar, conversation and composer.
 
-use bullseye::prim::segmented::{Cell, segmented};
-use bullseye::prim::select::{self, Options};
+use bullseye::owned::Select;
+use bullseye::owned::{Cell, Segmented};
 use bullseye::prim::text_field::{self, Field};
 use bullseye::{Builder, NodeUi, Opacity, Tw, none, tw};
 use egui::{Key, WidgetInfo};
@@ -43,18 +43,11 @@ fn top_bar(b: &mut B<'_, '_>, app: &App) {
         none,
         |b| {
             b.text(tw().role(k[Role::Title].clone()).truncate(), title);
-            let models = Options::new(MODELS);
-            let measured = models.clone();
-            b.leaf(
+            let models: Vec<(usize, &str)> = MODELS.iter().copied().enumerate().collect();
+            Select::new(app.model, &models).named("Model").show(
+                b,
                 Part::Model,
-                tw().role(k[Role::Small].clone()),
-                move |m| select::measure(m, &measured),
-                move |app: &mut App, ui| {
-                    let response = select::show(ui, &mut app.model, &models);
-                    response.widget_info(|| {
-                        WidgetInfo::labeled(egui::Role::ComboBox, ui.is_enabled(), "Model")
-                    });
-                },
+                |app: &mut App, _, model| app.model = model,
             );
         },
     );
@@ -192,15 +185,13 @@ fn field(b: &mut B<'_, '_>, app: &App) {
 /// ```
 fn mode(b: &mut B<'_, '_>, app: &App) {
     let k = &Theme::of(b.ctx());
-    segmented(
+    Segmented::new(app.mode, &Mode::ALL).show_with(
         b,
         Part::Mode,
         tw().flex()
             .items_center()
             .gap(0.5)
             .role(k[Role::Small].clone()),
-        app.mode,
-        &Mode::ALL,
         |cell| {
             let look = tw()
                 .px(2.5)
@@ -212,7 +203,7 @@ fn mode(b: &mut B<'_, '_>, app: &App) {
                 Cell::Released => look.text(k[Tok::InkMid]).hover(|p| p.bg(k[Tok::Hover])),
             }
         },
-        |app| &mut app.mode,
+        |app, _, mode| app.mode = mode,
     );
 }
 

@@ -3,7 +3,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{Id, ImageSource, Painter, Rect};
+use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
 use crate::key::child_id;
@@ -259,8 +259,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.leaf_node(tw, Parts::anonymous(NodeKind::Rule, path));
     }
 
-    /// Custom painting, run at draw time with the node's content rect.
-    pub fn paint(&mut self, tw: Tw, paint: impl Fn(&Painter, Rect) + 'static) {
+    /// Custom painting, run at draw time with the node's content rect and its
+    /// text colour, which a `hover:` or `focus:` variant of the node or an
+    /// ancestor may have changed.
+    pub fn paint(&mut self, tw: Tw, paint: impl Fn(&Painter, Rect, Color32) + 'static) {
         self.display(tw, NodeKind::Paint, Prim::Paint(Box::new(paint)));
     }
 

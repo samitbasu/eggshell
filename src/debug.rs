@@ -1,9 +1,13 @@
 //! The layout debug overlay: a hairline around every node, in red where the
-//! node's content did not fit, and a label for the node under the pointer.
+//! node's content did not fit, a label for the node under the pointer, and a
+//! frame-timing readout in the top-right corner.
+
+use core::time::Duration;
 
 use egui::epaint::StrokeKind;
 use egui::{
-    Color32, Context, FontId, Id, Key, LayerId, Order, Painter, Pos2, Rect, Shape, Stroke, vec2,
+    Align2, Color32, Context, FontId, Id, Key, LayerId, Order, Painter, Pos2, Rect, Shape, Stroke,
+    vec2,
 };
 use taffy::Overflow;
 
@@ -15,7 +19,7 @@ use crate::pipeline::{Flow, PlacedNode};
 /// The mode lives in the [`egui::Context`], so one key binding anywhere in
 /// the application (see [`Debug::toggle_on`]) governs every
 /// [`Placed::draw`](crate::Placed::draw) of the frame. [`Off`](Self::Off) costs
-/// one context read per layout and per draw.
+/// one context read per build, layout and draw.
 ///
 /// With [`Outlines`](Self::Outlines), [`Placed::draw`](crate::Placed::draw)
 /// outlines the border box of every node, anonymous ones and overlay roots
@@ -23,6 +27,22 @@ use crate::pipeline::{Flow, PlacedNode};
 /// node whose content did not fit is outlined in [`Debug::OVERFLOW`], every
 /// other in [`Debug::OUTLINE`]. The innermost node under the pointer is
 /// labelled with its readable path and rect.
+///
+/// [`Outlines`](Self::Outlines) also draws a readout in the top-right corner,
+/// once per frame however many trees are drawn:
+///
+/// - `frame`: egui's `unstable_dt`, the measured time since the last pass, and
+///   the frames per second averaged over the last 30 passes;
+/// - `dt`: egui's `stable_dt` and `predicted_dt`, which decide how far an
+///   animation advances per frame, so a slow-motion animation is explainable;
+/// - `bullseye`: the time spent in [`LayoutState::build`](crate::LayoutState::build),
+///   [`Built::layout`](crate::Built::layout) and [`Placed::draw`](crate::Placed::draw),
+///   summed over every tree of the pass (the readout sees the draws before it);
+/// - `repaint`: whether egui has been asked to repaint at once, as it is while
+///   an animation is in progress, or is idle.
+///
+/// None of this is measured, stored or drawn while the mode is
+/// [`Off`](Self::Off).
 ///
 /// A leaf's content did not fit when the size its text or measure reports, at
 /// the width it was given, exceeds its content box on either axis. A container's
@@ -74,6 +94,166 @@ impl Debug {
 
 fn mode_id() -> Id {
     Id::NULL.with("bullseye-debug-mode")
+}
+
+/// The stages of a frame that the readout times.
+#[derive(Clone, Copy)]
+pub(crate) enum Phase {
+    Build,
+    Layout,
+    Draw,
+}
+
+/// The time bullseye spent in each [`Phase`] of one egui pass.
+#[derive(Clone, Copy, Default)]
+struct Spent {
+    pass: u64,
+    build: Duration,
+    layout: Duration,
+    draw: Duration,
+}
+
+/// Adds the time between its creation and its drop to the pass's total for
+/// its phase. Does nothing while the overlay is off.
+pub(crate) struct Timer(Option<(Context, Phase, web_time::Instant)>);
+
+impl Timer {
+    pub(crate) fn start(ctx: &Context, phase: Phase) -> Self {
+        Self(
+            (Debug::of(ctx) == Debug::Outlines)
+                .then(|| (ctx.clone(), phase, web_time::Instant::now())),
+        )
+    }
+}
+
+impl Drop for Timer {
+    fn drop(&mut self) {
+        let Some((ctx, phase, started)) = self.0.take() else {
+            return;
+        };
+        let elapsed = started.elapsed();
+        let pass = ctx.cumulative_pass_nr();
+        ctx.data_mut(|data| {
+            let spent = data.get_temp_mut_or_default::<Spent>(spent_id());
+            if spent.pass != pass {
+                *spent = Spent {
+                    pass,
+                    ..Spent::default()
+                };
+            }
+            match phase {
+                Phase::Build => spent.build += elapsed,
+                Phase::Layout => spent.layout += elapsed,
+                Phase::Draw => spent.draw += elapsed,
+            }
+        });
+    }
+}
+
+fn spent_id() -> Id {
+    Id::NULL.with("bullseye-debug-spent")
+}
+
+fn frames_id() -> Id {
+    Id::NULL.with("bullseye-debug-frames")
+}
+
+fn readout_id() -> Id {
+    Id::NULL.with("bullseye-debug-readout")
+}
+
+/// The frames averaged into the fps.
+const FPS_WINDOW: usize = 30;
+
+/// The `unstable_dt` of the last [`FPS_WINDOW`] passes, in seconds.
+#[derive(Clone, Default)]
+struct Frames {
+    pass: u64,
+    dts: Vec<f32>,
+}
+
+impl Frames {
+    fn fps(&self) -> f32 {
+        let total: f32 = self.dts.iter().sum();
+        if total > 0.0 {
+            self.dts.len() as f32 / total
+        } else {
+            0.0
+        }
+    }
+}
+
+/// Records this pass's `unstable_dt` once, however often it is called, and
+/// returns the averaged frames per second.
+fn record_frame(ctx: &Context, dt: f32) -> f32 {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|data| {
+        let frames = data.get_temp_mut_or_default::<Frames>(frames_id());
+        if frames.pass != pass || frames.dts.is_empty() {
+            frames.pass = pass;
+            if frames.dts.len() == FPS_WINDOW {
+                frames.dts.remove(0);
+            }
+            frames.dts.push(dt);
+        }
+        frames.fps()
+    })
+}
+
+fn readout_text(ctx: &Context) -> String {
+    let (unstable, stable, predicted) =
+        ctx.input(|input| (input.unstable_dt, input.stable_dt, input.predicted_dt));
+    let fps = record_frame(ctx, unstable);
+    let pass = ctx.cumulative_pass_nr();
+    let spent = ctx
+        .data(|data| data.get_temp::<Spent>(spent_id()))
+        .filter(|spent| spent.pass == pass)
+        .unwrap_or_default();
+    let ms = |seconds: f32| seconds * 1000.0;
+    let ms_of = |duration: Duration| duration.as_secs_f32() * 1000.0;
+    format!(
+        "frame    {:6.1} ms  {:6.1} fps\n\
+         dt       stable {:5.1}  predicted {:5.1} ms\n\
+         bullseye build {:5.2}  layout {:5.2}  draw {:5.2} ms\n\
+         repaint  {}",
+        ms(unstable),
+        fps,
+        ms(stable),
+        ms(predicted),
+        ms_of(spent.build),
+        ms_of(spent.layout),
+        ms_of(spent.draw),
+        if ctx.has_requested_repaint() {
+            "requested"
+        } else {
+            "idle"
+        },
+    )
+}
+
+/// Paints the readout, replacing the one an earlier tree of this pass painted
+/// so that it shows the draw time so far.
+fn paint_readout(ctx: &Context, painter: &Painter) {
+    let galley = painter.layout_no_wrap(readout_text(ctx), FontId::monospace(11.0), Color32::WHITE);
+    let margin = vec2(4.0, 2.0);
+    let size = galley.size() + margin * 2.0;
+    let screen = ctx.content_rect();
+    let rect = Align2::RIGHT_TOP.align_size_within_rect(size, screen.shrink(4.0));
+    let shape = Shape::Vec(vec![
+        Shape::rect_filled(rect, 2.0, Color32::from_black_alpha(220)),
+        Shape::galley(rect.min + margin, galley, Color32::WHITE),
+    ]);
+    let pass = ctx.cumulative_pass_nr();
+    let earlier = ctx
+        .data(|data| data.get_temp::<(u64, egui::layers::ShapeIdx)>(readout_id()))
+        .filter(|&(earlier, _)| earlier == pass);
+    match earlier {
+        Some((_, index)) => painter.set(index, shape),
+        None => {
+            let index = painter.add(shape);
+            ctx.data_mut(|data| data.insert_temp(readout_id(), (pass, index)));
+        }
+    }
 }
 
 /// What a leaf's content may exceed its box by before it counts as not
@@ -156,6 +336,7 @@ pub(crate) fn paint(ctx: &Context, nodes: &[PlacedNode]) {
     {
         label(&painter, ctx.content_rect(), pointer, nodes, index);
     }
+    paint_readout(ctx, &painter);
 }
 
 fn label(painter: &Painter, screen: Rect, pointer: Pos2, nodes: &[PlacedNode], index: usize) {

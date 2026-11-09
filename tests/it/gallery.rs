@@ -1,9 +1,10 @@
-//! The controls gallery through the full path: every cell's widget is sized
-//! by the library and drawn by egui, and the two agree at every width, text
-//! size, style and label the controls offer.
+//! The controls gallery through the full path: every cell's text input is
+//! sized by the library and drawn by egui, and the two agree at every width,
+//! text size, style and hint the controls offer.
 
 use egui::{Vec2, vec2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable as _;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/controls_gallery.rs"]
@@ -46,7 +47,7 @@ fn mismatches(harness: &Harness<'_, Rig<State>>) -> Vec<String> {
 #[track_caller]
 fn assert_all_report(harness: &Harness<'_, Rig<State>>) {
     let reports = &harness.state().app.reports;
-    for control in Control::ALL.into_iter().filter(|c| c.is_checked()) {
+    for control in Control::ALL.into_iter() {
         let report = reports
             .get(&control)
             .unwrap_or_else(|| panic!("{control:?} did not draw: {:?}", reports.keys()));
@@ -121,10 +122,10 @@ fn the_estimate_can_be_wrong_and_the_gallery_says_so() {
 fn dragging_a_cells_handle_changes_every_cells_width() {
     let mut harness = harness(State::default());
     let stage = |harness: &Harness<'_, Rig<State>>| {
-        rect_of(harness, &format!("/{:?}", Control::Slider)).width()
+        rect_of(harness, &format!("/{:?}", Control::Edit)).width()
     };
     let before = stage(&harness);
-    let handle = rect_of(&harness, &format!("/(\"handle\", {:?})", Control::Button));
+    let handle = rect_of(&harness, &format!("/(\"handle\", {:?})", Control::Edit));
     drag(
         &mut harness,
         handle.center(),
@@ -142,15 +143,92 @@ fn dragging_a_cells_handle_changes_every_cells_width() {
 }
 
 #[test]
-fn a_choice_changes_the_label_and_the_widgets_follow() {
-    let mut harness = harness(State::default());
-    let width = |harness: &Harness<'_, Rig<State>>| {
-        rect_of(harness, &format!("/{:?}", Control::Button)).size()
+fn a_choice_changes_the_hint_and_the_fields_follow() {
+    let mut harness = harness(State {
+        multi: String::new(),
+        ..State::default()
+    });
+    let height = |harness: &Harness<'_, Rig<State>>| {
+        rect_of(harness, &format!("/{:?}", Control::EditMulti)).height()
     };
-    let before = width(&harness);
-    click_node(&mut harness, "/\"label\"/Short");
+    let before = height(&harness);
+    click_node(&mut harness, "/\"label\"/Wrapping");
     harness.run_steps(3);
-    assert_eq!(harness.state().app.label, Label::Short);
-    assert!(width(&harness).x < before.x, "a short label is narrower");
+    assert_eq!(harness.state().app.label, Label::Wrapping);
+    assert!(
+        height(&harness) > before,
+        "a hint that wraps makes the empty field taller"
+    );
     assert_eq!(mismatches(&harness), Vec::<String>::new());
+}
+
+/// The border boxes of the section control's segments.
+fn section_cells(harness: &Harness<'_, Rig<State>>) -> Vec<egui::Rect> {
+    harness
+        .state()
+        .nodes
+        .iter()
+        .filter(|(path, _)| path.starts_with("/\"section\"/"))
+        .map(|(_, rect)| *rect)
+        .collect()
+}
+
+#[test]
+fn the_four_sections_share_one_row_of_the_aside() {
+    let harness = harness(State::default());
+    let track = rect_of(&harness, "/\"section\"");
+    let caption = rect_of(&harness, "/<text>");
+    assert!(track.right() <= caption.right(), "{track:?} in {caption:?}");
+    let cells = section_cells(&harness);
+    assert!(cells.len() >= 4, "the four segments exist: {cells:?}");
+    for label in ["text", "button", "choice", "value"] {
+        harness.get_by_label(label);
+    }
+    let top = cells[0].top();
+    assert!(
+        cells
+            .iter()
+            .all(|cell| cell.top() == top && track.contains_rect(*cell)),
+        "{cells:?} in {track:?}"
+    );
+    assert!(track.height() < 50.0, "one row: {track:?}");
+}
+
+#[test]
+fn only_the_cells_section_shows_the_cell_controls() {
+    use controls_gallery::Section;
+    for (section, shown) in [
+        (Section::Cells, true),
+        (Section::Buttons, false),
+        (Section::Choices, false),
+        (Section::Values, false),
+    ] {
+        let harness = harness(State {
+            section,
+            ..State::default()
+        });
+        for path in [
+            "/\"text_size\"",
+            "/\"padding\"",
+            "/\"interact\"",
+            "/\"label\"",
+        ] {
+            let present = harness.state().nodes.iter().any(|(p, _)| p == path);
+            assert_eq!(present, shown, "{path} in {section:?}");
+        }
+        assert_eq!(
+            harness.query_all_by_label("Cell width (points)").count() > 0,
+            shown,
+            "the width slider in {section:?}"
+        );
+        assert!(rect_of(&harness, "/\"section\"").height() > 0.0);
+        assert_eq!(
+            harness
+                .query_all_by_label_contains("Blue: the rect")
+                .count()
+                > 0,
+            shown,
+            "the legend in {section:?}"
+        );
+    }
 }

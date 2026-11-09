@@ -9,7 +9,7 @@
 //! with its text up to a cap, the model is a select, and the mode a segmented
 //! control. Scrolling arrives with M5; for now overflow is clipped.
 //!
-//! F12 toggles the layout debug overlay.
+//! F12 toggles the layout debug overlay and its frame-timing readout.
 
 pub mod centre;
 #[path = "../common/mod.rs"]

@@ -5,7 +5,7 @@
 //! down. The text field sits outside the bullseye tree in a plain egui panel
 //! until M4 measures stock egui widgets in the same frame.
 //!
-//! F12 toggles the layout debug overlay.
+//! F12 toggles the layout debug overlay and its frame-timing readout.
 
 #[path = "common/mod.rs"]
 mod common;

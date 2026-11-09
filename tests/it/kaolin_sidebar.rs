@@ -45,7 +45,9 @@ fn sidebar(styling: Styling, theme: Theme) -> (Vec<Rect>, Vec<Rect>) {
                     .layout(area);
                 rig.rows = placed
                     .nodes()
-                    .filter(|node| node.path().starts_with("/(\"entry\", "))
+                    .filter(|node| {
+                        node.path().starts_with("/(\"entry\", ") && !node.path().ends_with("<text>")
+                    })
                     .map(|node| node.rect())
                     .collect();
                 placed.draw(&mut rig.gallery, ui);

@@ -1,5 +1,5 @@
-//! Port of hello_egui's signup form: a centred form of text fields, a drag
-//! value and checkboxes, with a validation error under each field that has
+//! Port of hello_egui's signup form: a centred form of text fields, a stepper
+//! and checkboxes, with a validation error under each field that has
 //! one.
 //!
 //! After the fancy-example in hello_egui (https://github.com/lucasmerlin/hello_egui,
@@ -13,10 +13,11 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use bullseye::owned::{Button, Checkbox, Stepper};
 use bullseye::prim::text_field::Field;
-use bullseye::widget::{Button, Checkbox, DragValue};
+use bullseye::style::{Mark, variant};
 use bullseye::{Builder, Tw, tw};
-use egui::{Role, WidgetInfo};
+use egui::Role;
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
 
@@ -244,17 +245,14 @@ fn check(
     state: &State,
     part: Part,
     label: &'static str,
+    checked: bool,
     lens: fn(&mut State) -> &mut bool,
 ) {
     b.div(tw().flex().flex_col().gap(1.0), |b| {
-        b.widget(
-            part,
-            tw().self_start(),
-            Checkbox::new(label),
-            move |state, ui, checkbox| {
-                checkbox.show(ui, lens(state));
-            },
-        );
+        Checkbox::new(label, Mark::from(checked)).show(b, part, move |state: &mut State| {
+            let ticked = lens(state);
+            *ticked = !*ticked;
+        });
         error_line(b, state.visible_error(part));
     });
 }
@@ -265,7 +263,7 @@ fn check(
 ///   <div class="flex flex-wrap gap-3">First Name, Last Name</div>
 ///   <div class="flex flex-col gap-1">Email</div>
 ///   <div class="flex flex-wrap gap-3">Password, Repeat Password</div>
-///   <div class="flex flex-col gap-1">Age <input type="number" class="w-[48px]"></div>
+///   <div class="flex flex-col gap-1">Age <input type="number" class="w-28"></div>
 ///   <label><input type="checkbox"> I agree to the terms</label>
 ///   <label><input type="checkbox"> Subscribe to newsletter</label>
 ///   <button class="w-full h-10">Submit</button>
@@ -326,34 +324,35 @@ fn form(b: &mut B<'_, '_>, state: &State) {
     });
     b.div(tw().flex().flex_col().gap(1.0), |b| {
         b.text(tw(), "Age");
-        b.widget(
-            Part::Age,
-            tw().self_start(),
-            DragValue::new("120"),
-            |state, ui, age| {
-                let response = age.show(ui, &mut state.fields.age, 0.0..=150.0);
-                response
-                    .widget_info(|| WidgetInfo::slider(ui.is_enabled(), state.fields.age, "Age"));
-            },
-        );
+        Stepper::new(state.fields.age, 0.0..=150.0)
+            .named("Age")
+            .classes(|classes| classes.w_px(112.0).self_start())
+            .show(b, Part::Age, |state: &mut State, age| {
+                state.fields.age = age
+            });
         error_line(b, state.visible_error(Part::Age));
     });
-    check(b, state, Part::Terms, "I agree to the terms", |s| {
-        &mut s.fields.terms
-    });
-    check(b, state, Part::Newsletter, "Subscribe to newsletter", |s| {
-        &mut s.fields.newsletter
-    });
-    b.widget(
-        Part::Submit,
-        tw().w_full().h_px(40.0),
-        Button::new("Submit").primary(),
-        |state, ui, submit| {
-            if submit.show(ui).clicked() {
-                state.submit();
-            }
-        },
+    let fields = &state.fields;
+    check(
+        b,
+        state,
+        Part::Terms,
+        "I agree to the terms",
+        fields.terms,
+        |s| &mut s.fields.terms,
     );
+    check(
+        b,
+        state,
+        Part::Newsletter,
+        "Subscribe to newsletter",
+        fields.newsletter,
+        |s| &mut s.fields.newsletter,
+    );
+    Button::new("Submit")
+        .variant(variant::PRIMARY)
+        .classes(|submit| submit.w_full().h_px(40.0))
+        .show(b, Part::Submit, State::submit);
 }
 
 /// What replaces the form once it is submitted.
@@ -376,16 +375,11 @@ fn thanks(b: &mut B<'_, '_>, state: &State) {
             format!("{:#?}", state.fields),
         );
     });
-    b.widget(
-        Part::Reset,
-        tw().self_start(),
-        Button::new("Reset"),
-        |state, ui, reset| {
-            if reset.show(ui).clicked() {
-                *state = State::default();
-            }
-        },
-    );
+    Button::new("Reset")
+        .classes(Tw::self_start)
+        .show(b, Part::Reset, |state: &mut State| {
+            *state = State::default()
+        });
 }
 
 /// ```html

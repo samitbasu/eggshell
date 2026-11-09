@@ -1,21 +1,28 @@
 //! The draw phase: [`Placed::draw`](crate::Placed::draw) walks the laid-out
 //! tree in pre-order and paints box, primitive and draw closure per node.
 
+use egui::emath::TSTransform;
 use egui::epaint::{RectShape, StrokeKind};
+use egui::layers::ShapeIdx;
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
 
+use egui::text_selection::LabelSelectionState;
 use egui::{
-    Align, Color32, Frame, Id, Image, Layout, Painter, Pos2, Rect, Response, Sense, Stroke, Ui,
-    UiBuilder, UiKind, UiStackInfo, Vec2, pos2, vec2,
+    Align, Color32, Frame, Galley, Id, Image, Layout, Painter, Pos2, Rect, Response, Role, Sense,
+    Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, WidgetInfo, pos2, vec2,
 };
 use taffy::Overflow;
 
-use crate::debug::{self, Debug};
+use crate::contract::{Selection, Style};
+use crate::debug::{self, Debug, Phase, Timer};
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
-use crate::text::{TextAlign, TextStyle};
+use crate::text::{Interactive, TextAlign, TextStyle};
+use crate::transition;
 use crate::tw::{BoxPaint, Flip, Grouping, Look, Opacity, Presence, Progress, Sides, State};
 
 /// Rounds coordinates to whole physical pixels.
@@ -87,6 +94,7 @@ struct Inherited {
     /// A text colour a variant of an ancestor set, for descendants that
     /// inherit their colour.
     text_color: Option<Color32>,
+    interactive: Interactive,
     /// The backgrounds of the node and its ancestors, composited. egui widgets
     /// that fade toward `ui.stack().bg_color()` read it from the `Ui`'s stack
     /// info, as bullseye paints backgrounds without egui `Frame`s.
@@ -371,6 +379,8 @@ struct Walk<'a, A> {
     draws: Vec<Option<DrawFn<A>>>,
     grid: PixelGrid,
     subtrees: Vec<(Id, Box<[Id]>)>,
+    selection: Selection,
+    text_seen: HashMap<Id, u32>,
 }
 
 impl<A> Walk<'_, A> {
@@ -461,11 +471,13 @@ impl<A> Walk<'_, A> {
             };
             let target = if on { Progress::END } else { Progress::START };
             match (variants.transition, node.id()) {
-                (Some(duration), Some(id)) => Progress::new(self.ui.ctx().animate_value_with_time(
+                (Some(duration), Some(id)) => transition::animate(
+                    self.ui.ctx(),
                     id.with(("bullseye-state", state as u8)),
-                    target.into(),
-                    duration.as_secs_f32(),
-                )),
+                    target,
+                    duration,
+                    variants.easing,
+                ),
                 _ => target,
             }
         };
@@ -531,6 +543,7 @@ impl<A> Walk<'_, A> {
         let look = interaction.variants.resolve(
             Look {
                 paint: *node.paint(),
+                translate: Vec2::ZERO,
                 text: base_color,
                 decoration: node.text().decoration,
             },
@@ -547,6 +560,7 @@ impl<A> Walk<'_, A> {
         };
 
         let opacity = parent.opacity * look.paint.opacity;
+        let moved_from = (look.translate != Vec2::ZERO).then(|| self.next_shape());
         paint_box(
             &self.painter(parent.clip, opacity),
             &look.paint,
@@ -571,9 +585,14 @@ impl<A> Walk<'_, A> {
             } else {
                 None
             },
+            interactive: if node.senses() {
+                Interactive::Within
+            } else {
+                parent.interactive
+            },
         };
         if let Some(prim) = self.prims[index].take() {
-            self.paint_prim(prim, &text, &boxes, inherited);
+            self.paint_prim(prim, node, &text, &boxes, inherited);
         }
         if let Some(draw) = node.draw.and_then(|slot| self.draws[slot].take()) {
             let id = node.id().expect("a node with a draw closure is identified");
@@ -595,9 +614,37 @@ impl<A> Walk<'_, A> {
             self.visit(child, inherited);
         }
         self.paint_dividers(index, &in_layout_order, inherited);
+        if let Some(first) = moved_from {
+            self.translate_shapes_since(first, look.translate);
+        }
     }
 
-    fn paint_prim(&mut self, prim: Prim, text: &TextStyle, boxes: &Boxes, inherited: Inherited) {
+    fn next_shape(&self) -> ShapeIdx {
+        let layer = self.ui.layer_id();
+        self.ui
+            .ctx()
+            .graphics_mut(|graphics| graphics.entry(layer).next_idx())
+    }
+
+    /// Moves what the subtree painted since `first`, and the clips it was
+    /// painted with, as a CSS transform does: layout and hit rects stay.
+    fn translate_shapes_since(&self, first: ShapeIdx, by: Vec2) {
+        let layer = self.ui.layer_id();
+        self.ui.ctx().graphics_mut(|graphics| {
+            let list = graphics.entry(layer);
+            let end = list.next_idx();
+            list.transform_range(first, end, TSTransform::from_translation(by));
+        });
+    }
+
+    fn paint_prim(
+        &mut self,
+        prim: Prim,
+        node: &PlacedNode,
+        text: &TextStyle,
+        boxes: &Boxes,
+        inherited: Inherited,
+    ) {
         let content = boxes.content;
         match prim {
             Prim::Text(string) => {
@@ -614,13 +661,72 @@ impl<A> Walk<'_, A> {
                     TextAlign::Center => content.center_top(),
                     TextAlign::Right => content.right_top(),
                 };
-                self.painter(inherited.clip, inherited.opacity)
-                    .galley(anchor, galley, text.color);
+                if text.select.selects(inherited.interactive) {
+                    self.select_text(node, galley, anchor, content, text, inherited);
+                } else {
+                    self.painter(inherited.clip, inherited.opacity)
+                        .galley(anchor, galley, text.color);
+                }
             }
             Prim::Icon(icon) => self.paint_image(image_for(icon, text.color), content, inherited),
             Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
-            Prim::Paint(paint) => paint(&self.painter(inherited.clip, inherited.opacity), content),
+            Prim::Paint(paint) => paint(
+                &self.painter(inherited.clip, inherited.opacity),
+                content,
+                text.color,
+            ),
         }
+    }
+
+    /// Paints `galley` through egui's label selection, which draws the
+    /// highlight, follows drags across labels and copies on Ctrl+C. The
+    /// galley and its position are the ones plain painting uses, so layout
+    /// and pixels are the same without a selection. The whole content box
+    /// takes the pointer, so a drag may end in the blank beside the text.
+    fn select_text(
+        &mut self,
+        node: &PlacedNode,
+        galley: Arc<Galley>,
+        anchor: Pos2,
+        content: Rect,
+        text: &TextStyle,
+        inherited: Inherited,
+    ) {
+        let id = self.selection_id(node);
+        let selection = self.selection;
+        node_ui(
+            self.ui,
+            UiBuilder::new().max_rect(content),
+            inherited,
+            Some(text),
+            |ui| {
+                ui.visuals_mut().selection.bg_fill = selection.fill;
+                if let Some(color) = selection.text {
+                    ui.visuals_mut().selection.stroke.color = color;
+                }
+                let response = ui.interact(content, id, Sense::click_and_drag() - Sense::FOCUSABLE);
+                response.widget_info(|| {
+                    WidgetInfo::labeled(Role::Label, ui.is_enabled(), galley.text())
+                });
+                LabelSelectionState::label_text_selection(
+                    ui,
+                    &response,
+                    anchor,
+                    galley,
+                    text.color,
+                    Stroke::NONE,
+                );
+            },
+        );
+    }
+
+    /// A stable id for the node's selectable text: its key path, and the
+    /// order among anonymous nodes that share one.
+    fn selection_id(&mut self, node: &PlacedNode) -> Id {
+        let path = self.ui.scope_id().with(("select", node.path()));
+        let seen = self.text_seen.entry(path).or_insert(0);
+        *seen += 1;
+        path.with(*seen)
     }
 
     fn paint_image(&mut self, image: Image<'static>, content: Rect, inherited: Inherited) {
@@ -679,6 +785,7 @@ impl<A> Placed<A> {
     ///
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
+        let timer = Timer::start(ui.ctx(), Phase::Draw);
         let Self {
             nodes,
             prims,
@@ -694,8 +801,10 @@ impl<A> Placed<A> {
             inertness: Inertness::Live,
             group: None,
             text_color: None,
+            interactive: Interactive::Outside,
             backdrop: Color32::TRANSPARENT,
         };
+        let selection = Style::of(ui.ctx()).selection;
         let mut walk = Walk {
             app,
             ui,
@@ -704,10 +813,13 @@ impl<A> Placed<A> {
             draws,
             grid,
             subtrees: Vec::new(),
+            selection,
+            text_seen: HashMap::new(),
         };
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();
         focus::store(&ctx, walk.subtrees);
+        drop(timer);
         if Debug::of(&ctx) == Debug::Outlines {
             debug::paint(&ctx, &nodes);
         }
@@ -741,6 +853,15 @@ pub trait NodeUi {
     /// Whether the node, or a widget inside it, has keyboard focus. See
     /// [`focus_within`](crate::focus_within).
     fn has_focus_within(&self) -> bool;
+
+    /// Declares the node the visible label `text` of the control with id
+    /// `control`, another node of the same frame: assistive technology names
+    /// the control by it. Returns whether the label was clicked, for the
+    /// caller to forward to the control, as clicking a `<label>` does.
+    ///
+    /// The node must sense clicks, and is best left out of the Tab order
+    /// (`focusable_none`), as the control is the one to focus.
+    fn label_for(&self, control: egui::Id, text: &str) -> bool;
 }
 
 impl NodeUi for Ui {
@@ -753,6 +874,16 @@ impl NodeUi for Ui {
 
     fn has_focus_within(&self) -> bool {
         focus::focus_within(self.ctx(), self.node_id())
+    }
+
+    fn label_for(&self, control: egui::Id, text: &str) -> bool {
+        let response = self.node_response();
+        response.widget_info(|| WidgetInfo::labeled(Role::Label, self.is_enabled(), text));
+        self.ctx().accesskit_node_builder(control, |node| {
+            node.clear_label();
+            node.push_labelled_by(response.id.accesskit_id());
+        });
+        response.clicked()
     }
 
     fn node_response(&self) -> Response {

@@ -7,7 +7,7 @@
 )]
 
 use bullseye::{Builder, LayoutState, TextStyle};
-use egui::epaint::Shape;
+use egui::epaint::{RectShape, Shape, StrokeKind};
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
 use egui_kittest::Harness;
 
@@ -56,11 +56,34 @@ pub fn harness_prepared<A: 'static>(
     harness_scaled(size, 1.0, base_text, app, view, prepare)
 }
 
+/// [`harness`] whose frames are `step_dt` seconds apart.
+pub fn harness_stepped<A: 'static>(
+    size: Vec2,
+    step_dt: f32,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+) -> Harness<'static, Rig<A>> {
+    harness_timed(size, 1.0, step_dt, base_text, app, view, |_, _| {})
+}
+
 /// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
 /// points.
 pub fn harness_scaled<A: 'static>(
     size: Vec2,
     pixels_per_point: f32,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    prepare: fn(&egui::Context, &A),
+) -> Harness<'static, Rig<A>> {
+    harness_timed(size, pixels_per_point, 0.05, base_text, app, view, prepare)
+}
+
+fn harness_timed<A: 'static>(
+    size: Vec2,
+    pixels_per_point: f32,
+    step_dt: f32,
     base_text: TextStyle,
     app: A,
     view: View<A>,
@@ -78,7 +101,7 @@ pub fn harness_scaled<A: 'static>(
     Harness::builder()
         .with_size(size)
         .with_pixels_per_point(pixels_per_point)
-        .with_step_dt(0.05)
+        .with_step_dt(step_dt)
         .with_accessibility_check(true)
         .build_ui_state(
             |ui, rig: &mut Rig<A>| {
@@ -206,4 +229,85 @@ pub fn focused_path<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
             .find(|(_, id)| *id == focused)
             .map_or_else(|| "<widget>".to_owned(), |(path, _)| path.clone()),
     )
+}
+
+pub fn flatten<'a>(shape: &'a Shape, into: &mut Vec<&'a Shape>) {
+    match shape {
+        Shape::Vec(shapes) => shapes.iter().for_each(|shape| flatten(shape, into)),
+        shape => into.push(shape),
+    }
+}
+
+pub fn shapes<'a, A>(harness: &'a Harness<'_, Rig<A>>) -> Vec<&'a Shape> {
+    let mut all = Vec::new();
+    for clipped in &harness.output().shapes {
+        flatten(&clipped.shape, &mut all);
+    }
+    all
+}
+
+pub fn same(a: Rect, b: Rect) -> bool {
+    (a.min - b.min).length() < 0.6 && (a.max - b.max).length() < 0.6
+}
+
+/// The last box painted over exactly `rect`, ring excluded.
+pub fn box_at<A>(harness: &Harness<'_, Rig<A>>, rect: Rect) -> RectShape {
+    shapes(harness)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Rect(r) if same(r.rect, rect) && r.stroke_kind == StrokeKind::Inside => {
+                Some(r.clone())
+            }
+            _ => None,
+        })
+        .next_back()
+        .unwrap_or_else(|| panic!("no box painted at {rect:?}"))
+}
+
+pub fn ring_at<A>(harness: &Harness<'_, Rig<A>>, rect: Rect) -> Option<RectShape> {
+    shapes(harness)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Rect(r) if same(r.rect, rect) && r.stroke_kind == StrokeKind::Outside => {
+                Some(r.clone())
+            }
+            _ => None,
+        })
+        .next_back()
+}
+
+pub fn text_color<A>(harness: &Harness<'_, Rig<A>>, inside: Rect, text: &str) -> Color32 {
+    shapes(harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => {
+                Some(t.override_text_color.unwrap_or(t.fallback_color))
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
+}
+
+pub fn press<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
+    let at = rect_of(harness, path).center();
+    harness.hover_at(at);
+    harness.run_steps(2);
+    harness.event(Event::PointerButton {
+        pos: at,
+        button: PointerButton::Primary,
+        pressed: true,
+        modifiers: Modifiers::NONE,
+    });
+    harness.run_steps(12);
+}
+
+pub fn release<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
+    let at = rect_of(harness, path).center();
+    harness.event(Event::PointerButton {
+        pos: at,
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    });
+    harness.run_steps(12);
 }

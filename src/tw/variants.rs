@@ -4,9 +4,9 @@
 
 use core::time::Duration;
 
-use egui::{Color32, Sense, Shadow};
+use egui::{Color32, Sense, Shadow, Vec2};
 
-use super::{BoxPaint, Opacity, Progress, Ring, Sides, Tw};
+use super::{BoxPaint, Easing, Opacity, Progress, Ring, Sides, Tw};
 use crate::text::TextDecoration;
 
 /// What a node senses. Egui's own [`Sense`] cannot say "nothing declared":
@@ -95,9 +95,9 @@ pub(crate) enum Grouping {
     Group,
 }
 
-/// The paint a state variant changes: colours, opacity, underline, ring and
-/// shadow. It has no layout or font-size methods on purpose, so a state
-/// change never needs another layout pass.
+/// The paint a state variant changes: colours, opacity, underline, ring,
+/// shadow and translation. It has no layout or font-size methods on purpose,
+/// so a state change never needs another layout pass.
 ///
 /// Fields a variant leaves unset keep the base paint.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -109,6 +109,7 @@ pub struct Paint {
     shadow: Option<Shadow>,
     opacity: Option<Opacity>,
     decoration: Option<TextDecoration>,
+    translate: Option<Vec2>,
 }
 
 impl Paint {
@@ -163,6 +164,19 @@ impl Paint {
         self
     }
 
+    /// `translate-x-* translate-y-*`: moves the painting of the node and its
+    /// subtree by `dx` and `dy` points. As with CSS transforms, layout and
+    /// hit rects stay where they are, and the move eases with `transition`.
+    pub fn translate(mut self, dx: f32, dy: f32) -> Self {
+        self.translate = Some(Vec2::new(dx, dy));
+        self
+    }
+
+    /// `translate-y-*`: [`translate`](Self::translate) down by `dy` points.
+    pub fn translate_y(self, dy: f32) -> Self {
+        self.translate(0.0, dy)
+    }
+
     pub(crate) fn sets_text_color(&self) -> bool {
         self.text.is_some()
     }
@@ -198,6 +212,9 @@ impl Paint {
         };
         Look {
             paint,
+            translate: self.translate.map_or(look.translate, |to| {
+                look.translate + (to - look.translate) * f32::from(progress)
+            }),
             text: blend(Some(look.text), self.text).unwrap_or(look.text),
             decoration: self
                 .decoration
@@ -254,6 +271,8 @@ impl Presence {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Look {
     pub paint: BoxPaint,
+    /// How far the node and its subtree are painted from their layout.
+    pub translate: Vec2,
     pub text: Color32,
     pub decoration: TextDecoration,
 }
@@ -267,6 +286,7 @@ pub(crate) struct Variants {
     focus: Option<Paint>,
     focus_within: Option<Paint>,
     pub(crate) transition: Option<Duration>,
+    pub(crate) easing: Easing,
 }
 
 impl Variants {
@@ -381,9 +401,58 @@ impl Tw {
     }
 
     /// `transition duration-*`: animates the node's variant changes over
-    /// `duration` instead of switching.
+    /// `duration` instead of switching, along Tailwind's default curve
+    /// `cubic-bezier(0.4, 0, 0.2, 1)` unless an `ease_*` class picks another.
+    ///
+    /// ```html
+    /// <button class="bg-primary hover:bg-primary/90 transition duration-150"></button>
+    /// ```
     pub fn transition(mut self, duration: Duration) -> Self {
         self.variants.transition = Some(duration);
+        self
+    }
+
+    /// `ease-linear`: the transition's timing function is `linear`.
+    ///
+    /// ```html
+    /// <div class="transition duration-150 ease-linear"></div>
+    /// ```
+    pub fn ease_linear(self) -> Self {
+        self.easing(Easing::Linear)
+    }
+
+    /// `ease-in`: the transition's timing function is
+    /// `cubic-bezier(0.4, 0, 1, 1)`.
+    ///
+    /// ```html
+    /// <div class="transition duration-150 ease-in"></div>
+    /// ```
+    pub fn ease_in(self) -> Self {
+        self.easing(Easing::In)
+    }
+
+    /// `ease-out`: the transition's timing function is
+    /// `cubic-bezier(0, 0, 0.2, 1)`.
+    ///
+    /// ```html
+    /// <div class="transition duration-150 ease-out"></div>
+    /// ```
+    pub fn ease_out(self) -> Self {
+        self.easing(Easing::Out)
+    }
+
+    /// `ease-in-out`: the transition's timing function is
+    /// `cubic-bezier(0.4, 0, 0.2, 1)`.
+    ///
+    /// ```html
+    /// <div class="transition duration-150 ease-in-out"></div>
+    /// ```
+    pub fn ease_in_out(self) -> Self {
+        self.easing(Easing::InOut)
+    }
+
+    fn easing(mut self, easing: Easing) -> Self {
+        self.variants.easing = easing;
         self
     }
 
@@ -413,6 +482,7 @@ mod tests {
                 background: Some(Color32::from_rgb(0, 0, 0)),
                 ..BoxPaint::default()
             },
+            translate: Vec2::ZERO,
             text: Color32::BLACK,
             decoration: TextDecoration::None,
         }
@@ -529,6 +599,22 @@ mod tests {
             panic!("blended background")
         };
         assert!(mid.r() > 0 && mid.r() < 200, "{mid:?}");
+    }
+
+    #[test]
+    fn translate_moves_paint_in_proportion_and_leaves_layout_alone() {
+        let to = Paint::default().translate(4.0, 2.0);
+        let at = |t| to.towards(look(), Progress::new(t)).translate;
+        assert_eq!(at(0.0), Vec2::ZERO);
+        assert_eq!(at(0.5), Vec2::new(2.0, 1.0));
+        assert_eq!(at(1.0), Vec2::new(4.0, 2.0));
+        assert_eq!(
+            Paint::default().translate_y(1.0),
+            Paint::default().translate(0.0, 1.0)
+        );
+        let styled = tw().active(|p| p.translate_y(1.0));
+        assert_eq!(*styled.style(), *tw().style());
+        assert_eq!(styled.sensing, Sensing::Click);
     }
 
     #[test]

@@ -10,7 +10,7 @@ use taffy::{
 };
 
 use crate::builder::Builder;
-use crate::debug::Debug;
+use crate::debug::{Debug, Phase, Timer};
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
@@ -152,6 +152,7 @@ impl LayoutState {
         ctx: &'f egui::Context,
         f: impl FnOnce(&mut Builder<'_, 'f, A>),
     ) -> Built<'f, A> {
+        let _timer = Timer::start(ctx, Phase::Build);
         let base = self
             .base_text
             .clone()
@@ -227,6 +228,7 @@ impl<'f, A> Built<'f, A> {
             frame,
             root,
         } = self;
+        let _timer = Timer::start(ctx, Phase::Layout);
         let Frame {
             measures, draws, ..
         } = frame;

@@ -2,7 +2,8 @@
 //! controls panel the demos put beside their layout, built from bullseye
 //! widgets inside the same tree.
 //!
-//! F12 toggles the layout debug overlay ([`bullseye::Debug`]) in every example
+//! F12 toggles the layout debug overlay and its frame-timing readout
+//! ([`bullseye::Debug`]) in every example
 //! that shows a [`ThemeBar`] or calls [`toggle_debug`].
 #![allow(
     dead_code,
@@ -13,10 +14,9 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
-use bullseye::prim::segmented::{Cell, segmented, segmented_by};
+use bullseye::owned::{Cell, Segmented, Slider};
 use bullseye::prim::text_field::{self, Field};
 use bullseye::style::{Accent, Shadcn, Tokens};
-use bullseye::widget::Slider;
 use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
@@ -43,7 +43,7 @@ pub const APPEARANCES: [(ThemePreference, &str); 3] = [
     (ThemePreference::Dark, "Dark"),
 ];
 
-/// F12 flips the layout debug overlay.
+/// F12 flips the layout debug overlay and its frame-timing readout.
 pub fn toggle_debug(ctx: &Context) {
     bullseye::Debug::toggle_on(ctx, Key::F12);
 }
@@ -111,6 +111,7 @@ pub type AppLayout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &S);
 pub fn run<S: 'static>(title: &str, state: S, layout: Layout<S>) -> eframe::Result {
     shell(
         title,
+        None,
         state,
         |_, _| {},
         move |state, built_in, area, ui| {
@@ -136,8 +137,30 @@ pub fn run_app_styled<S: 'static>(
     prepare: fn(&egui::Context, &S),
     layout: AppLayout<S>,
 ) -> eframe::Result {
+    run_styled_in(title, None, state, prepare, layout)
+}
+
+/// [`run_app_styled`] in a native window of `inner_size`.
+pub fn run_app_sized<S: 'static>(
+    title: &str,
+    inner_size: egui::Vec2,
+    state: S,
+    prepare: fn(&egui::Context, &S),
+    layout: AppLayout<S>,
+) -> eframe::Result {
+    run_styled_in(title, Some(inner_size), state, prepare, layout)
+}
+
+fn run_styled_in<S: 'static>(
+    title: &str,
+    inner_size: Option<egui::Vec2>,
+    state: S,
+    prepare: fn(&egui::Context, &S),
+    layout: AppLayout<S>,
+) -> eframe::Result {
     shell(
         title,
+        inner_size,
         state,
         prepare,
         move |state, layout_state, area, ui| {
@@ -151,13 +174,14 @@ pub fn run_app_styled<S: 'static>(
 
 fn shell<S: 'static>(
     title: &str,
+    inner_size: Option<egui::Vec2>,
     mut state: S,
     prepare: fn(&egui::Context, &S),
     mut frame: impl FnMut(&mut S, &mut LayoutState, egui::Rect, &mut egui::Ui) + 'static,
 ) -> eframe::Result {
     let mut layout_state = LayoutState::new();
     let mut theme_bar = ThemeBar::new();
-    launch(title, None, move |ui| {
+    launch(title, inner_size, move |ui| {
         let ctx = ui.ctx().clone();
         use_preset(&ctx);
         prepare(&ctx, &state);
@@ -255,17 +279,10 @@ where
     A: 'static,
     K: Hash + Debug + 'static,
 {
-    let classes = segmented_classes(b.ctx());
     let current = b.ctx().options(|options| options.theme_preference);
-    segmented_by(
-        b,
-        key,
-        classes.container(),
-        current,
-        &APPEARANCES,
-        |cell| classes.cell(cell),
-        |_: &mut A, ctx, preference| ctx.set_theme(preference),
-    );
+    Segmented::new(current, &APPEARANCES).show(b, key, |_: &mut A, ctx, preference| {
+        ctx.set_theme(preference)
+    });
 }
 
 /// The strip every example shows along its top edge, with the theme toggle
@@ -343,6 +360,16 @@ pub fn with_controls<'f, A>(
     controls: impl FnOnce(&mut Builder<'_, 'f, A>),
     demo: impl FnOnce(&mut Builder<'_, 'f, A>),
 ) {
+    with_panel(b, PANEL_WIDTH, controls, demo);
+}
+
+/// [`with_controls`] with a panel `width` points wide.
+pub fn with_panel<'f, A>(
+    b: &mut Builder<'_, 'f, A>,
+    width: f32,
+    controls: impl FnOnce(&mut Builder<'_, 'f, A>),
+    demo: impl FnOnce(&mut Builder<'_, 'f, A>),
+) {
     let t = tokens(b.ctx());
     b.div(tw().flex().size_full(), |b| {
         b.div(
@@ -350,7 +377,7 @@ pub fn with_controls<'f, A>(
                 .flex_col()
                 .gap(3.0)
                 .p(3.0)
-                .w_px(PANEL_WIDTH)
+                .w_px(width)
                 .shrink_0()
                 .bg(t.card)
                 .border_r(1.0)
@@ -403,18 +430,12 @@ pub fn slider_row<S: 'static>(
             b.text(tw().text(muted), caption);
             b.text(tw(), format!("{value:.0}"));
         });
-        b.widget(
+        let bounds = f64::from(*range.start())..=f64::from(*range.end());
+        Slider::new(f64::from(value), bounds).named(name).show(
+            b,
             key,
-            tw().w_full(),
-            Slider::new(),
-            move |state, ui, slider| {
-                let mut edited = f64::from(*lens(state));
-                let bounds = f64::from(*range.start())..=f64::from(*range.end());
-                let response = slider.show(ui, &mut edited, bounds);
-                if response.changed() {
-                    *lens(state) = edited as f32;
-                }
-                response.widget_info(|| WidgetInfo::slider(ui.is_enabled(), edited, &name));
+            move |state: &mut S, edited| {
+                *lens(state) = edited as f32;
             },
         );
     });
@@ -439,11 +460,6 @@ pub fn menu_item(t: &Tokens, cell: Cell) -> Tw {
     }
 }
 
-/// The shadcn tab-list classes for the context's theme.
-pub fn segmented_classes(ctx: &Context) -> bullseye::style::SegmentedClasses {
-    Shadcn::of(ctx).segmented()
-}
-
 /// A row of segments that sets the `T` at `lens`. A track of more than
 /// [`MAX_ONE_ROW`] segments wraps.
 ///
@@ -464,21 +480,13 @@ pub fn choice<S, K, T>(
     K: Hash + Debug + 'static,
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
-    let classes = segmented_classes(b.ctx());
-    let classes = if options.len() > MAX_ONE_ROW {
-        classes.wrapping()
+    let group = Segmented::new(current, options);
+    let group = if options.len() > MAX_ONE_ROW {
+        group.wrapping()
     } else {
-        classes
+        group
     };
-    segmented(
-        b,
-        key,
-        classes.container(),
-        current,
-        options,
-        |cell| classes.cell(cell),
-        lens,
-    );
+    group.show(b, key, move |state, _, value| *lens(state) = value);
 }
 
 /// A frameless text field filling its row, in shadcn's input box: `h-9`,

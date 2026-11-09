@@ -1,5 +1,6 @@
-//! The library reads time from egui's clock only: `std::time::Instant` and
-//! `SystemTime` panic on wasm32-unknown-unknown.
+//! The library reads time from egui's clock, or from `web_time::Instant` for
+//! the debug readout: `std::time::Instant` and `SystemTime` panic on
+//! wasm32-unknown-unknown.
 
 use std::fs;
 use std::path::Path;
@@ -17,6 +18,7 @@ pub struct Violation {
 }
 
 fn mentions_forbidden(line: &str) -> bool {
+    let line = line.replace("web_time::Instant", "");
     line.split(|c: char| !c.is_alphanumeric() && c != '_')
         .any(|word| FORBIDDEN.contains(&word))
 }
@@ -106,6 +108,15 @@ mod tests {
         let source = "use std::time::Instant;\nfn f() { let _ = std::time::SystemTime::now(); }\n";
         let lines: Vec<_> = violations(source).iter().map(|v| v.line).collect();
         assert_eq!(lines, [1, 2]);
+    }
+
+    #[test]
+    fn rejects_std_instant_and_accepts_web_time_instant() {
+        assert_eq!(violations("use std::time::Instant;\n").len(), 1);
+        assert_eq!(violations("use web_time::Instant;\n"), []);
+        assert_eq!(violations("let t = web_time::Instant::now();\n"), []);
+        let mixed = "use web_time::Instant;\nuse std::time::Instant;\n";
+        assert_eq!(violations(mixed).len(), 1);
     }
 
     #[test]

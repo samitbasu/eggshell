@@ -8,6 +8,7 @@
 
 mod chat_shell_demo;
 mod compile_fail;
+mod contract;
 mod controls;
 mod debug;
 mod draw;
@@ -19,16 +20,20 @@ mod interaction;
 mod kaolin_sidebar;
 mod known_gaps_demo;
 mod layout;
+mod owned;
+mod owned_choice;
+mod owned_number;
 mod ports;
 mod prims;
+mod selection;
 mod sizing;
 #[cfg(feature = "snapshots")]
 mod snapshots;
 mod state;
+mod state_stable;
 mod style;
 mod support;
 mod theme_toggle;
 mod themed_examples;
 mod todo_demo;
-mod widget_looks;
 mod widgets;

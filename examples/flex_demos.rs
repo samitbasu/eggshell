@@ -12,10 +12,9 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::prim::select::{self, Options};
-use bullseye::widget::Checkbox;
+use bullseye::owned::{Checkbox, Select};
+use bullseye::style::Mark;
 use bullseye::{Builder, Tw, none, tw};
-use egui::{Role, WidgetInfo};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
 
@@ -275,19 +274,16 @@ fn nested_group(b: &mut B<'_, '_>, state: &State) {
 /// </div>
 /// ```
 fn content_group(b: &mut B<'_, '_>, state: &State) {
-    let options = Options::new(ANCHORS.map(|(name, _)| name));
-    let measured = options.clone();
-    b.leaf(
-        Part::Content,
-        tw(),
-        move |m| select::measure(m, &measured),
-        move |state: &mut State, ui| {
-            let response = select::show(ui, &mut state.anchor, &options);
-            response.widget_info(|| {
-                WidgetInfo::labeled(Role::ComboBox, ui.is_enabled(), "Align self content")
-            });
-        },
-    );
+    let options: Vec<(usize, &str)> = ANCHORS
+        .iter()
+        .enumerate()
+        .map(|(index, (name, _))| (index, *name))
+        .collect();
+    Select::new(state.anchor, &options)
+        .named("Align self content")
+        .show(b, Part::Content, |state: &mut State, _, anchor| {
+            state.anchor = anchor;
+        });
     let (_, place) = ANCHORS[state.anchor];
     for align in ALIGNS {
         b.div_id(
@@ -352,14 +348,9 @@ fn header(b: &mut B<'_, '_>, state: &State) {
             ],
             |s| &mut s.direction,
         );
-        b.widget(
-            Part::Grow,
-            tw(),
-            Checkbox::new("Grow"),
-            |state, ui, grow| {
-                grow.show(ui, &mut state.grow);
-            },
-        );
+        Checkbox::new("Grow", Mark::from(state.grow)).show(b, Part::Grow, |state: &mut State| {
+            state.grow = !state.grow;
+        });
     });
 }
 

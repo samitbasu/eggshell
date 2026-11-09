@@ -10,6 +10,7 @@ repository = "https://github.com/samitbasu/bullseye"
 [dependencies]
 taffy = "0.15.1"
 egui = "0.37"
+web-time = "1.1"
 
 [features]
 # Golden-image tests: kittest renders them with wgpu, so they need a Vulkan

@@ -12,8 +12,11 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use std::convert::identity;
+
+use bullseye::owned::{Button, Checkbox, Slider};
 use bullseye::prim::text_field::{self, Field};
-use bullseye::widget::{Button, Checkbox, Slider};
+use bullseye::style::Mark;
 use bullseye::{Builder, Tw, tw};
 use egui::{Role, WidgetInfo};
 
@@ -92,11 +95,11 @@ fn text<A>(b: &mut Builder<'_, '_, A>, class: Tw, content: &str) {
     b.div(framed(b, class), |b| b.text(tw(), content));
 }
 
-/// A stock button that grows with its flex item.
-fn button(b: &mut B<'_, '_>, key: Part, class: Tw, label: &str) {
-    b.widget(key, class, Button::new(label), |_, ui, button| {
-        button.show(ui);
-    });
+/// A button that takes the classes `class` gives it.
+fn button(b: &mut B<'_, '_>, key: Part, class: Class, label: &str) {
+    Button::new(label)
+        .classes(class)
+        .show(b, key, |_: &mut State| {});
 }
 
 /// ```html
@@ -113,11 +116,11 @@ fn stacked(b: &mut B<'_, '_>) {
             .justify_start()
             .gap(1.0),
         |b| {
-            button(b, Part::Button("stack btn"), tw().grow(), "btn");
-            button(b, Part::Button("stack long"), tw(), "Very long button");
+            button(b, Part::Button("stack btn"), Tw::grow, "btn");
+            button(b, Part::Button("stack long"), identity, "Very long button");
             b.div(tw().flex().grow().items_stretch().gap(1.0), |b| {
-                button(b, Part::Button("row btn"), tw().grow(), "btn");
-                button(b, Part::Button("row long"), tw(), "Very long button");
+                button(b, Part::Button("row btn"), Tw::grow, "btn");
+                button(b, Part::Button("row long"), identity, "Very long button");
             });
         },
     );
@@ -151,16 +154,11 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     } else {
         "You can toggle my size"
     };
-    b.widget(
-        Part::Toggle,
-        tw().grow(),
-        Button::new(label),
-        |state, ui, button| {
-            if button.show(ui).clicked() {
-                state.toggle = !state.toggle;
-            }
-        },
-    );
+    Button::new(label)
+        .classes(Tw::grow)
+        .show(b, Part::Toggle, |state: &mut State| {
+            state.toggle = !state.toggle;
+        });
 
     let field = Field::singleline(&state.text);
     let measured = field.clone();
@@ -185,14 +183,11 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     b.div(
         tw().flex().grow().basis_px(150.0).items_center().gap(2.0),
         |b| {
-            b.widget(
+            Slider::new(state.level, 0.0..=1000.0).named("Level").show(
+                b,
                 Part::Slider,
-                tw().grow(),
-                Slider::new(),
-                |state, ui, slider| {
-                    let response = slider.show(ui, &mut state.level, 0.0..=1000.0);
-                    response
-                        .widget_info(|| WidgetInfo::slider(ui.is_enabled(), state.level, "Level"));
+                |state: &mut State, level| {
+                    state.level = level;
                 },
             );
             b.text(tw().w_px(40.0), format!("{:.0}", state.level));
@@ -201,23 +196,15 @@ fn items(b: &mut B<'_, '_>, state: &State) {
 
     stacked(b);
 
-    button(b, Part::Button("long"), tw().grow(), "Very long button");
-    button(b, Part::Button("short"), tw().grow(), "Button");
-    button(
+    button(b, Part::Button("long"), Tw::grow, "Very long button");
+    button(b, Part::Button("short"), Tw::grow, "Button");
+    button(b, Part::Button("odd"), Tw::grow, "Button wefoijfgiweopjg");
+    button(b, Part::Button("short again"), Tw::grow, "Button");
+    button(b, Part::Button("plain"), identity, "Non-grow Button");
+    Checkbox::new("Checkbox", Mark::from(state.checked)).show(
         b,
-        Part::Button("odd"),
-        tw().grow(),
-        "Button wefoijfgiweopjg",
-    );
-    button(b, Part::Button("short again"), tw().grow(), "Button");
-    button(b, Part::Button("plain"), tw(), "Non-grow Button");
-    b.widget(
         Part::Checkbox,
-        tw(),
-        Checkbox::new("Checkbox"),
-        |state, ui, checkbox| {
-            checkbox.show(ui, &mut state.checked);
-        },
+        |state: &mut State| state.checked = !state.checked,
     );
 }
 

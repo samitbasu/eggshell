@@ -424,23 +424,41 @@ fn todo_hovered(name: &str, theme: egui::Theme) {
 }
 
 /// The todo list with the layout debug overlay on and the pointer over the
-/// second row: every node's hairline, and the hovered node's path and rect.
+/// second row: every node's hairline, the hovered node's path and rect, and
+/// the frame-timing readout. The readout's numbers are measured, so its box is
+/// masked (magenta): the golden pins where it sits and how much room it takes.
 #[test]
 fn debug_overlay_todo() {
+    report_renderer();
     let theme = egui::Theme::Light;
-    snapshot_themed(
-        "debug_overlay_todo",
+    let mut harness = support::harness_prepared(
         Vec2::new(520.0, 260.0),
-        (
-            todo::State::default(),
-            todo::layout,
-            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
-        ),
-        Some(egui::pos2(200.0, 88.0)),
-        (theme, |ctx, _| {
-            bullseye::Debug::set(ctx, bullseye::Debug::Outlines)
-        }),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        todo::State::default(),
+        todo::layout,
+        |ctx, _| bullseye::Debug::set(ctx, bullseye::Debug::Outlines),
     );
+    harness.state_mut().page = support::Page::Themed;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(2);
+    harness.hover_at(egui::pos2(200.0, 88.0));
+    harness.run_steps(12);
+    let readout = harness
+        .output()
+        .shapes
+        .iter()
+        .find_map(|clipped| match &clipped.shape {
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| match shape {
+                egui::Shape::Text(text) if text.galley.text().contains("fps") => {
+                    Some(text.galley.rect.translate(text.pos.to_vec2()))
+                }
+                _ => None,
+            }),
+            _ => None,
+        })
+        .expect("the overlay draws the readout");
+    harness.mask(readout.expand2(egui::vec2(4.0, 2.0)));
+    harness.snapshot("debug_overlay_todo");
 }
 
 /// Every box of the demo, with the pointer over the `ext clickable` button.
@@ -615,7 +633,6 @@ fn gallery_in(name: &str, width: f32, theme: egui::Theme) {
     assert!(
         controls_gallery::Control::ALL
             .iter()
-            .filter(|control| control.is_checked())
             .all(|control| reports.contains_key(control)),
         "precondition: every checked cell drew: {:?}",
         reports.keys()
@@ -641,6 +658,101 @@ fn controls_gallery_default() {
 #[test]
 fn controls_gallery_dark() {
     gallery_in("controls_gallery_dark", 200.0, egui::Theme::Dark);
+}
+
+/// One owned section at the size the example opens with: the golden, and the
+/// assertion that everything in it fits the window.
+fn owned_section(name: &str, section: controls_gallery::Section, theme: egui::Theme) {
+    owned_section_after(name, section, theme, |_| {});
+}
+
+/// [`owned_section`] after `act` has driven the harness.
+fn owned_section_after(
+    name: &str,
+    section: controls_gallery::Section,
+    theme: egui::Theme,
+    act: impl FnOnce(&mut Harness<'static, support::Rig<controls_gallery::State>>),
+) {
+    report_renderer();
+    let state = controls_gallery::State {
+        section,
+        ..Default::default()
+    };
+    let mut harness = support::harness_prepared(
+        controls_gallery::WINDOW,
+        common::base_text(theme),
+        state,
+        controls_gallery::layout,
+        controls_gallery::prepare,
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(12);
+    act(&mut harness);
+    let bottom = harness
+        .state()
+        .nodes
+        .iter()
+        .map(|(_, rect)| rect.bottom())
+        .fold(0.0, f32::max);
+    assert!(
+        bottom > 100.0 && bottom <= controls_gallery::WINDOW.y,
+        "{name} reaches {bottom} in a {} high window",
+        controls_gallery::WINDOW.y
+    );
+    harness.snapshot(name);
+}
+
+macro_rules! owned_section_goldens {
+    ($($light:ident, $dark:ident: $section:ident;)*) => {$(
+        #[test]
+        fn $light() {
+            owned_section(stringify!($light), controls_gallery::Section::$section, egui::Theme::Light);
+        }
+
+        #[test]
+        fn $dark() {
+            owned_section(stringify!($dark), controls_gallery::Section::$section, egui::Theme::Dark);
+        }
+    )*};
+}
+
+owned_section_goldens! {
+    controls_gallery_buttons_light, controls_gallery_buttons_dark: Buttons;
+    controls_gallery_choices_light, controls_gallery_choices_dark: Choices;
+    controls_gallery_values_light, controls_gallery_values_dark: Values;
+}
+
+/// The enabled stepper with its text field focused: the ring surrounds the
+/// whole group and stops short of the buttons.
+fn focused_stepper(name: &str, theme: egui::Theme) {
+    owned_section_after(name, controls_gallery::Section::Values, theme, |harness| {
+        let field = harness
+            .state()
+            .nodes
+            .iter()
+            .map(|(path, _)| path.clone())
+            .find(|path| path.contains("stepper") && path.ends_with("/Box/Field"))
+            .expect("the stepper's field");
+        support::click_node(harness, &field);
+        harness.run_steps(12);
+        let group = field.trim_end_matches("/Field");
+        let group = support::rect_of(harness, group);
+        assert!(
+            support::ring_at(harness, group).is_some(),
+            "the focused stepper is ringed"
+        );
+    });
+}
+
+#[test]
+fn controls_gallery_stepper_focused_light() {
+    focused_stepper("controls_gallery_stepper_focused_light", egui::Theme::Light);
+}
+
+#[test]
+fn controls_gallery_stepper_focused_dark() {
+    focused_stepper("controls_gallery_stepper_focused_dark", egui::Theme::Dark);
 }
 
 #[test]

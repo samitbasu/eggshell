@@ -695,7 +695,7 @@ fn paint_closures_receive_the_content_box() {
     let probe = Rc::clone(&seen);
     shapes(&mut (), 1.0, move |b| {
         b.div(tw().w_px(200.0).h_px(100.0).p(2.0), |b| {
-            b.paint(tw().w_full().h_full(), move |_, rect| probe.set(rect));
+            b.paint(tw().w_full().h_full(), move |_, rect, _| probe.set(rect));
         });
     });
     assert_eq!(

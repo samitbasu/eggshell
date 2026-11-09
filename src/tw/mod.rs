@@ -9,6 +9,7 @@
 //! is the `auto` keyword. Layout methods take bare floats because the method
 //! name carries the unit, exactly as in Tailwind.
 
+mod easing;
 mod grid;
 mod layout;
 mod paint;
@@ -20,6 +21,7 @@ use taffy::{Display, Style};
 
 use crate::text::TextClasses;
 
+pub use easing::Easing;
 pub use grid::Track;
 pub use paint::{BoxPaint, Divide, Ring, Sides};
 pub use units::{Angle, Flip, Opacity, Progress};
