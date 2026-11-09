@@ -2,7 +2,8 @@
 //! controls panel the demos put beside their layout, built from bullseye
 //! widgets inside the same tree.
 //!
-//! F12 toggles the layout debug overlay ([`bullseye::Debug`]) in every example
+//! F12 toggles the layout debug overlay and its frame-timing readout
+//! ([`bullseye::Debug`]) in every example
 //! that shows a [`ThemeBar`] or calls [`toggle_debug`].
 #![allow(
     dead_code,
@@ -42,7 +43,7 @@ pub const APPEARANCES: [(ThemePreference, &str); 3] = [
     (ThemePreference::Dark, "Dark"),
 ];
 
-/// F12 flips the layout debug overlay.
+/// F12 flips the layout debug overlay and its frame-timing readout.
 pub fn toggle_debug(ctx: &Context) {
     bullseye::Debug::toggle_on(ctx, Key::F12);
 }

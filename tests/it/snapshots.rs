@@ -424,23 +424,41 @@ fn todo_hovered(name: &str, theme: egui::Theme) {
 }
 
 /// The todo list with the layout debug overlay on and the pointer over the
-/// second row: every node's hairline, and the hovered node's path and rect.
+/// second row: every node's hairline, the hovered node's path and rect, and
+/// the frame-timing readout. The readout's numbers are measured, so its box is
+/// masked (magenta): the golden pins where it sits and how much room it takes.
 #[test]
 fn debug_overlay_todo() {
+    report_renderer();
     let theme = egui::Theme::Light;
-    snapshot_themed(
-        "debug_overlay_todo",
+    let mut harness = support::harness_prepared(
         Vec2::new(520.0, 260.0),
-        (
-            todo::State::default(),
-            todo::layout,
-            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
-        ),
-        Some(egui::pos2(200.0, 88.0)),
-        (theme, |ctx, _| {
-            bullseye::Debug::set(ctx, bullseye::Debug::Outlines)
-        }),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        todo::State::default(),
+        todo::layout,
+        |ctx, _| bullseye::Debug::set(ctx, bullseye::Debug::Outlines),
     );
+    harness.state_mut().page = support::Page::Themed;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(2);
+    harness.hover_at(egui::pos2(200.0, 88.0));
+    harness.run_steps(12);
+    let readout = harness
+        .output()
+        .shapes
+        .iter()
+        .find_map(|clipped| match &clipped.shape {
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| match shape {
+                egui::Shape::Text(text) if text.galley.text().contains("fps") => {
+                    Some(text.galley.rect.translate(text.pos.to_vec2()))
+                }
+                _ => None,
+            }),
+            _ => None,
+        })
+        .expect("the overlay draws the readout");
+    harness.mask(readout.expand2(egui::vec2(4.0, 2.0)));
+    harness.snapshot("debug_overlay_todo");
 }
 
 /// Every box of the demo, with the pointer over the `ext clickable` button.

@@ -1,6 +1,6 @@
 //! A gallery of the kaolin README layouts, built and drawn by bullseye in eframe.
 //!
-//! F12 toggles the layout debug overlay.
+//! F12 toggles the layout debug overlay and its frame-timing readout.
 
 #[path = "../common/mod.rs"]
 mod common;

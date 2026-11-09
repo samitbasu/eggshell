@@ -16,7 +16,7 @@ use egui::{
 use taffy::Overflow;
 
 use crate::contract::{Selection, Style};
-use crate::debug::{self, Debug};
+use crate::debug::{self, Debug, Phase, Timer};
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
@@ -785,6 +785,7 @@ impl<A> Placed<A> {
     ///
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
+        let timer = Timer::start(ui.ctx(), Phase::Draw);
         let Self {
             nodes,
             prims,
@@ -818,6 +819,7 @@ impl<A> Placed<A> {
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();
         focus::store(&ctx, walk.subtrees);
+        drop(timer);
         if Debug::of(&ctx) == Debug::Outlines {
             debug::paint(&ctx, &nodes);
         }

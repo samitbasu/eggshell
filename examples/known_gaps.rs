@@ -28,7 +28,7 @@
 //! and Bold files (`egui_system_font_provider` is a glyph fallback, not a weight
 //! lookup), and shows a note when it finds none. No font files are committed.
 //!
-//! F12 toggles the layout debug overlay.
+//! F12 toggles the layout debug overlay and its frame-timing readout.
 
 #[path = "common/mod.rs"]
 mod common;

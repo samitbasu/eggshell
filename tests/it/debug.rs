@@ -49,16 +49,20 @@ fn outlines(harness: &Harness<'_, Rig<()>>) -> Vec<(Rect, Color32)> {
         .collect()
 }
 
+fn texts(shape: &Shape, into: &mut Vec<String>) {
+    match shape {
+        Shape::Text(text) => into.push(text.galley.text().to_owned()),
+        Shape::Vec(shapes) => shapes.iter().for_each(|shape| texts(shape, into)),
+        _ => {}
+    }
+}
+
 fn labels(harness: &Harness<'_, Rig<()>>) -> Vec<String> {
-    harness
-        .output()
-        .shapes
-        .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            Shape::Text(text) => Some(text.galley.text().to_owned()),
-            _ => None,
-        })
-        .collect()
+    let mut found = Vec::new();
+    for clipped in &harness.output().shapes {
+        texts(&clipped.shape, &mut found);
+    }
+    found
 }
 
 fn paths(harness: &Harness<'_, Rig<()>>) -> Vec<String> {
@@ -294,4 +298,56 @@ fn the_toggle_key_flips_the_mode_and_other_keys_do_not() {
     assert_eq!(pass(press(egui::Key::F12)), Debug::Outlines);
     assert_eq!(pass(egui::RawInput::default()), Debug::Outlines);
     assert_eq!(pass(press(egui::Key::F12)), Debug::Off);
+}
+
+fn readouts(harness: &Harness<'_, Rig<()>>) -> Vec<String> {
+    labels(harness)
+        .into_iter()
+        .filter(|text| text.contains("fps"))
+        .collect()
+}
+
+#[test]
+fn the_readout_is_drawn_only_while_the_overlay_is_on() {
+    let mut harness = rig(nested);
+    run(&mut harness, Debug::Off);
+    assert!(readouts(&harness).is_empty());
+
+    run(&mut harness, Debug::Outlines);
+    let shown = readouts(&harness);
+    assert_eq!(shown.len(), 1, "one readout per frame: {shown:?}");
+    assert!(shown[0].contains("ms"), "{}", shown[0]);
+
+    run(&mut harness, Debug::Off);
+    assert!(readouts(&harness).is_empty());
+}
+
+#[test]
+fn the_smoothed_fps_follows_the_frame_time() {
+    let dt = 0.05;
+    let mut harness = rig(nested);
+    Debug::set(&harness.ctx, Debug::Outlines);
+    harness.run_steps(40);
+    let text = readouts(&harness).remove(0);
+    let fps: f32 = text
+        .split_whitespace()
+        .rev()
+        .skip_while(|word| *word != "fps")
+        .nth(1)
+        .and_then(|word| word.parse().ok())
+        .unwrap_or_else(|| panic!("no fps in {text}"));
+    assert!(
+        (fps - 1.0 / dt).abs() < 1.0,
+        "expected about {}, read {fps} from {text}",
+        1.0 / dt
+    );
+}
+
+#[test]
+fn the_readout_does_not_take_part_in_layout_or_hit_testing() {
+    let mut harness = rig(nested);
+    run(&mut harness, Debug::Off);
+    let off = paths(&harness);
+    run(&mut harness, Debug::Outlines);
+    assert_eq!(paths(&harness), off);
 }
