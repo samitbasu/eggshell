@@ -8,7 +8,7 @@ use egui::{Role, WidgetInfo};
 use super::Enablement;
 use crate::contract::{Size, Variant};
 use crate::style::Mark;
-use crate::{Builder, NodeUi as _, Style, tw};
+use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug)]
 enum Kind {
@@ -32,6 +32,7 @@ pub struct Button {
     name: Option<String>,
     enablement: Enablement,
     press: Press,
+    adjust: fn(Tw) -> Tw,
 }
 
 impl Button {
@@ -44,6 +45,7 @@ impl Button {
             name: None,
             enablement: Enablement::Enabled,
             press: Press::Shifts,
+            adjust: std::convert::identity,
         }
     }
 
@@ -74,6 +76,12 @@ impl Button {
             press: Press::Stays,
             ..self
         }
+    }
+
+    /// Changes the button's classes, such as its width or how it grows.
+    pub fn classes(mut self, adjust: fn(Tw) -> Tw) -> Self {
+        self.adjust = adjust;
+        self
     }
 
     /// The accessible name, when it is not the label.
@@ -129,6 +137,7 @@ impl Button {
             .gap(metrics.gap / 4.0)
             .role(style.text.clone())
             .whitespace_nowrap();
+        let classes = (self.adjust)(classes);
         let name = self.name.unwrap_or_else(|| self.label.clone());
         b.div_id(
             key,

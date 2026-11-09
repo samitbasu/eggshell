@@ -1,6 +1,6 @@
-//! The controls gallery through the full path: every cell's widget is sized
-//! by the library and drawn by egui, and the two agree at every width, text
-//! size, style and label the controls offer.
+//! The controls gallery through the full path: every cell's text input is
+//! sized by the library and drawn by egui, and the two agree at every width,
+//! text size, style and hint the controls offer.
 
 use egui::{Vec2, vec2};
 use egui_kittest::Harness;
@@ -121,10 +121,10 @@ fn the_estimate_can_be_wrong_and_the_gallery_says_so() {
 fn dragging_a_cells_handle_changes_every_cells_width() {
     let mut harness = harness(State::default());
     let stage = |harness: &Harness<'_, Rig<State>>| {
-        rect_of(harness, &format!("/{:?}", Control::Slider)).width()
+        rect_of(harness, &format!("/{:?}", Control::Edit)).width()
     };
     let before = stage(&harness);
-    let handle = rect_of(&harness, &format!("/(\"handle\", {:?})", Control::Button));
+    let handle = rect_of(&harness, &format!("/(\"handle\", {:?})", Control::Edit));
     drag(
         &mut harness,
         handle.center(),
@@ -142,15 +142,21 @@ fn dragging_a_cells_handle_changes_every_cells_width() {
 }
 
 #[test]
-fn a_choice_changes_the_label_and_the_widgets_follow() {
-    let mut harness = harness(State::default());
-    let width = |harness: &Harness<'_, Rig<State>>| {
-        rect_of(harness, &format!("/{:?}", Control::Button)).size()
+fn a_choice_changes_the_hint_and_the_fields_follow() {
+    let mut harness = harness(State {
+        multi: String::new(),
+        ..State::default()
+    });
+    let height = |harness: &Harness<'_, Rig<State>>| {
+        rect_of(harness, &format!("/{:?}", Control::EditMulti)).height()
     };
-    let before = width(&harness);
-    click_node(&mut harness, "/\"label\"/Short");
+    let before = height(&harness);
+    click_node(&mut harness, "/\"label\"/Wrapping");
     harness.run_steps(3);
-    assert_eq!(harness.state().app.label, Label::Short);
-    assert!(width(&harness).x < before.x, "a short label is narrower");
+    assert_eq!(harness.state().app.label, Label::Wrapping);
+    assert!(
+        height(&harness) > before,
+        "a hint that wraps makes the empty field taller"
+    );
     assert_eq!(mismatches(&harness), Vec::<String>::new());
 }

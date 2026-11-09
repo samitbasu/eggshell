@@ -1,18 +1,17 @@
-//! Every stock widget and primitive in its own leaf, with the size the library
-//! computed for it outlined against the size egui gave it.
+//! The text edits in their own leaves, with the size the library computed for
+//! each outlined against the size egui gave it, and the owned controls below.
 //!
-//! A visual cross-check of the size estimates in `bullseye::widget`: each cell
-//! outlines the leaf's rect (what layout reserved from the estimate) in blue
-//! and the rect egui returned when the widget was drawn into it in orange.
-//! They agree to within a point, the slack of snapping a rect's edges to
-//! physical pixels one at a time; beyond that the cell is outlined in red and
-//! says by how much.
-//! Drag a cell's handle or use the slider to change the width the widgets are
+//! A visual cross-check of the size computation in `bullseye::widget`: each
+//! cell outlines the leaf's rect (what layout reserved) in blue and the rect
+//! egui returned when the widget was drawn into it in orange. They agree to
+//! within a point, the slack of snapping a rect's edges to physical pixels one
+//! at a time; beyond that the cell is outlined in red and says by how much.
+//! Drag a cell's handle or use the slider to change the width the fields are
 //! given, and vary the text size, `button_padding`, `interact_size` and the
-//! label text, which is how the estimates drift when they are wrong.
+//! hint text, which is how the computation drifts when it is wrong.
 //!
-//! The widgets the layout sizes (a slider, a text field) take the cell's
-//! width; the others are as wide as their content, wrapping at the cell's edge.
+//! The owned section shows every control built from bullseye nodes, which
+//! have no size computation to check.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -20,13 +19,9 @@ mod common;
 use std::collections::BTreeMap;
 
 use bullseye::owned;
-use bullseye::prim::select::{self, Options};
 use bullseye::prim::text_field::{self, Field};
-use bullseye::style::variant;
-use bullseye::style::{ButtonVariant, Mark};
-use bullseye::widget::{
-    Button, Checkbox, ComboBox, DragValue, Lines, RadioButton, Slider, TextEdit,
-};
+use bullseye::style::{Mark, variant};
+use bullseye::widget::{Lines, TextEdit};
 use bullseye::{Builder, NodeUi as _, TextStyle, Tw, tw};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
@@ -166,88 +161,25 @@ impl Label {
     }
 }
 
-/// The widgets and primitives the gallery shows, in order.
+/// The text inputs the gallery checks, in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Control {
-    Button,
-    /// A button of a variant, in a `Ui` that is enabled or not.
-    Variant(ButtonVariant, Enablement),
-    Checkbox,
-    RadioButton,
-    Slider,
-    DragValue,
-    ComboBox,
-    TextEdit,
-    TextEditMulti,
-    TextField,
-    TextFieldMulti,
-    Select,
-}
-
-/// Whether a cell's widget is usable.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Enablement {
-    Enabled,
-    Disabled,
-}
-
-impl Enablement {
-    fn is_enabled(self) -> bool {
-        self == Self::Enabled
-    }
-}
-
-const fn variant(variant: ButtonVariant, enablement: Enablement) -> Control {
-    Control::Variant(variant, enablement)
+    Edit,
+    EditMulti,
+    Field,
+    FieldMulti,
 }
 
 impl Control {
-    pub const ALL: [Self; 21] = [
-        Self::Button,
-        variant(ButtonVariant::Primary, Enablement::Enabled),
-        variant(ButtonVariant::Primary, Enablement::Disabled),
-        variant(ButtonVariant::Secondary, Enablement::Enabled),
-        variant(ButtonVariant::Secondary, Enablement::Disabled),
-        variant(ButtonVariant::Destructive, Enablement::Enabled),
-        variant(ButtonVariant::Destructive, Enablement::Disabled),
-        variant(ButtonVariant::Outline, Enablement::Enabled),
-        variant(ButtonVariant::Outline, Enablement::Disabled),
-        variant(ButtonVariant::Ghost, Enablement::Enabled),
-        variant(ButtonVariant::Ghost, Enablement::Disabled),
-        Self::Checkbox,
-        Self::RadioButton,
-        Self::Slider,
-        Self::DragValue,
-        Self::ComboBox,
-        Self::TextEdit,
-        Self::TextEditMulti,
-        Self::TextField,
-        Self::TextFieldMulti,
-        Self::Select,
-    ];
+    pub const ALL: [Self; 4] = [Self::Edit, Self::EditMulti, Self::Field, Self::FieldMulti];
 
-    fn name(self) -> String {
-        let name = match self {
-            Self::Variant(variant, enablement) => {
-                let enablement = match enablement {
-                    Enablement::Enabled => "",
-                    Enablement::Disabled => ", disabled",
-                };
-                return format!("widget::Button, {variant:?}{enablement}");
-            }
-            Self::Button => "widget::Button",
-            Self::Checkbox => "widget::Checkbox",
-            Self::RadioButton => "widget::RadioButton",
-            Self::Slider => "widget::Slider",
-            Self::DragValue => "widget::DragValue",
-            Self::ComboBox => "widget::ComboBox",
-            Self::TextEdit => "widget::TextEdit",
-            Self::TextEditMulti => "widget::TextEdit, multi-line",
-            Self::TextField => "prim::text_field",
-            Self::TextFieldMulti => "prim::text_field, multi-line",
-            Self::Select => "prim::select",
-        };
-        name.to_owned()
+    fn name(self) -> &'static str {
+        match self {
+            Self::Edit => "widget::TextEdit",
+            Self::EditMulti => "widget::TextEdit, multi-line",
+            Self::Field => "prim::text_field",
+            Self::FieldMulti => "prim::text_field, multi-line",
+        }
     }
 }
 
@@ -281,17 +213,11 @@ pub struct State {
     /// The last frame's report for each cell.
     pub reports: BTreeMap<Control, Report>,
     pub section: Section,
-    pub checked: bool,
-    pub selected: bool,
-    pub level: f64,
-    pub amount: f64,
-    pub pick: usize,
     pub single: String,
     pub multi: String,
     pub field_single: String,
     pub field_multi: String,
     pub on: bool,
-    pub choice: usize,
     pub unit: Unit,
     /// What the owned section's checkbox, toggle, radio group and switch hold.
     pub owned_checked: bool,
@@ -308,10 +234,9 @@ pub struct State {
 /// What the gallery's main area shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Section {
-    /// Each wrapped widget in a cell outlined with its computed and drawn rects.
+    /// Each text input in a cell outlined with its computed and drawn rects.
     Cells,
-    /// Wrapped widgets beside the same controls built from bullseye nodes,
-    /// and the controls that only exist built from nodes.
+    /// The controls built from bullseye nodes.
     Owned,
 }
 
@@ -334,17 +259,11 @@ impl Default for State {
             interact: Interact::Standard,
             label: Label::Long,
             reports: BTreeMap::new(),
-            checked: true,
-            selected: true,
-            level: 30.0,
-            amount: 12.5,
-            pick: 0,
             single: "Some text".into(),
             multi: "Several lines of text that wrap\nonto more than one row".into(),
             field_single: String::new(),
             field_multi: "Grows with its content, up to a cap".into(),
             on: true,
-            choice: 0,
             unit: Unit::Metric,
             section: Section::Cells,
             owned_checked: true,
@@ -437,129 +356,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
     let label = state.label.text();
     let fill = tw().w_full();
     match control {
-        Control::Button => b.widget(control, tw(), Button::new(label), move |s, ui, w| {
-            observed(
-                s,
-                ui,
-                control,
-                Never,
-                |_, ui| {
-                    w.show(ui);
-                },
-                |ui, _| ui.add(egui::Button::new(label)).rect,
-            );
-        }),
-        Control::Variant(variant, enablement) => b.widget(
-            control,
-            tw(),
-            Button::new(label).variant(variant),
-            move |s, ui, w| {
-                observed(
-                    s,
-                    ui,
-                    control,
-                    Never,
-                    |_, ui| {
-                        ui.add_enabled_ui(enablement.is_enabled(), |ui| w.show(ui));
-                    },
-                    |ui, _| ui.add(egui::Button::new(label)).rect,
-                );
-            },
-        ),
-        Control::Checkbox => b.widget(control, tw(), Checkbox::new(label), move |s, ui, w| {
-            observed(
-                s,
-                ui,
-                control,
-                Never,
-                |s, ui| {
-                    w.show(ui, &mut s.checked);
-                },
-                |ui, _| ui.add(egui::Checkbox::new(&mut false, label)).rect,
-            );
-        }),
-        Control::RadioButton => {
-            b.widget(control, tw(), RadioButton::new(label), move |s, ui, w| {
-                observed(
-                    s,
-                    ui,
-                    control,
-                    Never,
-                    |s, ui| {
-                        if w.show(ui, s.selected).clicked() {
-                            s.selected = !s.selected;
-                        }
-                    },
-                    |ui, _| ui.add(egui::RadioButton::new(false, label)).rect,
-                );
-            });
-        }
-        Control::Slider => b.widget(
-            control,
-            fill,
-            Slider::new().named(label),
-            move |s, ui, w| {
-                observed(
-                    s,
-                    ui,
-                    control,
-                    Never,
-                    |s, ui| {
-                        w.show(ui, &mut s.level, 0.0..=100.0);
-                    },
-                    |ui, width| {
-                        ui.spacing_mut().slider_width = width;
-                        if let Some(tokens) = bullseye::style::tokens(ui.ctx()) {
-                            ui.spacing_mut().interact_size.y = tokens.slider_height();
-                        }
-                        ui.add(egui::Slider::new(&mut 0.0, 0.0..=100.0).show_value(false))
-                            .rect
-                    },
-                );
-            },
-        ),
-        Control::DragValue => {
-            b.widget(
-                control,
-                tw(),
-                DragValue::new(DRAG_TEMPLATE).named(label),
-                move |s, ui, w| {
-                    observed(
-                        s,
-                        ui,
-                        control,
-                        Never,
-                        |s, ui| {
-                            w.show(ui, &mut s.amount, -100.0..=100.0);
-                        },
-                        |ui, _| {
-                            ui.add(egui::DragValue::new(&mut -100.0).fixed_decimals(2))
-                                .rect
-                        },
-                    );
-                },
-            );
-        }
-        Control::ComboBox => b.widget(
-            control,
-            tw(),
-            ComboBox::new(label).named(label),
-            move |s, ui, w| {
-                observed(
-                    s,
-                    ui,
-                    control,
-                    Never,
-                    |_, ui| {
-                        w.show(ui, |ui| {
-                            ui.label(label);
-                        });
-                    },
-                    |ui, _| combo(ui, label).rect,
-                );
-            },
-        ),
-        Control::TextEdit => {
+        Control::Edit => {
             let text = state.single.clone();
             let field = TextEdit::singleline(&text).hint(label).named(label);
             b.widget(control, fill, field, move |s, ui, w| {
@@ -575,7 +372,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 );
             });
         }
-        Control::TextEditMulti => {
+        Control::EditMulti => {
             let text = state.multi.clone();
             let field = TextEdit::multiline(&text, 2).hint(label).named(label);
             b.widget(control, fill, field, move |s, ui, w| {
@@ -591,7 +388,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 );
             });
         }
-        Control::TextField => {
+        Control::Field => {
             let text = state.field_single.clone();
             let field = Field::singleline(&text).hint(label);
             let measured = field.clone();
@@ -613,7 +410,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 },
             );
         }
-        Control::TextFieldMulti => {
+        Control::FieldMulti => {
             let text = state.field_multi.clone();
             let field = Field::multiline(&text, 1).max_rows(FIELD_ROWS).named(label);
             let measured = field.clone();
@@ -631,27 +428,6 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                             text_field::show(ui, &mut s.field_multi, &field);
                         },
                         |ui, width| natural_edit(ui, &text, ONE_ROW, width, None).rect,
-                    );
-                },
-            );
-        }
-        Control::Select => {
-            let options = Options::new(select_labels(label)).named(label);
-            let measured = options.clone();
-            b.leaf(
-                control,
-                tw(),
-                move |m| select::measure(m, &measured),
-                move |s, ui| {
-                    observed(
-                        s,
-                        ui,
-                        control,
-                        Never,
-                        |s, ui| {
-                            select::show(ui, &mut s.choice, &options);
-                        },
-                        |ui, _| widest_combo(ui, &select_labels(label)),
                     );
                 },
             );
@@ -688,43 +464,8 @@ fn natural_edit(ui: &mut Ui, text: &str, lines: Lines, width: f32, hint: Option<
     .inner
 }
 
-/// The text of the widest value a drag value is sized for.
-const DRAG_TEMPLATE: &str = "-100.00";
-
 /// Rows after which the multi-line field scrolls.
 const FIELD_ROWS: usize = 4;
-
-fn select_labels(label: &'static str) -> [&'static str; 3] {
-    [label, "Second option", "Third"]
-}
-
-/// A combo box header showing `selected`, as egui sizes it on its own.
-fn combo(ui: &mut Ui, selected: &str) -> Response {
-    ui.scope(|ui| {
-        input_padded(ui);
-        egui::ComboBox::from_id_salt(selected)
-            .selected_text(selected)
-            .show_ui(ui, |_| {})
-            .response
-    })
-    .inner
-}
-
-/// The rect of the header of each of `labels`, each added at the same place:
-/// the select is as large as its largest.
-fn widest_combo(ui: &mut Ui, labels: &[&str]) -> Rect {
-    let room = ui.max_rect();
-    let size = labels
-        .iter()
-        .map(|label| {
-            ui.scope_builder(UiBuilder::new().id_salt(label).max_rect(room), |ui| {
-                combo(ui, label).rect.size()
-            })
-            .inner
-        })
-        .fold(egui::Vec2::ZERO, egui::Vec2::max);
-    Rect::from_min_size(room.min, size)
-}
 
 /// What a cell's caption says about its report.
 fn status(state: &State, control: Control, muted: Color32) -> (String, Color32) {
@@ -909,25 +650,27 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
     );
 }
 
-const WRAPPED_VARIANTS: [(ButtonVariant, &str, bullseye::contract::Variant); 5] = [
-    (ButtonVariant::Primary, "primary", variant::PRIMARY),
-    (ButtonVariant::Secondary, "secondary", variant::SECONDARY),
-    (
-        ButtonVariant::Destructive,
-        "destructive",
-        variant::DESTRUCTIVE,
-    ),
-    (ButtonVariant::Outline, "outline", variant::OUTLINE),
-    (ButtonVariant::Ghost, "ghost", variant::GHOST),
+const VARIANTS: [(&str, bullseye::contract::Variant); 5] = [
+    ("primary", variant::PRIMARY),
+    ("secondary", variant::SECONDARY),
+    ("destructive", variant::DESTRUCTIVE),
+    ("outline", variant::OUTLINE),
+    ("ghost", variant::GHOST),
 ];
 
-/// One row of the comparison: a name, the wrapped control, the owned one.
-fn comparison_row<'f>(
-    b: &mut B<'_, 'f>,
-    name: &str,
-    wrapped: impl FnOnce(&mut B<'_, 'f>),
-    owned: impl FnOnce(&mut B<'_, 'f>),
-) {
+const ENABLEMENTS: [owned::Enablement; 2] =
+    [owned::Enablement::Enabled, owned::Enablement::Disabled];
+
+/// `name`, with ", disabled" when `enablement` says so.
+fn named(name: &str, enablement: owned::Enablement) -> String {
+    match enablement {
+        owned::Enablement::Enabled => name.to_owned(),
+        owned::Enablement::Disabled => format!("{name}, disabled"),
+    }
+}
+
+/// One row: a name, then the control.
+fn row<'f>(b: &mut B<'_, 'f>, name: &str, control: impl FnOnce(&mut B<'_, 'f>)) {
     b.div(tw().flex().items_center().gap(4.0), |b| {
         b.div(
             tw().w_px(130.0)
@@ -937,254 +680,98 @@ fn comparison_row<'f>(
                 b.text(tw(), name);
             },
         );
-        b.div(tw().w_px(170.0).shrink_0().flex().items_center(), wrapped);
-        b.div(tw().w_px(170.0).shrink_0().flex().items_center(), owned);
+        b.div(tw().w_px(170.0).shrink_0().flex().items_center(), control);
     });
 }
 
-fn owned_enablement(enablement: Enablement) -> owned::Enablement {
-    match enablement {
-        Enablement::Enabled => owned::Enablement::Enabled,
-        Enablement::Disabled => owned::Enablement::Disabled,
-    }
-}
-
-fn wrapped_leaf(enablement: Enablement) -> Tw {
-    match enablement {
-        Enablement::Enabled => tw(),
-        Enablement::Disabled => tw().inert().opacity(bullseye::Opacity::new(0.5)),
-    }
-}
-
-/// The wrapped egui controls beside the same ones built from nodes.
+/// Every owned control.
 ///
 /// ```html
 /// <div class="flex flex-col gap-3 p-3">
-///   <div class="flex gap-4"><span class="w-[130px]">name</span> wrapped owned</div>
-///   …a row per button variant, enabled and disabled, the toggle and the checkbox…
+///   <div class="flex gap-4"><span class="w-[130px]">name</span> control</div>
+///   …a row per button variant, enabled and disabled, the toggle, checkbox, radio group,
+///   slider, select, stepper, switch and segmented control…
 /// </div>
 /// ```
 fn owned_section(b: &mut B<'_, '_>, state: &State) {
     b.div(tw().flex().flex_col().gap(3.0).p(3.0), |b| {
-        comparison_row(
-            b,
-            "",
-            |b| b.text(tw(), "wrapped egui"),
-            |b| b.text(tw(), "owned nodes"),
-        );
-        for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            for (wrapped, name, owned_name) in WRAPPED_VARIANTS {
-                let label = match enablement {
-                    Enablement::Enabled => name.to_owned(),
-                    Enablement::Disabled => format!("{name}, disabled"),
-                };
-                comparison_row(
-                    b,
-                    &label,
-                    |b| {
-                        b.widget(
-                            ("wrapped", name, enablement),
-                            wrapped_leaf(enablement),
-                            Button::new("Button").variant(wrapped),
-                            |_, ui, button| {
-                                button.show(ui);
-                            },
-                        );
-                    },
-                    |b| {
-                        owned::Button::new("Button")
-                            .variant(owned_name)
-                            .enablement(owned_enablement(enablement))
-                            .show(b, ("owned", name, enablement), |s: &mut State| {
-                                s.owned_clicks += 1;
-                            });
-                    },
-                );
+        for enablement in ENABLEMENTS {
+            for (name, variant) in VARIANTS {
+                row(b, &named(name, enablement), |b| {
+                    owned::Button::new("Button")
+                        .variant(variant)
+                        .enablement(enablement)
+                        .show(b, ("button", name, enablement), |s: &mut State| {
+                            s.owned_clicks += 1;
+                        });
+                });
             }
         }
-        let toggled = Mark::from(state.owned_toggled);
-        comparison_row(
-            b,
-            "toggle",
-            |b| {
-                b.widget(
-                    "wrapped-toggle",
-                    tw(),
-                    Button::selectable("Toggle", toggled),
-                    |s: &mut State, ui, button| {
-                        if button.show(ui).clicked() {
-                            s.owned_toggled = !s.owned_toggled;
-                        }
-                    },
-                );
-            },
-            |b| {
-                owned::Button::toggle("Toggle", toggled).show(
-                    b,
-                    "owned-toggle",
-                    |s: &mut State| {
-                        s.owned_toggled = !s.owned_toggled;
-                    },
-                );
-            },
-        );
-        for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            let label = match enablement {
-                Enablement::Enabled => "checkbox",
-                Enablement::Disabled => "checkbox, disabled",
-            };
-            comparison_row(
+        row(b, "toggle", |b| {
+            owned::Button::toggle("Toggle", Mark::from(state.owned_toggled)).show(
                 b,
-                label,
-                |b| {
-                    b.widget(
-                        ("wrapped-checkbox", enablement),
-                        wrapped_leaf(enablement),
-                        Checkbox::new("Accept terms"),
-                        |s: &mut State, ui, checkbox| {
-                            checkbox.show(ui, &mut s.owned_checked);
-                        },
-                    );
-                },
-                |b| {
-                    owned::Checkbox::new("Accept terms", Mark::from(state.owned_checked))
-                        .enablement(owned_enablement(enablement))
-                        .show(b, ("owned-checkbox", enablement), |s: &mut State| {
-                            s.owned_checked = !s.owned_checked;
-                        });
-                },
+                "toggle",
+                |s: &mut State| s.owned_toggled = !s.owned_toggled,
             );
-        }
-        comparison_row(
-            b,
-            "radio group",
-            |b| {
-                b.widget(
-                    "wrapped-radio",
-                    tw(),
-                    RadioButton::new("Metric"),
-                    |s: &mut State, ui, radio| {
-                        if radio.show(ui, s.selected).clicked() {
-                            s.selected = !s.selected;
-                        }
-                    },
-                );
-            },
-            |b| {
-                owned::RadioGroup::new(
-                    state.owned_radio,
-                    &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-                )
-                .show(b, "owned-radio", |s: &mut State, unit| s.owned_radio = unit);
-            },
-        );
-        for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            let label = match enablement {
-                Enablement::Enabled => "slider",
-                Enablement::Disabled => "slider, disabled",
-            };
-            comparison_row(
-                b,
-                label,
-                |b| {
-                    b.widget(
-                        ("wrapped-slider", enablement),
-                        wrapped_leaf(enablement).w_px(150.0),
-                        Slider::new().named("Volume"),
-                        |s: &mut State, ui, slider| {
-                            slider.show(ui, &mut s.owned_slider, 0.0..=100.0);
-                        },
-                    );
-                },
-                |b| {
-                    owned::Slider::new(state.owned_slider, 0.0..=100.0)
-                        .named("Volume")
-                        .enablement(owned_enablement(enablement))
-                        .show(b, ("owned-slider", enablement), |s: &mut State, value| {
-                            s.owned_slider = value;
-                        });
-                },
-            );
-        }
-        for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            let label = match enablement {
-                Enablement::Enabled => "select",
-                Enablement::Disabled => "select, disabled",
-            };
-            comparison_row(
-                b,
-                label,
-                |b| {
-                    b.widget(
-                        ("wrapped-select", enablement),
-                        wrapped_leaf(enablement),
-                        ComboBox::new(REGIONS[state.owned_select]).named("Region"),
-                        |s: &mut State, ui, combo| {
-                            combo.show(ui, |ui| {
-                                for (index, region) in REGIONS.iter().enumerate() {
-                                    ui.selectable_value(&mut s.owned_select, index, *region);
-                                }
-                            });
-                        },
-                    );
-                },
-                |b| {
-                    owned::Select::new(state.owned_select, &REGION_OPTIONS)
-                        .named("Region")
-                        .classes(|classes| classes.w_px(150.0))
-                        .enablement(owned_enablement(enablement))
-                        .show(
-                            b,
-                            ("owned-select", enablement),
-                            |s: &mut State, _, region| {
-                                s.owned_select = region;
-                            },
-                        );
-                },
-            );
-        }
-        comparison_row(
-            b,
-            "stepper",
-            |b| b.text(tw(), "no wrapped form"),
-            |b| {
-                owned::Stepper::new(state.owned_stepper, 0.0..=10.0)
-                    .named("Count")
-                    .show(b, "owned-stepper", |s: &mut State, value| {
-                        s.owned_stepper = value;
+        });
+        for enablement in ENABLEMENTS {
+            row(b, &named("checkbox", enablement), |b| {
+                owned::Checkbox::new("Accept terms", Mark::from(state.owned_checked))
+                    .enablement(enablement)
+                    .show(b, ("checkbox", enablement), |s: &mut State| {
+                        s.owned_checked = !s.owned_checked;
                     });
-            },
-        );
-        for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            let label = match enablement {
-                Enablement::Enabled => "switch",
-                Enablement::Disabled => "switch, disabled",
-            };
-            comparison_row(
-                b,
-                label,
-                |b| b.text(tw(), "no wrapped form"),
-                |b| {
-                    owned::Switch::new("Airplane mode", Mark::from(state.on))
-                        .enablement(owned_enablement(enablement))
-                        .show(b, ("owned-switch", enablement), |s: &mut State| {
-                            s.on = !s.on
-                        });
-                },
-            );
+            });
         }
-        comparison_row(
-            b,
-            "segmented",
-            |b| b.text(tw(), "no wrapped form"),
-            |b| {
-                owned::Segmented::new(
-                    state.unit,
-                    &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-                )
-                .show(b, "owned-segmented", |s: &mut State, _, unit| s.unit = unit);
-            },
-        );
+        row(b, "radio group", |b| {
+            owned::RadioGroup::new(
+                state.owned_radio,
+                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+            )
+            .show(b, "radio", |s: &mut State, unit| s.owned_radio = unit);
+        });
+        for enablement in ENABLEMENTS {
+            row(b, &named("slider", enablement), |b| {
+                owned::Slider::new(state.owned_slider, 0.0..=100.0)
+                    .named("Volume")
+                    .enablement(enablement)
+                    .show(b, ("slider", enablement), |s: &mut State, value| {
+                        s.owned_slider = value;
+                    });
+            });
+        }
+        for enablement in ENABLEMENTS {
+            row(b, &named("select", enablement), |b| {
+                owned::Select::new(state.owned_select, &REGION_OPTIONS)
+                    .named("Region")
+                    .classes(|classes| classes.w_px(150.0))
+                    .enablement(enablement)
+                    .show(b, ("select", enablement), |s: &mut State, _, region| {
+                        s.owned_select = region;
+                    });
+            });
+        }
+        row(b, "stepper", |b| {
+            owned::Stepper::new(state.owned_stepper, 0.0..=10.0)
+                .named("Count")
+                .show(b, "stepper", |s: &mut State, value| {
+                    s.owned_stepper = value;
+                });
+        });
+        for enablement in ENABLEMENTS {
+            row(b, &named("switch", enablement), |b| {
+                owned::Switch::new("Airplane mode", Mark::from(state.on))
+                    .enablement(enablement)
+                    .show(b, ("switch", enablement), |s: &mut State| s.on = !s.on);
+            });
+        }
+        row(b, "segmented", |b| {
+            owned::Segmented::new(
+                state.unit,
+                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+            )
+            .show(b, "segmented", |s: &mut State, _, unit| s.unit = unit);
+        });
     });
 }
 

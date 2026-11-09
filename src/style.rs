@@ -10,8 +10,8 @@
 //! preset's theme, which the owned widgets of [`owned`](crate::owned) draw
 //! from. It maps the [`Tokens`] onto the egui
 //! [`Style`] of the preset's theme (widget fills, strokes, radii, selection,
-//! spacing), which stock widgets and the size estimates in
-//! [`widget`](crate::widget) follow automatically. It also remembers the
+//! spacing), which the text edit of [`widget`](crate::widget) and egui's own
+//! popups follow automatically. It also remembers the
 //! tokens in the context, for the few things egui's style cannot express: the
 //! input's padding, which egui shares with buttons.
 //!
@@ -43,7 +43,7 @@ use std::time::Duration;
 
 use egui::{
     Color32, Context, CornerRadius, Id, Margin, Shadow, Stroke, Style, TextStyle, Theme, Vec2,
-    style::{HandleShape, Visuals, WidgetVisuals, Widgets},
+    style::{HandleShape, WidgetVisuals},
     vec2,
 };
 
@@ -400,12 +400,6 @@ impl Tokens {
             line_height: 20.0,
             family: egui::FontFamily::Proportional,
         }
-    }
-
-    /// The height of a slider whose thumb is [`slider_thumb`](Self::slider_thumb)
-    /// across: egui's circular handle is 0.4 of the slider's height.
-    pub fn slider_height(&self) -> f32 {
-        self.slider_thumb * 1.25
     }
 
     /// The thumb of a switch whose track is `track`: the default thumb's
@@ -908,22 +902,6 @@ pub fn tokens(ctx: &Context) -> Option<Tokens> {
     ctx.data(|data| data.get_temp::<Tokens>(id))
 }
 
-/// shadcn's `Button` variants.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ButtonVariant {
-    /// `default`: the `primary` fill.
-    Primary,
-    /// `secondary`: the `secondary` fill. The look every stock button has.
-    #[default]
-    Secondary,
-    /// `destructive`.
-    Destructive,
-    /// `outline`: bordered on the background.
-    Outline,
-    /// `ghost`: no fill until hovered.
-    Ghost,
-}
-
 /// Whether a checkbox is ticked, a radio button chosen or a selectable
 /// button selected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -940,198 +918,13 @@ impl From<bool> for Mark {
     }
 }
 
-/// What egui reads from a widget's visuals for one state of a button, a
-/// checkbox or a radio button.
-#[derive(Clone, Copy)]
-struct Look {
-    fill: Color32,
-    stroke: Color32,
-    text: Color32,
-}
-
-impl Look {
-    fn apply(self, visuals: &mut WidgetVisuals) {
-        visuals.weak_bg_fill = self.fill;
-        visuals.bg_fill = self.fill;
-        visuals.bg_stroke.color = self.stroke;
-        visuals.fg_stroke.color = self.text;
-    }
-}
-
-/// Gives the states a widget can be in `rest` and `hover` looks. A disabled
-/// widget is drawn in egui's noninteractive state, at half opacity.
-fn set_looks(widgets: &mut Widgets, rest: Look, hover: Look) {
-    for visuals in [&mut widgets.noninteractive, &mut widgets.inactive] {
-        rest.apply(visuals);
-    }
-    for visuals in [&mut widgets.hovered, &mut widgets.active, &mut widgets.open] {
-        hover.apply(visuals);
-    }
-}
-
 impl Shadcn {
-    /// Restyles `visuals`, those of the `Ui` a button is added to, for a
-    /// button of `variant`. Strokes keep their width and widgets their
-    /// expansion, so the size does not depend on the variant. A variant
-    /// other than secondary has its own text colours, so it drops the `Ui`'s
-    /// override of the text colour.
-    pub fn style_button(&self, variant: ButtonVariant, visuals: &mut Visuals) {
-        let t = &self.tokens;
-        let dark = self.theme == Theme::Dark;
-        let clear = Color32::TRANSPARENT;
-        let filled = |fill, hover, text| {
-            (
-                Look {
-                    fill,
-                    stroke: clear,
-                    text,
-                },
-                Look {
-                    fill: hover,
-                    stroke: clear,
-                    text,
-                },
-            )
-        };
-        let (rest, hover) = match variant {
-            ButtonVariant::Secondary => return,
-            ButtonVariant::Primary => filled(t.primary, t.primary_90(), t.primary_foreground),
-            ButtonVariant::Destructive => filled(
-                if dark {
-                    t.destructive_60()
-                } else {
-                    t.destructive
-                },
-                t.destructive_90(),
-                t.destructive_foreground,
-            ),
-            ButtonVariant::Outline => {
-                let rest = Look {
-                    fill: if dark { t.input_30() } else { t.background },
-                    stroke: t.input,
-                    text: t.foreground,
-                };
-                let hover = Look {
-                    fill: if dark { t.input_50() } else { t.accent },
-                    text: if dark {
-                        t.foreground
-                    } else {
-                        t.accent_foreground
-                    },
-                    ..rest
-                };
-                (rest, hover)
-            }
-            ButtonVariant::Ghost => {
-                let rest = Look {
-                    fill: clear,
-                    stroke: clear,
-                    text: t.foreground,
-                };
-                let hover = Look {
-                    fill: if dark { t.accent_50() } else { t.accent },
-                    text: t.accent_foreground,
-                    ..rest
-                };
-                (rest, hover)
-            }
-        };
-        visuals.override_text_color = None;
-        set_looks(&mut visuals.widgets, rest, hover);
-    }
-
-    /// Restyles `widgets` for a checkbox: the background in an `input`
-    /// border, `primary` with a `primary-foreground` tick when ticked.
-    /// Styles a selectable button as shadcn's Toggle: transparent at rest,
-    /// `muted` with `muted-foreground` text under the pointer, and `accent`
-    /// with `accent-foreground` text while selected, whatever the pointer
-    /// does. egui paints a selected button from `selection`, which also
-    /// colours selected text, so the selected look is set here, in the
-    /// button's own `Ui`.
-    pub(crate) fn style_toggle(&self, mark: Mark, visuals: &mut Visuals) {
-        let t = &self.tokens;
-        let clear = Color32::TRANSPARENT;
-        let rest = Look {
-            fill: clear,
-            stroke: clear,
-            text: t.foreground,
-        };
-        let hover = Look {
-            fill: t.muted,
-            text: t.muted_foreground,
-            ..rest
-        };
-        visuals.override_text_color = None;
-        set_looks(&mut visuals.widgets, rest, hover);
-        if mark == Mark::On {
-            visuals.selection.bg_fill = t.accent;
-            visuals.selection.stroke.color = t.accent_foreground;
-        }
-    }
-
-    /// Styles a slider: the rail `muted` with the range in `primary`, and the
-    /// thumb a `primary` outline round an opaque `background` (shadcn's
-    /// `border-primary bg-background`). egui paints the rail and the resting
-    /// thumb with the same `inactive.bg_fill`, so the resting thumb's fill is
-    /// set by [`crate::widget::Slider`] after drawing.
-    pub(crate) fn style_slider(&self, style: &mut Style) {
-        let t = &self.tokens;
-        let visuals = &mut style.visuals;
-        visuals.selection.bg_fill = t.primary;
-        visuals.widgets.inactive.bg_fill = t.muted;
-        for widget in [&mut visuals.widgets.hovered, &mut visuals.widgets.active] {
-            widget.bg_fill = t.background;
-        }
-        for widget in [
-            &mut visuals.widgets.inactive,
-            &mut visuals.widgets.hovered,
-            &mut visuals.widgets.active,
-        ] {
-            widget.fg_stroke = Stroke::new(1.0, t.primary);
-        }
-        style.spacing.interact_size.y = t.slider_height();
-    }
-
-    pub(crate) fn style_checkbox(&self, mark: Mark, widgets: &mut Widgets) {
-        let t = &self.tokens;
-        let look = match mark {
-            Mark::Off => Look {
-                fill: self.input_fill(),
-                stroke: t.input,
-                text: t.foreground,
-            },
-            Mark::On => Look {
-                fill: t.primary,
-                stroke: t.primary,
-                text: t.primary_foreground,
-            },
-        };
-        set_looks(widgets, look, look);
-    }
-
-    /// Restyles `widgets` for a radio button: the background in an `input`
-    /// border, with a `primary` dot when chosen.
-    pub(crate) fn style_radio(&self, widgets: &mut Widgets) {
-        let t = &self.tokens;
-        let look = Look {
-            fill: self.input_fill(),
-            stroke: t.input,
-            text: t.primary,
-        };
-        set_looks(widgets, look, look);
-    }
-
     /// The fill of an input-like box: `bg-background`, or `dark:bg-input/30`.
     fn input_fill(&self) -> Color32 {
         match self.theme {
             Theme::Light => self.tokens.background,
             Theme::Dark => self.tokens.input_30(),
         }
-    }
-
-    /// The colour of a label beside a checkbox or a radio button.
-    pub(crate) fn label_color(&self) -> Color32 {
-        self.tokens.foreground
     }
 }
 

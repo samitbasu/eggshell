@@ -13,9 +13,9 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::owned::Stepper;
+use bullseye::owned::{Button, Checkbox, Stepper};
 use bullseye::prim::text_field::Field;
-use bullseye::widget::{Button, Checkbox};
+use bullseye::style::{Mark, variant};
 use bullseye::{Builder, Tw, tw};
 use egui::Role;
 
@@ -245,17 +245,14 @@ fn check(
     state: &State,
     part: Part,
     label: &'static str,
+    checked: bool,
     lens: fn(&mut State) -> &mut bool,
 ) {
     b.div(tw().flex().flex_col().gap(1.0), |b| {
-        b.widget(
-            part,
-            tw().self_start(),
-            Checkbox::new(label),
-            move |state, ui, checkbox| {
-                checkbox.show(ui, lens(state));
-            },
-        );
+        Checkbox::new(label, Mark::from(checked)).show(b, part, move |state: &mut State| {
+            let ticked = lens(state);
+            *ticked = !*ticked;
+        });
         error_line(b, state.visible_error(part));
     });
 }
@@ -335,22 +332,27 @@ fn form(b: &mut B<'_, '_>, state: &State) {
             });
         error_line(b, state.visible_error(Part::Age));
     });
-    check(b, state, Part::Terms, "I agree to the terms", |s| {
-        &mut s.fields.terms
-    });
-    check(b, state, Part::Newsletter, "Subscribe to newsletter", |s| {
-        &mut s.fields.newsletter
-    });
-    b.widget(
-        Part::Submit,
-        tw().w_full().h_px(40.0),
-        Button::new("Submit").primary(),
-        |state, ui, submit| {
-            if submit.show(ui).clicked() {
-                state.submit();
-            }
-        },
+    let fields = &state.fields;
+    check(
+        b,
+        state,
+        Part::Terms,
+        "I agree to the terms",
+        fields.terms,
+        |s| &mut s.fields.terms,
     );
+    check(
+        b,
+        state,
+        Part::Newsletter,
+        "Subscribe to newsletter",
+        fields.newsletter,
+        |s| &mut s.fields.newsletter,
+    );
+    Button::new("Submit")
+        .variant(variant::PRIMARY)
+        .classes(|submit| submit.w_full().h_px(40.0))
+        .show(b, Part::Submit, State::submit);
 }
 
 /// What replaces the form once it is submitted.
@@ -373,16 +375,11 @@ fn thanks(b: &mut B<'_, '_>, state: &State) {
             format!("{:#?}", state.fields),
         );
     });
-    b.widget(
-        Part::Reset,
-        tw().self_start(),
-        Button::new("Reset"),
-        |state, ui, reset| {
-            if reset.show(ui).clicked() {
-                *state = State::default();
-            }
-        },
-    );
+    Button::new("Reset")
+        .classes(Tw::self_start)
+        .show(b, Part::Reset, |state: &mut State| {
+            *state = State::default()
+        });
 }
 
 /// ```html

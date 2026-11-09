@@ -13,10 +13,9 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
-use bullseye::owned::{Cell, Segmented};
+use bullseye::owned::{Cell, Segmented, Slider};
 use bullseye::prim::text_field::{self, Field};
 use bullseye::style::{Accent, Shadcn, Tokens};
-use bullseye::widget::Slider;
 use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
@@ -396,18 +395,12 @@ pub fn slider_row<S: 'static>(
             b.text(tw().text(muted), caption);
             b.text(tw(), format!("{value:.0}"));
         });
-        b.widget(
+        let bounds = f64::from(*range.start())..=f64::from(*range.end());
+        Slider::new(f64::from(value), bounds).named(name).show(
+            b,
             key,
-            tw().w_full(),
-            Slider::new(),
-            move |state, ui, slider| {
-                let mut edited = f64::from(*lens(state));
-                let bounds = f64::from(*range.start())..=f64::from(*range.end());
-                let response = slider.show(ui, &mut edited, bounds);
-                if response.changed() {
-                    *lens(state) = edited as f32;
-                }
-                response.widget_info(|| WidgetInfo::slider(ui.is_enabled(), edited, &name));
+            move |state: &mut S, edited| {
+                *lens(state) = edited as f32;
             },
         );
     });

@@ -1,12 +1,10 @@
-//! Drift guards: for every stock widget, the size the library computes from
+//! Drift guards: for the text edit, the size the library computes from
 //! content, style and galley equals the size egui allocates when it draws the
-//! widget. Each case varies the label, the font size and the style, and a
-//! width that makes labels wrap.
+//! widget. Each case varies the text, the font size and the style, and a
+//! width that makes text wrap.
 
-use bullseye::style::{ButtonVariant, Mark, Shadcn};
-use bullseye::widget::{
-    Button, Checkbox, ComboBox, DragValue, Lines, RadioButton, Slider, Stock, TextEdit,
-};
+use bullseye::style::Shadcn;
+use bullseye::widget::{Lines, Stock, TextEdit};
 use bullseye::{TextSpec, TextStyle, Width};
 use egui::{
     Color32, Context, FontFamily, Rect, Response, Style, Theme, Ui, UiBuilder, Vec2, pos2, vec2,
@@ -87,12 +85,6 @@ const TWEAKS: [Tweak; 8] = [
 
 const SIZES: [f32; 3] = [11.0, 14.0, 21.0];
 const WIDTHS: [Option<f32>; 3] = [None, Some(150.0), Some(70.0)];
-const LABELS: [&str; 4] = [
-    "",
-    "Save",
-    "Save as…",
-    "A considerably longer label that wraps in narrow places",
-];
 
 /// What egui allocates for `add`, drawn in a `Ui` `width` wide with the
 /// node's font override, as the draw phase sets up its own.
@@ -176,191 +168,6 @@ fn agrees<W: Stock>(cases: impl Fn(&str) -> Case<W>, labels: &[&str]) -> bool {
         }
     }
     wrapped
-}
-
-#[test]
-fn button() {
-    let wrapped = agrees(
-        |label| Case {
-            widget: Button::new(label),
-            add: Box::new({
-                let label = label.to_owned();
-                move |ui, _| ui.add(egui::Button::new(label.clone()))
-            }),
-        },
-        &LABELS,
-    );
-    assert!(
-        wrapped,
-        "precondition: a long label wraps in a narrow width"
-    );
-}
-
-const VARIANTS: [ButtonVariant; 5] = [
-    ButtonVariant::Primary,
-    ButtonVariant::Secondary,
-    ButtonVariant::Destructive,
-    ButtonVariant::Outline,
-    ButtonVariant::Ghost,
-];
-
-#[test]
-fn button_variants_are_the_size_of_a_button() {
-    for variant in VARIANTS {
-        let wrapped = agrees(
-            |label| Case {
-                widget: Button::new(label).variant(variant),
-                add: Box::new({
-                    let label = label.to_owned();
-                    move |ui, _| {
-                        Shadcn::of(ui.ctx()).style_button(variant, ui.visuals_mut());
-                        ui.add(egui::Button::new(label.clone()))
-                    }
-                }),
-            },
-            &LABELS,
-        );
-        assert!(wrapped, "precondition: a long label wraps");
-    }
-}
-
-#[test]
-fn selectable_buttons_are_the_size_of_a_button_in_either_state() {
-    for mark in [Mark::Off, Mark::On] {
-        let wrapped = agrees(
-            |label| Case {
-                widget: Button::selectable(label, mark),
-                add: Box::new({
-                    let label = label.to_owned();
-                    move |ui, _| ui.add(egui::Button::selectable(mark == Mark::On, label.clone()))
-                }),
-            },
-            &LABELS,
-        );
-        assert!(wrapped, "precondition: a long label wraps");
-    }
-}
-
-#[test]
-fn checkbox() {
-    let wrapped = agrees(
-        |label| Case {
-            widget: if label.is_empty() {
-                Checkbox::unlabelled()
-            } else {
-                Checkbox::new(label)
-            },
-            add: Box::new({
-                let label = label.to_owned();
-                move |ui, _| {
-                    let mut checked = false;
-                    if label.is_empty() {
-                        ui.add(egui::Checkbox::without_text(&mut checked))
-                    } else {
-                        ui.add(egui::Checkbox::new(&mut checked, label.clone()))
-                    }
-                }
-            }),
-        },
-        &LABELS,
-    );
-    assert!(
-        wrapped,
-        "precondition: a long label wraps in a narrow width"
-    );
-}
-
-#[test]
-fn radio_button() {
-    let wrapped = agrees(
-        |label| Case {
-            widget: if label.is_empty() {
-                RadioButton::unlabelled()
-            } else {
-                RadioButton::new(label)
-            },
-            add: Box::new({
-                let label = label.to_owned();
-                move |ui, _| {
-                    if label.is_empty() {
-                        ui.add(egui::RadioButton::new(true, ()))
-                    } else {
-                        ui.add(egui::RadioButton::new(false, label.clone()))
-                    }
-                }
-            }),
-        },
-        &LABELS,
-    );
-    assert!(
-        wrapped,
-        "precondition: a long label wraps in a narrow width"
-    );
-}
-
-#[test]
-fn slider() {
-    agrees(
-        |_| Case {
-            widget: Slider::new(),
-            add: Box::new(|ui, width| {
-                if let Some(width) = width {
-                    ui.spacing_mut().slider_width = width;
-                }
-                if let Some(tokens) = bullseye::style::tokens(ui.ctx()) {
-                    ui.spacing_mut().interact_size.y = tokens.slider_height();
-                }
-                let mut value = 0.5;
-                ui.add(egui::Slider::new(&mut value, 0.0..=1.0).show_value(false))
-            }),
-        },
-        &[""],
-    );
-}
-
-#[test]
-fn drag_value() {
-    agrees(
-        |template| Case {
-            widget: DragValue::new(template),
-            add: Box::new({
-                let template = template.to_owned();
-                move |ui, _| {
-                    // A zero-decimal value formats as its digits, which is the template.
-                    let mut value: f64 = template.parse().unwrap_or(0.0);
-                    ui.add(
-                        egui::DragValue::new(&mut value)
-                            .fixed_decimals(template.split('.').nth(1).map_or(0, str::len)),
-                    )
-                }
-            }),
-        },
-        &["0", "100", "-100.00", "123456.789"],
-    );
-}
-
-#[test]
-fn combo_box() {
-    let wrapped = agrees(
-        |label| Case {
-            widget: ComboBox::new(label),
-            add: Box::new({
-                let label = label.to_owned();
-                move |ui, _| {
-                    input_padded(ui);
-                    egui::ComboBox::from_id_salt("combo")
-                        .selected_text(label.clone())
-                        .show_ui(ui, |_| {})
-                        .response
-                }
-            }),
-        },
-        &LABELS,
-    );
-    assert!(
-        wrapped,
-        "precondition: a long label wraps in a narrow width"
-    );
 }
 
 const TEXTS: [&str; 5] = [

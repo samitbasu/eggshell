@@ -35,5 +35,4 @@ mod support;
 mod theme_toggle;
 mod themed_examples;
 mod todo_demo;
-mod widget_looks;
 mod widgets;

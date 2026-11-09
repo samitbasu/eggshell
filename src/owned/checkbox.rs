@@ -62,7 +62,7 @@ impl Checkbox {
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,
-        on_toggle: fn(&mut A),
+        on_toggle: impl Fn(&mut A) + Copy + 'static,
     ) {
         let style = Style::of(b.ctx());
         let checkbox = &style.checkbox;

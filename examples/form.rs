@@ -2,20 +2,20 @@
 //! control, then a toggle-button row and a swatch grid, the patterns that
 //! are built from sensing nodes rather than widgets.
 //!
-//! Stock egui widgets sit in leaves (`text_field`, `select`, `switch` and
-//! `widget::Button`). A leaf marked `inert` is disabled, and opacity dims it:
-//! the beta switch, the region select and Save until the form can be saved.
+//! The controls are the owned ones of `bullseye::owned` (select, switch,
+//! button), and the text fields are `text_field` leaves. A control marked
+//! disabled is drawn in the style's disabled colours: the beta switch, the
+//! region select and Save until the form can be saved.
 //! Tab visits the controls top to bottom, skipping what is inert; Enter or
 //! Space presses a focused toggle or swatch.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::owned::{Enablement, Switch};
-use bullseye::prim::select::{self, Options};
+use bullseye::owned::{Button, Enablement, Select, Switch};
 use bullseye::prim::text_field::Field;
-use bullseye::widget::Button;
-use bullseye::{Builder, NodeUi as _, Opacity, Tw, tw};
+use bullseye::style::variant;
+use bullseye::{Builder, NodeUi as _, Tw, tw};
 use egui::{Color32, Role, WidgetInfo};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -196,30 +196,24 @@ fn section<'f>(b: &mut B<'_, 'f>, title: &str, rows: impl FnOnce(&mut B<'_, 'f>)
     });
 }
 
-fn disabled() -> Tw {
-    tw().inert().opacity(Opacity::new(0.5))
-}
-
 /// A select over `options`, `FIELD_WIDTH` wide.
 fn choose(
     b: &mut B<'_, '_>,
     key: Part,
-    live: Tw,
+    enablement: Enablement,
     name: &'static str,
     options: &[&'static str],
+    current: usize,
     lens: fn(&mut State) -> &mut usize,
 ) {
-    let options = Options::new(options.iter().copied());
-    let measured = options.clone();
-    b.leaf(
-        key,
-        live.w_px(FIELD_WIDTH),
-        move |m| select::measure(m, &measured),
-        move |state, ui| {
-            let response = select::show(ui, lens(state), &options);
-            response.widget_info(|| WidgetInfo::labeled(Role::ComboBox, ui.is_enabled(), name));
-        },
-    );
+    let options: Vec<(usize, &str)> = options.iter().copied().enumerate().collect();
+    Select::new(current, &options)
+        .named(name)
+        .enablement(enablement)
+        .classes(|trigger| trigger.w_px(FIELD_WIDTH))
+        .show(b, key, move |state: &mut State, _, chosen| {
+            *lens(state) = chosen;
+        });
 }
 
 fn switch(
@@ -398,14 +392,26 @@ fn notifications(b: &mut B<'_, '_>, state: &State) {
 fn preferences(b: &mut B<'_, '_>, state: &State) {
     section(b, "Preferences", |b| {
         row(b, "Language", |b| {
-            choose(b, Part::Language, tw(), "Language", &LANGUAGES, |s| {
-                &mut s.language
-            });
+            choose(
+                b,
+                Part::Language,
+                Enablement::Enabled,
+                "Language",
+                &LANGUAGES,
+                state.language,
+                |s| &mut s.language,
+            );
         });
         row(b, "Region", |b| {
-            choose(b, Part::Region, disabled(), "Region", &REGIONS, |s| {
-                &mut s.region
-            });
+            choose(
+                b,
+                Part::Region,
+                Enablement::Disabled,
+                "Region",
+                &REGIONS,
+                state.region,
+                |s| &mut s.region,
+            );
         });
         row(b, "Theme", |b| {
             common::choice(
@@ -444,19 +450,17 @@ fn preferences(b: &mut B<'_, '_>, state: &State) {
 /// </div>
 /// ```
 fn save(b: &mut B<'_, '_>, state: &State) {
-    let live = if state.can_save() { tw() } else { disabled() };
+    let enablement = if state.can_save() {
+        Enablement::Enabled
+    } else {
+        Enablement::Disabled
+    };
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().items_center().gap(3.0), |b| {
-        b.widget(
-            Part::Save,
-            live,
-            Button::new("Save").primary(),
-            |state, ui, button| {
-                if button.show(ui).clicked() {
-                    state.saves += 1;
-                }
-            },
-        );
+        Button::new("Save")
+            .variant(variant::PRIMARY)
+            .enablement(enablement)
+            .show(b, Part::Save, |state: &mut State| state.saves += 1);
         let note = match (state.saves, state.can_save()) {
             (_, false) => "Enter a name and an email address to save.".to_owned(),
             (0, true) => String::new(),

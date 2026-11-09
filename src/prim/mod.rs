@@ -1,13 +1,11 @@
 //! The library's primitives: display content it draws itself, and the
-//! interactive ones (`text_field`, `select`) that
-//! applications use as leaves.
+//! interactive `text_field` that applications use as a leaf.
 //!
-//! Each interactive primitive pairs `measure` with `show`; both take their
-//! size from one helper (design decision D21), so what is measured is what is
-//! used. Widget ids are derived from the leaf's `Ui`, so focus, cursor and
-//! open popups follow a node through reordering.
+//! `text_field` pairs `measure` with `show`; both take their size from one
+//! helper (design decision D21), so what is measured is what is used. Widget
+//! ids are derived from the leaf's `Ui`, so focus and cursor follow a node
+//! through reordering.
 
-pub mod select;
 pub mod text_field;
 
 use egui::{Color32, ImageSource, Painter, Rect};

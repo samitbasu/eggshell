@@ -66,7 +66,7 @@ fn a_slider_in_the_tree_drives_the_demo_it_sits_beside() {
     };
     let positions = item(&harness);
 
-    drag_to_the_end(&mut harness, "/\"gap\"");
+    drag_to_the_end(&mut harness, "/\"gap\"/Track");
     assert!(harness.state().app.gap > before + 3.0);
     assert_eq!(harness.state().app.gap, 12.0, "the end of the range");
     assert_ne!(item(&harness), positions, "the demo re-laid out");
@@ -79,7 +79,7 @@ fn the_box_size_slider_resizes_the_boxes() {
         custom_background::layout,
     );
     let before = harness.state().app.size;
-    drag_to_the_end(&mut harness, "/\"size\"");
+    drag_to_the_end(&mut harness, "/\"size\"/Track");
     assert!(harness.state().app.size > before);
     assert_eq!(harness.state().app.size, 300.0);
 }

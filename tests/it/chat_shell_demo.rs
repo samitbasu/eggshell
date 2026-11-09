@@ -635,8 +635,7 @@ mod appearance {
         harness.run_steps(10);
     }
 
-    /// The fill of the model select's header, which egui draws from its
-    /// widget visuals.
+    /// The fill of the model select's trigger.
     fn select_fill(harness: &Harness<'_, Rig<App>>) -> Option<egui::Color32> {
         fill_of(harness, MODEL)
     }
@@ -689,19 +688,19 @@ mod appearance {
         );
         assert_eq!(fill_of(&harness, composer), Some(light[Tok::Surface]));
         settle(&mut harness);
-        assert_ne!(select_fill(&harness), dark_select, "egui's widgets follow");
-        let light_widgets = harness
-            .ctx
-            .global_style()
-            .visuals
-            .widgets
-            .inactive
-            .weak_bg_fill;
-        assert_eq!(select_fill(&harness), Some(light_widgets));
+        assert_ne!(select_fill(&harness), dark_select, "the select follows");
         assert_eq!(
-            light_widgets,
-            bullseye::style::Tokens::light().secondary,
-            "the select is drawn with the preset's light widgets"
+            select_fill(&harness),
+            Some(
+                bullseye::style::Shadcn::light()
+                    .style()
+                    .select
+                    .trigger
+                    .states
+                    .rest
+                    .fill
+            ),
+            "the select is drawn with the preset's light style"
         );
 
         click_node(&mut harness, DARK);

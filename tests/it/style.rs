@@ -1,17 +1,17 @@
-//! The shadcn preset: what `apply` sets in egui, stock widgets under it, and
+//! The shadcn preset: what `apply` sets in egui, the text edit under it, and
 //! the library's primitives drawn with its proportions.
 
 use bullseye::owned::{Segmented, Switch};
-use bullseye::style::{Accent, ButtonVariant, Shadcn, Tokens, tokens};
-use bullseye::widget::{Button, ComboBox, Stock, TextEdit};
+use bullseye::style::{Accent, Shadcn, Tokens, tokens};
+use bullseye::widget::{Stock, TextEdit};
 use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Width, tw};
 use egui::epaint::Shape;
-use egui::{Color32, Context, FontFamily, Rect, Theme, Vec2, vec2};
+use egui::{Color32, Context, FontFamily, Rect, Theme, vec2};
 use egui_kittest::Harness;
 
 use crate::support;
 
-use support::{Rig, click_node, hover_over, rect_of};
+use support::{Rig, click_node, rect_of};
 
 fn base_text() -> TextStyle {
     TextStyle::new(
@@ -189,45 +189,13 @@ fn the_preset_is_picked_by_theme_and_nothing_applies_unasked() {
 }
 
 #[test]
-fn a_stock_button_is_shadcns_h9_at_14pt() {
-    for theme in [Theme::Light, Theme::Dark] {
-        let ctx = context(theme);
-        Shadcn::for_theme(theme).apply(&ctx);
-        let mut size = Vec2::ZERO;
-        let mut text_width = 0.0;
-        for _ in 0..2 {
-            ctx.run_ui(egui::RawInput::default(), |ui| {
-                let galley = egui::WidgetText::from("Save").into_galley(
-                    ui,
-                    Some(egui::TextWrapMode::Extend),
-                    f32::INFINITY,
-                    egui::TextStyle::Button,
-                );
-                text_width = galley.size().x;
-                size = ui.add(egui::Button::new("Save")).rect.size();
-            })
-            .drop_without_applying_deltas();
-        }
-        assert_eq!(size.y, 36.0, "{theme:?}: h-9");
-        assert_eq!(size.x, text_width + 32.0, "{theme:?}: px-4");
-        assert_eq!(
-            Button::new("Save").size(&ctx, &base_text(), None),
-            size,
-            "{theme:?}: the estimate agrees"
-        );
-    }
-}
-
-#[test]
-fn inputs_and_selects_take_the_input_proportions() {
+fn inputs_take_the_input_proportions() {
     for theme in [Theme::Light, Theme::Dark] {
         let ctx = context(theme);
         Shadcn::for_theme(theme).apply(&ctx);
         let text = base_text();
         let field = TextEdit::singleline("").size(&ctx, &text, Some(Width::new(200.0)));
         assert_eq!(field, vec2(200.0, 36.0), "{theme:?}");
-        let select = ComboBox::new("A").size(&ctx, &text, None);
-        assert_eq!(select.y, 36.0, "{theme:?}");
     }
 }
 
@@ -649,214 +617,4 @@ fn segmented_cells_fit_their_track_and_can_wrap() {
         "the track grows with its rows: {track:?}"
     );
     assert!(track.width() <= 160.0);
-}
-
-fn button_look(theme: Theme, variant: ButtonVariant) -> egui::style::Widgets {
-    let ctx = context(theme);
-    let preset = Shadcn::for_theme(theme);
-    preset.apply(&ctx);
-    let mut visuals = ctx.style_of(theme).visuals.clone();
-    preset.style_button(variant, &mut visuals);
-    visuals.widgets
-}
-
-#[test]
-fn button_variants_come_from_the_tokens_and_keep_the_size_inputs() {
-    for theme in [Theme::Light, Theme::Dark] {
-        let t = Tokens::for_theme(theme);
-        let base = button_look(theme, ButtonVariant::Secondary);
-        assert_eq!(
-            base.inactive.weak_bg_fill, t.secondary,
-            "secondary is egui's own"
-        );
-        for variant in [
-            ButtonVariant::Primary,
-            ButtonVariant::Destructive,
-            ButtonVariant::Outline,
-            ButtonVariant::Ghost,
-        ] {
-            let look = button_look(theme, variant);
-            assert_ne!(
-                look.inactive.weak_bg_fill, base.inactive.weak_bg_fill,
-                "{variant:?} {theme:?} differs from secondary"
-            );
-            assert_ne!(look.hovered.weak_bg_fill, look.inactive.weak_bg_fill);
-        }
-        for variant in [
-            ButtonVariant::Primary,
-            ButtonVariant::Destructive,
-            ButtonVariant::Outline,
-            ButtonVariant::Ghost,
-        ] {
-            let (new, old) = (button_look(theme, variant), &base);
-            for (a, b) in [
-                (new.noninteractive, old.noninteractive),
-                (new.inactive, old.inactive),
-                (new.hovered, old.hovered),
-                (new.active, old.active),
-                (new.open, old.open),
-            ] {
-                assert_eq!(a.bg_stroke.width, b.bg_stroke.width, "{variant:?}");
-                assert_eq!(a.expansion, b.expansion);
-                assert_eq!(a.corner_radius, b.corner_radius);
-            }
-        }
-        let primary = button_look(theme, ButtonVariant::Primary);
-        assert_eq!(primary.inactive.weak_bg_fill, t.primary);
-        assert_eq!(primary.inactive.fg_stroke.color, t.primary_foreground);
-        assert_eq!(primary.hovered.weak_bg_fill, t.primary_90());
-        let destructive = button_look(theme, ButtonVariant::Destructive);
-        assert_eq!(destructive.hovered.weak_bg_fill, t.destructive_90());
-        assert_eq!(destructive.inactive.fg_stroke.color, Color32::WHITE);
-        let outline = button_look(theme, ButtonVariant::Outline);
-        assert_eq!(outline.inactive.bg_stroke.color, t.input);
-        let ghost = button_look(theme, ButtonVariant::Ghost);
-        assert_eq!(ghost.inactive.weak_bg_fill, Color32::TRANSPARENT);
-        assert_ne!(ghost.hovered.weak_bg_fill, Color32::TRANSPARENT);
-    }
-}
-
-fn variant_controls(b: &mut Builder<'_, '_, App>, app: &App) {
-    use bullseye::widget::{Checkbox, RadioButton};
-    b.div(tw().flex().flex_col().items_start().gap(2.0).p(2.0), |b| {
-        b.widget(
-            "primary",
-            tw(),
-            Button::new("Save").primary(),
-            |_, ui, w| {
-                w.show(ui);
-            },
-        );
-        b.widget(
-            "disabled",
-            tw(),
-            Button::new("Send").primary(),
-            |_, ui, w| {
-                ui.disable();
-                w.show(ui);
-            },
-        );
-        b.widget("ghost", tw(), Button::new("Cancel").ghost(), |_, ui, w| {
-            w.show(ui);
-        });
-        let on = app.on;
-        b.widget("box", tw(), Checkbox::new("Agree"), move |app, ui, w| {
-            w.show(ui, &mut app.on);
-        });
-        b.widget("radio", tw(), RadioButton::new("Pick"), move |_, ui, w| {
-            w.show(ui, on);
-        });
-    });
-}
-
-fn rects_filled(harness: &Harness<'_, Rig<App>>, fill: Color32) -> Vec<Rect> {
-    harness
-        .output()
-        .shapes
-        .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            Shape::Rect(rect) if rect.fill == fill && rect.rect.is_positive() => Some(rect.rect),
-            _ => None,
-        })
-        .collect()
-}
-
-#[test]
-fn variants_boxes_and_dots_follow_the_tokens_through_the_real_path() {
-    let t = Tokens::light();
-    let mut harness = harness_of(variant_controls);
-
-    let save = rect_of(&harness, "/\"primary\"");
-    let fills = rects_filled(&harness, t.primary);
-    assert!(
-        fills.iter().any(|r| (r.min - save.min).length() < 1.0
-            && (r.size() - save.size()).abs().max_elem() < 1.0),
-        "the primary button is filled with primary: {fills:?} for {save:?}"
-    );
-    let text_color =
-        |text: &str| {
-            harness
-                .output()
-                .shapes
-                .iter()
-                .find_map(|clipped| match &clipped.shape {
-                    Shape::Text(shape) if shape.galley.text() == text => {
-                        let drawn = shape.galley.job.sections[0].format.color;
-                        Some(shape.override_text_color.unwrap_or(
-                            if drawn == Color32::PLACEHOLDER {
-                                shape.fallback_color
-                            } else {
-                                drawn
-                            },
-                        ))
-                    }
-                    _ => None,
-                })
-        };
-    assert_eq!(
-        text_color("Save"),
-        Some(t.primary_foreground),
-        "the label is drawn in the variant's text colour, not the node's"
-    );
-    assert_eq!(text_color("Cancel"), Some(t.foreground));
-    let send = rect_of(&harness, "/\"disabled\"");
-    let faded = harness
-        .output()
-        .shapes
-        .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            Shape::Rect(rect) if (rect.rect.min - send.min).length() < 1.0 => Some(rect.fill),
-            _ => None,
-        })
-        .next_back()
-        .expect("the disabled button has a fill");
-    assert!(
-        (i32::from(faded.a()) - 128).abs() <= 2 && faded.r() <= t.primary.r() + 1,
-        "a disabled button is its variant at half opacity: {faded:?}"
-    );
-    let cancel = rect_of(&harness, "/\"ghost\"");
-    let ghost_fills = rects_filled(&harness, t.accent);
-    assert!(
-        ghost_fills
-            .iter()
-            .all(|r| (r.min - cancel.min).length() >= 1.0),
-        "a resting ghost button has no fill"
-    );
-    hover_over(&mut harness, cancel.center());
-    assert!(
-        rects_filled(&harness, t.accent)
-            .iter()
-            .any(|r| (r.min - cancel.min).length() < 1.0),
-        "and takes accent when hovered"
-    );
-
-    let boxes = |harness: &Harness<'_, Rig<App>>, fill| {
-        rects_filled(harness, fill)
-            .into_iter()
-            .filter(|r| r.size() == vec2(16.0, 16.0))
-            .count()
-    };
-    assert_eq!(
-        boxes(&harness, t.background),
-        1,
-        "an unticked box is background"
-    );
-    assert_eq!(boxes(&harness, t.primary), 0);
-    harness.state_mut().app.on = true;
-    harness.run_steps(3);
-    assert_eq!(boxes(&harness, t.primary), 1, "a ticked box is primary");
-    let tick = |harness: &Harness<'_, Rig<App>>| {
-        harness
-            .output()
-            .shapes
-            .iter()
-            .filter(|clipped| match &clipped.shape {
-                Shape::Path(path) => {
-                    path.stroke.color == egui::epaint::ColorMode::Solid(t.primary_foreground)
-                }
-                _ => false,
-            })
-            .count()
-    };
-    assert_eq!(tick(&harness), 1, "with a primary-foreground tick");
 }

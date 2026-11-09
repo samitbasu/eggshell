@@ -101,7 +101,7 @@ mod demos {
     fn the_grow_checkbox_makes_the_items_fill_their_container() {
         let mut harness = demos(State::default());
         let before = rect(&harness, Part::Aligned(Align::Start)).width();
-        click_node(&mut harness, "/Grow");
+        click_node(&mut harness, "/Grow/Box");
         harness.run_steps(3);
         assert!(harness.state().app.grow);
         let after = rect(&harness, Part::Aligned(Align::Start)).width();
@@ -237,7 +237,7 @@ mod example {
         type_text(&mut harness, "!!");
         assert_eq!(harness.state().app.text, "Hello, world!!!");
 
-        let rail = rect_of(&harness, "/Slider");
+        let rail = rect_of(&harness, "/Slider/Track");
         assert!(rail.width() > 60.0, "precondition: a real rail");
         drag(
             &mut harness,
@@ -252,9 +252,9 @@ mod example {
     }
 
     #[test]
-    fn a_stock_checkbox_toggles() {
+    fn a_checkbox_toggles() {
         let mut harness = example(900.0);
-        click_node(&mut harness, "/Checkbox");
+        click_node(&mut harness, "/Checkbox/Box");
         harness.run_steps(2);
         assert!(harness.state().app.checked);
     }
@@ -292,7 +292,7 @@ mod signup {
         fill(harness, Part::Email, "ada@example.com");
         fill(harness, Part::Password, "Sup3r-secret");
         fill(harness, Part::Repeat, "Sup3r-secret");
-        click_node(harness, "/Terms");
+        click_node(harness, "/Terms/Box");
         harness.run_steps(2);
         click_node(harness, "/Age/Box/Field");
         harness.run_steps(2);
@@ -422,7 +422,7 @@ mod signup {
         ]
         .map(|part| format!("/{part:?}/\"field\""))
         .into_iter()
-        .chain(["/Age/Box/Field", "/Terms", "/Newsletter", "/Submit"].map(String::from))
+        .chain(["/Age/Box/Field", "/Terms/Box", "/Newsletter/Box", "/Submit"].map(String::from))
         .collect();
         assert_eq!(order[..expected.len()], expected[..]);
     }
