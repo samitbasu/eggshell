@@ -72,6 +72,7 @@ impl Checkbox {
         };
         let enablement = self.enablement;
         let box_classes = look.indicator(
+            checkbox.border_width,
             &style,
             checkbox.radius,
             enablement,

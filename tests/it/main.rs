@@ -30,6 +30,7 @@ mod sizing;
 #[cfg(feature = "snapshots")]
 mod snapshots;
 mod state;
+mod state_stable;
 mod style;
 mod support;
 mod theme_toggle;

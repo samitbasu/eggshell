@@ -118,7 +118,7 @@ impl Stepper {
         );
         let divider = match enablement {
             Enablement::Enabled => stepper.divider,
-            Enablement::Disabled => stepper.group.states.disabled.border,
+            Enablement::Disabled => stepper.group.paint.states.disabled.border,
         };
         let group = group.divide_x(1.0, divider);
         let field_box = centered(tw())

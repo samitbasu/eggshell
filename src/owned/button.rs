@@ -108,7 +108,7 @@ impl Button {
         let button = &style.button;
         let (look, metrics, selected) = match self.kind {
             Kind::Variant(variant) => (
-                button
+                *button
                     .variants
                     .get(variant.unwrap_or(button.variants.default_key())),
                 *button.sizes.get(self.size),
@@ -116,9 +116,10 @@ impl Button {
             ),
             Kind::Toggle(mark) => (
                 match mark {
-                    Mark::Off => &button.toggle_off,
-                    Mark::On => &button.toggle_on,
-                },
+                    Mark::Off => button.toggle_off,
+                    Mark::On => button.toggle_on,
+                }
+                .bordered(button.toggle_border_width),
                 *button.toggle_sizes.get(self.size),
                 Some(mark),
             ),

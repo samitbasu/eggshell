@@ -108,7 +108,7 @@ fn every_variant_and_state_draws_the_styles_colours() {
             let node = path(name, Enablement::Enabled);
             let rect = rect_of(&harness, &node);
             let radius = f32::from(style.button.sizes.get(Size::DEFAULT).radius);
-            let rest = look.states.rest;
+            let rest = look.paint.states.rest;
             let shape = box_at(&harness, rect);
             assert_eq!(shape.fill, rest.fill, "{theme:?} {name} rest fill");
             assert_eq!(
@@ -128,15 +128,18 @@ fn every_variant_and_state_draws_the_styles_colours() {
             harness.run_steps(12);
             let shape = box_at(&harness, rect);
             assert_eq!(
-                shape.fill, look.states.hover.fill,
+                shape.fill, look.paint.states.hover.fill,
                 "{theme:?} {name} hover fill"
             );
-            assert_eq!(text_color(&harness, rect, "Save"), look.states.hover.text);
+            assert_eq!(
+                text_color(&harness, rect, "Save"),
+                look.paint.states.hover.text
+            );
 
             press(&mut harness, &node);
             let shape = box_at(&harness, rect.translate(vec2(0.0, 1.0)));
             assert_eq!(
-                shape.fill, look.states.pressed.fill,
+                shape.fill, look.paint.states.pressed.fill,
                 "{theme:?} {name} pressed"
             );
             release(&mut harness, &node);
@@ -146,15 +149,15 @@ fn every_variant_and_state_draws_the_styles_colours() {
             let off_rect = rect_of(&harness, &off);
             let shape = box_at(&harness, off_rect);
             assert_eq!(
-                shape.fill, look.states.disabled.fill,
+                shape.fill, look.paint.states.disabled.fill,
                 "{theme:?} {name} disabled"
             );
             assert_eq!(
                 text_color(&harness, off_rect, "Save"),
-                look.states.disabled.text
+                look.paint.states.disabled.text
             );
             assert_ne!(
-                look.states.disabled, look.states.rest,
+                look.paint.states.disabled, look.paint.states.rest,
                 "precondition: the disabled colours differ from rest"
             );
         }
@@ -166,15 +169,15 @@ fn vega_values_are_shadcns() {
     let light = style(Theme::Light);
     let primary = light.button.variants.get(variant::PRIMARY);
     assert_eq!(
-        primary.states.rest.fill,
+        primary.paint.states.rest.fill,
         Color32::from_rgb(0x17, 0x17, 0x17)
     );
     assert_eq!(
-        primary.states.rest.text,
+        primary.paint.states.rest.text,
         Color32::from_rgb(0xfa, 0xfa, 0xfa)
     );
     assert_eq!(
-        primary.states.hover.fill,
+        primary.paint.states.hover.fill,
         Color32::from_rgb(0x17, 0x17, 0x17).gamma_multiply(0.9)
     );
     assert_eq!(
@@ -186,11 +189,11 @@ fn vega_values_are_shadcns() {
     let dark = style(Theme::Dark);
     let outline = dark.button.variants.get(variant::OUTLINE);
     assert_eq!(
-        outline.states.rest.fill,
+        outline.paint.states.rest.fill,
         Tokens::dark().input.gamma_multiply(0.3)
     );
     assert_eq!(
-        outline.states.hover.fill,
+        outline.paint.states.hover.fill,
         Tokens::dark().input.gamma_multiply(0.5)
     );
 }
@@ -205,6 +208,7 @@ fn disabled_is_explicit_opaque_colours_not_alpha() {
         .button
         .variants
         .get(variant::PRIMARY)
+        .paint
         .states
         .rest;
     let background = Tokens::light().background;
@@ -537,7 +541,7 @@ fn a_changed_style_changes_the_drawing() {
     let mut style = style(Theme::Light);
     let red = Color32::from_rgb(200, 30, 30);
     let look = style.button.variants.get_mut(variant::PRIMARY).unwrap();
-    look.states.rest.fill = red;
+    look.paint.states.rest.fill = red;
     style.button.sizes.get_mut(Size::DEFAULT).unwrap().radius = 0;
     style.button.sizes.get_mut(Size::DEFAULT).unwrap().height = 40.0;
     let mut harness = harness(Theme::Light);
@@ -593,6 +597,7 @@ fn a_pressed_button_is_painted_one_point_lower_and_nothing_else_moves() {
             .button
             .variants
             .get(variant::PRIMARY)
+            .paint
             .states
             .pressed
             .fill
@@ -691,6 +696,7 @@ fn a_button_that_opens_a_popup_stays_put_when_pressed() {
             .button
             .variants
             .get(variant::SECONDARY)
+            .paint
             .states
             .pressed
             .fill,

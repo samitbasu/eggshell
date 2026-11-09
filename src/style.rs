@@ -48,7 +48,7 @@ use egui::{
 };
 
 use crate::contract::{
-    self, Colors, Focus, Keyed, Look as BoxLook, Metrics, Size, States, SwitchMetrics,
+    self, Colors, Focus, Keyed, Look as BoxLook, Metrics, Paint, Size, States, SwitchMetrics,
 };
 use crate::{Opacity, TextSpec};
 
@@ -610,19 +610,23 @@ impl Shadcn {
             color: t.destructive.gamma_multiply(if dark { 0.4 } else { 0.2 }),
             ..ring
         };
+        let destructive = filled(
+            flat(
+                if dark {
+                    t.destructive_60()
+                } else {
+                    t.destructive
+                },
+                t.destructive_foreground,
+            ),
+            flat(t.destructive_90(), t.destructive_foreground),
+        );
         let destructive = BoxLook {
-            focus: Some(destructive_ring),
-            ..filled(
-                flat(
-                    if dark {
-                        t.destructive_60()
-                    } else {
-                        t.destructive
-                    },
-                    t.destructive_foreground,
-                ),
-                flat(t.destructive_90(), t.destructive_foreground),
-            )
+            paint: Paint {
+                focus: Some(destructive_ring),
+                ..destructive.paint
+            },
+            ..destructive
         };
         let outline_button = BoxLook::new(states(outline_rest, outline_hover))
             .bordered(1.0)
@@ -676,18 +680,14 @@ impl Shadcn {
             border: t.primary,
             text: t.primary_foreground,
         };
-        let boxed = |colors| {
-            BoxLook::new(states(colors, colors))
-                .bordered(1.0)
-                .shadowed(t.shadow_xs)
-        };
+        let boxed = |colors| Paint::new(states(colors, colors)).shadowed(t.shadow_xs);
         let radio_colors = Colors {
             text: t.primary,
             ..box_rest
         };
 
-        let switch_look = |track, thumb| {
-            BoxLook::new(states(
+        let switch_paint = |track, thumb| {
+            Paint::new(states(
                 Colors {
                     fill: track,
                     border: clear,
@@ -758,9 +758,12 @@ impl Shadcn {
             button.variants = variants;
             button.sizes = Keyed::new(Size::DEFAULT, control);
             button.toggle_sizes = Keyed::new(Size::DEFAULT, toggle);
-            button.toggle_off =
-                filled(flat(clear, t.foreground), flat(t.muted, t.muted_foreground));
-            button.toggle_on = filled(accented, accented);
+            button.toggle_border_width = 0.0;
+            button.toggle_off = Paint::new(states(
+                flat(clear, t.foreground),
+                flat(t.muted, t.muted_foreground),
+            ));
+            button.toggle_on = Paint::new(states(accented, accented));
             button.press_shift = 1.0;
             button.transition = transition;
             button
@@ -771,6 +774,7 @@ impl Shadcn {
             checkbox.radius = 4;
             checkbox.glyph = 14.0;
             checkbox.gap = 8.0;
+            checkbox.border_width = 1.0;
             checkbox.off = boxed(box_rest);
             checkbox.on = boxed(box_on);
             checkbox.transition = transition;
@@ -781,6 +785,7 @@ impl Shadcn {
             radio.size = 16.0;
             radio.dot = 8.0;
             radio.gap = 8.0;
+            radio.border_width = 1.0;
             radio.off = boxed(radio_colors);
             radio.on = boxed(radio_colors);
             radio.transition = transition;
@@ -797,8 +802,9 @@ impl Shadcn {
                 },
             );
             switch.gap = 8.0;
-            switch.off = switch_look(t.switch_track_off, t.switch_thumb_off);
-            switch.on = switch_look(t.switch_track_on, t.switch_thumb_on);
+            switch.border_width = 0.0;
+            switch.off = switch_paint(t.switch_track_off, t.switch_thumb_off);
+            switch.on = switch_paint(t.switch_track_on, t.switch_thumb_on);
             switch.transition = transition;
             switch
         };
@@ -811,10 +817,10 @@ impl Shadcn {
             segmented.cell_radius = t.radius_md();
             segmented.cell_padding = vec2(8.0, 4.0);
             segmented.row_gap = 2.0;
-            segmented.selected = BoxLook::new(States::still(selected_cell, t.muted))
-                .bordered(if dark { 1.0 } else { 0.0 })
-                .shadowed(t.shadow_sm);
-            segmented.unselected = BoxLook::new(States::still(released_cell, t.muted));
+            segmented.cell_border_width = 1.0;
+            segmented.selected =
+                Paint::new(States::still(selected_cell, t.muted)).shadowed(t.shadow_sm);
+            segmented.unselected = Paint::new(States::still(released_cell, t.muted));
             segmented.transition = transition;
             segmented
         };

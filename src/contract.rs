@@ -238,28 +238,74 @@ pub struct Focus {
     pub color: Color32,
 }
 
-/// Everything that makes one kind of box look the way it does.
+/// How a box is painted: colours per state, shadow and focus ring. Nothing in
+/// it changes the box's size, so the two [`Paint`]s of an on/off widget can
+/// differ freely without moving anything.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Look {
+pub struct Paint {
     /// Colours per state.
     pub states: States,
-    /// Border width in points.
-    pub border_width: f32,
     /// Drop shadow at rest.
     pub shadow: Option<Shadow>,
-    /// This look's own focus ring, where it is not [`Style::focus`].
+    /// This paint's own focus ring, where it is not [`Style::focus`].
     pub focus: Option<Focus>,
+}
+
+impl Paint {
+    /// A shadowless paint with the style's focus ring.
+    pub fn new(states: States) -> Self {
+        Self {
+            states,
+            shadow: None,
+            focus: None,
+        }
+    }
+
+    /// This paint with a border `width` points wide, making it a [`Look`].
+    #[must_use]
+    pub fn bordered(self, width: f32) -> Look {
+        Look {
+            paint: self,
+            border_width: width,
+        }
+    }
+
+    /// This paint's colours `progress` of the way to those of `other`, which
+    /// supplies everything else.
+    #[must_use]
+    pub fn towards(self, other: Self, progress: Progress) -> Self {
+        Self {
+            states: self.states.towards(other.states, progress),
+            ..other
+        }
+    }
+
+    /// This paint with a drop shadow.
+    #[must_use]
+    pub fn shadowed(self, shadow: Shadow) -> Self {
+        Self {
+            shadow: Some(shadow),
+            ..self
+        }
+    }
+}
+
+/// Everything that makes one kind of box look the way it does: its [`Paint`]
+/// and the border width, which takes up room. A widget whose two states swap
+/// paints holds one border width and two [`Paint`]s, so that switching states
+/// cannot move anything.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Look {
+    /// How the box is painted.
+    pub paint: Paint,
+    /// Border width in points.
+    pub border_width: f32,
 }
 
 impl Look {
     /// A borderless, shadowless look with the style's focus ring.
     pub fn new(states: States) -> Self {
-        Self {
-            states,
-            border_width: 0.0,
-            shadow: None,
-            focus: None,
-        }
+        Paint::new(states).bordered(0.0)
     }
 
     /// This look with a border `width` points wide.
@@ -271,21 +317,11 @@ impl Look {
         }
     }
 
-    /// This look's colours `progress` of the way to those of `other`, which
-    /// supplies everything else.
-    #[must_use]
-    pub fn towards(self, other: Self, progress: Progress) -> Self {
-        Self {
-            states: self.states.towards(other.states, progress),
-            ..other
-        }
-    }
-
     /// This look with a drop shadow.
     #[must_use]
     pub fn shadowed(self, shadow: Shadow) -> Self {
         Self {
-            shadow: Some(shadow),
+            paint: self.paint.shadowed(shadow),
             ..self
         }
     }
@@ -317,10 +353,12 @@ pub struct ButtonStyle {
     pub sizes: Keyed<Size, Metrics>,
     /// Metrics of a toggle per size.
     pub toggle_sizes: Keyed<Size, Metrics>,
+    /// Border width of a toggle, off or on.
+    pub toggle_border_width: f32,
     /// A toggle that is off.
-    pub toggle_off: Look,
+    pub toggle_off: Paint,
     /// A toggle that is on.
-    pub toggle_on: Look,
+    pub toggle_on: Paint,
     /// How far a pressed button moves down, in points; zero for none.
     pub press_shift: f32,
     /// How long state changes animate.
@@ -339,10 +377,12 @@ pub struct CheckboxStyle {
     pub glyph: f32,
     /// Gap between the box and its label.
     pub gap: f32,
-    /// Unticked. The glyph takes the `text` colour of the ticked look.
-    pub off: Look,
+    /// Border width of the box, ticked or not.
+    pub border_width: f32,
+    /// Unticked. The glyph takes the `text` colour of the ticked paint.
+    pub off: Paint,
     /// Ticked.
-    pub on: Look,
+    pub on: Paint,
     /// How long state changes animate.
     pub transition: Duration,
 }
@@ -357,10 +397,12 @@ pub struct RadioStyle {
     pub dot: f32,
     /// Gap between the circle and its label.
     pub gap: f32,
+    /// Border width of the circle, chosen or not.
+    pub border_width: f32,
     /// Unchosen.
-    pub off: Look,
+    pub off: Paint,
     /// Chosen. The dot takes the `text` colour.
-    pub on: Look,
+    pub on: Paint,
     /// How long state changes animate.
     pub transition: Duration,
 }
@@ -384,10 +426,12 @@ pub struct SwitchStyle {
     pub sizes: Keyed<Size, SwitchMetrics>,
     /// Gap between the track and its label.
     pub gap: f32,
+    /// Border width of the track, off or on.
+    pub border_width: f32,
     /// Off.
-    pub off: Look,
+    pub off: Paint,
     /// On.
-    pub on: Look,
+    pub on: Paint,
     /// How long the thumb takes to slide.
     pub slide: Duration,
     /// How long state changes animate.
@@ -412,10 +456,12 @@ pub struct SegmentedStyle {
     pub cell_padding: Vec2,
     /// Gap between the rows of a wrapping track.
     pub row_gap: f32,
+    /// Border width of a cell, chosen or not.
+    pub cell_border_width: f32,
     /// The chosen cell.
-    pub selected: Look,
+    pub selected: Paint,
     /// Any other cell.
-    pub unselected: Look,
+    pub unselected: Paint,
     /// How long state changes animate.
     pub transition: Duration,
 }
@@ -641,7 +687,8 @@ impl Style {
             border: v.selection.bg_fill,
             text: v.selection.stroke.color,
         };
-        let choice_off = Look::new(states(
+        let choice_border = border_width.max(1.0);
+        let choice_off = Paint::new(states(
             Colors {
                 fill: v.extreme_bg_color,
                 border: w.inactive.bg_stroke.color,
@@ -649,10 +696,8 @@ impl Style {
             },
             hovered,
             hovered,
-        ))
-        .bordered(border_width.max(1.0));
-        let choice_on =
-            Look::new(states(selected, selected, selected)).bordered(border_width.max(1.0));
+        ));
+        let choice_on = Paint::new(states(selected, selected, selected));
         let transition = Duration::from_millis(100);
         let label = States::new(
             Colors {
@@ -686,7 +731,8 @@ impl Style {
                 ),
                 sizes: Keyed::new(Size::DEFAULT, metrics),
                 toggle_sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
-                toggle_off: Look::new(states(
+                toggle_border_width: 0.0,
+                toggle_off: Paint::new(states(
                     Colors {
                         fill: clear,
                         border: clear,
@@ -695,7 +741,7 @@ impl Style {
                     hovered,
                     active,
                 )),
-                toggle_on: Look::new(states(selected, selected, selected)),
+                toggle_on: Paint::new(states(selected, selected, selected)),
                 press_shift: 0.0,
                 transition,
             },
@@ -704,6 +750,7 @@ impl Style {
                 radius: 2,
                 glyph: s.icon_width_inner,
                 gap: s.icon_spacing,
+                border_width: choice_border,
                 off: choice_off,
                 on: choice_on,
                 transition,
@@ -712,6 +759,7 @@ impl Style {
                 size: s.icon_width,
                 dot: s.icon_width_inner,
                 gap: s.icon_spacing,
+                border_width: choice_border,
                 off: choice_off,
                 on: choice_on,
                 transition,
@@ -726,6 +774,7 @@ impl Style {
                     },
                 ),
                 gap: s.icon_spacing,
+                border_width: choice_border,
                 off: choice_off,
                 on: choice_on,
                 slide: Duration::from_millis(150),
@@ -739,7 +788,8 @@ impl Style {
                 cell_radius: radius,
                 cell_padding: vec2(s.button_padding.x, s.button_padding.y),
                 row_gap: 2.0,
-                selected: Look::new(States::still(
+                cell_border_width: 0.0,
+                selected: Paint::new(States::still(
                     Colors {
                         fill: w.active.weak_bg_fill,
                         border: clear,
@@ -747,7 +797,7 @@ impl Style {
                     },
                     surface,
                 )),
-                unselected: Look::new(States::new(
+                unselected: Paint::new(States::new(
                     Colors {
                         fill: clear,
                         border: clear,
@@ -820,7 +870,7 @@ impl Style {
                 transition,
             },
             stepper: StepperStyle {
-                group: choice_off,
+                group: choice_off.bordered(choice_border),
                 height: s.interact_size.y,
                 padding_x: s.button_padding.x,
                 radius,

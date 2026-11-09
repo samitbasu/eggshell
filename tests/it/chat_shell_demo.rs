@@ -696,6 +696,7 @@ mod appearance {
                     .style()
                     .select
                     .trigger
+                    .paint
                     .states
                     .rest
                     .fill

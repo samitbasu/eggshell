@@ -34,7 +34,7 @@ pub use slider::Slider;
 pub use stepper::Stepper;
 pub use switch::Switch;
 
-use crate::contract::{Colors, Look, States, Style};
+use crate::contract::{Colors, Look, Paint, States, Style};
 use crate::style::Mark;
 use crate::{Builder, NodeUi as _, Tw, tw};
 
@@ -93,8 +93,7 @@ fn painted(classes: Tw, colors: Colors) -> Tw {
 }
 
 impl Look {
-    /// The classes that draw a box of `radius` in this look. A disabled box is
-    /// inert and has no variants: its colours are the style's, not an opacity.
+    /// The classes that draw a box of `radius` in this look.
     pub(crate) fn classes(
         &self,
         style: &Style,
@@ -102,8 +101,25 @@ impl Look {
         enablement: Enablement,
         transition: Duration,
     ) -> Tw {
+        self.paint
+            .classes(self.border_width, style, radius, enablement, transition)
+    }
+}
+
+impl Paint {
+    /// The classes that draw a box of `radius` with a border `border_width`
+    /// wide in this paint. A disabled box is inert and has no variants: its
+    /// colours are the style's, not an opacity.
+    pub(crate) fn classes(
+        &self,
+        border_width: f32,
+        style: &Style,
+        radius: u8,
+        enablement: Enablement,
+        transition: Duration,
+    ) -> Tw {
         let base = tw()
-            .border(self.border_width)
+            .border(border_width)
             .rounded_px(f32::from(radius))
             .sense_click();
         let shadow = |classes: Tw, fade: f32| match self.shadow {
@@ -155,18 +171,19 @@ impl Look {
     }
 }
 
-impl Look {
+impl Paint {
     /// The classes of a checkbox box or radio circle: a `size` square that
     /// keeps its size and centres what it holds.
     fn indicator(
         &self,
+        border_width: f32,
         style: &Style,
         radius: u8,
         enablement: Enablement,
         transition: Duration,
         size: f32,
     ) -> Tw {
-        centered(self.classes(style, radius, enablement, transition))
+        centered(self.classes(border_width, style, radius, enablement, transition))
             .shrink_0()
             .size_px(size)
     }
@@ -176,18 +193,18 @@ impl Look {
 /// the focus ring while a widget inside has focus.
 fn field_classes(look: &Look, style: &Style, radius: u8, enablement: Enablement) -> Tw {
     let base = tw().border(look.border_width).rounded_px(f32::from(radius));
-    let states = look.states;
+    let (states, shadow, focus) = (look.paint.states, look.paint.shadow, look.paint.focus);
     let classes = match enablement {
         Enablement::Disabled => painted(base, states.disabled).inert(),
         Enablement::Enabled => {
-            let ring = look.focus.unwrap_or(style.focus);
+            let ring = focus.unwrap_or(style.focus);
             painted(base, states.rest).focus_within(|p| {
                 p.border_color(states.focused.border)
                     .ring(ring.width, ring.color)
             })
         }
     };
-    match look.shadow {
+    match shadow {
         Some(shadow) => classes.shadow(shadow),
         None => classes,
     }

@@ -47,9 +47,12 @@ fn the_default_style_is_derived_from_egui_and_cached() {
 
     let widgets = &ctx.global_style().visuals.widgets;
     let button = style.button.variants.get(Variant::DEFAULT);
-    assert_eq!(button.states.rest.fill, widgets.inactive.weak_bg_fill);
-    assert_eq!(button.states.hover.fill, widgets.hovered.weak_bg_fill);
-    assert_eq!(button.states.pressed.fill, widgets.active.weak_bg_fill);
+    assert_eq!(button.paint.states.rest.fill, widgets.inactive.weak_bg_fill);
+    assert_eq!(button.paint.states.hover.fill, widgets.hovered.weak_bg_fill);
+    assert_eq!(
+        button.paint.states.pressed.fill,
+        widgets.active.weak_bg_fill
+    );
 
     ctx.all_styles_mut(|egui| egui.visuals.widgets.inactive.weak_bg_fill = Color32::RED);
     let changed = Style::of(&ctx);
@@ -59,6 +62,7 @@ fn the_default_style_is_derived_from_egui_and_cached() {
             .button
             .variants
             .get(Variant::DEFAULT)
+            .paint
             .states
             .rest
             .fill,
@@ -133,16 +137,19 @@ fn core_draws_a_button_with_no_preset() {
             _ => None,
         })
         .collect();
-    assert!(fills.contains(&button.states.rest.fill), "{fills:?}");
+    assert!(fills.contains(&button.paint.states.rest.fill), "{fills:?}");
 }
 
 fn disabled_colours(style: &Style) -> Vec<(String, bullseye::contract::Colors)> {
     let mut all = vec![("label".to_string(), style.label.disabled)];
-    let mut look = |name: &str, look: &bullseye::contract::Look| {
-        all.push((name.to_string(), look.states.disabled));
+    let mut look = |name: &str, paint: &bullseye::contract::Paint| {
+        all.push((name.to_string(), paint.states.disabled));
     };
     for key in style.button.variants.keys() {
-        look(&format!("button {key:?}"), style.button.variants.get(key));
+        look(
+            &format!("button {key:?}"),
+            &style.button.variants.get(key).paint,
+        );
     }
     look("toggle off", &style.button.toggle_off);
     look("toggle on", &style.button.toggle_on);
@@ -154,12 +161,12 @@ fn disabled_colours(style: &Style) -> Vec<(String, bullseye::contract::Colors)> 
     look("switch on", &style.switch.on);
     look("segmented selected", &style.segmented.selected);
     look("segmented unselected", &style.segmented.unselected);
-    look("slider thumb", &style.slider.thumb);
-    look("select trigger", &style.select.trigger);
-    look("select popup", &style.select.popup);
-    look("select item", &style.select.item);
-    look("stepper group", &style.stepper.group);
-    look("stepper button", &style.stepper.button);
+    look("slider thumb", &style.slider.thumb.paint);
+    look("select trigger", &style.select.trigger.paint);
+    look("select popup", &style.select.popup.paint);
+    look("select item", &style.select.item.paint);
+    look("stepper group", &style.stepper.group.paint);
+    look("stepper button", &style.stepper.button.paint);
     all.push(("slider track".to_string(), style.slider.track.disabled));
     all.push(("slider range".to_string(), style.slider.range.disabled));
     all

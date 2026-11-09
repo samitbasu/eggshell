@@ -373,7 +373,7 @@ fn segmented_track_and_cells_are_the_styles() {
             selected.corner_radius,
             egui::CornerRadius::same(seg.cell_radius)
         );
-        assert_eq!(selected.stroke.width, seg.selected.border_width);
+        assert_eq!(selected.stroke.width, seg.cell_border_width);
         let imperial = rect_of(&harness, &cell_path(Unit::Imperial));
         assert!(
             !shapes(&harness).iter().any(|shape| matches!(

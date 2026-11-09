@@ -115,12 +115,17 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
                 Cell::Pressed => &seg.selected,
                 Cell::Released => &seg.unselected,
             };
-            let classes =
-                centered(look.classes(&style, seg.cell_radius, enablement, seg.transition))
-                    .grow()
-                    .px(seg.cell_padding.x / 4.0)
-                    .py(seg.cell_padding.y / 4.0)
-                    .role(style.text.clone());
+            let classes = centered(look.classes(
+                seg.cell_border_width,
+                &style,
+                seg.cell_radius,
+                enablement,
+                seg.transition,
+            ))
+            .grow()
+            .px(seg.cell_padding.x / 4.0)
+            .py(seg.cell_padding.y / 4.0)
+            .role(style.text.clone());
             match rows {
                 Rows::One => classes.h_full(),
                 Rows::Wrapping => classes.h_auto(),

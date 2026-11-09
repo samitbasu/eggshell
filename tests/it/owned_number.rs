@@ -166,8 +166,8 @@ fn slider_track_range_and_thumb_are_the_styles() {
         assert!((thumb.center().y - track.center().y).abs() < 0.6);
         let shape = box_at(&harness, thumb);
         let look = slider.thumb;
-        assert_eq!(shape.fill, look.states.rest.fill);
-        assert_eq!(shape.stroke.color, look.states.rest.border);
+        assert_eq!(shape.fill, look.paint.states.rest.fill);
+        assert_eq!(shape.stroke.color, look.paint.states.rest.border);
         assert_eq!(shape.stroke.width, 1.0);
         assert_eq!(shape.corner_radius, egui::CornerRadius::same(u8::MAX));
         assert_ne!(slider.range.rest.fill, slider.track.rest.fill);
@@ -318,7 +318,7 @@ fn a_disabled_slider_ignores_the_pointer_and_the_keyboard() {
     let thumb = rect_of(&harness, "/\"locked\"/Track/Thumb");
     assert_eq!(
         box_at(&harness, thumb).fill,
-        slider.thumb.states.disabled.fill
+        slider.thumb.paint.states.disabled.fill
     );
     assert!(
         harness
@@ -371,8 +371,8 @@ fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
         assert_eq!(trigger.size(), vec2(200.0, 36.0), "h-9");
         let shape = box_at(&harness, trigger);
         let look = select.trigger;
-        assert_eq!(shape.fill, look.states.rest.fill, "{theme:?}");
-        assert_eq!(shape.stroke.color, look.states.rest.border);
+        assert_eq!(shape.fill, look.paint.states.rest.fill, "{theme:?}");
+        assert_eq!(shape.stroke.color, look.paint.states.rest.border);
         assert_eq!(shape.stroke.width, 1.0);
         assert_eq!(
             shape.corner_radius,
@@ -382,7 +382,7 @@ fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
         assert_eq!(text.left() - trigger.left(), 1.0 + select.metrics.padding_x);
         assert_eq!(
             support::text_color(&harness, trigger, "Europe"),
-            look.states.rest.text
+            look.paint.states.rest.text
         );
         let glyph = rect_of(&harness, "/\"region\"/<paint>");
         assert_eq!(glyph.size(), vec2(16.0, 16.0), "size-4");
@@ -393,11 +393,14 @@ fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
         let chevron = chevron_in(&harness, glyph).expect("a chevron");
         assert_eq!(
             chevron.stroke.color,
-            egui::epaint::ColorMode::Solid(look.states.rest.text.gamma_multiply(0.5)),
+            egui::epaint::ColorMode::Solid(look.paint.states.rest.text.gamma_multiply(0.5)),
             "opacity-50"
         );
         let frozen = rect_of(&harness, "/\"frozen\"");
-        assert_eq!(box_at(&harness, frozen).fill, look.states.disabled.fill);
+        assert_eq!(
+            box_at(&harness, frozen).fill,
+            look.paint.states.disabled.fill
+        );
     }
 }
 
@@ -410,7 +413,7 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     assert!(is_open(&harness), "a click opens");
 
     let list = style(Theme::Light).select;
-    let colors = list.popup.states.rest;
+    let colors = list.popup.paint.states.rest;
     assert!(
         shapes(&harness).iter().any(|shape| matches!(
             shape,
@@ -421,7 +424,7 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     );
     assert!(
         shapes(&harness).iter().any(|shape| matches!(
-            shape, Shape::Rect(r) if r.fill == list.item.states.hover.fill
+            shape, Shape::Rect(r) if r.fill == list.item.paint.states.hover.fill
         )),
         "the highlighted item is drawn in the item colours"
     );
@@ -541,8 +544,11 @@ fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
         let group = rect_of(&harness, "/\"count\"/Box");
         assert_eq!(group.height(), stepper.height);
         let shape = box_at(&harness, group);
-        assert_eq!(shape.fill, stepper.group.states.rest.fill, "{theme:?}");
-        assert_eq!(shape.stroke.color, stepper.group.states.rest.border);
+        assert_eq!(
+            shape.fill, stepper.group.paint.states.rest.fill,
+            "{theme:?}"
+        );
+        assert_eq!(shape.stroke.color, stepper.group.paint.states.rest.border);
         assert_eq!(
             shape.corner_radius,
             egui::CornerRadius::same(stepper.radius)
@@ -557,7 +563,10 @@ fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
         assert_eq!(group.right() - up.right(), border);
         assert!(group.contains_rect(rect_of(&harness, FIELD)));
         assert!(rect_of(&harness, FIELD).right() <= up.left() - 1.0);
-        assert_eq!(box_at(&harness, up).fill, stepper.button.states.rest.fill);
+        assert_eq!(
+            box_at(&harness, up).fill,
+            stepper.button.paint.states.rest.fill
+        );
         let inner = f32::from(stepper.radius) - border;
         let (up_corners, down_corners) = (
             box_at(&harness, up).corner_radius,
@@ -583,7 +592,7 @@ fn a_focused_stepper_rings_the_group_and_never_crosses_a_button() {
         assert_eq!(ring.stroke.width, 3.0);
         assert_eq!(
             box_at(&harness, group).stroke.color,
-            stepper.group.states.focused.border,
+            stepper.group.paint.states.focused.border,
             "the group's border takes the ring colour"
         );
         for path in [UP, DOWN] {
@@ -610,8 +619,11 @@ fn a_disabled_stepper_group_is_painted_in_opaque_disabled_colours() {
     let harness = harness(Theme::Light);
     let stepper = style(Theme::Light).stepper;
     let group = box_at(&harness, rect_of(&harness, "/\"fixed\"/Box"));
-    assert_eq!(group.fill, stepper.group.states.disabled.fill);
-    assert_eq!(group.stroke.color, stepper.group.states.disabled.border);
+    assert_eq!(group.fill, stepper.group.paint.states.disabled.fill);
+    assert_eq!(
+        group.stroke.color,
+        stepper.group.paint.states.disabled.border
+    );
     assert_eq!(group.fill.a(), 255);
     assert_eq!(group.stroke.color.a(), 255);
     let up = harness.get_by_role_and_label(Role::Button, "Increase Fixed");
@@ -644,7 +656,7 @@ fn the_buttons_step_the_value_and_disable_at_the_limits() {
     let stepper = style(Theme::Light).stepper;
     assert_eq!(
         box_at(&harness, rect_of(&harness, DOWN)).fill,
-        stepper.button.states.disabled.fill
+        stepper.button.paint.states.disabled.fill
     );
     click_node(&mut harness, DOWN);
     assert_eq!(harness.state().app.count, 0.0);
@@ -754,9 +766,9 @@ fn installing_a_modified_style_changes_the_new_widgets_with_no_code_change() {
     style.slider.range.rest.fill = red;
     style.slider.track_height = 10.0;
     style.slider.thumb_size = 24.0;
-    style.select.trigger.states.rest.fill = red;
+    style.select.trigger.paint.states.rest.fill = red;
     style.select.metrics.height = 44.0;
-    style.stepper.group.states.rest.fill = red;
+    style.stepper.group.paint.states.rest.fill = red;
     style.stepper.button_width = 40.0;
     let mut harness = harness(Theme::Light);
     style.install(&harness.ctx);

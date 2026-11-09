@@ -81,8 +81,14 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                 for (index, (value, label)) in self.options.into_iter().enumerate() {
                     let chosen = value == self.current;
                     let look = if chosen { &radio.on } else { &radio.off };
-                    let circle =
-                        look.indicator(&style, u8::MAX, enablement, radio.transition, radio.size);
+                    let circle = look.indicator(
+                        radio.border_width,
+                        &style,
+                        u8::MAX,
+                        enablement,
+                        radio.transition,
+                        radio.size,
+                    );
                     let circle = if index == tab_stop {
                         circle
                     } else {

@@ -359,6 +359,16 @@ pub fn with_controls<'f, A>(
     controls: impl FnOnce(&mut Builder<'_, 'f, A>),
     demo: impl FnOnce(&mut Builder<'_, 'f, A>),
 ) {
+    with_panel(b, PANEL_WIDTH, controls, demo);
+}
+
+/// [`with_controls`] with a panel `width` points wide.
+pub fn with_panel<'f, A>(
+    b: &mut Builder<'_, 'f, A>,
+    width: f32,
+    controls: impl FnOnce(&mut Builder<'_, 'f, A>),
+    demo: impl FnOnce(&mut Builder<'_, 'f, A>),
+) {
     let t = tokens(b.ctx());
     b.div(tw().flex().size_full(), |b| {
         b.div(
@@ -366,7 +376,7 @@ pub fn with_controls<'f, A>(
                 .flex_col()
                 .gap(3.0)
                 .p(3.0)
-                .w_px(PANEL_WIDTH)
+                .w_px(width)
                 .shrink_0()
                 .bg(t.card)
                 .border_r(1.0)

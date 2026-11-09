@@ -107,7 +107,13 @@ impl Switch {
             let look = switch.off.towards(switch.on, Progress::new(tint));
             let thumb_color = enablement.colors(look.states).text;
             let classes = look
-                .classes(&style, u8::MAX, enablement, switch.transition)
+                .classes(
+                    switch.border_width,
+                    &style,
+                    u8::MAX,
+                    enablement,
+                    switch.transition,
+                )
                 .flex()
                 .items_center()
                 .shrink_0()

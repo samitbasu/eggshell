@@ -192,13 +192,13 @@ impl<T> List<T> {
         }
         let select = &self.style.select;
         let popup = &select.popup;
-        let colors = popup.states.rest;
+        let colors = popup.paint.states.rest;
         let frame = Frame::new()
             .fill(colors.fill)
             .stroke(Stroke::new(popup.border_width, colors.border))
             .corner_radius(select.popup_radius)
             .inner_margin(select.popup_padding)
-            .shadow(popup.shadow.unwrap_or(egui::Shadow::NONE));
+            .shadow(popup.paint.shadow.unwrap_or(egui::Shadow::NONE));
         let width = trigger.rect.width();
         let inner = Popup::from_response(trigger)
             .open_memory(command)
@@ -234,9 +234,9 @@ impl<T> List<T> {
             }
             let chosen = Some(index) == self.current;
             let colors = if *highlight == index {
-                item.states.hover
+                item.paint.states.hover
             } else {
-                item.states.rest
+                item.paint.states.rest
             };
             let painter = ui.painter();
             painter.rect_filled(rect, select.item_radius, colors.fill);
