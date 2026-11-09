@@ -131,6 +131,7 @@ impl Slider {
             0.0
         };
         let thumb = slider.thumb_size;
+        let radius = f32::from(slider.radius);
         let fill = |states| enablement.colors(states);
         let hit = tw()
             .relative()
@@ -144,18 +145,18 @@ impl Slider {
         let bar = painted(
             tw().w_full()
                 .h_px(slider.track_height)
-                .rounded_full()
+                .rounded_px(radius)
                 .overflow_hidden(),
             fill(slider.track),
         );
         let range = painted(
-            tw().h_full().w_frac(fraction, 1.0).rounded_full(),
+            tw().h_full().w_frac(fraction, 1.0).rounded_px(radius),
             fill(slider.range),
         );
         let travel = tw().absolute().left_px(0.0).right_px(thumb).inset_y(0.0);
         let knob = slider
             .thumb
-            .classes(&style, u8::MAX, enablement, slider.transition)
+            .classes(&style, slider.radius, enablement, slider.transition)
             .absolute()
             .top_px(0.0)
             .left_frac(fraction, 1.0)

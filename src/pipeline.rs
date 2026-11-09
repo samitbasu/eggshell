@@ -587,6 +587,15 @@ impl<A> Placed<A> {
         self.nodes.iter()
     }
 
+    /// The paths of the nodes whose content does not fit them: the nodes the
+    /// debug overlay outlines in red.
+    pub fn overflowing(&self) -> Vec<&str> {
+        (0..self.nodes.len())
+            .filter(|&index| crate::debug::overflows(&self.nodes, index))
+            .map(|index| self.nodes[index].path())
+            .collect()
+    }
+
     /// The number of nodes, the root included.
     pub fn len(&self) -> usize {
         self.nodes.len()

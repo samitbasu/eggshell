@@ -5,8 +5,8 @@
 
 use std::sync::Once;
 
-use bullseye::style::Tokens;
 use bullseye::{Builder, LayoutState, TextStyle, tw};
+use bullseye_shadcn::{ShadcnStyle, Tokens};
 use egui::{Color32, ImageSource, TextureHandle, TextureOptions, Vec2, load::SizedTexture};
 use egui_kittest::Harness;
 
@@ -381,12 +381,25 @@ fn snapshot_app<A: 'static>(
 fn snapshot_themed<A: 'static>(
     name: &str,
     size: Vec2,
+    app: (A, support::View<A>, TextStyle),
+    pointer: Option<egui::Pos2>,
+    prepare: (egui::Theme, fn(&egui::Context, &A)),
+) {
+    snapshot_themed_in(ShadcnStyle::Vega, name, size, app, pointer, prepare);
+}
+
+/// [`snapshot_themed`] with the examples switched to `style`.
+fn snapshot_themed_in<A: 'static>(
+    style: ShadcnStyle,
+    name: &str,
+    size: Vec2,
     (app, view, base_text): (A, support::View<A>, TextStyle),
     pointer: Option<egui::Pos2>,
     (theme, prepare): (egui::Theme, fn(&egui::Context, &A)),
 ) {
     report_renderer();
     let mut harness = support::harness_prepared(size, base_text, app, view, prepare);
+    common::set_style(&harness.ctx, style);
     harness.state_mut().page = support::Page::Themed;
     harness.ctx.set_theme(theme);
     harness.run_steps(2);
@@ -614,6 +627,10 @@ fn gallery(name: &str, width: f32) {
 }
 
 fn gallery_in(name: &str, width: f32, theme: egui::Theme) {
+    gallery_styled(ShadcnStyle::Vega, name, width, theme);
+}
+
+fn gallery_styled(style: ShadcnStyle, name: &str, width: f32, theme: egui::Theme) {
     report_renderer();
     let state = controls_gallery::State {
         cell_width: controls_gallery::CellWidth::new(width),
@@ -621,11 +638,12 @@ fn gallery_in(name: &str, width: f32, theme: egui::Theme) {
     };
     let mut harness = support::harness_prepared(
         Vec2::new(1400.0, 800.0),
-        common::base_text(theme),
+        common::base_text_styled(theme, style),
         state,
         controls_gallery::layout,
         controls_gallery::prepare,
     );
+    common::set_style(&harness.ctx, style);
     harness.state_mut().page = support::Page::Themed;
     harness.ctx.set_theme(theme);
     harness.run_steps(4);
@@ -666,8 +684,22 @@ fn owned_section(name: &str, section: controls_gallery::Section, theme: egui::Th
     owned_section_after(name, section, theme, |_| {});
 }
 
+fn owned_section_lyra(name: &str, section: controls_gallery::Section, theme: egui::Theme) {
+    owned_section_in(ShadcnStyle::Lyra, name, section, theme, |_| {});
+}
+
 /// [`owned_section`] after `act` has driven the harness.
 fn owned_section_after(
+    name: &str,
+    section: controls_gallery::Section,
+    theme: egui::Theme,
+    act: impl FnOnce(&mut Harness<'static, support::Rig<controls_gallery::State>>),
+) {
+    owned_section_in(ShadcnStyle::Vega, name, section, theme, act);
+}
+
+fn owned_section_in(
+    style: ShadcnStyle,
     name: &str,
     section: controls_gallery::Section,
     theme: egui::Theme,
@@ -680,11 +712,12 @@ fn owned_section_after(
     };
     let mut harness = support::harness_prepared(
         controls_gallery::WINDOW,
-        common::base_text(theme),
+        common::base_text_styled(theme, style),
         state,
         controls_gallery::layout,
         controls_gallery::prepare,
     );
+    common::set_style(&harness.ctx, style);
     harness.state_mut().page = support::Page::Themed;
     harness.ctx.set_theme(theme);
     harness.run_steps(12);
@@ -936,4 +969,112 @@ fn kaolin_gallery_in(name: &str, theme: egui::Theme) {
         None,
         (theme, |_, _| {}),
     );
+}
+
+/// shadcn's Lyra: square, compact, `text-xs`, a 1 pt ring. The same layouts
+/// as the Vega goldens, switched with no code change.
+mod lyra {
+    use super::*;
+
+    macro_rules! lyra_sections {
+        ($($light:ident, $dark:ident: $section:ident;)*) => {$(
+            #[test]
+            fn $light() {
+                owned_section_lyra(stringify!($light), controls_gallery::Section::$section, egui::Theme::Light);
+            }
+
+            #[test]
+            fn $dark() {
+                owned_section_lyra(stringify!($dark), controls_gallery::Section::$section, egui::Theme::Dark);
+            }
+        )*};
+    }
+
+    lyra_sections! {
+        controls_gallery_lyra_buttons_light, controls_gallery_lyra_buttons_dark: Buttons;
+        controls_gallery_lyra_choices_light, controls_gallery_lyra_choices_dark: Choices;
+        controls_gallery_lyra_values_light, controls_gallery_lyra_values_dark: Values;
+    }
+
+    /// The text edits of the cells section, whose computed and drawn rects
+    /// must agree under Lyra.
+    #[test]
+    fn controls_gallery_lyra_cells() {
+        gallery_styled(
+            ShadcnStyle::Lyra,
+            "controls_gallery_lyra_cells",
+            200.0,
+            egui::Theme::Light,
+        );
+    }
+
+    #[test]
+    fn controls_gallery_lyra_cells_dark() {
+        gallery_styled(
+            ShadcnStyle::Lyra,
+            "controls_gallery_lyra_cells_dark",
+            200.0,
+            egui::Theme::Dark,
+        );
+    }
+
+    fn form_in(name: &str, theme: egui::Theme) {
+        let state = form::State {
+            name: "Ada Lovelace".into(),
+            push_alerts: true,
+            language: 1,
+            theme: form::Theme::Dark,
+            marks: vec![form::Mark::Bold, form::Mark::Underline],
+            accent: form::SWATCHES[4],
+            ..Default::default()
+        };
+        snapshot_themed_in(
+            ShadcnStyle::Lyra,
+            name,
+            Vec2::new(760.0, 900.0),
+            (
+                state,
+                form::layout,
+                common::base_text_styled(theme, ShadcnStyle::Lyra),
+            ),
+            None,
+            (theme, form::prepare),
+        );
+    }
+
+    #[test]
+    fn form_lyra() {
+        form_in("form_lyra", egui::Theme::Light);
+    }
+
+    #[test]
+    fn form_lyra_dark() {
+        form_in("form_lyra_dark", egui::Theme::Dark);
+    }
+
+    fn chat_shell_lyra(name: &str, theme: egui::Theme) {
+        let base = chat_shell::theme::Theme::new(theme).base_text();
+        snapshot_themed_in(
+            ShadcnStyle::Lyra,
+            name,
+            Vec2::new(1200.0, 760.0),
+            (
+                chat_shell::state::App::default(),
+                chat_shell::view::layout,
+                base,
+            ),
+            None,
+            (theme, chat_shell::view::prepare),
+        );
+    }
+
+    #[test]
+    fn chat_shell_lyra_light() {
+        chat_shell_lyra("chat_shell_lyra_light", egui::Theme::Light);
+    }
+
+    #[test]
+    fn chat_shell_lyra_dark() {
+        chat_shell_lyra("chat_shell_lyra_dark", egui::Theme::Dark);
+    }
 }

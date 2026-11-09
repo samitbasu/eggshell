@@ -54,7 +54,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn base() -> TextStyle {
-    let tokens = bullseye::style::Tokens::light();
+    let tokens = bullseye_shadcn::Tokens::light();
     TextStyle::new(tokens.text_role(), tokens.foreground)
 }
 

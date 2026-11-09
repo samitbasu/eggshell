@@ -115,12 +115,12 @@ fn harness_timed<A: 'static>(
                     nodes,
                     ids,
                 } = rig;
-                if bullseye::style::tokens(ui.ctx()).is_none() {
-                    bullseye::style::Shadcn::apply_both(ui.ctx());
+                if bullseye_shadcn::tokens(ui.ctx()).is_none() {
+                    bullseye_shadcn::Shadcn::apply_both(ui.ctx());
                 }
                 prepare(ui.ctx(), &*app);
                 if *page == Page::Themed {
-                    let background = bullseye::style::Shadcn::of(ui.ctx()).tokens.background;
+                    let background = bullseye_shadcn::Shadcn::of(ui.ctx()).tokens.background;
                     ui.painter()
                         .rect_filled(ui.ctx().content_rect(), 0.0, background);
                 }

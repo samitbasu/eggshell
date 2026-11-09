@@ -35,8 +35,23 @@ pub use stepper::Stepper;
 pub use switch::Switch;
 
 use crate::contract::{Colors, Look, Paint, States, Style};
-use crate::style::Mark;
 use crate::{Builder, NodeUi as _, Tw, tw};
+
+/// Whether a checkbox is ticked, a radio button chosen or a selectable
+/// button selected.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mark {
+    /// Unticked, unchosen or unselected.
+    Off,
+    /// Ticked, chosen or selected.
+    On,
+}
+
+impl From<bool> for Mark {
+    fn from(on: bool) -> Self {
+        if on { Self::On } else { Self::Off }
+    }
+}
 
 /// Whether a control takes input.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

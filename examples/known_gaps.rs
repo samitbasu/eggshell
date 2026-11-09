@@ -37,8 +37,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use bullseye::style::Tokens;
 use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Tw, tw};
+use bullseye_shadcn::Tokens;
 use egui::epaint::RectShape;
 use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, Rect, Shadow, Theme};
 

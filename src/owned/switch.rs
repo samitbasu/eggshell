@@ -6,9 +6,9 @@ use std::hash::Hash;
 
 use egui::{Role, Vec2};
 
+use super::Mark;
 use super::{Enablement, choice_label, choice_row, described};
 use crate::contract::Size;
-use crate::style::Mark;
 use crate::transition;
 use crate::{Builder, Easing, Progress, Style, tw};
 

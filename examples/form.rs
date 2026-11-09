@@ -14,8 +14,8 @@ mod common;
 
 use bullseye::owned::{Button, Enablement, Select, Switch};
 use bullseye::prim::text_field::Field;
-use bullseye::style::variant;
 use bullseye::{Builder, NodeUi as _, Tw, tw};
+use bullseye_shadcn::variant;
 use egui::{Color32, Role, WidgetInfo};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -224,7 +224,7 @@ fn switch(
     on: bool,
     toggle: fn(&mut State),
 ) {
-    Switch::new(label, bullseye::style::Mark::from(on))
+    Switch::new(label, bullseye::owned::Mark::from(on))
         .enablement(enablement)
         .show(b, key, toggle);
 }

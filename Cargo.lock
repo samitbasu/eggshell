@@ -531,6 +531,7 @@ dependencies = [
 name = "bullseye"
 version = "0.1.0"
 dependencies = [
+ "bullseye-shadcn",
  "eframe",
  "egui",
  "egui_kittest",
@@ -538,6 +539,14 @@ dependencies = [
  "trybuild",
  "wasm-bindgen-futures",
  "web-time",
+]
+
+[[package]]
+name = "bullseye-shadcn"
+version = "0.1.0"
+dependencies = [
+ "bullseye",
+ "egui",
 ]
 
 [[package]]

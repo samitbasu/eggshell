@@ -5,9 +5,9 @@ use std::hash::Hash;
 
 use egui::Role;
 
+use super::Mark;
 use super::{Enablement, centered, described};
 use crate::contract::{Size, Variant};
-use crate::style::Mark;
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug)]
@@ -16,7 +16,7 @@ enum Kind {
     Toggle(Mark),
 }
 
-/// Whether pressing a button shifts it down, as shadcn's do.
+/// Whether pressing a button shifts it down, as web buttons commonly do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Press {
     Shifts,

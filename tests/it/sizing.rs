@@ -3,9 +3,9 @@
 //! widget. Each case varies the text, the font size and the style, and a
 //! width that makes text wrap.
 
-use bullseye::style::Shadcn;
 use bullseye::widget::{Lines, Stock, TextEdit};
 use bullseye::{TextSpec, TextStyle, Width};
+use bullseye_shadcn::{Shadcn, ShadcnStyle};
 use egui::{
     Color32, Context, FontFamily, Rect, Response, Style, Theme, Ui, UiBuilder, Vec2, pos2, vec2,
 };
@@ -25,19 +25,29 @@ fn text_style(size: f32) -> TextStyle {
 struct Tweak {
     name: &'static str,
     apply: fn(&mut Style),
-    preset: Option<Theme>,
+    preset: Option<(Theme, ShadcnStyle)>,
 }
 
-const TWEAKS: [Tweak; 8] = [
+const TWEAKS: [Tweak; 10] = [
     Tweak {
-        name: "shadcn light",
+        name: "shadcn vega light",
         apply: |_| {},
-        preset: Some(Theme::Light),
+        preset: Some((Theme::Light, ShadcnStyle::Vega)),
     },
     Tweak {
-        name: "shadcn dark",
+        name: "shadcn vega dark",
         apply: |_| {},
-        preset: Some(Theme::Dark),
+        preset: Some((Theme::Dark, ShadcnStyle::Vega)),
+    },
+    Tweak {
+        name: "shadcn lyra light",
+        apply: |_| {},
+        preset: Some((Theme::Light, ShadcnStyle::Lyra)),
+    },
+    Tweak {
+        name: "shadcn lyra dark",
+        apply: |_| {},
+        preset: Some((Theme::Dark, ShadcnStyle::Lyra)),
     },
     Tweak {
         name: "default",
@@ -108,21 +118,19 @@ fn drawn(
     size
 }
 
-/// Pads an input as the preset says inputs are padded, which egui shares with
-/// buttons; a no-op without a preset.
+/// Draws the field in the style the library gives its text edits: the input
+/// section of the contract, mapped onto the `Ui`.
 fn input_padded(ui: &mut Ui) {
-    if let Some(tokens) = bullseye::style::tokens(ui.ctx()) {
-        ui.spacing_mut().button_padding = tokens.input_padding;
-    }
+    bullseye::Style::of(ui.ctx()).map_input(ui.style_mut());
 }
 
 /// A context with the tweak applied and its fonts loaded, which sizes mean
 /// nothing without.
 fn context(tweak: &Tweak) -> Context {
     let ctx = Context::default();
-    if let Some(theme) = tweak.preset {
+    if let Some((theme, style)) = tweak.preset {
         ctx.set_theme(theme);
-        Shadcn::for_theme(theme).apply(&ctx);
+        Shadcn::for_theme(theme).with_style(style).apply(&ctx);
     }
     ctx.global_style_mut(tweak.apply);
     ctx.run_ui(egui::RawInput::default(), |_| {})
@@ -252,6 +260,7 @@ fn bare_case(text: &str, lines: Lines) -> Case<TextEdit> {
     Case {
         widget: widget.hint("Reply").bare(),
         add: Box::new(move |ui, width| {
+            input_padded(ui);
             let mut buffer = text.clone();
             let mut edit = match lines {
                 Lines::Single => egui::TextEdit::singleline(&mut buffer),

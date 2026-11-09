@@ -39,7 +39,6 @@ pub mod owned;
 mod pipeline;
 pub mod prim;
 mod sizing;
-pub mod style;
 mod text;
 mod transition;
 mod tw;

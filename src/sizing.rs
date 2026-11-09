@@ -2,15 +2,16 @@
 //! font, and the galleys and padding egui itself would use.
 //!
 //! The style is the context's global style with the node's font override,
-//! which is what the draw phase gives a node's `Ui`. Custom themes that
-//! change widget frames are not followed.
+//! which is what the draw phase gives a node's `Ui`; the text edit's frame
+//! comes from the [`Style`](crate::Style) contract's input section instead.
+//! Custom themes that change widget frames are not followed.
 
 use std::sync::Arc;
 
 use egui::epaint::text::TextWrapping;
-use egui::{Align, Context, FontId, Galley, Style, TextWrapMode, Ui, Vec2, WidgetText};
+use egui::{Align, Context, FontId, Galley, Style, TextWrapMode, Ui, WidgetText};
 
-use crate::TextStyle;
+use crate::{Style as BullseyeStyle, TextStyle};
 
 /// A width a widget will be given, for wrapping its text and growing its
 /// height.
@@ -35,6 +36,7 @@ pub(crate) struct Sizer<'a> {
     pub ctx: &'a Context,
     pub style: Style,
     pub font: FontId,
+    pub contract: Arc<BullseyeStyle>,
 }
 
 impl<'a> Sizer<'a> {
@@ -42,7 +44,12 @@ impl<'a> Sizer<'a> {
         let font = text.spec.font_id();
         let mut style = (*ctx.global_style()).clone();
         style.override_font_id = Some(font.clone());
-        Self { ctx, style, font }
+        Self {
+            ctx,
+            style,
+            font,
+            contract: BullseyeStyle::of(ctx),
+        }
     }
 
     /// The sizer for widgets drawn in `ui`, whose style the draw phase has
@@ -57,6 +64,7 @@ impl<'a> Sizer<'a> {
             ctx: ui.ctx(),
             style,
             font,
+            contract: BullseyeStyle::of(ui.ctx()),
         }
     }
 
@@ -75,11 +83,5 @@ impl<'a> Sizer<'a> {
             egui::FontSelection::Default,
             Align::Center,
         )
-    }
-
-    /// The padding of inputs: the preset's, which differs from a button's, and
-    /// otherwise egui's `button_padding`.
-    pub fn input_padding(&self) -> Vec2 {
-        crate::style::input_padding(self.ctx).unwrap_or(self.style.spacing.button_padding)
     }
 }

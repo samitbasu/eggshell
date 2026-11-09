@@ -14,9 +14,9 @@ mod common;
 
 use std::convert::identity;
 
+use bullseye::owned::Mark;
 use bullseye::owned::{Button, Checkbox, Slider};
 use bullseye::prim::text_field::{self, Field};
-use bullseye::style::Mark;
 use bullseye::{Builder, Tw, tw};
 use egui::{Role, WidgetInfo};
 

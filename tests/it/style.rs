@@ -2,9 +2,9 @@
 //! the library's primitives drawn with its proportions.
 
 use bullseye::owned::{Segmented, Switch};
-use bullseye::style::{Accent, Shadcn, Tokens, tokens};
 use bullseye::widget::{Stock, TextEdit};
 use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Width, tw};
+use bullseye_shadcn::{Shadcn, ThemeColor, Tokens, tokens};
 use egui::epaint::Shape;
 use egui::{Color32, Context, FontFamily, Rect, Theme, vec2};
 use egui_kittest::Harness;
@@ -244,7 +244,7 @@ fn switches(b: &mut Builder<'_, '_, App>, app: &App) {
             ("wide", Some(vec2(64.0, 64.0 * 18.4 / 32.0))),
             ("tall", Some(vec2(36.0 * 32.0 / 18.4, 36.0))),
         ] {
-            let switch = Switch::unlabelled(bullseye::style::Mark::from(app.on)).named(key);
+            let switch = Switch::unlabelled(bullseye::owned::Mark::from(app.on)).named(key);
             let switch = match track {
                 Some(track) => switch.track(track),
                 None => switch,
@@ -414,9 +414,12 @@ fn a_text_field_under_the_preset_is_h9_with_px3() {
 fn an_accent_retints_primary_and_ring_and_nothing_else() {
     for theme in [Theme::Light, Theme::Dark] {
         let neutral = Shadcn::for_theme(theme);
-        assert_eq!(neutral.clone().accent(Accent::Neutral), neutral);
-        for accent in Accent::ALL.into_iter().filter(|a| *a != Accent::Neutral) {
-            let tinted = neutral.clone().accent(accent);
+        assert_eq!(neutral.clone().theme_color(ThemeColor::Neutral), neutral);
+        for accent in ThemeColor::ALL
+            .into_iter()
+            .filter(|a| *a != ThemeColor::Neutral)
+        {
+            let tinted = neutral.clone().theme_color(accent);
             let (a, b) = (&neutral.tokens, &tinted.tokens);
             assert_ne!(a.primary, b.primary, "{accent:?} {theme:?}");
             assert_ne!(a.primary_foreground, b.primary_foreground);
@@ -433,7 +436,11 @@ fn an_accent_retints_primary_and_ring_and_nothing_else() {
             assert_eq!(&same, a, "{accent:?} {theme:?}: only those change");
         }
     }
-    let blue = |theme| Shadcn::for_theme(theme).accent(Accent::Blue).tokens;
+    let blue = |theme| {
+        Shadcn::for_theme(theme)
+            .theme_color(ThemeColor::Blue)
+            .tokens
+    };
     assert_eq!(blue(Theme::Light).primary, rgb(0x14, 0x47, 0xe6));
     assert_eq!(blue(Theme::Dark).primary, rgb(0x2b, 0x7f, 0xff));
     assert_eq!(blue(Theme::Dark).primary_foreground, rgb(0, 0, 0));
@@ -459,8 +466,11 @@ fn contrast(a: egui::Color32, b: egui::Color32) -> f32 {
 #[test]
 fn a_dark_accent_fills_with_its_bright_shade_and_keeps_its_label_readable() {
     let neutral = Shadcn::dark().tokens;
-    for accent in Accent::ALL.into_iter().filter(|a| *a != Accent::Neutral) {
-        let t = Shadcn::dark().accent(accent).tokens;
+    for accent in ThemeColor::ALL
+        .into_iter()
+        .filter(|a| *a != ThemeColor::Neutral)
+    {
+        let t = Shadcn::dark().theme_color(accent).tokens;
         assert_eq!(t.primary, t.ring, "{accent:?}: the 500 shade");
         assert!(
             contrast(t.primary, t.primary_foreground) >= 4.5,
@@ -472,7 +482,7 @@ fn a_dark_accent_fills_with_its_bright_shade_and_keeps_its_label_readable() {
             "{accent:?} stands out on the page"
         );
     }
-    let neutral_accent = Shadcn::dark().accent(Accent::Neutral).tokens;
+    let neutral_accent = Shadcn::dark().theme_color(ThemeColor::Neutral).tokens;
     assert_eq!(neutral_accent, neutral, "neutral dark is shadcn's");
     assert_eq!(neutral.primary, rgb(0xe5, 0xe5, 0xe5));
 }
@@ -480,9 +490,9 @@ fn a_dark_accent_fills_with_its_bright_shade_and_keeps_its_label_readable() {
 #[test]
 fn hyperlinks_are_primary_and_readable_on_the_page() {
     for theme in [Theme::Light, Theme::Dark] {
-        for accent in Accent::ALL {
+        for accent in ThemeColor::ALL {
             let ctx = context(theme);
-            let preset = Shadcn::for_theme(theme).accent(accent);
+            let preset = Shadcn::for_theme(theme).theme_color(accent);
             preset.apply(&ctx);
             assert_eq!(
                 ctx.style_of(theme).visuals.hyperlink_color,
@@ -501,7 +511,7 @@ fn hyperlinks_are_primary_and_readable_on_the_page() {
 #[test]
 fn an_accent_reaches_egui_when_applied() {
     let ctx = context(Theme::Light);
-    Shadcn::light().accent(Accent::Violet).apply(&ctx);
+    Shadcn::light().theme_color(ThemeColor::Violet).apply(&ctx);
     assert_eq!(
         ctx.style_of(Theme::Light).visuals.hyperlink_color,
         rgb(0x70, 0x08, 0xe7)
@@ -517,7 +527,7 @@ fn of_is_the_applied_preset_for_the_contexts_theme() {
         Shadcn::light(),
         "none applied: the default"
     );
-    let green = Shadcn::light().accent(Accent::Green);
+    let green = Shadcn::light().theme_color(ThemeColor::Green);
     green.apply(&ctx);
     Shadcn::dark().apply(&ctx);
     assert_eq!(Shadcn::of(&ctx), green);

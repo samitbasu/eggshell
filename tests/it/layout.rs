@@ -155,7 +155,7 @@ fn kaolin_hello_world() {
     let div_node = placed.nodes().find(|n| n.kind() == NodeKind::Div).unwrap();
     assert_eq!(
         div_node.paint().background,
-        Some(bullseye::style::Shadcn::of(ctx()).tokens.background)
+        Some(bullseye_shadcn::Shadcn::of(ctx()).tokens.background)
     );
 }
 

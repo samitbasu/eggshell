@@ -94,8 +94,14 @@ pub fn check(dir: &Path) -> Result<()> {
     )
 }
 
+/// The library crates of the workspace, relative to its root.
+pub const LIBRARY_SOURCES: [&str; 2] = ["src", "crates/bullseye-shadcn/src"];
+
 pub fn check_library() -> Result<()> {
-    check(&process::workspace_root().join("src"))
+    let root = process::workspace_root();
+    LIBRARY_SOURCES
+        .iter()
+        .try_for_each(|dir| check(&root.join(dir)))
 }
 
 #[cfg(test)]

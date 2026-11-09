@@ -7,7 +7,7 @@ mod common;
 mod layouts;
 
 use bullseye::owned::Button;
-use bullseye::style::Mark;
+use bullseye::owned::Mark;
 use bullseye::{Builder, LayoutState, TextStyle, Tw, tw};
 use egui::load::SizedTexture;
 use egui::{ImageSource, TextureHandle, TextureOptions};

@@ -17,14 +17,16 @@
 //! # }
 //! ```
 //!
+//! The field is drawn from the [`Style`]'s input section, mapped onto the
+//! node's `Ui` by [`Style::map_input`]; the size reads the same values.
 //! `tests/it/sizing.rs` asserts that the size equals what egui allocates when
 //! it draws the widget.
 
-use egui::{Context, Frame, NumExt as _, Response, RichText, TextWrapMode, Ui, Vec2, vec2};
+use egui::{Context, Frame, Margin, NumExt as _, Response, RichText, TextWrapMode, Ui, Vec2, vec2};
 use taffy::Size;
 
 use crate::sizing::Sizer;
-use crate::{Measure, TextStyle, Width};
+use crate::{Measure, Style, TextStyle, Width};
 
 /// A stock widget the builder can size.
 pub trait Stock: Clone + 'static {
@@ -182,6 +184,7 @@ impl TextEdit {
     /// pass, so the frame that is painted is laid out for the new text
     /// instead of showing one row too many or too few for a frame.
     pub fn show(&self, ui: &mut Ui, text: &mut String) -> Response {
+        Style::of(ui.ctx()).map_input(ui.style_mut());
         let rect = ui.max_rect();
         let id = Self::id_in(ui);
         let width = Width::new(rect.width());
@@ -197,7 +200,7 @@ impl TextEdit {
         match (self.framing, self.lines) {
             (Framing::Bare, _) => edit = edit.frame(Frame::NONE),
             (Framing::Framed, _) => {
-                edit = edit.margin(egui::Margin::from(Sizer::for_ui(ui).input_padding()));
+                edit = edit.margin(Margin::from(Sizer::for_ui(ui).contract.input.padding));
             }
         }
         if self.lines == Lines::Single {
@@ -236,8 +239,9 @@ impl TextEdit {
     /// would be if the cap did not stop it.
     fn fit(&self, sizer: &Sizer<'_>, text: &str, width: Option<Width>) -> Fit {
         let spacing = &sizer.style.spacing;
+        let input = &sizer.contract.input;
         let frame = match self.framing {
-            Framing::Framed => text_edit_frame(sizer),
+            Framing::Framed => Frame::new().inner_margin(Margin::from(input.padding)),
             Framing::Bare => Frame::NONE,
         };
         let margin = frame.total_margin().sum();
@@ -247,7 +251,7 @@ impl TextEdit {
         let min_inner_height = self.rows() as f32 * line;
         let min_size = vec2(
             allocate,
-            (min_inner_height + margin.y).at_least(spacing.interact_size.y),
+            (min_inner_height + margin.y).at_least(input.height),
         );
 
         let inner = match (&self.hint, text.is_empty()) {
@@ -298,16 +302,6 @@ impl Stock for TextEdit {
     fn size(&self, ctx: &Context, text: &TextStyle, width: Option<Width>) -> Vec2 {
         self.fit(&Sizer::new(ctx, text), &self.text, width).size
     }
-}
-
-/// The frame of a `TextEdit` in its inactive state.
-fn text_edit_frame(sizer: &Sizer<'_>) -> Frame {
-    let visuals = sizer.style.visuals.widgets.inactive;
-    Frame {
-        inner_margin: sizer.input_padding().into(),
-        ..Frame::default()
-    }
-    .apply_stroke_and_expansion_without_layout_shift(visuals.bg_stroke, visuals.expansion)
 }
 
 /// The galley egui's default text edit layouter makes.

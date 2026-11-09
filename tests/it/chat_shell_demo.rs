@@ -692,7 +692,7 @@ mod appearance {
         assert_eq!(
             select_fill(&harness),
             Some(
-                bullseye::style::Shadcn::light()
+                bullseye_shadcn::Shadcn::light()
                     .style()
                     .select
                     .trigger
@@ -741,7 +741,7 @@ mod appearance {
 
 mod accents {
     use super::*;
-    use bullseye::style::Accent;
+    use bullseye_shadcn::ThemeColor;
     use egui::epaint::Shape;
 
     fn text_colors(harness: &Harness<'_, Rig<App>>, text: &str) -> Vec<egui::Color32> {
@@ -769,9 +769,9 @@ mod accents {
             assert_eq!(text_colors(&harness, "Running"), [k[Tok::Accent]]);
             assert_ne!(k[Tok::Success], k[Tok::Danger], "precondition");
             assert_eq!(
-                bullseye::style::Shadcn::of(&harness.ctx).tokens.primary,
-                bullseye::style::Shadcn::for_theme(theme)
-                    .accent(Accent::Blue)
+                bullseye_shadcn::Shadcn::of(&harness.ctx).tokens.primary,
+                bullseye_shadcn::Shadcn::for_theme(theme)
+                    .theme_color(ThemeColor::Blue)
                     .tokens
                     .primary,
                 "the example's accent is blue"

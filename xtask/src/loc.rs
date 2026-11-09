@@ -228,8 +228,11 @@ pub fn report(root: &Path) -> Result<String> {
     Ok(out)
 }
 
-pub fn run(root: &Path) -> Result<()> {
-    print!("{}", report(root)?);
+pub fn run(roots: &[PathBuf]) -> Result<()> {
+    for root in roots {
+        println!("== {}", root.display());
+        print!("{}", report(root)?);
+    }
     Ok(())
 }
 

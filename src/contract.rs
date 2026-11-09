@@ -1,14 +1,13 @@
 //! [`Style`]: everything the owned widgets draw with.
 //!
-//! Core defines what its widgets need and a preset fills it, so a design
+//! Core defines what its widgets need and a preset (such as the `bullseye-shadcn` crate) fills it, so a design
 //! system is data: an app installs a [`Style`] with [`Style::install`] and the
 //! widgets follow, with no code change. [`Style::default`] is derived from
 //! egui's visuals, so core looks coherent with no preset at all.
 //!
 //! Every field is exact: the owned widgets draw exactly these values. Only the
-//! text input, which stays a wrapped egui `TextEdit`, will be approximated
-//! (egui paints it from fixed widget slots), and it is not part of the
-//! contract yet.
+//! text input, which stays a wrapped egui `TextEdit`, is approximated (egui
+//! paints it from fixed widget slots): see [`InputStyle`].
 //!
 //! The style is one per context (per theme if installed with
 //! [`Style::install_for`]). Scoping a different style to a subtree is future
@@ -474,6 +473,9 @@ pub struct SliderStyle {
     pub track_height: f32,
     /// Diameter of the thumb, which is also the slider's height.
     pub thumb_size: f32,
+    /// Corner radius of the track, its range and the thumb; `u8::MAX` makes
+    /// them round.
+    pub radius: u8,
     /// The track's fill; only `rest` and `disabled` apply.
     pub track: States,
     /// The range's fill; only `rest` and `disabled` apply.
@@ -540,6 +542,39 @@ pub struct StepperStyle {
     pub transition: Duration,
 }
 
+/// Text fields, which are egui's `TextEdit` wrapped: egui paints them from
+/// fixed widget slots, so [`Style::map_input`] approximates this section on
+/// the field's own `Ui` and the library's size estimate reads the same
+/// values.
+///
+/// | Field | On the `TextEdit` |
+/// |---|---|
+/// | `look` rest `fill` | exact: the field's background in every state |
+/// | `look` rest and hover `border`, `border_width` | exact; the focus border is at least 1 pt wide so that focus always shows |
+/// | `look` rest `text` | exact: the colour of typed text in every state |
+/// | `look` hover `fill`, `pressed`, disabled colours | not drawn: egui has one fill and one text colour |
+/// | `look` focused `border` | approximated: egui draws the focus border in the colour of selected text, so [`Selection::text`] wins when set |
+/// | `look` shadow and focus ring | not drawn: egui's frame has no shadow and its ring is the 1 pt border |
+/// | `radius`, `padding`, `height` | exact |
+/// | `hint` | exact when set; otherwise egui's own grey-out of the text colour |
+/// | [`Style::selection`] fill | exact |
+///
+/// The text cursor keeps the colour of the `Ui`'s visuals.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct InputStyle {
+    /// Colours per state and the border width.
+    pub look: Look,
+    /// Corner radius.
+    pub radius: u8,
+    /// Space between the border and the text.
+    pub padding: Vec2,
+    /// Height of a one-line field; a taller field's text sets its height.
+    pub height: f32,
+    /// The colour of hint text, or `None` for egui's grey-out of the text.
+    pub hint: Option<Color32>,
+}
+
 /// Selected text.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -577,6 +612,8 @@ pub struct Style {
     pub select: SelectStyle,
     /// Steppers.
     pub stepper: StepperStyle,
+    /// Text fields.
+    pub input: InputStyle,
     /// Selected text.
     pub selection: Selection,
 }
@@ -811,6 +848,7 @@ impl Style {
             slider: SliderStyle {
                 track_height: s.slider_rail_height,
                 thumb_size: s.icon_width,
+                radius: u8::MAX,
                 track: States::still(
                     Colors {
                         fill: w.inactive.bg_fill,
@@ -880,11 +918,76 @@ impl Style {
                 glyph: s.icon_width_inner,
                 transition,
             },
+            input: InputStyle {
+                look: Look::new(States {
+                    rest: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: w.inactive.bg_stroke.color,
+                        text: w.inactive.fg_stroke.color,
+                    },
+                    hover: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: w.hovered.bg_stroke.color,
+                        text: w.inactive.fg_stroke.color,
+                    },
+                    pressed: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: focus_border,
+                        text: w.inactive.fg_stroke.color,
+                    },
+                    focused: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: focus_border,
+                        text: w.inactive.fg_stroke.color,
+                    },
+                    disabled: Colors {
+                        fill: v.text_edit_bg_color(),
+                        border: w.inactive.bg_stroke.color,
+                        text: w.inactive.fg_stroke.color,
+                    }
+                    .faded_over(faded, surface),
+                })
+                .bordered(border_width),
+                radius,
+                padding: s.button_padding,
+                height: s.interact_size.y,
+                hint: None,
+            },
             selection: Selection {
                 fill: v.selection.bg_fill,
                 text: Some(v.selection.stroke.color),
             },
         }
+    }
+
+    /// Writes the [`InputStyle`] and the selection colours into `egui`, the
+    /// style of the `Ui` a text field is drawn in, so that egui's `TextEdit`
+    /// draws as the style says. See [`InputStyle`] for what is approximated.
+    pub fn map_input(&self, egui: &mut egui::Style) {
+        let input = &self.input;
+        let states = &input.look.paint.states;
+        let width = input.look.border_width;
+        let v = &mut egui.visuals;
+        v.text_edit_bg_color = Some(states.rest.fill);
+        v.weak_text_color = input.hint;
+        let radius = egui::CornerRadius::same(input.radius);
+        for (widget, border) in [
+            (&mut v.widgets.inactive, states.rest.border),
+            (&mut v.widgets.hovered, states.hover.border),
+            (&mut v.widgets.active, states.focused.border),
+        ] {
+            widget.bg_stroke = egui::Stroke::new(width, border);
+            widget.fg_stroke.color = states.rest.text;
+            widget.corner_radius = radius;
+            widget.expansion = 0.0;
+        }
+        v.selection.bg_fill = self.selection.fill;
+        v.selection.stroke = egui::Stroke::new(
+            width.max(1.0),
+            self.selection.text.unwrap_or(states.focused.border),
+        );
+        egui.spacing.interact_size.y = input.height;
+        egui.spacing.button_padding = input.padding;
     }
 }
 

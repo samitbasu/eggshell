@@ -13,10 +13,11 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use bullseye::owned::Mark;
 use bullseye::owned::{Button, Checkbox, Stepper};
 use bullseye::prim::text_field::Field;
-use bullseye::style::{Mark, variant};
 use bullseye::{Builder, Tw, tw};
+use bullseye_shadcn::variant;
 use egui::Role;
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
