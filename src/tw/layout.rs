@@ -99,260 +99,260 @@ macro_rules! keywords {
 
 impl Tw {
     keywords! {
-        flex, "`flex`: a flex container.", |s| s.display = Display::Flex;
-        block, "`block`: a block container.", |s| s.display = Display::Block;
-        grid, "`grid`: a grid container.", |s| s.display = Display::Grid;
-        hidden, "`hidden`: takes no part in layout.", |s| s.display = Display::None;
+        flex, "`flex`: a flex container.", |s| *s.display() = Display::Flex;
+        block, "`block`: a block container.", |s| *s.display() = Display::Block;
+        grid, "`grid`: a grid container.", |s| *s.display() = Display::Grid;
+        hidden, "`hidden`: takes no part in layout.", |s| *s.display() = Display::None;
 
-        flex_row, "`flex-row`.", |s| s.flex_direction = FlexDirection::Row;
-        flex_col, "`flex-col`.", |s| s.flex_direction = FlexDirection::Column;
-        flex_row_reverse, "`flex-row-reverse`.", |s| s.flex_direction = FlexDirection::RowReverse;
-        flex_col_reverse, "`flex-col-reverse`.", |s| s.flex_direction = FlexDirection::ColumnReverse;
-        flex_wrap, "`flex-wrap`.", |s| s.flex_wrap = FlexWrap::Wrap;
-        flex_wrap_reverse, "`flex-wrap-reverse`.", |s| s.flex_wrap = FlexWrap::WrapReverse;
-        flex_nowrap, "`flex-nowrap`.", |s| s.flex_wrap = FlexWrap::NoWrap;
+        flex_row, "`flex-row`.", |s| *s.flex_direction() = FlexDirection::Row;
+        flex_col, "`flex-col`.", |s| *s.flex_direction() = FlexDirection::Column;
+        flex_row_reverse, "`flex-row-reverse`.", |s| *s.flex_direction() = FlexDirection::RowReverse;
+        flex_col_reverse, "`flex-col-reverse`.", |s| *s.flex_direction() = FlexDirection::ColumnReverse;
+        flex_wrap, "`flex-wrap`.", |s| *s.flex_wrap() = FlexWrap::Wrap;
+        flex_wrap_reverse, "`flex-wrap-reverse`.", |s| *s.flex_wrap() = FlexWrap::WrapReverse;
+        flex_nowrap, "`flex-nowrap`.", |s| *s.flex_wrap() = FlexWrap::NoWrap;
 
         flex_1, "`flex-1`: grow and shrink from a zero basis.", |s| {
-            s.flex_grow = 1.0;
-            s.flex_shrink = 1.0;
-            s.flex_basis = Dimension::percent(0.0);
+            *s.flex_grow() = 1.0;
+            *s.flex_shrink() = 1.0;
+            *s.flex_basis() = Dimension::percent(0.0);
         };
         flex_auto, "`flex-auto`: grow and shrink from the content size.", |s| {
-            s.flex_grow = 1.0;
-            s.flex_shrink = 1.0;
-            s.flex_basis = Dimension::AUTO;
+            *s.flex_grow() = 1.0;
+            *s.flex_shrink() = 1.0;
+            *s.flex_basis() = Dimension::AUTO;
         };
         flex_initial, "`flex-initial`: shrink but do not grow.", |s| {
-            s.flex_grow = 0.0;
-            s.flex_shrink = 1.0;
-            s.flex_basis = Dimension::AUTO;
+            *s.flex_grow() = 0.0;
+            *s.flex_shrink() = 1.0;
+            *s.flex_basis() = Dimension::AUTO;
         };
         flex_none, "`flex-none`: neither grow nor shrink.", |s| {
-            s.flex_grow = 0.0;
-            s.flex_shrink = 0.0;
-            s.flex_basis = Dimension::AUTO;
+            *s.flex_grow() = 0.0;
+            *s.flex_shrink() = 0.0;
+            *s.flex_basis() = Dimension::AUTO;
         };
-        grow, "`grow`.", |s| s.flex_grow = 1.0;
-        grow_0, "`grow-0`.", |s| s.flex_grow = 0.0;
-        shrink, "`shrink`.", |s| s.flex_shrink = 1.0;
-        shrink_0, "`shrink-0`.", |s| s.flex_shrink = 0.0;
+        grow, "`grow`.", |s| *s.flex_grow() = 1.0;
+        grow_0, "`grow-0`.", |s| *s.flex_grow() = 0.0;
+        shrink, "`shrink`.", |s| *s.flex_shrink() = 1.0;
+        shrink_0, "`shrink-0`.", |s| *s.flex_shrink() = 0.0;
 
-        aspect_square, "`aspect-square`.", |s| s.aspect_ratio = Some(1.0);
-        aspect_video, "`aspect-video`: 16 by 9.", |s| s.aspect_ratio = Some(16.0 / 9.0);
-        aspect_auto, "`aspect-auto`: no preferred ratio.", |s| s.aspect_ratio = None;
+        aspect_square, "`aspect-square`.", |s| *s.aspect_ratio() = Some(1.0);
+        aspect_video, "`aspect-video`: 16 by 9.", |s| *s.aspect_ratio() = Some(16.0 / 9.0);
+        aspect_auto, "`aspect-auto`: no preferred ratio.", |s| *s.aspect_ratio() = None;
 
-        items_start, "`items-start`.", |s| s.align_items = AlignItems::FLEX_START;
-        items_end, "`items-end`.", |s| s.align_items = AlignItems::FLEX_END;
-        items_center, "`items-center`.", |s| s.align_items = AlignItems::CENTER;
-        items_baseline, "`items-baseline`.", |s| s.align_items = AlignItems::BASELINE;
-        items_stretch, "`items-stretch`.", |s| s.align_items = AlignItems::STRETCH;
+        items_start, "`items-start`.", |s| *s.align_items() = AlignItems::FLEX_START;
+        items_end, "`items-end`.", |s| *s.align_items() = AlignItems::FLEX_END;
+        items_center, "`items-center`.", |s| *s.align_items() = AlignItems::CENTER;
+        items_baseline, "`items-baseline`.", |s| *s.align_items() = AlignItems::BASELINE;
+        items_stretch, "`items-stretch`.", |s| *s.align_items() = AlignItems::STRETCH;
 
-        justify_start, "`justify-start`.", |s| s.justify_content = AlignContent::FLEX_START;
-        justify_end, "`justify-end`.", |s| s.justify_content = AlignContent::FLEX_END;
-        justify_center, "`justify-center`.", |s| s.justify_content = AlignContent::CENTER;
-        justify_between, "`justify-between`.", |s| s.justify_content = AlignContent::SPACE_BETWEEN;
-        justify_around, "`justify-around`.", |s| s.justify_content = AlignContent::SPACE_AROUND;
-        justify_evenly, "`justify-evenly`.", |s| s.justify_content = AlignContent::SPACE_EVENLY;
-        justify_stretch, "`justify-stretch`.", |s| s.justify_content = AlignContent::STRETCH;
+        justify_start, "`justify-start`.", |s| *s.justify_content() = AlignContent::FLEX_START;
+        justify_end, "`justify-end`.", |s| *s.justify_content() = AlignContent::FLEX_END;
+        justify_center, "`justify-center`.", |s| *s.justify_content() = AlignContent::CENTER;
+        justify_between, "`justify-between`.", |s| *s.justify_content() = AlignContent::SPACE_BETWEEN;
+        justify_around, "`justify-around`.", |s| *s.justify_content() = AlignContent::SPACE_AROUND;
+        justify_evenly, "`justify-evenly`.", |s| *s.justify_content() = AlignContent::SPACE_EVENLY;
+        justify_stretch, "`justify-stretch`.", |s| *s.justify_content() = AlignContent::STRETCH;
 
-        content_start, "`content-start`.", |s| s.align_content = AlignContent::FLEX_START;
-        content_end, "`content-end`.", |s| s.align_content = AlignContent::FLEX_END;
-        content_center, "`content-center`.", |s| s.align_content = AlignContent::CENTER;
-        content_between, "`content-between`.", |s| s.align_content = AlignContent::SPACE_BETWEEN;
-        content_around, "`content-around`.", |s| s.align_content = AlignContent::SPACE_AROUND;
-        content_evenly, "`content-evenly`.", |s| s.align_content = AlignContent::SPACE_EVENLY;
-        content_stretch, "`content-stretch`.", |s| s.align_content = AlignContent::STRETCH;
+        content_start, "`content-start`.", |s| *s.align_content() = AlignContent::FLEX_START;
+        content_end, "`content-end`.", |s| *s.align_content() = AlignContent::FLEX_END;
+        content_center, "`content-center`.", |s| *s.align_content() = AlignContent::CENTER;
+        content_between, "`content-between`.", |s| *s.align_content() = AlignContent::SPACE_BETWEEN;
+        content_around, "`content-around`.", |s| *s.align_content() = AlignContent::SPACE_AROUND;
+        content_evenly, "`content-evenly`.", |s| *s.align_content() = AlignContent::SPACE_EVENLY;
+        content_stretch, "`content-stretch`.", |s| *s.align_content() = AlignContent::STRETCH;
 
-        self_auto, "`self-auto`.", |s| s.align_self = None;
-        self_start, "`self-start`.", |s| s.align_self = Some(AlignItems::FLEX_START);
-        self_end, "`self-end`.", |s| s.align_self = Some(AlignItems::FLEX_END);
-        self_center, "`self-center`.", |s| s.align_self = Some(AlignItems::CENTER);
-        self_stretch, "`self-stretch`.", |s| s.align_self = Some(AlignItems::STRETCH);
-        self_baseline, "`self-baseline`.", |s| s.align_self = Some(AlignItems::BASELINE);
+        self_auto, "`self-auto`.", |s| *s.align_self() = None;
+        self_start, "`self-start`.", |s| *s.align_self() = Some(AlignItems::FLEX_START);
+        self_end, "`self-end`.", |s| *s.align_self() = Some(AlignItems::FLEX_END);
+        self_center, "`self-center`.", |s| *s.align_self() = Some(AlignItems::CENTER);
+        self_stretch, "`self-stretch`.", |s| *s.align_self() = Some(AlignItems::STRETCH);
+        self_baseline, "`self-baseline`.", |s| *s.align_self() = Some(AlignItems::BASELINE);
 
-        justify_items_start, "`justify-items-start`.", |s| s.justify_items = AlignItems::START;
-        justify_items_end, "`justify-items-end`.", |s| s.justify_items = AlignItems::END;
-        justify_items_center, "`justify-items-center`.", |s| s.justify_items = AlignItems::CENTER;
-        justify_items_stretch, "`justify-items-stretch`.", |s| s.justify_items = AlignItems::STRETCH;
+        justify_items_start, "`justify-items-start`.", |s| *s.justify_items() = AlignItems::START;
+        justify_items_end, "`justify-items-end`.", |s| *s.justify_items() = AlignItems::END;
+        justify_items_center, "`justify-items-center`.", |s| *s.justify_items() = AlignItems::CENTER;
+        justify_items_stretch, "`justify-items-stretch`.", |s| *s.justify_items() = AlignItems::STRETCH;
 
-        justify_self_auto, "`justify-self-auto`.", |s| s.justify_self = None;
-        justify_self_start, "`justify-self-start`.", |s| s.justify_self = Some(AlignItems::START);
-        justify_self_end, "`justify-self-end`.", |s| s.justify_self = Some(AlignItems::END);
-        justify_self_center, "`justify-self-center`.", |s| s.justify_self = Some(AlignItems::CENTER);
-        justify_self_stretch, "`justify-self-stretch`.", |s| s.justify_self = Some(AlignItems::STRETCH);
+        justify_self_auto, "`justify-self-auto`.", |s| *s.justify_self() = None;
+        justify_self_start, "`justify-self-start`.", |s| *s.justify_self() = Some(AlignItems::START);
+        justify_self_end, "`justify-self-end`.", |s| *s.justify_self() = Some(AlignItems::END);
+        justify_self_center, "`justify-self-center`.", |s| *s.justify_self() = Some(AlignItems::CENTER);
+        justify_self_stretch, "`justify-self-stretch`.", |s| *s.justify_self() = Some(AlignItems::STRETCH);
 
-        relative, "`relative`.", |s| s.position = Position::Relative;
-        absolute, "`absolute`.", |s| s.position = Position::Absolute;
-        static_, "`static`.", |s| s.position = Position::Static;
+        relative, "`relative`.", |s| *s.position() = Position::Relative;
+        absolute, "`absolute`.", |s| *s.position() = Position::Absolute;
+        static_, "`static`.", |s| *s.position() = Position::Static;
 
-        overflow_visible, "`overflow-visible`.", |s| { s.overflow.x = Overflow::Visible; s.overflow.y = Overflow::Visible };
-        overflow_hidden, "`overflow-hidden`.", |s| { s.overflow.x = Overflow::Hidden; s.overflow.y = Overflow::Hidden };
-        overflow_clip, "`overflow-clip`.", |s| { s.overflow.x = Overflow::Clip; s.overflow.y = Overflow::Clip };
-        overflow_x_visible, "`overflow-x-visible`.", |s| s.overflow.x = Overflow::Visible;
-        overflow_x_hidden, "`overflow-x-hidden`.", |s| s.overflow.x = Overflow::Hidden;
-        overflow_x_clip, "`overflow-x-clip`.", |s| s.overflow.x = Overflow::Clip;
-        overflow_y_visible, "`overflow-y-visible`.", |s| s.overflow.y = Overflow::Visible;
-        overflow_y_hidden, "`overflow-y-hidden`.", |s| s.overflow.y = Overflow::Hidden;
-        overflow_y_clip, "`overflow-y-clip`.", |s| s.overflow.y = Overflow::Clip;
+        overflow_visible, "`overflow-visible`.", |s| { *s.overflow_x() = Overflow::Visible; *s.overflow_y() = Overflow::Visible };
+        overflow_hidden, "`overflow-hidden`.", |s| { *s.overflow_x() = Overflow::Hidden; *s.overflow_y() = Overflow::Hidden };
+        overflow_clip, "`overflow-clip`.", |s| { *s.overflow_x() = Overflow::Clip; *s.overflow_y() = Overflow::Clip };
+        overflow_x_visible, "`overflow-x-visible`.", |s| *s.overflow_x() = Overflow::Visible;
+        overflow_x_hidden, "`overflow-x-hidden`.", |s| *s.overflow_x() = Overflow::Hidden;
+        overflow_x_clip, "`overflow-x-clip`.", |s| *s.overflow_x() = Overflow::Clip;
+        overflow_y_visible, "`overflow-y-visible`.", |s| *s.overflow_y() = Overflow::Visible;
+        overflow_y_hidden, "`overflow-y-hidden`.", |s| *s.overflow_y() = Overflow::Hidden;
+        overflow_y_clip, "`overflow-y-clip`.", |s| *s.overflow_y() = Overflow::Clip;
 
-        box_border, "`box-border`: sizes include padding and border.", |s| s.box_sizing = BoxSizing::BorderBox;
-        box_content, "`box-content`: sizes exclude padding and border.", |s| s.box_sizing = BoxSizing::ContentBox;
+        box_border, "`box-border`: sizes include padding and border.", |s| *s.box_sizing() = BoxSizing::BorderBox;
+        box_content, "`box-content`: sizes exclude padding and border.", |s| *s.box_sizing() = BoxSizing::ContentBox;
 
-        min_w_0, "`min-w-0`.", |s| s.min_size.width = LengthPercentageAuto::ZERO;
-        min_h_0, "`min-h-0`.", |s| s.min_size.height = LengthPercentageAuto::ZERO;
-        w_fit, "`w-fit`: the content's width, not stretched.", |s| s.size.width = Dimension::fit_content();
-        h_fit, "`h-fit`: the content's height, not stretched.", |s| s.size.height = Dimension::fit_content();
+        min_w_0, "`min-w-0`.", |s| *s.min_width() = LengthPercentageAuto::ZERO;
+        min_h_0, "`min-h-0`.", |s| *s.min_height() = LengthPercentageAuto::ZERO;
+        w_fit, "`w-fit`: the content's width, not stretched.", |s| *s.width() = Dimension::fit_content();
+        h_fit, "`h-fit`: the content's height, not stretched.", |s| *s.height() = Dimension::fit_content();
     }
 
     /// `gap-<units>`: spacing between children on both axes.
     pub fn gap(self, units: f32) -> Self {
         self.styled(|s| {
-            s.gap.width = space(units);
-            s.gap.height = space(units);
+            *s.gap_width() = space(units);
+            *s.gap_height() = space(units);
         })
     }
 
     /// `gap-x-<units>`: spacing between columns.
     pub fn gap_x(self, units: f32) -> Self {
-        self.styled(|s| s.gap.width = space(units))
+        self.styled(|s| *s.gap_width() = space(units))
     }
 
     /// `gap-y-<units>`: spacing between rows.
     pub fn gap_y(self, units: f32) -> Self {
-        self.styled(|s| s.gap.height = space(units))
+        self.styled(|s| *s.gap_height() = space(units))
     }
 
     /// `grow-<factor>`.
     pub fn grow_by(self, factor: f32) -> Self {
-        self.styled(|s| s.flex_grow = factor)
+        self.styled(|s| *s.flex_grow() = factor)
     }
 
     /// `aspect-[<ratio>]`: width divided by height.
     pub fn aspect(self, ratio: f32) -> Self {
-        self.styled(|s| s.aspect_ratio = Some(ratio))
+        self.styled(|s| *s.aspect_ratio() = Some(ratio))
     }
 
     /// `border-<width>`: border width in points on every side.
     pub fn border(self, points: f32) -> Self {
-        self.styled(|s| s.border = taffy::Rect::length(points))
+        self.styled(|s| s.set_border(taffy::Rect::length(points)))
     }
 
     /// `border-x-<width>`: left and right border widths in points.
     pub fn border_x(self, points: f32) -> Self {
         self.styled(|s| {
-            s.border.left = LengthPercentage::length(points);
-            s.border.right = LengthPercentage::length(points);
+            *s.border_left() = LengthPercentage::length(points);
+            *s.border_right() = LengthPercentage::length(points);
         })
     }
 
     /// `border-y-<width>`: top and bottom border widths in points.
     pub fn border_y(self, points: f32) -> Self {
         self.styled(|s| {
-            s.border.top = LengthPercentage::length(points);
-            s.border.bottom = LengthPercentage::length(points);
+            *s.border_top() = LengthPercentage::length(points);
+            *s.border_bottom() = LengthPercentage::length(points);
         })
     }
 
     /// `border-t-<width>`: top border width in points.
     pub fn border_t(self, points: f32) -> Self {
-        self.styled(|s| s.border.top = LengthPercentage::length(points))
+        self.styled(|s| *s.border_top() = LengthPercentage::length(points))
     }
 
     /// `border-r-<width>`: right border width in points.
     pub fn border_r(self, points: f32) -> Self {
-        self.styled(|s| s.border.right = LengthPercentage::length(points))
+        self.styled(|s| *s.border_right() = LengthPercentage::length(points))
     }
 
     /// `border-b-<width>`: bottom border width in points.
     pub fn border_b(self, points: f32) -> Self {
-        self.styled(|s| s.border.bottom = LengthPercentage::length(points))
+        self.styled(|s| *s.border_bottom() = LengthPercentage::length(points))
     }
 
     /// `border-l-<width>`: left border width in points.
     pub fn border_l(self, points: f32) -> Self {
-        self.styled(|s| s.border.left = LengthPercentage::length(points))
+        self.styled(|s| *s.border_left() = LengthPercentage::length(points))
     }
 
     /// `basis-<units>`: flex basis in spacing units.
     pub fn basis(self, units: f32) -> Self {
-        self.styled(|s| s.flex_basis = Len::space(units).to())
+        self.styled(|s| *s.flex_basis() = Len::space(units).to())
     }
 
     /// `basis-px`: flex basis in points.
     pub fn basis_px(self, points: f32) -> Self {
-        self.styled(|s| s.flex_basis = Len::Points(points).to())
+        self.styled(|s| *s.flex_basis() = Len::Points(points).to())
     }
 
     /// `basis-1/2`: flex basis as a fraction of the container.
     pub fn basis_frac(self, numerator: f32, denominator: f32) -> Self {
-        self.styled(|s| s.flex_basis = Len::fraction(numerator, denominator).to())
+        self.styled(|s| *s.flex_basis() = Len::fraction(numerator, denominator).to())
     }
 
     /// `basis-full`.
     pub fn basis_full(self) -> Self {
-        self.styled(|s| s.flex_basis = Len::Fraction(1.0).to())
+        self.styled(|s| *s.flex_basis() = Len::Fraction(1.0).to())
     }
 
     /// `basis-auto`.
     pub fn basis_auto(self) -> Self {
-        self.styled(|s| s.flex_basis = Dimension::AUTO)
+        self.styled(|s| *s.flex_basis() = Dimension::AUTO)
     }
 
     spacing! {
-        p, "`p-<units>`: padding on every side.", |s, v| s.padding = taffy::Rect::length(v);
+        p, "`p-<units>`: padding on every side.", |s, v| s.set_padding(taffy::Rect::length(v));
         px, "`px-<units>`: left and right padding.", |s, v| {
-            s.padding.left = LengthPercentage::length(v);
-            s.padding.right = LengthPercentage::length(v);
+            *s.padding_left() = LengthPercentage::length(v);
+            *s.padding_right() = LengthPercentage::length(v);
         };
         py, "`py-<units>`: top and bottom padding.", |s, v| {
-            s.padding.top = LengthPercentage::length(v);
-            s.padding.bottom = LengthPercentage::length(v);
+            *s.padding_top() = LengthPercentage::length(v);
+            *s.padding_bottom() = LengthPercentage::length(v);
         };
-        pt, "`pt-<units>`: top padding.", |s, v| s.padding.top = LengthPercentage::length(v);
-        pr, "`pr-<units>`: right padding.", |s, v| s.padding.right = LengthPercentage::length(v);
-        pb, "`pb-<units>`: bottom padding.", |s, v| s.padding.bottom = LengthPercentage::length(v);
-        pl, "`pl-<units>`: left padding.", |s, v| s.padding.left = LengthPercentage::length(v);
+        pt, "`pt-<units>`: top padding.", |s, v| *s.padding_top() = LengthPercentage::length(v);
+        pr, "`pr-<units>`: right padding.", |s, v| *s.padding_right() = LengthPercentage::length(v);
+        pb, "`pb-<units>`: bottom padding.", |s, v| *s.padding_bottom() = LengthPercentage::length(v);
+        pl, "`pl-<units>`: left padding.", |s, v| *s.padding_left() = LengthPercentage::length(v);
 
-        m, "`m-<units>`: margin on every side; negative values pull outward.", |s, v| s.margin = taffy::Rect::length(v);
+        m, "`m-<units>`: margin on every side; negative values pull outward.", |s, v| s.set_margin(taffy::Rect::length(v));
         mx, "`mx-<units>`: left and right margin.", |s, v| {
-            s.margin.left = LengthPercentageAuto::length(v);
-            s.margin.right = LengthPercentageAuto::length(v);
+            *s.margin_left() = LengthPercentageAuto::length(v);
+            *s.margin_right() = LengthPercentageAuto::length(v);
         };
         my, "`my-<units>`: top and bottom margin.", |s, v| {
-            s.margin.top = LengthPercentageAuto::length(v);
-            s.margin.bottom = LengthPercentageAuto::length(v);
+            *s.margin_top() = LengthPercentageAuto::length(v);
+            *s.margin_bottom() = LengthPercentageAuto::length(v);
         };
-        mt, "`mt-<units>`: top margin.", |s, v| s.margin.top = LengthPercentageAuto::length(v);
-        mr, "`mr-<units>`: right margin.", |s, v| s.margin.right = LengthPercentageAuto::length(v);
-        mb, "`mb-<units>`: bottom margin.", |s, v| s.margin.bottom = LengthPercentageAuto::length(v);
-        ml, "`ml-<units>`: left margin.", |s, v| s.margin.left = LengthPercentageAuto::length(v);
+        mt, "`mt-<units>`: top margin.", |s, v| *s.margin_top() = LengthPercentageAuto::length(v);
+        mr, "`mr-<units>`: right margin.", |s, v| *s.margin_right() = LengthPercentageAuto::length(v);
+        mb, "`mb-<units>`: bottom margin.", |s, v| *s.margin_bottom() = LengthPercentageAuto::length(v);
+        ml, "`ml-<units>`: left margin.", |s, v| *s.margin_left() = LengthPercentageAuto::length(v);
     }
 
     auto_margins! {
-        m_auto, "`m-auto`.", |s| s.margin = taffy::Rect::AUTO;
-        mx_auto, "`mx-auto`.", |s| { s.margin.left = LengthPercentageAuto::AUTO; s.margin.right = LengthPercentageAuto::AUTO };
-        my_auto, "`my-auto`.", |s| { s.margin.top = LengthPercentageAuto::AUTO; s.margin.bottom = LengthPercentageAuto::AUTO };
-        mt_auto, "`mt-auto`.", |s| s.margin.top = LengthPercentageAuto::AUTO;
-        mr_auto, "`mr-auto`.", |s| s.margin.right = LengthPercentageAuto::AUTO;
-        mb_auto, "`mb-auto`.", |s| s.margin.bottom = LengthPercentageAuto::AUTO;
-        ml_auto, "`ml-auto`.", |s| s.margin.left = LengthPercentageAuto::AUTO;
+        m_auto, "`m-auto`.", |s| s.set_margin(taffy::Rect::AUTO);
+        mx_auto, "`mx-auto`.", |s| { *s.margin_left() = LengthPercentageAuto::AUTO; *s.margin_right() = LengthPercentageAuto::AUTO };
+        my_auto, "`my-auto`.", |s| { *s.margin_top() = LengthPercentageAuto::AUTO; *s.margin_bottom() = LengthPercentageAuto::AUTO };
+        mt_auto, "`mt-auto`.", |s| *s.margin_top() = LengthPercentageAuto::AUTO;
+        mr_auto, "`mr-auto`.", |s| *s.margin_right() = LengthPercentageAuto::AUTO;
+        mb_auto, "`mb-auto`.", |s| *s.margin_bottom() = LengthPercentageAuto::AUTO;
+        ml_auto, "`ml-auto`.", |s| *s.margin_left() = LengthPercentageAuto::AUTO;
     }
 
     lengths! {
-        w, w_px, w_frac, w_full, w_auto, "the width", |s, l| s.size.width = l.to();
-        h, h_px, h_frac, h_full, h_auto, "the height", |s, l| s.size.height = l.to();
-        size, size_px, size_frac, size_full, size_auto, "the width and height", |s, l| s.size = taffy::Size { width: l.to(), height: l.to() };
-        min_w, min_w_px, min_w_frac, min_w_full, min_w_auto, "the minimum width", |s, l| s.min_size.width = l.to();
-        min_h, min_h_px, min_h_frac, min_h_full, min_h_auto, "the minimum height", |s, l| s.min_size.height = l.to();
-        max_w, max_w_px, max_w_frac, max_w_full, max_w_auto, "the maximum width", |s, l| s.max_size.width = l.to();
-        max_h, max_h_px, max_h_frac, max_h_full, max_h_auto, "the maximum height", |s, l| s.max_size.height = l.to();
-        inset, inset_px, inset_frac, inset_full, inset_auto, "the inset on every side", |s, l| s.inset = taffy::Rect { left: l.to(), right: l.to(), top: l.to(), bottom: l.to() };
-        inset_x, inset_x_px, inset_x_frac, inset_x_full, inset_x_auto, "the left and right inset", |s, l| { s.inset.left = l.to(); s.inset.right = l.to() };
-        inset_y, inset_y_px, inset_y_frac, inset_y_full, inset_y_auto, "the top and bottom inset", |s, l| { s.inset.top = l.to(); s.inset.bottom = l.to() };
-        top, top_px, top_frac, top_full, top_auto, "the top inset", |s, l| s.inset.top = l.to();
-        right, right_px, right_frac, right_full, right_auto, "the right inset", |s, l| s.inset.right = l.to();
-        bottom, bottom_px, bottom_frac, bottom_full, bottom_auto, "the bottom inset", |s, l| s.inset.bottom = l.to();
-        left, left_px, left_frac, left_full, left_auto, "the left inset", |s, l| s.inset.left = l.to();
+        w, w_px, w_frac, w_full, w_auto, "the width", |s, l| *s.width() = l.to();
+        h, h_px, h_frac, h_full, h_auto, "the height", |s, l| *s.height() = l.to();
+        size, size_px, size_frac, size_full, size_auto, "the width and height", |s, l| s.set_size(taffy::Size { width: l.to(), height: l.to() });
+        min_w, min_w_px, min_w_frac, min_w_full, min_w_auto, "the minimum width", |s, l| *s.min_width() = l.to();
+        min_h, min_h_px, min_h_frac, min_h_full, min_h_auto, "the minimum height", |s, l| *s.min_height() = l.to();
+        max_w, max_w_px, max_w_frac, max_w_full, max_w_auto, "the maximum width", |s, l| *s.max_width() = l.to();
+        max_h, max_h_px, max_h_frac, max_h_full, max_h_auto, "the maximum height", |s, l| *s.max_height() = l.to();
+        inset, inset_px, inset_frac, inset_full, inset_auto, "the inset on every side", |s, l| s.set_inset(taffy::Rect { left: l.to(), right: l.to(), top: l.to(), bottom: l.to() });
+        inset_x, inset_x_px, inset_x_frac, inset_x_full, inset_x_auto, "the left and right inset", |s, l| { *s.inset_left() = l.to(); *s.inset_right() = l.to() };
+        inset_y, inset_y_px, inset_y_frac, inset_y_full, inset_y_auto, "the top and bottom inset", |s, l| { *s.inset_top() = l.to(); *s.inset_bottom() = l.to() };
+        top, top_px, top_frac, top_full, top_auto, "the top inset", |s, l| *s.inset_top() = l.to();
+        right, right_px, right_frac, right_full, right_auto, "the right inset", |s, l| *s.inset_right() = l.to();
+        bottom, bottom_px, bottom_frac, bottom_full, bottom_auto, "the bottom inset", |s, l| *s.inset_bottom() = l.to();
+        left, left_px, left_frac, left_full, left_auto, "the left inset", |s, l| *s.inset_left() = l.to();
     }
 }
 

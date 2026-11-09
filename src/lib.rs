@@ -12,6 +12,37 @@
 //!
 //! The design brief lives in `docs/design.md`.
 //!
+//! # Styling: named styles and merge
+//!
+//! A [`Tw`] is a plain value, so a style is a function that returns one. Name
+//! the small styles an interface repeats (`card`, `toolbar`, `muted`) and
+//! compose them; a caller's overrides go on top with [`Tw::merge`], where the
+//! later list wins property by property, as `cn()` with `tailwind-merge` does
+//! in a web app: `padding` over `px` leaves the vertical padding alone.
+//!
+//! ```html
+//! <div class="flex flex-col gap-2 p-4 rounded-lg border"></div>  <!-- card() -->
+//! <div class="flex flex-col gap-2 p-4 rounded-lg border w-full px-2"></div>  <!-- card().merge(w-full px-2) -->
+//! ```
+//!
+//! ```
+//! use bullseye::{Tw, tw};
+//!
+//! fn card() -> Tw {
+//!     tw().flex().flex_col().gap(2.0).p(4.0).rounded_lg().border(1.0)
+//! }
+//!
+//! let wide = card().merge(tw().w_full().px(2.0));
+//! assert_eq!(
+//!     wide.style(),
+//!     tw().flex().flex_col().gap(2.0).p(4.0).rounded_lg().border(1.0).w_full().px(2.0).style()
+//! );
+//! ```
+//!
+//! A style is a `fn`, not a `const`: the class methods are not `const fn`
+//! (they are generic over their arguments and write through closures), so a
+//! `const CARD: Tw` cannot be built. Calling the function is cheap.
+//!
 //! # Differences from CSS
 //!
 //! egui paints shapes one at a time into rectangular clip rects, so three
