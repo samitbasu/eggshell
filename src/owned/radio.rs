@@ -24,7 +24,7 @@ enum Part<T> {
 pub struct RadioGroup<T> {
     current: T,
     options: Vec<(T, String)>,
-    container: Tw,
+    classes: Tw,
     enablement: Enablement,
 }
 
@@ -38,14 +38,15 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                 .iter()
                 .map(|&(value, label)| (value, label.to_owned()))
                 .collect(),
-            container: tw().flex().flex_col().gap(3.0),
+            classes: tw(),
             enablement: Enablement::Enabled,
         }
     }
 
-    /// The classes of the container, a column by default.
-    pub fn container(mut self, container: Tw) -> Self {
-        self.container = container;
+    /// Classes merged over the styled ones of the whole group (a column with a gap of 12 points), such as its
+    /// width or placement; the later class wins ([`Tw::merge`]).
+    pub fn classes(mut self, classes: Tw) -> Self {
+        self.classes = classes;
         self
     }
 
@@ -77,7 +78,8 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                 .iter()
                 .map(|&value| b.id_of(Part::Circle(value)))
                 .collect();
-            b.div(self.container, |b| {
+            let group = tw().flex().flex_col().gap(3.0).merge(self.classes);
+            b.div(group, |b| {
                 for (index, (value, label)) in self.options.into_iter().enumerate() {
                     let chosen = value == self.current;
                     let look = if chosen { &radio.on } else { &radio.off };
@@ -101,44 +103,51 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                     let (previous, next) = (around(count - 1), around(1));
                     let dot = radio.dot;
                     let control = ids[index];
-                    b.div(choice_row(&style, enablement, radio.gap), |b| {
-                        b.div_id(
-                            Part::Circle(value),
-                            circle,
-                            move |app, ui| {
-                                let response =
-                                    described(ui, Role::RadioButton, Some(Mark::from(chosen)), "");
-                                if response.clicked() {
+                    b.div(
+                        choice_row(&style, &radio.text, enablement, radio.gap),
+                        |b| {
+                            b.div_id(
+                                Part::Circle(value),
+                                circle,
+                                move |app, ui| {
+                                    let response = described(
+                                        ui,
+                                        Role::RadioButton,
+                                        Some(Mark::from(chosen)),
+                                        "",
+                                    );
+                                    if response.clicked() {
+                                        select(app, value);
+                                    }
+                                    take_focus_if_asked(ui, response.id);
+                                    if response.has_focus() {
+                                        navigate(app, ui, select, previous, next);
+                                    }
+                                },
+                                |b| {
+                                    if chosen {
+                                        b.paint(tw().size_px(dot), |painter, rect, color| {
+                                            painter.circle_filled(
+                                                rect.center(),
+                                                rect.width() / 2.0,
+                                                color,
+                                            );
+                                        });
+                                    }
+                                },
+                            );
+                            choice_label(
+                                b,
+                                Part::Label(value),
+                                control,
+                                label,
+                                enablement,
+                                move |app| {
                                     select(app, value);
-                                }
-                                take_focus_if_asked(ui, response.id);
-                                if response.has_focus() {
-                                    navigate(app, ui, select, previous, next);
-                                }
-                            },
-                            |b| {
-                                if chosen {
-                                    b.paint(tw().size_px(dot), |painter, rect, color| {
-                                        painter.circle_filled(
-                                            rect.center(),
-                                            rect.width() / 2.0,
-                                            color,
-                                        );
-                                    });
-                                }
-                            },
-                        );
-                        choice_label(
-                            b,
-                            Part::Label(value),
-                            control,
-                            label,
-                            enablement,
-                            move |app| {
-                                select(app, value);
-                            },
-                        );
-                    });
+                                },
+                            );
+                        },
+                    );
                 }
             });
         });

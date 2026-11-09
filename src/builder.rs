@@ -12,7 +12,7 @@ use crate::pipeline::{
     BuildState, ColorSource, DrawFn, Frame, Interaction, MeasureFn, Node, NodeKind,
 };
 use crate::prim::{Icon, Prim};
-use crate::text::TextStyle;
+use crate::text::{TextStyle, VAlign};
 use crate::tw::{Grouping, Tw};
 use crate::widget::Stock;
 
@@ -318,10 +318,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             kind: parts.kind,
             paint: tw.paint,
             text: tw.text.over(self.inherited),
+            text_valign: VAlign::of(&tw.style),
             prim: parts.prim,
             measure: parts.measure,
             draw: parts.draw,
-            z: tw.z,
+            z: tw.z.unwrap_or(0),
             inert: tw.inert,
             interaction: Interaction {
                 sensing: tw.sensing,

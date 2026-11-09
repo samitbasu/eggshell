@@ -52,6 +52,15 @@ pub use styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, Shadc
 pub use theme_color::ThemeColor;
 pub use tokens::Tokens;
 
+/// The names of the button sizes this preset defines besides the default.
+pub mod size {
+    use bullseye::contract::Size;
+
+    /// `icon`: a square the height of a control, for a button that is only an
+    /// icon.
+    pub const ICON: Size = Size("icon");
+}
+
 /// The names of shadcn's button variants, the keys of the contract's
 /// [`ButtonStyle::variants`](bullseye::contract::ButtonStyle::variants) this
 /// preset defines.

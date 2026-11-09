@@ -20,6 +20,8 @@ use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
 use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
+pub mod glyphs;
+
 /// The controls panel's width.
 const PANEL_WIDTH: f32 = 240.0;
 

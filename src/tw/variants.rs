@@ -77,6 +77,14 @@ pub(crate) enum Focusability {
 }
 
 impl Focusability {
+    pub(crate) fn merge(self, other: Self) -> Self {
+        if self == Self::Skip || other == Self::Skip {
+            Self::Skip
+        } else {
+            Self::Tab
+        }
+    }
+
     /// The egui sense for `sensing`, focusable unless the node opts out.
     pub(crate) fn sense(self, sensing: Sensing) -> Sense {
         let sense = Sense::from(sensing);
@@ -93,6 +101,16 @@ pub(crate) enum Grouping {
     #[default]
     Ungrouped,
     Group,
+}
+
+impl Grouping {
+    pub(crate) fn merge(self, other: Self) -> Self {
+        if self == Self::Group || other == Self::Group {
+            Self::Group
+        } else {
+            Self::Ungrouped
+        }
+    }
 }
 
 /// The paint a state variant changes: colours, opacity, underline, ring,
@@ -179,6 +197,20 @@ impl Paint {
 
     pub(crate) fn sets_text_color(&self) -> bool {
         self.text.is_some()
+    }
+
+    /// This paint with the properties `other` sets on top.
+    fn merge(self, other: Self) -> Self {
+        Self {
+            background: other.background.or(self.background),
+            text: other.text.or(self.text),
+            border: other.border.or(self.border),
+            ring: other.ring.or(self.ring),
+            shadow: other.shadow.or(self.shadow),
+            opacity: other.opacity.or(self.opacity),
+            decoration: other.decoration.or(self.decoration),
+            translate: other.translate.or(self.translate),
+        }
     }
 
     /// `look` moved `progress` of the way to this paint. Colours and opacity
@@ -290,6 +322,27 @@ pub(crate) struct Variants {
 }
 
 impl Variants {
+    /// These variants with `other`'s on top, state by state.
+    pub(crate) fn merge(self, other: Self) -> Self {
+        let both = |ours: Option<Paint>, theirs: Option<Paint>| match (ours, theirs) {
+            (Some(ours), Some(theirs)) => Some(ours.merge(theirs)),
+            (ours, theirs) => theirs.or(ours),
+        };
+        Self {
+            hover: both(self.hover, other.hover),
+            active: both(self.active, other.active),
+            group_hover: both(self.group_hover, other.group_hover),
+            focus: both(self.focus, other.focus),
+            focus_within: both(self.focus_within, other.focus_within),
+            transition: other.transition.or(self.transition),
+            easing: if other.easing == Easing::Default {
+                self.easing
+            } else {
+                other.easing
+            },
+        }
+    }
+
     pub(crate) fn get(&self, state: State) -> Option<&Paint> {
         match state {
             State::GroupHover => self.group_hover.as_ref(),

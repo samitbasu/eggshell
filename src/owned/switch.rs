@@ -10,7 +10,7 @@ use super::Mark;
 use super::{Enablement, choice_label, choice_row, described};
 use crate::contract::Size;
 use crate::transition;
-use crate::{Builder, Easing, Progress, Style, tw};
+use crate::{Builder, Easing, Progress, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -30,6 +30,7 @@ pub struct Switch {
     mark: Mark,
     size: Size,
     track: Option<Vec2>,
+    classes: Tw,
     enablement: Enablement,
 }
 
@@ -42,6 +43,7 @@ impl Switch {
             mark,
             size: Size::DEFAULT,
             track: None,
+            classes: tw(),
             enablement: Enablement::Enabled,
         }
     }
@@ -69,6 +71,13 @@ impl Switch {
     /// Overrides the track's width and height, in points.
     pub fn track(mut self, track: Vec2) -> Self {
         self.track = Some(track);
+        self
+    }
+
+    /// Classes merged over the styled ones of the whole row, such as its
+    /// width or placement; the later class wins ([`Tw::merge`]).
+    pub fn classes(mut self, classes: Tw) -> Self {
+        self.classes = classes;
         self
     }
 
@@ -111,7 +120,7 @@ impl Switch {
                 Easing::Default,
             );
             let look = switch.off.towards(switch.on, tint);
-            let thumb_color = enablement.colors(look.states).text;
+            let thumb_color = enablement.colors(look.states, &style).text;
             let classes = look
                 .classes(
                     switch.border_width,
@@ -125,7 +134,8 @@ impl Switch {
                 .shrink_0()
                 .w_px(track.x)
                 .h_px(track.y);
-            b.div(choice_row(&style, enablement, switch.gap), |b| {
+            let row = choice_row(&style, &switch.text, enablement, switch.gap).merge(self.classes);
+            b.div(row, |b| {
                 b.div_id(
                     Part::Track,
                     classes,

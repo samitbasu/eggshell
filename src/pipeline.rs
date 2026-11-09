@@ -14,7 +14,7 @@ use crate::debug::{Debug, Phase, Timer};
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
-use crate::text::{TextStyle, WhiteSpace};
+use crate::text::{TextStyle, VAlign, WhiteSpace};
 use crate::tw::{BoxPaint, Focusability, Grouping, Sensing, Sides, Variants};
 
 /// The kind of a node, for diagnostics.
@@ -51,6 +51,7 @@ pub(crate) struct Node {
     pub kind: NodeKind,
     pub paint: BoxPaint,
     pub text: TextStyle,
+    pub text_valign: VAlign,
     pub prim: Option<Prim>,
     pub measure: Option<usize>,
     pub draw: Option<usize>,
@@ -188,6 +189,7 @@ impl LayoutState {
                     kind: NodeKind::Root,
                     paint: BoxPaint::default(),
                     text: base,
+                    text_valign: VAlign::Top,
                     prim: None,
                     measure: None,
                     draw: None,
@@ -458,6 +460,7 @@ fn collect(
         flow,
         paint: node.paint,
         text: node.text.clone(),
+        text_valign: node.text_valign,
         z: node.z,
         inert: node.inert,
         interaction: node.interaction,
@@ -495,6 +498,7 @@ pub struct PlacedNode {
     pub(crate) flow: Flow,
     paint: BoxPaint,
     text: TextStyle,
+    text_valign: VAlign,
     z: i16,
     inert: bool,
     pub(crate) interaction: Interaction,
@@ -533,6 +537,11 @@ impl PlacedNode {
     /// The node's box paint.
     pub fn paint(&self) -> &BoxPaint {
         &self.paint
+    }
+
+    /// Where the node's own text sits in a box taller than it.
+    pub(crate) fn text_valign(&self) -> VAlign {
+        self.text_valign
     }
 
     /// The node's text style, resolved against its ancestors.

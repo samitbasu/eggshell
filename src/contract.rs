@@ -339,6 +339,42 @@ pub struct Metrics {
     pub gap: f32,
     /// Corner radius.
     pub radius: u8,
+    /// Side of an icon in the control: the icon of an icon button, with or
+    /// without a label.
+    pub glyph: f32,
+}
+
+/// How a disabled control is drawn.
+///
+/// Both forms make the control inert. They differ in what they paint.
+///
+/// * [`Colors`](Self::Colors) draws every box in the `disabled` colours of its
+///   [`States`]. The colours are the style's, so a disabled control can be
+///   anything, and each shape is painted once: nothing shows through a fill
+///   that [`Colors::faded_over`] made opaque. The result is exactly CSS
+///   `opacity` only if the style computed those colours against the surface
+///   the control really sits on.
+/// * [`Faded`](Self::Faded) draws the control in its `rest` colours with the
+///   node opacity of its root, which every shape inside multiplies into its own
+///   alpha. It needs no knowledge of the surface, so it is the form for a
+///   translucent one, which no opaque colour can stand in for.
+///
+/// **Faded is not CSS group opacity** (issue #40). CSS draws the element into
+/// a group, composites its shapes there, and fades the group over the page
+/// once. This library fades each shape separately, so where one shape lies on
+/// another, such as text on its own fill, the lower one shows through the
+/// upper by `1 - opacity`: a faded fill under faded text mixes a little of the
+/// fill into the glyphs. [`Faded`](Self::Faded) is exact when no shapes
+/// overlap: text or glyphs over the backdrop, a border-only or fill-only box,
+/// a ghost button. Over an opaque fill, [`Colors`](Self::Colors) with colours
+/// from [`Colors::faded_over`] is the exact form.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Disabled {
+    /// The `disabled` colours of each state.
+    #[default]
+    Colors,
+    /// The `rest` colours at this node opacity.
+    Faded(Opacity),
 }
 
 /// Buttons: open sets of variants and sizes, and the toggle form.
@@ -354,10 +390,14 @@ pub struct ButtonStyle {
     pub toggle_sizes: Keyed<Size, Metrics>,
     /// Border width of a toggle, off or on.
     pub toggle_border_width: f32,
-    /// A toggle that is off.
-    pub toggle_off: Paint,
-    /// A toggle that is on.
-    pub toggle_on: Paint,
+    /// The looks of a toggle that is off, by variant. Variants are chosen
+    /// with [`Button::variant`](crate::owned::Button::variant) for toggles as
+    /// for buttons.
+    pub toggle_off: Keyed<Variant, Paint>,
+    /// The looks of a toggle that is on.
+    pub toggle_on: Keyed<Variant, Paint>,
+    /// The text role of buttons, or `None` for [`Style::text`].
+    pub text: Option<TextSpec>,
     /// How far a pressed button moves down, in points; zero for none.
     pub press_shift: f32,
     /// How long state changes animate.
@@ -378,6 +418,8 @@ pub struct CheckboxStyle {
     pub gap: f32,
     /// Border width of the box, ticked or not.
     pub border_width: f32,
+    /// The text role of the label, or `None` for [`Style::text`].
+    pub text: Option<TextSpec>,
     /// Unticked. The glyph takes the `text` colour of the ticked paint.
     pub off: Paint,
     /// Ticked.
@@ -398,6 +440,8 @@ pub struct RadioStyle {
     pub gap: f32,
     /// Border width of the circle, chosen or not.
     pub border_width: f32,
+    /// The text role of the label, or `None` for [`Style::text`].
+    pub text: Option<TextSpec>,
     /// Unchosen.
     pub off: Paint,
     /// Chosen. The dot takes the `text` colour.
@@ -427,6 +471,8 @@ pub struct SwitchStyle {
     pub gap: f32,
     /// Border width of the track, off or on.
     pub border_width: f32,
+    /// The text role of the label, or `None` for [`Style::text`].
+    pub text: Option<TextSpec>,
     /// Off.
     pub off: Paint,
     /// On.
@@ -453,8 +499,17 @@ pub struct SegmentedStyle {
     pub cell_radius: u8,
     /// Left-right and top-bottom padding of a cell.
     pub cell_padding: Vec2,
+    /// Gap between the cells of a row.
+    pub column_gap: f32,
     /// Gap between the rows of a wrapping track.
     pub row_gap: f32,
+    /// Side of the icon in a cell that has one. The icon takes the cell's
+    /// `text` colour.
+    pub icon_size: f32,
+    /// Gap between a cell's icon and its label.
+    pub icon_gap: f32,
+    /// The text role of the cells, or `None` for [`Style::text`].
+    pub text: Option<TextSpec>,
     /// Border width of a cell, chosen or not.
     pub cell_border_width: f32,
     /// The chosen cell.
@@ -495,6 +550,8 @@ pub struct SelectStyle {
     /// Size of the trigger: height, padding, gap between value and chevron,
     /// and corner radius.
     pub metrics: Metrics,
+    /// The text role of the trigger, or `None` for [`Style::text`].
+    pub text: Option<TextSpec>,
     /// Side of the chevron glyph.
     pub chevron: f32,
     /// How much of the trigger's text colour the chevron keeps.
@@ -593,6 +650,8 @@ pub struct Style {
     pub text: TextSpec,
     /// The default focus indicator.
     pub focus: Focus,
+    /// How disabled controls are drawn.
+    pub disabled: Disabled,
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
     pub label: States,
@@ -629,6 +688,11 @@ fn style_id(theme: Theme) -> Id {
 }
 
 impl Style {
+    /// The text role of a widget section: its own, or [`Style::text`].
+    pub fn role<'a>(&'a self, section: &'a Option<TextSpec>) -> &'a TextSpec {
+        section.as_ref().unwrap_or(&self.text)
+    }
+
     /// The style installed in `ctx` for its theme, else [`Style::from_egui`]
     /// of the context's egui style.
     ///
@@ -658,20 +722,40 @@ impl Style {
         }
     }
 
-    /// Makes `self` the style of every bullseye widget in `ctx`, in both themes.
+    /// Makes `self` the style of every bullseye widget in `ctx`, in both
+    /// themes.
+    ///
+    /// Installing a style equal to the installed one does nothing, so an app
+    /// may install its style every frame for the price of a comparison.
     pub fn install(self, ctx: &Context) {
-        let shared = Arc::new(self);
-        ctx.data_mut(|data| {
-            for theme in [Theme::Light, Theme::Dark] {
-                data.insert_temp(style_id(theme), shared.clone());
-            }
-        });
+        self.install_in(ctx, &[Theme::Light, Theme::Dark]);
     }
 
     /// Makes `self` the style of every bullseye widget in `ctx` while its
-    /// theme is `theme`.
+    /// theme is `theme`, and like [`install`](Self::install) does nothing if
+    /// that is the installed style already.
     pub fn install_for(self, ctx: &Context, theme: Theme) {
-        ctx.data_mut(|data| data.insert_temp(style_id(theme), Arc::new(self)));
+        self.install_in(ctx, &[theme]);
+    }
+
+    fn install_in(self, ctx: &Context, themes: &[Theme]) {
+        ctx.data_mut(|data| {
+            let stale: Vec<Theme> = themes
+                .iter()
+                .copied()
+                .filter(|&theme| {
+                    data.get_temp::<Arc<Self>>(style_id(theme))
+                        .is_none_or(|installed| *installed != self)
+                })
+                .collect();
+            if stale.is_empty() {
+                return;
+            }
+            let shared = Arc::new(self);
+            for theme in stale {
+                data.insert_temp(style_id(theme), shared.clone());
+            }
+        });
     }
 
     /// A neutral style from egui's visuals and spacing.
@@ -717,6 +801,7 @@ impl Style {
             padding_x: s.button_padding.x,
             gap: s.item_spacing.x,
             radius,
+            glyph: text.size,
         };
         let clear = Color32::TRANSPARENT;
         let selected = Colors {
@@ -760,6 +845,7 @@ impl Style {
                 width: 2.0,
                 color: v.selection.bg_fill,
             },
+            disabled: Disabled::Colors,
             label,
             button: ButtonStyle {
                 variants: Keyed::new(
@@ -769,16 +855,23 @@ impl Style {
                 sizes: Keyed::new(Size::DEFAULT, metrics),
                 toggle_sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
                 toggle_border_width: 0.0,
-                toggle_off: Paint::new(states(
-                    Colors {
-                        fill: clear,
-                        border: clear,
-                        text: inactive.text,
-                    },
-                    hovered,
-                    active,
-                )),
-                toggle_on: Paint::new(states(selected, selected, selected)),
+                toggle_off: Keyed::new(
+                    Variant::DEFAULT,
+                    Paint::new(states(
+                        Colors {
+                            fill: clear,
+                            border: clear,
+                            text: inactive.text,
+                        },
+                        hovered,
+                        active,
+                    )),
+                ),
+                toggle_on: Keyed::new(
+                    Variant::DEFAULT,
+                    Paint::new(states(selected, selected, selected)),
+                ),
+                text: None,
                 press_shift: 0.0,
                 transition,
             },
@@ -788,6 +881,7 @@ impl Style {
                 glyph: s.icon_width_inner,
                 gap: s.icon_spacing,
                 border_width: choice_border,
+                text: None,
                 off: choice_off,
                 on: choice_on,
                 transition,
@@ -797,6 +891,7 @@ impl Style {
                 dot: s.icon_width_inner,
                 gap: s.icon_spacing,
                 border_width: choice_border,
+                text: None,
                 off: choice_off,
                 on: choice_on,
                 transition,
@@ -812,6 +907,7 @@ impl Style {
                 ),
                 gap: s.icon_spacing,
                 border_width: choice_border,
+                text: None,
                 off: choice_off,
                 on: choice_on,
                 slide: Duration::from_millis(150),
@@ -824,7 +920,11 @@ impl Style {
                 height: s.interact_size.y,
                 cell_radius: radius,
                 cell_padding: vec2(s.button_padding.x, s.button_padding.y),
+                column_gap: 0.0,
                 row_gap: 2.0,
+                icon_size: metrics.glyph,
+                icon_gap: s.icon_spacing,
+                text: None,
                 cell_border_width: 0.0,
                 selected: Paint::new(States::still(
                     Colors {
@@ -880,6 +980,7 @@ impl Style {
             select: SelectStyle {
                 trigger: Look::new(button_states).bordered(border_width.max(1.0)),
                 metrics,
+                text: None,
                 chevron: s.icon_width,
                 chevron_opacity: Opacity::new(0.5),
                 popup: Look::new(States::still(

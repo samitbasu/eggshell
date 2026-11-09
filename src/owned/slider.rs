@@ -9,7 +9,7 @@ use egui::{Key, Rect, Ui, WidgetInfo};
 
 use super::number::{self, Step};
 use super::{Enablement, painted};
-use crate::{Builder, NodeUi as _, Style, tw};
+use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -38,6 +38,7 @@ pub struct Slider {
     range: RangeInclusive<f64>,
     step: Step,
     name: Option<String>,
+    classes: Tw,
     enablement: Enablement,
 }
 
@@ -91,6 +92,7 @@ impl Slider {
             range,
             step: Step::ONE,
             name: None,
+            classes: tw(),
             enablement: Enablement::Enabled,
         }
     }
@@ -104,6 +106,13 @@ impl Slider {
     /// The accessible name, the equivalent of `aria-label`.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// Classes merged over the styled ones of the whole slider (its hit area, which is as wide as the space it is given), such as its
+    /// width or placement; the later class wins ([`Tw::merge`]).
+    pub fn classes(mut self, classes: Tw) -> Self {
+        self.classes = classes;
         self
     }
 
@@ -132,7 +141,7 @@ impl Slider {
         };
         let thumb = slider.thumb_size;
         let radius = f32::from(slider.radius);
-        let fill = |states| enablement.colors(states);
+        let fill = |states| enablement.colors(states, &style);
         let hit = tw()
             .relative()
             .flex()
@@ -141,7 +150,7 @@ impl Slider {
             .h_px(thumb)
             .sense_click_drag()
             .focusable_none();
-        let hit = enablement.apply(hit);
+        let hit = enablement.apply(hit, &style).merge(self.classes);
         let bar = painted(
             tw().w_full()
                 .h_px(slider.track_height)

@@ -65,11 +65,11 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 .show(b, "locked", |app: &mut App, value| app.locked = value);
             Select::new(app.region, &REGIONS)
                 .named("Region")
-                .classes(|classes| classes.w_px(200.0))
+                .classes(tw().w_px(200.0))
                 .show(b, "region", |app: &mut App, _, region| app.region = region);
             Select::new(0, &REGIONS)
                 .named("Frozen")
-                .classes(|classes| classes.w_px(200.0))
+                .classes(tw().w_px(200.0))
                 .enablement(Enablement::Disabled)
                 .show(b, "frozen", |_: &mut App, _, _| {});
             Stepper::new(app.count, 0.0..=10.0).named("Count").show(

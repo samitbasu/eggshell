@@ -64,7 +64,7 @@ macro_rules! rounded {
     ($($name:ident, $doc:literal, $points:expr;)*) => {$(
         #[doc = $doc]
         pub fn $name(self) -> Self {
-            self.painted(|p| p.radius = radius($points))
+            self.shaped(|p| p.radius = radius($points))
         }
     )*};
 }
@@ -81,6 +81,13 @@ macro_rules! side_colors {
 impl Tw {
     fn painted(mut self, set: impl FnOnce(&mut BoxPaint)) -> Self {
         set(&mut self.paint);
+        self
+    }
+
+    /// [`painted`](Self::painted) for the properties that merging tracks:
+    /// the corner radii and the opacity.
+    fn shaped(mut self, set: impl Fn(&mut BoxPaint)) -> Self {
+        self.write_paint(set);
         self
     }
 
@@ -125,19 +132,19 @@ impl Tw {
 
     /// `rounded-[<r>px]`: corner radius in points, rounded to whole points.
     pub fn rounded_px(self, points: f32) -> Self {
-        self.painted(|p| p.radius = radius(points.round().clamp(0.0, 255.0) as u8))
+        self.shaped(|p| p.radius = radius(points.round().clamp(0.0, 255.0) as u8))
     }
 
     /// `rounded-tr-[<r>px]`: top-right corner radius in points, rounded to
     /// whole points; the other corners keep theirs.
     pub fn rounded_tr_px(self, points: f32) -> Self {
-        self.painted(|p| p.radius.ne = points.round().clamp(0.0, 255.0) as u8)
+        self.shaped(|p| p.radius.ne = points.round().clamp(0.0, 255.0) as u8)
     }
 
     /// `rounded-br-[<r>px]`: bottom-right corner radius in points, rounded to
     /// whole points; the other corners keep theirs.
     pub fn rounded_br_px(self, points: f32) -> Self {
-        self.painted(|p| p.radius.se = points.round().clamp(0.0, 255.0) as u8)
+        self.shaped(|p| p.radius.se = points.round().clamp(0.0, 255.0) as u8)
     }
 
     /// `ring-<width>`: a ring outside the border box.
@@ -153,7 +160,7 @@ impl Tw {
 
     /// `opacity-*`.
     pub fn opacity(self, opacity: Opacity) -> Self {
-        self.painted(|p| p.opacity = opacity)
+        self.shaped(|p| p.opacity = opacity)
     }
 }
 

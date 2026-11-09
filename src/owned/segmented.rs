@@ -8,7 +8,7 @@ use egui::{Context, Role};
 
 use super::Mark;
 use super::{Enablement, centered, described};
-use crate::{Builder, Style, Tw, none, tw};
+use crate::{Builder, Icon, Style, Tw, none, tw};
 
 /// Whether a cell is the chosen one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,9 +55,18 @@ enum Rows {
 #[derive(Clone, Debug)]
 pub struct Segmented<T> {
     current: T,
-    options: Vec<(T, String)>,
+    options: Vec<Option_<T>>,
     rows: Rows,
     enablement: Enablement,
+    track: Tw,
+    cells: Tw,
+}
+
+#[derive(Clone, Debug)]
+struct Option_<T> {
+    value: T,
+    label: String,
+    icon: Option<Icon>,
 }
 
 impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
@@ -67,11 +76,29 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
             current,
             options: options
                 .iter()
-                .map(|&(value, label)| (value, label.to_owned()))
+                .map(|&(value, label)| Option_ {
+                    value,
+                    label: label.to_owned(),
+                    icon: None,
+                })
                 .collect(),
             rows: Rows::One,
             enablement: Enablement::Enabled,
+            track: tw(),
+            cells: tw(),
         }
+    }
+
+    /// Puts `icon` before the label of the option `value`, tinted by the
+    /// cell's text colour in each state and sized by the style.
+    #[must_use]
+    pub fn icon(mut self, value: T, icon: Icon) -> Self {
+        let option = self.options.iter_mut().find(|option| option.value == value);
+        debug_assert!(option.is_some(), "no option {value:?} to give an icon");
+        if let Some(option) = option {
+            option.icon = Some(icon);
+        }
+        self
     }
 
     /// A track that wraps its cells onto more rows when it is narrower than
@@ -80,6 +107,28 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
     pub fn wrapping(mut self) -> Self {
         self.rows = Rows::Wrapping;
         self
+    }
+
+    /// Classes merged over the styled ones of the track, such as `w_full()`
+    /// to make it fill its row; the later class wins ([`Tw::merge`]).
+    #[must_use]
+    pub fn track(mut self, track: Tw) -> Self {
+        self.track = track;
+        self
+    }
+
+    /// Classes merged over the styled ones of every cell, such as `flex_1()`
+    /// to share the track equally; the later class wins ([`Tw::merge`]).
+    #[must_use]
+    pub fn cells(mut self, cells: Tw) -> Self {
+        self.cells = cells;
+        self
+    }
+
+    /// The classes of the whole control: the same as [`track`](Self::track).
+    #[must_use]
+    pub fn classes(self, classes: Tw) -> Self {
+        self.track(classes)
     }
 
     /// Whether the control takes input.
@@ -106,10 +155,11 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
             .rounded_px(f32::from(seg.track_radius))
             .bg(seg.track_fill);
         let track = match self.rows {
-            Rows::One => track.h_px(seg.height),
+            Rows::One => track.h_px(seg.height).gap_x(seg.column_gap / 4.0),
             Rows::Wrapping => track.flex_wrap().h_auto().gap(seg.row_gap / 4.0),
         };
-        let (rows, enablement) = (self.rows, self.enablement);
+        let track = self.enablement.fade(track, &style).merge(self.track);
+        let (rows, enablement, caller) = (self.rows, self.enablement, self.cells);
         let cell = |cell| {
             let look = match cell {
                 Cell::Pressed => &seg.selected,
@@ -123,20 +173,33 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
                 seg.transition,
             ))
             .grow()
+            .text_center()
             .px(seg.cell_padding.x / 4.0)
             .py(seg.cell_padding.y / 4.0)
-            .role(style.text.clone());
-            match rows {
+            .gap(seg.icon_gap / 4.0)
+            .role(style.role(&seg.text).clone());
+            let classes = match rows {
                 Rows::One => classes.h_full(),
                 Rows::Wrapping => classes.h_auto(),
-            }
+            };
+            classes.merge(caller.clone())
         };
-        self.show_with(b, key, track, cell, select);
+        let icon = tw().size_px(seg.icon_size);
+        cells_in(
+            b,
+            key,
+            (self.current, self.options),
+            track,
+            cell,
+            icon,
+            select,
+        );
     }
 
     /// [`show`](Self::show) with the classes of the track and of each cell
     /// given instead of read from the style, for a look the style does not
-    /// describe. The cells sense clicks on top of them.
+    /// describe. The cells sense clicks on top of them, and icons are the
+    /// size of the cell's text.
     pub fn show_with<A: 'static, K: Hash + Debug + 'static>(
         self,
         b: &mut Builder<'_, '_, A>,
@@ -145,21 +208,60 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
         cell: impl Fn(Cell) -> Tw,
         select: impl Fn(&mut A, &Context, T) + Copy + 'static,
     ) {
-        b.div_id(key, container, none, |b| {
-            for (value, label) in self.options {
-                let state = if value == self.current {
-                    Cell::Pressed
-                } else {
-                    Cell::Released
-                };
-                let name = label.clone();
-                b.span(value, cell(state).sense_click(), label, move |app, ui| {
-                    let mark = Mark::from(state == Cell::Pressed);
-                    if described(ui, Role::RadioButton, Some(mark), &name).clicked() {
+        cells_in(
+            b,
+            key,
+            (self.current, self.options),
+            container,
+            cell,
+            tw(),
+            select,
+        );
+    }
+}
+
+fn cells_in<A: 'static, K: Hash + Debug + 'static, T: Copy + PartialEq + Hash + Debug + 'static>(
+    b: &mut Builder<'_, '_, A>,
+    key: K,
+    (current, options): (T, Vec<Option_<T>>),
+    container: Tw,
+    cell: impl Fn(Cell) -> Tw,
+    icon_classes: Tw,
+    select: impl Fn(&mut A, &Context, T) + Copy + 'static,
+) {
+    b.div_id(key, container, none, |b| {
+        for Option_ { value, label, icon } in options {
+            let state = if value == current {
+                Cell::Pressed
+            } else {
+                Cell::Released
+            };
+            let classes = cell(state).sense_click();
+            let name = label.clone();
+            let clicked = move |ui: &mut egui::Ui| {
+                let mark = Mark::from(state == Cell::Pressed);
+                described(ui, Role::RadioButton, Some(mark), &name).clicked()
+            };
+            match icon {
+                None => b.span(value, classes, label, move |app, ui| {
+                    if clicked(ui) {
                         select(app, ui.ctx(), value);
                     }
-                });
+                }),
+                Some(icon) => b.div_id(
+                    value,
+                    classes,
+                    move |app, ui| {
+                        if clicked(ui) {
+                            select(app, ui.ctx(), value);
+                        }
+                    },
+                    |b| {
+                        b.glyph(icon_classes.clone().shrink_0(), icon);
+                        b.text(tw(), label);
+                    },
+                ),
             }
-        });
-    }
+        }
+    });
 }

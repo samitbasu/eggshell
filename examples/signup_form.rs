@@ -327,7 +327,7 @@ fn form(b: &mut B<'_, '_>, state: &State) {
         b.text(tw(), "Age");
         Stepper::new(state.fields.age, 0.0..=150.0)
             .named("Age")
-            .classes(|classes| classes.w_px(112.0).self_start())
+            .classes(tw().w_px(112.0).self_start())
             .show(b, Part::Age, |state: &mut State, age| {
                 state.fields.age = age
             });
@@ -352,7 +352,7 @@ fn form(b: &mut B<'_, '_>, state: &State) {
     );
     Button::new("Submit")
         .variant(variant::PRIMARY)
-        .classes(|submit| submit.w_full().h_px(40.0))
+        .classes(tw().w_full().h_px(40.0))
         .show(b, Part::Submit, State::submit);
 }
 
@@ -377,7 +377,7 @@ fn thanks(b: &mut B<'_, '_>, state: &State) {
         );
     });
     Button::new("Reset")
-        .classes(Tw::self_start)
+        .classes(tw().self_start())
         .show(b, Part::Reset, |state: &mut State| {
             *state = State::default()
         });
