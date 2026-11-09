@@ -447,3 +447,104 @@ fn installing_a_modified_style_changes_every_owned_widget() {
     );
     assert_eq!(box_at(&harness, rect_of(&harness, "/\"seg\"")).fill, red);
 }
+
+#[test]
+fn a_radio_group_is_one_tab_stop_on_the_chosen_option() {
+    let mut harness = harness(Theme::Light);
+    harness.key_press(Key::Tab);
+    harness.run_steps(2);
+    assert_eq!(
+        focused_path(&harness).as_deref(),
+        Some(circle_path(Unit::Metric).as_str()),
+        "Tab enters the group on the chosen option"
+    );
+    let mut visited = Vec::new();
+    for _ in 0..16 {
+        harness.key_press(Key::Tab);
+        harness.run_steps(2);
+        visited.extend(focused_path(&harness));
+    }
+    assert!(
+        visited
+            .iter()
+            .filter(|path| path.contains("Circle"))
+            .all(|path| *path == circle_path(Unit::Metric)),
+        "a full cycle of Tab stops visits no other circle: {visited:?}"
+    );
+
+    tab_to(&mut harness, &circle_path(Unit::Metric));
+    harness.key_press(Key::ArrowDown);
+    harness.run_steps(4);
+    assert_eq!(harness.state().app.unit, Unit::Imperial);
+    harness.key_press(Key::Tab);
+    harness.run_steps(2);
+    assert!(
+        !focused_path(&harness).is_some_and(|path| path.contains("Circle")),
+        "Tab leaves from the moved choice"
+    );
+    harness.key_press_modifiers(egui::Modifiers::SHIFT, Key::Tab);
+    harness.run_steps(2);
+    assert_eq!(
+        focused_path(&harness).as_deref(),
+        Some(circle_path(Unit::Imperial).as_str()),
+        "Shift+Tab comes back to the chosen option"
+    );
+}
+
+#[test]
+fn tab_enters_a_group_on_its_chosen_option_wherever_it_is() {
+    let mut harness = harness(Theme::Light);
+    harness.state_mut().app.unit = Unit::Nautical;
+    harness.run_steps(3);
+    harness.key_press(Key::Tab);
+    harness.run_steps(2);
+    assert_eq!(
+        focused_path(&harness).as_deref(),
+        Some(circle_path(Unit::Nautical).as_str())
+    );
+}
+
+#[test]
+fn the_switch_track_eases_to_its_new_colour() {
+    let mut harness = harness(Theme::Light);
+    let switch = style(Theme::Light).switch;
+    let (off, on) = (switch.off.states.rest.fill, switch.on.states.rest.fill);
+    assert_ne!(off, on);
+    let track = rect_of(&harness, "/\"air\"/Track");
+    assert_eq!(box_at(&harness, track).fill, off);
+    click_node(&mut harness, "/\"air\"/Track");
+    harness.step();
+    let mid = box_at(&harness, track).fill;
+    assert!(
+        mid != off && mid != on,
+        "{mid:?} between {off:?} and {on:?}"
+    );
+    harness.run_steps(12);
+    assert_eq!(box_at(&harness, track).fill, on);
+    click_node(&mut harness, "/\"air\"/Track");
+    harness.step();
+    let back = box_at(&harness, track).fill;
+    assert!(back != off && back != on, "and back again");
+    harness.run_steps(12);
+    assert_eq!(box_at(&harness, track).fill, off);
+}
+
+#[test]
+fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
+    let red = egui::Color32::from_rgb(200, 30, 30);
+    let mut style = style(Theme::Light);
+    style.switch.off.states.hover.text = red;
+    style.switch.off.states.pressed.text = red;
+    let mut harness = harness(Theme::Light);
+    style.clone().install(&harness.ctx);
+    harness.run_steps(4);
+    let rest = style.switch.off.states.rest.text;
+    let (_, at_rest) = thumb(&harness, "/\"air\"/Track");
+    assert_eq!(at_rest.fill, rest);
+    support::hover_node(&mut harness, "/\"air\"/Track");
+    harness.run_steps(12);
+    assert_eq!(thumb(&harness, "/\"air\"/Track").1.fill, rest, "hovered");
+    support::press(&mut harness, "/\"air\"/Track");
+    assert_eq!(thumb(&harness, "/\"air\"/Track").1.fill, rest, "pressed");
+    support::release(&mut harness, "/\"air\"/Track");
+}

@@ -9,7 +9,7 @@ use egui::{Role, Vec2, WidgetInfo};
 use super::{Enablement, choice_label, choice_row};
 use crate::contract::Size;
 use crate::style::Mark;
-use crate::{Builder, NodeUi as _, Style, tw};
+use crate::{Builder, NodeUi as _, Progress, Style, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -89,27 +89,32 @@ impl Switch {
         let switch = &style.switch;
         let metrics = *switch.sizes.get(self.size);
         let track = self.track.unwrap_or(metrics.track);
-        let (look, on) = match self.mark {
-            Mark::Off => (&switch.off, false),
-            Mark::On => (&switch.on, true),
-        };
+        let on = self.mark == Mark::On;
         let enablement = self.enablement;
-        let classes = look
-            .classes(&style, u8::MAX, enablement, switch.transition)
-            .flex()
-            .items_center()
-            .shrink_0()
-            .w_px(track.x)
-            .h_px(track.y);
+        let slide = switch.slide.as_secs_f32();
         let thumb_scale = track.y / metrics.track.y;
         let (thumb_off, thumb_on) = (
             metrics.thumb_off * thumb_scale,
             metrics.thumb_on * thumb_scale,
         );
-        let slide = switch.slide.as_secs_f32();
         let name = self.name.unwrap_or_default();
         b.scope(key, |b| {
             let control = b.id_of(Part::Track);
+            let tint = b
+                .ctx()
+                .animate_bool_with_time(control.with("slide"), on, slide);
+            let look = switch.off.towards(switch.on, Progress::new(tint));
+            let thumb_color = match enablement {
+                Enablement::Enabled => look.states.rest.text,
+                Enablement::Disabled => look.states.disabled.text,
+            };
+            let classes = look
+                .classes(&style, u8::MAX, enablement, switch.transition)
+                .flex()
+                .items_center()
+                .shrink_0()
+                .w_px(track.x)
+                .h_px(track.y);
             b.div(choice_row(&style, enablement, switch.gap), |b| {
                 b.div_id(
                     Part::Track,
@@ -124,7 +129,7 @@ impl Switch {
                         });
                     },
                     |b| {
-                        b.paint(tw().w_full().h_full(), move |painter, rect, color| {
+                        b.paint(tw().w_full().h_full(), move |painter, rect, _| {
                             let t = painter.ctx().animate_bool_with_time(
                                 control.with("slide"),
                                 on,
@@ -136,7 +141,7 @@ impl Switch {
                             painter.circle_filled(
                                 egui::pos2(x, rect.center().y),
                                 diameter / 2.0,
-                                color,
+                                thumb_color,
                             );
                         });
                     },

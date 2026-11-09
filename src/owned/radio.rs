@@ -3,9 +3,9 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{EventFilter, Id, Key, Modifiers, Role, Ui, WidgetInfo};
+use egui::{Id, Key, Role, Ui, WidgetInfo};
 
-use super::{Enablement, choice_label, choice_row};
+use super::{Enablement, choice_label, choice_row, number};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -16,8 +16,9 @@ enum Part<T> {
 
 /// Radio buttons that choose one of `options`, drawn from the [`Style`].
 ///
-/// Each circle is a Tab stop. The arrow keys move the choice, and the focus
-/// with it, to the next or previous option, wrapping around.
+/// The group is one Tab stop, on the chosen option (the first when none is
+/// chosen), as in HTML. The arrow keys move the choice, and the focus with it,
+/// to the next or previous option, wrapping around; Tab leaves the group.
 #[derive(Clone, Debug)]
 pub struct RadioGroup<T> {
     current: T,
@@ -66,6 +67,10 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
         let enablement = self.enablement;
         let values: Vec<T> = self.options.iter().map(|&(value, _)| value).collect();
         let count = values.len();
+        let tab_stop = values
+            .iter()
+            .position(|&value| value == self.current)
+            .unwrap_or(0);
         b.scope(key, |b| {
             let ids: Vec<_> = values
                 .iter()
@@ -82,6 +87,11 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                         .justify_center()
                         .shrink_0()
                         .size_px(radio.size);
+                    let circle = if index == tab_stop {
+                        circle
+                    } else {
+                        circle.focusable_none()
+                    };
                     let around = |offset: usize| {
                         let at = (index + offset) % count;
                         (values[at], ids[at])
@@ -98,6 +108,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                                 if response.clicked() {
                                     select(app, value);
                                 }
+                                take_focus_if_asked(ui, response.id);
                                 if response.has_focus() {
                                     navigate(app, ui, select, previous, next);
                                 }
@@ -148,15 +159,8 @@ fn navigate<A, T: Copy>(
     previous: (T, Id),
     next: (T, Id),
 ) {
-    let filter = EventFilter {
-        horizontal_arrows: true,
-        vertical_arrows: true,
-        ..EventFilter::default()
-    };
-    let id = ui.node_id();
-    ui.ctx()
-        .memory_mut(|memory| memory.set_focus_lock_filter(id, filter));
-    let pressed = |key| ui.input_mut(|input| input.consume_key(Modifiers::NONE, key));
+    number::hold_keys(ui, false);
+    let pressed = |key| number::pressed(ui, key);
     let forward = pressed(Key::ArrowDown) | pressed(Key::ArrowRight);
     let backward = pressed(Key::ArrowUp) | pressed(Key::ArrowLeft);
     let (value, id) = match (forward, backward) {
@@ -165,5 +169,28 @@ fn navigate<A, T: Copy>(
         _ => return,
     };
     select(app, value);
-    ui.ctx().memory_mut(|memory| memory.request_focus(id));
+    ui.data_mut(|data| data.insert_temp(focus_request(), id));
+    ui.ctx().request_repaint();
+}
+
+/// Where the circle that is to take the focus is recorded. egui drops focus
+/// given to a node that is not focusable yet, and a circle becomes its
+/// group's Tab stop only once the choice has moved to it.
+const FOCUS_REQUEST: &str = "bullseye-radio-focus";
+
+fn focus_request() -> Id {
+    crate::key::root_id().with(FOCUS_REQUEST)
+}
+
+fn take_focus_if_asked(ui: &Ui, circle: Id) {
+    let asked = ui.data_mut(|data| {
+        let asked = data.get_temp::<Id>(focus_request()) == Some(circle);
+        if asked {
+            data.remove::<Id>(focus_request());
+        }
+        asked
+    });
+    if asked {
+        ui.memory_mut(|memory| memory.request_focus(circle));
+    }
 }
