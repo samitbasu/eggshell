@@ -305,7 +305,7 @@ fn choice_row(style: &Style, text: &Option<TextSpec>, enablement: Enablement, ga
 
 /// The visible label of the control `control`: clicking it runs `on_click`,
 /// and assistive technology names the control by it.
-fn choice_label<A: 'static, K: Hash + Debug + 'static>(
+fn choice_label<A: 'static, K: crate::Key>(
     b: &mut Builder<'_, '_, A>,
     key: K,
     control: Id,
@@ -326,4 +326,108 @@ fn choice_label<A: 'static, K: Hash + Debug + 'static>(
             }
         },
     );
+}
+
+/// The owned controls, each shown under a key like [`div_id`](Builder::div_id)
+/// and [`widget`](Builder::widget): `b.button(key, Button::new("Save"), handler)`.
+///
+/// The control value configures it and `handler` changes the application's
+/// state when the user operates it.
+impl<A: 'static> Builder<'_, '_, A> {
+    /// A [`Button`]; `on_click` runs when it is clicked or activated with
+    /// Space or Enter.
+    pub fn button<K: crate::Key>(
+        &mut self,
+        key: K,
+        button: Button,
+        on_click: impl FnOnce(&mut A) + 'static,
+    ) {
+        button.show(self, key, on_click);
+    }
+
+    /// A [`Checkbox`]; `on_toggle` runs when it is toggled.
+    pub fn checkbox<K: crate::Key>(
+        &mut self,
+        key: K,
+        checkbox: Checkbox,
+        on_toggle: impl Fn(&mut A) + Copy + 'static,
+    ) {
+        checkbox.show(self, key, on_toggle);
+    }
+
+    /// A [`Switch`]; `on_toggle` runs when it is toggled.
+    pub fn switch<K: crate::Key>(
+        &mut self,
+        key: K,
+        switch: Switch,
+        on_toggle: impl Fn(&mut A) + Copy + 'static,
+    ) {
+        switch.show(self, key, on_toggle);
+    }
+
+    /// A [`RadioGroup`]; `select` runs with the value of the chosen option.
+    pub fn radio_group<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
+        &mut self,
+        key: K,
+        group: RadioGroup<T>,
+        select: fn(&mut A, T),
+    ) {
+        group.show(self, key, select);
+    }
+
+    /// A [`Segmented`] control; `select` runs with the value of the chosen
+    /// cell.
+    pub fn segmented<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
+        &mut self,
+        key: K,
+        segmented: Segmented<T>,
+        select: impl Fn(&mut A, &egui::Context, T) + Copy + 'static,
+    ) {
+        segmented.show(self, key, select);
+    }
+
+    /// A [`Segmented`] control with the classes of its track and of each cell
+    /// given instead of read from the style, for a look the style does not
+    /// describe. The cells sense clicks on top of them, and icons are the
+    /// size of the cell's text.
+    pub fn segmented_with<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
+        &mut self,
+        key: K,
+        segmented: Segmented<T>,
+        container: Tw,
+        cell: impl Fn(Cell) -> Tw,
+        select: impl Fn(&mut A, &egui::Context, T) + Copy + 'static,
+    ) {
+        segmented.show_with(self, key, container, cell, select);
+    }
+
+    /// A [`Slider`]; `set` runs with the new value.
+    pub fn slider<K: crate::Key>(
+        &mut self,
+        key: K,
+        slider: Slider,
+        set: impl Fn(&mut A, f64) + Copy + 'static,
+    ) {
+        slider.show(self, key, set);
+    }
+
+    /// A [`Select`]; `choose` runs with the chosen value.
+    pub fn select<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
+        &mut self,
+        key: K,
+        select: Select<T>,
+        choose: impl Fn(&mut A, &egui::Context, T) + Copy + 'static,
+    ) {
+        select.show(self, key, choose);
+    }
+
+    /// A [`Stepper`]; `set` runs with the new value.
+    pub fn stepper<K: crate::Key>(
+        &mut self,
+        key: K,
+        stepper: Stepper,
+        set: impl Fn(&mut A, f64) + Copy + 'static,
+    ) {
+        stepper.show(self, key, set);
+    }
 }

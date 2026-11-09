@@ -55,11 +55,19 @@ fn place<A>(ctx: &Context, build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) 
 
 fn controls(b: &mut Builder<'_, '_, ()>) {
     b.div(tw().flex().flex_col().gap(2.0).w_px(400.0), |b| {
-        Button::new("Save").show(b, "button", |_: &mut ()| {});
-        Checkbox::new("Agree", Mark::Off).show(b, "checkbox", |_: &mut ()| {});
-        Switch::new("Alerts", Mark::Off).show(b, "switch", |_: &mut ()| {});
-        Select::new(0, &[(0, "One"), (1, "Two")]).show(b, "select", |_: &mut (), _, _| {});
-        Slider::new(0.5, 0.0..=1.0).show(b, "slider", |_: &mut (), _| {});
+        b.button("button", Button::new("Save"), |_: &mut ()| {});
+        b.checkbox(
+            "checkbox",
+            Checkbox::new("Agree", Mark::Off),
+            |_: &mut ()| {},
+        );
+        b.switch("switch", Switch::new("Alerts", Mark::Off), |_: &mut ()| {});
+        b.select(
+            "select",
+            Select::new(0, &[(0, "One"), (1, "Two")]),
+            |_: &mut (), _, _| {},
+        );
+        b.slider("slider", Slider::new(0.5, 0.0..=1.0), |_: &mut (), _| {});
         b.widget(
             "field",
             tw().w_full(),

@@ -54,22 +54,40 @@ struct App {
 /// ```
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
-        RadioGroup::new(app.unit, &UNITS).show(b, "units", |app: &mut App, unit| app.unit = unit);
-        RadioGroup::new(app.locked, &UNITS)
-            .enablement(Enablement::Disabled)
-            .show(b, "locked", |app: &mut App, unit| app.locked = unit);
-        Switch::new("Airplane mode", Mark::from(app.on)).show(b, "air", |app: &mut App| {
-            app.on = !app.on;
-        });
-        Switch::new("Locked", Mark::On)
-            .enablement(Enablement::Disabled)
-            .show(b, "frozen", |app: &mut App| app.on = !app.on);
-        Switch::unlabelled(Mark::Off)
-            .named("Bare switch")
-            .show(b, "bare", |_: &mut App| {});
-        Segmented::new(app.segment, &SEGMENTS).show(b, "seg", |app: &mut App, _, unit| {
-            app.segment = unit;
-        });
+        b.radio_group(
+            "units",
+            RadioGroup::new(app.unit, &UNITS),
+            |app: &mut App, unit| app.unit = unit,
+        );
+        b.radio_group(
+            "locked",
+            RadioGroup::new(app.locked, &UNITS).enablement(Enablement::Disabled),
+            |app: &mut App, unit| app.locked = unit,
+        );
+        b.switch(
+            "air",
+            Switch::new("Airplane mode", Mark::from(app.on)),
+            |app: &mut App| {
+                app.on = !app.on;
+            },
+        );
+        b.switch(
+            "frozen",
+            Switch::new("Locked", Mark::On).enablement(Enablement::Disabled),
+            |app: &mut App| app.on = !app.on,
+        );
+        b.switch(
+            "bare",
+            Switch::unlabelled(Mark::Off).named("Bare switch"),
+            |_: &mut App| {},
+        );
+        b.segmented(
+            "seg",
+            Segmented::new(app.segment, &SEGMENTS),
+            |app: &mut App, _, unit| {
+                app.segment = unit;
+            },
+        );
     });
 }
 

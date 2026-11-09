@@ -97,9 +97,11 @@ fn text<A>(b: &mut Builder<'_, '_, A>, class: Tw, content: &str) {
 
 /// A button that takes the classes `class` gives it.
 fn button(b: &mut B<'_, '_>, key: Part, class: Class, label: &str) {
-    Button::new(label)
-        .classes(class(tw()))
-        .show(b, key, |_: &mut State| {});
+    b.button(
+        key,
+        Button::new(label).classes(class(tw())),
+        |_: &mut State| {},
+    );
 }
 
 /// ```html
@@ -154,11 +156,13 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     } else {
         "You can toggle my size"
     };
-    Button::new(label)
-        .classes(tw().grow())
-        .show(b, Part::Toggle, |state: &mut State| {
+    b.button(
+        Part::Toggle,
+        Button::new(label).classes(tw().grow()),
+        |state: &mut State| {
             state.toggle = !state.toggle;
-        });
+        },
+    );
 
     let field = Field::singleline(&state.text);
     let measured = field.clone();
@@ -183,9 +187,9 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     b.div(
         tw().flex().grow().basis_px(150.0).items_center().gap(2.0),
         |b| {
-            Slider::new(state.level, 0.0..=1000.0).named("Level").show(
-                b,
+            b.slider(
                 Part::Slider,
+                Slider::new(state.level, 0.0..=1000.0).named("Level"),
                 |state: &mut State, level| {
                     state.level = level;
                 },
@@ -201,9 +205,9 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     button(b, Part::Button("odd"), Tw::grow, "Button wefoijfgiweopjg");
     button(b, Part::Button("short again"), Tw::grow, "Button");
     button(b, Part::Button("plain"), identity, "Non-grow Button");
-    Checkbox::new("Checkbox", Mark::from(state.checked)).show(
-        b,
+    b.checkbox(
         Part::Checkbox,
+        Checkbox::new("Checkbox", Mark::from(state.checked)),
         |state: &mut State| state.checked = !state.checked,
     );
 }

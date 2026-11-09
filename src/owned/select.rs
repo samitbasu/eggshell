@@ -72,7 +72,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
 
     /// Adds the select to `b` under `key`. `choose` gets the application and
     /// the context, for a value the context holds.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
+    pub(crate) fn show<A: 'static, K: crate::Key>(
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,

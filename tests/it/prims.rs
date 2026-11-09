@@ -321,17 +321,16 @@ const OFF: Color32 = Color32::from_rgb(50, 50, 50);
 /// ```
 fn picker(b: &mut Builder<'_, '_, Picker>, app: &Picker) {
     let container = if app.inert { tw().inert() } else { tw() };
-    Segmented::new(
-        app.mode,
-        &[
-            (Mode::Day, "Day"),
-            (Mode::Week, "Week"),
-            (Mode::Month, "Month"),
-        ],
-    )
-    .show_with(
-        b,
+    b.segmented_with(
         "mode",
+        Segmented::new(
+            app.mode,
+            &[
+                (Mode::Day, "Day"),
+                (Mode::Week, "Week"),
+                (Mode::Month, "Month"),
+            ],
+        ),
         container.flex().gap(1.0).p(2.0),
         |cell| match cell {
             Cell::Pressed => tw().px(3.0).py(1.0).bg(ON),

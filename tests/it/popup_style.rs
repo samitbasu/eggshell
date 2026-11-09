@@ -115,9 +115,12 @@ fn open_select_shapes(restyle_global: bool) -> Vec<String> {
                 LayoutState::new()
                     .with_base_text(base)
                     .build(&ctx, |b| {
-                        Select::new(pick.0, &[(0, "One"), (1, "Two"), (2, "Three")])
-                            .named("pick")
-                            .show(b, "select", |pick: &mut Pick, _, value| pick.0 = value);
+                        b.select(
+                            "select",
+                            Select::new(pick.0, &[(0, "One"), (1, "Two"), (2, "Three")])
+                                .named("pick"),
+                            |pick: &mut Pick, _, value| pick.0 = value,
+                        );
                     })
                     .layout(area)
                     .draw(pick, ui);

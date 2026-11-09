@@ -8,8 +8,8 @@
 use egui::{Response, Ui};
 use taffy::Size;
 
-use crate::Measure;
 use crate::widget::Stock as _;
+use crate::{Builder, Key, Measure, Tw};
 
 pub use crate::widget::{Lines, TextEdit as Field};
 
@@ -22,4 +22,31 @@ pub fn measure(m: &Measure<'_>, field: &Field) -> Size<f32> {
 /// Edits `text` in the leaf's content rect.
 pub fn show(ui: &mut Ui, text: &mut String, field: &Field) -> Response {
     field.show(ui, text)
+}
+
+impl<A: 'static> Builder<'_, '_, A> {
+    /// An identified leaf that edits the string `text` picks out of the
+    /// application's state, sized by `field`.
+    ///
+    /// `then` runs after the field is shown, with its response: the place to
+    /// describe it to assistive technology or to act on a key chord.
+    pub fn text_field<K: Key>(
+        &mut self,
+        key: K,
+        tw: Tw,
+        field: Field,
+        text: fn(&mut A) -> &mut String,
+        then: impl FnOnce(&mut A, &Ui, &Response) + 'static,
+    ) {
+        let measured = field.clone();
+        self.leaf(
+            key,
+            tw,
+            move |m| measure(m, &measured),
+            move |app, ui| {
+                let response = show(ui, text(app), &field);
+                then(app, ui, &response);
+            },
+        );
+    }
 }

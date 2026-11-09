@@ -87,7 +87,7 @@ impl Stepper {
     }
 
     /// Adds the stepper to `b` under `key`. `set` runs with the new value.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
+    pub(crate) fn show<A: 'static, K: crate::Key>(
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,

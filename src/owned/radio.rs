@@ -58,7 +58,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
 
     /// Adds the group to `b` under `key`. `select` runs with the value of the
     /// option that was chosen with the pointer or the keyboard.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
+    pub(crate) fn show<A: 'static, K: crate::Key>(
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,

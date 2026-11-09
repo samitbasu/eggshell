@@ -124,7 +124,7 @@ impl Slider {
 
     /// Adds the slider to `b` under `key`, as wide as the space it is given.
     /// `set` runs with the new value when the pointer or the keyboard changes it.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
+    pub(crate) fn show<A: 'static, K: crate::Key>(
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,

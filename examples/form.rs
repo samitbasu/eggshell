@@ -207,13 +207,16 @@ fn choose(
     lens: fn(&mut State) -> &mut usize,
 ) {
     let options: Vec<(usize, &str)> = options.iter().copied().enumerate().collect();
-    Select::new(current, &options)
-        .named(name)
-        .enablement(enablement)
-        .classes(tw().w_px(FIELD_WIDTH))
-        .show(b, key, move |state: &mut State, _, chosen| {
+    b.select(
+        key,
+        Select::new(current, &options)
+            .named(name)
+            .enablement(enablement)
+            .classes(tw().w_px(FIELD_WIDTH)),
+        move |state: &mut State, _, chosen| {
             *lens(state) = chosen;
-        });
+        },
+    );
 }
 
 fn switch(
@@ -224,9 +227,11 @@ fn switch(
     on: bool,
     toggle: fn(&mut State),
 ) {
-    Switch::new(label, bullseye::owned::Mark::from(on))
-        .enablement(enablement)
-        .show(b, key, toggle);
+    b.switch(
+        key,
+        Switch::new(label, bullseye::owned::Mark::from(on)).enablement(enablement),
+        toggle,
+    );
 }
 
 /// A toggle button: pressed while its mark is on, independent of the others.
@@ -299,11 +304,9 @@ fn swatch(b: &mut B<'_, '_>, state: &State, swatch: Swatch) {
                 WidgetInfo::selected(Role::RadioButton, ui.is_enabled(), chosen, swatch.name)
             });
         },
-        none_body,
+        |_| {},
     );
 }
-
-fn none_body(_: &mut B<'_, '_>) {}
 
 /// ```html
 /// <section class="flex flex-col gap-3">
@@ -457,10 +460,13 @@ fn save(b: &mut B<'_, '_>, state: &State) {
     };
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().items_center().gap(3.0), |b| {
-        Button::new("Save")
-            .variant(variant::PRIMARY)
-            .enablement(enablement)
-            .show(b, Part::Save, |state: &mut State| state.saves += 1);
+        b.button(
+            Part::Save,
+            Button::new("Save")
+                .variant(variant::PRIMARY)
+                .enablement(enablement),
+            |state: &mut State| state.saves += 1,
+        );
         let note = match (state.saves, state.can_save()) {
             (_, false) => "Enter a name and an email address to save.".to_owned(),
             (0, true) => String::new(),

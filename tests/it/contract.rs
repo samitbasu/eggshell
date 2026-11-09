@@ -121,7 +121,7 @@ fn core_draws_a_button_with_no_preset() {
             let area = ui.max_rect();
             layout
                 .build(ui.ctx(), |b| {
-                    Button::new("Plain").show(b, "plain", |_: &mut ()| {})
+                    b.button("plain", Button::new("Plain"), |_: &mut ()| {})
                 })
                 .layout(area)
                 .draw(&mut (), ui);

@@ -44,32 +44,41 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
             for name in VARIANTS {
-                Button::new("Save")
-                    .variant(name)
-                    .enablement(enablement)
-                    .show(b, (name, enablement), move |app: &mut App| {
+                b.button(
+                    (name, enablement),
+                    Button::new("Save").variant(name).enablement(enablement),
+                    move |app: &mut App| {
                         app.clicks.push(name.0.to_owned());
-                    });
+                    },
+                );
             }
         }
-        Button::toggle("Toggle", Mark::from(app.toggled)).show(b, "toggle", |app: &mut App| {
-            app.toggled = !app.toggled;
-        });
+        b.button(
+            "toggle",
+            Button::toggle("Toggle", Mark::from(app.toggled)),
+            |app: &mut App| {
+                app.toggled = !app.toggled;
+            },
+        );
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            Checkbox::new("Accept terms", Mark::from(app.checked))
-                .enablement(enablement)
-                .show(b, ("check", enablement), |app: &mut App| {
+            b.checkbox(
+                ("check", enablement),
+                Checkbox::new("Accept terms", Mark::from(app.checked)).enablement(enablement),
+                |app: &mut App| {
                     app.checked = !app.checked;
-                });
+                },
+            );
         }
-        Checkbox::unlabelled(Mark::Off)
-            .named("Bare")
-            .show(b, "bare", |_: &mut App| {});
-        Button::new("Menu")
-            .opens_popup()
-            .show(b, "menu", |app: &mut App| {
-                app.clicks.push("menu".to_owned())
-            });
+        b.checkbox(
+            "bare",
+            Checkbox::unlabelled(Mark::Off).named("Bare"),
+            |_: &mut App| {},
+        );
+        b.button(
+            "menu",
+            Button::new("Menu").opens_popup(),
+            |app: &mut App| app.clicks.push("menu".to_owned()),
+        );
     });
 }
 

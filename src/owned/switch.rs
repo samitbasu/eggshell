@@ -89,7 +89,7 @@ impl Switch {
 
     /// Adds the switch to `b` under `key`. `on_toggle` runs when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
+    pub(crate) fn show<A: 'static, K: crate::Key>(
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,

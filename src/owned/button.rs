@@ -1,7 +1,6 @@
 //! The owned button: a node that senses clicks, with a text child.
 
 use std::fmt::Debug;
-use std::hash::Hash;
 
 use egui::Role;
 
@@ -121,7 +120,7 @@ impl Button {
 
     /// Adds the button to `b` under `key`. `on_click` runs when it is clicked
     /// or activated with Space or Enter.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
+    pub(crate) fn show<A: 'static, K: crate::Key>(
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,

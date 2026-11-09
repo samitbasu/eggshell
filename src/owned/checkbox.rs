@@ -67,7 +67,7 @@ impl Checkbox {
 
     /// Adds the checkbox to `b` under `key`. `on_toggle` runs when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
+    pub(crate) fn show<A: 'static, K: crate::Key>(
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,

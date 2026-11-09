@@ -340,12 +340,14 @@ mod web {
 pub fn theme_toggle<A, K>(b: &mut Builder<'_, '_, A>, key: K)
 where
     A: 'static,
-    K: Hash + Debug + 'static,
+    K: bullseye::Key,
 {
     let current = b.ctx().options(|options| options.theme_preference);
-    Segmented::new(current, &APPEARANCES).show(b, key, |_: &mut A, ctx, preference| {
-        ctx.set_theme(preference)
-    });
+    b.segmented(
+        key,
+        Segmented::new(current, &APPEARANCES),
+        |_: &mut A, ctx, preference| ctx.set_theme(preference),
+    );
 }
 
 /// The Vega and Lyra choices as the preset's tab list. The choice lives in
@@ -353,18 +355,22 @@ where
 pub fn style_toggle<A, K>(b: &mut Builder<'_, '_, A>, key: K)
 where
     A: 'static,
-    K: Hash + Debug + 'static,
+    K: bullseye::Key,
 {
     let options = ShadcnStyle::ALL.map(|style| (style, style.name()));
-    Segmented::new(style_of(b.ctx()), &options).show(b, key, |_: &mut A, ctx, style| {
-        choose(
-            ctx,
-            Chosen {
-                style,
-                ..chosen(ctx)
-            },
-        );
-    });
+    b.segmented(
+        key,
+        Segmented::new(style_of(b.ctx()), &options),
+        |_: &mut A, ctx, style| {
+            choose(
+                ctx,
+                Chosen {
+                    style,
+                    ..chosen(ctx)
+                },
+            );
+        },
+    );
 }
 
 /// The strip every example shows along its top edge, with the style and
@@ -518,9 +524,9 @@ pub fn slider_row<S: 'static>(
             b.text(tw(), format!("{value:.0}"));
         });
         let bounds = f64::from(*range.start())..=f64::from(*range.end());
-        Slider::new(f64::from(value), bounds).named(name).show(
-            b,
+        b.slider(
             key,
+            Slider::new(f64::from(value), bounds).named(name),
             move |state: &mut S, edited| {
                 *lens(state) = edited as f32;
             },
@@ -564,7 +570,7 @@ pub fn choice<S, K, T>(
     lens: fn(&mut S) -> &mut T,
 ) where
     S: 'static,
-    K: Hash + Debug + 'static,
+    K: bullseye::Key,
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
     let group = Segmented::new(current, options);
@@ -573,7 +579,7 @@ pub fn choice<S, K, T>(
     } else {
         group
     };
-    group.show(b, key, move |state, _, value| *lens(state) = value);
+    b.segmented(key, group, move |state, _, value| *lens(state) = value);
 }
 
 /// A frameless text field filling its row, in shadcn's input box: `h-9`,
@@ -595,7 +601,7 @@ pub fn text_box<S, K>(
     lens: fn(&mut S) -> &mut String,
 ) where
     S: 'static,
-    K: Hash + Debug + 'static,
+    K: bullseye::Key,
 {
     let t = tokens(b.ctx());
     let fill = b.ctx().global_style().visuals.text_edit_bg_color();

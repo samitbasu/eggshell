@@ -31,21 +31,41 @@ struct App {
 
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
-        Button::toggle("Bold", Mark::from(app.toggle)).show(b, "toggle", |app: &mut App| {
-            app.toggle = !app.toggle;
-        });
-        Checkbox::new("Accept", Mark::from(app.check)).show(b, "check", |app: &mut App| {
-            app.check = !app.check;
-        });
-        RadioGroup::new(app.radio, &UNITS).show(b, "radio", |app: &mut App, unit| {
-            app.radio = unit;
-        });
-        Switch::new("Airplane mode", Mark::from(app.switch)).show(b, "switch", |app: &mut App| {
-            app.switch = !app.switch;
-        });
-        Segmented::new(app.segment, &UNITS).show(b, "seg", |app: &mut App, _, unit| {
-            app.segment = unit;
-        });
+        b.button(
+            "toggle",
+            Button::toggle("Bold", Mark::from(app.toggle)),
+            |app: &mut App| {
+                app.toggle = !app.toggle;
+            },
+        );
+        b.checkbox(
+            "check",
+            Checkbox::new("Accept", Mark::from(app.check)),
+            |app: &mut App| {
+                app.check = !app.check;
+            },
+        );
+        b.radio_group(
+            "radio",
+            RadioGroup::new(app.radio, &UNITS),
+            |app: &mut App, unit| {
+                app.radio = unit;
+            },
+        );
+        b.switch(
+            "switch",
+            Switch::new("Airplane mode", Mark::from(app.switch)),
+            |app: &mut App| {
+                app.switch = !app.switch;
+            },
+        );
+        b.segmented(
+            "seg",
+            Segmented::new(app.segment, &UNITS),
+            |app: &mut App, _, unit| {
+                app.segment = unit;
+            },
+        );
     });
 }
 

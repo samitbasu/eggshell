@@ -1,6 +1,6 @@
 //! The right pane: environment, context, changes and background tasks.
 
-use bullseye::{Builder, none, tw};
+use bullseye::{Builder, Scope, Tw, none, tw};
 use egui::Color32;
 
 use super::state::{App, MODELS, Pane};
@@ -8,6 +8,7 @@ use super::theme::{Role, Theme, Tok};
 use super::view::Part;
 
 type B<'b, 'f> = Builder<'b, 'f, App>;
+type S<'b, 'f> = Scope<'b, 'f, App>;
 
 const CHANGES: [(&str, &str, &str); 3] = [
     ("src/lexer.rs", "+24", "-8"),
@@ -53,7 +54,7 @@ impl TaskState {
 ///   <div class="flex flex-col rounded-lg border bg-background divide-y">...rows</div>
 /// </section>
 /// ```
-fn section(b: &mut B<'_, '_>, k: &Theme, title: &'static str, rows: impl FnOnce(&mut B<'_, '_>)) {
+fn section(b: &mut B<'_, '_>, k: &Theme, title: &'static str, rows: impl FnOnce(&mut S<'_, '_>)) {
     b.div_id(title, tw().flex().flex_col().gap(1.5), none, |b| {
         b.text(
             tw().role(k[Role::Meta].clone())
@@ -150,47 +151,45 @@ fn context(b: &mut B<'_, '_>, app: &App) {
 /// ```html
 /// <aside class="flex flex-col shrink-0 gap-5 p-4 bg-card overflow-hidden" style="width: 288px">...</aside>
 /// ```
-pub fn details(b: &mut B<'_, '_>, app: &App) {
-    let k = &Theme::of(b.ctx());
-    b.div_id(
-        Part::Details,
-        tw().flex()
-            .flex_col()
-            .w_px(app.width(Pane::Details).into())
-            .shrink_0()
-            .gap(5.0)
-            .p(4.0)
-            .bg(k[Tok::Panel])
-            .overflow_hidden(),
-        none,
-        |b| {
-            section(b, k, "Environment", |b| {
-                for (label, value) in [
-                    ("Branch", "main"),
-                    ("Runtime", "local"),
-                    ("Model", MODELS[app.model]),
-                ] {
-                    row(b, k, label, |b| b.text(tw().truncate(), value));
-                }
+pub fn details(s: &mut S<'_, '_>, app: &App) {
+    let k = &Theme::of(s.ctx());
+    section(s, k, "Environment", |b| {
+        for (label, value) in [
+            ("Branch", "main"),
+            ("Runtime", "local"),
+            ("Model", MODELS[app.model]),
+        ] {
+            row(b, k, label, |b| b.text(tw().truncate(), value));
+        }
+    });
+    section(s, k, "Context", |b| context(b, app));
+    section(s, k, "Changes", |b| {
+        for (file, added, removed) in CHANGES {
+            row(b, k, file, |b| {
+                b.div(tw().flex().gap(1.5), |b| {
+                    b.text(tw().text(k[Tok::Success]), added);
+                    b.text(tw().text(k[Tok::Danger]), removed);
+                });
             });
-            section(b, k, "Context", |b| context(b, app));
-            section(b, k, "Changes", |b| {
-                for (file, added, removed) in CHANGES {
-                    row(b, k, file, |b| {
-                        b.div(tw().flex().gap(1.5), |b| {
-                            b.text(tw().text(k[Tok::Success]), added);
-                            b.text(tw().text(k[Tok::Danger]), removed);
-                        });
-                    });
-                }
+        }
+    });
+    section(s, k, "Background tasks", |b| {
+        for (name, state) in TASKS {
+            row(b, k, name, |b| {
+                b.text(tw().text(state.color(k)), state.label());
             });
-            section(b, k, "Background tasks", |b| {
-                for (name, state) in TASKS {
-                    row(b, k, name, |b| {
-                        b.text(tw().text(state.color(k)), state.label());
-                    });
-                }
-            });
-        },
-    );
+        }
+    });
+}
+
+/// The details pane's box, which its caller keys.
+pub fn details_style(k: &Theme, app: &App) -> Tw {
+    tw().flex()
+        .flex_col()
+        .w_px(app.width(Pane::Details).into())
+        .shrink_0()
+        .gap(5.0)
+        .p(4.0)
+        .bg(k[Tok::Panel])
+        .overflow_hidden()
 }

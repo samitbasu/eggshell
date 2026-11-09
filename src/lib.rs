@@ -44,11 +44,12 @@ mod transition;
 mod tw;
 pub mod widget;
 
-pub use builder::{Builder, none};
+pub use builder::{Builder, Scope, none};
 pub use contract::Style;
 pub use debug::Debug;
 pub use draw::NodeUi;
 pub use focus::focus_within;
+pub use key::Key;
 pub use measure::{Measure, fill};
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
 pub use prim::Icon;

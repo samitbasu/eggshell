@@ -52,35 +52,50 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .p(4.0)
             .w_px(300.0),
         |b| {
-            Slider::new(app.volume, 0.0..=100.0)
-                .step(Step::new(5.0))
-                .named("Volume")
-                .show(b, "volume", |app: &mut App, value| {
+            b.slider(
+                "volume",
+                Slider::new(app.volume, 0.0..=100.0)
+                    .step(Step::new(5.0))
+                    .named("Volume"),
+                |app: &mut App, value| {
                     app.volume = value;
                     app.changes += 1;
-                });
-            Slider::new(app.locked, 0.0..=100.0)
-                .named("Locked")
-                .enablement(Enablement::Disabled)
-                .show(b, "locked", |app: &mut App, value| app.locked = value);
-            Select::new(app.region, &REGIONS)
-                .named("Region")
-                .classes(tw().w_px(200.0))
-                .show(b, "region", |app: &mut App, _, region| app.region = region);
-            Select::new(0, &REGIONS)
-                .named("Frozen")
-                .classes(tw().w_px(200.0))
-                .enablement(Enablement::Disabled)
-                .show(b, "frozen", |_: &mut App, _, _| {});
-            Stepper::new(app.count, 0.0..=10.0).named("Count").show(
-                b,
+                },
+            );
+            b.slider(
+                "locked",
+                Slider::new(app.locked, 0.0..=100.0)
+                    .named("Locked")
+                    .enablement(Enablement::Disabled),
+                |app: &mut App, value| app.locked = value,
+            );
+            b.select(
+                "region",
+                Select::new(app.region, &REGIONS)
+                    .named("Region")
+                    .classes(tw().w_px(200.0)),
+                |app: &mut App, _, region| app.region = region,
+            );
+            b.select(
+                "frozen",
+                Select::new(0, &REGIONS)
+                    .named("Frozen")
+                    .classes(tw().w_px(200.0))
+                    .enablement(Enablement::Disabled),
+                |_: &mut App, _, _| {},
+            );
+            b.stepper(
                 "count",
+                Stepper::new(app.count, 0.0..=10.0).named("Count"),
                 |app: &mut App, value| app.count = value,
             );
-            Stepper::new(5.0, 0.0..=10.0)
-                .named("Fixed")
-                .enablement(Enablement::Disabled)
-                .show(b, "fixed", |_: &mut App, _| {});
+            b.stepper(
+                "fixed",
+                Stepper::new(5.0, 0.0..=10.0)
+                    .named("Fixed")
+                    .enablement(Enablement::Disabled),
+                |_: &mut App, _| {},
+            );
         },
     );
 }

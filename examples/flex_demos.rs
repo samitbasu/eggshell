@@ -279,11 +279,13 @@ fn content_group(b: &mut B<'_, '_>, state: &State) {
         .enumerate()
         .map(|(index, (name, _))| (index, *name))
         .collect();
-    Select::new(state.anchor, &options)
-        .named("Align self content")
-        .show(b, Part::Content, |state: &mut State, _, anchor| {
+    b.select(
+        Part::Content,
+        Select::new(state.anchor, &options).named("Align self content"),
+        |state: &mut State, _, anchor| {
             state.anchor = anchor;
-        });
+        },
+    );
     let (_, place) = ANCHORS[state.anchor];
     for align in ALIGNS {
         b.div_id(
@@ -348,9 +350,13 @@ fn header(b: &mut B<'_, '_>, state: &State) {
             ],
             |s| &mut s.direction,
         );
-        Checkbox::new("Grow", Mark::from(state.grow)).show(b, Part::Grow, |state: &mut State| {
-            state.grow = !state.grow;
-        });
+        b.checkbox(
+            Part::Grow,
+            Checkbox::new("Grow", Mark::from(state.grow)),
+            |state: &mut State| {
+                state.grow = !state.grow;
+            },
+        );
     });
 }
 

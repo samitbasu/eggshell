@@ -45,9 +45,11 @@ pub struct State {
 /// <aside class="flex flex-col gap-3 p-3 w-[240px]"><button>Reset</button></aside>
 /// ```
 fn controls(b: &mut B<'_, '_, State>) {
-    Button::new("Reset")
-        .classes(tw().self_start())
-        .show(b, "reset", |state: &mut State| *state = State::default());
+    b.button(
+        "reset",
+        Button::new("Reset").classes(tw().self_start()),
+        |state: &mut State| *state = State::default(),
+    );
 }
 
 type Align = fn(Tw) -> Tw;

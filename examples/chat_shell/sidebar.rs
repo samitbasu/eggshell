@@ -2,7 +2,7 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, NodeUi, Tw, none, tw};
+use bullseye::{Builder, NodeUi, Scope, Tw, none, tw};
 
 use super::common;
 use super::icons::{self, Glyph};
@@ -11,6 +11,7 @@ use super::theme::{Role, Theme, Tok};
 use super::view::Part;
 
 type B<'b, 'f> = Builder<'b, 'f, App>;
+type S<'b, 'f> = Scope<'b, 'f, App>;
 
 const FAST: Duration = Duration::from_millis(100);
 
@@ -209,52 +210,50 @@ fn account(b: &mut B<'_, '_>, k: &Theme) {
 ///   <div>account</div>
 /// </aside>
 /// ```
-pub fn sidebar(b: &mut B<'_, '_>, app: &App) {
-    let k = &Theme::of(b.ctx());
-    b.div_id(
-        Part::Sidebar,
+pub fn sidebar(s: &mut S<'_, '_>, app: &App) {
+    let k = &Theme::of(s.ctx());
+    s.text(
+        tw().role(k[Role::Title].clone()).px(2.5).py(2.0),
+        "Assistant",
+    );
+    link(s, k, Link::New);
+    link(s, k, Link::Search);
+    s.rule(tw().h_px(1.0).bg(k[Tok::Line]).my(2.0).mx(2.5));
+    for next in [Link::Projects, Link::Artifacts, Link::Customize, Link::More] {
+        link(s, k, next);
+    }
+    s.text(
+        tw().role(k[Role::Meta].clone())
+            .text(k[Tok::InkDim])
+            .px(2.5)
+            .pt(4.0)
+            .pb(1.0),
+        "Recents",
+    );
+    s.div(
         tw().flex()
             .flex_col()
-            .w_px(app.width(Pane::Sidebar).into())
-            .shrink_0()
             .gap(0.5)
-            .p(2.0)
-            .bg(k[Tok::Panel])
+            .grow()
+            .min_h_0()
             .overflow_hidden(),
-        none,
         |b| {
-            b.text(
-                tw().role(k[Role::Title].clone()).px(2.5).py(2.0),
-                "Assistant",
-            );
-            link(b, k, Link::New);
-            link(b, k, Link::Search);
-            b.rule(tw().h_px(1.0).bg(k[Tok::Line]).my(2.0).mx(2.5));
-            for next in [Link::Projects, Link::Artifacts, Link::Customize, Link::More] {
-                link(b, k, next);
+            for session in &app.sessions {
+                recent(b, k, session, session.key == app.selected);
             }
-            b.text(
-                tw().role(k[Role::Meta].clone())
-                    .text(k[Tok::InkDim])
-                    .px(2.5)
-                    .pt(4.0)
-                    .pb(1.0),
-                "Recents",
-            );
-            b.div(
-                tw().flex()
-                    .flex_col()
-                    .gap(0.5)
-                    .grow()
-                    .min_h_0()
-                    .overflow_hidden(),
-                |b| {
-                    for session in &app.sessions {
-                        recent(b, k, session, session.key == app.selected);
-                    }
-                },
-            );
-            account(b, k);
         },
     );
+    account(s, k);
+}
+
+/// The sidebar's box, which its caller keys.
+pub fn sidebar_style(k: &Theme, app: &App) -> Tw {
+    tw().flex()
+        .flex_col()
+        .w_px(app.width(Pane::Sidebar).into())
+        .shrink_0()
+        .gap(0.5)
+        .p(2.0)
+        .bg(k[Tok::Panel])
+        .overflow_hidden()
 }

@@ -45,11 +45,14 @@ enum Rows {
 /// struct App { unit: Unit }
 ///
 /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
-///     Segmented::new(
-///         app.unit,
-///         &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-///     )
-///     .show(b, "unit", |app, _, unit| app.unit = unit);
+///     b.segmented(
+///         "unit",
+///         Segmented::new(
+///             app.unit,
+///             &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+///         ),
+///         |app, _, unit| app.unit = unit,
+///     );
 /// }
 /// ```
 #[derive(Clone, Debug)]
@@ -139,7 +142,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
 
     /// Adds the control to `b` under `key`. `select` gets the application and
     /// the context, for a value the context holds.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
+    pub(crate) fn show<A: 'static, K: crate::Key>(
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,
@@ -200,7 +203,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
     /// given instead of read from the style, for a look the style does not
     /// describe. The cells sense clicks on top of them, and icons are the
     /// size of the cell's text.
-    pub fn show_with<A: 'static, K: Hash + Debug + 'static>(
+    pub(crate) fn show_with<A: 'static, K: crate::Key>(
         self,
         b: &mut Builder<'_, '_, A>,
         key: K,
@@ -220,7 +223,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
     }
 }
 
-fn cells_in<A: 'static, K: Hash + Debug + 'static, T: Copy + PartialEq + Hash + Debug + 'static>(
+fn cells_in<A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
     b: &mut Builder<'_, '_, A>,
     key: K,
     (current, options): (T, Vec<Option_<T>>),

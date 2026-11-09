@@ -61,11 +61,13 @@ pub fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSour
                 .text(t.foreground),
             |b| {
                 for (index, (name, _)) in ENTRIES.into_iter().enumerate() {
-                    Button::toggle(name, Mark::from(index == selected))
-                        .classes(tw().w_full())
-                        .show(b, ("entry", index), move |gallery: &mut Gallery| {
+                    b.button(
+                        ("entry", index),
+                        Button::toggle(name, Mark::from(index == selected)).classes(tw().w_full()),
+                        move |gallery: &mut Gallery| {
                             gallery.selected = index;
-                        });
+                        },
+                    );
                 }
             },
         );

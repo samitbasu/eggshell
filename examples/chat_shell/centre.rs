@@ -3,7 +3,7 @@
 use bullseye::owned::Select;
 use bullseye::owned::{Cell, Segmented};
 use bullseye::prim::text_field::{self, Field};
-use bullseye::{Builder, NodeUi, Opacity, Tw, none, tw};
+use bullseye::{Builder, NodeUi, Opacity, Scope, Tw, none, tw};
 use egui::{Key, WidgetInfo};
 
 use super::icons::{self, Glyph};
@@ -12,6 +12,7 @@ use super::theme::{Role, Theme, Tok};
 use super::view::Part;
 
 type B<'b, 'f> = Builder<'b, 'f, App>;
+type S<'b, 'f> = Scope<'b, 'f, App>;
 
 /// The model select, in the shape of a chip.
 ///
@@ -44,9 +45,9 @@ fn top_bar(b: &mut B<'_, '_>, app: &App) {
         |b| {
             b.text(tw().role(k[Role::Title].clone()).truncate(), title);
             let models: Vec<(usize, &str)> = MODELS.iter().copied().enumerate().collect();
-            Select::new(app.model, &models).named("Model").show(
-                b,
+            b.select(
                 Part::Model,
+                Select::new(app.model, &models).named("Model"),
                 |app: &mut App, _, model| app.model = model,
             );
         },
@@ -185,9 +186,9 @@ fn field(b: &mut B<'_, '_>, app: &App) {
 /// ```
 fn mode(b: &mut B<'_, '_>, app: &App) {
     let k = &Theme::of(b.ctx());
-    Segmented::new(app.mode, &Mode::ALL).show_with(
-        b,
+    b.segmented_with(
         Part::Mode,
+        Segmented::new(app.mode, &Mode::ALL),
         tw().flex()
             .items_center()
             .gap(0.5)
@@ -294,20 +295,18 @@ fn composer(b: &mut B<'_, '_>, app: &App) {
 ///   <div class="composer">...</div>
 /// </main>
 /// ```
-pub fn centre(b: &mut B<'_, '_>, app: &App) {
-    b.div_id(
-        Part::Centre,
-        tw().flex()
-            .flex_col()
-            .grow()
-            .min_w_0()
-            .overflow_hidden()
-            .bg(Theme::of(b.ctx())[Tok::Ground]),
-        none,
-        |b| {
-            top_bar(b, app);
-            conversation(b, app);
-            composer(b, app);
-        },
-    );
+pub fn centre(s: &mut S<'_, '_>, app: &App) {
+    top_bar(s, app);
+    conversation(s, app);
+    composer(s, app);
+}
+
+/// The centre pane's box, which its caller keys.
+pub fn centre_style(k: &Theme) -> Tw {
+    tw().flex()
+        .flex_col()
+        .grow()
+        .min_w_0()
+        .overflow_hidden()
+        .bg(k[Tok::Ground])
 }

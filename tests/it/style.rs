@@ -249,7 +249,7 @@ fn switches(b: &mut Builder<'_, '_, App>, app: &App) {
                 Some(track) => switch.track(track),
                 None => switch,
             };
-            switch.show(b, key, |app: &mut App| app.on = !app.on);
+            b.switch(key, switch, |app: &mut App| app.on = !app.on);
         }
     });
 }
@@ -325,7 +325,9 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
 
 fn segments(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().p(2.0), |b| {
-        Segmented::new(app.unit, &UNITS).show(b, "units", |app, _, unit| app.unit = unit);
+        b.segmented("units", Segmented::new(app.unit, &UNITS), |app, _, unit| {
+            app.unit = unit
+        });
     });
 }
 
@@ -584,16 +586,19 @@ fn hover_variants_are_translucent_steps_of_their_token() {
 
 fn many_segments(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().w_px(160.0).p(2.0), |b| {
-        Segmented::new(
-            app.unit,
-            &[
-                (Unit::Metric, "Metric"),
-                (Unit::Imperial, "Imperial"),
-                (Unit::Nautical, "Nautical"),
-            ],
-        )
-        .wrapping()
-        .show(b, "wrapped", |app, _, unit| app.unit = unit);
+        b.segmented(
+            "wrapped",
+            Segmented::new(
+                app.unit,
+                &[
+                    (Unit::Metric, "Metric"),
+                    (Unit::Imperial, "Imperial"),
+                    (Unit::Nautical, "Nautical"),
+                ],
+            )
+            .wrapping(),
+            |app, _, unit| app.unit = unit,
+        );
     });
 }
 
