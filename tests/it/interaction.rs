@@ -4,7 +4,9 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, LayoutState, NodeUi, Opacity, TextSpec, TextStyle, none, tw};
+use bullseye::{
+    Builder, Easing, LayoutState, NodeUi, Opacity, Progress, TextSpec, TextStyle, none, tw,
+};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -480,6 +482,82 @@ fn a_transition_passes_through_colours_between_base_and_variant() {
         panic!("the box is painted")
     };
     assert!(back.r() < LIT.r() && back.r() > BASE.r(), "fading back");
+}
+
+/// ```html
+/// <div class="w-[100px] h-[40px] bg-[#141414] hover:bg-[#dc1414] transition duration-500 ease-linear"></div>
+/// ```
+fn fading_linearly(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id(
+        "box",
+        tw().w_px(100.0)
+            .h_px(40.0)
+            .bg(BASE)
+            .hover(|p| p.bg(LIT))
+            .transition(Duration::from_millis(500))
+            .ease_linear(),
+        none,
+        |_| {},
+    );
+}
+
+/// The red channel's progress from `BASE` to `LIT`, sampled after each step
+/// of the 500ms transition, starting with the step that sees the hover.
+fn red_progress(view: View<()>) -> Vec<f32> {
+    let mut harness = harness((), view);
+    harness.run_steps(2);
+    let at = point(&harness, 10.0, 10.0);
+    harness.hover_at(at);
+    let span = f32::from(LIT.r() - BASE.r());
+    (0..10)
+        .map(|_| {
+            harness.step();
+            let Some(fill) = fill_at(&harness, 0.0, 0.0) else {
+                panic!("the box is painted")
+            };
+            f32::from(fill.r() - BASE.r()) / span
+        })
+        .collect()
+}
+
+/// Whether `samples` are `easing` of the `clock`, to a byte of colour.
+fn follows(samples: &[f32], clock: &[f32], easing: Easing) -> bool {
+    samples.iter().zip(clock).all(|(got, linear)| {
+        let want: f32 = easing.ease(Progress::new(*linear)).into();
+        (got - want).abs() < 0.01
+    })
+}
+
+#[test]
+fn a_transition_follows_the_default_curve_not_the_linear_clock() {
+    let clock = red_progress(fading_linearly);
+    let samples = red_progress(fading);
+    assert!(
+        follows(&clock, &clock, Easing::Linear)
+            && clock.iter().any(|t| (0.4..0.6).contains(t))
+            && clock.windows(2).all(|pair| pair[0] < pair[1]),
+        "precondition: the linear run is a clock passing the midpoint: {clock:?}"
+    );
+    assert!(
+        !follows(&samples, &clock, Easing::Linear),
+        "not linear: {samples:?}"
+    );
+    assert!(
+        follows(&samples, &clock, Easing::Default),
+        "{samples:?} vs {clock:?}"
+    );
+}
+
+#[test]
+fn a_transition_arrives_exactly_at_the_end() {
+    for view in [fading as View<()>, fading_linearly] {
+        let mut harness = harness((), view);
+        harness.run_steps(2);
+        let at = point(&harness, 10.0, 10.0);
+        harness.hover_at(at);
+        harness.run_steps(14);
+        assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT));
+    }
 }
 
 // ---------------------------------------------------------------------- reorder

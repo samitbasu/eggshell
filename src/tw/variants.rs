@@ -6,7 +6,7 @@ use core::time::Duration;
 
 use egui::{Color32, Sense, Shadow, Vec2};
 
-use super::{BoxPaint, Opacity, Progress, Ring, Sides, Tw};
+use super::{BoxPaint, Easing, Opacity, Progress, Ring, Sides, Tw};
 use crate::text::TextDecoration;
 
 /// What a node senses. Egui's own [`Sense`] cannot say "nothing declared":
@@ -286,6 +286,7 @@ pub(crate) struct Variants {
     focus: Option<Paint>,
     focus_within: Option<Paint>,
     pub(crate) transition: Option<Duration>,
+    pub(crate) easing: Easing,
 }
 
 impl Variants {
@@ -400,9 +401,58 @@ impl Tw {
     }
 
     /// `transition duration-*`: animates the node's variant changes over
-    /// `duration` instead of switching.
+    /// `duration` instead of switching, along Tailwind's default curve
+    /// `cubic-bezier(0.4, 0, 0.2, 1)` unless an `ease_*` class picks another.
+    ///
+    /// ```html
+    /// <button class="bg-primary hover:bg-primary/90 transition duration-150"></button>
+    /// ```
     pub fn transition(mut self, duration: Duration) -> Self {
         self.variants.transition = Some(duration);
+        self
+    }
+
+    /// `ease-linear`: the transition's timing function is `linear`.
+    ///
+    /// ```html
+    /// <div class="transition duration-150 ease-linear"></div>
+    /// ```
+    pub fn ease_linear(self) -> Self {
+        self.easing(Easing::Linear)
+    }
+
+    /// `ease-in`: the transition's timing function is
+    /// `cubic-bezier(0.4, 0, 1, 1)`.
+    ///
+    /// ```html
+    /// <div class="transition duration-150 ease-in"></div>
+    /// ```
+    pub fn ease_in(self) -> Self {
+        self.easing(Easing::In)
+    }
+
+    /// `ease-out`: the transition's timing function is
+    /// `cubic-bezier(0, 0, 0.2, 1)`.
+    ///
+    /// ```html
+    /// <div class="transition duration-150 ease-out"></div>
+    /// ```
+    pub fn ease_out(self) -> Self {
+        self.easing(Easing::Out)
+    }
+
+    /// `ease-in-out`: the transition's timing function is
+    /// `cubic-bezier(0.4, 0, 0.2, 1)`.
+    ///
+    /// ```html
+    /// <div class="transition duration-150 ease-in-out"></div>
+    /// ```
+    pub fn ease_in_out(self) -> Self {
+        self.easing(Easing::InOut)
+    }
+
+    fn easing(mut self, easing: Easing) -> Self {
+        self.variants.easing = easing;
         self
     }
 

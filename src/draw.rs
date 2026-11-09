@@ -470,11 +470,14 @@ impl<A> Walk<'_, A> {
             };
             let target = if on { Progress::END } else { Progress::START };
             match (variants.transition, node.id()) {
-                (Some(duration), Some(id)) => Progress::new(self.ui.ctx().animate_value_with_time(
-                    id.with(("bullseye-state", state as u8)),
-                    target.into(),
-                    duration.as_secs_f32(),
-                )),
+                (Some(duration), Some(id)) => {
+                    let linear = self.ui.ctx().animate_value_with_time(
+                        id.with(("bullseye-state", state as u8)),
+                        target.into(),
+                        duration.as_secs_f32(),
+                    );
+                    variants.easing.ease(Progress::new(linear))
+                }
                 _ => target,
             }
         };

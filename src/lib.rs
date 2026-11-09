@@ -57,4 +57,6 @@ pub use text::{
     FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle, Tracking,
     WhiteSpace,
 };
-pub use tw::{Angle, BoxPaint, Divide, Flip, Opacity, Paint, Progress, Ring, Sides, Track, Tw, tw};
+pub use tw::{
+    Angle, BoxPaint, Divide, Easing, Flip, Opacity, Paint, Progress, Ring, Sides, Track, Tw, tw,
+};
