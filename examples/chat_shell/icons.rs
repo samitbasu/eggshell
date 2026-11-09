@@ -19,8 +19,8 @@ fn stroke(color: Color32) -> Stroke {
 }
 
 /// A paint function for [`bullseye::Builder::paint`] that draws `glyph` in `color`.
-pub fn glyph(glyph: Glyph, color: Color32) -> impl Fn(&Painter, Rect) + 'static {
-    move |painter, rect| {
+pub fn glyph(glyph: Glyph, color: Color32) -> impl Fn(&Painter, Rect, Color32) + 'static {
+    move |painter, rect, _| {
         let c = rect.center();
         let r = rect.width().min(rect.height()) * 0.5 * 0.7;
         let s = stroke(color);

@@ -5,49 +5,73 @@ use std::hash::Hash;
 
 use egui::{Role, WidgetInfo};
 
-use super::style::{Look, Metrics, Style};
-use super::{Enablement, variant};
+use super::Enablement;
+use crate::contract::{Size, Variant};
 use crate::style::Mark;
-use crate::{Builder, NodeUi as _, tw};
+use crate::{Builder, NodeUi as _, Style, tw};
 
 #[derive(Clone, Copy, Debug)]
-enum Shape {
-    Variant(&'static str),
+enum Kind {
+    Variant(Option<Variant>),
     Toggle(Mark),
+}
+
+/// Whether pressing a button shifts it down, as shadcn's do.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Press {
+    Shifts,
+    Stays,
 }
 
 /// A button drawn from the [`Style`]: one of its variants, or a toggle.
 #[derive(Clone, Debug)]
 pub struct Button {
     label: String,
-    shape: Shape,
+    kind: Kind,
+    size: Size,
     name: Option<String>,
     enablement: Enablement,
+    press: Press,
 }
 
 impl Button {
-    /// A `secondary` button labelled `label`.
+    /// A button labelled `label` in the style's default variant.
     pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: label.into(),
-            shape: Shape::Variant(variant::SECONDARY),
+            kind: Kind::Variant(None),
+            size: Size::DEFAULT,
             name: None,
             enablement: Enablement::Enabled,
+            press: Press::Shifts,
         }
     }
 
     /// A toggle that shows whether it is `mark`ed on.
     pub fn toggle(label: impl Into<String>, mark: Mark) -> Self {
         Self {
-            shape: Shape::Toggle(mark),
+            kind: Kind::Toggle(mark),
             ..Self::new(label)
         }
     }
 
-    /// Draws the button as the style's variant `name`.
-    pub fn variant(self, name: &'static str) -> Self {
+    /// Draws the button as the style's variant `variant`.
+    pub fn variant(self, variant: Variant) -> Self {
         Self {
-            shape: Shape::Variant(name),
+            kind: Kind::Variant(Some(variant)),
+            ..self
+        }
+    }
+
+    /// Draws the button at the style's size `size`.
+    pub fn size(self, size: Size) -> Self {
+        Self { size, ..self }
+    }
+
+    /// Marks a button that opens a popup, which stays put when pressed.
+    pub fn opens_popup(self) -> Self {
+        Self {
+            press: Press::Stays,
             ..self
         }
     }
@@ -73,16 +97,29 @@ impl Button {
         on_click: impl FnOnce(&mut A) + 'static,
     ) {
         let style = Style::of(b.ctx());
-        let (look, metrics, selected): (&Look, &Metrics, Option<bool>) = match self.shape {
-            Shape::Variant(name) => (style.button.variant(name), &style.button.metrics, None),
-            Shape::Toggle(mark) => (
-                style.button.toggle(mark),
-                &style.button.toggle_metrics,
+        let button = &style.button;
+        let (look, metrics, selected) = match self.kind {
+            Kind::Variant(variant) => (
+                button
+                    .variants
+                    .get(variant.unwrap_or(button.variants.default_key())),
+                *button.sizes.get(self.size),
+                None,
+            ),
+            Kind::Toggle(mark) => (
+                match mark {
+                    Mark::Off => &button.toggle_off,
+                    Mark::On => &button.toggle_on,
+                },
+                *button.toggle_sizes.get(self.size),
                 Some(mark == Mark::On),
             ),
         };
-        let classes = look
-            .classes(metrics.radius, self.enablement, style.button.transition)
+        let mut classes = look.classes(&style, metrics.radius, self.enablement, button.transition);
+        if self.enablement == Enablement::Enabled && self.press == Press::Shifts {
+            classes = classes.active(|p| p.translate_y(button.press_shift));
+        }
+        let classes = classes
             .flex()
             .items_center()
             .justify_center()
@@ -90,7 +127,7 @@ impl Button {
             .min_w_px(metrics.min_width)
             .px(metrics.padding_x / 4.0)
             .gap(metrics.gap / 4.0)
-            .role(style.button.text.clone())
+            .role(style.text.clone())
             .whitespace_nowrap();
         let name = self.name.unwrap_or_else(|| self.label.clone());
         b.div_id(

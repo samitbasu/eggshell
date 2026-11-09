@@ -2,19 +2,22 @@
 //! kittest pointer and key events, the draw walk and the accessibility check
 //! the support harness switches on.
 
-use bullseye::owned::{Button, Checkbox, Enablement, Style, variant};
-use bullseye::style::{Mark, Shadcn, Tokens};
+use bullseye::Style;
+use bullseye::contract::{Size, Variant};
+use bullseye::owned::{Button, Checkbox, Enablement};
+use bullseye::style::{Mark, Shadcn, Tokens, variant};
 use bullseye::{Builder, TextStyle, tw};
-use egui::epaint::{RectShape, Shape, StrokeKind};
-use egui::{
-    Color32, Event, FontFamily, FontId, Key, Modifiers, PointerButton, Rect, Role, Theme, vec2,
-};
+use egui::epaint::Shape;
+use egui::{Color32, FontFamily, FontId, Key, Role, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, click_node, focused_path, hover_node, rect_of};
+use crate::support::{
+    self, Rig, box_at, click_node, focused_path, hover_node, press, rect_of, release, ring_at,
+    shapes, text_color,
+};
 
-const VARIANTS: [&str; 5] = [
+const VARIANTS: [Variant; 5] = [
     variant::PRIMARY,
     variant::SECONDARY,
     variant::DESTRUCTIVE,
@@ -44,7 +47,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                     .variant(name)
                     .enablement(enablement)
                     .show(b, (name, enablement), move |app: &mut App| {
-                        app.clicks.push(name.to_owned());
+                        app.clicks.push(name.0.to_owned());
                     });
             }
         }
@@ -61,17 +64,22 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
         Checkbox::unlabelled(Mark::Off)
             .named("Bare")
             .show(b, "bare", |_: &mut App| {});
+        Button::new("Menu")
+            .opens_popup()
+            .show(b, "menu", |app: &mut App| {
+                app.clicks.push("menu".to_owned())
+            });
     });
 }
 
-fn path(name: &str, enablement: Enablement) -> String {
+fn path(name: Variant, enablement: Enablement) -> String {
     format!("/({name:?}, {enablement:?})")
 }
 
 fn harness(theme: Theme) -> Harness<'static, Rig<App>> {
     let tokens = Tokens::for_theme(theme);
     let mut harness = support::harness(
-        vec2(500.0, 700.0),
+        vec2(500.0, 760.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
@@ -82,88 +90,7 @@ fn harness(theme: Theme) -> Harness<'static, Rig<App>> {
 }
 
 fn style(theme: Theme) -> Style {
-    Style::shadcn(&Shadcn::for_theme(theme))
-}
-
-fn flatten<'a>(shape: &'a Shape, into: &mut Vec<&'a Shape>) {
-    match shape {
-        Shape::Vec(shapes) => shapes.iter().for_each(|shape| flatten(shape, into)),
-        shape => into.push(shape),
-    }
-}
-
-fn shapes<'a, A>(harness: &'a Harness<'_, Rig<A>>) -> Vec<&'a Shape> {
-    let mut all = Vec::new();
-    for clipped in &harness.output().shapes {
-        flatten(&clipped.shape, &mut all);
-    }
-    all
-}
-
-fn same(a: Rect, b: Rect) -> bool {
-    (a.min - b.min).length() < 0.6 && (a.max - b.max).length() < 0.6
-}
-
-/// The last box painted over exactly `rect`, ring excluded.
-fn box_at(harness: &Harness<'_, Rig<App>>, rect: Rect) -> RectShape {
-    shapes(harness)
-        .into_iter()
-        .filter_map(|shape| match shape {
-            Shape::Rect(r) if same(r.rect, rect) && r.stroke_kind == StrokeKind::Inside => {
-                Some(r.clone())
-            }
-            _ => None,
-        })
-        .next_back()
-        .unwrap_or_else(|| panic!("no box painted at {rect:?}"))
-}
-
-fn ring_at(harness: &Harness<'_, Rig<App>>, rect: Rect) -> Option<RectShape> {
-    shapes(harness)
-        .into_iter()
-        .filter_map(|shape| match shape {
-            Shape::Rect(r) if same(r.rect, rect) && r.stroke_kind == StrokeKind::Outside => {
-                Some(r.clone())
-            }
-            _ => None,
-        })
-        .next_back()
-}
-
-fn text_color(harness: &Harness<'_, Rig<App>>, inside: Rect, text: &str) -> Color32 {
-    shapes(harness)
-        .into_iter()
-        .find_map(|shape| match shape {
-            Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => {
-                Some(t.override_text_color.unwrap_or(t.fallback_color))
-            }
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
-}
-
-fn press(harness: &mut Harness<'_, Rig<App>>, path: &str) {
-    let at = rect_of(harness, path).center();
-    harness.hover_at(at);
-    harness.run_steps(2);
-    harness.event(Event::PointerButton {
-        pos: at,
-        button: PointerButton::Primary,
-        pressed: true,
-        modifiers: Modifiers::NONE,
-    });
-    harness.run_steps(12);
-}
-
-fn release(harness: &mut Harness<'_, Rig<App>>, path: &str) {
-    let at = rect_of(harness, path).center();
-    harness.event(Event::PointerButton {
-        pos: at,
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Modifiers::NONE,
-    });
-    harness.run_steps(12);
+    Shadcn::for_theme(theme).style()
 }
 
 fn move_away(harness: &mut Harness<'_, Rig<App>>) {
@@ -177,16 +104,16 @@ fn every_variant_and_state_draws_the_styles_colours() {
         let style = style(theme);
         let mut harness = harness(theme);
         for name in VARIANTS {
-            let look = style.button.variant(name);
+            let look = style.button.variants.get(name);
             let node = path(name, Enablement::Enabled);
             let rect = rect_of(&harness, &node);
-            let radius = f32::from(style.button.metrics.radius);
+            let radius = f32::from(style.button.sizes.get(Size::DEFAULT).radius);
             let rest = look.states.rest;
             let shape = box_at(&harness, rect);
             assert_eq!(shape.fill, rest.fill, "{theme:?} {name} rest fill");
             assert_eq!(
                 shape.corner_radius,
-                egui::CornerRadius::same(style.button.metrics.radius),
+                egui::CornerRadius::same(style.button.sizes.get(Size::DEFAULT).radius),
                 "{theme:?} {name} radius {radius}"
             );
             assert_eq!(text_color(&harness, rect, "Save"), rest.text);
@@ -207,7 +134,7 @@ fn every_variant_and_state_draws_the_styles_colours() {
             assert_eq!(text_color(&harness, rect, "Save"), look.states.hover.text);
 
             press(&mut harness, &node);
-            let shape = box_at(&harness, rect);
+            let shape = box_at(&harness, rect.translate(vec2(0.0, 1.0)));
             assert_eq!(
                 shape.fill, look.states.pressed.fill,
                 "{theme:?} {name} pressed"
@@ -237,7 +164,7 @@ fn every_variant_and_state_draws_the_styles_colours() {
 #[test]
 fn vega_values_are_shadcns() {
     let light = style(Theme::Light);
-    let primary = light.button.variant(variant::PRIMARY);
+    let primary = light.button.variants.get(variant::PRIMARY);
     assert_eq!(
         primary.states.rest.fill,
         Color32::from_rgb(0x17, 0x17, 0x17)
@@ -250,10 +177,14 @@ fn vega_values_are_shadcns() {
         primary.states.hover.fill,
         Color32::from_rgb(0x17, 0x17, 0x17).gamma_multiply(0.9)
     );
-    assert_eq!(light.button.metrics.radius, 8, "rounded-md is radius - 2px");
+    assert_eq!(
+        light.button.sizes.get(Size::DEFAULT).radius,
+        8,
+        "rounded-md is radius - 2px"
+    );
     assert_eq!(light.checkbox.radius, 4);
     let dark = style(Theme::Dark);
-    let outline = dark.button.variant(variant::OUTLINE);
+    let outline = dark.button.variants.get(variant::OUTLINE);
     assert_eq!(
         outline.states.rest.fill,
         Tokens::dark().input.gamma_multiply(0.3)
@@ -272,7 +203,8 @@ fn disabled_is_explicit_colours_not_opacity() {
     let shape = box_at(&harness, rect);
     let rest = style(Theme::Light)
         .button
-        .variant(variant::PRIMARY)
+        .variants
+        .get(variant::PRIMARY)
         .states
         .rest;
     assert_eq!(shape.fill, rest.fill.gamma_multiply(0.5));
@@ -350,7 +282,7 @@ fn destructive_has_its_own_focus_ring() {
 fn sizes_are_what_the_classes_imply() {
     let mut harness = harness(Theme::Light);
     let style = style(Theme::Light);
-    let font = FontId::new(style.button.text.size, FontFamily::Proportional);
+    let font = FontId::new(style.text.size, FontFamily::Proportional);
     let text_width = |harness: &Harness<'_, Rig<App>>, text: &str| {
         harness.ctx.fonts_mut(|fonts| {
             fonts
@@ -402,7 +334,7 @@ fn checkbox_box_and_glyph_are_the_styles() {
         let node = "/(\"check\", Enabled)/Box";
         let rect = rect_of(&harness, node);
         let shape = box_at(&harness, rect);
-        let unchecked = style.checkbox.unchecked.states.rest;
+        let unchecked = style.checkbox.off.states.rest;
         assert_eq!(shape.fill, unchecked.fill, "{theme:?} unchecked");
         assert_eq!(shape.stroke.color, unchecked.border);
         assert_eq!(shape.corner_radius, egui::CornerRadius::same(4));
@@ -416,7 +348,7 @@ fn checkbox_box_and_glyph_are_the_styles() {
         click_node(&mut harness, node);
         harness.run_steps(12);
         assert!(harness.state().app.checked);
-        let checked = style.checkbox.checked.states.rest;
+        let checked = style.checkbox.on.states.rest;
         let shape = box_at(&harness, rect);
         assert_eq!(shape.fill, checked.fill, "{theme:?} checked");
         assert_eq!(shape.stroke.color, checked.border);
@@ -604,8 +536,8 @@ fn a_changed_style_changes_the_drawing() {
     let red = Color32::from_rgb(200, 30, 30);
     let look = style.button.variants.get_mut(variant::PRIMARY).unwrap();
     look.states.rest.fill = red;
-    style.button.metrics.radius = 0;
-    style.button.metrics.height = 40.0;
+    style.button.sizes.get_mut(Size::DEFAULT).unwrap().radius = 0;
+    style.button.sizes.get_mut(Size::DEFAULT).unwrap().height = 40.0;
     let mut harness = harness(Theme::Light);
     style.install(&harness.ctx);
     harness.run_steps(12);
@@ -614,4 +546,165 @@ fn a_changed_style_changes_the_drawing() {
     assert_eq!(shape.fill, red);
     assert_eq!(shape.corner_radius, egui::CornerRadius::ZERO);
     assert_eq!(rect.height(), 40.0);
+}
+
+fn press_at(harness: &mut Harness<'_, Rig<App>>, at: egui::Pos2) {
+    harness.hover_at(at);
+    harness.run_steps(2);
+    harness.event(egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    });
+}
+
+fn label_top(harness: &Harness<'_, Rig<App>>, inside: egui::Rect) -> f32 {
+    shapes(harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Text(t) if inside.contains(t.pos) => Some(t.pos.y),
+            _ => None,
+        })
+        .expect("text in the button")
+}
+
+#[test]
+fn a_pressed_button_is_painted_one_point_lower_and_nothing_else_moves() {
+    let mut harness = harness(Theme::Light);
+    let node = path(variant::PRIMARY, Enablement::Enabled);
+    let rect = rect_of(&harness, &node);
+    let rest_text = label_top(&harness, rect);
+    let nodes_before = harness.state().nodes.clone();
+    assert_eq!(
+        style(Theme::Light).button.press_shift,
+        1.0,
+        "precondition: vega shifts"
+    );
+
+    press_at(&mut harness, rect.center());
+    harness.run_steps(12);
+    let moved = rect.translate(vec2(0.0, 1.0));
+    assert_eq!(
+        box_at(&harness, moved).fill,
+        style(Theme::Light)
+            .button
+            .variants
+            .get(variant::PRIMARY)
+            .states
+            .pressed
+            .fill
+    );
+    assert_eq!(
+        label_top(&harness, moved) - rest_text,
+        1.0,
+        "the subtree moves with the box"
+    );
+    assert_eq!(harness.state().nodes, nodes_before, "layout rects stay");
+}
+
+#[test]
+fn the_hit_rect_stays_where_layout_put_it() {
+    let mut harness = harness(Theme::Light);
+    let node = path(variant::PRIMARY, Enablement::Enabled);
+    let rect = rect_of(&harness, &node);
+    let top_edge = egui::pos2(rect.center().x, rect.top() + 0.25);
+    press_at(&mut harness, top_edge);
+    harness.run_steps(12);
+    assert!(
+        box_at(&harness, rect.translate(vec2(0.0, 1.0))).rect.top() > top_edge.y,
+        "precondition: the point is above the moved box"
+    );
+    harness.event(egui::Event::PointerButton {
+        pos: top_edge,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    harness.run_steps(2);
+    assert_eq!(harness.state().app.clicks, ["primary"]);
+}
+
+#[test]
+fn the_press_eases_in_and_out_with_the_transition() {
+    let mut harness = harness(Theme::Light);
+    let node = path(variant::PRIMARY, Enablement::Enabled);
+    let rect = rect_of(&harness, &node);
+    let offset = |harness: &Harness<'_, Rig<App>>| {
+        let top = shapes(harness)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                Shape::Rect(r)
+                    if (r.rect.size() - rect.size()).length() < 0.6
+                        && (r.rect.min.x - rect.min.x).abs() < 0.6
+                        && (r.rect.min.y - rect.min.y).abs() < 1.6
+                        && r.stroke_kind == egui::StrokeKind::Inside =>
+                {
+                    Some(r.rect.min.y)
+                }
+                _ => None,
+            })
+            .next_back()
+            .expect("the box");
+        top - rect.top()
+    };
+    assert_eq!(offset(&harness), 0.0);
+    press_at(&mut harness, rect.center());
+    let mut seen = Vec::new();
+    for _ in 0..6 {
+        harness.step();
+        seen.push(offset(&harness));
+    }
+    assert!(
+        seen.iter().any(|y| *y > 0.0 && *y < 1.0),
+        "it passes through in-between offsets: {seen:?}"
+    );
+    assert!(seen.windows(2).all(|pair| pair[0] <= pair[1]), "{seen:?}");
+    assert_eq!(*seen.last().unwrap(), 1.0);
+
+    harness.event(egui::Event::PointerButton {
+        pos: rect.center(),
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    let mut back = Vec::new();
+    for _ in 0..6 {
+        harness.step();
+        back.push(offset(&harness));
+    }
+    assert!(back.iter().any(|y| *y > 0.0 && *y < 1.0), "{back:?}");
+    assert_eq!(*back.last().unwrap(), 0.0);
+}
+
+#[test]
+fn a_button_that_opens_a_popup_stays_put_when_pressed() {
+    let mut harness = harness(Theme::Light);
+    let rect = rect_of(&harness, "/\"menu\"");
+    press_at(&mut harness, rect.center());
+    harness.run_steps(12);
+    assert_eq!(
+        box_at(&harness, rect).fill,
+        style(Theme::Light)
+            .button
+            .variants
+            .get(variant::SECONDARY)
+            .states
+            .pressed
+            .fill,
+        "the box is pressed and at its layout rect"
+    );
+}
+
+#[test]
+fn a_style_without_press_shift_does_not_move_buttons() {
+    let mut style = style(Theme::Light);
+    style.button.press_shift = 0.0;
+    let mut harness = harness(Theme::Light);
+    style.install(&harness.ctx);
+    harness.run_steps(4);
+    let rect = rect_of(&harness, &path(variant::PRIMARY, Enablement::Enabled));
+    press_at(&mut harness, rect.center());
+    harness.run_steps(12);
+    box_at(&harness, rect);
 }

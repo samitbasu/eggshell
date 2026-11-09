@@ -340,7 +340,7 @@ fn card_box() -> Tw {
 /// ```
 fn reference_card<A>(b: &mut B<'_, '_, A>, class: ShadowClass) {
     b.div(tw().relative().w_px(CARD_SIZE[0]).h_px(CARD_SIZE[1]), |b| {
-        b.paint(tw().absolute().inset(0.0), move |painter, rect| {
+        b.paint(tw().absolute().inset(0.0), move |painter, rect, _| {
             for layer in class.layers.iter().rev() {
                 painter.add(layer.reference(rect, CARD_RADIUS));
             }

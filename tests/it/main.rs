@@ -8,6 +8,7 @@
 
 mod chat_shell_demo;
 mod compile_fail;
+mod contract;
 mod controls;
 mod debug;
 mod draw;
@@ -20,6 +21,7 @@ mod kaolin_sidebar;
 mod known_gaps_demo;
 mod layout;
 mod owned;
+mod owned_choice;
 mod ports;
 mod prims;
 mod sizing;

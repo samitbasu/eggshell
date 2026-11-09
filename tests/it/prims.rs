@@ -4,13 +4,12 @@
 
 use std::collections::BTreeMap;
 
-use bullseye::prim::segmented::{Cell, segmented};
+use bullseye::owned::{Cell, Segmented};
 use bullseye::prim::select::{self, Options};
-use bullseye::prim::switch::Switch;
 use bullseye::widget::{Stock, TextEdit};
 use bullseye::{Builder, TextSpec, TextStyle, Width, tw};
 use egui::epaint::Shape;
-use egui::{Color32, Event, FontFamily, Id, Key, Rect, vec2};
+use egui::{Color32, Event, FontFamily, Id, Key, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
@@ -33,7 +32,6 @@ fn base_text() -> TextStyle {
 struct App {
     one_line: String,
     notes: String,
-    on: bool,
     pick: usize,
     inert: bool,
     /// Keyed rows, in display order.
@@ -54,7 +52,6 @@ fn choices() -> Options {
 /// <div class="flex flex-col items-start gap-2 p-2">
 ///   <input class="w-[220px]" placeholder="Name">
 ///   <textarea class="w-[220px]" placeholder="Notes"></textarea>
-///   <label class="switch">Wi-Fi</label>
 ///   <select>…</select>
 /// </div>
 /// ```
@@ -82,18 +79,6 @@ fn controls(b: &mut Builder<'_, '_, App>, app: &App) {
             |app, ui, field| {
                 let response = field.show(ui, &mut app.notes);
                 app.used.insert("notes", response.rect.size());
-            },
-        );
-        b.widget("wifi", tw(), Switch::new("Wi-Fi"), |app, ui, switch| {
-            let response = switch.show(ui, &mut app.on);
-            app.used.insert("wifi", response.rect.size());
-        });
-        b.widget(
-            "bare",
-            tw(),
-            Switch::unlabelled().named("Bare switch"),
-            |app, ui, switch| {
-                switch.show(ui, &mut app.on);
             },
         );
         b.widget(
@@ -150,7 +135,6 @@ fn measured_size_equals_the_size_used() {
                 Some(Width::new(220.0)),
             ),
         ),
-        ("wifi", Switch::new("Wi-Fi").size(&ctx, &text, None)),
         ("pick", choices().size(&ctx, &text, None)),
     ] {
         let path = format!("/{name:?}");
@@ -163,45 +147,6 @@ fn measured_size_equals_the_size_used() {
             "{name}: used {used:?}, measured {measured:?}"
         );
     }
-}
-
-#[test]
-fn a_switch_paints_exactly_its_measured_row() {
-    let harness = harness();
-    let rect = rect_of(&harness, "/\"wifi\"");
-    let painted = harness
-        .output()
-        .shapes
-        .iter()
-        .filter(|clipped| rect.contains_rect(clipped.clip_rect.intersect(rect)))
-        .filter_map(|clipped| match &clipped.shape {
-            Shape::Text(_) | Shape::Rect(_) | Shape::Circle(_) => {
-                Some(clipped.shape.visual_bounding_rect())
-            }
-            _ => None,
-        })
-        .filter(|bounds| rect.expand(0.5).contains_rect(*bounds))
-        .fold(Rect::NOTHING, Rect::union);
-    assert!(painted.is_positive(), "precondition: the switch painted");
-    assert_eq!(painted.min.x, rect.min.x);
-    assert!(
-        painted.max.x <= rect.max.x + 0.01 && rect.max.x - painted.max.x < 2.0,
-        "the label's ink ends where the measure says: {painted:?} in {rect:?}"
-    );
-}
-
-#[test]
-fn a_switch_toggles_and_the_unlabelled_one_is_just_the_track() {
-    let mut harness = harness();
-    assert!(!harness.state().app.on, "precondition");
-    click_node(&mut harness, "/\"wifi\"");
-    assert!(harness.state().app.on);
-    click_node(&mut harness, "/\"bare\"");
-    assert!(!harness.state().app.on);
-    assert!(
-        rect_of(&harness, "/\"bare\"").width() < rect_of(&harness, "/\"wifi\"").width(),
-        "the label takes room"
-    );
 }
 
 #[test]
@@ -246,28 +191,24 @@ fn an_inert_subtree_disables_its_widgets() {
         "x",
         "precondition: editable while live"
     );
-    click_node(&mut harness, "/\"wifi\"");
-    assert!(harness.state().app.on, "precondition: toggles while live");
-    click_node(&mut harness, "/\"wifi\"");
 
     harness.state_mut().app.inert = true;
     harness.run_steps(3);
     let app = |harness: &Harness<'_, Rig<App>>| {
         let app = &harness.state().app;
-        (app.one_line.clone(), app.on, app.pick)
+        (app.one_line.clone(), app.pick)
     };
     let before = app(&harness);
 
     focus(&mut harness, "/\"name\"");
     type_text(&mut harness, "yz");
-    click_node(&mut harness, "/\"wifi\"");
     click_node(&mut harness, "/\"pick\"");
     harness.run_steps(3);
     assert!(
         harness.query_by_label("South-west").is_none(),
         "the select did not open"
     );
-    assert_eq!(app(&harness), before, "no edit, no toggle, no choice");
+    assert_eq!(app(&harness), before, "no edit, no choice");
 }
 
 /// ```html
@@ -433,21 +374,23 @@ const OFF: Color32 = Color32::from_rgb(50, 50, 50);
 /// ```
 fn picker(b: &mut Builder<'_, '_, Picker>, app: &Picker) {
     let container = if app.inert { tw().inert() } else { tw() };
-    segmented(
-        b,
-        "mode",
-        container.flex().gap(1.0).p(2.0),
+    Segmented::new(
         app.mode,
         &[
             (Mode::Day, "Day"),
             (Mode::Week, "Week"),
             (Mode::Month, "Month"),
         ],
+    )
+    .show_with(
+        b,
+        "mode",
+        container.flex().gap(1.0).p(2.0),
         |cell| match cell {
             Cell::Pressed => tw().px(3.0).py(1.0).bg(ON),
             Cell::Released => tw().px(3.0).py(1.0).bg(OFF),
         },
-        |app| &mut app.mode,
+        |app, _, mode| app.mode = mode,
     );
 }
 
@@ -641,7 +584,7 @@ fn a_multi_line_field_keeps_its_text_at_the_top() {
 #[test]
 fn named_primitives_are_found_by_their_accessible_name() {
     let harness = harness();
-    for name in ["Name", "Notes", "Bare switch", "Direction"] {
+    for name in ["Name", "Notes", "Direction"] {
         let _ = harness.get_by_label(name);
     }
 }

@@ -19,11 +19,10 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use bullseye::owned::{self, variant};
-use bullseye::prim::segmented::segmented;
+use bullseye::owned;
 use bullseye::prim::select::{self, Options};
-use bullseye::prim::switch::Switch;
 use bullseye::prim::text_field::{self, Field};
+use bullseye::style::variant;
 use bullseye::style::{ButtonVariant, Mark};
 use bullseye::widget::{
     Button, Checkbox, ComboBox, DragValue, Lines, RadioButton, Slider, TextEdit,
@@ -182,9 +181,7 @@ pub enum Control {
     TextEditMulti,
     TextField,
     TextFieldMulti,
-    Switch,
     Select,
-    Segmented,
 }
 
 /// Whether a cell's widget is usable.
@@ -205,7 +202,7 @@ const fn variant(variant: ButtonVariant, enablement: Enablement) -> Control {
 }
 
 impl Control {
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 21] = [
         Self::Button,
         variant(ButtonVariant::Primary, Enablement::Enabled),
         variant(ButtonVariant::Primary, Enablement::Disabled),
@@ -226,17 +223,8 @@ impl Control {
         Self::TextEditMulti,
         Self::TextField,
         Self::TextFieldMulti,
-        Self::Switch,
         Self::Select,
-        Self::Segmented,
     ];
-
-    /// The controls that wrap an egui widget in a leaf, whose rect is
-    /// checked. A switch and a segmented control are drawn by the library, so
-    /// egui has no widget to compare them with.
-    pub fn is_checked(self) -> bool {
-        !matches!(self, Self::Switch | Self::Segmented)
-    }
 
     fn name(self) -> String {
         let name = match self {
@@ -257,9 +245,7 @@ impl Control {
             Self::TextEditMulti => "widget::TextEdit, multi-line",
             Self::TextField => "prim::text_field",
             Self::TextFieldMulti => "prim::text_field, multi-line",
-            Self::Switch => "prim::switch",
             Self::Select => "prim::select",
-            Self::Segmented => "prim::segmented",
         };
         name.to_owned()
     }
@@ -307,9 +293,10 @@ pub struct State {
     pub on: bool,
     pub choice: usize,
     pub unit: Unit,
-    /// What the owned section's checkboxes and toggle hold.
+    /// What the owned section's checkbox, toggle, radio group and switch hold.
     pub owned_checked: bool,
     pub owned_toggled: bool,
+    pub owned_radio: Unit,
     /// How often an owned button was clicked.
     pub owned_clicks: u32,
 }
@@ -319,7 +306,8 @@ pub struct State {
 pub enum Section {
     /// Each wrapped widget in a cell outlined with its computed and drawn rects.
     Cells,
-    /// Wrapped widgets beside the same controls built from bullseye nodes.
+    /// Wrapped widgets beside the same controls built from bullseye nodes,
+    /// and the controls that only exist built from nodes.
     Owned,
 }
 
@@ -357,6 +345,7 @@ impl Default for State {
             section: Section::Cells,
             owned_checked: true,
             owned_toggled: true,
+            owned_radio: Unit::Metric,
             owned_clicks: 0,
         }
     }
@@ -639,9 +628,6 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                 },
             );
         }
-        Control::Switch => b.widget(control, tw(), Switch::new(label), move |s, ui, w| {
-            w.show(ui, &mut s.on);
-        }),
         Control::Select => {
             let options = Options::new(select_labels(label)).named(label);
             let measured = options.clone();
@@ -662,18 +648,6 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                     );
                 },
             );
-        }
-        Control::Segmented => {
-            let classes = common::segmented_classes(b.ctx());
-            segmented(
-                b,
-                control,
-                classes.container(),
-                state.unit,
-                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-                |cell| classes.cell(cell),
-                |s| &mut s.unit,
-            )
         }
     }
 }
@@ -747,10 +721,9 @@ fn widest_combo(ui: &mut Ui, labels: &[&str]) -> Rect {
 
 /// What a cell's caption says about its report.
 fn status(state: &State, control: Control, muted: Color32) -> (String, Color32) {
-    match (control.is_checked(), state.reports.get(&control)) {
-        (false, _) => ("drawn by the library".to_owned(), muted),
-        (true, None) => (String::new(), muted),
-        (true, Some(report)) => match report.mismatch() {
+    match state.reports.get(&control) {
+        None => (String::new(), muted),
+        Some(report) => match report.mismatch() {
             None => ("ok".to_owned(), muted),
             Some(off) => (format!("MISMATCH {:.1} x {:.1}", off.x, off.y), FLAG),
         },
@@ -929,7 +902,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
     );
 }
 
-const WRAPPED_VARIANTS: [(ButtonVariant, &str, &str); 5] = [
+const WRAPPED_VARIANTS: [(ButtonVariant, &str, bullseye::contract::Variant); 5] = [
     (ButtonVariant::Primary, "primary", variant::PRIMARY),
     (ButtonVariant::Secondary, "secondary", variant::SECONDARY),
     (
@@ -1075,6 +1048,59 @@ fn owned_section(b: &mut B<'_, '_>, state: &State) {
                 },
             );
         }
+        comparison_row(
+            b,
+            "radio group",
+            |b| {
+                b.widget(
+                    "wrapped-radio",
+                    tw(),
+                    RadioButton::new("Metric"),
+                    |s: &mut State, ui, radio| {
+                        if radio.show(ui, s.selected).clicked() {
+                            s.selected = !s.selected;
+                        }
+                    },
+                );
+            },
+            |b| {
+                owned::RadioGroup::new(
+                    state.owned_radio,
+                    &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+                )
+                .show(b, "owned-radio", |s: &mut State, unit| s.owned_radio = unit);
+            },
+        );
+        for enablement in [Enablement::Enabled, Enablement::Disabled] {
+            let label = match enablement {
+                Enablement::Enabled => "switch",
+                Enablement::Disabled => "switch, disabled",
+            };
+            comparison_row(
+                b,
+                label,
+                |b| b.text(tw(), "no wrapped form"),
+                |b| {
+                    owned::Switch::new("Airplane mode", Mark::from(state.on))
+                        .enablement(owned_enablement(enablement))
+                        .show(b, ("owned-switch", enablement), |s: &mut State| {
+                            s.on = !s.on
+                        });
+                },
+            );
+        }
+        comparison_row(
+            b,
+            "segmented",
+            |b| b.text(tw(), "no wrapped form"),
+            |b| {
+                owned::Segmented::new(
+                    state.unit,
+                    &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+                )
+                .show(b, "owned-segmented", |s: &mut State, _, unit| s.unit = unit);
+            },
+        );
     });
 }
 

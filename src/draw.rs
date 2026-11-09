@@ -1,12 +1,14 @@
 //! The draw phase: [`Placed::draw`](crate::Placed::draw) walks the laid-out
 //! tree in pre-order and paints box, primitive and draw closure per node.
 
+use egui::emath::TSTransform;
 use egui::epaint::{RectShape, StrokeKind};
+use egui::layers::ShapeIdx;
 use std::borrow::Cow;
 
 use egui::{
-    Align, Color32, Frame, Id, Image, Layout, Painter, Pos2, Rect, Response, Sense, Stroke, Ui,
-    UiBuilder, UiKind, UiStackInfo, Vec2, pos2, vec2,
+    Align, Color32, Frame, Id, Image, Layout, Painter, Pos2, Rect, Response, Role, Sense, Stroke,
+    Ui, UiBuilder, UiKind, UiStackInfo, Vec2, WidgetInfo, pos2, vec2,
 };
 use taffy::Overflow;
 
@@ -531,6 +533,7 @@ impl<A> Walk<'_, A> {
         let look = interaction.variants.resolve(
             Look {
                 paint: *node.paint(),
+                translate: Vec2::ZERO,
                 text: base_color,
                 decoration: node.text().decoration,
             },
@@ -547,6 +550,7 @@ impl<A> Walk<'_, A> {
         };
 
         let opacity = parent.opacity * look.paint.opacity;
+        let moved_from = (look.translate != Vec2::ZERO).then(|| self.next_shape());
         paint_box(
             &self.painter(parent.clip, opacity),
             &look.paint,
@@ -595,6 +599,27 @@ impl<A> Walk<'_, A> {
             self.visit(child, inherited);
         }
         self.paint_dividers(index, &in_layout_order, inherited);
+        if let Some(first) = moved_from {
+            self.translate_shapes_since(first, look.translate);
+        }
+    }
+
+    fn next_shape(&self) -> ShapeIdx {
+        let layer = self.ui.layer_id();
+        self.ui
+            .ctx()
+            .graphics_mut(|graphics| graphics.entry(layer).next_idx())
+    }
+
+    /// Moves what the subtree painted since `first`, and the clips it was
+    /// painted with, as a CSS transform does: layout and hit rects stay.
+    fn translate_shapes_since(&self, first: ShapeIdx, by: Vec2) {
+        let layer = self.ui.layer_id();
+        self.ui.ctx().graphics_mut(|graphics| {
+            let list = graphics.entry(layer);
+            let end = list.next_idx();
+            list.transform_range(first, end, TSTransform::from_translation(by));
+        });
     }
 
     fn paint_prim(&mut self, prim: Prim, text: &TextStyle, boxes: &Boxes, inherited: Inherited) {
@@ -619,7 +644,11 @@ impl<A> Walk<'_, A> {
             }
             Prim::Icon(icon) => self.paint_image(image_for(icon, text.color), content, inherited),
             Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
-            Prim::Paint(paint) => paint(&self.painter(inherited.clip, inherited.opacity), content),
+            Prim::Paint(paint) => paint(
+                &self.painter(inherited.clip, inherited.opacity),
+                content,
+                text.color,
+            ),
         }
     }
 
@@ -741,6 +770,15 @@ pub trait NodeUi {
     /// Whether the node, or a widget inside it, has keyboard focus. See
     /// [`focus_within`](crate::focus_within).
     fn has_focus_within(&self) -> bool;
+
+    /// Declares the node the visible label `text` of the control with id
+    /// `control`, another node of the same frame: assistive technology names
+    /// the control by it. Returns whether the label was clicked, for the
+    /// caller to forward to the control, as clicking a `<label>` does.
+    ///
+    /// The node must sense clicks, and is best left out of the Tab order
+    /// (`focusable_none`), as the control is the one to focus.
+    fn label_for(&self, control: egui::Id, text: &str) -> bool;
 }
 
 impl NodeUi for Ui {
@@ -753,6 +791,16 @@ impl NodeUi for Ui {
 
     fn has_focus_within(&self) -> bool {
         focus::focus_within(self.ctx(), self.node_id())
+    }
+
+    fn label_for(&self, control: egui::Id, text: &str) -> bool {
+        let response = self.node_response();
+        response.widget_info(|| WidgetInfo::labeled(Role::Label, self.is_enabled(), text));
+        self.ctx().accesskit_node_builder(control, |node| {
+            node.clear_label();
+            node.push_labelled_by(response.id.accesskit_id());
+        });
+        response.clicked()
     }
 
     fn node_response(&self) -> Response {

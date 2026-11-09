@@ -11,8 +11,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use bullseye::owned::{Enablement, Switch};
 use bullseye::prim::select::{self, Options};
-use bullseye::prim::switch::Switch;
 use bullseye::prim::text_field::Field;
 use bullseye::widget::Button;
 use bullseye::{Builder, NodeUi as _, Opacity, Tw, tw};
@@ -222,10 +222,17 @@ fn choose(
     );
 }
 
-fn switch(b: &mut B<'_, '_>, key: Part, live: Tw, label: &str, lens: fn(&mut State) -> &mut bool) {
-    b.widget(key, live, Switch::new(label), move |state, ui, switch| {
-        switch.show(ui, lens(state));
-    });
+fn switch(
+    b: &mut B<'_, '_>,
+    key: Part,
+    enablement: Enablement,
+    label: &str,
+    on: bool,
+    toggle: fn(&mut State),
+) {
+    Switch::new(label, bullseye::style::Mark::from(on))
+        .enablement(enablement)
+        .show(b, key, toggle);
 }
 
 /// A toggle button: pressed while its mark is on, independent of the others.
@@ -341,26 +348,37 @@ fn profile(b: &mut B<'_, '_>, state: &State) {
 /// <section class="flex flex-col gap-3">
 ///   <h2>Notifications</h2>
 ///   <div class="flex items-start gap-4"><label>Alerts</label>
-///     <div class="flex flex-col gap-2">three switches, the last one inert and at half opacity</div>
+///     <div class="flex flex-col gap-2">three switches, the last one disabled</div>
 ///   </div>
 /// </section>
 /// ```
-fn notifications(b: &mut B<'_, '_>) {
+fn notifications(b: &mut B<'_, '_>, state: &State) {
     section(b, "Notifications", |b| {
         row(b, "Alerts", |b| {
             b.div(tw().flex().flex_col().gap(2.0), |b| {
-                switch(b, Part::EmailAlerts, tw(), "Email alerts", |s| {
-                    &mut s.email_alerts
-                });
-                switch(b, Part::PushAlerts, tw(), "Push notifications", |s| {
-                    &mut s.push_alerts
-                });
+                switch(
+                    b,
+                    Part::EmailAlerts,
+                    Enablement::Enabled,
+                    "Email alerts",
+                    state.email_alerts,
+                    |s| s.email_alerts = !s.email_alerts,
+                );
+                switch(
+                    b,
+                    Part::PushAlerts,
+                    Enablement::Enabled,
+                    "Push notifications",
+                    state.push_alerts,
+                    |s| s.push_alerts = !s.push_alerts,
+                );
                 switch(
                     b,
                     Part::Beta,
-                    disabled(),
+                    Enablement::Disabled,
                     "Beta features (unavailable)",
-                    |s| &mut s.beta,
+                    state.beta,
+                    |s| s.beta = !s.beta,
                 );
             });
         });
@@ -472,7 +490,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                     .text(t.foreground),
                 |b| {
                     profile(b, state);
-                    notifications(b);
+                    notifications(b, state);
                     preferences(b, state);
                     save(b, state);
                 },

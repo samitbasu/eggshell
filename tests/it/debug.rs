@@ -76,7 +76,7 @@ fn nested(b: &mut Builder<'_, '_, ()>, _: &()) {
             b.span("label", tw(), "label", none);
         });
         b.rule(tw().h_px(1.0));
-        b.paint(tw().w_px(10.0).h_px(10.0), |_, _| {});
+        b.paint(tw().w_px(10.0).h_px(10.0), |_, _, _| {});
     });
     b.div_id(
         "overlay",

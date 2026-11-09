@@ -615,7 +615,6 @@ fn gallery_in(name: &str, width: f32, theme: egui::Theme) {
     assert!(
         controls_gallery::Control::ALL
             .iter()
-            .filter(|control| control.is_checked())
             .all(|control| reports.contains_key(control)),
         "precondition: every checked cell drew: {:?}",
         reports.keys()
@@ -652,7 +651,7 @@ fn owned_section(name: &str, theme: egui::Theme) {
         ..Default::default()
     };
     let mut harness = support::harness_prepared(
-        Vec2::new(900.0, 800.0),
+        Vec2::new(900.0, 900.0),
         common::base_text(theme),
         state,
         controls_gallery::layout,

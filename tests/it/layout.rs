@@ -895,7 +895,7 @@ fn rules_are_boxes_sized_by_classes() {
 /// ```
 #[test]
 fn paint_nodes_are_laid_out_by_their_classes() {
-    let placed = place(|b| b.paint(tw().size_px(20.0), |_, _| {}));
+    let placed = place(|b| b.paint(tw().size_px(20.0), |_, _, _| {}));
     assert_eq!(rects(&placed, NodeKind::Paint)[0].size(), vec2(20.0, 20.0));
 }
 

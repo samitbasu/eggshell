@@ -6,10 +6,9 @@ use std::hash::Hash;
 
 use egui::{Color32, Painter, Pos2, Rect, Role, Shape, Stroke, WidgetInfo, pos2};
 
-use super::Enablement;
-use super::style::Style;
+use super::{Enablement, choice_label, choice_row};
 use crate::style::Mark;
-use crate::{Builder, NodeUi as _, TextSpec, tw};
+use crate::{Builder, NodeUi as _, Style, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -81,84 +80,50 @@ impl Checkbox {
     ) {
         let style = Style::of(b.ctx());
         let checkbox = &style.checkbox;
-        let look = checkbox.look(self.mark);
-        let colors = match self.enablement {
-            Enablement::Enabled => look.states.rest,
-            Enablement::Disabled => look.states.disabled,
+        let look = match self.mark {
+            Mark::Off => &checkbox.off,
+            Mark::On => &checkbox.on,
         };
-        let label_color = match self.enablement {
-            Enablement::Enabled => checkbox.label.rest,
-            Enablement::Disabled => checkbox.label.disabled,
-        }
-        .text;
-        let tight = TextSpec {
-            line_height: checkbox.text.size,
-            ..checkbox.text.clone()
-        };
-        let name = self.name.or_else(|| self.label.clone()).unwrap_or_default();
-        let mark = self.mark;
         let enablement = self.enablement;
-        let (size, glyph, gap) = (checkbox.size, checkbox.glyph, checkbox.gap);
         let box_classes = look
-            .classes(checkbox.radius, enablement, checkbox.transition)
+            .classes(&style, checkbox.radius, enablement, checkbox.transition)
             .flex()
             .items_center()
             .justify_center()
             .shrink_0()
-            .size_px(size);
-        let row = tw()
-            .flex()
-            .items_center()
-            .gap(gap / 4.0)
-            .role(tight)
-            .whitespace_nowrap();
+            .size_px(checkbox.size);
+        let (glyph, mark) = (checkbox.glyph, self.mark);
+        let name = self.name.unwrap_or_default();
         b.scope(key, |b| {
-            b.div(
-                if enablement == Enablement::Disabled {
-                    row.inert()
-                } else {
-                    row
-                },
-                |b| {
-                    b.div_id(
-                        Part::Box,
-                        box_classes,
-                        move |app, ui| {
-                            let response = ui.node_response();
-                            if response.clicked() {
-                                on_toggle(app);
-                            }
-                            response.widget_info(|| {
-                                WidgetInfo::selected(
-                                    Role::CheckBox,
-                                    ui.is_enabled(),
-                                    mark == Mark::On,
-                                    &name,
-                                )
-                            });
-                        },
-                        |b| {
-                            if mark == Mark::On {
-                                b.paint(tw().size_px(glyph), move |painter, rect| {
-                                    paint_check(painter, rect, colors.text);
-                                });
-                            }
-                        },
-                    );
-                    if let Some(label) = self.label {
-                        b.span(
-                            Part::Label,
-                            tw().text(label_color).sense_click().focusable_none(),
-                            label,
-                            move |app, ui| {
-                                if ui.node_response().clicked() {
-                                    on_toggle(app);
-                                }
-                            },
-                        );
-                    }
-                },
-            );
+            let control = b.id_of(Part::Box);
+            b.div(choice_row(&style, enablement, checkbox.gap), |b| {
+                b.div_id(
+                    Part::Box,
+                    box_classes,
+                    move |app, ui| {
+                        let response = ui.node_response();
+                        if response.clicked() {
+                            on_toggle(app);
+                        }
+                        response.widget_info(|| {
+                            WidgetInfo::selected(
+                                Role::CheckBox,
+                                ui.is_enabled(),
+                                mark == Mark::On,
+                                &name,
+                            )
+                        });
+                    },
+                    |b| {
+                        if mark == Mark::On {
+                            b.paint(tw().size_px(glyph), paint_check);
+                        }
+                    },
+                );
+                if let Some(label) = self.label {
+                    choice_label(b, Part::Label, control, label, enablement, on_toggle);
+                }
+            });
         });
     }
 }

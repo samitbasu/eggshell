@@ -46,7 +46,7 @@ fn mismatches(harness: &Harness<'_, Rig<State>>) -> Vec<String> {
 #[track_caller]
 fn assert_all_report(harness: &Harness<'_, Rig<State>>) {
     let reports = &harness.state().app.reports;
-    for control in Control::ALL.into_iter().filter(|c| c.is_checked()) {
+    for control in Control::ALL.into_iter() {
         let report = reports
             .get(&control)
             .unwrap_or_else(|| panic!("{control:?} did not draw: {:?}", reports.keys()));

@@ -13,7 +13,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
-use bullseye::prim::segmented::{Cell, segmented, segmented_by};
+use bullseye::owned::{Cell, Segmented};
 use bullseye::prim::text_field::{self, Field};
 use bullseye::style::{Accent, Shadcn, Tokens};
 use bullseye::widget::Slider;
@@ -255,17 +255,10 @@ where
     A: 'static,
     K: Hash + Debug + 'static,
 {
-    let classes = segmented_classes(b.ctx());
     let current = b.ctx().options(|options| options.theme_preference);
-    segmented_by(
-        b,
-        key,
-        classes.container(),
-        current,
-        &APPEARANCES,
-        |cell| classes.cell(cell),
-        |_: &mut A, ctx, preference| ctx.set_theme(preference),
-    );
+    Segmented::new(current, &APPEARANCES).show(b, key, |_: &mut A, ctx, preference| {
+        ctx.set_theme(preference)
+    });
 }
 
 /// The strip every example shows along its top edge, with the theme toggle
@@ -439,11 +432,6 @@ pub fn menu_item(t: &Tokens, cell: Cell) -> Tw {
     }
 }
 
-/// The shadcn tab-list classes for the context's theme.
-pub fn segmented_classes(ctx: &Context) -> bullseye::style::SegmentedClasses {
-    Shadcn::of(ctx).segmented()
-}
-
 /// A row of segments that sets the `T` at `lens`. A track of more than
 /// [`MAX_ONE_ROW`] segments wraps.
 ///
@@ -464,21 +452,13 @@ pub fn choice<S, K, T>(
     K: Hash + Debug + 'static,
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
-    let classes = segmented_classes(b.ctx());
-    let classes = if options.len() > MAX_ONE_ROW {
-        classes.wrapping()
+    let group = Segmented::new(current, options);
+    let group = if options.len() > MAX_ONE_ROW {
+        group.wrapping()
     } else {
-        classes
+        group
     };
-    segmented(
-        b,
-        key,
-        classes.container(),
-        current,
-        options,
-        |cell| classes.cell(cell),
-        lens,
-    );
+    group.show(b, key, move |state, _, value| *lens(state) = value);
 }
 
 /// A frameless text field filling its row, in shadcn's input box: `h-9`,

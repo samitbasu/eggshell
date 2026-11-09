@@ -1,8 +1,7 @@
 //! The shadcn preset: what `apply` sets in egui, stock widgets under it, and
 //! the library's primitives drawn with its proportions.
 
-use bullseye::prim::segmented::segmented;
-use bullseye::prim::switch::Switch;
+use bullseye::owned::{Segmented, Switch};
 use bullseye::style::{Accent, ButtonVariant, Shadcn, Tokens, tokens};
 use bullseye::widget::{Button, ComboBox, Stock, TextEdit};
 use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Width, tw};
@@ -269,22 +268,20 @@ fn harness_of(view: support::View<App>) -> Harness<'static, Rig<App>> {
     harness
 }
 
-fn switches(b: &mut Builder<'_, '_, App>, _: &App) {
+fn switches(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(2.0).p(2.0), |b| {
-        for (key, classes) in [
-            ("default", tw()),
-            ("sized", tw().w_px(48.0).h_px(28.0)),
-            ("wide", tw().w_px(64.0)),
-            ("tall", tw().h_px(36.0)),
+        for (key, track) in [
+            ("default", None),
+            ("sized", Some(vec2(48.0, 28.0))),
+            ("wide", Some(vec2(64.0, 64.0 * 18.4 / 32.0))),
+            ("tall", Some(vec2(36.0 * 32.0 / 18.4, 36.0))),
         ] {
-            b.widget(
-                key,
-                classes,
-                Switch::unlabelled().named(key),
-                |app, ui, switch| {
-                    switch.show(ui, &mut app.on);
-                },
-            );
+            let switch = Switch::unlabelled(bullseye::style::Mark::from(app.on)).named(key);
+            let switch = match track {
+                Some(track) => switch.track(track),
+                None => switch,
+            };
+            switch.show(b, key, |app: &mut App| app.on = !app.on);
         }
     });
 }
@@ -306,7 +303,7 @@ fn thumb_in(harness: &Harness<'_, Rig<App>>, rect: Rect) -> egui::epaint::Circle
 fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
     let mut harness = harness_of(switches);
     let tokens = Tokens::light();
-    let default = rect_of(&harness, "/\"default\"");
+    let default = rect_of(&harness, "/\"default\"/Track");
     assert_eq!(default.width(), 32.0, "w-8");
     assert!((default.height() - 18.4).abs() < 0.01, "h-[1.15rem]");
 
@@ -317,7 +314,7 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
         ("tall", vec2(36.0 * 32.0 / 18.4, 36.0)),
     ];
     for (key, track) in cases {
-        let rect = rect_of(&harness, &format!("/{key:?}"));
+        let rect = rect_of(&harness, &format!("/{key:?}/Track"));
         assert!(
             (rect.size() - track).abs().max_elem() < 0.01,
             "{key}: leaf {rect:?} for track {track:?}"
@@ -328,7 +325,7 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
         harness.state_mut().app.on = on;
         harness.run_steps(8);
         for (key, track) in cases {
-            let rect = rect_of(&harness, &format!("/{key:?}"));
+            let rect = rect_of(&harness, &format!("/{key:?}/Track"));
             let thumb = thumb_in(&harness, rect);
             let radius = tokens.switch_thumb_for(rect.size()) / 2.0;
             assert!(
@@ -351,7 +348,7 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
         }
     }
     let small = thumb_in(&harness, default).radius;
-    let big = thumb_in(&harness, rect_of(&harness, "/\"sized\"")).radius;
+    let big = thumb_in(&harness, rect_of(&harness, "/\"sized\"/Track")).radius;
     assert!(
         big > small,
         "precondition: the larger track has a larger thumb"
@@ -359,17 +356,8 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
 }
 
 fn segments(b: &mut Builder<'_, '_, App>, app: &App) {
-    let classes = Shadcn::light().segmented();
     b.div(tw().p(2.0), |b| {
-        segmented(
-            b,
-            "units",
-            classes.container(),
-            app.unit,
-            &UNITS,
-            |cell| classes.cell(cell),
-            |app| &mut app.unit,
-        );
+        Segmented::new(app.unit, &UNITS).show(b, "units", |app, _, unit| app.unit = unit);
     });
 }
 
@@ -399,7 +387,7 @@ fn raised_cells(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
 }
 
 #[test]
-fn the_shadcn_segmented_classes_raise_exactly_the_pressed_cell() {
+fn the_shadcn_segmented_style_raises_exactly_the_selected_cell() {
     let mut harness = harness_of(segments);
     let track = rect_of(&harness, "/\"units\"");
     assert_eq!(track.height(), 36.0, "h-9");
@@ -617,26 +605,22 @@ fn hover_variants_are_translucent_steps_of_their_token() {
 }
 
 fn many_segments(b: &mut Builder<'_, '_, App>, app: &App) {
-    let classes = Shadcn::light().segmented().wrapping();
     b.div(tw().w_px(160.0).p(2.0), |b| {
-        segmented(
-            b,
-            "wrapped",
-            classes.container(),
+        Segmented::new(
             app.unit,
             &[
                 (Unit::Metric, "Metric"),
                 (Unit::Imperial, "Imperial"),
                 (Unit::Nautical, "Nautical"),
             ],
-            |cell| classes.cell(cell),
-            |app| &mut app.unit,
-        );
+        )
+        .wrapping()
+        .show(b, "wrapped", |app, _, unit| app.unit = unit);
     });
 }
 
 #[test]
-fn segmented_classes_fit_their_cells_and_can_wrap() {
+fn segmented_cells_fit_their_track_and_can_wrap() {
     let harness = harness_of(segments);
     let track = rect_of(&harness, "/\"units\"");
     let cells =

@@ -13,6 +13,7 @@
 //! The design brief lives in `docs/design.md`.
 
 mod builder;
+pub mod contract;
 mod debug;
 mod draw;
 mod focus;
@@ -28,6 +29,7 @@ mod tw;
 pub mod widget;
 
 pub use builder::{Builder, none};
+pub use contract::Style;
 pub use debug::Debug;
 pub use draw::NodeUi;
 pub use focus::focus_within;

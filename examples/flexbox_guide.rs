@@ -13,7 +13,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::prim::segmented::Cell;
+use bullseye::owned::Cell;
 use bullseye::{Builder, Tw, tw};
 use common::{mono, sized};
 use egui::Color32;

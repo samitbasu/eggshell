@@ -72,7 +72,6 @@ pub(crate) struct Row {
 
 /// A measured row.
 pub(crate) struct Laid {
-    pub pieces: Vec<Measured>,
     pub outer: Vec2,
 }
 
@@ -217,7 +216,6 @@ impl<'a> Sizer<'a> {
         }
 
         Laid {
-            pieces: measured.into_iter().flatten().collect(),
             outer: (Vec2::new(main, cross) + margin).at_least(min_size),
         }
     }

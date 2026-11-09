@@ -1,0 +1,169 @@
+//! The owned radio group: circles that choose one value, with arrow keys.
+
+use std::fmt::Debug;
+use std::hash::Hash;
+
+use egui::{EventFilter, Id, Key, Modifiers, Role, Ui, WidgetInfo};
+
+use super::{Enablement, choice_label, choice_row};
+use crate::{Builder, NodeUi as _, Style, Tw, tw};
+
+#[derive(Clone, Copy, Debug, Hash)]
+enum Part<T> {
+    Circle(T),
+    Label(T),
+}
+
+/// Radio buttons that choose one of `options`, drawn from the [`Style`].
+///
+/// Each circle is a Tab stop. The arrow keys move the choice, and the focus
+/// with it, to the next or previous option, wrapping around.
+#[derive(Clone, Debug)]
+pub struct RadioGroup<T> {
+    current: T,
+    options: Vec<(T, String)>,
+    container: Tw,
+    enablement: Enablement,
+}
+
+impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
+    /// A group of `(value, label)` options of which `current` is chosen.
+    /// Values must be distinct.
+    pub fn new(current: T, options: &[(T, &str)]) -> Self {
+        Self {
+            current,
+            options: options
+                .iter()
+                .map(|&(value, label)| (value, label.to_owned()))
+                .collect(),
+            container: tw().flex().flex_col().gap(3.0),
+            enablement: Enablement::Enabled,
+        }
+    }
+
+    /// The classes of the container, a column by default.
+    pub fn container(mut self, container: Tw) -> Self {
+        self.container = container;
+        self
+    }
+
+    /// Whether the group takes input.
+    pub fn enablement(mut self, enablement: Enablement) -> Self {
+        self.enablement = enablement;
+        self
+    }
+
+    /// Adds the group to `b` under `key`. `select` runs with the value of the
+    /// option that was chosen with the pointer or the keyboard.
+    pub fn show<A: 'static, K: Hash + Debug + 'static>(
+        self,
+        b: &mut Builder<'_, '_, A>,
+        key: K,
+        select: fn(&mut A, T),
+    ) {
+        let style = Style::of(b.ctx());
+        let radio = &style.radio;
+        let enablement = self.enablement;
+        let values: Vec<T> = self.options.iter().map(|&(value, _)| value).collect();
+        let count = values.len();
+        b.scope(key, |b| {
+            let ids: Vec<_> = values
+                .iter()
+                .map(|&value| b.id_of(Part::Circle(value)))
+                .collect();
+            b.div(self.container, |b| {
+                for (index, (value, label)) in self.options.into_iter().enumerate() {
+                    let chosen = value == self.current;
+                    let look = if chosen { &radio.on } else { &radio.off };
+                    let circle = look
+                        .classes(&style, u8::MAX, enablement, radio.transition)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .shrink_0()
+                        .size_px(radio.size);
+                    let around = |offset: usize| {
+                        let at = (index + offset) % count;
+                        (values[at], ids[at])
+                    };
+                    let (previous, next) = (around(count - 1), around(1));
+                    let dot = radio.dot;
+                    let control = ids[index];
+                    b.div(choice_row(&style, enablement, radio.gap), |b| {
+                        b.div_id(
+                            Part::Circle(value),
+                            circle,
+                            move |app, ui| {
+                                let response = ui.node_response();
+                                if response.clicked() {
+                                    select(app, value);
+                                }
+                                if response.has_focus() {
+                                    navigate(app, ui, select, previous, next);
+                                }
+                                response.widget_info(|| {
+                                    WidgetInfo::selected(
+                                        Role::RadioButton,
+                                        ui.is_enabled(),
+                                        chosen,
+                                        "",
+                                    )
+                                });
+                            },
+                            |b| {
+                                if chosen {
+                                    b.paint(tw().size_px(dot), |painter, rect, color| {
+                                        painter.circle_filled(
+                                            rect.center(),
+                                            rect.width() / 2.0,
+                                            color,
+                                        );
+                                    });
+                                }
+                            },
+                        );
+                        choice_label(
+                            b,
+                            Part::Label(value),
+                            control,
+                            label,
+                            enablement,
+                            move |app| {
+                                select(app, value);
+                            },
+                        );
+                    });
+                }
+            });
+        });
+    }
+}
+
+/// Moves the choice and the focus on an arrow key. The focused circle keeps
+/// the arrows from moving the focus spatially.
+fn navigate<A, T: Copy>(
+    app: &mut A,
+    ui: &Ui,
+    select: fn(&mut A, T),
+    previous: (T, Id),
+    next: (T, Id),
+) {
+    let filter = EventFilter {
+        horizontal_arrows: true,
+        vertical_arrows: true,
+        ..EventFilter::default()
+    };
+    let id = ui.node_id();
+    ui.ctx()
+        .memory_mut(|memory| memory.set_focus_lock_filter(id, filter));
+    let pressed = |key| ui.input_mut(|input| input.consume_key(Modifiers::NONE, key));
+    let forward = pressed(Key::ArrowDown) | pressed(Key::ArrowRight);
+    let backward = pressed(Key::ArrowUp) | pressed(Key::ArrowLeft);
+    let (value, id) = match (forward, backward) {
+        (true, false) => next,
+        (false, true) => previous,
+        _ => return,
+    };
+    select(app, value);
+    ui.ctx().memory_mut(|memory| memory.request_focus(id));
+}

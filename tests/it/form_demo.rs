@@ -34,6 +34,11 @@ fn path(part: Part) -> String {
     format!("/{part:?}")
 }
 
+/// The track of the switch named `part`, which is what is focused and clicked.
+fn track_path(part: Part) -> String {
+    format!("/{part:?}/Track")
+}
+
 /// The leaf of a text field, which sits inside the box named `part`.
 fn field_path(part: Part) -> String {
     format!("/{part:?}/\"field\"")
@@ -74,7 +79,8 @@ fn tab_visits_the_controls_top_to_bottom_and_skips_what_is_inert() {
     let expected: Vec<String> = [Part::Name, Part::Email, Part::Bio]
         .into_iter()
         .map(field_path)
-        .chain([Part::EmailAlerts, Part::PushAlerts, Part::Language].map(path))
+        .chain([Part::EmailAlerts, Part::PushAlerts].map(track_path))
+        .chain([path(Part::Language)])
         .chain(["Light", "Dark", "System"].map(|cell| format!("/\"theme\"/{cell}")))
         .chain(Mark::ALL.map(|mark| path(Part::Mark(mark))))
         .chain(form::SWATCHES.map(|swatch| path(Part::Accent(swatch.name))))
@@ -89,12 +95,12 @@ fn tab_visits_the_controls_top_to_bottom_and_skips_what_is_inert() {
         tops.is_sorted(),
         "the order is the visual order, top to bottom: {tops:?}"
     );
-    for skipped in [Part::Beta, Part::Region, Part::Save] {
+    for skipped in [track_path(Part::Beta), path(Part::Region), path(Part::Save)] {
         assert!(
-            rect_of(&harness, &path(skipped)).width() > 0.0,
+            rect_of(&harness, &skipped).width() > 0.0,
             "precondition: {skipped:?} is on screen"
         );
-        assert!(!order.contains(&path(skipped)), "{skipped:?} is inert");
+        assert!(!order.contains(&skipped), "{skipped:?} is inert");
     }
 }
 
@@ -135,15 +141,15 @@ fn typing_fills_the_fields_and_save_counts_once_it_is_allowed() {
 fn a_switch_toggles_and_the_inert_one_does_not() {
     let mut harness = harness();
     assert!(harness.state().app.email_alerts, "precondition");
-    click_node(&mut harness, &path(Part::EmailAlerts));
+    click_node(&mut harness, &track_path(Part::EmailAlerts));
     harness.run_steps(2);
     assert!(!harness.state().app.email_alerts);
 
-    click_node(&mut harness, &path(Part::PushAlerts));
+    click_node(&mut harness, &track_path(Part::PushAlerts));
     harness.run_steps(2);
     assert!(harness.state().app.push_alerts);
 
-    click_node(&mut harness, &path(Part::Beta));
+    click_node(&mut harness, &track_path(Part::Beta));
     harness.run_steps(2);
     assert!(!harness.state().app.beta, "inert");
 }

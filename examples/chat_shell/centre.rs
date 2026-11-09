@@ -1,6 +1,6 @@
 //! The middle pane: title bar, conversation and composer.
 
-use bullseye::prim::segmented::{Cell, segmented};
+use bullseye::owned::{Cell, Segmented};
 use bullseye::prim::select::{self, Options};
 use bullseye::prim::text_field::{self, Field};
 use bullseye::{Builder, NodeUi, Opacity, Tw, none, tw};
@@ -192,15 +192,13 @@ fn field(b: &mut B<'_, '_>, app: &App) {
 /// ```
 fn mode(b: &mut B<'_, '_>, app: &App) {
     let k = &Theme::of(b.ctx());
-    segmented(
+    Segmented::new(app.mode, &Mode::ALL).show_with(
         b,
         Part::Mode,
         tw().flex()
             .items_center()
             .gap(0.5)
             .role(k[Role::Small].clone()),
-        app.mode,
-        &Mode::ALL,
         |cell| {
             let look = tw()
                 .px(2.5)
@@ -212,7 +210,7 @@ fn mode(b: &mut B<'_, '_>, app: &App) {
                 Cell::Released => look.text(k[Tok::InkMid]).hover(|p| p.bg(k[Tok::Hover])),
             }
         },
-        |app| &mut app.mode,
+        |app, _, mode| app.mode = mode,
     );
 }
 

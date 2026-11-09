@@ -5,12 +5,15 @@
 //! light and dark. Nothing here runs unless the application calls
 //! [`Shadcn::apply`]: the library never changes egui's style on its own.
 //!
-//! Applying a preset does two things. It maps the [`Tokens`] onto the egui
+//! Applying a preset does three things. It fills the [`bullseye::Style`](crate::Style)
+//! contract with the tokens ([`Shadcn::style`]) and installs it for the
+//! preset's theme, which the owned widgets of [`owned`](crate::owned) draw
+//! from. It maps the [`Tokens`] onto the egui
 //! [`Style`] of the preset's theme (widget fills, strokes, radii, selection,
 //! spacing), which stock widgets and the size estimates in
 //! [`widget`](crate::widget) follow automatically. It also remembers the
 //! tokens in the context, for the few things egui's style cannot express: the
-//! switch's colours and the input's padding, which egui shares with buttons.
+//! input's padding, which egui shares with buttons.
 //!
 //! What egui cannot express and the preset therefore approximates: the focus
 //! ring is the 1 pt border egui draws around a focused text edit (no 3 pt
@@ -36,14 +39,35 @@
 //! so a hover on a `muted` surface needs the half-strength variant of the
 //! selected colour, not a different token.
 
+use std::time::Duration;
+
 use egui::{
     Color32, Context, CornerRadius, Id, Margin, Shadow, Stroke, Style, TextStyle, Theme, Vec2,
     style::{HandleShape, Visuals, WidgetVisuals, Widgets},
     vec2,
 };
 
-use crate::prim::segmented::Cell;
-use crate::{TextSpec, Tw, tw};
+use crate::TextSpec;
+use crate::contract::{
+    self, Colors, Focus, Keyed, Look as BoxLook, Metrics, Size, States, SwitchMetrics,
+};
+
+/// The names of shadcn's button variants, the keys of the contract's
+/// [`ButtonStyle::variants`](contract::ButtonStyle::variants) this preset defines.
+pub mod variant {
+    use crate::contract::Variant;
+
+    /// `default`.
+    pub const PRIMARY: Variant = Variant("primary");
+    /// `secondary`: the variant of a button that names none.
+    pub const SECONDARY: Variant = Variant("secondary");
+    /// `destructive`.
+    pub const DESTRUCTIVE: Variant = Variant("destructive");
+    /// `outline`.
+    pub const OUTLINE: Variant = Variant("outline");
+    /// `ghost`.
+    pub const GHOST: Variant = Variant("ghost");
+}
 
 /// A colour from `0xRRGGBB`.
 const fn rgb(hex: u32) -> Color32 {
@@ -542,6 +566,243 @@ impl Shadcn {
         }
     }
 
+    /// This preset's vega look as the [`Style`](crate::Style) contract.
+    pub fn style(&self) -> contract::Style {
+        let t = &self.tokens;
+        let dark = self.theme == Theme::Dark;
+        let clear = Color32::TRANSPARENT;
+        let ring = Focus {
+            width: 3.0,
+            color: t.ring.gamma_multiply(0.5),
+        };
+        let focused = |rest: Colors| Colors {
+            border: t.ring,
+            ..rest
+        };
+        let flat = |fill, text| Colors {
+            fill,
+            border: clear,
+            text,
+        };
+        let states = |rest: Colors, hover: Colors| States {
+            focused: focused(rest),
+            ..States::new(rest, hover)
+        };
+        let filled = |rest: Colors, hover: Colors| BoxLook::new(states(rest, hover));
+
+        let outline_rest = Colors {
+            fill: self.input_fill(),
+            border: t.input,
+            text: t.foreground,
+        };
+        let outline_hover = Colors {
+            fill: if dark { t.input_50() } else { t.accent },
+            text: if dark {
+                t.foreground
+            } else {
+                t.accent_foreground
+            },
+            ..outline_rest
+        };
+        let destructive_ring = Focus {
+            color: t.destructive.gamma_multiply(if dark { 0.4 } else { 0.2 }),
+            ..ring
+        };
+        let destructive = BoxLook {
+            focus: Some(destructive_ring),
+            ..filled(
+                flat(
+                    if dark {
+                        t.destructive_60()
+                    } else {
+                        t.destructive
+                    },
+                    t.destructive_foreground,
+                ),
+                flat(t.destructive_90(), t.destructive_foreground),
+            )
+        };
+        let variants = Keyed::new(
+            variant::SECONDARY,
+            filled(
+                flat(t.secondary, t.secondary_foreground),
+                flat(t.secondary_80(), t.secondary_foreground),
+            ),
+        )
+        .with(
+            variant::PRIMARY,
+            filled(
+                flat(t.primary, t.primary_foreground),
+                flat(t.primary_90(), t.primary_foreground),
+            ),
+        )
+        .with(variant::DESTRUCTIVE, destructive)
+        .with(
+            variant::OUTLINE,
+            BoxLook::new(states(outline_rest, outline_hover))
+                .bordered(1.0)
+                .shadowed(t.shadow_xs),
+        )
+        .with(
+            variant::GHOST,
+            filled(
+                flat(clear, t.foreground),
+                flat(
+                    if dark { t.accent_50() } else { t.accent },
+                    t.accent_foreground,
+                ),
+            ),
+        );
+        let control = Metrics {
+            height: t.control_height,
+            min_width: 0.0,
+            padding_x: t.button_padding.x,
+            gap: 8.0,
+            radius: t.radius_md(),
+        };
+        let toggle = Metrics {
+            min_width: t.control_height,
+            padding_x: 8.0,
+            ..control
+        };
+        let accented = flat(t.accent, t.accent_foreground);
+        let transition = Duration::from_millis(150);
+
+        let box_rest = Colors {
+            fill: self.input_fill(),
+            border: t.input,
+            text: t.primary_foreground,
+        };
+        let box_on = Colors {
+            fill: t.primary,
+            border: t.primary,
+            text: t.primary_foreground,
+        };
+        let boxed = |colors| {
+            BoxLook::new(states(colors, colors))
+                .bordered(1.0)
+                .shadowed(t.shadow_xs)
+        };
+        let radio_colors = Colors {
+            text: t.primary,
+            ..box_rest
+        };
+
+        let switch_look = |track, thumb| {
+            BoxLook::new(states(
+                Colors {
+                    fill: track,
+                    border: clear,
+                    text: thumb,
+                },
+                Colors {
+                    fill: track,
+                    border: clear,
+                    text: thumb,
+                },
+            ))
+        };
+        let thumb = t.switch_thumb;
+        let (selected_cell, released_cell) = (
+            if dark {
+                Colors {
+                    fill: t.input_30(),
+                    border: t.input,
+                    text: t.foreground,
+                }
+            } else {
+                Colors {
+                    fill: t.background,
+                    border: clear,
+                    text: t.foreground,
+                }
+            },
+            flat(clear, t.muted_foreground),
+        );
+        let mut style = contract::Style::default();
+        style.text = t.text_role();
+        style.focus = ring;
+        style.label = States::still(flat(clear, t.foreground));
+        style.button = {
+            let mut button = style.button;
+            button.variants = variants;
+            button.sizes = Keyed::new(Size::DEFAULT, control);
+            button.toggle_sizes = Keyed::new(Size::DEFAULT, toggle);
+            button.toggle_off =
+                filled(flat(clear, t.foreground), flat(t.muted, t.muted_foreground));
+            button.toggle_on = filled(accented, accented);
+            button.press_shift = 1.0;
+            button.transition = transition;
+            button
+        };
+        style.checkbox = {
+            let mut checkbox = style.checkbox;
+            checkbox.size = 16.0;
+            checkbox.radius = 4;
+            checkbox.glyph = 14.0;
+            checkbox.gap = 8.0;
+            checkbox.off = boxed(box_rest);
+            checkbox.on = boxed(box_on);
+            checkbox.transition = transition;
+            checkbox
+        };
+        style.radio = {
+            let mut radio = style.radio;
+            radio.size = 16.0;
+            radio.dot = 8.0;
+            radio.gap = 8.0;
+            radio.off = boxed(radio_colors);
+            radio.on = boxed(radio_colors);
+            radio.transition = transition;
+            radio
+        };
+        style.switch = {
+            let mut switch = style.switch;
+            switch.sizes = Keyed::new(
+                Size::DEFAULT,
+                SwitchMetrics {
+                    track: t.switch_track,
+                    thumb_off: thumb,
+                    thumb_on: thumb,
+                },
+            );
+            switch.gap = 8.0;
+            switch.off = switch_look(t.switch_track_off, t.switch_thumb_off);
+            switch.on = switch_look(t.switch_track_on, t.switch_thumb_on);
+            switch.transition = transition;
+            switch
+        };
+        style.segmented = {
+            let mut segmented = style.segmented;
+            segmented.track_fill = t.muted;
+            segmented.track_radius = t.radius;
+            segmented.track_padding = t.list_padding;
+            segmented.height = t.control_height;
+            segmented.cell_radius = t.radius_md();
+            segmented.cell_padding = vec2(8.0, 4.0);
+            segmented.row_gap = 2.0;
+            segmented.selected = BoxLook::new(States::still(selected_cell))
+                .bordered(if dark { 1.0 } else { 0.0 })
+                .shadowed(t.shadow_sm);
+            segmented.unselected = BoxLook::new(States::still(released_cell));
+            segmented.transition = transition;
+            segmented
+        };
+        style.selection = {
+            let mut selection = style.selection;
+            selection.fill = t.primary.gamma_multiply(0.3);
+            selection.text = Some(t.foreground);
+            selection
+        };
+        style.link = {
+            let mut link = style.link;
+            link.rest = t.primary;
+            link.hover = t.primary;
+            link
+        };
+        style
+    }
+
     /// Sets the egui style of this preset's theme from the tokens and
     /// remembers them for the library's primitives. Safe to call every frame
     /// but only needed again when the tokens change.
@@ -549,18 +810,7 @@ impl Shadcn {
         let tokens = self.tokens.clone();
         ctx.style_mut_of(self.theme, |style| tokens.set_style(self.theme, style));
         ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
-    }
-
-    /// The classes of a shadcn tab list or toggle group over [`segmented`]
-    /// cells: one row as wide as its cells (`w-fit`).
-    ///
-    /// [`segmented`]: crate::prim::segmented::segmented
-    pub fn segmented(&self) -> SegmentedClasses {
-        SegmentedClasses {
-            theme: self.theme,
-            tokens: self.tokens.clone(),
-            rows: Rows::One,
-        }
+        self.style().install_for(ctx, self.theme);
     }
 }
 
@@ -573,13 +823,6 @@ fn tokens_id(theme: Theme) -> Id {
 pub fn tokens(ctx: &Context) -> Option<Tokens> {
     let id = tokens_id(ctx.theme());
     ctx.data(|data| data.get_temp::<Tokens>(id))
-}
-
-/// Whether a track keeps its cells on one row.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Rows {
-    One,
-    Wrapping,
 }
 
 /// shadcn's `Button` variants.
@@ -806,83 +1049,6 @@ impl Shadcn {
     /// The colour of a label beside a checkbox or a radio button.
     pub(crate) fn label_color(&self) -> Color32 {
         self.tokens.foreground
-    }
-}
-
-/// The classes of a shadcn tab list or toggle group.
-///
-/// Pass [`container`](Self::container) and [`cell`](Self::cell) to
-/// [`segmented`](crate::prim::segmented::segmented): a muted track with
-/// padding and `rounded-lg`, in which the pressed cell is raised with the
-/// background fill and `shadow-sm`. The track is as wide as its cells; give
-/// it `w_full` to stretch it, or use [`wrapping`](Self::wrapping) for many
-/// options.
-///
-/// ```html
-/// <div class="flex items-center w-fit h-9 p-[3px] rounded-lg bg-muted">
-///   <span class="grow flex items-center justify-center px-2 py-1 rounded-md text-muted-foreground">…</span>
-/// </div>
-/// ```
-#[derive(Clone, Debug)]
-pub struct SegmentedClasses {
-    theme: Theme,
-    tokens: Tokens,
-    rows: Rows,
-}
-
-impl SegmentedClasses {
-    /// These classes for a track that wraps its cells onto more rows when it
-    /// is narrower than they are, and takes its height from the rows.
-    #[must_use]
-    pub fn wrapping(mut self) -> Self {
-        self.rows = Rows::Wrapping;
-        self
-    }
-
-    /// The track.
-    pub fn container(&self) -> Tw {
-        let t = &self.tokens;
-        let track = tw()
-            .flex()
-            .items_center()
-            .w_fit()
-            .p(t.list_padding / 4.0)
-            .rounded_px(f32::from(t.radius))
-            .bg(t.muted);
-        match self.rows {
-            Rows::One => track.h_px(t.control_height),
-            Rows::Wrapping => track.flex_wrap().h_auto().gap(0.5),
-        }
-    }
-
-    /// One cell.
-    pub fn cell(&self, cell: Cell) -> Tw {
-        let t = &self.tokens;
-        let base = tw()
-            .flex()
-            .grow()
-            .items_center()
-            .justify_center()
-            .px(2.0)
-            .py(1.0)
-            .rounded_px(f32::from(t.radius_md()))
-            .role(t.text_role());
-        let base = match self.rows {
-            Rows::One => base.h_full(),
-            Rows::Wrapping => base.h_auto(),
-        };
-        match (cell, self.theme) {
-            (Cell::Released, _) => base.text(t.muted_foreground),
-            (Cell::Pressed, Theme::Light) => {
-                base.text(t.foreground).bg(t.background).shadow(t.shadow_sm)
-            }
-            (Cell::Pressed, Theme::Dark) => base
-                .text(t.foreground)
-                .bg(t.input_30())
-                .border(1.0)
-                .border_color(t.input)
-                .shadow(t.shadow_sm),
-        }
     }
 }
 
