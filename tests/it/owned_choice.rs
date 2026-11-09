@@ -73,9 +73,14 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn harness(theme: Theme) -> Harness<'static, Rig<App>> {
+    harness_stepping(theme, 0.05)
+}
+
+fn harness_stepping(theme: Theme, step_dt: f32) -> Harness<'static, Rig<App>> {
     let tokens = Tokens::for_theme(theme);
-    let mut harness = support::harness(
+    let mut harness = support::harness_stepped(
         vec2(500.0, 600.0),
+        step_dt,
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
@@ -302,9 +307,9 @@ fn switch_track_and_thumb_are_the_styles_off_and_on() {
 
 #[test]
 fn the_thumb_slides_between_the_ends() {
-    let mut harness = harness(Theme::Light);
+    let mut harness = harness_stepping(Theme::Light, 0.016);
     let (rect, rest) = thumb(&harness, "/\"air\"/Track");
-    harness.state_mut().app.on = true;
+    click_node(&mut harness, "/\"air\"/Track");
     harness.run_steps(2);
     let (_, mid) = thumb(&harness, "/\"air\"/Track");
     harness.run_steps(12);
@@ -506,13 +511,13 @@ fn tab_enters_a_group_on_its_chosen_option_wherever_it_is() {
 
 #[test]
 fn the_switch_track_eases_to_its_new_colour() {
-    let mut harness = harness(Theme::Light);
+    let mut harness = harness_stepping(Theme::Light, 0.016);
     let switch = style(Theme::Light).switch;
     let (off, on) = (switch.off.states.rest.fill, switch.on.states.rest.fill);
     assert_ne!(off, on);
     let track = rect_of(&harness, "/\"air\"/Track");
     assert_eq!(box_at(&harness, track).fill, off);
-    harness.state_mut().app.on = true;
+    click_node(&mut harness, "/\"air\"/Track");
     harness.run_steps(2);
     let mid = box_at(&harness, track).fill;
     assert!(
@@ -521,7 +526,7 @@ fn the_switch_track_eases_to_its_new_colour() {
     );
     harness.run_steps(12);
     assert_eq!(box_at(&harness, track).fill, on);
-    harness.state_mut().app.on = false;
+    click_node(&mut harness, "/\"air\"/Track");
     harness.run_steps(2);
     let back = box_at(&harness, track).fill;
     assert!(back != off && back != on, "and back again");

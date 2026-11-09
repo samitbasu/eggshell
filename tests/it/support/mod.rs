@@ -56,11 +56,34 @@ pub fn harness_prepared<A: 'static>(
     harness_scaled(size, 1.0, base_text, app, view, prepare)
 }
 
+/// [`harness`] whose frames are `step_dt` seconds apart.
+pub fn harness_stepped<A: 'static>(
+    size: Vec2,
+    step_dt: f32,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+) -> Harness<'static, Rig<A>> {
+    harness_timed(size, 1.0, step_dt, base_text, app, view, |_, _| {})
+}
+
 /// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
 /// points.
 pub fn harness_scaled<A: 'static>(
     size: Vec2,
     pixels_per_point: f32,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    prepare: fn(&egui::Context, &A),
+) -> Harness<'static, Rig<A>> {
+    harness_timed(size, pixels_per_point, 0.05, base_text, app, view, prepare)
+}
+
+fn harness_timed<A: 'static>(
+    size: Vec2,
+    pixels_per_point: f32,
+    step_dt: f32,
     base_text: TextStyle,
     app: A,
     view: View<A>,
@@ -78,7 +101,7 @@ pub fn harness_scaled<A: 'static>(
     Harness::builder()
         .with_size(size)
         .with_pixels_per_point(pixels_per_point)
-        .with_step_dt(0.05)
+        .with_step_dt(step_dt)
         .with_accessibility_check(true)
         .build_ui_state(
             |ui, rig: &mut Rig<A>| {
