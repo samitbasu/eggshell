@@ -18,12 +18,14 @@ mod common;
 
 use std::collections::BTreeMap;
 
+use bullseye::contract::{Colors, Paint, States, Style, Variant};
 use bullseye::owned;
 use bullseye::owned::Mark;
 use bullseye::prim::text_field::{self, Field};
 use bullseye::widget::{Lines, TextEdit};
 use bullseye::{Builder, NodeUi as _, TextStyle, Tw, tw};
-use bullseye_shadcn::variant;
+use bullseye_shadcn::{size, variant};
+use common::glyphs::{self, Glyph};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -301,6 +303,32 @@ pub fn prepare(ctx: &Context, state: &State) {
         style.spacing.button_padding = state.padding.size();
         style.spacing.interact_size = state.interact.size();
     });
+}
+
+/// A toggle variant the preset does not define: solid when on, as a selected
+/// tool in a toolbar is. The style is installed every frame, which costs a
+/// comparison while it is unchanged.
+const ARMED: Variant = Variant("armed");
+
+fn with_armed_toggle(ctx: &Context) {
+    let style = Style::of(ctx);
+    if style.button.toggle_on.keys().any(|key| key == ARMED) {
+        return;
+    }
+    let tokens = common::tokens(ctx);
+    let mut style = (*style).clone();
+    let off = *style.button.toggle_off.get(Variant::DEFAULT);
+    let on = Paint::new(States::still(
+        Colors {
+            fill: tokens.primary,
+            border: Color32::TRANSPARENT,
+            text: tokens.primary_foreground,
+        },
+        tokens.background,
+    ));
+    style.button.toggle_off.insert(ARMED, off);
+    style.button.toggle_on.insert(ARMED, on);
+    style.install_for(ctx, ctx.theme());
 }
 
 /// The base text of the gallery's cells.
@@ -725,6 +753,7 @@ fn rows<'f>(b: &mut B<'_, 'f>, rows: impl FnOnce(&mut B<'_, 'f>)) {
 
 /// A row per button variant, enabled and disabled, then the toggle.
 fn buttons_section(b: &mut B<'_, '_>, state: &State) {
+    with_armed_toggle(b.ctx());
     rows(b, |b| {
         for enablement in ENABLEMENTS {
             for (name, variant) in VARIANTS {
@@ -744,6 +773,37 @@ fn buttons_section(b: &mut B<'_, '_>, state: &State) {
                 "toggle",
                 |s: &mut State| s.owned_toggled = !s.owned_toggled,
             );
+        });
+        row(b, "toggle, armed", |b| {
+            owned::Button::toggle("Armed", Mark::from(state.owned_toggled))
+                .variant(ARMED)
+                .show(b, "armed", |s: &mut State| {
+                    s.owned_toggled = !s.owned_toggled;
+                });
+        });
+        row(b, "icon and label", |b| {
+            owned::Button::new("Add")
+                .icon(glyphs::icon(b.ctx(), Glyph::Plus))
+                .variant(variant::OUTLINE)
+                .show(b, "icon-label", |s: &mut State| s.owned_clicks += 1);
+        });
+        row(b, "icon only", |b| {
+            let plus = glyphs::icon(b.ctx(), Glyph::Plus);
+            b.div(tw().flex().gap(2.0), |b| {
+                for (key, variant) in [("outline", variant::OUTLINE), ("ghost", variant::GHOST)] {
+                    owned::Button::icon_only(plus.clone(), "Add")
+                        .size(size::ICON)
+                        .variant(variant)
+                        .show(b, ("icon-only", key), |s: &mut State| s.owned_clicks += 1);
+                }
+                owned::Button::toggle("", Mark::from(state.owned_toggled))
+                    .icon(glyphs::icon(b.ctx(), Glyph::Sun))
+                    .named("Bright")
+                    .size(size::ICON)
+                    .show(b, "icon-toggle", |s: &mut State| {
+                        s.owned_toggled = !s.owned_toggled;
+                    });
+            });
         });
     });
 }
@@ -780,6 +840,27 @@ fn choices_section(b: &mut B<'_, '_>, state: &State) {
                 &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
             )
             .show(b, "segmented", |s: &mut State, _, unit| s.unit = unit);
+        });
+        row(b, "segmented, icons", |b| {
+            owned::Segmented::new(
+                state.unit,
+                &[(Unit::Metric, "Light"), (Unit::Imperial, "Dark")],
+            )
+            .icon(Unit::Metric, glyphs::icon(b.ctx(), Glyph::Sun))
+            .icon(Unit::Imperial, glyphs::icon(b.ctx(), Glyph::Moon))
+            .show(b, "segmented-icons", |s: &mut State, _, unit| s.unit = unit);
+        });
+        row(b, "segmented, merged", |b| {
+            owned::Segmented::new(
+                state.unit,
+                &[(Unit::Metric, "Light"), (Unit::Imperial, "Dark")],
+            )
+            .icon(Unit::Metric, glyphs::icon(b.ctx(), Glyph::Monitor))
+            .track(tw().w_full())
+            .cells(tw().flex_1())
+            .show(b, "segmented-merged", |s: &mut State, _, unit| {
+                s.unit = unit
+            });
         });
     });
 }
