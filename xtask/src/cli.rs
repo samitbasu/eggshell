@@ -61,9 +61,9 @@ pub enum Command {
     /// Count lines of code per source file, without comments, blank lines
     /// or `#[cfg(test)]` items
     Loc {
-        /// Directory to scan
-        #[arg(default_value = "src")]
-        root: std::path::PathBuf,
+        /// Directories to scan: the library crates by default
+        #[arg(default_values = crate::clock::LIBRARY_SOURCES)]
+        roots: Vec<std::path::PathBuf>,
     },
     /// Check the golden images against a fresh render, with Mesa lavapipe
     Snapshots {
@@ -125,7 +125,7 @@ impl Command {
                 },
                 port,
             }),
-            Command::Loc { root } => loc::run(&root),
+            Command::Loc { roots } => loc::run(&roots),
             Command::Snapshots {
                 update,
                 clean,

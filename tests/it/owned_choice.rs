@@ -3,9 +3,10 @@
 //! accessibility check the support harness switches on.
 
 use bullseye::contract::Size;
+use bullseye::owned::Mark;
 use bullseye::owned::{Enablement, RadioGroup, Segmented, Switch};
-use bullseye::style::{Mark, Shadcn, Tokens};
 use bullseye::{Builder, Style, TextStyle, tw};
+use bullseye_shadcn::{Shadcn, Tokens};
 use egui::epaint::{CircleShape, Shape};
 use egui::{Key, Rect, Role, Theme, vec2};
 use egui_kittest::Harness;

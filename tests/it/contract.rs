@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use bullseye::contract::{Keyed, Size, Variant};
 use bullseye::owned::Button;
-use bullseye::style::Shadcn;
 use bullseye::{LayoutState, Style, TextSpec, TextStyle};
+use bullseye_shadcn::Shadcn;
 use egui::{Color32, Context, FontFamily, Theme, vec2};
 use egui_kittest::Harness;
 
@@ -217,4 +217,103 @@ fn a_disabled_colour_is_half_way_to_the_surface_it_sits_on() {
     let fill = faded.fill;
     assert_eq!(fill.a(), 255);
     assert!((i32::from(fill.r()) - 100).abs() <= 8, "{fill:?}");
+}
+
+/// The input section maps onto the node's egui style: a deliberately unusual
+/// one, every field distinct, so a field that is not mapped shows.
+#[test]
+fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
+    use bullseye::contract::{InputStyle, Look};
+    let mut style = Style::default();
+    let c = |n: u8| Color32::from_rgb(n, n, n);
+    let mut input = style.input.clone();
+    input.look = Look::new(bullseye::contract::States {
+        rest: bullseye::contract::Colors {
+            fill: c(10),
+            border: c(20),
+            text: c(30),
+        },
+        hover: bullseye::contract::Colors {
+            fill: c(11),
+            border: c(21),
+            text: c(31),
+        },
+        pressed: bullseye::contract::Colors {
+            fill: c(12),
+            border: c(22),
+            text: c(32),
+        },
+        focused: bullseye::contract::Colors {
+            fill: c(13),
+            border: c(23),
+            text: c(33),
+        },
+        disabled: bullseye::contract::Colors {
+            fill: c(14),
+            border: c(24),
+            text: c(34),
+        },
+    })
+    .bordered(3.0);
+    input.radius = 7;
+    input.padding = vec2(9.0, 5.0);
+    input.height = 41.0;
+    input.hint = Some(c(99));
+    style.input = input;
+    style.selection.fill = c(77);
+    style.selection.text = Some(c(88));
+    let _: &InputStyle = &style.input;
+
+    let mut egui_style = egui::Style::default();
+    style.map_input(&mut egui_style);
+    let v = &egui_style.visuals;
+    assert_eq!(v.text_edit_bg_color, Some(c(10)));
+    assert_eq!(v.widgets.inactive.bg_stroke, egui::Stroke::new(3.0, c(20)));
+    assert_eq!(v.widgets.hovered.bg_stroke, egui::Stroke::new(3.0, c(21)));
+    assert_eq!(v.widgets.inactive.fg_stroke.color, c(30));
+    assert_eq!(
+        v.widgets.inactive.corner_radius,
+        egui::CornerRadius::same(7)
+    );
+    assert_eq!(v.widgets.hovered.expansion, 0.0);
+    assert_eq!(v.weak_text_color, Some(c(99)));
+    assert_eq!(v.selection.bg_fill, c(77));
+    assert_eq!(
+        v.selection.stroke,
+        egui::Stroke::new(3.0, c(88)),
+        "the focus border takes the colour of selected text"
+    );
+    assert_eq!(egui_style.spacing.button_padding, vec2(9.0, 5.0));
+    assert_eq!(egui_style.spacing.interact_size.y, 41.0);
+
+    style.selection.text = None;
+    style.map_input(&mut egui_style);
+    assert_eq!(
+        egui_style.visuals.selection.stroke.color,
+        c(23),
+        "without selected-text colour the focus border is the focused one"
+    );
+}
+
+#[test]
+fn the_neutral_input_maps_to_egui_s_own_text_edit_style() {
+    let mut egui_style = egui::Style::default();
+    let original = egui_style.clone();
+    Style::from_egui(&original).map_input(&mut egui_style);
+    let (a, b) = (&original.visuals, &egui_style.visuals);
+    assert_eq!(a.text_edit_bg_color(), b.text_edit_bg_color());
+    assert_eq!(a.widgets.inactive.bg_stroke, b.widgets.inactive.bg_stroke);
+    assert_eq!(
+        a.widgets.hovered.bg_stroke.color,
+        b.widgets.hovered.bg_stroke.color
+    );
+    assert_eq!(a.selection, b.selection);
+    assert_eq!(
+        original.spacing.button_padding,
+        egui_style.spacing.button_padding
+    );
+    assert_eq!(
+        original.spacing.interact_size.y,
+        egui_style.spacing.interact_size.y
+    );
 }

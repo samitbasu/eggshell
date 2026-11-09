@@ -1,6 +1,6 @@
 //! The three-pane frame and the splitters between the panes.
 
-use bullseye::style::Shadcn;
+use super::common;
 use bullseye::{Builder, NodeUi, tw};
 use egui::CursorIcon;
 
@@ -22,6 +22,7 @@ pub enum Part {
     Link(Link),
     Account,
     Appearance,
+    Style,
     TopBar,
     Model,
     Mode,
@@ -87,7 +88,7 @@ fn splitter(b: &mut B<'_, '_>, pane: Pane) {
 /// Gives egui's stock widgets, which the select and the composer's field are,
 /// the preset's look.
 pub fn prepare(ctx: &egui::Context, app: &App) {
-    Shadcn::apply_both_with(ctx, app.accent);
+    common::use_theme_color(ctx, app.theme_color);
 }
 
 /// ```html

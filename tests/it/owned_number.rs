@@ -2,8 +2,8 @@
 //! key events and the accessibility check the support harness switches on.
 
 use bullseye::owned::{Enablement, Select, Slider, Step, Stepper};
-use bullseye::style::{Shadcn, Tokens};
 use bullseye::{Builder, Style, TextStyle, tw};
+use bullseye_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
 use egui::{Key, Modifiers, Rect, Role, Theme, pos2, vec2};
 use egui_kittest::Harness;

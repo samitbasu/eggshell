@@ -6,8 +6,8 @@ use std::hash::Hash;
 
 use egui::Role;
 
+use super::Mark;
 use super::{Enablement, choice_label, choice_row, described, paint_check};
-use crate::style::Mark;
 use crate::{Builder, Style, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]

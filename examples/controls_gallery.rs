@@ -19,10 +19,11 @@ mod common;
 use std::collections::BTreeMap;
 
 use bullseye::owned;
+use bullseye::owned::Mark;
 use bullseye::prim::text_field::{self, Field};
-use bullseye::style::{Mark, variant};
 use bullseye::widget::{Lines, TextEdit};
 use bullseye::{Builder, NodeUi as _, TextStyle, Tw, tw};
+use bullseye_shadcn::variant;
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -453,12 +454,10 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
 const MULTI: Lines = Lines::Multi { min: 2, max: None };
 const ONE_ROW: Lines = Lines::Multi { min: 1, max: None };
 
-/// Pads an input as the preset says inputs are padded, which egui shares with
-/// buttons.
+/// Draws an input as the library does: with the style's input section mapped
+/// onto the `Ui`.
 fn input_padded(ui: &mut Ui) {
-    if let Some(tokens) = bullseye::style::tokens(ui.ctx()) {
-        ui.spacing_mut().button_padding = tokens.input_padding;
-    }
+    bullseye::Style::of(ui.ctx()).map_input(ui.style_mut());
 }
 
 /// A text edit as egui sizes it on its own, `width` wide.

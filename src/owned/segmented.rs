@@ -6,8 +6,8 @@ use std::hash::Hash;
 
 use egui::{Context, Role};
 
+use super::Mark;
 use super::{Enablement, centered, described};
-use crate::style::Mark;
 use crate::{Builder, Style, Tw, none, tw};
 
 /// Whether a cell is the chosen one.

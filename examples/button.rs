@@ -11,8 +11,8 @@
 mod common;
 
 use bullseye::owned::Button;
-use bullseye::style::Tokens;
 use bullseye::{Builder, Tw, tw};
+use bullseye_shadcn::Tokens;
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

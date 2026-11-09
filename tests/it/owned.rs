@@ -4,9 +4,10 @@
 
 use bullseye::Style;
 use bullseye::contract::{Size, Variant};
+use bullseye::owned::Mark;
 use bullseye::owned::{Button, Checkbox, Enablement};
-use bullseye::style::{Mark, Shadcn, Tokens, variant};
 use bullseye::{Builder, TextStyle, tw};
+use bullseye_shadcn::{Shadcn, Tokens, variant};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, FontId, Key, Role, Theme, vec2};
 use egui_kittest::Harness;

@@ -110,11 +110,20 @@ pub fn example(name: &str, profile: Profile) -> Step {
     step
 }
 
-/// The library and every example must build for the browser.
+/// Every library crate and every example must build for the browser.
 pub fn wasm() -> Step {
     Step::cargo(
         "wasm",
-        &["check", "--target", WASM_TARGET, "--lib", "--examples"],
+        &[
+            "check",
+            "--target",
+            WASM_TARGET,
+            "--workspace",
+            "--exclude",
+            "xtask",
+            "--lib",
+            "--examples",
+        ],
     )
 }
 
@@ -142,7 +151,8 @@ pub fn ci_steps() -> Vec<Step> {
         ),
         Step::cargo("test", &["test", "--workspace", "--all-targets"]),
         Step::cargo("doctest", &["test", "--workspace", "--doc"]),
-        Step::cargo("rustdoc", &["doc", "--no-deps"]).with_env("RUSTDOCFLAGS", "-D warnings"),
+        Step::cargo("rustdoc", &["doc", "--workspace", "--no-deps"])
+            .with_env("RUSTDOCFLAGS", "-D warnings"),
         wasm(),
     ]
 }
@@ -206,8 +216,8 @@ mod tests {
                 "cargo clippy --workspace --all-targets -- -D warnings",
                 "cargo test --workspace --all-targets",
                 "cargo test --workspace --doc",
-                "RUSTDOCFLAGS=\"-D warnings\" cargo doc --no-deps",
-                "cargo check --target wasm32-unknown-unknown --lib --examples",
+                "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
+                "cargo check --target wasm32-unknown-unknown --workspace --exclude xtask --lib --examples",
             ]
         );
     }

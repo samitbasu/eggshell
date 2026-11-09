@@ -12,8 +12,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use bullseye::owned::Mark;
 use bullseye::owned::{Checkbox, Select};
-use bullseye::style::Mark;
 use bullseye::{Builder, Tw, none, tw};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;

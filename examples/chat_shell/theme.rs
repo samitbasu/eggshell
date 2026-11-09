@@ -5,8 +5,8 @@
 
 use core::ops::Index;
 
-use bullseye::style::Shadcn;
 use bullseye::{TextSpec, TextStyle};
+use bullseye_shadcn::Shadcn;
 use egui::{Color32, Context, FontFamily};
 
 /// A colour by what it is for.

@@ -2,9 +2,10 @@
 //! frame, labels included, keeps its rectangle. Driven by real clicks, in both
 //! themes.
 
+use bullseye::owned::Mark;
 use bullseye::owned::{Button, Checkbox, RadioGroup, Segmented, Switch};
-use bullseye::style::{Mark, Tokens};
 use bullseye::{Builder, TextStyle, tw};
+use bullseye_shadcn::Tokens;
 use egui::{Rect, Theme, vec2};
 use egui_kittest::Harness;
 

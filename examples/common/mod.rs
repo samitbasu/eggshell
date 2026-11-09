@@ -16,8 +16,8 @@ use std::ops::RangeInclusive;
 
 use bullseye::owned::{Cell, Segmented, Slider};
 use bullseye::prim::text_field::{self, Field};
-use bullseye::style::{Accent, Shadcn, Tokens};
 use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
+use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
 /// The controls panel's width.
@@ -26,12 +26,9 @@ const PANEL_WIDTH: f32 = 240.0;
 /// The most segments a track keeps on one row.
 const MAX_ONE_ROW: usize = 3;
 
-/// Width of the focus ring, shadcn's `ring-[3px]`.
-const RING_WIDTH: f32 = 3.0;
-
-/// The accent of the examples that use one: the forms' primary button and
-/// focus.
-pub const ACCENT: Accent = Accent::Blue;
+/// The theme colour of the examples that use one: the forms' primary button
+/// and focus.
+pub const ACCENT: ThemeColor = ThemeColor::Blue;
 
 /// The height of the strip that holds the theme toggle.
 const THEME_BAR_HEIGHT: f32 = 44.0;
@@ -54,16 +51,69 @@ pub fn tokens(ctx: &Context) -> Tokens {
     Shadcn::of(ctx).tokens
 }
 
-/// Applies the neutral shadcn preset to both egui themes, once per context.
-pub fn use_preset(ctx: &Context) {
-    if Shadcn::applied(ctx).is_none() {
-        Shadcn::apply_both(ctx);
-    }
+/// The shadcn style and theme colour the examples are drawn in, kept in the
+/// context so that [`style_toggle`] can change the style while they run. Stored
+/// as a tuple of the preset crate's types so that every copy of this module
+/// (each example includes it) shares one entry.
+#[derive(Clone, Copy)]
+struct Chosen {
+    style: ShadcnStyle,
+    theme_color: ThemeColor,
 }
 
-/// [`use_preset`] with [`ACCENT`], for an example's `prepare`.
+fn chosen_id() -> egui::Id {
+    egui::Id::NULL.with("examples-chosen")
+}
+
+fn chosen(ctx: &Context) -> Chosen {
+    let (style, theme_color) = ctx
+        .data(|data| data.get_temp::<(ShadcnStyle, ThemeColor)>(chosen_id()))
+        .unwrap_or_default();
+    Chosen { style, theme_color }
+}
+
+fn choose(ctx: &Context, Chosen { style, theme_color }: Chosen) {
+    ctx.data_mut(|data| data.insert_temp(chosen_id(), (style, theme_color)));
+}
+
+/// Draws the examples in `style` from the next frame on.
+pub fn set_style(ctx: &Context, style: ShadcnStyle) {
+    choose(
+        ctx,
+        Chosen {
+            style,
+            ..chosen(ctx)
+        },
+    );
+}
+
+/// The shadcn style the examples are drawn in.
+pub fn style_of(ctx: &Context) -> ShadcnStyle {
+    chosen(ctx).style
+}
+
+/// Applies the shadcn preset in the chosen style and theme colour to both
+/// egui themes; a no-op while nothing changed.
+pub fn use_preset(ctx: &Context) {
+    let Chosen { style, theme_color } = chosen(ctx);
+    Shadcn::apply_both_with(ctx, style, theme_color);
+}
+
+/// [`use_preset`] with `theme_color`.
+pub fn use_theme_color(ctx: &Context, theme_color: ThemeColor) {
+    choose(
+        ctx,
+        Chosen {
+            theme_color,
+            ..chosen(ctx)
+        },
+    );
+    use_preset(ctx);
+}
+
+/// [`use_theme_color`] with [`ACCENT`], for an example's `prepare`.
 pub fn use_accent<S>(ctx: &Context, _: &S) {
-    Shadcn::apply_both_with(ctx, ACCENT);
+    use_theme_color(ctx, ACCENT);
 }
 
 /// The colour of the focus ring: `ring-ring/50`.
@@ -96,7 +146,18 @@ pub fn mono(size: f32) -> TextSpec {
 
 /// The text every layout starts from in `theme`.
 pub fn base_text(theme: Theme) -> TextStyle {
-    let tokens = Tokens::for_theme(theme);
+    base_text_styled(theme, ShadcnStyle::default())
+}
+
+/// [`base_text`] in `style`.
+pub fn base_text_styled(theme: Theme, style: ShadcnStyle) -> TextStyle {
+    let tokens = Tokens::for_theme(theme).in_style(style);
+    TextStyle::new(body(&tokens), tokens.foreground)
+}
+
+/// The text every layout starts from in the context's theme and shadcn style.
+pub fn base_text_in(ctx: &Context) -> TextStyle {
+    let tokens = tokens(ctx);
     TextStyle::new(body(&tokens), tokens.foreground)
 }
 
@@ -186,7 +247,7 @@ fn shell<S: 'static>(
         use_preset(&ctx);
         prepare(&ctx, &state);
         theme_bar.show(ui);
-        layout_state.set_base_text(Some(base_text(ctx.theme())));
+        layout_state.set_base_text(Some(base_text_in(&ctx)));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens(&ctx).background))
             .show(ui, |ui| {
@@ -285,8 +346,27 @@ where
     });
 }
 
-/// The strip every example shows along its top edge, with the theme toggle
-/// at its right: for examples that run their own eframe loop.
+/// The Vega and Lyra choices as the preset's tab list. The choice lives in
+/// the context, where [`use_preset`] reads it.
+pub fn style_toggle<A, K>(b: &mut Builder<'_, '_, A>, key: K)
+where
+    A: 'static,
+    K: Hash + Debug + 'static,
+{
+    let options = ShadcnStyle::ALL.map(|style| (style, style.name()));
+    Segmented::new(style_of(b.ctx()), &options).show(b, key, |_: &mut A, ctx, style| {
+        choose(
+            ctx,
+            Chosen {
+                style,
+                ..chosen(ctx)
+            },
+        );
+    });
+}
+
+/// The strip every example shows along its top edge, with the style and
+/// theme toggles at its right: for examples that run their own eframe loop.
 ///
 /// ```html
 /// <header class="flex items-center justify-end h-11 px-3 bg-background border-b border-border">…toggle…</header>
@@ -306,7 +386,7 @@ impl ThemeBar {
         let ctx = ui.ctx().clone();
         use_preset(&ctx);
         toggle_debug(&ctx);
-        self.layout.set_base_text(Some(base_text(ctx.theme())));
+        self.layout.set_base_text(Some(base_text_in(&ctx)));
         let t = tokens(&ctx);
         egui::Panel::top("theme_bar")
             .exact_size(THEME_BAR_HEIGHT)
@@ -325,7 +405,12 @@ impl ThemeBar {
                                 .border_b(1.0)
                                 .border_color(t.border)
                                 .text(t.foreground),
-                            |b| theme_toggle(b, "theme"),
+                            |b| {
+                                b.div(tw().flex().items_center().gap(3.0), |b| {
+                                    style_toggle(b, "style");
+                                    theme_toggle(b, "theme");
+                                });
+                            },
                         );
                     })
                     .layout(area)
@@ -453,7 +538,7 @@ pub fn menu_item(t: &Tokens, cell: Cell) -> Tw {
         .px(2.0)
         .py(1.0)
         .rounded_px(f32::from(t.radius_md()))
-        .focus(|p| p.ring(RING_WIDTH, ring(t)));
+        .focus(|p| p.ring(t.ring_width, ring(t)));
     match cell {
         Cell::Pressed => look.bg(t.accent).text(t.accent_foreground),
         Cell::Released => look.hover(|p| p.bg(t.accent_50())),
@@ -526,8 +611,8 @@ pub fn text_box<S, K>(
             .border_color(t.input)
             .rounded_px(f32::from(t.radius_md()))
             .bg(fill)
-            .shadow(t.shadow_xs)
-            .focus_within(|p| p.border_color(t.ring).ring(RING_WIDTH, ring(&t))),
+            .shadow(t.control_shadow())
+            .focus_within(|p| p.border_color(t.ring).ring(t.ring_width, ring(&t))),
         none,
         |b| {
             b.leaf(

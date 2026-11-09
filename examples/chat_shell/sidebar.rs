@@ -191,7 +191,10 @@ fn account(b: &mut B<'_, '_>, k: &Theme) {
                     );
                 });
             });
-            common::theme_toggle(b, Part::Appearance);
+            b.div(tw().flex().flex_col().gap(2.0), |b| {
+                common::style_toggle(b, Part::Style);
+                common::theme_toggle(b, Part::Appearance);
+            });
         },
     );
 }

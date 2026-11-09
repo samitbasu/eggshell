@@ -22,9 +22,10 @@ egui = { version = "0.37", features = ["default_fonts"] }
 eframe = "0.37"
 egui_kittest = "0.37"
 trybuild = "1"
+bullseye-shadcn = { path = "crates/bullseye-shadcn" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-futures = "0.4"
 
 [workspace]
-members = ["xtask"]
+members = ["crates/bullseye-shadcn", "xtask"]
