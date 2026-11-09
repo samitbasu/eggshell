@@ -2,7 +2,7 @@
 
 use bullseye::owned::Select;
 use bullseye::owned::{Cell, Segmented};
-use bullseye::prim::text_field::{self, Field};
+use bullseye::prim::text_field::Field;
 use bullseye::{Builder, NodeUi, Opacity, Scope, Tw, none, tw};
 use egui::{Key, WidgetInfo};
 
@@ -157,13 +157,12 @@ fn field(b: &mut B<'_, '_>, app: &App) {
         .max_rows(COMPOSER_MAX_ROWS)
         .hint("Reply…")
         .bare();
-    let measured = field.clone();
-    b.leaf(
+    b.text_field(
         Part::Field,
         tw().w_full().px(1.0),
-        move |m| text_field::measure(m, &measured),
-        move |app: &mut App, ui| {
-            let response = text_field::show(ui, &mut app.draft, &field);
+        field,
+        |app: &mut App| &mut app.draft,
+        |app, ui, response| {
             response.widget_info(|| {
                 WidgetInfo::labeled(egui::Role::MultilineTextInput, ui.is_enabled(), "Message")
             });

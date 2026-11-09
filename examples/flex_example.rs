@@ -16,7 +16,7 @@ use std::convert::identity;
 
 use bullseye::owned::Mark;
 use bullseye::owned::{Button, Checkbox, Slider};
-use bullseye::prim::text_field::{self, Field};
+use bullseye::prim::text_field::Field;
 use bullseye::{Builder, Tw, tw};
 use egui::{Role, WidgetInfo};
 
@@ -165,14 +165,13 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     );
 
     let field = Field::singleline(&state.text);
-    let measured = field.clone();
     b.div(framed(b, tw()).basis_px(200.0), |b| {
-        b.leaf(
+        b.text_field(
             Part::Text,
             tw().w_full(),
-            move |m| text_field::measure(m, &measured),
-            move |state, ui| {
-                let response = text_field::show(ui, &mut state.text, &field);
+            field,
+            |state: &mut State| &mut state.text,
+            |_, ui, response| {
                 response
                     .widget_info(|| WidgetInfo::labeled(Role::TextInput, ui.is_enabled(), "Text"));
             },

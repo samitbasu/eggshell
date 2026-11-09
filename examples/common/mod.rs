@@ -15,7 +15,7 @@ use std::hash::Hash;
 use std::ops::RangeInclusive;
 
 use bullseye::owned::{Cell, Segmented, Slider};
-use bullseye::prim::text_field::{self, Field};
+use bullseye::prim::text_field::Field;
 use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
 use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
@@ -606,7 +606,6 @@ pub fn text_box<S, K>(
     let t = tokens(b.ctx());
     let fill = b.ctx().global_style().visuals.text_edit_bg_color();
     let field = field.bare();
-    let measured = field.clone();
     b.div_id(
         key,
         tw().flex()
@@ -623,12 +622,12 @@ pub fn text_box<S, K>(
             .focus_within(|p| p.border_color(t.ring).ring(t.ring_width, ring(&t))),
         none,
         |b| {
-            b.leaf(
+            b.text_field(
                 "field",
                 tw().w_full(),
-                move |m| text_field::measure(m, &measured),
-                move |state, ui| {
-                    let response = text_field::show(ui, lens(state), &field);
+                field,
+                lens,
+                move |_, ui, response| {
                     response.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), name));
                 },
             );
