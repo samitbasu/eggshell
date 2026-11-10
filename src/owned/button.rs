@@ -316,8 +316,8 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     ///         .children(|s| {
     ///             if active {
     ///                 s.div(
-    ///                     tw().absolute().inset_x(0.0).mx_auto().bottom(0.5)
-    ///                         .w_px(16.0).h_px(4.0).rounded_full().bg(egui::Color32::BLUE),
+    ///                     tw().absolute().inset_x(0.0).mx_auto().bottom(1.0)
+    ///                         .w_px(12.0).h_px(2.0).rounded_full().bg(egui::Color32::BLUE),
     ///                     |_| {},
     ///                 );
     ///             }

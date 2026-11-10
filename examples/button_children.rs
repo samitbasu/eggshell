@@ -35,7 +35,7 @@ impl Default for State {
 
 /// ```html
 /// <div class="flex gap-2 p-4">
-///   <button class="relative size-9 …"><svg/><span class="absolute inset-x-0 bottom-0.5 mx-auto h-1 w-4 rounded-full bg-primary"/></button>
+///   <button class="relative size-9 …"><svg/><span class="absolute inset-x-0 bottom-1 mx-auto h-0.5 w-3 rounded-full bg-primary"/></button>
 ///   …
 /// </div>
 /// ```
@@ -55,9 +55,9 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
                             tw().absolute()
                                 .inset_x(0.0)
                                 .mx_auto()
-                                .bottom(0.5)
-                                .w_px(16.0)
-                                .h_px(4.0)
+                                .bottom(1.0)
+                                .w_px(12.0)
+                                .h_px(2.0)
                                 .rounded_full()
                                 .bg(accent),
                             none,
