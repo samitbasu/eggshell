@@ -10,6 +10,7 @@ use super::Mark;
 use super::{
     Enablement, OnResponse, Tip, Unset, choice_label, choice_row, described, flip, paint_check,
 };
+use crate::builder::Slot;
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -40,9 +41,9 @@ enum Part {
 /// }
 /// ```
 #[must_use = "a checkbox is not added until you call `.on_change(..)`"]
-pub struct CheckboxBuilder<'a, 'b, 'f, A, K, T, V = Unset> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct CheckboxChain<'a, 'f, A, T, V = Unset> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     label: Option<String>,
     name: Option<String>,
     tooltip: Tip,
@@ -53,18 +54,16 @@ pub struct CheckboxBuilder<'a, 'b, 'f, A, K, T, V = Unset> {
     on_response: OnResponse<A>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
-    CheckboxBuilder<'a, 'b, 'f, A, K, T>
-{
-    pub(super) fn new(
-        b: &'a mut Builder<'b, 'f, A>,
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A, T> {
+    pub(super) fn new<K: crate::Key>(
+        b: Builder<'a, 'f, A>,
         key: K,
         label: Option<String>,
         current: T,
     ) -> Self {
         Self {
+            slot: b.slot(&key),
             b,
-            key,
             label,
             name: None,
             tooltip: None,
@@ -78,10 +77,10 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
 
     /// The values the checkbox switches between: `off` when unchecked and
     /// `on` when checked.
-    pub fn values(self, off: T, on: T) -> CheckboxBuilder<'a, 'b, 'f, A, K, T, [T; 2]> {
-        CheckboxBuilder {
+    pub fn values(self, off: T, on: T) -> CheckboxChain<'a, 'f, A, T, [T; 2]> {
+        CheckboxChain {
             b: self.b,
-            key: self.key,
+            slot: self.slot,
             label: self.label,
             name: self.name,
             tooltip: self.tooltip,
@@ -94,7 +93,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T, V> CheckboxBuilder<'a, 'b, 'f, A, K, T, V> {
+impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
     /// The accessible name, when it is not the label.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
@@ -131,7 +130,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T, V> CheckboxBuilder<'a, 'b, 'f, A,
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key> CheckboxBuilder<'a, 'b, 'f, A, K, bool> {
+impl<'a, 'f, A: 'static> CheckboxChain<'a, 'f, A, bool> {
     /// Adds the checkbox. `on_change` runs with the new value when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
     pub fn on_change(self, on_change: impl Fn(&mut A, bool) + Copy + 'static) {
@@ -139,15 +138,13 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> CheckboxBuilder<'a, 'b, 'f, A, K, bo
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
-    CheckboxBuilder<'a, 'b, 'f, A, K, T, [T; 2]>
-{
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A, T, [T; 2]> {
     /// Adds the checkbox. `on_change` runs with the new value when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
     pub fn on_change(self, on_change: impl Fn(&mut A, T) + Copy + 'static) {
         let Self {
-            b,
-            key,
+            mut b,
+            slot,
             label,
             name,
             tooltip,
@@ -175,7 +172,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
         );
         let glyph = checkbox.glyph;
         let name = name.unwrap_or_default();
-        b.scope(key, |b| {
+        b.scope_with(slot.id, &slot.label, |b| {
             let control = b.id_of(Part::Box);
             let row = choice_row(&style, &checkbox.text, enablement, checkbox.gap).merge(caller);
             b.div(row, |b| {

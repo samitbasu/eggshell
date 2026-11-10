@@ -4,6 +4,7 @@ use egui::{Role, Ui, WidgetInfo};
 use taffy::Size;
 
 use super::{OnResponse, Tip, tipped};
+use crate::builder::Slot;
 use crate::{Builder, Measure, NodeUi as _, Tw, fill};
 
 type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
@@ -27,9 +28,9 @@ type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
 /// }
 /// ```
 #[must_use = "a custom node is not added until you call `.ui(..)`"]
-pub struct CustomBuilder<'a, 'b, 'f, A, K> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct CustomChain<'a, 'f, A> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     classes: Tw,
     measure: Option<MeasureFn<'f>>,
     name: Option<String>,
@@ -37,11 +38,11 @@ pub struct CustomBuilder<'a, 'b, 'f, A, K> {
     on_response: OnResponse<A>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key> CustomBuilder<'a, 'b, 'f, A, K> {
-    pub(super) fn new(b: &'a mut Builder<'b, 'f, A>, key: K, classes: Tw) -> Self {
+impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
+    pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, classes: Tw) -> Self {
         Self {
+            slot: b.slot(&key),
             b,
-            key,
             classes,
             measure: None,
             name: None,
@@ -80,8 +81,8 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> CustomBuilder<'a, 'b, 'f, A, K> {
     /// the application's state.
     pub fn ui(self, draw: impl FnOnce(&mut A, &mut Ui) + 'static) {
         let Self {
-            b,
-            key,
+            mut b,
+            slot,
             classes,
             measure,
             name,
@@ -89,7 +90,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> CustomBuilder<'a, 'b, 'f, A, K> {
             on_response,
         } = self;
         let measure: MeasureFn<'f> = measure.unwrap_or_else(|| Box::new(fill));
-        b.leaf(key, classes, measure, move |app, ui| {
+        b.leaf_with(slot.id, &slot.label, classes, measure, move |app, ui| {
             let response = tipped(ui.node_response(), &tooltip);
             if let Some(name) = &name {
                 response.widget_info(|| WidgetInfo::labeled(Role::Unknown, ui.is_enabled(), name));

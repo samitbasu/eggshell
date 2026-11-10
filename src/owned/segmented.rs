@@ -9,6 +9,7 @@ use egui::{Context, Role};
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{Enablement, OnResponse, centered, described};
+use crate::builder::Slot;
 use crate::{Builder, Style, Tw, none, tw};
 
 /// Whether a cell is the chosen one.
@@ -57,9 +58,9 @@ enum Rows {
 /// }
 /// ```
 #[must_use = "a segmented control is not added until you call `.on_change(..)`"]
-pub struct SegmentedBuilder<'a, 'b, 'f, A, K, T> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct SegmentedChain<'a, 'f, A, T> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     current: T,
     options: Vec<Choice<T>>,
     rows: Rows,
@@ -77,19 +78,19 @@ struct Custom<'a> {
     cell: Box<dyn Fn(Cell) -> Tw + 'a>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
-    SegmentedBuilder<'a, 'b, 'f, A, K, T>
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
+    SegmentedChain<'a, 'f, A, T>
 {
     /// A control of `options` of which `current` is selected.
-    pub(super) fn new<O: IntoChoice<T>>(
-        b: &'a mut Builder<'b, 'f, A>,
+    pub(super) fn new<K: crate::Key, O: IntoChoice<T>>(
+        b: Builder<'a, 'f, A>,
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
     ) -> Self {
         Self {
+            slot: b.slot(&key),
             b,
-            key,
             current,
             options: choice::collect(options),
             rows: Rows::One,
@@ -161,7 +162,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
     pub fn on_change_with(self, select: impl Fn(&mut A, &Context, T) + Copy + 'static) {
         let Self {
             b,
-            key,
+            slot,
             current,
             options,
             rows,
@@ -174,7 +175,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
         if let Some(Custom { track, cell }) = custom {
             cells_in(
                 b,
-                key,
+                slot,
                 (current, options, enablement),
                 track,
                 |state, enablement| {
@@ -230,7 +231,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
         let icon = tw().size_px(seg.icon_size);
         cells_in(
             b,
-            key,
+            slot,
             (current, options, enablement),
             container,
             cell,
@@ -240,16 +241,16 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
     }
 }
 
-fn cells_in<A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
-    b: &mut Builder<'_, '_, A>,
-    key: K,
+fn cells_in<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>(
+    mut b: Builder<'_, '_, A>,
+    slot: Slot,
     (current, options, group): (T, Vec<Choice<T>>, Enablement),
     container: Tw,
     cell: impl Fn(Cell, Enablement) -> Tw,
     icon_classes: Tw,
     (select, on_response): (impl Fn(&mut A, &Context, T) + Copy + 'static, OnResponse<A>),
 ) {
-    b.div_id(key, container, none, |b| {
+    b.div_id_with(slot.id, &slot.label, container, none, |b| {
         for Choice {
             value,
             label,

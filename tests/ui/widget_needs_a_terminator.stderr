@@ -1,4 +1,4 @@
-error: unused `ButtonBuilder` that must be used
+error: unused `ButtonChain` that must be used
  --> tests/ui/widget_needs_a_terminator.rs:5:5
   |
 5 |     b.button("button", "Save");
@@ -15,7 +15,7 @@ help: use `let _ = ...` to ignore the resulting value
 5 |     let _ = b.button("button", "Save");
   |     +++++++
 
-error: unused `CheckboxBuilder` that must be used
+error: unused `CheckboxChain` that must be used
  --> tests/ui/widget_needs_a_terminator.rs:6:5
   |
 6 |     b.checkbox("checkbox", "Agree", false);
@@ -27,7 +27,7 @@ help: use `let _ = ...` to ignore the resulting value
 6 |     let _ = b.checkbox("checkbox", "Agree", false);
   |     +++++++
 
-error: unused `SwitchBuilder` that must be used
+error: unused `SwitchChain` that must be used
  --> tests/ui/widget_needs_a_terminator.rs:7:5
   |
 7 |     b.switch("switch", "Alerts", false);
@@ -39,7 +39,7 @@ help: use `let _ = ...` to ignore the resulting value
 7 |     let _ = b.switch("switch", "Alerts", false);
   |     +++++++
 
-error: unused `RadioGroupBuilder` that must be used
+error: unused `RadioGroupChain` that must be used
  --> tests/ui/widget_needs_a_terminator.rs:8:5
   |
 8 |     b.radio_group("radio", 0, [(0, "Zero")]);
@@ -51,7 +51,7 @@ help: use `let _ = ...` to ignore the resulting value
 8 |     let _ = b.radio_group("radio", 0, [(0, "Zero")]);
   |     +++++++
 
-error: unused `SegmentedBuilder` that must be used
+error: unused `SegmentedChain` that must be used
  --> tests/ui/widget_needs_a_terminator.rs:9:5
   |
 9 |     b.segmented("segmented", 0, [(0, "Zero")]);
@@ -63,7 +63,7 @@ help: use `let _ = ...` to ignore the resulting value
 9 |     let _ = b.segmented("segmented", 0, [(0, "Zero")]);
   |     +++++++
 
-error: unused `SliderBuilder` that must be used
+error: unused `SliderChain` that must be used
   --> tests/ui/widget_needs_a_terminator.rs:10:5
    |
 10 |     b.slider("slider", 0.5, 0.0..=1.0);
@@ -75,7 +75,7 @@ help: use `let _ = ...` to ignore the resulting value
 10 |     let _ = b.slider("slider", 0.5, 0.0..=1.0);
    |     +++++++
 
-error: unused `SelectBuilder` that must be used
+error: unused `SelectChain` that must be used
   --> tests/ui/widget_needs_a_terminator.rs:11:5
    |
 11 |     b.select("select", 0, [(0, "Zero")]);
@@ -87,7 +87,7 @@ help: use `let _ = ...` to ignore the resulting value
 11 |     let _ = b.select("select", 0, [(0, "Zero")]);
    |     +++++++
 
-error: unused `StepperBuilder` that must be used
+error: unused `StepperChain` that must be used
   --> tests/ui/widget_needs_a_terminator.rs:12:5
    |
 12 |     b.stepper("stepper", 1.0, 0.0..=9.0);
@@ -99,7 +99,7 @@ help: use `let _ = ...` to ignore the resulting value
 12 |     let _ = b.stepper("stepper", 1.0, 0.0..=9.0);
    |     +++++++
 
-error: unused `TextFieldBuilder` that must be used
+error: unused `TextFieldChain` that must be used
   --> tests/ui/widget_needs_a_terminator.rs:13:5
    |
 13 |     b.text_field("field", "");
@@ -111,7 +111,7 @@ help: use `let _ = ...` to ignore the resulting value
 13 |     let _ = b.text_field("field", "");
    |     +++++++
 
-error: unused `ToggleBuilder` that must be used
+error: unused `ToggleChain` that must be used
   --> tests/ui/widget_needs_a_terminator.rs:14:5
    |
 14 |     b.toggle("toggle", "Bold", false);
@@ -123,7 +123,7 @@ help: use `let _ = ...` to ignore the resulting value
 14 |     let _ = b.toggle("toggle", "Bold", false);
    |     +++++++
 
-error: unused `CustomBuilder` that must be used
+error: unused `CustomChain` that must be used
   --> tests/ui/widget_needs_a_terminator.rs:15:5
    |
 15 |     b.custom("custom", bullseye::tw());

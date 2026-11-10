@@ -6,6 +6,7 @@
     reason = "each example includes the shared examples/common module"
 )]
 
+mod button_options;
 mod chat_shell_demo;
 mod choices;
 mod compile_fail;

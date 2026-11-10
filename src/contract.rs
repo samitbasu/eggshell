@@ -391,7 +391,7 @@ pub struct ButtonStyle {
     /// Border width of a toggle, off or on.
     pub toggle_border_width: f32,
     /// The looks of a toggle that is off, by variant. Variants are chosen
-    /// with [`ButtonBuilder::variant`](crate::owned::ButtonBuilder::variant) for toggles as
+    /// with [`ButtonChain::variant`](crate::owned::ButtonChain::variant) for toggles as
     /// for buttons.
     pub toggle_off: Keyed<Variant, Paint>,
     /// The looks of a toggle that is on.

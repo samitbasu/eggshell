@@ -8,6 +8,7 @@
 use egui::{Response, Ui};
 use taffy::Size;
 
+use crate::builder::Slot;
 use crate::owned::FieldHooks;
 use crate::widget::Stock as _;
 use crate::{Builder, Key, Measure, Tw, tw};
@@ -28,25 +29,21 @@ pub fn show(ui: &mut Ui, text: &mut String, field: &Field) -> Response {
 impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     /// An identified leaf that edits `text`, the string of the application's
     /// state as it is when the frame is built. The field edits a copy, which
-    /// [`on_change`](TextFieldBuilder::on_change) hands back when it differs.
+    /// [`on_change`](TextFieldChain::on_change) hands back when it differs.
     pub fn text_field<K: Key>(
         &mut self,
         key: K,
         text: impl Into<String>,
-    ) -> TextFieldBuilder<'_, 'b, 'f, A, K> {
+    ) -> TextFieldChain<'_, 'f, A> {
         self.text_field_with(key, Field::singleline(text))
     }
 
     /// [`text_field`](Self::text_field) for a `field` configured elsewhere,
     /// which holds the text, for a helper that passes one on.
-    pub fn text_field_with<K: Key>(
-        &mut self,
-        key: K,
-        field: Field,
-    ) -> TextFieldBuilder<'_, 'b, 'f, A, K> {
-        TextFieldBuilder {
-            b: self,
-            key,
+    pub fn text_field_with<K: Key>(&mut self, key: K, field: Field) -> TextFieldChain<'_, 'f, A> {
+        TextFieldChain {
+            slot: self.slot(&key),
+            b: self.reborrow(),
             text: field.text().to_owned(),
             field,
             classes: tw(),
@@ -58,16 +55,16 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
 /// A text field leaf. Start one with [`Builder::text_field`] and finish it
 /// with [`on_change`](Self::on_change).
 #[must_use = "a text field is not added until you call `.on_change(..)`"]
-pub struct TextFieldBuilder<'a, 'b, 'f, A, K> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct TextFieldChain<'a, 'f, A> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     field: Field,
     text: String,
     classes: Tw,
     hooks: FieldHooks<A>,
 }
 
-impl<A: 'static, K: Key> TextFieldBuilder<'_, '_, '_, A, K> {
+impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// Greyed text shown while the field is empty.
     pub fn hint(mut self, hint: impl Into<String>) -> Self {
         self.field = self.field.hint(hint);
@@ -135,16 +132,17 @@ impl<A: 'static, K: Key> TextFieldBuilder<'_, '_, '_, A, K> {
     /// user edits it, and not otherwise.
     pub fn on_change(self, on_change: impl Fn(&mut A, String) + 'static) {
         let Self {
-            b,
-            key,
+            mut b,
+            slot,
             field,
             text,
             classes,
             hooks,
         } = self;
         let measured = field.clone();
-        b.leaf(
-            key,
+        b.leaf_with(
+            slot.id,
+            &slot.label,
             classes,
             move |m| measure(m, &measured),
             move |app, ui| {

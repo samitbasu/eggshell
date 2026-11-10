@@ -1,5 +1,6 @@
 //! The nested-closure builder.
 
+use std::fmt::{self, Debug};
 use std::ops::{Deref, DerefMut};
 
 use egui::{Color32, Id, ImageSource, Painter, Rect};
@@ -45,7 +46,35 @@ impl Parts {
     }
 }
 
+/// A key resolved against the builder that started a chain: its id and
+/// readable name, fixed when the chain starts so the chain need not carry the
+/// key's type.
+pub(crate) struct Slot {
+    pub(crate) id: Id,
+    pub(crate) label: Label,
+}
+
+/// A key's `Debug` text, which debugs as itself.
+pub(crate) struct Label(String);
+
+impl Debug for Label {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Slot {
+    pub(crate) fn readable(&self) -> &str {
+        &self.label.0
+    }
+}
+
 /// Builds one frame's tree. Nodes attach to the current parent.
+///
+/// A control's chain (`b.button(..)`) borrows the builder until its
+/// terminating call (`.add()`, `.on_click(..)`, ...) adds it, so siblings
+/// attach in the order they are written and a chain cannot outlive the body
+/// that started it.
 ///
 /// # Keys
 ///
@@ -90,15 +119,37 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// `body` gets a [`Scope`], which components take: a component can only be
     /// placed where its caller named the instance.
     pub fn scope<K: Key>(&mut self, key: K, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
-        let mark = self.st.names.push(&key);
+        self.scope_with(child_id(self.path, &key), &key, body);
+    }
+
+    pub(crate) fn scope_with(
+        &mut self,
+        id: Id,
+        key: &dyn Debug,
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) {
+        let mark = self.st.names.push(key);
         body(&mut Scope(Builder::new(
             self.st,
             self.frame,
-            child_id(self.path, &key),
+            id,
             self.kids,
             self.inherited,
         )));
         self.st.names.pop_to(mark);
+    }
+
+    /// The same builder, borrowed for the life of a chain.
+    pub(crate) fn reborrow(&mut self) -> Builder<'_, 'f, A> {
+        Builder::new(self.st, self.frame, self.path, self.kids, self.inherited)
+    }
+
+    /// `key` resolved in this scope, for a chain that is finished later.
+    pub(crate) fn slot<K: Key>(&self, key: &K) -> Slot {
+        Slot {
+            id: child_id(self.path, key),
+            label: Label(format!("{key:?}")),
+        }
     }
 
     /// The egui context the frame is built with, for reading the local state
@@ -151,14 +202,25 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) {
-        let (id, path) = self.identify(&key);
+        self.div_id_with(child_id(self.path, &key), &key, tw, draw, body);
+    }
+
+    pub(crate) fn div_id_with(
+        &mut self,
+        id: Id,
+        key: &dyn Debug,
+        tw: Tw,
+        draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) {
+        let path = self.identify(id, key);
         let draw = self.push_draw(draw);
         let parts = Parts {
             id: Some(id),
             draw: Some(draw),
             ..Parts::anonymous(NodeKind::DivId, path)
         };
-        let mark = self.st.names.push(&key);
+        let mark = self.st.names.push(key);
         self.container(tw, parts, id, |b| body(&mut Scope(b)));
         self.st.names.pop_to(mark);
     }
@@ -174,7 +236,18 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         measure: impl Fn(&Measure<'_>) -> Size<f32> + 'f,
         draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
     ) {
-        let (id, path) = self.identify(&key);
+        self.leaf_with(child_id(self.path, &key), &key, tw, measure, draw);
+    }
+
+    pub(crate) fn leaf_with(
+        &mut self,
+        id: Id,
+        key: &dyn Debug,
+        tw: Tw,
+        measure: impl Fn(&Measure<'_>) -> Size<f32> + 'f,
+        draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
+    ) {
+        let path = self.identify(id, key);
         let measure: MeasureFn<'f> = Box::new(measure);
         self.frame.measures.push(measure);
         let parts = Parts {
@@ -214,7 +287,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         text: impl Into<String>,
         draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
     ) {
-        let (id, path) = self.identify(&key);
+        let id = child_id(self.path, &key);
+        let path = self.identify(id, &key);
         let parts = Parts {
             id: Some(id),
             draw: Some(self.push_draw(draw)),
@@ -231,7 +305,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         icon: Icon,
         draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
     ) {
-        let (id, path) = self.identify(&key);
+        let id = child_id(self.path, &key);
+        let path = self.identify(id, &key);
         let parts = Parts {
             id: Some(id),
             draw: Some(self.push_draw(draw)),
@@ -274,13 +349,12 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.leaf_node(tw, Parts::anonymous(kind, path).with_prim(prim));
     }
 
-    fn identify<K: Key>(&mut self, key: &K) -> (Id, String) {
-        let id = child_id(self.path, key);
+    fn identify(&mut self, id: Id, key: &dyn Debug) -> String {
         let mark = self.st.names.push(key);
         let path = self.st.names.as_str().to_owned();
         self.st.names.pop_to(mark);
         self.st.seen.register(id, &path);
-        (id, path)
+        path
     }
 
     fn anonymous_path(&mut self, kind: NodeKind) -> String {
@@ -392,6 +466,41 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 /// b.scope("name", |s| labelled(s, "Name"));
 /// b.scope("email", |s| labelled(s, "Email"));
 /// # }
+/// ```
+///
+/// A component can also hand back a control's chain for its caller to finish,
+/// so that the caller adds the click handler:
+///
+/// ```
+/// use bullseye::Scope;
+/// use bullseye::owned::ButtonChain;
+///
+/// struct App { saves: u32 }
+///
+/// #[derive(Hash, Debug)]
+/// enum Part { Save }
+///
+/// fn save<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
+///     s.button(key, "Save").named("Save the form").tooltip("Saves")
+/// }
+///
+/// # fn demo(b: &mut bullseye::Builder<'_, '_, App>) {
+/// b.scope("form", |s| save(s, Part::Save).on_click(|app| app.saves += 1));
+/// # }
+/// ```
+///
+/// A chain borrows its builder until it is finished, so it cannot outlive the
+/// body that started it:
+///
+/// ```compile_fail
+/// use bullseye::Builder;
+/// use bullseye::owned::ButtonChain;
+///
+/// fn view(b: &mut Builder<'_, '_, ()>) {
+///     let mut later: Option<ButtonChain<'_, '_, ()>> = None;
+///     b.div(bullseye::tw(), |b| later = Some(b.button("go", "Go")));
+///     later.expect("started").add();
+/// }
 /// ```
 pub struct Scope<'b, 'f, A>(Builder<'b, 'f, A>);
 
