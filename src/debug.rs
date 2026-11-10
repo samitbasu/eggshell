@@ -35,7 +35,7 @@ use crate::pipeline::{Flow, PlacedNode};
 ///   the frames per second averaged over the last 30 passes;
 /// - `dt`: egui's `stable_dt` and `predicted_dt`, which decide how far an
 ///   animation advances per frame, so a slow-motion animation is explainable;
-/// - `bullseye`: the time spent in [`LayoutState::build`](crate::LayoutState::build),
+/// - `eggshell`: the time spent in [`LayoutState::build`](crate::LayoutState::build),
 ///   [`Built::layout`](crate::Built::layout) and [`Placed::draw`](crate::Placed::draw),
 ///   summed over every tree of the pass (the readout sees the draws before it);
 /// - `repaint`: whether egui has been asked to repaint at once, as it is while
@@ -93,7 +93,7 @@ impl Debug {
 }
 
 fn mode_id() -> Id {
-    Id::NULL.with("bullseye-debug-mode")
+    Id::NULL.with("eggshell-debug-mode")
 }
 
 /// The stages of a frame that the readout times.
@@ -104,7 +104,7 @@ pub(crate) enum Phase {
     Draw,
 }
 
-/// The time bullseye spent in each [`Phase`] of one egui pass.
+/// The time eggshell spent in each [`Phase`] of one egui pass.
 #[derive(Clone, Copy, Default)]
 struct Spent {
     pass: u64,
@@ -151,15 +151,15 @@ impl Drop for Timer {
 }
 
 fn spent_id() -> Id {
-    Id::NULL.with("bullseye-debug-spent")
+    Id::NULL.with("eggshell-debug-spent")
 }
 
 fn frames_id() -> Id {
-    Id::NULL.with("bullseye-debug-frames")
+    Id::NULL.with("eggshell-debug-frames")
 }
 
 fn readout_id() -> Id {
-    Id::NULL.with("bullseye-debug-readout")
+    Id::NULL.with("eggshell-debug-readout")
 }
 
 /// The frames averaged into the fps.
@@ -214,7 +214,7 @@ fn readout_text(ctx: &Context) -> String {
     format!(
         "frame    {:6.1} ms  {:6.1} fps\n\
          dt       stable {:5.1}  predicted {:5.1} ms\n\
-         bullseye build {:5.2}  layout {:5.2}  draw {:5.2} ms\n\
+         eggshell build {:5.2}  layout {:5.2}  draw {:5.2} ms\n\
          repaint  {}",
         ms(unstable),
         fps,
@@ -314,7 +314,7 @@ pub(crate) fn paint(ctx: &Context, nodes: &[PlacedNode]) {
     let grid = PixelGrid {
         pixels_per_point: ctx.pixels_per_point(),
     };
-    let painter = ctx.layer_painter(LayerId::new(Order::Debug, Id::NULL.with("bullseye-debug")));
+    let painter = ctx.layer_painter(LayerId::new(Order::Debug, Id::NULL.with("eggshell-debug")));
     let width = grid.line_width(0.0);
     for index in shown(nodes) {
         let color = if overflows(nodes, index) {

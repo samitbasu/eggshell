@@ -25,7 +25,7 @@ impl Tokens {
     }
 
     /// Maps the tokens onto egui's visuals and spacing, for the egui widgets
-    /// an application draws outside bullseye.
+    /// an application draws outside eggshell.
     pub(crate) fn set_style(&self, theme: Theme, style: &mut Style) {
         let t = self;
         let v = &mut style.visuals;

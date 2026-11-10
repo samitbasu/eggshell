@@ -2,13 +2,13 @@
 //! justify-self combination in a six-column grid.
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
-//! rebuilt with bullseye: taffy places, egui draws. The gap slider is a stock
+//! rebuilt with eggshell: taffy places, egui draws. The gap slider is a stock
 //! egui slider in a leaf of the same tree.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, Track, Tw, tw};
+use eggshell_ui::{Builder, Track, Tw, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

@@ -1,6 +1,6 @@
 //! shadcn's styles: parameter sets that differ in a handful of values.
 
-use bullseye::Opacity;
+use eggshell_ui::Opacity;
 use egui::vec2;
 
 use crate::Tokens;

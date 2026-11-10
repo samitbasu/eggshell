@@ -2,14 +2,14 @@
 //! four align-self items per row.
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
-//! rebuilt with bullseye: taffy places, egui draws. The original's buttons are
+//! rebuilt with eggshell: taffy places, egui draws. The original's buttons are
 //! plain boxes here, and its rows scroll where these are clipped. The demo has
 //! no controls.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, Tw, tw};
+use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

@@ -1,5 +1,5 @@
-error[E0599]: no method named `p` found for struct `bullseye::Paint` in the current scope
+error[E0599]: no method named `p` found for struct `eggshell_ui::Paint` in the current scope
  --> tests/ui/paint_has_no_layout_methods.rs:7:38
   |
 7 |     let _ = tw().hover(|paint| paint.p(4.0));
-  |                                      ^ method not found in `bullseye::Paint`
+  |                                      ^ method not found in `eggshell_ui::Paint`

@@ -1,10 +1,10 @@
 //! `ToggleGroup`: exclusive toggles placed anywhere below the group's builder,
 //! driven through the real layout, event and draw path.
 
-use bullseye::contract::{Keyed, Metrics, Size};
-use bullseye::owned::{ButtonOptions, Face, ToggleGroup};
-use bullseye::{Builder, TextStyle, tw};
-use bullseye_shadcn::{Shadcn, Tokens, size};
+use eggshell_ui::contract::{Keyed, Metrics, Size};
+use eggshell_ui::owned::{ButtonOptions, Face, ToggleGroup};
+use eggshell_ui::{Builder, TextStyle, tw};
+use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Rect, Role, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

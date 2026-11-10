@@ -5,11 +5,11 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::contract::Size;
-use bullseye::owned::{ButtonOptions, Face, ToggleGroup};
-use bullseye::{Builder, Scope, tw};
-use bullseye_shadcn::{size, variant};
 use common::glyphs::{self, Glyph};
+use eggshell_ui::contract::Size;
+use eggshell_ui::owned::{ButtonOptions, Face, ToggleGroup};
+use eggshell_ui::{Builder, Scope, tw};
+use eggshell_ui_shadcn::{size, variant};
 
 #[derive(Clone, Copy, Debug, Hash)]
 pub enum Part {
@@ -55,7 +55,7 @@ impl Lettering {
         }
     }
 
-    fn sample(self) -> bullseye::Tw {
+    fn sample(self) -> eggshell_ui::Tw {
         tw().role(match self {
             Self::Sans => common::sized(24.0),
             Self::Mono => common::mono(24.0),

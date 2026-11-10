@@ -3,10 +3,10 @@
 //! toggle variants, node-opacity disabling and the cheap install. Pointer and
 //! key input goes through kittest's real events.
 
-use bullseye::contract::{Disabled, Paint, Size, Variant};
-use bullseye::owned::{Choice, Enablement};
-use bullseye::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, tw};
-use bullseye_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
+use eggshell_ui::contract::{Disabled, Paint, Size, Variant};
+use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, tw};
+use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::TextureId;
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Rect, Role, Theme, vec2};
@@ -572,12 +572,12 @@ fn installing_an_unchanged_style_keeps_the_installed_one() {
 // ----- #43 item 8: toggle looks keyed by variant -----
 
 fn armed_paint() -> Paint {
-    let colors = |fill| bullseye::contract::Colors {
+    let colors = |fill| eggshell_ui::contract::Colors {
         fill,
         border: Color32::TRANSPARENT,
         text: Color32::WHITE,
     };
-    Paint::new(bullseye::contract::States::still(
+    Paint::new(eggshell_ui::contract::States::still(
         colors(Color32::from_rgb(10, 120, 60)),
         Color32::BLACK,
     ))
@@ -600,8 +600,8 @@ fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
             theme,
             ShadcnStyle::Vega,
             |style| {
-                let off = Paint::new(bullseye::contract::States::still(
-                    bullseye::contract::Colors {
+                let off = Paint::new(eggshell_ui::contract::States::still(
+                    eggshell_ui::contract::Colors {
                         fill: Color32::from_rgb(40, 40, 40),
                         border: Color32::TRANSPARENT,
                         text: Color32::GRAY,
@@ -666,7 +666,7 @@ fn disabled_row(b: &mut Builder<'_, '_, App>, _: &App) {
     b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
             b.button(("button", enablement), "Save")
-                .variant(bullseye_shadcn::variant::PRIMARY)
+                .variant(eggshell_ui_shadcn::variant::PRIMARY)
                 .enablement(enablement)
                 .on_click(|app: &mut App| app.clicks += 1);
             b.checkbox(("check", enablement), "Agree", true)
@@ -690,7 +690,7 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
         let rest = style
             .button
             .variants
-            .get(bullseye_shadcn::variant::PRIMARY)
+            .get(eggshell_ui_shadcn::variant::PRIMARY)
             .paint
             .states
             .rest;
@@ -735,7 +735,7 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
             let look = style
                 .button
                 .variants
-                .get_mut(bullseye_shadcn::variant::PRIMARY)
+                .get_mut(eggshell_ui_shadcn::variant::PRIMARY)
                 .expect("primary");
             look.paint.states.rest.fill = translucent;
         },
@@ -756,7 +756,10 @@ fn the_colors_form_still_draws_the_styles_disabled_colours() {
     let harness = harness(Theme::Light, disabled_row);
     let style = &harness.state().app.style;
     assert_eq!(style.disabled, Disabled::Colors);
-    let primary = style.button.variants.get(bullseye_shadcn::variant::PRIMARY);
+    let primary = style
+        .button
+        .variants
+        .get(eggshell_ui_shadcn::variant::PRIMARY);
     let disabled = rect_of(&harness, "/(\"button\", Disabled)");
     assert_eq!(
         box_at(&harness, disabled).fill,
@@ -771,7 +774,7 @@ fn icon_buttons(b: &mut Builder<'_, '_, App>, app: &App) {
         b.button("icon", app.icon())
             .named("Search")
             .size(size::ICON)
-            .variant(bullseye_shadcn::variant::GHOST)
+            .variant(eggshell_ui_shadcn::variant::GHOST)
             .on_click(|app: &mut App| app.clicks += 1);
         b.button("labelled", "Add")
             .icon(app.icon())
@@ -798,7 +801,10 @@ fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
         let (tint, glyph) = icon_in(&harness, button);
         assert_eq!(glyph.size(), vec2(metrics.glyph, metrics.glyph));
         assert!(glyph.center().distance(button.center()) <= 0.75, "centred");
-        let ghost = style.button.variants.get(bullseye_shadcn::variant::GHOST);
+        let ghost = style
+            .button
+            .variants
+            .get(eggshell_ui_shadcn::variant::GHOST);
         assert_eq!(tint, ghost.paint.states.rest.text);
 
         hover_node(&mut harness, "/\"icon\"");

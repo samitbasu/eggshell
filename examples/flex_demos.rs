@@ -3,16 +3,16 @@
 //! the direction the controls choose.
 //!
 //! After the example in hello_egui (https://github.com/lucasmerlin/hello_egui,
-//! MIT) by Lucas Meurer, rebuilt with bullseye rather than copied: taffy does
+//! MIT) by Lucas Meurer, rebuilt with eggshell rather than copied: taffy does
 //! the flexbox, so `Flex`, `FlexItem` and its two-pass sizing are classes
-//! here. The controls are bullseye widgets in the same tree (a segmented
+//! here. The controls are eggshell widgets in the same tree (a segmented
 //! control, a stock egui checkbox and a select), and the labels are text boxes
 //! that egui_flex draws with `Label`.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, Tw, tw};
+use eggshell_ui::{Builder, Tw, tw};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
 

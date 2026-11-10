@@ -219,7 +219,7 @@ fn navigate<A, T: Copy>(
 /// Where the circle that is to take the focus is recorded. egui drops focus
 /// given to a node that is not focusable yet, and a circle becomes its
 /// group's Tab stop only once the choice has moved to it.
-const FOCUS_REQUEST: &str = "bullseye-radio-focus";
+const FOCUS_REQUEST: &str = "eggshell-radio-focus";
 
 fn focus_request() -> Id {
     crate::key::root_id().with(FOCUS_REQUEST)

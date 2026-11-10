@@ -9,7 +9,7 @@
 //! [`prim::text_field`](crate::prim::text_field):
 //!
 //! ```
-//! # use bullseye::{Builder, tw, widget::TextEdit};
+//! # use eggshell_ui::{Builder, tw, widget::TextEdit};
 //! # fn view(b: &mut Builder<'_, '_, String>) {
 //! b.widget("name", tw(), TextEdit::singleline(""), |name, ui, field| {
 //!     field.show(ui, name);

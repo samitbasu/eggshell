@@ -571,29 +571,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bullseye"
-version = "0.1.0"
-dependencies = [
- "bullseye-shadcn",
- "eframe",
- "egui",
- "egui_kittest",
- "proptest",
- "taffy",
- "trybuild",
- "wasm-bindgen-futures",
- "web-time",
-]
-
-[[package]]
-name = "bullseye-shadcn"
-version = "0.1.0"
-dependencies = [
- "bullseye",
- "egui",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1070,6 +1047,29 @@ dependencies = [
  "wgpu",
  "windows-sys 0.61.2",
  "winit",
+]
+
+[[package]]
+name = "eggshell-ui"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "eggshell-ui-shadcn",
+ "egui",
+ "egui_kittest",
+ "proptest",
+ "taffy",
+ "trybuild",
+ "wasm-bindgen-futures",
+ "web-time",
+]
+
+[[package]]
+name = "eggshell-ui-shadcn"
+version = "0.1.0"
+dependencies = [
+ "eggshell-ui",
+ "egui",
 ]
 
 [[package]]

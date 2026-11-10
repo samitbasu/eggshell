@@ -1,9 +1,9 @@
 //! The owned slider, select and stepper, through kittest's real pointer and
 //! key events and the accessibility check the support harness switches on.
 
-use bullseye::owned::{Enablement, Step};
-use bullseye::{Builder, Style, TextStyle, tw};
-use bullseye_shadcn::{Shadcn, Tokens};
+use eggshell_ui::owned::{Enablement, Step};
+use eggshell_ui::{Builder, Style, TextStyle, tw};
+use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
 use egui::{Key, Modifiers, Rect, Role, Theme, pos2, vec2};
 use egui_kittest::Harness;

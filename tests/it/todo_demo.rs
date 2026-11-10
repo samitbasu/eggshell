@@ -1,7 +1,7 @@
 //! The todo example through the full path: pointer events, hit testing,
 //! group-hover reveal, reordering by data key.
 
-use bullseye::testing::{Timeline, record};
+use eggshell_ui::testing::{Timeline, record};
 use egui::epaint::Shape;
 use egui::vec2;
 use egui_kittest::Harness;

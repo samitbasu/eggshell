@@ -7,7 +7,7 @@ use crate::snapshots::{self, Mode};
 use crate::steps::{self, FmtMode, Profile, ReportFormat, Step};
 use crate::web;
 
-/// Project automation for bullseye.
+/// Project automation for eggshell.
 #[derive(Debug, Parser)]
 #[command(name = "cargo xtask", bin_name = "cargo xtask")]
 pub struct Cli {

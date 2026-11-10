@@ -1,6 +1,6 @@
 //! The right pane: environment, context, changes and background tasks.
 
-use bullseye::{Builder, Scope, Tw, tw};
+use eggshell_ui::{Builder, Scope, Tw, tw};
 use egui::Color32;
 
 use super::state::{App, MODELS, Pane};

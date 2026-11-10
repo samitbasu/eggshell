@@ -1,10 +1,10 @@
 //! `.children(..)` on buttons and toggles: nodes built inside the button,
 //! after its face, through the real layout and draw path.
 
-use bullseye::contract::Disabled;
-use bullseye::owned::{Enablement, Face};
-use bullseye::{Builder, Opacity, TextStyle, tw};
-use bullseye_shadcn::{Shadcn, Tokens};
+use eggshell_ui::contract::Disabled;
+use eggshell_ui::owned::{Enablement, Face};
+use eggshell_ui::{Builder, Opacity, TextStyle, tw};
+use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Color32, Rect, Theme, pos2, vec2};
 use egui_kittest::Harness;
 
@@ -19,7 +19,7 @@ struct App {
     faded: bool,
 }
 
-fn bar() -> bullseye::Tw {
+fn bar() -> eggshell_ui::Tw {
     tw().absolute()
         .inset_x(0.0)
         .mx_auto()

@@ -4,9 +4,9 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, tw};
-use bullseye_shadcn::size;
 use common::glyphs::{self, Glyph};
+use eggshell_ui::{Builder, tw};
+use eggshell_ui_shadcn::size;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Tool {

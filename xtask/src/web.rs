@@ -18,7 +18,7 @@ use anyhow::{Context, Result, bail};
 use crate::process;
 use crate::steps::{Profile, Step, WASM_TARGET};
 
-const CANVAS_ID: &str = "bullseye_canvas";
+const CANVAS_ID: &str = "eggshell_canvas";
 
 pub struct Plan {
     pub example: String,
@@ -123,7 +123,7 @@ pub fn index_html(example: &str) -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>bullseye: {example}</title>
+<title>eggshell: {example}</title>
 <style>
 html, body {{ margin: 0; height: 100%; overflow: hidden; }}
 canvas {{ display: block; width: 100%; height: 100%; }}

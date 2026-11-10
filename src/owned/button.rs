@@ -82,9 +82,9 @@ type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
 /// the second one has set wins, and classes merge as [`Tw::merge`] does.
 ///
 /// ```
-/// use bullseye::owned::ButtonOptions;
-/// use bullseye::Builder;
-/// use bullseye::contract::Size;
+/// use eggshell_ui::owned::ButtonOptions;
+/// use eggshell_ui::Builder;
+/// use eggshell_ui::contract::Size;
 ///
 /// fn verb() -> ButtonOptions {
 ///     ButtonOptions::new().size(Size::DEFAULT).tooltip("Does the thing")
@@ -313,7 +313,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// button is added.
     ///
     /// ```
-    /// use bullseye::{Builder, Icon, tw};
+    /// use eggshell_ui::{Builder, Icon, tw};
     ///
     /// struct App { active: bool }
     ///

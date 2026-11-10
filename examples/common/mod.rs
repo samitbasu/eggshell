@@ -1,9 +1,9 @@
 //! What the examples share: the base text role, the eframe shell, and the
-//! controls panel the demos put beside their layout, built from bullseye
+//! controls panel the demos put beside their layout, built from eggshell
 //! widgets inside the same tree.
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout
-//! ([`bullseye::Debug`]) in every example
+//! ([`eggshell_ui::Debug`]) in every example
 //! that shows a [`ThemeBar`] or calls [`toggle_debug`].
 #![allow(
     dead_code,
@@ -14,10 +14,10 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
-use bullseye::owned::Cell;
-use bullseye::prim::text_field::Field;
-use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Tw, tw};
-use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
+use eggshell_ui::owned::Cell;
+use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Tw, tw};
+use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
 pub mod glyphs;
@@ -44,7 +44,7 @@ pub const APPEARANCES: [(ThemePreference, &str); 3] = [
 
 /// F12 flips the layout debug overlay and its frame-timing readout.
 pub fn toggle_debug(ctx: &Context) {
-    bullseye::Debug::toggle_on(ctx, Key::F12);
+    eggshell_ui::Debug::toggle_on(ctx, Key::F12);
 }
 
 /// The tokens the examples are drawn with: the preset applied to the
@@ -260,7 +260,7 @@ fn shell<S: 'static>(
 }
 
 /// The id of the `<canvas>` element the web build draws into.
-pub const WEB_CANVAS_ID: &str = "bullseye_canvas";
+pub const WEB_CANVAS_ID: &str = "eggshell_canvas";
 
 /// Runs `ui_fun` as the whole application: in a native window of
 /// `inner_size` (the platform default when `None`), or on the page's
@@ -311,7 +311,7 @@ mod web {
                         .dyn_into::<eframe::web_sys::HtmlCanvasElement>()
                         .ok()
                 })
-                .expect("the page has a canvas with id `bullseye_canvas`");
+                .expect("the page has a canvas with id `eggshell_canvas`");
             let started = eframe::WebRunner::new()
                 .start(
                     canvas,
@@ -340,7 +340,7 @@ mod web {
 pub fn theme_toggle<A, K>(b: &mut Builder<'_, '_, A>, key: K)
 where
     A: 'static,
-    K: bullseye::Key,
+    K: eggshell_ui::Key,
 {
     let current = b.ctx().options(|options| options.theme_preference);
     b.segmented(key, current, APPEARANCES)
@@ -352,7 +352,7 @@ where
 pub fn style_toggle<A, K>(b: &mut Builder<'_, '_, A>, key: K)
 where
     A: 'static,
-    K: bullseye::Key,
+    K: eggshell_ui::Key,
 {
     b.segmented(
         key,
@@ -551,7 +551,7 @@ pub fn choice<S, K, T>(
     lens: fn(&mut S) -> &mut T,
 ) where
     S: 'static,
-    K: bullseye::Key,
+    K: eggshell_ui::Key,
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
     let group = b.segmented(key, current, options.iter().copied());
@@ -582,7 +582,7 @@ pub fn text_box<S, K>(
     lens: fn(&mut S) -> &mut String,
 ) where
     S: 'static,
-    K: bullseye::Key,
+    K: eggshell_ui::Key,
 {
     let t = tokens(b.ctx());
     let fill = b.ctx().global_style().visuals.text_edit_bg_color();

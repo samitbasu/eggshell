@@ -95,7 +95,7 @@ pub fn check(dir: &Path) -> Result<()> {
 }
 
 /// The library crates of the workspace, relative to its root.
-pub const LIBRARY_SOURCES: [&str; 2] = ["src", "crates/bullseye-shadcn/src"];
+pub const LIBRARY_SOURCES: [&str; 2] = ["src", "crates/eggshell-ui-shadcn/src"];
 
 pub fn check_library() -> Result<()> {
     let root = process::workspace_root();

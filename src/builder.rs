@@ -459,9 +459,9 @@ impl<A: 'static> Builder<'_, '_, A> {
 /// after it. Dropping it attaches nothing.
 ///
 /// ```
-/// # use bullseye::tw;
+/// # use eggshell_ui::tw;
 /// # struct App { saves: u32 }
-/// # fn demo(b: &mut bullseye::Builder<'_, '_, App>) {
+/// # fn demo(b: &mut eggshell_ui::Builder<'_, '_, App>) {
 /// b.span("save", tw(), "Save").on_click(|app| app.saves += 1);
 /// # }
 /// ```
@@ -517,7 +517,7 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
 /// key its caller chose, and two uses in one parent need two keys.
 ///
 /// ```
-/// use bullseye::{Scope, tw};
+/// use eggshell_ui::{Scope, tw};
 ///
 /// #[derive(Hash, Debug)]
 /// enum Field {
@@ -528,7 +528,7 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
 ///     s.span(Field::Label, tw(), label);
 /// }
 ///
-/// # fn demo(b: &mut bullseye::Builder<'_, '_, ()>) {
+/// # fn demo(b: &mut eggshell_ui::Builder<'_, '_, ()>) {
 /// b.scope("name", |s| labelled(s, "Name"));
 /// b.scope("email", |s| labelled(s, "Email"));
 /// # }
@@ -538,8 +538,8 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
 /// so that the caller adds the click handler:
 ///
 /// ```
-/// use bullseye::Scope;
-/// use bullseye::owned::ButtonChain;
+/// use eggshell_ui::Scope;
+/// use eggshell_ui::owned::ButtonChain;
 ///
 /// struct App { saves: u32 }
 ///
@@ -550,7 +550,7 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
 ///     s.button(key, "Save").named("Save the form").tooltip("Saves")
 /// }
 ///
-/// # fn demo(b: &mut bullseye::Builder<'_, '_, App>) {
+/// # fn demo(b: &mut eggshell_ui::Builder<'_, '_, App>) {
 /// b.scope("form", |s| save(s, Part::Save).on_click(|app| app.saves += 1));
 /// # }
 /// ```
@@ -559,12 +559,12 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
 /// body that started it:
 ///
 /// ```compile_fail
-/// use bullseye::Builder;
-/// use bullseye::owned::ButtonChain;
+/// use eggshell_ui::Builder;
+/// use eggshell_ui::owned::ButtonChain;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
 ///     let mut later: Option<ButtonChain<'_, '_, ()>> = None;
-///     b.div(bullseye::tw(), |b| later = Some(b.button("go", "Go")));
+///     b.div(eggshell_ui::tw(), |b| later = Some(b.button("go", "Go")));
 ///     later.expect("started").add();
 /// }
 /// ```

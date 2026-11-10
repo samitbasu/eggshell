@@ -1,13 +1,13 @@
-//! What Tailwind renders and bullseye cannot yet: negative-spread shadows and font weights.
+//! What Tailwind renders and eggshell cannot yet: negative-spread shadows and font weights.
 //!
 //! Two deficiencies are recorded, not fixed, and this example makes each
-//! visible by putting what CSS would render beside what bullseye renders today.
+//! visible by putting what CSS would render beside what eggshell renders today.
 //!
 //! **Negative-spread shadows
-//! ([#12](https://github.com/samitbasu/bullseye/issues/12)).** Tailwind's
+//! ([#12](https://github.com/samitbasu/eggshell/issues/12)).** Tailwind's
 //! `shadow`, `shadow-md`, `shadow-lg` and `shadow-xl` stack two layers, the
 //! larger of them with a negative spread. egui's `Shadow::spread` is a `u8` and a
-//! `BoxPaint` holds one shadow, so bullseye's `shadow(..)` class can express
+//! `BoxPaint` holds one shadow, so eggshell's `shadow(..)` class can express
 //! one layer with the spread clamped to zero. The *CSS reference* cards are drawn
 //! with a `paint` closure instead: each layer is an `egui::Shadow` cast by the
 //! card rect shrunk by the spread, with the corner radii shrunk to match. That
@@ -19,7 +19,7 @@
 //! v4 renames `shadow` to `shadow-sm` and shifts the rest down a step.
 //!
 //! **Font weights
-//! ([#13](https://github.com/samitbasu/bullseye/issues/13)).** There is no
+//! ([#13](https://github.com/samitbasu/eggshell/issues/13)).** There is no
 //! `font-medium` / `font-semibold` / `font-bold` class and egui does not
 //! synthesise weights, so a heading in any weight renders as Regular. The
 //! *with real faces* column registers weighted files as named `FontFamily`s at
@@ -37,8 +37,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Tw, tw};
-use bullseye_shadcn::Tokens;
+use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Tw, tw};
+use eggshell_ui_shadcn::Tokens;
 use egui::epaint::RectShape;
 use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, Rect, Shadow, Theme};
 
@@ -112,7 +112,7 @@ impl Layer {
         .as_shape(shrunk, radius)
     }
 
-    /// The nearest `Shadow` bullseye's `shadow(..)` accepts: a negative spread becomes zero.
+    /// The nearest `Shadow` eggshell's `shadow(..)` accepts: a negative spread becomes zero.
     pub fn clamped(self) -> Shadow {
         Shadow {
             offset: [0, self.offset_y],
@@ -354,12 +354,12 @@ fn reference_card<A>(b: &mut B<'_, '_, A>, class: ShadowClass) {
 /// The same card with the best `shadow(..)` can say today: the first layer, spread clamped to zero.
 ///
 /// ```html
-/// <div class="flex items-center justify-center w-[140px] h-[72px] rounded-lg bg-white shadow-[0_10px_15px_0_rgb(0_0_0/0.1)]">bullseye today</div>
+/// <div class="flex items-center justify-center w-[140px] h-[72px] rounded-lg bg-white shadow-[0_10px_15px_0_rgb(0_0_0/0.1)]">eggshell today</div>
 /// ```
 fn today_card<A>(b: &mut B<'_, '_, A>, class: ShadowClass) {
     let shadow = class.layers[0].clamped();
     b.div(card_box().shadow(shadow), |b| {
-        card_text(b, "bullseye today")
+        card_text(b, "eggshell today")
     });
 }
 
@@ -413,11 +413,11 @@ pub fn shadows<A>(b: &mut B<'_, '_, A>) {
         |b| {
             b.text(
                 tw().role(HEADING),
-                "Negative-spread shadows (#12): CSS reference above, bullseye today below",
+                "Negative-spread shadows (#12): CSS reference above, eggshell today below",
             );
             b.text(
                 tw().role(SMALL).text(t.muted_foreground),
-                "Each layer is box-shadow: 0 <y> <blur> <spread> rgb(0 0 0 / <alpha>); the reference stacks them, bullseye keeps the first with spread 0.",
+                "Each layer is box-shadow: 0 <y> <blur> <spread> rgb(0 0 0 / <alpha>); the reference stacks them, eggshell keeps the first with spread 0.",
             );
             b.div(
                 tw().flex()
@@ -484,7 +484,7 @@ pub fn weights<A>(b: &mut B<'_, '_, A>, faces: Option<&Faces>) {
             b.div(tw().flex().flex_row().gap(6.0), |b| {
                 b.div(tw().w_px(150.0).flex_none(), |_| {});
                 b.div(tw().w_px(340.0).flex_none(), |b| {
-                    b.text(tw().role(SMALL).text(t.muted_foreground), "bullseye today");
+                    b.text(tw().role(SMALL).text(t.muted_foreground), "eggshell today");
                 });
                 b.text(
                     tw().role(SMALL).text(t.muted_foreground),

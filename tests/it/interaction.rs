@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, Easing, LayoutState, Opacity, Progress, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Easing, LayoutState, Opacity, Progress, TextSpec, TextStyle, tw};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -190,7 +190,7 @@ fn active_paints_while_the_button_is_held() {
 ///   <div class="w-[100px] h-[40px] bg-[#141414] hover:bg-[#dc1414]"></div>
 /// </div>
 /// ```
-fn guarded(b: &mut Builder<'_, '_, Counts>, wrapper: bullseye::Tw) {
+fn guarded(b: &mut Builder<'_, '_, Counts>, wrapper: eggshell_ui::Tw) {
     b.div(wrapper, |b| {
         b.div_id(
             "button",

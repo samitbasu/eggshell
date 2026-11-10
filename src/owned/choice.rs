@@ -12,7 +12,7 @@ use crate::Icon;
 /// it chooses and how it is shown.
 ///
 /// ```
-/// # use bullseye::owned::{Choice, Enablement};
+/// # use eggshell_ui::owned::{Choice, Enablement};
 /// let beta = Choice::new(2, "Beta")
 ///     .tooltip("Not final")
 ///     .enablement(Enablement::Disabled);

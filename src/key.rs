@@ -37,7 +37,7 @@ use egui::Id;
 ///   so a row keeps its state through a reorder.
 ///
 /// ```
-/// # use bullseye::Key;
+/// # use eggshell_ui::Key;
 /// #[derive(Hash, Debug)]
 /// enum Toolbar {
 ///     Save,
@@ -51,10 +51,10 @@ pub trait Key: Hash + Debug + 'static {}
 
 impl<T: Hash + Debug + 'static> Key for T {}
 
-/// The root of every key path; a salt keeps bullseye ids apart from other
+/// The root of every key path; a salt keeps eggshell ids apart from other
 /// users of [`Id::NULL`].
 pub(crate) fn root_id() -> Id {
-    Id::NULL.with("bullseye")
+    Id::NULL.with("eggshell")
 }
 
 /// The readable form of the path being built, as a stack of segments.

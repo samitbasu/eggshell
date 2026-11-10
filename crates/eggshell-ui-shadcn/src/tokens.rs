@@ -1,4 +1,4 @@
-use bullseye::{Opacity, TextSpec};
+use eggshell_ui::{Opacity, TextSpec};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
 use crate::styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, ShadcnStyle};

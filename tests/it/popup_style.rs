@@ -1,10 +1,10 @@
 //! Risk 1 of the style contract: an egui `Popup` opened from inside a
-//! bullseye node does not take the node `Ui`'s scoped style, it takes the
+//! eggshell node does not take the node `Ui`'s scoped style, it takes the
 //! context's global style. The owned select therefore paints its list from
 //! `style.select` alone, which the second test pins.
 
-use bullseye::{LayoutState, NodeUi as _, TextSpec, TextStyle, tw};
-use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor};
+use eggshell_ui::{LayoutState, NodeUi as _, TextSpec, TextStyle, tw};
+use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor};
 use egui::{Color32, FontFamily, Popup, SetOpenCommand, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;

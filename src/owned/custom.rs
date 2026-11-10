@@ -16,7 +16,7 @@ type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
 /// the size of its content.
 ///
 /// ```
-/// # use bullseye::{Builder, tw};
+/// # use eggshell_ui::{Builder, tw};
 /// struct App { angle: f32 }
 ///
 /// fn view(b: &mut Builder<'_, '_, App>, _: &App) {

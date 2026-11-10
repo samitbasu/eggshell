@@ -1,8 +1,8 @@
 //! `n` items of `w-1/n` fill a wrapping row exactly and never wrap, at every
 //! container width, however `1/n` rounds in `f32` (as in a browser).
 
-use bullseye::testing::Headless;
-use bullseye::{Builder, tw};
+use eggshell_ui::testing::Headless;
+use eggshell_ui::{Builder, tw};
 use egui::vec2;
 
 /// The tops of `parts` laid out in one wrapping row `width` points wide.

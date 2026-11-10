@@ -1,4 +1,4 @@
-//! A gallery of the kaolin README layouts, built and drawn by bullseye in eframe.
+//! A gallery of the kaolin README layouts, built and drawn by eggshell in eframe.
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
@@ -6,7 +6,7 @@
 mod common;
 mod layouts;
 
-use bullseye::{Builder, LayoutState, TextStyle, tw};
+use eggshell_ui::{Builder, LayoutState, TextStyle, tw};
 use egui::load::SizedTexture;
 use egui::{ImageSource, TextureHandle, TextureOptions};
 

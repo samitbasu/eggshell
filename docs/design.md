@@ -48,7 +48,7 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 | D9 | **No component trait and no ID enums.** A component is a function that builds a subtree; each identified node carries its own draw closure. | Building, measuring and drawing a control happen in one place. No routing code. |
 | D10 | **Draw closures own their captures and receive `&mut App`.** They narrow to their data with captured keys (`app.doc.block_mut(k)`). Reusable components receive a lens (`impl Fn(&mut App) -> Option<&mut T> + Copy + 'static`). | The borrow checker accepts draw closures created during build, because they hold no borrow of the app. |
 | D11 | State shared between nodes as application meaning lives on `App`. State local to the UI lives in egui memory under an ID derived from a key path: `ui.make_persistent_id(salt)` in draw, or an ID computed once in build (`b.id_of(key).with(salt)`) and captured by the draw that writes it. | Uses egui's memory model, made safe by stable paths. |
-| D12 | A node's draw `Ui` is created with `UiBuilder::scope_id(path_hash.with("bullseye-draw"))`, so the IDs of widgets inside it are independent of layer and parent `Ui`. The node's own interaction uses `path_hash` itself (`NodeUi::node_id`); the draw `Ui` cannot share it, because egui registers a `Ui`'s scope ID as a widget and that would overwrite the node's border-box widget. | Build and draw compute identical IDs from the path alone. |
+| D12 | A node's draw `Ui` is created with `UiBuilder::scope_id(path_hash.with("eggshell-draw"))`, so the IDs of widgets inside it are independent of layer and parent `Ui`. The node's own interaction uses `path_hash` itself (`NodeUi::node_id`); the draw `Ui` cannot share it, because egui registers a `Ui`'s scope ID as a widget and that would overwrite the node's border-box widget. | Build and draw compute identical IDs from the path alone. |
 | D13 | Styles are written with a `Tw` builder in Tailwind vocabulary. **`Tw` holds resolved values only**: `Color32`, `TextSpec`, points. Theming is an application concern (Appendix A). | No theme abstraction in the library. Since the tree is rebuilt every frame, resolving at build time is late enough. |
 | D14 | One spacing unit = 4 points. `.p(1.5)` = `p-1.5` = 6 pt. | Tailwind's scale (0.25 rem at 16 px). |
 | D15 | `tw()` starts as `Display::Block` (CSS default). `flex()` / `grid()` must be explicit. | Tailwind code reads the same as on the web. |
@@ -720,7 +720,7 @@ Inside `draw`, for each identified node:
 
 ```rust
 fn node_ui(ui: &mut egui::Ui, content: Rect, clip: Rect, id: egui::Id, text: &TextStyle, f: impl FnOnce(&mut egui::Ui)) {
-    ui.scope_builder(egui::UiBuilder::new().max_rect(content).scope_id(id.with("bullseye-draw")), |ui| {   // D12
+    ui.scope_builder(egui::UiBuilder::new().max_rect(content).scope_id(id.with("eggshell-draw")), |ui| {   // D12
         ui.set_clip_rect(clip);
         apply_text_style(ui, text);   // font + color overrides ⚠
         f(ui);                        // interaction (D24), then the node's draw closure with &mut A

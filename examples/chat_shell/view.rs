@@ -1,7 +1,7 @@
 //! The three-pane frame and the splitters between the panes.
 
 use super::common;
-use bullseye::{Builder, tw};
+use eggshell_ui::{Builder, tw};
 use egui::CursorIcon;
 
 use super::centre::{centre, centre_style};

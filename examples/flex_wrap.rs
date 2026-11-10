@@ -2,14 +2,14 @@
 //! wrapping row of bordered words.
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
-//! rebuilt with bullseye: taffy places, egui draws. The gap slider is a stock
+//! rebuilt with eggshell: taffy places, egui draws. The gap slider is a stock
 //! egui slider and the wrap choice a segmented control, both inside the tree.
 //! The original's stock egui labels and buttons are text boxes here.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, Tw, tw};
+use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
@@ -113,7 +113,7 @@ fn separator<A>(b: &mut B<'_, '_, A>) {
 
 /// ```html
 /// <div class="flex flex-col items-stretch justify-center gap-2 p-2 w-full">
-///   <span>Hello from bullseye</span>
+///   <span>Hello from eggshell</span>
 ///   <hr class="h-px bg-[#a0a0a0]">
 ///   <span>Left aligned text</span>
 ///   <span class="self-center">Centered text</span>
@@ -136,7 +136,7 @@ pub fn demo<A>(b: &mut B<'_, '_, A>, state: &State) {
             .p(2.0)
             .w_full(),
         |b| {
-            b.text(tw(), "Hello from bullseye");
+            b.text(tw(), "Hello from eggshell");
             separator(b);
             b.text(tw(), "Left aligned text");
             b.text(tw().self_center(), "Centered text");

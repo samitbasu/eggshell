@@ -35,8 +35,8 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 /// buttons.
 ///
 /// ```
-/// use bullseye::owned::{ButtonOptions, ToggleGroup};
-/// use bullseye::{Builder, tw};
+/// use eggshell_ui::owned::{ButtonOptions, ToggleGroup};
+/// use eggshell_ui::{Builder, tw};
 ///
 /// #[derive(Clone, Copy, Debug, Hash, PartialEq)]
 /// enum Tool { Select, Pan, Zoom }

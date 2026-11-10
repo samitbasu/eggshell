@@ -1,7 +1,7 @@
 //! What the application keeps between frames.
 
-use bullseye::Progress;
-use bullseye_shadcn::ThemeColor;
+use eggshell_ui::Progress;
+use eggshell_ui_shadcn::ThemeColor;
 
 /// A pane whose width the user drags.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

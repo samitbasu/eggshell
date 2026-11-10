@@ -4,8 +4,8 @@
 
 use core::time::Duration;
 
-use bullseye::testing::Timeline;
-use bullseye::{Builder, tw};
+use eggshell_ui::testing::Timeline;
+use eggshell_ui::{Builder, tw};
 use egui::{Vec2, vec2};
 use egui_kittest::Harness;
 

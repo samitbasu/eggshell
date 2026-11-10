@@ -27,7 +27,7 @@ enum Part {
 /// other value to `on_change`.
 ///
 /// ```
-/// # use bullseye::Builder;
+/// # use eggshell_ui::Builder;
 /// #[derive(Clone, Copy, PartialEq)]
 /// enum Terms { Declined, Accepted }
 /// struct App { terms: Terms, news: bool }

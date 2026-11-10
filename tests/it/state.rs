@@ -1,7 +1,7 @@
 //! What a build reads at build time: egui's local state through
 //! `Builder::ctx`, and the base text, which follows egui unless overridden.
 
-use bullseye::{Builder, LayoutState, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, tw};
 use egui::{Color32, Context, FontFamily, Rect, Theme, pos2, vec2};
 use egui_kittest::Harness;
 

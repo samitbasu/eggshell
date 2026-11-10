@@ -11,7 +11,7 @@ use super::Tw;
 /// One grid track: `48`, `1fr`, `minmax(0, 1fr)`, ...
 ///
 /// ```
-/// use bullseye::{tw, Track};
+/// use eggshell_ui::{tw, Track};
 /// let columns = tw().grid().grid_cols_tracks(&[
 ///     Track::px(48.0),
 ///     Track::minmax(Track::px(0.0), Track::fr(1.0)),

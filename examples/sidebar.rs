@@ -3,7 +3,7 @@
 //! bottom.
 //!
 //! After the sidebar in hello_egui (https://github.com/lucasmerlin/hello_egui,
-//! MIT), rebuilt with bullseye. The selection is app state known at build
+//! MIT), rebuilt with eggshell. The selection is app state known at build
 //! time, so it is base paint; hover is a variant, so the selected entry keeps
 //! its fill under the pointer. The entries are placeholders for the original's
 //! routes.
@@ -11,7 +11,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, tw};
+use eggshell_ui::{Builder, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

@@ -1,7 +1,7 @@
 //! Small icons rasterised at start-up, so the examples that show icon cells
 //! and icon buttons need no image assets or loaders.
 
-use bullseye::Icon;
+use eggshell_ui::Icon;
 use egui::{Color32, ColorImage, Context, Id, TextureHandle, TextureOptions, Vec2, vec2};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

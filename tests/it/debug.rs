@@ -1,7 +1,7 @@
 //! The layout debug overlay through the real frame path, asserted on the
 //! shapes egui is handed, so no GPU is needed.
 
-use bullseye::{Builder, Debug, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Debug, TextSpec, TextStyle, tw};
 use egui::epaint::{ClippedShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, Vec2};
 use egui_kittest::Harness;

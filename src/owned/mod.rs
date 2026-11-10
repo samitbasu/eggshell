@@ -1,4 +1,4 @@
-//! Controls built from bullseye nodes instead of wrapped egui widgets
+//! Controls built from eggshell nodes instead of wrapped egui widgets
 //! (issue #19). A control is an identified node with a sense, `hover`,
 //! `active` and `focus` variants and text or paint children, styled from
 //! [`Style`] and measured by taffy, so there is no size

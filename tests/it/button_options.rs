@@ -1,10 +1,10 @@
 //! `ButtonOptions`: shared button settings, and the helper-function pattern
 //! that returns a chain for the caller to finish.
 
-use bullseye::contract::Size;
-use bullseye::owned::{ButtonChain, ButtonOptions};
-use bullseye::{Builder, LayoutState, Scope, tw};
-use bullseye_shadcn::{Shadcn, size, variant};
+use eggshell_ui::contract::Size;
+use eggshell_ui::owned::{ButtonChain, ButtonOptions};
+use eggshell_ui::{Builder, LayoutState, Scope, tw};
+use eggshell_ui_shadcn::{Shadcn, size, variant};
 use egui::epaint::ClippedShape;
 use egui::{RawInput, Rect, pos2};
 

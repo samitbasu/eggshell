@@ -1,0 +1,12 @@
+[package]
+name = "eggshell-ui-shadcn"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+description = "The shadcn/ui design system as a eggshell style"
+repository = "https://github.com/samitbasu/eggshell"
+
+[dependencies]
+eggshell-ui = { path = "../..", version = "0.1.0" }
+egui = "0.37"

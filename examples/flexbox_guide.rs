@@ -1,6 +1,6 @@
 //! A tour of flexbox after "A Complete Guide to Flexbox" on CSS-Tricks.
 //!
-//! Rebuilt with bullseye (taffy places, egui draws) from the guide's
+//! Rebuilt with eggshell (taffy places, egui draws) from the guide's
 //! descriptions: perfect centering, a fluid six-item grid, and one demo per
 //! container and item property over a row of navigation links. The selector is
 //! a list of clickable nodes and a segmented control inside the tree.
@@ -13,9 +13,9 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::owned::Cell;
-use bullseye::{Builder, Tw, tw};
 use common::{mono, sized};
+use eggshell_ui::owned::Cell;
+use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
