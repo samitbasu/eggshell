@@ -1,7 +1,7 @@
 //! The layout debug overlay through the real frame path, asserted on the
 //! shapes egui is handed, so no GPU is needed.
 
-use bullseye::{Builder, Debug, TextSpec, TextStyle, none, tw};
+use bullseye::{Builder, Debug, TextSpec, TextStyle, tw};
 use egui::epaint::{ClippedShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, Vec2};
 use egui_kittest::Harness;
@@ -75,9 +75,9 @@ fn paths(harness: &Harness<'_, Rig<()>>) -> Vec<String> {
 }
 
 fn nested(b: &mut Builder<'_, '_, ()>, _: &()) {
-    b.div_id("outer", tw().w_px(300.0).h_px(200.0).p(10.0), none, |b| {
-        b.div_id("inner", tw().flex().w_px(100.0).h_px(50.0), none, |b| {
-            b.span("label", tw(), "label", none);
+    b.div_id("outer", tw().w_px(300.0).h_px(200.0).p(10.0), |b| {
+        b.div_id("inner", tw().flex().w_px(100.0).h_px(50.0), |b| {
+            b.span("label", tw(), "label");
         });
         b.rule(tw().h_px(1.0));
         b.paint(tw().w_px(10.0).h_px(10.0), |_, _, _| {});
@@ -85,7 +85,6 @@ fn nested(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div_id(
         "overlay",
         tw().absolute().top_px(250.0).left_px(10.0),
-        none,
         |b| {
             b.text(tw(), "floating");
         },
@@ -149,38 +148,27 @@ fn outlines_one_hairline_per_node_at_its_rect() {
 
 fn overflowing(b: &mut Builder<'_, '_, ()>, _: &()) {
     let long = "a line of text much too long for the box it is in";
-    b.div_id("narrow", tw().w_px(40.0), none, |b| {
-        b.span("nowrap", tw().whitespace_nowrap(), long, none);
+    b.div_id("narrow", tw().w_px(40.0), |b| {
+        b.span("nowrap", tw().whitespace_nowrap(), long);
     });
-    b.div_id("roomy", tw().w_px(300.0), none, |b| {
-        b.span("fits", tw().whitespace_nowrap(), "short", none);
+    b.div_id("roomy", tw().w_px(300.0), |b| {
+        b.span("fits", tw().whitespace_nowrap(), "short");
     });
-    b.div_id("short box", tw().w_px(200.0), none, |b| {
-        b.span("too tall", tw().h_px(10.0), "one line", none);
+    b.div_id("short box", tw().w_px(200.0), |b| {
+        b.span("too tall", tw().h_px(10.0), "one line");
     });
-    b.div_id("spills", tw().w_px(50.0).h_px(20.0), none, |b| {
+    b.div_id("spills", tw().w_px(50.0).h_px(20.0), |b| {
+        b.div_id("wide child", tw().w_px(80.0).h_px(10.0).shrink_0(), |_| {});
+    });
+    b.div_id("clips", tw().w_px(50.0).h_px(20.0).overflow_hidden(), |b| {
         b.div_id(
-            "wide child",
+            "clipped child",
             tw().w_px(80.0).h_px(10.0).shrink_0(),
-            none,
             |_| {},
         );
     });
-    b.div_id(
-        "clips",
-        tw().w_px(50.0).h_px(20.0).overflow_hidden(),
-        none,
-        |b| {
-            b.div_id(
-                "clipped child",
-                tw().w_px(80.0).h_px(10.0).shrink_0(),
-                none,
-                |_| {},
-            );
-        },
-    );
-    b.div_id("wraps", tw().w_px(60.0), none, |b| {
-        b.span("wrapping", tw(), "several short words", none);
+    b.div_id("wraps", tw().w_px(60.0), |b| {
+        b.span("wrapping", tw(), "several short words");
     });
 }
 

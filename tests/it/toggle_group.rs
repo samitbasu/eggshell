@@ -3,7 +3,7 @@
 
 use bullseye::contract::{Keyed, Metrics, Size};
 use bullseye::owned::{ButtonOptions, Face, ToggleGroup};
-use bullseye::{Builder, TextStyle, none, tw};
+use bullseye::{Builder, TextStyle, tw};
 use bullseye_shadcn::{Shadcn, Tokens, size};
 use egui::{Rect, Role, Theme, vec2};
 use egui_kittest::Harness;
@@ -241,7 +241,7 @@ fn cards_view(b: &mut Builder<'_, '_, App>, app: &App) {
                 .children(|s| {
                     s.text(tw(), label);
                     if chosen {
-                        s.div_id("check", tw().w_px(8.0).h_px(8.0).bg(CHECK), none, |_| {});
+                        s.div_id("check", tw().w_px(8.0).h_px(8.0).bg(CHECK), |_| {});
                     }
                 })
                 .add();

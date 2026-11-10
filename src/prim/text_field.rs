@@ -140,19 +140,16 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             hooks,
         } = self;
         let measured = field.clone();
-        b.leaf_with(
-            slot.id,
-            &slot.label,
-            classes,
-            move |m| measure(m, &measured),
-            move |app, ui| {
-                let mut edited = text;
-                let response = show(ui, &mut edited, &field);
-                if response.changed() {
-                    on_change(app, edited);
-                }
-                hooks.run(app, ui, &response);
-            },
-        );
+        b.leaf_with(slot.id, &slot.label, classes, move |m| {
+            measure(m, &measured)
+        })
+        .draw(move |app, ui| {
+            let mut edited = text;
+            let response = show(ui, &mut edited, &field);
+            if response.changed() {
+                on_change(app, edited);
+            }
+            hooks.run(app, ui, &response);
+        });
     }
 }

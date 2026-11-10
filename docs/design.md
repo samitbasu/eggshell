@@ -203,12 +203,12 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     // ---- containers
     pub fn div(&mut self, tw: Tw, body: impl FnOnce(&mut Builder<'_, 'f, A>));
-    pub fn div_id(&mut self, key: K, tw: Tw, draw: D, body: impl FnOnce(&mut S)); // children scoped under key
+    pub fn div_id(&mut self, key: K, tw: Tw, body: impl FnOnce(&mut S)) -> NodeHandle; // children scoped under key
 
     // ---- identified leaves
     pub fn custom(&mut self, key: K, tw: Tw) -> CustomChain;  // [.measure(f)] [.named(n)] [.tooltip(t)] [.on_response(f)] .ui(|app, ui| …)
-    pub fn span(&mut self, key: K, tw: Tw, text: impl Into<String>, draw: D);  // library measures/paints the text
-    pub fn icon(&mut self, key: K, tw: Tw, icon: Icon, draw: D);              // library measures/paints the icon
+    pub fn span(&mut self, key: K, tw: Tw, text: impl Into<String>) -> NodeHandle;  // library measures/paints the text
+    pub fn icon(&mut self, key: K, tw: Tw, icon: Icon) -> NodeHandle;              // library measures/paints the icon
 
     // ---- owned widgets: each returns a #[must_use] builder; options, then the terminator
     pub fn button(&mut self, key: K, face: impl Into<Face>) -> ButtonChain;          // .on_click(f) | .add()
@@ -241,7 +241,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
 /// Library helpers
 pub fn fill(_: &Measure) -> Size<f32>;            // leaves sized entirely by classes or by their parent
-pub fn none<A>(_: &mut A, _: &mut egui::Ui);      // identified nodes the application does not draw (anchors)
+
+/// What div_id, span and icon return; every method may be called any number of times, handlers run in call order
+impl NodeHandle<'_, '_, A> {
+    pub fn draw(self, f: impl FnOnce(&mut A, &mut Ui) + 'static) -> Self;           // the node's own Ui at draw time
+    pub fn on_click(self, f: impl FnOnce(&mut A) + 'static) -> Self;
+    pub fn on_response(self, f: impl FnOnce(&mut A, &Response) + 'static) -> Self;
+}
 ```
 
 **Measure and draw closures differ in lifetime** *(compiled)*:
@@ -298,8 +304,8 @@ A component is a function (or a module of functions) that builds a subtree into 
 pub mod topbar {
     pub fn build(app: &App, k: &Theme, b: &mut B<'_, '_>) {
         b.scope("top", |b| b.div(bar(k), |b| {
-            b.icon("undo", kit::tap(k), icons::undo(), click(|app| app.undo()));
-            b.icon("props", props_tap(app, k), icons::properties(), click(|app| app.props_open = !app.props_open));
+            b.icon("undo", kit::tap(k), icons::undo()).draw(click(|app| app.undo()));
+            b.icon("props", props_tap(app, k), icons::properties()).draw(click(|app| app.props_open = !app.props_open));
             // …
         }));
     }
@@ -345,7 +351,7 @@ Conventions:
   ```rust
   let open_id = b.id_of(("row", key)).with("open");
   let open = b.ctx().data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
-  b.icon("fold", …, chevron(open), move |_app, ui| if ui.node_response().clicked() {
+  b.icon("fold", …, chevron(open)).draw(move |_app, ui| if ui.node_response().clicked() {
       ui.data_mut(|d| { let o = d.get_temp_mut_or_default::<bool>(open_id); *o = !*o; });
   });
   ```
@@ -433,10 +439,10 @@ let tap = tw().grid().items_center().justify_center().size(11.0).rounded_px(12.0
     .transition(0.15);
 
 b.div_id(("row", key), tw().flex().h(7.0).items_center().gap(1.0).rounded_md()
-        .group().sense_click().hover(|p| p.bg(k[HoverSoft])), click(move |app| app.doc.selection = Some(key)), |b| {
+        .group().sense_click().hover(|p| p.bg(k[HoverSoft])), |b| {
     // …
-    b.icon("open", tw().size(6.0).opacity(0.0).group_hover(|p| p.opacity(1.0)).sense_click(), icons::enter(), click(|app| { /* … */ }));
-});
+    b.icon("open", tw().size(6.0).opacity(0.0).group_hover(|p| p.opacity(1.0)).sense_click(), icons::enter()).draw(click(|app| { /* … */ }));
+}).draw(click(move |app| app.doc.selection = Some(key)));
 ```
 
 **Sense.** `sense_click()`, `sense_drag()`, `sense_click_drag()`, `sense_hover()`. A node with `hover` / `active` implies at least the matching sense. Only identified nodes (`div_id`, `leaf`, `span`, `icon`) may declare a sense, a group, `hover` / `active` variants or a `transition`; on an anonymous node that is a build error (debug assertion). `group_hover` alone is the exception: it only reads the group's state, so an anonymous child may follow its parent's hover (a `transition` on it needs an identified node).
@@ -670,11 +676,11 @@ if let Some(p) = self.canvas_menu {
     b.overlay("canvas_menu", Band::Popup, Anchor::Point(p), Placement::At, |app| app.canvas_menu = None, |b| {
         b.div(kit::menu_box(k), |b| {
             for (cmd, icon, label, key) in ROWS {
-                b.div_id(cmd, kit::menu_row(k), click(move |app| { app.run(cmd); app.canvas_menu = None }), |b| {
+                b.div_id(cmd, kit::menu_row(k), |b| {
                     b.glyph(tw().size_px(18.0).flex_none(), icon());
                     b.text(tw().min_w_0().flex_1(), label);
                     kit::kbd(b, k, key);
-                });
+                }).draw(click(move |app| { app.run(cmd); app.canvas_menu = None }));
             }
         });
     });

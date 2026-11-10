@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 
 use bullseye::{
     Builder, FontStyle, Icon, LayoutState, NodeKind, Placed, TextDecoration, TextSpec, TextStyle,
-    Track, none, tw,
+    Track, tw,
 };
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
@@ -494,10 +494,10 @@ fn identified_nodes_are_found_by_id_and_path() {
     let placed = place(|b| {
         b.scope("props", |b| {
             ids.push(b.id_of("title"));
-            b.span("title", tw(), "Title", none);
+            b.span("title", tw(), "Title").draw(|_, _| {});
             b.scope(("block", 2u32), |b| {
                 ids.push(b.id_of("name"));
-                b.span("name", tw(), "Name", none);
+                b.span("name", tw(), "Name");
             });
         });
         b.text(tw(), "anonymous");
@@ -506,6 +506,7 @@ fn identified_nodes_are_found_by_id_and_path() {
     assert_eq!(title.path(), "/\"props\"/\"title\"");
     assert_eq!(title.kind(), NodeKind::Span);
     assert!(title.has_draw());
+    assert!(!placed.node(ids[1]).unwrap().has_draw());
     assert_eq!(placed.rect(ids[0]), Some(title.rect()));
     assert_eq!(
         placed.node(ids[1]).unwrap().path(),
@@ -519,7 +520,7 @@ fn dump_lists_every_node_including_anonymous_ones() {
     let placed = place(|b| {
         b.div(tw().flex().w_px(100.0).h_px(50.0), |b| {
             b.scope("s", |b| {
-                b.span("t", tw(), "x", none);
+                b.span("t", tw(), "x");
                 b.rule(tw().w_px(1.0));
             });
         });
@@ -552,9 +553,9 @@ fn div_id_scopes_its_children_under_its_key() {
     let mut ids = Vec::new();
     let placed = place(|b| {
         for row in [1u32, 2] {
-            b.div_id(("row", row), tw(), none, |b| {
+            b.div_id(("row", row), tw(), |b| {
                 ids.push(b.id_of("label"));
-                b.span("label", tw(), "x", none);
+                b.span("label", tw(), "x");
             });
         }
     });
@@ -583,8 +584,8 @@ fn enum_keys_of_different_types_in_one_scope_do_not_collide() {
     let placed = place(|b| {
         ids.push(b.id_of(Appearance::Light));
         ids.push(b.id_of(Lettering::Basic));
-        b.span(Appearance::Light, tw(), "a", none);
-        b.span(Lettering::Basic, tw(), "b", none);
+        b.span(Appearance::Light, tw(), "a");
+        b.span(Lettering::Basic, tw(), "b");
     });
     assert_ne!(ids[0], ids[1]);
     assert!(placed.rect(ids[0]).is_some() && placed.rect(ids[1]).is_some());
@@ -595,8 +596,8 @@ fn integers_and_newtypes_in_one_scope_do_not_collide() {
     #[derive(Hash, Debug)]
     struct BlockKey(u32);
     let placed = place(|b| {
-        b.span(1u32, tw(), "a", none);
-        b.span(BlockKey(1), tw(), "b", none);
+        b.span(1u32, tw(), "a");
+        b.span(BlockKey(1), tw(), "b");
     });
     assert_eq!(placed.nodes().filter(|n| n.id().is_some()).count(), 2);
 }
@@ -604,8 +605,12 @@ fn integers_and_newtypes_in_one_scope_do_not_collide() {
 #[test]
 fn the_same_key_may_recur_in_different_scopes() {
     let placed = place(|b| {
-        b.scope("a", |b| b.span("title", tw(), "x", none));
-        b.scope("b", |b| b.span("title", tw(), "x", none));
+        b.scope("a", |b| {
+            b.span("title", tw(), "x");
+        });
+        b.scope("b", |b| {
+            b.span("title", tw(), "x");
+        });
     });
     assert_eq!(placed.nodes().filter(|n| n.id().is_some()).count(), 2);
 }
@@ -616,8 +621,8 @@ fn the_same_key_may_recur_in_different_scopes() {
 fn a_duplicate_path_panics_with_the_readable_path() {
     place(|b| {
         b.scope("outer", |b| {
-            b.span("dup", tw(), "x", none);
-            b.custom("dup", tw()).ui(none);
+            b.span("dup", tw(), "x");
+            b.custom("dup", tw()).ui(|_, _| {});
         });
     });
 }
@@ -627,8 +632,8 @@ fn a_duplicate_path_panics_with_the_readable_path() {
 #[should_panic(expected = "duplicate key path /(\"row\", 1)")]
 fn duplicate_identified_containers_panic() {
     place(|b| {
-        b.div_id(("row", 1), tw(), none, |_| {});
-        b.div_id(("row", 1), tw(), none, |_| {});
+        b.div_id(("row", 1), tw(), |_| {});
+        b.div_id(("row", 1), tw(), |_| {});
     });
 }
 
@@ -637,7 +642,9 @@ fn a_new_build_forgets_the_previous_frames_paths() {
     let mut state = fixed_state();
     for _ in 0..2 {
         state
-            .build::<()>(ctx(), |b| b.span("same", tw(), "x", none))
+            .build::<()>(ctx(), |b| {
+                b.span("same", tw(), "x");
+            })
             .layout(AREA);
     }
 }
@@ -710,7 +717,7 @@ fn inheritance_crosses_scopes_and_identified_containers() {
     let placed = place(|b| {
         b.div(tw().text(Color32::RED), |b| {
             b.scope("s", |b| {
-                b.div_id("d", tw().underline(), none, |b| b.text(tw(), "deep"));
+                b.div_id("d", tw().underline(), |b| b.text(tw(), "deep"));
             })
         });
     });
@@ -726,7 +733,7 @@ fn inheritance_crosses_scopes_and_identified_containers() {
 #[test]
 fn the_nodes_own_classes_apply_to_its_own_content() {
     let placed = place(|b| {
-        b.span("s", tw().text(Color32::BLUE).uppercase(), "x", none);
+        b.span("s", tw().text(Color32::BLUE).uppercase(), "x");
         b.glyph(
             tw().text(Color32::RED),
             Icon::new(egui::ImageSource::Uri("bytes://i".into())),
@@ -816,15 +823,15 @@ fn application_leaves_are_measured_with_borrowed_data() {
             b.div(tw().flex().items_start(), |b| {
                 b.custom("note", tw())
                     .measure(|m| m.text_size(&note))
-                    .ui(none);
+                    .ui(|_, _| {});
                 b.custom("fixed", tw())
                     .measure(|_| taffy::Size {
                         width: 30.0,
                         height: 12.0,
                     })
-                    .ui(none);
+                    .ui(|_, _| {});
                 b.custom("sized by classes", tw().w_px(7.0).h_px(9.0))
-                    .ui(none);
+                    .ui(|_, _| {});
             })
         })
         .layout(AREA);
@@ -851,7 +858,7 @@ fn glyphs_are_one_em_square_and_classes_override() {
             b.glyph(tw(), Icon::new(src()));
             b.glyph(tw().role(sized(30.0)), Icon::new(src()));
             b.glyph(tw().size_px(11.0), Icon::new(src()));
-            b.icon("i", tw(), Icon::new(src()), none);
+            b.icon("i", tw(), Icon::new(src()));
         })
     });
     let sizes: Vec<_> = rects(&placed, NodeKind::Glyph)
@@ -1332,7 +1339,7 @@ fn custom_background_boxes_wrap_into_rows_of_the_slider_size() {
 fn a_leaf_is_as_large_as_its_content_plus_padding_and_border() {
     let placed = place(|b| {
         b.div(tw().flex(), |b| {
-            b.span("padded", tw().px(2.0).py(1.0).border(2.0), "Hello", none);
+            b.span("padded", tw().px(2.0).py(1.0).border(2.0), "Hello");
         });
     });
     let width = width_of(&BODY, "Hello");
@@ -1355,8 +1362,8 @@ fn a_leaf_is_as_large_as_its_content_plus_padding_and_border() {
 fn baseline_alignment_counts_a_leafs_padding() {
     let placed = place(|b| {
         b.div(tw().flex().items_baseline(), |b| {
-            b.span("padded", tw().py(3.0), "Hello", none);
-            b.span("plain", tw(), "Hello", none);
+            b.span("padded", tw().py(3.0), "Hello");
+            b.span("plain", tw(), "Hello");
         });
     });
     let [padded, plain] = rects(&placed, NodeKind::Span)[..] else {
@@ -1393,7 +1400,7 @@ fn a_stretched_padded_text_leaf_is_as_tall_as_its_wrapped_lines() {
     );
     let placed = place(|b| {
         b.div(tw().flex().flex_col().w_px(column), |b| {
-            b.span("padded", tw().px(2.0), text, none);
+            b.span("padded", tw().px(2.0), text);
         });
     });
     let [padded] = rects(&placed, NodeKind::Span)[..] else {

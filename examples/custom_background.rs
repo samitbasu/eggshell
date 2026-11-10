@@ -184,9 +184,9 @@ fn button(
             .p(5.0)
             .text(text)
             .sense_click(),
-        common::on_click::<State>(act),
         |b| b.text(tw().uppercase(), label),
-    );
+    )
+    .on_click(act);
 }
 
 /// ```html

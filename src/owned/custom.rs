@@ -90,13 +90,15 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
             on_response,
         } = self;
         let measure: MeasureFn<'f> = measure.unwrap_or_else(|| Box::new(fill));
-        b.leaf_with(slot.id, &slot.label, classes, measure, move |app, ui| {
-            let response = tipped(ui.node_response(), &tooltip);
-            if let Some(name) = &name {
-                response.widget_info(|| WidgetInfo::labeled(Role::Unknown, ui.is_enabled(), name));
-            }
-            on_response.run(app, &response);
-            draw(app, ui);
-        });
+        b.leaf_with(slot.id, &slot.label, classes, measure)
+            .draw(move |app, ui| {
+                let response = tipped(ui.node_response(), &tooltip);
+                if let Some(name) = &name {
+                    response
+                        .widget_info(|| WidgetInfo::labeled(Role::Unknown, ui.is_enabled(), name));
+                }
+                on_response.run(app, &response);
+                draw(app, ui);
+            });
     }
 }

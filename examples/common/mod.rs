@@ -16,7 +16,7 @@ use std::ops::RangeInclusive;
 
 use bullseye::owned::Cell;
 use bullseye::prim::text_field::Field;
-use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
+use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Tw, tw};
 use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
@@ -424,18 +424,6 @@ impl ThemeBar {
     }
 }
 
-/// A draw closure that runs `act` on the application when the node is clicked.
-pub fn on_click<S>(
-    act: impl FnOnce(&mut S) + 'static,
-) -> impl FnOnce(&mut S, &mut egui::Ui) + 'static {
-    move |state, ui| {
-        if ui.node_response().clicked() {
-            act(state);
-            ui.ctx().request_repaint();
-        }
-    }
-}
-
 /// A demo with its controls: a panel on the left, built in the same tree, and
 /// the demo filling the rest.
 ///
@@ -613,7 +601,6 @@ pub fn text_box<S, K>(
             .bg(fill)
             .shadow(t.control_shadow())
             .focus_within(|p| p.border_color(t.ring).ring(t.ring_width, ring(&t))),
-        none,
         |b| {
             b.text_field_with("field", field)
                 .classes(tw().w_full())

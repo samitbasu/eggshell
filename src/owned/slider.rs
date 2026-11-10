@@ -219,57 +219,47 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         b.scope_with(slot.id, &slot.label, |b| {
             let track = b.id_of(Part::Track);
             let on_track = scale.clone();
-            b.div_id(
-                Part::Track,
-                hit,
-                move |app, ui| {
-                    let response = tipped(ui.node_response(), &track_tip);
-                    let pressed = response.is_pointer_button_down_on();
-                    if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
-                        let value = on_track.at(at.x, response.rect);
-                        if value != on_track.value {
+            b.div_id(Part::Track, hit, |b| {
+                b.div(bar, |b| b.div(filled, |_| {}));
+                b.div(travel, |b| {
+                    b.div_id(Part::Thumb, knob, |_| {}).draw(move |app, ui| {
+                        let response = tipped(ui.node_response(), &thumb_tip);
+                        let track = ui.ctx().read_response(track).map(|r| r.rect);
+                        let pointer = response
+                            .interact_pointer_pos()
+                            .zip(track)
+                            .filter(|_| response.is_pointer_button_down_on())
+                            .map(|(at, track)| scale.at(at.x, track));
+                        let keys = if response.has_focus() {
+                            scale.after_keys(ui)
+                        } else {
+                            None
+                        };
+                        if let Some(value) = keys.or(pointer).filter(|&v| v != scale.value) {
                             set(app, value);
                         }
-                    }
-                },
-                |b| {
-                    b.div(bar, |b| b.div(filled, |_| {}));
-                    b.div(travel, |b| {
-                        b.div_id(
-                            Part::Thumb,
-                            knob,
-                            move |app, ui| {
-                                let response = tipped(ui.node_response(), &thumb_tip);
-                                let track = ui.ctx().read_response(track).map(|r| r.rect);
-                                let pointer = response
-                                    .interact_pointer_pos()
-                                    .zip(track)
-                                    .filter(|_| response.is_pointer_button_down_on())
-                                    .map(|(at, track)| scale.at(at.x, track));
-                                let keys = if response.has_focus() {
-                                    scale.after_keys(ui)
-                                } else {
-                                    None
-                                };
-                                if let Some(value) = keys.or(pointer).filter(|&v| v != scale.value)
-                                {
-                                    set(app, value);
-                                }
-                                on_response.run(app, &response);
-                                response.widget_info(|| {
-                                    WidgetInfo::slider(ui.is_enabled(), scale.value, &name)
-                                });
-                                let (low, high) = (*scale.range.start(), *scale.range.end());
-                                ui.ctx().accesskit_node_builder(response.id, |node| {
-                                    node.set_min_numeric_value(low);
-                                    node.set_max_numeric_value(high);
-                                });
-                            },
-                            |_| {},
-                        );
+                        on_response.run(app, &response);
+                        response.widget_info(|| {
+                            WidgetInfo::slider(ui.is_enabled(), scale.value, &name)
+                        });
+                        let (low, high) = (*scale.range.start(), *scale.range.end());
+                        ui.ctx().accesskit_node_builder(response.id, |node| {
+                            node.set_min_numeric_value(low);
+                            node.set_max_numeric_value(high);
+                        });
                     });
-                },
-            );
+                });
+            })
+            .draw(move |app, ui| {
+                let response = tipped(ui.node_response(), &track_tip);
+                let pressed = response.is_pointer_button_down_on();
+                if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
+                    let value = on_track.at(at.x, response.rect);
+                    if value != on_track.value {
+                        set(app, value);
+                    }
+                }
+            });
         });
     }
 }

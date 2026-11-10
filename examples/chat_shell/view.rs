@@ -1,7 +1,7 @@
 //! The three-pane frame and the splitters between the panes.
 
 use super::common;
-use bullseye::{Builder, NodeUi, none, tw};
+use bullseye::{Builder, tw};
 use egui::CursorIcon;
 
 use super::centre::{centre, centre_style};
@@ -56,24 +56,6 @@ fn splitter(b: &mut B<'_, '_>, pane: Pane) {
             .sense_drag()
             .focusable_none()
             .group(),
-        move |app: &mut App, ui| {
-            let response = ui.node_response();
-            if response.hovered() || response.dragged() {
-                ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
-            }
-            let Some(pointer) = response.interact_pointer_pos() else {
-                return;
-            };
-            if response.drag_started() {
-                app.begin_drag(pane, pointer.x);
-            }
-            if response.dragged() {
-                app.drag_to(pointer.x);
-            }
-            if response.drag_stopped() {
-                app.end_drag();
-            }
-        },
         |b| {
             b.rule(
                 tw().w_px(1.0)
@@ -82,7 +64,24 @@ fn splitter(b: &mut B<'_, '_>, pane: Pane) {
                     .group_hover(|p| p.bg(k[Tok::Accent])),
             );
         },
-    );
+    )
+    .on_response(move |app: &mut App, response| {
+        if response.hovered() || response.dragged() {
+            response.ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
+        }
+        let Some(pointer) = response.interact_pointer_pos() else {
+            return;
+        };
+        if response.drag_started() {
+            app.begin_drag(pane, pointer.x);
+        }
+        if response.dragged() {
+            app.drag_to(pointer.x);
+        }
+        if response.drag_stopped() {
+            app.end_drag();
+        }
+    });
 }
 
 /// Gives egui's stock widgets, which the select and the composer's field are,
@@ -105,15 +104,11 @@ pub fn layout(b: &mut B<'_, '_>, app: &App) {
             .bg(k[Tok::Ground])
             .text(k[Tok::Ink]),
         |b| {
-            b.div_id(Part::Sidebar, sidebar_style(k, app), none, |s| {
-                sidebar(s, app)
-            });
+            b.div_id(Part::Sidebar, sidebar_style(k, app), |s| sidebar(s, app));
             splitter(b, Pane::Sidebar);
-            b.div_id(Part::Centre, centre_style(k), none, |s| centre(s, app));
+            b.div_id(Part::Centre, centre_style(k), |s| centre(s, app));
             splitter(b, Pane::Details);
-            b.div_id(Part::Details, details_style(k, app), none, |s| {
-                details(s, app)
-            });
+            b.div_id(Part::Details, details_style(k, app), |s| details(s, app));
         },
     );
 }

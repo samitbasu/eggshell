@@ -413,28 +413,23 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         let classes = enablement.fade(classes, &style).merge(caller);
         let name = name.unwrap_or_else(|| label.clone());
         let glyph = metrics.glyph;
-        b.div_id_with(
-            slot.id,
-            &slot.label,
-            classes,
-            move |app, ui| {
-                let response = described(ui, role, selected, &name, &tooltip);
-                if response.clicked() {
-                    on_click(app);
-                }
-                on_response.run(app, &response);
-            },
-            |b| {
-                if let Some(icon) = icon {
-                    b.glyph(tw().size_px(glyph).shrink_0(), icon);
-                }
-                if !label.is_empty() {
-                    b.text(tw(), label);
-                }
-                if let Some(children) = children {
-                    children(b);
-                }
-            },
-        );
+        b.div_id_with(slot.id, &slot.label, classes, |b| {
+            if let Some(icon) = icon {
+                b.glyph(tw().size_px(glyph).shrink_0(), icon);
+            }
+            if !label.is_empty() {
+                b.text(tw(), label);
+            }
+            if let Some(children) = children {
+                children(b);
+            }
+        })
+        .draw(move |app, ui| {
+            let response = described(ui, role, selected, &name, &tooltip);
+            if response.clicked() {
+                on_click(app);
+            }
+            on_response.run(app, &response);
+        });
     }
 }

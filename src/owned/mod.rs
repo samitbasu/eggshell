@@ -458,16 +458,12 @@ fn choice_label<A: 'static, K: crate::Key>(
     let style = Style::of(b.ctx());
     let color = enablement.colors(style.label, &style).text;
     let name = text.clone();
-    b.span(
-        key,
-        tw().text(color).sense_click().focusable_none(),
-        text,
-        move |app, ui| {
+    b.span(key, tw().text(color).sense_click().focusable_none(), text)
+        .draw(move |app, ui| {
             if ui.label_for(control, &name) {
                 on_click(app);
             }
-        },
-    );
+        });
 }
 
 /// The owned controls, each shown under a key like [`div_id`](Builder::div_id)

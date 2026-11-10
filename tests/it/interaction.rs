@@ -4,9 +4,7 @@
 
 use core::time::Duration;
 
-use bullseye::{
-    Builder, Easing, LayoutState, NodeUi, Opacity, Progress, TextSpec, TextStyle, none, tw,
-};
+use bullseye::{Builder, Easing, LayoutState, Opacity, Progress, TextSpec, TextStyle, tw};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -117,7 +115,6 @@ fn hoverable(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div_id(
         "box",
         tw().w_px(100.0).h_px(40.0).bg(BASE).hover(|p| p.bg(LIT)),
-        none,
         |_| {},
     );
 }
@@ -149,13 +146,11 @@ fn counter(b: &mut Builder<'_, '_, Counts>, _: &Counts) {
     b.div_id(
         "button",
         tw().w_px(100.0).h_px(40.0).bg(BASE).active(|p| p.bg(LIT)),
-        |counts: &mut Counts, ui| {
-            if ui.node_response().clicked() {
-                counts.first += 1;
-            }
-        },
         |_| {},
-    );
+    )
+    .on_click(|counts: &mut Counts| {
+        counts.first += 1;
+    });
 }
 
 #[test]
@@ -204,13 +199,11 @@ fn guarded(b: &mut Builder<'_, '_, Counts>, wrapper: bullseye::Tw) {
                 .bg(BASE)
                 .sense_click()
                 .hover(|p| p.bg(LIT)),
-            |counts: &mut Counts, ui| {
-                if ui.node_response().clicked() {
-                    counts.first += 1;
-                }
-            },
             |_| {},
-        );
+        )
+        .on_click(|counts: &mut Counts| {
+            counts.first += 1;
+        });
     });
 }
 
@@ -259,13 +252,11 @@ fn overlapping(b: &mut Builder<'_, '_, Counts>, first_z: i16) {
                 .size_px(60.0)
                 .z(first_z)
                 .sense_click(),
-            |counts: &mut Counts, ui| {
-                if ui.node_response().clicked() {
-                    counts.first += 1;
-                }
-            },
             |_| {},
-        );
+        )
+        .on_click(|counts: &mut Counts| {
+            counts.first += 1;
+        });
         b.div_id(
             "second",
             tw().absolute()
@@ -274,13 +265,11 @@ fn overlapping(b: &mut Builder<'_, '_, Counts>, first_z: i16) {
                 .size_px(60.0)
                 .z(0)
                 .sense_click(),
-            |counts: &mut Counts, ui| {
-                if ui.node_response().clicked() {
-                    counts.second += 1;
-                }
-            },
             |_| {},
-        );
+        )
+        .on_click(|counts: &mut Counts| {
+            counts.second += 1;
+        });
     });
 }
 
@@ -328,14 +317,8 @@ fn row_with_button(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div_id(
         "row",
         tw().w_px(200.0).h_px(40.0).bg(BASE).hover(|p| p.bg(LIT)),
-        none,
         |b| {
-            b.div_id(
-                "button",
-                tw().w_px(50.0).h_px(40.0).sense_click(),
-                none,
-                |_| {},
-            );
+            b.div_id("button", tw().w_px(50.0).h_px(40.0).sense_click(), |_| {});
         },
     );
 }
@@ -367,7 +350,6 @@ fn revealing(b: &mut Builder<'_, '_, ()>, _: &()) {
             .bg(BASE)
             .group()
             .sense_hover(),
-        none,
         |b| {
             b.div_id(
                 "action",
@@ -377,7 +359,6 @@ fn revealing(b: &mut Builder<'_, '_, ()>, _: &()) {
                     .opacity(Opacity::TRANSPARENT)
                     .group_hover(|p| p.opacity(Opacity::OPAQUE))
                     .sense_click(),
-                none,
                 |_| {},
             );
         },
@@ -416,7 +397,6 @@ fn colored_label(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div_id(
         "row",
         tw().w_px(100.0).h_px(40.0).hover(|p| p.text(LIT)),
-        none,
         |b| b.text(tw(), "label"),
     );
 }
@@ -452,7 +432,6 @@ fn fading(b: &mut Builder<'_, '_, ()>, _: &()) {
             .bg(BASE)
             .hover(|p| p.bg(LIT))
             .transition(Duration::from_millis(500)),
-        none,
         |_| {},
     );
 }
@@ -500,7 +479,6 @@ fn fading_linearly(b: &mut Builder<'_, '_, ()>, _: &()) {
             .hover(|p| p.bg(LIT))
             .transition(Duration::from_millis(500))
             .ease_linear(),
-        none,
         |_| {},
     );
 }
@@ -577,7 +555,6 @@ fn quick(b: &mut Builder<'_, '_, ()>, _: &()) {
             .bg(BASE)
             .hover(|p| p.bg(LIT))
             .transition(Duration::from_millis(150)),
-        none,
         |_| {},
     );
 }
@@ -707,7 +684,6 @@ fn keyed_rows(b: &mut Builder<'_, '_, Order>, order: &Order) {
                 .bg(BASE)
                 .hover(|p| p.bg(LIT))
                 .transition(Duration::from_millis(1000)),
-            none,
             |_| {},
         );
     }
@@ -802,7 +778,6 @@ fn anonymous_child(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div_id(
         "parent",
         tw().w_px(100.0).h_px(40.0).bg(BASE).group().sense_hover(),
-        none,
         |b| {
             b.rule(
                 tw().w_px(10.0)
@@ -864,5 +839,102 @@ fn a_group_that_senses_nothing_is_a_build_error() {
     let ctx = egui::Context::default();
     ctx.run_ui(egui::RawInput::default(), |_| {})
         .drop_without_applying_deltas();
-    layout.build::<()>(&ctx, |b| b.div_id("g", tw().group(), none, |_| {}));
+    layout.build::<()>(&ctx, |b| {
+        b.div_id("g", tw().group(), |_| {});
+    });
+}
+
+// -------------------------------------------------------------- node handles
+
+#[derive(Default)]
+struct Handled {
+    clicks: u32,
+    hovered: bool,
+    content: Option<Rect>,
+    order: Vec<&'static str>,
+}
+
+fn span_with_click(b: &mut Builder<'_, '_, Handled>, _: &Handled) {
+    b.span("up", tw().sense_click().w_px(100.0).h_px(40.0), "Up")
+        .on_click(|app: &mut Handled| app.clicks += 1);
+}
+
+#[test]
+fn a_div_id_without_a_handler_builds_and_draws() {
+    let mut harness = harness((), hoverable);
+    harness.run_steps(2);
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+}
+
+#[test]
+fn on_click_on_a_span_fires_once_per_click() {
+    let mut harness = harness(Handled::default(), span_with_click);
+    click(&mut harness, 10.0, 10.0);
+    assert_eq!(harness.state().app.clicks, 1);
+
+    click(&mut harness, 10.0, 10.0);
+    assert_eq!(harness.state().app.clicks, 2);
+
+    click(&mut harness, 300.0, 200.0);
+    assert_eq!(
+        harness.state().app.clicks,
+        2,
+        "a click elsewhere is not ours"
+    );
+}
+
+#[test]
+fn on_response_sees_hover() {
+    let mut harness = harness(Handled::default(), |b, _| {
+        b.div_id("box", tw().sense_hover().w_px(100.0).h_px(40.0), |_| {})
+            .on_response(|app: &mut Handled, response| app.hovered = response.hovered());
+    });
+    assert!(!harness.state().app.hovered);
+
+    hover(&mut harness, 10.0, 10.0);
+    assert!(harness.state().app.hovered);
+
+    hover(&mut harness, 300.0, 200.0);
+    assert!(!harness.state().app.hovered);
+}
+
+#[test]
+fn draw_gets_the_nodes_own_ui_limited_to_its_content_rect() {
+    let mut harness = harness(Handled::default(), |b, _| {
+        b.div_id("box", tw().p(2.0).w_px(100.0).h_px(40.0), |_| {})
+            .draw(|app: &mut Handled, ui| app.content = Some(ui.max_rect()));
+    });
+    harness.run_steps(2);
+    let origin = harness.state().origin;
+    assert_eq!(
+        harness.state().app.content,
+        Some(Rect::from_min_size(
+            origin + vec2(8.0, 8.0),
+            vec2(84.0, 24.0)
+        ))
+    );
+}
+
+#[test]
+fn handlers_compose_in_call_order() {
+    let mut harness = harness(Handled::default(), |b, _| {
+        b.span("up", tw().sense_click().w_px(100.0).h_px(40.0), "Up")
+            .draw(|app: &mut Handled, _| app.order.push("draw"))
+            .on_response(|app: &mut Handled, _| app.order.push("response"))
+            .on_click(|app: &mut Handled| app.order.push("click"));
+    });
+    harness.run_steps(2);
+    let order = &harness.state().app.order;
+    assert!(!order.is_empty());
+    assert!(
+        order.chunks(2).all(|frame| frame == ["draw", "response"]),
+        "{order:?}"
+    );
+
+    click(&mut harness, 10.0, 10.0);
+    assert!(harness.state().app.order.contains(&"click"));
+    let order = &harness.state().app.order;
+    let at = order.iter().position(|&step| step == "click").unwrap();
+    assert_eq!(order[at - 1], "response", "{order:?}");
+    assert_eq!(order[at - 2], "draw", "{order:?}");
 }

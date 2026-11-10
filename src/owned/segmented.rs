@@ -10,7 +10,7 @@ use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{Enablement, OnResponse, centered, described};
 use crate::builder::Slot;
-use crate::{Builder, Style, Tw, none, tw};
+use crate::{Builder, Style, Tw, tw};
 
 /// Whether a cell is the chosen one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -250,7 +250,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>(
     icon_classes: Tw,
     (select, on_response): (impl Fn(&mut A, &Context, T) + Copy + 'static, OnResponse<A>),
 ) {
-    b.div_id_with(slot.id, &slot.label, container, none, |b| {
+    b.div_id_with(slot.id, &slot.label, container, |b| {
         for Choice {
             value,
             label,
@@ -273,25 +273,22 @@ fn cells_in<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>(
                 on_response.run(app, &response);
                 response.clicked()
             };
+            let draw = move |app: &mut A, ui: &mut egui::Ui| {
+                if clicked(app, ui) {
+                    select(app, ui.ctx(), value);
+                }
+            };
             match icon {
-                None => b.span(value, classes, label, move |app, ui| {
-                    if clicked(app, ui) {
-                        select(app, ui.ctx(), value);
-                    }
-                }),
-                Some(icon) => b.div_id(
-                    value,
-                    classes,
-                    move |app, ui| {
-                        if clicked(app, ui) {
-                            select(app, ui.ctx(), value);
-                        }
-                    },
-                    |b| {
+                None => {
+                    b.span(value, classes, label).draw(draw);
+                }
+                Some(icon) => {
+                    b.div_id(value, classes, |b| {
                         b.glyph(icon_classes.clone().shrink_0(), icon);
                         b.text(tw(), label);
-                    },
-                ),
+                    })
+                    .draw(draw);
+                }
             }
         }
     });

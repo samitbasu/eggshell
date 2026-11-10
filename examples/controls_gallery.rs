@@ -22,7 +22,7 @@ use bullseye::contract::{Colors, Paint, States, Style, Variant};
 use bullseye::owned;
 use bullseye::prim::text_field::{self, Field};
 use bullseye::widget::{Lines, TextEdit};
-use bullseye::{Builder, NodeUi as _, Scope, TextStyle, Tw, tw};
+use bullseye::{Builder, Scope, TextStyle, Tw, tw};
 use bullseye_shadcn::{size, variant};
 use common::glyphs::{self, Glyph};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
@@ -529,18 +529,19 @@ fn handle(b: &mut B<'_, '_>, control: Control) {
             .hover(|p| p.bg(t.ring))
             .sense_drag()
             .focusable_none(),
-        |state: &mut State, ui| {
-            let response = ui.node_response();
-            if response.hovered() || response.dragged() {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-            }
-            if response.dragged() {
-                let dx = response.drag_delta().x;
-                state.cell_width = CellWidth::new(f32::from(state.cell_width) + dx);
-            }
-        },
         |_| {},
-    );
+    )
+    .on_response(|state: &mut State, response| {
+        if response.hovered() || response.dragged() {
+            response
+                .ctx
+                .set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+        }
+        if response.dragged() {
+            let dx = response.drag_delta().x;
+            state.cell_width = CellWidth::new(f32::from(state.cell_width) + dx);
+        }
+    });
 }
 
 /// One control: its name and status, then a stage of the cell width with the

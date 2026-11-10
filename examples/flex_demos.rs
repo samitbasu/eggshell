@@ -12,7 +12,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, Tw, none, tw};
+use bullseye::{Builder, Tw, tw};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
 
@@ -163,7 +163,6 @@ fn align_group(b: &mut B<'_, '_>, state: &State) {
         b.div_id(
             Part::Aligned(align),
             align.apply(spread(state, framed(b, tw()))),
-            none,
             |b| b.text(tw(), align.name()),
         );
     }
@@ -185,7 +184,6 @@ fn grow_group(b: &mut B<'_, '_>) {
         b.div_id(
             Part::Growing(factor),
             framed(b, tw()).grow_by(f32::from(factor)),
-            none,
             |b| b.text(tw(), factor.to_string()),
         );
     }
@@ -203,7 +201,6 @@ fn basis_group(b: &mut B<'_, '_>, state: &State) {
         b.div_id(
             Part::Based(index),
             spread(state, framed(b, tw())).basis_px(basis),
-            none,
             |b| b.text(tw(), format!("{basis}")),
         );
     }
@@ -284,7 +281,6 @@ fn content_group(b: &mut B<'_, '_>, state: &State) {
         b.div_id(
             Part::SelfContent(align),
             align.apply(spread(state, place(framed(b, tw()).flex()))),
-            none,
             |b| b.text(tw(), align.name()),
         );
     }

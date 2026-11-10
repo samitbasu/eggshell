@@ -144,32 +144,27 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> SelectCha
             current,
             name: name.clone(),
         };
-        b.div_id_with(
-            slot.id,
-            &slot.label,
-            classes,
-            move |app, ui| {
-                let response = tipped(ui.node_response(), &tooltip);
-                if let Some(chosen) = list.show(ui, &response) {
-                    choose(app, ui.ctx(), list.options[chosen].value);
-                }
-                on_response.run(app, &response);
-                let open = Popup::is_id_open(ui.ctx(), Popup::default_response_id(&response));
-                response.widget_info(|| WidgetInfo {
-                    current_text_value: Some(list.shown().to_owned()),
-                    ..WidgetInfo::labeled(Role::ComboBox, ui.is_enabled(), &name)
-                });
-                ui.ctx()
-                    .accesskit_node_builder(response.id, |node| node.set_expanded(open));
-            },
-            |b| {
-                b.text(tw(), shown);
-                b.paint(
-                    tw().size_px(chevron).shrink_0().opacity(opacity),
-                    paint_chevron(Chevron::Down),
-                );
-            },
-        );
+        b.div_id_with(slot.id, &slot.label, classes, |b| {
+            b.text(tw(), shown);
+            b.paint(
+                tw().size_px(chevron).shrink_0().opacity(opacity),
+                paint_chevron(Chevron::Down),
+            );
+        })
+        .draw(move |app, ui| {
+            let response = tipped(ui.node_response(), &tooltip);
+            if let Some(chosen) = list.show(ui, &response) {
+                choose(app, ui.ctx(), list.options[chosen].value);
+            }
+            on_response.run(app, &response);
+            let open = Popup::is_id_open(ui.ctx(), Popup::default_response_id(&response));
+            response.widget_info(|| WidgetInfo {
+                current_text_value: Some(list.shown().to_owned()),
+                ..WidgetInfo::labeled(Role::ComboBox, ui.is_enabled(), &name)
+            });
+            ui.ctx()
+                .accesskit_node_builder(response.id, |node| node.set_expanded(open));
+        });
     }
 }
 

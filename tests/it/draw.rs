@@ -4,7 +4,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use bullseye::{Icon, LayoutState, NodeUi, Opacity, TextSpec, TextStyle, Tracking, none, tw};
+use bullseye::{Icon, LayoutState, NodeUi, Opacity, TextSpec, TextStyle, Tracking, tw};
 use egui::epaint::{ClippedShape, Shape};
 use egui::{Color32, FontFamily, FontId, Id, Pos2, RawInput, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -326,9 +326,9 @@ fn opacity_multiplies_down_the_subtree() {
                     .w_px(10.0)
                     .h_px(10.0)
                     .bg(Color32::RED),
-                move |_, ui| probe.set(ui.opacity()),
                 |_| {},
-            );
+            )
+            .draw(move |_, ui| probe.set(ui.opacity()));
         });
     });
     let quarter = Color32::RED.gamma_multiply(0.25);
@@ -351,11 +351,14 @@ fn inert_disables_the_whole_subtree_and_only_it() {
     let (inner, deep, outside) = (record("inner"), record("deep"), record("outside"));
     shapes(&mut (), 1.0, move |b| {
         b.div(tw().inert(), |b| {
-            b.div_id("inner", tw(), inner, |b| {
-                b.div(tw(), |b| b.div_id("deep", tw(), deep, |_| {}));
-            });
+            b.div_id("inner", tw(), |b| {
+                b.div(tw(), |b| {
+                    b.div_id("deep", tw(), |_| {}).draw(deep);
+                });
+            })
+            .draw(inner);
         });
-        b.div_id("outside", tw(), outside, |_| {});
+        b.div_id("outside", tw(), |_| {}).draw(outside);
     });
     assert_eq!(
         *enabled.borrow(),
@@ -425,9 +428,9 @@ fn overflow_hidden_clips_the_subtree_but_not_the_node_itself() {
                 b.div_id(
                     "child",
                     tw().w_px(200.0).h_px(200.0).bg(Color32::RED),
-                    move |_, ui| seen.set(ui.clip_rect()),
                     |_| {},
-                );
+                )
+                .draw(move |_, ui| seen.set(ui.clip_rect()));
             },
         );
     });
@@ -721,11 +724,12 @@ fn draw_closures_mutate_the_application_in_pre_order() {
         |name: &'static str| move |app: &mut Counter, _: &mut egui::Ui| app.visits.push(name);
     let (outer, inner, sibling) = (record("outer"), record("inner"), record("sibling"));
     shapes(&mut app, 1.0, move |b| {
-        b.div_id("outer", tw(), outer, |b| {
-            b.div_id("inner", tw().h_px(10.0), inner, |_| {});
-        });
-        b.span("sibling", tw(), "after", sibling);
-        b.div_id("skipped", tw().hidden(), none, |_| {});
+        b.div_id("outer", tw(), |b| {
+            b.div_id("inner", tw().h_px(10.0), |_| {}).draw(inner);
+        })
+        .draw(outer);
+        b.span("sibling", tw(), "after").draw(sibling);
+        b.div_id("skipped", tw().hidden(), |_| {});
     });
     assert_eq!(app.visits, ["outer", "inner", "sibling"]);
 }
@@ -745,11 +749,11 @@ fn the_nodes_text_style_reaches_egui_widgets_in_its_ui() {
                 family: family.clone(),
             })
             .text(Color32::RED),
-            |_, ui| {
-                ui.label("styled");
-            },
             |_| {},
-        );
+        )
+        .draw(|_, ui| {
+            ui.label("styled");
+        });
     });
     let (label, _) = text_of(&shapes, "styled");
     assert_eq!(label.fallback_color, Color32::RED);
@@ -780,12 +784,10 @@ fn node_ui_ids(host: Host) -> (Id, Vec<(Id, Id)>) {
         layout
             .build(ui.ctx(), |b| {
                 expected.set(b.id_of("node"));
-                b.div_id(
-                    "node",
-                    tw().w_px(10.0).h_px(10.0),
-                    move |_: &mut (), ui| probe.borrow_mut().push((ui.node_id(), ui.scope_id())),
-                    |_| {},
-                );
+                b.div_id("node", tw().w_px(10.0).h_px(10.0), |_| {})
+                    .draw(move |_: &mut (), ui| {
+                        probe.borrow_mut().push((ui.node_id(), ui.scope_id()))
+                    });
             })
             .layout(SCREEN)
             .draw(&mut (), ui);
@@ -883,11 +885,13 @@ fn egui_sees_the_backgrounds_bullseye_painted_as_the_stack_backdrop() {
     let under = Color32::from_rgb(200, 0, 0);
     let over = Color32::from_rgba_unmultiplied(0, 0, 255, 128);
     let seen = observed_backdrops(|b| {
-        b.div_id("bare", tw(), probe("bare"), |_| {});
-        b.div_id("plain", tw().bg(under), probe("plain"), |b| {
-            b.div_id("nested", tw().bg(over), probe("nested"), |_| {});
-        });
-        b.div_id("sibling", tw(), probe("sibling"), |_| {});
+        b.div_id("bare", tw(), |_| {}).draw(probe("bare"));
+        b.div_id("plain", tw().bg(under), |b| {
+            b.div_id("nested", tw().bg(over), |_| {})
+                .draw(probe("nested"));
+        })
+        .draw(probe("plain"));
+        b.div_id("sibling", tw(), |_| {}).draw(probe("sibling"));
     });
     assert_ne!(under.blend(over), over, "precondition: B is translucent");
     assert_eq!(

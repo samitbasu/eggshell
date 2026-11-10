@@ -80,10 +80,11 @@ fn cell() -> bullseye::Tw {
 /// ```
 fn row(b: &mut Builder<'_, '_, App>, _: &App) {
     b.div(tw().flex().gap(2.0), |b| {
-        b.div_id("first", cell().z(10), mark("first"), |_| {});
-        b.div_id("second", cell(), mark("second"), |_| {});
-        b.div_id("skipped", cell().focusable_none(), mark("skipped"), |_| {});
-        b.div_id("last", cell(), mark("last"), |_| {});
+        b.div_id("first", cell().z(10), |_| {}).draw(mark("first"));
+        b.div_id("second", cell(), |_| {}).draw(mark("second"));
+        b.div_id("skipped", cell().focusable_none(), |_| {})
+            .draw(mark("skipped"));
+        b.div_id("last", cell(), |_| {}).draw(mark("last"));
     });
 }
 
@@ -179,9 +180,9 @@ fn a_pointer_click_does_not_focus_the_node() {
 fn with_inert(b: &mut Builder<'_, '_, App>, _: &App) {
     b.div(tw().flex().flex_col().gap(2.0), |b| {
         b.div(tw().inert(), |b| {
-            b.div_id("frozen", cell(), mark("frozen"), |_| {});
+            b.div_id("frozen", cell(), |_| {}).draw(mark("frozen"));
         });
-        b.div_id("live", cell(), mark("live"), |_| {});
+        b.div_id("live", cell(), |_| {}).draw(mark("live"));
     });
 }
 
@@ -214,11 +215,11 @@ fn two_fields(b: &mut Builder<'_, '_, App>, _: &App) {
             b.div_id(
                 key,
                 tw().p(2.0).bg(PLAIN).focus_within(|p| p.bg(WITHIN)),
-                move |app, ui| {
-                    ui.add(egui::TextEdit::singleline(pick(app)).hint_text(key));
-                },
                 |_| {},
-            );
+            )
+            .draw(move |app, ui| {
+                ui.add(egui::TextEdit::singleline(pick(app)).hint_text(key));
+            });
         }
     });
 }
@@ -254,10 +255,9 @@ fn growing(b: &mut Builder<'_, '_, App>, _: &App) {
         b.div_id(
             "box",
             tw().h_px(20.0).w_px(if wide { 200.0 } else { 100.0 }),
-            bullseye::none,
             |_| {},
         );
-        b.div_id("field", cell(), mark("field"), |_| {});
+        b.div_id("field", cell(), |_| {}).draw(mark("field"));
     });
 }
 
@@ -302,17 +302,12 @@ fn has_focus_within_sees_widgets_registered_in_the_previous_frame() {
             b.div_id(
                 "box",
                 tw().h_px(20.0).w_px(if wide { 200.0 } else { 100.0 }),
-                bullseye::none,
                 |_| {},
             );
-            b.div_id(
-                "form",
-                tw().w_px(160.0).h_px(40.0),
-                |app, ui| {
+            b.div_id("form", tw().w_px(160.0).h_px(40.0), |_| {})
+                .draw(|app, ui| {
                     ui.add(egui::TextEdit::singleline(&mut app.text).hint_text("form"));
-                },
-                |_| {},
-            );
+                });
         });
     }
     let mut harness = harness(view);

@@ -203,15 +203,13 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         let measured = field.clone();
         b.scope_with(slot.id, &slot.label, |b| {
             let editing = b.id_of(Part::Field).with("editing");
-            b.div_id(Part::Box, group, crate::none, |b| {
+            b.div_id(Part::Box, group, |b| {
                 b.div(field_box, |b| {
                     let spec = spec.clone();
-                    b.leaf(
-                        Part::Field,
-                        tw().w_full().h_full(),
-                        move |m| text_field::measure(m, &measured),
-                        move |app, ui| spec.run_field(app, ui, &field, editing, set),
-                    );
+                    b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
+                        text_field::measure(m, &measured)
+                    })
+                    .draw(move |app, ui| spec.run_field(app, ui, &field, editing, set));
                 });
                 let buttons = tw()
                     .flex()
@@ -220,25 +218,23 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                     .divide_y(1.0, divider)
                     .w_px(stepper.button_width)
                     .shrink_0();
-                b.div_id(Part::Buttons, buttons, crate::none, |b| {
+                b.div_id(Part::Buttons, buttons, |b| {
                     for (part, classes, chevron, steps, label) in [
                         (Part::Up, up, Chevron::Up, 1, "Increase"),
                         (Part::Down, down, Chevron::Down, -1, "Decrease"),
                     ] {
                         let spec = spec.clone();
                         let name = format!("{label} {}", spec.name);
-                        b.div_id(
-                            part,
-                            classes,
-                            move |app, ui| {
-                                if described(ui, Role::Button, None, name.trim(), &spec.tooltip)
-                                    .clicked()
-                                {
-                                    set(app, spec.step.moved(spec.value, steps, &spec.range));
-                                }
-                            },
-                            |b| b.paint(tw().size_px(glyph), paint_chevron(chevron)),
-                        );
+                        b.div_id(part, classes, |b| {
+                            b.paint(tw().size_px(glyph), paint_chevron(chevron))
+                        })
+                        .draw(move |app, ui| {
+                            if described(ui, Role::Button, None, name.trim(), &spec.tooltip)
+                                .clicked()
+                            {
+                                set(app, spec.step.moved(spec.value, steps, &spec.range));
+                            }
+                        });
                     }
                 });
             });

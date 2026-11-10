@@ -37,10 +37,8 @@ fn a_popup_opened_in_a_node_takes_the_global_style_not_the_nodes() {
                 LayoutState::new()
                     .with_base_text(base)
                     .build(ui.ctx(), |b| {
-                        b.div_id(
-                            "host",
-                            tw().w_px(100.0).h_px(30.0).sense_click(),
-                            |probe: &mut Probe, ui| {
+                        b.div_id("host", tw().w_px(100.0).h_px(30.0).sense_click(), |_| {})
+                            .draw(|probe: &mut Probe, ui| {
                                 ui.style_mut().spacing.item_spacing = MARKER;
                                 probe.scoped = Some(ui.spacing().item_spacing);
                                 let response = ui.node_response();
@@ -49,9 +47,7 @@ fn a_popup_opened_in_a_node_takes_the_global_style_not_the_nodes() {
                                     .show(|popup_ui| {
                                         probe.in_popup = Some(popup_ui.spacing().item_spacing);
                                     });
-                            },
-                            |_| {},
-                        );
+                            });
                     })
                     .layout(area)
                     .draw(probe, ui);

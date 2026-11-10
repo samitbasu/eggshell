@@ -1,6 +1,6 @@
 //! The right pane: environment, context, changes and background tasks.
 
-use bullseye::{Builder, Scope, Tw, none, tw};
+use bullseye::{Builder, Scope, Tw, tw};
 use egui::Color32;
 
 use super::state::{App, MODELS, Pane};
@@ -55,7 +55,7 @@ impl TaskState {
 /// </section>
 /// ```
 fn section(b: &mut B<'_, '_>, k: &Theme, title: &'static str, rows: impl FnOnce(&mut S<'_, '_>)) {
-    b.div_id(title, tw().flex().flex_col().gap(1.5), none, |b| {
+    b.div_id(title, tw().flex().flex_col().gap(1.5), |b| {
         b.text(
             tw().role(k[Role::Meta].clone())
                 .text(k[Tok::InkDim])
@@ -73,7 +73,6 @@ fn section(b: &mut B<'_, '_>, k: &Theme, title: &'static str, rows: impl FnOnce(
                 .bg(k[Tok::Ground])
                 .divide_y(1.0, k[Tok::Line])
                 .overflow_hidden(),
-            none,
             rows,
         );
     });
@@ -94,7 +93,6 @@ fn row(b: &mut B<'_, '_>, k: &Theme, label: &'static str, value: impl FnOnce(&mu
             .px(3.0)
             .py(2.0)
             .role(k[Role::Small].clone()),
-        none,
         |b| {
             b.text(tw().text(k[Tok::InkMid]), label);
             value(b);
@@ -121,7 +119,6 @@ fn context(b: &mut B<'_, '_>, app: &App) {
             .px(3.0)
             .py(2.0)
             .role(k[Role::Small].clone()),
-        none,
         |b| {
             b.div(tw().flex().items_center().justify_between(), |b| {
                 b.text(tw().text(k[Tok::InkMid]), "Context window");
@@ -134,7 +131,6 @@ fn context(b: &mut B<'_, '_>, app: &App) {
                     .rounded_full()
                     .overflow_hidden()
                     .bg(k[Tok::Line]),
-                none,
                 |b| {
                     b.rule(
                         tw().w_frac(used, 1.0)
