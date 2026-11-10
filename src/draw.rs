@@ -2,7 +2,7 @@
 //! tree in pre-order and paints box, primitive and draw closure per node.
 
 use egui::emath::TSTransform;
-use egui::epaint::{RectShape, StrokeKind};
+use egui::epaint::{Mesh, RectShape, StrokeKind, Tessellator};
 use egui::layers::ShapeIdx;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -21,6 +21,7 @@ use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
+use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::transition;
 use crate::tw::{BoxPaint, Flip, Grouping, Look, Opacity, Presence, Progress, Sides, State};
@@ -214,10 +215,12 @@ fn paint_box(
     }
 }
 
-/// CSS clips a box-shadow to outside the border box, so a box that does not
-/// cover it (no background, or a translucent one) must not show it inside.
-/// The shadow is painted in the four strips around the border box; the
-/// rounded corners' cut-outs are inside the box and stay clean.
+/// CSS paints a box-shadow everywhere outside the rounded border box and
+/// nowhere inside it, so a box that does not cover the shadow (no background,
+/// or a translucent one) must not show it inside. The shadow is painted in the
+/// four rect strips around the border box, plus the cut-out of each rounded
+/// corner, which no rect clip can express: the tessellated shadow is clipped
+/// to a fan of triangles between the rect's corner and the arc.
 fn paint_shadow(painter: &Painter, shadow: egui::Shadow, border: Rect, paint: &BoxPaint) {
     let shape = shadow.as_shape(border, paint.radius);
     if paint.background.is_some_and(|fill| fill.is_opaque()) {
@@ -239,6 +242,35 @@ fn paint_shadow(painter: &Painter, shadow: egui::Shadow, border: Rect, paint: &B
     ];
     for strip in strips.into_iter().filter(|strip| strip.is_positive()) {
         painter.with_clip_rect(strip).add(shape.clone());
+    }
+    let max_radius = border.width().min(border.height()) / 2.0;
+    let radii = Corner::ALL.map(|corner| {
+        (
+            corner,
+            f32::from(corner.radius(paint.radius)).min(max_radius),
+        )
+    });
+    if radii.iter().all(|&(_, radius)| radius <= 0.0) {
+        return;
+    }
+    let pixels_per_point = painter.pixels_per_point();
+    let mut mesh = Mesh::default();
+    let mut tessellator = Tessellator::new(
+        pixels_per_point,
+        painter.ctx().tessellation_options(|options| *options),
+        painter.fonts(|fonts| fonts.font_image_size()),
+        Vec::new(),
+    );
+    tessellator.tessellate_shape(shape.into(), &mut mesh);
+    for (corner, radius) in radii.into_iter().filter(|&(_, radius)| radius > 0.0) {
+        let segments = arc_segments(radius, pixels_per_point);
+        let mut cut_out = Mesh::with_texture(mesh.texture_id);
+        for triangle in outside_corner_fan(border, corner, radius, segments) {
+            cut_out.append(clip_mesh_to_triangle(&mesh, triangle));
+        }
+        if !cut_out.is_empty() {
+            painter.add(cut_out);
+        }
     }
 }
 

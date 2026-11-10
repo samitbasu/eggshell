@@ -7,6 +7,7 @@ use bullseye::contract::{Disabled, Paint, Size, Variant};
 use bullseye::owned::{Choice, Enablement};
 use bullseye::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, none, tw};
 use bullseye_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
+use egui::TextureId;
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Rect, Role, Theme, vec2};
 use egui_kittest::Harness;
@@ -139,7 +140,10 @@ fn icon_in(harness: &Harn, inside: Rect) -> (Color32, Rect) {
     shapes(harness)
         .into_iter()
         .find_map(|shape| match shape {
-            Shape::Mesh(mesh) if inside.expand(0.5).contains_rect(mesh.calc_bounds()) => {
+            Shape::Mesh(mesh)
+                if mesh.texture_id != TextureId::default()
+                    && inside.expand(0.5).contains_rect(mesh.calc_bounds()) =>
+            {
                 Some((mesh.vertices[0].color, mesh.calc_bounds()))
             }
             _ => None,

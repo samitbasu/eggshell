@@ -31,6 +31,7 @@ mod popup_style;
 mod ports;
 mod prims;
 mod selection;
+mod shadow_pixels;
 mod sizing;
 #[cfg(feature = "snapshots")]
 mod snapshots;
