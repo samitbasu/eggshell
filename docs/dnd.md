@@ -9,9 +9,9 @@ Status: spike, 2026-11-10. Spike code is not for merge as-is. Everything below w
 | 1 Reorder list, live, FLIP, Esc, release outside, Alt+arrows | `examples/dnd_reorder.rs` | `dnd_reorder.rs` (7) |
 | 2 List to zone, compatible/incompatible payload, drop position | `examples/dnd_zones.rs` | `dnd_zones.rs` (3 of 5) |
 | 3 OS files on zones, hint, accept/refuse by extension | `examples/dnd_zones.rs` | `dnd_zones.rs` (2 of 5) |
-| 4 Gallery: 1/2/3 columns, 2D reorder, scroll, ghost, outside drop | `examples/dnd_gallery.rs` | `dnd_gallery.rs` (13) |
+| 4 Gallery: 1/2/3 columns, 2D reorder, scroll, live drag image, outside drop | `examples/dnd_gallery.rs` | `dnd_gallery.rs` (13) |
 
-Shared: `examples/common/dnd.rs` (`insertion_index`, `capture`, `paint_ghost`, `paint_chip`) and `FrameRig` / `frame_harness` in `tests/it/support/mod.rs` (a harness whose frame body is the example's own `frame`, needed because the stock `Rig` draws `Placed` itself and cannot run work after the draw or inside a scroll area).
+Shared: `examples/common/dnd.rs` (`insertion_index`, `paint_chip`, and the superseded `capture` / `paint_ghost`, still used by `dnd_reorder`) and `FrameRig` / `frame_harness` in `tests/it/support/mod.rs` (a harness whose frame body is the example's own `frame`, needed because the stock `Rig` draws `Placed` itself and cannot run work after the draw or inside a scroll area).
 
 No file under `src/` changed. Every experiment ran on today's public API.
 
@@ -19,7 +19,7 @@ No file under `src/` changed. Every experiment ran on today's public API.
 
 1. **egui's DnD payload API carries all of it**, with one sharp edge: `Response::contains_pointer` / `dnd_hover_payload` / `dnd_release_payload` answer from the *previous* frame's widget rects. With live reordering that thrashes (see Hit-testing). The fix needs no egui change: one resolver, run after `draw`, over this frame's final layout rects.
 2. **No core change is required to run the four scenarios.** Core changes are needed to make them *good* and cheap: see "Core changes".
-3. A **ghost** was reached, from public API only, by copying the shapes the source painted (heuristic by rect). The exact version needs a per-node shape range from the draw walk (#35).
+3. The drag image is **live**: the dragged node itself is painted at the pointer every frame, on a top layer, so its content keeps animating. The core needed two small paint properties, `paint_layer(PaintLayer::Drag)` and `paint_centered_at(Pos2)` (an anchor resolved against this frame's rect at draw time). An earlier snapshot "ghost" (copied shapes) froze its content and is superseded; see *The drag image*.
 4. Insertion index is **one function** (`insertion_index`) shared by in-app reorder and outside file drops.
 
 ## Questions in #71
@@ -35,7 +35,7 @@ What is missing, none of it in egui's job description: a *resolver* (which targe
 - "What is being dragged" is readable **at build with no lag and no app state**: `DragAndDrop::payload::<ItemKey>(b.ctx())` (`dnd_reorder::row` dims the lifted row from it).
 - "What it is over" is computed after draw from the final rects, so a highlight built from it is **one frame behind** (`dnd_zones`: `State::hover` set in `update`, read at the next build). Reorder is also one frame behind: the move happens in frame N's post-draw, the new order is built in N+1 and FLIP slides it.
 - One frame of lag is acceptable for highlights, gaps and placeholders (tests run at 50 ms per step and the gap, hint and slide all arrive within one step). It would be visible only as a flash on the very first frame of a drag. A zero-lag highlight is possible in a draw closure (`ui.node_response().contains_pointer()` paints directly), at the cost of bypassing the style system: that is the case for a `drag_over` paint variant (below), which is resolved at draw time next to `hover`.
-- State that must survive the gesture (original order for Esc, captured ghost) lives in the app, created in the `drag_started` handler.
+- State that must survive the gesture (original order for Esc, the grab offset) lives in the app, created in the `drag_started` handler.
 
 ### Identity across rebuilds
 
@@ -54,10 +54,11 @@ Note: a drag-only node did not take focus on press in the harness; `Tab` did. Ke
 
 ### The drag image
 
-- **Ghost reached.** `common::dnd::capture` copies, on the first frame of the drag, every shape on the layer whose bounds lie inside the source's rect; `paint_ghost` re-adds them translated to the pointer on a `Tooltip`-order layer. `dnd_gallery::the_ghost_is_the_panels_own_shapes_following_the_pointer` finds a panel-sized box centred on the pointer, none in chip mode.
-- Capturing on the first frame matters: the next build dims the lifted source, and captured shapes have the opacity baked in. A real per-node record (#35) should store shapes with the node's opacity factored out.
-- Limits of the heuristic: it takes shapes by rect containment, so a shadow or ring outside the rect is lost, and a sibling whose bounds fall inside the source's rect is captured with it. **What the exact ghost needs from the core:** `draw` knows, per node, the start and end `ShapeIdx` of everything it painted (own shapes plus children, clipped). Exposing that per identified node (for example `Placed::draw` returning, or a draw-time callback receiving, `HashMap<Id, Range<ShapeIdx>>`, or a post-order `NodeHandle::on_painted`) makes capture exact and is the same data #35 needs for exit transitions. Until then the rect heuristic is good enough to see.
-- The chip (`paint_chip`) is ten lines and needs nothing; it is the fallback and is what the reorder example uses by default (G toggles).
+- **Live (the chosen design).** While lifted, the dragged node is painted **at the pointer, every frame**: `paint_layer(PaintLayer::Drag)` moves its subtree's shapes to a top `Tooltip`-order layer, unclipped by the scroll area and above the toolbar, and `paint_centered_at(pointer - grab)` places it. Because the node is rebuilt every frame, the image *is* the live widget, so its telemetry trace keeps moving (`the_live_image_keeps_moving_under_the_pointer`). Layout is untouched, so the slot keeps its place and shows an outline (`the_slot_shows_an_outline_while_the_panel_is_lifted`).
+- **Anchor in screen space, resolved at draw time.** The first version painted the lifted node at an offset from its slot computed at build time from *last* frame's slot. On the frame a live reorder moved the slot, the image jumped by the slot's move (seen by the user as a tile drawn over column 1). `paint_centered_at` converts the anchor into an offset from **this** frame's rect when the node is drawn, so it cannot lag (`the_lifted_panel_never_lags_its_slot_when_the_order_changes`, which walks the pointer one frame at a time across the reorder). The same fix removed a one-frame trail under auto-scroll.
+- **The lifted node does not `animate_layout`**, so it never slides behind the image, and FLIP measures layout positions, so the pointer offset never feeds a slide. On release the panel is opaque in its slot on the release frame (`on_release_the_panel_is_opaque_in_its_slot_with_no_flash`).
+- **Superseded: the snapshot ghost.** The first spike copied the source's painted shapes once at drag start (`capture` / `paint_ghost`, by rect containment) and repainted them at the pointer. It froze animated content, lost shadows outside the rect, and baked in the source's opacity. `dnd_reorder` still uses it; production won't. A per-node painted shape range is now needed only by exit transitions (#35).
+- **Chip:** a small text label at the pointer (`paint_chip`, ten lines). It's the fallback where painting the real node doesn't fit (a very large source, or a node that mustn't leave its clip), and an option where a compact image reads better.
 - The image is painted on `LayerId::new(Order::Tooltip, ..)` with a screen-wide clip, so it is above the scroll clip and above every ordinary layer. Above overlays: see M6.
 
 ### Scroll (M5)
@@ -68,7 +69,7 @@ Built the minimum: egui's `ScrollArea::vertical()` hosting the bullseye build/la
 - **Wheel during a drag** scrolls with no work (origin 8 -> -142 in `the_wheel_scrolls_during_a_drag...`, payload kept). The container must not swallow or ignore wheel while a drag is live.
 - **Insertion index in content coordinates.** `State::index_at` subtracts the content origin (the grid node's rect min) from both rects and pointer before applying the rule. Since the rects are this frame's, the answer is equal in screen space; content coordinates are what a *retained* answer (a drop recorded for later, a persisted order) needs. Scrolling mid-drag re-runs the resolver every frame, so the index follows the content (`outside_drop_on_a_scrolled_away_part_via_auto_scroll`: a file hovering at the bottom edge ends with a preview index >= 9, and the drop lands there).
 - **FLIP vs scroll.** Scrolling alone does not animate: `scrolling_alone_does_not_slide_panels` checks every checked panel is painted at its layout rect after a wheel scroll. Layout animation measures against the root rect (content origin), which moves with the scroll. M5 must keep that property: the scroll container must translate the root, not re-layout with a different origin per child (#55's note).
-- **Ghost above the clip:** yes, it is on its own layer (see above).
+- **Drag image above the clip:** yes, the lifted node paints on the drag layer, unclipped by the scroll area (see *The drag image*).
 - **Outside drop onto a scrolled-away part:** works through auto-scroll for a file hover provided the pointer position is known during the OS drag, which is not guaranteed (below).
 
 **M5 must provide:** (1) viewport rect and content origin readable by the app and by the draw closures; (2) programmatic scroll (`scroll_by`, `scroll_to_rect`, and a way to request repaint); (3) wheel handled while another widget drags; (4) layout told the viewport size so a node can be `h_full` and content height is right on the first frame (here: one frame late); (5) the clip applied to hit-testing as well as painting; (6) the content origin stable for `animate_layout`.
@@ -136,7 +137,8 @@ None were required to run the experiments. For production:
 // Source: any identified node that senses drag.
 b.div_id(key, tw().sense_drag().drag_over(|p| p.ring()), |b| ..)
     .drag_source(Item(key))                       // payload: Any + Send + Sync
-    .drag_image(DragImage::Ghost)                 // or ::Chip(text) or ::None
+    .drag_image(DragImage::Live)                  // default: the node itself, painted at the pointer
+                                                  // or ::Chip(text) (a label), or ::None (no image; the slot's look carries it)
 
 // Target: accepts by payload type, optionally by predicate.
 b.div_id("canvas", tw().sense_hover()
