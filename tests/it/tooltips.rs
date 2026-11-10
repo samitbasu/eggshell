@@ -27,6 +27,7 @@ const PICKS: [(Pick, &str); 2] = [(Pick::A, "Alpha"), (Pick::B, "Beta")];
 ///   <div role="radiogroup">segmented, a title on one cell</div>
 ///   <input type="range" title="…"> <button role="combobox" title="…"></button>
 ///   <input type="number" title="…">
+///   <span title="Tip for a span">Settings</span> <div title="Tip for a div" class="w-10 h-5"></div>
 /// </div>
 /// ```
 fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
@@ -85,6 +86,10 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
                 .named("Count")
                 .tooltip("Tip for stepper")
                 .on_change(|_, _| {});
+            b.span("crumb", tw(), "Settings").tooltip("Tip for a span");
+            b.div_id("tile", tw().w_px(40.0).h_px(20.0), |_| {})
+                .tooltip("Tip for a div")
+                .on_click(|_| {});
         },
     );
 }
@@ -153,4 +158,14 @@ fn only_the_option_with_a_tooltip_shows_one() {
     hover_node(&mut harness, "/\"radio\"/Circle(A)");
     harness.run_steps(6);
     assert!(harness.query_by_label("Tip for beta").is_none());
+}
+
+#[test]
+fn a_plain_node_shows_the_tooltip_set_on_its_handle() {
+    hover_shows("/\"crumb\"", "Tip for a span");
+}
+
+#[test]
+fn a_tooltip_composes_with_another_handler_on_the_same_node() {
+    hover_shows("/\"tile\"", "Tip for a div");
 }

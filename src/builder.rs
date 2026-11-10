@@ -488,6 +488,15 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
         self.draw(move |app, ui| then(app, &ui.node_response()))
     }
 
+    /// Shows `text` while the node is hovered, also when it is disabled, as
+    /// the owned widgets' `tooltip` does.
+    pub fn tooltip(self, text: impl Into<egui::WidgetText>) -> Self {
+        let tip = Some(text.into());
+        self.draw(move |_, ui| {
+            crate::owned::tipped(ui.node_response(), &tip);
+        })
+    }
+
     /// Runs `act` when the node is clicked. The node must sense clicks.
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
         self.draw(move |app, ui| {
