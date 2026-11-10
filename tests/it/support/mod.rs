@@ -316,3 +316,26 @@ pub fn release<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
     });
     harness.run_steps(12);
 }
+
+/// Records `harness` while a parameter steps over `values`: `apply` sets the
+/// parameter, one frame is run for it, and `idle` frames at the end let
+/// animations and the layout settle. `apply` is told the index of the frame
+/// its value is drawn in. The caller declares the jumps it allows
+/// and asserts on the returned timeline.
+///
+/// Test-only: the harness is a dev-dependency, and `bullseye::testing` already
+/// offers the harness-free [`Timeline`](bullseye::testing::Timeline).
+pub fn sweep<A, T>(
+    harness: &mut Harness<'_, Rig<A>>,
+    values: impl IntoIterator<Item = T>,
+    mut apply: impl FnMut(&mut Harness<'_, Rig<A>>, usize, T),
+    idle: usize,
+) -> bullseye::testing::Timeline {
+    bullseye::testing::record(&harness.ctx);
+    for (frame, value) in values.into_iter().enumerate() {
+        apply(harness, frame, value);
+        harness.step();
+    }
+    harness.run_steps(idle);
+    bullseye::testing::Timeline::recorded(&harness.ctx)
+}

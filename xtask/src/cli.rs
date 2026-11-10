@@ -33,6 +33,13 @@ pub enum Command {
         #[arg(last = true)]
         args: Vec<String>,
     },
+    /// Run the randomised continuity fuzzers with many cases (not part of
+    /// `ci`); a failing sequence is shrunk and saved for `cargo xtask test`
+    Fuzz {
+        /// Cases per fuzz test
+        #[arg(long, default_value_t = steps::FUZZ_CASES)]
+        cases: u32,
+    },
     /// Measure coverage with `cargo llvm-cov` and write an HTML report
     Coverage {
         /// Write `lcov.info` instead of an HTML report
@@ -92,6 +99,7 @@ impl Command {
                 steps::run_all(&[steps::fmt(mode)])
             }
             Command::Test { args } => steps::run_all(&[steps::test(&args)]),
+            Command::Fuzz { cases } => steps::run_all(&[steps::fuzz(cases)]),
             Command::Coverage { lcov } => {
                 let format = if lcov {
                     ReportFormat::Lcov
@@ -182,6 +190,20 @@ mod tests {
             panic!("expected test")
         };
         assert_eq!(args, ["measure", "--nocapture"]);
+    }
+
+    #[test]
+    fn fuzz_parses_with_and_without_cases() {
+        assert!(matches!(
+            parse(&["fuzz"]),
+            Command::Fuzz {
+                cases: steps::FUZZ_CASES
+            }
+        ));
+        assert!(matches!(
+            parse(&["fuzz", "--cases", "50"]),
+            Command::Fuzz { cases: 50 }
+        ));
     }
 
     #[test]

@@ -158,3 +158,21 @@ fn a_hovered_row_keeps_its_highlight_when_it_moves() {
     );
     assert_eq!(moved, lit, "the highlight moved with the row");
 }
+
+#[test]
+fn dragging_the_window_edge_keeps_every_row_continuous() {
+    let mut harness = harness();
+    let widths = (0..=320)
+        .map(|k| 240.0 + 3.0 * k as f32)
+        .chain((0..=320).rev().map(|k| 240.0 + 3.0 * k as f32));
+    let timeline = support::sweep(
+        &mut harness,
+        widths,
+        |harness, _, width| {
+            harness.set_size(vec2(width, 320.0));
+        },
+        12,
+    );
+    assert!(timeline.len() > 600, "precondition: a long sweep");
+    timeline.assert_continuous();
+}

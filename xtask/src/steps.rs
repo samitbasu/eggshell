@@ -102,6 +102,14 @@ pub fn test(extra: &[String]) -> Step {
     step
 }
 
+/// Cases per fuzz test for `cargo xtask fuzz`; `ci` runs the tests' small default.
+pub const FUZZ_CASES: u32 = 2000;
+
+pub fn fuzz(cases: u32) -> Step {
+    Step::cargo("fuzz", &["test", "--test", "it", "fuzz::", "--release"])
+        .with_env("PROPTEST_CASES", cases.to_string())
+}
+
 pub fn example(name: &str, profile: Profile) -> Step {
     let mut step = Step::cargo("example", &["run", "--example", name]);
     if profile == Profile::Release {
@@ -244,6 +252,13 @@ mod tests {
             test(&["measure".to_owned()]).to_string(),
             "cargo test --workspace -- measure"
         );
+    }
+
+    #[test]
+    fn fuzz_raises_the_case_count() {
+        let step = fuzz(7);
+        assert!(step.args.contains(&"fuzz::".to_owned()));
+        assert_eq!(step.env, [("PROPTEST_CASES", "7".to_owned())]);
     }
 
     #[test]
