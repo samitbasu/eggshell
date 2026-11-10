@@ -365,6 +365,13 @@ fn changing_the_column_count_reflows_with_final_layout_and_a_slide() {
             .any(|r| support::same(*r, final_rect)),
         "panel 5 is not yet painted at its final rect"
     );
+    h.step();
+    assert!(
+        !painted_rects(&h)
+            .iter()
+            .any(|r| support::same(*r, final_rect)),
+        "panel 5 is still sliding a frame later: the content growing is not a resize"
+    );
     h.run_steps(10);
     assert!(
         painted_rects(&h)

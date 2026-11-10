@@ -414,10 +414,10 @@ pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) {
             let origin = ui.max_rect().min;
             let area = Rect::from_min_size(
                 origin,
-                vec2(
-                    ui.available_width(),
-                    app.content_height.max(ui.clip_rect().height()),
-                ),
+                // The viewport, not last frame's content: the grid overflows
+                // it, and a height that followed the content would read as a
+                // resize to `animate_layout` and drop its slides.
+                vec2(ui.available_width(), ui.clip_rect().height()),
             );
             let built = layout_state.build(&ctx, |b| layout(b, app));
             let placed = built.layout(area);
