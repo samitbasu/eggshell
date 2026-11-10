@@ -95,7 +95,25 @@ Built the minimum: egui's `ScrollArea::vertical()` hosting the bullseye build/la
 - Native, what is read of egui-winit 0.37 / winit 0.30: `HoveredFile(path)` events fill `raw.hovered_files` (path only), `DroppedFile` fills `raw.dropped_files`; winit 0.30 has **no position events during an OS drag**, so the pointer position egui holds is whatever it was before the drag entered (on some platforms it updates, on others not). **Open: verify by hand** on X11, Wayland, macOS, Windows that `ctx.pointer_latest_pos()` follows the cursor during an OS drag. If it does not, per-zone hints and drop positions are impossible natively until winit's drag-position events arrive (a newer winit than egui pins), and the fallback is a single whole-window hint.
 - Web (read of eframe 0.37 `web/events.rs`): `dragover` fills `hovered_files` with **mime only** (the names are empty in `dragover`, so accept-by-extension is impossible while hovering; mime filtering is the only pre-drop test); `drop` fills `dropped_files` (name, bytes via `bytes_async`). **Neither handler updates the pointer position**, so on the web the zone under the drag is unknown. Not run in a browser; `cargo check --target wasm32-unknown-unknown --examples` passes in CI for all four examples.
 - Simulated in the harness through `Harness::input_mut().hovered_files` (persists across steps until cleared) and `.dropped_files` (consumed by the next step): `dnd_zones::files_hint_...`, `dropped_files_are_accepted_or_refused...`, `dnd_gallery::outside_files_show_a_gap_and_insert_at_the_pointer`, `outside_files_of_the_wrong_type...`. These prove bullseye's routing given a pointer position; they do not prove the OS supplies one.
+- **Verified by hand (2026-11-10), winit 0.30:**
+  - **macOS:** the drag cursor shows, there's **no position during the hover** (no live gap), and **the drop lands where released**.
+  - **Linux/Wayland (Fedora):** nothing is delivered; winit 0.30 implements file DnD only in its X11 backend (`platform_impl/linux/x11/event_processor.rs`).
+  - winit **0.31** replaces these with `DragEntered`/`DragMoved`/`DragDropped`/`DragLeft`, carrying the pointer position, on Windows, Wayland and macOS (winit #4571). Tracked as #78; adopt when eframe moves.
 - Routing: bullseye needs nothing in the core beyond the resolver; the app reads `ctx.input(|i| i.raw.hovered_files)` at build (no lag; the files do not depend on layout) and resolves the zone after draw.
+
+## Target feedback: two levels
+
+Whether a target can tell *the cursor is over me* depends on the drag's source and the platform. *A compatible drag is in progress* is always known. So target feedback has two levels, styled once by the app; each level lights up wherever the platform supplies it:
+
+| Level | Meaning | In-app drag | Outside drag, winit 0.30 | Outside drag, winit 0.31 |
+|---|---|---|---|---|
+| **accepts** | a drag this target would take is in progress anywhere | yes | yes (files are hovering; types known except on the web, where only MIME types are) | yes |
+| **targeted** | that drag is over this target, so a release here drops here | yes | **no** (no position during the hover) | yes (`DragMoved`) |
+
+- Paint variants: `drag_accepts(|p| ..)` and `drag_over(|p| ..)`. `drag_over` applies on top of `drag_accepts` (e.g. a dashed outline on every accepting zone, and a filled ring on the targeted one).
+- **No guessed target:** when the position is unknown, nothing is shown as targeted. A guess, such as the last pointer position before the drag entered, is worse than none.
+- **The drop still lands correctly** where the platform gives a position at release (macOS). Where it gives none, the drop goes to a declared fallback (e.g. append to the list) and the new item is scrolled into view, so a drop is never silent.
+- Apps don't change when eframe moves to winit 0.31: `drag_over` simply starts lighting up for outside drags.
 
 ## Core changes
 
@@ -106,9 +124,9 @@ None were required to run the experiments. For production:
 | `NodeHandle::on_drag_source(payload)` / `.on_drop::<T>(accept, handler)` sugar over `on_response` | The handler body above is the same in every use: set payload on `drag_started`, request repaint, route cancel. |
 | An active-gesture model: `Dragging { payload, source, started }` owned by `LayoutState`/ctx, with Esc, focus loss, release-outside, vanished-source all folded into one `Ended { Dropped, Cancelled }` | Cancel was spread across three signals (Esc via `drag_stopped` with no payload, release position, focus loss which egui does not signal). |
 | One target resolver in the library: final rects of targets in `Placed`, the innermost target accepting the payload type wins, layer-aware | Per-widget `contains_pointer` is a frame stale and not exclusive. CLAUDE.md: encode priority once. |
-| `drag_over` paint variant (draw-time, with `transition`), plus `hover` variants keep working during a foreign drag | egui's `hovered()` is false for every other widget while one drags, so `hover(..)` styles go dead during a drag (read from egui source); a `drag_over` resolved from the resolver avoids the one-frame build-time lag. |
-| Per-node painted shape range exposed after `draw` (shared with #35) | Exact ghost; replaces rect-containment capture. |
-| Repaint requested when a draw-time handler changes app state (or a documented `ctx.request_repaint()`) | Every handler had to remember it. |
+| `drag_accepts` and `drag_over` paint variants (draw-time, with `transition`; see *Target feedback*), plus `hover` variants keep working during a foreign drag | egui's `hovered()` is false for every other widget while one drags, so `hover(..)` styles go dead during a drag (read from egui source); variants resolved from the resolver avoid the one-frame build-time lag, and the two levels degrade cleanly where the platform gives no position. |
+| `paint_layer(PaintLayer::Drag)` plus `paint_centered_at(Pos2)` (built in this spike) | The live drag image is the real node painted at the pointer, anchored in screen space at draw time, so it can't lag a moving slot or freeze. The per-node painted shape range is now needed only by #35. |
+| Repaint while auto-scrolling or with the pointer held still mid-drag | egui already repaints after every input frame (#63), so handlers need nothing; only motion without input (auto-scroll) must request frames. |
 | Test support: `FrameRig`/`frame_harness` (added here) so tests can run post-draw work and scroll areas | The stock `Rig` cannot. |
 | M5: viewport/content-origin/scroll-by/hit-clip (above); M6: overlay layers as targets (above) | Needed by auto-scroll and layered targets. |
 
@@ -121,7 +139,10 @@ b.div_id(key, tw().sense_drag().drag_over(|p| p.ring()), |b| ..)
     .drag_image(DragImage::Ghost)                 // or ::Chip(text) or ::None
 
 // Target: accepts by payload type, optionally by predicate.
-b.div_id("canvas", tw().sense_hover().drag_over(|p| p.bg(accent)), |b| ..)
+b.div_id("canvas", tw().sense_hover()
+        .drag_accepts(|p| p.border_dashed(ring))   // a compatible drag is in progress
+        .drag_over(|p| p.bg(accent)),              // ...and it is over this target
+    |b| ..)
     .drop_target::<Item>(|app, drop: Drop<Item>| {
         app.place(drop.payload, drop.position)    // position: content coords, node-local
     });
@@ -143,11 +164,11 @@ enum DragEnd { Dropped, Cancelled(Cause) }        // Cause: Esc | Outside | Focu
 ## Issues to file
 
 1. Production DnD: `drag_source`, `drop_target`, active-gesture model, `DragEnd` causes (covers #33, #23).
-2. `drag_over` paint variant and hover styles during a foreign drag.
+2. `drag_accepts` / `drag_over` paint variants (two-level target feedback) and hover styles during a foreign drag.
 3. Library target resolver (innermost, layer-aware, uses final rects; insertion index helper) with hysteresis for unequal item sizes.
-4. Per-node painted shape range from `draw` (#35 and the exact drag ghost).
+4. Per-node painted shape range from `draw` (#35 only; the drag image is the live node).
 5. Cancel on window focus loss and release outside the window.
-6. Repaint after draw-time state change.
+6. Frames during auto-scroll and held-still drags (handlers need nothing; #63).
 7. M5 requirements: viewport/content origin, `scroll_by`/`scroll_to_rect`, wheel during drag, layout told viewport size, hit-clip, stable origin for `animate_layout`, auto-scroll helper.
 8. M6 requirements: overlays as drop targets in their own layers, below the drag image, and what a drag does to light-dismiss.
 9. Keyboard and accessibility: Space-to-lift mode, accesskit custom actions for move.
