@@ -33,7 +33,7 @@ fn rig<A: 'static>(
         layout: LayoutState::new(),
     };
     let harness = Harness::builder()
-        .with_size(vec2(400.0, 400.0))
+        .with_size(vec2(4000.0, 400.0))
         .with_step_dt(0.05)
         .build_ui_state(
             |ui, fixture: &mut Fixture<A>| {
@@ -223,16 +223,19 @@ mod area_feedback {
         timeline(&harness)
     }
 
+    /// Before #80 this was a bug the checker caught: the area following the
+    /// content is a resize frame, which cut the slide short.
     #[test]
-    fn a_slide_is_abandoned_when_the_area_follows_last_frames_content() {
+    fn an_area_that_follows_last_frames_content_no_longer_abandons_the_slide() {
         let timeline = run(Flaw::Buggy);
-        let kinds = kinds_at(&timeline, "/2");
-        assert!(
-            kinds
+        let sliding = (0..timeline.len()).any(|k| {
+            timeline
+                .frame(k)
                 .iter()
-                .any(|kind| matches!(kind, ViolationKind::Teleport { .. })),
-            "{kinds:?}"
-        );
+                .any(|n| n.path == "/2" && n.painted_rect != n.layout_rect)
+        });
+        assert!(sliding, "precondition: the rows slide");
+        timeline.assert_continuous();
     }
 
     #[test]
@@ -412,6 +415,218 @@ mod oscillation {
     fn a_stable_width_settles() {
         let timeline = run(Flaw::Fixed);
         assert!(timeline.len() >= 12, "precondition: frames were recorded");
+        timeline.assert_continuous();
+    }
+}
+
+mod slide_path {
+    use super::*;
+
+    const SLIDE: Duration = Duration::from_millis(450);
+    const DISTANCE: f32 = 3000.0;
+    const MOVER: &str = r#"/"row"/"mover""#;
+    /// Frames after the move at which the buggy views misbehave: halfway.
+    const HALFWAY: u32 = 5;
+    const FRAME_SECONDS: f32 = 0.05;
+
+    #[derive(Clone, Copy, PartialEq)]
+    enum Fault {
+        None,
+        SnapsToTheEnd,
+        JumpsBack,
+    }
+
+    struct Slider {
+        fault: Fault,
+        lead: f32,
+        frames: u32,
+        moved_at: Option<u32>,
+    }
+
+    impl Slider {
+        fn since_move(&self) -> Option<u32> {
+            self.moved_at.map(|at| self.frames - at)
+        }
+
+        fn remaining(&self, since: u32) -> f32 {
+            let elapsed = since as f32 * FRAME_SECONDS / SLIDE.as_secs_f32();
+            DISTANCE * (1.0 - elapsed.min(1.0))
+        }
+
+        /// How far the buggy views move the painting, by hover translate.
+        fn push(&self) -> f32 {
+            match (self.fault, self.since_move()) {
+                (Fault::SnapsToTheEnd, Some(since)) if since >= HALFWAY => self.remaining(since),
+                (Fault::JumpsBack, Some(since)) if since >= HALFWAY => -0.3 * DISTANCE,
+                _ => 0.0,
+            }
+        }
+    }
+
+    fn view(b: &mut Builder<'_, '_, Slider>, app: &Slider) {
+        let push = app.push();
+        b.div_id("row", tw().flex().w_px(DISTANCE + 1000.0).h_px(40.0), |b| {
+            b.div(tw().w_px(app.lead).h_px(40.0), |_| {});
+            b.div_id(
+                "mover",
+                tw().w_px(300.0)
+                    .h_px(40.0)
+                    .hover(|p| p.translate(push, 0.0))
+                    .animate_layout(SLIDE)
+                    .ease_linear(),
+                |_| {},
+            );
+        });
+    }
+
+    fn observe(app: &mut Slider, _: &Placed<Slider>) {
+        app.frames += 1;
+    }
+
+    fn run(fault: Fault) -> Timeline {
+        let mut harness = rig(
+            Slider {
+                fault,
+                lead: 0.0,
+                frames: 0,
+                moved_at: None,
+            },
+            view,
+            |_| vec2(4000.0, 400.0),
+            observe,
+        );
+        harness.hover_at(Pos2::new(DISTANCE + 150.0, 20.0));
+        harness.run_steps(3);
+        let app = &mut harness.state_mut().app;
+        app.lead = DISTANCE;
+        app.moved_at = Some(app.frames);
+        harness.run_steps(14);
+        timeline(&harness)
+    }
+
+    fn painted_x(timeline: &Timeline) -> Vec<f32> {
+        (0..timeline.len())
+            .filter_map(|k| {
+                let frame = timeline.frame(k);
+                Some(frame.iter().find(|n| n.path == MOVER)?.painted_rect.min.x)
+            })
+            .collect()
+    }
+
+    fn kinds(timeline: &Timeline) -> Vec<ViolationKind> {
+        kinds_at(timeline, MOVER)
+    }
+
+    #[test]
+    fn a_slide_that_snaps_to_the_end_halfway_is_off_its_path() {
+        let timeline = run(Fault::SnapsToTheEnd);
+        let painted = painted_x(&timeline);
+        let steps: Vec<f32> = painted.windows(2).map(|pair| pair[1] - pair[0]).collect();
+        assert!(
+            steps.iter().filter(|step| step.abs() > 200.0).count() >= 2,
+            "precondition: a long, fast slide with a snap in it: {steps:?}"
+        );
+        assert!(
+            kinds(&timeline)
+                .iter()
+                .any(|kind| matches!(kind, ViolationKind::OffPath { .. })),
+            "{:?}",
+            kinds(&timeline)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = r#"off path: /"row"/"mover" slid from frame"#)]
+    fn the_report_names_the_node_and_both_moves() {
+        run(Fault::SnapsToTheEnd).assert_continuous();
+    }
+
+    #[test]
+    fn a_slide_that_jumps_backwards_is_off_its_path() {
+        let timeline = run(Fault::JumpsBack);
+        assert!(
+            kinds(&timeline)
+                .iter()
+                .any(|kind| matches!(kind, ViolationKind::OffPath { .. })),
+            "{:?}",
+            kinds(&timeline)
+        );
+    }
+
+    #[test]
+    fn the_fixed_twin_slides_the_whole_way() {
+        let timeline = run(Fault::None);
+        let painted = painted_x(&timeline);
+        let biggest = painted
+            .windows(2)
+            .map(|pair| (pair[1] - pair[0]).abs())
+            .fold(0.0, f32::max);
+        assert!(
+            biggest > 200.0 && painted.first() == Some(&0.0),
+            "precondition: a long, fast slide: {painted:?}"
+        );
+        assert_eq!(painted.last(), Some(&DISTANCE));
+        timeline.assert_continuous();
+    }
+}
+
+mod long_grid_slide {
+    use super::*;
+
+    const SLIDE: Duration = Duration::from_millis(450);
+    const PANEL: f32 = 1000.0;
+
+    struct Grid {
+        columns: u32,
+    }
+
+    fn view(b: &mut Builder<'_, '_, Grid>, app: &Grid) {
+        b.div_id(
+            "grid",
+            tw().flex()
+                .flex_wrap()
+                .w_px(PANEL * app.columns as f32)
+                .h_px(400.0),
+            |b| {
+                for panel in 0..3u32 {
+                    b.div_id(
+                        panel,
+                        tw().w_px(PANEL).h_px(100.0).animate_layout(SLIDE),
+                        |_| {},
+                    );
+                }
+            },
+        );
+    }
+
+    #[test]
+    fn three_columns_to_one_slides_thousands_of_points_without_an_allowance() {
+        let mut harness = rig(
+            Grid { columns: 3 },
+            view,
+            |_| vec2(4000.0, 400.0),
+            |_, _| {},
+        );
+        harness.run_steps(3);
+        harness.state_mut().app.columns = 1;
+        harness.run_steps(14);
+        let timeline = timeline(&harness);
+        let travelled: f32 = (0..timeline.len())
+            .filter_map(|k| {
+                timeline
+                    .frame(k)
+                    .iter()
+                    .find(|n| n.path == r#"/"grid"/2"#)
+                    .map(|n| n.painted_rect.min.x)
+            })
+            .collect::<Vec<_>>()
+            .windows(2)
+            .map(|pair| (pair[1] - pair[0]).abs())
+            .fold(0.0, f32::max);
+        assert!(
+            travelled > 100.0,
+            "precondition: panels move far in one frame: {travelled}"
+        );
         timeline.assert_continuous();
     }
 }

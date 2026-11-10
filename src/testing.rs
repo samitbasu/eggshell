@@ -40,7 +40,7 @@ use std::fmt::Write as _;
 use egui::{Id, Rect, Theme, Vec2};
 
 pub use crate::continuity::{
-    Motion, NodeFrame, NodeRef, Points, Timeline, Violation, ViolationKind, record,
+    Motion, NodeFrame, NodeRef, Points, Slide, SlideId, Timeline, Violation, ViolationKind, record,
 };
 use crate::key::{Key, child_id, root_id};
 pub use crate::pipeline::Placed;

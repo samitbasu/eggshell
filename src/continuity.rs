@@ -20,7 +20,7 @@ use std::fmt::{self, Write as _};
 
 use egui::{Context, Id, Rect, Vec2};
 
-use crate::tw::Opacity;
+use crate::tw::{Opacity, Progress};
 
 /// Whether a node declared `animate_layout`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,6 +29,31 @@ pub enum Motion {
     Snaps,
     /// A change of its layout position is slid over.
     Slides,
+}
+
+/// Names one slide: the same for every frame of it, and different for the
+/// next slide of the same node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SlideId(u64);
+
+impl SlideId {
+    pub(crate) fn new(began: f64) -> Self {
+        Self(began.to_bits())
+    }
+}
+
+/// Where a sliding node is on its slide in one frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Slide {
+    /// Which slide this is.
+    pub id: SlideId,
+    /// How far from its layout the node was painted when the slide began.
+    pub start: Vec2,
+    /// How far along the slide the node is, eased.
+    pub progress: Progress,
+    /// How far from its layout the node is painted by itself: the slide plus
+    /// its own state translate.
+    pub offset: Vec2,
 }
 
 /// One identified node as one frame drew it.
@@ -47,6 +72,8 @@ pub struct NodeFrame {
     pub opacity: Opacity,
     /// Whether the node slides when layout moves it.
     pub motion: Motion,
+    /// The slide the node is on, for a node that [`Slides`](Motion::Slides).
+    pub slide: Option<Slide>,
 }
 
 /// What the draw pass records for one pass of the context.
@@ -167,6 +194,22 @@ pub enum ViolationKind {
         /// The opacity in the next.
         after: f32,
     },
+    /// A sliding node was painted off its slide's path between two frames of
+    /// the one slide: its offset moved by something other than the slide's
+    /// progress, a snap or a jump.
+    OffPath {
+        /// How far the slide's progress moved the offset.
+        expected: Vec2,
+        /// How far the offset moved.
+        actual: Vec2,
+    },
+    /// A slide went backwards: its progress fell.
+    Regressed {
+        /// The progress in the previous frame.
+        before: Progress,
+        /// The progress in this one.
+        after: Progress,
+    },
     /// Painted more than once in one frame.
     DoublePaint {
         /// How many times.
@@ -218,6 +261,18 @@ impl fmt::Display for Violation {
                 frame - 1,
                 frame + 1
             ),
+            ViolationKind::OffPath { expected, actual } => write!(
+                f,
+                "off path: {path} slid from frame {} to frame {frame} so that its offset should move by {expected:?} but moved by {actual:?}",
+                frame - 1
+            ),
+            ViolationKind::Regressed { before, after } => write!(
+                f,
+                "regressed: the slide of {path} went from progress {} in frame {} to {} in frame {frame}",
+                f32::from(*before),
+                frame - 1,
+                f32::from(*after)
+            ),
             ViolationKind::DoublePaint { times } => {
                 write!(
                     f,
@@ -237,6 +292,7 @@ impl fmt::Display for Violation {
 pub struct Timeline {
     frames: Vec<Vec<NodeFrame>>,
     max_step: Points,
+    slide_tolerance: Points,
     max_opacity_step: Opacity,
     settle_window: usize,
     allowed_nodes: Vec<NodeRef>,
@@ -262,6 +318,7 @@ impl Timeline {
         Self {
             frames,
             max_step: Points::new(40.0),
+            slide_tolerance: Points::new(4.0),
             max_opacity_step: Opacity::new(0.5),
             settle_window: 4,
             allowed_nodes: Vec::new(),
@@ -288,6 +345,14 @@ impl Timeline {
     /// jump. Default 40 points.
     pub fn max_step(mut self, step: Points) -> Self {
         self.max_step = step;
+        self
+    }
+
+    /// How far a sliding node's paint offset may move in a frame beyond what
+    /// the slide's progress moves it, for its own state translate to ease
+    /// meanwhile. Default 4 points.
+    pub fn slide_tolerance(mut self, tolerance: Points) -> Self {
+        self.slide_tolerance = tolerance;
         self
     }
 
@@ -335,7 +400,9 @@ impl Timeline {
     ///   paint offset changed by no more than the step: a layout change
     ///   without `animate_layout` is an instant move on purpose.
     ///
-    /// Exempt: nodes first drawn in the frame, allowed nodes and frames.
+    /// Exempt: nodes first drawn in the frame, allowed nodes and frames, and
+    /// frames in the middle of a slide, which [`slides`](Self::slides) judges
+    /// by progress instead.
     pub fn teleports(&self) -> Vec<Violation> {
         let step = f32::from(self.max_step);
         let mut found = Vec::new();
@@ -348,6 +415,9 @@ impl Timeline {
             for (id, now) in after {
                 let Some(prev) = before.get(id) else { continue };
                 if self.allowed_nodes.iter().any(|allowed| allowed.names(now)) {
+                    continue;
+                }
+                if continues_slide(prev, now) {
                     continue;
                 }
                 let corners = |rect: Rect| [rect.min, rect.max];
@@ -371,6 +441,62 @@ impl Timeline {
                         },
                     });
                 }
+            }
+        }
+        found.sort_by(|a, b| (a.frame, &a.path).cmp(&(b.frame, &b.path)));
+        found
+    }
+
+    /// Sliding nodes that left their slide between two frames of it. Within
+    /// one slide, the node's paint offset from layout runs along the segment
+    /// from the slide's start offset to zero:
+    /// - progress never falls;
+    /// - the offset moves by `-start * (progress change)`, within the
+    ///   [tolerance](Self::slide_tolerance). A node that snaps to the end, jumps
+    ///   back or leaves the path moves by something else, however long the
+    ///   slide is.
+    ///
+    /// The frame a slide starts is judged by [`teleports`](Self::teleports): a
+    /// retargeted slide starts from where the node was painted. Exempt:
+    /// allowed nodes and frames.
+    pub fn slides(&self) -> Vec<Violation> {
+        let tolerance = f32::from(self.slide_tolerance);
+        let mut found = Vec::new();
+        let frames = self.by_id();
+        for (k, pair) in frames.windows(2).enumerate().map(|(i, w)| (i + 1, w)) {
+            let (before, after) = (&pair[0], &pair[1]);
+            if self.allowed_frames.contains(&k) {
+                continue;
+            }
+            for (id, now) in after {
+                let Some(prev) = before.get(id) else { continue };
+                if self.allowed_nodes.iter().any(|allowed| allowed.names(now)) {
+                    continue;
+                }
+                let (Some(was), Some(is)) = (prev.slide, now.slide) else {
+                    continue;
+                };
+                if !continues_slide(prev, now) {
+                    continue;
+                }
+                let kind = if is.progress < was.progress {
+                    ViolationKind::Regressed {
+                        before: was.progress,
+                        after: is.progress,
+                    }
+                } else {
+                    let expected = -is.start * (f32::from(is.progress) - f32::from(was.progress));
+                    let actual = is.offset - was.offset;
+                    if (actual - expected).length() <= tolerance {
+                        continue;
+                    }
+                    ViolationKind::OffPath { expected, actual }
+                };
+                found.push(Violation {
+                    path: now.path.clone(),
+                    frame: k,
+                    kind,
+                });
             }
         }
         found.sort_by(|a, b| (a.frame, &a.path).cmp(&(b.frame, &b.path)));
@@ -479,6 +605,7 @@ impl Timeline {
     pub fn violations(&self) -> Vec<Violation> {
         [
             self.teleports(),
+            self.slides(),
             self.gaps(),
             self.double_paints(),
             self.settles(),
@@ -490,6 +617,12 @@ impl Timeline {
     #[track_caller]
     pub fn assert_no_teleports(&self) {
         report(&self.teleports());
+    }
+
+    /// Panics unless [`slides`](Self::slides) is empty.
+    #[track_caller]
+    pub fn assert_slides_stay_on_path(&self) {
+        report(&self.slides());
     }
 
     /// Panics unless [`gaps`](Self::gaps) is empty.
@@ -521,6 +654,11 @@ impl Timeline {
     }
 }
 
+/// Whether `now` is the same slide as `prev`, a frame on.
+fn continues_slide(prev: &NodeFrame, now: &NodeFrame) -> bool {
+    matches!((prev.slide, now.slide), (Some(was), Some(is)) if was.id == is.id)
+}
+
 #[track_caller]
 fn report(violations: &[Violation]) {
     if violations.is_empty() {
@@ -531,4 +669,48 @@ fn report(violations: &[Violation]) {
         write!(message, "\n  {violation}").expect("writing to a String cannot fail");
     }
     panic!("{message}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn frame(progress: f32) -> Vec<NodeFrame> {
+        let start = Vec2::new(-100.0, 0.0);
+        let rect = Rect::from_min_size(egui::Pos2::ZERO, Vec2::splat(10.0));
+        vec![NodeFrame {
+            id: Id::new("node"),
+            path: "/node".to_owned(),
+            layout_rect: rect,
+            painted_rect: rect.translate(start * (1.0 - progress)),
+            opacity: Opacity::new(1.0),
+            motion: Motion::Slides,
+            slide: Some(Slide {
+                id: SlideId::new(1.0),
+                start,
+                progress: Progress::new(progress),
+                offset: start * (1.0 - progress),
+            }),
+        }]
+    }
+
+    #[test]
+    fn a_slide_whose_progress_falls_is_regressed() {
+        let timeline = Timeline::from_frames(vec![frame(0.0), frame(0.5), frame(0.25)]);
+        let found = timeline.slides();
+        assert!(
+            matches!(&found[..], [v] if v.frame == 2 && matches!(v.kind, ViolationKind::Regressed { .. })),
+            "{found:?}"
+        );
+        assert_eq!(
+            found[0].to_string(),
+            "regressed: the slide of /node went from progress 0.5 in frame 1 to 0.25 in frame 2"
+        );
+    }
+
+    #[test]
+    fn a_slide_that_advances_is_on_its_path() {
+        Timeline::from_frames(vec![frame(0.0), frame(0.5), frame(1.0), frame(1.0)])
+            .assert_slides_stay_on_path();
+    }
 }

@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 use egui::{Context, Id, Rect, Vec2};
 
+use crate::continuity::{Slide, SlideId};
 use crate::tw::{Easing, Progress};
 
 /// One transition in flight, from where the previous one left the value to
@@ -212,6 +213,18 @@ impl LayoutAnimation {
             self.ctx.request_repaint();
         }
         tracked.offset(now, easing)
+    }
+
+    /// The state of the slide of `id` drawn this frame, with the node's whole
+    /// paint offset from its layout, `offset`.
+    pub(crate) fn slide(&self, id: Id, easing: Easing, offset: Vec2) -> Option<Slide> {
+        let tracked = self.current.get(&id)?;
+        Some(Slide {
+            id: SlideId::new(tracked.progress.start),
+            start: tracked.start,
+            progress: tracked.progress.value(self.now, easing),
+            offset,
+        })
     }
 
     pub(crate) fn finish(self) {
