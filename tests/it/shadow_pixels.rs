@@ -33,8 +33,8 @@ impl Canvas {
             let Primitive::Mesh(mesh) = primitive else {
                 continue;
             };
-            for tri in mesh.indices.chunks_exact(3) {
-                let mut v = [0, 1, 2].map(|k| mesh.vertices[tri[k] as usize]);
+            for tri in mesh.indices.as_chunks::<3>().0 {
+                let mut v = tri.map(|index| mesh.vertices[index as usize]);
                 // A GPU rasterises vertices snapped to a sub-pixel grid, which is what
                 // makes two triangles sharing an edge agree on which pixels it touches.
                 let snapped = |v: &Vertex| {
