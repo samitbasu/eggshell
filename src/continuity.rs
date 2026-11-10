@@ -42,6 +42,15 @@ impl SlideId {
     }
 }
 
+/// The slide a new slide interrupted, as the retarget found it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Interrupted {
+    /// The interrupted slide's start offset.
+    pub start: Vec2,
+    /// Its progress in the frame that interrupted it.
+    pub progress: Progress,
+}
+
 /// Where a sliding node is on its slide in one frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Slide {
@@ -51,6 +60,8 @@ pub struct Slide {
     pub start: Vec2,
     /// How far along the slide the node is, eased.
     pub progress: Progress,
+    /// The slide this one retargeted, if it began by interrupting one.
+    pub interrupted: Option<Interrupted>,
     /// How far from its layout the node is painted by itself: the slide plus
     /// its own state translate.
     pub offset: Vec2,
@@ -420,9 +431,10 @@ impl Timeline {
                 if continues_slide(prev, now) {
                     continue;
                 }
+                let carried = carried_by_retarget(prev, now);
                 let corners = |rect: Rect| [rect.min, rect.max];
                 let jumps = (0..2).any(|c| {
-                    let p = corners(now.painted_rect)[c] - corners(prev.painted_rect)[c];
+                    let p = corners(now.painted_rect)[c] - corners(prev.painted_rect)[c] - carried;
                     let l = corners(now.layout_rect)[c] - corners(prev.layout_rect)[c];
                     let offset_change: Vec2 = p - l;
                     let jumped = p.length() > step;
@@ -457,7 +469,8 @@ impl Timeline {
     ///   slide is.
     ///
     /// The frame a slide starts is judged by [`teleports`](Self::teleports): a
-    /// retargeted slide starts from where the node was painted. Exempt:
+    /// retargeted slide starts from where the node was painted, so it may have
+    /// moved on only as far as the slide it interrupted did. Exempt:
     /// allowed nodes and frames.
     pub fn slides(&self) -> Vec<Violation> {
         let tolerance = f32::from(self.slide_tolerance);
@@ -654,6 +667,18 @@ impl Timeline {
     }
 }
 
+/// How far a retarget carried the painted position along the slide it
+/// interrupted since the previous frame: a slide that starts from where its
+/// predecessor is painted moves on by that much in its first frame.
+fn carried_by_retarget(prev: &NodeFrame, now: &NodeFrame) -> Vec2 {
+    match (prev.slide, now.slide.and_then(|slide| slide.interrupted)) {
+        (Some(was), Some(interrupted)) if was.start == interrupted.start => {
+            -interrupted.start * (f32::from(interrupted.progress) - f32::from(was.progress))
+        }
+        _ => Vec2::ZERO,
+    }
+}
+
 /// Whether `now` is the same slide as `prev`, a frame on.
 fn continues_slide(prev: &NodeFrame, now: &NodeFrame) -> bool {
     matches!((prev.slide, now.slide), (Some(was), Some(is)) if was.id == is.id)
@@ -679,7 +704,7 @@ mod tests {
         let start = Vec2::new(-100.0, 0.0);
         let rect = Rect::from_min_size(egui::Pos2::ZERO, Vec2::splat(10.0));
         vec![NodeFrame {
-            id: Id::new("node"),
+            id: Id::NULL,
             path: "/node".to_owned(),
             layout_rect: rect,
             painted_rect: rect.translate(start * (1.0 - progress)),
@@ -689,6 +714,7 @@ mod tests {
                 id: SlideId::new(1.0),
                 start,
                 progress: Progress::new(progress),
+                interrupted: None,
                 offset: start * (1.0 - progress),
             }),
         }]

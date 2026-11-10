@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use egui::{Context, Id, Rect, Vec2};
 
-use crate::continuity::{Slide, SlideId};
+use crate::continuity::{Interrupted, Slide, SlideId};
 use crate::tw::{Easing, Progress};
 
 /// One transition in flight, from where the previous one left the value to
@@ -114,6 +114,8 @@ struct Tracked {
     /// Where the node was painted, relative to its layout, when it last moved.
     start: Vec2,
     progress: Transition,
+    /// The slide this one interrupted, where the retarget found it.
+    interrupted: Option<Interrupted>,
 }
 
 impl Tracked {
@@ -127,6 +129,7 @@ impl Tracked {
 #[derive(Clone)]
 struct Tracking {
     area: Rect,
+    time: f64,
     nodes: HashMap<Id, Tracked>,
 }
 
@@ -134,6 +137,7 @@ impl Default for Tracking {
     fn default() -> Self {
         Self {
             area: Rect::NOTHING,
+            time: 0.0,
             nodes: HashMap::new(),
         }
     }
@@ -161,7 +165,7 @@ pub(crate) struct LayoutAnimation {
 impl LayoutAnimation {
     /// Starts a frame laid out in `area`. When `area` is not the previous
     /// frame's, the window was resized: no move starts a slide, but the slides
-    /// in flight go on, retargeted from where they are painted like any
+    /// in flight in the previous frame go on, retargeted from where they are painted like any
     /// interrupted move.
     pub(crate) fn begin(ctx: &Context, scope: Id, area: Rect) -> Self {
         let before: Tracking = ctx
@@ -170,7 +174,7 @@ impl LayoutAnimation {
         let now = ctx.input(|input| input.time);
         let mut previous = before.nodes;
         if before.area != area {
-            previous.retain(|_, tracked| tracked.progress.elapsed(now) < Progress::END);
+            previous.retain(|_, tracked| tracked.progress.elapsed(before.time) < Progress::END);
         }
         Self {
             ctx: ctx.clone(),
@@ -201,11 +205,16 @@ impl LayoutAnimation {
                 relative,
                 start: previous.relative + previous.offset(now, easing) - relative,
                 progress: Transition::from_start(now, duration),
+                interrupted: Some(Interrupted {
+                    start: previous.start,
+                    progress: previous.progress.value(now, easing),
+                }),
             },
             None => Tracked {
                 relative,
                 start: Vec2::ZERO,
                 progress: Transition::settled(Progress::END, now),
+                interrupted: None,
             },
         };
         self.current.insert(id, tracked);
@@ -223,6 +232,7 @@ impl LayoutAnimation {
             id: SlideId::new(tracked.progress.start),
             start: tracked.start,
             progress: tracked.progress.value(self.now, easing),
+            interrupted: tracked.interrupted,
             offset,
         })
     }
@@ -231,7 +241,14 @@ impl LayoutAnimation {
         let nodes = self.current;
         let area = self.area;
         self.ctx.data_mut(|data| {
-            data.insert_temp(tracking_id(self.scope), Tracking { area, nodes });
+            data.insert_temp(
+                tracking_id(self.scope),
+                Tracking {
+                    area,
+                    time: self.now,
+                    nodes,
+                },
+            );
         });
     }
 }
