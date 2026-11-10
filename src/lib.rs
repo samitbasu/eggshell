@@ -166,6 +166,7 @@ mod measure;
 pub mod owned;
 mod pipeline;
 pub mod prim;
+mod shadow_corners;
 mod sizing;
 mod text;
 mod transition;

@@ -9,7 +9,7 @@ use egui::epaint::{ClippedShape, Shape};
 use egui::{Color32, FontFamily, FontId, Id, Pos2, RawInput, Rect, pos2, vec2};
 use egui_kittest::Harness;
 
-const SCREEN: Rect = Rect {
+pub(super) const SCREEN: Rect = Rect {
     min: pos2(0.0, 0.0),
     max: pos2(800.0, 600.0),
 };
@@ -26,7 +26,7 @@ fn base() -> TextStyle {
 }
 
 /// Builds `build` over the whole screen, draws it with `app`, and returns the shapes.
-fn shapes<A>(
+pub(super) fn shapes<A>(
     app: &mut A,
     pixels_per_point: f32,
     build: impl for<'f> FnOnce(&mut bullseye::Builder<'_, 'f, A>),
