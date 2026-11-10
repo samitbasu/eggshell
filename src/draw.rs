@@ -2,7 +2,7 @@
 //! tree in pre-order and paints box, primitive and draw closure per node.
 
 use egui::emath::TSTransform;
-use egui::epaint::{Mesh, RectShape, StrokeKind, Tessellator};
+use egui::epaint::{Mesh, RectShape, Shape, StrokeKind, Tessellator};
 use egui::layers::ShapeIdx;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -105,6 +105,23 @@ struct Inherited {
     origin: Pos2,
     /// How far the ancestors' paint offsets have moved this subtree.
     shift: Vec2,
+}
+
+/// The node painted lifted, at a screen point.
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code, reason = "the drag gesture builds it, in the next commit")]
+pub(crate) struct Lift {
+    /// The node's index in the frame.
+    pub(crate) index: usize,
+    /// Where the top-left of the node's border box is painted, in screen
+    /// space.
+    pub(crate) min: Pos2,
+}
+
+/// The layer lifted nodes are painted on: above every other, so a lifted
+/// node is neither clipped by its ancestors nor covered by anything.
+pub(crate) fn drag_layer() -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Tooltip, Id::NULL.with("eggshell-drag-layer"))
 }
 
 /// A node's boxes, snapped to physical pixels.
@@ -420,6 +437,7 @@ struct Walk<'a, A> {
     text_seen: HashMap<Id, u32>,
     animation: LayoutAnimation,
     recording: Option<Vec<NodeFrame>>,
+    lift: Option<Lift>,
 }
 
 impl<A> Walk<'_, A> {
@@ -599,8 +617,9 @@ impl<A> Walk<'_, A> {
         };
 
         let opacity = parent.opacity * look.paint.opacity;
-        let slide = match (interaction.variants.animate_layout, node.id()) {
-            (Some(duration), Some(id)) => self.animation.offset(
+        let lifted = self.lift.filter(|lift| lift.index == index);
+        let slide = match (interaction.variants.animate_layout, node.id(), lifted) {
+            (Some(duration), Some(id), None) => self.animation.offset(
                 id,
                 node.rect().min - parent.origin,
                 duration,
@@ -608,8 +627,17 @@ impl<A> Walk<'_, A> {
             ),
             _ => Vec2::ZERO,
         };
-        let translate = look.translate + slide;
-        let shift = parent.shift + translate;
+        // The anchor is screen space. The shapes leave the layer before the
+        // ancestors move what they painted there, so their offsets do not
+        // carry the node, and the recording leaves them out as well as the
+        // anchor: where the pointer carries a node is input, not motion.
+        let (translate, shift) = match lifted {
+            Some(lift) => (lift.min - node.rect().min, Vec2::ZERO),
+            None => {
+                let translate = look.translate + slide;
+                (translate, parent.shift + translate)
+            }
+        };
         if let (Some(frame), Some(id)) = (&mut self.recording, node.id()) {
             frame.push(NodeFrame {
                 id,
@@ -617,17 +645,16 @@ impl<A> Walk<'_, A> {
                 layout_rect: node.rect(),
                 painted_rect: node.rect().translate(shift),
                 opacity,
-                motion: if interaction.variants.animate_layout.is_some() {
-                    Motion::Slides
-                } else {
-                    Motion::Snaps
+                motion: match (interaction.variants.animate_layout, lifted) {
+                    (Some(_), None) => Motion::Slides,
+                    _ => Motion::Snaps,
                 },
                 slide: self
                     .animation
                     .slide(id, interaction.variants.easing, translate),
             });
         }
-        let moved_from = (translate != Vec2::ZERO).then(|| self.next_shape());
+        let moved_from = (translate != Vec2::ZERO || lifted.is_some()).then(|| self.next_shape());
         paint_box(
             &self.painter(parent.clip, opacity),
             &look.paint,
@@ -685,7 +712,33 @@ impl<A> Walk<'_, A> {
         self.paint_dividers(index, &in_layout_order, inherited);
         if let Some(first) = moved_from {
             self.translate_shapes_since(first, translate);
+            if lifted.is_some() {
+                self.lift_shapes_since(first);
+            }
         }
+    }
+
+    /// Moves what the subtree painted since `first` to the drag layer, with
+    /// the screen as its clip.
+    fn lift_shapes_since(&self, first: ShapeIdx) {
+        let layer = self.ui.layer_id();
+        let screen = self.ui.ctx().content_rect();
+        self.ui.ctx().graphics_mut(|graphics| {
+            let lifted: Vec<Shape> = graphics
+                .entry(layer)
+                .all_entries()
+                .skip(first.0)
+                .map(|clipped| clipped.shape.clone())
+                .collect();
+            let source = graphics.entry(layer);
+            for at in first.0..first.0 + lifted.len() {
+                source.reset_shape(ShapeIdx(at));
+            }
+            let target = graphics.entry(drag_layer());
+            for shape in lifted {
+                target.add(screen, shape);
+            }
+        });
     }
 
     fn next_shape(&self) -> ShapeIdx {
@@ -857,6 +910,11 @@ impl<A> Placed<A> {
     ///
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
+        self.draw_lifting(app, ui, None);
+    }
+
+    /// [`draw`](Self::draw) with one node lifted onto the drag layer.
+    pub(crate) fn draw_lifting(self, app: &mut A, ui: &mut Ui, lift: Option<Lift>) {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
         let Self {
             nodes,
@@ -893,6 +951,7 @@ impl<A> Placed<A> {
             text_seen: HashMap::new(),
             animation,
             recording,
+            lift,
         };
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();

@@ -77,7 +77,10 @@ pub struct NodeFrame {
     /// The border box layout gave the node.
     pub layout_rect: Rect,
     /// The layout rect moved by every paint offset: the node's own state
-    /// translate and slide, and those of its ancestors.
+    /// translate and slide, and those of its ancestors. A node lifted for a
+    /// drag, and its subtree, are recorded at their layout rects: where input
+    /// carries a node is not motion, and the ancestors' slides do not move
+    /// it. It does not slide, only snap.
     pub painted_rect: Rect,
     /// The node's opacity multiplied with its ancestors'.
     pub opacity: Opacity,
