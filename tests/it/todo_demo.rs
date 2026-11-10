@@ -176,3 +176,29 @@ fn dragging_the_window_edge_keeps_every_row_continuous() {
     assert!(timeline.len() > 600, "precondition: a long sweep");
     timeline.assert_continuous();
 }
+
+/// The fuzzer's minimal repro of #80: a row swap starts sliding and the next
+/// frames resize the window.
+#[test]
+fn a_resize_mid_slide_does_not_snap_the_row() {
+    let mut harness = harness();
+    record(&harness.ctx);
+    let [first, second, ..] = keys(&harness)[..] else {
+        panic!("precondition: at least two items")
+    };
+    click_button(&mut harness, second, "up");
+    assert_eq!(
+        &keys(&harness)[..2],
+        [second, first],
+        "precondition: the rows swapped"
+    );
+    harness.step();
+    let mut width = 520.0;
+    while width > 240.0 {
+        width = (width - 12.0_f32).max(240.0);
+        harness.set_size(vec2(width, 320.0));
+        harness.step();
+    }
+    harness.run_steps(16);
+    Timeline::recorded(&harness.ctx).assert_continuous();
+}

@@ -159,21 +159,23 @@ pub(crate) struct LayoutAnimation {
 
 impl LayoutAnimation {
     /// Starts a frame laid out in `area`. When `area` is not the previous
-    /// frame's, nothing animates: the window was resized.
+    /// frame's, the window was resized: no move starts a slide, but the slides
+    /// in flight go on, retargeted from where they are painted like any
+    /// interrupted move.
     pub(crate) fn begin(ctx: &Context, scope: Id, area: Rect) -> Self {
         let before: Tracking = ctx
             .data(|data| data.get_temp(tracking_id(scope)))
             .unwrap_or_default();
-        let resized = before.area != area;
+        let now = ctx.input(|input| input.time);
+        let mut previous = before.nodes;
+        if before.area != area {
+            previous.retain(|_, tracked| tracked.progress.elapsed(now) < Progress::END);
+        }
         Self {
             ctx: ctx.clone(),
             scope,
-            now: ctx.input(|input| input.time),
-            previous: if resized {
-                HashMap::new()
-            } else {
-                before.nodes
-            },
+            now,
+            previous,
             current: HashMap::new(),
             area,
         }
