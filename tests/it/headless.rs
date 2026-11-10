@@ -231,7 +231,7 @@ fn diff_reports_a_node_present_in_one_layout() {
     assert!(removed[0].before().is_some() && removed[0].after().is_none());
 }
 
-fn text_width(headless: Headless) -> f32 {
+fn text_width(mut headless: Headless) -> f32 {
     headless
         .layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
             b.div(tw().flex(), |b| {
@@ -259,7 +259,7 @@ fn prepare_changes_the_fonts_layout_measures_with() {
 }
 
 fn themed_width(theme: Theme) -> f32 {
-    let headless = Headless::new(SIZE)
+    let mut headless = Headless::new(SIZE)
         .base_text(body())
         .prepare(Shadcn::apply_both)
         .theme(theme);

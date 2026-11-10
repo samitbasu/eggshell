@@ -34,7 +34,6 @@
 //! assert!(changes.iter().any(|change| change.path() == "/Card"));
 //! ```
 
-use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
@@ -49,6 +48,21 @@ type Prepare = Box<dyn FnOnce(&egui::Context)>;
 
 /// An egui context that lays views out without drawing them.
 ///
+/// ```
+/// use bullseye::testing::Headless;
+/// use bullseye::{Builder, tw};
+/// use egui::{Theme, vec2};
+///
+/// let mut headless = Headless::new(vec2(400.0, 300.0)).theme(Theme::Light);
+/// let view = |b: &mut Builder<'_, '_, ()>, _: &()| {
+///     b.div_id("box", tw().w_px(80.0).h_px(20.0), |_| {});
+/// };
+/// let first = headless.layout(&(), view);
+/// let second = headless.layout(&(), view);
+/// assert_eq!(first.at("box").rect().width(), 80.0);
+/// assert!(first.diff(&second).is_empty());
+/// ```
+///
 /// It owns its [`egui::Context`]. The first [`layout`](Self::layout) runs the
 /// [`prepare`](Self::prepare) closures, then one warm-up pass so that fonts
 /// exist; each `layout` then runs one pass that builds and lays out at the
@@ -58,8 +72,8 @@ pub struct Headless {
     size: Vec2,
     base_text: Option<TextStyle>,
     theme: Option<Theme>,
-    prepare: RefCell<Vec<Prepare>>,
-    warm: Cell<bool>,
+    pending: Vec<Prepare>,
+    warm: bool,
 }
 
 impl Headless {
@@ -70,15 +84,15 @@ impl Headless {
             size,
             base_text: None,
             theme: None,
-            prepare: RefCell::new(Vec::new()),
-            warm: Cell::new(false),
+            pending: Vec::new(),
+            warm: false,
         }
     }
 
-    /// Runs `setup` on the context once, before the warm-up pass: fonts set
-    /// there take effect on the next pass, so they apply to every layout.
-    pub fn prepare(self, setup: impl FnOnce(&egui::Context) + 'static) -> Self {
-        self.prepare.borrow_mut().push(Box::new(setup));
+    /// Runs `setup` on the context once, at the first [`layout`](Self::layout)
+    /// after the theme is set and before the warm-up pass, so fonts it sets apply to every layout.
+    pub fn prepare(mut self, setup: impl FnOnce(&egui::Context) + 'static) -> Self {
+        self.pending.push(Box::new(setup));
         self
     }
 
@@ -100,7 +114,7 @@ impl Headless {
     }
 
     /// Builds and lays out `view` of `app`; nothing is drawn.
-    pub fn layout<A>(&self, app: &A, view: impl Fn(&mut Builder<'_, '_, A>, &A)) -> Placed<A> {
+    pub fn layout<A>(&mut self, app: &A, view: impl Fn(&mut Builder<'_, '_, A>, &A)) -> Placed<A> {
         self.warm_up();
         let area = Rect::from_min_size(egui::Pos2::ZERO, self.size);
         let mut placed = None;
@@ -112,14 +126,14 @@ impl Headless {
         placed.expect("a pass runs its closure")
     }
 
-    fn warm_up(&self) {
-        if self.warm.replace(true) {
+    fn warm_up(&mut self) {
+        if std::mem::replace(&mut self.warm, true) {
             return;
         }
         if let Some(theme) = self.theme {
             self.ctx.set_theme(theme);
         }
-        for setup in self.prepare.take() {
+        for setup in std::mem::take(&mut self.pending) {
             setup(&self.ctx);
         }
         self.pass(|_| {});
