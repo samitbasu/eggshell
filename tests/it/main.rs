@@ -21,6 +21,7 @@ mod dnd_zones;
 mod draw;
 mod focus;
 mod form_demo;
+mod fractions;
 mod gallery;
 mod headless;
 mod hello;
