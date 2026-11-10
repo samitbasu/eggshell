@@ -117,37 +117,40 @@ fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, state: &State, lif
         Image::Live => DragImage::Live,
         Image::Chip => DragImage::Chip(label.to_owned()),
     };
+    let face = tw()
+        .flex()
+        .items_center()
+        .justify_center()
+        .w_full()
+        .h_full()
+        .rounded_md()
+        .border(1.0)
+        .border_color(t.input)
+        .bg(t.muted)
+        .text(t.foreground);
+    // With a chip, the lifted face stays in its slot and is dimmed there. The
+    // live image is the face itself, so it keeps its look at rest.
+    let face = match state.image {
+        Image::Chip => face.drag_lifted(|p| p.opacity(Opacity::new(0.35))),
+        Image::Live => face,
+    };
     b.div_id(key, outer, |b| {
-        b.div_id(
-            "face",
-            tw().flex()
-                .items_center()
-                .justify_center()
-                .w_full()
-                .h_full()
-                .rounded_md()
-                .border(1.0)
-                .border_color(t.input)
-                .bg(t.muted)
-                .text(t.foreground)
-                .drag_lifted(|p| p.opacity(Opacity::new(0.35))),
-            |b| {
-                b.div(
-                    tw().flex().flex_col().gap(1.0).p(2.0).w_full().h_full(),
-                    |b| {
-                        let now = b.ctx().input(|i| i.time);
-                        b.div(tw().flex().justify_between().items_center(), |b| {
-                            b.text(tw().role(common::sized(12.0)), label);
-                            b.text(
-                                tw().role(common::sized(12.0)).text(t.muted_foreground),
-                                format!("{:+.2}", channel(key, now, 1.0)),
-                            );
-                        });
-                        trace(b, key, t.primary, t.border);
-                    },
-                );
-            },
-        )
+        b.div_id("face", face, |b| {
+            b.div(
+                tw().flex().flex_col().gap(1.0).p(2.0).w_full().h_full(),
+                |b| {
+                    let now = b.ctx().input(|i| i.time);
+                    b.div(tw().flex().justify_between().items_center(), |b| {
+                        b.text(tw().role(common::sized(12.0)), label);
+                        b.text(
+                            tw().role(common::sized(12.0)).text(t.muted_foreground),
+                            format!("{:+.2}", channel(key, now, 1.0)),
+                        );
+                    });
+                    trace(b, key, t.primary, t.border);
+                },
+            );
+        })
         .drag_source(key)
         .drag_image(image);
     });

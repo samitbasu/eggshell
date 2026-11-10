@@ -815,3 +815,27 @@ fn a_gallery_grown_by_a_column_change_while_scrolling_slides_a_reorder() {
         "a reorder while the view scrolls slides, it does not snap: {before:?} -> {after:?}"
     );
 }
+
+/// The live image is the panel as it looks at rest, at full opacity, not
+/// the dimmed in-slot look a chip drag uses.
+#[test]
+fn the_live_image_keeps_the_panels_look_at_rest() {
+    let mut h = harness(3);
+    lift(&mut h, 0);
+    let over = rect(&h, 4).center() + vec2(17.0, 13.0);
+    pointer_to(&mut h, over);
+    assert!(
+        carried(&h),
+        "precondition: the panel is carried as a live image"
+    );
+    let opacity = |key: u32| {
+        support::last_drawn(&h.ctx, &face_path(key))
+            .expect("the face is drawn")
+            .opacity
+    };
+    assert_eq!(
+        opacity(0),
+        opacity(5),
+        "the live image is as opaque as a panel at rest"
+    );
+}
