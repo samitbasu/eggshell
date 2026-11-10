@@ -18,6 +18,7 @@ mod controls;
 mod debug;
 mod draw;
 mod focus;
+mod fuzz;
 mod form_demo;
 mod fractions;
 mod gallery;
