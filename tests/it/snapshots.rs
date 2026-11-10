@@ -95,6 +95,10 @@ mod sidebar;
 #[path = "../../examples/todo.rs"]
 mod todo;
 
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/dnd_gallery.rs"]
+mod dnd_gallery;
+
 use crate::support;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
@@ -1171,4 +1175,29 @@ mod lyra {
     fn chat_shell_lyra_dark() {
         chat_shell_lyra("chat_shell_lyra_dark", egui::Theme::Dark);
     }
+}
+
+/// The telemetry gallery at rest, three columns, at a fixed time so the
+/// traces are the same every run.
+#[test]
+fn dnd_gallery_light() {
+    dnd_gallery_in("dnd_gallery_light", egui::Theme::Light);
+}
+
+#[test]
+fn dnd_gallery_dark() {
+    dnd_gallery_in("dnd_gallery_dark", egui::Theme::Dark);
+}
+
+fn dnd_gallery_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::frame_harness(
+        Vec2::new(520.0, 400.0),
+        common::base_text(theme),
+        dnd_gallery::State::default(),
+        dnd_gallery::frame,
+    );
+    harness.ctx.set_theme(theme);
+    harness.run_steps(6);
+    harness.snapshot(name);
 }

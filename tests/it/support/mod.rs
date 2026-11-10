@@ -339,3 +339,66 @@ pub fn sweep<A, T>(
     harness.run_steps(idle);
     eggshell_ui::testing::Timeline::recorded(&harness.ctx)
 }
+
+/// A rig for examples that draw a whole frame themselves (scroll areas, work
+/// after the draw): `frame` runs inside the harness's root `Ui` each step.
+pub struct FrameRig<A> {
+    pub app: A,
+    pub layout: LayoutState,
+}
+
+pub fn frame_harness<A: 'static>(
+    size: Vec2,
+    base_text: TextStyle,
+    app: A,
+    frame: fn(&mut egui::Ui, &mut A, &mut LayoutState),
+) -> Harness<'static, FrameRig<A>> {
+    let rig = FrameRig {
+        app,
+        layout: LayoutState::new().with_base_text(base_text),
+    };
+    let harness = Harness::builder()
+        .with_size(size)
+        .with_step_dt(1.0 / 60.0)
+        .build_ui_state(
+            move |ui, rig: &mut FrameRig<A>| {
+                if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
+                    eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+                }
+                let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+                ui.painter()
+                    .rect_filled(ui.ctx().content_rect(), 0.0, background);
+                frame(ui, &mut rig.app, &mut rig.layout);
+            },
+            rig,
+        );
+    eggshell_ui::testing::record(&harness.ctx);
+    harness
+}
+
+/// The node `path` as the last recorded frame drew it.
+pub fn last_drawn(ctx: &egui::Context, path: &str) -> Option<eggshell_ui::testing::NodeFrame> {
+    let timeline = eggshell_ui::testing::Timeline::recorded(ctx);
+    let last = timeline.len().checked_sub(1)?;
+    timeline
+        .frame(last)
+        .iter()
+        .find(|n| n.path == path)
+        .cloned()
+}
+
+/// Its layout rect.
+pub fn layout_rect(ctx: &egui::Context, path: &str) -> Rect {
+    last_drawn(ctx, path)
+        .unwrap_or_else(|| panic!("no node {path} was drawn"))
+        .layout_rect
+}
+
+/// Every shape of the last frame, groups flattened, for any harness.
+pub fn flatten_all<'a, S>(harness: &'a Harness<'_, S>) -> Vec<&'a Shape> {
+    let mut all = Vec::new();
+    for clipped in &harness.output().shapes {
+        flatten(&clipped.shape, &mut all);
+    }
+    all
+}
