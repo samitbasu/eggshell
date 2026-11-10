@@ -630,3 +630,83 @@ mod long_grid_slide {
         timeline.assert_continuous();
     }
 }
+
+/// What an ancestor's slide moves a node by is the ancestor's to keep
+/// continuous, so a node that does not slide itself is judged by its own paint
+/// offset.
+mod inside_a_slide {
+    use super::*;
+
+    const MOVER: &str = r#"/"row"/"mover""#;
+    const INSIDE: &str = r#"/"row"/"mover"/"inside""#;
+
+    fn view(b: &mut Builder<'_, '_, f32>, lead: &f32) {
+        b.div_id("row", tw().flex().w_px(4000.0).h_px(40.0), |b| {
+            b.div(tw().w_px(*lead).h_px(40.0), |_| {});
+            b.div_id(
+                "mover",
+                tw().w_px(100.0)
+                    .h_px(40.0)
+                    .animate_layout(Duration::from_millis(200)),
+                |b| {
+                    b.div_id(
+                        "inside",
+                        tw().w_px(50.0)
+                            .h_px(40.0)
+                            .hover(|p| p.translate(200.0, 0.0)),
+                        |_| {},
+                    );
+                },
+            );
+        });
+    }
+
+    fn run(hover_it_at_the_end: bool) -> Timeline {
+        let mut harness = rig(0.0, view, |_| vec2(4000.0, 400.0), |_, _| {});
+        harness.run_steps(3);
+        harness.state_mut().app = 3000.0;
+        harness.run_steps(16);
+        if hover_it_at_the_end {
+            harness.hover_at(Pos2::new(3010.0, 20.0));
+            harness.run_steps(3);
+        }
+        timeline(&harness)
+    }
+
+    #[test]
+    fn a_child_that_follows_a_fast_slide_is_continuous() {
+        let timeline = run(false);
+        let at = |k: usize| {
+            timeline
+                .frame(k)
+                .iter()
+                .find(|n| n.path == INSIDE)
+                .map(|n| n.painted_rect.min.x)
+        };
+        let fastest = (1..timeline.len())
+            .filter_map(|k| Some((at(k)? - at(k - 1)?).abs()))
+            .fold(0.0, f32::max);
+        assert!(
+            fastest > 40.0,
+            "precondition: the slide moves the child by more than a step: {fastest}"
+        );
+        assert!(
+            kinds_at(&timeline, INSIDE).is_empty(),
+            "{:?}",
+            timeline.violations()
+        );
+        assert!(kinds_at(&timeline, MOVER).is_empty());
+    }
+
+    #[test]
+    fn a_child_that_jumps_by_itself_inside_a_slide_is_still_found() {
+        let timeline = run(true);
+        assert!(
+            kinds_at(&timeline, INSIDE)
+                .iter()
+                .any(|kind| matches!(kind, ViolationKind::Teleport { .. })),
+            "{:?}",
+            timeline.violations()
+        );
+    }
+}

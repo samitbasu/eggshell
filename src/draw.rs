@@ -659,6 +659,11 @@ impl<A> Walk<'_, A> {
                 path: node.path().to_owned(),
                 layout_rect: node.rect(),
                 painted_rect: node.rect().translate(shift),
+                ancestors: if lifted.is_some() {
+                    Vec2::ZERO
+                } else {
+                    parent.shift
+                },
                 opacity,
                 motion: match (interaction.variants.animate_layout, lifted) {
                     (Some(_), None) => Motion::Slides,
