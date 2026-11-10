@@ -134,9 +134,19 @@ fn a_hovered_row_keeps_its_highlight_when_it_moves() {
         "precondition: the hovered row is darker than the rest: {lit:?} vs {base:?}"
     );
 
+    let old = rect_of(&harness, &row_path(first)).min;
     press_and_release(&mut harness, down);
     harness.step();
-    let moved = fill_of(&harness, &row_path(first)).map(|c| c.r());
+    let painted_there = |at: egui::Pos2| {
+        support::shapes(&harness)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                Shape::Rect(rect) if (rect.rect.min - at).length() < 1.0 => Some(rect.fill.r()),
+                _ => None,
+            })
+            .next_back()
+    };
+    let moved = painted_there(old);
     assert!(
         rect_of(&harness, &row_path(first)).min.y > rect_of(&harness, &row_path(item(1))).min.y,
         "precondition: the row moved below its neighbour"
