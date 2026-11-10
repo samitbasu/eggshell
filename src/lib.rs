@@ -160,6 +160,7 @@ mod builder;
 mod continuity;
 pub mod contract;
 mod debug;
+mod dnd;
 mod draw;
 mod focus;
 mod key;
@@ -178,6 +179,10 @@ pub mod widget;
 pub use builder::{Builder, NodeHandle, Scope};
 pub use contract::Style;
 pub use debug::Debug;
+pub use dnd::{
+    Cause, DragEnd, DragImage, Dragging, Drop, EdgeBand, EdgeScroll, File, Files, Over,
+    ScrollSpeed, drag_pointer, insertion_index,
+};
 pub use draw::NodeUi;
 pub use focus::focus_within;
 pub use key::Key;

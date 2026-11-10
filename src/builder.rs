@@ -1,18 +1,21 @@
 //! The nested-closure builder.
 
+use std::any::Any;
 use std::fmt::{self, Debug};
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
+use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
 use crate::pipeline::{BuildState, ColorSource, Frame, Interaction, MeasureFn, Node, NodeKind};
 use crate::prim::{Icon, Prim};
 use crate::text::{TextStyle, VAlign};
-use crate::tw::{Grouping, Tw};
+use crate::tw::{Grouping, Sensing, Tw};
 use crate::widget::Stock;
 
 /// What a node is made of, besides its classes.
@@ -22,6 +25,12 @@ struct Parts {
     path: String,
     prim: Option<Prim>,
     measure: Option<usize>,
+}
+
+impl Node {
+    fn drag(&mut self) -> &mut NodeDrag {
+        self.drag.get_or_insert_with(Default::default)
+    }
 }
 
 impl Parts {
@@ -389,6 +398,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             draw: None,
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
+            drag: None,
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
@@ -430,6 +440,31 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 }
 
 impl<A: 'static> Builder<'_, '_, A> {
+    /// What is being dragged, if it is a `T`: for the view to show a gap or a
+    /// placeholder. See [`Dragging`].
+    ///
+    /// It is `None` in the frame the button is released or Esc is pressed,
+    /// so that frame is not built as held, and also `None` for the frame a
+    /// drag starts in: a lift is seen from the next build on. Files dragged
+    /// in from outside are a drag of [`Files`](crate::Files).
+    pub fn dragging<T: Any + Send + Sync>(&self) -> Option<Dragging<T>> {
+        crate::dnd::dragging(self.frame.ctx)
+    }
+
+    /// Calls `handler` once when a drag of a `T` ends, with the payload and
+    /// how it ended.
+    ///
+    /// This is declared on the builder, not on the source node, so that it is
+    /// delivered also when the source is gone
+    /// ([`Cause::SourceGone`](crate::Cause::SourceGone)). Declare it in every
+    /// frame, as everything else.
+    pub fn on_drag_end<T: Any + Send + Sync>(
+        &mut self,
+        handler: impl FnOnce(&mut A, Arc<T>, DragEnd) + 'static,
+    ) {
+        self.frame.drag.add_end(handler);
+    }
+
     /// Runs `draw` after the node's existing draw closure, if it has one.
     fn attach_draw(&mut self, node: NodeId, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) {
         let context = self
@@ -480,6 +515,67 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
     pub fn draw(mut self, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) -> Self {
         self.b.attach_draw(self.node, draw);
         self
+    }
+
+    /// Makes the node a drag source carrying `payload`, and makes it sense
+    /// drags. The node must keep its key across rebuilds for as long as it is
+    /// dragged, so a reorder that moves it keeps the drag; if it leaves the
+    /// tree the drag is cancelled
+    /// ([`Cause::SourceGone`](crate::Cause::SourceGone)). See [`dnd`](crate).
+    pub fn drag_source<T: Any + Send + Sync>(mut self, payload: T) -> Self {
+        self.edit(|context| {
+            context.interaction.sensing = context.interaction.sensing.or(Sensing::Drag);
+            context.drag().source = Some(Arc::new(payload));
+        });
+        self
+    }
+
+    /// How the node looks while it is dragged. [`DragImage::Live`] unless
+    /// set.
+    pub fn drag_image(mut self, image: DragImage) -> Self {
+        self.edit(|context| context.drag().image = image);
+        self
+    }
+
+    /// Makes the node take payloads of type `T`, calling `handler` when one is
+    /// dropped on it. Of the targets that take a drag and hold the pointer,
+    /// the innermost wins. A target needs no sense of its own.
+    pub fn drop_target<T: Any + Send + Sync>(
+        self,
+        handler: impl FnOnce(&mut A, Drop<T>) + 'static,
+    ) -> Self {
+        self.drop_target_if(|_: &T| true, handler)
+    }
+
+    /// [`drop_target`](Self::drop_target) that takes only the payloads
+    /// `accept` says yes to: files by extension, say.
+    pub fn drop_target_if<T: Any + Send + Sync>(
+        mut self,
+        accept: impl Fn(&T) -> bool + 'static,
+        handler: impl FnOnce(&mut A, Drop<T>) + 'static,
+    ) -> Self {
+        let decl = self.b.frame.drag.add_drop(accept, handler);
+        self.edit(|context| context.drag().drops.push(decl));
+        self
+    }
+
+    /// Makes the node take drops that arrive with no position, so long as it
+    /// takes the payload: files dropped from outside on a platform that gives
+    /// no pointer position. Of several nodes, the topmost wins. Without one,
+    /// such a drop is refused.
+    pub fn drop_fallback(mut self) -> Self {
+        self.edit(|context| context.drag().fallback = true);
+        self
+    }
+
+    fn edit(&mut self, edit: impl FnOnce(&mut Node)) {
+        let context = self
+            .b
+            .st
+            .tree
+            .get_node_context_mut(self.node)
+            .expect("the handle's node was added to this tree");
+        edit(context);
     }
 
     /// Runs `then` with the node's response each frame it is drawn: the escape

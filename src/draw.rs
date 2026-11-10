@@ -18,6 +18,7 @@ use taffy::Overflow;
 use crate::continuity::{self, Motion, NodeFrame};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
+use crate::dnd;
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
@@ -107,9 +108,20 @@ struct Inherited {
     shift: Vec2,
 }
 
+/// The indices of the children of the node at `index`, in layout order.
+pub(crate) fn children_of(nodes: &[PlacedNode], index: usize) -> Vec<usize> {
+    let end = nodes[index].end;
+    let mut children = Vec::new();
+    let mut next = index + 1;
+    while next < end {
+        children.push(next);
+        next = nodes[next].end;
+    }
+    children
+}
+
 /// The node painted lifted, at a screen point.
 #[derive(Clone, Copy, Debug)]
-#[allow(dead_code, reason = "the drag gesture builds it, in the next commit")]
 pub(crate) struct Lift {
     /// The node's index in the frame.
     pub(crate) index: usize,
@@ -164,7 +176,7 @@ impl Boxes {
 
 /// The clip a node's content gets: the padding box on each axis that
 /// `overflow` clips.
-fn content_clip(clip: Rect, padding: Rect, overflow: taffy::Point<Overflow>) -> Rect {
+pub(crate) fn content_clip(clip: Rect, padding: Rect, overflow: taffy::Point<Overflow>) -> Rect {
     let clips = |overflow| overflow != Overflow::Visible;
     let mut clip = clip;
     if clips(overflow.x) {
@@ -447,17 +459,6 @@ impl<A> Walk<'_, A> {
         painter
     }
 
-    fn children(&self, index: usize) -> Vec<usize> {
-        let end = self.nodes[index].end;
-        let mut children = Vec::new();
-        let mut next = index + 1;
-        while next < end {
-            children.push(next);
-            next = self.nodes[next].end;
-        }
-        children
-    }
-
     /// The node's one hit test, made before anything is painted so that
     /// hover styling and clicks agree. Registration order is egui's hit
     /// order: later wins, and the walk is pre-order with siblings by `z`.
@@ -703,7 +704,7 @@ impl<A> Walk<'_, A> {
             });
         }
 
-        let in_layout_order = self.children(index);
+        let in_layout_order = children_of(self.nodes, index);
         let mut in_paint_order = in_layout_order.clone();
         in_paint_order.sort_by_key(|&child| self.nodes[child].z());
         for child in in_paint_order {
@@ -910,17 +911,13 @@ impl<A> Placed<A> {
     ///
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
-        self.draw_lifting(app, ui, None);
-    }
-
-    /// [`draw`](Self::draw) with one node lifted onto the drag layer.
-    pub(crate) fn draw_lifting(self, app: &mut A, ui: &mut Ui, lift: Option<Lift>) {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
         let Self {
             nodes,
             prims,
             draws,
-            ..
+            by_id,
+            mut drag,
         } = self;
         let grid = PixelGrid {
             pixels_per_point: ui.ctx().pixels_per_point(),
@@ -936,6 +933,15 @@ impl<A> Placed<A> {
             origin: Pos2::ZERO,
             shift: Vec2::ZERO,
         };
+        let dragging = dnd::begin(
+            ui.ctx(),
+            ui.scope_id(),
+            &nodes,
+            &by_id,
+            ui.clip_rect(),
+            &mut drag,
+            app,
+        );
         let selection = Style::of(ui.ctx()).selection;
         let animation = LayoutAnimation::begin(ui.ctx(), ui.scope_id(), nodes[0].rect());
         let recording = continuity::recording(ui.ctx()).then(Vec::new);
@@ -951,10 +957,11 @@ impl<A> Placed<A> {
             text_seen: HashMap::new(),
             animation,
             recording,
-            lift,
+            lift: dragging.lift,
         };
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();
+        dragging.finish(&ctx, &nodes, &mut drag, walk.app);
         if let Some(frame) = walk.recording.take() {
             continuity::store(&ctx, frame);
         }
