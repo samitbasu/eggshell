@@ -2,12 +2,12 @@
 //! spanning two sidebars and a content area in a three-by-three grid.
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
-//! rebuilt with bullseye: taffy places, egui draws. The demo has no controls.
+//! rebuilt with eggshell: taffy places, egui draws. The demo has no controls.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, Track, Tw, tw};
+use eggshell_ui::{Builder, Track, Tw, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

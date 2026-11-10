@@ -253,7 +253,7 @@ impl Tw {
     /// | `sense_*`, `group`, `focusable_none`, `inert` | combined: a node that either list makes sensing, a group, unfocusable or inert is, because no class takes them back |
     ///
     /// ```
-    /// use bullseye::tw;
+    /// use eggshell_ui::tw;
     /// let card = tw().flex().flex_wrap().p(4.0).gap(2.0);
     /// let placed = card.merge(tw().flex_nowrap().px(1.0));
     /// let expected = tw().flex().flex_nowrap().p(4.0).px(1.0).gap(2.0);

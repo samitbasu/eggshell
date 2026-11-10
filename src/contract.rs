@@ -1,6 +1,6 @@
 //! [`Style`]: everything the owned widgets draw with.
 //!
-//! Core defines what its widgets need and a preset (such as the `bullseye-shadcn` crate) fills it, so a design
+//! Core defines what its widgets need and a preset (such as the `eggshell-ui-shadcn` crate) fills it, so a design
 //! system is data: an app installs a [`Style`] with [`Style::install`] and the
 //! widgets follow, with no code change. [`Style::default`] is derived from
 //! egui's visuals, so core looks coherent with no preset at all.
@@ -642,7 +642,7 @@ pub struct Selection {
     pub text: Option<Color32>,
 }
 
-/// The look of every widget bullseye draws.
+/// The look of every widget eggshell draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Style {
@@ -722,7 +722,7 @@ impl Style {
         }
     }
 
-    /// Makes `self` the style of every bullseye widget in `ctx`, in both
+    /// Makes `self` the style of every eggshell widget in `ctx`, in both
     /// themes.
     ///
     /// Installing a style equal to the installed one does nothing, so an app
@@ -731,7 +731,7 @@ impl Style {
         self.install_in(ctx, &[Theme::Light, Theme::Dark]);
     }
 
-    /// Makes `self` the style of every bullseye widget in `ctx` while its
+    /// Makes `self` the style of every eggshell widget in `ctx` while its
     /// theme is `theme`, and like [`install`](Self::install) does nothing if
     /// that is the installed style already.
     pub fn install_for(self, ctx: &Context, theme: Theme) {

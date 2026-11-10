@@ -86,7 +86,7 @@ fn renderer_step(plan: &Plan, icd: &Path) -> Step {
         &[
             "test",
             "--package",
-            "bullseye",
+            "eggshell-ui",
             "--features",
             "snapshots",
             "--test",
@@ -246,7 +246,7 @@ mod tests {
         assert_eq!(
             step.to_string(),
             "VK_ICD_FILENAMES=\"/icd/lvp.json\" VK_DRIVER_FILES=\"/icd/lvp.json\" \
-             cargo test --package bullseye --features snapshots --test it -- --nocapture snapshots::"
+             cargo test --package eggshell-ui --features snapshots --test it -- --nocapture snapshots::"
         );
     }
 

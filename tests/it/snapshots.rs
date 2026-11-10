@@ -5,8 +5,8 @@
 
 use std::sync::Once;
 
-use bullseye::{Builder, LayoutState, TextStyle, tw};
-use bullseye_shadcn::{ShadcnStyle, Tokens};
+use eggshell_ui::{Builder, LayoutState, TextStyle, tw};
+use eggshell_ui_shadcn::{ShadcnStyle, Tokens};
 use egui::{Color32, ImageSource, TextureHandle, TextureOptions, Vec2, load::SizedTexture};
 use egui_kittest::Harness;
 
@@ -278,7 +278,7 @@ fn chrome_stacked_by_z() {
                             .w_px(200.0)
                             .h_px(80.0)
                             .bg(Color32::DARK_GRAY)
-                            .opacity(bullseye::Opacity::new(0.5)),
+                            .opacity(eggshell_ui::Opacity::new(0.5)),
                         |_| {},
                     );
                 },
@@ -543,7 +543,7 @@ fn debug_overlay_todo() {
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         todo::State::default(),
         todo::layout,
-        |ctx, _| bullseye::Debug::set(ctx, bullseye::Debug::Outlines),
+        |ctx, _| eggshell_ui::Debug::set(ctx, eggshell_ui::Debug::Outlines),
     );
     harness.state_mut().page = support::Page::Themed;
     harness.ctx.set_theme(theme);

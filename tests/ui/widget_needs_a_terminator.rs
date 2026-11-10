@@ -1,5 +1,5 @@
 #![deny(unused_must_use)]
-use bullseye::Builder;
+use eggshell_ui::Builder;
 
 fn dropped_without_a_terminator(b: &mut Builder<'_, '_, ()>) {
     b.button("button", "Save");
@@ -12,7 +12,7 @@ fn dropped_without_a_terminator(b: &mut Builder<'_, '_, ()>) {
     b.stepper("stepper", 1.0, 0.0..=9.0);
     b.text_field("field", "");
     b.toggle("toggle", "Bold", false);
-    b.custom("custom", bullseye::tw());
+    b.custom("custom", eggshell_ui::tw());
 }
 
 fn terminated(b: &mut Builder<'_, '_, ()>) {

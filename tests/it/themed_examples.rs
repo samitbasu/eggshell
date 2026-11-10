@@ -1,8 +1,8 @@
 //! The examples that once hard-coded light palettes, built under each theme:
 //! their main surfaces carry that theme's tokens. Shapes only, no GPU.
 
-use bullseye::{Builder, LayoutState, NodeKind, Placed, PlacedNode};
-use bullseye_shadcn::{Shadcn, ThemeColor, Tokens};
+use eggshell_ui::{Builder, LayoutState, NodeKind, Placed, PlacedNode};
+use eggshell_ui_shadcn::{Shadcn, ThemeColor, Tokens};
 use egui::{Color32, Context, ImageSource, Rect, Theme, pos2};
 
 #[path = "../../examples/common/mod.rs"]

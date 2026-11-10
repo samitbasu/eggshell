@@ -97,7 +97,7 @@ impl Tw {
     /// `inert:opacity-50`):
     ///
     /// ```
-    /// use bullseye::{Opacity, tw};
+    /// use eggshell_ui::{Opacity, tw};
     /// let dimmed = tw().inert().opacity(Opacity::new(0.5));
     /// ```
     pub fn inert(mut self) -> Self {

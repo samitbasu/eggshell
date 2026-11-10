@@ -4,9 +4,9 @@
 
 use std::collections::BTreeMap;
 
-use bullseye::owned::Cell;
-use bullseye::widget::{Stock, TextEdit};
-use bullseye::{Builder, TextSpec, TextStyle, Width, tw};
+use eggshell_ui::owned::Cell;
+use eggshell_ui::widget::{Stock, TextEdit};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Width, tw};
 use egui::epaint::Shape;
 use egui::{Color32, Event, FontFamily, Id, Key, vec2};
 use egui_kittest::Harness;

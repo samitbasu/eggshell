@@ -1,9 +1,9 @@
 //! Tooltips on the owned controls: shown through egui's `on_hover_text`,
 //! also when the control is disabled, and in addition to the accessible name.
 
-use bullseye::owned::{Choice, Enablement};
-use bullseye::{Builder, TextStyle, tw};
-use bullseye_shadcn::Tokens;
+use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::{Builder, TextStyle, tw};
+use eggshell_ui_shadcn::Tokens;
 use egui::{Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;

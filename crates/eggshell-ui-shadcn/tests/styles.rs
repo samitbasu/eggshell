@@ -1,8 +1,8 @@
 //! The shadcn styles as parameter sets: Vega is today's look, Lyra is
 //! `style-lyra.css`, and both fill the same contract.
 
-use bullseye::contract::{Size, Style, Variant};
-use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
+use eggshell_ui::contract::{Size, Style, Variant};
+use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
 use egui::{Color32, Theme, vec2};
 
 fn style_of(theme: Theme, style: ShadcnStyle) -> Style {

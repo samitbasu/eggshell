@@ -22,7 +22,7 @@ pub type ToggleItemChain<'a, 'f, A, T> = ToggleChain<'a, 'f, A, T, Member<A, T>>
 /// [`ButtonChain`].
 ///
 /// ```
-/// # use bullseye::Builder;
+/// # use eggshell_ui::Builder;
 /// #[derive(Clone, Copy, PartialEq)]
 /// enum Weight { Normal, Bold }
 /// struct App { weight: Weight, italic: bool }

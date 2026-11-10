@@ -1,5 +1,5 @@
 //! The owned select: an input-like trigger that opens a list of options.
-//! The list is egui's popup until bullseye has overlays of its own.
+//! The list is egui's popup until eggshell has overlays of its own.
 
 use std::fmt::Debug;
 use std::hash::Hash;

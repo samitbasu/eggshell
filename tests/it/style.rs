@@ -1,9 +1,9 @@
 //! The shadcn preset: what `apply` sets in egui, the text edit under it, and
 //! the library's primitives drawn with its proportions.
 
-use bullseye::widget::{Stock, TextEdit};
-use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Width, tw};
-use bullseye_shadcn::{Shadcn, ThemeColor, Tokens, tokens};
+use eggshell_ui::widget::{Stock, TextEdit};
+use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Width, tw};
+use eggshell_ui_shadcn::{Shadcn, ThemeColor, Tokens, tokens};
 use egui::epaint::Shape;
 use egui::{Color32, Context, FontFamily, Rect, Theme, vec2};
 use egui_kittest::Harness;

@@ -4,9 +4,9 @@
 
 use std::fmt;
 
-use bullseye::owned::{Choice, Enablement};
-use bullseye::{Builder, Icon, TextStyle, tw};
-use bullseye_shadcn::Tokens;
+use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::{Builder, Icon, TextStyle, tw};
+use eggshell_ui_shadcn::Tokens;
 use egui::{Key, Role, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};

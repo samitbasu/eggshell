@@ -6,7 +6,7 @@
 
 use std::sync::OnceLock;
 
-use bullseye::{
+use eggshell_ui::{
     Builder, FontStyle, Icon, LayoutState, NodeKind, Placed, TextDecoration, TextSpec, TextStyle,
     Track, tw,
 };
@@ -155,7 +155,7 @@ fn kaolin_hello_world() {
     let div_node = placed.nodes().find(|n| n.kind() == NodeKind::Div).unwrap();
     assert_eq!(
         div_node.paint().background,
-        Some(bullseye_shadcn::Shadcn::of(ctx()).tokens.background)
+        Some(eggshell_ui_shadcn::Shadcn::of(ctx()).tokens.background)
     );
 }
 
@@ -172,7 +172,7 @@ fn kaolin_hello_world() {
 #[test]
 fn kaolin_direction_and_alignment() {
     let container = || layouts::direction_and_alignment().w_px(300.0).h_px(100.0);
-    let rects_of = |tw: bullseye::Tw| {
+    let rects_of = |tw: eggshell_ui::Tw| {
         let placed = place(|b| b.div(tw, layouts::three_boxes));
         rects(&placed, NodeKind::Div)[1..].to_vec()
     };
@@ -213,7 +213,7 @@ fn kaolin_direction_and_alignment() {
 ///   <div class="..."><!-- one of the sizing modes, with the content text if any --></div>
 /// </div>
 /// ```
-fn sized_child(style: bullseye::Tw, content: &'static str) -> Rect {
+fn sized_child(style: eggshell_ui::Tw, content: &'static str) -> Rect {
     let placed = place(|b| {
         b.div(tw().flex().w_px(600.0).h_px(300.0).items_start(), |b| {
             b.div(style, |b| {
@@ -741,9 +741,9 @@ fn the_nodes_own_classes_apply_to_its_own_content() {
     });
     let nodes: Vec<_> = placed.nodes().collect();
     assert_eq!(nodes[1].text().color, Color32::BLUE);
-    assert_eq!(nodes[1].text().case, bullseye::TextCase::Upper);
+    assert_eq!(nodes[1].text().case, eggshell_ui::TextCase::Upper);
     assert_eq!(nodes[2].text().color, Color32::RED);
-    assert_eq!(nodes[2].text().case, bullseye::TextCase::Normal);
+    assert_eq!(nodes[2].text().case, eggshell_ui::TextCase::Normal);
 }
 
 /// ```html
@@ -848,7 +848,7 @@ fn application_leaves_are_measured_with_borrowed_data() {
 ///   <img class="size-[11px]" src="bytes://icon">
 ///   <img data-key="i" class="size-[1em]" src="bytes://icon">
 /// </div>
-/// <!-- bullseye glyphs and icons default to one em; HTML images have no such default, hence size-[1em] -->
+/// <!-- eggshell glyphs and icons default to one em; HTML images have no such default, hence size-[1em] -->
 /// ```
 #[test]
 fn glyphs_are_one_em_square_and_classes_override() {
@@ -907,7 +907,7 @@ fn paint_nodes_are_laid_out_by_their_classes() {
 ///   <div class="flex-1"></div>
 ///   <div class="flex-1"></div>
 /// </div>
-/// <!-- no pixel snapping: browsers snap layout to device pixels, bullseye does not -->
+/// <!-- no pixel snapping: browsers snap layout to device pixels, eggshell does not -->
 /// ```
 #[test]
 fn rounding_is_disabled() {
@@ -1027,7 +1027,7 @@ fn absolute_children_are_positioned_in_a_relative_parent() {
 
 /// ```html
 /// <div class="z-30"></div>
-/// <div class="pointer-events-none"></div> <!-- nearest to bullseye's inert(): no event handling, no equivalent for layout -->
+/// <div class="pointer-events-none"></div> <!-- nearest to eggshell's inert(): no event handling, no equivalent for layout -->
 /// ```
 #[test]
 fn z_is_recorded_without_affecting_layout() {

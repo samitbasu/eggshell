@@ -4,7 +4,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use bullseye::{Icon, LayoutState, NodeUi, Opacity, TextSpec, TextStyle, Tracking, tw};
+use eggshell_ui::{Icon, LayoutState, NodeUi, Opacity, TextSpec, TextStyle, Tracking, tw};
 use egui::epaint::{ClippedShape, Shape};
 use egui::{Color32, FontFamily, FontId, Id, Pos2, RawInput, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -29,7 +29,7 @@ fn base() -> TextStyle {
 pub(super) fn shapes<A>(
     app: &mut A,
     pixels_per_point: f32,
-    build: impl for<'f> FnOnce(&mut bullseye::Builder<'_, 'f, A>),
+    build: impl for<'f> FnOnce(&mut eggshell_ui::Builder<'_, 'f, A>),
 ) -> Vec<ClippedShape> {
     let ctx = egui::Context::default();
     ctx.set_pixels_per_point(pixels_per_point);
@@ -659,7 +659,7 @@ fn icons_are_tinted_with_the_text_colour() {
         texture.id(),
         vec2(4.0, 4.0),
     )))
-    .flipped(bullseye::Flip::Horizontal);
+    .flipped(eggshell_ui::Flip::Horizontal);
     let shapes = shapes(&mut (), 1.0, move |b| {
         b.div(tw().text(Color32::RED), |b| {
             b.glyph(tw().size_px(16.0), icon);
@@ -839,7 +839,7 @@ fn a_node_ui_knows_the_nodes_id_and_has_a_stable_scope_under_any_parent_or_layer
 /// The `bg_color` each draw closure's `Ui` reports, in a central panel filled
 /// with `PANEL`.
 fn observed_backdrops(
-    build: impl for<'f> FnOnce(&mut bullseye::Builder<'_, 'f, Vec<(&'static str, Color32)>>),
+    build: impl for<'f> FnOnce(&mut eggshell_ui::Builder<'_, 'f, Vec<(&'static str, Color32)>>),
 ) -> Vec<(&'static str, Color32)> {
     const PANEL: Color32 = Color32::from_rgb(10, 20, 30);
     let ctx = egui::Context::default();
@@ -880,7 +880,7 @@ fn probe(
 /// <div id="sibling"></div>
 /// ```
 #[test]
-fn egui_sees_the_backgrounds_bullseye_painted_as_the_stack_backdrop() {
+fn egui_sees_the_backgrounds_eggshell_painted_as_the_stack_backdrop() {
     let panel = Color32::from_rgb(10, 20, 30);
     let under = Color32::from_rgb(200, 0, 0);
     let over = Color32::from_rgba_unmultiplied(0, 0, 255, 128);

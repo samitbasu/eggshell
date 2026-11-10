@@ -1,7 +1,7 @@
 //! The text edits in their own leaves, with the size the library computed for
 //! each outlined against the size egui gave it, and the owned controls below.
 //!
-//! A visual cross-check of the size computation in `bullseye::widget`: each
+//! A visual cross-check of the size computation in `eggshell_ui::widget`: each
 //! cell outlines the leaf's rect (what layout reserved) in blue and the rect
 //! egui returned when the widget was drawn into it in orange. They agree to
 //! within a point, the slack of snapping a rect's edges to physical pixels one
@@ -11,20 +11,20 @@
 //! hint text, which is how the computation drifts when it is wrong.
 //!
 //! The buttons, choices and values sections show every control built from
-//! bullseye nodes, which have no size computation to check.
+//! eggshell nodes, which have no size computation to check.
 
 #[path = "common/mod.rs"]
 mod common;
 
 use std::collections::BTreeMap;
 
-use bullseye::contract::{Colors, Paint, States, Style, Variant};
-use bullseye::owned;
-use bullseye::prim::text_field::{self, Field};
-use bullseye::widget::{Lines, TextEdit};
-use bullseye::{Builder, Scope, TextStyle, Tw, tw};
-use bullseye_shadcn::{size, variant};
 use common::glyphs::{self, Glyph};
+use eggshell_ui::contract::{Colors, Paint, States, Style, Variant};
+use eggshell_ui::owned;
+use eggshell_ui::prim::text_field::{self, Field};
+use eggshell_ui::widget::{Lines, TextEdit};
+use eggshell_ui::{Builder, Scope, TextStyle, Tw, tw};
+use eggshell_ui_shadcn::{size, variant};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -479,7 +479,7 @@ const ONE_ROW: Lines = Lines::Multi { min: 1, max: None };
 /// Draws an input as the library does: with the style's input section mapped
 /// onto the `Ui`.
 fn input_padded(ui: &mut Ui) {
-    bullseye::Style::of(ui.ctx()).map_input(ui.style_mut());
+    eggshell_ui::Style::of(ui.ctx()).map_input(ui.style_mut());
 }
 
 /// A text edit as egui sizes it on its own, `width` wide.
@@ -697,7 +697,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
     );
 }
 
-const VARIANTS: [(&str, bullseye::contract::Variant); 5] = [
+const VARIANTS: [(&str, eggshell_ui::contract::Variant); 5] = [
     ("primary", variant::PRIMARY),
     ("secondary", variant::SECONDARY),
     ("destructive", variant::DESTRUCTIVE),

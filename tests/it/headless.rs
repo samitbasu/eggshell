@@ -1,8 +1,8 @@
-//! `bullseye::testing`: layout queries without a window, a GPU or a draw.
+//! `eggshell_ui::testing`: layout queries without a window, a GPU or a draw.
 
-use bullseye::testing::Headless;
-use bullseye::{Builder, Placed, TextSpec, TextStyle, tw};
-use bullseye_shadcn::Shadcn;
+use eggshell_ui::testing::Headless;
+use eggshell_ui::{Builder, Placed, TextSpec, TextStyle, tw};
+use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, FontFamily, TextStyle as EguiTextStyle, Theme, vec2};
 
 use crate::support::{self, rect_of};
@@ -296,7 +296,7 @@ fn themed_width(theme: Theme) -> f32 {
                 Theme::Dark => 60.0,
             };
             assert!(
-                bullseye_shadcn::tokens(b.ctx()).is_some(),
+                eggshell_ui_shadcn::tokens(b.ctx()).is_some(),
                 "prepare ran before the build"
             );
             b.div_id("t", tw().w_px(width), |_| {});
@@ -391,7 +391,8 @@ fn a_view_may_lend_the_app_to_its_nodes_for_the_frame() {
         label: "Telemetry".to_owned(),
     };
     let mut headless = Headless::new(SIZE).prepare(Shadcn::apply_both);
-    let placed: bullseye::testing::Placed<Labelled> = headless.layout(&app, |b, app| app.build(b));
+    let placed: eggshell_ui::testing::Placed<Labelled> =
+        headless.layout(&app, |b, app| app.build(b));
     assert!(
         placed.at("sized").rect().width() > 0.0,
         "the measure closure borrowed the label and sized the node from it"

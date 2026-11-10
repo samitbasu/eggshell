@@ -9,7 +9,7 @@ pub struct TempDir(PathBuf);
 impl TempDir {
     pub fn new(label: &str) -> Self {
         let path =
-            std::env::temp_dir().join(format!("bullseye-xtask-{label}-{}", std::process::id()));
+            std::env::temp_dir().join(format!("eggshell-xtask-{label}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
         Self(path)

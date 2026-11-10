@@ -10,7 +10,7 @@ fn main() -> eframe::Result {
     common::launch("hello", None, move |ui| {
         theme_bar.show(ui);
         egui::CentralPanel::default().show(ui, |ui| {
-            ui.label("Hello, bullseye");
+            ui.label("Hello, eggshell");
         });
     })
 }

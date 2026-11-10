@@ -15,7 +15,7 @@ const SCREEN: Rect = Rect {
     max: pos2(1000.0, 800.0),
 };
 
-fn draw(build: impl for<'f> FnOnce(&mut bullseye::Builder<'_, 'f, ()>)) -> Vec<ClippedShape> {
+fn draw(build: impl for<'f> FnOnce(&mut eggshell_ui::Builder<'_, 'f, ()>)) -> Vec<ClippedShape> {
     let ctx = egui::Context::default();
     let input = RawInput {
         screen_rect: Some(SCREEN),
@@ -26,7 +26,7 @@ fn draw(build: impl for<'f> FnOnce(&mut bullseye::Builder<'_, 'f, ()>)) -> Vec<C
     let mut build = Some(build);
     let mut output = ctx.run_ui(input, |ui| {
         let build = build.take().expect("one pass");
-        bullseye::LayoutState::new()
+        eggshell_ui::LayoutState::new()
             .with_base_text(known_gaps::base_text(egui::Theme::Light))
             .build(ui.ctx(), build)
             .layout(SCREEN)

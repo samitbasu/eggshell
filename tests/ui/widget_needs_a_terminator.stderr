@@ -126,11 +126,11 @@ help: use `let _ = ...` to ignore the resulting value
 error: unused `CustomChain` that must be used
   --> tests/ui/widget_needs_a_terminator.rs:15:5
    |
-15 |     b.custom("custom", bullseye::tw());
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+15 |     b.custom("custom", eggshell_ui::tw());
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: a custom node is not added until you call `.ui(..)`
 help: use `let _ = ...` to ignore the resulting value
    |
-15 |     let _ = b.custom("custom", bullseye::tw());
+15 |     let _ = b.custom("custom", eggshell_ui::tw());
    |     +++++++

@@ -18,7 +18,7 @@ fn stroke(color: Color32) -> Stroke {
     Stroke::new(1.5, color)
 }
 
-/// A paint function for [`bullseye::Builder::paint`] that draws `glyph` in `color`.
+/// A paint function for [`eggshell_ui::Builder::paint`] that draws `glyph` in `color`.
 pub fn glyph(glyph: Glyph, color: Color32) -> impl Fn(&Painter, Rect, Color32) + 'static {
     move |painter, rect, _| {
         let c = rect.center();

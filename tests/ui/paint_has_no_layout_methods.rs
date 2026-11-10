@@ -1,4 +1,4 @@
-use bullseye::tw;
+use eggshell_ui::tw;
 
 /// ```html
 /// <div class="hover:p-4"></div>

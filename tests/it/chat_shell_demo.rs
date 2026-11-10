@@ -519,8 +519,8 @@ fn tab_reaches_the_model_then_the_composer_in_order_and_skips_an_inert_send() {
 
 mod composer_growth {
     use super::*;
-    use bullseye::Width;
-    use bullseye::widget::Stock as _;
+    use eggshell_ui::Width;
+    use eggshell_ui::widget::Stock as _;
     use egui::{Event, Key};
 
     const MIN_ROWS: usize = 3;
@@ -551,7 +551,7 @@ mod composer_growth {
 
     fn estimate(harness: &Harness<'_, Rig<App>>) -> Vec2 {
         let app = &harness.state().app;
-        let field = bullseye::prim::text_field::Field::multiline(&app.draft, MIN_ROWS)
+        let field = eggshell_ui::prim::text_field::Field::multiline(&app.draft, MIN_ROWS)
             .max_rows(MAX_ROWS)
             .hint("Reply…")
             .bare();
@@ -692,7 +692,7 @@ mod appearance {
         assert_eq!(
             select_fill(&harness),
             Some(
-                bullseye_shadcn::Shadcn::light()
+                eggshell_ui_shadcn::Shadcn::light()
                     .style()
                     .select
                     .trigger
@@ -741,7 +741,7 @@ mod appearance {
 
 mod accents {
     use super::*;
-    use bullseye_shadcn::ThemeColor;
+    use eggshell_ui_shadcn::ThemeColor;
     use egui::epaint::Shape;
 
     fn text_colors(harness: &Harness<'_, Rig<App>>, text: &str) -> Vec<egui::Color32> {
@@ -769,8 +769,8 @@ mod accents {
             assert_eq!(text_colors(&harness, "Running"), [k[Tok::Accent]]);
             assert_ne!(k[Tok::Success], k[Tok::Danger], "precondition");
             assert_eq!(
-                bullseye_shadcn::Shadcn::of(&harness.ctx).tokens.primary,
-                bullseye_shadcn::Shadcn::for_theme(theme)
+                eggshell_ui_shadcn::Shadcn::of(&harness.ctx).tokens.primary,
+                eggshell_ui_shadcn::Shadcn::for_theme(theme)
                     .theme_color(ThemeColor::Blue)
                     .tokens
                     .primary,

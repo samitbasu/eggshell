@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use bullseye::{Builder, Scope, tw};
+use eggshell_ui::{Builder, Scope, tw};
 
 fn component(s: &mut Scope<'_, '_, ()>) {
     s.span("title", tw(), "Title");

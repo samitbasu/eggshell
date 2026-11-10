@@ -1,11 +1,11 @@
-[1m[91merror[0m: could not compile `bullseye` (test "layout")
+[1m[91merror[0m: could not compile `eggshell` (test "layout")
 
 Caused by:
   process didn't exit successfully: `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name layout --edition=2024 tests/layout.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --te
 [1m[33mwarning[0m: build failed, waiting for other jobs to finish...
 [1m[91merror[0m[1m: linking with `cc` failed: exit status: 1[0m
   [1m[94m|[0m
-  [1m[94m= [0m[1mnote[0m:  "cc" "-m64" "/home/runner/work/bullseye/bullseye/target/debug/deps/rustcTywsjv/symbols.o" "<17 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "/home/runner/work/bullseye/bullseye/target/debug/deps/{libeframe-7da361bd445a09ca,libpollster-6ae2718257919479,libeg
+  [1m[94m= [0m[1mnote[0m:  "cc" "-m64" "/home/runner/work/eggshell/eggshell/target/debug/deps/rustcTywsjv/symbols.o" "<17 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "/home/runner/work/eggshell/eggshell/target/debug/deps/{libeframe-7da361bd445a09ca,libpollster-6ae2718257919479,libeg
   [1m[94m= [0m[1mnote[0m: some arguments are omitted. use `--verbose` to show all linker arguments
   [1m[94m= [0m[1mnote[0m: PLEASE submit a bug report to https://github.com/llvm/llvm-project/issues/ and include the crash backtrace and instructions to reproduce the bug.
           Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
@@ -24,4 +24,4 @@ Caused by:
           compilation terminated.
           
 
-[1m[91merror[0m: could not compile `bullseye` (test "controls") due to 1 previous error
+[1m[91merror[0m: could not compile `eggshell` (test "controls") due to 1 previous error

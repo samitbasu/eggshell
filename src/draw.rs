@@ -99,7 +99,7 @@ struct Inherited {
     interactive: Interactive,
     /// The backgrounds of the node and its ancestors, composited. egui widgets
     /// that fade toward `ui.stack().bg_color()` read it from the `Ui`'s stack
-    /// info, as bullseye paints backgrounds without egui `Frame`s.
+    /// info, as eggshell paints backgrounds without egui `Frame`s.
     backdrop: Color32,
     /// The layout position of the node's parent.
     origin: Pos2,
@@ -512,7 +512,7 @@ impl<A> Walk<'_, A> {
             match (variants.transition, node.id()) {
                 (Some(duration), Some(id)) => transition::animate(
                     self.ui.ctx(),
-                    id.with(("bullseye-state", state as u8)),
+                    id.with(("eggshell-state", state as u8)),
                     target,
                     duration,
                     variants.easing,
@@ -907,7 +907,7 @@ impl<A> Placed<A> {
 
 /// Salt of a draw closure's [`Ui`] ids. The `Ui` registers a widget under its
 /// own id, which must not be the node's, whose widget is the border box.
-const DRAW_SCOPE: &str = "bullseye-draw";
+const DRAW_SCOPE: &str = "eggshell-draw";
 
 #[derive(Clone, Copy)]
 struct NodeIdTag(egui::Id);

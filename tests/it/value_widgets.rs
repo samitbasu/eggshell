@@ -1,8 +1,8 @@
 //! The uniform `on_change` of the value widgets, and the hooks before it,
 //! through kittest's real pointer and key events.
 
-use bullseye::{Builder, TextStyle, tw};
-use bullseye_shadcn::Tokens;
+use eggshell_ui::{Builder, TextStyle, tw};
+use eggshell_ui_shadcn::Tokens;
 use egui::{Key, Theme, vec2};
 use egui_kittest::Harness;
 

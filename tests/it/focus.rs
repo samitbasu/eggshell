@@ -2,7 +2,7 @@
 //! `egui_kittest::Harness`, egui's focus traversal, the `focus` variants and
 //! the focus record that answers `focus_within`.
 
-use bullseye::{Builder, NodeUi, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, tw};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Key, Rect, vec2};
 use egui_kittest::Harness;
@@ -62,7 +62,7 @@ fn focused(harness: &Harness<'_, Rig<App>>) -> Option<&'static str> {
     harness.state().app.focused
 }
 
-fn cell() -> bullseye::Tw {
+fn cell() -> eggshell_ui::Tw {
     tw().w_px(60.0)
         .h_px(30.0)
         .bg(PLAIN)

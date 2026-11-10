@@ -1,5 +1,5 @@
 #![deny(missing_docs)]
-//! Bullseye: taffy lays out, egui draws and interacts.
+//! Eggshell: taffy lays out, egui draws and interacts.
 //!
 //! This crate is under construction. Each frame is planned as three phases:
 //!
@@ -26,7 +26,7 @@
 //! ```
 //!
 //! ```
-//! use bullseye::{Tw, tw};
+//! use eggshell_ui::{Tw, tw};
 //!
 //! fn card() -> Tw {
 //!     tw().flex().flex_col().gap(2.0).p(4.0).rounded_lg().border(1.0)
@@ -59,7 +59,7 @@
 //! stepper.
 //!
 //! ```
-//! use bullseye::Builder;
+//! use eggshell_ui::Builder;
 //!
 //! #[derive(Hash, Debug)]
 //! enum Part { Save, Terms, Volume }
@@ -76,7 +76,7 @@
 //! A two-valued enum works the same way:
 //!
 //! ```
-//! use bullseye::Builder;
+//! use eggshell_ui::Builder;
 //!
 //! #[derive(Clone, Copy, PartialEq)]
 //! enum Mode { Light, Dark }
@@ -102,8 +102,8 @@
 //!
 //! ```
 //! use std::fmt;
-//! use bullseye::Builder;
-//! use bullseye::owned::{Choice, Enablement};
+//! use eggshell_ui::Builder;
+//! use eggshell_ui::owned::{Choice, Enablement};
 //!
 //! #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 //! enum Unit { Metric, Imperial }

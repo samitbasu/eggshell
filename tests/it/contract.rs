@@ -1,11 +1,11 @@
-//! `bullseye::Style`: the neutral default, installing and caching, and open
+//! `eggshell_ui::Style`: the neutral default, installing and caching, and open
 //! keys that never panic a release build.
 
 use std::sync::Arc;
 
-use bullseye::contract::{Keyed, Size, Variant};
-use bullseye::{LayoutState, Style, TextSpec, TextStyle};
-use bullseye_shadcn::Shadcn;
+use eggshell_ui::contract::{Keyed, Size, Variant};
+use eggshell_ui::{LayoutState, Style, TextSpec, TextStyle};
+use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, Context, FontFamily, Theme, vec2};
 use egui_kittest::Harness;
 
@@ -137,9 +137,9 @@ fn core_draws_a_button_with_no_preset() {
     assert!(fills.contains(&button.paint.states.rest.fill), "{fills:?}");
 }
 
-fn disabled_colours(style: &Style) -> Vec<(String, bullseye::contract::Colors)> {
+fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors)> {
     let mut all = vec![("label".to_string(), style.label.disabled)];
-    let mut look = |name: &str, paint: &bullseye::contract::Paint| {
+    let mut look = |name: &str, paint: &eggshell_ui::contract::Paint| {
         all.push((name.to_string(), paint.states.disabled));
     };
     for key in style.button.variants.keys() {
@@ -210,8 +210,8 @@ fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
 
 #[test]
 fn a_disabled_colour_is_half_way_to_the_surface_it_sits_on() {
-    use bullseye::Opacity;
-    use bullseye::contract::Colors;
+    use eggshell_ui::Opacity;
+    use eggshell_ui::contract::Colors;
     let surface = Color32::from_rgb(200, 100, 0);
     let rest = Colors {
         fill: Color32::from_rgb(0, 0, 0),
@@ -230,32 +230,32 @@ fn a_disabled_colour_is_half_way_to_the_surface_it_sits_on() {
 /// one, every field distinct, so a field that is not mapped shows.
 #[test]
 fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
-    use bullseye::contract::{InputStyle, Look};
+    use eggshell_ui::contract::{InputStyle, Look};
     let mut style = Style::default();
     let c = |n: u8| Color32::from_rgb(n, n, n);
     let mut input = style.input.clone();
-    input.look = Look::new(bullseye::contract::States {
-        rest: bullseye::contract::Colors {
+    input.look = Look::new(eggshell_ui::contract::States {
+        rest: eggshell_ui::contract::Colors {
             fill: c(10),
             border: c(20),
             text: c(30),
         },
-        hover: bullseye::contract::Colors {
+        hover: eggshell_ui::contract::Colors {
             fill: c(11),
             border: c(21),
             text: c(31),
         },
-        pressed: bullseye::contract::Colors {
+        pressed: eggshell_ui::contract::Colors {
             fill: c(12),
             border: c(22),
             text: c(32),
         },
-        focused: bullseye::contract::Colors {
+        focused: eggshell_ui::contract::Colors {
             fill: c(13),
             border: c(23),
             text: c(33),
         },
-        disabled: bullseye::contract::Colors {
+        disabled: eggshell_ui::contract::Colors {
             fill: c(14),
             border: c(24),
             text: c(34),

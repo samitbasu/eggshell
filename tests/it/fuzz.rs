@@ -8,7 +8,7 @@
 
 use core::ops::Range;
 
-use bullseye::testing::{Points, Timeline};
+use eggshell_ui::testing::{Points, Timeline};
 use egui::{Vec2, vec2};
 use egui_kittest::Harness;
 use proptest::prelude::*;
@@ -61,7 +61,7 @@ struct Session {
 
 impl Session {
     fn start(ctx: &egui::Context) -> Self {
-        bullseye::testing::record(ctx);
+        eggshell_ui::testing::record(ctx);
         Self {
             first_pass: ctx.cumulative_pass_nr(),
             slides: Vec::new(),

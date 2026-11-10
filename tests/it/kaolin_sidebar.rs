@@ -1,7 +1,7 @@
 //! The kaolin gallery's sidebar rows hold stock buttons the library sizes:
 //! no row overlaps the next, and each button is drawn inside its row.
 
-use bullseye::LayoutState;
+use eggshell_ui::LayoutState;
 use egui::accesskit::Role;
 use egui::{ImageSource, Rect, Theme, vec2};
 use egui_kittest::Harness;

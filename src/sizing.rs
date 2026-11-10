@@ -11,7 +11,7 @@ use std::sync::Arc;
 use egui::epaint::text::TextWrapping;
 use egui::{Align, Context, FontId, Galley, Style, TextWrapMode, Ui, WidgetText};
 
-use crate::{Style as BullseyeStyle, TextStyle};
+use crate::{Style as EggshellStyle, TextStyle};
 
 /// A width a widget will be given, for wrapping its text and growing its
 /// height.
@@ -36,7 +36,7 @@ pub(crate) struct Sizer<'a> {
     pub ctx: &'a Context,
     pub style: Style,
     pub font: FontId,
-    pub contract: Arc<BullseyeStyle>,
+    pub contract: Arc<EggshellStyle>,
 }
 
 impl<'a> Sizer<'a> {
@@ -48,7 +48,7 @@ impl<'a> Sizer<'a> {
             ctx,
             style,
             font,
-            contract: BullseyeStyle::of(ctx),
+            contract: EggshellStyle::of(ctx),
         }
     }
 
@@ -64,7 +64,7 @@ impl<'a> Sizer<'a> {
             ctx: ui.ctx(),
             style,
             font,
-            contract: BullseyeStyle::of(ui.ctx()),
+            contract: EggshellStyle::of(ui.ctx()),
         }
     }
 

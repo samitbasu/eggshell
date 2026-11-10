@@ -2,12 +2,12 @@
 //! a GPU or a draw, then ask where its nodes are.
 //!
 //! This is ordinary code, not `cfg(test)`, so the tests of a crate that uses
-//! bullseye can use it. It needs nothing beyond egui, so it is not behind a
+//! eggshell can use it. It needs nothing beyond egui, so it is not behind a
 //! feature.
 //!
 //! ```
-//! use bullseye::testing::Headless;
-//! use bullseye::{Builder, tw};
+//! use eggshell_ui::testing::Headless;
+//! use eggshell_ui::{Builder, tw};
 //! use egui::vec2;
 //!
 //! #[derive(Hash, Debug)]
@@ -53,8 +53,8 @@ type Prepare = Box<dyn FnOnce(&egui::Context)>;
 /// An egui context that lays views out without drawing them.
 ///
 /// ```
-/// use bullseye::testing::Headless;
-/// use bullseye::{Builder, tw};
+/// use eggshell_ui::testing::Headless;
+/// use eggshell_ui::{Builder, tw};
 /// use egui::{Theme, vec2};
 ///
 /// let mut headless = Headless::new(vec2(400.0, 300.0)).theme(Theme::Light);

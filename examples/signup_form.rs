@@ -3,7 +3,7 @@
 //! one.
 //!
 //! After the fancy-example in hello_egui (https://github.com/lucasmerlin/hello_egui,
-//! MIT) by Lucas Meurer, rebuilt with bullseye rather than copied: the
+//! MIT) by Lucas Meurer, rebuilt with eggshell rather than copied: the
 //! `egui_form` and `validator` crates become a few functions on the state. An
 //! error shows for a field the user has changed, and for every field once
 //! Submit has been pressed with something invalid. The error appears as text
@@ -13,9 +13,9 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::prim::text_field::Field;
-use bullseye::{Builder, Scope, Tw, tw};
-use bullseye_shadcn::variant;
+use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::{Builder, Scope, Tw, tw};
+use eggshell_ui_shadcn::variant;
 use egui::Role;
 
 type B<'b, 'f> = Builder<'b, 'f, State>;

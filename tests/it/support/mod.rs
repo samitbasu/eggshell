@@ -6,7 +6,7 @@
     reason = "each test crate that includes this module uses a subset of it"
 )]
 
-use bullseye::{Builder, LayoutState, TextStyle};
+use eggshell_ui::{Builder, LayoutState, TextStyle};
 use egui::epaint::{RectShape, Shape, StrokeKind};
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
 use egui_kittest::Harness;
@@ -120,12 +120,12 @@ fn harness_timed<A: 'static>(
                     ids,
                 } = rig;
                 *scope = ui.scope_id();
-                if bullseye_shadcn::tokens(ui.ctx()).is_none() {
-                    bullseye_shadcn::Shadcn::apply_both(ui.ctx());
+                if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
+                    eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
                 }
                 prepare(ui.ctx(), &*app);
                 if *page == Page::Themed {
-                    let background = bullseye_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+                    let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
                     ui.painter()
                         .rect_filled(ui.ctx().content_rect(), 0.0, background);
                 }
@@ -218,7 +218,7 @@ pub fn focused_node<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
         .state()
         .ids
         .iter()
-        .rfind(|(_, id)| bullseye::focus_within(&harness.ctx, *id))
+        .rfind(|(_, id)| eggshell_ui::focus_within(&harness.ctx, *id))
         .map(|(path, _)| path.clone())
 }
 
@@ -323,19 +323,19 @@ pub fn release<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
 /// its value is drawn in. The caller declares the jumps it allows
 /// and asserts on the returned timeline.
 ///
-/// Test-only: the harness is a dev-dependency, and `bullseye::testing` already
-/// offers the harness-free [`Timeline`](bullseye::testing::Timeline).
+/// Test-only: the harness is a dev-dependency, and `eggshell_ui::testing` already
+/// offers the harness-free [`Timeline`](eggshell_ui::testing::Timeline).
 pub fn sweep<A, T>(
     harness: &mut Harness<'_, Rig<A>>,
     values: impl IntoIterator<Item = T>,
     mut apply: impl FnMut(&mut Harness<'_, Rig<A>>, usize, T),
     idle: usize,
-) -> bullseye::testing::Timeline {
-    bullseye::testing::record(&harness.ctx);
+) -> eggshell_ui::testing::Timeline {
+    eggshell_ui::testing::record(&harness.ctx);
     for (frame, value) in values.into_iter().enumerate() {
         apply(harness, frame, value);
         harness.step();
     }
     harness.run_steps(idle);
-    bullseye::testing::Timeline::recorded(&harness.ctx)
+    eggshell_ui::testing::Timeline::recorded(&harness.ctx)
 }

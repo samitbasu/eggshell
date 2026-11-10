@@ -1,7 +1,7 @@
 //! The middle pane: title bar, conversation and composer.
 
-use bullseye::owned::Cell;
-use bullseye::{Builder, Opacity, Scope, Tw, tw};
+use eggshell_ui::owned::Cell;
+use eggshell_ui::{Builder, Opacity, Scope, Tw, tw};
 use egui::{Key, WidgetInfo};
 
 use super::icons::{self, Glyph};

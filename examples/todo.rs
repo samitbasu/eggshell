@@ -2,7 +2,7 @@
 //!
 //! Every row is a `div_id` keyed by its item's data key, never its position,
 //! so a row's hover state and transition follow the item when it moves up or
-//! down. The text field sits outside the bullseye tree in a plain egui panel
+//! down. The text field sits outside the eggshell tree in a plain egui panel
 //! until M4 measures stock egui widgets in the same frame.
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
@@ -12,8 +12,8 @@ mod common;
 
 use core::time::Duration;
 
-use bullseye::{Builder, Opacity, Tw, tw};
-use bullseye_shadcn::Tokens;
+use eggshell_ui::{Builder, Opacity, Tw, tw};
+use eggshell_ui_shadcn::Tokens;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
 
@@ -219,7 +219,7 @@ fn add_bar(ui: &mut egui::Ui, state: &mut State) {
 
 fn main() -> eframe::Result {
     let mut state = State::default();
-    let mut layout_state = bullseye::LayoutState::new();
+    let mut layout_state = eggshell_ui::LayoutState::new();
     let mut theme_bar = common::ThemeBar::new();
     common::launch("todo", None, move |ui| {
         let ctx = ui.ctx().clone();

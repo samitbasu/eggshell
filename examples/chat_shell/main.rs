@@ -21,7 +21,7 @@ pub mod state;
 pub mod theme;
 pub mod view;
 
-use bullseye::LayoutState;
+use eggshell_ui::LayoutState;
 use theme::{Theme, Tok};
 
 use state::App;

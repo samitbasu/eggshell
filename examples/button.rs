@@ -2,7 +2,7 @@
 //! one that counts clicks and a selectable one that toggles.
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
-//! rebuilt with bullseye. A button is a `div_id` that senses clicks, with
+//! rebuilt with eggshell. A button is a `div_id` that senses clicks, with
 //! hover and active paint as variants; being selected is app state known at
 //! build time, so it is base paint. The reset button is a stock egui button in
 //! a leaf of the same tree.
@@ -10,8 +10,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, Tw, tw};
-use bullseye_shadcn::Tokens;
+use eggshell_ui::{Builder, Tw, tw};
+use eggshell_ui_shadcn::Tokens;
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

@@ -2,14 +2,14 @@
 //! the same four nested inside a grow-6 box.
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
-//! rebuilt with bullseye: taffy places, egui draws. The gap, margin and
+//! rebuilt with eggshell: taffy places, egui draws. The gap, margin and
 //! padding sliders are stock egui sliders in leaves of the same tree, in
 //! spacing units.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, Tw, tw};
+use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

@@ -3,8 +3,8 @@
 
 use core::time::Duration;
 
-use bullseye::testing::{Timeline, ViolationKind, record};
-use bullseye::{Builder, LayoutState, Opacity, Placed, tw};
+use eggshell_ui::testing::{Timeline, ViolationKind, record};
+use eggshell_ui::{Builder, LayoutState, Opacity, Placed, tw};
 use egui::{Pos2, Rect, Vec2, vec2};
 use egui_kittest::Harness;
 

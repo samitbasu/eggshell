@@ -18,7 +18,7 @@ struct Findings {
     /// The first `fatal error:` line, which is how a crashed linker reports.
     first_fatal: Option<String>,
     /// The crate and target of the last build cargo gave up on, as in
-    /// `bullseye (test "controls")`.
+    /// `eggshell (test "controls")`.
     uncompiled: Option<String>,
 }
 
@@ -131,9 +131,9 @@ mod tests {
     use super::*;
 
     const TEST_FAILURE: &str = "\
-   Compiling bullseye v0.1.0 (/work/bullseye)
+   Compiling eggshell v0.1.0 (/work/eggshell)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 41.20s
-     Running unittests src/lib.rs (target/debug/deps/bullseye-0123456789abcdef)
+     Running unittests src/lib.rs (target/debug/deps/eggshell-0123456789abcdef)
 
 running 2 tests
 test measure::tests::min_content_is_widest_word ... ok
@@ -196,7 +196,7 @@ error: test failed, to rerun pass `--test layout`
     #[test]
     fn a_failing_doctest_is_named_with_its_binary() {
         let output = "\
-   Doc-tests bullseye
+   Doc-tests eggshell
 
 running 1 test
 test src/lib.rs - (line 3) ... FAILED
@@ -214,12 +214,12 @@ test src/lib.rs - (line 3) ... FAILED
 error[E0599]: no method named `p_px` found for struct `Tw` in the current scope
   --> tests/debug.rs:74:52
 
-error: could not compile `bullseye` (test \"debug\") due to 1 previous error
+error: could not compile `eggshell` (test \"debug\") due to 1 previous error
 ";
         assert_eq!(
             failure_line("clippy", "exit status: 101", output),
             "step `clippy` failed (exit status: 101); \
-             could not compile bullseye (test \"debug\"): \
+             could not compile eggshell (test \"debug\"): \
              error[E0599]: no method named `p_px` found for struct `Tw` in the current scope"
         );
     }
@@ -234,7 +234,7 @@ error: could not compile `bullseye` (test \"debug\") due to 1 previous error
         assert_eq!(
             failure_line("test", "exit status: 101", output),
             "step `test` failed (exit status: 101); \
-             could not compile bullseye (test \"controls\"): \
+             could not compile eggshell (test \"controls\"): \
              collect2: fatal error: ld terminated with signal 7 [Bus error], core dumped"
         );
     }
@@ -252,10 +252,10 @@ error: could not compile `bullseye` (test \"debug\") due to 1 previous error
 
     #[test]
     fn a_formatting_diff_is_quoted() {
-        let output = "Diff in /work/bullseye/src/lib.rs:12:\n-old\n+new\n";
+        let output = "Diff in /work/eggshell/src/lib.rs:12:\n-old\n+new\n";
         assert_eq!(
             failure_line("fmt", "exit status: 1", output),
-            "step `fmt` failed (exit status: 1); Diff in /work/bullseye/src/lib.rs:12:"
+            "step `fmt` failed (exit status: 1); Diff in /work/eggshell/src/lib.rs:12:"
         );
     }
 

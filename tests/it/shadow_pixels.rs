@@ -1,7 +1,7 @@
 //! A shadow under a translucent rounded box, rasterised on the CPU from the
 //! tessellated shapes, so no GPU is needed to look at actual pixels.
 
-use bullseye::tw;
+use eggshell_ui::tw;
 use egui::epaint::{ClippedPrimitive, Primitive, TessellationOptions, Tessellator, Vertex};
 use egui::{Color32, Pos2, Rect, Shadow, pos2, vec2};
 

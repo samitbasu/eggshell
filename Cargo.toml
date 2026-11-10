@@ -1,11 +1,11 @@
 [package]
-name = "bullseye"
+name = "eggshell-ui"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.96"
 license = "MIT"
 description = "taffy lays out, egui draws and interacts"
-repository = "https://github.com/samitbasu/bullseye"
+repository = "https://github.com/samitbasu/eggshell"
 
 [dependencies]
 taffy = "0.15.1"
@@ -22,7 +22,7 @@ egui = { version = "0.37", features = ["default_fonts"] }
 eframe = "0.37"
 egui_kittest = "0.37"
 trybuild = "1"
-bullseye-shadcn = { path = "crates/bullseye-shadcn" }
+eggshell-ui-shadcn = { path = "crates/eggshell-ui-shadcn" }
 
 # proptest's rng wants a getrandom backend that the browser build does not
 # select, and the fuzzers only run natively.
@@ -33,4 +33,4 @@ proptest = "1.12.0"
 wasm-bindgen-futures = "0.4"
 
 [workspace]
-members = ["crates/bullseye-shadcn", "xtask"]
+members = ["crates/eggshell-ui-shadcn", "xtask"]

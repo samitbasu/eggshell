@@ -2,8 +2,8 @@
 //! the library's computation, the draw phase places egui's widget in the
 //! leaf's rect, and pointer and keyboard events reach it.
 
-use bullseye::widget::{Stock, TextEdit};
-use bullseye::{Builder, TextSpec, TextStyle, Width, tw};
+use eggshell_ui::widget::{Stock, TextEdit};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Width, tw};
 use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
 

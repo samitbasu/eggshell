@@ -1,7 +1,7 @@
 //! Selectable text (issue #39) through the real path: pointer drags and
 //! `Event::Copy` dispatched by kittest into egui's label selection.
 
-use bullseye::{Builder, TextStyle, tw};
+use eggshell_ui::{Builder, TextStyle, tw};
 use egui::{Event, OutputCommand, Pos2, Rect, pos2, vec2};
 use egui_kittest::Harness;
 
@@ -32,7 +32,7 @@ enum Select {
 /// </div>
 /// ```
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
-    let mode = |classes: bullseye::Tw| match app.select {
+    let mode = |classes: eggshell_ui::Tw| match app.select {
         Select::Auto => classes,
         Select::Text => classes.select_text(),
         Select::None => classes.select_none(),
@@ -50,7 +50,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn base() -> TextStyle {
-    let tokens = bullseye_shadcn::Tokens::light();
+    let tokens = eggshell_ui_shadcn::Tokens::light();
     TextStyle::new(tokens.text_role(), tokens.foreground)
 }
 

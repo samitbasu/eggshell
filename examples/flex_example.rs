@@ -3,7 +3,7 @@
 //! containers.
 //!
 //! After the example in hello_egui (https://github.com/lucasmerlin/hello_egui,
-//! MIT) by Lucas Meurer, rebuilt with bullseye rather than copied. The labels
+//! MIT) by Lucas Meurer, rebuilt with eggshell rather than copied. The labels
 //! are text boxes that wrap at their item's width; the buttons, checkbox,
 //! slider and text field are stock egui widgets in leaves that take whatever
 //! width their flex item grows to. The "toggle my size" button changes its
@@ -14,7 +14,7 @@ mod common;
 
 use std::convert::identity;
 
-use bullseye::{Builder, Tw, tw};
+use eggshell_ui::{Builder, Tw, tw};
 use egui::{Role, WidgetInfo};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;

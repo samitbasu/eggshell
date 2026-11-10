@@ -2,7 +2,7 @@
 //! control, then a toggle-button row and a swatch grid, the patterns that
 //! are built from sensing nodes rather than widgets.
 //!
-//! The controls are the owned ones of `bullseye::owned` (select, switch,
+//! The controls are the owned ones of `eggshell_ui::owned` (select, switch,
 //! button), and the text fields are `text_field` leaves. A control marked
 //! disabled is drawn in the style's disabled colours: the beta switch, the
 //! region select and Save until the form can be saved.
@@ -12,10 +12,10 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::owned::Enablement;
-use bullseye::prim::text_field::Field;
-use bullseye::{Builder, Key, NodeUi as _, Scope, Tw, tw};
-use bullseye_shadcn::variant;
+use eggshell_ui::owned::Enablement;
+use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::{Builder, Key, NodeUi as _, Scope, Tw, tw};
+use eggshell_ui_shadcn::variant;
 use egui::{Color32, Role, WidgetInfo};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;

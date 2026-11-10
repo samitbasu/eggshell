@@ -3,9 +3,9 @@
 //! widget. Each case varies the text, the font size and the style, and a
 //! width that makes text wrap.
 
-use bullseye::widget::{Lines, Stock, TextEdit};
-use bullseye::{TextSpec, TextStyle, Width};
-use bullseye_shadcn::{Shadcn, ShadcnStyle};
+use eggshell_ui::widget::{Lines, Stock, TextEdit};
+use eggshell_ui::{TextSpec, TextStyle, Width};
+use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
 use egui::{
     Color32, Context, FontFamily, Rect, Response, Style, Theme, Ui, UiBuilder, Vec2, pos2, vec2,
 };
@@ -121,7 +121,7 @@ fn drawn(
 /// Draws the field in the style the library gives its text edits: the input
 /// section of the contract, mapped onto the `Ui`.
 fn input_padded(ui: &mut Ui) {
-    bullseye::Style::of(ui.ctx()).map_input(ui.style_mut());
+    eggshell_ui::Style::of(ui.ctx()).map_input(ui.style_mut());
 }
 
 /// A context with the tweak applied and its fonts loaded, which sizes mean

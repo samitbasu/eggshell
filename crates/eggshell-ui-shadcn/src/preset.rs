@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use bullseye::Opacity;
-use bullseye::contract::{
+use eggshell_ui::Opacity;
+use eggshell_ui::contract::{
     self, Colors, Focus, Keyed, Look as BoxLook, Metrics, Paint, Size, States, SwitchMetrics,
     Variant,
 };
@@ -95,7 +95,7 @@ impl Shadcn {
         }
     }
 
-    /// This preset as the [`bullseye::Style`] contract.
+    /// This preset as the [`eggshell_ui::Style`] contract.
     pub fn style(&self) -> contract::Style {
         let t = &self.tokens;
         let dark = self.theme == Theme::Dark;
@@ -470,7 +470,7 @@ impl Shadcn {
 }
 
 fn tokens_id(theme: Theme) -> Id {
-    Id::NULL.with(("bullseye-shadcn-tokens", theme))
+    Id::NULL.with(("eggshell-ui-shadcn-tokens", theme))
 }
 
 /// The tokens a preset was applied with for the context's current theme, if

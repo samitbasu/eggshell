@@ -1,5 +1,5 @@
 #![deny(missing_docs)]
-//! The shadcn/ui design system as a [`bullseye::Style`].
+//! The shadcn/ui design system as a [`eggshell_ui::Style`].
 //!
 //! [`Shadcn`] is a preset: a [`ShadcnStyle`] (which of shadcn's styles, such as
 //! [`Vega`](ShadcnStyle::Vega) or [`Lyra`](ShadcnStyle::Lyra)), a
@@ -7,21 +7,21 @@
 //! chosen independently. Nothing here runs unless the application calls
 //! [`Shadcn::apply`]: the library never changes egui's style on its own.
 //!
-//! The crate only fills the contract. `bullseye` defines what its widgets
+//! The crate only fills the contract. `eggshell` defines what its widgets
 //! need and has no shadcn names or values; a style is data, so changing
 //! [`ShadcnStyle`] at run time changes sizes, radii, text size and ring width
 //! with no code change in the application.
 //!
-//! Applying a preset does three things. It fills the [`bullseye::Style`]
+//! Applying a preset does three things. It fills the [`eggshell_ui::Style`]
 //! contract with the tokens ([`Shadcn::style`]) and installs it for the
-//! preset's theme, which the owned widgets and the text edit of `bullseye`
+//! preset's theme, which the owned widgets and the text edit of `eggshell`
 //! draw from. It maps the [`Tokens`] onto the egui [`Style`](egui::Style) of
 //! the preset's theme (widget fills, strokes, radii, selection, spacing) for
-//! the egui widgets an application draws outside bullseye. It also remembers
+//! the egui widgets an application draws outside eggshell. It also remembers
 //! the tokens in the context, for [`tokens`] and [`Shadcn::of`].
 //!
-//! What bullseye cannot draw exactly and the preset therefore approximates is
-//! documented on [`bullseye::contract::InputStyle`] for the wrapped text edit;
+//! What eggshell cannot draw exactly and the preset therefore approximates is
+//! documented on [`eggshell_ui::contract::InputStyle`] for the wrapped text edit;
 //! the owned widgets are exact except for font weights (`font-medium` needs a
 //! registered family) and the negative spread of `shadow-md`.
 //!
@@ -54,7 +54,7 @@ pub use tokens::Tokens;
 
 /// The names of the button sizes this preset defines besides the default.
 pub mod size {
-    use bullseye::contract::Size;
+    use eggshell_ui::contract::Size;
 
     /// `icon`: a square the height of a control, for a button that is only an
     /// icon.
@@ -62,10 +62,10 @@ pub mod size {
 }
 
 /// The names of shadcn's button variants, the keys of the contract's
-/// [`ButtonStyle::variants`](bullseye::contract::ButtonStyle::variants) this
+/// [`ButtonStyle::variants`](eggshell_ui::contract::ButtonStyle::variants) this
 /// preset defines.
 pub mod variant {
-    use bullseye::contract::Variant;
+    use eggshell_ui::contract::Variant;
 
     /// `default`.
     pub const PRIMARY: Variant = Variant("primary");

@@ -2,11 +2,11 @@
 //! kittest pointer and key events, the draw walk and the accessibility check
 //! the support harness switches on.
 
-use bullseye::Style;
-use bullseye::contract::{Size, Variant};
-use bullseye::owned::Enablement;
-use bullseye::{Builder, TextStyle, tw};
-use bullseye_shadcn::{Shadcn, Tokens, variant};
+use eggshell_ui::Style;
+use eggshell_ui::contract::{Size, Variant};
+use eggshell_ui::owned::Enablement;
+use eggshell_ui::{Builder, TextStyle, tw};
+use eggshell_ui_shadcn::{Shadcn, Tokens, variant};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, FontId, Key, Role, Theme, vec2};
 use egui_kittest::Harness;
@@ -207,7 +207,7 @@ fn disabled_is_explicit_opaque_colours_not_alpha() {
     let background = Tokens::light().background;
     assert_eq!(
         shape.fill,
-        rest.faded_over(bullseye::Opacity::new(0.5), background)
+        rest.faded_over(eggshell_ui::Opacity::new(0.5), background)
             .fill
     );
     assert_eq!(shape.fill.a(), 255, "opaque, so nothing shows through");

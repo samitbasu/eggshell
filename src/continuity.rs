@@ -7,11 +7,11 @@
 //! `assert_*` methods check the invariants.
 //!
 //! ```no_run
-//! use bullseye::testing::{Timeline, record};
+//! use eggshell_ui::testing::{Timeline, record};
 //!
 //! let ctx = egui::Context::default();
 //! record(&ctx);
-//! // ... run frames that draw bullseye views ...
+//! // ... run frames that draw eggshell views ...
 //! Timeline::recorded(&ctx).assert_continuous();
 //! ```
 

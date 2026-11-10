@@ -3,7 +3,7 @@
 //! as buttons whose fill and border react to the pointer.
 //!
 //! After the demo in egui_taffy (https://github.com/PPakalns/egui_taffy, MIT),
-//! rebuilt with bullseye: taffy places, egui draws. A paint variant cannot
+//! rebuilt with eggshell: taffy places, egui draws. A paint variant cannot
 //! change a border's width, which would move layout; where the demo widens a
 //! border on hover, the buttons add a ring instead. The box size slider is a
 //! stock egui slider in a leaf of the same tree.
@@ -11,7 +11,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, Tw, tw};
+use eggshell_ui::{Builder, Tw, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;

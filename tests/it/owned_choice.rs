@@ -2,10 +2,10 @@
 //! a control, through kittest's real pointer and key events and the
 //! accessibility check the support harness switches on.
 
-use bullseye::contract::Size;
-use bullseye::owned::Enablement;
-use bullseye::{Builder, Style, TextStyle, tw};
-use bullseye_shadcn::{Shadcn, Tokens};
+use eggshell_ui::contract::Size;
+use eggshell_ui::owned::Enablement;
+use eggshell_ui::{Builder, Style, TextStyle, tw};
+use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::{CircleShape, Shape};
 use egui::{Key, Rect, Role, Theme, vec2};
 use egui_kittest::Harness;

@@ -43,7 +43,7 @@ enum Rows {
 /// ```
 ///
 /// ```
-/// # use bullseye::Builder;
+/// # use eggshell_ui::Builder;
 /// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 /// enum Unit { Metric, Imperial }
 /// struct App { unit: Unit }

@@ -2,7 +2,7 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, Scope, Tw, tw};
+use eggshell_ui::{Builder, Scope, Tw, tw};
 
 use super::common;
 use super::icons::{self, Glyph};

@@ -2,8 +2,8 @@
 //! frame, labels included, keeps its rectangle. Driven by real clicks, in both
 //! themes.
 
-use bullseye::{Builder, TextStyle, tw};
-use bullseye_shadcn::Tokens;
+use eggshell_ui::{Builder, TextStyle, tw};
+use eggshell_ui_shadcn::Tokens;
 use egui::{Rect, Theme, vec2};
 use egui_kittest::Harness;
 

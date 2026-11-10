@@ -2,10 +2,10 @@
 //! control sizes, radii and text size with no change to any layout code, and
 //! every example still fits under both.
 
-use bullseye::contract::{Size, Style};
-use bullseye::widget::TextEdit;
-use bullseye::{Builder, LayoutState, Placed, tw};
-use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
+use eggshell_ui::contract::{Size, Style};
+use eggshell_ui::widget::TextEdit;
+use eggshell_ui::{Builder, LayoutState, Placed, tw};
+use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Context, Rect, Theme, pos2};
 
 #[path = "../../examples/common/mod.rs"]
