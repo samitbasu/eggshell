@@ -19,6 +19,7 @@ mod draw;
 mod focus;
 mod form_demo;
 mod gallery;
+mod headless;
 mod hello;
 mod interaction;
 mod kaolin_sidebar;
