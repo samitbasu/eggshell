@@ -5,7 +5,7 @@
 
 use bullseye::contract::{Disabled, Paint, Size, Variant};
 use bullseye::owned::{Choice, Enablement};
-use bullseye::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, none, tw};
+use bullseye::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, tw};
 use bullseye_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::TextureId;
 use egui::epaint::Shape;
@@ -206,28 +206,21 @@ fn a_segmented_label_is_centred_in_a_cell_taller_than_it_at_any_height_and_size(
 fn alignments(b: &mut Builder<'_, '_, App>, app: &App) {
     let h = app.height;
     b.div(tw().flex().flex_col().gap(2.0).role(spec(app.font)), |b| {
-        b.span("top", tw().h_px(h), "top", none);
-        b.span("middle", tw().flex().items_center().h_px(h), "middle", none);
+        b.span("top", tw().h_px(h), "top");
+        b.span("middle", tw().flex().items_center().h_px(h), "middle");
         b.span(
             "column",
             tw().flex().flex_col().justify_center().h_px(h),
             "column",
-            none,
         );
-        b.span("bottom", tw().flex().items_end().h_px(h), "bottom", none);
+        b.span("bottom", tw().flex().items_end().h_px(h), "bottom");
         b.span(
             "reversed",
             tw().flex().flex_col_reverse().justify_end().h_px(h),
             "reversed",
-            none,
         );
-        b.span("grid", tw().grid().items_center().h_px(h), "grid", none);
-        b.span(
-            "baseline",
-            tw().flex().items_baseline().h_px(h),
-            "baseline",
-            none,
-        );
+        b.span("grid", tw().grid().items_center().h_px(h), "grid");
+        b.span("baseline", tw().flex().items_baseline().h_px(h), "baseline");
     });
 }
 

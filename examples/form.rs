@@ -269,20 +269,17 @@ fn toggle(b: &mut B<'_, '_>, state: &State, mark: Mark) {
     } else {
         look.hover(|p| p.bg(t.accent))
     };
-    b.div_id(
-        Preferences::Mark(mark),
-        look,
-        move |state: &mut State, ui| {
-            let response = ui.node_response();
-            if response.clicked() {
-                state.toggle(mark);
-            }
-            response.widget_info(|| {
-                WidgetInfo::selected(Role::CheckBox, ui.is_enabled(), on, mark.name())
-            });
-        },
-        |b| b.text(mark.styled(), mark.letter()),
-    );
+    b.div_id(Preferences::Mark(mark), look, |b| {
+        b.text(mark.styled(), mark.letter())
+    })
+    .draw(move |state: &mut State, ui| {
+        let response = ui.node_response();
+        if response.clicked() {
+            state.toggle(mark);
+        }
+        response
+            .widget_info(|| WidgetInfo::selected(Role::CheckBox, ui.is_enabled(), on, mark.name()));
+    });
 }
 
 /// A swatch: a coloured square that is ringed while it is the accent.
@@ -307,17 +304,17 @@ fn swatch(b: &mut B<'_, '_>, state: &State, swatch: Swatch) {
             .border(2.0)
             .border_color(edge)
             .focus(|p| p.ring(3.0, common::ring(&t))),
-        move |state: &mut State, ui| {
-            let response = ui.node_response();
-            if response.clicked() {
-                state.accent = swatch;
-            }
-            response.widget_info(|| {
-                WidgetInfo::selected(Role::RadioButton, ui.is_enabled(), chosen, swatch.name)
-            });
-        },
         |_| {},
-    );
+    )
+    .draw(move |state: &mut State, ui| {
+        let response = ui.node_response();
+        if response.clicked() {
+            state.accent = swatch;
+        }
+        response.widget_info(|| {
+            WidgetInfo::selected(Role::RadioButton, ui.is_enabled(), chosen, swatch.name)
+        });
+    });
 }
 
 /// ```html

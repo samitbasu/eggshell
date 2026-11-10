@@ -132,8 +132,8 @@ fn controls(b: &mut B<'_, '_, State>, state: &State) {
                 demo.title,
                 common::menu_item(&t, cell).sense_click(),
                 demo.title,
-                common::on_click::<State>(move |state| (state.demo, state.choice) = (index, 0)),
-            );
+            )
+            .on_click(move |state| (state.demo, state.choice) = (index, 0));
         }
     });
     let choices = &state.demos[state.demo].choices;

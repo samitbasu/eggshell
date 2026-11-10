@@ -529,18 +529,18 @@ fn handle(b: &mut B<'_, '_>, control: Control) {
             .hover(|p| p.bg(t.ring))
             .sense_drag()
             .focusable_none(),
-        |state: &mut State, ui| {
-            let response = ui.node_response();
-            if response.hovered() || response.dragged() {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-            }
-            if response.dragged() {
-                let dx = response.drag_delta().x;
-                state.cell_width = CellWidth::new(f32::from(state.cell_width) + dx);
-            }
-        },
         |_| {},
-    );
+    )
+    .draw(|state: &mut State, ui| {
+        let response = ui.node_response();
+        if response.hovered() || response.dragged() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+        }
+        if response.dragged() {
+            let dx = response.drag_delta().x;
+            state.cell_width = CellWidth::new(f32::from(state.cell_width) + dx);
+        }
+    });
 }
 
 /// One control: its name and status, then a stage of the cell width with the

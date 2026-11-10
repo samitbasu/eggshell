@@ -4,7 +4,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, none, tw};
+use bullseye::{Builder, tw};
 use bullseye_shadcn::size;
 use common::glyphs::{self, Glyph};
 
@@ -60,7 +60,6 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
                                 .h_px(2.0)
                                 .rounded_full()
                                 .bg(accent),
-                            none,
                             |_| {},
                         );
                     }

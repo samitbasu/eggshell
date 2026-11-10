@@ -38,18 +38,16 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
         Select::None => classes.select_none(),
     };
     b.div(tw().flex().flex_col().gap(4.0).p(4.0), |b| {
-        b.div_id("first", mode(tw()), |_, _| {}, |b| b.text(tw(), FIRST));
-        b.div_id("second", mode(tw()), |_, _| {}, |b| b.text(tw(), SECOND));
-        b.span(
-            "row",
-            mode(tw().sense_click()),
-            "Clickable row",
-            |app, ui| {
+        b.div_id("first", mode(tw()), |b| b.text(tw(), FIRST))
+            .draw(|_, _| {});
+        b.div_id("second", mode(tw()), |b| b.text(tw(), SECOND))
+            .draw(|_, _| {});
+        b.span("row", mode(tw().sense_click()), "Clickable row")
+            .draw(|app, ui| {
                 if bullseye::NodeUi::node_response(ui).clicked() {
                     app.row_clicks += 1;
                 }
-            },
-        );
+            });
     });
 }
 

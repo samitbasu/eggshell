@@ -94,14 +94,12 @@ fn fold(b: &mut Builder<'_, '_, Fold>, _: &Fold) {
         .ctx()
         .data(|data| data.get_temp::<u32>(drawn_id))
         .unwrap_or(0);
-    b.div_id(
-        "row",
-        tw().w_px(50.0).h_px(20.0),
-        move |_, ui| {
-            ui.data_mut(|data| data.insert_temp(drawn_id, drawn + 1));
-        },
-        |b| b.rule(tw().w_px(10.0 + drawn as f32).h_px(5.0)),
-    );
+    b.div_id("row", tw().w_px(50.0).h_px(20.0), |b| {
+        b.rule(tw().w_px(10.0 + drawn as f32).h_px(5.0))
+    })
+    .draw(move |_, ui| {
+        ui.data_mut(|data| data.insert_temp(drawn_id, drawn + 1));
+    });
 }
 
 #[test]

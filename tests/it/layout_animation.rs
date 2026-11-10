@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, none, tw};
+use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
@@ -50,16 +50,12 @@ fn rows(b: &mut Builder<'_, '_, App>, app: &App) {
         } else {
             row
         };
-        b.div_id(
-            key,
-            row,
-            move |app: &mut App, ui: &mut egui::Ui| {
+        b.div_id(key, row, |_| {})
+            .draw(move |app: &mut App, ui: &mut egui::Ui| {
                 if ui.node_response().clicked() {
                     app.clicked = Some(key);
                 }
-            },
-            |_| {},
-        );
+            });
     }
 }
 
@@ -76,7 +72,6 @@ fn nested(b: &mut Builder<'_, '_, App>, app: &App) {
             .bg(PARENT)
             .animate_layout(SLIDE)
             .ease_linear(),
-        none,
         |b| {
             b.div_id(
                 "child",
@@ -85,7 +80,6 @@ fn nested(b: &mut Builder<'_, '_, App>, app: &App) {
                     .bg(CHILD)
                     .animate_layout(SLIDE)
                     .ease_linear(),
-                none,
                 |_| {},
             );
         },

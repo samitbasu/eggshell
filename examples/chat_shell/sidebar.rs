@@ -2,7 +2,7 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, NodeUi, Scope, Tw, none, tw};
+use bullseye::{Builder, NodeUi, Scope, Tw, tw};
 
 use super::common;
 use super::icons::{self, Glyph};
@@ -88,7 +88,6 @@ fn link(b: &mut B<'_, '_>, k: &Theme, link: Link) {
         row(k)
             .hover(|p| p.bg(k[Tok::Hover]).text(k[Tok::Ink]))
             .transition(FAST),
-        none,
         |b| {
             b.paint(
                 tw().size_px(16.0).shrink_0(),
@@ -129,26 +128,22 @@ fn recent(b: &mut B<'_, '_>, k: &Theme, session: &Session, selected: bool) {
         look.hover(|p| p.bg(k[Tok::Hover]).text(k[Tok::Ink]))
             .transition(FAST)
     };
-    b.div_id(
-        key,
-        look,
-        move |app: &mut App, ui| {
-            if ui.node_response().clicked() {
-                app.selected = key;
-            }
-        },
-        |b| {
-            b.text(tw().grow().truncate(), session.title);
-            if let Some(status) = session.status {
-                b.rule(
-                    tw().size_px(6.0)
-                        .shrink_0()
-                        .rounded_full()
-                        .bg(status_color(k, status)),
-                );
-            }
-        },
-    );
+    b.div_id(key, look, |b| {
+        b.text(tw().grow().truncate(), session.title);
+        if let Some(status) = session.status {
+            b.rule(
+                tw().size_px(6.0)
+                    .shrink_0()
+                    .rounded_full()
+                    .bg(status_color(k, status)),
+            );
+        }
+    })
+    .draw(move |app: &mut App, ui| {
+        if ui.node_response().clicked() {
+            app.selected = key;
+        }
+    });
 }
 
 /// ```html
@@ -169,7 +164,6 @@ fn account(b: &mut B<'_, '_>, k: &Theme) {
             .pt(2.0)
             .border_t(1.0)
             .border_color(k[Tok::Line]),
-        none,
         |b| {
             b.div(tw().flex().items_center().gap(2.5).px(2.5), |b| {
                 b.div(

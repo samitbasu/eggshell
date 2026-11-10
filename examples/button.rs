@@ -141,20 +141,14 @@ pub fn demo(b: &mut B<'_, '_, State>, state: &State) {
             .max_w_full()
             .p(2.0),
         |b| {
-            b.div_id(
-                "button",
-                button(&t),
-                common::on_click::<State>(|state| state.clicks += 1),
-                |b| content(b, "Button"),
-            );
+            b.div_id("button", button(&t), |b| content(b, "Button"))
+                .on_click(|state| state.clicks += 1);
             b.text(tw(), format!("Button clicked {} times", state.clicks));
             b.rule(tw().h_px(1.0).bg(t.border));
-            b.div_id(
-                "selectable",
-                toggle(&t, state.selected),
-                common::on_click::<State>(|state| state.selected = !state.selected),
-                |b| content(b, "Selectable button"),
-            );
+            b.div_id("selectable", toggle(&t, state.selected), |b| {
+                content(b, "Selectable button")
+            })
+            .on_click(|state| state.selected = !state.selected);
             b.text(tw(), format!("Selected: {}", state.selected));
         },
     );

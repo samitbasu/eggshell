@@ -139,29 +139,20 @@ fn row(b: &mut B<'_, '_, State>, item: &Item, position: Position) {
             .hover(|p| p.bg(t.border))
             .transition(FAST)
             .animate_layout(FAST),
-        bullseye::none,
         |b| {
             b.text(tw().grow().truncate(), &item.title);
-            b.span(
-                "up",
-                movable(action(&t), Position::First),
-                "Up",
-                common::on_click::<State>(move |state| state.shift(key, Direction::Up)),
-            );
-            b.span(
-                "down",
-                movable(action(&t), Position::Last),
-                "Down",
-                common::on_click::<State>(move |state| state.shift(key, Direction::Down)),
-            );
+            b.span("up", movable(action(&t), Position::First), "Up")
+                .on_click(move |state| state.shift(key, Direction::Up));
+            b.span("down", movable(action(&t), Position::Last), "Down")
+                .on_click(move |state| state.shift(key, Direction::Down));
             b.span(
                 "remove",
                 action(&t)
                     .opacity(Opacity::TRANSPARENT)
                     .group_hover(|p| p.opacity(Opacity::OPAQUE)),
                 "Remove",
-                common::on_click::<State>(move |state| state.remove(key)),
-            );
+            )
+            .on_click(move |state| state.remove(key));
         },
     );
 }

@@ -107,12 +107,8 @@ fn entry(b: &mut B<'_, '_, State>, state: &State, route: Route, label: &str) {
         look.hover(|p| p.bg(ENTRY_HOVER))
             .transition(core::time::Duration::from_millis(100))
     };
-    b.span(
-        route,
-        look.sense_click(),
-        label,
-        common::on_click::<State>(move |state| state.route = route),
-    );
+    b.span(route, look.sense_click(), label)
+        .on_click(move |state| state.route = route);
 }
 
 /// A wrapping pill for a crate.
@@ -128,12 +124,8 @@ fn pill(b: &mut B<'_, '_, State>, state: &State, name: &'static str) {
     } else {
         look.bg(PILL).hover(|p| p.bg(PILL_HOVER))
     };
-    b.span(
-        route,
-        look.sense_click(),
-        name,
-        common::on_click::<State>(move |state| state.route = route),
-    );
+    b.span(route, look.sense_click(), name)
+        .on_click(move |state| state.route = route);
 }
 
 /// ```html
@@ -187,12 +179,12 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
                         .sense_click()
                         .hover(|p| p.text(INK)),
                     "GitHub: hello_egui",
-                    |_, ui| {
-                        if ui.node_response().clicked() {
-                            ui.ctx().open_url(egui::OpenUrl::new_tab(REPO));
-                        }
-                    },
-                );
+                )
+                .draw(|_, ui| {
+                    if ui.node_response().clicked() {
+                        ui.ctx().open_url(egui::OpenUrl::new_tab(REPO));
+                    }
+                });
             },
         );
         b.div(tw().grow().p(4.0), |b| {

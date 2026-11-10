@@ -1,7 +1,7 @@
 //! The middle pane: title bar, conversation and composer.
 
 use bullseye::owned::Cell;
-use bullseye::{Builder, NodeUi, Opacity, Scope, Tw, none, tw};
+use bullseye::{Builder, NodeUi, Opacity, Scope, Tw, tw};
 use egui::{Key, WidgetInfo};
 
 use super::icons::{self, Glyph};
@@ -39,7 +39,6 @@ fn top_bar(b: &mut B<'_, '_>, app: &App) {
             .px(4.0)
             .border_b(1.0)
             .border_color(k[Tok::Line]),
-        none,
         |b| {
             b.text(tw().role(k[Role::Title].clone()).truncate(), title);
             b.select(Part::Model, app.model, MODELS.iter().copied().enumerate())
@@ -109,7 +108,6 @@ fn conversation(b: &mut B<'_, '_>, app: &App) {
             .grow()
             .min_h_0()
             .overflow_hidden(),
-        none,
         |b| {
             b.div(
                 tw().flex()
@@ -245,12 +243,11 @@ fn composer(b: &mut B<'_, '_>, app: &App) {
                     .border(1.0)
                     .border_color(k[Tok::Line])
                     .bg(k[Tok::Surface]),
-                none,
                 |b| {
                     field(b, app);
                     b.div(tw().flex().items_center().justify_between(), |b| {
                         b.div(tw().flex().items_center().gap(1.5), |b| {
-                            b.div_id(Part::Attach, tool_button(k, tw().rounded_lg()), none, |b| {
+                            b.div_id(Part::Attach, tool_button(k, tw().rounded_lg()), |b| {
                                 b.paint(
                                     tw().size_px(18.0),
                                     icons::glyph(Glyph::Plus, k[Tok::InkMid]),
@@ -265,18 +262,18 @@ fn composer(b: &mut B<'_, '_>, app: &App) {
                                     .hover(|p| p.bg(k[Tok::AccentHover]))
                                     .sense_click(),
                             ),
-                            |app: &mut App, ui| {
-                                if ui.node_response().clicked() {
-                                    app.send();
-                                }
-                            },
                             |b| {
                                 b.paint(
                                     tw().size_px(18.0),
                                     icons::glyph(Glyph::ArrowUp, k[Tok::OnAccent]),
                                 );
                             },
-                        );
+                        )
+                        .draw(|app: &mut App, ui| {
+                            if ui.node_response().clicked() {
+                                app.send();
+                            }
+                        });
                     });
                 },
             );

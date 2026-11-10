@@ -3,7 +3,7 @@
 
 use bullseye::contract::Disabled;
 use bullseye::owned::{Enablement, Face};
-use bullseye::{Builder, Opacity, TextStyle, none, tw};
+use bullseye::{Builder, Opacity, TextStyle, tw};
 use bullseye_shadcn::{Shadcn, Tokens};
 use egui::{Color32, Rect, Theme, pos2, vec2};
 use egui_kittest::Harness;
@@ -43,24 +43,36 @@ fn bar() -> bullseye::Tw {
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().items_start().gap(4.0).p(4.0), |b| {
         b.button("abs", "Save")
-            .children(|s| s.div_id("bar", bar(), none, |_| {}))
+            .children(|s| {
+                s.div_id("bar", bar(), |_| {});
+            })
             .on_click(|app: &mut App| app.clicks.push("abs"));
         b.button("flow", "Flow")
-            .children(|s| s.div_id("tag", tw().w_px(24.0).h_px(8.0).bg(BAR), none, |_| {}))
+            .children(|s| {
+                s.div_id("tag", tw().w_px(24.0).h_px(8.0).bg(BAR), |_| {});
+            })
             .add();
         b.button("off", "Off")
             .enablement(Enablement::Disabled)
-            .children(|s| s.div_id("bar", bar(), none, |_| {}))
+            .children(|s| {
+                s.div_id("bar", bar(), |_| {});
+            })
             .add();
         b.toggle("tog", "Tog", app.toggled)
-            .children(|s| s.div_id("bar", bar(), none, |_| {}))
+            .children(|s| {
+                s.div_id("bar", bar(), |_| {});
+            })
             .on_change(|app: &mut App, on| app.toggled = on);
         b.button("card", Face::Empty)
             .named("Card")
-            .children(|s| s.div_id("box", tw().w_px(32.0).h_px(20.0).bg(BAR), none, |_| {}))
+            .children(|s| {
+                s.div_id("box", tw().w_px(32.0).h_px(20.0).bg(BAR), |_| {});
+            })
             .on_click(|app: &mut App| app.clicks.push("card"));
         b.button("other", "Other")
-            .children(|s| s.div_id("bar", bar(), none, |_| {}))
+            .children(|s| {
+                s.div_id("bar", bar(), |_| {});
+            })
             .add();
     });
 }
@@ -197,7 +209,6 @@ fn a_child_is_clipped_where_the_button_is() {
                                 .w_px(200.0)
                                 .h_px(10.0)
                                 .bg(BAR),
-                            none,
                             |_| {},
                         );
                     })
