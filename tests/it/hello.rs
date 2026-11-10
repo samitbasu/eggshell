@@ -269,7 +269,7 @@ mod signup {
     }
 
     fn fill<A>(harness: &mut Harness<'_, Rig<A>>, part: Part, text: &str) {
-        click_node(harness, &format!("/{part:?}"));
+        click_node(harness, &format!("/Form/{part:?}"));
         harness.run_steps(2);
         type_text(harness, text);
     }
@@ -283,7 +283,7 @@ mod signup {
 
     /// How far down the form the Submit button is.
     fn height(harness: &Harness<'_, Rig<State>>) -> f32 {
-        rect_of(harness, "/Submit").min.y
+        rect_of(harness, "/Form/Submit").min.y
     }
 
     fn fill_validly(harness: &mut Harness<'_, Rig<State>>) {
@@ -292,9 +292,9 @@ mod signup {
         fill(harness, Part::Email, "ada@example.com");
         fill(harness, Part::Password, "Sup3r-secret");
         fill(harness, Part::Repeat, "Sup3r-secret");
-        click_node(harness, "/Terms/Box");
+        click_node(harness, "/Form/Terms/Box");
         harness.run_steps(2);
-        click_node(harness, "/Age/Box/Field");
+        click_node(harness, "/Form/Age/Box/Field");
         harness.run_steps(2);
         type_text(harness, "30");
     }
@@ -306,7 +306,7 @@ mod signup {
             assert_eq!(harness.state().app.visible_error(part), None, "{part:?}");
         }
         let resting = height(&harness);
-        let password = rect_of(&harness, "/Password").min.y;
+        let password = rect_of(&harness, "/Form/Password").min.y;
 
         fill(&mut harness, Part::Email, "x");
         assert_eq!(
@@ -315,7 +315,7 @@ mod signup {
         );
         assert_eq!(harness.state().app.visible_error(Part::FirstName), None);
         assert_eq!(
-            rect_of(&harness, "/Password").min.y,
+            rect_of(&harness, "/Form/Password").min.y,
             password,
             "a one-line error fills the line reserved for it, so the rows below stay put"
         );
@@ -329,7 +329,7 @@ mod signup {
     #[test]
     fn submitting_something_invalid_shows_every_error() {
         let mut harness = signup(640.0);
-        click_node(&mut harness, "/Submit");
+        click_node(&mut harness, "/Form/Submit");
         harness.run_steps(3);
         assert_eq!(harness.state().app.progress, Progress::Rejected);
         for part in all_parts() {
@@ -371,10 +371,10 @@ mod signup {
         );
         assert!(harness.state().app.fields.age >= 18.0, "dragged an age");
 
-        click_node(&mut harness, "/Submit");
+        click_node(&mut harness, "/Form/Submit");
         harness.run_steps(3);
         assert_eq!(harness.state().app.progress, Progress::Submitted);
-        click_node(&mut harness, "/Reset");
+        click_node(&mut harness, "/Thanks/Reset");
         harness.run_steps(3);
         assert_eq!(harness.state().app.progress, Progress::Editing);
         assert!(harness.state().app.fields.first_name.is_empty());
@@ -392,14 +392,17 @@ mod signup {
     #[test]
     fn the_name_columns_stack_when_the_window_is_narrow() {
         let wide = signup(900.0);
-        let (first, last) = (rect_of(&wide, "/FirstName"), rect_of(&wide, "/LastName"));
+        let (first, last) = (
+            rect_of(&wide, "/Form/FirstName"),
+            rect_of(&wide, "/Form/LastName"),
+        );
         assert_eq!(first.min.y, last.min.y, "side by side: {first:?} {last:?}");
         assert!(first.max.x < last.min.x);
 
         let narrow = signup(360.0);
         let (first, last) = (
-            rect_of(&narrow, "/FirstName"),
-            rect_of(&narrow, "/LastName"),
+            rect_of(&narrow, "/Form/FirstName"),
+            rect_of(&narrow, "/Form/LastName"),
         );
         assert!(last.min.y > first.max.y, "stacked: {first:?} {last:?}");
     }
@@ -420,9 +423,17 @@ mod signup {
             Part::Password,
             Part::Repeat,
         ]
-        .map(|part| format!("/{part:?}/\"field\""))
+        .map(|part| format!("/Form/{part:?}/\"field\""))
         .into_iter()
-        .chain(["/Age/Box/Field", "/Terms/Box", "/Newsletter/Box", "/Submit"].map(String::from))
+        .chain(
+            [
+                "/Form/Age/Box/Field",
+                "/Form/Terms/Box",
+                "/Form/Newsletter/Box",
+                "/Form/Submit",
+            ]
+            .map(String::from),
+        )
         .collect();
         assert_eq!(order[..expected.len()], expected[..]);
     }

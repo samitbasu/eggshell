@@ -14,11 +14,12 @@
 mod common;
 
 use bullseye::prim::text_field::Field;
-use bullseye::{Builder, Tw, tw};
+use bullseye::{Builder, Scope, Tw, tw};
 use bullseye_shadcn::variant;
 use egui::Role;
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
+type S<'b, 'f> = Scope<'b, 'f, State>;
 
 /// The fields of the form, in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -32,6 +33,17 @@ pub enum Part {
     Terms,
     Newsletter,
     Submit,
+}
+
+/// What the column shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Screen {
+    Form,
+    Thanks,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Done {
     Reset,
 }
 
@@ -110,7 +122,7 @@ impl Fields {
                 (!(18.0..=120.0).contains(&self.age)).then_some("You must be at least 18 years old")
             }
             Part::Terms => (!self.terms).then_some("You must agree to the terms"),
-            Part::Newsletter | Part::Submit | Part::Reset => None,
+            Part::Newsletter | Part::Submit => None,
         }
     }
 
@@ -125,7 +137,7 @@ impl Fields {
             Part::Repeat => self.repeat != start.repeat,
             Part::Age => self.age != start.age,
             Part::Terms => self.terms != start.terms,
-            Part::Newsletter | Part::Submit | Part::Reset => false,
+            Part::Newsletter | Part::Submit => false,
         }
     }
 
@@ -266,14 +278,14 @@ fn check(
 ///   <button class="w-full h-10">Submit</button>
 /// </form>
 /// ```
-fn form(b: &mut B<'_, '_>, state: &State) {
-    let muted = common::tokens(b.ctx()).muted_foreground;
-    b.text(
+fn form(s: &mut S<'_, '_>, state: &State) {
+    let muted = common::tokens(s.ctx()).muted_foreground;
+    s.text(
         tw().text(muted),
         "This is an example signup form. Try signing up with invalid data to see the \
          validation errors. Errors show up after editing a field or after trying to submit.",
     );
-    pair(b, |b| {
+    pair(s, |b| {
         text(
             b,
             state,
@@ -291,7 +303,7 @@ fn form(b: &mut B<'_, '_>, state: &State) {
             |s| Field::singleline(&s.fields.last_name),
         );
     });
-    b.div(tw().flex(), |b| {
+    s.div(tw().flex(), |b| {
         text(
             b,
             state,
@@ -301,7 +313,7 @@ fn form(b: &mut B<'_, '_>, state: &State) {
             |s| Field::singleline(&s.fields.email),
         );
     });
-    pair(b, |b| {
+    pair(s, |b| {
         text(
             b,
             state,
@@ -319,7 +331,7 @@ fn form(b: &mut B<'_, '_>, state: &State) {
             |s| Field::singleline(&s.fields.repeat).masked(),
         );
     });
-    b.div(tw().flex().flex_col().gap(1.0), |b| {
+    s.div(tw().flex().flex_col().gap(1.0), |b| {
         b.text(tw(), "Age");
         b.stepper(Part::Age, state.fields.age, 0.0..=150.0)
             .named("Age")
@@ -329,7 +341,7 @@ fn form(b: &mut B<'_, '_>, state: &State) {
     });
     let fields = &state.fields;
     check(
-        b,
+        s,
         state,
         Part::Terms,
         "I agree to the terms",
@@ -337,14 +349,14 @@ fn form(b: &mut B<'_, '_>, state: &State) {
         |s| &mut s.fields.terms,
     );
     check(
-        b,
+        s,
         state,
         Part::Newsletter,
         "Subscribe to newsletter",
         fields.newsletter,
         |s| &mut s.fields.newsletter,
     );
-    b.button(Part::Submit, "Submit")
+    s.button(Part::Submit, "Submit")
         .variant(variant::PRIMARY)
         .classes(tw().w_full().h_px(40.0))
         .on_click(State::submit);
@@ -360,17 +372,17 @@ fn form(b: &mut B<'_, '_>, state: &State) {
 ///   <button>Reset</button>
 /// </div>
 /// ```
-fn thanks(b: &mut B<'_, '_>, state: &State) {
-    b.text(tw().role(common::sized(20.0)), "Thank you for signing up!");
-    b.text(tw(), "Here are the details you submitted:");
-    let t = common::tokens(b.ctx());
-    b.div(tw().p(2.0).rounded().bg(t.muted), |b| {
+fn thanks(s: &mut S<'_, '_>, state: &State) {
+    s.text(tw().role(common::sized(20.0)), "Thank you for signing up!");
+    s.text(tw(), "Here are the details you submitted:");
+    let t = common::tokens(s.ctx());
+    s.div(tw().p(2.0).rounded().bg(t.muted), |b| {
         b.text(
             tw().role(common::mono(13.0)),
             format!("{:#?}", state.fields),
         );
     });
-    b.button(Part::Reset, "Reset")
+    s.button(Done::Reset, "Reset")
         .classes(tw().self_start())
         .on_click(|state: &mut State| *state = State::default());
 }
@@ -398,8 +410,8 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                 .max_w_px(480.0)
                 .text(t.foreground);
             b.div(column, |b| match state.progress {
-                Progress::Submitted => thanks(b, state),
-                Progress::Editing | Progress::Rejected => form(b, state),
+                Progress::Submitted => b.scope(Screen::Thanks, |s| thanks(s, state)),
+                Progress::Editing | Progress::Rejected => b.scope(Screen::Form, |s| form(s, state)),
             });
         },
     );

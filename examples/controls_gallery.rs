@@ -22,12 +22,13 @@ use bullseye::contract::{Colors, Paint, States, Style, Variant};
 use bullseye::owned;
 use bullseye::prim::text_field::{self, Field};
 use bullseye::widget::{Lines, TextEdit};
-use bullseye::{Builder, NodeUi as _, TextStyle, Tw, tw};
+use bullseye::{Builder, NodeUi as _, Scope, TextStyle, Tw, tw};
 use bullseye_shadcn::{size, variant};
 use common::glyphs::{self, Glyph};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
+type S<'b, 'f> = Scope<'b, 'f, State>;
 
 const COMPUTED: Color32 = Color32::from_rgb(0x2a, 0x6f, 0xdb);
 const DRAWN: Color32 = Color32::from_rgb(0xe0, 0x8a, 0x00);
@@ -688,9 +689,9 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                     }
                 },
             ),
-            Section::Buttons => buttons_section(b, state),
-            Section::Choices => choices_section(b, state),
-            Section::Values => values_section(b, state),
+            Section::Buttons => b.scope(Section::Buttons, |s| buttons_section(s, state)),
+            Section::Choices => b.scope(Section::Choices, |s| choices_section(s, state)),
+            Section::Values => b.scope(Section::Values, |s| values_section(s, state)),
         },
     );
 }
@@ -742,9 +743,9 @@ fn rows<'f>(b: &mut B<'_, 'f>, rows: impl FnOnce(&mut B<'_, 'f>)) {
 }
 
 /// A row per button variant, enabled and disabled, then the toggle.
-fn buttons_section(b: &mut B<'_, '_>, state: &State) {
-    with_armed_toggle(b.ctx());
-    rows(b, |b| {
+fn buttons_section(s: &mut S<'_, '_>, state: &State) {
+    with_armed_toggle(s.ctx());
+    rows(s, |b| {
         for enablement in ENABLEMENTS {
             for (name, variant) in VARIANTS {
                 row(b, &named(name, enablement), |b| {
@@ -792,8 +793,8 @@ fn buttons_section(b: &mut B<'_, '_>, state: &State) {
 }
 
 /// The checkbox, radio group, switch and segmented control.
-fn choices_section(b: &mut B<'_, '_>, state: &State) {
-    rows(b, |b| {
+fn choices_section(s: &mut S<'_, '_>, state: &State) {
+    rows(s, |b| {
         for enablement in ENABLEMENTS {
             row(b, &named("checkbox", enablement), |b| {
                 b.checkbox(
@@ -858,8 +859,8 @@ fn choices_section(b: &mut B<'_, '_>, state: &State) {
 }
 
 /// The slider and select, enabled and disabled, and the stepper.
-fn values_section(b: &mut B<'_, '_>, state: &State) {
-    rows(b, |b| {
+fn values_section(s: &mut S<'_, '_>, state: &State) {
+    rows(s, |b| {
         for enablement in ENABLEMENTS {
             row(b, &named("slider", enablement), |b| {
                 b.slider(("slider", enablement), state.owned_slider, 0.0..=100.0)

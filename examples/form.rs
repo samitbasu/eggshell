@@ -14,11 +14,12 @@ mod common;
 
 use bullseye::owned::Enablement;
 use bullseye::prim::text_field::Field;
-use bullseye::{Builder, NodeUi as _, Tw, tw};
+use bullseye::{Builder, Key, NodeUi as _, Scope, Tw, tw};
 use bullseye_shadcn::variant;
 use egui::{Color32, Role, WidgetInfo};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
+type S<'b, 'f> = Scope<'b, 'f, State>;
 
 const FIELD_WIDTH: f32 = 240.0;
 
@@ -96,20 +97,39 @@ pub const SWATCHES: [Swatch; 8] = [
 pub const LANGUAGES: [&str; 4] = ["English", "Deutsch", "Español", "Português"];
 pub const REGIONS: [&str; 3] = ["Europe", "North America", "Asia Pacific"];
 
-/// The identified nodes of the form, in Tab order.
+/// The sections of the form, in Tab order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Part {
+pub enum Section {
+    Profile,
+    Notifications,
+    Preferences,
+    Footer,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Profile {
     Name,
     Email,
     Bio,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Notifications {
     EmailAlerts,
     PushAlerts,
     Beta,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Preferences {
     Language,
     Region,
-    Theme,
     Mark(Mark),
     Accent(&'static str),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Footer {
     Save,
 }
 
@@ -199,7 +219,7 @@ fn section<'f>(b: &mut B<'_, 'f>, title: &str, rows: impl FnOnce(&mut B<'_, 'f>)
 /// A select over `options`, `FIELD_WIDTH` wide.
 fn choose(
     b: &mut B<'_, '_>,
-    key: Part,
+    key: impl Key,
     enablement: Enablement,
     name: &'static str,
     options: &[&'static str],
@@ -215,7 +235,7 @@ fn choose(
 
 fn switch(
     b: &mut B<'_, '_>,
-    key: Part,
+    key: impl Key,
     enablement: Enablement,
     label: &str,
     on: bool,
@@ -250,7 +270,7 @@ fn toggle(b: &mut B<'_, '_>, state: &State, mark: Mark) {
         look.hover(|p| p.bg(t.accent))
     };
     b.div_id(
-        Part::Mark(mark),
+        Preferences::Mark(mark),
         look,
         move |state: &mut State, ui| {
             let response = ui.node_response();
@@ -280,7 +300,7 @@ fn swatch(b: &mut B<'_, '_>, state: &State, swatch: Swatch) {
         Color32::TRANSPARENT
     };
     b.div_id(
-        Part::Accent(swatch.name),
+        Preferences::Accent(swatch.name),
         tw().h_px(32.0)
             .rounded_px(f32::from(t.radius_md()))
             .bg(swatch.color)
@@ -308,17 +328,17 @@ fn swatch(b: &mut B<'_, '_>, state: &State, swatch: Swatch) {
 ///   <div class="flex items-start gap-4"><label>Bio</label><textarea class="w-full" rows="3" placeholder="A few words about you"></textarea></div>
 /// </section>
 /// ```
-fn profile(b: &mut B<'_, '_>, state: &State) {
-    section(b, "Profile", |b| {
+fn profile(s: &mut S<'_, '_>, state: &State) {
+    section(s, "Profile", |b| {
         row(b, "Name", |b| {
             let one = Field::singleline(&state.name).hint("Your name");
-            common::text_box(b, Part::Name, ("Name", Role::TextInput), one, |s| {
+            common::text_box(b, Profile::Name, ("Name", Role::TextInput), one, |s| {
                 &mut s.name
             });
         });
         row(b, "Email", |b| {
             let one = Field::singleline(&state.email).hint("you@example.com");
-            common::text_box(b, Part::Email, ("Email", Role::TextInput), one, |s| {
+            common::text_box(b, Profile::Email, ("Email", Role::TextInput), one, |s| {
                 &mut s.email
             });
         });
@@ -326,9 +346,13 @@ fn profile(b: &mut B<'_, '_>, state: &State) {
             let many = Field::multiline(&state.bio, 3)
                 .max_rows(6)
                 .hint("A few words about you");
-            common::text_box(b, Part::Bio, ("Bio", Role::MultilineTextInput), many, |s| {
-                &mut s.bio
-            });
+            common::text_box(
+                b,
+                Profile::Bio,
+                ("Bio", Role::MultilineTextInput),
+                many,
+                |s| &mut s.bio,
+            );
         });
     });
 }
@@ -341,13 +365,13 @@ fn profile(b: &mut B<'_, '_>, state: &State) {
 ///   </div>
 /// </section>
 /// ```
-fn notifications(b: &mut B<'_, '_>, state: &State) {
-    section(b, "Notifications", |b| {
+fn notifications(s: &mut S<'_, '_>, state: &State) {
+    section(s, "Notifications", |b| {
         row(b, "Alerts", |b| {
             b.div(tw().flex().flex_col().gap(2.0), |b| {
                 switch(
                     b,
-                    Part::EmailAlerts,
+                    Notifications::EmailAlerts,
                     Enablement::Enabled,
                     "Email alerts",
                     state.email_alerts,
@@ -355,7 +379,7 @@ fn notifications(b: &mut B<'_, '_>, state: &State) {
                 );
                 switch(
                     b,
-                    Part::PushAlerts,
+                    Notifications::PushAlerts,
                     Enablement::Enabled,
                     "Push notifications",
                     state.push_alerts,
@@ -363,7 +387,7 @@ fn notifications(b: &mut B<'_, '_>, state: &State) {
                 );
                 switch(
                     b,
-                    Part::Beta,
+                    Notifications::Beta,
                     Enablement::Disabled,
                     "Beta features (unavailable)",
                     state.beta,
@@ -384,12 +408,12 @@ fn notifications(b: &mut B<'_, '_>, state: &State) {
 ///   <div class="flex items-start gap-4"><label>Accent</label><div class="grid grid-cols-4 gap-2 w-[152px]">…8 swatches…</div></div>
 /// </section>
 /// ```
-fn preferences(b: &mut B<'_, '_>, state: &State) {
-    section(b, "Preferences", |b| {
+fn preferences(s: &mut S<'_, '_>, state: &State) {
+    section(s, "Preferences", |b| {
         row(b, "Language", |b| {
             choose(
                 b,
-                Part::Language,
+                Preferences::Language,
                 Enablement::Enabled,
                 "Language",
                 &LANGUAGES,
@@ -400,7 +424,7 @@ fn preferences(b: &mut B<'_, '_>, state: &State) {
         row(b, "Region", |b| {
             choose(
                 b,
-                Part::Region,
+                Preferences::Region,
                 Enablement::Disabled,
                 "Region",
                 &REGIONS,
@@ -444,15 +468,15 @@ fn preferences(b: &mut B<'_, '_>, state: &State) {
 ///   <span class="text-muted-foreground">Enter a name and an email address to save.</span>
 /// </div>
 /// ```
-fn save(b: &mut B<'_, '_>, state: &State) {
+fn save(s: &mut S<'_, '_>, state: &State) {
     let enablement = if state.can_save() {
         Enablement::Enabled
     } else {
         Enablement::Disabled
     };
-    let muted = common::tokens(b.ctx()).muted_foreground;
-    b.div(tw().flex().items_center().gap(3.0), |b| {
-        b.button(Part::Save, "Save")
+    let muted = common::tokens(s.ctx()).muted_foreground;
+    s.div(tw().flex().items_center().gap(3.0), |b| {
+        b.button(Footer::Save, "Save")
             .variant(variant::PRIMARY)
             .enablement(enablement)
             .on_click(|state: &mut State| state.saves += 1);
@@ -488,10 +512,10 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                     .max_w_px(560.0)
                     .text(t.foreground),
                 |b| {
-                    profile(b, state);
-                    notifications(b, state);
-                    preferences(b, state);
-                    save(b, state);
+                    b.scope(Section::Profile, |s| profile(s, state));
+                    b.scope(Section::Notifications, |s| notifications(s, state));
+                    b.scope(Section::Preferences, |s| preferences(s, state));
+                    b.scope(Section::Footer, |s| save(s, state));
                 },
             );
         },
