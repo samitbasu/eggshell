@@ -708,9 +708,24 @@ enum Ending {
     },
 }
 
+/// What a drag makes of a node, for its paint variants.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Stakes {
+    pub(crate) accepts: bool,
+    pub(crate) over: bool,
+    pub(crate) lifted: bool,
+}
+
 /// The drag, as one draw of a [`Placed`](crate::Placed) sees it.
 pub(crate) struct Draw {
     pub(crate) lift: Option<Lift>,
+    accepting: Vec<bool>,
+    over: Option<usize>,
+    lifted: Option<usize>,
+}
+
+/// What is left to do once the frame is painted.
+pub(crate) struct Finish {
     chip: Option<(String, Pos2)>,
     ending: Ending,
 }
@@ -719,8 +734,17 @@ impl Draw {
     fn idle() -> Self {
         Self {
             lift: None,
-            chip: None,
-            ending: Ending::Nothing,
+            accepting: Vec::new(),
+            over: None,
+            lifted: None,
+        }
+    }
+
+    pub(crate) fn stakes(&self, index: usize) -> Stakes {
+        Stakes {
+            accepts: self.accepting.get(index).copied().unwrap_or(false),
+            over: self.over == Some(index),
+            lifted: self.lifted == Some(index),
         }
     }
 }
@@ -735,14 +759,14 @@ pub(crate) fn begin<A>(
     clip: Rect,
     decls: &mut Decls<A>,
     app: &mut A,
-) -> Draw {
+) -> (Draw, Finish) {
     let pass = ctx.cumulative_pass_nr();
     let input = Input::read(ctx);
     let positioned = outside_position_known(ctx, pass, &input);
     let mut gesture = ctx.data(|data| data.get_temp::<Gesture>(key("gesture")));
     let outside = input.dropped.is_some() || input.hovered.is_some();
     if gesture.is_none() && decls.is_empty() && !outside {
-        return Draw::idle();
+        return Finish::nothing();
     }
     if gesture
         .as_ref()
@@ -792,7 +816,7 @@ pub(crate) fn begin<A>(
             ),
             _ => {
                 ctx.data_mut(|data| data.remove::<Hovering>(key("hovering")));
-                return Draw::idle();
+                return Finish::nothing();
             }
         };
     let found = resolve(nodes, decls, &payload, pointer, leaving, clip);
@@ -811,10 +835,7 @@ pub(crate) fn begin<A>(
                 files: payload,
             },
         };
-        return Draw {
-            ending,
-            ..Draw::idle()
-        };
+        return (Draw::idle(), Finish { chip: None, ending });
     }
 
     let over = found.over.as_ref().map(|hit| Over {
@@ -825,6 +846,15 @@ pub(crate) fn begin<A>(
     ctx.data_mut(|data| data.insert_temp(key("hovering"), Hovering { pass, over }));
 
     let mut draw = Draw::idle();
+    let mut chip = None;
+    draw.accepting = vec![false; nodes.len()];
+    for &(index, _) in &found.accepting {
+        draw.accepting[index] = true;
+    }
+    draw.over = found.over.as_ref().map(|hit| hit.index);
+    draw.lifted = gesture
+        .as_ref()
+        .and_then(|held| by_id.get(&held.source).copied());
     if let Some(held) = &gesture
         && let Some(&at) = by_id.get(&held.source)
     {
@@ -836,11 +866,17 @@ pub(crate) fn begin<A>(
                     min: pointer - held.grab,
                 });
             }
-            Some(DragImage::Chip(text)) => draw.chip = Some((text.clone(), pointer)),
+            Some(DragImage::Chip(text)) => chip = Some((text.clone(), pointer)),
             Some(DragImage::None) | None => {}
         }
     }
-    draw
+    (
+        draw,
+        Finish {
+            chip,
+            ending: Ending::Nothing,
+        },
+    )
 }
 
 /// The target a drop from outside lands on, and where: under the pointer if
@@ -919,7 +955,17 @@ fn end_gesture<A>(
     decls.end(app, &gesture.payload, end);
 }
 
-impl Draw {
+impl Finish {
+    fn nothing() -> (Draw, Self) {
+        (
+            Draw::idle(),
+            Self {
+                chip: None,
+                ending: Ending::Nothing,
+            },
+        )
+    }
+
     /// Ends the draw: delivers a drop, ends the gesture, paints a chip.
     pub(crate) fn finish<A>(
         self,

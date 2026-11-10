@@ -18,7 +18,7 @@ use taffy::Overflow;
 use crate::continuity::{self, Motion, NodeFrame};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
-use crate::dnd;
+use crate::dnd::{self, Stakes};
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
@@ -450,6 +450,7 @@ struct Walk<'a, A> {
     animation: LayoutAnimation,
     recording: Option<Vec<NodeFrame>>,
     lift: Option<Lift>,
+    drag: &'a dnd::Draw,
 }
 
 impl<A> Walk<'_, A> {
@@ -503,6 +504,7 @@ impl<A> Walk<'_, A> {
         response: Option<&Response>,
         hovering: Option<Hovering>,
         group: Option<Hovering>,
+        stakes: Stakes,
     ) -> Presence {
         let variants = &node.interaction.variants;
         let progress = |state: State| {
@@ -526,6 +528,9 @@ impl<A> Walk<'_, A> {
                 State::Active => {
                     response.is_some_and(|r| r.hovered() && r.is_pointer_button_down_on())
                 }
+                State::DragAccepts => stakes.accepts,
+                State::DragOver => stakes.over,
+                State::DragLifted => stakes.lifted,
             };
             let target = if on { Progress::END } else { Progress::START };
             match (variants.transition, node.id()) {
@@ -545,6 +550,9 @@ impl<A> Walk<'_, A> {
             focus_within: progress(State::FocusWithin),
             focus: progress(State::Focus),
             active: progress(State::Active),
+            drag_accepts: progress(State::DragAccepts),
+            drag_over: progress(State::DragOver),
+            drag_lifted: progress(State::DragLifted),
         }
     }
 
@@ -588,7 +596,13 @@ impl<A> Walk<'_, A> {
             .as_ref()
             .filter(|_| needs_hovering)
             .map(|own| self.hovering(index, own));
-        let presence = self.presence(node, response.as_ref(), hovering, parent.group);
+        let presence = self.presence(
+            node,
+            response.as_ref(),
+            hovering,
+            parent.group,
+            self.drag.stakes(index),
+        );
         let group = match interaction.grouping {
             Grouping::Group => hovering,
             Grouping::Ungrouped => parent.group,
@@ -933,7 +947,7 @@ impl<A> Placed<A> {
             origin: Pos2::ZERO,
             shift: Vec2::ZERO,
         };
-        let dragging = dnd::begin(
+        let (dragging, finish) = dnd::begin(
             ui.ctx(),
             ui.scope_id(),
             &nodes,
@@ -958,10 +972,11 @@ impl<A> Placed<A> {
             animation,
             recording,
             lift: dragging.lift,
+            drag: &dragging,
         };
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();
-        dragging.finish(&ctx, &nodes, &mut drag, walk.app);
+        finish.finish(&ctx, &nodes, &mut drag, walk.app);
         if let Some(frame) = walk.recording.take() {
             continuity::store(&ctx, frame);
         }
