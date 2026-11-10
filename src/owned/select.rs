@@ -12,6 +12,7 @@ use egui::{
 use super::choice::{self, Choice, IntoChoice};
 use super::number::{hold_keys, pressed};
 use super::{Chevron, Enablement, OnResponse, Tip, paint_check, paint_chevron, tipped};
+use crate::builder::Slot;
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 /// A trigger that shows the chosen option and opens the list of `options`,
@@ -30,9 +31,9 @@ use crate::{Builder, NodeUi as _, Style, Tw, tw};
 /// </button>
 /// ```
 #[must_use = "a select is not added until you call `.on_change(..)`"]
-pub struct SelectBuilder<'a, 'b, 'f, A, K, T> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct SelectChain<'a, 'f, A, T> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     current: T,
     options: Vec<Choice<T>>,
     name: Option<String>,
@@ -42,19 +43,17 @@ pub struct SelectBuilder<'a, 'b, 'f, A, K, T> {
     on_response: OnResponse<A>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
-    SelectBuilder<'a, 'b, 'f, A, K, T>
-{
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> SelectChain<'a, 'f, A, T> {
     /// A select over `options` of which `current` is chosen.
-    pub(super) fn new<O: IntoChoice<T>>(
-        b: &'a mut Builder<'b, 'f, A>,
+    pub(super) fn new<K: crate::Key, O: IntoChoice<T>>(
+        b: Builder<'a, 'f, A>,
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
     ) -> Self {
         Self {
+            slot: b.slot(&key),
             b,
-            key,
             current,
             options: choice::collect(options),
             name: None,
@@ -109,8 +108,8 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
     /// for a value the context holds.
     pub fn on_change_with(self, choose: impl Fn(&mut A, &Context, T) + Copy + 'static) {
         let Self {
-            b,
-            key,
+            mut b,
+            slot,
             current: chosen,
             options,
             name,
@@ -145,8 +144,9 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             current,
             name: name.clone(),
         };
-        b.div_id(
-            key,
+        b.div_id_with(
+            slot.id,
+            &slot.label,
             classes,
             move |app, ui| {
                 let response = tipped(ui.node_response(), &tooltip);

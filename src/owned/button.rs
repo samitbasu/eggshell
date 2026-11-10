@@ -6,6 +6,7 @@ use egui::Role;
 
 use super::Mark;
 use super::{Enablement, OnResponse, Tip, centered, described};
+use crate::builder::Slot;
 use crate::contract::{Size, Variant};
 use crate::{Builder, Icon, Style, Tw, tw};
 
@@ -19,10 +20,10 @@ enum Press {
 /// What a button shows: a label, or only an icon.
 ///
 /// A `&str` or `String` is a label and an [`Icon`] is an icon-only face,
-/// which assistive technology can read only from [`named`](ButtonBuilder::named).
+/// which assistive technology can read only from [`named`](ButtonChain::named).
 #[derive(Clone, Debug)]
 pub enum Face {
-    /// Text, with no icon unless [`icon`](ButtonBuilder::icon) adds one.
+    /// Text, with no icon unless [`icon`](ButtonChain::icon) adds one.
     Label(String),
     /// An icon and no text.
     Icon(Icon),
@@ -55,49 +56,83 @@ impl From<Icon> for Face {
 /// read, so it needs a [`named`](Self::named) name; one without panics in a
 /// debug build when it is added.
 #[must_use = "a button is not added until you call `.on_click(..)` or `.add()`"]
-pub struct ButtonBuilder<'a, 'b, 'f, A, K> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct ButtonChain<'a, 'f, A> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     label: String,
-    icon: Option<Icon>,
     toggle: Option<Mark>,
-    variant: Option<Variant>,
-    size: Size,
-    name: Option<String>,
-    tooltip: Tip,
-    enablement: Enablement,
-    press: Press,
-    classes: Tw,
+    opts: ButtonOptions,
     on_response: OnResponse<A>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
-    pub(super) fn new(b: &'a mut Builder<'b, 'f, A>, key: K, face: Face) -> Self {
-        let (label, icon) = match face {
-            Face::Label(label) => (label, None),
-            Face::Icon(icon) => (String::new(), Some(icon)),
-        };
+/// The settings of a button or toggle that do not depend on its key or its
+/// face, as a plain value that can be built once and applied to many buttons
+/// with [`with_options`](ButtonChain::with_options).
+///
+/// A setting that was never set leaves the button's own (or the style's) in
+/// place. When two sets of options meet in [`merge`](Self::merge), a setting
+/// the second one has set wins, and classes merge as [`Tw::merge`] does.
+///
+/// ```
+/// use bullseye::owned::ButtonOptions;
+/// use bullseye::Builder;
+/// use bullseye::contract::Size;
+///
+/// fn verb() -> ButtonOptions {
+///     ButtonOptions::new().size(Size::DEFAULT).tooltip("Does the thing")
+/// }
+///
+/// fn view(b: &mut Builder<'_, '_, ()>) {
+///     b.button("save", "Save").with_options(verb()).add();
+///     b.button("send", "Send").with_options(verb()).named("Send now").add();
+/// }
+/// ```
+#[derive(Clone)]
+pub struct ButtonOptions {
+    icon: Option<Icon>,
+    variant: Option<Variant>,
+    size: Option<Size>,
+    name: Option<String>,
+    tooltip: Tip,
+    enablement: Option<Enablement>,
+    press: Option<Press>,
+    classes: Tw,
+}
+
+impl Default for ButtonOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ButtonOptions {
+    /// Options that set nothing.
+    pub fn new() -> Self {
         Self {
-            b,
-            key,
-            label,
-            icon,
-            toggle: None,
+            icon: None,
             variant: None,
-            size: Size::DEFAULT,
+            size: None,
             name: None,
             tooltip: None,
-            enablement: Enablement::Enabled,
-            press: Press::Shifts,
+            enablement: None,
+            press: None,
             classes: tw(),
-            on_response: OnResponse::default(),
         }
     }
 
-    /// Makes the button a toggle that shows `mark`.
-    pub(super) fn marked(mut self, mark: Mark) -> Self {
-        self.toggle = Some(mark);
-        self
+    /// `self` with every setting `other` has set taking `other`'s value, and
+    /// the classes of both merged, `other`'s winning ([`Tw::merge`]).
+    pub fn merge(self, other: Self) -> Self {
+        Self {
+            icon: other.icon.or(self.icon),
+            variant: other.variant.or(self.variant),
+            size: other.size.or(self.size),
+            name: other.name.or(self.name),
+            tooltip: other.tooltip.or(self.tooltip),
+            enablement: other.enablement.or(self.enablement),
+            press: other.press.or(self.press),
+            classes: self.classes.merge(other.classes),
+        }
     }
 
     /// Puts `icon` before the label, tinted by the button's text colour in
@@ -116,13 +151,13 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
 
     /// Draws the button at the style's size `size`.
     pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
+        self.size = Some(size);
         self
     }
 
     /// Marks a button that opens a popup, which stays put when pressed.
     pub fn opens_popup(mut self) -> Self {
-        self.press = Press::Stays;
+        self.press = Some(Press::Stays);
         self
     }
 
@@ -148,6 +183,93 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
         self
     }
 
+    /// Whether the button takes input.
+    pub fn enablement(mut self, enablement: Enablement) -> Self {
+        self.enablement = Some(enablement);
+        self
+    }
+}
+
+impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
+    pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, face: Face) -> Self {
+        let (label, icon) = match face {
+            Face::Label(label) => (label, None),
+            Face::Icon(icon) => (String::new(), Some(icon)),
+        };
+        Self {
+            slot: b.slot(&key),
+            b,
+            label,
+            toggle: None,
+            opts: ButtonOptions {
+                icon,
+                ..ButtonOptions::new()
+            },
+            on_response: OnResponse::default(),
+        }
+    }
+
+    /// Makes the button a toggle that shows `mark`.
+    pub(super) fn marked(mut self, mark: Mark) -> Self {
+        self.toggle = Some(mark);
+        self
+    }
+
+    /// Applies shared `options`: what they set overrides what the chain has
+    /// so far, and what is set after them overrides them.
+    pub fn with_options(mut self, options: ButtonOptions) -> Self {
+        self.opts = self.opts.merge(options);
+        self
+    }
+
+    /// Puts `icon` before the label, tinted by the button's text colour in
+    /// each state and sized by the style's glyph size for the button's size.
+    pub fn icon(mut self, icon: Icon) -> Self {
+        self.opts = self.opts.icon(icon);
+        self
+    }
+
+    /// Draws the button as the style's variant `variant`. A toggle takes the
+    /// variant's off and on looks from the style's toggle variants.
+    pub fn variant(mut self, variant: Variant) -> Self {
+        self.opts = self.opts.variant(variant);
+        self
+    }
+
+    /// Draws the button at the style's size `size`.
+    pub fn size(mut self, size: Size) -> Self {
+        self.opts = self.opts.size(size);
+        self
+    }
+
+    /// Marks a button that opens a popup, which stays put when pressed.
+    pub fn opens_popup(mut self) -> Self {
+        self.opts = self.opts.opens_popup();
+        self
+    }
+
+    /// Classes merged over the styled ones, such as the button's width or how
+    /// it grows; the later class wins ([`Tw::merge`]).
+    pub fn classes(mut self, classes: Tw) -> Self {
+        self.opts = self.opts.classes(classes);
+        self
+    }
+
+    /// The accessible name, when it is not the label.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.opts = self.opts.named(name);
+        self
+    }
+
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it.
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.opts = self.opts.tooltip(text);
+        self
+    }
+
     /// Runs `then` with the button's response each frame: the escape hatch for what the
     /// builder does not offer, such as hover.
     pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
@@ -157,7 +279,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
 
     /// Whether the button takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
-        self.enablement = enablement;
+        self.opts = self.opts.enablement(enablement);
         self
     }
 
@@ -171,23 +293,30 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
     /// Space or Enter.
     pub fn on_click(self, on_click: impl FnOnce(&mut A) + 'static) {
         let Self {
-            b,
-            key,
+            mut b,
+            slot,
             label,
-            icon,
             toggle,
-            variant,
-            size,
-            name,
-            tooltip,
-            enablement,
-            press,
-            classes: caller,
+            opts:
+                ButtonOptions {
+                    icon,
+                    variant,
+                    size,
+                    name,
+                    tooltip,
+                    enablement,
+                    press,
+                    classes: caller,
+                },
             on_response,
         } = self;
+        let size = size.unwrap_or(Size::DEFAULT);
+        let enablement = enablement.unwrap_or(Enablement::Enabled);
+        let press = press.unwrap_or(Press::Shifts);
         debug_assert!(
             !label.is_empty() || name.is_some(),
-            "the button {key:?} has no label and no name: call `named`",
+            "the button {} has no label and no name: call `named`",
+            slot.readable(),
         );
         let style = Style::of(b.ctx());
         let button = &style.button;
@@ -226,8 +355,9 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
         let classes = enablement.fade(classes, &style).merge(caller);
         let name = name.unwrap_or_else(|| label.clone());
         let glyph = metrics.glyph;
-        b.div_id(
-            key,
+        b.div_id_with(
+            slot.id,
+            &slot.label,
             classes,
             move |app, ui| {
                 let response = described(ui, Role::Button, selected, &name, &tooltip);

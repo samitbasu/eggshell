@@ -32,18 +32,18 @@ use egui::{
     pos2,
 };
 
-pub use button::{ButtonBuilder, Face};
-pub use checkbox::CheckboxBuilder;
+pub use button::{ButtonChain, ButtonOptions, Face};
+pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
-pub use custom::CustomBuilder;
+pub use custom::CustomChain;
 pub use number::Step;
-pub use radio::RadioGroupBuilder;
-pub use segmented::{Cell, SegmentedBuilder};
-pub use select::SelectBuilder;
-pub use slider::SliderBuilder;
-pub use stepper::StepperBuilder;
-pub use switch::SwitchBuilder;
-pub use toggle::ToggleBuilder;
+pub use radio::RadioGroupChain;
+pub use segmented::{Cell, SegmentedChain};
+pub use select::SelectChain;
+pub use slider::SliderChain;
+pub use stepper::StepperChain;
+pub use switch::SwitchChain;
+pub use toggle::ToggleChain;
 
 use crate::contract::{Colors, Disabled, Look, Paint, States, Style};
 use crate::{Builder, NodeUi as _, TextSpec, Tw, tw};
@@ -133,7 +133,7 @@ fn centered(classes: Tw) -> Tw {
     classes.flex().items_center().justify_center()
 }
 
-/// What a control's [`on_response`](ButtonBuilder::on_response) runs with its
+/// What a control's [`on_response`](ButtonChain::on_response) runs with its
 /// response each frame, if it has one.
 pub(crate) struct OnResponse<A>(Option<Rc<ResponseFn<A>>>);
 
@@ -491,40 +491,36 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         &mut self,
         key: K,
         face: impl Into<Face>,
-    ) -> ButtonBuilder<'_, 'b, 'f, A, K> {
-        ButtonBuilder::new(self, key, face.into())
+    ) -> ButtonChain<'_, 'f, A> {
+        ButtonChain::new(self.reborrow(), key, face.into())
     }
 
     /// A toggle button showing `face` and `current`: a `bool`, or with
-    /// [`values`](ToggleBuilder::values) any two-valued type.
+    /// [`values`](ToggleChain::values) any two-valued type.
     pub fn toggle<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
         face: impl Into<Face>,
         current: T,
-    ) -> ToggleBuilder<'_, 'b, 'f, A, K, T> {
-        ToggleBuilder::new(self, key, face.into(), current)
+    ) -> ToggleChain<'_, 'f, A, T> {
+        ToggleChain::new(self.reborrow(), key, face.into(), current)
     }
 
     /// A node that hosts custom egui content, sized by classes or by
-    /// [`measure`](CustomBuilder::measure).
-    pub fn custom<K: crate::Key>(
-        &mut self,
-        key: K,
-        classes: Tw,
-    ) -> CustomBuilder<'_, 'b, 'f, A, K> {
-        CustomBuilder::new(self, key, classes)
+    /// [`measure`](CustomChain::measure).
+    pub fn custom<K: crate::Key>(&mut self, key: K, classes: Tw) -> CustomChain<'_, 'f, A> {
+        CustomChain::new(self.reborrow(), key, classes)
     }
 
     /// A checkbox labelled `label` that shows `current`: a `bool`, or with
-    /// [`values`](CheckboxBuilder::values) any two-valued type.
+    /// [`values`](CheckboxChain::values) any two-valued type.
     pub fn checkbox<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
         label: impl Into<String>,
         current: T,
-    ) -> CheckboxBuilder<'_, 'b, 'f, A, K, T> {
-        CheckboxBuilder::new(self, key, Some(label.into()), current)
+    ) -> CheckboxChain<'_, 'f, A, T> {
+        CheckboxChain::new(self.reborrow(), key, Some(label.into()), current)
     }
 
     /// A checkbox without a label.
@@ -532,19 +528,19 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         &mut self,
         key: K,
         current: T,
-    ) -> CheckboxBuilder<'_, 'b, 'f, A, K, T> {
-        CheckboxBuilder::new(self, key, None, current)
+    ) -> CheckboxChain<'_, 'f, A, T> {
+        CheckboxChain::new(self.reborrow(), key, None, current)
     }
 
     /// A switch labelled `label` that shows `current`: a `bool`, or with
-    /// [`values`](SwitchBuilder::values) any two-valued type.
+    /// [`values`](SwitchChain::values) any two-valued type.
     pub fn switch<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
         label: impl Into<String>,
         current: T,
-    ) -> SwitchBuilder<'_, 'b, 'f, A, K, T> {
-        SwitchBuilder::new(self, key, Some(label.into()), current)
+    ) -> SwitchChain<'_, 'f, A, T> {
+        SwitchChain::new(self.reborrow(), key, Some(label.into()), current)
     }
 
     /// A switch without a label.
@@ -552,8 +548,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         &mut self,
         key: K,
         current: T,
-    ) -> SwitchBuilder<'_, 'b, 'f, A, K, T> {
-        SwitchBuilder::new(self, key, None, current)
+    ) -> SwitchChain<'_, 'f, A, T> {
+        SwitchChain::new(self.reborrow(), key, None, current)
     }
 
     /// Radio buttons for `options` (anything [`IntoChoice`]), of which
@@ -567,8 +563,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> RadioGroupBuilder<'_, 'b, 'f, A, K, T> {
-        RadioGroupBuilder::new(self, key, current, options)
+    ) -> RadioGroupChain<'_, 'f, A, T> {
+        RadioGroupChain::new(self.reborrow(), key, current, options)
     }
 
     /// A segmented control over `options` (anything [`IntoChoice`]), of which
@@ -582,8 +578,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> SegmentedBuilder<'_, 'b, 'f, A, K, T> {
-        SegmentedBuilder::new(self, key, current, options)
+    ) -> SegmentedChain<'_, 'f, A, T> {
+        SegmentedChain::new(self.reborrow(), key, current, options)
     }
 
     /// A slider at `value` within `range`.
@@ -592,8 +588,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         key: K,
         value: f64,
         range: RangeInclusive<f64>,
-    ) -> SliderBuilder<'_, 'b, 'f, A, K> {
-        SliderBuilder::new(self, key, value, range)
+    ) -> SliderChain<'_, 'f, A> {
+        SliderChain::new(self.reborrow(), key, value, range)
     }
 
     /// A select over `options` (anything [`IntoChoice`]), of which `current`
@@ -603,8 +599,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
-    ) -> SelectBuilder<'_, 'b, 'f, A, K, T> {
-        SelectBuilder::new(self, key, current, options)
+    ) -> SelectChain<'_, 'f, A, T> {
+        SelectChain::new(self.reborrow(), key, current, options)
     }
 
     /// A stepper at `value` within `range`.
@@ -613,7 +609,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         key: K,
         value: f64,
         range: RangeInclusive<f64>,
-    ) -> StepperBuilder<'_, 'b, 'f, A, K> {
-        StepperBuilder::new(self, key, value, range)
+    ) -> StepperChain<'_, 'f, A> {
+        StepperChain::new(self.reborrow(), key, value, range)
     }
 }

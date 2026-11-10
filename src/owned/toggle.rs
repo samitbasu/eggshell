@@ -1,6 +1,6 @@
 //! The owned toggle: a button that shows whether it is on.
 
-use super::{ButtonBuilder, Enablement, Face, Unset, flip};
+use super::{ButtonChain, ButtonOptions, Enablement, Face, Unset, flip};
 use crate::contract::{Size, Variant};
 use crate::{Builder, Icon, Tw};
 
@@ -11,7 +11,7 @@ use crate::{Builder, Icon, Tw};
 /// It shows `current` and is pressed when that is its `on` value: `true` for a
 /// `bool`, or the second of [`values`](Self::values). A click passes the other
 /// value to `on_change`. Its other options are those of a
-/// [`ButtonBuilder`].
+/// [`ButtonChain`].
 ///
 /// ```
 /// # use bullseye::Builder;
@@ -28,18 +28,21 @@ use crate::{Builder, Icon, Tw};
 /// }
 /// ```
 #[must_use = "a toggle is not added until you call `.on_change(..)`"]
-pub struct ToggleBuilder<'a, 'b, 'f, A, K, T, V = Unset> {
-    button: ButtonBuilder<'a, 'b, 'f, A, K>,
+pub struct ToggleChain<'a, 'f, A, T, V = Unset> {
+    button: ButtonChain<'a, 'f, A>,
     current: T,
     values: V,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
-    ToggleBuilder<'a, 'b, 'f, A, K, T>
-{
-    pub(super) fn new(b: &'a mut Builder<'b, 'f, A>, key: K, face: Face, current: T) -> Self {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleChain<'a, 'f, A, T> {
+    pub(super) fn new<K: crate::Key>(
+        b: Builder<'a, 'f, A>,
+        key: K,
+        face: Face,
+        current: T,
+    ) -> Self {
         Self {
-            button: ButtonBuilder::new(b, key, face),
+            button: ButtonChain::new(b, key, face),
             current,
             values: Unset,
         }
@@ -47,8 +50,8 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
 
     /// The values the toggle switches between: `off` when released and `on`
     /// when pressed.
-    pub fn values(self, off: T, on: T) -> ToggleBuilder<'a, 'b, 'f, A, K, T, [T; 2]> {
-        ToggleBuilder {
+    pub fn values(self, off: T, on: T) -> ToggleChain<'a, 'f, A, T, [T; 2]> {
+        ToggleChain {
             button: self.button,
             current: self.current,
             values: [off, on],
@@ -56,7 +59,14 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T, V> ToggleBuilder<'a, 'b, 'f, A, K, T, V> {
+impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
+    /// Applies shared `options`: what they set overrides what the chain has
+    /// so far, and what is set after them overrides them.
+    pub fn with_options(mut self, options: ButtonOptions) -> Self {
+        self.button = self.button.with_options(options);
+        self
+    }
+
     /// Puts `icon` before the label.
     pub fn icon(mut self, icon: Icon) -> Self {
         self.button = self.button.icon(icon);
@@ -109,7 +119,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T, V> ToggleBuilder<'a, 'b, 'f, A, K
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key> ToggleBuilder<'a, 'b, 'f, A, K, bool> {
+impl<'a, 'f, A: 'static> ToggleChain<'a, 'f, A, bool> {
     /// Adds the toggle. `on_change` runs with the new value when it is
     /// clicked or activated with Space or Enter.
     pub fn on_change(self, on_change: impl Fn(&mut A, bool) + 'static) {
@@ -117,9 +127,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ToggleBuilder<'a, 'b, 'f, A, K, bool
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
-    ToggleBuilder<'a, 'b, 'f, A, K, T, [T; 2]>
-{
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleChain<'a, 'f, A, T, [T; 2]> {
     /// Adds the toggle. `on_change` runs with the new value when it is
     /// clicked or activated with Space or Enter.
     pub fn on_change(self, on_change: impl Fn(&mut A, T) + 'static) {

@@ -8,6 +8,7 @@ use egui::{Role, Vec2};
 
 use super::Mark;
 use super::{Enablement, OnResponse, Tip, Unset, choice_label, choice_row, described, flip};
+use crate::builder::Slot;
 use crate::contract::Size;
 use crate::transition;
 use crate::{Builder, Easing, Progress, Style, Tw, tw};
@@ -29,9 +30,9 @@ enum Part {
 /// [`track`](Self::track) can resize the track of a size without redrawing
 /// anything.
 #[must_use = "a switch is not added until you call `.on_change(..)`"]
-pub struct SwitchBuilder<'a, 'b, 'f, A, K, T, V = Unset> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     label: Option<String>,
     name: Option<String>,
     tooltip: Tip,
@@ -44,18 +45,16 @@ pub struct SwitchBuilder<'a, 'b, 'f, A, K, T, V = Unset> {
     on_response: OnResponse<A>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
-    SwitchBuilder<'a, 'b, 'f, A, K, T>
-{
-    pub(super) fn new(
-        b: &'a mut Builder<'b, 'f, A>,
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T> {
+    pub(super) fn new<K: crate::Key>(
+        b: Builder<'a, 'f, A>,
         key: K,
         label: Option<String>,
         current: T,
     ) -> Self {
         Self {
+            slot: b.slot(&key),
             b,
-            key,
             label,
             name: None,
             tooltip: None,
@@ -70,10 +69,10 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
     }
 
     /// The values the switch moves between: `off` when off and `on` when on.
-    pub fn values(self, off: T, on: T) -> SwitchBuilder<'a, 'b, 'f, A, K, T, [T; 2]> {
-        SwitchBuilder {
+    pub fn values(self, off: T, on: T) -> SwitchChain<'a, 'f, A, T, [T; 2]> {
+        SwitchChain {
             b: self.b,
-            key: self.key,
+            slot: self.slot,
             label: self.label,
             name: self.name,
             tooltip: self.tooltip,
@@ -88,7 +87,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T, V> SwitchBuilder<'a, 'b, 'f, A, K, T, V> {
+impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
     /// The accessible name, when it is not the label.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
@@ -137,7 +136,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T, V> SwitchBuilder<'a, 'b, 'f, A, K
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key> SwitchBuilder<'a, 'b, 'f, A, K, bool> {
+impl<'a, 'f, A: 'static> SwitchChain<'a, 'f, A, bool> {
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
     pub fn on_change(self, on_change: impl Fn(&mut A, bool) + Copy + 'static) {
@@ -145,15 +144,13 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SwitchBuilder<'a, 'b, 'f, A, K, bool
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
-    SwitchBuilder<'a, 'b, 'f, A, K, T, [T; 2]>
-{
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T, [T; 2]> {
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
     pub fn on_change(self, on_change: impl Fn(&mut A, T) + Copy + 'static) {
         let Self {
-            b,
-            key,
+            mut b,
+            slot,
             label,
             name,
             tooltip,
@@ -180,7 +177,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
             metrics.thumb_on * thumb_scale,
         );
         let name = name.unwrap_or_default();
-        b.scope(key, |b| {
+        b.scope_with(slot.id, &slot.label, |b| {
             let control = b.id_of(Part::Track);
             let tint = transition::animate(
                 b.ctx(),

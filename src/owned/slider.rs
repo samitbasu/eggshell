@@ -9,6 +9,7 @@ use egui::{Key, Rect, Ui, WidgetInfo};
 
 use super::number::{self, Step};
 use super::{Enablement, OnResponse, Tip, painted, tipped};
+use crate::builder::Slot;
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -34,9 +35,9 @@ enum Part {
 /// </span>
 /// ```
 #[must_use = "a slider is not added until you call `.on_change(..)`"]
-pub struct SliderBuilder<'a, 'b, 'f, A, K> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct SliderChain<'a, 'f, A> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     value: f64,
     range: RangeInclusive<f64>,
     step: Step,
@@ -89,17 +90,17 @@ impl Scale {
     }
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key> SliderBuilder<'a, 'b, 'f, A, K> {
+impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     /// A slider at `value` within `range`, moving by [`Step::ONE`].
-    pub(super) fn new(
-        b: &'a mut Builder<'b, 'f, A>,
+    pub(super) fn new<K: crate::Key>(
+        b: Builder<'a, 'f, A>,
         key: K,
         value: f64,
         range: RangeInclusive<f64>,
     ) -> Self {
         Self {
+            slot: b.slot(&key),
             b,
-            key,
             value,
             range,
             step: Step::ONE,
@@ -156,8 +157,8 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SliderBuilder<'a, 'b, 'f, A, K> {
     /// new value when the pointer or the keyboard changes it.
     pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
         let Self {
-            b,
-            key,
+            mut b,
+            slot,
             value,
             range,
             step,
@@ -215,7 +216,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SliderBuilder<'a, 'b, 'f, A, K> {
         };
         let name = name.unwrap_or_default();
         let (track_tip, thumb_tip) = (tooltip.clone(), tooltip);
-        b.scope(key, |b| {
+        b.scope_with(slot.id, &slot.label, |b| {
             let track = b.id_of(Part::Track);
             let on_track = scale.clone();
             b.div_id(

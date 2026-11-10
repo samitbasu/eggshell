@@ -8,6 +8,7 @@ use egui::{Id, Key, Role, Ui};
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{Enablement, OnResponse, choice_label, choice_row, described, number};
+use crate::builder::Slot;
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -25,9 +26,9 @@ enum Part<T> {
 /// with it, to the next or previous enabled option, wrapping around; Tab
 /// leaves the group.
 #[must_use = "a radio group is not added until you call `.on_change(..)`"]
-pub struct RadioGroupBuilder<'a, 'b, 'f, A, K, T> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct RadioGroupChain<'a, 'f, A, T> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     current: T,
     options: Vec<Choice<T>>,
     classes: Tw,
@@ -35,20 +36,20 @@ pub struct RadioGroupBuilder<'a, 'b, 'f, A, K, T> {
     on_response: OnResponse<A>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
-    RadioGroupBuilder<'a, 'b, 'f, A, K, T>
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
+    RadioGroupChain<'a, 'f, A, T>
 {
     /// A group of `options` of which `current` is chosen. Values must be
     /// distinct.
-    pub(super) fn new<O: IntoChoice<T>>(
-        b: &'a mut Builder<'b, 'f, A>,
+    pub(super) fn new<K: crate::Key, O: IntoChoice<T>>(
+        b: Builder<'a, 'f, A>,
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
     ) -> Self {
         Self {
+            slot: b.slot(&key),
             b,
-            key,
             current,
             options: choice::collect(options),
             classes: tw(),
@@ -81,8 +82,8 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
     /// chosen with the pointer or the keyboard.
     pub fn on_change(self, select: impl Fn(&mut A, T) + Copy + 'static) {
         let Self {
-            b,
-            key,
+            mut b,
+            slot,
             current,
             options,
             classes,
@@ -101,7 +102,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             .find(|&at| enabled[at] && values[at] == current)
             .or_else(|| (0..count).find(|&at| enabled[at]))
             .unwrap_or(0);
-        b.scope(key, |b| {
+        b.scope_with(slot.id, &slot.label, |b| {
             let ids: Vec<_> = values
                 .iter()
                 .map(|&value| b.id_of(Part::Circle(value)))

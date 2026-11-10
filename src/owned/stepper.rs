@@ -10,6 +10,7 @@ use super::number::{Step, pressed};
 use super::{
     Chevron, Enablement, FieldHooks, Tip, centered, described, field_classes, paint_chevron, tipped,
 };
+use crate::builder::Slot;
 use crate::prim::text_field::{self, Field};
 use crate::{Builder, Style, Tw, tw};
 
@@ -41,9 +42,9 @@ enum Part {
 /// </div>
 /// ```
 #[must_use = "a stepper is not added until you call `.on_change(..)`"]
-pub struct StepperBuilder<'a, 'b, 'f, A, K> {
-    b: &'a mut Builder<'b, 'f, A>,
-    key: K,
+pub struct StepperChain<'a, 'f, A> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
     value: f64,
     range: RangeInclusive<f64>,
     step: Step,
@@ -54,17 +55,17 @@ pub struct StepperBuilder<'a, 'b, 'f, A, K> {
     hooks: FieldHooks<A>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key> StepperBuilder<'a, 'b, 'f, A, K> {
+impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
     /// A stepper at `value` within `range`, stepping by [`Step::ONE`].
-    pub(super) fn new(
-        b: &'a mut Builder<'b, 'f, A>,
+    pub(super) fn new<K: crate::Key>(
+        b: Builder<'a, 'f, A>,
         key: K,
         value: f64,
         range: RangeInclusive<f64>,
     ) -> Self {
         Self {
+            slot: b.slot(&key),
             b,
-            key,
             value,
             range,
             step: Step::ONE,
@@ -133,8 +134,8 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> StepperBuilder<'a, 'b, 'f, A, K> {
     /// Adds the stepper. `set` runs with the new value.
     pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
         let Self {
-            b,
-            key,
+            mut b,
+            slot,
             value,
             range,
             step,
@@ -200,7 +201,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> StepperBuilder<'a, 'b, 'f, A, K> {
         let glyph = stepper.glyph;
         let field = Field::singleline("").bare();
         let measured = field.clone();
-        b.scope(key, |b| {
+        b.scope_with(slot.id, &slot.label, |b| {
             let editing = b.id_of(Part::Field).with("editing");
             b.div_id(Part::Box, group, crate::none, |b| {
                 b.div(field_box, |b| {
