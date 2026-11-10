@@ -23,7 +23,7 @@ use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
 use crate::text::{Interactive, TextAlign, TextStyle};
-use crate::transition;
+use crate::transition::{self, LayoutAnimation};
 use crate::tw::{BoxPaint, Flip, Grouping, Look, Opacity, Presence, Progress, Sides, State};
 
 /// Rounds coordinates to whole physical pixels.
@@ -100,6 +100,8 @@ struct Inherited {
     /// that fade toward `ui.stack().bg_color()` read it from the `Ui`'s stack
     /// info, as bullseye paints backgrounds without egui `Frame`s.
     backdrop: Color32,
+    /// The layout position of the node's parent.
+    origin: Pos2,
 }
 
 /// A node's boxes, snapped to physical pixels.
@@ -413,6 +415,7 @@ struct Walk<'a, A> {
     subtrees: Vec<(Id, Box<[Id]>)>,
     selection: Selection,
     text_seen: HashMap<Id, u32>,
+    animation: LayoutAnimation,
 }
 
 impl<A> Walk<'_, A> {
@@ -592,7 +595,17 @@ impl<A> Walk<'_, A> {
         };
 
         let opacity = parent.opacity * look.paint.opacity;
-        let moved_from = (look.translate != Vec2::ZERO).then(|| self.next_shape());
+        let slide = match (interaction.variants.animate_layout, node.id()) {
+            (Some(duration), Some(id)) => self.animation.offset(
+                id,
+                node.rect().min - parent.origin,
+                duration,
+                interaction.variants.easing,
+            ),
+            _ => Vec2::ZERO,
+        };
+        let translate = look.translate + slide;
+        let moved_from = (translate != Vec2::ZERO).then(|| self.next_shape());
         paint_box(
             &self.painter(parent.clip, opacity),
             &look.paint,
@@ -609,6 +622,7 @@ impl<A> Walk<'_, A> {
             clip: content_clip(parent.clip, boxes.padding, node.overflow),
             opacity,
             inertness,
+            origin: node.rect().min,
             group,
             text_color: if interaction.variants.sets_text_color() {
                 Some(look.text)
@@ -647,7 +661,7 @@ impl<A> Walk<'_, A> {
         }
         self.paint_dividers(index, &in_layout_order, inherited);
         if let Some(first) = moved_from {
-            self.translate_shapes_since(first, look.translate);
+            self.translate_shapes_since(first, translate);
         }
     }
 
@@ -838,8 +852,10 @@ impl<A> Placed<A> {
             text_color: None,
             interactive: Interactive::Outside,
             backdrop: Color32::TRANSPARENT,
+            origin: Pos2::ZERO,
         };
         let selection = Style::of(ui.ctx()).selection;
+        let animation = LayoutAnimation::begin(ui.ctx(), ui.scope_id(), nodes[0].rect());
         let mut walk = Walk {
             app,
             ui,
@@ -850,10 +866,12 @@ impl<A> Placed<A> {
             subtrees: Vec::new(),
             selection,
             text_seen: HashMap::new(),
+            animation,
         };
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();
         focus::store(&ctx, walk.subtrees);
+        walk.animation.finish();
         drop(timer);
         if Debug::of(&ctx) == Debug::Outlines {
             debug::paint(&ctx, &nodes);

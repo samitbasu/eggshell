@@ -446,6 +446,7 @@ b.div_id(("row", key), tw().flex().h(7.0).items_center().gap(1.0).rounded_md()
 - `active(|p| …)`: primary button held on the node.
 - `group_hover(|p| …)`: hover of the nearest ancestor marked `.group()`. That ancestor must be identified with a sense. It is drawn before its descendants, so its state is known when they are drawn.
 - `transition(Duration)`: animate between base and variant paint with `ctx.animate_value_with_time(node_id.with(variant), …)` ⚠. Applies to colors and opacity.
+- `animate_layout(Duration)`: when layout moves an identified node, paint it from its previous position to the new one (FLIP), along the node's `ease_*` curve. Layout and hit rects are final at once; only the paint-only translate moves. Positions are compared within the parent's rect, so a moving parent carries its children and they animate only their own moves. First appearances and every node of a frame whose area changed (window resize) are placed at once, a deliberate difference from CSS. A move interrupted mid-flight starts from the painted position. Position only; size is #62, exit animations #35.
 - Deferred: `focus_within`, `focus_visible`.
 
 States that the application knows at build time (selected, pressed, armed, current, disabled) are conditional classes, not variants. `.tap.dead:hover{background:none}` becomes "do not add `.hover` when dead", plus `inert()`.

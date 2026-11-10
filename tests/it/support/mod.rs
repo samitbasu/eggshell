@@ -28,6 +28,8 @@ pub struct Rig<A> {
     pub page: Page,
     layout: LayoutState,
     pub app: A,
+    /// The `scope_id` of the `Ui` the layout is drawn into.
+    pub scope: egui::Id,
     view: View<A>,
     prepare: fn(&egui::Context, &A),
     /// Every node of the last frame: its readable path and border box.
@@ -93,6 +95,7 @@ fn harness_timed<A: 'static>(
         page: Page::default(),
         layout: LayoutState::new().with_base_text(base_text),
         app,
+        scope: egui::Id::NULL,
         view,
         prepare,
         nodes: Vec::new(),
@@ -110,11 +113,13 @@ fn harness_timed<A: 'static>(
                     page,
                     layout,
                     app,
+                    scope,
                     view,
                     prepare,
                     nodes,
                     ids,
                 } = rig;
+                *scope = ui.scope_id();
                 if bullseye_shadcn::tokens(ui.ctx()).is_none() {
                     bullseye_shadcn::Shadcn::apply_both(ui.ctx());
                 }

@@ -248,7 +248,7 @@ impl Tw {
     /// | Box paint | per property: the background, each border side's colour, ring, shadow, each corner radius, opacity and each divider |
     /// | Text classes | per property, as in layout |
     /// | State variants | per state, then per property within it: `hover:bg-red` over `hover:text-white` keeps both |
-    /// | `transition`, `ease-*` | `other`'s when it sets one |
+    /// | `transition`, `animate_layout`, `ease-*` | `other`'s when it sets one |
     /// | `z` | `other`'s when it sets one |
     /// | `sense_*`, `group`, `focusable_none`, `inert` | combined: a node that either list makes sensing, a group, unfocusable or inert is, because no class takes them back |
     ///

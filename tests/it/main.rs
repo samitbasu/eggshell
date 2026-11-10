@@ -24,6 +24,7 @@ mod interaction;
 mod kaolin_sidebar;
 mod known_gaps_demo;
 mod layout;
+mod layout_animation;
 mod owned;
 mod owned_choice;
 mod owned_number;
