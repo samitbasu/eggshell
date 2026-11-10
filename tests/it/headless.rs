@@ -213,6 +213,32 @@ fn diff_reports_the_siblings_a_change_pushes() {
 }
 
 #[test]
+fn moved_is_a_shift_not_a_resize_or_an_arrival() {
+    let make = |height: f32, extra: bool| {
+        headless().layout(&(), move |b: &mut Builder<'_, '_, ()>, _: &()| {
+            b.div_id("a", tw().h_px(height).w_px(10.0), |_| {});
+            b.div_id("b", tw().h_px(10.0).w_px(10.0), |_| {});
+            if extra {
+                b.div_id("extra", tw().w_px(10.0).h_px(10.0), |_| {});
+            }
+        })
+    };
+    let changes = make(10.0, false).diff(&make(30.0, true));
+    let changed: Vec<&str> = changes.iter().map(|change| change.path()).collect();
+    assert_eq!(
+        changed,
+        ["/\"a\"", "/\"b\"", "/\"extra\""],
+        "precondition: a grew, b was pushed, extra appeared: {changes:#?}"
+    );
+    let moved: Vec<&str> = changes
+        .iter()
+        .filter(|change| change.moved())
+        .map(|change| change.path())
+        .collect();
+    assert_eq!(moved, ["/\"b\""], "{changes:#?}");
+}
+
+#[test]
 fn diff_reports_a_node_present_in_one_layout() {
     let with = |extra: bool| {
         headless().layout(&(), move |b: &mut Builder<'_, '_, ()>, _: &()| {

@@ -1,6 +1,7 @@
 //! The todo example through the full path: pointer events, hit testing,
 //! group-hover reveal, reordering by data key.
 
+use bullseye::testing::{Timeline, record};
 use egui::epaint::Shape;
 use egui::vec2;
 use egui_kittest::Harness;
@@ -69,6 +70,7 @@ fn paths_are_what_the_tests_expect() {
 #[test]
 fn down_moves_a_row_and_up_moves_it_back() {
     let mut harness = harness();
+    record(&harness.ctx);
     let [first, second, ..] = keys(&harness)[..] else {
         panic!("precondition: at least two items")
     };
@@ -79,6 +81,9 @@ fn down_moves_a_row_and_up_moves_it_back() {
     click_button(&mut harness, first, "up");
     harness.run_steps(2);
     assert_eq!(&keys(&harness)[..2], [first, second]);
+
+    harness.run_steps(6);
+    Timeline::recorded(&harness.ctx).assert_continuous();
 }
 
 #[test]

@@ -39,6 +39,9 @@ use std::fmt::Write as _;
 
 use egui::{Id, Rect, Theme, Vec2};
 
+pub use crate::continuity::{
+    Motion, NodeFrame, NodeRef, Points, Timeline, Violation, ViolationKind, record,
+};
 use crate::key::{Key, child_id, root_id};
 pub use crate::pipeline::Placed;
 use crate::pipeline::{LayoutState, PlacedNode};
@@ -463,5 +466,12 @@ impl Change {
     /// Its border box in the second layout, or `None` if absent there.
     pub fn after(&self) -> Option<Rect> {
         self.after
+    }
+
+    /// Whether the node is in both layouts and its top-left corner moved:
+    /// the shift a test usually forbids, as opposed to a node that only
+    /// appeared, disappeared or changed size in place.
+    pub fn moved(&self) -> bool {
+        matches!((self.before, self.after), (Some(before), Some(after)) if before.min != after.min)
     }
 }

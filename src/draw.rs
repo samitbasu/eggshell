@@ -15,6 +15,7 @@ use egui::{
 };
 use taffy::Overflow;
 
+use crate::continuity::{self, Motion, NodeFrame};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
 use crate::focus;
@@ -102,6 +103,8 @@ struct Inherited {
     backdrop: Color32,
     /// The layout position of the node's parent.
     origin: Pos2,
+    /// How far the ancestors' paint offsets have moved this subtree.
+    shift: Vec2,
 }
 
 /// A node's boxes, snapped to physical pixels.
@@ -416,6 +419,7 @@ struct Walk<'a, A> {
     selection: Selection,
     text_seen: HashMap<Id, u32>,
     animation: LayoutAnimation,
+    recording: Option<Vec<NodeFrame>>,
 }
 
 impl<A> Walk<'_, A> {
@@ -605,6 +609,21 @@ impl<A> Walk<'_, A> {
             _ => Vec2::ZERO,
         };
         let translate = look.translate + slide;
+        let shift = parent.shift + translate;
+        if let (Some(frame), Some(id)) = (&mut self.recording, node.id()) {
+            frame.push(NodeFrame {
+                id,
+                path: node.path().to_owned(),
+                layout_rect: node.rect(),
+                painted_rect: node.rect().translate(shift),
+                opacity,
+                motion: if interaction.variants.animate_layout.is_some() {
+                    Motion::Slides
+                } else {
+                    Motion::Snaps
+                },
+            });
+        }
         let moved_from = (translate != Vec2::ZERO).then(|| self.next_shape());
         paint_box(
             &self.painter(parent.clip, opacity),
@@ -623,6 +642,7 @@ impl<A> Walk<'_, A> {
             opacity,
             inertness,
             origin: node.rect().min,
+            shift,
             group,
             text_color: if interaction.variants.sets_text_color() {
                 Some(look.text)
@@ -853,9 +873,11 @@ impl<A> Placed<A> {
             interactive: Interactive::Outside,
             backdrop: Color32::TRANSPARENT,
             origin: Pos2::ZERO,
+            shift: Vec2::ZERO,
         };
         let selection = Style::of(ui.ctx()).selection;
         let animation = LayoutAnimation::begin(ui.ctx(), ui.scope_id(), nodes[0].rect());
+        let recording = continuity::recording(ui.ctx()).then(Vec::new);
         let mut walk = Walk {
             app,
             ui,
@@ -867,9 +889,13 @@ impl<A> Placed<A> {
             selection,
             text_seen: HashMap::new(),
             animation,
+            recording,
         };
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();
+        if let Some(frame) = walk.recording.take() {
+            continuity::store(&ctx, frame);
+        }
         focus::store(&ctx, walk.subtrees);
         walk.animation.finish();
         drop(timer);
