@@ -345,7 +345,7 @@ fn header(b: &mut B<'_, '_>, state: &State) {
             |s| &mut s.direction,
         );
         b.checkbox(Part::Grow, "Grow", state.grow)
-            .bind(|state: &mut State| &mut state.grow);
+            .on_change(|state: &mut State, grow| state.grow = grow);
     });
 }
 

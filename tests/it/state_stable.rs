@@ -29,15 +29,14 @@ struct App {
 
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
-        b.button("toggle", "Bold")
-            .toggle(app.toggle)
-            .on_click(|app: &mut App| app.toggle = !app.toggle);
+        b.toggle("toggle", "Bold", app.toggle)
+            .on_change(|app: &mut App, toggle| app.toggle = toggle);
         b.checkbox("check", "Accept", app.check)
-            .bind(|app: &mut App| &mut app.check);
+            .on_change(|app: &mut App, value| app.check = value);
         b.radio_group("radio", app.radio, &UNITS)
             .on_change(|app: &mut App, unit| app.radio = unit);
         b.switch("switch", "Airplane mode", app.switch)
-            .bind(|app: &mut App| &mut app.switch);
+            .on_change(|app: &mut App, value| app.switch = value);
         b.segmented("seg", app.segment, &UNITS)
             .on_change(|app: &mut App, unit| app.segment = unit);
     });

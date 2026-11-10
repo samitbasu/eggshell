@@ -6,7 +6,7 @@ use std::hash::Hash;
 use egui::{Id, Key, Role, Ui, WidgetText};
 
 use super::Mark;
-use super::{Enablement, choice_label, choice_row, described, number};
+use super::{Enablement, OnResponse, choice_label, choice_row, described, number};
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -31,6 +31,7 @@ pub struct RadioGroupBuilder<'a, 'b, 'f, A, K, T> {
     tooltips: Vec<(T, WidgetText)>,
     classes: Tw,
     enablement: Enablement,
+    on_response: OnResponse<A>,
 }
 
 impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
@@ -55,6 +56,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             tooltips: Vec::new(),
             classes: tw(),
             enablement: Enablement::Enabled,
+            on_response: OnResponse::default(),
         }
     }
 
@@ -77,6 +79,13 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
         self
     }
 
+    /// Runs `then` with the response of each circle each frame: the escape hatch for what the
+    /// builder does not offer, such as hover.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.on_response.set(then);
+        self
+    }
+
     /// Whether the group takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -94,6 +103,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             tooltips,
             classes,
             enablement,
+            on_response,
         } = self;
         let style = Style::of(b.ctx());
         let radio = &style.radio;
@@ -130,6 +140,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
                         .iter()
                         .find(|&&(option, _)| option == value)
                         .map(|(_, text)| text.clone());
+                    let on_response = on_response.clone();
                     let around = |offset: usize| {
                         let at = (index + offset) % count;
                         (values[at], ids[at])
@@ -154,6 +165,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
                                     if response.clicked() {
                                         select(app, value);
                                     }
+                                    on_response.run(app, &response);
                                     take_focus_if_asked(ui, response.id);
                                     if response.has_focus() {
                                         navigate(app, ui, select, previous, next);

@@ -416,13 +416,13 @@ fn classed(b: &mut Builder<'_, '_, App>, _: &App) {
         b.button("button", "Save").classes(wide()).add();
         b.checkbox("checkbox", "Agree", false)
             .classes(wide())
-            .on_toggle(|_: &mut App| {});
+            .on_change(|_: &mut App, _| {});
         b.radio_group("radio", Mode::Light, &MODES)
             .classes(wide())
             .on_change(|_: &mut App, _| {});
         b.switch("switch", "Alerts", false)
             .classes(wide())
-            .on_toggle(|_: &mut App| {});
+            .on_change(|_: &mut App, _| {});
         b.slider("slider", 0.5, 0.0..=1.0)
             .named("Volume")
             .classes(wide())
@@ -480,7 +480,7 @@ fn roles(b: &mut Builder<'_, '_, App>, app: &App) {
             .named("Mode")
             .on_change(|_: &mut App, _| {});
         b.checkbox("check", "Agree", false)
-            .on_toggle(|_: &mut App| {});
+            .on_change(|_: &mut App, _| {});
     });
 }
 
@@ -585,13 +585,11 @@ fn armed_paint() -> Paint {
 
 fn toggles(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
-        b.button("plain", "Plain")
-            .toggle(app.on)
-            .on_click(|app: &mut App| app.on = !app.on);
-        b.button("tool", "Tool")
-            .toggle(app.on)
+        b.toggle("plain", "Plain", app.on)
+            .on_change(|app: &mut App, on| app.on = on);
+        b.toggle("tool", "Tool", app.on)
             .variant(ARMED)
-            .on_click(|app: &mut App| app.on = !app.on);
+            .on_change(|app: &mut App, on| app.on = on);
     });
 }
 
@@ -673,7 +671,7 @@ fn disabled_row(b: &mut Builder<'_, '_, App>, _: &App) {
                 .on_click(|app: &mut App| app.clicks += 1);
             b.checkbox(("check", enablement), "Agree", true)
                 .enablement(enablement)
-                .on_toggle(|app: &mut App| app.clicks += 1);
+                .on_change(|app: &mut App, _| app.clicks += 1);
         }
     });
 }
@@ -778,11 +776,10 @@ fn icon_buttons(b: &mut Builder<'_, '_, App>, app: &App) {
         b.button("labelled", "Add")
             .icon(app.icon())
             .on_click(|app: &mut App| app.clicks += 10);
-        b.button("toggle", app.icon())
-            .toggle(app.on)
+        b.toggle("toggle", app.icon(), app.on)
             .named("Pin")
             .size(size::ICON)
-            .on_click(|app: &mut App| app.on = !app.on);
+            .on_change(|app: &mut App, on| app.on = on);
     });
 }
 

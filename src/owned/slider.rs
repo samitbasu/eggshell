@@ -8,7 +8,7 @@ use std::ops::RangeInclusive;
 use egui::{Key, Rect, Ui, WidgetInfo};
 
 use super::number::{self, Step};
-use super::{Enablement, Tip, painted, tipped};
+use super::{Enablement, OnResponse, Tip, painted, tipped};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -44,6 +44,7 @@ pub struct SliderBuilder<'a, 'b, 'f, A, K> {
     tooltip: Tip,
     classes: Tw,
     enablement: Enablement,
+    on_response: OnResponse<A>,
 }
 
 /// What a draw closure needs to turn the pointer and the keys into a value.
@@ -106,6 +107,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SliderBuilder<'a, 'b, 'f, A, K> {
             tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
+            on_response: OnResponse::default(),
         }
     }
 
@@ -137,6 +139,13 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SliderBuilder<'a, 'b, 'f, A, K> {
         self
     }
 
+    /// Runs `then` with the thumb's response each frame: the escape hatch for what the
+    /// builder does not offer, such as hover.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.on_response.set(then);
+        self
+    }
+
     /// Whether the slider takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -156,6 +165,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SliderBuilder<'a, 'b, 'f, A, K> {
             tooltip,
             classes: caller,
             enablement,
+            on_response,
         } = self;
         let style = Style::of(b.ctx());
         let slider = &style.slider;
@@ -244,6 +254,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SliderBuilder<'a, 'b, 'f, A, K> {
                                 {
                                     set(app, value);
                                 }
+                                on_response.run(app, &response);
                                 response.widget_info(|| {
                                     WidgetInfo::slider(ui.is_enabled(), scale.value, &name)
                                 });

@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use egui::Role;
 
 use super::Mark;
-use super::{Enablement, Tip, centered, described};
+use super::{Enablement, OnResponse, Tip, centered, described};
 use crate::contract::{Size, Variant};
 use crate::{Builder, Icon, Style, Tw, tw};
 
@@ -46,7 +46,7 @@ impl From<Icon> for Face {
     }
 }
 
-/// A button drawn from the [`Style`]: one of its variants, or a toggle, with
+/// A button drawn from the [`Style`]: one of its variants, with
 /// an icon, a label or both. Start one with [`Builder::button`] and finish it
 /// with [`on_click`](Self::on_click), or [`add`](Self::add) for a button that
 /// does nothing.
@@ -68,6 +68,7 @@ pub struct ButtonBuilder<'a, 'b, 'f, A, K> {
     enablement: Enablement,
     press: Press,
     classes: Tw,
+    on_response: OnResponse<A>,
 }
 
 impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
@@ -89,12 +90,13 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
             enablement: Enablement::Enabled,
             press: Press::Shifts,
             classes: tw(),
+            on_response: OnResponse::default(),
         }
     }
 
-    /// Makes the button a toggle that shows whether it is `mark`ed on.
-    pub fn toggle(mut self, mark: impl Into<Mark>) -> Self {
-        self.toggle = Some(mark.into());
+    /// Makes the button a toggle that shows `mark`.
+    pub(super) fn marked(mut self, mark: Mark) -> Self {
+        self.toggle = Some(mark);
         self
     }
 
@@ -146,6 +148,13 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
         self
     }
 
+    /// Runs `then` with the button's response each frame: the escape hatch for what the
+    /// builder does not offer, such as hover.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.on_response.set(then);
+        self
+    }
+
     /// Whether the button takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -174,6 +183,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
             enablement,
             press,
             classes: caller,
+            on_response,
         } = self;
         debug_assert!(
             !label.is_empty() || name.is_some(),
@@ -220,9 +230,11 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> ButtonBuilder<'a, 'b, 'f, A, K> {
             key,
             classes,
             move |app, ui| {
-                if described(ui, Role::Button, selected, &name, &tooltip).clicked() {
+                let response = described(ui, Role::Button, selected, &name, &tooltip);
+                if response.clicked() {
                     on_click(app);
                 }
+                on_response.run(app, &response);
             },
             |b| {
                 if let Some(icon) = icon {

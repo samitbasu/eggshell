@@ -59,13 +59,13 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .enablement(Enablement::Disabled)
             .on_change(|app: &mut App, unit| app.locked = unit);
         b.switch("air", "Airplane mode", app.on)
-            .bind(|app: &mut App| &mut app.on);
+            .on_change(|app: &mut App, value| app.on = value);
         b.switch("frozen", "Locked", true)
             .enablement(Enablement::Disabled)
-            .bind(|app: &mut App| &mut app.on);
+            .on_change(|app: &mut App, value| app.on = value);
         b.switch_unlabelled("bare", false)
             .named("Bare switch")
-            .on_toggle(|_: &mut App| {});
+            .on_change(|_: &mut App, _| {});
         b.segmented("seg", app.segment, &SEGMENTS)
             .on_change(|app: &mut App, unit| app.segment = unit);
     });

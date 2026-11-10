@@ -248,7 +248,7 @@ fn switches(b: &mut Builder<'_, '_, App>, app: &App) {
                 Some(track) => switch.track(track),
                 None => switch,
             };
-            switch.bind(|app: &mut App| &mut app.on);
+            switch.on_change(|app: &mut App, value| app.on = value);
         }
     });
 }

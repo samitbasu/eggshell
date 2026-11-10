@@ -614,10 +614,10 @@ pub fn text_box<S, K>(
         |b| {
             b.text_field_with("field", field)
                 .classes(tw().w_full())
-                .on_response(move |_, ui, response| {
-                    response.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), name));
+                .on_response(move |_, response| {
+                    response.widget_info(|| WidgetInfo::labeled(role, response.enabled(), name));
                 })
-                .bind(lens);
+                .on_change(move |state, text| *lens(state) = text);
         },
     );
 }

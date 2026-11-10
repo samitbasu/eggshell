@@ -8,6 +8,7 @@
 use egui::{Response, Ui};
 use taffy::Size;
 
+use crate::owned::FieldHooks;
 use crate::widget::Stock as _;
 use crate::{Builder, Key, Measure, Tw, tw};
 
@@ -25,8 +26,9 @@ pub fn show(ui: &mut Ui, text: &mut String, field: &Field) -> Response {
 }
 
 impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
-    /// An identified leaf that edits a string of the application's state,
-    /// sized by `text`, which is the string as it is when the frame is built.
+    /// An identified leaf that edits `text`, the string of the application's
+    /// state as it is when the frame is built. The field edits a copy, which
+    /// [`on_change`](TextFieldBuilder::on_change) hands back when it differs.
     pub fn text_field<K: Key>(
         &mut self,
         key: K,
@@ -35,8 +37,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         self.text_field_with(key, Field::singleline(text))
     }
 
-    /// [`text_field`](Self::text_field) sized by a `field` configured
-    /// elsewhere, for a helper that passes one on.
+    /// [`text_field`](Self::text_field) for a `field` configured elsewhere,
+    /// which holds the text, for a helper that passes one on.
     pub fn text_field_with<K: Key>(
         &mut self,
         key: K,
@@ -45,24 +47,24 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         TextFieldBuilder {
             b: self,
             key,
+            text: field.text().to_owned(),
             field,
             classes: tw(),
-            on_response: None,
+            hooks: FieldHooks::default(),
         }
     }
 }
 
-type OnResponse<A> = Box<dyn FnOnce(&mut A, &Ui, &Response)>;
-
 /// A text field leaf. Start one with [`Builder::text_field`] and finish it
-/// with [`bind`](Self::bind).
-#[must_use = "a text field is not added until you call `.bind(..)`"]
+/// with [`on_change`](Self::on_change).
+#[must_use = "a text field is not added until you call `.on_change(..)`"]
 pub struct TextFieldBuilder<'a, 'b, 'f, A, K> {
     b: &'a mut Builder<'b, 'f, A>,
     key: K,
     field: Field,
+    text: String,
     classes: Tw,
-    on_response: Option<OnResponse<A>>,
+    hooks: FieldHooks<A>,
 }
 
 impl<A: 'static, K: Key> TextFieldBuilder<'_, '_, '_, A, K> {
@@ -109,22 +111,36 @@ impl<A: 'static, K: Key> TextFieldBuilder<'_, '_, '_, A, K> {
         self
     }
 
-    /// Runs `then` after the field is shown, with its response: the place to
-    /// describe it to assistive technology or to act on a key chord.
-    pub fn on_response(mut self, then: impl FnOnce(&mut A, &Ui, &Response) + 'static) -> Self {
-        self.on_response = Some(Box::new(then));
+    /// Runs `then` with the field's response each frame: the escape hatch
+    /// for what the builder does not offer, such as describing it to
+    /// assistive technology or acting on a key chord.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &Response) + 'static) -> Self {
+        self.hooks.response.set(then);
         self
     }
 
-    /// Adds the field, which edits the string that `lens` picks out of the
-    /// application's state.
-    pub fn bind(self, lens: impl Fn(&mut A) -> &mut String + 'static) {
+    /// Runs `then` when Enter is pressed in a single-line field.
+    pub fn when_submitted(mut self, then: impl Fn(&mut A) + 'static) -> Self {
+        self.hooks.submitted(then);
+        self
+    }
+
+    /// Runs `then` when the field loses focus, also when Enter does it.
+    pub fn when_blurred(mut self, then: impl Fn(&mut A) + 'static) -> Self {
+        self.hooks.blurred(then);
+        self
+    }
+
+    /// Adds the field. `on_change` runs with the new text in the frame the
+    /// user edits it, and not otherwise.
+    pub fn on_change(self, on_change: impl Fn(&mut A, String) + 'static) {
         let Self {
             b,
             key,
             field,
+            text,
             classes,
-            on_response,
+            hooks,
         } = self;
         let measured = field.clone();
         b.leaf(
@@ -132,10 +148,12 @@ impl<A: 'static, K: Key> TextFieldBuilder<'_, '_, '_, A, K> {
             classes,
             move |m| measure(m, &measured),
             move |app, ui| {
-                let response = show(ui, lens(app), &field);
-                if let Some(then) = on_response {
-                    then(app, ui, &response);
+                let mut edited = text;
+                let response = show(ui, &mut edited, &field);
+                if response.changed() {
+                    on_change(app, edited);
                 }
+                hooks.run(app, ui, &response);
             },
         );
     }

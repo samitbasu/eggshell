@@ -248,7 +248,8 @@ fn check(
     lens: fn(&mut State) -> &mut bool,
 ) {
     b.div(tw().flex().flex_col().gap(1.0), |b| {
-        b.checkbox(part, label, checked).bind(lens);
+        b.checkbox(part, label, checked)
+            .on_change(move |s, checked| *lens(s) = checked);
         error_line(b, state.visible_error(part));
     });
 }

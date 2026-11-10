@@ -156,11 +156,12 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     b.div(framed(b, tw()).basis_px(200.0), |b| {
         b.text_field(Part::Text, &state.text)
             .classes(tw().w_full())
-            .on_response(|_, ui, response| {
-                response
-                    .widget_info(|| WidgetInfo::labeled(Role::TextInput, ui.is_enabled(), "Text"));
+            .on_response(|_, response| {
+                response.widget_info(|| {
+                    WidgetInfo::labeled(Role::TextInput, response.enabled(), "Text")
+                });
             })
-            .bind(|state: &mut State| &mut state.text);
+            .on_change(|state: &mut State, text| state.text = text);
     });
 
     text(b, tw().basis_px(80.0), "I have flex basis 80");
@@ -186,7 +187,7 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     button(b, Part::Button("short again"), Tw::grow, "Button");
     button(b, Part::Button("plain"), identity, "Non-grow Button");
     b.checkbox(Part::Checkbox, "Checkbox", state.checked)
-        .bind(|state: &mut State| &mut state.checked);
+        .on_change(|state: &mut State, checked| state.checked = checked);
 }
 
 fn main() -> eframe::Result {

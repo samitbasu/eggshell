@@ -617,7 +617,7 @@ fn a_duplicate_path_panics_with_the_readable_path() {
     place(|b| {
         b.scope("outer", |b| {
             b.span("dup", tw(), "x", none);
-            b.leaf("dup", tw(), bullseye::fill, none);
+            b.custom("dup", tw()).ui(none);
         });
     });
 }
@@ -814,22 +814,17 @@ fn application_leaves_are_measured_with_borrowed_data() {
     let placed = state
         .build::<()>(ctx(), |b| {
             b.div(tw().flex().items_start(), |b| {
-                b.leaf("note", tw(), |m| m.text_size(&note), none);
-                b.leaf(
-                    "fixed",
-                    tw(),
-                    |_| taffy::Size {
+                b.custom("note", tw())
+                    .measure(|m| m.text_size(&note))
+                    .ui(none);
+                b.custom("fixed", tw())
+                    .measure(|_| taffy::Size {
                         width: 30.0,
                         height: 12.0,
-                    },
-                    none,
-                );
-                b.leaf(
-                    "sized by classes",
-                    tw().w_px(7.0).h_px(9.0),
-                    bullseye::fill,
-                    none,
-                );
+                    })
+                    .ui(none);
+                b.custom("sized by classes", tw().w_px(7.0).h_px(9.0))
+                    .ui(none);
             })
         })
         .layout(AREA);

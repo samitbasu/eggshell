@@ -7,7 +7,9 @@ use std::hash::Hash;
 use egui::Role;
 
 use super::Mark;
-use super::{Enablement, Tip, choice_label, choice_row, described, paint_check};
+use super::{
+    Enablement, OnResponse, Tip, Unset, choice_label, choice_row, described, flip, paint_check,
+};
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -17,26 +19,48 @@ enum Part {
 }
 
 /// A checkbox drawn from the [`Style`], with an optional label. Start one with
-/// [`Builder::checkbox`] and finish it with [`bind`](Self::bind) or
-/// [`on_toggle`](Self::on_toggle).
-#[must_use = "a checkbox is not added until you call `.bind(..)` or `.on_toggle(..)`"]
-pub struct CheckboxBuilder<'a, 'b, 'f, A, K> {
+/// [`Builder::checkbox`] and finish it with [`on_change`](Self::on_change).
+///
+/// It shows `current` and is checked when that is its `on` value: `true` for
+/// a `bool`, or the second of [`values`](Self::values). A click passes the
+/// other value to `on_change`.
+///
+/// ```
+/// # use bullseye::Builder;
+/// #[derive(Clone, Copy, PartialEq)]
+/// enum Terms { Declined, Accepted }
+/// struct App { terms: Terms, news: bool }
+///
+/// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+///     b.checkbox("terms", "I agree", app.terms)
+///         .values(Terms::Declined, Terms::Accepted)
+///         .on_change(|app, terms| app.terms = terms);
+///     b.checkbox("news", "Send me news", app.news)
+///         .on_change(|app, news| app.news = news);
+/// }
+/// ```
+#[must_use = "a checkbox is not added until you call `.on_change(..)`"]
+pub struct CheckboxBuilder<'a, 'b, 'f, A, K, T, V = Unset> {
     b: &'a mut Builder<'b, 'f, A>,
     key: K,
     label: Option<String>,
     name: Option<String>,
     tooltip: Tip,
-    mark: Mark,
+    current: T,
+    values: V,
     classes: Tw,
     enablement: Enablement,
+    on_response: OnResponse<A>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key> CheckboxBuilder<'a, 'b, 'f, A, K> {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
+    CheckboxBuilder<'a, 'b, 'f, A, K, T>
+{
     pub(super) fn new(
         b: &'a mut Builder<'b, 'f, A>,
         key: K,
         label: Option<String>,
-        mark: Mark,
+        current: T,
     ) -> Self {
         Self {
             b,
@@ -44,12 +68,33 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> CheckboxBuilder<'a, 'b, 'f, A, K> {
             label,
             name: None,
             tooltip: None,
-            mark,
+            current,
+            values: Unset,
             classes: tw(),
             enablement: Enablement::Enabled,
+            on_response: OnResponse::default(),
         }
     }
 
+    /// The values the checkbox switches between: `off` when unchecked and
+    /// `on` when checked.
+    pub fn values(self, off: T, on: T) -> CheckboxBuilder<'a, 'b, 'f, A, K, T, [T; 2]> {
+        CheckboxBuilder {
+            b: self.b,
+            key: self.key,
+            label: self.label,
+            name: self.name,
+            tooltip: self.tooltip,
+            current: self.current,
+            values: [off, on],
+            classes: self.classes,
+            enablement: self.enablement,
+            on_response: self.on_response,
+        }
+    }
+}
+
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T, V> CheckboxBuilder<'a, 'b, 'f, A, K, T, V> {
     /// The accessible name, when it is not the label.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
@@ -78,28 +123,42 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> CheckboxBuilder<'a, 'b, 'f, A, K> {
         self
     }
 
-    /// Adds the checkbox, which flips the bool that `lens` picks out of the
-    /// application's state when it is toggled.
-    pub fn bind(self, lens: impl Fn(&mut A) -> &mut bool + Copy + 'static) {
-        self.on_toggle(move |app| {
-            let ticked = lens(app);
-            *ticked = !*ticked;
-        });
+    /// Runs `then` with the box's response each frame: the escape hatch for
+    /// what the builder does not offer, such as hover.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.on_response.set(then);
+        self
     }
+}
 
-    /// Adds the checkbox. `on_toggle` runs when the box or the label is
-    /// clicked, or the box is activated with Space or Enter.
-    pub fn on_toggle(self, on_toggle: impl Fn(&mut A) + Copy + 'static) {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key> CheckboxBuilder<'a, 'b, 'f, A, K, bool> {
+    /// Adds the checkbox. `on_change` runs with the new value when the box or
+    /// the label is clicked, or the box is activated with Space or Enter.
+    pub fn on_change(self, on_change: impl Fn(&mut A, bool) + Copy + 'static) {
+        self.values(false, true).on_change(on_change);
+    }
+}
+
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
+    CheckboxBuilder<'a, 'b, 'f, A, K, T, [T; 2]>
+{
+    /// Adds the checkbox. `on_change` runs with the new value when the box or
+    /// the label is clicked, or the box is activated with Space or Enter.
+    pub fn on_change(self, on_change: impl Fn(&mut A, T) + Copy + 'static) {
         let Self {
             b,
             key,
             label,
             name,
             tooltip,
-            mark,
+            current,
+            values: [off, on],
             classes: caller,
             enablement,
+            on_response,
         } = self;
+        let (mark, toggled) = flip([off, on], current);
+        let on_toggle = move |app: &mut A| on_change(app, toggled);
         let style = Style::of(b.ctx());
         let checkbox = &style.checkbox;
         let look = match mark {
@@ -124,9 +183,11 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> CheckboxBuilder<'a, 'b, 'f, A, K> {
                     Part::Box,
                     box_classes,
                     move |app, ui| {
-                        if described(ui, Role::CheckBox, Some(mark), &name, &tooltip).clicked() {
+                        let response = described(ui, Role::CheckBox, Some(mark), &name, &tooltip);
+                        if response.clicked() {
                             on_toggle(app);
                         }
+                        on_response.run(app, &response);
                     },
                     |b| {
                         if mark == Mark::On {

@@ -155,16 +155,22 @@ fn field(b: &mut B<'_, '_>, app: &App) {
         .hint("Reply…")
         .bare()
         .classes(tw().w_full().px(1.0))
-        .on_response(|app: &mut App, ui, response| {
+        .on_response(|app: &mut App, response| {
             response.widget_info(|| {
-                WidgetInfo::labeled(egui::Role::MultilineTextInput, ui.is_enabled(), "Message")
+                WidgetInfo::labeled(
+                    egui::Role::MultilineTextInput,
+                    response.enabled(),
+                    "Message",
+                )
             });
-            let chord = ui.input(|input| input.modifiers.command && input.key_pressed(Key::Enter));
+            let chord = response
+                .ctx
+                .input(|input| input.modifiers.command && input.key_pressed(Key::Enter));
             if chord && response.has_focus() {
                 app.send();
             }
         })
-        .bind(|app| &mut app.draft);
+        .on_change(|app, draft| app.draft = draft);
 }
 
 /// The mode, as a segmented control of small cells.

@@ -102,6 +102,11 @@ pub struct TextEdit {
 }
 
 impl TextEdit {
+    /// The text the field was built with.
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
     /// A one-line field showing `text`.
     pub fn singleline(text: impl Into<String>) -> Self {
         Self {

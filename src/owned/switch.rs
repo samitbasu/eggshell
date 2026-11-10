@@ -7,7 +7,7 @@ use std::hash::Hash;
 use egui::{Role, Vec2};
 
 use super::Mark;
-use super::{Enablement, Tip, choice_label, choice_row, described};
+use super::{Enablement, OnResponse, Tip, Unset, choice_label, choice_row, described, flip};
 use crate::contract::Size;
 use crate::transition;
 use crate::{Builder, Easing, Progress, Style, Tw, tw};
@@ -19,32 +19,39 @@ enum Part {
 }
 
 /// A switch drawn from the [`Style`], with an optional label. Start one with
-/// [`Builder::switch`] and finish it with [`bind`](Self::bind) or
-/// [`on_toggle`](Self::on_toggle).
+/// [`Builder::switch`] and finish it with [`on_change`](Self::on_change).
+///
+/// It shows `current` and is on when that is its `on` value: `true` for a
+/// `bool`, or the second of [`values`](Self::values). A click passes the other
+/// value to `on_change`.
 ///
 /// The thumb scales with the track's height and travels its width, so
 /// [`track`](Self::track) can resize the track of a size without redrawing
 /// anything.
-#[must_use = "a switch is not added until you call `.bind(..)` or `.on_toggle(..)`"]
-pub struct SwitchBuilder<'a, 'b, 'f, A, K> {
+#[must_use = "a switch is not added until you call `.on_change(..)`"]
+pub struct SwitchBuilder<'a, 'b, 'f, A, K, T, V = Unset> {
     b: &'a mut Builder<'b, 'f, A>,
     key: K,
     label: Option<String>,
     name: Option<String>,
     tooltip: Tip,
-    mark: Mark,
+    current: T,
+    values: V,
     size: Size,
     track: Option<Vec2>,
     classes: Tw,
     enablement: Enablement,
+    on_response: OnResponse<A>,
 }
 
-impl<'a, 'b, 'f, A: 'static, K: crate::Key> SwitchBuilder<'a, 'b, 'f, A, K> {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
+    SwitchBuilder<'a, 'b, 'f, A, K, T>
+{
     pub(super) fn new(
         b: &'a mut Builder<'b, 'f, A>,
         key: K,
         label: Option<String>,
-        mark: Mark,
+        current: T,
     ) -> Self {
         Self {
             b,
@@ -52,14 +59,36 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SwitchBuilder<'a, 'b, 'f, A, K> {
             label,
             name: None,
             tooltip: None,
-            mark,
+            current,
+            values: Unset,
             size: Size::DEFAULT,
             track: None,
             classes: tw(),
             enablement: Enablement::Enabled,
+            on_response: OnResponse::default(),
         }
     }
 
+    /// The values the switch moves between: `off` when off and `on` when on.
+    pub fn values(self, off: T, on: T) -> SwitchBuilder<'a, 'b, 'f, A, K, T, [T; 2]> {
+        SwitchBuilder {
+            b: self.b,
+            key: self.key,
+            label: self.label,
+            name: self.name,
+            tooltip: self.tooltip,
+            current: self.current,
+            values: [off, on],
+            size: self.size,
+            track: self.track,
+            classes: self.classes,
+            enablement: self.enablement,
+            on_response: self.on_response,
+        }
+    }
+}
+
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T, V> SwitchBuilder<'a, 'b, 'f, A, K, T, V> {
     /// The accessible name, when it is not the label.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
@@ -100,30 +129,44 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SwitchBuilder<'a, 'b, 'f, A, K> {
         self
     }
 
-    /// Adds the switch, which flips the bool that `lens` picks out of the
-    /// application's state when it is toggled.
-    pub fn bind(self, lens: impl Fn(&mut A) -> &mut bool + Copy + 'static) {
-        self.on_toggle(move |app| {
-            let on = lens(app);
-            *on = !*on;
-        });
+    /// Runs `then` with the track's response each frame: the escape hatch for
+    /// what the builder does not offer, such as hover.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.on_response.set(then);
+        self
     }
+}
 
-    /// Adds the switch. `on_toggle` runs when the track or the label is
-    /// clicked, or the track is activated with Space or Enter.
-    pub fn on_toggle(self, on_toggle: impl Fn(&mut A) + Copy + 'static) {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key> SwitchBuilder<'a, 'b, 'f, A, K, bool> {
+    /// Adds the switch. `on_change` runs with the new value when the track or
+    /// the label is clicked, or the track is activated with Space or Enter.
+    pub fn on_change(self, on_change: impl Fn(&mut A, bool) + Copy + 'static) {
+        self.values(false, true).on_change(on_change);
+    }
+}
+
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
+    SwitchBuilder<'a, 'b, 'f, A, K, T, [T; 2]>
+{
+    /// Adds the switch. `on_change` runs with the new value when the track or
+    /// the label is clicked, or the track is activated with Space or Enter.
+    pub fn on_change(self, on_change: impl Fn(&mut A, T) + Copy + 'static) {
         let Self {
             b,
             key,
             label,
             name,
             tooltip,
-            mark,
+            current,
+            values: [off, on_value],
             size,
             track,
             classes: caller,
             enablement,
+            on_response,
         } = self;
+        let (mark, toggled) = flip([off, on_value], current);
+        let on_toggle = move |app: &mut A| on_change(app, toggled);
         let style = Style::of(b.ctx());
         let switch = &style.switch;
         let metrics = *switch.sizes.get(size);
@@ -167,9 +210,11 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key> SwitchBuilder<'a, 'b, 'f, A, K> {
                     Part::Track,
                     classes,
                     move |app, ui| {
-                        if described(ui, Role::Switch, Some(mark), &name, &tooltip).clicked() {
+                        let response = described(ui, Role::Switch, Some(mark), &name, &tooltip);
+                        if response.clicked() {
                             on_toggle(app);
                         }
+                        on_response.run(app, &response);
                     },
                     |b| {
                         b.paint(tw().w_full().h_full(), move |painter, rect, _| {

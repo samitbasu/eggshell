@@ -1,0 +1,101 @@
+//! The custom node: a leaf that hosts egui content of the application's own.
+
+use egui::{Role, Ui, WidgetInfo};
+use taffy::Size;
+
+use super::{OnResponse, Tip, tipped};
+use crate::{Builder, Measure, NodeUi as _, Tw, fill};
+
+type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
+
+/// An identified leaf that runs egui code in its own [`Ui`]. Start one with
+/// [`Builder::custom`] and finish it with [`ui`](Self::ui).
+///
+/// Its size comes from its classes unless [`measure`](Self::measure) gives
+/// the size of its content.
+///
+/// ```
+/// # use bullseye::{Builder, tw};
+/// struct App { angle: f32 }
+///
+/// fn view(b: &mut Builder<'_, '_, App>, _: &App) {
+///     b.custom("angle", tw().w_px(160.0).h_px(24.0))
+///         .named("Angle")
+///         .ui(|app, ui| {
+///             ui.add(egui::DragValue::new(&mut app.angle).suffix(" deg"));
+///         });
+/// }
+/// ```
+#[must_use = "a custom node is not added until you call `.ui(..)`"]
+pub struct CustomBuilder<'a, 'b, 'f, A, K> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
+    classes: Tw,
+    measure: Option<MeasureFn<'f>>,
+    name: Option<String>,
+    tooltip: Tip,
+    on_response: OnResponse<A>,
+}
+
+impl<'a, 'b, 'f, A: 'static, K: crate::Key> CustomBuilder<'a, 'b, 'f, A, K> {
+    pub(super) fn new(b: &'a mut Builder<'b, 'f, A>, key: K, classes: Tw) -> Self {
+        Self {
+            b,
+            key,
+            classes,
+            measure: None,
+            name: None,
+            tooltip: None,
+            on_response: OnResponse::default(),
+        }
+    }
+
+    /// Sizes the node from its content. `measure` may borrow application
+    /// data for the frame.
+    pub fn measure(mut self, measure: impl Fn(&Measure<'_>) -> Size<f32> + 'f) -> Self {
+        self.measure = Some(Box::new(measure));
+        self
+    }
+
+    /// The accessible name of the node.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Shown while the pointer hovers the node, as egui's `on_hover_text`
+    /// shows it.
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
+    /// Runs `then` with the node's response each frame.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.on_response.set(then);
+        self
+    }
+
+    /// Adds the node. `draw` runs at draw time in the node's own `Ui`, with
+    /// the application's state.
+    pub fn ui(self, draw: impl FnOnce(&mut A, &mut Ui) + 'static) {
+        let Self {
+            b,
+            key,
+            classes,
+            measure,
+            name,
+            tooltip,
+            on_response,
+        } = self;
+        let measure: MeasureFn<'f> = measure.unwrap_or_else(|| Box::new(fill));
+        b.leaf(key, classes, measure, move |app, ui| {
+            let response = tipped(ui.node_response(), &tooltip);
+            if let Some(name) = &name {
+                response.widget_info(|| WidgetInfo::labeled(Role::Unknown, ui.is_enabled(), name));
+            }
+            on_response.run(app, &response);
+            draw(app, ui);
+        });
+    }
+}

@@ -49,17 +49,16 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                     .on_click(move |app: &mut App| app.clicks.push(name.0.to_owned()));
             }
         }
-        b.button("toggle", "Toggle")
-            .toggle(app.toggled)
-            .on_click(|app: &mut App| app.toggled = !app.toggled);
+        b.toggle("toggle", "Toggle", app.toggled)
+            .on_change(|app: &mut App, toggled| app.toggled = toggled);
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
             b.checkbox(("check", enablement), "Accept terms", app.checked)
                 .enablement(enablement)
-                .bind(|app: &mut App| &mut app.checked);
+                .on_change(|app: &mut App, value| app.checked = value);
         }
         b.checkbox_unlabelled("bare", false)
             .named("Bare")
-            .on_toggle(|_: &mut App| {});
+            .on_change(|_: &mut App, _| {});
         b.button("menu", "Menu")
             .opens_popup()
             .on_click(|app: &mut App| app.clicks.push("menu".to_owned()));

@@ -49,11 +49,11 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
             b.checkbox_unlabelled("check", false)
                 .named("Check")
                 .tooltip("Tip for check")
-                .on_toggle(|_| {});
+                .on_change(|_, _| {});
             b.switch_unlabelled("switch", false)
                 .named("Switch")
                 .tooltip("Tip for switch")
-                .on_toggle(|_| {});
+                .on_change(|_, _| {});
             b.radio_group("radio", Pick::A, &PICKS)
                 .option_tooltip(Pick::B, "Tip for beta")
                 .on_change(|_, _| {});

@@ -11,11 +11,13 @@ fn dropped_without_a_terminator(b: &mut Builder<'_, '_, ()>) {
     b.select("select", 0, &[(0, "Zero")]);
     b.stepper("stepper", 1.0, 0.0..=9.0);
     b.text_field("field", "");
+    b.toggle("toggle", "Bold", false);
+    b.custom("custom", bullseye::tw());
 }
 
 fn terminated(b: &mut Builder<'_, '_, ()>) {
     b.button("button", "Save").add();
-    b.checkbox("checkbox", "Agree", false).on_toggle(|_| {});
+    b.checkbox("checkbox", "Agree", false).on_change(|_, _| {});
 }
 
 fn main() {}

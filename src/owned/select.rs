@@ -10,7 +10,7 @@ use egui::{
 };
 
 use super::number::{hold_keys, pressed};
-use super::{Chevron, Enablement, Tip, paint_check, paint_chevron, tipped};
+use super::{Chevron, Enablement, OnResponse, Tip, paint_check, paint_chevron, tipped};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 /// A trigger that shows the chosen option and opens the list of `options`,
@@ -38,6 +38,7 @@ pub struct SelectBuilder<'a, 'b, 'f, A, K, T> {
     tooltip: Tip,
     classes: Tw,
     enablement: Enablement,
+    on_response: OnResponse<A>,
 }
 
 impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
@@ -62,6 +63,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
+            on_response: OnResponse::default(),
         }
     }
 
@@ -84,6 +86,13 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
+        self
+    }
+
+    /// Runs `then` with the trigger's response each frame: the escape hatch for what the
+    /// builder does not offer, such as hover.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.on_response.set(then);
         self
     }
 
@@ -110,6 +119,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             tooltip,
             classes: caller,
             enablement,
+            on_response,
         } = self;
         let style = Style::of(b.ctx());
         let select = &style.select;
@@ -145,6 +155,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
                 if let Some(chosen) = list.show(ui, &response) {
                     choose(app, ui.ctx(), list.options[chosen].0);
                 }
+                on_response.run(app, &response);
                 let open = Popup::is_id_open(ui.ctx(), Popup::default_response_id(&response));
                 response.widget_info(|| WidgetInfo {
                     current_text_value: Some(list.shown().to_owned()),

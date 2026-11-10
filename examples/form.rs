@@ -220,11 +220,11 @@ fn switch(
     enablement: Enablement,
     label: &str,
     on: bool,
-    toggle: fn(&mut State),
+    set: fn(&mut State, bool),
 ) {
     b.switch(key, label, on)
         .enablement(enablement)
-        .on_toggle(toggle);
+        .on_change(set);
 }
 
 /// A toggle button: pressed while its mark is on, independent of the others.
@@ -352,7 +352,7 @@ fn notifications(b: &mut B<'_, '_>, state: &State) {
                     Enablement::Enabled,
                     "Email alerts",
                     state.email_alerts,
-                    |s| s.email_alerts = !s.email_alerts,
+                    |s, on| s.email_alerts = on,
                 );
                 switch(
                     b,
@@ -360,7 +360,7 @@ fn notifications(b: &mut B<'_, '_>, state: &State) {
                     Enablement::Enabled,
                     "Push notifications",
                     state.push_alerts,
-                    |s| s.push_alerts = !s.push_alerts,
+                    |s, on| s.push_alerts = on,
                 );
                 switch(
                     b,
@@ -368,7 +368,7 @@ fn notifications(b: &mut B<'_, '_>, state: &State) {
                     Enablement::Disabled,
                     "Beta features (unavailable)",
                     state.beta,
-                    |s| s.beta = !s.beta,
+                    |s, on| s.beta = on,
                 );
             });
         });

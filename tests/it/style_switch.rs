@@ -56,9 +56,9 @@ fn controls(b: &mut Builder<'_, '_, ()>) {
     b.div(tw().flex().flex_col().gap(2.0).w_px(400.0), |b| {
         b.button("button", "Save").add();
         b.checkbox("checkbox", "Agree", false)
-            .on_toggle(|_: &mut ()| {});
+            .on_change(|_: &mut (), _| {});
         b.switch("switch", "Alerts", false)
-            .on_toggle(|_: &mut ()| {});
+            .on_change(|_: &mut (), _| {});
         b.select("select", 0, &[(0, "One"), (1, "Two")])
             .on_change(|_: &mut (), _| {});
         b.slider("slider", 0.5, 0.0..=1.0)

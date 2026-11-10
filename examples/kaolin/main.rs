@@ -59,10 +59,9 @@ pub fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSour
                 .text(t.foreground),
             |b| {
                 for (index, (name, _)) in ENTRIES.into_iter().enumerate() {
-                    b.button(("entry", index), name)
-                        .toggle(index == selected)
+                    b.toggle(("entry", index), name, index == selected)
                         .classes(tw().w_full())
-                        .on_click(move |gallery: &mut Gallery| gallery.selected = index);
+                        .on_change(move |gallery: &mut Gallery, _| gallery.selected = index);
                 }
             },
         );

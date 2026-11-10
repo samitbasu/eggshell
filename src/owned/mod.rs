@@ -10,6 +10,7 @@
 
 mod button;
 mod checkbox;
+mod custom;
 mod number;
 mod radio;
 mod segmented;
@@ -17,10 +18,12 @@ mod select;
 mod slider;
 mod stepper;
 mod switch;
+mod toggle;
 
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
+use std::rc::Rc;
 use std::time::Duration;
 
 use egui::{
@@ -30,6 +33,7 @@ use egui::{
 
 pub use button::{ButtonBuilder, Face};
 pub use checkbox::CheckboxBuilder;
+pub use custom::CustomBuilder;
 pub use number::Step;
 pub use radio::RadioGroupBuilder;
 pub use segmented::{Cell, SegmentedBuilder};
@@ -37,6 +41,7 @@ pub use select::SelectBuilder;
 pub use slider::SliderBuilder;
 pub use stepper::StepperBuilder;
 pub use switch::SwitchBuilder;
+pub use toggle::ToggleBuilder;
 
 use crate::contract::{Colors, Disabled, Look, Paint, States, Style};
 use crate::{Builder, NodeUi as _, TextSpec, Tw, tw};
@@ -54,6 +59,22 @@ pub enum Mark {
 impl From<bool> for Mark {
     fn from(on: bool) -> Self {
         if on { Self::On } else { Self::Off }
+    }
+}
+
+/// The two values of a checkbox or switch, set with `values(off, on)`. A
+/// control over a `bool` that has not set them has [`Unset`] and means
+/// `false` and `true`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Unset;
+
+/// The mark of `current` among the two `[off, on]` values of a checkbox,
+/// switch or toggle, and the value a click moves to.
+fn flip<T: Copy + PartialEq>([off, on]: [T; 2], current: T) -> (Mark, T) {
+    if current == on {
+        (Mark::On, off)
+    } else {
+        (Mark::Off, on)
     }
 }
 
@@ -100,6 +121,98 @@ impl Enablement {
 /// `classes` with their content centred in both directions.
 fn centered(classes: Tw) -> Tw {
     classes.flex().items_center().justify_center()
+}
+
+/// What a control's [`on_response`](ButtonBuilder::on_response) runs with its
+/// response each frame, if it has one.
+pub(crate) struct OnResponse<A>(Option<Rc<ResponseFn<A>>>);
+
+type ResponseFn<A> = dyn Fn(&mut A, &Response);
+type Hook<A> = Option<Rc<dyn Fn(&mut A)>>;
+
+impl<A> Clone for OnResponse<A> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<A> Default for OnResponse<A> {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl<A> OnResponse<A> {
+    pub(crate) fn set(&mut self, then: impl Fn(&mut A, &Response) + 'static) {
+        self.0 = Some(Rc::new(then));
+    }
+
+    pub(crate) fn run(&self, app: &mut A, response: &Response) {
+        if let Some(then) = &self.0 {
+            then(app, response);
+        }
+    }
+}
+
+/// The hooks of a control that holds text, run after its field is shown.
+pub(crate) struct FieldHooks<A> {
+    pub(crate) response: OnResponse<A>,
+    submitted: Hook<A>,
+    blurred: Hook<A>,
+}
+
+impl<A> Clone for FieldHooks<A> {
+    fn clone(&self) -> Self {
+        Self {
+            response: self.response.clone(),
+            submitted: self.submitted.clone(),
+            blurred: self.blurred.clone(),
+        }
+    }
+}
+
+impl<A> Default for FieldHooks<A> {
+    fn default() -> Self {
+        Self {
+            response: OnResponse::default(),
+            submitted: None,
+            blurred: None,
+        }
+    }
+}
+
+impl<A> FieldHooks<A> {
+    pub(crate) fn submitted(&mut self, then: impl Fn(&mut A) + 'static) {
+        self.submitted = Some(Rc::new(then));
+    }
+
+    pub(crate) fn blurred(&mut self, then: impl Fn(&mut A) + 'static) {
+        self.blurred = Some(Rc::new(then));
+    }
+
+    /// Runs the hooks for the frame in which `response`, the field's, was
+    /// shown. egui reports a lost focus for two frames, so a blur is the
+    /// frame in which the focus the field had last frame is gone.
+    pub(crate) fn run(&self, app: &mut A, ui: &Ui, response: &Response) {
+        self.response.run(app, response);
+        if let Some(then) = &self.submitted
+            && response.lost_focus()
+            && ui.input(|input| input.key_pressed(egui::Key::Enter))
+        {
+            then(app);
+        }
+        let has_focus = response.has_focus();
+        let had_focus = ui.data_mut(|data| {
+            let slot = data.get_temp_mut_or_default::<bool>(response.id.with("had-focus"));
+            std::mem::replace(slot, has_focus)
+        });
+        if let Some(then) = &self.blurred
+            && had_focus
+            && !has_focus
+        {
+            then(app);
+        }
+    }
 }
 
 /// A control's tooltip, if it has one.
@@ -353,14 +466,15 @@ fn choice_label<A: 'static, K: crate::Key>(
 ///
 /// ```text
 /// b.button(Part::Save, "Save").variant(PRIMARY).on_click(|s| s.saves += 1);
-/// b.checkbox(Part::Terms, "I agree", s.terms).bind(|s| &mut s.terms);
+/// b.checkbox(Part::Terms, "I agree", s.terms).on_change(|s, agreed| s.terms = agreed);
 /// ```
 ///
-/// Configuration comes before the terminating call. A control that is
-/// started and dropped without one is not added, and the compiler warns.
-/// The terminators are `on_click` for a button, `bind` (or `on_toggle`) for a
-/// checkbox and a switch, and `on_change` for the controls that choose a
-/// value.
+/// Configuration and hooks (`on_response`, and `when_submitted` and
+/// `when_blurred` on a text field and a stepper) come before the terminating
+/// call. A control that is started and dropped without one is not added, and
+/// the compiler warns. Anything that only triggers finishes with `on_click` (a button), and
+/// anything that holds a value with `on_change`: it is passed the value
+/// the user chose, and the control shows the value it was built with.
 impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     /// A button showing `face`: a label, or an [`Icon`](crate::Icon) alone.
     pub fn button<K: crate::Key>(
@@ -371,42 +485,65 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         ButtonBuilder::new(self, key, face.into())
     }
 
-    /// A checkbox labelled `label`, ticked when `mark` is on.
-    pub fn checkbox<K: crate::Key>(
+    /// A toggle button showing `face` and `current`: a `bool`, or with
+    /// [`values`](ToggleBuilder::values) any two-valued type.
+    pub fn toggle<K: crate::Key, T: Copy + PartialEq + 'static>(
+        &mut self,
+        key: K,
+        face: impl Into<Face>,
+        current: T,
+    ) -> ToggleBuilder<'_, 'b, 'f, A, K, T> {
+        ToggleBuilder::new(self, key, face.into(), current)
+    }
+
+    /// A node that hosts custom egui content, sized by classes or by
+    /// [`measure`](CustomBuilder::measure).
+    pub fn custom<K: crate::Key>(
+        &mut self,
+        key: K,
+        classes: Tw,
+    ) -> CustomBuilder<'_, 'b, 'f, A, K> {
+        CustomBuilder::new(self, key, classes)
+    }
+
+    /// A checkbox labelled `label` that shows `current`: a `bool`, or with
+    /// [`values`](CheckboxBuilder::values) any two-valued type.
+    pub fn checkbox<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
         label: impl Into<String>,
-        mark: impl Into<Mark>,
-    ) -> CheckboxBuilder<'_, 'b, 'f, A, K> {
-        CheckboxBuilder::new(self, key, Some(label.into()), mark.into())
+        current: T,
+    ) -> CheckboxBuilder<'_, 'b, 'f, A, K, T> {
+        CheckboxBuilder::new(self, key, Some(label.into()), current)
     }
 
     /// A checkbox without a label.
-    pub fn checkbox_unlabelled<K: crate::Key>(
+    pub fn checkbox_unlabelled<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
-        mark: impl Into<Mark>,
-    ) -> CheckboxBuilder<'_, 'b, 'f, A, K> {
-        CheckboxBuilder::new(self, key, None, mark.into())
+        current: T,
+    ) -> CheckboxBuilder<'_, 'b, 'f, A, K, T> {
+        CheckboxBuilder::new(self, key, None, current)
     }
 
-    /// A switch labelled `label`, on when `mark` is.
-    pub fn switch<K: crate::Key>(
+    /// A switch labelled `label` that shows `current`: a `bool`, or with
+    /// [`values`](SwitchBuilder::values) any two-valued type.
+    pub fn switch<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
         label: impl Into<String>,
-        mark: impl Into<Mark>,
-    ) -> SwitchBuilder<'_, 'b, 'f, A, K> {
-        SwitchBuilder::new(self, key, Some(label.into()), mark.into())
+        current: T,
+    ) -> SwitchBuilder<'_, 'b, 'f, A, K, T> {
+        SwitchBuilder::new(self, key, Some(label.into()), current)
     }
 
     /// A switch without a label.
-    pub fn switch_unlabelled<K: crate::Key>(
+    pub fn switch_unlabelled<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
-        mark: impl Into<Mark>,
-    ) -> SwitchBuilder<'_, 'b, 'f, A, K> {
-        SwitchBuilder::new(self, key, None, mark.into())
+        current: T,
+    ) -> SwitchBuilder<'_, 'b, 'f, A, K, T> {
+        SwitchBuilder::new(self, key, None, current)
     }
 
     /// Radio buttons for `(value, label)` options, of which `current` is

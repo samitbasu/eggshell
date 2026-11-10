@@ -50,6 +50,14 @@
 //! Options come first. A control left without its terminating call is not
 //! added, and `#[must_use]` makes that a warning.
 //!
+//! Every control that holds a value is built with the value it shows, and its
+//! terminator is `on_change`, which receives the value the user chose: the
+//! application stores it, and the next frame shows it. A checkbox or switch
+//! over a `bool` needs nothing more; over another two-valued type it names
+//! the values. Hooks come before the terminator: `on_response` on every
+//! control, and `when_submitted` and `when_blurred` on a text field and a
+//! stepper.
+//!
 //! ```
 //! use bullseye::Builder;
 //!
@@ -60,8 +68,28 @@
 //!
 //! fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 //!     b.button(Part::Save, "Save").tooltip("Save the form").on_click(|app| app.saves += 1);
-//!     b.checkbox(Part::Terms, "I agree", app.terms).bind(|app| &mut app.terms);
+//!     b.checkbox(Part::Terms, "I agree", app.terms).on_change(|app, terms| app.terms = terms);
 //!     b.slider(Part::Volume, app.volume, 0.0..=1.0).on_change(|app, volume| app.volume = volume);
+//! }
+//! ```
+//!
+//! A two-valued enum works the same way:
+//!
+//! ```
+//! use bullseye::Builder;
+//!
+//! #[derive(Clone, Copy, PartialEq)]
+//! enum Mode { Light, Dark }
+//!
+//! struct App { mode: Mode, name: String }
+//!
+//! fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+//!     b.switch("dark", "Dark mode", app.mode)
+//!         .values(Mode::Light, Mode::Dark)
+//!         .on_change(|app, mode| app.mode = mode);
+//!     b.text_field("name", &app.name)
+//!         .when_submitted(|app| println!("hello {}", app.name))
+//!         .on_change(|app, name| app.name = name);
 //! }
 //! ```
 //!

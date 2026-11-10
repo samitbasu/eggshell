@@ -21,7 +21,7 @@ error: unused `CheckboxBuilder` that must be used
 6 |     b.checkbox("checkbox", "Agree", false);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = note: a checkbox is not added until you call `.bind(..)` or `.on_toggle(..)`
+  = note: a checkbox is not added until you call `.on_change(..)`
 help: use `let _ = ...` to ignore the resulting value
   |
 6 |     let _ = b.checkbox("checkbox", "Agree", false);
@@ -33,7 +33,7 @@ error: unused `SwitchBuilder` that must be used
 7 |     b.switch("switch", "Alerts", false);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = note: a switch is not added until you call `.bind(..)` or `.on_toggle(..)`
+  = note: a switch is not added until you call `.on_change(..)`
 help: use `let _ = ...` to ignore the resulting value
   |
 7 |     let _ = b.switch("switch", "Alerts", false);
@@ -105,8 +105,32 @@ error: unused `TextFieldBuilder` that must be used
 13 |     b.text_field("field", "");
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = note: a text field is not added until you call `.bind(..)`
+   = note: a text field is not added until you call `.on_change(..)`
 help: use `let _ = ...` to ignore the resulting value
    |
 13 |     let _ = b.text_field("field", "");
+   |     +++++++
+
+error: unused `ToggleBuilder` that must be used
+  --> tests/ui/widget_needs_a_terminator.rs:14:5
+   |
+14 |     b.toggle("toggle", "Bold", false);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: a toggle is not added until you call `.on_change(..)`
+help: use `let _ = ...` to ignore the resulting value
+   |
+14 |     let _ = b.toggle("toggle", "Bold", false);
+   |     +++++++
+
+error: unused `CustomBuilder` that must be used
+  --> tests/ui/widget_needs_a_terminator.rs:15:5
+   |
+15 |     b.custom("custom", bullseye::tw());
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: a custom node is not added until you call `.ui(..)`
+help: use `let _ = ...` to ignore the resulting value
+   |
+15 |     let _ = b.custom("custom", bullseye::tw());
    |     +++++++

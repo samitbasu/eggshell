@@ -7,7 +7,7 @@ use std::hash::Hash;
 use egui::{Context, Role};
 
 use super::Mark;
-use super::{Enablement, Tip, centered, described};
+use super::{Enablement, OnResponse, Tip, centered, described};
 use crate::{Builder, Icon, Style, Tw, none, tw};
 
 /// Whether a cell is the chosen one.
@@ -65,6 +65,7 @@ pub struct SegmentedBuilder<'a, 'b, 'f, A, K, T> {
     track: Tw,
     cells: Tw,
     custom: Option<Custom<'a>>,
+    on_response: OnResponse<A>,
 }
 
 /// The classes of the track and of each cell, given instead of read from the
@@ -110,6 +111,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             track: tw(),
             cells: tw(),
             custom: None,
+            on_response: OnResponse::default(),
         }
     }
 
@@ -173,6 +175,13 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
         self
     }
 
+    /// Runs `then` with the response of each cell each frame: the escape hatch for what the
+    /// builder does not offer, such as hover.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.on_response.set(then);
+        self
+    }
+
     /// Whether the control takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -197,9 +206,18 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             track,
             cells: caller,
             custom,
+            on_response,
         } = self;
         if let Some(Custom { track, cell }) = custom {
-            cells_in(b, key, (current, options), track, cell, tw(), select);
+            cells_in(
+                b,
+                key,
+                (current, options),
+                track,
+                cell,
+                tw(),
+                (select, on_response),
+            );
             return;
         }
         let style = Style::of(b.ctx());
@@ -241,7 +259,15 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             classes.merge(caller.clone())
         };
         let icon = tw().size_px(seg.icon_size);
-        cells_in(b, key, (current, options), container, cell, icon, select);
+        cells_in(
+            b,
+            key,
+            (current, options),
+            container,
+            cell,
+            icon,
+            (select, on_response),
+        );
     }
 }
 
@@ -252,7 +278,7 @@ fn cells_in<A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'sta
     container: Tw,
     cell: impl Fn(Cell) -> Tw,
     icon_classes: Tw,
-    select: impl Fn(&mut A, &Context, T) + Copy + 'static,
+    (select, on_response): (impl Fn(&mut A, &Context, T) + Copy + 'static, OnResponse<A>),
 ) {
     b.div_id(key, container, none, |b| {
         for Option_ {
@@ -269,13 +295,16 @@ fn cells_in<A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'sta
             };
             let classes = cell(state).sense_click();
             let name = label.clone();
-            let clicked = move |ui: &mut egui::Ui| {
+            let on_response = on_response.clone();
+            let clicked = move |app: &mut A, ui: &mut egui::Ui| {
                 let mark = Mark::from(state == Cell::Pressed);
-                described(ui, Role::RadioButton, Some(mark), &name, &tooltip).clicked()
+                let response = described(ui, Role::RadioButton, Some(mark), &name, &tooltip);
+                on_response.run(app, &response);
+                response.clicked()
             };
             match icon {
                 None => b.span(value, classes, label, move |app, ui| {
-                    if clicked(ui) {
+                    if clicked(app, ui) {
                         select(app, ui.ctx(), value);
                     }
                 }),
@@ -283,7 +312,7 @@ fn cells_in<A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'sta
                     value,
                     classes,
                     move |app, ui| {
-                        if clicked(ui) {
+                        if clicked(app, ui) {
                             select(app, ui.ctx(), value);
                         }
                     },

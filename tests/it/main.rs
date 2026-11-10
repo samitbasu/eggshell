@@ -40,4 +40,5 @@ mod theme_toggle;
 mod themed_examples;
 mod todo_demo;
 mod tooltips;
+mod value_widgets;
 mod widgets;

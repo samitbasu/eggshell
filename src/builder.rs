@@ -166,8 +166,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// An identified leaf whose size comes from `measure` and which draws itself.
     ///
     /// `measure` may borrow application data for the frame and is dropped when
-    /// layout returns; use [`fill`](crate::fill) for leaves sized by classes.
-    pub fn leaf<K: Key>(
+    /// layout returns; [`fill`](crate::fill) sizes a leaf by classes.
+    pub(crate) fn leaf<K: Key>(
         &mut self,
         key: K,
         tw: Tw,

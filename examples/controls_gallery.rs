@@ -435,11 +435,9 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
             let text = state.field_single.clone();
             let field = Field::singleline(&text).hint(label);
             let measured = field.clone();
-            b.leaf(
-                control,
-                fill,
-                move |m| text_field::measure(m, &measured),
-                move |s, ui| {
+            b.custom(control, fill)
+                .measure(move |m| text_field::measure(m, &measured))
+                .ui(move |s, ui| {
                     observed(
                         s,
                         ui,
@@ -450,18 +448,15 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                         },
                         |ui, width| natural_edit(ui, &text, Lines::Single, width, Some(label)).rect,
                     );
-                },
-            );
+                });
         }
         Control::FieldMulti => {
             let text = state.field_multi.clone();
             let field = Field::multiline(&text, 1).max_rows(FIELD_ROWS).named(label);
             let measured = field.clone();
-            b.leaf(
-                control,
-                fill,
-                move |m| text_field::measure(m, &measured),
-                move |s, ui| {
+            b.custom(control, fill)
+                .measure(move |m| text_field::measure(m, &measured))
+                .ui(move |s, ui| {
                     observed(
                         s,
                         ui,
@@ -472,8 +467,7 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                         },
                         |ui, width| natural_edit(ui, &text, ONE_ROW, width, None).rect,
                     );
-                },
-            );
+                });
         }
     }
 }
@@ -762,15 +756,13 @@ fn buttons_section(b: &mut B<'_, '_>, state: &State) {
             }
         }
         row(b, "toggle", |b| {
-            b.button("toggle", "Toggle")
-                .toggle(state.owned_toggled)
-                .on_click(|s: &mut State| s.owned_toggled = !s.owned_toggled);
+            b.toggle("toggle", "Toggle", state.owned_toggled)
+                .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
         });
         row(b, "toggle, armed", |b| {
-            b.button("armed", "Armed")
-                .toggle(state.owned_toggled)
+            b.toggle("armed", "Armed", state.owned_toggled)
                 .variant(ARMED)
-                .on_click(|s: &mut State| s.owned_toggled = !s.owned_toggled);
+                .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
         });
         row(b, "icon and label", |b| {
             let plus = glyphs::icon(b.ctx(), Glyph::Plus);
@@ -790,11 +782,10 @@ fn buttons_section(b: &mut B<'_, '_>, state: &State) {
                         .on_click(|s: &mut State| s.owned_clicks += 1);
                 }
                 let sun = glyphs::icon(b.ctx(), Glyph::Sun);
-                b.button("icon-toggle", sun)
-                    .toggle(state.owned_toggled)
+                b.toggle("icon-toggle", sun, state.owned_toggled)
                     .named("Bright")
                     .size(size::ICON)
-                    .on_click(|s: &mut State| s.owned_toggled = !s.owned_toggled);
+                    .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
             });
         });
     });
@@ -811,7 +802,7 @@ fn choices_section(b: &mut B<'_, '_>, state: &State) {
                     state.owned_checked,
                 )
                 .enablement(enablement)
-                .bind(|s: &mut State| &mut s.owned_checked);
+                .on_change(|s: &mut State, checked| s.owned_checked = checked);
             });
         }
         row(b, "radio group", |b| {
@@ -826,7 +817,7 @@ fn choices_section(b: &mut B<'_, '_>, state: &State) {
             row(b, &named("switch", enablement), |b| {
                 b.switch(("switch", enablement), "Airplane mode", state.on)
                     .enablement(enablement)
-                    .bind(|s: &mut State| &mut s.on);
+                    .on_change(|s: &mut State, on| s.on = on);
             });
         }
         row(b, "segmented", |b| {
