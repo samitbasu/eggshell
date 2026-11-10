@@ -157,6 +157,7 @@
 //!   translucent.
 
 mod builder;
+mod continuity;
 pub mod contract;
 mod debug;
 mod draw;
