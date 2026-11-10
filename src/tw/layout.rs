@@ -8,6 +8,10 @@ use taffy::style_helpers::{FromLength, FromPercent, TaffyAuto, TaffyZero as _};
 
 use super::{SPACE_UNIT, Tw};
 
+/// How far an inexact fraction is taken short: a millionth, under a
+/// thousandth of a point across any realistic container.
+const FRACTION_MARGIN: f64 = 1e-6;
+
 /// A length as written in a class: `p-4`, `w-px`, `w-1/2`, `w-auto`.
 #[derive(Clone, Copy)]
 enum Len {
@@ -21,8 +25,17 @@ impl Len {
         Self::Points(units * SPACE_UNIT)
     }
 
+    /// A fraction that `f32` can't hold exactly (`1/3`) is taken a hair
+    /// short, as a browser's fixed-point layout units round it, so that `n`
+    /// items of `w-1/n` never add up to more than their container and wrap.
     fn fraction(numerator: f32, denominator: f32) -> Self {
-        Self::Fraction(numerator / denominator)
+        let exact = f64::from(numerator) / f64::from(denominator);
+        let nearest = exact as f32;
+        if f64::from(nearest) == exact {
+            Self::Fraction(nearest)
+        } else {
+            Self::Fraction((exact * (1.0 - FRACTION_MARGIN)) as f32)
+        }
     }
 
     fn to<T: FromLength + FromPercent + TaffyAuto>(self) -> T {
@@ -517,7 +530,10 @@ pub(crate) mod tests {
         expect(tw().h(2.0), |s| s.size.height = px(8.0));
         expect(tw().h_px(100.0), |s| s.size.height = px(100.0));
         expect(tw().h_frac(1.0, 3.0), |s| {
-            s.size.height = Dimension::percent(1.0 / 3.0)
+            s.size.height = Dimension::percent((1.0_f64 / 3.0 * (1.0 - FRACTION_MARGIN)) as f32)
+        });
+        expect(tw().h_frac(1.0, 2.0), |s| {
+            s.size.height = Dimension::percent(0.5)
         });
         expect(tw().h_full(), |s| s.size.height = Dimension::percent(1.0));
         expect(tw().h_px(1.0).h_auto(), |_| {});
