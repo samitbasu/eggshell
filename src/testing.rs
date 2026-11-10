@@ -40,7 +40,8 @@ use std::fmt::Write as _;
 use egui::{Id, Rect, Theme, Vec2};
 
 use crate::key::{Key, child_id, root_id};
-use crate::pipeline::{LayoutState, Placed, PlacedNode};
+pub use crate::pipeline::Placed;
+use crate::pipeline::{LayoutState, PlacedNode};
 use crate::prim::Prim;
 use crate::{Builder, TextStyle};
 
@@ -114,11 +115,20 @@ impl Headless {
     }
 
     /// Builds and lays out `view` of `app`; nothing is drawn.
-    pub fn layout<A>(&mut self, app: &A, view: impl Fn(&mut Builder<'_, '_, A>, &A)) -> Placed<A> {
+    ///
+    /// `view` gets `app` for the frame's lifetime `'f`, as an application's
+    /// own root does, so it may hand borrows of `app` to the nodes it builds.
+    pub fn layout<A>(
+        &mut self,
+        app: &A,
+        view: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>, &'f A),
+    ) -> Placed<A> {
         self.warm_up();
         let area = Rect::from_min_size(egui::Pos2::ZERO, self.size);
+        let mut view = Some(view);
         let mut placed = None;
         self.pass(|ctx| {
+            let view = view.take().expect("a layout runs one pass");
             let mut state = LayoutState::new();
             state.set_base_text(self.base_text.clone());
             placed = Some(state.build(ctx, |b| view(b, app)).layout(area));
