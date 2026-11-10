@@ -133,9 +133,9 @@ enum Lift {
     No,
     /// In its slot, dimmed: the chip is the drag image.
     Dim,
-    /// The node itself is painted on the drag layer, offset from its slot;
-    /// the slot shows an outline.
-    Live(egui::Vec2),
+    /// The node itself is painted on the drag layer, centred on this screen
+    /// point (the pointer, less the grab); the slot shows an outline.
+    Live(egui::Pos2),
 }
 
 fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, cols: usize, lift: Lift) {
@@ -151,7 +151,7 @@ fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, cols: usize, lift:
         Lift::Live(_) => outer.rounded_md().border(2.0).border_color(t.ring),
     };
     let face = match lift {
-        Lift::Live(by) => tw().paint_layer(PaintLayer::Drag).translate(by.x, by.y),
+        Lift::Live(at) => tw().paint_layer(PaintLayer::Drag).paint_centered_at(at),
         _ => tw(),
     };
     b.div_id(key, outer, |b| {
@@ -265,13 +265,10 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
                 let lift = match (held == Some(*key), state.image, &state.gesture) {
                     (false, ..) => Lift::No,
                     (true, Image::Chip, _) => Lift::Dim,
-                    (true, Image::Ghost, gesture) => {
-                        let slot = state.rects.get(key).map(|r| r.center());
-                        match (pointer, slot, gesture) {
-                            (Some(p), Some(slot), Some(g)) => Lift::Live(p - g.grab - slot),
-                            _ => Lift::No,
-                        }
-                    }
+                    (true, Image::Ghost, gesture) => match (pointer, gesture) {
+                        (Some(p), Some(g)) => Lift::Live(p - g.grab),
+                        _ => Lift::No,
+                    },
                 };
                 cell(b, *key, label, state.cols, lift);
             }

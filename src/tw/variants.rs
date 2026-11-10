@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use egui::{Color32, Sense, Shadow, Vec2};
+use egui::{Color32, Pos2, Sense, Shadow, Vec2};
 
 use super::{BoxPaint, Easing, Opacity, Progress, Ring, Sides, Tw};
 use crate::text::TextDecoration;
@@ -322,6 +322,7 @@ pub(crate) struct Variants {
     pub(crate) easing: Easing,
     pub(crate) layer: PaintLayer,
     pub(crate) offset: Option<Vec2>,
+    pub(crate) anchor: Option<Pos2>,
 }
 
 /// Which egui layer a node and its subtree are painted on.
@@ -357,6 +358,7 @@ impl Variants {
                 other.layer
             },
             offset: other.offset.or(self.offset),
+            anchor: other.anchor.or(self.anchor),
             easing: if other.easing == Easing::Default {
                 self.easing
             } else {
@@ -516,6 +518,16 @@ impl Tw {
         self
     }
 
+    /// Paints the node and its subtree centred on the screen point `at`,
+    /// wherever layout puts it this frame: the offset is taken from this
+    /// frame's rect when the node is drawn, so it cannot lag a frame behind
+    /// a node whose slot moves (a dragged item in a live reorder). Layout and
+    /// hit rects stay. Needs an identified node.
+    pub fn paint_centered_at(mut self, at: Pos2) -> Self {
+        self.variants.anchor = Some(at);
+        self
+    }
+
     /// `ease-linear`: the transition's timing function is `linear`.
     ///
     /// ```html
@@ -575,6 +587,7 @@ impl Tw {
             || self.variants.animate_layout.is_some()
             || self.variants.layer != PaintLayer::Flow
             || self.variants.offset.is_some()
+            || self.variants.anchor.is_some()
     }
 }
 

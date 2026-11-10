@@ -568,3 +568,41 @@ fn on_release_the_panel_is_opaque_in_its_slot_with_no_flash() {
         "the dropped panel's face sits at its slot on the release frame"
     );
 }
+
+/// The lifted panel is centred where the pointer puts it on every frame,
+/// including the frame its slot moves in the live reorder: its offset comes
+/// from this frame's layout, not last frame's slot. Its trace spans its full
+/// width, so the trace's horizontal centre is the panel's.
+#[test]
+fn the_lifted_panel_never_lags_its_slot_when_the_order_changes() {
+    let mut h = harness(3);
+    lift(&mut h, 2);
+    let start = h.ctx.pointer_latest_pos().expect("a pointer");
+    let centre_x = |h: &H<'_>, near: Pos2| {
+        let trace = trace_near(h, near);
+        (trace[0].x + trace[trace.len() - 1].x) / 2.0
+    };
+    let grab_x = start.x - centre_x(&h, start);
+    let target = rect(&h, 1).center() - vec2(rect(&h, 1).width() / 4.0, 0.0);
+    assert!(
+        target.x < start.x - rect(&h, 1).width() / 2.0,
+        "precondition: the walk crosses into column 2"
+    );
+    let mut reordered = false;
+    for step in 1..=20 {
+        let at = start + (target - start) * (step as f32 / 20.0);
+        h.hover_at(at);
+        h.step();
+        reordered |= order(&h)[1] == 2;
+        let painted = centre_x(&h, at);
+        assert!(
+            (painted - (at.x - grab_x)).abs() < 1.5,
+            "step {step}: the lifted panel is centred at x={painted}, not under the pointer at x={}",
+            at.x - grab_x
+        );
+    }
+    assert!(
+        reordered,
+        "precondition: the walk reordered the panel into column 2"
+    );
+}

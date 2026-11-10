@@ -606,7 +606,12 @@ impl<A> Walk<'_, A> {
             ),
             _ => Vec2::ZERO,
         };
-        let translate = look.translate + interaction.variants.offset.unwrap_or(Vec2::ZERO) + slide;
+        let anchored = interaction
+            .variants
+            .anchor
+            .map_or(Vec2::ZERO, |at| at - node.rect().center());
+        let translate =
+            look.translate + interaction.variants.offset.unwrap_or(Vec2::ZERO) + anchored + slide;
         let lifted = interaction.variants.layer == PaintLayer::Drag;
         let moved_from = (translate != Vec2::ZERO || lifted).then(|| self.next_shape());
         paint_box(
