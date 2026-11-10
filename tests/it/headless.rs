@@ -343,3 +343,31 @@ fn choosing_a_card_changes_only_its_check() {
         );
     }
 }
+
+/// An application whose root hands its nodes borrows that live for the
+/// frame, the usual shape of a real view (`fn build<'f>(&'f self, ..)`).
+struct Labelled {
+    label: String,
+}
+
+impl Labelled {
+    fn build<'f>(&'f self, b: &mut Builder<'_, 'f, Labelled>) {
+        let label: &'f str = &self.label;
+        b.custom("sized", tw())
+            .measure(move |m| m.text_size(label))
+            .ui(|_, _| {});
+    }
+}
+
+#[test]
+fn a_view_may_lend_the_app_to_its_nodes_for_the_frame() {
+    let app = Labelled {
+        label: "Telemetry".to_owned(),
+    };
+    let mut headless = Headless::new(SIZE).prepare(Shadcn::apply_both);
+    let placed: bullseye::testing::Placed<Labelled> = headless.layout(&app, |b, app| app.build(b));
+    assert!(
+        placed.at("sized").rect().width() > 0.0,
+        "the measure closure borrowed the label and sized the node from it"
+    );
+}
