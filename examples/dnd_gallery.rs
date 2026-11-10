@@ -3,7 +3,7 @@
 //! panels reflowing across rows; the drag image is the panel's own painted
 //! shapes. Image files dropped from the OS insert a panel at the pointer. Near
 //! the top or bottom of the viewport a drag scrolls. 1/2/3 set the columns,
-//! G swaps the ghost for a chip, Esc cancels.
+//! G swaps the live drag image for a chip, Esc cancels.
 //!
 //! The scroll area is egui's `ScrollArea` hosting the bullseye subtree; see
 //! docs/dnd.md for what a native container has to offer instead.
@@ -32,7 +32,7 @@ pub struct PanelKey(pub u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Image {
     Chip,
-    Ghost,
+    Live,
 }
 
 pub struct Gesture {
@@ -64,7 +64,7 @@ impl Default for State {
         let mut s = Self {
             panels: Vec::new(),
             cols: 3,
-            image: Image::Ghost,
+            image: Image::Live,
             gesture: None,
             rects: HashMap::new(),
             origin: Pos2::ZERO,
@@ -265,7 +265,7 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
                 let lift = match (held == Some(*key), state.image, &state.gesture) {
                     (false, ..) => Lift::No,
                     (true, Image::Chip, _) => Lift::Dim,
-                    (true, Image::Ghost, gesture) => match (pointer, gesture) {
+                    (true, Image::Live, gesture) => match (pointer, gesture) {
                         (Some(p), Some(g)) => Lift::Live(p - g.grab),
                         _ => Lift::No,
                     },
@@ -389,7 +389,7 @@ pub fn update(ui: &mut Ui, app: &mut State) {
     }
 }
 
-/// The chip; the ghost is the lifted node itself, painted by `draw`.
+/// The chip; the live image is the lifted node itself, painted by `draw`.
 pub fn drag_image(ctx: &Context, app: &State) {
     let (Some(pos), Some(key), Some(_)) = (ctx.pointer_interact_pos(), dragged(ctx), &app.gesture)
     else {
@@ -439,7 +439,7 @@ pub const GRID: &str = "/\"grid\"";
 /// ```html
 /// <div class="flex items-center gap-3 px-3 h-11 border-b">
 ///   <span>Columns</span> <div role="radiogroup">1 2 3</div>
-///   <div role="radiogroup">Ghost Chip</div>
+///   <div role="radiogroup">Live Chip</div>
 /// </div>
 /// ```
 pub fn toolbar(b: &mut B<'_, '_, State>, state: &State) {
@@ -461,7 +461,7 @@ pub fn toolbar(b: &mut B<'_, '_, State>, state: &State) {
             b.segmented(
                 "image",
                 state.image,
-                [(Image::Ghost, "Ghost"), (Image::Chip, "Chip")],
+                [(Image::Live, "Live"), (Image::Chip, "Chip")],
             )
             .on_change(|state: &mut State, image| state.image = image);
         },
@@ -485,8 +485,8 @@ fn main() -> eframe::Result {
         }
         if ctx.input(|i| i.key_pressed(Key::G)) {
             state.image = match state.image {
-                Image::Chip => Image::Ghost,
-                Image::Ghost => Image::Chip,
+                Image::Chip => Image::Live,
+                Image::Live => Image::Chip,
             };
         }
         egui::Panel::top("gallery_toolbar")
