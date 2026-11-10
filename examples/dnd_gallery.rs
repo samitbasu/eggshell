@@ -155,12 +155,67 @@ fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, cols: usize, lifte
                     .rounded_md()
                     .border(1.0)
                     .border_color(t.input)
-                    .bg(t.muted),
-                |b| b.text(tw(), label),
-            )
+                    .bg(t.muted)
+                    .text(t.foreground),
+                |b| {
+                    b.div(
+                        tw().flex().flex_col().gap(1.0).p(2.0).w_full().h_full(),
+                        |b| {
+                            let now = b.ctx().input(|i| i.time);
+                            b.div(tw().flex().justify_between().items_center(), |b| {
+                                b.text(tw().role(common::sized(12.0)), label);
+                                b.text(
+                                    tw().role(common::sized(12.0)).text(t.muted_foreground),
+                                    format!("{:+.2}", channel(key, now, 1.0)),
+                                );
+                            });
+                            trace(b, key, t.primary, t.border);
+                        },
+                    );
+                },
+            );
         },
     )
     .on_response(move |app, r| source(app, r, key));
+}
+
+/// A telemetry channel's value at `time` seconds, `x` from 0 (oldest) to 1
+/// (now): a few sines whose frequencies differ per panel.
+fn channel(key: PanelKey, time: f64, x: f32) -> f32 {
+    let seed = key.0 as f32;
+    let t = time as f32 - (1.0 - x) * 2.0;
+    0.55 * (t * (1.3 + 0.37 * seed)).sin()
+        + 0.30 * (t * (3.1 + 0.53 * seed) + seed).sin()
+        + 0.15 * (t * (7.7 + 0.11 * seed) + 2.0 * seed).sin()
+}
+
+/// The last two seconds of the channel, scrolling left, drawn as a 2 pt line
+/// over a hairline zero baseline.
+fn trace(b: &mut B<'_, '_, State>, key: PanelKey, line: egui::Color32, baseline: egui::Color32) {
+    const POINTS: usize = 64;
+    b.custom("trace", tw().w_full().grow())
+        .ui(move |_: &mut State, ui| {
+            let rect = ui.max_rect();
+            let now = ui.input(|i| i.time);
+            let painter = ui.painter();
+            painter.hline(
+                rect.x_range(),
+                rect.center().y,
+                egui::Stroke::new(1.0, baseline),
+            );
+            let points: Vec<Pos2> = (0..POINTS)
+                .map(|i| {
+                    let x = i as f32 / (POINTS - 1) as f32;
+                    let y = channel(key, now, x);
+                    egui::pos2(
+                        rect.lerp_inside(vec2(x, 0.5)).x,
+                        rect.center().y - y * rect.height() * 0.45,
+                    )
+                })
+                .collect();
+            painter.add(egui::Shape::line(points, egui::Stroke::new(2.0, line)));
+            ui.ctx().request_repaint();
+        });
 }
 
 fn placeholder(b: &mut B<'_, '_, State>, cols: usize) {
