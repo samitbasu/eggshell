@@ -93,6 +93,53 @@
 //! }
 //! ```
 //!
+//! A radio group, a segmented control or a select takes its options as any
+//! iterator of things that convert to a [`Choice`](owned::Choice) (see
+//! [`IntoChoice`](owned::IntoChoice)), so the options need not be collected
+//! into a `Vec` each frame. A value that is `Display`, a reference to one, a
+//! pair, a triple with an icon and a `Choice` (for a tooltip or a disabled
+//! option) all do:
+//!
+//! ```
+//! use std::fmt;
+//! use bullseye::Builder;
+//! use bullseye::owned::{Choice, Enablement};
+//!
+//! #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+//! enum Unit { Metric, Imperial }
+//!
+//! impl fmt::Display for Unit {
+//!     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//!         write!(f, "{self:?}")
+//!     }
+//! }
+//!
+//! impl Unit {
+//!     const ALL: &[Self] = &[Self::Metric, Self::Imperial];
+//! }
+//!
+//! struct App { unit: Unit }
+//!
+//! fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+//!     // `&T` with `T: Display`, labelled by its `Display`
+//!     b.radio_group("radio", app.unit, Unit::ALL)
+//!         .on_change(|app, unit| app.unit = unit);
+//!     // `(value, label)`
+//!     b.segmented("seg", app.unit, [(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")])
+//!         .on_change(|app, unit| app.unit = unit);
+//!     // `Choice`: a tooltip, an icon, a disabled option
+//!     b.select(
+//!         "select",
+//!         app.unit,
+//!         [
+//!             Choice::new(Unit::Metric, "Metric").tooltip("Kilometres"),
+//!             Choice::new(Unit::Imperial, "Imperial").enablement(Enablement::Disabled),
+//!         ],
+//!     )
+//!     .on_change(|app, unit| app.unit = unit);
+//! }
+//! ```
+//!
 //! # Differences from CSS
 //!
 //! egui paints shapes one at a time into rectangular clip rects, so three

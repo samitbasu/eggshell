@@ -42,25 +42,25 @@ help: use `let _ = ...` to ignore the resulting value
 error: unused `RadioGroupBuilder` that must be used
  --> tests/ui/widget_needs_a_terminator.rs:8:5
   |
-8 |     b.radio_group("radio", 0, &[(0, "Zero")]);
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+8 |     b.radio_group("radio", 0, [(0, "Zero")]);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: a radio group is not added until you call `.on_change(..)`
 help: use `let _ = ...` to ignore the resulting value
   |
-8 |     let _ = b.radio_group("radio", 0, &[(0, "Zero")]);
+8 |     let _ = b.radio_group("radio", 0, [(0, "Zero")]);
   |     +++++++
 
 error: unused `SegmentedBuilder` that must be used
  --> tests/ui/widget_needs_a_terminator.rs:9:5
   |
-9 |     b.segmented("segmented", 0, &[(0, "Zero")]);
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+9 |     b.segmented("segmented", 0, [(0, "Zero")]);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: a segmented control is not added until you call `.on_change(..)`
 help: use `let _ = ...` to ignore the resulting value
   |
-9 |     let _ = b.segmented("segmented", 0, &[(0, "Zero")]);
+9 |     let _ = b.segmented("segmented", 0, [(0, "Zero")]);
   |     +++++++
 
 error: unused `SliderBuilder` that must be used
@@ -78,13 +78,13 @@ help: use `let _ = ...` to ignore the resulting value
 error: unused `SelectBuilder` that must be used
   --> tests/ui/widget_needs_a_terminator.rs:11:5
    |
-11 |     b.select("select", 0, &[(0, "Zero")]);
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+11 |     b.select("select", 0, [(0, "Zero")]);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: a select is not added until you call `.on_change(..)`
 help: use `let _ = ...` to ignore the resulting value
    |
-11 |     let _ = b.select("select", 0, &[(0, "Zero")]);
+11 |     let _ = b.select("select", 0, [(0, "Zero")]);
    |     +++++++
 
 error: unused `StepperBuilder` that must be used

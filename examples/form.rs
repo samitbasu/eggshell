@@ -206,8 +206,7 @@ fn choose(
     current: usize,
     lens: fn(&mut State) -> &mut usize,
 ) {
-    let options: Vec<(usize, &str)> = options.iter().copied().enumerate().collect();
-    b.select(key, current, &options)
+    b.select(key, current, options.iter().copied().enumerate())
         .named(name)
         .enablement(enablement)
         .classes(tw().w_px(FIELD_WIDTH))

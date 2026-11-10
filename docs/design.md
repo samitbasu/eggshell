@@ -215,10 +215,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub fn toggle(&mut self, key: K, face: impl Into<Face>, current: T) -> ToggleBuilder<T>; // [.values(off, on)] .on_change(|app, T|)
     pub fn checkbox(&mut self, key: K, label: impl Into<String>, current: T) -> CheckboxBuilder<T>; // [.values(off, on)] .on_change(|app, T|)
     pub fn switch(&mut self, key: K, label: impl Into<String>, current: T) -> SwitchBuilder<T>;     // [.values(off, on)] .on_change(|app, T|)
-    pub fn radio_group<T>(&mut self, key: K, current: T, options: &[(T, &str)]) -> RadioGroupBuilder;       // .on_change(f)
-    pub fn segmented<T>(&mut self, key: K, current: T, options: &[(T, &str)]) -> SegmentedBuilder;         // .on_change(f) | .on_change_with(f): f also gets &egui::Context
+    pub fn radio_group<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> RadioGroupBuilder; // .on_change(f)
+    pub fn segmented<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> SegmentedBuilder; // .on_change(f) | .on_change_with(f): f also gets &egui::Context
     pub fn slider(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> SliderBuilder;            // .on_change(f)
-    pub fn select<T>(&mut self, key: K, current: T, options: &[(T, &str)]) -> SelectBuilder;              // .on_change(f) | .on_change_with(f)
+    pub fn select<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> SelectBuilder; // .on_change(f) | .on_change_with(f)
     pub fn stepper(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> StepperBuilder;          // .on_change(f)
     pub fn text_field(&mut self, key: K, text: impl Into<String>) -> TextFieldBuilder;                    // .on_change(|app, String|); .when_submitted(f), .when_blurred(f)
 

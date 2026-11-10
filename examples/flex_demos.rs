@@ -272,12 +272,11 @@ fn nested_group(b: &mut B<'_, '_>, state: &State) {
 /// </div>
 /// ```
 fn content_group(b: &mut B<'_, '_>, state: &State) {
-    let options: Vec<(usize, &str)> = ANCHORS
+    let options = ANCHORS
         .iter()
         .enumerate()
-        .map(|(index, (name, _))| (index, *name))
-        .collect();
-    b.select(Part::Content, state.anchor, &options)
+        .map(|(index, (name, _))| (index, *name));
+    b.select(Part::Content, state.anchor, options)
         .named("Align self content")
         .on_change(|state: &mut State, anchor| state.anchor = anchor);
     let (_, place) = ANCHORS[state.anchor];

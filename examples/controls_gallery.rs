@@ -601,7 +601,7 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
 /// ```
 fn controls(b: &mut B<'_, '_>, state: &State) {
     common::captioned(b, "Section", |b| {
-        b.segmented("section", state.section, &Section::ALL)
+        b.segmented("section", state.section, Section::ALL)
             .on_change(|s: &mut State, section| s.section = section);
     });
     if state.section == Section::Cells {
@@ -809,7 +809,7 @@ fn choices_section(b: &mut B<'_, '_>, state: &State) {
             b.radio_group(
                 "radio",
                 state.owned_radio,
-                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+                [(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
             )
             .on_change(|s: &mut State, unit| s.owned_radio = unit);
         });
@@ -824,7 +824,7 @@ fn choices_section(b: &mut B<'_, '_>, state: &State) {
             b.segmented(
                 "segmented",
                 state.unit,
-                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+                [(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
             )
             .on_change(|s: &mut State, unit| s.unit = unit);
         });
@@ -836,10 +836,8 @@ fn choices_section(b: &mut B<'_, '_>, state: &State) {
             b.segmented(
                 "segmented-icons",
                 state.unit,
-                &[(Unit::Metric, "Light"), (Unit::Imperial, "Dark")],
+                [(Unit::Metric, sun, "Light"), (Unit::Imperial, moon, "Dark")],
             )
-            .icon(Unit::Metric, sun)
-            .icon(Unit::Imperial, moon)
             .on_change(|s: &mut State, unit| s.unit = unit);
         });
         row(b, "segmented, merged", |b| {
@@ -847,9 +845,11 @@ fn choices_section(b: &mut B<'_, '_>, state: &State) {
             b.segmented(
                 "segmented-merged",
                 state.unit,
-                &[(Unit::Metric, "Light"), (Unit::Imperial, "Dark")],
+                [
+                    owned::Choice::new(Unit::Metric, "Light").icon(monitor),
+                    owned::Choice::new(Unit::Imperial, "Dark"),
+                ],
             )
-            .icon(Unit::Metric, monitor)
             .track(tw().w_full())
             .cells(tw().flex_1())
             .on_change(|s: &mut State, unit| s.unit = unit);
@@ -870,7 +870,7 @@ fn values_section(b: &mut B<'_, '_>, state: &State) {
         }
         for enablement in ENABLEMENTS {
             row(b, &named("select", enablement), |b| {
-                b.select(("select", enablement), state.owned_select, &REGION_OPTIONS)
+                b.select(("select", enablement), state.owned_select, REGION_OPTIONS)
                     .named("Region")
                     .classes(tw().w_px(150.0))
                     .enablement(enablement)

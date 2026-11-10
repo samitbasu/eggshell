@@ -3,9 +3,10 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use egui::{Id, Key, Role, Ui, WidgetText};
+use egui::{Id, Key, Role, Ui};
 
 use super::Mark;
+use super::choice::{self, Choice, IntoChoice};
 use super::{Enablement, OnResponse, choice_label, choice_row, described, number};
 use crate::{Builder, Style, Tw, tw};
 
@@ -19,16 +20,16 @@ enum Part<T> {
 /// a group with [`Builder::radio_group`] and finish it with
 /// [`on_change`](Self::on_change).
 ///
-/// The group is one Tab stop, on the chosen option (the first when none is
-/// chosen), as in HTML. The arrow keys move the choice, and the focus with it,
-/// to the next or previous option, wrapping around; Tab leaves the group.
+/// The group is one Tab stop, on the chosen option (the first enabled one when
+/// none is chosen), as in HTML. The arrow keys move the choice, and the focus
+/// with it, to the next or previous enabled option, wrapping around; Tab
+/// leaves the group.
 #[must_use = "a radio group is not added until you call `.on_change(..)`"]
 pub struct RadioGroupBuilder<'a, 'b, 'f, A, K, T> {
     b: &'a mut Builder<'b, 'f, A>,
     key: K,
     current: T,
-    options: Vec<(T, String)>,
-    tooltips: Vec<(T, WidgetText)>,
+    options: Vec<Choice<T>>,
     classes: Tw,
     enablement: Enablement,
     on_response: OnResponse<A>,
@@ -37,23 +38,19 @@ pub struct RadioGroupBuilder<'a, 'b, 'f, A, K, T> {
 impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
     RadioGroupBuilder<'a, 'b, 'f, A, K, T>
 {
-    /// A group of `(value, label)` options of which `current` is chosen.
-    /// Values must be distinct.
-    pub(super) fn new(
+    /// A group of `options` of which `current` is chosen. Values must be
+    /// distinct.
+    pub(super) fn new<O: IntoChoice<T>>(
         b: &'a mut Builder<'b, 'f, A>,
         key: K,
         current: T,
-        options: &[(T, &str)],
+        options: impl IntoIterator<Item = O>,
     ) -> Self {
         Self {
             b,
             key,
             current,
-            options: options
-                .iter()
-                .map(|&(value, label)| (value, label.to_owned()))
-                .collect(),
-            tooltips: Vec::new(),
+            options: choice::collect(options),
             classes: tw(),
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
@@ -64,18 +61,6 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
     /// width or placement; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.classes = classes;
-        self
-    }
-
-    /// Shows `text` while the pointer hovers the circle of the option `value`,
-    /// as egui's `on_hover_text` does and also when the group is disabled. It
-    /// adds to the option's accessible name and does not replace it.
-    pub fn option_tooltip(mut self, value: T, text: impl Into<WidgetText>) -> Self {
-        debug_assert!(
-            self.options.iter().any(|&(option, _)| option == value),
-            "no option {value:?} to give a tooltip"
-        );
-        self.tooltips.push((value, text.into()));
         self
     }
 
@@ -100,18 +85,21 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             key,
             current,
             options,
-            tooltips,
             classes,
             enablement,
             on_response,
         } = self;
         let style = Style::of(b.ctx());
         let radio = &style.radio;
-        let values: Vec<T> = options.iter().map(|&(value, _)| value).collect();
-        let count = values.len();
-        let tab_stop = values
+        let values: Vec<T> = options.iter().map(|option| option.value).collect();
+        let enabled: Vec<bool> = options
             .iter()
-            .position(|&value| value == current)
+            .map(|option| enablement.and(option.enablement) == Enablement::Enabled)
+            .collect();
+        let count = values.len();
+        let tab_stop = (0..count)
+            .find(|&at| enabled[at] && values[at] == current)
+            .or_else(|| (0..count).find(|&at| enabled[at]))
             .unwrap_or(0);
         b.scope(key, |b| {
             let ids: Vec<_> = values
@@ -120,7 +108,15 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
                 .collect();
             let group = tw().flex().flex_col().gap(3.0).merge(classes);
             b.div(group, |b| {
-                for (index, (value, label)) in options.into_iter().enumerate() {
+                for (index, option) in options.into_iter().enumerate() {
+                    let Choice {
+                        value,
+                        label,
+                        tooltip,
+                        enablement: own,
+                        ..
+                    } = option;
+                    let enablement = enablement.and(own);
                     let chosen = value == current;
                     let look = if chosen { &radio.on } else { &radio.off };
                     let circle = look.indicator(
@@ -136,14 +132,12 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
                     } else {
                         circle.focusable_none()
                     };
-                    let tooltip = tooltips
-                        .iter()
-                        .find(|&&(option, _)| option == value)
-                        .map(|(_, text)| text.clone());
                     let on_response = on_response.clone();
                     let around = |offset: usize| {
-                        let at = (index + offset) % count;
-                        (values[at], ids[at])
+                        (1..count)
+                            .map(|step| (index + step * offset) % count)
+                            .find(|&at| enabled[at])
+                            .map(|at| (values[at], ids[at]))
                     };
                     let (previous, next) = (around(count - 1), around(1));
                     let dot = radio.dot;
@@ -207,18 +201,19 @@ fn navigate<A, T: Copy>(
     app: &mut A,
     ui: &Ui,
     select: impl Fn(&mut A, T),
-    previous: (T, Id),
-    next: (T, Id),
+    previous: Option<(T, Id)>,
+    next: Option<(T, Id)>,
 ) {
     number::hold_keys(ui, false);
     let pressed = |key| number::pressed(ui, key);
     let forward = pressed(Key::ArrowDown) | pressed(Key::ArrowRight);
     let backward = pressed(Key::ArrowUp) | pressed(Key::ArrowLeft);
-    let (value, id) = match (forward, backward) {
+    let target = match (forward, backward) {
         (true, false) => next,
         (false, true) => previous,
         _ => return,
     };
+    let Some((value, id)) = target else { return };
     select(app, value);
     ui.data_mut(|data| data.insert_temp(focus_request(), id));
     ui.ctx().request_repaint();

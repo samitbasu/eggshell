@@ -1,7 +1,7 @@
 //! Tooltips on the owned controls: shown through egui's `on_hover_text`,
 //! also when the control is disabled, and in addition to the accessible name.
 
-use bullseye::owned::Enablement;
+use bullseye::owned::{Choice, Enablement};
 use bullseye::{Builder, TextStyle, tw};
 use bullseye_shadcn::Tokens;
 use egui::{Theme, vec2};
@@ -54,17 +54,29 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
                 .named("Switch")
                 .tooltip("Tip for switch")
                 .on_change(|_, _| {});
-            b.radio_group("radio", Pick::A, &PICKS)
-                .option_tooltip(Pick::B, "Tip for beta")
-                .on_change(|_, _| {});
-            b.segmented("segmented", Pick::A, &PICKS)
-                .option_tooltip(Pick::B, "Tip for cell")
-                .on_change(|_, _| {});
+            b.radio_group(
+                "radio",
+                Pick::A,
+                [
+                    Choice::new(Pick::A, "Alpha"),
+                    Choice::new(Pick::B, "Beta").tooltip("Tip for beta"),
+                ],
+            )
+            .on_change(|_, _| {});
+            b.segmented(
+                "segmented",
+                Pick::A,
+                [
+                    Choice::new(Pick::A, "Alpha"),
+                    Choice::new(Pick::B, "Beta").tooltip("Tip for cell"),
+                ],
+            )
+            .on_change(|_, _| {});
             b.slider("slider", 50.0, 0.0..=100.0)
                 .named("Level")
                 .tooltip("Tip for slider")
                 .on_change(|_, _| {});
-            b.select("select", Pick::A, &PICKS)
+            b.select("select", Pick::A, PICKS)
                 .named("Pick")
                 .tooltip("Tip for select")
                 .classes(tw().w_px(120.0))

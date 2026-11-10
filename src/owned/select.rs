@@ -9,6 +9,7 @@ use egui::{
     Vec2, WidgetInfo, vec2,
 };
 
+use super::choice::{self, Choice, IntoChoice};
 use super::number::{hold_keys, pressed};
 use super::{Chevron, Enablement, OnResponse, Tip, paint_check, paint_chevron, tipped};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
@@ -33,7 +34,7 @@ pub struct SelectBuilder<'a, 'b, 'f, A, K, T> {
     b: &'a mut Builder<'b, 'f, A>,
     key: K,
     current: T,
-    options: Vec<(T, String)>,
+    options: Vec<Choice<T>>,
     name: Option<String>,
     tooltip: Tip,
     classes: Tw,
@@ -44,21 +45,18 @@ pub struct SelectBuilder<'a, 'b, 'f, A, K, T> {
 impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
     SelectBuilder<'a, 'b, 'f, A, K, T>
 {
-    /// A select over `(value, label)` options of which `current` is chosen.
-    pub(super) fn new(
+    /// A select over `options` of which `current` is chosen.
+    pub(super) fn new<O: IntoChoice<T>>(
         b: &'a mut Builder<'b, 'f, A>,
         key: K,
         current: T,
-        options: &[(T, &str)],
+        options: impl IntoIterator<Item = O>,
     ) -> Self {
         Self {
             b,
             key,
             current,
-            options: options
-                .iter()
-                .map(|&(value, label)| (value, label.to_owned()))
-                .collect(),
+            options: choice::collect(options),
             name: None,
             tooltip: None,
             classes: tw(),
@@ -137,8 +135,8 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             .whitespace_nowrap()
             .w_fit();
         let classes = enablement.fade(classes, &style).merge(caller);
-        let current = options.iter().position(|(value, _)| *value == chosen);
-        let shown = current.map_or_else(String::new, |at| options[at].1.clone());
+        let current = options.iter().position(|option| option.value == chosen);
+        let shown = current.map_or_else(String::new, |at| options[at].label.clone());
         let name = name.unwrap_or_default();
         let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let list = List {
@@ -153,7 +151,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             move |app, ui| {
                 let response = tipped(ui.node_response(), &tooltip);
                 if let Some(chosen) = list.show(ui, &response) {
-                    choose(app, ui.ctx(), list.options[chosen].0);
+                    choose(app, ui.ctx(), list.options[chosen].value);
                 }
                 on_response.run(app, &response);
                 let open = Popup::is_id_open(ui.ctx(), Popup::default_response_id(&response));
@@ -178,14 +176,43 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
 /// The options and what drives their popup.
 struct List<T> {
     style: std::sync::Arc<Style>,
-    options: Vec<(T, String)>,
+    options: Vec<Choice<T>>,
     current: Option<usize>,
     name: String,
 }
 
 impl<T> List<T> {
+    fn enabled(&self, at: usize) -> bool {
+        self.options[at].enablement == Enablement::Enabled
+    }
+
+    /// The nearest enabled option from `at` in the direction of `forward`,
+    /// or `at` when there is none.
+    fn step(&self, at: usize, forward: bool) -> usize {
+        let candidates: Vec<usize> = if forward {
+            (at + 1..self.options.len()).collect()
+        } else {
+            (0..at).rev().collect()
+        };
+        candidates
+            .into_iter()
+            .find(|&next| self.enabled(next))
+            .unwrap_or(at)
+    }
+
+    fn edge(&self, forward: bool) -> usize {
+        let mut all = 0..self.options.len();
+        let found = if forward {
+            all.rfind(|&at| self.enabled(at))
+        } else {
+            all.find(|&at| self.enabled(at))
+        };
+        found.unwrap_or(0)
+    }
+
     fn shown(&self) -> &str {
-        self.current.map_or("", |at| self.options[at].1.as_str())
+        self.current
+            .map_or("", |at| self.options[at].label.as_str())
     }
 
     /// Opens, drives and draws the popup under `trigger`; the option chosen
@@ -195,7 +222,6 @@ impl<T> List<T> {
         let popup_id = Popup::default_response_id(trigger);
         let highlight_id = popup_id.with("highlight");
         let open = Popup::is_id_open(ctx, popup_id);
-        let last = self.options.len().saturating_sub(1);
         let mut highlight = ctx
             .data(|data| data.get_temp::<usize>(highlight_id))
             .filter(|_| open)
@@ -207,16 +233,16 @@ impl<T> List<T> {
             hold_keys(ui, open);
             if open {
                 if pressed(ui, Key::ArrowDown) {
-                    highlight = (highlight + 1).min(last);
+                    highlight = self.step(highlight, true);
                 }
                 if pressed(ui, Key::ArrowUp) {
-                    highlight = highlight.saturating_sub(1);
+                    highlight = self.step(highlight, false);
                 }
                 if pressed(ui, Key::Home) {
-                    highlight = 0;
+                    highlight = self.edge(false);
                 }
                 if pressed(ui, Key::End) {
-                    highlight = last;
+                    highlight = self.edge(true);
                 }
             } else if pressed(ui, Key::ArrowDown) {
                 command = Some(SetOpenCommand::Bool(true));
@@ -224,6 +250,10 @@ impl<T> List<T> {
             }
         }
         let confirmed = open
+            && self
+                .options
+                .get(highlight)
+                .is_some_and(|_| self.enabled(highlight))
             && trigger.has_focus()
             && ui.input(|input| input.key_pressed(Key::Enter) || input.key_pressed(Key::Space));
         if confirmed {
@@ -268,15 +298,25 @@ impl<T> List<T> {
         let pad = select.item_padding;
         let height = text.line_height + 2.0 * pad.y;
         let mut clicked = None;
-        for (index, (_, label)) in self.options.iter().enumerate() {
+        for (index, option) in self.options.iter().enumerate() {
+            let label = &option.label;
+            let enabled = self.enabled(index);
+            let sense = if enabled {
+                Sense::click()
+            } else {
+                Sense::hover()
+            };
             let (rect, response) =
-                ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
+                ui.allocate_exact_size(vec2(ui.available_width(), height), sense);
+            let response = tipped(response, &option.tooltip);
             let moved = ui.input(|input| input.pointer.delta() != Vec2::ZERO);
-            if response.hovered() && moved {
+            if enabled && response.hovered() && moved {
                 *highlight = index;
             }
             let chosen = Some(index) == self.current;
-            let colors = if *highlight == index {
+            let colors = if !enabled {
+                item.paint.states.disabled
+            } else if *highlight == index {
                 item.paint.states.hover
             } else {
                 item.paint.states.rest
@@ -294,8 +334,9 @@ impl<T> List<T> {
                 );
                 paint_check(painter, mark, colors.text);
             }
-            response.widget_info(|| WidgetInfo::selected(Role::ListBoxOption, true, chosen, label));
-            if response.clicked() {
+            response
+                .widget_info(|| WidgetInfo::selected(Role::ListBoxOption, enabled, chosen, label));
+            if enabled && response.clicked() {
                 clicked = Some(index);
             }
         }

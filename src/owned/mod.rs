@@ -10,6 +10,7 @@
 
 mod button;
 mod checkbox;
+mod choice;
 mod custom;
 mod number;
 mod radio;
@@ -33,6 +34,7 @@ use egui::{
 
 pub use button::{ButtonBuilder, Face};
 pub use checkbox::CheckboxBuilder;
+pub use choice::{Choice, IntoChoice};
 pub use custom::CustomBuilder;
 pub use number::Step;
 pub use radio::RadioGroupBuilder;
@@ -105,6 +107,14 @@ impl Enablement {
         match (self, style.disabled) {
             (Self::Disabled, Disabled::Faded(opacity)) => classes.opacity(opacity),
             _ => classes,
+        }
+    }
+
+    /// Disabled if either is.
+    pub(crate) fn and(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Enabled, Self::Enabled) => Self::Enabled,
+            _ => Self::Disabled,
         }
     }
 
@@ -546,24 +556,32 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         SwitchBuilder::new(self, key, None, current)
     }
 
-    /// Radio buttons for `(value, label)` options, of which `current` is
-    /// chosen. Values must be distinct.
-    pub fn radio_group<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
+    /// Radio buttons for `options` (anything [`IntoChoice`]), of which
+    /// `current` is chosen. Values must be distinct.
+    pub fn radio_group<
+        K: crate::Key,
+        T: Copy + PartialEq + Hash + Debug + 'static,
+        O: IntoChoice<T>,
+    >(
         &mut self,
         key: K,
         current: T,
-        options: &[(T, &str)],
+        options: impl IntoIterator<Item = O>,
     ) -> RadioGroupBuilder<'_, 'b, 'f, A, K, T> {
         RadioGroupBuilder::new(self, key, current, options)
     }
 
-    /// A segmented control over `(value, label)` options, of which `current`
-    /// is selected. Values must be distinct.
-    pub fn segmented<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
+    /// A segmented control over `options` (anything [`IntoChoice`]), of which
+    /// `current` is selected. Values must be distinct.
+    pub fn segmented<
+        K: crate::Key,
+        T: Copy + PartialEq + Hash + Debug + 'static,
+        O: IntoChoice<T>,
+    >(
         &mut self,
         key: K,
         current: T,
-        options: &[(T, &str)],
+        options: impl IntoIterator<Item = O>,
     ) -> SegmentedBuilder<'_, 'b, 'f, A, K, T> {
         SegmentedBuilder::new(self, key, current, options)
     }
@@ -578,12 +596,13 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         SliderBuilder::new(self, key, value, range)
     }
 
-    /// A select over `(value, label)` options, of which `current` is chosen.
-    pub fn select<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
+    /// A select over `options` (anything [`IntoChoice`]), of which `current`
+    /// is chosen; the trigger shows the label of the chosen one.
+    pub fn select<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static, O: IntoChoice<T>>(
         &mut self,
         key: K,
         current: T,
-        options: &[(T, &str)],
+        options: impl IntoIterator<Item = O>,
     ) -> SelectBuilder<'_, 'b, 'f, A, K, T> {
         SelectBuilder::new(self, key, current, options)
     }

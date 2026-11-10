@@ -7,6 +7,7 @@
 )]
 
 mod chat_shell_demo;
+mod choices;
 mod compile_fail;
 mod contract;
 mod contract_gaps;

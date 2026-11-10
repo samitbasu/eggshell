@@ -53,9 +53,9 @@ struct App {
 /// ```
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
-        b.radio_group("units", app.unit, &UNITS)
+        b.radio_group("units", app.unit, UNITS)
             .on_change(|app: &mut App, unit| app.unit = unit);
-        b.radio_group("locked", app.locked, &UNITS)
+        b.radio_group("locked", app.locked, UNITS)
             .enablement(Enablement::Disabled)
             .on_change(|app: &mut App, unit| app.locked = unit);
         b.switch("air", "Airplane mode", app.on)
@@ -66,7 +66,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
         b.switch_unlabelled("bare", false)
             .named("Bare switch")
             .on_change(|_: &mut App, _| {});
-        b.segmented("seg", app.segment, &SEGMENTS)
+        b.segmented("seg", app.segment, SEGMENTS)
             .on_change(|app: &mut App, unit| app.segment = unit);
     });
 }

@@ -33,11 +33,11 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .on_change(|app: &mut App, toggle| app.toggle = toggle);
         b.checkbox("check", "Accept", app.check)
             .on_change(|app: &mut App, value| app.check = value);
-        b.radio_group("radio", app.radio, &UNITS)
+        b.radio_group("radio", app.radio, UNITS)
             .on_change(|app: &mut App, unit| app.radio = unit);
         b.switch("switch", "Airplane mode", app.switch)
             .on_change(|app: &mut App, value| app.switch = value);
-        b.segmented("seg", app.segment, &UNITS)
+        b.segmented("seg", app.segment, UNITS)
             .on_change(|app: &mut App, unit| app.segment = unit);
     });
 }

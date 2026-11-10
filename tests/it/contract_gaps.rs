@@ -4,7 +4,7 @@
 //! key input goes through kittest's real events.
 
 use bullseye::contract::{Disabled, Paint, Size, Variant};
-use bullseye::owned::Enablement;
+use bullseye::owned::{Choice, Enablement};
 use bullseye::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, none, tw};
 use bullseye_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::epaint::Shape;
@@ -155,7 +155,7 @@ fn icon_in(harness: &Harn, inside: Rect) -> (Color32, Rect) {
 /// </div>
 /// ```
 fn centred_cells(b: &mut Builder<'_, '_, App>, app: &App) {
-    b.segmented("seg", app.mode, &MODES)
+    b.segmented("seg", app.mode, MODES)
         .track(tw().h_px(app.height))
         .cells(tw().role(spec(app.font)))
         .on_change(|app: &mut App, mode| app.mode = mode);
@@ -269,9 +269,12 @@ fn a_text_leaf_places_its_line_by_its_own_vertical_alignment() {
 /// </div>
 /// ```
 fn icon_cells(b: &mut Builder<'_, '_, App>, app: &App) {
-    b.segmented("seg", app.mode, &MODES)
-        .icon(Mode::Light, app.icon())
-        .icon(Mode::Dark, app.icon())
+    let options = [
+        Choice::new(Mode::Light, "Light").icon(app.icon()),
+        Choice::new(Mode::Dark, "Dark").icon(app.icon()),
+        Choice::new(Mode::System, "System"),
+    ];
+    b.segmented("seg", app.mode, options)
         .on_change(|app: &mut App, mode| app.mode = mode);
 }
 
@@ -371,7 +374,7 @@ fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
 
 fn merged_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().w_px(400.0), |b| {
-        b.segmented("seg", app.mode, &MODES)
+        b.segmented("seg", app.mode, MODES)
             .track(tw().w_full())
             .cells(tw().flex_1())
             .on_change(|app: &mut App, mode| app.mode = mode);
@@ -417,7 +420,7 @@ fn classed(b: &mut Builder<'_, '_, App>, _: &App) {
         b.checkbox("checkbox", "Agree", false)
             .classes(wide())
             .on_change(|_: &mut App, _| {});
-        b.radio_group("radio", Mode::Light, &MODES)
+        b.radio_group("radio", Mode::Light, MODES)
             .classes(wide())
             .on_change(|_: &mut App, _| {});
         b.switch("switch", "Alerts", false)
@@ -427,7 +430,7 @@ fn classed(b: &mut Builder<'_, '_, App>, _: &App) {
             .named("Volume")
             .classes(wide())
             .on_change(|_: &mut App, _| {});
-        b.select("select", Mode::Light, &MODES)
+        b.select("select", Mode::Light, MODES)
             .named("Mode")
             .classes(wide())
             .on_change(|_: &mut App, _| {});
@@ -435,7 +438,7 @@ fn classed(b: &mut Builder<'_, '_, App>, _: &App) {
             .named("Count")
             .classes(wide())
             .on_change(|_: &mut App, _| {});
-        b.segmented("segmented", Mode::Light, &MODES)
+        b.segmented("segmented", Mode::Light, MODES)
             .classes(wide())
             .on_change(|_: &mut App, _| {});
     });
@@ -474,9 +477,9 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
 fn roles(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
         b.button("button", "Save").add();
-        b.segmented("seg", app.mode, &MODES)
+        b.segmented("seg", app.mode, MODES)
             .on_change(|_: &mut App, _| {});
-        b.select("select", Mode::Light, &MODES)
+        b.select("select", Mode::Light, MODES)
             .named("Mode")
             .on_change(|_: &mut App, _| {});
         b.checkbox("check", "Agree", false)

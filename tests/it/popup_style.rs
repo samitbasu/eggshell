@@ -114,7 +114,7 @@ fn open_select_shapes(restyle_global: bool) -> Vec<String> {
                 LayoutState::new()
                     .with_base_text(base)
                     .build(&ctx, |b| {
-                        b.select("select", pick.0, &[(0, "One"), (1, "Two"), (2, "Three")])
+                        b.select("select", pick.0, [(0, "One"), (1, "Two"), (2, "Three")])
                             .named("pick")
                             .on_change(|pick: &mut Pick, value| pick.0 = value);
                     })

@@ -343,7 +343,7 @@ where
     K: bullseye::Key,
 {
     let current = b.ctx().options(|options| options.theme_preference);
-    b.segmented(key, current, &APPEARANCES)
+    b.segmented(key, current, APPEARANCES)
         .on_change_with(|_: &mut A, ctx, preference| ctx.set_theme(preference));
 }
 
@@ -354,17 +354,20 @@ where
     A: 'static,
     K: bullseye::Key,
 {
-    let options = ShadcnStyle::ALL.map(|style| (style, style.name()));
-    b.segmented(key, style_of(b.ctx()), &options)
-        .on_change_with(|_: &mut A, ctx, style| {
-            choose(
-                ctx,
-                Chosen {
-                    style,
-                    ..chosen(ctx)
-                },
-            );
-        });
+    b.segmented(
+        key,
+        style_of(b.ctx()),
+        ShadcnStyle::ALL.map(|style| (style, style.name())),
+    )
+    .on_change_with(|_: &mut A, ctx, style| {
+        choose(
+            ctx,
+            Chosen {
+                style,
+                ..chosen(ctx)
+            },
+        );
+    });
 }
 
 /// The strip every example shows along its top edge, with the style and
@@ -563,7 +566,7 @@ pub fn choice<S, K, T>(
     K: bullseye::Key,
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
-    let group = b.segmented(key, current, options);
+    let group = b.segmented(key, current, options.iter().copied());
     let group = if options.len() > MAX_ONE_ROW {
         group.wrapping()
     } else {

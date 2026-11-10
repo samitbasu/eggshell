@@ -324,7 +324,7 @@ fn picker(b: &mut Builder<'_, '_, Picker>, app: &Picker) {
     b.segmented(
         "mode",
         app.mode,
-        &[
+        [
             (Mode::Day, "Day"),
             (Mode::Week, "Week"),
             (Mode::Month, "Month"),

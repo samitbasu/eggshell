@@ -7,8 +7,9 @@ use std::hash::Hash;
 use egui::{Context, Role};
 
 use super::Mark;
-use super::{Enablement, OnResponse, Tip, centered, described};
-use crate::{Builder, Icon, Style, Tw, none, tw};
+use super::choice::{self, Choice, IntoChoice};
+use super::{Enablement, OnResponse, centered, described};
+use crate::{Builder, Style, Tw, none, tw};
 
 /// Whether a cell is the chosen one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,7 +27,8 @@ enum Rows {
     Wrapping,
 }
 
-/// A row of cells, one per `(value, label)` of `options`, of which the one
+/// A row of cells, one per option of `options` (anything [`IntoChoice`]; an icon
+/// goes before the label), of which the one
 /// equal to `current` is selected, drawn from the [`Style`]. Start one with
 /// [`Builder::segmented`] and finish it with [`on_change`](Self::on_change).
 ///
@@ -49,7 +51,7 @@ enum Rows {
 ///     b.segmented(
 ///         "unit",
 ///         app.unit,
-///         &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+///         [(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
 ///     )
 ///     .on_change(|app, unit| app.unit = unit);
 /// }
@@ -59,7 +61,7 @@ pub struct SegmentedBuilder<'a, 'b, 'f, A, K, T> {
     b: &'a mut Builder<'b, 'f, A>,
     key: K,
     current: T,
-    options: Vec<Option_<T>>,
+    options: Vec<Choice<T>>,
     rows: Rows,
     enablement: Enablement,
     track: Tw,
@@ -75,37 +77,21 @@ struct Custom<'a> {
     cell: Box<dyn Fn(Cell) -> Tw + 'a>,
 }
 
-#[derive(Clone, Debug)]
-struct Option_<T> {
-    value: T,
-    label: String,
-    icon: Option<Icon>,
-    tooltip: Tip,
-}
-
 impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
     SegmentedBuilder<'a, 'b, 'f, A, K, T>
 {
-    /// A control of `(value, label)` options of which `current` is selected.
-    pub(super) fn new(
+    /// A control of `options` of which `current` is selected.
+    pub(super) fn new<O: IntoChoice<T>>(
         b: &'a mut Builder<'b, 'f, A>,
         key: K,
         current: T,
-        options: &[(T, &str)],
+        options: impl IntoIterator<Item = O>,
     ) -> Self {
         Self {
             b,
             key,
             current,
-            options: options
-                .iter()
-                .map(|&(value, label)| Option_ {
-                    value,
-                    label: label.to_owned(),
-                    icon: None,
-                    tooltip: None,
-                })
-                .collect(),
+            options: choice::collect(options),
             rows: Rows::One,
             enablement: Enablement::Enabled,
             track: tw(),
@@ -113,29 +99,6 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             custom: None,
             on_response: OnResponse::default(),
         }
-    }
-
-    /// Puts `icon` before the label of the option `value`, tinted by the
-    /// cell's text colour in each state and sized by the style.
-    pub fn icon(mut self, value: T, icon: Icon) -> Self {
-        let option = self.options.iter_mut().find(|option| option.value == value);
-        debug_assert!(option.is_some(), "no option {value:?} to give an icon");
-        if let Some(option) = option {
-            option.icon = Some(icon);
-        }
-        self
-    }
-
-    /// Shows `text` while the pointer hovers the cell of the option `value`,
-    /// as egui's `on_hover_text` does and also when the control is disabled.
-    /// It adds to the cell's accessible name and does not replace it.
-    pub fn option_tooltip(mut self, value: T, text: impl Into<egui::WidgetText>) -> Self {
-        let option = self.options.iter_mut().find(|option| option.value == value);
-        debug_assert!(option.is_some(), "no option {value:?} to give a tooltip");
-        if let Some(option) = option {
-            option.tooltip = Some(text.into());
-        }
-        self
     }
 
     /// A track that wraps its cells onto more rows when it is narrower than
@@ -212,9 +175,15 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             cells_in(
                 b,
                 key,
-                (current, options),
+                (current, options, enablement),
                 track,
-                cell,
+                |state, enablement| {
+                    let classes = cell(state);
+                    match enablement {
+                        Enablement::Enabled => classes,
+                        Enablement::Disabled => classes.inert(),
+                    }
+                },
                 tw(),
                 (select, on_response),
             );
@@ -234,7 +203,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
             Rows::Wrapping => container.flex_wrap().h_auto().gap(seg.row_gap / 4.0),
         };
         let container = enablement.fade(container, &style).merge(track);
-        let cell = |cell| {
+        let cell = |cell, enablement| {
             let look = match cell {
                 Cell::Pressed => &seg.selected,
                 Cell::Released => &seg.unselected,
@@ -262,7 +231,7 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
         cells_in(
             b,
             key,
-            (current, options),
+            (current, options, enablement),
             container,
             cell,
             icon,
@@ -274,18 +243,19 @@ impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug +
 fn cells_in<A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
     b: &mut Builder<'_, '_, A>,
     key: K,
-    (current, options): (T, Vec<Option_<T>>),
+    (current, options, group): (T, Vec<Choice<T>>, Enablement),
     container: Tw,
-    cell: impl Fn(Cell) -> Tw,
+    cell: impl Fn(Cell, Enablement) -> Tw,
     icon_classes: Tw,
     (select, on_response): (impl Fn(&mut A, &Context, T) + Copy + 'static, OnResponse<A>),
 ) {
     b.div_id(key, container, none, |b| {
-        for Option_ {
+        for Choice {
             value,
             label,
             icon,
             tooltip,
+            enablement,
         } in options
         {
             let state = if value == current {
@@ -293,7 +263,7 @@ fn cells_in<A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'sta
             } else {
                 Cell::Released
             };
-            let classes = cell(state).sense_click();
+            let classes = cell(state, group.and(enablement)).sense_click();
             let name = label.clone();
             let on_response = on_response.clone();
             let clicked = move |app: &mut A, ui: &mut egui::Ui| {

@@ -63,11 +63,11 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 .named("Locked")
                 .enablement(Enablement::Disabled)
                 .on_change(|app: &mut App, value| app.locked = value);
-            b.select("region", app.region, &REGIONS)
+            b.select("region", app.region, REGIONS)
                 .named("Region")
                 .classes(tw().w_px(200.0))
                 .on_change(|app: &mut App, region| app.region = region);
-            b.select("frozen", 0, &REGIONS)
+            b.select("frozen", 0, REGIONS)
                 .named("Frozen")
                 .classes(tw().w_px(200.0))
                 .enablement(Enablement::Disabled)

@@ -42,8 +42,7 @@ fn top_bar(b: &mut B<'_, '_>, app: &App) {
         none,
         |b| {
             b.text(tw().role(k[Role::Title].clone()).truncate(), title);
-            let models: Vec<(usize, &str)> = MODELS.iter().copied().enumerate().collect();
-            b.select(Part::Model, app.model, &models)
+            b.select(Part::Model, app.model, MODELS.iter().copied().enumerate())
                 .named("Model")
                 .on_change(|app: &mut App, model| app.model = model);
         },
@@ -184,7 +183,7 @@ fn field(b: &mut B<'_, '_>, app: &App) {
 /// ```
 fn mode(b: &mut B<'_, '_>, app: &App) {
     let k = &Theme::of(b.ctx());
-    b.segmented(Part::Mode, app.mode, &Mode::ALL)
+    b.segmented(Part::Mode, app.mode, Mode::ALL)
         .custom_classes(
             tw().flex()
                 .items_center()

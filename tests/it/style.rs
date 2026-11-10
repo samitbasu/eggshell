@@ -324,7 +324,7 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
 
 fn segments(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().p(2.0), |b| {
-        b.segmented("units", app.unit, &UNITS)
+        b.segmented("units", app.unit, UNITS)
             .on_change(|app, unit| app.unit = unit);
     });
 }
@@ -587,7 +587,7 @@ fn many_segments(b: &mut Builder<'_, '_, App>, app: &App) {
         b.segmented(
             "wrapped",
             app.unit,
-            &[
+            [
                 (Unit::Metric, "Metric"),
                 (Unit::Imperial, "Imperial"),
                 (Unit::Nautical, "Nautical"),
