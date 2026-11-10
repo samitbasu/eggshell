@@ -228,10 +228,10 @@ impl<A> FieldHooks<A> {
 }
 
 /// A control's tooltip, if it has one.
-type Tip = Option<WidgetText>;
+pub(crate) type Tip = Option<WidgetText>;
 
 /// `response` with `tip` shown on hover, also when the control is disabled.
-fn tipped(response: Response, tip: &Tip) -> Response {
+pub(crate) fn tipped(response: Response, tip: &Tip) -> Response {
     match tip {
         Some(tip) => response
             .on_hover_text(tip.clone())
