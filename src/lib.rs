@@ -168,6 +168,7 @@ mod pipeline;
 pub mod prim;
 mod shadow_corners;
 mod sizing;
+pub mod testing;
 mod text;
 mod transition;
 mod tw;
