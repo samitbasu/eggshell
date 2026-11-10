@@ -29,7 +29,7 @@ pub const SPEED: f32 = 600.0;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PanelKey(pub u32);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Image {
     Chip,
     Ghost,
@@ -39,6 +39,8 @@ pub struct Gesture {
     pub original: Vec<PanelKey>,
     pub cancelled: bool,
     pub captured: Option<Captured>,
+    /// The pointer's offset from the panel's centre when it was grabbed.
+    pub grab: egui::Vec2,
 }
 
 pub struct State {
@@ -138,7 +140,11 @@ fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, cols: usize, lifte
                 Opacity::OPAQUE
             })
             .sense_drag()
-            .animate_layout(SLIDE),
+            .merge(if lifted {
+                tw()
+            } else {
+                tw().animate_layout(SLIDE)
+            }),
         |b| {
             b.div(
                 tw().flex()
@@ -179,7 +185,8 @@ fn placeholder(b: &mut B<'_, '_, State>, cols: usize) {
 }
 
 pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
-    let held = dragged(b.ctx());
+    let released = b.ctx().input(|i| i.pointer.any_released());
+    let held = dragged(b.ctx()).filter(|_| !released);
     b.div_id(
         "grid",
         tw().flex().flex_row().flex_wrap().w_full().p(2.0),
@@ -207,6 +214,10 @@ fn source(app: &mut State, r: &Response, key: PanelKey) {
             original: app.keys(),
             cancelled: false,
             captured: None,
+            grab: r
+                .ctx
+                .pointer_interact_pos()
+                .map_or(egui::Vec2::ZERO, |p| p - r.rect.center()),
         });
         r.ctx.request_repaint();
     }
@@ -322,7 +333,7 @@ pub fn drag_image(ctx: &Context, app: &State) {
         return;
     };
     match (app.image, &g.captured) {
-        (Image::Ghost, Some(captured)) => paint_ghost(ctx, captured, pos),
+        (Image::Ghost, Some(captured)) => paint_ghost(ctx, captured, pos - g.grab),
         _ => {
             let label = app.panels.iter().find(|p| p.0 == key).map_or("", |p| &p.1);
             paint_chip(ctx, label, pos);
@@ -363,9 +374,44 @@ pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) {
 
 pub const GRID: &str = "/\"grid\"";
 
+/// The strip above the gallery: the column count, and the drag image.
+///
+/// ```html
+/// <div class="flex items-center gap-3 px-3 h-11 border-b">
+///   <span>Columns</span> <div role="radiogroup">1 2 3</div>
+///   <div role="radiogroup">Ghost Chip</div>
+/// </div>
+/// ```
+pub fn toolbar(b: &mut B<'_, '_, State>, state: &State) {
+    let t = common::tokens(b.ctx());
+    b.div(
+        tw().flex()
+            .items_center()
+            .gap(3.0)
+            .px(3.0)
+            .size_full()
+            .border_b(1.0)
+            .border_color(t.border)
+            .text(t.foreground),
+        |b| {
+            b.text(tw().text(t.muted_foreground), "Columns");
+            b.segmented("columns", state.cols, [(1, "1"), (2, "2"), (3, "3")])
+                .on_change(|state: &mut State, cols| state.cols = cols);
+            b.text(tw().text(t.muted_foreground), "Drag image");
+            b.segmented(
+                "image",
+                state.image,
+                [(Image::Ghost, "Ghost"), (Image::Chip, "Chip")],
+            )
+            .on_change(|state: &mut State, image| state.image = image);
+        },
+    );
+}
+
 fn main() -> eframe::Result {
     let mut state = State::default();
     let mut layout_state = LayoutState::new();
+    let mut toolbar_state = LayoutState::new();
     let mut theme_bar = common::ThemeBar::new();
     common::launch("dnd_gallery", None, move |ui| {
         let ctx = ui.ctx().clone();
@@ -383,6 +429,18 @@ fn main() -> eframe::Result {
                 Image::Ghost => Image::Chip,
             };
         }
+        egui::Panel::top("gallery_toolbar")
+            .exact_size(44.0)
+            .show_separator_line(false)
+            .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
+            .show(ui, |ui| {
+                let area = ui.max_rect();
+                toolbar_state.set_base_text(Some(common::base_text_in(&ctx)));
+                toolbar_state
+                    .build(&ctx, |b| toolbar(b, &state))
+                    .layout(area)
+                    .draw(&mut state, ui);
+            });
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
             .show(ui, |ui| frame(ui, &mut state, &mut layout_state));
