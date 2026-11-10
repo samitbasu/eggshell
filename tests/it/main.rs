@@ -8,6 +8,7 @@
 
 mod button_options;
 mod chat_shell_demo;
+mod children;
 mod choices;
 mod compile_fail;
 mod contract;

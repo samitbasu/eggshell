@@ -29,6 +29,10 @@ mod kaolin_gallery;
 mod custom_background;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/button_children.rs"]
+mod button_children;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/chat_shell/main.rs"]
 mod chat_shell;
 
@@ -408,6 +412,31 @@ fn snapshot_themed_in<A: 'static>(
         harness.run_steps(12);
     }
     harness.snapshot(name);
+}
+
+/// Icon toggles whose active one shows a `.children(..)` accent bar.
+#[test]
+fn button_children_light() {
+    button_children_in("button_children_light", egui::Theme::Light);
+}
+
+#[test]
+fn button_children_dark() {
+    button_children_in("button_children_dark", egui::Theme::Dark);
+}
+
+fn button_children_in(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
+        Vec2::new(200.0, 80.0),
+        (
+            button_children::State::default(),
+            button_children::layout,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
 }
 
 /// The todo list with the pointer over the second row: its highlight, and the

@@ -2,7 +2,7 @@
 
 use super::{ButtonChain, ButtonOptions, Enablement, Face, Unset, flip};
 use crate::contract::{Size, Variant};
-use crate::{Builder, Icon, Tw};
+use crate::{Builder, Icon, Scope, Tw};
 
 /// A toggle button drawn from the [`Style`](crate::Style)'s toggle looks,
 /// with an icon, a label or both. Start one with [`Builder::toggle`] and
@@ -108,6 +108,13 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
     /// Whether the toggle takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.button = self.button.enablement(enablement);
+        self
+    }
+
+    /// Builds `body`'s nodes inside the toggle after its face; see
+    /// [`ButtonChain::children`].
+    pub fn children(mut self, body: impl for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a) -> Self {
+        self.button = self.button.children(body);
         self
     }
 
