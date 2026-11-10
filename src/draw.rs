@@ -622,6 +622,9 @@ impl<A> Walk<'_, A> {
                 } else {
                     Motion::Snaps
                 },
+                slide: self
+                    .animation
+                    .slide(id, interaction.variants.easing, translate),
             });
         }
         let moved_from = (translate != Vec2::ZERO).then(|| self.next_shape());

@@ -236,6 +236,76 @@ fn a_resize_moves_everything_at_once() {
     assert!(!requested_repaint(&harness));
 }
 
+/// ```html
+/// <div class="flex flex-wrap w-full"><div class="w-[100px] h-[30px]"></div>...</div>
+/// ```
+fn wrapping(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.div_id("wrap", tw().flex().flex_wrap().w_full(), |b| {
+        rows(b, app);
+    });
+}
+
+#[test]
+fn a_resize_in_the_middle_of_a_slide_does_not_cut_it_short() {
+    let mut harness = harness(App::new(&[1, 2, 3], &[1, 2, 3]), wrapping);
+    harness.set_size(vec2(400.0, 300.0));
+    harness.run_steps(3);
+    record(&harness.ctx);
+    let old = rect_of(&harness, "/\"wrap\"/1");
+    reverse(&mut harness);
+    harness.run_steps(4);
+    let before = painted_top(&harness, color(1));
+    let per_frame = 100.0 * 0.05 / SLIDE.as_secs_f32();
+
+    harness.set_size(vec2(250.0, 300.0));
+    harness.step();
+    let moved = rect_of(&harness, "/\"wrap\"/1");
+    assert!(
+        moved.min.y > old.min.y,
+        "precondition: the resize wrapped row 1 to a new line: {old:?} to {moved:?}"
+    );
+    let painted = painted_top(&harness, color(1));
+    assert!(
+        (painted - before).abs() <= per_frame + 0.5,
+        "painted where the slide left it, not at the resize's place: {before} to {painted} (layout {})",
+        moved.min.y
+    );
+
+    let mut seen = vec![painted];
+    for _ in 0..40 {
+        harness.step();
+        seen.push(painted_top(&harness, color(1)));
+    }
+    assert!(
+        seen.windows(2).all(|pair| pair[1] >= pair[0]),
+        "heads for its new line monotonically: {seen:?}"
+    );
+    assert_eq!(*seen.last().expect("steps ran"), moved.min.y);
+    Timeline::recorded(&harness.ctx)
+        .max_step(Points::new(per_frame * 2.0))
+        .assert_continuous();
+}
+
+#[test]
+fn a_resize_alone_starts_no_slide() {
+    let mut harness = harness(App::new(&[1, 2, 3], &[1, 2, 3]), wrapping);
+    harness.set_size(vec2(400.0, 300.0));
+    harness.run_steps(3);
+    let old = rect_of(&harness, "/\"wrap\"/3");
+    harness.set_size(vec2(250.0, 300.0));
+    harness.step();
+    let moved = rect_of(&harness, "/\"wrap\"/3");
+    assert_ne!(old.min, moved.min, "precondition: the resize moved row 3");
+    assert_eq!(
+        painted_offset(&harness, color(3), "/\"wrap\"/3"),
+        0.0,
+        "painted at its new place at once"
+    );
+    assert!(!requested_repaint(&harness));
+    harness.step();
+    assert!(!requested_repaint(&harness));
+}
+
 #[test]
 fn a_move_interrupted_mid_flight_starts_from_where_the_row_is_painted() {
     let mut harness = harness(App::new(&[1, 2], &[1, 2]), rows);
