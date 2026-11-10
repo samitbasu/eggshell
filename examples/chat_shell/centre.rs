@@ -1,9 +1,7 @@
 //! The middle pane: title bar, conversation and composer.
 
-use bullseye::owned::Select;
-use bullseye::owned::{Cell, Segmented};
-use bullseye::prim::text_field::{self, Field};
-use bullseye::{Builder, NodeUi, Opacity, Tw, none, tw};
+use bullseye::owned::Cell;
+use bullseye::{Builder, NodeUi, Opacity, Scope, Tw, none, tw};
 use egui::{Key, WidgetInfo};
 
 use super::icons::{self, Glyph};
@@ -12,6 +10,7 @@ use super::theme::{Role, Theme, Tok};
 use super::view::Part;
 
 type B<'b, 'f> = Builder<'b, 'f, App>;
+type S<'b, 'f> = Scope<'b, 'f, App>;
 
 /// The model select, in the shape of a chip.
 ///
@@ -43,12 +42,9 @@ fn top_bar(b: &mut B<'_, '_>, app: &App) {
         none,
         |b| {
             b.text(tw().role(k[Role::Title].clone()).truncate(), title);
-            let models: Vec<(usize, &str)> = MODELS.iter().copied().enumerate().collect();
-            Select::new(app.model, &models).named("Model").show(
-                b,
-                Part::Model,
-                |app: &mut App, _, model| app.model = model,
-            );
+            b.select(Part::Model, app.model, MODELS.iter().copied().enumerate())
+                .named("Model")
+                .on_change(|app: &mut App, model| app.model = model);
         },
     );
 }
@@ -152,26 +148,28 @@ const COMPOSER_MIN_ROWS: usize = 3;
 const COMPOSER_MAX_ROWS: usize = 8;
 
 fn field(b: &mut B<'_, '_>, app: &App) {
-    let field = Field::multiline(&app.draft, COMPOSER_MIN_ROWS)
+    b.text_field(Part::Field, &app.draft)
+        .multiline(COMPOSER_MIN_ROWS)
         .max_rows(COMPOSER_MAX_ROWS)
         .hint("Reply…")
-        .bare();
-    let measured = field.clone();
-    b.leaf(
-        Part::Field,
-        tw().w_full().px(1.0),
-        move |m| text_field::measure(m, &measured),
-        move |app: &mut App, ui| {
-            let response = text_field::show(ui, &mut app.draft, &field);
+        .bare()
+        .classes(tw().w_full().px(1.0))
+        .on_response(|app: &mut App, response| {
             response.widget_info(|| {
-                WidgetInfo::labeled(egui::Role::MultilineTextInput, ui.is_enabled(), "Message")
+                WidgetInfo::labeled(
+                    egui::Role::MultilineTextInput,
+                    response.enabled(),
+                    "Message",
+                )
             });
-            let chord = ui.input(|input| input.modifiers.command && input.key_pressed(Key::Enter));
+            let chord = response
+                .ctx
+                .input(|input| input.modifiers.command && input.key_pressed(Key::Enter));
             if chord && response.has_focus() {
                 app.send();
             }
-        },
-    );
+        })
+        .on_change(|app, draft| app.draft = draft);
 }
 
 /// The mode, as a segmented control of small cells.
@@ -185,26 +183,25 @@ fn field(b: &mut B<'_, '_>, app: &App) {
 /// ```
 fn mode(b: &mut B<'_, '_>, app: &App) {
     let k = &Theme::of(b.ctx());
-    Segmented::new(app.mode, &Mode::ALL).show_with(
-        b,
-        Part::Mode,
-        tw().flex()
-            .items_center()
-            .gap(0.5)
-            .role(k[Role::Small].clone()),
-        |cell| {
-            let look = tw()
-                .px(2.5)
-                .py(1.0)
-                .rounded_lg()
-                .focus(|p| p.ring(2.0, k[Tok::Accent]));
-            match cell {
-                Cell::Pressed => look.bg(k[Tok::Line]).text(k[Tok::Ink]),
-                Cell::Released => look.text(k[Tok::InkMid]).hover(|p| p.bg(k[Tok::Hover])),
-            }
-        },
-        |app, _, mode| app.mode = mode,
-    );
+    b.segmented(Part::Mode, app.mode, Mode::ALL)
+        .custom_classes(
+            tw().flex()
+                .items_center()
+                .gap(0.5)
+                .role(k[Role::Small].clone()),
+            |cell| {
+                let look = tw()
+                    .px(2.5)
+                    .py(1.0)
+                    .rounded_lg()
+                    .focus(|p| p.ring(2.0, k[Tok::Accent]));
+                match cell {
+                    Cell::Pressed => look.bg(k[Tok::Line]).text(k[Tok::Ink]),
+                    Cell::Released => look.text(k[Tok::InkMid]).hover(|p| p.bg(k[Tok::Hover])),
+                }
+            },
+        )
+        .on_change(|app, mode| app.mode = mode);
 }
 
 /// The composer is the last child of a column whose conversation grows, so it
@@ -294,20 +291,18 @@ fn composer(b: &mut B<'_, '_>, app: &App) {
 ///   <div class="composer">...</div>
 /// </main>
 /// ```
-pub fn centre(b: &mut B<'_, '_>, app: &App) {
-    b.div_id(
-        Part::Centre,
-        tw().flex()
-            .flex_col()
-            .grow()
-            .min_w_0()
-            .overflow_hidden()
-            .bg(Theme::of(b.ctx())[Tok::Ground]),
-        none,
-        |b| {
-            top_bar(b, app);
-            conversation(b, app);
-            composer(b, app);
-        },
-    );
+pub fn centre(s: &mut S<'_, '_>, app: &App) {
+    top_bar(s, app);
+    conversation(s, app);
+    composer(s, app);
+}
+
+/// The centre pane's box, which its caller keys.
+pub fn centre_style(k: &Theme) -> Tw {
+    tw().flex()
+        .flex_col()
+        .grow()
+        .min_w_0()
+        .overflow_hidden()
+        .bg(k[Tok::Ground])
 }

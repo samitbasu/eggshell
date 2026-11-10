@@ -4,8 +4,7 @@
 
 use bullseye::Style;
 use bullseye::contract::{Size, Variant};
-use bullseye::owned::Mark;
-use bullseye::owned::{Button, Checkbox, Enablement};
+use bullseye::owned::Enablement;
 use bullseye::{Builder, TextStyle, tw};
 use bullseye_shadcn::{Shadcn, Tokens, variant};
 use egui::epaint::Shape;
@@ -44,32 +43,25 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
             for name in VARIANTS {
-                Button::new("Save")
+                b.button((name, enablement), "Save")
                     .variant(name)
                     .enablement(enablement)
-                    .show(b, (name, enablement), move |app: &mut App| {
-                        app.clicks.push(name.0.to_owned());
-                    });
+                    .on_click(move |app: &mut App| app.clicks.push(name.0.to_owned()));
             }
         }
-        Button::toggle("Toggle", Mark::from(app.toggled)).show(b, "toggle", |app: &mut App| {
-            app.toggled = !app.toggled;
-        });
+        b.toggle("toggle", "Toggle", app.toggled)
+            .on_change(|app: &mut App, toggled| app.toggled = toggled);
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            Checkbox::new("Accept terms", Mark::from(app.checked))
+            b.checkbox(("check", enablement), "Accept terms", app.checked)
                 .enablement(enablement)
-                .show(b, ("check", enablement), |app: &mut App| {
-                    app.checked = !app.checked;
-                });
+                .on_change(|app: &mut App, value| app.checked = value);
         }
-        Checkbox::unlabelled(Mark::Off)
+        b.checkbox_unlabelled("bare", false)
             .named("Bare")
-            .show(b, "bare", |_: &mut App| {});
-        Button::new("Menu")
+            .on_change(|_: &mut App, _| {});
+        b.button("menu", "Menu")
             .opens_popup()
-            .show(b, "menu", |app: &mut App| {
-                app.clicks.push("menu".to_owned())
-            });
+            .on_click(|app: &mut App| app.clicks.push("menu".to_owned()));
     });
 }
 

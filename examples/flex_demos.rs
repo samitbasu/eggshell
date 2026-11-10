@@ -12,8 +12,6 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::owned::Mark;
-use bullseye::owned::{Checkbox, Select};
 use bullseye::{Builder, Tw, none, tw};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -274,16 +272,13 @@ fn nested_group(b: &mut B<'_, '_>, state: &State) {
 /// </div>
 /// ```
 fn content_group(b: &mut B<'_, '_>, state: &State) {
-    let options: Vec<(usize, &str)> = ANCHORS
+    let options = ANCHORS
         .iter()
         .enumerate()
-        .map(|(index, (name, _))| (index, *name))
-        .collect();
-    Select::new(state.anchor, &options)
+        .map(|(index, (name, _))| (index, *name));
+    b.select(Part::Content, state.anchor, options)
         .named("Align self content")
-        .show(b, Part::Content, |state: &mut State, _, anchor| {
-            state.anchor = anchor;
-        });
+        .on_change(|state: &mut State, anchor| state.anchor = anchor);
     let (_, place) = ANCHORS[state.anchor];
     for align in ALIGNS {
         b.div_id(
@@ -348,9 +343,8 @@ fn header(b: &mut B<'_, '_>, state: &State) {
             ],
             |s| &mut s.direction,
         );
-        Checkbox::new("Grow", Mark::from(state.grow)).show(b, Part::Grow, |state: &mut State| {
-            state.grow = !state.grow;
-        });
+        b.checkbox(Part::Grow, "Grow", state.grow)
+            .on_change(|state: &mut State, grow| state.grow = grow);
     });
 }
 

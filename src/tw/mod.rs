@@ -24,7 +24,7 @@ use crate::text::TextClasses;
 
 pub use easing::Easing;
 pub use grid::Track;
-use merge::Touched;
+use merge::{Layout, Touched};
 pub use paint::{BoxPaint, Divide, Ring, Sides};
 pub use units::{Angle, Flip, Opacity, Progress};
 pub use variants::Paint;
@@ -105,7 +105,7 @@ impl Tw {
         self
     }
 
-    fn styled(mut self, set: impl Fn(&mut Style)) -> Self {
+    fn styled(mut self, set: impl FnOnce(&mut Layout<'_>)) -> Self {
         self.write_layout(set);
         self
     }

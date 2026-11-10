@@ -1,16 +1,18 @@
 //! Combining class lists, the later one winning: `tailwind-merge`'s job.
 //!
 //! A class list does not remember which classes were written, only what they
-//! resolved to, so the properties a list set are recorded as it is built. A
-//! class that sets a property to its default, such as `flex-nowrap` over
-//! `flex-wrap`, still counts as set.
+//! resolved to, so the properties a list set are recorded as it is built:
+//! a class writes layout through [`Layout`] and the merged box paint through
+//! [`Shape`], whose accessors mark what they hand out. A class that sets a
+//! property to its default, such as `flex-nowrap` over `flex-wrap`, still
+//! counts as set.
 
 use egui::CornerRadius;
 use taffy::style::{
     AlignContent, AlignItems, BoxSizing, Dimension, Display, FlexDirection, FlexWrap, GridAutoFlow,
-    LengthPercentage, LengthPercentageAuto, Overflow, Position,
+    GridPlacement, GridTemplateComponent, LengthPercentage, LengthPercentageAuto, Overflow,
+    Position,
 };
-use taffy::style_helpers::TaffyGridLine as _;
 use taffy::{Line, Rect, Size, Style};
 
 use super::{BoxPaint, Opacity, Tw};
@@ -29,197 +31,211 @@ impl std::ops::BitOr for Touched {
 }
 
 impl Touched {
-    fn has(self, bit: u32) -> bool {
-        self.0 >> bit & 1 == 1
+    fn has(self, property: Property) -> bool {
+        self.0 >> property as u32 & 1 == 1
+    }
+
+    fn mark(&mut self, property: Property) {
+        self.0 |= 1 << property as u32;
     }
 }
 
+/// Declares the layout properties: the bit each has in [`Touched`], the
+/// accessor of [`Layout`] that marks it, and its copy in a merge. This list is
+/// the one place that names them.
 macro_rules! layout_properties {
-    ($($($field:ident).+),+ $(,)?) => {
-        const LAYOUT_PROPERTIES: u32 = [$(stringify!($($field).+)),+].len() as u32;
+    ($($name:ident: $($field:ident).+ => $ty:ty),+ $(,)?) => {
+        #[derive(Clone, Copy)]
+        #[expect(non_camel_case_types, reason = "named for the style field they stand for")]
+        enum Property {
+            $($name,)+
+            RadiusNw,
+            RadiusNe,
+            RadiusSw,
+            RadiusSe,
+            Opacity,
+        }
 
-        impl Touched {
-            /// The layout properties that differ between `before` and `after`.
-            fn between(before: &Style, after: &Style) -> Self {
-                let mut touched = 0u64;
-                let mut bit = 0;
+        const _: () = assert!((Property::Opacity as u32) < 64);
+
+        impl Layout<'_> {
+            $(
+                /// The property, marked as set by the class being written.
+                pub(super) fn $name(&mut self) -> &mut $ty {
+                    self.touched.mark(Property::$name);
+                    &mut self.style.$($field).+
+                }
+            )+
+        }
+
+        #[cfg(test)]
+        mod properties {
+            use super::*;
+
+            #[test]
+            fn each_accessor_marks_its_own_property_only() {
                 $(
-                    if before.$($field).+ != after.$($field).+ {
-                        touched |= 1 << bit;
-                    }
-                    bit += 1;
+                    let mut style = Style::default();
+                    let mut touched = Touched::default();
+                    Layout { style: &mut style, touched: &mut touched }.$name();
+                    assert_eq!(
+                        touched.0,
+                        1 << Property::$name as u32,
+                        stringify!($name)
+                    );
                 )+
-                let _ = bit;
-                Self(touched)
             }
         }
 
         /// `into` with the properties `touched` marks taken from `from`.
         fn copy_layout(into: &mut Style, from: &Style, touched: Touched) {
-            let mut bit = 0;
             $(
-                if touched.has(bit) {
+                if touched.has(Property::$name) {
                     into.$($field).+ = from.$($field).+.clone();
                 }
-                bit += 1;
             )+
-            let _ = bit;
         }
     };
 }
 
 layout_properties! {
-    display, box_sizing, overflow.x, overflow.y, position,
-    inset.left, inset.right, inset.top, inset.bottom,
-    size.width, size.height, min_size.width, min_size.height,
-    max_size.width, max_size.height, aspect_ratio,
-    margin.left, margin.right, margin.top, margin.bottom,
-    padding.left, padding.right, padding.top, padding.bottom,
-    border.left, border.right, border.top, border.bottom,
-    align_items, align_self, justify_items, justify_self, align_content, justify_content,
-    gap.width, gap.height,
-    flex_direction, flex_wrap, flex_basis, flex_grow, flex_shrink,
-    grid_template_rows, grid_template_columns, grid_auto_flow, grid_row, grid_column,
+    display: display => Display,
+    box_sizing: box_sizing => BoxSizing,
+    overflow_x: overflow.x => Overflow,
+    overflow_y: overflow.y => Overflow,
+    position: position => Position,
+    inset_left: inset.left => LengthPercentageAuto,
+    inset_right: inset.right => LengthPercentageAuto,
+    inset_top: inset.top => LengthPercentageAuto,
+    inset_bottom: inset.bottom => LengthPercentageAuto,
+    width: size.width => Dimension,
+    height: size.height => Dimension,
+    min_width: min_size.width => LengthPercentageAuto,
+    min_height: min_size.height => LengthPercentageAuto,
+    max_width: max_size.width => LengthPercentageAuto,
+    max_height: max_size.height => LengthPercentageAuto,
+    aspect_ratio: aspect_ratio => Option<f32>,
+    margin_left: margin.left => LengthPercentageAuto,
+    margin_right: margin.right => LengthPercentageAuto,
+    margin_top: margin.top => LengthPercentageAuto,
+    margin_bottom: margin.bottom => LengthPercentageAuto,
+    padding_left: padding.left => LengthPercentage,
+    padding_right: padding.right => LengthPercentage,
+    padding_top: padding.top => LengthPercentage,
+    padding_bottom: padding.bottom => LengthPercentage,
+    border_left: border.left => LengthPercentage,
+    border_right: border.right => LengthPercentage,
+    border_top: border.top => LengthPercentage,
+    border_bottom: border.bottom => LengthPercentage,
+    align_items: align_items => AlignItems,
+    align_self: align_self => Option<AlignItems>,
+    justify_items: justify_items => AlignItems,
+    justify_self: justify_self => Option<AlignItems>,
+    align_content: align_content => AlignContent,
+    justify_content: justify_content => AlignContent,
+    gap_width: gap.width => LengthPercentage,
+    gap_height: gap.height => LengthPercentage,
+    flex_direction: flex_direction => FlexDirection,
+    flex_wrap: flex_wrap => FlexWrap,
+    flex_basis: flex_basis => Dimension,
+    flex_grow: flex_grow => f32,
+    flex_shrink: flex_shrink => f32,
+    grid_template_rows: grid_template_rows => Vec<GridTemplateComponent<String>>,
+    grid_template_columns: grid_template_columns => Vec<GridTemplateComponent<String>>,
+    grid_auto_flow: grid_auto_flow => GridAutoFlow,
+    grid_row: grid_row => Line<GridPlacement<String>>,
+    grid_column: grid_column => Line<GridPlacement<String>>,
 }
 
-const RADIUS_NW: u32 = LAYOUT_PROPERTIES;
-const RADIUS_NE: u32 = LAYOUT_PROPERTIES + 1;
-const RADIUS_SW: u32 = LAYOUT_PROPERTIES + 2;
-const RADIUS_SE: u32 = LAYOUT_PROPERTIES + 3;
-const OPACITY: u32 = LAYOUT_PROPERTIES + 4;
-const _: () = assert!(OPACITY < 64);
-
-macro_rules! pick {
-    ($first:expr, $a:expr, $b:expr) => {
-        if $first { $a } else { $b }
-    };
+/// The layout a class writes. Every property it writes is reached through
+/// the accessor named for it, which records the write for [`Tw::merge`].
+pub(super) struct Layout<'a> {
+    style: &'a mut Style,
+    touched: &'a mut Touched,
 }
 
-// Two layouts that differ in every property a class can set, so that
-// whatever a class writes differs from at least one of them.
-thread_local! {
-    static LAYOUT_PROBES: ([Style; 2], std::cell::RefCell<[Style; 2]>) =
-        (layout_probes(), std::cell::RefCell::new(layout_probes()));
+impl Layout<'_> {
+    pub(super) fn set_padding(&mut self, sides: Rect<LengthPercentage>) {
+        *self.padding_left() = sides.left;
+        *self.padding_right() = sides.right;
+        *self.padding_top() = sides.top;
+        *self.padding_bottom() = sides.bottom;
+    }
+
+    pub(super) fn set_margin(&mut self, sides: Rect<LengthPercentageAuto>) {
+        *self.margin_left() = sides.left;
+        *self.margin_right() = sides.right;
+        *self.margin_top() = sides.top;
+        *self.margin_bottom() = sides.bottom;
+    }
+
+    pub(super) fn set_border(&mut self, sides: Rect<LengthPercentage>) {
+        *self.border_left() = sides.left;
+        *self.border_right() = sides.right;
+        *self.border_top() = sides.top;
+        *self.border_bottom() = sides.bottom;
+    }
+
+    pub(super) fn set_inset(&mut self, sides: Rect<LengthPercentageAuto>) {
+        *self.inset_left() = sides.left;
+        *self.inset_right() = sides.right;
+        *self.inset_top() = sides.top;
+        *self.inset_bottom() = sides.bottom;
+    }
+
+    pub(super) fn set_size(&mut self, size: Size<Dimension>) {
+        *self.width() = size.width;
+        *self.height() = size.height;
+    }
 }
 
-fn layout_probes() -> [Style; 2] {
-    let probe = |n: f32, first: bool| {
-        let length = |n: f32| LengthPercentage::length(n);
-        let auto_length = |n: f32| LengthPercentageAuto::length(n);
-        let sides = |n: f32| Rect {
-            left: length(n),
-            right: length(n + 0.5),
-            top: length(n + 0.25),
-            bottom: length(n + 0.75),
-        };
-        let auto_sides = |n: f32| Rect {
-            left: auto_length(n),
-            right: auto_length(n + 0.5),
-            top: auto_length(n + 0.25),
-            bottom: auto_length(n + 0.75),
-        };
-        let line = |n: i16| Line {
-            start: taffy::GridPlacement::from_line_index(n),
-            end: taffy::GridPlacement::from_line_index(n + 1),
-        };
-        Style {
-            display: pick!(first, Display::Flex, Display::Grid),
-            box_sizing: pick!(first, BoxSizing::BorderBox, BoxSizing::ContentBox),
-            overflow: taffy::Point {
-                x: pick!(first, Overflow::Visible, Overflow::Hidden),
-                y: pick!(first, Overflow::Hidden, Overflow::Visible),
-            },
-            position: pick!(first, Position::Relative, Position::Absolute),
-            inset: auto_sides(n),
-            size: Size {
-                width: Dimension::length(-n),
-                height: Dimension::length(-n - 0.5),
-            },
-            min_size: Size {
-                width: auto_length(-n),
-                height: auto_length(-n - 0.5),
-            },
-            max_size: Size {
-                width: auto_length(-n - 1.0),
-                height: auto_length(-n - 1.5),
-            },
-            aspect_ratio: pick!(first, Some(n), None),
-            margin: auto_sides(n),
-            padding: sides(n),
-            border: sides(n),
-            align_items: pick!(first, AlignItems::BASELINE, AlignItems::CENTER),
-            align_self: pick!(first, Some(AlignItems::BASELINE), None),
-            justify_items: pick!(first, AlignItems::BASELINE, AlignItems::CENTER),
-            justify_self: pick!(first, Some(AlignItems::BASELINE), None),
-            align_content: pick!(first, AlignContent::CENTER, AlignContent::START),
-            justify_content: pick!(first, AlignContent::CENTER, AlignContent::START),
-            gap: Size {
-                width: length(n),
-                height: length(n + 0.5),
-            },
-            flex_direction: pick!(first, FlexDirection::Row, FlexDirection::Column),
-            flex_wrap: pick!(first, FlexWrap::Wrap, FlexWrap::NoWrap),
-            flex_basis: Dimension::length(n),
-            flex_grow: n,
-            flex_shrink: n + 0.5,
-            grid_auto_flow: pick!(first, GridAutoFlow::Row, GridAutoFlow::Column),
-            grid_row: line(pick!(first, 3, -3)),
-            grid_column: line(pick!(first, 4, -4)),
-            ..Style::default()
-        }
-    };
-    [probe(7.0, true), probe(11.0, false)]
+/// The box paint a class writes that merging tracks property by property:
+/// the corner radii and the opacity.
+pub(super) struct Shape<'a> {
+    paint: &'a mut BoxPaint,
+    touched: &'a mut Touched,
 }
 
-fn paint_probes() -> [BoxPaint; 2] {
-    let probe = |radius: u8, opacity: f32| BoxPaint {
-        radius: CornerRadius::same(radius),
-        opacity: Opacity::new(opacity),
-        ..BoxPaint::default()
-    };
-    [probe(77, 0.25), probe(78, 0.75)]
+impl Shape<'_> {
+    pub(super) fn set_radius(&mut self, radius: CornerRadius) {
+        self.touched.mark(Property::RadiusNw);
+        self.touched.mark(Property::RadiusNe);
+        self.touched.mark(Property::RadiusSw);
+        self.touched.mark(Property::RadiusSe);
+        self.paint.radius = radius;
+    }
+
+    pub(super) fn radius_ne(&mut self) -> &mut u8 {
+        self.touched.mark(Property::RadiusNe);
+        &mut self.paint.radius.ne
+    }
+
+    pub(super) fn radius_se(&mut self) -> &mut u8 {
+        self.touched.mark(Property::RadiusSe);
+        &mut self.paint.radius.se
+    }
+
+    pub(super) fn set_opacity(&mut self, opacity: Opacity) {
+        self.touched.mark(Property::Opacity);
+        self.paint.opacity = opacity;
+    }
 }
 
 impl Tw {
-    /// Writes layout with `set`, noting which properties it wrote.
-    pub(super) fn write_layout(&mut self, set: impl Fn(&mut Style)) {
-        set(&mut self.style);
-        let wrote = LAYOUT_PROBES.with(|(originals, work)| {
-            let mut work = work.borrow_mut();
-            let mut touched = Touched::default();
-            for (original, probe) in originals.iter().zip(work.iter_mut()) {
-                set(probe);
-                let wrote = Touched::between(original, probe);
-                copy_layout(probe, original, wrote);
-                touched = touched | wrote;
-            }
-            touched
+    /// Writes layout with `set`, which records each property it writes.
+    pub(super) fn write_layout(&mut self, set: impl FnOnce(&mut Layout<'_>)) {
+        set(&mut Layout {
+            style: &mut self.style,
+            touched: &mut self.touched,
         });
-        self.touched = self.touched | wrote;
     }
 
-    /// Writes box paint with `set`, noting the radii and opacity it wrote.
-    pub(super) fn write_paint(&mut self, set: impl Fn(&mut BoxPaint)) {
-        set(&mut self.paint);
-        let probes = paint_probes();
-        let [mut a, mut b] = probes;
-        set(&mut a);
-        set(&mut b);
-        let wrote = |before: &BoxPaint, after: &BoxPaint| {
-            let (r, s) = (before.radius, after.radius);
-            let mut touched = 0u64;
-            for (bit, changed) in [
-                (RADIUS_NW, r.nw != s.nw),
-                (RADIUS_NE, r.ne != s.ne),
-                (RADIUS_SW, r.sw != s.sw),
-                (RADIUS_SE, r.se != s.se),
-                (OPACITY, before.opacity != after.opacity),
-            ] {
-                touched |= u64::from(changed) << bit;
-            }
-            Touched(touched)
-        };
-        self.touched = self.touched | wrote(&probes[0], &a) | wrote(&probes[1], &b);
+    /// Writes the box paint that merging tracks with `set`.
+    pub(super) fn write_shape(&mut self, set: impl FnOnce(&mut Shape<'_>)) {
+        set(&mut Shape {
+            paint: &mut self.paint,
+            touched: &mut self.touched,
+        });
     }
 
     /// These classes with `other` applied on top, as `tailwind-merge` does:
@@ -247,14 +263,20 @@ impl Tw {
     pub fn merge(mut self, other: Self) -> Self {
         copy_layout(&mut self.style, &other.style, other.touched);
         let (mine, theirs) = (&mut self.paint, &other.paint);
-        let corners = |own: u8, over: u8, bit: u32| if other.touched.has(bit) { over } else { own };
-        mine.radius = CornerRadius {
-            nw: corners(mine.radius.nw, theirs.radius.nw, RADIUS_NW),
-            ne: corners(mine.radius.ne, theirs.radius.ne, RADIUS_NE),
-            sw: corners(mine.radius.sw, theirs.radius.sw, RADIUS_SW),
-            se: corners(mine.radius.se, theirs.radius.se, RADIUS_SE),
+        let corners = |own: u8, over: u8, property| {
+            if other.touched.has(property) {
+                over
+            } else {
+                own
+            }
         };
-        if other.touched.has(OPACITY) {
+        mine.radius = CornerRadius {
+            nw: corners(mine.radius.nw, theirs.radius.nw, Property::RadiusNw),
+            ne: corners(mine.radius.ne, theirs.radius.ne, Property::RadiusNe),
+            sw: corners(mine.radius.sw, theirs.radius.sw, Property::RadiusSw),
+            se: corners(mine.radius.se, theirs.radius.se, Property::RadiusSe),
+        };
+        if other.touched.has(Property::Opacity) {
             mine.opacity = theirs.opacity;
         }
         mine.background = theirs.background.or(mine.background);
@@ -288,22 +310,6 @@ mod tests {
 
     use super::*;
     use crate::tw::{Paint, tw};
-
-    #[test]
-    fn the_probes_differ_in_every_property() {
-        LAYOUT_PROBES.with(|(probes, _)| {
-            let differing = Touched::between(&probes[0], &probes[1]);
-            let track_lists = 0b11 << (LAYOUT_PROPERTIES - 5);
-            assert_eq!(
-                differing.0,
-                ((1 << LAYOUT_PROPERTIES) - 1) & !track_lists,
-                "every property but the two track lists, which are empty in both probes \
-                 so that cloning them allocates nothing"
-            );
-        });
-        let [a, b] = paint_probes();
-        assert!(a.radius.nw != b.radius.nw && a.opacity != b.opacity);
-    }
 
     #[test]
     fn a_property_set_to_its_default_still_overrides() {

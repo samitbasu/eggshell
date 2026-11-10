@@ -14,9 +14,6 @@ mod common;
 
 use std::convert::identity;
 
-use bullseye::owned::Mark;
-use bullseye::owned::{Button, Checkbox, Slider};
-use bullseye::prim::text_field::{self, Field};
 use bullseye::{Builder, Tw, tw};
 use egui::{Role, WidgetInfo};
 
@@ -97,9 +94,7 @@ fn text<A>(b: &mut Builder<'_, '_, A>, class: Tw, content: &str) {
 
 /// A button that takes the classes `class` gives it.
 fn button(b: &mut B<'_, '_>, key: Part, class: Class, label: &str) {
-    Button::new(label)
-        .classes(class(tw()))
-        .show(b, key, |_: &mut State| {});
+    b.button(key, label).classes(class(tw())).add();
 }
 
 /// ```html
@@ -154,25 +149,19 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     } else {
         "You can toggle my size"
     };
-    Button::new(label)
+    b.button(Part::Toggle, label)
         .classes(tw().grow())
-        .show(b, Part::Toggle, |state: &mut State| {
-            state.toggle = !state.toggle;
-        });
+        .on_click(|state: &mut State| state.toggle = !state.toggle);
 
-    let field = Field::singleline(&state.text);
-    let measured = field.clone();
     b.div(framed(b, tw()).basis_px(200.0), |b| {
-        b.leaf(
-            Part::Text,
-            tw().w_full(),
-            move |m| text_field::measure(m, &measured),
-            move |state, ui| {
-                let response = text_field::show(ui, &mut state.text, &field);
-                response
-                    .widget_info(|| WidgetInfo::labeled(Role::TextInput, ui.is_enabled(), "Text"));
-            },
-        );
+        b.text_field(Part::Text, &state.text)
+            .classes(tw().w_full())
+            .on_response(|_, response| {
+                response.widget_info(|| {
+                    WidgetInfo::labeled(Role::TextInput, response.enabled(), "Text")
+                });
+            })
+            .on_change(|state: &mut State, text| state.text = text);
     });
 
     text(b, tw().basis_px(80.0), "I have flex basis 80");
@@ -183,13 +172,9 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     b.div(
         tw().flex().grow().basis_px(150.0).items_center().gap(2.0),
         |b| {
-            Slider::new(state.level, 0.0..=1000.0).named("Level").show(
-                b,
-                Part::Slider,
-                |state: &mut State, level| {
-                    state.level = level;
-                },
-            );
+            b.slider(Part::Slider, state.level, 0.0..=1000.0)
+                .named("Level")
+                .on_change(|state: &mut State, level| state.level = level);
             b.text(tw().w_px(40.0), format!("{:.0}", state.level));
         },
     );
@@ -201,11 +186,8 @@ fn items(b: &mut B<'_, '_>, state: &State) {
     button(b, Part::Button("odd"), Tw::grow, "Button wefoijfgiweopjg");
     button(b, Part::Button("short again"), Tw::grow, "Button");
     button(b, Part::Button("plain"), identity, "Non-grow Button");
-    Checkbox::new("Checkbox", Mark::from(state.checked)).show(
-        b,
-        Part::Checkbox,
-        |state: &mut State| state.checked = !state.checked,
-    );
+    b.checkbox(Part::Checkbox, "Checkbox", state.checked)
+        .on_change(|state: &mut State, checked| state.checked = checked);
 }
 
 fn main() -> eframe::Result {

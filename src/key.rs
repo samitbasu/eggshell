@@ -1,7 +1,6 @@
 //! Key paths: the identity of every node.
 //!
-//! A path is a sequence of keys, each any `Hash + Debug + 'static` value. The
-//! egui [`Id`] of a node is the running hash of its path, and the readable
+//! A path is a sequence of [`Key`]s. The egui [`Id`] of a node is the running hash of its path, and the readable
 //! form (each key's `Debug` text) is kept for diagnostics.
 //!
 //! Each segment hashes the key together with its type name, so keys need only
@@ -13,6 +12,44 @@ use std::fmt::{Debug, Write as _};
 use std::hash::Hash;
 
 use egui::Id;
+
+/// What a node is named by: any `Hash + Debug + 'static` value. It is
+/// implemented for every such type, so there is nothing to implement.
+///
+/// - **`Hash`** gives the node's egui [`Id`]. The key's type name is mixed in,
+///   so keys need only differ from siblings *of the same type*: a bare enum
+///   variant, `1u32` and a `BlockKey(1)` newtype never collide.
+/// - **`Debug`** gives the readable path used in diagnostics, such as the
+///   duplicate-key panic and the accessibility tree.
+/// - **`'static`** makes keys owned values, so a key outlives the call that
+///   made it.
+///
+/// Neither `Eq` nor `Clone` is needed.
+///
+/// # Conventions
+///
+/// - Give each component **its own key enum**. Its parts then cannot collide
+///   with a sibling's, whatever the variants are called.
+/// - Name a component's instances with a key at the call site
+///   ([`Builder::scope`](crate::Builder::scope)); two uses of one component in
+///   a parent differ by that key.
+/// - Rows of a dynamic list use **data keys** (a record id, never an index),
+///   so a row keeps its state through a reorder.
+///
+/// ```
+/// # use bullseye::Key;
+/// #[derive(Hash, Debug)]
+/// enum Toolbar {
+///     Save,
+///     Row(u32),
+/// }
+/// fn needs_key(_: impl Key) {}
+/// needs_key(Toolbar::Row(3));
+/// needs_key(("pin", 4u64));
+/// ```
+pub trait Key: Hash + Debug + 'static {}
+
+impl<T: Hash + Debug + 'static> Key for T {}
 
 /// The root of every key path; a salt keeps bullseye ids apart from other
 /// users of [`Id::NULL`].
@@ -53,7 +90,7 @@ impl ReadablePath {
 }
 
 /// The id a key has under `parent`.
-pub(crate) fn child_id<K: Hash + Debug + 'static>(parent: Id, key: &K) -> Id {
+pub(crate) fn child_id<K: Key>(parent: Id, key: &K) -> Id {
     parent.with((std::any::type_name::<K>(), key))
 }
 

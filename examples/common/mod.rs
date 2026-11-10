@@ -14,8 +14,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
-use bullseye::owned::{Cell, Segmented, Slider};
-use bullseye::prim::text_field::{self, Field};
+use bullseye::owned::Cell;
+use bullseye::prim::text_field::Field;
 use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
 use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
@@ -340,12 +340,11 @@ mod web {
 pub fn theme_toggle<A, K>(b: &mut Builder<'_, '_, A>, key: K)
 where
     A: 'static,
-    K: Hash + Debug + 'static,
+    K: bullseye::Key,
 {
     let current = b.ctx().options(|options| options.theme_preference);
-    Segmented::new(current, &APPEARANCES).show(b, key, |_: &mut A, ctx, preference| {
-        ctx.set_theme(preference)
-    });
+    b.segmented(key, current, APPEARANCES)
+        .on_change_with(|_: &mut A, ctx, preference| ctx.set_theme(preference));
 }
 
 /// The Vega and Lyra choices as the preset's tab list. The choice lives in
@@ -353,10 +352,14 @@ where
 pub fn style_toggle<A, K>(b: &mut Builder<'_, '_, A>, key: K)
 where
     A: 'static,
-    K: Hash + Debug + 'static,
+    K: bullseye::Key,
 {
-    let options = ShadcnStyle::ALL.map(|style| (style, style.name()));
-    Segmented::new(style_of(b.ctx()), &options).show(b, key, |_: &mut A, ctx, style| {
+    b.segmented(
+        key,
+        style_of(b.ctx()),
+        ShadcnStyle::ALL.map(|style| (style, style.name())),
+    )
+    .on_change_with(|_: &mut A, ctx, style| {
         choose(
             ctx,
             Chosen {
@@ -518,13 +521,9 @@ pub fn slider_row<S: 'static>(
             b.text(tw(), format!("{value:.0}"));
         });
         let bounds = f64::from(*range.start())..=f64::from(*range.end());
-        Slider::new(f64::from(value), bounds).named(name).show(
-            b,
-            key,
-            move |state: &mut S, edited| {
-                *lens(state) = edited as f32;
-            },
-        );
+        b.slider(key, f64::from(value), bounds)
+            .named(name)
+            .on_change(move |state: &mut S, edited| *lens(state) = edited as f32);
     });
 }
 
@@ -564,16 +563,16 @@ pub fn choice<S, K, T>(
     lens: fn(&mut S) -> &mut T,
 ) where
     S: 'static,
-    K: Hash + Debug + 'static,
+    K: bullseye::Key,
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
-    let group = Segmented::new(current, options);
+    let group = b.segmented(key, current, options.iter().copied());
     let group = if options.len() > MAX_ONE_ROW {
         group.wrapping()
     } else {
         group
     };
-    group.show(b, key, move |state, _, value| *lens(state) = value);
+    group.on_change(move |state, value| *lens(state) = value);
 }
 
 /// A frameless text field filling its row, in shadcn's input box: `h-9`,
@@ -595,12 +594,11 @@ pub fn text_box<S, K>(
     lens: fn(&mut S) -> &mut String,
 ) where
     S: 'static,
-    K: Hash + Debug + 'static,
+    K: bullseye::Key,
 {
     let t = tokens(b.ctx());
     let fill = b.ctx().global_style().visuals.text_edit_bg_color();
     let field = field.bare();
-    let measured = field.clone();
     b.div_id(
         key,
         tw().flex()
@@ -617,15 +615,12 @@ pub fn text_box<S, K>(
             .focus_within(|p| p.border_color(t.ring).ring(t.ring_width, ring(&t))),
         none,
         |b| {
-            b.leaf(
-                "field",
-                tw().w_full(),
-                move |m| text_field::measure(m, &measured),
-                move |state, ui| {
-                    let response = text_field::show(ui, lens(state), &field);
-                    response.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), name));
-                },
-            );
+            b.text_field_with("field", field)
+                .classes(tw().w_full())
+                .on_response(move |_, response| {
+                    response.widget_info(|| WidgetInfo::labeled(role, response.enabled(), name));
+                })
+                .on_change(move |state, text| *lens(state) = text);
         },
     );
 }

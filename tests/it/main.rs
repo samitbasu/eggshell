@@ -7,6 +7,7 @@
 )]
 
 mod chat_shell_demo;
+mod choices;
 mod compile_fail;
 mod contract;
 mod contract_gaps;
@@ -39,4 +40,6 @@ mod support;
 mod theme_toggle;
 mod themed_examples;
 mod todo_demo;
+mod tooltips;
+mod value_widgets;
 mod widgets;

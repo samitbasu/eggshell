@@ -1,12 +1,11 @@
 //! The nested-closure builder.
 
-use std::fmt::Debug;
-use std::hash::Hash;
+use std::ops::{Deref, DerefMut};
 
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
-use crate::key::child_id;
+use crate::key::{Key, child_id};
 use crate::measure::Measure;
 use crate::pipeline::{
     BuildState, ColorSource, DrawFn, Frame, Interaction, MeasureFn, Node, NodeKind,
@@ -50,8 +49,8 @@ impl Parts {
 ///
 /// # Keys
 ///
-/// An identified node's key is any `Hash + Debug + 'static` value: a name, a
-/// data key, or both (`("pin", pin_key)`). Keys form a path through
+/// An identified node's key is any [`Key`]: a name, a data key, or both
+/// (`("pin", pin_key)`). Keys form a path through
 /// [`scope`](Self::scope) and identified containers, and a node's egui
 /// [`Id`] is the running hash of its path. Each key is hashed together with
 /// its type name, so keys need only be unique among siblings **of the same
@@ -87,19 +86,18 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// Builds `body` with a key pushed onto the path. No node is created;
     /// the children attach to the current parent.
-    pub fn scope<K: Hash + Debug + 'static>(
-        &mut self,
-        key: K,
-        body: impl FnOnce(&mut Builder<'_, 'f, A>),
-    ) {
+    ///
+    /// `body` gets a [`Scope`], which components take: a component can only be
+    /// placed where its caller named the instance.
+    pub fn scope<K: Key>(&mut self, key: K, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         let mark = self.st.names.push(&key);
-        body(&mut Builder::new(
+        body(&mut Scope(Builder::new(
             self.st,
             self.frame,
             child_id(self.path, &key),
             self.kids,
             self.inherited,
-        ));
+        )));
         self.st.names.pop_to(mark);
     }
 
@@ -114,7 +112,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ///
     /// For overlay anchors and for reading local state at build time. Keep
     /// such keys in one place so a typo cannot split them.
-    pub fn id_of<K: Hash + Debug + 'static>(&self, key: K) -> Id {
+    pub fn id_of<K: Key>(&self, key: K) -> Id {
         child_id(self.path, &key)
     }
 
@@ -124,29 +122,34 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// the node exists. A change of focus shows up in the layout one frame
     /// later, as a single relayout; layout never moves focus, so this cannot
     /// oscillate.
-    pub fn has_focus<K: Hash + Debug + 'static>(&self, key: K) -> bool {
+    pub fn has_focus<K: Key>(&self, key: K) -> bool {
         crate::focus::holds_focus(self.frame.ctx, self.id_of(key))
     }
 
     /// Whether the node declared with `key` in this scope, or a widget
     /// inside it, has keyboard focus. See [`focus_within`](crate::focus_within).
-    pub fn has_focus_within<K: Hash + Debug + 'static>(&self, key: K) -> bool {
+    pub fn has_focus_within<K: Key>(&self, key: K) -> bool {
         crate::focus::focus_within(self.frame.ctx, self.id_of(key))
     }
 
     /// An anonymous container. Its text classes are inherited by `body`.
     pub fn div(&mut self, tw: Tw, body: impl FnOnce(&mut Builder<'_, 'f, A>)) {
         let path = self.anonymous_path(NodeKind::Div);
-        self.container(tw, Parts::anonymous(NodeKind::Div, path), self.path, body);
+        self.container(
+            tw,
+            Parts::anonymous(NodeKind::Div, path),
+            self.path,
+            |mut b| body(&mut b),
+        );
     }
 
     /// An identified container with a draw closure. Its children are scoped under `key`.
-    pub fn div_id<K: Hash + Debug + 'static>(
+    pub fn div_id<K: Key>(
         &mut self,
         key: K,
         tw: Tw,
         draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
-        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) {
         let (id, path) = self.identify(&key);
         let draw = self.push_draw(draw);
@@ -156,15 +159,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             ..Parts::anonymous(NodeKind::DivId, path)
         };
         let mark = self.st.names.push(&key);
-        self.container(tw, parts, id, body);
+        self.container(tw, parts, id, |b| body(&mut Scope(b)));
         self.st.names.pop_to(mark);
     }
 
     /// An identified leaf whose size comes from `measure` and which draws itself.
     ///
     /// `measure` may borrow application data for the frame and is dropped when
-    /// layout returns; use [`fill`](crate::fill) for leaves sized by classes.
-    pub fn leaf<K: Hash + Debug + 'static>(
+    /// layout returns; [`fill`](crate::fill) sizes a leaf by classes.
+    pub(crate) fn leaf<K: Key>(
         &mut self,
         key: K,
         tw: Tw,
@@ -187,7 +190,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// from the widget's content (see [`widget`](crate::widget)).
     ///
     /// `draw` gets the widget back to `show` it with the application's data.
-    pub fn widget<K: Hash + Debug + 'static, W: Stock>(
+    pub fn widget<K: Key, W: Stock>(
         &mut self,
         key: K,
         tw: Tw,
@@ -204,7 +207,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// An identified text leaf, measured and painted by the library.
-    pub fn span<K: Hash + Debug + 'static>(
+    pub fn span<K: Key>(
         &mut self,
         key: K,
         tw: Tw,
@@ -221,7 +224,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// An identified icon, measured and painted by the library.
-    pub fn icon<K: Hash + Debug + 'static>(
+    pub fn icon<K: Key>(
         &mut self,
         key: K,
         tw: Tw,
@@ -271,7 +274,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.leaf_node(tw, Parts::anonymous(kind, path).with_prim(prim));
     }
 
-    fn identify<K: Hash + Debug + 'static>(&mut self, key: &K) -> (Id, String) {
+    fn identify<K: Key>(&mut self, key: &K) -> (Id, String) {
         let id = child_id(self.path, key);
         let mark = self.st.names.push(key);
         let path = self.st.names.as_str().to_owned();
@@ -346,19 +349,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// Builds `body` as the children of a new container whose children's key
     /// path starts at `path`.
-    fn container(
-        &mut self,
-        tw: Tw,
-        parts: Parts,
-        path: Id,
-        body: impl FnOnce(&mut Builder<'_, 'f, A>),
-    ) {
+    fn container(&mut self, tw: Tw, parts: Parts, path: Id, body: impl FnOnce(Builder<'_, 'f, A>)) {
         let node = self.node(&tw, parts);
         let text = node.text.clone();
         let mut kids = Vec::new();
-        body(&mut Builder::new(
-            self.st, self.frame, path, &mut kids, &text,
-        ));
+        body(Builder::new(self.st, self.frame, path, &mut kids, &text));
         let id = self
             .st
             .tree
@@ -369,6 +364,48 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .set_node_context(id, Some(node))
             .expect("node was just created");
         self.kids.push(id);
+    }
+}
+
+/// A [`Builder`] inside a keyed scope: what [`Builder::scope`] and
+/// [`Builder::div_id`] hand to their bodies.
+///
+/// It has the whole builder API (it dereferences to [`Builder`]), and a
+/// `&mut Scope` can be passed wherever a `&mut Builder` is wanted. The
+/// reverse is the point: a component function that takes `&mut Scope` cannot
+/// be called with a plain builder, so every use of a component sits under a
+/// key its caller chose, and two uses in one parent need two keys.
+///
+/// ```
+/// use bullseye::{Scope, tw};
+///
+/// #[derive(Hash, Debug)]
+/// enum Field {
+///     Label,
+/// }
+///
+/// fn labelled(s: &mut Scope<'_, '_, ()>, label: &str) {
+///     s.span(Field::Label, tw(), label, bullseye::none);
+/// }
+///
+/// # fn demo(b: &mut bullseye::Builder<'_, '_, ()>) {
+/// b.scope("name", |s| labelled(s, "Name"));
+/// b.scope("email", |s| labelled(s, "Email"));
+/// # }
+/// ```
+pub struct Scope<'b, 'f, A>(Builder<'b, 'f, A>);
+
+impl<'b, 'f, A> Deref for Scope<'b, 'f, A> {
+    type Target = Builder<'b, 'f, A>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<A> DerefMut for Scope<'_, '_, A> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

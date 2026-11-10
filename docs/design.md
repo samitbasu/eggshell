@@ -39,7 +39,7 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 |---|---|---|
 | D1 | Rebuild the taffy tree every frame. | No reconciliation. taffy is fast enough. Allocations are reused. |
 | D2 | One taffy tree per frame. Overlays and scroll contents are additional roots in the same tree. | Content-dependent sizing is solved per root in one pass. Only leaves are measured. |
-| D3 | **Identity is a key path.** `scope`, identified groups and roots each push a key; identified nodes add their own. A key is any `Hash + Debug + 'static` value: a name, a data key, or both (`("pin", pin_key)`). | Explicit identity without a type per component. Keys stay next to the code that uses them. |
+| D3 | **Identity is a key path.** `scope`, identified groups and roots each push a key; identified nodes add their own. A key is any value of the `Key` trait (`Hash + Debug + 'static`, implemented for every such type): a name, a data key, or both (`("pin", pin_key)`). | Explicit identity without a type per component. Keys stay next to the code that uses them. |
 | D4 | Dynamic items use stable data keys, never `Vec` indices. | Index IDs reintroduce reorder bugs. |
 | D5 | **A node's egui ID is the hash of its key path.** Uniqueness is checked: debug builds assert that no path occurs twice per frame and report the readable path. Each segment hashes the key's type name with its value, so keys of different types never collide (`#[derive(Hash)]` alone does not hash the type). | One identity system for layout, egui widget state and local state. Collisions surface on the first frame (the reference shell hit one). |
 | D6 | The builder is **nested closures**: `b.div(tw, \|b\| …)` attaches children to the current parent automatically. | Reads like HTML. Inherited text classes resolve at build time. No `Vec<NodeId>` juggling. |
@@ -64,20 +64,23 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 | D25 | **Regions**: `b.region(key, tw, \|b, size\| …)` builds a subtree *after* the outer layout, with the region leaf's solved size, as a separate root laid out at exactly that rect. A region's size never depends on its contents. | Build can depend on solved size (container queries) with no previous-frame lag. |
 | D26 | **Choosing what fits**: inside a region, `b.max_content_width(\|b\| …)` builds a candidate into a scratch tree and returns its max-content width, so the app can pick the first of several alternatives that fits. | SwiftUI `ViewThatFits`-style fallback ladders (e.g. pane title bars) without guessing widths. |
 | D27 | `divide_x` / `divide_y` are container paint: hairlines drawn between consecutive in-flow children. | Grouped form sections (macOS style) need them everywhere. Earlier marked "not expressible"; it is, since the library knows child rects. |
-| D28 | **Nodes declare their own measure and draw**: `b.leaf(key, tw, measure, draw)`. Measure closures may borrow application data for the frame (`'f`) and are dropped when `layout` returns. Draw closures own their captures (`'static`) and run with `&mut App`. | A leaf cannot lack a measure, an interactive node cannot lack a draw, and nothing dispatches by ID. |
+| D28 | **Nodes declare their own measure and draw**: `b.custom(key, tw).measure(m).ui(draw)` (`measure` optional: the size then comes from classes; `leaf` is the crate-private primitive under it). Measure closures may borrow application data for the frame (`'f`) and are dropped when `layout` returns. Draw closures own their captures (`'static`) and run with `&mut App`. | A leaf cannot lack a measure, an interactive node cannot lack a draw, and nothing dispatches by ID. |
+| D30 | **A component takes `&mut Scope`.** `Scope` is the builder that `b.scope(key, …)` and `div_id(key, …)` hand to their bodies. It dereferences to `Builder`, so the whole builder API is available and a `&mut Scope` passes where a `&mut Builder` is wanted; the reverse does not compile. A component function takes `&mut Scope<'_, '_, A>`, so each use sits under a key its caller chose. Each component has its own key enum. | Keys a component declares cannot leak into its caller's scope or collide with siblings, and two uses in one parent need two instance keys, all checked at compile time. A `Scope<A, K>` with typed child keys was rejected: it makes helper functions awkward. |
+| D31 | **Owned widgets are chained builders that start from `b`**: `b.button(key, "Save").variant(PRIMARY).on_click(\|app\| …)`. `b.<widget>(key, …)` returns a `#[must_use]` builder that borrows `b`; options come first and a terminating call adds the widget: `on_click` (button, and anything else that only triggers), `on_change(|app, value| …)` on every control that holds a value (checkbox, switch, toggle button, radio, segmented, slider, select, stepper, text field). The control is given the current value when it is built and shows it; `on_change` receives the value the user chose, and the application stores it. A checkbox or switch over a `bool` needs nothing more; over any other two-valued type it takes `.values(off, on)` first. `add()` adds a button that does nothing. Hooks come before the terminator: `on_response(|app, &Response| …)` on every control, `when_submitted` and `when_blurred` on the text field and the stepper. A builder dropped without its terminator is an `unused_must_use` warning, which CI denies. | The widget is named once; a forgotten terminator cannot pass CI. |
+| D32 | **Styles are plain values**: `fn card() -> Tw`, composed with `merge` (the later list wins per property, as `cn()` / `tailwind-merge` do). No class-string macro. | A `Tw` is a pure value, so styles compose and can be checked on their own. Class methods are not `const fn`, so a style is a function. |
 | D29 | **Keys are local and readable.** Each module opens its own scope; keys are names and data keys; keys referred to from elsewhere (anchors, local state) are computed once (`b.id_of`) and passed on. | Typos and collisions are confined and caught by the duplicate check. |
 
 ## 4. Identity
 
-Identity is a **path of keys**. Every `scope`, identified group, scroll area, region, overlay and virtual-list row pushes one key. Every identified node adds its own key. A key is any value that is `Hash + Debug`: a name (`"title"`), a data key (`BlockKey(2)`), or both (`("pin", pin_key)`).
+Identity is a **path of keys**. Every `scope`, identified group, scroll area, region, overlay and virtual-list row pushes one key. Every identified node adds its own key. A key is any value of the [`Key`] trait, `Hash + Debug + 'static` (implemented for every such type; no `Eq` or `Clone` needed): a name (`"title"`), a data key (`BlockKey(2)`), or both (`("pin", pin_key)`).
 
 ```rust
 b.scope("props", |b| {
     b.scope(("block", blk.key), |b| {
-        b.leaf("title", …);                      // path: /"props"/("block", BlockKey(2))/"title"
+        b.custom("title", …);                      // path: /"props"/("block", BlockKey(2))/"title"
         for p in &blk.pins {
             b.scope(("pin", p.key), |b| {
-                b.leaf("name", …);               // path: /"props"/("block", BlockKey(2))/("pin", PinKey(3))/"name"
+                b.custom("name", …);               // path: /"props"/("block", BlockKey(2))/("pin", PinKey(3))/"name"
             });
         }
     });
@@ -90,6 +93,8 @@ Rules:
 - **Keys come from data, never from position** (D4). Lists use data keys (`BlockKey`, `RevKey`), not indices.
 - **Uniqueness is required only among siblings in one scope.** The path makes it global. `div_id` and the roots scope their children under their own key, so keys inside a row only need to be unique within that row.
 - **Keys of different types never collide.** Each segment hashes `(std::any::type_name::<K>(), key)`. `#[derive(Hash)]` alone hashes an enum's variant index and fields, not its type, so without the type name `Appearance::Light` and `Lettering::Basic` (both variant 0) would collide as bare keys in the same scope; the reference shell hit exactly this. The same holds for `1u32` and `BlockKey(1)`. `type_name` (not `TypeId`) keeps IDs stable across runs, so state egui persists survives a restart. A collision that remains is a genuine duplicate: same type, same value, same scope.
+- **`Key` is the one bound.** `Hash` gives the id (with the type name mixed in), `Debug` the readable path, `'static` makes keys owned values. Every signature that takes a key says `impl Key`.
+- **Components get their own key enum and an instance key.** A component function takes `&mut Scope` (§6), and its parts are the variants of one enum, so they cannot collide with a sibling's keys whatever they are called; the caller names the instance with `b.scope(Instance::Header, |s| header(s, …))`. Dynamic lists use data keys.
 - **Duplicates are detected.** In debug builds the builder asserts that no path occurs twice in a frame, and reports the readable path (built from each key's `Debug` text, e.g. `/"viewport"/Settings/"scroll"/Basic`).
 - **Only identified nodes get keys:** nodes with a draw (interactive or tooltip), anchors, scroll areas, regions, overlays, virtual-list rows. Pure decoration is anonymous (`text`, `glyph`, `rule`, `div`).
 - **Refer to another node with `b.id_of(key)`**, evaluated in the scope where that node is (or will be) declared. Used for overlay anchors and for reading local state at build time (D11). Keep such keys in one place (a constant, or compute the ID once and pass it on) so a typo cannot split them.
@@ -188,22 +193,34 @@ impl<A> Placed<A> {
 
 ### 5.3 Methods
 
-All methods attach the new node to the current parent. `Tw` is defined in §7. `K` stands for `impl Hash + Debug` (a key segment). `D` stands for `impl FnOnce(&mut A, &mut egui::Ui) + 'static` (a draw).
+All methods attach the new node to the current parent. `Tw` is defined in §7. `K` stands for `impl Key` (a key segment). `S` is `Scope<'_, 'f, A>`, a `Builder` known to sit under a key. `D` stands for `impl FnOnce(&mut A, &mut egui::Ui) + 'static` (a draw).
 
 ```rust
 impl<'b, 'f, A> Builder<'b, 'f, A> {
     // ---- identity
-    pub fn scope(&mut self, key: K, body: impl FnOnce(&mut Builder<'_, 'f, A>));
+    pub fn scope(&mut self, key: K, body: impl FnOnce(&mut S));
     pub fn id_of(&self, key: K) -> egui::Id;                      // a node's ID in this scope (anchors, state)
 
     // ---- containers
     pub fn div(&mut self, tw: Tw, body: impl FnOnce(&mut Builder<'_, 'f, A>));
-    pub fn div_id(&mut self, key: K, tw: Tw, draw: D, body: impl FnOnce(&mut Builder<'_, 'f, A>)); // children scoped under key
+    pub fn div_id(&mut self, key: K, tw: Tw, draw: D, body: impl FnOnce(&mut S)); // children scoped under key
 
     // ---- identified leaves
-    pub fn leaf(&mut self, key: K, tw: Tw, measure: impl Fn(&Measure) -> Size<f32> + 'f, draw: D);
+    pub fn custom(&mut self, key: K, tw: Tw) -> CustomBuilder;  // [.measure(f)] [.named(n)] [.tooltip(t)] [.on_response(f)] .ui(|app, ui| …)
     pub fn span(&mut self, key: K, tw: Tw, text: impl Into<String>, draw: D);  // library measures/paints the text
     pub fn icon(&mut self, key: K, tw: Tw, icon: Icon, draw: D);              // library measures/paints the icon
+
+    // ---- owned widgets: each returns a #[must_use] builder; options, then the terminator
+    pub fn button(&mut self, key: K, face: impl Into<Face>) -> ButtonBuilder;          // .on_click(f) | .add()
+    pub fn toggle(&mut self, key: K, face: impl Into<Face>, current: T) -> ToggleBuilder<T>; // [.values(off, on)] .on_change(|app, T|)
+    pub fn checkbox(&mut self, key: K, label: impl Into<String>, current: T) -> CheckboxBuilder<T>; // [.values(off, on)] .on_change(|app, T|)
+    pub fn switch(&mut self, key: K, label: impl Into<String>, current: T) -> SwitchBuilder<T>;     // [.values(off, on)] .on_change(|app, T|)
+    pub fn radio_group<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> RadioGroupBuilder; // .on_change(f)
+    pub fn segmented<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> SegmentedBuilder; // .on_change(f) | .on_change_with(f): f also gets &egui::Context
+    pub fn slider(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> SliderBuilder;            // .on_change(f)
+    pub fn select<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> SelectBuilder; // .on_change(f) | .on_change_with(f)
+    pub fn stepper(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> StepperBuilder;          // .on_change(f)
+    pub fn text_field(&mut self, key: K, text: impl Into<String>) -> TextFieldBuilder;                    // .on_change(|app, String|); .when_submitted(f), .when_blurred(f)
 
     // ---- anonymous display content (no key)
     pub fn text(&mut self, tw: Tw, text: impl Into<String>);
@@ -233,8 +250,8 @@ pub fn none<A>(_: &mut A, _: &mut egui::Ui);      // identified nodes the applic
 
 ```rust
 let k = blk.key;
-b.leaf("title", kit::small_field(th), prim::text_field::measure,
-       move |app, ui| if let Some(blk) = app.doc.block_mut(k) { prim::text_field::show(ui, &mut blk.title); });
+b.custom("title", kit::small_field(th)).measure(prim::text_field::measure)
+    .ui(move |app, ui| if let Some(blk) = app.doc.block_mut(k) { prim::text_field::show(ui, &mut blk.title); });
 ```
 
 `scope` pushes `key` onto the path: `path = path.with(key)`. `div` creates an empty child list, runs `body` with `inherited = tw.text.over(self.inherited)`, then creates the group from the collected children (no path segment). `overlay` reserves its slot first (D19), builds `body` as a new root with the text style in effect at the declaration point, and records `on_dismiss`. `scroll` creates a leaf (the viewport) and builds `body` as a separate scroll root (§11).
@@ -242,10 +259,10 @@ b.leaf("title", kit::small_field(th), prim::text_field::measure,
 Common measures:
 
 ```rust
-b.leaf("title", kit::small_field(k), prim::text_field::measure, …);              // a primitive's measure fn
-b.leaf("dir", kit::small_field(k), |m| prim::select::measure(m, &DIRS), …);      // with arguments
-b.leaf("note", tw(), |m| text_measure(m, &self.note), …);                        // borrows app data ('f)
-b.leaf("canvas", tw().absolute().inset(0.0).sense_click_drag(), fill, …);         // size from layout only
+b.custom("title", kit::small_field(k)).measure(prim::text_field::measure)...;           // a primitive's measure fn
+b.custom("dir", kit::small_field(k)).measure(|m| prim::select::measure(m, &DIRS))...;   // with arguments
+b.custom("note", tw()).measure(|m| text_measure(m, &self.note))...;                     // borrows app data ('f)
+b.custom("canvas", tw().absolute().inset(0.0).sense_click_drag())...;                   // size from layout only
 ```
 
 ### 5.4 Example *(compiled shape)*
@@ -275,7 +292,7 @@ Library components are generic over `A` and reach their data through a lens (§6
 
 ## 6. Components (convention)
 
-A component is a function (or a module of functions) that builds a subtree into the builder it is given. There is no component type, no ID enum and no draw dispatch: each identified node carries its own draw.
+A component is a function (or a module of functions) that builds a subtree into the scope it is given: `fn header(s: &mut Scope<'_, '_, A>, …)`. The caller supplies the key (`b.scope(Key, |s| header(s, …))`, or the key of the `div_id` the component fills), which a plain `&mut Builder` cannot do (D30; a trybuild test pins it). There is no component type, no ID enum and no draw dispatch: each identified node carries its own draw.
 
 ```rust
 pub mod topbar {
@@ -643,7 +660,7 @@ pub enum Placement { Below, Above, RightOf, LeftOf, At }  // flipped and clamped
 ```rust
 // App: canvas_menu: Option<Pos2>
 // build (inside the viewport region)
-b.leaf("canvas", tw().absolute().inset(0.0).sense_click_drag(), fill, |app, ui| {
+b.custom("canvas", tw().absolute().inset(0.0).sense_click_drag()).ui(|app, ui| {
     let r = ui.node_response();
     canvas::draw(&mut app.doc, ui, &r);
     if r.secondary_clicked() { app.canvas_menu = r.interact_pointer_pos(); }

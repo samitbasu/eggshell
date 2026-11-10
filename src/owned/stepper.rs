@@ -7,7 +7,9 @@ use std::ops::RangeInclusive;
 use egui::{Key, Role, WidgetInfo};
 
 use super::number::{Step, pressed};
-use super::{Chevron, Enablement, centered, described, field_classes, paint_chevron};
+use super::{
+    Chevron, Enablement, FieldHooks, Tip, centered, described, field_classes, paint_chevron, tipped,
+};
 use crate::prim::text_field::{self, Field};
 use crate::{Builder, Style, Tw, tw};
 
@@ -21,7 +23,8 @@ enum Part {
 }
 
 /// A number between the ends of a range, edited as text and stepped by two
-/// buttons, drawn from the [`Style`].
+/// buttons, drawn from the [`Style`]. Start one with [`Builder::stepper`] and
+/// finish it with [`on_change`](Self::on_change).
 ///
 /// With the field focused, ArrowUp and ArrowDown step the value. Typed
 /// numbers apply as they parse, are clamped to the range, and snap to the
@@ -37,26 +40,39 @@ enum Part {
 ///   </div>
 /// </div>
 /// ```
-#[derive(Clone, Debug)]
-pub struct Stepper {
+#[must_use = "a stepper is not added until you call `.on_change(..)`"]
+pub struct StepperBuilder<'a, 'b, 'f, A, K> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
     value: f64,
     range: RangeInclusive<f64>,
     step: Step,
     name: Option<String>,
+    tooltip: Tip,
     classes: Tw,
     enablement: Enablement,
+    hooks: FieldHooks<A>,
 }
 
-impl Stepper {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key> StepperBuilder<'a, 'b, 'f, A, K> {
     /// A stepper at `value` within `range`, stepping by [`Step::ONE`].
-    pub fn new(value: f64, range: RangeInclusive<f64>) -> Self {
+    pub(super) fn new(
+        b: &'a mut Builder<'b, 'f, A>,
+        key: K,
+        value: f64,
+        range: RangeInclusive<f64>,
+    ) -> Self {
         Self {
+            b,
+            key,
             value,
             range,
             step: Step::ONE,
             name: None,
+            tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
+            hooks: FieldHooks::default(),
         }
     }
 
@@ -80,35 +96,64 @@ impl Stepper {
         self
     }
 
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it.
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
+    /// Runs `then` with the field's response each frame: the escape hatch for
+    /// what the builder does not offer, such as hover.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.hooks.response.set(then);
+        self
+    }
+
+    /// Runs `then` when Enter is pressed in the field.
+    pub fn when_submitted(mut self, then: impl Fn(&mut A) + 'static) -> Self {
+        self.hooks.submitted(then);
+        self
+    }
+
+    /// Runs `then` when the field loses focus, also when Enter does it.
+    pub fn when_blurred(mut self, then: impl Fn(&mut A) + 'static) -> Self {
+        self.hooks.blurred(then);
+        self
+    }
+
     /// Whether the stepper takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
         self
     }
 
-    /// Adds the stepper to `b` under `key`. `set` runs with the new value.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        set: impl Fn(&mut A, f64) + Copy + 'static,
-    ) {
-        let style = Style::of(b.ctx());
-        let stepper = &style.stepper;
+    /// Adds the stepper. `set` runs with the new value.
+    pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
         let Self {
+            b,
+            key,
             value,
             range,
             step,
             name,
+            tooltip,
             classes,
             enablement,
+            hooks,
         } = self;
+        let style = Style::of(b.ctx());
+        let stepper = &style.stepper;
         let (low, high) = (*range.start(), *range.end());
         let spec = Spec {
             value,
             range,
             step,
             name: name.unwrap_or_default(),
+            tooltip,
+            hooks,
         };
         let group = enablement
             .fade(
@@ -185,7 +230,9 @@ impl Stepper {
                             part,
                             classes,
                             move |app, ui| {
-                                if described(ui, Role::Button, None, name.trim()).clicked() {
+                                if described(ui, Role::Button, None, name.trim(), &spec.tooltip)
+                                    .clicked()
+                                {
                                     set(app, spec.step.moved(spec.value, steps, &spec.range));
                                 }
                             },
@@ -199,19 +246,33 @@ impl Stepper {
 }
 
 /// What a stepper's field and buttons act on.
-#[derive(Clone, Debug)]
-struct Spec {
+struct Spec<A> {
     value: f64,
     range: RangeInclusive<f64>,
     step: Step,
     name: String,
+    tooltip: Tip,
+    hooks: FieldHooks<A>,
 }
 
-impl Spec {
+impl<A> Clone for Spec<A> {
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value,
+            range: self.range.clone(),
+            step: self.step,
+            name: self.name.clone(),
+            tooltip: self.tooltip.clone(),
+            hooks: self.hooks.clone(),
+        }
+    }
+}
+
+impl<A> Spec<A> {
     /// Shows the field for a frame: the arrow keys step it, typing applies
     /// numbers as they parse, and losing focus snaps the number to the step.
     /// What is typed is kept in `editing` while the field is focused.
-    fn run_field<A>(
+    fn run_field(
         &self,
         app: &mut A,
         ui: &mut egui::Ui,
@@ -234,7 +295,7 @@ impl Spec {
             }
         }
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
-        let response = text_field::show(ui, &mut text, field);
+        let response = tipped(text_field::show(ui, &mut text, field), &self.tooltip);
         response.widget_info(|| WidgetInfo {
             label: Some(self.name.clone()),
             ..WidgetInfo::drag_value(ui.is_enabled(), value)
@@ -255,5 +316,6 @@ impl Spec {
             }
             ui.data_mut(|data| data.remove::<String>(editing));
         }
+        self.hooks.run(app, ui, &response);
     }
 }

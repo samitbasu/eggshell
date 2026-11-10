@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use bullseye::owned::{Cell, Segmented};
+use bullseye::owned::Cell;
 use bullseye::widget::{Stock, TextEdit};
 use bullseye::{Builder, TextSpec, TextStyle, Width, tw};
 use egui::epaint::Shape;
@@ -321,24 +321,20 @@ const OFF: Color32 = Color32::from_rgb(50, 50, 50);
 /// ```
 fn picker(b: &mut Builder<'_, '_, Picker>, app: &Picker) {
     let container = if app.inert { tw().inert() } else { tw() };
-    Segmented::new(
+    b.segmented(
+        "mode",
         app.mode,
-        &[
+        [
             (Mode::Day, "Day"),
             (Mode::Week, "Week"),
             (Mode::Month, "Month"),
         ],
     )
-    .show_with(
-        b,
-        "mode",
-        container.flex().gap(1.0).p(2.0),
-        |cell| match cell {
-            Cell::Pressed => tw().px(3.0).py(1.0).bg(ON),
-            Cell::Released => tw().px(3.0).py(1.0).bg(OFF),
-        },
-        |app, _, mode| app.mode = mode,
-    );
+    .custom_classes(container.flex().gap(1.0).p(2.0), |cell| match cell {
+        Cell::Pressed => tw().px(3.0).py(1.0).bg(ON),
+        Cell::Released => tw().px(3.0).py(1.0).bg(OFF),
+    })
+    .on_change(|app, mode| app.mode = mode);
 }
 
 fn picker_harness() -> Harness<'static, Rig<Picker>> {

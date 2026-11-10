@@ -102,6 +102,11 @@ pub struct TextEdit {
 }
 
 impl TextEdit {
+    /// The text the field was built with.
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
     /// A one-line field showing `text`.
     pub fn singleline(text: impl Into<String>) -> Self {
         Self {
@@ -124,6 +129,12 @@ impl TextEdit {
             framing: Framing::Framed,
             name: None,
         }
+    }
+
+    /// Makes the field wrap its text over at least `min` rows.
+    pub fn multiline_rows(mut self, min: usize) -> Self {
+        self.lines = Lines::Multi { min, max: None };
+        self
     }
 
     /// Stops a multi-line field growing at the height of a field `max` rows

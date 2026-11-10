@@ -1,12 +1,12 @@
 //! The three-pane frame and the splitters between the panes.
 
 use super::common;
-use bullseye::{Builder, NodeUi, tw};
+use bullseye::{Builder, NodeUi, none, tw};
 use egui::CursorIcon;
 
-use super::centre::centre;
-use super::details::details;
-use super::sidebar::{Link, sidebar};
+use super::centre::{centre, centre_style};
+use super::details::{details, details_style};
+use super::sidebar::{Link, sidebar, sidebar_style};
 use super::state::{App, Pane};
 use super::theme::{Theme, Tok};
 
@@ -97,7 +97,7 @@ pub fn prepare(ctx: &egui::Context, app: &App) {
 /// </div>
 /// ```
 pub fn layout(b: &mut B<'_, '_>, app: &App) {
-    let k = Theme::of(b.ctx());
+    let k = &Theme::of(b.ctx());
     b.div(
         tw().flex()
             .size_full()
@@ -105,11 +105,15 @@ pub fn layout(b: &mut B<'_, '_>, app: &App) {
             .bg(k[Tok::Ground])
             .text(k[Tok::Ink]),
         |b| {
-            sidebar(b, app);
+            b.div_id(Part::Sidebar, sidebar_style(k, app), none, |s| {
+                sidebar(s, app)
+            });
             splitter(b, Pane::Sidebar);
-            centre(b, app);
+            b.div_id(Part::Centre, centre_style(k), none, |s| centre(s, app));
             splitter(b, Pane::Details);
-            details(b, app);
+            b.div_id(Part::Details, details_style(k, app), none, |s| {
+                details(s, app)
+            });
         },
     );
 }

@@ -4,7 +4,6 @@
 use std::sync::Arc;
 
 use bullseye::contract::{Keyed, Size, Variant};
-use bullseye::owned::Button;
 use bullseye::{LayoutState, Style, TextSpec, TextStyle};
 use bullseye_shadcn::Shadcn;
 use egui::{Color32, Context, FontFamily, Theme, vec2};
@@ -120,9 +119,7 @@ fn core_draws_a_button_with_no_preset() {
         .build_ui(move |ui| {
             let area = ui.max_rect();
             layout
-                .build(ui.ctx(), |b| {
-                    Button::new("Plain").show(b, "plain", |_: &mut ()| {})
-                })
+                .build(ui.ctx(), |b| b.button("plain", "Plain").add())
                 .layout(area)
                 .draw(&mut (), ui);
         });

@@ -1,7 +1,6 @@
 //! The shadcn preset: what `apply` sets in egui, the text edit under it, and
 //! the library's primitives drawn with its proportions.
 
-use bullseye::owned::{Segmented, Switch};
 use bullseye::widget::{Stock, TextEdit};
 use bullseye::{Builder, LayoutState, TextSpec, TextStyle, Width, tw};
 use bullseye_shadcn::{Shadcn, ThemeColor, Tokens, tokens};
@@ -244,12 +243,12 @@ fn switches(b: &mut Builder<'_, '_, App>, app: &App) {
             ("wide", Some(vec2(64.0, 64.0 * 18.4 / 32.0))),
             ("tall", Some(vec2(36.0 * 32.0 / 18.4, 36.0))),
         ] {
-            let switch = Switch::unlabelled(bullseye::owned::Mark::from(app.on)).named(key);
+            let switch = b.switch_unlabelled(key, app.on).named(key);
             let switch = match track {
                 Some(track) => switch.track(track),
                 None => switch,
             };
-            switch.show(b, key, |app: &mut App| app.on = !app.on);
+            switch.on_change(|app: &mut App, value| app.on = value);
         }
     });
 }
@@ -325,7 +324,8 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
 
 fn segments(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().p(2.0), |b| {
-        Segmented::new(app.unit, &UNITS).show(b, "units", |app, _, unit| app.unit = unit);
+        b.segmented("units", app.unit, UNITS)
+            .on_change(|app, unit| app.unit = unit);
     });
 }
 
@@ -584,16 +584,17 @@ fn hover_variants_are_translucent_steps_of_their_token() {
 
 fn many_segments(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().w_px(160.0).p(2.0), |b| {
-        Segmented::new(
+        b.segmented(
+            "wrapped",
             app.unit,
-            &[
+            [
                 (Unit::Metric, "Metric"),
                 (Unit::Imperial, "Imperial"),
                 (Unit::Nautical, "Nautical"),
             ],
         )
         .wrapping()
-        .show(b, "wrapped", |app, _, unit| app.unit = unit);
+        .on_change(|app, unit| app.unit = unit);
     });
 }
 

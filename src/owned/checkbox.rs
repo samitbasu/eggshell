@@ -7,7 +7,9 @@ use std::hash::Hash;
 use egui::Role;
 
 use super::Mark;
-use super::{Enablement, choice_label, choice_row, described, paint_check};
+use super::{
+    Enablement, OnResponse, Tip, Unset, choice_label, choice_row, described, flip, paint_check,
+};
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -16,36 +18,83 @@ enum Part {
     Label,
 }
 
-/// A checkbox drawn from the [`Style`], with an optional label.
-#[derive(Clone, Debug)]
-pub struct Checkbox {
+/// A checkbox drawn from the [`Style`], with an optional label. Start one with
+/// [`Builder::checkbox`] and finish it with [`on_change`](Self::on_change).
+///
+/// It shows `current` and is checked when that is its `on` value: `true` for
+/// a `bool`, or the second of [`values`](Self::values). A click passes the
+/// other value to `on_change`.
+///
+/// ```
+/// # use bullseye::Builder;
+/// #[derive(Clone, Copy, PartialEq)]
+/// enum Terms { Declined, Accepted }
+/// struct App { terms: Terms, news: bool }
+///
+/// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+///     b.checkbox("terms", "I agree", app.terms)
+///         .values(Terms::Declined, Terms::Accepted)
+///         .on_change(|app, terms| app.terms = terms);
+///     b.checkbox("news", "Send me news", app.news)
+///         .on_change(|app, news| app.news = news);
+/// }
+/// ```
+#[must_use = "a checkbox is not added until you call `.on_change(..)`"]
+pub struct CheckboxBuilder<'a, 'b, 'f, A, K, T, V = Unset> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
     label: Option<String>,
     name: Option<String>,
-    mark: Mark,
+    tooltip: Tip,
+    current: T,
+    values: V,
     classes: Tw,
     enablement: Enablement,
+    on_response: OnResponse<A>,
 }
 
-impl Checkbox {
-    /// A checkbox labelled `label`, ticked when `mark` is on.
-    pub fn new(label: impl Into<String>, mark: Mark) -> Self {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
+    CheckboxBuilder<'a, 'b, 'f, A, K, T>
+{
+    pub(super) fn new(
+        b: &'a mut Builder<'b, 'f, A>,
+        key: K,
+        label: Option<String>,
+        current: T,
+    ) -> Self {
         Self {
-            label: Some(label.into()),
+            b,
+            key,
+            label,
             name: None,
-            mark,
+            tooltip: None,
+            current,
+            values: Unset,
             classes: tw(),
             enablement: Enablement::Enabled,
+            on_response: OnResponse::default(),
         }
     }
 
-    /// A checkbox without a label.
-    pub fn unlabelled(mark: Mark) -> Self {
-        Self {
-            label: None,
-            ..Self::new("", mark)
+    /// The values the checkbox switches between: `off` when unchecked and
+    /// `on` when checked.
+    pub fn values(self, off: T, on: T) -> CheckboxBuilder<'a, 'b, 'f, A, K, T, [T; 2]> {
+        CheckboxBuilder {
+            b: self.b,
+            key: self.key,
+            label: self.label,
+            name: self.name,
+            tooltip: self.tooltip,
+            current: self.current,
+            values: [off, on],
+            classes: self.classes,
+            enablement: self.enablement,
+            on_response: self.on_response,
         }
     }
+}
 
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T, V> CheckboxBuilder<'a, 'b, 'f, A, K, T, V> {
     /// The accessible name, when it is not the label.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
@@ -59,27 +108,63 @@ impl Checkbox {
         self
     }
 
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it.
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
     /// Whether the checkbox takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
         self
     }
 
-    /// Adds the checkbox to `b` under `key`. `on_toggle` runs when the box or
+    /// Runs `then` with the box's response each frame: the escape hatch for
+    /// what the builder does not offer, such as hover.
+    pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
+        self.on_response.set(then);
+        self
+    }
+}
+
+impl<'a, 'b, 'f, A: 'static, K: crate::Key> CheckboxBuilder<'a, 'b, 'f, A, K, bool> {
+    /// Adds the checkbox. `on_change` runs with the new value when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
-    pub fn show<A: 'static, K: Hash + Debug + 'static>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        on_toggle: impl Fn(&mut A) + Copy + 'static,
-    ) {
+    pub fn on_change(self, on_change: impl Fn(&mut A, bool) + Copy + 'static) {
+        self.values(false, true).on_change(on_change);
+    }
+}
+
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + 'static>
+    CheckboxBuilder<'a, 'b, 'f, A, K, T, [T; 2]>
+{
+    /// Adds the checkbox. `on_change` runs with the new value when the box or
+    /// the label is clicked, or the box is activated with Space or Enter.
+    pub fn on_change(self, on_change: impl Fn(&mut A, T) + Copy + 'static) {
+        let Self {
+            b,
+            key,
+            label,
+            name,
+            tooltip,
+            current,
+            values: [off, on],
+            classes: caller,
+            enablement,
+            on_response,
+        } = self;
+        let (mark, toggled) = flip([off, on], current);
+        let on_toggle = move |app: &mut A| on_change(app, toggled);
         let style = Style::of(b.ctx());
         let checkbox = &style.checkbox;
-        let look = match self.mark {
+        let look = match mark {
             Mark::Off => &checkbox.off,
             Mark::On => &checkbox.on,
         };
-        let enablement = self.enablement;
         let box_classes = look.indicator(
             checkbox.border_width,
             &style,
@@ -88,20 +173,21 @@ impl Checkbox {
             checkbox.transition,
             checkbox.size,
         );
-        let (glyph, mark) = (checkbox.glyph, self.mark);
-        let name = self.name.unwrap_or_default();
+        let glyph = checkbox.glyph;
+        let name = name.unwrap_or_default();
         b.scope(key, |b| {
             let control = b.id_of(Part::Box);
-            let row =
-                choice_row(&style, &checkbox.text, enablement, checkbox.gap).merge(self.classes);
+            let row = choice_row(&style, &checkbox.text, enablement, checkbox.gap).merge(caller);
             b.div(row, |b| {
                 b.div_id(
                     Part::Box,
                     box_classes,
                     move |app, ui| {
-                        if described(ui, Role::CheckBox, Some(mark), &name).clicked() {
+                        let response = described(ui, Role::CheckBox, Some(mark), &name, &tooltip);
+                        if response.clicked() {
                             on_toggle(app);
                         }
+                        on_response.run(app, &response);
                     },
                     |b| {
                         if mark == Mark::On {
@@ -109,7 +195,7 @@ impl Checkbox {
                         }
                     },
                 );
-                if let Some(label) = self.label {
+                if let Some(label) = label {
                     choice_label(b, Part::Label, control, label, enablement, on_toggle);
                 }
             });

@@ -2,8 +2,6 @@
 //! frame, labels included, keeps its rectangle. Driven by real clicks, in both
 //! themes.
 
-use bullseye::owned::Mark;
-use bullseye::owned::{Button, Checkbox, RadioGroup, Segmented, Switch};
 use bullseye::{Builder, TextStyle, tw};
 use bullseye_shadcn::Tokens;
 use egui::{Rect, Theme, vec2};
@@ -31,21 +29,16 @@ struct App {
 
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
-        Button::toggle("Bold", Mark::from(app.toggle)).show(b, "toggle", |app: &mut App| {
-            app.toggle = !app.toggle;
-        });
-        Checkbox::new("Accept", Mark::from(app.check)).show(b, "check", |app: &mut App| {
-            app.check = !app.check;
-        });
-        RadioGroup::new(app.radio, &UNITS).show(b, "radio", |app: &mut App, unit| {
-            app.radio = unit;
-        });
-        Switch::new("Airplane mode", Mark::from(app.switch)).show(b, "switch", |app: &mut App| {
-            app.switch = !app.switch;
-        });
-        Segmented::new(app.segment, &UNITS).show(b, "seg", |app: &mut App, _, unit| {
-            app.segment = unit;
-        });
+        b.toggle("toggle", "Bold", app.toggle)
+            .on_change(|app: &mut App, toggle| app.toggle = toggle);
+        b.checkbox("check", "Accept", app.check)
+            .on_change(|app: &mut App, value| app.check = value);
+        b.radio_group("radio", app.radio, UNITS)
+            .on_change(|app: &mut App, unit| app.radio = unit);
+        b.switch("switch", "Airplane mode", app.switch)
+            .on_change(|app: &mut App, value| app.switch = value);
+        b.segmented("seg", app.segment, UNITS)
+            .on_change(|app: &mut App, unit| app.segment = unit);
     });
 }
 

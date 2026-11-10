@@ -3,8 +3,7 @@
 //! accessibility check the support harness switches on.
 
 use bullseye::contract::Size;
-use bullseye::owned::Mark;
-use bullseye::owned::{Enablement, RadioGroup, Segmented, Switch};
+use bullseye::owned::Enablement;
 use bullseye::{Builder, Style, TextStyle, tw};
 use bullseye_shadcn::{Shadcn, Tokens};
 use egui::epaint::{CircleShape, Shape};
@@ -54,22 +53,21 @@ struct App {
 /// ```
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
-        RadioGroup::new(app.unit, &UNITS).show(b, "units", |app: &mut App, unit| app.unit = unit);
-        RadioGroup::new(app.locked, &UNITS)
+        b.radio_group("units", app.unit, UNITS)
+            .on_change(|app: &mut App, unit| app.unit = unit);
+        b.radio_group("locked", app.locked, UNITS)
             .enablement(Enablement::Disabled)
-            .show(b, "locked", |app: &mut App, unit| app.locked = unit);
-        Switch::new("Airplane mode", Mark::from(app.on)).show(b, "air", |app: &mut App| {
-            app.on = !app.on;
-        });
-        Switch::new("Locked", Mark::On)
+            .on_change(|app: &mut App, unit| app.locked = unit);
+        b.switch("air", "Airplane mode", app.on)
+            .on_change(|app: &mut App, value| app.on = value);
+        b.switch("frozen", "Locked", true)
             .enablement(Enablement::Disabled)
-            .show(b, "frozen", |app: &mut App| app.on = !app.on);
-        Switch::unlabelled(Mark::Off)
+            .on_change(|app: &mut App, value| app.on = value);
+        b.switch_unlabelled("bare", false)
             .named("Bare switch")
-            .show(b, "bare", |_: &mut App| {});
-        Segmented::new(app.segment, &SEGMENTS).show(b, "seg", |app: &mut App, _, unit| {
-            app.segment = unit;
-        });
+            .on_change(|_: &mut App, _| {});
+        b.segmented("seg", app.segment, SEGMENTS)
+            .on_change(|app: &mut App, unit| app.segment = unit);
     });
 }
 

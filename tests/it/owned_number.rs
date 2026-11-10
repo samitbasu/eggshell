@@ -1,7 +1,7 @@
 //! The owned slider, select and stepper, through kittest's real pointer and
 //! key events and the accessibility check the support harness switches on.
 
-use bullseye::owned::{Enablement, Select, Slider, Step, Stepper};
+use bullseye::owned::{Enablement, Step};
 use bullseye::{Builder, Style, TextStyle, tw};
 use bullseye_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
@@ -52,35 +52,33 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .p(4.0)
             .w_px(300.0),
         |b| {
-            Slider::new(app.volume, 0.0..=100.0)
+            b.slider("volume", app.volume, 0.0..=100.0)
                 .step(Step::new(5.0))
                 .named("Volume")
-                .show(b, "volume", |app: &mut App, value| {
+                .on_change(|app: &mut App, value| {
                     app.volume = value;
                     app.changes += 1;
                 });
-            Slider::new(app.locked, 0.0..=100.0)
+            b.slider("locked", app.locked, 0.0..=100.0)
                 .named("Locked")
                 .enablement(Enablement::Disabled)
-                .show(b, "locked", |app: &mut App, value| app.locked = value);
-            Select::new(app.region, &REGIONS)
+                .on_change(|app: &mut App, value| app.locked = value);
+            b.select("region", app.region, REGIONS)
                 .named("Region")
                 .classes(tw().w_px(200.0))
-                .show(b, "region", |app: &mut App, _, region| app.region = region);
-            Select::new(0, &REGIONS)
+                .on_change(|app: &mut App, region| app.region = region);
+            b.select("frozen", 0, REGIONS)
                 .named("Frozen")
                 .classes(tw().w_px(200.0))
                 .enablement(Enablement::Disabled)
-                .show(b, "frozen", |_: &mut App, _, _| {});
-            Stepper::new(app.count, 0.0..=10.0).named("Count").show(
-                b,
-                "count",
-                |app: &mut App, value| app.count = value,
-            );
-            Stepper::new(5.0, 0.0..=10.0)
+                .on_change(|_: &mut App, _| {});
+            b.stepper("count", app.count, 0.0..=10.0)
+                .named("Count")
+                .on_change(|app: &mut App, value| app.count = value);
+            b.stepper("fixed", 5.0, 0.0..=10.0)
                 .named("Fixed")
                 .enablement(Enablement::Disabled)
-                .show(b, "fixed", |_: &mut App, _| {});
+                .on_change(|_: &mut App, _| {});
         },
     );
 }
