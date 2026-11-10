@@ -10,7 +10,6 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::owned::Button;
 use bullseye::{Builder, Tw, tw};
 use bullseye_shadcn::Tokens;
 use egui::Color32;
@@ -45,11 +44,9 @@ pub struct State {
 /// <aside class="flex flex-col gap-3 p-3 w-[240px]"><button>Reset</button></aside>
 /// ```
 fn controls(b: &mut B<'_, '_, State>) {
-    b.button(
-        "reset",
-        Button::new("Reset").classes(tw().self_start()),
-        |state: &mut State| *state = State::default(),
-    );
+    b.button("reset", "Reset")
+        .classes(tw().self_start())
+        .on_click(|state: &mut State| *state = State::default());
 }
 
 type Align = fn(Tw) -> Tw;

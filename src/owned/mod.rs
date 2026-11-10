@@ -20,6 +20,7 @@ mod switch;
 
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use egui::{
@@ -27,15 +28,15 @@ use egui::{
     pos2,
 };
 
-pub use button::Button;
-pub use checkbox::Checkbox;
+pub use button::{ButtonBuilder, Face};
+pub use checkbox::CheckboxBuilder;
 pub use number::Step;
-pub use radio::RadioGroup;
-pub use segmented::{Cell, Segmented};
-pub use select::Select;
-pub use slider::Slider;
-pub use stepper::Stepper;
-pub use switch::Switch;
+pub use radio::RadioGroupBuilder;
+pub use segmented::{Cell, SegmentedBuilder};
+pub use select::SelectBuilder;
+pub use slider::SliderBuilder;
+pub use stepper::StepperBuilder;
+pub use switch::SwitchBuilder;
 
 use crate::contract::{Colors, Disabled, Look, Paint, States, Style};
 use crate::{Builder, NodeUi as _, TextSpec, Tw, tw};
@@ -345,105 +346,118 @@ fn choice_label<A: 'static, K: crate::Key>(
 }
 
 /// The owned controls, each shown under a key like [`div_id`](Builder::div_id)
-/// and [`widget`](Builder::widget): `b.button(key, Button::new("Save"), handler)`.
+/// and [`widget`](Builder::widget).
 ///
-/// The control value configures it and `handler` changes the application's
-/// state when the user operates it.
-impl<A: 'static> Builder<'_, '_, A> {
-    /// A [`Button`]; `on_click` runs when it is clicked or activated with
-    /// Space or Enter.
+/// A control starts from the builder and ends in a terminating call that adds
+/// it and says what the user's input changes in the application's state:
+///
+/// ```text
+/// b.button(Part::Save, "Save").variant(PRIMARY).on_click(|s| s.saves += 1);
+/// b.checkbox(Part::Terms, "I agree", s.terms).bind(|s| &mut s.terms);
+/// ```
+///
+/// Configuration comes before the terminating call. A control that is
+/// started and dropped without one is not added, and the compiler warns.
+/// The terminators are `on_click` for a button, `bind` (or `on_toggle`) for a
+/// checkbox and a switch, and `on_change` for the controls that choose a
+/// value.
+impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
+    /// A button showing `face`: a label, or an [`Icon`](crate::Icon) alone.
     pub fn button<K: crate::Key>(
         &mut self,
         key: K,
-        button: Button,
-        on_click: impl FnOnce(&mut A) + 'static,
-    ) {
-        button.show(self, key, on_click);
+        face: impl Into<Face>,
+    ) -> ButtonBuilder<'_, 'b, 'f, A, K> {
+        ButtonBuilder::new(self, key, face.into())
     }
 
-    /// A [`Checkbox`]; `on_toggle` runs when it is toggled.
+    /// A checkbox labelled `label`, ticked when `mark` is on.
     pub fn checkbox<K: crate::Key>(
         &mut self,
         key: K,
-        checkbox: Checkbox,
-        on_toggle: impl Fn(&mut A) + Copy + 'static,
-    ) {
-        checkbox.show(self, key, on_toggle);
+        label: impl Into<String>,
+        mark: impl Into<Mark>,
+    ) -> CheckboxBuilder<'_, 'b, 'f, A, K> {
+        CheckboxBuilder::new(self, key, Some(label.into()), mark.into())
     }
 
-    /// A [`Switch`]; `on_toggle` runs when it is toggled.
+    /// A checkbox without a label.
+    pub fn checkbox_unlabelled<K: crate::Key>(
+        &mut self,
+        key: K,
+        mark: impl Into<Mark>,
+    ) -> CheckboxBuilder<'_, 'b, 'f, A, K> {
+        CheckboxBuilder::new(self, key, None, mark.into())
+    }
+
+    /// A switch labelled `label`, on when `mark` is.
     pub fn switch<K: crate::Key>(
         &mut self,
         key: K,
-        switch: Switch,
-        on_toggle: impl Fn(&mut A) + Copy + 'static,
-    ) {
-        switch.show(self, key, on_toggle);
+        label: impl Into<String>,
+        mark: impl Into<Mark>,
+    ) -> SwitchBuilder<'_, 'b, 'f, A, K> {
+        SwitchBuilder::new(self, key, Some(label.into()), mark.into())
     }
 
-    /// A [`RadioGroup`]; `select` runs with the value of the chosen option.
+    /// A switch without a label.
+    pub fn switch_unlabelled<K: crate::Key>(
+        &mut self,
+        key: K,
+        mark: impl Into<Mark>,
+    ) -> SwitchBuilder<'_, 'b, 'f, A, K> {
+        SwitchBuilder::new(self, key, None, mark.into())
+    }
+
+    /// Radio buttons for `(value, label)` options, of which `current` is
+    /// chosen. Values must be distinct.
     pub fn radio_group<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
         &mut self,
         key: K,
-        group: RadioGroup<T>,
-        select: fn(&mut A, T),
-    ) {
-        group.show(self, key, select);
+        current: T,
+        options: &[(T, &str)],
+    ) -> RadioGroupBuilder<'_, 'b, 'f, A, K, T> {
+        RadioGroupBuilder::new(self, key, current, options)
     }
 
-    /// A [`Segmented`] control; `select` runs with the value of the chosen
-    /// cell.
+    /// A segmented control over `(value, label)` options, of which `current`
+    /// is selected. Values must be distinct.
     pub fn segmented<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
         &mut self,
         key: K,
-        segmented: Segmented<T>,
-        select: impl Fn(&mut A, &egui::Context, T) + Copy + 'static,
-    ) {
-        segmented.show(self, key, select);
+        current: T,
+        options: &[(T, &str)],
+    ) -> SegmentedBuilder<'_, 'b, 'f, A, K, T> {
+        SegmentedBuilder::new(self, key, current, options)
     }
 
-    /// A [`Segmented`] control with the classes of its track and of each cell
-    /// given instead of read from the style, for a look the style does not
-    /// describe. The cells sense clicks on top of them, and icons are the
-    /// size of the cell's text.
-    pub fn segmented_with<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
-        &mut self,
-        key: K,
-        segmented: Segmented<T>,
-        container: Tw,
-        cell: impl Fn(Cell) -> Tw,
-        select: impl Fn(&mut A, &egui::Context, T) + Copy + 'static,
-    ) {
-        segmented.show_with(self, key, container, cell, select);
-    }
-
-    /// A [`Slider`]; `set` runs with the new value.
+    /// A slider at `value` within `range`.
     pub fn slider<K: crate::Key>(
         &mut self,
         key: K,
-        slider: Slider,
-        set: impl Fn(&mut A, f64) + Copy + 'static,
-    ) {
-        slider.show(self, key, set);
+        value: f64,
+        range: RangeInclusive<f64>,
+    ) -> SliderBuilder<'_, 'b, 'f, A, K> {
+        SliderBuilder::new(self, key, value, range)
     }
 
-    /// A [`Select`]; `choose` runs with the chosen value.
+    /// A select over `(value, label)` options, of which `current` is chosen.
     pub fn select<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>(
         &mut self,
         key: K,
-        select: Select<T>,
-        choose: impl Fn(&mut A, &egui::Context, T) + Copy + 'static,
-    ) {
-        select.show(self, key, choose);
+        current: T,
+        options: &[(T, &str)],
+    ) -> SelectBuilder<'_, 'b, 'f, A, K, T> {
+        SelectBuilder::new(self, key, current, options)
     }
 
-    /// A [`Stepper`]; `set` runs with the new value.
+    /// A stepper at `value` within `range`.
     pub fn stepper<K: crate::Key>(
         &mut self,
         key: K,
-        stepper: Stepper,
-        set: impl Fn(&mut A, f64) + Copy + 'static,
-    ) {
-        stepper.show(self, key, set);
+        value: f64,
+        range: RangeInclusive<f64>,
+    ) -> StepperBuilder<'_, 'b, 'f, A, K> {
+        StepperBuilder::new(self, key, value, range)
     }
 }

@@ -27,10 +27,11 @@ enum Rows {
 }
 
 /// A row of cells, one per `(value, label)` of `options`, of which the one
-/// equal to `current` is selected, drawn from the [`Style`].
+/// equal to `current` is selected, drawn from the [`Style`]. Start one with
+/// [`Builder::segmented`] and finish it with [`on_change`](Self::on_change).
 ///
-/// Clicking a cell, or pressing Enter or Space on it, runs `select` with its
-/// value. Cells are identified by their value, so values must be distinct.
+/// Clicking a cell, or pressing Enter or Space on it, runs the handler with
+/// its value. Cells are identified by their value, so values must be distinct.
 ///
 /// ```html
 /// <div class="flex items-center w-fit h-9 p-[3px] rounded-lg bg-muted">
@@ -39,7 +40,7 @@ enum Rows {
 /// ```
 ///
 /// ```
-/// # use bullseye::{Builder, owned::Segmented};
+/// # use bullseye::Builder;
 /// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 /// enum Unit { Metric, Imperial }
 /// struct App { unit: Unit }
@@ -47,22 +48,30 @@ enum Rows {
 /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 ///     b.segmented(
 ///         "unit",
-///         Segmented::new(
-///             app.unit,
-///             &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-///         ),
-///         |app, _, unit| app.unit = unit,
-///     );
+///         app.unit,
+///         &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+///     )
+///     .on_change(|app, unit| app.unit = unit);
 /// }
 /// ```
-#[derive(Clone, Debug)]
-pub struct Segmented<T> {
+#[must_use = "a segmented control is not added until you call `.on_change(..)`"]
+pub struct SegmentedBuilder<'a, 'b, 'f, A, K, T> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
     current: T,
     options: Vec<Option_<T>>,
     rows: Rows,
     enablement: Enablement,
     track: Tw,
     cells: Tw,
+    custom: Option<Custom<'a>>,
+}
+
+/// The classes of the track and of each cell, given instead of read from the
+/// style.
+struct Custom<'a> {
+    track: Tw,
+    cell: Box<dyn Fn(Cell) -> Tw + 'a>,
 }
 
 #[derive(Clone, Debug)]
@@ -73,10 +82,19 @@ struct Option_<T> {
     tooltip: Tip,
 }
 
-impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
+    SegmentedBuilder<'a, 'b, 'f, A, K, T>
+{
     /// A control of `(value, label)` options of which `current` is selected.
-    pub fn new(current: T, options: &[(T, &str)]) -> Self {
+    pub(super) fn new(
+        b: &'a mut Builder<'b, 'f, A>,
+        key: K,
+        current: T,
+        options: &[(T, &str)],
+    ) -> Self {
         Self {
+            b,
+            key,
             current,
             options: options
                 .iter()
@@ -91,12 +109,12 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
             enablement: Enablement::Enabled,
             track: tw(),
             cells: tw(),
+            custom: None,
         }
     }
 
     /// Puts `icon` before the label of the option `value`, tinted by the
     /// cell's text colour in each state and sized by the style.
-    #[must_use]
     pub fn icon(mut self, value: T, icon: Icon) -> Self {
         let option = self.options.iter_mut().find(|option| option.value == value);
         debug_assert!(option.is_some(), "no option {value:?} to give an icon");
@@ -109,7 +127,6 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
     /// Shows `text` while the pointer hovers the cell of the option `value`,
     /// as egui's `on_hover_text` does and also when the control is disabled.
     /// It adds to the cell's accessible name and does not replace it.
-    #[must_use]
     pub fn option_tooltip(mut self, value: T, text: impl Into<egui::WidgetText>) -> Self {
         let option = self.options.iter_mut().find(|option| option.value == value);
         debug_assert!(option.is_some(), "no option {value:?} to give a tooltip");
@@ -121,7 +138,6 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
 
     /// A track that wraps its cells onto more rows when it is narrower than
     /// they are, and takes its height from the rows.
-    #[must_use]
     pub fn wrapping(mut self) -> Self {
         self.rows = Rows::Wrapping;
         self
@@ -129,7 +145,6 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
 
     /// Classes merged over the styled ones of the track, such as `w_full()`
     /// to make it fill its row; the later class wins ([`Tw::merge`]).
-    #[must_use]
     pub fn track(mut self, track: Tw) -> Self {
         self.track = track;
         self
@@ -137,16 +152,25 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
 
     /// Classes merged over the styled ones of every cell, such as `flex_1()`
     /// to share the track equally; the later class wins ([`Tw::merge`]).
-    #[must_use]
     pub fn cells(mut self, cells: Tw) -> Self {
         self.cells = cells;
         self
     }
 
     /// The classes of the whole control: the same as [`track`](Self::track).
-    #[must_use]
     pub fn classes(self, classes: Tw) -> Self {
         self.track(classes)
+    }
+
+    /// Takes the classes of the track and of each cell from `track` and `cell`
+    /// instead of the style, for a look the style does not describe. The cells
+    /// sense clicks on top of them, and icons are the size of the cell's text.
+    pub fn custom_classes(mut self, track: Tw, cell: impl Fn(Cell) -> Tw + 'a) -> Self {
+        self.custom = Some(Custom {
+            track,
+            cell: Box::new(cell),
+        });
+        self
     }
 
     /// Whether the control takes input.
@@ -155,29 +179,43 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
         self
     }
 
-    /// Adds the control to `b` under `key`. `select` gets the application and
-    /// the context, for a value the context holds.
-    pub(crate) fn show<A: 'static, K: crate::Key>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        select: impl Fn(&mut A, &Context, T) + Copy + 'static,
-    ) {
+    /// Adds the control. `select` runs with the value of the chosen cell.
+    pub fn on_change(self, select: impl Fn(&mut A, T) + Copy + 'static) {
+        self.on_change_with(move |app, _, value| select(app, value));
+    }
+
+    /// Adds the control. `select` gets the application and the egui context,
+    /// for a value the context holds.
+    pub fn on_change_with(self, select: impl Fn(&mut A, &Context, T) + Copy + 'static) {
+        let Self {
+            b,
+            key,
+            current,
+            options,
+            rows,
+            enablement,
+            track,
+            cells: caller,
+            custom,
+        } = self;
+        if let Some(Custom { track, cell }) = custom {
+            cells_in(b, key, (current, options), track, cell, tw(), select);
+            return;
+        }
         let style = Style::of(b.ctx());
         let seg = &style.segmented;
-        let track = tw()
+        let container = tw()
             .flex()
             .items_center()
             .w_fit()
             .p(seg.track_padding / 4.0)
             .rounded_px(f32::from(seg.track_radius))
             .bg(seg.track_fill);
-        let track = match self.rows {
-            Rows::One => track.h_px(seg.height).gap_x(seg.column_gap / 4.0),
-            Rows::Wrapping => track.flex_wrap().h_auto().gap(seg.row_gap / 4.0),
+        let container = match rows {
+            Rows::One => container.h_px(seg.height).gap_x(seg.column_gap / 4.0),
+            Rows::Wrapping => container.flex_wrap().h_auto().gap(seg.row_gap / 4.0),
         };
-        let track = self.enablement.fade(track, &style).merge(self.track);
-        let (rows, enablement, caller) = (self.rows, self.enablement, self.cells);
+        let container = enablement.fade(container, &style).merge(track);
         let cell = |cell| {
             let look = match cell {
                 Cell::Pressed => &seg.selected,
@@ -203,38 +241,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Segmented<T> {
             classes.merge(caller.clone())
         };
         let icon = tw().size_px(seg.icon_size);
-        cells_in(
-            b,
-            key,
-            (self.current, self.options),
-            track,
-            cell,
-            icon,
-            select,
-        );
-    }
-
-    /// [`show`](Self::show) with the classes of the track and of each cell
-    /// given instead of read from the style, for a look the style does not
-    /// describe. The cells sense clicks on top of them, and icons are the
-    /// size of the cell's text.
-    pub(crate) fn show_with<A: 'static, K: crate::Key>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        container: Tw,
-        cell: impl Fn(Cell) -> Tw,
-        select: impl Fn(&mut A, &Context, T) + Copy + 'static,
-    ) {
-        cells_in(
-            b,
-            key,
-            (self.current, self.options),
-            container,
-            cell,
-            tw(),
-            select,
-        );
+        cells_in(b, key, (current, options), container, cell, icon, select);
     }
 }
 

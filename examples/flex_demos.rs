@@ -12,8 +12,6 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::owned::Mark;
-use bullseye::owned::{Checkbox, Select};
 use bullseye::{Builder, Tw, none, tw};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -279,13 +277,9 @@ fn content_group(b: &mut B<'_, '_>, state: &State) {
         .enumerate()
         .map(|(index, (name, _))| (index, *name))
         .collect();
-    b.select(
-        Part::Content,
-        Select::new(state.anchor, &options).named("Align self content"),
-        |state: &mut State, _, anchor| {
-            state.anchor = anchor;
-        },
-    );
+    b.select(Part::Content, state.anchor, &options)
+        .named("Align self content")
+        .on_change(|state: &mut State, anchor| state.anchor = anchor);
     let (_, place) = ANCHORS[state.anchor];
     for align in ALIGNS {
         b.div_id(
@@ -350,13 +344,8 @@ fn header(b: &mut B<'_, '_>, state: &State) {
             ],
             |s| &mut s.direction,
         );
-        b.checkbox(
-            Part::Grow,
-            Checkbox::new("Grow", Mark::from(state.grow)),
-            |state: &mut State| {
-                state.grow = !state.grow;
-            },
-        );
+        b.checkbox(Part::Grow, "Grow", state.grow)
+            .bind(|state: &mut State| &mut state.grow);
     });
 }
 

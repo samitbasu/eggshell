@@ -2,8 +2,6 @@
 //! frame, labels included, keeps its rectangle. Driven by real clicks, in both
 //! themes.
 
-use bullseye::owned::Mark;
-use bullseye::owned::{Button, Checkbox, RadioGroup, Segmented, Switch};
 use bullseye::{Builder, TextStyle, tw};
 use bullseye_shadcn::Tokens;
 use egui::{Rect, Theme, vec2};
@@ -31,41 +29,17 @@ struct App {
 
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
-        b.button(
-            "toggle",
-            Button::toggle("Bold", Mark::from(app.toggle)),
-            |app: &mut App| {
-                app.toggle = !app.toggle;
-            },
-        );
-        b.checkbox(
-            "check",
-            Checkbox::new("Accept", Mark::from(app.check)),
-            |app: &mut App| {
-                app.check = !app.check;
-            },
-        );
-        b.radio_group(
-            "radio",
-            RadioGroup::new(app.radio, &UNITS),
-            |app: &mut App, unit| {
-                app.radio = unit;
-            },
-        );
-        b.switch(
-            "switch",
-            Switch::new("Airplane mode", Mark::from(app.switch)),
-            |app: &mut App| {
-                app.switch = !app.switch;
-            },
-        );
-        b.segmented(
-            "seg",
-            Segmented::new(app.segment, &UNITS),
-            |app: &mut App, _, unit| {
-                app.segment = unit;
-            },
-        );
+        b.button("toggle", "Bold")
+            .toggle(app.toggle)
+            .on_click(|app: &mut App| app.toggle = !app.toggle);
+        b.checkbox("check", "Accept", app.check)
+            .bind(|app: &mut App| &mut app.check);
+        b.radio_group("radio", app.radio, &UNITS)
+            .on_change(|app: &mut App, unit| app.radio = unit);
+        b.switch("switch", "Airplane mode", app.switch)
+            .bind(|app: &mut App| &mut app.switch);
+        b.segmented("seg", app.segment, &UNITS)
+            .on_change(|app: &mut App, unit| app.segment = unit);
     });
 }
 

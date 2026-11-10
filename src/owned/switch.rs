@@ -18,13 +18,17 @@ enum Part {
     Label,
 }
 
-/// A switch drawn from the [`Style`], with an optional label.
+/// A switch drawn from the [`Style`], with an optional label. Start one with
+/// [`Builder::switch`] and finish it with [`bind`](Self::bind) or
+/// [`on_toggle`](Self::on_toggle).
 ///
 /// The thumb scales with the track's height and travels its width, so
 /// [`track`](Self::track) can resize the track of a size without redrawing
 /// anything.
-#[derive(Clone, Debug)]
-pub struct Switch {
+#[must_use = "a switch is not added until you call `.bind(..)` or `.on_toggle(..)`"]
+pub struct SwitchBuilder<'a, 'b, 'f, A, K> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
     label: Option<String>,
     name: Option<String>,
     tooltip: Tip,
@@ -35,11 +39,17 @@ pub struct Switch {
     enablement: Enablement,
 }
 
-impl Switch {
-    /// A switch labelled `label`, on when `mark` is.
-    pub fn new(label: impl Into<String>, mark: Mark) -> Self {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key> SwitchBuilder<'a, 'b, 'f, A, K> {
+    pub(super) fn new(
+        b: &'a mut Builder<'b, 'f, A>,
+        key: K,
+        label: Option<String>,
+        mark: Mark,
+    ) -> Self {
         Self {
-            label: Some(label.into()),
+            b,
+            key,
+            label,
             name: None,
             tooltip: None,
             mark,
@@ -47,14 +57,6 @@ impl Switch {
             track: None,
             classes: tw(),
             enablement: Enablement::Enabled,
-        }
-    }
-
-    /// A switch without a label.
-    pub fn unlabelled(mark: Mark) -> Self {
-        Self {
-            label: None,
-            ..Self::new("", mark)
         }
     }
 
@@ -87,7 +89,6 @@ impl Switch {
     /// shows it: with egui's timing and style, and also when the control is
     /// disabled, as an HTML `title` is. It adds to the control's accessible
     /// name and does not replace it.
-    #[must_use]
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
         self
@@ -99,21 +100,35 @@ impl Switch {
         self
     }
 
-    /// Adds the switch to `b` under `key`. `on_toggle` runs when the track or
-    /// the label is clicked, or the track is activated with Space or Enter.
-    pub(crate) fn show<A: 'static, K: crate::Key>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        on_toggle: impl Fn(&mut A) + Copy + 'static,
-    ) {
+    /// Adds the switch, which flips the bool that `lens` picks out of the
+    /// application's state when it is toggled.
+    pub fn bind(self, lens: impl Fn(&mut A) -> &mut bool + Copy + 'static) {
+        self.on_toggle(move |app| {
+            let on = lens(app);
+            *on = !*on;
+        });
+    }
+
+    /// Adds the switch. `on_toggle` runs when the track or the label is
+    /// clicked, or the track is activated with Space or Enter.
+    pub fn on_toggle(self, on_toggle: impl Fn(&mut A) + Copy + 'static) {
+        let Self {
+            b,
+            key,
+            label,
+            name,
+            tooltip,
+            mark,
+            size,
+            track,
+            classes: caller,
+            enablement,
+        } = self;
         let style = Style::of(b.ctx());
         let switch = &style.switch;
-        let metrics = *switch.sizes.get(self.size);
-        let track = self.track.unwrap_or(metrics.track);
-        let mark = self.mark;
+        let metrics = *switch.sizes.get(size);
+        let track = track.unwrap_or(metrics.track);
         let on = mark == Mark::On;
-        let enablement = self.enablement;
         let slide = switch.slide;
         let target = if on { Progress::END } else { Progress::START };
         let thumb_scale = track.y / metrics.track.y;
@@ -121,8 +136,7 @@ impl Switch {
             metrics.thumb_off * thumb_scale,
             metrics.thumb_on * thumb_scale,
         );
-        let name = self.name.unwrap_or_default();
-        let tooltip = self.tooltip;
+        let name = name.unwrap_or_default();
         b.scope(key, |b| {
             let control = b.id_of(Part::Track);
             let tint = transition::animate(
@@ -147,7 +161,7 @@ impl Switch {
                 .shrink_0()
                 .w_px(track.x)
                 .h_px(track.y);
-            let row = choice_row(&style, &switch.text, enablement, switch.gap).merge(self.classes);
+            let row = choice_row(&style, &switch.text, enablement, switch.gap).merge(caller);
             b.div(row, |b| {
                 b.div_id(
                     Part::Track,
@@ -177,7 +191,7 @@ impl Switch {
                         });
                     },
                 );
-                if let Some(label) = self.label {
+                if let Some(label) = label {
                     choice_label(b, Part::Label, control, label, enablement, on_toggle);
                 }
             });

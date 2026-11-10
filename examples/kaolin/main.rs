@@ -6,8 +6,6 @@
 mod common;
 mod layouts;
 
-use bullseye::owned::Button;
-use bullseye::owned::Mark;
 use bullseye::{Builder, LayoutState, TextStyle, tw};
 use egui::load::SizedTexture;
 use egui::{ImageSource, TextureHandle, TextureOptions};
@@ -61,13 +59,10 @@ pub fn window(b: &mut Builder<'_, '_, Gallery>, selected: usize, logo: ImageSour
                 .text(t.foreground),
             |b| {
                 for (index, (name, _)) in ENTRIES.into_iter().enumerate() {
-                    b.button(
-                        ("entry", index),
-                        Button::toggle(name, Mark::from(index == selected)).classes(tw().w_full()),
-                        move |gallery: &mut Gallery| {
-                            gallery.selected = index;
-                        },
-                    );
+                    b.button(("entry", index), name)
+                        .toggle(index == selected)
+                        .classes(tw().w_full())
+                        .on_click(move |gallery: &mut Gallery| gallery.selected = index);
                 }
             },
         );

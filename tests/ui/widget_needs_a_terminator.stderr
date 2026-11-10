@@ -1,0 +1,112 @@
+error: unused `ButtonBuilder` that must be used
+ --> tests/ui/widget_needs_a_terminator.rs:5:5
+  |
+5 |     b.button("button", "Save");
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: a button is not added until you call `.on_click(..)` or `.add()`
+note: the lint level is defined here
+ --> tests/ui/widget_needs_a_terminator.rs:1:9
+  |
+1 | #![deny(unused_must_use)]
+  |         ^^^^^^^^^^^^^^^
+help: use `let _ = ...` to ignore the resulting value
+  |
+5 |     let _ = b.button("button", "Save");
+  |     +++++++
+
+error: unused `CheckboxBuilder` that must be used
+ --> tests/ui/widget_needs_a_terminator.rs:6:5
+  |
+6 |     b.checkbox("checkbox", "Agree", false);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: a checkbox is not added until you call `.bind(..)` or `.on_toggle(..)`
+help: use `let _ = ...` to ignore the resulting value
+  |
+6 |     let _ = b.checkbox("checkbox", "Agree", false);
+  |     +++++++
+
+error: unused `SwitchBuilder` that must be used
+ --> tests/ui/widget_needs_a_terminator.rs:7:5
+  |
+7 |     b.switch("switch", "Alerts", false);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: a switch is not added until you call `.bind(..)` or `.on_toggle(..)`
+help: use `let _ = ...` to ignore the resulting value
+  |
+7 |     let _ = b.switch("switch", "Alerts", false);
+  |     +++++++
+
+error: unused `RadioGroupBuilder` that must be used
+ --> tests/ui/widget_needs_a_terminator.rs:8:5
+  |
+8 |     b.radio_group("radio", 0, &[(0, "Zero")]);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: a radio group is not added until you call `.on_change(..)`
+help: use `let _ = ...` to ignore the resulting value
+  |
+8 |     let _ = b.radio_group("radio", 0, &[(0, "Zero")]);
+  |     +++++++
+
+error: unused `SegmentedBuilder` that must be used
+ --> tests/ui/widget_needs_a_terminator.rs:9:5
+  |
+9 |     b.segmented("segmented", 0, &[(0, "Zero")]);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: a segmented control is not added until you call `.on_change(..)`
+help: use `let _ = ...` to ignore the resulting value
+  |
+9 |     let _ = b.segmented("segmented", 0, &[(0, "Zero")]);
+  |     +++++++
+
+error: unused `SliderBuilder` that must be used
+  --> tests/ui/widget_needs_a_terminator.rs:10:5
+   |
+10 |     b.slider("slider", 0.5, 0.0..=1.0);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: a slider is not added until you call `.on_change(..)`
+help: use `let _ = ...` to ignore the resulting value
+   |
+10 |     let _ = b.slider("slider", 0.5, 0.0..=1.0);
+   |     +++++++
+
+error: unused `SelectBuilder` that must be used
+  --> tests/ui/widget_needs_a_terminator.rs:11:5
+   |
+11 |     b.select("select", 0, &[(0, "Zero")]);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: a select is not added until you call `.on_change(..)`
+help: use `let _ = ...` to ignore the resulting value
+   |
+11 |     let _ = b.select("select", 0, &[(0, "Zero")]);
+   |     +++++++
+
+error: unused `StepperBuilder` that must be used
+  --> tests/ui/widget_needs_a_terminator.rs:12:5
+   |
+12 |     b.stepper("stepper", 1.0, 0.0..=9.0);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: a stepper is not added until you call `.on_change(..)`
+help: use `let _ = ...` to ignore the resulting value
+   |
+12 |     let _ = b.stepper("stepper", 1.0, 0.0..=9.0);
+   |     +++++++
+
+error: unused `TextFieldBuilder` that must be used
+  --> tests/ui/widget_needs_a_terminator.rs:13:5
+   |
+13 |     b.text_field("field", "");
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: a text field is not added until you call `.bind(..)`
+help: use `let _ = ...` to ignore the resulting value
+   |
+13 |     let _ = b.text_field("field", "");
+   |     +++++++

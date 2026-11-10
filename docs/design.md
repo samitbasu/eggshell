@@ -66,7 +66,7 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 | D27 | `divide_x` / `divide_y` are container paint: hairlines drawn between consecutive in-flow children. | Grouped form sections (macOS style) need them everywhere. Earlier marked "not expressible"; it is, since the library knows child rects. |
 | D28 | **Nodes declare their own measure and draw**: `b.leaf(key, tw, measure, draw)`. Measure closures may borrow application data for the frame (`'f`) and are dropped when `layout` returns. Draw closures own their captures (`'static`) and run with `&mut App`. | A leaf cannot lack a measure, an interactive node cannot lack a draw, and nothing dispatches by ID. |
 | D30 | **A component takes `&mut Scope`.** `Scope` is the builder that `b.scope(key, …)` and `div_id(key, …)` hand to their bodies. It dereferences to `Builder`, so the whole builder API is available and a `&mut Scope` passes where a `&mut Builder` is wanted; the reverse does not compile. A component function takes `&mut Scope<'_, '_, A>`, so each use sits under a key its caller chose. Each component has its own key enum. | Keys a component declares cannot leak into its caller's scope or collide with siblings, and two uses in one parent need two instance keys, all checked at compile time. A `Scope<A, K>` with typed child keys was rejected: it makes helper functions awkward. |
-| D31 | **Owned widgets are builder methods** of the same shape as `div_id` and `widget`: `b.button(key, Button::new("Save"), \|app\| …)`. The widget value configures; there is no `.show(b, key, …)`. | One call shape for every node. |
+| D31 | **Owned widgets are chained builders that start from `b`**: `b.button(key, "Save").variant(PRIMARY).on_click(\|app\| …)`. `b.<widget>(key, …)` returns a `#[must_use]` builder that borrows `b`; options come first and a terminating call adds the widget: `on_click` (button), `bind(lens)` or `on_toggle` (checkbox, switch, and text field with `bind`), `on_change` (radio, segmented, slider, select, stepper), plus `add()` for a button that does nothing. A builder dropped without its terminator is an `unused_must_use` warning, which CI denies. | The widget is named once; a forgotten terminator cannot pass CI. |
 | D32 | **Styles are plain values**: `fn card() -> Tw`, composed with `merge` (the later list wins per property, as `cn()` / `tailwind-merge` do). No class-string macro. | A `Tw` is a pure value, so styles compose and can be checked on their own. Class methods are not `const fn`, so a style is a function. |
 | D29 | **Keys are local and readable.** Each module opens its own scope; keys are names and data keys; keys referred to from elsewhere (anchors, local state) are computed once (`b.id_of`) and passed on. | Typos and collisions are confined and caught by the duplicate check. |
 
@@ -210,17 +210,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub fn span(&mut self, key: K, tw: Tw, text: impl Into<String>, draw: D);  // library measures/paints the text
     pub fn icon(&mut self, key: K, tw: Tw, icon: Icon, draw: D);              // library measures/paints the icon
 
-    // ---- owned widgets (same shape as `div_id`; the widget value configures)
-    pub fn button(&mut self, key: K, button: Button, on_click: impl FnOnce(&mut A) + 'static);
-    pub fn checkbox(&mut self, key: K, checkbox: Checkbox, on_toggle: impl Fn(&mut A) + Copy + 'static);
-    pub fn switch(&mut self, key: K, switch: Switch, on_toggle: impl Fn(&mut A) + Copy + 'static);
-    pub fn radio_group<T>(&mut self, key: K, group: RadioGroup<T>, select: fn(&mut A, T));
-    pub fn segmented<T>(&mut self, key: K, segmented: Segmented<T>, select: impl Fn(&mut A, &Context, T) + Copy + 'static);
-    pub fn slider(&mut self, key: K, slider: Slider, set: impl Fn(&mut A, f64) + Copy + 'static);
-    pub fn select<T>(&mut self, key: K, select: Select<T>, choose: impl Fn(&mut A, &Context, T) + Copy + 'static);
-    pub fn stepper(&mut self, key: K, stepper: Stepper, set: impl Fn(&mut A, f64) + Copy + 'static);
-    pub fn text_field(&mut self, key: K, tw: Tw, field: Field, text: fn(&mut A) -> &mut String,
-                      then: impl FnOnce(&mut A, &Ui, &Response) + 'static);
+    // ---- owned widgets: each returns a #[must_use] builder; options, then the terminator
+    pub fn button(&mut self, key: K, face: impl Into<Face>) -> ButtonBuilder;          // .on_click(f) | .add()
+    pub fn checkbox(&mut self, key: K, label: impl Into<String>, mark: impl Into<Mark>) -> CheckboxBuilder; // .bind(lens) | .on_toggle(f)
+    pub fn switch(&mut self, key: K, label: impl Into<String>, mark: impl Into<Mark>) -> SwitchBuilder;     // .bind(lens) | .on_toggle(f)
+    pub fn radio_group<T>(&mut self, key: K, current: T, options: &[(T, &str)]) -> RadioGroupBuilder;       // .on_change(f)
+    pub fn segmented<T>(&mut self, key: K, current: T, options: &[(T, &str)]) -> SegmentedBuilder;         // .on_change(f) | .on_change_with(f)
+    pub fn slider(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> SliderBuilder;            // .on_change(f)
+    pub fn select<T>(&mut self, key: K, current: T, options: &[(T, &str)]) -> SelectBuilder;              // .on_change(f) | .on_change_with(f)
+    pub fn stepper(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> StepperBuilder;          // .on_change(f)
+    pub fn text_field(&mut self, key: K, text: impl Into<String>) -> TextFieldBuilder;                    // .bind(lens)
 
     // ---- anonymous display content (no key)
     pub fn text(&mut self, tw: Tw, text: impl Into<String>);

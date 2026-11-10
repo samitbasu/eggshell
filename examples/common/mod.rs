@@ -14,7 +14,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
-use bullseye::owned::{Cell, Segmented, Slider};
+use bullseye::owned::Cell;
 use bullseye::prim::text_field::Field;
 use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, Tw, none, tw};
 use bullseye_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
@@ -343,11 +343,8 @@ where
     K: bullseye::Key,
 {
     let current = b.ctx().options(|options| options.theme_preference);
-    b.segmented(
-        key,
-        Segmented::new(current, &APPEARANCES),
-        |_: &mut A, ctx, preference| ctx.set_theme(preference),
-    );
+    b.segmented(key, current, &APPEARANCES)
+        .on_change_with(|_: &mut A, ctx, preference| ctx.set_theme(preference));
 }
 
 /// The Vega and Lyra choices as the preset's tab list. The choice lives in
@@ -358,10 +355,8 @@ where
     K: bullseye::Key,
 {
     let options = ShadcnStyle::ALL.map(|style| (style, style.name()));
-    b.segmented(
-        key,
-        Segmented::new(style_of(b.ctx()), &options),
-        |_: &mut A, ctx, style| {
+    b.segmented(key, style_of(b.ctx()), &options)
+        .on_change_with(|_: &mut A, ctx, style| {
             choose(
                 ctx,
                 Chosen {
@@ -369,8 +364,7 @@ where
                     ..chosen(ctx)
                 },
             );
-        },
-    );
+        });
 }
 
 /// The strip every example shows along its top edge, with the style and
@@ -524,13 +518,9 @@ pub fn slider_row<S: 'static>(
             b.text(tw(), format!("{value:.0}"));
         });
         let bounds = f64::from(*range.start())..=f64::from(*range.end());
-        b.slider(
-            key,
-            Slider::new(f64::from(value), bounds).named(name),
-            move |state: &mut S, edited| {
-                *lens(state) = edited as f32;
-            },
-        );
+        b.slider(key, f64::from(value), bounds)
+            .named(name)
+            .on_change(move |state: &mut S, edited| *lens(state) = edited as f32);
     });
 }
 
@@ -573,13 +563,13 @@ pub fn choice<S, K, T>(
     K: bullseye::Key,
     T: Copy + PartialEq + Hash + Debug + 'static,
 {
-    let group = Segmented::new(current, options);
+    let group = b.segmented(key, current, options);
     let group = if options.len() > MAX_ONE_ROW {
         group.wrapping()
     } else {
         group
     };
-    b.segmented(key, group, move |state, _, value| *lens(state) = value);
+    group.on_change(move |state, value| *lens(state) = value);
 }
 
 /// A frameless text field filling its row, in shadcn's input box: `h-9`,
@@ -622,15 +612,12 @@ pub fn text_box<S, K>(
             .focus_within(|p| p.border_color(t.ring).ring(t.ring_width, ring(&t))),
         none,
         |b| {
-            b.text_field(
-                "field",
-                tw().w_full(),
-                field,
-                lens,
-                move |_, ui, response| {
+            b.text_field_with("field", field)
+                .classes(tw().w_full())
+                .on_response(move |_, ui, response| {
                     response.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), name));
-                },
-            );
+                })
+                .bind(lens);
         },
     );
 }

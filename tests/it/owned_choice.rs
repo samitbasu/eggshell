@@ -3,8 +3,7 @@
 //! accessibility check the support harness switches on.
 
 use bullseye::contract::Size;
-use bullseye::owned::Mark;
-use bullseye::owned::{Enablement, RadioGroup, Segmented, Switch};
+use bullseye::owned::Enablement;
 use bullseye::{Builder, Style, TextStyle, tw};
 use bullseye_shadcn::{Shadcn, Tokens};
 use egui::epaint::{CircleShape, Shape};
@@ -54,40 +53,21 @@ struct App {
 /// ```
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
-        b.radio_group(
-            "units",
-            RadioGroup::new(app.unit, &UNITS),
-            |app: &mut App, unit| app.unit = unit,
-        );
-        b.radio_group(
-            "locked",
-            RadioGroup::new(app.locked, &UNITS).enablement(Enablement::Disabled),
-            |app: &mut App, unit| app.locked = unit,
-        );
-        b.switch(
-            "air",
-            Switch::new("Airplane mode", Mark::from(app.on)),
-            |app: &mut App| {
-                app.on = !app.on;
-            },
-        );
-        b.switch(
-            "frozen",
-            Switch::new("Locked", Mark::On).enablement(Enablement::Disabled),
-            |app: &mut App| app.on = !app.on,
-        );
-        b.switch(
-            "bare",
-            Switch::unlabelled(Mark::Off).named("Bare switch"),
-            |_: &mut App| {},
-        );
-        b.segmented(
-            "seg",
-            Segmented::new(app.segment, &SEGMENTS),
-            |app: &mut App, _, unit| {
-                app.segment = unit;
-            },
-        );
+        b.radio_group("units", app.unit, &UNITS)
+            .on_change(|app: &mut App, unit| app.unit = unit);
+        b.radio_group("locked", app.locked, &UNITS)
+            .enablement(Enablement::Disabled)
+            .on_change(|app: &mut App, unit| app.locked = unit);
+        b.switch("air", "Airplane mode", app.on)
+            .bind(|app: &mut App| &mut app.on);
+        b.switch("frozen", "Locked", true)
+            .enablement(Enablement::Disabled)
+            .bind(|app: &mut App| &mut app.on);
+        b.switch_unlabelled("bare", false)
+            .named("Bare switch")
+            .on_toggle(|_: &mut App| {});
+        b.segmented("seg", app.segment, &SEGMENTS)
+            .on_change(|app: &mut App, unit| app.segment = unit);
     });
 }
 

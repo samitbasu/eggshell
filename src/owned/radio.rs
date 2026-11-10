@@ -15,13 +15,17 @@ enum Part<T> {
     Label(T),
 }
 
-/// Radio buttons that choose one of `options`, drawn from the [`Style`].
+/// Radio buttons that choose one of `options`, drawn from the [`Style`]. Start
+/// a group with [`Builder::radio_group`] and finish it with
+/// [`on_change`](Self::on_change).
 ///
 /// The group is one Tab stop, on the chosen option (the first when none is
 /// chosen), as in HTML. The arrow keys move the choice, and the focus with it,
 /// to the next or previous option, wrapping around; Tab leaves the group.
-#[derive(Clone, Debug)]
-pub struct RadioGroup<T> {
+#[must_use = "a radio group is not added until you call `.on_change(..)`"]
+pub struct RadioGroupBuilder<'a, 'b, 'f, A, K, T> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
     current: T,
     options: Vec<(T, String)>,
     tooltips: Vec<(T, WidgetText)>,
@@ -29,11 +33,20 @@ pub struct RadioGroup<T> {
     enablement: Enablement,
 }
 
-impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
+    RadioGroupBuilder<'a, 'b, 'f, A, K, T>
+{
     /// A group of `(value, label)` options of which `current` is chosen.
     /// Values must be distinct.
-    pub fn new(current: T, options: &[(T, &str)]) -> Self {
+    pub(super) fn new(
+        b: &'a mut Builder<'b, 'f, A>,
+        key: K,
+        current: T,
+        options: &[(T, &str)],
+    ) -> Self {
         Self {
+            b,
+            key,
             current,
             options: options
                 .iter()
@@ -55,7 +68,6 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
     /// Shows `text` while the pointer hovers the circle of the option `value`,
     /// as egui's `on_hover_text` does and also when the group is disabled. It
     /// adds to the option's accessible name and does not replace it.
-    #[must_use]
     pub fn option_tooltip(mut self, value: T, text: impl Into<WidgetText>) -> Self {
         debug_assert!(
             self.options.iter().any(|&(option, _)| option == value),
@@ -71,32 +83,35 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
         self
     }
 
-    /// Adds the group to `b` under `key`. `select` runs with the value of the
-    /// option that was chosen with the pointer or the keyboard.
-    pub(crate) fn show<A: 'static, K: crate::Key>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        select: fn(&mut A, T),
-    ) {
+    /// Adds the group. `select` runs with the value of the option that was
+    /// chosen with the pointer or the keyboard.
+    pub fn on_change(self, select: impl Fn(&mut A, T) + Copy + 'static) {
+        let Self {
+            b,
+            key,
+            current,
+            options,
+            tooltips,
+            classes,
+            enablement,
+        } = self;
         let style = Style::of(b.ctx());
         let radio = &style.radio;
-        let enablement = self.enablement;
-        let values: Vec<T> = self.options.iter().map(|&(value, _)| value).collect();
+        let values: Vec<T> = options.iter().map(|&(value, _)| value).collect();
         let count = values.len();
         let tab_stop = values
             .iter()
-            .position(|&value| value == self.current)
+            .position(|&value| value == current)
             .unwrap_or(0);
         b.scope(key, |b| {
             let ids: Vec<_> = values
                 .iter()
                 .map(|&value| b.id_of(Part::Circle(value)))
                 .collect();
-            let group = tw().flex().flex_col().gap(3.0).merge(self.classes);
+            let group = tw().flex().flex_col().gap(3.0).merge(classes);
             b.div(group, |b| {
-                for (index, (value, label)) in self.options.into_iter().enumerate() {
-                    let chosen = value == self.current;
+                for (index, (value, label)) in options.into_iter().enumerate() {
+                    let chosen = value == current;
                     let look = if chosen { &radio.on } else { &radio.off };
                     let circle = look.indicator(
                         radio.border_width,
@@ -111,8 +126,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
                     } else {
                         circle.focusable_none()
                     };
-                    let tooltip = self
-                        .tooltips
+                    let tooltip = tooltips
                         .iter()
                         .find(|&&(option, _)| option == value)
                         .map(|(_, text)| text.clone());
@@ -180,7 +194,7 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> RadioGroup<T> {
 fn navigate<A, T: Copy>(
     app: &mut A,
     ui: &Ui,
-    select: fn(&mut A, T),
+    select: impl Fn(&mut A, T),
     previous: (T, Id),
     next: (T, Id),
 ) {

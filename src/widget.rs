@@ -126,6 +126,12 @@ impl TextEdit {
         }
     }
 
+    /// Makes the field wrap its text over at least `min` rows.
+    pub fn multiline_rows(mut self, min: usize) -> Self {
+        self.lines = Lines::Multi { min, max: None };
+        self
+    }
+
     /// Stops a multi-line field growing at the height of a field `max` rows
     /// tall (egui's `desired_rows`). It scrolls instead.
     pub fn max_rows(mut self, max: usize) -> Self {

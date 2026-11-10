@@ -13,8 +13,6 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::owned::Mark;
-use bullseye::owned::{Button, Checkbox, Stepper};
 use bullseye::prim::text_field::Field;
 use bullseye::{Builder, Tw, tw};
 use bullseye_shadcn::variant;
@@ -250,14 +248,7 @@ fn check(
     lens: fn(&mut State) -> &mut bool,
 ) {
     b.div(tw().flex().flex_col().gap(1.0), |b| {
-        b.checkbox(
-            part,
-            Checkbox::new(label, Mark::from(checked)),
-            move |state: &mut State| {
-                let ticked = lens(state);
-                *ticked = !*ticked;
-            },
-        );
+        b.checkbox(part, label, checked).bind(lens);
         error_line(b, state.visible_error(part));
     });
 }
@@ -329,13 +320,10 @@ fn form(b: &mut B<'_, '_>, state: &State) {
     });
     b.div(tw().flex().flex_col().gap(1.0), |b| {
         b.text(tw(), "Age");
-        b.stepper(
-            Part::Age,
-            Stepper::new(state.fields.age, 0.0..=150.0)
-                .named("Age")
-                .classes(tw().w_px(112.0).self_start()),
-            |state: &mut State, age| state.fields.age = age,
-        );
+        b.stepper(Part::Age, state.fields.age, 0.0..=150.0)
+            .named("Age")
+            .classes(tw().w_px(112.0).self_start())
+            .on_change(|state: &mut State, age| state.fields.age = age);
         error_line(b, state.visible_error(Part::Age));
     });
     let fields = &state.fields;
@@ -355,13 +343,10 @@ fn form(b: &mut B<'_, '_>, state: &State) {
         fields.newsletter,
         |s| &mut s.fields.newsletter,
     );
-    b.button(
-        Part::Submit,
-        Button::new("Submit")
-            .variant(variant::PRIMARY)
-            .classes(tw().w_full().h_px(40.0)),
-        State::submit,
-    );
+    b.button(Part::Submit, "Submit")
+        .variant(variant::PRIMARY)
+        .classes(tw().w_full().h_px(40.0))
+        .on_click(State::submit);
 }
 
 /// What replaces the form once it is submitted.
@@ -384,11 +369,9 @@ fn thanks(b: &mut B<'_, '_>, state: &State) {
             format!("{:#?}", state.fields),
         );
     });
-    b.button(
-        Part::Reset,
-        Button::new("Reset").classes(tw().self_start()),
-        |state: &mut State| *state = State::default(),
-    );
+    b.button(Part::Reset, "Reset")
+        .classes(tw().self_start())
+        .on_click(|state: &mut State| *state = State::default());
 }
 
 /// ```html

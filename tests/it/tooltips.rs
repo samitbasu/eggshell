@@ -1,9 +1,7 @@
 //! Tooltips on the owned controls: shown through egui's `on_hover_text`,
 //! also when the control is disabled, and in addition to the accessible name.
 
-use bullseye::owned::{
-    Button, Checkbox, Enablement, Mark, RadioGroup, Segmented, Select, Slider, Stepper, Switch,
-};
+use bullseye::owned::Enablement;
 use bullseye::{Builder, TextStyle, tw};
 use bullseye_shadcn::Tokens;
 use egui::{Theme, vec2};
@@ -40,64 +38,41 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
             .p(4.0)
             .w_px(300.0),
         |b| {
-            b.button(
-                "undo",
-                Button::new("").named("Undo").tooltip("Undo (Ctrl+Z)"),
-                |_| {},
-            );
-            b.button(
-                "save",
-                Button::new("Save")
-                    .tooltip("Cannot save")
-                    .enablement(Enablement::Disabled),
-                |_| {},
-            );
-            b.checkbox(
-                "check",
-                Checkbox::unlabelled(Mark::Off)
-                    .named("Check")
-                    .tooltip("Tip for check"),
-                |_| {},
-            );
-            b.switch(
-                "switch",
-                Switch::unlabelled(Mark::Off)
-                    .named("Switch")
-                    .tooltip("Tip for switch"),
-                |_| {},
-            );
-            b.radio_group(
-                "radio",
-                RadioGroup::new(Pick::A, &PICKS).option_tooltip(Pick::B, "Tip for beta"),
-                |_, _| {},
-            );
-            b.segmented(
-                "segmented",
-                Segmented::new(Pick::A, &PICKS).option_tooltip(Pick::B, "Tip for cell"),
-                |_, _, _| {},
-            );
-            b.slider(
-                "slider",
-                Slider::new(50.0, 0.0..=100.0)
-                    .named("Level")
-                    .tooltip("Tip for slider"),
-                |_, _| {},
-            );
-            b.select(
-                "select",
-                Select::new(Pick::A, &PICKS)
-                    .named("Pick")
-                    .tooltip("Tip for select")
-                    .classes(tw().w_px(120.0)),
-                |_, _, _| {},
-            );
-            b.stepper(
-                "stepper",
-                Stepper::new(3.0, 0.0..=10.0)
-                    .named("Count")
-                    .tooltip("Tip for stepper"),
-                |_, _| {},
-            );
+            b.button("undo", "")
+                .named("Undo")
+                .tooltip("Undo (Ctrl+Z)")
+                .add();
+            b.button("save", "Save")
+                .tooltip("Cannot save")
+                .enablement(Enablement::Disabled)
+                .add();
+            b.checkbox_unlabelled("check", false)
+                .named("Check")
+                .tooltip("Tip for check")
+                .on_toggle(|_| {});
+            b.switch_unlabelled("switch", false)
+                .named("Switch")
+                .tooltip("Tip for switch")
+                .on_toggle(|_| {});
+            b.radio_group("radio", Pick::A, &PICKS)
+                .option_tooltip(Pick::B, "Tip for beta")
+                .on_change(|_, _| {});
+            b.segmented("segmented", Pick::A, &PICKS)
+                .option_tooltip(Pick::B, "Tip for cell")
+                .on_change(|_, _| {});
+            b.slider("slider", 50.0, 0.0..=100.0)
+                .named("Level")
+                .tooltip("Tip for slider")
+                .on_change(|_, _| {});
+            b.select("select", Pick::A, &PICKS)
+                .named("Pick")
+                .tooltip("Tip for select")
+                .classes(tw().w_px(120.0))
+                .on_change(|_, _| {});
+            b.stepper("stepper", 3.0, 0.0..=10.0)
+                .named("Count")
+                .tooltip("Tip for stepper")
+                .on_change(|_, _| {});
         },
     );
 }

@@ -43,6 +43,28 @@
 //! (they are generic over their arguments and write through closures), so a
 //! `const CARD: Tw` cannot be built. Calling the function is cheap.
 //!
+//! # Controls
+//!
+//! The owned controls are chained builders that start from the builder and
+//! end in a call that adds them and says what the user's input changes.
+//! Options come first. A control left without its terminating call is not
+//! added, and `#[must_use]` makes that a warning.
+//!
+//! ```
+//! use bullseye::Builder;
+//!
+//! #[derive(Hash, Debug)]
+//! enum Part { Save, Terms, Volume }
+//!
+//! struct App { saves: u32, terms: bool, volume: f64 }
+//!
+//! fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+//!     b.button(Part::Save, "Save").tooltip("Save the form").on_click(|app| app.saves += 1);
+//!     b.checkbox(Part::Terms, "I agree", app.terms).bind(|app| &mut app.terms);
+//!     b.slider(Part::Volume, app.volume, 0.0..=1.0).on_change(|app, volume| app.volume = volume);
+//! }
+//! ```
+//!
 //! # Differences from CSS
 //!
 //! egui paints shapes one at a time into rectangular clip rects, so three

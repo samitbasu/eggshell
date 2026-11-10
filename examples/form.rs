@@ -12,7 +12,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::owned::{Button, Enablement, Select, Switch};
+use bullseye::owned::Enablement;
 use bullseye::prim::text_field::Field;
 use bullseye::{Builder, NodeUi as _, Tw, tw};
 use bullseye_shadcn::variant;
@@ -207,16 +207,11 @@ fn choose(
     lens: fn(&mut State) -> &mut usize,
 ) {
     let options: Vec<(usize, &str)> = options.iter().copied().enumerate().collect();
-    b.select(
-        key,
-        Select::new(current, &options)
-            .named(name)
-            .enablement(enablement)
-            .classes(tw().w_px(FIELD_WIDTH)),
-        move |state: &mut State, _, chosen| {
-            *lens(state) = chosen;
-        },
-    );
+    b.select(key, current, &options)
+        .named(name)
+        .enablement(enablement)
+        .classes(tw().w_px(FIELD_WIDTH))
+        .on_change(move |state: &mut State, chosen| *lens(state) = chosen);
 }
 
 fn switch(
@@ -227,11 +222,9 @@ fn switch(
     on: bool,
     toggle: fn(&mut State),
 ) {
-    b.switch(
-        key,
-        Switch::new(label, bullseye::owned::Mark::from(on)).enablement(enablement),
-        toggle,
-    );
+    b.switch(key, label, on)
+        .enablement(enablement)
+        .on_toggle(toggle);
 }
 
 /// A toggle button: pressed while its mark is on, independent of the others.
@@ -460,13 +453,10 @@ fn save(b: &mut B<'_, '_>, state: &State) {
     };
     let muted = common::tokens(b.ctx()).muted_foreground;
     b.div(tw().flex().items_center().gap(3.0), |b| {
-        b.button(
-            Part::Save,
-            Button::new("Save")
-                .variant(variant::PRIMARY)
-                .enablement(enablement),
-            |state: &mut State| state.saves += 1,
-        );
+        b.button(Part::Save, "Save")
+            .variant(variant::PRIMARY)
+            .enablement(enablement)
+            .on_click(|state: &mut State| state.saves += 1);
         let note = match (state.saves, state.can_save()) {
             (_, false) => "Enter a name and an email address to save.".to_owned(),
             (0, true) => String::new(),

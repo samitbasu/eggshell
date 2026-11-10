@@ -382,7 +382,7 @@ pub enum Disabled {
 #[non_exhaustive]
 pub struct ButtonStyle {
     /// The variants the style defines. The default entry is the variant of
-    /// [`Button::new`](crate::owned::Button::new).
+    /// [`Builder::button`](crate::Builder::button).
     pub variants: Keyed<Variant, Look>,
     /// Metrics of a button per size.
     pub sizes: Keyed<Size, Metrics>,
@@ -391,7 +391,7 @@ pub struct ButtonStyle {
     /// Border width of a toggle, off or on.
     pub toggle_border_width: f32,
     /// The looks of a toggle that is off, by variant. Variants are chosen
-    /// with [`Button::variant`](crate::owned::Button::variant) for toggles as
+    /// with [`ButtonBuilder::variant`](crate::owned::ButtonBuilder::variant) for toggles as
     /// for buttons.
     pub toggle_off: Keyed<Variant, Paint>,
     /// The looks of a toggle that is on.

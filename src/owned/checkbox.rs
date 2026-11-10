@@ -16,9 +16,13 @@ enum Part {
     Label,
 }
 
-/// A checkbox drawn from the [`Style`], with an optional label.
-#[derive(Clone, Debug)]
-pub struct Checkbox {
+/// A checkbox drawn from the [`Style`], with an optional label. Start one with
+/// [`Builder::checkbox`] and finish it with [`bind`](Self::bind) or
+/// [`on_toggle`](Self::on_toggle).
+#[must_use = "a checkbox is not added until you call `.bind(..)` or `.on_toggle(..)`"]
+pub struct CheckboxBuilder<'a, 'b, 'f, A, K> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
     label: Option<String>,
     name: Option<String>,
     tooltip: Tip,
@@ -27,24 +31,22 @@ pub struct Checkbox {
     enablement: Enablement,
 }
 
-impl Checkbox {
-    /// A checkbox labelled `label`, ticked when `mark` is on.
-    pub fn new(label: impl Into<String>, mark: Mark) -> Self {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key> CheckboxBuilder<'a, 'b, 'f, A, K> {
+    pub(super) fn new(
+        b: &'a mut Builder<'b, 'f, A>,
+        key: K,
+        label: Option<String>,
+        mark: Mark,
+    ) -> Self {
         Self {
-            label: Some(label.into()),
+            b,
+            key,
+            label,
             name: None,
             tooltip: None,
             mark,
             classes: tw(),
             enablement: Enablement::Enabled,
-        }
-    }
-
-    /// A checkbox without a label.
-    pub fn unlabelled(mark: Mark) -> Self {
-        Self {
-            label: None,
-            ..Self::new("", mark)
         }
     }
 
@@ -65,7 +67,6 @@ impl Checkbox {
     /// shows it: with egui's timing and style, and also when the control is
     /// disabled, as an HTML `title` is. It adds to the control's accessible
     /// name and does not replace it.
-    #[must_use]
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
         self
@@ -77,21 +78,34 @@ impl Checkbox {
         self
     }
 
-    /// Adds the checkbox to `b` under `key`. `on_toggle` runs when the box or
-    /// the label is clicked, or the box is activated with Space or Enter.
-    pub(crate) fn show<A: 'static, K: crate::Key>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        on_toggle: impl Fn(&mut A) + Copy + 'static,
-    ) {
+    /// Adds the checkbox, which flips the bool that `lens` picks out of the
+    /// application's state when it is toggled.
+    pub fn bind(self, lens: impl Fn(&mut A) -> &mut bool + Copy + 'static) {
+        self.on_toggle(move |app| {
+            let ticked = lens(app);
+            *ticked = !*ticked;
+        });
+    }
+
+    /// Adds the checkbox. `on_toggle` runs when the box or the label is
+    /// clicked, or the box is activated with Space or Enter.
+    pub fn on_toggle(self, on_toggle: impl Fn(&mut A) + Copy + 'static) {
+        let Self {
+            b,
+            key,
+            label,
+            name,
+            tooltip,
+            mark,
+            classes: caller,
+            enablement,
+        } = self;
         let style = Style::of(b.ctx());
         let checkbox = &style.checkbox;
-        let look = match self.mark {
+        let look = match mark {
             Mark::Off => &checkbox.off,
             Mark::On => &checkbox.on,
         };
-        let enablement = self.enablement;
         let box_classes = look.indicator(
             checkbox.border_width,
             &style,
@@ -100,13 +114,11 @@ impl Checkbox {
             checkbox.transition,
             checkbox.size,
         );
-        let (glyph, mark) = (checkbox.glyph, self.mark);
-        let name = self.name.unwrap_or_default();
-        let tooltip = self.tooltip;
+        let glyph = checkbox.glyph;
+        let name = name.unwrap_or_default();
         b.scope(key, |b| {
             let control = b.id_of(Part::Box);
-            let row =
-                choice_row(&style, &checkbox.text, enablement, checkbox.gap).merge(self.classes);
+            let row = choice_row(&style, &checkbox.text, enablement, checkbox.gap).merge(caller);
             b.div(row, |b| {
                 b.div_id(
                     Part::Box,
@@ -122,7 +134,7 @@ impl Checkbox {
                         }
                     },
                 );
-                if let Some(label) = self.label {
+                if let Some(label) = label {
                     choice_label(b, Part::Label, control, label, enablement, on_toggle);
                 }
             });

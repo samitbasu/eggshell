@@ -14,7 +14,8 @@ use super::{Chevron, Enablement, Tip, paint_check, paint_chevron, tipped};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 /// A trigger that shows the chosen option and opens the list of `options`,
-/// drawn from the [`Style`].
+/// drawn from the [`Style`]. Start one with [`Builder::select`] and finish it
+/// with [`on_change`](Self::on_change).
 ///
 /// With the trigger focused, Space, Enter and ArrowDown open the list. While
 /// it is open the arrows (and Home and End) move the highlight, Enter or
@@ -27,8 +28,10 @@ use crate::{Builder, NodeUi as _, Style, Tw, tw};
 ///   Europe <svg class="size-4 opacity-50">chevron-down</svg>
 /// </button>
 /// ```
-#[derive(Clone, Debug)]
-pub struct Select<T> {
+#[must_use = "a select is not added until you call `.on_change(..)`"]
+pub struct SelectBuilder<'a, 'b, 'f, A, K, T> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
     current: T,
     options: Vec<(T, String)>,
     name: Option<String>,
@@ -37,10 +40,19 @@ pub struct Select<T> {
     enablement: Enablement,
 }
 
-impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static>
+    SelectBuilder<'a, 'b, 'f, A, K, T>
+{
     /// A select over `(value, label)` options of which `current` is chosen.
-    pub fn new(current: T, options: &[(T, &str)]) -> Self {
+    pub(super) fn new(
+        b: &'a mut Builder<'b, 'f, A>,
+        key: K,
+        current: T,
+        options: &[(T, &str)],
+    ) -> Self {
         Self {
+            b,
+            key,
             current,
             options: options
                 .iter()
@@ -70,7 +82,6 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
     /// shows it: with egui's timing and style, and also when the control is
     /// disabled, as an HTML `title` is. It adds to the control's accessible
     /// name and does not replace it.
-    #[must_use]
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
         self
@@ -82,20 +93,30 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
         self
     }
 
-    /// Adds the select to `b` under `key`. `choose` gets the application and
-    /// the context, for a value the context holds.
-    pub(crate) fn show<A: 'static, K: crate::Key>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        choose: impl Fn(&mut A, &Context, T) + Copy + 'static,
-    ) {
+    /// Adds the select. `choose` runs with the chosen value.
+    pub fn on_change(self, choose: impl Fn(&mut A, T) + Copy + 'static) {
+        self.on_change_with(move |app, _, value| choose(app, value));
+    }
+
+    /// Adds the select. `choose` gets the application and the egui context,
+    /// for a value the context holds.
+    pub fn on_change_with(self, choose: impl Fn(&mut A, &Context, T) + Copy + 'static) {
+        let Self {
+            b,
+            key,
+            current: chosen,
+            options,
+            name,
+            tooltip,
+            classes: caller,
+            enablement,
+        } = self;
         let style = Style::of(b.ctx());
         let select = &style.select;
         let metrics = select.metrics;
         let classes = select
             .trigger
-            .classes(&style, metrics.radius, self.enablement, select.transition)
+            .classes(&style, metrics.radius, enablement, select.transition)
             .flex()
             .items_center()
             .justify_between()
@@ -105,18 +126,14 @@ impl<T: Copy + PartialEq + Hash + Debug + 'static> Select<T> {
             .role(style.role(&select.text).clone())
             .whitespace_nowrap()
             .w_fit();
-        let classes = self.enablement.fade(classes, &style).merge(self.classes);
-        let current = self
-            .options
-            .iter()
-            .position(|(value, _)| *value == self.current);
-        let shown = current.map_or_else(String::new, |at| self.options[at].1.clone());
-        let name = self.name.unwrap_or_default();
-        let tooltip = self.tooltip;
+        let classes = enablement.fade(classes, &style).merge(caller);
+        let current = options.iter().position(|(value, _)| *value == chosen);
+        let shown = current.map_or_else(String::new, |at| options[at].1.clone());
+        let name = name.unwrap_or_default();
         let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let list = List {
             style: style.clone(),
-            options: self.options,
+            options,
             current,
             name: name.clone(),
         };

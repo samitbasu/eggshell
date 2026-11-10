@@ -21,7 +21,8 @@ enum Part {
 }
 
 /// A number between the ends of a range, edited as text and stepped by two
-/// buttons, drawn from the [`Style`].
+/// buttons, drawn from the [`Style`]. Start one with [`Builder::stepper`] and
+/// finish it with [`on_change`](Self::on_change).
 ///
 /// With the field focused, ArrowUp and ArrowDown step the value. Typed
 /// numbers apply as they parse, are clamped to the range, and snap to the
@@ -37,8 +38,10 @@ enum Part {
 ///   </div>
 /// </div>
 /// ```
-#[derive(Clone, Debug)]
-pub struct Stepper {
+#[must_use = "a stepper is not added until you call `.on_change(..)`"]
+pub struct StepperBuilder<'a, 'b, 'f, A, K> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
     value: f64,
     range: RangeInclusive<f64>,
     step: Step,
@@ -48,10 +51,17 @@ pub struct Stepper {
     enablement: Enablement,
 }
 
-impl Stepper {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key> StepperBuilder<'a, 'b, 'f, A, K> {
     /// A stepper at `value` within `range`, stepping by [`Step::ONE`].
-    pub fn new(value: f64, range: RangeInclusive<f64>) -> Self {
+    pub(super) fn new(
+        b: &'a mut Builder<'b, 'f, A>,
+        key: K,
+        value: f64,
+        range: RangeInclusive<f64>,
+    ) -> Self {
         Self {
+            b,
+            key,
             value,
             range,
             step: Step::ONE,
@@ -86,7 +96,6 @@ impl Stepper {
     /// shows it: with egui's timing and style, and also when the control is
     /// disabled, as an HTML `title` is. It adds to the control's accessible
     /// name and does not replace it.
-    #[must_use]
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
         self
@@ -98,16 +107,11 @@ impl Stepper {
         self
     }
 
-    /// Adds the stepper to `b` under `key`. `set` runs with the new value.
-    pub(crate) fn show<A: 'static, K: crate::Key>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        set: impl Fn(&mut A, f64) + Copy + 'static,
-    ) {
-        let style = Style::of(b.ctx());
-        let stepper = &style.stepper;
+    /// Adds the stepper. `set` runs with the new value.
+    pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
         let Self {
+            b,
+            key,
             value,
             range,
             step,
@@ -116,6 +120,8 @@ impl Stepper {
             classes,
             enablement,
         } = self;
+        let style = Style::of(b.ctx());
+        let stepper = &style.stepper;
         let (low, high) = (*range.start(), *range.end());
         let spec = Spec {
             value,

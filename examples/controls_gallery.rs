@@ -20,7 +20,6 @@ use std::collections::BTreeMap;
 
 use bullseye::contract::{Colors, Paint, States, Style, Variant};
 use bullseye::owned;
-use bullseye::owned::Mark;
 use bullseye::prim::text_field::{self, Field};
 use bullseye::widget::{Lines, TextEdit};
 use bullseye::{Builder, NodeUi as _, TextStyle, Tw, tw};
@@ -608,11 +607,8 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
 /// ```
 fn controls(b: &mut B<'_, '_>, state: &State) {
     common::captioned(b, "Section", |b| {
-        b.segmented(
-            "section",
-            owned::Segmented::new(state.section, &Section::ALL),
-            |s: &mut State, _, section| s.section = section,
-        );
+        b.segmented("section", state.section, &Section::ALL)
+            .on_change(|s: &mut State, section| s.section = section);
     });
     if state.section == Section::Cells {
         cell_controls(b, state);
@@ -758,65 +754,47 @@ fn buttons_section(b: &mut B<'_, '_>, state: &State) {
         for enablement in ENABLEMENTS {
             for (name, variant) in VARIANTS {
                 row(b, &named(name, enablement), |b| {
-                    b.button(
-                        ("button", name, enablement),
-                        owned::Button::new("Button")
-                            .variant(variant)
-                            .enablement(enablement),
-                        |s: &mut State| {
-                            s.owned_clicks += 1;
-                        },
-                    );
+                    b.button(("button", name, enablement), "Button")
+                        .variant(variant)
+                        .enablement(enablement)
+                        .on_click(|s: &mut State| s.owned_clicks += 1);
                 });
             }
         }
         row(b, "toggle", |b| {
-            b.button(
-                "toggle",
-                owned::Button::toggle("Toggle", Mark::from(state.owned_toggled)),
-                |s: &mut State| s.owned_toggled = !s.owned_toggled,
-            );
+            b.button("toggle", "Toggle")
+                .toggle(state.owned_toggled)
+                .on_click(|s: &mut State| s.owned_toggled = !s.owned_toggled);
         });
         row(b, "toggle, armed", |b| {
-            b.button(
-                "armed",
-                owned::Button::toggle("Armed", Mark::from(state.owned_toggled)).variant(ARMED),
-                |s: &mut State| {
-                    s.owned_toggled = !s.owned_toggled;
-                },
-            );
+            b.button("armed", "Armed")
+                .toggle(state.owned_toggled)
+                .variant(ARMED)
+                .on_click(|s: &mut State| s.owned_toggled = !s.owned_toggled);
         });
         row(b, "icon and label", |b| {
-            b.button(
-                "icon-label",
-                owned::Button::new("Add")
-                    .icon(glyphs::icon(b.ctx(), Glyph::Plus))
-                    .variant(variant::OUTLINE),
-                |s: &mut State| s.owned_clicks += 1,
-            );
+            let plus = glyphs::icon(b.ctx(), Glyph::Plus);
+            b.button("icon-label", "Add")
+                .icon(plus)
+                .variant(variant::OUTLINE)
+                .on_click(|s: &mut State| s.owned_clicks += 1);
         });
         row(b, "icon only", |b| {
             let plus = glyphs::icon(b.ctx(), Glyph::Plus);
             b.div(tw().flex().gap(2.0), |b| {
                 for (key, variant) in [("outline", variant::OUTLINE), ("ghost", variant::GHOST)] {
-                    b.button(
-                        ("icon-only", key),
-                        owned::Button::icon_only(plus.clone(), "Add")
-                            .size(size::ICON)
-                            .variant(variant),
-                        |s: &mut State| s.owned_clicks += 1,
-                    );
+                    b.button(("icon-only", key), plus.clone())
+                        .named("Add")
+                        .size(size::ICON)
+                        .variant(variant)
+                        .on_click(|s: &mut State| s.owned_clicks += 1);
                 }
-                b.button(
-                    "icon-toggle",
-                    owned::Button::toggle("", Mark::from(state.owned_toggled))
-                        .icon(glyphs::icon(b.ctx(), Glyph::Sun))
-                        .named("Bright")
-                        .size(size::ICON),
-                    |s: &mut State| {
-                        s.owned_toggled = !s.owned_toggled;
-                    },
-                );
+                let sun = glyphs::icon(b.ctx(), Glyph::Sun);
+                b.button("icon-toggle", sun)
+                    .toggle(state.owned_toggled)
+                    .named("Bright")
+                    .size(size::ICON)
+                    .on_click(|s: &mut State| s.owned_toggled = !s.owned_toggled);
             });
         });
     });
@@ -829,68 +807,61 @@ fn choices_section(b: &mut B<'_, '_>, state: &State) {
             row(b, &named("checkbox", enablement), |b| {
                 b.checkbox(
                     ("checkbox", enablement),
-                    owned::Checkbox::new("Accept terms", Mark::from(state.owned_checked))
-                        .enablement(enablement),
-                    |s: &mut State| {
-                        s.owned_checked = !s.owned_checked;
-                    },
-                );
+                    "Accept terms",
+                    state.owned_checked,
+                )
+                .enablement(enablement)
+                .bind(|s: &mut State| &mut s.owned_checked);
             });
         }
         row(b, "radio group", |b| {
             b.radio_group(
                 "radio",
-                owned::RadioGroup::new(
-                    state.owned_radio,
-                    &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-                ),
-                |s: &mut State, unit| s.owned_radio = unit,
-            );
+                state.owned_radio,
+                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+            )
+            .on_change(|s: &mut State, unit| s.owned_radio = unit);
         });
         for enablement in ENABLEMENTS {
             row(b, &named("switch", enablement), |b| {
-                b.switch(
-                    ("switch", enablement),
-                    owned::Switch::new("Airplane mode", Mark::from(state.on))
-                        .enablement(enablement),
-                    |s: &mut State| s.on = !s.on,
-                );
+                b.switch(("switch", enablement), "Airplane mode", state.on)
+                    .enablement(enablement)
+                    .bind(|s: &mut State| &mut s.on);
             });
         }
         row(b, "segmented", |b| {
             b.segmented(
                 "segmented",
-                owned::Segmented::new(
-                    state.unit,
-                    &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
-                ),
-                |s: &mut State, _, unit| s.unit = unit,
-            );
+                state.unit,
+                &[(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+            )
+            .on_change(|s: &mut State, unit| s.unit = unit);
         });
         row(b, "segmented, icons", |b| {
+            let (sun, moon) = (
+                glyphs::icon(b.ctx(), Glyph::Sun),
+                glyphs::icon(b.ctx(), Glyph::Moon),
+            );
             b.segmented(
                 "segmented-icons",
-                owned::Segmented::new(
-                    state.unit,
-                    &[(Unit::Metric, "Light"), (Unit::Imperial, "Dark")],
-                )
-                .icon(Unit::Metric, glyphs::icon(b.ctx(), Glyph::Sun))
-                .icon(Unit::Imperial, glyphs::icon(b.ctx(), Glyph::Moon)),
-                |s: &mut State, _, unit| s.unit = unit,
-            );
+                state.unit,
+                &[(Unit::Metric, "Light"), (Unit::Imperial, "Dark")],
+            )
+            .icon(Unit::Metric, sun)
+            .icon(Unit::Imperial, moon)
+            .on_change(|s: &mut State, unit| s.unit = unit);
         });
         row(b, "segmented, merged", |b| {
+            let monitor = glyphs::icon(b.ctx(), Glyph::Monitor);
             b.segmented(
                 "segmented-merged",
-                owned::Segmented::new(
-                    state.unit,
-                    &[(Unit::Metric, "Light"), (Unit::Imperial, "Dark")],
-                )
-                .icon(Unit::Metric, glyphs::icon(b.ctx(), Glyph::Monitor))
-                .track(tw().w_full())
-                .cells(tw().flex_1()),
-                |s: &mut State, _, unit| s.unit = unit,
-            );
+                state.unit,
+                &[(Unit::Metric, "Light"), (Unit::Imperial, "Dark")],
+            )
+            .icon(Unit::Metric, monitor)
+            .track(tw().w_full())
+            .cells(tw().flex_1())
+            .on_change(|s: &mut State, unit| s.unit = unit);
         });
     });
 }
@@ -900,42 +871,27 @@ fn values_section(b: &mut B<'_, '_>, state: &State) {
     rows(b, |b| {
         for enablement in ENABLEMENTS {
             row(b, &named("slider", enablement), |b| {
-                b.slider(
-                    ("slider", enablement),
-                    owned::Slider::new(state.owned_slider, 0.0..=100.0)
-                        .named("Volume")
-                        .enablement(enablement),
-                    |s: &mut State, value| {
-                        s.owned_slider = value;
-                    },
-                );
+                b.slider(("slider", enablement), state.owned_slider, 0.0..=100.0)
+                    .named("Volume")
+                    .enablement(enablement)
+                    .on_change(|s: &mut State, value| s.owned_slider = value);
             });
         }
         for enablement in ENABLEMENTS {
             row(b, &named("select", enablement), |b| {
-                b.select(
-                    ("select", enablement),
-                    owned::Select::new(state.owned_select, &REGION_OPTIONS)
-                        .named("Region")
-                        .classes(tw().w_px(150.0))
-                        .enablement(enablement),
-                    |s: &mut State, _, region| {
-                        s.owned_select = region;
-                    },
-                );
+                b.select(("select", enablement), state.owned_select, &REGION_OPTIONS)
+                    .named("Region")
+                    .classes(tw().w_px(150.0))
+                    .enablement(enablement)
+                    .on_change(|s: &mut State, region| s.owned_select = region);
             });
         }
         for enablement in ENABLEMENTS {
             row(b, &named("stepper", enablement), |b| {
-                b.stepper(
-                    ("stepper", enablement),
-                    owned::Stepper::new(state.owned_stepper, 0.0..=10.0)
-                        .named("Count")
-                        .enablement(enablement),
-                    |s: &mut State, value| {
-                        s.owned_stepper = value;
-                    },
-                );
+                b.stepper(("stepper", enablement), state.owned_stepper, 0.0..=10.0)
+                    .named("Count")
+                    .enablement(enablement)
+                    .on_change(|s: &mut State, value| s.owned_stepper = value);
             });
         }
     });

@@ -4,8 +4,7 @@
 
 use bullseye::Style;
 use bullseye::contract::{Size, Variant};
-use bullseye::owned::Mark;
-use bullseye::owned::{Button, Checkbox, Enablement};
+use bullseye::owned::Enablement;
 use bullseye::{Builder, TextStyle, tw};
 use bullseye_shadcn::{Shadcn, Tokens, variant};
 use egui::epaint::Shape;
@@ -44,41 +43,26 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
             for name in VARIANTS {
-                b.button(
-                    (name, enablement),
-                    Button::new("Save").variant(name).enablement(enablement),
-                    move |app: &mut App| {
-                        app.clicks.push(name.0.to_owned());
-                    },
-                );
+                b.button((name, enablement), "Save")
+                    .variant(name)
+                    .enablement(enablement)
+                    .on_click(move |app: &mut App| app.clicks.push(name.0.to_owned()));
             }
         }
-        b.button(
-            "toggle",
-            Button::toggle("Toggle", Mark::from(app.toggled)),
-            |app: &mut App| {
-                app.toggled = !app.toggled;
-            },
-        );
+        b.button("toggle", "Toggle")
+            .toggle(app.toggled)
+            .on_click(|app: &mut App| app.toggled = !app.toggled);
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            b.checkbox(
-                ("check", enablement),
-                Checkbox::new("Accept terms", Mark::from(app.checked)).enablement(enablement),
-                |app: &mut App| {
-                    app.checked = !app.checked;
-                },
-            );
+            b.checkbox(("check", enablement), "Accept terms", app.checked)
+                .enablement(enablement)
+                .bind(|app: &mut App| &mut app.checked);
         }
-        b.checkbox(
-            "bare",
-            Checkbox::unlabelled(Mark::Off).named("Bare"),
-            |_: &mut App| {},
-        );
-        b.button(
-            "menu",
-            Button::new("Menu").opens_popup(),
-            |app: &mut App| app.clicks.push("menu".to_owned()),
-        );
+        b.checkbox_unlabelled("bare", false)
+            .named("Bare")
+            .on_toggle(|_: &mut App| {});
+        b.button("menu", "Menu")
+            .opens_popup()
+            .on_click(|app: &mut App| app.clicks.push("menu".to_owned()));
     });
 }
 

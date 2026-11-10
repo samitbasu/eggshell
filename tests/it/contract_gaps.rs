@@ -4,9 +4,7 @@
 //! key input goes through kittest's real events.
 
 use bullseye::contract::{Disabled, Paint, Size, Variant};
-use bullseye::owned::{
-    Button, Checkbox, Enablement, Mark, RadioGroup, Segmented, Select, Slider, Stepper, Switch,
-};
+use bullseye::owned::Enablement;
 use bullseye::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, none, tw};
 use bullseye_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::epaint::Shape;
@@ -157,13 +155,10 @@ fn icon_in(harness: &Harn, inside: Rect) -> (Color32, Rect) {
 /// </div>
 /// ```
 fn centred_cells(b: &mut Builder<'_, '_, App>, app: &App) {
-    b.segmented(
-        "seg",
-        Segmented::new(app.mode, &MODES)
-            .track(tw().h_px(app.height))
-            .cells(tw().role(spec(app.font))),
-        |app: &mut App, _, mode| app.mode = mode,
-    );
+    b.segmented("seg", app.mode, &MODES)
+        .track(tw().h_px(app.height))
+        .cells(tw().role(spec(app.font)))
+        .on_change(|app: &mut App, mode| app.mode = mode);
 }
 
 #[test]
@@ -274,13 +269,10 @@ fn a_text_leaf_places_its_line_by_its_own_vertical_alignment() {
 /// </div>
 /// ```
 fn icon_cells(b: &mut Builder<'_, '_, App>, app: &App) {
-    b.segmented(
-        "seg",
-        Segmented::new(app.mode, &MODES)
-            .icon(Mode::Light, app.icon())
-            .icon(Mode::Dark, app.icon()),
-        |app: &mut App, _, mode| app.mode = mode,
-    );
+    b.segmented("seg", app.mode, &MODES)
+        .icon(Mode::Light, app.icon())
+        .icon(Mode::Dark, app.icon())
+        .on_change(|app: &mut App, mode| app.mode = mode);
 }
 
 #[test]
@@ -379,13 +371,10 @@ fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
 
 fn merged_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().w_px(400.0), |b| {
-        b.segmented(
-            "seg",
-            Segmented::new(app.mode, &MODES)
-                .track(tw().w_full())
-                .cells(tw().flex_1()),
-            |app: &mut App, _, mode| app.mode = mode,
-        );
+        b.segmented("seg", app.mode, &MODES)
+            .track(tw().w_full())
+            .cells(tw().flex_1())
+            .on_change(|app: &mut App, mode| app.mode = mode);
     });
 }
 
@@ -424,48 +413,31 @@ fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
 fn classed(b: &mut Builder<'_, '_, App>, _: &App) {
     let wide = || tw().w_px(321.0);
     b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
-        b.button(
-            "button",
-            Button::new("Save").classes(wide()),
-            |_: &mut App| {},
-        );
-        b.checkbox(
-            "checkbox",
-            Checkbox::new("Agree", Mark::Off).classes(wide()),
-            |_: &mut App| {},
-        );
-        b.radio_group(
-            "radio",
-            RadioGroup::new(Mode::Light, &MODES).classes(wide()),
-            |_: &mut App, _| {},
-        );
-        b.switch(
-            "switch",
-            Switch::new("Alerts", Mark::Off).classes(wide()),
-            |_: &mut App| {},
-        );
-        b.slider(
-            "slider",
-            Slider::new(0.5, 0.0..=1.0).named("Volume").classes(wide()),
-            |_: &mut App, _| {},
-        );
-        b.select(
-            "select",
-            Select::new(Mode::Light, &MODES)
-                .named("Mode")
-                .classes(wide()),
-            |_: &mut App, _, _| {},
-        );
-        b.stepper(
-            "stepper",
-            Stepper::new(1.0, 0.0..=9.0).named("Count").classes(wide()),
-            |_: &mut App, _| {},
-        );
-        b.segmented(
-            "segmented",
-            Segmented::new(Mode::Light, &MODES).classes(wide()),
-            |_: &mut App, _, _| {},
-        );
+        b.button("button", "Save").classes(wide()).add();
+        b.checkbox("checkbox", "Agree", false)
+            .classes(wide())
+            .on_toggle(|_: &mut App| {});
+        b.radio_group("radio", Mode::Light, &MODES)
+            .classes(wide())
+            .on_change(|_: &mut App, _| {});
+        b.switch("switch", "Alerts", false)
+            .classes(wide())
+            .on_toggle(|_: &mut App| {});
+        b.slider("slider", 0.5, 0.0..=1.0)
+            .named("Volume")
+            .classes(wide())
+            .on_change(|_: &mut App, _| {});
+        b.select("select", Mode::Light, &MODES)
+            .named("Mode")
+            .classes(wide())
+            .on_change(|_: &mut App, _| {});
+        b.stepper("stepper", 1.0, 0.0..=9.0)
+            .named("Count")
+            .classes(wide())
+            .on_change(|_: &mut App, _| {});
+        b.segmented("segmented", Mode::Light, &MODES)
+            .classes(wide())
+            .on_change(|_: &mut App, _| {});
     });
 }
 
@@ -501,18 +473,14 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
 
 fn roles(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
-        b.button("button", Button::new("Save"), |_: &mut App| {});
-        b.segmented(
-            "seg",
-            Segmented::new(app.mode, &MODES),
-            |_: &mut App, _, _| {},
-        );
-        b.select(
-            "select",
-            Select::new(Mode::Light, &MODES).named("Mode"),
-            |_: &mut App, _, _| {},
-        );
-        b.checkbox("check", Checkbox::new("Agree", Mark::Off), |_: &mut App| {});
+        b.button("button", "Save").add();
+        b.segmented("seg", app.mode, &MODES)
+            .on_change(|_: &mut App, _| {});
+        b.select("select", Mode::Light, &MODES)
+            .named("Mode")
+            .on_change(|_: &mut App, _| {});
+        b.checkbox("check", "Agree", false)
+            .on_toggle(|_: &mut App| {});
     });
 }
 
@@ -617,18 +585,13 @@ fn armed_paint() -> Paint {
 
 fn toggles(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
-        b.button(
-            "plain",
-            Button::toggle("Plain", Mark::from(app.on)),
-            |app: &mut App| {
-                app.on = !app.on;
-            },
-        );
-        b.button(
-            "tool",
-            Button::toggle("Tool", Mark::from(app.on)).variant(ARMED),
-            |app: &mut App| app.on = !app.on,
-        );
+        b.button("plain", "Plain")
+            .toggle(app.on)
+            .on_click(|app: &mut App| app.on = !app.on);
+        b.button("tool", "Tool")
+            .toggle(app.on)
+            .variant(ARMED)
+            .on_click(|app: &mut App| app.on = !app.on);
     });
 }
 
@@ -704,18 +667,13 @@ fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
 fn disabled_row(b: &mut Builder<'_, '_, App>, _: &App) {
     b.div(tw().flex().flex_col().items_start().gap(2.0), |b| {
         for enablement in [Enablement::Enabled, Enablement::Disabled] {
-            b.button(
-                ("button", enablement),
-                Button::new("Save")
-                    .variant(bullseye_shadcn::variant::PRIMARY)
-                    .enablement(enablement),
-                |app: &mut App| app.clicks += 1,
-            );
-            b.checkbox(
-                ("check", enablement),
-                Checkbox::new("Agree", Mark::On).enablement(enablement),
-                |app: &mut App| app.clicks += 1,
-            );
+            b.button(("button", enablement), "Save")
+                .variant(bullseye_shadcn::variant::PRIMARY)
+                .enablement(enablement)
+                .on_click(|app: &mut App| app.clicks += 1);
+            b.checkbox(("check", enablement), "Agree", true)
+                .enablement(enablement)
+                .on_toggle(|app: &mut App| app.clicks += 1);
         }
     });
 }
@@ -812,26 +770,19 @@ fn the_colors_form_still_draws_the_styles_disabled_colours() {
 
 fn icon_buttons(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().gap(2.0).items_center(), |b| {
-        b.button(
-            "icon",
-            Button::icon_only(app.icon(), "Search")
-                .size(size::ICON)
-                .variant(bullseye_shadcn::variant::GHOST),
-            |app: &mut App| app.clicks += 1,
-        );
-        b.button(
-            "labelled",
-            Button::new("Add").icon(app.icon()),
-            |app: &mut App| app.clicks += 10,
-        );
-        b.button(
-            "toggle",
-            Button::toggle("", Mark::from(app.on))
-                .icon(app.icon())
-                .named("Pin")
-                .size(size::ICON),
-            |app: &mut App| app.on = !app.on,
-        );
+        b.button("icon", app.icon())
+            .named("Search")
+            .size(size::ICON)
+            .variant(bullseye_shadcn::variant::GHOST)
+            .on_click(|app: &mut App| app.clicks += 1);
+        b.button("labelled", "Add")
+            .icon(app.icon())
+            .on_click(|app: &mut App| app.clicks += 10);
+        b.button("toggle", app.icon())
+            .toggle(app.on)
+            .named("Pin")
+            .size(size::ICON)
+            .on_click(|app: &mut App| app.on = !app.on);
     });
 }
 
@@ -885,7 +836,7 @@ fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
 }
 
 fn unnamed(b: &mut Builder<'_, '_, App>, _: &App) {
-    b.button("nameless", Button::new(""), |_: &mut App| {});
+    b.button("nameless", "").add();
 }
 
 #[test]
@@ -897,11 +848,9 @@ fn a_button_with_neither_label_nor_name_is_a_bug_in_a_debug_build() {
 // ----- #44: the stepper's number text fits its box -----
 
 fn stepper(b: &mut Builder<'_, '_, App>, _: &App) {
-    b.stepper(
-        "stepper",
-        Stepper::new(3.0, 0.0..=9.0).named("Count"),
-        |_: &mut App, _| {},
-    );
+    b.stepper("stepper", 3.0, 0.0..=9.0)
+        .named("Count")
+        .on_change(|_: &mut App, _| {});
 }
 
 #[test]

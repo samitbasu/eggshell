@@ -17,7 +17,8 @@ enum Part {
     Thumb,
 }
 
-/// A horizontal slider drawn from the [`Style`].
+/// A horizontal slider drawn from the [`Style`]. Start one with
+/// [`Builder::slider`] and finish it with [`on_change`](Self::on_change).
 ///
 /// Pressing the track jumps the thumb there, and dragging the track or the
 /// thumb moves it. With the thumb focused, the arrow keys move it a step and
@@ -32,8 +33,10 @@ enum Part {
 ///     focus-visible:ring-[3px] focus-visible:ring-ring/50"></span>
 /// </span>
 /// ```
-#[derive(Clone, Debug)]
-pub struct Slider {
+#[must_use = "a slider is not added until you call `.on_change(..)`"]
+pub struct SliderBuilder<'a, 'b, 'f, A, K> {
+    b: &'a mut Builder<'b, 'f, A>,
+    key: K,
     value: f64,
     range: RangeInclusive<f64>,
     step: Step,
@@ -85,10 +88,17 @@ impl Scale {
     }
 }
 
-impl Slider {
+impl<'a, 'b, 'f, A: 'static, K: crate::Key> SliderBuilder<'a, 'b, 'f, A, K> {
     /// A slider at `value` within `range`, moving by [`Step::ONE`].
-    pub fn new(value: f64, range: RangeInclusive<f64>) -> Self {
+    pub(super) fn new(
+        b: &'a mut Builder<'b, 'f, A>,
+        key: K,
+        value: f64,
+        range: RangeInclusive<f64>,
+    ) -> Self {
         Self {
+            b,
+            key,
             value,
             range,
             step: Step::ONE,
@@ -122,7 +132,6 @@ impl Slider {
     /// shows it: with egui's timing and style, and also when the control is
     /// disabled, as an HTML `title` is. It adds to the control's accessible
     /// name and does not replace it.
-    #[must_use]
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
         self
@@ -134,20 +143,25 @@ impl Slider {
         self
     }
 
-    /// Adds the slider to `b` under `key`, as wide as the space it is given.
-    /// `set` runs with the new value when the pointer or the keyboard changes it.
-    pub(crate) fn show<A: 'static, K: crate::Key>(
-        self,
-        b: &mut Builder<'_, '_, A>,
-        key: K,
-        set: impl Fn(&mut A, f64) + Copy + 'static,
-    ) {
+    /// Adds the slider, as wide as the space it is given. `set` runs with the
+    /// new value when the pointer or the keyboard changes it.
+    pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
+        let Self {
+            b,
+            key,
+            value,
+            range,
+            step,
+            name,
+            tooltip,
+            classes: caller,
+            enablement,
+        } = self;
         let style = Style::of(b.ctx());
         let slider = &style.slider;
-        let enablement = self.enablement;
-        let (low, high) = (*self.range.start(), *self.range.end());
+        let (low, high) = (*range.start(), *range.end());
         let fraction = if high > low {
-            ((self.value - low) / (high - low)).clamp(0.0, 1.0) as f32
+            ((value - low) / (high - low)).clamp(0.0, 1.0) as f32
         } else {
             0.0
         };
@@ -162,7 +176,7 @@ impl Slider {
             .h_px(thumb)
             .sense_click_drag()
             .focusable_none();
-        let hit = enablement.apply(hit, &style).merge(self.classes);
+        let hit = enablement.apply(hit, &style).merge(caller);
         let bar = painted(
             tw().w_full()
                 .h_px(slider.track_height)
@@ -170,7 +184,7 @@ impl Slider {
                 .overflow_hidden(),
             fill(slider.track),
         );
-        let range = painted(
+        let filled = painted(
             tw().h_full().w_frac(fraction, 1.0).rounded_px(radius),
             fill(slider.range),
         );
@@ -184,13 +198,13 @@ impl Slider {
             .size_px(thumb)
             .sense_click_drag();
         let scale = Scale {
-            value: self.value,
-            range: self.range,
-            step: self.step,
+            value,
+            range,
+            step,
             thumb,
         };
-        let name = self.name.unwrap_or_default();
-        let (track_tip, thumb_tip) = (self.tooltip.clone(), self.tooltip);
+        let name = name.unwrap_or_default();
+        let (track_tip, thumb_tip) = (tooltip.clone(), tooltip);
         b.scope(key, |b| {
             let track = b.id_of(Part::Track);
             let on_track = scale.clone();
@@ -208,7 +222,7 @@ impl Slider {
                     }
                 },
                 |b| {
-                    b.div(bar, |b| b.div(range, |_| {}));
+                    b.div(bar, |b| b.div(filled, |_| {}));
                     b.div(travel, |b| {
                         b.div_id(
                             Part::Thumb,
