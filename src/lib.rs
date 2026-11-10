@@ -187,6 +187,8 @@ pub use text::{
     FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle, Tracking,
     WhiteSpace,
 };
+#[doc(hidden)]
+pub use transition::tracked_layout_nodes;
 pub use tw::{
     Angle, BoxPaint, Divide, Easing, Flip, Opacity, Paint, Progress, Ring, Sides, Track, Tw, tw,
 };

@@ -6,7 +6,9 @@
 
 use core::time::Duration;
 
-use egui::{Context, Id};
+use std::collections::HashMap;
+
+use egui::{Context, Id, Rect, Vec2};
 
 use crate::tw::{Easing, Progress};
 
@@ -27,6 +29,15 @@ impl Transition {
             target: at,
             start: now,
             duration: Duration::ZERO,
+        }
+    }
+
+    fn from_start(now: f64, duration: Duration) -> Self {
+        Self {
+            from: Progress::START,
+            target: Progress::END,
+            start: now,
+            duration,
         }
     }
 
@@ -92,4 +103,127 @@ pub(crate) fn animate(
         ctx.request_repaint();
     }
     transition.value(now, easing)
+}
+
+/// How far a node whose layout position moved is still painted from it.
+#[derive(Clone, Copy)]
+struct Tracked {
+    /// The node's position within its parent in the previous frame's layout.
+    relative: Vec2,
+    /// Where the node was painted, relative to its layout, when it last moved.
+    start: Vec2,
+    progress: Transition,
+}
+
+impl Tracked {
+    fn offset(&self, now: f64, easing: Easing) -> Vec2 {
+        self.start * (1.0 - f32::from(self.progress.value(now, easing)))
+    }
+}
+
+/// The animated nodes of the last frame drawn into one `Ui`, and the area
+/// they were laid out in.
+#[derive(Clone)]
+struct Tracking {
+    area: Rect,
+    nodes: HashMap<Id, Tracked>,
+}
+
+impl Default for Tracking {
+    fn default() -> Self {
+        Self {
+            area: Rect::NOTHING,
+            nodes: HashMap::new(),
+        }
+    }
+}
+
+fn tracking_id(scope: Id) -> Id {
+    crate::key::root_id().with(("layout-animation", scope))
+}
+
+/// Moves the painting of nodes with an `animate_layout` from where the
+/// previous frame laid them out to where this one does.
+///
+/// A node's position is taken within its parent's rect, so a parent that
+/// moves carries its children along and they animate only for their own
+/// moves. Nodes not seen this frame are forgotten when it ends.
+pub(crate) struct LayoutAnimation {
+    ctx: Context,
+    scope: Id,
+    now: f64,
+    previous: HashMap<Id, Tracked>,
+    current: HashMap<Id, Tracked>,
+    area: Rect,
+}
+
+impl LayoutAnimation {
+    /// Starts a frame laid out in `area`. When `area` is not the previous
+    /// frame's, nothing animates: the window was resized.
+    pub(crate) fn begin(ctx: &Context, scope: Id, area: Rect) -> Self {
+        let before: Tracking = ctx
+            .data(|data| data.get_temp(tracking_id(scope)))
+            .unwrap_or_default();
+        let resized = before.area != area;
+        Self {
+            ctx: ctx.clone(),
+            scope,
+            now: ctx.input(|input| input.time),
+            previous: if resized {
+                HashMap::new()
+            } else {
+                before.nodes
+            },
+            current: HashMap::new(),
+            area,
+        }
+    }
+
+    /// How far to paint the node `id` from its layout, at `relative` to its
+    /// parent's rect, for `duration` along `easing`.
+    pub(crate) fn offset(
+        &mut self,
+        id: Id,
+        relative: Vec2,
+        duration: Duration,
+        easing: Easing,
+    ) -> Vec2 {
+        let now = self.now;
+        let tracked = match self.previous.get(&id) {
+            Some(previous) if previous.relative == relative => Tracked {
+                relative,
+                ..*previous
+            },
+            Some(previous) => Tracked {
+                relative,
+                start: previous.relative + previous.offset(now, easing) - relative,
+                progress: Transition::from_start(now, duration),
+            },
+            None => Tracked {
+                relative,
+                start: Vec2::ZERO,
+                progress: Transition::settled(Progress::END, now),
+            },
+        };
+        self.current.insert(id, tracked);
+        if tracked.progress.elapsed(now) < Progress::END {
+            self.ctx.request_repaint();
+        }
+        tracked.offset(now, easing)
+    }
+
+    pub(crate) fn finish(self) {
+        let nodes = self.current;
+        let area = self.area;
+        self.ctx.data_mut(|data| {
+            data.insert_temp(tracking_id(self.scope), Tracking { area, nodes });
+        });
+    }
+}
+
+/// How many nodes the layout animation of the `Ui` with id `scope` tracks.
+#[doc(hidden)]
+pub fn tracked_layout_nodes(ctx: &Context, scope: Id) -> usize {
+    ctx.data(|data| data.get_temp::<Tracking>(tracking_id(scope)))
+        .map_or(0, |tracking| tracking.nodes.len())
 }

@@ -137,7 +137,8 @@ fn row(b: &mut B<'_, '_, State>, item: &Item, position: Position) {
             .bg(t.muted)
             .group()
             .hover(|p| p.bg(t.border))
-            .transition(FAST),
+            .transition(FAST)
+            .animate_layout(FAST),
         bullseye::none,
         |b| {
             b.text(tw().grow().truncate(), &item.title);

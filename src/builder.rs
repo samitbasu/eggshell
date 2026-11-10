@@ -376,7 +376,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     fn node(&self, tw: &Tw, parts: Parts) -> Node {
         debug_assert!(
             parts.id.is_some() || !tw.needs_identity(),
-            "{}: only identified nodes (div_id, leaf, span, icon) may sense, group or have hover, active or transition variants",
+            "{}: only identified nodes (div_id, leaf, span, icon) may sense, group or have hover, active, transition or animate_layout variants",
             parts.path,
         );
         debug_assert!(

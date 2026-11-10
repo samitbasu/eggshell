@@ -318,6 +318,7 @@ pub(crate) struct Variants {
     focus: Option<Paint>,
     focus_within: Option<Paint>,
     pub(crate) transition: Option<Duration>,
+    pub(crate) animate_layout: Option<Duration>,
     pub(crate) easing: Easing,
 }
 
@@ -335,6 +336,7 @@ impl Variants {
             focus: both(self.focus, other.focus),
             focus_within: both(self.focus_within, other.focus_within),
             transition: other.transition.or(self.transition),
+            animate_layout: other.animate_layout.or(self.animate_layout),
             easing: if other.easing == Easing::Default {
                 self.easing
             } else {
@@ -465,6 +467,21 @@ impl Tw {
         self
     }
 
+    /// Animates the node to its new place when layout moves it, over
+    /// `duration`, along the `ease_*` curve (Tailwind's default unless one is
+    /// picked). Layout and hit rects are final at once; only the painting of
+    /// the node and its subtree catches up, from where it was last frame.
+    ///
+    /// A node's place is its position within its parent, so a child that
+    /// opts in too does not animate again when only its parent moved. A node
+    /// seen for the first time, and every node on a frame where the window
+    /// was resized, is placed at once, unlike CSS view transitions. Moves
+    /// only: a change of size is not animated. Needs an identified node.
+    pub fn animate_layout(mut self, duration: Duration) -> Self {
+        self.variants.animate_layout = Some(duration);
+        self
+    }
+
     /// `ease-linear`: the transition's timing function is `linear`.
     ///
     /// ```html
@@ -510,7 +527,7 @@ impl Tw {
     }
 
     /// Whether the classes declare a sense, a group, a `hover` or `active`
-    /// variant or a transition, which only an identified node can carry.
+    /// variant a transition or an animated layout, which only an identified node can carry.
     /// `group_hover` alone reads its group's state and needs no identity of
     /// its own, so an anonymous child can follow its parent's hover.
     pub(crate) fn needs_identity(&self) -> bool {
@@ -521,6 +538,7 @@ impl Tw {
             || self.variants.get(State::Focus).is_some()
             || self.variants.get(State::FocusWithin).is_some()
             || self.variants.transition.is_some()
+            || self.variants.animate_layout.is_some()
     }
 }
 
