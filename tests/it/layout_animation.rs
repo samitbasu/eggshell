@@ -4,6 +4,7 @@
 
 use core::time::Duration;
 
+use bullseye::testing::{Points, Timeline, record};
 use bullseye::{Builder, LayoutState, TextSpec, TextStyle, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, vec2};
@@ -238,6 +239,7 @@ fn a_resize_moves_everything_at_once() {
 #[test]
 fn a_move_interrupted_mid_flight_starts_from_where_the_row_is_painted() {
     let mut harness = harness(App::new(&[1, 2], &[1, 2]), rows);
+    record(&harness.ctx);
     let home = painted_top(&harness, color(1));
     reverse(&mut harness);
     harness.run_steps(8);
@@ -265,6 +267,11 @@ fn a_move_interrupted_mid_flight_starts_from_where_the_row_is_painted() {
         "heads back home monotonically: {seen:?}"
     );
     assert_eq!(*seen.last().expect("steps ran"), home);
+
+    harness.run_steps(5);
+    Timeline::recorded(&harness.ctx)
+        .max_step(Points::new(per_frame * 2.0))
+        .assert_continuous();
 }
 
 #[cfg(debug_assertions)]
