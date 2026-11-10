@@ -316,3 +316,37 @@ pub fn release<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
     });
     harness.run_steps(12);
 }
+
+/// A rig for examples that draw a whole frame themselves (scroll areas, work
+/// after the draw): `frame` runs inside the harness's root `Ui` each step.
+pub struct FrameRig<A> {
+    pub app: A,
+    pub layout: LayoutState,
+}
+
+pub fn frame_harness<A: 'static>(
+    size: Vec2,
+    base_text: TextStyle,
+    app: A,
+    frame: fn(&mut egui::Ui, &mut A, &mut LayoutState),
+) -> Harness<'static, FrameRig<A>> {
+    let rig = FrameRig {
+        app,
+        layout: LayoutState::new().with_base_text(base_text),
+    };
+    Harness::builder()
+        .with_size(size)
+        .with_step_dt(0.05)
+        .build_ui_state(
+            move |ui, rig: &mut FrameRig<A>| {
+                if bullseye_shadcn::tokens(ui.ctx()).is_none() {
+                    bullseye_shadcn::Shadcn::apply_both(ui.ctx());
+                }
+                let background = bullseye_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+                ui.painter()
+                    .rect_filled(ui.ctx().content_rect(), 0.0, background);
+                frame(ui, &mut rig.app, &mut rig.layout);
+            },
+            rig,
+        )
+}
