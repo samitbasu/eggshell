@@ -164,8 +164,7 @@ fn switching_columns_mid_resize_is_continuous() {
     );
     assert!(switches.len() > 20, "precondition: columns switch often");
     // A panel's size is not animated (#62), so a column change repaints it at
-    // its new size at once, and a frame whose window was resized places every
-    // node at once.
+    // its new size at once.
     switches
         .into_iter()
         .fold(timeline, Timeline::allow_jump_into_frame)

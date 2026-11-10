@@ -6,8 +6,6 @@
 //! A small number of cases runs by default; `PROPTEST_CASES` (or
 //! `cargo xtask fuzz`) runs more.
 
-use core::ops::Range;
-
 use eggshell_ui::testing::{Points, Timeline};
 use egui::{Vec2, vec2};
 use egui_kittest::Harness;
@@ -27,10 +25,6 @@ const EDGE_STEP: f32 = 12.0;
 /// A panel in a column of `Grid::MOST_PANELS` moves `MOST_PANELS - 1` times
 /// the edge step per frame as the column resizes.
 const MAX_GRID_STEP: f32 = 100.0;
-/// Frames an `animate_layout` of 150 ms slides for at 60 frames a second,
-/// with one to spare.
-const SLIDE_FRAMES: usize = 10;
-
 fn config() -> Config {
     let mut config = Config::default();
     if std::env::var_os("PROPTEST_CASES").is_none() {
@@ -52,11 +46,11 @@ fn verdict(timeline: &Timeline) -> Result<(), TestCaseError> {
     )))
 }
 
-/// The frames of a run that may jump, and why.
+/// A run's recording, and the frames that may jump for a reason that is not
+/// a slide: a panel's size is not animated (#62).
 struct Session {
     first_pass: u64,
-    slides: Vec<Range<usize>>,
-    allowed: Vec<usize>,
+    resized_instantly: Vec<usize>,
 }
 
 impl Session {
@@ -64,38 +58,13 @@ impl Session {
         eggshell_ui::testing::record(ctx);
         Self {
             first_pass: ctx.cumulative_pass_nr(),
-            slides: Vec::new(),
-            allowed: Vec::new(),
+            resized_instantly: Vec::new(),
         }
     }
 
     /// The index of the frame drawn next.
     fn next_frame(&self, ctx: &egui::Context) -> usize {
         (ctx.cumulative_pass_nr() - self.first_pass) as usize
-    }
-
-    /// An action that moves layout, so nodes with `animate_layout` slide for
-    /// the next `SLIDE_FRAMES`.
-    fn moved_layout(&mut self, ctx: &egui::Context) {
-        let from = self.next_frame(ctx);
-        self.slides.push(from..from + SLIDE_FRAMES);
-    }
-
-    /// A frame of a window resize: every node is placed at once, which cuts
-    /// short a slide still in flight.
-    fn resized(&mut self, ctx: &egui::Context) {
-        let frame = self.next_frame(ctx);
-        if self.slides.iter().any(|slide| slide.contains(&frame)) {
-            self.allowed.push(frame);
-        }
-    }
-
-    /// A slide's distance is bounded by nothing but the layout, so one frame
-    /// of a long slide moves further than the step that tells a jump from a
-    /// slide. Every frame of a slide may therefore jump; the checker is
-    /// blind to a snap in these frames, which layer 1's fixtures cover.
-    fn allow_slide_frames(&mut self) {
-        self.allowed.extend(self.slides.iter().cloned().flatten());
     }
 
     fn timeline(self, ctx: &egui::Context) -> Timeline {
@@ -105,7 +74,7 @@ impl Session {
             self.next_frame(ctx),
             "one recorded frame per pass"
         );
-        self.allowed
+        self.resized_instantly
             .into_iter()
             .fold(timeline, Timeline::allow_jump_into_frame)
     }
@@ -115,14 +84,12 @@ impl Session {
 /// bounded step per frame.
 fn drag_edge<A>(
     harness: &mut Harness<'_, Rig<A>>,
-    session: &mut Session,
     width: &mut f32,
     target: f32,
     mut set: impl FnMut(&mut Harness<'_, Rig<A>>, f32),
 ) {
     while *width != target {
         *width += (target - *width).clamp(-EDGE_STEP, EDGE_STEP);
-        session.resized(&harness.ctx);
         set(harness, *width);
         harness.step();
     }
@@ -162,39 +129,29 @@ fn run_grid(flaw: Flaw, actions: &[GridAction]) -> Result<(), TestCaseError> {
     for action in actions {
         match *action {
             GridAction::SetWidth(target) => {
-                drag_edge(
-                    &mut harness,
-                    &mut session,
-                    &mut width,
-                    target as f32,
-                    set_width,
-                );
+                drag_edge(&mut harness, &mut width, target as f32, set_width);
             }
             GridAction::SetCols(cols) => {
                 if harness.state().app.cols != cols {
-                    // A panel's size is not animated (#62): a column change
-                    // repaints it at its new size at once.
-                    session.allowed.push(session.next_frame(&harness.ctx));
-                    session.moved_layout(&harness.ctx);
+                    session
+                        .resized_instantly
+                        .push(session.next_frame(&harness.ctx));
                 }
                 harness.state_mut().app.cols = cols;
                 harness.step();
             }
             GridAction::Idle(count) => harness.run_steps(count),
             GridAction::AddPanel(index) => {
-                session.moved_layout(&harness.ctx);
                 harness.state_mut().app.add(index);
                 harness.step();
             }
             GridAction::RemovePanel(index) => {
-                session.moved_layout(&harness.ctx);
                 harness.state_mut().app.remove(index);
                 harness.step();
             }
         }
     }
     harness.run_steps(IDLE);
-    session.allow_slide_frames();
     verdict(
         &session
             .timeline(&harness.ctx)
@@ -235,7 +192,7 @@ fn run_todo(actions: &[TodoAction]) -> Result<(), TestCaseError> {
         todo::State::default(),
         todo::layout,
     );
-    let mut session = Session::start(&harness.ctx);
+    let session = Session::start(&harness.ctx);
     let mut width = 520.0;
     for action in actions {
         let rows = harness.state().app.items.len();
@@ -244,15 +201,9 @@ fn run_todo(actions: &[TodoAction]) -> Result<(), TestCaseError> {
         };
         match *action {
             TodoAction::SetWidth(target) => {
-                drag_edge(
-                    &mut harness,
-                    &mut session,
-                    &mut width,
-                    target as f32,
-                    |h, w| {
-                        h.set_size(Vec2::new(w, 320.0));
-                    },
-                );
+                drag_edge(&mut harness, &mut width, target as f32, |h, w| {
+                    h.set_size(Vec2::new(w, 320.0));
+                });
             }
             TodoAction::Idle(count) => harness.run_steps(count),
             _ if rows == 0 => {}
@@ -268,7 +219,9 @@ fn run_todo(actions: &[TodoAction]) -> Result<(), TestCaseError> {
                     _ => "remove",
                 };
                 click_node(&mut harness, &format!("/{key:?}/{button:?}"));
-                session.moved_layout(&harness.ctx);
+                // The frame that shows the result is part of the click: a move
+                // drawn in the same frame as a resize is not a slide.
+                harness.step();
             }
         }
     }
