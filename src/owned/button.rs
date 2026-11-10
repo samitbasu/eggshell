@@ -295,8 +295,9 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// Builds `body`'s nodes inside the button, after its icon and label, as
     /// React's `children` do. The button is `relative`, so an absolute child
     /// is placed against its border box; a flow child follows the face in the
-    /// button's row. Children move with the press, are clipped by the button,
-    /// fade with it when disabled and take no clicks. Their keys are scoped
+    /// button's row. Children move with the press, are clipped wherever the
+    /// button is (the button itself does not clip them, as in CSS), fade with
+    /// it when disabled and take no clicks. Their keys are scoped
     /// under the button's key. Colours that depend on the button's state are
     /// the closure's to choose.
     ///
