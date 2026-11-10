@@ -6,11 +6,10 @@ use std::ops::{Deref, DerefMut};
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
+use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
-use crate::pipeline::{
-    BuildState, ColorSource, DrawFn, Frame, Interaction, MeasureFn, Node, NodeKind,
-};
+use crate::pipeline::{BuildState, ColorSource, Frame, Interaction, MeasureFn, Node, NodeKind};
 use crate::prim::{Icon, Prim};
 use crate::text::{TextStyle, VAlign};
 use crate::tw::{Grouping, Tw};
@@ -23,7 +22,6 @@ struct Parts {
     path: String,
     prim: Option<Prim>,
     measure: Option<usize>,
-    draw: Option<usize>,
 }
 
 impl Parts {
@@ -34,7 +32,6 @@ impl Parts {
             path,
             prim: None,
             measure: None,
-            draw: None,
         }
     }
 
@@ -194,15 +191,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         );
     }
 
-    /// An identified container with a draw closure. Its children are scoped under `key`.
+    /// An identified container. Its children are scoped under `key`.
+    ///
+    /// The returned [`NodeHandle`] attaches behaviour to the node.
     pub fn div_id<K: Key>(
         &mut self,
         key: K,
         tw: Tw,
-        draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
-    ) {
-        self.div_id_with(child_id(self.path, &key), &key, tw, draw, body);
+    ) -> NodeHandle<'_, 'f, A> {
+        self.div_id_with(child_id(self.path, &key), &key, tw, body)
     }
 
     pub(crate) fn div_id_with(
@@ -210,22 +208,20 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         id: Id,
         key: &dyn Debug,
         tw: Tw,
-        draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
-    ) {
+    ) -> NodeHandle<'_, 'f, A> {
         let path = self.identify(id, key);
-        let draw = self.push_draw(draw);
         let parts = Parts {
             id: Some(id),
-            draw: Some(draw),
             ..Parts::anonymous(NodeKind::DivId, path)
         };
         let mark = self.st.names.push(key);
         self.container(tw, parts, id, |b| body(&mut Scope(b)));
         self.st.names.pop_to(mark);
+        self.handle()
     }
 
-    /// An identified leaf whose size comes from `measure` and which draws itself.
+    /// An identified leaf whose size comes from `measure`.
     ///
     /// `measure` may borrow application data for the frame and is dropped when
     /// layout returns; [`fill`](crate::fill) sizes a leaf by classes.
@@ -234,9 +230,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         key: K,
         tw: Tw,
         measure: impl Fn(&Measure<'_>) -> Size<f32> + 'f,
-        draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
-    ) {
-        self.leaf_with(child_id(self.path, &key), &key, tw, measure, draw);
+    ) -> NodeHandle<'_, 'f, A> {
+        self.leaf_with(child_id(self.path, &key), &key, tw, measure)
     }
 
     pub(crate) fn leaf_with(
@@ -245,18 +240,17 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         key: &dyn Debug,
         tw: Tw,
         measure: impl Fn(&Measure<'_>) -> Size<f32> + 'f,
-        draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
-    ) {
+    ) -> NodeHandle<'_, 'f, A> {
         let path = self.identify(id, key);
         let measure: MeasureFn<'f> = Box::new(measure);
         self.frame.measures.push(measure);
         let parts = Parts {
             id: Some(id),
             measure: Some(self.frame.measures.len() - 1),
-            draw: Some(self.push_draw(draw)),
             ..Parts::anonymous(NodeKind::Leaf, path)
         };
         self.leaf_node(tw, parts);
+        self.handle()
     }
 
     /// An identified leaf holding a stock egui widget, sized by the library
@@ -269,14 +263,12 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         tw: Tw,
         widget: W,
         draw: impl FnOnce(&mut A, &mut egui::Ui, W) + 'static,
-    ) {
+    ) where
+        A: 'static,
+    {
         let measured = widget.clone();
-        self.leaf(
-            key,
-            tw,
-            move |m| measured.measure(m),
-            move |app, ui| draw(app, ui, widget),
-        );
+        self.leaf(key, tw, move |m| measured.measure(m))
+            .draw(move |app, ui| draw(app, ui, widget));
     }
 
     /// An identified text leaf, measured and painted by the library.
@@ -285,34 +277,27 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         key: K,
         tw: Tw,
         text: impl Into<String>,
-        draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
-    ) {
+    ) -> NodeHandle<'_, 'f, A> {
         let id = child_id(self.path, &key);
         let path = self.identify(id, &key);
         let parts = Parts {
             id: Some(id),
-            draw: Some(self.push_draw(draw)),
             ..Parts::anonymous(NodeKind::Span, path).with_prim(Prim::Text(text.into()))
         };
         self.leaf_node(tw, parts);
+        self.handle()
     }
 
     /// An identified icon, measured and painted by the library.
-    pub fn icon<K: Key>(
-        &mut self,
-        key: K,
-        tw: Tw,
-        icon: Icon,
-        draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static,
-    ) {
+    pub fn icon<K: Key>(&mut self, key: K, tw: Tw, icon: Icon) -> NodeHandle<'_, 'f, A> {
         let id = child_id(self.path, &key);
         let path = self.identify(id, &key);
         let parts = Parts {
             id: Some(id),
-            draw: Some(self.push_draw(draw)),
             ..Parts::anonymous(NodeKind::Icon, path).with_prim(Prim::Icon(icon))
         };
         self.leaf_node(tw, parts);
+        self.handle()
     }
 
     /// Anonymous text.
@@ -367,10 +352,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         path
     }
 
-    fn push_draw(&mut self, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) -> usize {
-        let draw: DrawFn<A> = Box::new(draw);
-        self.frame.draws.push(draw);
-        self.frame.draws.len() - 1
+    /// A handle on the node just added to the current parent.
+    fn handle(&mut self) -> NodeHandle<'_, 'f, A> {
+        let node = *self.kids.last().expect("a node was just added");
+        NodeHandle {
+            b: self.reborrow(),
+            node,
+        }
     }
 
     fn node(&self, tw: &Tw, parts: Parts) -> Node {
@@ -398,7 +386,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             text_valign: VAlign::of(&tw.style),
             prim: parts.prim,
             measure: parts.measure,
-            draw: parts.draw,
+            draw: None,
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
             interaction: Interaction {
@@ -441,6 +429,76 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 }
 
+impl<A: 'static> Builder<'_, '_, A> {
+    /// Runs `draw` after the node's existing draw closure, if it has one.
+    fn attach_draw(&mut self, node: NodeId, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) {
+        let context = self
+            .st
+            .tree
+            .get_node_context_mut(node)
+            .expect("the handle's node was added to this tree");
+        let draws = &mut self.frame.draws;
+        match context.draw {
+            Some(slot) => {
+                let first = std::mem::replace(&mut draws[slot], Box::new(|_, _| {}));
+                draws[slot] = Box::new(move |app, ui| {
+                    first(app, ui);
+                    draw(app, ui);
+                });
+            }
+            None => {
+                context.draw = Some(draws.len());
+                draws.push(Box::new(draw));
+            }
+        }
+    }
+}
+
+/// The node an identified-node method just added, for attaching behaviour to
+/// it. It borrows the builder for the statement, so the next sibling attaches
+/// after it. Dropping it attaches nothing.
+///
+/// ```
+/// # use bullseye::tw;
+/// # struct App { saves: u32 }
+/// # fn demo(b: &mut bullseye::Builder<'_, '_, App>) {
+/// b.span("save", tw(), "Save").on_click(|app| app.saves += 1);
+/// # }
+/// ```
+///
+/// Handlers compose: [`draw`](Self::draw), [`on_click`](Self::on_click) and
+/// [`on_response`](Self::on_response) may each be called any number of times
+/// and run in call order, in the node's own `Ui`.
+pub struct NodeHandle<'b, 'f, A> {
+    b: Builder<'b, 'f, A>,
+    node: NodeId,
+}
+
+impl<A: 'static> NodeHandle<'_, '_, A> {
+    /// Runs `draw` at draw time in the node's own `Ui`, which is limited to
+    /// the node's content rect. See [`NodeUi`](crate::NodeUi).
+    pub fn draw(mut self, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) -> Self {
+        self.b.attach_draw(self.node, draw);
+        self
+    }
+
+    /// Runs `then` with the node's response each frame it is drawn: the escape
+    /// hatch for what the builder does not offer, such as hover.
+    pub fn on_response(self, then: impl FnOnce(&mut A, &egui::Response) + 'static) -> Self {
+        self.draw(move |app, ui| then(app, &ui.node_response()))
+    }
+
+    /// Runs `act` when the node is clicked. The node must sense clicks.
+    pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
+        self.draw(move |app, ui| {
+            if ui.node_response().clicked() {
+                act(app);
+                ui.ctx().request_repaint();
+            }
+        })
+    }
+}
+
 /// A [`Builder`] inside a keyed scope: what [`Builder::scope`] and
 /// [`Builder::div_id`] hand to their bodies.
 ///
@@ -459,7 +517,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 /// }
 ///
 /// fn labelled(s: &mut Scope<'_, '_, ()>, label: &str) {
-///     s.span(Field::Label, tw(), label, bullseye::none);
+///     s.span(Field::Label, tw(), label);
 /// }
 ///
 /// # fn demo(b: &mut bullseye::Builder<'_, '_, ()>) {
@@ -517,6 +575,3 @@ impl<A> DerefMut for Scope<'_, '_, A> {
         &mut self.0
     }
 }
-
-/// A draw for identified nodes the application does not draw, such as anchors.
-pub fn none<A>(_: &mut A, _: &mut egui::Ui) {}

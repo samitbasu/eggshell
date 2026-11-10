@@ -173,7 +173,7 @@ mod transition;
 mod tw;
 pub mod widget;
 
-pub use builder::{Builder, Scope, none};
+pub use builder::{Builder, NodeHandle, Scope};
 pub use contract::Style;
 pub use debug::Debug;
 pub use draw::NodeUi;

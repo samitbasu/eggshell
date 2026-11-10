@@ -146,38 +146,34 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
                     b.div(
                         choice_row(&style, &radio.text, enablement, radio.gap),
                         |b| {
-                            b.div_id(
-                                Part::Circle(value),
-                                circle,
-                                move |app, ui| {
-                                    let response = described(
-                                        ui,
-                                        Role::RadioButton,
-                                        Some(Mark::from(chosen)),
-                                        "",
-                                        &tooltip,
-                                    );
-                                    if response.clicked() {
-                                        select(app, value);
-                                    }
-                                    on_response.run(app, &response);
-                                    take_focus_if_asked(ui, response.id);
-                                    if response.has_focus() {
-                                        navigate(app, ui, select, previous, next);
-                                    }
-                                },
-                                |b| {
-                                    if chosen {
-                                        b.paint(tw().size_px(dot), |painter, rect, color| {
-                                            painter.circle_filled(
-                                                rect.center(),
-                                                rect.width() / 2.0,
-                                                color,
-                                            );
-                                        });
-                                    }
-                                },
-                            );
+                            b.div_id(Part::Circle(value), circle, |b| {
+                                if chosen {
+                                    b.paint(tw().size_px(dot), |painter, rect, color| {
+                                        painter.circle_filled(
+                                            rect.center(),
+                                            rect.width() / 2.0,
+                                            color,
+                                        );
+                                    });
+                                }
+                            })
+                            .draw(move |app, ui| {
+                                let response = described(
+                                    ui,
+                                    Role::RadioButton,
+                                    Some(Mark::from(chosen)),
+                                    "",
+                                    &tooltip,
+                                );
+                                if response.clicked() {
+                                    select(app, value);
+                                }
+                                on_response.run(app, &response);
+                                take_focus_if_asked(ui, response.id);
+                                if response.has_focus() {
+                                    navigate(app, ui, select, previous, next);
+                                }
+                            });
                             choice_label(
                                 b,
                                 Part::Label(value),

@@ -203,36 +203,32 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 .h_px(track.y);
             let row = choice_row(&style, &switch.text, enablement, switch.gap).merge(caller);
             b.div(row, |b| {
-                b.div_id(
-                    Part::Track,
-                    classes,
-                    move |app, ui| {
-                        let response = described(ui, Role::Switch, Some(mark), &name, &tooltip);
-                        if response.clicked() {
-                            on_toggle(app);
-                        }
-                        on_response.run(app, &response);
-                    },
-                    |b| {
-                        b.paint(tw().w_full().h_full(), move |painter, rect, _| {
-                            let t = f32::from(transition::animate(
-                                painter.ctx(),
-                                control.with("slide"),
-                                target,
-                                slide,
-                                Easing::Default,
-                            ));
-                            let diameter = thumb_off + (thumb_on - thumb_off) * t;
-                            let inset = rect.height() / 2.0;
-                            let x = egui::lerp(rect.left() + inset..=rect.right() - inset, t);
-                            painter.circle_filled(
-                                egui::pos2(x, rect.center().y),
-                                diameter / 2.0,
-                                thumb_color,
-                            );
-                        });
-                    },
-                );
+                b.div_id(Part::Track, classes, |b| {
+                    b.paint(tw().w_full().h_full(), move |painter, rect, _| {
+                        let t = f32::from(transition::animate(
+                            painter.ctx(),
+                            control.with("slide"),
+                            target,
+                            slide,
+                            Easing::Default,
+                        ));
+                        let diameter = thumb_off + (thumb_on - thumb_off) * t;
+                        let inset = rect.height() / 2.0;
+                        let x = egui::lerp(rect.left() + inset..=rect.right() - inset, t);
+                        painter.circle_filled(
+                            egui::pos2(x, rect.center().y),
+                            diameter / 2.0,
+                            thumb_color,
+                        );
+                    });
+                })
+                .draw(move |app, ui| {
+                    let response = described(ui, Role::Switch, Some(mark), &name, &tooltip);
+                    if response.clicked() {
+                        on_toggle(app);
+                    }
+                    on_response.run(app, &response);
+                });
                 if let Some(label) = label {
                     choice_label(b, Part::Label, control, label, enablement, on_toggle);
                 }

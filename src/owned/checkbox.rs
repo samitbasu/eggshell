@@ -176,22 +176,18 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             let control = b.id_of(Part::Box);
             let row = choice_row(&style, &checkbox.text, enablement, checkbox.gap).merge(caller);
             b.div(row, |b| {
-                b.div_id(
-                    Part::Box,
-                    box_classes,
-                    move |app, ui| {
-                        let response = described(ui, Role::CheckBox, Some(mark), &name, &tooltip);
-                        if response.clicked() {
-                            on_toggle(app);
-                        }
-                        on_response.run(app, &response);
-                    },
-                    |b| {
-                        if mark == Mark::On {
-                            b.paint(tw().size_px(glyph), paint_check);
-                        }
-                    },
-                );
+                b.div_id(Part::Box, box_classes, |b| {
+                    if mark == Mark::On {
+                        b.paint(tw().size_px(glyph), paint_check);
+                    }
+                })
+                .draw(move |app, ui| {
+                    let response = described(ui, Role::CheckBox, Some(mark), &name, &tooltip);
+                    if response.clicked() {
+                        on_toggle(app);
+                    }
+                    on_response.run(app, &response);
+                });
                 if let Some(label) = label {
                     choice_label(b, Part::Label, control, label, enablement, on_toggle);
                 }
