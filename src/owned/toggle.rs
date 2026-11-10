@@ -1,8 +1,16 @@
 //! The owned toggle: a button that shows whether it is on.
 
-use super::{ButtonChain, ButtonOptions, Enablement, Face, Unset, flip};
+use egui::Role;
+
+use super::toggle_group::Member;
+use super::{ButtonChain, ButtonOptions, Enablement, Face, Mark, Unset, flip};
 use crate::contract::{Size, Variant};
 use crate::{Builder, Icon, Scope, Tw};
+
+/// A member of a [`ToggleGroup`](super::ToggleGroup): a toggle with the
+/// group's options, finished with [`add`](ToggleChain::add). Start one with
+/// [`Builder::toggle_item`].
+pub type ToggleItemChain<'a, 'f, A, T> = ToggleChain<'a, 'f, A, T, Member<A, T>>;
 
 /// A toggle button drawn from the [`Style`](crate::Style)'s toggle looks,
 /// with an icon, a label or both. Start one with [`Builder::toggle`] and
@@ -45,6 +53,17 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleChain<'a, 'f, A, T
             button: ButtonChain::new(b, key, face),
             current,
             values: Unset,
+        }
+    }
+
+    /// Makes the toggle a member of a toggle group: on when `current` is the
+    /// member's value, reported as a radio button, and finished with
+    /// [`add`](ToggleChain::add).
+    pub(super) fn member(self, member: Member<A, T>) -> ToggleItemChain<'a, 'f, A, T> {
+        ToggleChain {
+            button: self.button.role(Role::RadioButton),
+            current: self.current,
+            values: member,
         }
     }
 
@@ -142,5 +161,22 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleChain<'a, 'f, A, T
         self.button
             .marked(mark)
             .on_click(move |app| on_change(app, toggled));
+    }
+}
+
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleItemChain<'a, 'f, A, T> {
+    /// Adds the member. It is on when the group's current value is its own;
+    /// pressing it calls the group's `on_change` with its value, unless it is
+    /// already on.
+    pub fn add(self) {
+        let Member { value, on_change } = self.values;
+        let mark = Mark::from(self.current == value);
+        self.button.marked(mark).on_click(move |app| {
+            if mark == Mark::Off
+                && let Some(on_change) = on_change
+            {
+                on_change(app, value);
+            }
+        });
     }
 }

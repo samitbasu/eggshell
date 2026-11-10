@@ -65,6 +65,7 @@ pub struct ButtonChain<'a, 'f, A> {
     slot: Slot,
     label: String,
     toggle: Option<Mark>,
+    role: Role,
     opts: ButtonOptions,
     on_response: OnResponse<A>,
     children: Option<Children<'a, 'f, A>>,
@@ -209,6 +210,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             b,
             label,
             toggle: None,
+            role: Role::Button,
             opts: ButtonOptions {
                 icon,
                 ..ButtonOptions::new()
@@ -221,6 +223,12 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// Makes the button a toggle that shows `mark`.
     pub(super) fn marked(mut self, mark: Mark) -> Self {
         self.toggle = Some(mark);
+        self
+    }
+
+    /// Reports the button to assistive technology as `role`.
+    pub(super) fn role(mut self, role: Role) -> Self {
+        self.role = role;
         self
     }
 
@@ -344,6 +352,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             slot,
             label,
             toggle,
+            role,
             opts:
                 ButtonOptions {
                     icon,
@@ -409,7 +418,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             &slot.label,
             classes,
             move |app, ui| {
-                let response = described(ui, Role::Button, selected, &name, &tooltip);
+                let response = described(ui, role, selected, &name, &tooltip);
                 if response.clicked() {
                     on_click(app);
                 }
