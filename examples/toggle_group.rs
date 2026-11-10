@@ -124,13 +124,14 @@ fn tool_cluster(b: &mut Builder<'_, '_, State>, state: &State) {
 
 /// ```html
 /// <div class="flex flex-wrap gap-2 w-[296px]">
-///   <button class="relative flex flex-col items-start gap-2 p-3 w-36">
+///   <button class="relative flex flex-col items-start gap-2 p-3 w-36 rounded-lg border border-primary">
 ///     <span class="text-2xl">Aa</span><span>Sans</span><svg class="absolute top-2 right-2"/>
 ///   </button> …
 /// </div>
 /// ```
 fn lettering_cards(b: &mut Builder<'_, '_, State>, state: &State) {
     let check = glyphs::icon(b.ctx(), Glyph::Check);
+    let tokens = common::tokens(b.ctx());
     let lettering = ToggleGroup::new(Part::Lettering, state.lettering)
         .with_options(
             ButtonOptions::new().classes(
@@ -151,6 +152,11 @@ fn lettering_cards(b: &mut Builder<'_, '_, State>, state: &State) {
                 let check = check.clone();
                 b.toggle_item(&lettering, option, Face::Empty)
                     .named(option.label())
+                    .classes(tw().border(1.0).rounded_lg().border_color(if chosen {
+                        tokens.primary
+                    } else {
+                        tokens.border
+                    }))
                     .size(Size::DEFAULT)
                     .children(|s: &mut Scope<'_, '_, State>| {
                         s.text(option.sample(), "Aa");
