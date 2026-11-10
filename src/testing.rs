@@ -467,4 +467,11 @@ impl Change {
     pub fn after(&self) -> Option<Rect> {
         self.after
     }
+
+    /// Whether the node is in both layouts and its top-left corner moved:
+    /// the shift a test usually forbids, as opposed to a node that only
+    /// appeared, disappeared or changed size in place.
+    pub fn moved(&self) -> bool {
+        matches!((self.before, self.after), (Some(before), Some(after)) if before.min != after.min)
+    }
 }
