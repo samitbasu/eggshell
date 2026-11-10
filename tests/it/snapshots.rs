@@ -31,6 +31,9 @@ mod custom_background;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/button_children.rs"]
 mod button_children;
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/toggle_group.rs"]
+mod toggle_group;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/chat_shell/main.rs"]
@@ -469,6 +472,31 @@ fn button_children_in(name: &str, theme: egui::Theme) {
         (
             button_children::State::default(),
             button_children::layout,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
+}
+
+/// A tool cluster and a card picker, each one `ToggleGroup`.
+#[test]
+fn toggle_group_light() {
+    toggle_group_in("toggle_group_light", egui::Theme::Light);
+}
+
+#[test]
+fn toggle_group_dark() {
+    toggle_group_in("toggle_group_dark", egui::Theme::Dark);
+}
+
+fn toggle_group_in(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
+        Vec2::new(380.0, 420.0),
+        (
+            toggle_group::State::default(),
+            toggle_group::layout,
             TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         ),
         None,

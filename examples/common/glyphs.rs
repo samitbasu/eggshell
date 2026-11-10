@@ -10,6 +10,9 @@ pub enum Glyph {
     Moon,
     Monitor,
     Plus,
+    Cross,
+    Caret,
+    Check,
 }
 
 const SIDE: usize = 64;
@@ -46,6 +49,15 @@ fn coverage(glyph: Glyph, p: Vec2) -> f32 {
         }
         Glyph::Plus => {
             line(vec2(0.2, 0.5), vec2(0.8, 0.5)).max(line(vec2(0.5, 0.2), vec2(0.5, 0.8)))
+        }
+        Glyph::Cross => {
+            line(vec2(0.25, 0.25), vec2(0.75, 0.75)).max(line(vec2(0.75, 0.25), vec2(0.25, 0.75)))
+        }
+        Glyph::Caret => {
+            line(vec2(0.28, 0.4), vec2(0.5, 0.62)).max(line(vec2(0.5, 0.62), vec2(0.72, 0.4)))
+        }
+        Glyph::Check => {
+            line(vec2(0.2, 0.55), vec2(0.42, 0.75)).max(line(vec2(0.42, 0.75), vec2(0.8, 0.28)))
         }
     };
     (sdf * SIDE as f32 + 0.5).clamp(0.0, 1.0)

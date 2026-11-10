@@ -45,7 +45,7 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 ///     let tools = ToggleGroup::new("tools", app.tool)
 ///         .with_options(ButtonOptions::new().classes(tw().w_px(80.0)))
-///         .on_change(|app, tool| app.tool = tool);
+///         .on_change(|app: &mut App, tool| app.tool = tool);
 ///     b.div(tw().flex().gap(2.0), |b| {
 ///         b.toggle_item(&tools, Tool::Select, "Select").add();
 ///         b.div(tw().flex(), |b| {
