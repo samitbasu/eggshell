@@ -320,6 +320,20 @@ pub(crate) struct Variants {
     pub(crate) transition: Option<Duration>,
     pub(crate) animate_layout: Option<Duration>,
     pub(crate) easing: Easing,
+    pub(crate) layer: PaintLayer,
+    pub(crate) offset: Option<Vec2>,
+}
+
+/// Which egui layer a node and its subtree are painted on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PaintLayer {
+    /// The layer being drawn into, clipped by the ancestors.
+    #[default]
+    Flow,
+    /// A layer above every other, not clipped by the ancestors: the node
+    /// and its subtree are painted there, wherever the paint translate
+    /// puts them. Layout, hit rects and `animate_layout` are unchanged.
+    Drag,
 }
 
 impl Variants {
@@ -337,6 +351,12 @@ impl Variants {
             focus_within: both(self.focus_within, other.focus_within),
             transition: other.transition.or(self.transition),
             animate_layout: other.animate_layout.or(self.animate_layout),
+            layer: if other.layer == PaintLayer::Flow {
+                self.layer
+            } else {
+                other.layer
+            },
+            offset: other.offset.or(self.offset),
             easing: if other.easing == Easing::Default {
                 self.easing
             } else {
@@ -482,6 +502,20 @@ impl Tw {
         self
     }
 
+    /// Paints the node and its subtree on `layer`. Needs an identified node.
+    pub fn paint_layer(mut self, layer: PaintLayer) -> Self {
+        self.variants.layer = layer;
+        self
+    }
+
+    /// `translate-x-* translate-y-*` without a state: moves the painting of
+    /// the node and its subtree by `dx` and `dy` points, on top of any
+    /// state variant's translate. Layout and hit rects stay.
+    pub fn translate(mut self, dx: f32, dy: f32) -> Self {
+        self.variants.offset = Some(Vec2::new(dx, dy));
+        self
+    }
+
     /// `ease-linear`: the transition's timing function is `linear`.
     ///
     /// ```html
@@ -539,6 +573,8 @@ impl Tw {
             || self.variants.get(State::FocusWithin).is_some()
             || self.variants.transition.is_some()
             || self.variants.animate_layout.is_some()
+            || self.variants.layer != PaintLayer::Flow
+            || self.variants.offset.is_some()
     }
 }
 

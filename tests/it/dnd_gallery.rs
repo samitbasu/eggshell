@@ -254,7 +254,7 @@ fn viewport(h: &H<'_>) -> Rect {
 }
 
 #[test]
-fn dragging_near_the_bottom_edge_scrolls_and_the_ghost_stays_above_the_clip() {
+fn dragging_near_the_bottom_edge_scrolls() {
     let mut h = harness(3);
     lift(&mut h, 0);
     let before = h.state().app.origin.y;
@@ -265,10 +265,6 @@ fn dragging_near_the_bottom_edge_scrolls_and_the_ghost_stays_above_the_clip() {
     assert!(
         after < before - 20.0,
         "content scrolled up: {before} -> {after}"
-    );
-    assert!(
-        h.state().app.gesture.as_ref().unwrap().captured.is_some(),
-        "ghost captured"
     );
     // The in-app reorder follows the scroll: the dragged panel goes to the
     // slot under the pointer, in content coordinates.
@@ -377,27 +373,191 @@ fn changing_the_column_count_reflows_with_final_layout_and_a_slide() {
     );
 }
 
+/// The gallery under a toolbar strip, as `main` lays it out.
+fn under_a_toolbar(ui: &mut egui::Ui, app: &mut State, layout: &mut bullseye::LayoutState) {
+    egui::Panel::top("toolbar")
+        .exact_size(44.0)
+        .show_separator_line(false)
+        .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(1, 2, 3)))
+        .show(ui, |ui| {
+            ui.painter()
+                .rect_filled(ui.max_rect(), 0.0, egui::Color32::from_rgb(1, 2, 3));
+        });
+    egui::CentralPanel::default()
+        .frame(egui::Frame::NONE)
+        .show(ui, |ui| gallery::frame(ui, app, layout));
+}
+
+fn toolbar_harness() -> H<'static> {
+    let mut h = support::frame_harness(
+        vec2(520.0, 400.0),
+        common::base_text(egui::Theme::Light),
+        State::default(),
+        under_a_toolbar,
+    );
+    h.run_steps(4);
+    h
+}
+
+/// The trace of the panel painted nearest `at`: the 64-point line.
+fn trace_near(h: &H<'_>, at: Pos2) -> Vec<Pos2> {
+    let mut all = Vec::new();
+    for clipped in &h.output().shapes {
+        support::flatten(&clipped.shape, &mut all);
+    }
+    all.into_iter()
+        .filter_map(|s| match s {
+            egui::epaint::Shape::Path(p) if p.points.len() == 64 => Some(p.points.clone()),
+            _ => None,
+        })
+        .min_by(|a, b| {
+            let d = |pts: &Vec<Pos2>| (Rect::from_points(pts).center() - at).length();
+            d(a).total_cmp(&d(b))
+        })
+        .expect("a trace is painted")
+}
+
 #[test]
-fn the_ghost_is_the_panels_own_shapes_following_the_pointer() {
+fn the_live_image_keeps_moving_under_the_pointer() {
     let mut h = harness(3);
-    let p = pad(&h);
     lift(&mut h, 0);
     let at = rect(&h, 4).center() + vec2(17.0, 13.0);
     pointer_to(&mut h, at);
-    let size = rect(&h, 4).width() - 2.0 * p;
-    let ghosts: Vec<_> = painted_rects(&h)
-        .into_iter()
-        .filter(|r| (r.center() - at).length() < 1.5 && (r.width() - size).abs() < 2.0)
-        .collect();
+    let first = trace_near(&h, at);
+    let centre = Rect::from_points(&first).center();
     assert!(
-        !ghosts.is_empty(),
-        "a panel-sized box is painted centred on the pointer"
+        (centre - at).length() < 40.0,
+        "the trace is under the pointer: {centre:?}"
     );
-    h.state_mut().app.image = gallery::Image::Chip;
-    h.run_steps(2);
-    let chips = painted_rects(&h)
+    h.step();
+    h.step();
+    let second = trace_near(&h, at);
+    assert_ne!(
+        first, second,
+        "the lifted panel's trace changed between frames"
+    );
+}
+
+#[test]
+fn the_live_image_is_unclipped_and_above_the_toolbar() {
+    let mut h = toolbar_harness();
+    lift(&mut h, 0);
+    let viewport = viewport(&h);
+    assert!(
+        viewport.min.y >= 44.0,
+        "the toolbar takes the top: {viewport:?}"
+    );
+    let at = Pos2::new(viewport.center().x, 10.0);
+    pointer_to(&mut h, at);
+    let shapes = &h.output().shapes;
+    let toolbar = shapes
+        .iter()
+        .position(|s| matches!(&s.shape, egui::epaint::Shape::Rect(r) if r.fill == egui::Color32::from_rgb(1, 2, 3)))
+        .expect("the toolbar is painted");
+    let mut best: Option<(f32, usize, Rect)> = None;
+    for (i, clipped) in shapes.iter().enumerate() {
+        let mut flat = Vec::new();
+        support::flatten(&clipped.shape, &mut flat);
+        for shape in flat {
+            if let egui::epaint::Shape::Path(p) = shape
+                && p.points.len() == 64
+            {
+                let bounds = Rect::from_points(&p.points);
+                let d = (bounds.center() - at).length();
+                if best.is_none_or(|(bd, ..)| d < bd) {
+                    best = Some((d, i, clipped.clip_rect));
+                }
+            }
+        }
+    }
+    let (_, index, clip) = best.expect("a trace");
+    assert!(
+        index > toolbar,
+        "the lifted trace is painted after the toolbar"
+    );
+    assert!(
+        clip.min.y < viewport.min.y - 1.0,
+        "its clip reaches past the viewport: {clip:?}"
+    );
+    let trace = trace_near(&h, at);
+    assert!(
+        Rect::from_points(&trace).min.y < viewport.min.y,
+        "the trace is drawn over the toolbar strip, not clipped to the viewport"
+    );
+}
+
+#[test]
+fn the_slot_shows_an_outline_while_the_panel_is_lifted() {
+    let mut h = harness(3);
+    let ring = bullseye_shadcn::Shadcn::of(&h.ctx).tokens.ring;
+    let slot = rect(&h, 0);
+    let outlined = |h: &H<'_>| {
+        painted_strokes(h)
+            .iter()
+            .any(|(r, c)| support::same(*r, slot) && *c == ring)
+    };
+    assert!(!outlined(&h), "no outline before the lift");
+    lift(&mut h, 0);
+    let away = rect(&h, 0).center() + vec2(0.0, 40.0);
+    pointer_to(&mut h, away);
+    let slot = rect(&h, 0);
+    assert!(
+        painted_strokes(&h)
+            .iter()
+            .any(|(r, c)| support::same(*r, slot) && *c == ring),
+        "the slot is outlined"
+    );
+    let face = trace_near(&h, rect(&h, 0).center());
+    assert!(
+        (Rect::from_points(&face).center() - slot.center()).length() < 60.0,
+        "layout rect is still the slot"
+    );
+}
+
+fn painted_strokes(h: &H<'_>) -> Vec<(Rect, egui::Color32)> {
+    let mut all = Vec::new();
+    for clipped in &h.output().shapes {
+        support::flatten(&clipped.shape, &mut all);
+    }
+    all.into_iter()
+        .filter_map(|s| match s {
+            egui::epaint::Shape::Rect(r) if r.stroke.width > 0.0 => Some((r.rect, r.stroke.color)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn on_release_the_panel_is_opaque_in_its_slot_with_no_flash() {
+    let mut h = harness(3);
+    let muted = bullseye_shadcn::Shadcn::of(&h.ctx).tokens.muted;
+    lift(&mut h, 0);
+    let r4 = rect(&h, 4);
+    pointer_to(&mut h, r4.center() + vec2(r4.width() / 4.0, 0.0));
+    let at = rect(&h, 0).center();
+    h.drop_at(at);
+    h.step();
+    let slot = rect(&h, 0);
+    let mut all = Vec::new();
+    for clipped in &h.output().shapes {
+        support::flatten(&clipped.shape, &mut all);
+    }
+    let faces: Vec<_> = all
         .into_iter()
-        .filter(|r| (r.center() - at).length() < 1.5 && (r.width() - size).abs() < 2.0)
-        .count();
-    assert_eq!(chips, 0, "the chip is smaller than a panel");
+        .filter_map(|s| match s {
+            egui::epaint::Shape::Rect(r) if r.fill == muted => Some(r.rect),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        faces.len(),
+        12,
+        "every panel face is painted fully opaque, once"
+    );
+    assert!(
+        faces
+            .iter()
+            .any(|f| (f.center() - slot.center()).length() < 3.0 || f.contains(slot.center())),
+        "the dropped panel's face sits at its slot on the release frame"
+    );
 }

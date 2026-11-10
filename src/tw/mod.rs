@@ -27,8 +27,8 @@ pub use grid::Track;
 use merge::{Layout, Touched};
 pub use paint::{BoxPaint, Divide, Ring, Sides};
 pub use units::{Angle, Flip, Opacity, Progress};
-pub use variants::Paint;
 pub(crate) use variants::{Focusability, Grouping, Look, Presence, Sensing, State, Variants};
+pub use variants::{Paint, PaintLayer};
 
 /// One Tailwind space unit, in points.
 const SPACE_UNIT: f32 = 4.0;

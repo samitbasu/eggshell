@@ -177,7 +177,7 @@ pub mod widget;
 pub use builder::{Builder, NodeHandle, Scope};
 pub use contract::Style;
 pub use debug::Debug;
-pub use draw::NodeUi;
+pub use draw::{NodeUi, drag_layer};
 pub use focus::focus_within;
 pub use key::Key;
 pub use measure::{Measure, fill};
@@ -191,5 +191,6 @@ pub use text::{
 #[doc(hidden)]
 pub use transition::tracked_layout_nodes;
 pub use tw::{
-    Angle, BoxPaint, Divide, Easing, Flip, Opacity, Paint, Progress, Ring, Sides, Track, Tw, tw,
+    Angle, BoxPaint, Divide, Easing, Flip, Opacity, Paint, PaintLayer, Progress, Ring, Sides,
+    Track, Tw, tw,
 };

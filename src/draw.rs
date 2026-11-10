@@ -2,7 +2,7 @@
 //! tree in pre-order and paints box, primitive and draw closure per node.
 
 use egui::emath::TSTransform;
-use egui::epaint::{Mesh, RectShape, StrokeKind, Tessellator};
+use egui::epaint::{Mesh, RectShape, Shape, StrokeKind, Tessellator};
 use egui::layers::ShapeIdx;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -24,7 +24,9 @@ use crate::prim::{Icon, Prim};
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::transition::{self, LayoutAnimation};
-use crate::tw::{BoxPaint, Flip, Grouping, Look, Opacity, Presence, Progress, Sides, State};
+use crate::tw::{
+    BoxPaint, Flip, Grouping, Look, Opacity, PaintLayer, Presence, Progress, Sides, State,
+};
 
 /// Rounds coordinates to whole physical pixels.
 #[derive(Clone, Copy)]
@@ -604,8 +606,9 @@ impl<A> Walk<'_, A> {
             ),
             _ => Vec2::ZERO,
         };
-        let translate = look.translate + slide;
-        let moved_from = (translate != Vec2::ZERO).then(|| self.next_shape());
+        let translate = look.translate + interaction.variants.offset.unwrap_or(Vec2::ZERO) + slide;
+        let lifted = interaction.variants.layer == PaintLayer::Drag;
+        let moved_from = (translate != Vec2::ZERO || lifted).then(|| self.next_shape());
         paint_box(
             &self.painter(parent.clip, opacity),
             &look.paint,
@@ -662,7 +665,33 @@ impl<A> Walk<'_, A> {
         self.paint_dividers(index, &in_layout_order, inherited);
         if let Some(first) = moved_from {
             self.translate_shapes_since(first, translate);
+            if lifted {
+                self.lift_shapes_since(first);
+            }
         }
+    }
+
+    /// Moves what the subtree painted since `first` to the drag layer, with
+    /// the screen as its clip.
+    fn lift_shapes_since(&self, first: ShapeIdx) {
+        let layer = self.ui.layer_id();
+        let screen = self.ui.ctx().content_rect();
+        self.ui.ctx().graphics_mut(|graphics| {
+            let lifted: Vec<Shape> = graphics
+                .entry(layer)
+                .all_entries()
+                .skip(first.0)
+                .map(|clipped| clipped.shape.clone())
+                .collect();
+            let source = graphics.entry(layer);
+            for at in first.0..first.0 + lifted.len() {
+                source.reset_shape(ShapeIdx(at));
+            }
+            let target = graphics.entry(drag_layer());
+            for shape in lifted {
+                target.add(screen, shape);
+            }
+        });
     }
 
     fn next_shape(&self) -> ShapeIdx {
@@ -877,6 +906,11 @@ impl<A> Placed<A> {
             debug::paint(&ctx, &nodes);
         }
     }
+}
+
+/// The layer `PaintLayer::Drag` nodes are painted on: above everything.
+pub fn drag_layer() -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Tooltip, Id::NULL.with("bullseye-drag-layer"))
 }
 
 /// Salt of a draw closure's [`Ui`] ids. The `Ui` registers a widget under its

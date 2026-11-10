@@ -14,8 +14,8 @@ mod common;
 use core::time::Duration;
 use std::collections::HashMap;
 
-use bullseye::{Builder, LayoutState, Opacity, tw};
-use common::dnd::{Captured, capture, insertion_index, paint_chip, paint_ghost};
+use bullseye::{Builder, LayoutState, Opacity, PaintLayer, tw};
+use common::dnd::{insertion_index, paint_chip};
 use egui::{Context, DragAndDrop, Key, Pos2, Rect, Response, Ui, vec2};
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
@@ -38,7 +38,6 @@ pub enum Image {
 pub struct Gesture {
     pub original: Vec<PanelKey>,
     pub cancelled: bool,
-    pub captured: Option<Captured>,
     /// The pointer's offset from the panel's centre when it was grabbed.
     pub grab: egui::Vec2,
 }
@@ -127,55 +126,65 @@ pub fn accepts(path: &std::path::Path) -> bool {
         .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg"))
 }
 
-fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, cols: usize, lifted: bool) {
+/// How a panel is shown while it is the dragged one.
+#[derive(Clone, Copy)]
+enum Lift {
+    /// In its slot, as usual.
+    No,
+    /// In its slot, dimmed: the chip is the drag image.
+    Dim,
+    /// The node itself is painted on the drag layer, offset from its slot;
+    /// the slot shows an outline.
+    Live(egui::Vec2),
+}
+
+fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, cols: usize, lift: Lift) {
     let t = common::tokens(b.ctx());
-    b.div_id(
-        key,
-        tw().w_frac(1.0, cols as f32)
-            .aspect_square()
-            .p(1.0)
-            .opacity(if lifted {
-                Opacity::new(0.35)
-            } else {
-                Opacity::OPAQUE
-            })
-            .sense_drag()
-            .merge(if lifted {
-                tw()
-            } else {
-                tw().animate_layout(SLIDE)
-            }),
-        |b| {
-            b.div(
-                tw().flex()
-                    .items_center()
-                    .justify_center()
-                    .w_full()
-                    .h_full()
-                    .rounded_md()
-                    .border(1.0)
-                    .border_color(t.input)
-                    .bg(t.muted)
-                    .text(t.foreground),
-                |b| {
-                    b.div(
-                        tw().flex().flex_col().gap(1.0).p(2.0).w_full().h_full(),
-                        |b| {
-                            let now = b.ctx().input(|i| i.time);
-                            b.div(tw().flex().justify_between().items_center(), |b| {
-                                b.text(tw().role(common::sized(12.0)), label);
-                                b.text(
-                                    tw().role(common::sized(12.0)).text(t.muted_foreground),
-                                    format!("{:+.2}", channel(key, now, 1.0)),
-                                );
-                            });
-                            trace(b, key, t.primary, t.border);
-                        },
-                    );
-                },
-            );
-        },
-    )
+    let outer = tw()
+        .w_frac(1.0, cols as f32)
+        .aspect_square()
+        .p(1.0)
+        .sense_drag();
+    let outer = match lift {
+        Lift::No => outer.animate_layout(SLIDE),
+        Lift::Dim => outer.opacity(Opacity::new(0.35)),
+        Lift::Live(_) => outer.rounded_md().border(2.0).border_color(t.ring),
+    };
+    let face = match lift {
+        Lift::Live(by) => tw().paint_layer(PaintLayer::Drag).translate(by.x, by.y),
+        _ => tw(),
+    };
+    b.div_id(key, outer, |b| {
+        b.div_id(
+            "face",
+            face.flex()
+                .items_center()
+                .justify_center()
+                .w_full()
+                .h_full()
+                .rounded_md()
+                .border(1.0)
+                .border_color(t.input)
+                .bg(t.muted)
+                .text(t.foreground),
+            |b| {
+                b.div(
+                    tw().flex().flex_col().gap(1.0).p(2.0).w_full().h_full(),
+                    |b| {
+                        let now = b.ctx().input(|i| i.time);
+                        b.div(tw().flex().justify_between().items_center(), |b| {
+                            b.text(tw().role(common::sized(12.0)), label);
+                            b.text(
+                                tw().role(common::sized(12.0)).text(t.muted_foreground),
+                                format!("{:+.2}", channel(key, now, 1.0)),
+                            );
+                        });
+                        trace(b, key, t.primary, t.border);
+                    },
+                );
+            },
+        );
+    })
     .on_response(move |app, r| source(app, r, key));
 }
 
@@ -242,6 +251,7 @@ fn placeholder(b: &mut B<'_, '_, State>, cols: usize) {
 pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
     let released = b.ctx().input(|i| i.pointer.any_released());
     let held = dragged(b.ctx()).filter(|_| !released);
+    let pointer = b.ctx().pointer_interact_pos();
     b.div_id(
         "grid",
         tw().flex().flex_row().flex_wrap().w_full().p(2.0),
@@ -252,7 +262,18 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
                     placeholder(b, state.cols);
                 }
                 slot += 1;
-                cell(b, *key, label, state.cols, held == Some(*key));
+                let lift = match (held == Some(*key), state.image, &state.gesture) {
+                    (false, ..) => Lift::No,
+                    (true, Image::Chip, _) => Lift::Dim,
+                    (true, Image::Ghost, gesture) => {
+                        let slot = state.rects.get(key).map(|r| r.center());
+                        match (pointer, slot, gesture) {
+                            (Some(p), Some(slot), Some(g)) => Lift::Live(p - g.grab - slot),
+                            _ => Lift::No,
+                        }
+                    }
+                };
+                cell(b, *key, label, state.cols, lift);
             }
             if state.preview.as_ref().is_some_and(|p| p.0 >= slot) {
                 placeholder(b, state.cols);
@@ -268,7 +289,6 @@ fn source(app: &mut State, r: &Response, key: PanelKey) {
         app.gesture = Some(Gesture {
             original: app.keys(),
             cancelled: false,
-            captured: None,
             grab: r
                 .ctx
                 .pointer_interact_pos()
@@ -360,16 +380,6 @@ pub fn update(ui: &mut Ui, app: &mut State) {
         ctx.request_repaint();
     }
 
-    if app.gesture.as_ref().is_some_and(|g| g.captured.is_none())
-        && let Some(key) = dragged(&ctx)
-        && let Some(rect) = app.rects.get(&key)
-    {
-        let captured = capture(&ctx, ui.layer_id(), *rect);
-        if let Some(g) = &mut app.gesture {
-            g.captured = Some(captured);
-        }
-    }
-
     if (held.is_some() || !hovered.is_empty())
         && let Some(pos) = pointer
     {
@@ -382,17 +392,15 @@ pub fn update(ui: &mut Ui, app: &mut State) {
     }
 }
 
+/// The chip; the ghost is the lifted node itself, painted by `draw`.
 pub fn drag_image(ctx: &Context, app: &State) {
-    let (Some(pos), Some(key), Some(g)) = (ctx.pointer_interact_pos(), dragged(ctx), &app.gesture)
+    let (Some(pos), Some(key), Some(_)) = (ctx.pointer_interact_pos(), dragged(ctx), &app.gesture)
     else {
         return;
     };
-    match (app.image, &g.captured) {
-        (Image::Ghost, Some(captured)) => paint_ghost(ctx, captured, pos - g.grab),
-        _ => {
-            let label = app.panels.iter().find(|p| p.0 == key).map_or("", |p| &p.1);
-            paint_chip(ctx, label, pos);
-        }
+    if app.image == Image::Chip {
+        let label = app.panels.iter().find(|p| p.0 == key).map_or("", |p| &p.1);
+        paint_chip(ctx, label, pos);
     }
 }
 
