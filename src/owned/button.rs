@@ -8,7 +8,7 @@ use super::Mark;
 use super::{Enablement, OnResponse, Tip, centered, described};
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
-use crate::{Builder, Icon, Style, Tw, tw};
+use crate::{Builder, Icon, Scope, Style, Tw, tw};
 
 /// Whether pressing a button shifts it down, as web buttons commonly do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,12 +21,16 @@ enum Press {
 ///
 /// A `&str` or `String` is a label and an [`Icon`] is an icon-only face,
 /// which assistive technology can read only from [`named`](ButtonChain::named).
+/// [`Face::Empty`] shows nothing, for a button whose content is all
+/// [`children`](ButtonChain::children).
 #[derive(Clone, Debug)]
 pub enum Face {
     /// Text, with no icon unless [`icon`](ButtonChain::icon) adds one.
     Label(String),
     /// An icon and no text.
     Icon(Icon),
+    /// Nothing: the content is the button's [`children`](ButtonChain::children).
+    Empty,
 }
 
 impl From<&str> for Face {
@@ -63,7 +67,10 @@ pub struct ButtonChain<'a, 'f, A> {
     toggle: Option<Mark>,
     opts: ButtonOptions,
     on_response: OnResponse<A>,
+    children: Option<Children<'a, 'f, A>>,
 }
+
+type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
 
 /// The settings of a button or toggle that do not depend on its key or its
 /// face, as a plain value that can be built once and applied to many buttons
@@ -195,6 +202,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         let (label, icon) = match face {
             Face::Label(label) => (label, None),
             Face::Icon(icon) => (String::new(), Some(icon)),
+            Face::Empty => (String::new(), None),
         };
         Self {
             slot: b.slot(&key),
@@ -206,6 +214,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 ..ButtonOptions::new()
             },
             on_response: OnResponse::default(),
+            children: None,
         }
     }
 
@@ -283,6 +292,43 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         self
     }
 
+    /// Builds `body`'s nodes inside the button, after its icon and label, as
+    /// React's `children` do. The button is `relative`, so an absolute child
+    /// is placed against its border box; a flow child follows the face in the
+    /// button's row. Children move with the press, are clipped by the button,
+    /// fade with it when disabled and take no clicks. Their keys are scoped
+    /// under the button's key. Colours that depend on the button's state are
+    /// the closure's to choose.
+    ///
+    /// `body` may borrow application data and locals, and runs when the
+    /// button is added.
+    ///
+    /// ```
+    /// use bullseye::{Builder, Icon, tw};
+    ///
+    /// struct App { active: bool }
+    ///
+    /// fn tool(b: &mut Builder<'_, '_, App>, app: &App, icon: Icon) {
+    ///     let active = app.active;
+    ///     b.button("tool", icon)
+    ///         .named("Tool")
+    ///         .children(|s| {
+    ///             if active {
+    ///                 s.div(
+    ///                     tw().absolute().inset_x(0.0).mx_auto().bottom(0.5)
+    ///                         .w_px(16.0).h_px(4.0).rounded_full().bg(egui::Color32::BLUE),
+    ///                     |_| {},
+    ///                 );
+    ///             }
+    ///         })
+    ///         .add();
+    /// }
+    /// ```
+    pub fn children(mut self, body: impl for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a) -> Self {
+        self.children = Some(Box::new(body));
+        self
+    }
+
     /// Adds a button that does nothing when it is clicked: a placeholder, or
     /// one that is disabled.
     pub fn add(self) {
@@ -309,6 +355,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                     classes: caller,
                 },
             on_response,
+            children,
         } = self;
         let size = size.unwrap_or(Size::DEFAULT);
         let enablement = enablement.unwrap_or(Enablement::Enabled);
@@ -346,6 +393,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             classes = classes.active(|p| p.translate_y(button.press_shift));
         }
         let classes = centered(classes)
+            .relative()
             .h_px(metrics.height)
             .min_w_px(metrics.min_width)
             .px(metrics.padding_x / 4.0)
@@ -372,6 +420,9 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 }
                 if !label.is_empty() {
                     b.text(tw(), label);
+                }
+                if let Some(children) = children {
+                    children(b);
                 }
             },
         );
