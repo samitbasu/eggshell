@@ -44,6 +44,7 @@ mod state_stable;
 mod style;
 mod style_switch;
 mod support;
+mod sweep;
 mod theme_toggle;
 mod todo_demo;
 mod toggle_group;
