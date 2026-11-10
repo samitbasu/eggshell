@@ -949,7 +949,7 @@ impl<A> Placed<A> {
             text_color: None,
             interactive: Interactive::Outside,
             backdrop: Color32::TRANSPARENT,
-            origin: Pos2::ZERO,
+            origin: nodes[0].rect().min,
             shift: Vec2::ZERO,
         };
         let (dragging, finish) = dnd::begin(
