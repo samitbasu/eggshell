@@ -106,8 +106,8 @@ pub(crate) fn clip_mesh_to_triangle(mesh: &Mesh, tri: [Pos2; 3]) -> Mesh {
     let winding = area.signum();
     let bounds = Rect::from_points(&tri);
     let mut out = Mesh::with_texture(mesh.texture_id);
-    for corners in mesh.indices.chunks_exact(3) {
-        let corners = [0, 1, 2].map(|k| mesh.vertices[corners[k] as usize]);
+    for corners in mesh.indices.as_chunks::<3>().0 {
+        let corners = corners.map(|index| mesh.vertices[index as usize]);
         let triangle_bounds = Rect::from_points(&corners.map(|v| v.pos));
         if !bounds.intersects(triangle_bounds) {
             continue;
@@ -147,8 +147,10 @@ mod tests {
 
     fn mesh_area(mesh: &Mesh) -> f32 {
         mesh.indices
-            .chunks_exact(3)
-            .map(|t| area(&[0, 1, 2].map(|k| mesh.vertices[t[k] as usize].pos)))
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .map(|t| area(&t.map(|index| mesh.vertices[index as usize].pos)))
             .sum()
     }
 
