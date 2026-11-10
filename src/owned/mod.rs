@@ -20,6 +20,7 @@ mod slider;
 mod stepper;
 mod switch;
 mod toggle;
+mod toggle_group;
 
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -43,7 +44,8 @@ pub use select::SelectChain;
 pub use slider::SliderChain;
 pub use stepper::StepperChain;
 pub use switch::SwitchChain;
-pub use toggle::ToggleChain;
+pub use toggle::{ToggleChain, ToggleItemChain};
+pub use toggle_group::{Member, ToggleGroup};
 
 use crate::contract::{Colors, Disabled, Look, Paint, States, Style};
 use crate::{Builder, NodeUi as _, TextSpec, Tw, tw};
@@ -504,6 +506,18 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         current: T,
     ) -> ToggleChain<'_, 'f, A, T> {
         ToggleChain::new(self.reborrow(), key, face.into(), current)
+    }
+
+    /// A member of `group` that is on when the group's current value is
+    /// `value`, showing `face`. Members may sit anywhere below the builder
+    /// that places them, with other nodes between them.
+    pub fn toggle_item<T: Copy + PartialEq + Hash + Debug + 'static>(
+        &mut self,
+        group: &ToggleGroup<A, T>,
+        value: T,
+        face: impl Into<Face>,
+    ) -> ToggleItemChain<'_, 'f, A, T> {
+        group.item(self.reborrow(), value, face.into())
     }
 
     /// A node that hosts custom egui content, sized by classes or by
