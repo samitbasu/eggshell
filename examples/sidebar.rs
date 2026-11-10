@@ -11,7 +11,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use bullseye::{Builder, NodeUi, tw};
+use bullseye::{Builder, tw};
 use egui::Color32;
 
 type B<'b, 'f, A> = Builder<'b, 'f, A>;
@@ -180,9 +180,9 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
                         .hover(|p| p.text(INK)),
                     "GitHub: hello_egui",
                 )
-                .draw(|_, ui| {
-                    if ui.node_response().clicked() {
-                        ui.ctx().open_url(egui::OpenUrl::new_tab(REPO));
+                .on_response(|_, response| {
+                    if response.clicked() {
+                        response.ctx.open_url(egui::OpenUrl::new_tab(REPO));
                     }
                 });
             },

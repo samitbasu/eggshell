@@ -2,7 +2,7 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, NodeUi, Scope, Tw, tw};
+use bullseye::{Builder, Scope, Tw, tw};
 
 use super::common;
 use super::icons::{self, Glyph};
@@ -139,10 +139,8 @@ fn recent(b: &mut B<'_, '_>, k: &Theme, session: &Session, selected: bool) {
             );
         }
     })
-    .draw(move |app: &mut App, ui| {
-        if ui.node_response().clicked() {
-            app.selected = key;
-        }
+    .on_click(move |app: &mut App| {
+        app.selected = key;
     });
 }
 

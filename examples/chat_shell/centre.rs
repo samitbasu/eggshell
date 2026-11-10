@@ -1,7 +1,7 @@
 //! The middle pane: title bar, conversation and composer.
 
 use bullseye::owned::Cell;
-use bullseye::{Builder, NodeUi, Opacity, Scope, Tw, tw};
+use bullseye::{Builder, Opacity, Scope, Tw, tw};
 use egui::{Key, WidgetInfo};
 
 use super::icons::{self, Glyph};
@@ -269,10 +269,8 @@ fn composer(b: &mut B<'_, '_>, app: &App) {
                                 );
                             },
                         )
-                        .draw(|app: &mut App, ui| {
-                            if ui.node_response().clicked() {
-                                app.send();
-                            }
+                        .on_click(|app: &mut App| {
+                            app.send();
                         });
                     });
                 },

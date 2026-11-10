@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, Easing, LayoutState, NodeUi, Opacity, Progress, TextSpec, TextStyle, tw};
+use bullseye::{Builder, Easing, LayoutState, Opacity, Progress, TextSpec, TextStyle, tw};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -148,10 +148,8 @@ fn counter(b: &mut Builder<'_, '_, Counts>, _: &Counts) {
         tw().w_px(100.0).h_px(40.0).bg(BASE).active(|p| p.bg(LIT)),
         |_| {},
     )
-    .draw(|counts: &mut Counts, ui| {
-        if ui.node_response().clicked() {
-            counts.first += 1;
-        }
+    .on_click(|counts: &mut Counts| {
+        counts.first += 1;
     });
 }
 
@@ -203,10 +201,8 @@ fn guarded(b: &mut Builder<'_, '_, Counts>, wrapper: bullseye::Tw) {
                 .hover(|p| p.bg(LIT)),
             |_| {},
         )
-        .draw(|counts: &mut Counts, ui| {
-            if ui.node_response().clicked() {
-                counts.first += 1;
-            }
+        .on_click(|counts: &mut Counts| {
+            counts.first += 1;
         });
     });
 }
@@ -258,10 +254,8 @@ fn overlapping(b: &mut Builder<'_, '_, Counts>, first_z: i16) {
                 .sense_click(),
             |_| {},
         )
-        .draw(|counts: &mut Counts, ui| {
-            if ui.node_response().clicked() {
-                counts.first += 1;
-            }
+        .on_click(|counts: &mut Counts| {
+            counts.first += 1;
         });
         b.div_id(
             "second",
@@ -273,10 +267,8 @@ fn overlapping(b: &mut Builder<'_, '_, Counts>, first_z: i16) {
                 .sense_click(),
             |_| {},
         )
-        .draw(|counts: &mut Counts, ui| {
-            if ui.node_response().clicked() {
-                counts.second += 1;
-            }
+        .on_click(|counts: &mut Counts| {
+            counts.second += 1;
         });
     });
 }

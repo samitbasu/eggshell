@@ -43,10 +43,8 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
         b.div_id("second", mode(tw()), |b| b.text(tw(), SECOND))
             .draw(|_, _| {});
         b.span("row", mode(tw().sense_click()), "Clickable row")
-            .draw(|app, ui| {
-                if bullseye::NodeUi::node_response(ui).clicked() {
-                    app.row_clicks += 1;
-                }
+            .on_click(|app| {
+                app.row_clicks += 1;
             });
     });
 }

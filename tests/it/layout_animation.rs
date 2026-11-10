@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use bullseye::{Builder, LayoutState, NodeUi, TextSpec, TextStyle, tw};
+use bullseye::{Builder, LayoutState, TextSpec, TextStyle, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
@@ -50,12 +50,9 @@ fn rows(b: &mut Builder<'_, '_, App>, app: &App) {
         } else {
             row
         };
-        b.div_id(key, row, |_| {})
-            .draw(move |app: &mut App, ui: &mut egui::Ui| {
-                if ui.node_response().clicked() {
-                    app.clicked = Some(key);
-                }
-            });
+        b.div_id(key, row, |_| {}).on_click(move |app: &mut App| {
+            app.clicked = Some(key);
+        });
     }
 }
 

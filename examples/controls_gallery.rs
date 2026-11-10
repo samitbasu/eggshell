@@ -22,7 +22,7 @@ use bullseye::contract::{Colors, Paint, States, Style, Variant};
 use bullseye::owned;
 use bullseye::prim::text_field::{self, Field};
 use bullseye::widget::{Lines, TextEdit};
-use bullseye::{Builder, NodeUi as _, Scope, TextStyle, Tw, tw};
+use bullseye::{Builder, Scope, TextStyle, Tw, tw};
 use bullseye_shadcn::{size, variant};
 use common::glyphs::{self, Glyph};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
@@ -531,10 +531,11 @@ fn handle(b: &mut B<'_, '_>, control: Control) {
             .focusable_none(),
         |_| {},
     )
-    .draw(|state: &mut State, ui| {
-        let response = ui.node_response();
+    .on_response(|state: &mut State, response| {
         if response.hovered() || response.dragged() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+            response
+                .ctx
+                .set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
         }
         if response.dragged() {
             let dx = response.drag_delta().x;

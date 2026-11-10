@@ -493,7 +493,6 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
         self.draw(move |app, ui| {
             if ui.node_response().clicked() {
                 act(app);
-                ui.ctx().request_repaint();
             }
         })
     }

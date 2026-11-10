@@ -1,7 +1,7 @@
 //! The three-pane frame and the splitters between the panes.
 
 use super::common;
-use bullseye::{Builder, NodeUi, tw};
+use bullseye::{Builder, tw};
 use egui::CursorIcon;
 
 use super::centre::{centre, centre_style};
@@ -65,10 +65,9 @@ fn splitter(b: &mut B<'_, '_>, pane: Pane) {
             );
         },
     )
-    .draw(move |app: &mut App, ui| {
-        let response = ui.node_response();
+    .on_response(move |app: &mut App, response| {
         if response.hovered() || response.dragged() {
-            ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
+            response.ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
         }
         let Some(pointer) = response.interact_pointer_pos() else {
             return;
