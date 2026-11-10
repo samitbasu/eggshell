@@ -575,7 +575,7 @@ impl PlacedNode {
 /// node followed by its descendants.
 pub struct Placed<A> {
     pub(crate) nodes: Vec<PlacedNode>,
-    by_id: HashMap<Id, usize>,
+    pub(crate) by_id: HashMap<Id, usize>,
     pub(crate) prims: Vec<Option<Prim>>,
     pub(crate) draws: Vec<Option<DrawFn<A>>>,
 }
