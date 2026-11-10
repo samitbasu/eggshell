@@ -280,6 +280,43 @@ fn chrome_stacked_by_z() {
     );
 }
 
+/// Translucent rounded cards with a deep offset shadow over a light ground:
+/// the shadow must reach around the rounded corners (#52).
+#[test]
+fn glass_card_shadows() {
+    let shadow = egui::Shadow {
+        offset: [0, 8],
+        blur: 24,
+        spread: 0,
+        color: Color32::from_black_alpha(90),
+    };
+    snapshot(
+        "glass_card_shadows",
+        plain(move |b| {
+            b.div(
+                tw().size_full()
+                    .bg(Color32::from_rgb(236, 238, 242))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .gap(12.0),
+                |b| {
+                    for radius in [6.0, 14.0, 28.0] {
+                        b.div(
+                            tw().w_px(180.0)
+                                .h_px(120.0)
+                                .rounded_px(radius)
+                                .bg(Color32::from_white_alpha(150))
+                                .shadow(shadow),
+                            |_| {},
+                        );
+                    }
+                },
+            );
+        }),
+    );
+}
+
 #[test]
 fn port_flex() {
     light_snapshot("port_flex", SIZE, (), flex::layout);
