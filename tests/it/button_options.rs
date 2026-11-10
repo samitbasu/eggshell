@@ -162,6 +162,29 @@ fn merging_options_lets_the_later_ones_win_and_merges_classes() {
 }
 
 #[test]
+fn classes_set_after_shared_options_merge_with_theirs() {
+    let both = one_button(|c| c.classes(tw().w_px(120.0).h_px(40.0)));
+    differ(
+        &both,
+        &one_button(|c| c.classes(tw().h_px(40.0))),
+        "the width class changes the button",
+    );
+    same(
+        &one_button(|c| {
+            c.with_options(ButtonOptions::new().classes(tw().w_px(120.0)))
+                .classes(tw().h_px(40.0))
+        }),
+        &both,
+        "options' classes, then the chain's",
+    );
+    same(
+        &one_button(|c| c.classes(tw().w_px(120.0)).classes(tw().h_px(40.0))),
+        &both,
+        "two class calls",
+    );
+}
+
+#[test]
 fn a_toggle_takes_options_too() {
     let shared = shapes(|b| {
         b.toggle("t", "Bold", false)

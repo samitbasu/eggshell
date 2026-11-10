@@ -164,7 +164,7 @@ impl ButtonOptions {
     /// Classes merged over the styled ones, such as the button's width or how
     /// it grows; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
     }
 
