@@ -37,7 +37,7 @@ pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
-pub use number::Step;
+pub use number::{Edit, Step};
 pub use radio::RadioGroupChain;
 pub use segmented::{Cell, SegmentedChain};
 pub use select::SelectChain;

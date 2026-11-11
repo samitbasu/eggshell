@@ -23,6 +23,7 @@ mod dnd_reorder;
 mod dnd_zones;
 mod draw;
 mod duplicate_key;
+mod edits;
 mod focus;
 mod form_demo;
 mod fractions;

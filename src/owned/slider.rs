@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use egui::{Key, Rect, Ui, WidgetInfo};
 
-use super::number::{self, Step};
+use super::number::{self, Edit, Edits, Step};
 use super::{Enablement, OnResponse, Tip, painted, tipped};
 use crate::builder::Slot;
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
@@ -47,6 +47,7 @@ pub struct SliderChain<'a, 'f, A> {
     classes: Tw,
     enablement: Enablement,
     on_response: OnResponse<A>,
+    edits: Edits<A>,
 }
 
 /// What a draw closure needs to turn the pointer and the keys into a value.
@@ -110,6 +111,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             classes: tw(),
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
+            edits: Edits::default(),
         }
     }
 
@@ -148,6 +150,14 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         self
     }
 
+    /// Runs `then` as each edit begins and ends (see [`Edit`]): once for a
+    /// press on the thumb or the track, however far it drags, and once for
+    /// each key press.
+    pub fn on_edit(mut self, then: impl Fn(&mut A, Edit) + 'static) -> Self {
+        self.edits.set(then);
+        self
+    }
+
     /// Whether the slider takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -170,6 +180,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             classes: caller,
             enablement,
             on_response,
+            edits,
         } = self;
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
@@ -225,6 +236,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             let track = b.id_of(Part::Track);
             let on_track = scale.clone();
             let on_thumb = set.clone();
+            let thumb_edits = edits.clone();
             b.div_id(Part::Track, hit, |b| {
                 b.div(bar, |b| b.div(filled, |_| {}));
                 b.div(travel, |b| {
@@ -241,8 +253,17 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                         } else {
                             None
                         };
-                        if let Some(value) = keys.or(pointer).filter(|&v| v != scale.value) {
-                            on_thumb(app, value);
+                        let changed = |value: Option<f64>| value.filter(|&v| v != scale.value);
+                        let down = (response.id, response.is_pointer_button_down_on());
+                        thumb_edits.pointer(app, ui, down, |app| {
+                            if let Some(value) =
+                                changed(keys.is_none().then_some(pointer).flatten())
+                            {
+                                on_thumb(app, value);
+                            }
+                        });
+                        if let Some(value) = changed(keys) {
+                            thumb_edits.once(app, |app| on_thumb(app, value));
                         }
                         on_response.run(app, &response);
                         response.widget_info(|| {
@@ -259,12 +280,14 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             .draw(move |app, ui| {
                 let response = tipped(ui.node_response(), &track_tip);
                 let pressed = response.is_pointer_button_down_on();
-                if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
-                    let value = on_track.at(at.x, response.rect);
-                    if value != on_track.value {
-                        set(app, value);
+                edits.pointer(app, ui, (response.id, pressed), |app| {
+                    if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
+                        let value = on_track.at(at.x, response.rect);
+                        if value != on_track.value {
+                            set(app, value);
+                        }
                     }
-                }
+                });
             });
         });
     }

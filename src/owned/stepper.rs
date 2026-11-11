@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use egui::{Key, Role, WidgetInfo};
 
-use super::number::{Step, pressed};
+use super::number::{Edit, Edits, Step, pressed};
 use super::{
     Chevron, Enablement, FieldHooks, Tip, centered, described, field_classes, paint_chevron, tipped,
 };
@@ -54,6 +54,7 @@ pub struct StepperChain<'a, 'f, A> {
     classes: Tw,
     enablement: Enablement,
     hooks: FieldHooks<A>,
+    edits: Edits<A>,
 }
 
 impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
@@ -75,6 +76,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             classes: tw(),
             enablement: Enablement::Enabled,
             hooks: FieldHooks::default(),
+            edits: Edits::default(),
         }
     }
 
@@ -126,6 +128,14 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         self
     }
 
+    /// Runs `then` as each edit begins and ends (see [`Edit`]): once for each
+    /// press of a button or of an arrow key, and once for typing in the
+    /// field, from its first change until it loses focus.
+    pub fn on_edit(mut self, then: impl Fn(&mut A, Edit) + 'static) -> Self {
+        self.edits.set(then);
+        self
+    }
+
     /// Whether the stepper takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -147,6 +157,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             classes,
             enablement,
             hooks,
+            edits,
         } = self;
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
@@ -159,6 +170,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             name: name.unwrap_or_default(),
             tooltip,
             hooks,
+            edits,
         };
         let group = enablement
             .fade(
@@ -239,7 +251,9 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                             if described(ui, Role::Button, None, name.trim(), &spec.tooltip)
                                 .clicked()
                             {
-                                set(app, spec.step.moved(spec.value, steps, &spec.range));
+                                spec.edits.once(app, |app| {
+                                    set(app, spec.step.moved(spec.value, steps, &spec.range));
+                                });
                             }
                         });
                     }
@@ -257,6 +271,7 @@ struct Spec<A> {
     name: String,
     tooltip: Tip,
     hooks: FieldHooks<A>,
+    edits: Edits<A>,
 }
 
 impl<A> Clone for Spec<A> {
@@ -268,6 +283,7 @@ impl<A> Clone for Spec<A> {
             name: self.name.clone(),
             tooltip: self.tooltip.clone(),
             hooks: self.hooks.clone(),
+            edits: self.edits.clone(),
         }
     }
 }
@@ -288,6 +304,8 @@ impl<A> Spec<A> {
         let (low, high) = (*self.range.start(), *self.range.end());
         let mut value = self.value;
         let mut typed = ui.data(|data| data.get_temp::<String>(editing));
+        let session = editing.with("session");
+        let typing = ui.data(|data| data.get_temp::<()>(session)).is_some();
         if ui.memory(|memory| memory.has_focus(Field::id_in(ui))) {
             let current = typed.as_deref().and_then(parse).unwrap_or(value);
             let steps =
@@ -295,7 +313,11 @@ impl<A> Spec<A> {
             if steps != 0 {
                 value = self.step.moved(current, steps, &self.range);
                 typed = None;
-                set(app, value);
+                if typing {
+                    set(app, value);
+                } else {
+                    self.edits.once(app, |app| set(app, value));
+                }
             }
         }
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
@@ -310,6 +332,10 @@ impl<A> Spec<A> {
         });
         if response.changed() {
             let number = parse(&text).map(|number| number.clamp(low, high));
+            if !typing {
+                self.edits.emit(app, Edit::Began);
+                ui.data_mut(|data| data.insert_temp(session, ()));
+            }
             if let Some(number) = number.filter(|&number| number != self.value) {
                 set(app, number);
             }
@@ -319,6 +345,10 @@ impl<A> Spec<A> {
                 set(app, self.step.snap(number, &self.range));
             }
             ui.data_mut(|data| data.remove::<String>(editing));
+            if typing {
+                self.edits.emit(app, Edit::Ended);
+                ui.data_mut(|data| data.remove::<()>(session));
+            }
         }
         self.hooks.run(app, ui, &response);
     }
