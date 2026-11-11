@@ -1082,30 +1082,6 @@ mod bars {
     }
 
     #[test]
-    fn no_bar_is_drawn_over_the_content() {
-        let mut h = harness(10);
-        let at = inside(&h);
-        h.hover_at(at);
-        h.run_steps(5);
-        let list = rect_of(&h, LIST);
-        for i in 0..4 {
-            assert!(
-                rect_of(&h, &row_path(i)).max.x <= list.max.x - GUTTER + 0.5,
-                "the rows end where the gutter starts"
-            );
-        }
-        for shape in support::shapes(&h) {
-            if let Shape::Rect(r) = shape
-                && r.rect.max.x > list.max.x - GUTTER + 0.5
-                && r.rect.min.x < list.max.x - GUTTER - 0.5
-                && r.rect.height() < list.height()
-            {
-                panic!("a shape straddles the gutter's edge: {r:?}");
-            }
-        }
-    }
-
-    #[test]
     fn a_horizontal_container_takes_its_gutter_from_the_height() {
         let h = harness_with(App {
             axis: Axis::X,
@@ -1194,5 +1170,131 @@ mod bars {
             assert_eq!(style.width, 10.0);
             assert_eq!(style.track, Color32::TRANSPARENT);
         }
+    }
+}
+
+mod clipping {
+    use super::*;
+
+    struct Grid {
+        axis: Axis,
+        rows: u32,
+        cols: u32,
+    }
+
+    /// ```html
+    /// <div class="w-[200px] h-[100px] overflow-auto"> rows x cols cells of 80 by 30 </div>
+    /// ```
+    fn grid(b: &mut Builder<'_, '_, Grid>, g: &Grid) {
+        b.scroll("list", tw().w_px(200.0).h_px(100.0))
+            .axis(g.axis)
+            .children(|s| {
+                s.div(tw().flex().flex_col(), |s| {
+                    for r in 0..g.rows {
+                        s.div_id(r, tw().flex().shrink_0(), |s| {
+                            for c in 0..g.cols {
+                                s.div_id(
+                                    c,
+                                    tw().w_px(80.0).h_px(ROW).shrink_0().bg(color(r + c)),
+                                    |_| {},
+                                );
+                            }
+                        });
+                    }
+                });
+            });
+    }
+
+    type G<'a> = Harness<'a, Rig<Grid>>;
+
+    fn harness(axis: Axis, rows: u32, cols: u32) -> G<'static> {
+        let mut h = support::harness(SIZE, base(), Grid { axis, rows, cols }, grid);
+        h.run_steps(6);
+        h
+    }
+
+    fn viewport(h: &G<'_>) -> Rect {
+        let id = support::id_of(h, LIST);
+        scroll::viewport(&h.ctx, id).expect("laid out").rect
+    }
+
+    /// The painted cells' clips and rects against the viewport and the gutter.
+    fn assert_content_stays_in_the_viewport(h: &G<'_>, what: &str) {
+        let (view, list) = (viewport(h), rect_of(h, LIST));
+        assert_eq!(
+            view.min, list.min,
+            "precondition: the viewport starts at the corner"
+        );
+        let cells: Vec<_> = h
+            .output()
+            .shapes
+            .iter()
+            .filter(|clipped| {
+                matches!(&clipped.shape, Shape::Rect(r)
+                    if (0..20).any(|i| r.fill == color(i)) && r.rect.width() == 80.0)
+            })
+            .collect();
+        assert!(!cells.is_empty(), "{what}: precondition: cells are painted");
+        for clipped in cells {
+            assert!(
+                view.expand(0.5).contains_rect(clipped.clip_rect),
+                "{what}: a cell's clip {:?} is outside the viewport {view:?}",
+                clipped.clip_rect
+            );
+            let Shape::Rect(cell) = &clipped.shape else {
+                continue;
+            };
+            let shown = cell.rect.intersect(clipped.clip_rect);
+            assert!(
+                shown.width() <= 0.0
+                    || shown.height() <= 0.0
+                    || view.expand(0.5).contains_rect(shown),
+                "{what}: a cell paints into the gutter: {shown:?} vs {view:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn content_is_clipped_to_the_viewport_on_every_axis_whether_or_not_it_overflows() {
+        let cases = [
+            (Axis::Y, 10, 1, "Y overflowing"),
+            (Axis::Y, 2, 1, "Y fitting"),
+            (Axis::X, 1, 10, "X overflowing"),
+            (Axis::X, 1, 2, "X fitting"),
+            (Axis::Both, 10, 10, "Both overflowing"),
+            (Axis::Both, 10, 2, "Both, rows overflow"),
+            (Axis::Both, 2, 10, "Both, columns overflow"),
+            (Axis::Both, 2, 2, "Both fitting"),
+        ];
+        for (axis, rows, cols, what) in cases {
+            let h = harness(axis, rows, cols);
+            assert_content_stays_in_the_viewport(&h, what);
+        }
+    }
+
+    #[test]
+    fn nothing_but_the_bar_is_drawn_over_the_gutter_on_every_axis_with_the_pointer_over() {
+        for (axis, rows, cols) in [(Axis::Y, 10, 1), (Axis::X, 1, 10), (Axis::Both, 10, 10)] {
+            let mut h = harness(axis, rows, cols);
+            let at = rect_of(&h, LIST).center();
+            h.hover_at(at);
+            h.run_steps(5);
+            assert_content_stays_in_the_viewport(&h, &format!("{axis:?}"));
+        }
+    }
+
+    #[test]
+    fn scrolled_to_the_end_on_both_axes_the_last_cell_ends_at_the_gutter_edges() {
+        let mut h = harness(Axis::Both, 10, 10);
+        let id = support::id_of(&h, LIST);
+        scroll::scroll_by(&h.ctx, id, vec2(1e6, 1e6));
+        h.run_steps(6);
+        let view = viewport(&h);
+        let last = rect_of(&h, "/\"list\"/9/9");
+        assert_eq!(
+            last.max, view.max,
+            "the last cell ends at the viewport's corner"
+        );
+        assert_content_stays_in_the_viewport(&h, "scrolled to the end");
     }
 }
