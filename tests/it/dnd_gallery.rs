@@ -43,10 +43,17 @@ fn harness_with(
     h
 }
 
+/// One frame of the window exactly as `main` draws it, toolbar tree first.
+/// The toolbar's tree has no animations to keep, so a fresh layout state per
+/// frame is fine here.
+pub fn window_frame(ui: &mut egui::Ui, app: &mut State, layout: &mut eggshell_ui::LayoutState) {
+    gallery::window(ui, app, layout, &mut eggshell_ui::LayoutState::new());
+}
+
 fn harness(cols: usize) -> H<'static> {
     let mut state = State::default();
     state.cols = cols;
-    harness_with(state, gallery::frame)
+    harness_with(state, window_frame)
 }
 
 fn slot_path(key: u32) -> String {
@@ -692,7 +699,12 @@ fn on_release_the_panel_is_opaque_in_its_slot_with_no_flash() {
     h.drop_at(at);
     h.step();
     let slot = rect(&h, 0);
-    let faces: Vec<Rect> = painted_fills(&h, muted);
+    // The toolbar's segmented controls share the fill; count panel faces only.
+    let face = face_layout(&h, 1);
+    let faces: Vec<Rect> = painted_fills(&h, muted)
+        .into_iter()
+        .filter(|r| (r.width() - face.width()).abs() < 2.0)
+        .collect();
     assert_eq!(
         faces.len(),
         12,
@@ -837,5 +849,27 @@ fn the_live_image_keeps_the_panels_look_at_rest() {
         opacity(0),
         opacity(5),
         "the live image is as opaque as a panel at rest"
+    );
+}
+
+/// Another tree that doesn't own the drag must not erase where the drag would
+/// land: the gallery's panels still make room. (Found by the user: with the
+/// toolbar drawn first, the panels never moved.)
+#[test]
+fn another_tree_drawn_first_keeps_the_preview() {
+    let mut h = harness(3);
+    let before = layout_order(&h);
+    assert_eq!(
+        before[..3],
+        [0, 1, 2],
+        "precondition: the gallery starts in order"
+    );
+    lift(&mut h, 0);
+    move_past(&mut h, 4);
+    assert!(carried(&h), "precondition: the panel is still carried");
+    assert_ne!(
+        layout_order(&h)[..6],
+        before[..6],
+        "the other panels make room while the drag is over the grid"
     );
 }

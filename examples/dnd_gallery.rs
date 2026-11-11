@@ -365,6 +365,33 @@ fn shortcuts(ctx: &Context, state: &mut State) {
     }
 }
 
+/// The window below the theme bar: the toolbar's own eggshell tree, then the
+/// gallery's. `main`, the tests and the fuzzer all draw it, so they exercise
+/// the same arrangement of trees.
+pub fn window(
+    ui: &mut Ui,
+    state: &mut State,
+    gallery: &mut LayoutState,
+    toolbar_layout: &mut LayoutState,
+) {
+    let ctx = ui.ctx().clone();
+    egui::Panel::top("gallery_toolbar")
+        .exact_size(44.0)
+        .show_separator_line(false)
+        .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
+        .show(ui, |ui| {
+            let area = ui.max_rect();
+            toolbar_layout.set_base_text(Some(common::base_text_in(&ctx)));
+            toolbar_layout
+                .build(&ctx, |b| toolbar(b, state))
+                .layout(area)
+                .draw(state, ui);
+        });
+    egui::CentralPanel::default()
+        .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
+        .show(ui, |ui| frame(ui, state, gallery));
+}
+
 fn main() -> eframe::Result {
     let mut state = State::default();
     let mut layout_state = LayoutState::new();
@@ -376,20 +403,6 @@ fn main() -> eframe::Result {
         theme_bar.show(ui);
         layout_state.set_base_text(Some(common::base_text_in(&ctx)));
         shortcuts(&ctx, &mut state);
-        egui::Panel::top("gallery_toolbar")
-            .exact_size(44.0)
-            .show_separator_line(false)
-            .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
-            .show(ui, |ui| {
-                let area = ui.max_rect();
-                toolbar_state.set_base_text(Some(common::base_text_in(&ctx)));
-                toolbar_state
-                    .build(&ctx, |b| toolbar(b, &state))
-                    .layout(area)
-                    .draw(&mut state, ui);
-            });
-        egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
-            .show(ui, |ui| frame(ui, &mut state, &mut layout_state));
+        window(ui, &mut state, &mut layout_state, &mut toolbar_state);
     })
 }

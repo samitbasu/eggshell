@@ -814,10 +814,9 @@ pub(crate) fn begin<A>(
                 input.latest.filter(|_| positioned),
                 None,
             ),
-            _ => {
-                ctx.data_mut(|data| data.remove::<Hovering>(key("hovering")));
-                return Finish::nothing();
-            }
+            // Another tree's drag, or none: what this tree would write is not
+            // its to change. A record nobody refreshes goes stale after a pass.
+            _ => return Finish::nothing(),
         };
     let found = resolve(nodes, decls, &payload, pointer, leaving, clip);
 
@@ -843,7 +842,11 @@ pub(crate) fn begin<A>(
         position: hit.position,
         index_hint: hit.index_hint,
     });
-    ctx.data_mut(|data| data.insert_temp(key("hovering"), Hovering { pass, over }));
+    // Several trees resolve outside files in one pass; only one with a target
+    // that takes them may say where they would land.
+    if gesture.is_some() || !found.accepting.is_empty() {
+        ctx.data_mut(|data| data.insert_temp(key("hovering"), Hovering { pass, over }));
+    }
 
     let mut draw = Draw::idle();
     let mut chip = None;

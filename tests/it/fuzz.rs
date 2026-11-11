@@ -385,7 +385,7 @@ fn run_drags_ending(actions: &[DragAction]) -> Result<Vec<u32>, TestCaseError> {
         vec2(GALLERY_WIDTH, GALLERY_HEIGHT),
         crate::sweep::common::base_text(egui::Theme::Light),
         state,
-        gallery::frame,
+        |ui, app, layout| gallery::window(ui, app, layout, &mut eggshell_ui::LayoutState::new()),
     );
     harness.run_steps(4);
     let mut session = Session::start(&harness.ctx);
