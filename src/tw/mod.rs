@@ -31,7 +31,9 @@ use merge::{Layout, Touched};
 pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
 pub use units::{Angle, Flip, Opacity, Progress};
 pub use variants::Paint;
-pub(crate) use variants::{Focusability, Grouping, Look, Presence, Sensing, State, Variants};
+pub(crate) use variants::{
+    Focusability, Grouping, Look, PointerEvents, Presence, Sensing, State, Variants,
+};
 
 /// One Tailwind space unit, in points.
 const SPACE_UNIT: f32 = 4.0;

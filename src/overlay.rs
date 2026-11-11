@@ -9,6 +9,8 @@
 
 use egui::{Id, Order, Pos2, Rect, Vec2, pos2, vec2};
 
+pub use crate::overlay_chain::{Floating, OverlayChain, Unplaced};
+
 /// A signed length in points: a gap, a shift or a margin.
 ///
 /// Non-finite input becomes zero.
@@ -120,6 +122,15 @@ impl From<Band> for Order {
             Band::Popup => Order::Foreground,
             Band::Tooltip => Order::Tooltip,
         }
+    }
+}
+
+impl Band {
+    /// The egui layer of the overlay `id` in this band: one layer per
+    /// overlay, so that its bounding box is the overlay's box and the layers
+    /// between overlays belong to the page.
+    pub(crate) fn layer(self, id: Id) -> egui::LayerId {
+        egui::LayerId::new(self.into(), id.with("overlay"))
     }
 }
 
@@ -254,6 +265,17 @@ pub enum Anchored {
     Detached,
 }
 
+impl Anchored {
+    /// Attached only if both are.
+    pub(crate) fn and(self, other: Self) -> Self {
+        if self == Self::Attached && other == Self::Attached {
+            Self::Attached
+        } else {
+            Self::Detached
+        }
+    }
+}
+
 /// The outcome of [`place`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Spot {
@@ -267,6 +289,26 @@ pub struct Spot {
     pub available: Vec2,
     /// Whether the overlay should be shown.
     pub anchored: Anchored,
+}
+
+impl Spot {
+    /// Where the overlay goes once it has been solved again at `size`, the
+    /// room [`available`](Self::available) having cut it short: on the same
+    /// side as before, so that clamping cannot flip it.
+    pub(crate) fn refit(
+        self,
+        anchor: Rect,
+        size: Vec2,
+        placement: &Placement,
+        bounds: Rect,
+    ) -> Spot {
+        let placement = Placement {
+            side: self.side,
+            flip: Flip::Never,
+            ..*placement
+        };
+        place(anchor, size, &placement, bounds)
+    }
 }
 
 /// Where an overlay of `size` goes.

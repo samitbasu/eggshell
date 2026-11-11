@@ -67,7 +67,7 @@ use std::sync::Arc;
 
 use egui::{Context, DragAndDrop, DroppedFileHandle, Event, Id, Pos2, Rect, Vec2, vec2};
 
-use crate::draw::{Lift, children_of, content_clip, inset};
+use crate::draw::{Lift, children_of};
 use crate::key::root_id;
 use crate::pipeline::{Flow, PlacedNode};
 
@@ -647,10 +647,7 @@ fn targets(nodes: &[PlacedNode], clip: Rect) -> Vec<(usize, Rect)> {
         {
             found.push((index, node.rect().intersect(clip)));
         }
-        let mut inner = content_clip(clip, inset(node.rect(), node.border), node.overflow);
-        if let Some(viewport) = node.scroll_viewport() {
-            inner = inner.intersect(viewport);
-        }
+        let inner = node.clip_for_children(clip);
         let mut children = children_of(nodes, index);
         children.sort_by_key(|&child| nodes[child].z());
         for child in children {

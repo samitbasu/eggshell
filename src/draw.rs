@@ -1188,6 +1188,7 @@ impl<A> Placed<A> {
             draws,
             by_id,
             mut drag,
+            roots: _,
         } = self;
         let overflow = (Debug::of(ui.ctx()) == Debug::Outlines)
             .then(|| debug::overflow(ui.ctx(), &nodes, &prims));
