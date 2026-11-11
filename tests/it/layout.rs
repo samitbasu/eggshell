@@ -1001,6 +1001,68 @@ fn grid_columns_share_space_evenly_and_spans_cross_them() {
     assert_rect(cells[2], [0.0, 10.0, 300.0, 20.0]);
 }
 
+/// ```html
+/// <div class="grid w-[500px] grid-cols-[repeat(auto-fill,minmax(110px,1fr))]">
+///   <div class="h-[10px]"></div> <!-- ×5 -->
+/// </div>
+/// ```
+fn adaptive_cells(columns: Track) -> Vec<Rect> {
+    let placed = place(|b| {
+        b.div(tw().grid().w_px(500.0).grid_cols_tracks(&[columns]), |b| {
+            for _ in 0..5 {
+                b.rule(tw().h_px(10.0));
+            }
+        })
+    });
+    rects(&placed, NodeKind::Rule)
+}
+
+#[test]
+fn auto_fill_makes_as_many_columns_as_fit_and_keeps_a_partial_row_the_same() {
+    let cells = adaptive_cells(Track::repeat_fill(Track::minmax(
+        Track::px(110.0),
+        Track::fr(1.0),
+    )));
+    let widths: Vec<f32> = cells.iter().map(|cell| cell.width()).collect();
+    assert_eq!(widths, [125.0; 5], "four 125 columns, the fifth on row 2");
+    assert_rect(cells[3], [375.0, 0.0, 500.0, 10.0]);
+    assert_rect(cells[4], [0.0, 10.0, 125.0, 20.0]);
+}
+
+#[test]
+fn auto_fit_collapses_the_empty_columns() {
+    let fit = adaptive_cells(Track::repeat_fit(Track::minmax(
+        Track::px(250.0),
+        Track::fr(1.0),
+    )));
+    assert_rect(fit[0], [0.0, 0.0, 250.0, 10.0]);
+    assert_rect(fit[2], [0.0, 10.0, 250.0, 20.0]);
+    let single = place(|b| {
+        b.div(
+            tw().grid()
+                .w_px(500.0)
+                .grid_cols_tracks(&[Track::repeat_fit(Track::minmax(
+                    Track::px(110.0),
+                    Track::fr(1.0),
+                ))]),
+            |b| b.rule(tw().h_px(10.0)),
+        )
+    });
+    let fill = place(|b| {
+        b.div(
+            tw().grid()
+                .w_px(500.0)
+                .grid_cols_tracks(&[Track::repeat_fill(Track::minmax(
+                    Track::px(110.0),
+                    Track::fr(1.0),
+                ))]),
+            |b| b.rule(tw().h_px(10.0)),
+        )
+    });
+    assert_eq!(rects(&single, NodeKind::Rule)[0].width(), 500.0, "fit");
+    assert_eq!(rects(&fill, NodeKind::Rule)[0].width(), 125.0, "fill");
+}
+
 // ---------------------------------------------------------------- positioning
 
 /// ```html
