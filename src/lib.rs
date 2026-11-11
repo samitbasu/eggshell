@@ -165,6 +165,7 @@ mod draw;
 mod focus;
 mod key;
 mod measure;
+pub mod overlay;
 pub mod owned;
 mod pipeline;
 pub mod prim;
