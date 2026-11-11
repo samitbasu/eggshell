@@ -2,7 +2,9 @@
 //! in cells a fixed number of `ch` wide, beside labels and swatches.
 //!
 //! The values change every frame in sign and digit count; nothing around them
-//! shifts. The styling is plain shadcn.
+//! shifts. The last row has no fixed width at all: its box is its content, and
+//! `tabular-nums` keeps that content the same width whatever the digits.
+//! The styling is plain shadcn.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -34,6 +36,17 @@ fn reading(seed: u64) -> String {
     }
 }
 
+/// A clock reading of fixed length, from `frame`.
+fn elapsed(frame: u64) -> String {
+    let mixed = frame.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 20;
+    format!(
+        "{:02}:{:02}.{:03}",
+        mixed % 100,
+        (mixed >> 8) % 60,
+        (mixed >> 16) % 1000
+    )
+}
+
 /// ```html
 /// <div class="flex flex-col gap-2 p-6 text-sm">
 ///   <div class="flex items-center gap-3">
@@ -42,6 +55,10 @@ fn reading(seed: u64) -> String {
 ///     <span class="text-muted-foreground">°C</span>
 ///   </div>
 ///   <!-- … -->
+///   <div class="flex items-center gap-3">
+///     <span class="w-32 text-muted-foreground">Elapsed</span>
+///     <span class="tabular-nums whitespace-nowrap">12:34.567</span>
+///   </div>
 /// </div>
 /// ```
 pub fn layout(b: &mut B<'_, '_>, _: &()) {
@@ -69,6 +86,14 @@ pub fn layout(b: &mut B<'_, '_>, _: &()) {
                     b.text(tw().text(muted), unit);
                 });
             }
+            b.div(tw().flex().items_center().gap(3.0), |b| {
+                b.text(tw().w_px(128.0).text(muted), "Elapsed");
+                b.span(
+                    "elapsed",
+                    tw().tabular_nums().whitespace_nowrap(),
+                    elapsed(frame),
+                );
+            });
         },
     );
 }
