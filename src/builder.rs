@@ -8,7 +8,7 @@ use std::sync::Arc;
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
-use crate::dnd::{DragEnd, DragImage, Dragging, Drop, EdgeScroll, NodeDrag};
+use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
@@ -16,7 +16,7 @@ use crate::pipeline::{
     BuildState, ColorSource, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
 };
 use crate::prim::{Icon, Prim};
-use crate::scroll::{Axis, ScrollChain};
+use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::text::{TextStyle, VAlign};
 use crate::tw::{Grouping, Sensing, Tw, tw};
 use crate::widget::Stock;
@@ -249,11 +249,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         id: Id,
         key: &dyn Debug,
         classes: Tw,
-        axis: Axis,
-        edge: Option<EdgeScroll>,
+        options: ScrollOptions,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) -> NodeHandle<'b, 'f, A> {
         use taffy::{Display, Overflow, Point};
+        let ScrollOptions { axis, edge, bars } = options;
         let path = self.identify(id, key);
         let parts = Parts {
             id: Some(id),
@@ -291,6 +291,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         leaf.scroll = Some(ScrollNode {
             axis,
             edge,
+            bars,
             content,
             size: egui::Vec2::ZERO,
         });

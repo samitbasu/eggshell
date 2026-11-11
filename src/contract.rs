@@ -642,6 +642,29 @@ pub struct Selection {
     pub text: Option<Color32>,
 }
 
+/// When a scroll container shows its scroll bars.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Scrollbar {
+    /// Thin bars that float over the content, hidden while the container is
+    /// idle and shown when the pointer is over it or it scrolls: the shadcn
+    /// `ScrollArea` with `type="hover"`.
+    #[default]
+    Hover,
+    /// Bars that are always visible, in a gutter beside the content that is
+    /// reserved whether or not the content overflows: CSS
+    /// `scrollbar-gutter: stable`. The content is laid out in the viewport
+    /// minus the gutter, so it never reflows when it starts to overflow.
+    Always,
+}
+
+/// Scroll containers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ScrollStyle {
+    /// The bars of a container that does not choose its own.
+    pub visibility: Scrollbar,
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -675,6 +698,8 @@ pub struct Style {
     pub input: InputStyle,
     /// Selected text.
     pub selection: Selection,
+    /// Scroll containers.
+    pub scroll: ScrollStyle,
 }
 
 #[derive(Clone)]
@@ -1058,6 +1083,7 @@ impl Style {
                 fill: v.selection.bg_fill,
                 text: Some(v.selection.stroke.color),
             },
+            scroll: ScrollStyle::default(),
         }
     }
 

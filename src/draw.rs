@@ -16,6 +16,7 @@ use egui::{
 use taffy::Overflow;
 
 use crate::continuity::{self, Motion, NodeFrame, RecordedPass};
+use crate::contract::Scrollbar;
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
 use crate::dnd::{self, Stakes};
@@ -811,6 +812,13 @@ impl<A> Walk<'_, A> {
             .id_salt(scroll::AREA_SALT)
             .auto_shrink(false)
             .content_margin(egui::Margin::ZERO);
+        let bars = plan.bars.visibility;
+        let area = match bars {
+            Scrollbar::Hover => area,
+            Scrollbar::Always => {
+                area.scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+            }
+        };
         let area = match plan.moved {
             Moved::Yes => area.scroll_offset(plan.offset),
             Moved::No => area,
@@ -839,9 +847,14 @@ impl<A> Walk<'_, A> {
             inherited,
             None,
             |ui| {
-                let bars = &mut ui.spacing_mut().scroll;
-                bars.floating = true;
-                bars.floating_allocated_width = 0.0;
+                let style = &mut ui.spacing_mut().scroll;
+                match bars {
+                    Scrollbar::Hover => {
+                        style.floating = true;
+                        style.floating_allocated_width = 0.0;
+                    }
+                    Scrollbar::Always => *style = scroll::solid_bars(style),
+                }
                 area.show_viewport(ui, |ui, _| {
                     ui.allocate_space(plan.content);
                     Walk {

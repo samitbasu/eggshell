@@ -23,8 +23,27 @@
 //! into it. A node that holds the keyboard focus, or the drag that is in
 //! progress, is always visited.
 //!
-//! # The wheel
+//! # Scroll bars
 //!
+//! [`Scrollbar::Hover`] (the default of the shadcn preset) is egui's floating
+//! bar: thin, hidden while the container is idle, shown when the pointer is
+//! over it or it scrolls. It takes no room.
+//!
+//! [`Scrollbar::Always`] is egui's solid bar, always visible, in a **stable
+//! gutter**, as CSS `scrollbar-gutter: stable`: the bar's width is taken from
+//! the viewport on the scrolling axis (the width for `Axis::Y`, the height
+//! for `X`, both for `Both`) whether or not the content overflows, and the
+//! content is laid out in what remains. Layout therefore stays single-pass:
+//! nothing depends on whether the content overflows, and content that grows
+//! past the viewport does not reflow. [`Viewport::rect`] is the viewport
+//! without the gutter. The bar is egui's, as the style leaves it, except that
+//! it is not floating.
+//!
+//! [`ScrollChain::scrollbar`] chooses per container; without it the
+//! container follows [`Style::scroll`](crate::contract::Style::scroll).
+//!
+//! # The wheel
+//!//!
 //! The innermost container that can still move takes the wheel; at its edge
 //! egui lets the wheel chain to the container around it. The wheel works
 //! while another widget is being dragged.
@@ -49,6 +68,8 @@
 use egui::{Align, Context, Id, Pos2, Rect, Vec2, Vec2b};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
+pub use crate::contract::Scrollbar;
+use crate::contract::Style;
 use crate::dnd::{EdgeScroll, drag_pointer};
 use crate::draw::inset;
 use crate::key::Key;
@@ -108,6 +129,7 @@ pub struct ScrollChain<'a, 'f, A> {
     classes: Tw,
     axis: Axis,
     edge: Option<EdgeScroll>,
+    bars: Option<Scrollbar>,
 }
 
 impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
@@ -118,12 +140,20 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             classes,
             axis: Axis::default(),
             edge: Some(EdgeScroll::default()),
+            bars: None,
         }
     }
 
     /// Which way the container scrolls. [`Axis::Y`] unless set.
     pub fn axis(mut self, axis: Axis) -> Self {
         self.axis = axis;
+        self
+    }
+
+    /// When the container shows its bars. Unless set, the style's
+    /// ([`Style::scroll`](crate::contract::Style::scroll)).
+    pub fn scrollbar(mut self, bars: Scrollbar) -> Self {
+        self.bars = Some(bars);
         self
     }
 
@@ -149,8 +179,12 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             classes,
             axis,
             edge,
+            bars,
         } = self;
-        b.scroll_with(slot.id, &slot.label, classes, axis, edge, body)
+        let visibility = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll.visibility);
+        let bars = Bars::new(b.ctx(), axis, visibility);
+        let options = ScrollOptions { axis, edge, bars };
+        b.scroll_with(slot.id, &slot.label, classes, options, body)
     }
 }
 
@@ -303,11 +337,54 @@ pub(crate) fn state_id(node: Id) -> Id {
     area_scope(node).with(egui::IdSalt::new(AREA_SALT))
 }
 
+/// What a scroll container is built with.
+pub(crate) struct ScrollOptions {
+    pub(crate) axis: Axis,
+    pub(crate) edge: Option<EdgeScroll>,
+    pub(crate) bars: Bars,
+}
+
+/// The bars of a container: when they show, and the gutter they take.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Bars {
+    pub(crate) visibility: Scrollbar,
+    /// What the bars take from the viewport: the width of the vertical bar
+    /// and the height of the horizontal one. Zero for floating bars.
+    pub(crate) gutter: Vec2,
+}
+
+/// egui's scroll style as [`Scrollbar::Always`] draws it: the context's, with
+/// the bars out of the content's way.
+pub(crate) fn solid_bars(style: &egui::style::ScrollStyle) -> egui::style::ScrollStyle {
+    egui::style::ScrollStyle {
+        floating: false,
+        ..*style
+    }
+}
+
+impl Bars {
+    fn new(ctx: &Context, axis: Axis, visibility: Scrollbar) -> Self {
+        let gutter = match visibility {
+            Scrollbar::Hover => Vec2::ZERO,
+            Scrollbar::Always => {
+                let width = solid_bars(&ctx.global_style().spacing.scroll).allocated_width();
+                let enabled = axis.enabled();
+                Vec2::new(
+                    if enabled.y { width } else { 0.0 },
+                    if enabled.x { width } else { 0.0 },
+                )
+            }
+        };
+        Self { visibility, gutter }
+    }
+}
+
 /// What a container knows about itself once it is laid out.
 #[derive(Clone, Debug)]
 pub(crate) struct ScrollPlan {
     pub(crate) axis: Axis,
     pub(crate) edge: Option<EdgeScroll>,
+    pub(crate) bars: Bars,
     /// The content root's size.
     pub(crate) content: Vec2,
     /// How far the content is scrolled.
@@ -421,8 +498,9 @@ impl Settle {
         let (head, content) = nodes.split_at_mut(at + 1);
         let node = &mut head[at];
         let id = node.id().expect("a scroll container is identified");
-        let viewport = inset(node.rect(), node.border);
+        let padding_box = inset(node.rect(), node.border);
         let plan = node.scroll.as_mut().expect("a scroll container has a plan");
+        let viewport = Rect::from_min_size(padding_box.min, padding_box.size() - plan.bars.gutter);
         let start = plan.offset;
         let max = limit(plan.content, viewport.size());
         let enabled = plan.axis.enabled();

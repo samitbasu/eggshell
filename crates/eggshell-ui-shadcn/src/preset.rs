@@ -455,6 +455,7 @@ impl Shadcn {
             selection.text = Some(t.foreground);
             selection
         };
+        style.scroll.visibility = eggshell_ui::contract::Scrollbar::Hover;
         style
     }
 

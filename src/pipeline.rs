@@ -16,7 +16,7 @@ use crate::dnd::{Decls, EdgeScroll, NodeDrag};
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
-use crate::scroll::{Axis, Moved, ScrollPlan, Settle};
+use crate::scroll::{Axis, Bars, Moved, ScrollPlan, Settle};
 use crate::text::{TextStyle, VAlign, WhiteSpace};
 use crate::tw::{BoxPaint, Focusability, Grouping, Sensing, Sides, Variants};
 
@@ -74,6 +74,7 @@ pub(crate) struct Node {
 pub(crate) struct ScrollNode {
     pub axis: Axis,
     pub edge: Option<EdgeScroll>,
+    pub bars: Bars,
     /// The root of the content, laid out on its own.
     pub content: NodeId,
     /// The content root's size, once laid out.
@@ -350,16 +351,16 @@ fn solve_content(
     solve: &impl Fn(&mut TaffyTree<Node>, NodeId, Size<AvailableSpace>),
 ) {
     let own = *tree.layout(leaf).expect("node exists");
-    let viewport = Size {
-        width: (own.size.width - own.border.left - own.border.right).max(0.0),
-        height: (own.size.height - own.border.top - own.border.bottom).max(0.0),
-    };
-    let (axis, root) = {
+    let (axis, root, gutter) = {
         let scroll = tree
             .get_node_context(leaf)
             .and_then(|node| node.scroll.as_ref())
             .expect("a scroll leaf has a scroll node");
-        (scroll.axis, scroll.content)
+        (scroll.axis, scroll.content, scroll.bars.gutter)
+    };
+    let viewport = Size {
+        width: (own.size.width - own.border.left - own.border.right - gutter.x).max(0.0),
+        height: (own.size.height - own.border.top - own.border.bottom - gutter.y).max(0.0),
     };
     let scrolls = axis.enabled();
     let mut fit = Size {
@@ -598,7 +599,9 @@ fn collect(
         nodes[index].reach = reach;
     }
     if let Some(scroll) = scroll {
-        let viewport = crate::draw::inset(rect, border);
+        let padding_box = crate::draw::inset(rect, border);
+        let viewport =
+            Rect::from_min_size(padding_box.min, padding_box.size() - scroll.bars.gutter);
         let offset = settle.offset(
             nodes[index].id.expect("a scroll container is identified"),
             scroll.axis,
@@ -608,6 +611,7 @@ fn collect(
         nodes[index].scroll = Some(ScrollPlan {
             axis: scroll.axis,
             edge: scroll.edge,
+            bars: scroll.bars,
             content: scroll.size,
             offset,
             moved: Moved::No,
