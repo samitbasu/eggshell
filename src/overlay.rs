@@ -280,22 +280,15 @@ pub fn place(anchor: Rect, size: Vec2, placement: &Placement, bounds: Rect) -> S
     let gap = f32::from(placement.gap);
     let shift = f32::from(placement.shift);
     let area = bounds.shrink(margin);
-    let beside = placement.relation == Relation::Beside;
+    let relation = placement.relation;
 
-    let room = |side: Side| {
-        if !beside {
-            return if side.is_vertical() {
-                area.height()
-            } else {
-                area.width()
-            };
-        }
-        match side {
-            Side::Bottom => area.bottom() - anchor.bottom() - gap,
-            Side::Top => anchor.top() - area.top() - gap,
-            Side::Right => area.right() - anchor.right() - gap,
-            Side::Left => anchor.left() - area.left() - gap,
-        }
+    let room = |side: Side| match (relation, side) {
+        (Relation::Inside, side) if side.is_vertical() => area.height(),
+        (Relation::Inside, _) => area.width(),
+        (Relation::Beside, Side::Bottom) => area.bottom() - anchor.bottom() - gap,
+        (Relation::Beside, Side::Top) => anchor.top() - area.top() - gap,
+        (Relation::Beside, Side::Right) => area.right() - anchor.right() - gap,
+        (Relation::Beside, Side::Left) => anchor.left() - area.left() - gap,
     };
     let need = |side: Side| if side.is_vertical() { size.y } else { size.x };
     let fits = |side: Side| need(side) <= room(side);
@@ -310,26 +303,29 @@ pub fn place(anchor: Rect, size: Vec2, placement: &Placement, bounds: Rect) -> S
         _ => preferred,
     };
 
-    let reference = if beside { anchor } else { area };
+    let reference = match relation {
+        Relation::Beside => anchor,
+        Relation::Inside => area,
+    };
     let along = |lo: f32, hi: f32, len: f32| match placement.align {
         Align::Start => lo + shift,
         Align::Center => (lo + hi - len) / 2.0 + shift,
         Align::End => hi - len - shift,
     };
     let mut min = if side.is_vertical() {
-        let y = match (side, !beside) {
-            (Side::Bottom, false) => reference.bottom() + gap,
-            (Side::Top, false) => reference.top() - gap - size.y,
-            (Side::Bottom, true) => reference.bottom() - size.y,
-            _ => reference.top(),
+        let y = match (relation, side) {
+            (Relation::Beside, Side::Bottom) => reference.bottom() + gap,
+            (Relation::Beside, _) => reference.top() - gap - size.y,
+            (Relation::Inside, Side::Bottom) => reference.bottom() - size.y,
+            (Relation::Inside, _) => reference.top(),
         };
         pos2(along(reference.left(), reference.right(), size.x), y)
     } else {
-        let x = match (side, !beside) {
-            (Side::Right, false) => reference.right() + gap,
-            (Side::Left, false) => reference.left() - gap - size.x,
-            (Side::Right, true) => reference.right() - size.x,
-            _ => reference.left(),
+        let x = match (relation, side) {
+            (Relation::Beside, Side::Right) => reference.right() + gap,
+            (Relation::Beside, _) => reference.left() - gap - size.x,
+            (Relation::Inside, Side::Right) => reference.right() - size.x,
+            (Relation::Inside, _) => reference.left(),
         };
         pos2(x, along(reference.top(), reference.bottom(), size.y))
     };
@@ -347,7 +343,7 @@ pub fn place(anchor: Rect, size: Vec2, placement: &Placement, bounds: Rect) -> S
         rect: Rect::from_min_size(min, size),
         side,
         available,
-        anchored: if anchor.intersects(bounds) || !beside {
+        anchored: if relation == Relation::Inside || anchor.intersects(bounds) {
             Anchored::Attached
         } else {
             Anchored::Detached
