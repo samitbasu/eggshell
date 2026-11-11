@@ -647,7 +647,10 @@ fn targets(nodes: &[PlacedNode], clip: Rect) -> Vec<(usize, Rect)> {
         {
             found.push((index, node.rect().intersect(clip)));
         }
-        let inner = content_clip(clip, inset(node.rect(), node.border), node.overflow);
+        let mut inner = content_clip(clip, inset(node.rect(), node.border), node.overflow);
+        if let Some(viewport) = node.scroll_viewport() {
+            inner = inner.intersect(viewport);
+        }
         let mut children = children_of(nodes, index);
         children.sort_by_key(|&child| nodes[child].z());
         for child in children {

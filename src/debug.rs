@@ -1,5 +1,6 @@
 //! The layout debug overlay: a hairline around every node, in red where the
-//! node's content did not fit, a label for the node under the pointer, and a
+//! node's content did not fit, the viewport (green) and reserved gutter
+//! (tint) of every scroll container, a label for the node under the pointer, and a
 //! frame-timing readout in the top-right corner.
 
 use core::time::Duration;
@@ -60,6 +61,13 @@ pub enum Debug {
 impl Debug {
     /// The outline of a node whose content fit.
     pub const OUTLINE: Color32 = Color32::from_rgb(0x6c, 0x8e, 0xbf);
+
+    /// The outline of a scroll container's viewport: where its content is
+    /// clipped.
+    pub const VIEWPORT: Color32 = Color32::from_rgb(0x3c, 0xb3, 0x71);
+
+    /// The tint of the gutter a scroll container reserves for its bars.
+    pub const GUTTER: Color32 = Color32::from_rgba_premultiplied(0x3c, 0x2a, 0x00, 0x60);
 
     /// The outline of a node whose content did not fit.
     pub const OVERFLOW: Color32 = Color32::from_rgb(0xff, 0x30, 0x30);
@@ -329,6 +337,24 @@ pub(crate) fn paint(ctx: &Context, nodes: &[PlacedNode]) {
             StrokeKind::Inside,
         ));
     }
+    for index in shown(nodes) {
+        let node = &nodes[index];
+        let (Some(viewport), Some(plan)) = (node.scroll_viewport(), node.scroll.as_ref()) else {
+            continue;
+        };
+        for region in crate::scroll::gutters(
+            crate::draw::inset(node.rect(), node.border),
+            plan.bars.gutter,
+        ) {
+            painter.rect_filled(grid.rect(region), 0.0, Debug::GUTTER);
+        }
+        painter.add(Shape::rect_stroke(
+            grid.rect(viewport),
+            0.0,
+            Stroke::new(width, Debug::VIEWPORT),
+            StrokeKind::Inside,
+        ));
+    }
     if let Some(pointer) = ctx.pointer_hover_pos()
         && let Some(index) = shown(nodes)
             .filter(|&i| nodes[i].rect().contains(pointer))
@@ -352,6 +378,15 @@ fn label(painter: &Painter, screen: Rect, pointer: Pos2, nodes: &[PlacedNode], i
         max.x - min.x,
         max.y - min.y
     );
+    if let (Some(viewport), Some(plan)) = (node.scroll_viewport(), node.scroll.as_ref()) {
+        text.push_str(&format!(
+            "\nscroll viewport {:.1} x {:.1}, gutter {:.1} x {:.1}",
+            viewport.width(),
+            viewport.height(),
+            plan.bars.gutter.x,
+            plan.bars.gutter.y
+        ));
+    }
     if overflows(nodes, index) {
         text.push_str("\ncontent does not fit");
     }

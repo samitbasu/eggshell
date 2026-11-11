@@ -600,8 +600,7 @@ fn collect(
     }
     if let Some(scroll) = scroll {
         let padding_box = crate::draw::inset(rect, border);
-        let viewport =
-            Rect::from_min_size(padding_box.min, padding_box.size() - scroll.bars.gutter);
+        let viewport = crate::scroll::viewport_in(padding_box, scroll.bars.gutter);
         let offset = settle.offset(
             nodes[index].id.expect("a scroll container is identified"),
             scroll.axis,
@@ -676,6 +675,17 @@ impl PlacedNode {
     pub(crate) fn translate(&mut self, by: egui::Vec2) {
         self.rect = self.rect.translate(by);
         self.reach = self.reach.translate(by);
+    }
+
+    /// For a scroll container, its viewport: the padding box minus the
+    /// gutter its bars reserve. The content is laid out in it and clipped to
+    /// it; the gutter is where the bars draw.
+    pub(crate) fn scroll_viewport(&self) -> Option<Rect> {
+        let plan = self.scroll.as_ref()?;
+        Some(crate::scroll::viewport_in(
+            crate::draw::inset(self.rect, self.border),
+            plan.bars.gutter,
+        ))
     }
 
     /// The egui id, for identified nodes.

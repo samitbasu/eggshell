@@ -71,7 +71,6 @@ use crate::builder::{Builder, NodeHandle, Scope, Slot};
 pub use crate::contract::ScrollStyle;
 use crate::contract::Style;
 use crate::dnd::{EdgeScroll, drag_pointer};
-use crate::draw::inset;
 use crate::key::Key;
 use crate::pipeline::PlacedNode;
 use crate::tw::Tw;
@@ -345,6 +344,36 @@ pub(crate) struct ScrollOptions {
     pub(crate) bars: Bars,
 }
 
+/// The viewport of a container whose padding box is `padding` and whose
+/// bars take `gutter`: the one rect the content is laid out in, clipped to and
+/// hit-tested in.
+pub(crate) fn viewport_in(padding: Rect, gutter: Vec2) -> Rect {
+    Rect::from_min_size(padding.min, (padding.size() - gutter).max(Vec2::ZERO))
+}
+
+/// The regions the bars reserve in `padding`: beside the viewport on the
+/// right and below it, and the corner where they meet.
+pub(crate) fn gutters(padding: Rect, gutter: Vec2) -> Vec<Rect> {
+    let view = viewport_in(padding, gutter);
+    let mut found = Vec::new();
+    if gutter.x > 0.0 {
+        found.push(Rect::from_min_max(
+            Pos2::new(view.max.x, padding.min.y),
+            Pos2::new(padding.max.x, view.max.y),
+        ));
+    }
+    if gutter.y > 0.0 {
+        found.push(Rect::from_min_max(
+            Pos2::new(padding.min.x, view.max.y),
+            Pos2::new(view.max.x, padding.max.y),
+        ));
+    }
+    if gutter.x > 0.0 && gutter.y > 0.0 {
+        found.push(Rect::from_min_max(view.max, padding.max));
+    }
+    found
+}
+
 /// The bars of a container: their style, and the gutter they take.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Bars {
@@ -515,9 +544,10 @@ impl Settle {
         let (head, content) = nodes.split_at_mut(at + 1);
         let node = &mut head[at];
         let id = node.id().expect("a scroll container is identified");
-        let padding_box = inset(node.rect(), node.border);
+        let viewport = node
+            .scroll_viewport()
+            .expect("a scroll container has a plan");
         let plan = node.scroll.as_mut().expect("a scroll container has a plan");
-        let viewport = Rect::from_min_size(padding_box.min, padding_box.size() - plan.bars.gutter);
         let start = plan.offset;
         let max = limit(plan.content, viewport.size());
         let enabled = plan.axis.enabled();

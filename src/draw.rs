@@ -835,7 +835,12 @@ impl<A> Walk<'_, A> {
             drag,
             ..
         } = self;
+        // The viewport clips the content, whatever egui reserves for its bars.
+        let viewport = node
+            .scroll_viewport()
+            .expect("a scroll container has a plan");
         let content = Inherited {
+            clip: inherited.clip.intersect(grid.rect(viewport)),
             culling: Culling::On,
             scrolled: inherited.scrolled - plan.offset,
             ..inherited
