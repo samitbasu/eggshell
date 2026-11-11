@@ -5,8 +5,9 @@ use std::collections::HashMap;
 
 use egui::{Id, Rect, vec2};
 use taffy::{
-    AvailableSpace, Baselines, Display, LayoutInput, LayoutOutput, NodeId, Overflow, Point,
-    Position, ResolveOrZero, Size, Style, TaffyTree, compute_leaf_layout, style_helpers::length,
+    AvailableSpace, Baselines, Dimension, Display, LayoutInput, LayoutOutput, NodeId, Overflow,
+    Point, Position, ResolveOrZero, Size, Style, TaffyTree, compute_leaf_layout,
+    style_helpers::length,
 };
 
 use crate::builder::Builder;
@@ -15,6 +16,7 @@ use crate::dnd::{Decls, NodeDrag};
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
+use crate::scroll::{Axis, Moved, ScrollPlan, Settle};
 use crate::text::{TextStyle, VAlign, WhiteSpace};
 use crate::tw::{BoxPaint, Focusability, Grouping, Sensing, Sides, Variants};
 
@@ -43,6 +45,11 @@ pub enum NodeKind {
     Rule,
     /// Anonymous custom paint.
     Paint,
+    /// An identified scroll container: a leaf of its tree, with the root of
+    /// its content as its only child.
+    Scroll,
+    /// The root of a scroll container's content, laid out on its own.
+    ScrollContent,
 }
 
 /// taffy's per-node context.
@@ -60,6 +67,16 @@ pub(crate) struct Node {
     pub inert: bool,
     pub interaction: Interaction,
     pub drag: Option<Box<NodeDrag>>,
+    pub scroll: Option<ScrollNode>,
+}
+
+/// What a scroll container's leaf carries until layout.
+pub(crate) struct ScrollNode {
+    pub axis: Axis,
+    /// The root of the content, laid out on its own.
+    pub content: NodeId,
+    /// The content root's size, once laid out.
+    pub size: egui::Vec2,
 }
 
 /// Where a node's text colour comes from.
@@ -96,6 +113,9 @@ pub(crate) struct Frame<'f, A> {
     pub measures: Vec<MeasureFn<'f>>,
     pub draws: Vec<DrawFn<A>>,
     pub drag: Decls<A>,
+    /// The scroll containers' leaves, an enclosing container after those
+    /// it encloses.
+    pub scrolls: Vec<NodeId>,
 }
 
 /// Owns the state a frame is built in; reuse one across frames.
@@ -171,6 +191,7 @@ impl LayoutState {
             measures: Vec::new(),
             draws: Vec::new(),
             drag: Decls::default(),
+            scrolls: Vec::new(),
         };
         let mut kids = Vec::new();
         f(&mut Builder::new(
@@ -201,6 +222,7 @@ impl LayoutState {
                     inert: false,
                     interaction: Interaction::default(),
                     drag: None,
+                    scroll: None,
                 }),
             )
             .expect("root was just created");
@@ -240,6 +262,7 @@ impl<'f, A> Built<'f, A> {
             measures,
             draws,
             drag,
+            scrolls,
             ..
         } = frame;
         st.tree
@@ -255,25 +278,30 @@ impl<'f, A> Built<'f, A> {
                 },
             )
             .expect("root exists");
-        st.tree
-            .compute_layout_with_measure(
-                root,
-                Size {
-                    width: AvailableSpace::Definite(area.width()),
-                    height: AvailableSpace::Definite(area.height()),
-                },
-                |input, _, node, style| {
-                    let Some(node) = node else {
-                        return leaf_layout(input, style, |_| {
-                            LayoutOutput::from_outer_size(Size::ZERO)
-                        });
-                    };
-                    leaf_layout(input, style, |input| {
-                        measure_content(ctx, node_content(node, &measures), &node.text, &input)
-                    })
-                },
-            )
+        let solve = |tree: &mut TaffyTree<Node>, root: NodeId, available: Size<AvailableSpace>| {
+            tree.compute_layout_with_measure(root, available, |input, _, node, style| {
+                let Some(node) = node else {
+                    return leaf_layout(input, style, |_| {
+                        LayoutOutput::from_outer_size(Size::ZERO)
+                    });
+                };
+                leaf_layout(input, style, |input| {
+                    measure_content(ctx, node_content(node, &measures), &node.text, &input)
+                })
+            })
             .expect("tree is well formed");
+        };
+        solve(
+            &mut st.tree,
+            root,
+            Size {
+                width: AvailableSpace::Definite(area.width()),
+                height: AvailableSpace::Definite(area.height()),
+            },
+        );
+        for leaf in scrolls.into_iter().rev() {
+            solve_content(&mut st.tree, leaf, &solve);
+        }
 
         let mut nodes = Vec::new();
         let mut prims = Vec::new();
@@ -281,15 +309,18 @@ impl<'f, A> Built<'f, A> {
             ctx,
             measures: &measures,
         });
+        let mut settle = Settle::new(ctx);
         collect(
             &mut st.tree,
             root,
             area.min,
             0,
             probe.as_ref(),
+            &mut settle,
             &mut nodes,
             &mut prims,
         );
+        settle.finish();
         drop(measures);
         let draws = draws.into_iter().map(Some).collect();
         let by_id = nodes
@@ -305,6 +336,71 @@ impl<'f, A> Built<'f, A> {
             drag,
         }
     }
+}
+
+/// Lays out the content of the scroll container `leaf`, whose own size its
+/// tree has solved: at the viewport's size across the axes that do not
+/// scroll and as large as it needs along those that do. Content smaller than
+/// the viewport is laid out again at the viewport's size, so that it can
+/// fill it.
+fn solve_content(
+    tree: &mut TaffyTree<Node>,
+    leaf: NodeId,
+    solve: &impl Fn(&mut TaffyTree<Node>, NodeId, Size<AvailableSpace>),
+) {
+    let own = *tree.layout(leaf).expect("node exists");
+    let viewport = Size {
+        width: (own.size.width - own.border.left - own.border.right).max(0.0),
+        height: (own.size.height - own.border.top - own.border.bottom).max(0.0),
+    };
+    let (axis, root) = {
+        let scroll = tree
+            .get_node_context(leaf)
+            .and_then(|node| node.scroll.as_ref())
+            .expect("a scroll leaf has a scroll node");
+        (scroll.axis, scroll.content)
+    };
+    let scrolls = axis.enabled();
+    let mut fit = Size {
+        width: (!scrolls.x).then_some(viewport.width),
+        height: (!scrolls.y).then_some(viewport.height),
+    };
+    let mut size = Size::ZERO;
+    for attempt in 0..2 {
+        let mut style = tree.style(root).expect("node exists").clone();
+        style.size = Size {
+            width: fit.width.map_or(Dimension::auto(), length),
+            height: fit.height.map_or(Dimension::auto(), length),
+        };
+        tree.set_style(root, style).expect("node exists");
+        let available =
+            |fit: Option<f32>| fit.map_or(AvailableSpace::MaxContent, AvailableSpace::Definite);
+        solve(
+            tree,
+            root,
+            Size {
+                width: available(fit.width),
+                height: available(fit.height),
+            },
+        );
+        let laid = tree.layout(root).expect("node exists").size;
+        size = laid;
+        let short = Size {
+            width: fit.width.is_none() && laid.width < viewport.width,
+            height: fit.height.is_none() && laid.height < viewport.height,
+        };
+        if attempt == 1 || !(short.width || short.height) {
+            break;
+        }
+        fit = Size {
+            width: fit.width.or(short.width.then_some(viewport.width)),
+            height: fit.height.or(short.height.then_some(viewport.height)),
+        };
+    }
+    tree.get_node_context_mut(leaf)
+        .and_then(|node| node.scroll.as_mut())
+        .expect("a scroll leaf has a scroll node")
+        .size = egui::vec2(size.width, size.height);
 }
 
 /// A leaf's layout: taffy's own, which adds padding and border around what
@@ -403,12 +499,26 @@ impl Probe<'_, '_> {
     }
 }
 
+/// How far past a node's border box its own painting reaches: its shadow and
+/// ring, and a little for the offsets that hover and press variants apply.
+fn paint_reach(paint: &BoxPaint) -> f32 {
+    const OFFSETS: f32 = 16.0;
+    let shadow = paint.shadow.map_or(0.0, |shadow| {
+        let offset = shadow.offset[0].abs().max(shadow.offset[1].abs());
+        f32::from(offset) + f32::from(shadow.blur) + f32::from(shadow.spread)
+    });
+    let ring = paint.ring.map_or(0.0, |ring| ring.width);
+    OFFSETS + shadow.max(ring)
+}
+
+#[allow(clippy::too_many_arguments, reason = "the walk's state, passed down")]
 fn collect(
     tree: &mut TaffyTree<Node>,
     id: NodeId,
     parent_origin: egui::Pos2,
     depth: usize,
     probe: Option<&Probe<'_, '_>>,
+    settle: &mut Settle,
     nodes: &mut Vec<PlacedNode>,
     prims: &mut Vec<Option<Prim>>,
 ) {
@@ -455,6 +565,7 @@ fn collect(
             )
         });
     prims.push(node.prim.take());
+    let scroll = node.scroll.take();
     let index = nodes.len();
     nodes.push(PlacedNode {
         id: node.id,
@@ -463,6 +574,7 @@ fn collect(
         depth,
         end: index + 1,
         rect,
+        reach: rect.expand(paint_reach(&node.paint)),
         border,
         padding,
         overflow,
@@ -475,10 +587,40 @@ fn collect(
         interaction: node.interaction,
         drag: node.drag.take(),
         draw: node.draw,
+        scroll: None,
         measured,
     });
     for child in tree.children(id).expect("node exists") {
-        collect(tree, child, min, depth + 1, probe, nodes, prims);
+        let at = nodes.len();
+        collect(tree, child, min, depth + 1, probe, settle, nodes, prims);
+        let reach = nodes[index].reach.union(nodes[at].reach);
+        nodes[index].reach = reach;
+    }
+    if let Some(scroll) = scroll {
+        let viewport = crate::draw::inset(rect, border);
+        let offset = settle.offset(
+            nodes[index].id.expect("a scroll container is identified"),
+            scroll.axis,
+            scroll.size,
+            viewport.size(),
+        );
+        nodes[index].scroll = Some(ScrollPlan {
+            axis: scroll.axis,
+            content: scroll.size,
+            offset,
+            moved: Moved::No,
+        });
+        collect(
+            tree,
+            scroll.content,
+            viewport.min - offset,
+            depth + 1,
+            probe,
+            settle,
+            nodes,
+            prims,
+        );
+        settle.settle(nodes, index);
     }
     nodes[index].end = nodes.len();
 }
@@ -502,6 +644,8 @@ pub struct PlacedNode {
     /// One past the last descendant's index.
     pub(crate) end: usize,
     rect: Rect,
+    /// Where the node and its descendants may paint: for culling.
+    pub(crate) reach: Rect,
     pub(crate) border: Sides<f32>,
     pub(crate) padding: Sides<f32>,
     pub(crate) overflow: Point<Overflow>,
@@ -514,12 +658,20 @@ pub struct PlacedNode {
     pub(crate) interaction: Interaction,
     pub(crate) drag: Option<Box<NodeDrag>>,
     pub(crate) draw: Option<usize>,
+    pub(crate) scroll: Option<ScrollPlan>,
     /// What the content of a leaf wants at its final width; recorded only
     /// while [`Debug::Outlines`] is set.
     pub(crate) measured: Option<egui::Vec2>,
 }
 
 impl PlacedNode {
+    /// Moves the node by `by`: the content of a scroll container that was
+    /// laid out at another offset.
+    pub(crate) fn translate(&mut self, by: egui::Vec2) {
+        self.rect = self.rect.translate(by);
+        self.reach = self.reach.translate(by);
+    }
+
     /// The egui id, for identified nodes.
     pub fn id(&self) -> Option<Id> {
         self.id

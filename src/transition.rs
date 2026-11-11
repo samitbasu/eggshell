@@ -8,9 +8,10 @@ use core::time::Duration;
 
 use std::collections::HashMap;
 
-use egui::{Context, Id, Rect, Vec2};
+use egui::{Context, Id, Pos2, Rect, Vec2};
 
 use crate::continuity::{Interrupted, Slide, SlideId};
+use crate::pipeline::PlacedNode;
 use crate::tw::{Easing, Progress};
 
 /// One transition in flight, from where the previous one left the value to
@@ -160,6 +161,7 @@ pub(crate) struct LayoutAnimation {
     previous: HashMap<Id, Tracked>,
     current: HashMap<Id, Tracked>,
     area: Rect,
+    reach: f32,
 }
 
 impl LayoutAnimation {
@@ -184,7 +186,38 @@ impl LayoutAnimation {
             previous,
             current: HashMap::new(),
             area,
+            reach: 0.0,
         }
+    }
+
+    /// Notes how far from its layout this frame leaves each animated node of
+    /// `nodes` painted: from where the previous frame painted it. A node
+    /// whose layout is outside a clip by more than the farthest of them
+    /// cannot be painted inside it.
+    pub(crate) fn anticipate(&mut self, nodes: &[PlacedNode]) {
+        let mut parents: Vec<(usize, Pos2)> = Vec::new();
+        let mut reach: f32 = 0.0;
+        for (index, node) in nodes.iter().enumerate() {
+            while parents.last().is_some_and(|&(end, _)| end <= index) {
+                parents.pop();
+            }
+            let min = node.rect().min;
+            let variants = &node.interaction.variants;
+            if let (Some(_), Some(id)) = (variants.animate_layout, node.id())
+                && let Some(previous) = self.previous.get(&id)
+            {
+                let relative = min - parents.last().map_or(min, |&(_, parent)| parent);
+                let painted = previous.relative + previous.offset(self.now, variants.easing);
+                reach = reach.max((painted - relative).length());
+            }
+            parents.push((node.end, min));
+        }
+        self.reach = reach;
+    }
+
+    /// The farthest [`anticipate`](Self::anticipate) found.
+    pub(crate) fn slide_reach(&self) -> f32 {
+        self.reach
     }
 
     /// How far to paint the node `id` from its layout, at `relative` to its

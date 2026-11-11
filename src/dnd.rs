@@ -761,6 +761,13 @@ impl Draw {
         }
     }
 
+    /// Whether the lifted node, or the node painted as its image, is among
+    /// the nodes `within`.
+    pub(crate) fn involves(&self, within: &std::ops::Range<usize>) -> bool {
+        self.lifted.is_some_and(|index| within.contains(&index))
+            || self.lift.is_some_and(|lift| within.contains(&lift.index))
+    }
+
     pub(crate) fn stakes(&self, index: usize) -> Stakes {
         Stakes {
             accepts: self.accepting.get(index).copied().unwrap_or(false),
