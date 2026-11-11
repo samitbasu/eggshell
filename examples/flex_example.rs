@@ -10,7 +10,7 @@
 //! label and so its estimate, and the row re-wraps around it.
 
 #[path = "common/mod.rs"]
-mod common;
+pub mod common;
 
 use std::convert::identity;
 
@@ -130,12 +130,15 @@ fn stacked(b: &mut B<'_, '_>) {
 /// </div>
 /// ```
 pub fn layout(b: &mut B<'_, '_>, state: &State) {
-    b.div(tw().p(2.0).w_full(), |b| {
-        b.div(
-            tw().flex().flex_wrap().items_stretch().gap(2.0).w_full(),
-            |b| items(b, state),
-        );
-    });
+    b.div(tw().p(2.0).w_full(), |b| row(b, state));
+}
+
+/// The wrapping row of items, for other examples that repeat it.
+pub fn row(b: &mut B<'_, '_>, state: &State) {
+    b.div(
+        tw().flex().flex_wrap().items_stretch().gap(2.0).w_full(),
+        |b| items(b, state),
+    );
 }
 
 fn items(b: &mut B<'_, '_>, state: &State) {

@@ -555,14 +555,18 @@ Rules:
 ## 11. Scroll areas
 
 ```rust
-b.scroll("scroll", tw().flex_1().min_h_0(), Axis::Y, |b| { /* content, scoped under "scroll" */ });
+b.scroll("scroll", tw().grow().min_h_0()).axis(Axis::Y).children(|s| { /* content, scoped under "scroll" */ });
 ```
 
-- The scroll node is a leaf in the current tree, sized by layout like any other leaf. In v1 it does not size to its content: give it `flex_1`, an explicit height or `max_h`.
-- The content is a separate root, laid out after the outer root, with available width = the scroll leaf's content width and unlimited height (`Axis::Y`), or the reverse for `Axis::X`.
-- Draw: an `egui::ScrollArea` keyed by the scroll node's path fills the leaf. Inside it, the content's leaves are drawn translated by the content origin, skipping leaves outside the visible viewport (`show_viewport` ⚠).
+- The scroll node is a leaf in the current tree, sized by layout like any other leaf. In v1 it does not size to its content: give it `grow`, an explicit height or `max_h`. Its padding is its content's (it scrolls); its border and background stay put.
+- The content is a separate root of the same taffy tree, solved right after the tree around it, in the same frame: fixed to the viewport's width and as tall as it needs (`Axis::Y`), the reverse for `Axis::X`, unconstrained for `Axis::Both`. Content shorter than the viewport is solved again at the viewport's height, so that it can fill it (`h_full`, `grow`).
+- The content is laid out at the offset egui holds (`ScrollArea`'s state, clamped to this frame's content size), so its rects are screen rects. Scrolling moves the content root; a node's position within its parent does not change, and `animate_layout` compares those, so scrolling alone starts no slide.
+- Draw: an `egui::ScrollArea` keyed by the scroll node's id owns the offset, the wheel, the bars and the momentum. The content's nodes are walked inside it with those outside the viewport left out (their draw closures do not run, and Tab does not reach them). The node that holds the keyboard focus or the lifted drag, and the drag's image, are never left out.
+- Programmatic scrolling (`scroll_by`, `scroll_to_rect`, `scroll_into_view`) is a request that the next layout applies to the rects of its own frame; `viewport` reads where the viewport and the content are.
+- While a drag is live, a container near whose edge the pointer is scrolls by `EdgeScroll` and requests frames; the innermost container that can move takes it.
+- Scroll bars are never overlays. The container always reserves a gutter (`ScrollStyle::width`) on the axis it scrolls, so layout is single-pass and nothing depends on overflow; egui draws its bar in the gutter only when the content is larger than the viewport. The look is `Style::scroll` (the shadcn preset gives `ScrollArea`'s), per container `scrollbar_style`.
 - Text inheritance continues from the scroll node into its content.
-- Scroll roots may nest (a scrolling table inside a pane inside a scrolling grid). Roots are laid out outermost first, which egui also requires: an inner `ScrollArea` is drawn inside its outer one.
+- Scroll roots may nest (a scrolling table inside a pane inside a scrolling grid). Containers are solved outermost first; an inner `ScrollArea` is drawn inside its outer one, so egui chains the wheel to the outer one at the inner one's edge.
 - Long lists use `virtual_list` (§11.1), which builds only the visible range.
 
 ### 11.1 Virtual lists

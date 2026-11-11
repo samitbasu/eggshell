@@ -40,6 +40,7 @@ mod owned_number;
 mod popup_style;
 mod ports;
 mod prims;
+mod scroll;
 mod selection;
 mod shadow_pixels;
 mod sizing;

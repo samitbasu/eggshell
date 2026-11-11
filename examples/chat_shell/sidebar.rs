@@ -198,7 +198,7 @@ fn account(b: &mut B<'_, '_>, k: &Theme) {
 ///   <a>New</a> <a>Search</a>
 ///   <hr class="my-2"> <a>Projects</a> <a>Artifacts</a> <a>Customize</a> <a>More</a>
 ///   <h2 class="px-2.5 pt-4 pb-1 text-[11px] text-muted-foreground">Recents</h2>
-///   <div class="flex flex-col grow min-h-0 overflow-hidden">...</div>
+///   <div class="grow min-h-0 overflow-y-auto"><div class="flex flex-col gap-0.5">...</div></div>
 ///   <div>account</div>
 /// </aside>
 /// ```
@@ -222,19 +222,14 @@ pub fn sidebar(s: &mut S<'_, '_>, app: &App) {
             .pb(1.0),
         "Recents",
     );
-    s.div(
-        tw().flex()
-            .flex_col()
-            .gap(0.5)
-            .grow()
-            .min_h_0()
-            .overflow_hidden(),
-        |b| {
-            for session in &app.sessions {
-                recent(b, k, session, session.key == app.selected);
-            }
-        },
-    );
+    s.scroll(Part::Recents, tw().grow().min_h_0())
+        .children(|s| {
+            s.div(tw().flex().flex_col().gap(0.5), |b| {
+                for session in &app.sessions {
+                    recent(b, k, session, session.key == app.selected);
+                }
+            });
+        });
     account(s, k);
 }
 

@@ -11,11 +11,11 @@ use std::sync::Arc;
 use egui::text_selection::LabelSelectionState;
 use egui::{
     Align, Color32, Frame, Galley, Id, Image, Layout, Painter, Pos2, Rect, Response, Role, Sense,
-    Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, WidgetInfo, pos2, vec2,
+    Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, Vec2b, WidgetInfo, pos2, vec2,
 };
 use taffy::Overflow;
 
-use crate::continuity::{self, Motion, NodeFrame};
+use crate::continuity::{self, Motion, NodeFrame, RecordedPass};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
 use crate::dnd::{self, Stakes};
@@ -23,6 +23,7 @@ use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
+use crate::scroll::{self, Moved};
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::transition::{self, LayoutAnimation};
@@ -87,9 +88,17 @@ impl Hovering {
     }
 }
 
+/// Whether nodes outside the clip are left out of the draw.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Culling {
+    Off,
+    On,
+}
+
 /// What a node passes down to its subtree.
 #[derive(Clone, Copy)]
 struct Inherited {
+    culling: Culling,
     clip: Rect,
     opacity: Opacity,
     inertness: Inertness,
@@ -106,6 +115,8 @@ struct Inherited {
     origin: Pos2,
     /// How far the ancestors' paint offsets have moved this subtree.
     shift: Vec2,
+    /// How far the scroll containers around this subtree have moved it.
+    scrolled: Vec2,
 }
 
 /// The indices of the children of the node at `index`, in layout order.
@@ -437,18 +448,26 @@ fn image_for(icon: Icon, tint: Color32) -> Image<'static> {
         .rotate(rotate.into(), Vec2::splat(0.5))
 }
 
+/// What the walk of a frame accumulates, whichever `Ui` it is in.
+struct Shared<A> {
+    prims: Vec<Option<Prim>>,
+    draws: Vec<Option<DrawFn<A>>>,
+    subtrees: Vec<(Id, Box<[Id]>)>,
+    animation: LayoutAnimation,
+    recording: Option<Vec<NodeFrame>>,
+    /// While recording, the identified nodes left out as culled.
+    culled: Vec<Id>,
+}
+
 struct Walk<'a, A> {
     app: &'a mut A,
     ui: &'a mut Ui,
     nodes: &'a [PlacedNode],
-    prims: Vec<Option<Prim>>,
-    draws: Vec<Option<DrawFn<A>>>,
+    /// For each node, how many text nodes of the same path come before it.
+    ordinals: &'a [u32],
+    shared: &'a mut Shared<A>,
     grid: PixelGrid,
-    subtrees: Vec<(Id, Box<[Id]>)>,
     selection: Selection,
-    text_seen: HashMap<Id, u32>,
-    animation: LayoutAnimation,
-    recording: Option<Vec<NodeFrame>>,
     lift: Option<Lift>,
     drag: &'a dnd::Draw,
 }
@@ -559,6 +578,15 @@ impl<A> Walk<'_, A> {
     /// Visits the node and its subtree, noting which focusable widgets the
     /// subtree registered if the node is identified.
     fn visit(&mut self, index: usize, parent: Inherited) {
+        if parent.culling == Culling::On && self.culled(index, parent.clip) {
+            if self.shared.recording.is_some() {
+                let left_out = self.nodes[index..self.nodes[index].end]
+                    .iter()
+                    .filter_map(PlacedNode::id);
+                self.shared.culled.extend(left_out);
+            }
+            return;
+        }
         let layer = self.ui.layer_id();
         let before = self.nodes[index]
             .id()
@@ -566,8 +594,27 @@ impl<A> Walk<'_, A> {
         self.visit_node(index, parent);
         if let Some((id, from)) = before {
             let widgets = focus::focusable_since(self.ui.ctx(), layer, from);
-            self.subtrees.push((id, widgets));
+            self.shared.subtrees.push((id, widgets));
         }
+    }
+
+    /// Whether the node and its subtree can be left out: nothing of it
+    /// reaches `clip`, no slide in flight can bring it there, and it holds
+    /// neither the keyboard focus nor the drag.
+    fn culled(&self, index: usize, clip: Rect) -> bool {
+        let node = &self.nodes[index];
+        let within = index..node.end;
+        let ctx = self.ui.ctx();
+        node.flow != Flow::Hidden
+            && !node
+                .reach
+                .intersects(clip.expand(self.shared.animation.slide_reach()))
+            && !self.drag.involves(&within)
+            && !(ctx.memory(|memory| memory.focused()).is_some()
+                && self.nodes[within]
+                    .iter()
+                    .filter_map(PlacedNode::id)
+                    .any(|id| focus::focus_within(ctx, id)))
     }
 
     fn visit_node(&mut self, index: usize, parent: Inherited) {
@@ -634,7 +681,7 @@ impl<A> Walk<'_, A> {
         let opacity = parent.opacity * look.paint.opacity;
         let lifted = self.lift.filter(|lift| lift.index == index);
         let slide = match (interaction.variants.animate_layout, node.id(), lifted) {
-            (Some(duration), Some(id), None) => self.animation.offset(
+            (Some(duration), Some(id), None) => self.shared.animation.offset(
                 id,
                 node.rect().min - parent.origin,
                 duration,
@@ -653,7 +700,7 @@ impl<A> Walk<'_, A> {
                 (translate, parent.shift + translate)
             }
         };
-        if let (Some(frame), Some(id)) = (&mut self.recording, node.id()) {
+        if let (Some(frame), Some(id)) = (&mut self.shared.recording, node.id()) {
             frame.push(NodeFrame {
                 id,
                 path: node.path().to_owned(),
@@ -664,12 +711,14 @@ impl<A> Walk<'_, A> {
                 } else {
                     parent.shift
                 },
+                scrolled: parent.scrolled,
                 opacity,
                 motion: match (interaction.variants.animate_layout, lifted) {
                     (Some(_), None) => Motion::Slides,
                     _ => Motion::Snaps,
                 },
                 slide: self
+                    .shared
                     .animation
                     .slide(id, interaction.variants.easing, translate),
             });
@@ -687,12 +736,19 @@ impl<A> Walk<'_, A> {
             fill.gamma_multiply(f32::from(opacity))
         });
         let inherited = Inherited {
+            // A lifted node is painted where the pointer carries it, not where
+            // layout put it.
+            culling: match lifted {
+                Some(_) => Culling::Off,
+                None => parent.culling,
+            },
             backdrop: parent.backdrop.blend(painted_background),
             clip: content_clip(parent.clip, boxes.padding, node.overflow),
             opacity,
             inertness,
             origin: node.rect().min,
             shift,
+            scrolled: parent.scrolled,
             group,
             text_color: if interaction.variants.sets_text_color() {
                 Some(look.text)
@@ -707,10 +763,10 @@ impl<A> Walk<'_, A> {
                 parent.interactive
             },
         };
-        if let Some(prim) = self.prims[index].take() {
-            self.paint_prim(prim, node, &text, &boxes, inherited);
+        if let Some(prim) = self.shared.prims[index].take() {
+            self.paint_prim(prim, index, node, &text, &boxes, inherited);
         }
-        if let Some(draw) = node.draw.and_then(|slot| self.draws[slot].take()) {
+        if let Some(draw) = node.draw.and_then(|slot| self.shared.draws[slot].take()) {
             let id = node.id().expect("a node with a draw closure is identified");
             let builder = UiBuilder::new()
                 .max_rect(boxes.content)
@@ -723,19 +779,102 @@ impl<A> Walk<'_, A> {
             });
         }
 
-        let in_layout_order = children_of(self.nodes, index);
-        let mut in_paint_order = in_layout_order.clone();
-        in_paint_order.sort_by_key(|&child| self.nodes[child].z());
-        for child in in_paint_order {
-            self.visit(child, inherited);
+        if node.scroll.is_some() {
+            self.scroll_content(index, &boxes, inherited);
+        } else {
+            let in_layout_order = children_of(self.nodes, index);
+            let mut in_paint_order = in_layout_order.clone();
+            in_paint_order.sort_by_key(|&child| self.nodes[child].z());
+            for child in in_paint_order {
+                self.visit(child, inherited);
+            }
+            self.paint_dividers(index, &in_layout_order, inherited);
         }
-        self.paint_dividers(index, &in_layout_order, inherited);
         if let Some(first) = moved_from {
             self.translate_shapes_since(first, translate);
             if lifted.is_some() {
                 self.lift_shapes_since(first);
             }
         }
+    }
+
+    /// Shows the content of the scroll container at `index` in an egui
+    /// `ScrollArea` over its viewport: egui owns the offset, the wheel and
+    /// the bars, and the content, laid out at that offset, is walked inside
+    /// it with the nodes outside the viewport left out.
+    fn scroll_content(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
+        let nodes = self.nodes;
+        let node = &nodes[index];
+        let plan = node.scroll.as_ref().expect("a scroll container has a plan");
+        let id = node.id().expect("a scroll container is identified");
+        let overflows = {
+            let view = boxes.padding.size() - plan.bars.gutter;
+            Vec2b::new(plan.content.x > view.x, plan.content.y > view.y)
+        };
+        let enabled = plan.axis.enabled();
+        let area = egui::ScrollArea::new(Vec2b::new(
+            enabled.x && overflows.x,
+            enabled.y && overflows.y,
+        ))
+        .id_salt(scroll::AREA_SALT)
+        .auto_shrink(false)
+        .content_margin(egui::Margin::ZERO)
+        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
+        let area = match plan.moved {
+            Moved::Yes => area.scroll_offset(plan.offset),
+            Moved::No => area,
+        };
+        let Self {
+            app,
+            ui,
+            ordinals,
+            shared,
+            grid,
+            selection,
+            lift,
+            drag,
+            ..
+        } = self;
+        // The viewport clips the content, whatever egui reserves for its bars.
+        let viewport = node
+            .scroll_viewport()
+            .expect("a scroll container has a plan");
+        let content = Inherited {
+            clip: inherited.clip.intersect(grid.rect(viewport)),
+            culling: Culling::On,
+            scrolled: inherited.scrolled - plan.offset,
+            ..inherited
+        };
+        node_ui(
+            ui,
+            UiBuilder::new()
+                .max_rect(boxes.padding)
+                .scope_id(scroll::area_scope(id)),
+            inherited,
+            None,
+            |ui| {
+                let outer = ui.style().clone();
+                ui.spacing_mut().scroll = plan.bars.egui(&outer.spacing.scroll);
+                plan.bars.paint_in(ui.visuals_mut());
+                area.show_viewport(ui, |ui, _| {
+                    // The bar's colours are for the bar, not for the content.
+                    ui.set_style(outer);
+                    ui.allocate_space(plan.content);
+                    Walk {
+                        app: &mut **app,
+                        ui,
+                        nodes,
+                        ordinals,
+                        shared: &mut **shared,
+                        grid: *grid,
+                        selection: *selection,
+                        lift: *lift,
+                        drag,
+                    }
+                    .visit(index + 1, content);
+                });
+            },
+        );
     }
 
     /// Moves what the subtree painted since `first` to the drag layer, with
@@ -782,6 +921,7 @@ impl<A> Walk<'_, A> {
     fn paint_prim(
         &mut self,
         prim: Prim,
+        index: usize,
         node: &PlacedNode,
         text: &TextStyle,
         boxes: &Boxes,
@@ -807,7 +947,8 @@ impl<A> Walk<'_, A> {
                     TextAlign::Right => content.right_top(),
                 } + vec2(0.0, top);
                 if text.select.selects(inherited.interactive) {
-                    self.select_text(node, galley, anchor, content, text, inherited);
+                    let id = self.selection_id(index, node);
+                    self.select_text(id, galley, anchor, content, text, inherited);
                 } else {
                     self.painter(inherited.clip, inherited.opacity)
                         .galley(anchor, galley, text.color);
@@ -830,14 +971,13 @@ impl<A> Walk<'_, A> {
     /// takes the pointer, so a drag may end in the blank beside the text.
     fn select_text(
         &mut self,
-        node: &PlacedNode,
+        id: Id,
         galley: Arc<Galley>,
         anchor: Pos2,
         content: Rect,
         text: &TextStyle,
         inherited: Inherited,
     ) {
-        let id = self.selection_id(node);
         let selection = self.selection;
         node_ui(
             self.ui,
@@ -866,12 +1006,13 @@ impl<A> Walk<'_, A> {
     }
 
     /// A stable id for the node's selectable text: its key path, and the
-    /// order among anonymous nodes that share one.
-    fn selection_id(&mut self, node: &PlacedNode) -> Id {
-        let path = self.ui.scope_id().with(("select", node.path()));
-        let seen = self.text_seen.entry(path).or_insert(0);
-        *seen += 1;
-        path.with(*seen)
+    /// order among the text nodes that share one. The order counts every
+    /// node of the frame, so culling some of them does not renumber the rest.
+    fn selection_id(&self, index: usize, node: &PlacedNode) -> Id {
+        self.ui
+            .scope_id()
+            .with(("select", node.path()))
+            .with(self.ordinals[index])
     }
 
     fn paint_image(&mut self, image: Image<'static>, content: Rect, inherited: Inherited) {
@@ -942,6 +1083,7 @@ impl<A> Placed<A> {
             pixels_per_point: ui.ctx().pixels_per_point(),
         };
         let root = Inherited {
+            culling: Culling::Off,
             clip: ui.clip_rect(),
             opacity: Opacity::OPAQUE,
             inertness: Inertness::Live,
@@ -951,6 +1093,7 @@ impl<A> Placed<A> {
             backdrop: Color32::TRANSPARENT,
             origin: nodes[0].rect().min,
             shift: Vec2::ZERO,
+            scrolled: Vec2::ZERO,
         };
         let (dragging, finish) = dnd::begin(
             ui.ctx(),
@@ -962,36 +1105,75 @@ impl<A> Placed<A> {
             app,
         );
         let selection = Style::of(ui.ctx()).selection;
-        let animation = LayoutAnimation::begin(ui.ctx(), ui.scope_id(), nodes[0].rect());
+        let mut animation = LayoutAnimation::begin(ui.ctx(), ui.scope_id(), nodes[0].rect());
+        if nodes.iter().any(|node| node.scroll.is_some()) {
+            animation.anticipate(&nodes);
+        }
         let recording = continuity::recording(ui.ctx()).then(Vec::new);
+        let ordinals = text_ordinals(&nodes, &prims);
+        let mut shared = Shared {
+            prims,
+            draws,
+            subtrees: Vec::new(),
+            animation,
+            recording,
+            culled: Vec::new(),
+        };
         let mut walk = Walk {
             app,
             ui,
             nodes: &nodes,
-            prims,
-            draws,
+            ordinals: &ordinals,
+            shared: &mut shared,
             grid,
-            subtrees: Vec::new(),
             selection,
-            text_seen: HashMap::new(),
-            animation,
-            recording,
             lift: dragging.lift,
             drag: &dragging,
         };
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();
         finish.finish(&ctx, &nodes, &mut drag, walk.app);
-        if let Some(frame) = walk.recording.take() {
-            continuity::store(&ctx, frame);
+        if let Some(frame) = shared.recording.take() {
+            let laid_out = nodes
+                .iter()
+                .filter(|node| node.id().is_some())
+                .map(|node| (node.path().to_owned(), node.rect()))
+                .collect();
+            continuity::store(
+                &ctx,
+                RecordedPass {
+                    pass: ctx.cumulative_pass_nr(),
+                    nodes: frame,
+                    laid_out,
+                    culled: std::mem::take(&mut shared.culled),
+                },
+            );
         }
-        focus::store(&ctx, walk.subtrees);
-        walk.animation.finish();
+        focus::store(&ctx, shared.subtrees);
+        shared.animation.finish();
         drop(timer);
         if Debug::of(&ctx) == Debug::Outlines {
             debug::paint(&ctx, &nodes);
         }
     }
+}
+
+/// For each node, how many text nodes with its path come before it: the
+/// order that tells apart the text nodes that share a path.
+fn text_ordinals(nodes: &[PlacedNode], prims: &[Option<Prim>]) -> Vec<u32> {
+    let mut seen: HashMap<&str, u32> = HashMap::new();
+    nodes
+        .iter()
+        .zip(prims)
+        .map(|(node, prim)| match prim {
+            Some(Prim::Text(_)) => {
+                let count = seen.entry(node.path()).or_insert(0);
+                *count += 1;
+                *count
+            }
+            _ => 0,
+        })
+        .collect()
 }
 
 /// Salt of a draw closure's [`Ui`] ids. The `Ui` registers a widget under its

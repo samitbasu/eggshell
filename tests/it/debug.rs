@@ -339,3 +339,107 @@ fn the_readout_does_not_take_part_in_layout_or_hit_testing() {
     run(&mut harness, Debug::Outlines);
     assert_eq!(paths(&harness), off);
 }
+
+mod scrolling {
+    use super::*;
+    use eggshell_ui::scroll::Axis;
+
+    const GUTTER: f32 = 10.0;
+
+    fn scroller(axis: Axis) -> support::View<()> {
+        match axis {
+            Axis::Y => |b, _| scroll_box(b, Axis::Y),
+            Axis::X => |b, _| scroll_box(b, Axis::X),
+            Axis::Both => |b, _| scroll_box(b, Axis::Both),
+        }
+    }
+
+    fn scroll_box(b: &mut Builder<'_, '_, ()>, axis: Axis) {
+        b.scroll("pane", tw().w_px(200.0).h_px(100.0))
+            .axis(axis)
+            .children(|s| s.div(tw().w_px(400.0).h_px(300.0), |_| {}));
+    }
+
+    /// Filled shapes of the overlay's gutter tint, by rect.
+    fn gutters(harness: &Harness<'_, Rig<()>>) -> Vec<Rect> {
+        support::shapes(harness)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                Shape::Rect(r) if r.fill == Debug::GUTTER => Some(r.rect),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn viewport_outlines(harness: &Harness<'_, Rig<()>>) -> Vec<Rect> {
+        support::shapes(harness)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                Shape::Rect(r) if r.stroke.color == Debug::VIEWPORT => Some(r.rect),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_overlay_shows_the_viewport_and_the_gutters_of_scroll_containers() {
+        for axis in [Axis::Y, Axis::X, Axis::Both] {
+            let mut h = rig(scroller(axis));
+            run(&mut h, Debug::Outlines);
+            let pane = support::rect_of(&h, "/\"pane\"");
+            let tint = gutters(&h);
+            let (right, bottom) = (
+                Rect::from_min_max(
+                    Pos2::new(pane.max.x - GUTTER, pane.min.y),
+                    Pos2::new(
+                        pane.max.x,
+                        pane.max.y - if axis == Axis::Both { GUTTER } else { 0.0 },
+                    ),
+                ),
+                Rect::from_min_max(
+                    Pos2::new(pane.min.x, pane.max.y - GUTTER),
+                    Pos2::new(
+                        pane.max.x - if axis == Axis::Both { GUTTER } else { 0.0 },
+                        pane.max.y,
+                    ),
+                ),
+            );
+            let corner = Rect::from_min_max(pane.max - Vec2::splat(GUTTER), pane.max);
+            let expected: Vec<Rect> = match axis {
+                Axis::Y => vec![right],
+                Axis::X => vec![bottom],
+                Axis::Both => vec![right, bottom, corner],
+            };
+            assert_eq!(tint.len(), expected.len(), "{axis:?}: {tint:?}");
+            for want in expected {
+                assert!(
+                    tint.iter().any(|got| support::same(*got, want)),
+                    "{axis:?}: {want:?} in {tint:?}"
+                );
+            }
+            let view = Rect::from_min_size(
+                pane.min,
+                pane.size()
+                    - match axis {
+                        Axis::Y => Vec2::new(GUTTER, 0.0),
+                        Axis::X => Vec2::new(0.0, GUTTER),
+                        Axis::Both => Vec2::splat(GUTTER),
+                    },
+            );
+            assert!(
+                viewport_outlines(&h)
+                    .iter()
+                    .any(|got| support::same(*got, view)),
+                "{axis:?}: the viewport {view:?} is outlined"
+            );
+        }
+    }
+
+    #[test]
+    fn without_the_overlay_nothing_of_it_is_drawn() {
+        let mut h = rig(scroller(Axis::Both));
+        run(&mut h, Debug::Off);
+        assert!(gutters(&h).is_empty());
+        assert!(viewport_outlines(&h).is_empty());
+    }
+}

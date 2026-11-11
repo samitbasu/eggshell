@@ -84,7 +84,7 @@ fn face_layout(h: &H<'_>, key: u32) -> Rect {
 fn layout_order(h: &H<'_>) -> Vec<u32> {
     let mut keys: Vec<(u32, Rect)> = (0..20)
         .filter_map(|key| {
-            support::last_drawn(&h.ctx, &slot_path(key)).map(|n| (key, n.layout_rect))
+            eggshell_ui::testing::laid_out_rect(&h.ctx, &slot_path(key)).map(|r| (key, r))
         })
         .collect();
     keys.sort_by(|a, b| {
@@ -505,23 +505,23 @@ fn scrolling_alone_does_not_slide_panels() {
 #[test]
 fn changing_the_column_count_reflows_with_final_layout_and_a_slide() {
     let mut h = harness(3);
-    let old = rect(&h, 5);
+    let old = rect(&h, 3);
     h.state_mut().app.cols = 2;
     h.step();
-    let now = rect(&h, 5);
+    let now = rect(&h, 3);
     assert!(now.min != old.min && now.width() > old.width());
     assert!(
-        (painted(&h, 5).min
-            - support::last_drawn(&h.ctx, &face_path(5))
+        (painted(&h, 3).min
+            - support::last_drawn(&h.ctx, &face_path(3))
                 .unwrap()
                 .layout_rect
                 .min)
             .length()
             > 3.0,
-        "panel 5 is not yet painted at its final rect"
+        "panel 3 is not yet painted at its final rect"
     );
     h.run_steps(20);
-    assert!((painted(&h, 5).min - face_layout(&h, 5).min).length() < 1.0);
+    assert!((painted(&h, 3).min - face_layout(&h, 3).min).length() < 1.0);
 }
 
 /// The gallery under a toolbar strip, as `main` lays it out.
@@ -705,10 +705,21 @@ fn on_release_the_panel_is_opaque_in_its_slot_with_no_flash() {
         .into_iter()
         .filter(|r| (r.width() - face.width()).abs() < 2.0)
         .collect();
-    assert_eq!(
-        faces.len(),
-        12,
-        "every panel face is painted fully opaque, once"
+    let in_view = (0..12)
+        .filter(|&key| rect(&h, key).intersects(VIEWPORT))
+        .count();
+    assert!(in_view < 12, "precondition: some panels are scrolled out");
+    assert!(
+        faces.len() >= in_view,
+        "every panel face in view is painted fully opaque: {} of {in_view}",
+        faces.len()
+    );
+    assert!(
+        faces
+            .iter()
+            .enumerate()
+            .all(|(i, f)| faces[..i].iter().all(|g| !support::same(*f, *g))),
+        "and once"
     );
     assert!(
         faces.iter().any(|f| f.contains(slot.center())),

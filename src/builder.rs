@@ -12,8 +12,11 @@ use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
-use crate::pipeline::{BuildState, ColorSource, Frame, Interaction, MeasureFn, Node, NodeKind};
+use crate::pipeline::{
+    BuildState, ColorSource, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
+};
 use crate::prim::{Icon, Prim};
+use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::text::{TextStyle, VAlign};
 use crate::tw::{Grouping, Sensing, Tw, tw};
 use crate::widget::Stock;
@@ -230,6 +233,84 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.handle()
     }
 
+    /// A scroll container: see [`scroll`](crate::scroll). Its children are
+    /// scoped under `key`.
+    pub fn scroll<K: Key>(&mut self, key: K, tw: Tw) -> ScrollChain<'_, 'f, A>
+    where
+        A: 'static,
+    {
+        ScrollChain::new(self.reborrow(), key, tw)
+    }
+
+    /// Adds a scroll container's leaf to the current parent, with the root of
+    /// its content, built from `body`, a tree of its own.
+    pub(crate) fn scroll_with(
+        mut self,
+        id: Id,
+        key: &dyn Debug,
+        classes: Tw,
+        options: ScrollOptions,
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) -> NodeHandle<'b, 'f, A> {
+        use taffy::{Display, Overflow, Point};
+        let ScrollOptions { axis, edge, bars } = options;
+        let path = self.identify(id, key);
+        let parts = Parts {
+            id: Some(id),
+            ..Parts::anonymous(NodeKind::Scroll, path)
+        };
+        let mut leaf = self.node(&classes, parts);
+        let mark = self.st.names.push(key);
+        let content_path = self.anonymous_path(NodeKind::ScrollContent);
+        let mut kids = Vec::new();
+        body(&mut Scope(Builder::new(
+            self.st, self.frame, id, &mut kids, &leaf.text,
+        )));
+        self.st.names.pop_to(mark);
+        let mut content_node = self.node(
+            &tw(),
+            Parts::anonymous(NodeKind::ScrollContent, content_path),
+        );
+        content_node.text = leaf.text.clone();
+        let content = self
+            .st
+            .tree
+            .new_with_children(
+                taffy::Style {
+                    display: Display::Block,
+                    padding: classes.style.padding,
+                    ..Default::default()
+                },
+                &kids,
+            )
+            .expect("children were created in this tree");
+        self.st
+            .tree
+            .set_node_context(content, Some(content_node))
+            .expect("node was just created");
+        leaf.scroll = Some(ScrollNode {
+            axis,
+            edge,
+            bars,
+            content,
+            size: egui::Vec2::ZERO,
+        });
+        let mut style = classes.style;
+        style.padding = taffy::Rect::zero();
+        style.overflow = Point {
+            x: Overflow::Scroll,
+            y: Overflow::Scroll,
+        };
+        let id = self
+            .st
+            .tree
+            .new_leaf_with_context(style, leaf)
+            .expect("taffy accepts a new leaf");
+        self.kids.push(id);
+        self.frame.scrolls.push(id);
+        NodeHandle { b: self, node: id }
+    }
+
     /// An identified leaf whose size comes from `measure`.
     ///
     /// `measure` may borrow application data for the frame and is dropped when
@@ -399,6 +480,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
             drag: None,
+            scroll: None,
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,

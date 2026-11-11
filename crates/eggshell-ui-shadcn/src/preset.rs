@@ -455,6 +455,13 @@ impl Shadcn {
             selection.text = Some(t.foreground);
             selection
         };
+        // shadcn's ScrollArea: `w-2.5` bar, `bg-border` `rounded-full` thumb.
+        style.scroll.width = 10.0;
+        style.scroll.thumb = t.border;
+        style.scroll.thumb_hover = t.border;
+        style.scroll.thumb_active = t.border;
+        style.scroll.track = clear;
+        style.scroll.radius = egui::CornerRadius::same(u8::MAX);
         style
     }
 

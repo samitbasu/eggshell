@@ -259,8 +259,20 @@ enum DragAction {
     /// the app's own look change then lasts one frame when the drag ends in
     /// the next, which the checker rightly reports as an opacity blip.
     ToggleImage,
+    /// A wheel event over the middle of the gallery, of `notches` times a
+    /// notch's worth of points (negative scrolls down), then two frames of
+    /// egui smoothing it. Also while a panel is held.
+    Wheel(i32),
+    /// The application scrolls the gallery by `points`, in one frame. Also
+    /// while a panel is held.
+    ScrollBy(i32),
     Idle(usize),
 }
+
+/// How far one wheel notch scrolls, in points.
+const NOTCH: f32 = 40.0;
+/// The most frames a scroll may take to come to rest.
+const SCROLL_SETTLE_LIMIT: usize = 240;
 
 fn drag_action() -> impl Strategy<Value = DragAction> {
     let panel = 0usize..Grid::MOST_PANELS;
@@ -273,6 +285,8 @@ fn drag_action() -> impl Strategy<Value = DragAction> {
         2 => (NARROWEST as u32..=WIDEST as u32).prop_map(DragAction::Resize),
         2 => (1u32..=3).prop_map(DragAction::SetCols),
         1 => Just(DragAction::ToggleImage),
+        4 => (-8i32..=8).prop_map(DragAction::Wheel),
+        2 => (-600i32..=600).prop_map(DragAction::ScrollBy),
         2 => (1usize..=8).prop_map(DragAction::Idle),
     ]
 }
@@ -308,6 +322,28 @@ impl Hand<'_> {
             Pos2::new(self.width, GALLERY_HEIGHT - 8.0 - 20.0),
         );
         visible.contains(rect.center()).then(|| rect.center())
+    }
+
+    /// Steps until the gallery has stopped scrolling: egui eases a wheel
+    /// event in over about half a second, and the session is over when
+    /// the view is.
+    fn settle_scrolling(&mut self) {
+        let Some(page) = support::last_drawn(&self.harness.ctx, "/\"page\"") else {
+            return;
+        };
+        let offset = |hand: &Self| {
+            eggshell_ui::scroll::viewport(&hand.harness.ctx, page.id).map(|v| v.offset())
+        };
+        let mut still = 0;
+        for _ in 0..SCROLL_SETTLE_LIMIT {
+            let before = offset(self);
+            self.harness.step();
+            still = if offset(self) == before { still + 1 } else { 0 };
+            if still == 4 {
+                return;
+            }
+        }
+        panic!("the gallery is still scrolling after {SCROLL_SETTLE_LIMIT} frames");
     }
 
     /// Moves the pointer to `to` the way a hand does: a bounded step a frame.
@@ -378,6 +414,32 @@ impl Hand<'_> {
                 };
                 self.harness.step();
             }
+            DragAction::Wheel(notches) => {
+                let middle = Pos2::new(self.width / 2.0, GALLERY_HEIGHT / 2.0);
+                if !self.down {
+                    self.glide(middle);
+                }
+                self.harness.hover_at(self.at);
+                self.harness.step();
+                self.harness.event(egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: vec2(0.0, notches as f32 * NOTCH),
+                    modifiers: egui::Modifiers::NONE,
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
+                });
+                self.harness.run_steps(2);
+            }
+            DragAction::ScrollBy(points) => {
+                if let Some(page) = support::last_drawn(&self.harness.ctx, "/\"page\"") {
+                    eggshell_ui::scroll::scroll_by(
+                        &self.harness.ctx,
+                        page.id,
+                        vec2(0.0, points as f32),
+                    );
+                }
+                self.harness.step();
+            }
             DragAction::Idle(count) => self.harness.run_steps(count),
             _ => {}
         }
@@ -388,10 +450,10 @@ fn run_drags(actions: &[DragAction]) -> Result<(), TestCaseError> {
     run_drags_ending(actions).map(|_| ())
 }
 
-/// The gallery's panels, in order, after the session.
-fn run_drags_ending(actions: &[DragAction]) -> Result<Vec<u32>, TestCaseError> {
-    // As many panels as the grid fuzz keeps, so that the checker's step for
-    // a resize is the same: a panel moves `panels - 1` times the edge step.
+/// A hand on a fresh gallery with as many panels as the grid fuzz keeps, so
+/// that the checker's step for a resize is the same: a panel moves
+/// `panels - 1` times the edge step per frame as the column resizes.
+fn gallery_hand() -> (Hand<'static>, Session) {
     let mut state = gallery::State::default();
     state.panels.truncate(Grid::MOST_PANELS);
     let mut harness = support::frame_harness(
@@ -401,20 +463,27 @@ fn run_drags_ending(actions: &[DragAction]) -> Result<Vec<u32>, TestCaseError> {
         |ui, app, layout| gallery::window(ui, app, layout, &mut eggshell_ui::LayoutState::new()),
     );
     harness.run_steps(4);
-    let mut session = Session::start(&harness.ctx);
+    let session = Session::start(&harness.ctx);
     harness.step();
-    let mut hand = Hand {
+    let hand = Hand {
         harness,
         at: Pos2::new(GALLERY_WIDTH / 2.0, GALLERY_HEIGHT / 2.0),
         down: false,
         width: GALLERY_WIDTH,
     };
+    (hand, session)
+}
+
+/// The gallery's panels, in order, after the session.
+fn run_drags_ending(actions: &[DragAction]) -> Result<Vec<u32>, TestCaseError> {
+    let (mut hand, mut session) = gallery_hand();
     for action in actions {
         hand.act(action, &mut session);
     }
     if hand.down {
         hand.harness.drop_at(hand.at);
     }
+    hand.settle_scrolling();
     hand.harness.run_steps(IDLE);
     verdict(
         &session
@@ -499,4 +568,38 @@ fn the_fuzzer_finds_a_planted_bug_and_shrinks_it() {
         matches!(minimal[..], [GridAction::SetWidth(700)]),
         "not minimal: {minimal:?}"
     );
+}
+
+/// The scroll actions of the drag fuzzer really scroll the gallery, with a
+/// panel held or not.
+#[test]
+fn the_drag_fuzzer_scrolls_when_the_session_says_so() {
+    let offset = |hand: &Hand<'_>| {
+        let page = support::last_drawn(&hand.harness.ctx, "/\"page\"").expect("drawn");
+        eggshell_ui::scroll::viewport(&hand.harness.ctx, page.id)
+            .expect("laid out")
+            .offset()
+            .y
+    };
+    for actions in [
+        vec![DragAction::Wheel(-6)],
+        vec![DragAction::ScrollBy(300)],
+        vec![
+            DragAction::Lift(0),
+            DragAction::Wheel(-6),
+            DragAction::ReleaseInside,
+        ],
+    ] {
+        let (mut hand, mut session) = gallery_hand();
+        assert_eq!(offset(&hand), 0.0, "precondition: at the top");
+        for action in &actions {
+            hand.act(action, &mut session);
+        }
+        hand.settle_scrolling();
+        assert!(
+            offset(&hand) > 100.0,
+            "{actions:?} scrolled to {}",
+            offset(&hand)
+        );
+    }
 }

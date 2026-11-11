@@ -86,6 +86,12 @@ pub struct NodeFrame {
     /// `painted_rect` the node did not move itself. An ancestor that slides
     /// is judged by its own slide; the nodes inside it follow it.
     pub ancestors: Vec2,
+    /// How far the scroll containers around the node have moved it from where
+    /// an unscrolled layout puts it: minus the sum of their offsets. Layout
+    /// and paint both include it, so it is motion the node did not make: a
+    /// node that slides is not judged on the part of its movement scrolling
+    /// accounts for.
+    pub scrolled: Vec2,
     /// The node's opacity multiplied with its ancestors'.
     pub opacity: Opacity,
     /// Whether the node slides when layout moves it.
@@ -99,6 +105,12 @@ pub struct NodeFrame {
 pub(crate) struct RecordedPass {
     pub(crate) pass: u64,
     pub(crate) nodes: Vec<NodeFrame>,
+    /// The layout rect of every identified node of the pass, whether or not
+    /// it was painted.
+    pub(crate) laid_out: Vec<(String, Rect)>,
+    /// The identified nodes the pass left out because they were outside the
+    /// viewport of a scroll container. Not painting them is not a gap.
+    pub(crate) culled: Vec<Id>,
 }
 
 #[derive(Clone, Default)]
@@ -127,15 +139,32 @@ pub(crate) fn recording(ctx: &Context) -> bool {
 }
 
 /// Adds the nodes one draw pass painted to the history.
-pub(crate) fn store(ctx: &Context, nodes: Vec<NodeFrame>) {
-    let pass = ctx.cumulative_pass_nr();
+pub(crate) fn store(ctx: &Context, recorded: RecordedPass) {
     ctx.data_mut(|data| {
         let history = data.get_temp_mut_or_default::<History>(history_id());
         match history.passes.last_mut() {
-            Some(last) if last.pass == pass => last.nodes.extend(nodes),
-            _ => history.passes.push(RecordedPass { pass, nodes }),
+            Some(last) if last.pass == recorded.pass => {
+                last.nodes.extend(recorded.nodes);
+                last.laid_out.extend(recorded.laid_out);
+                last.culled.extend(recorded.culled);
+            }
+            _ => history.passes.push(recorded),
         }
     });
+}
+
+/// The layout rect of the identified node `path` in the last recorded pass,
+/// whether or not the pass painted it: a node that is scrolled out of a
+/// scroll container's viewport is laid out but not painted.
+pub fn laid_out_rect(ctx: &Context, path: &str) -> Option<Rect> {
+    ctx.data(|data| {
+        let history = data.get_temp::<History>(history_id())?;
+        let last = history.passes.last()?;
+        last.laid_out
+            .iter()
+            .find(|(candidate, _)| candidate == path)
+            .map(|(_, rect)| *rect)
+    })
 }
 
 /// A distance in points.
@@ -309,6 +338,8 @@ impl fmt::Display for Violation {
 #[derive(Clone, Debug)]
 pub struct Timeline {
     frames: Vec<Vec<NodeFrame>>,
+    /// Per frame, the nodes left out as outside a viewport.
+    culled: Vec<HashSet<Id>>,
     max_step: Points,
     slide_tolerance: Points,
     max_opacity_step: Opacity,
@@ -329,11 +360,19 @@ impl Timeline {
                 .map(|history| history.passes)
                 .unwrap_or_default()
         });
-        Self::from_frames(passes.into_iter().map(|pass| pass.nodes).collect())
+        let culled = passes
+            .iter()
+            .map(|pass| pass.culled.iter().copied().collect())
+            .collect();
+        Self {
+            culled,
+            ..Self::from_frames(passes.into_iter().map(|pass| pass.nodes).collect())
+        }
     }
 
     fn from_frames(frames: Vec<Vec<NodeFrame>>) -> Self {
         Self {
+            culled: vec![HashSet::new(); frames.len()],
             frames,
             max_step: Points::new(40.0),
             slide_tolerance: Points::new(4.0),
@@ -441,6 +480,7 @@ impl Timeline {
                 }
                 let carried = carried_by_retarget(prev, now);
                 let moved_by_ancestors = now.ancestors - prev.ancestors;
+                let moved_by_scrolling = now.scrolled - prev.scrolled;
                 let corners = |rect: Rect| [rect.min, rect.max];
                 let jumps = (0..2).any(|c| {
                     let p = corners(now.painted_rect)[c] - corners(prev.painted_rect)[c] - carried;
@@ -448,7 +488,7 @@ impl Timeline {
                     let own_offset_change: Vec2 = p - l - moved_by_ancestors;
                     let jumped = p.length() > step;
                     match now.motion {
-                        Motion::Slides => jumped,
+                        Motion::Slides => (p - moved_by_scrolling).length() > step,
                         Motion::Snaps => jumped && own_offset_change.length() > step,
                     }
                 });
@@ -525,7 +565,8 @@ impl Timeline {
         found
     }
 
-    /// Nodes absent for exactly one frame, and nodes whose opacity differs
+    /// Nodes absent for exactly one frame, unless the frame left them out as
+    /// outside a scroll container's viewport, and nodes whose opacity differs
     /// from both neighbouring frames, which agree with each other, by more
     /// than [`max_opacity_blip`](Self::max_opacity_blip).
     pub fn gaps(&self) -> Vec<Violation> {
@@ -537,6 +578,7 @@ impl Timeline {
             for (id, before) in prev {
                 let Some(after) = next.get(id) else { continue };
                 let kind = match now.get(id) {
+                    None if self.culled[k].contains(id) => continue,
                     None => ViolationKind::Gap,
                     Some(during) => {
                         let (a, d, z) = (
@@ -718,6 +760,7 @@ mod tests {
             layout_rect: rect,
             painted_rect: rect.translate(start * (1.0 - progress)),
             ancestors: Vec2::ZERO,
+            scrolled: Vec2::ZERO,
             opacity: Opacity::new(1.0),
             motion: Motion::Slides,
             slide: Some(Slide {

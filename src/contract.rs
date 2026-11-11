@@ -642,6 +642,52 @@ pub struct Selection {
     pub text: Option<Color32>,
 }
 
+/// The scroll bars of scroll containers.
+///
+/// A container always reserves a gutter `width` wide on the axis it scrolls,
+/// and draws the bar in it when the content overflows. The bar is egui's: it
+/// handles the drag, and is painted with these colours.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ScrollStyle {
+    /// The gutter's width, and the bar's: the width of the vertical bar and
+    /// the height of the horizontal one, in points.
+    pub width: f32,
+    /// The thumb at rest.
+    pub thumb: Color32,
+    /// The thumb under the pointer.
+    pub thumb_hover: Color32,
+    /// The thumb while it is dragged.
+    pub thumb_active: Color32,
+    /// The track behind the thumb.
+    pub track: Color32,
+    /// The corner radius of the thumb and the track.
+    pub radius: egui::CornerRadius,
+    /// The shortest the thumb gets, in points.
+    pub min_thumb_length: f32,
+}
+
+impl ScrollStyle {
+    /// What egui's own scroll bars look like in `egui`.
+    pub fn from_egui(egui: &egui::Style) -> Self {
+        let (scroll, widgets) = (egui.spacing.scroll, &egui.visuals.widgets);
+        Self {
+            width: scroll.bar_width,
+            thumb: widgets.inactive.bg_fill,
+            thumb_hover: widgets.hovered.bg_fill,
+            thumb_active: widgets.active.bg_fill,
+            track: egui.visuals.extreme_bg_color,
+            radius: widgets.inactive.corner_radius,
+            min_thumb_length: scroll.handle_min_length,
+        }
+    }
+
+    /// The gutter's width, never negative.
+    pub(crate) fn gutter(&self) -> f32 {
+        self.width.max(0.0)
+    }
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -675,6 +721,8 @@ pub struct Style {
     pub input: InputStyle,
     /// Selected text.
     pub selection: Selection,
+    /// Scroll containers.
+    pub scroll: ScrollStyle,
 }
 
 #[derive(Clone)]
@@ -1058,6 +1106,7 @@ impl Style {
                 fill: v.selection.bg_fill,
                 text: Some(v.selection.stroke.color),
             },
+            scroll: ScrollStyle::from_egui(egui),
         }
     }
 

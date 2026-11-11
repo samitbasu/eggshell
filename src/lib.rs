@@ -168,6 +168,7 @@ mod measure;
 pub mod owned;
 mod pipeline;
 pub mod prim;
+pub mod scroll;
 mod shadow_corners;
 mod sizing;
 pub mod testing;

@@ -647,7 +647,10 @@ fn targets(nodes: &[PlacedNode], clip: Rect) -> Vec<(usize, Rect)> {
         {
             found.push((index, node.rect().intersect(clip)));
         }
-        let inner = content_clip(clip, inset(node.rect(), node.border), node.overflow);
+        let mut inner = content_clip(clip, inset(node.rect(), node.border), node.overflow);
+        if let Some(viewport) = node.scroll_viewport() {
+            inner = inner.intersect(viewport);
+        }
         let mut children = children_of(nodes, index);
         children.sort_by_key(|&child| nodes[child].z());
         for child in children {
@@ -759,6 +762,13 @@ impl Draw {
             over: None,
             lifted: None,
         }
+    }
+
+    /// Whether the lifted node, or the node painted as its image, is among
+    /// the nodes `within`.
+    pub(crate) fn involves(&self, within: &std::ops::Range<usize>) -> bool {
+        self.lifted.is_some_and(|index| within.contains(&index))
+            || self.lift.is_some_and(|lift| within.contains(&lift.index))
     }
 
     pub(crate) fn stakes(&self, index: usize) -> Stakes {

@@ -11,7 +11,7 @@ mod chat_shell;
 use crate::support;
 
 use chat_shell::sidebar::Link;
-use chat_shell::state::{App, Pane, SessionKey};
+use chat_shell::state::{App, Message, Pane, Session, SessionKey};
 use chat_shell::theme::{Theme, Tok};
 use chat_shell::view::{Part, layout, prepare};
 use support::{Rig, click_node, drag, fill_of, hover_node, hover_over, rect_of};
@@ -40,7 +40,7 @@ fn path(part: Part) -> String {
 }
 
 fn session_path(key: SessionKey) -> String {
-    format!("/Sidebar/{key:?}")
+    format!("/Sidebar/Recents/{key:?}")
 }
 
 fn rect(harness: &Harness<'_, Rig<App>>, part: Part) -> egui::Rect {
@@ -889,5 +889,124 @@ mod grouped_form {
                 assert!(text_rect(&harness, group, label).left() - row.left() <= 12.5);
             }
         }
+    }
+}
+
+mod scrolling {
+    use super::*;
+    use egui::{Event, Modifiers, MouseWheelUnit};
+
+    fn long_app() -> App {
+        let mut app = App::default();
+        for n in 0..24 {
+            app.conversation
+                .push(Message::User(format!("Another question, number {n}.")));
+            app.sessions.push(Session {
+                key: SessionKey(100 + n),
+                title: "An older session",
+                status: None,
+            });
+        }
+        app
+    }
+
+    /// Where the part is in the tree.
+    fn at(part: Part) -> &'static str {
+        match part {
+            Part::TopBar => "/Centre/TopBar",
+            Part::Conversation => "/Centre/Conversation",
+            Part::Composer => "/Centre/Composer",
+            Part::Recents => "/Sidebar/Recents",
+            Part::Account => "/Sidebar/Account",
+            other => unreachable!("{other:?}"),
+        }
+    }
+
+    fn rect(harness: &Harness<'_, Rig<App>>, part: Part) -> egui::Rect {
+        rect_of(harness, at(part))
+    }
+
+    fn offset(harness: &Harness<'_, Rig<App>>, part: Part) -> Vec2 {
+        let id = support::id_of(harness, at(part));
+        eggshell_ui::scroll::viewport(&harness.ctx, id)
+            .expect("laid out")
+            .offset()
+    }
+
+    fn wheel_over(harness: &mut Harness<'_, Rig<App>>, part: Part) {
+        let at = rect(harness, part).center();
+        harness.hover_at(at);
+        harness.step();
+        harness.event(Event::MouseWheel {
+            unit: MouseWheelUnit::Point,
+            delta: vec2(0.0, -300.0),
+            modifiers: Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Unknown,
+        });
+        harness.run_steps(30);
+    }
+
+    #[test]
+    fn the_conversation_and_the_recents_scroll_independently_and_the_rest_stays_put() {
+        let mut harness = harness_with(long_app());
+        harness.run_steps(3);
+        let fixed = [
+            Part::TopBar,
+            Part::Composer,
+            Part::Account,
+            Part::Conversation,
+        ];
+        let at_rest: Vec<egui::Rect> = fixed.iter().map(|&part| rect(&harness, part)).collect();
+        let content = |harness: &Harness<'_, Rig<App>>, part: Part| {
+            rect_of(harness, &format!("{}/<scrollcontent>", at(part))).height()
+        };
+        assert!(
+            content(&harness, Part::Conversation) > rect(&harness, Part::Conversation).height(),
+            "precondition: the conversation overflows"
+        );
+        assert!(
+            content(&harness, Part::Recents) > rect(&harness, Part::Recents).height(),
+            "precondition: the recents overflow"
+        );
+
+        wheel_over(&mut harness, Part::Conversation);
+        assert!(
+            offset(&harness, Part::Conversation).y > 100.0,
+            "the conversation scrolled"
+        );
+        assert_eq!(
+            offset(&harness, Part::Recents),
+            Vec2::ZERO,
+            "the recents did not"
+        );
+
+        wheel_over(&mut harness, Part::Recents);
+        assert!(
+            offset(&harness, Part::Recents).y > 100.0,
+            "the recents scrolled"
+        );
+
+        let now: Vec<egui::Rect> = fixed.iter().map(|&part| rect(&harness, part)).collect();
+        assert_eq!(
+            at_rest, now,
+            "the headers, the composer and the account block stay put"
+        );
+    }
+
+    #[test]
+    fn a_session_scrolled_out_of_the_recents_takes_no_click() {
+        let mut harness = harness_with(long_app());
+        harness.run_steps(3);
+        let last = SessionKey(100 + 23);
+        assert!(
+            rect_of(&harness, &session_path(last)).min.y > rect(&harness, Part::Recents).max.y,
+            "precondition: the last session is below the recents' viewport"
+        );
+        let before = harness.state().app.selected;
+        let below = rect_of(&harness, &session_path(last)).center();
+        support::press_and_release(&mut harness, below);
+        harness.run_steps(2);
+        assert_eq!(harness.state().app.selected, before, "nothing was selected");
     }
 }

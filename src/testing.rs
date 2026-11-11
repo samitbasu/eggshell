@@ -41,7 +41,7 @@ use egui::{Id, Rect, Theme, Vec2};
 
 pub use crate::continuity::{
     Interrupted, Motion, NodeFrame, NodeRef, Points, Slide, SlideId, Timeline, Violation,
-    ViolationKind, record,
+    ViolationKind, laid_out_rect, record,
 };
 use crate::key::{Key, child_id, root_id};
 pub use crate::pipeline::Placed;
