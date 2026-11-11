@@ -795,6 +795,19 @@ fn installing_a_modified_style_changes_the_new_widgets_with_no_code_change() {
 }
 
 #[test]
+fn snapping_reaches_a_range_end_that_is_off_the_step_lattice() {
+    use std::f64::consts::TAU;
+    let range = 0.0..=TAU;
+    let step = Step::new(0.01);
+    assert_eq!(step.snap(TAU, &range), TAU);
+    assert_eq!(step.snap(100.0, &range), TAU);
+    assert_eq!(step.snap(628.1 / 100.0, &range), 628.0 / 100.0);
+    assert_eq!(step.snap(0.0, &range), 0.0);
+    assert_eq!(step.snap(-1.0, &range), 0.0);
+    assert_eq!(step.moved(TAU, -1, &range), 627.0 / 100.0);
+}
+
+#[test]
 fn steps_snap_to_multiples_from_the_start_and_count_their_decimals() {
     let range = 0.0..=1.0;
     let step = Step::new(0.25);

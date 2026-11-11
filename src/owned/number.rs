@@ -32,8 +32,14 @@ impl Step {
         let steps = ((value - low) / self.0).round();
         let snapped = low + steps * self.0;
         let tidy = format!("{snapped:.*}", self.decimals());
-        tidy.parse()
-            .map_or(snapped, |tidy: f64| tidy.clamp(low, high))
+        let on_lattice = tidy
+            .parse()
+            .map_or(snapped, |tidy: f64| tidy.clamp(low, high));
+        if (high - value).abs() < (on_lattice - value).abs() {
+            high
+        } else {
+            on_lattice
+        }
     }
 
     /// `value` moved `steps` steps, kept within `range`.
