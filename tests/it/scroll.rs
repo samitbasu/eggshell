@@ -867,7 +867,7 @@ mod nested {
         heights: (f32, f32),
     }
 
-    /// Whether the containers take Tab stops (and, with them, a focus frame).
+    /// Whether the containers are Tab stops.
     #[derive(Clone, Copy, Debug, PartialEq)]
     enum TabStops {
         Yes,

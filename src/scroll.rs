@@ -205,7 +205,7 @@ fn holds_tab_stop(tree: &taffy::TaffyTree<Node>, nodes: &[taffy::NodeId]) -> boo
 ///   `align-content`, `justify-content`, `justify-items`, and the grid
 ///   templates (rows, columns, areas, line names) and auto tracks and flow;
 /// - **the frame's**, which stay put: size, min/max size, aspect ratio,
-///   margin, border (and the focus frame), background, radius, shadow,
+///   margin, border, background, radius, shadow,
 ///   opacity, and the container's own placement in its parent (`self-*`,
 ///   `grow`, `shrink`, `basis`, position and inset, grid placement).
 ///
