@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::scroll::{self, Axis, Scrollbar};
+use eggshell_ui::scroll::{self, Axis};
 use eggshell_ui::testing::{Timeline, record};
 use eggshell_ui::{Builder, EdgeBand, EdgeScroll, ScrollSpeed, TextSpec, TextStyle, tw};
 use egui::epaint::Shape;
@@ -18,6 +18,8 @@ use crate::support::{self, Rig, rect_of};
 const ROW: f32 = 30.0;
 const HEADER: f32 = 50.0;
 const VIEWPORT_HEIGHT: f32 = 100.0;
+/// The gutter of the shadcn preset's scroll bar.
+const GUTTER: f32 = 10.0;
 const SIZE: Vec2 = vec2(400.0, 400.0);
 /// Frames egui takes to apply a wheel event it smooths.
 const SMOOTHING: usize = 30;
@@ -64,7 +66,7 @@ struct App {
     lead: f32,
     /// A row to scroll into view, asked for in the build that adds it.
     reveal: Option<u32>,
-    bars: Option<Scrollbar>,
+    style: Option<eggshell_ui::contract::ScrollStyle>,
 }
 
 impl Default for App {
@@ -81,7 +83,7 @@ impl Default for App {
             header_clicks: 0,
             lead: 0.0,
             reveal: None,
-            bars: None,
+            style: None,
         }
     }
 }
@@ -125,10 +127,6 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             Edge::Default => list,
             Edge::Off => list.no_edge_scroll(),
             Edge::Custom(edge) => list.edge_scroll(edge),
-        };
-        let list = match app.bars {
-            Some(bars) => list.scrollbar(bars),
-            None => list,
         };
         list.axis(app.axis).children(|s| {
             let strip = if vertical {
@@ -257,7 +255,7 @@ fn the_content_is_as_wide_as_the_viewport_and_as_tall_as_it_needs_on_the_first_f
     h.step();
     let (content, list) = (rect_of(&h, CONTENT), rect_of(&h, LIST));
     assert_eq!(list.size(), vec2(200.0, VIEWPORT_HEIGHT));
-    assert_eq!(content.width(), list.width());
+    assert_eq!(content.width(), list.width() - GUTTER);
     assert_eq!(content.height(), 10.0 * ROW);
     assert!(
         content.height() > list.height(),
@@ -271,8 +269,8 @@ fn the_content_follows_the_viewports_width_in_the_frame_it_changes() {
     h.state_mut().app.width = 120.0;
     h.step();
     assert_eq!(rect_of(&h, LIST).width(), 120.0);
-    assert_eq!(rect_of(&h, CONTENT).width(), 120.0);
-    assert_eq!(rect_of(&h, &row_path(3)).width(), 120.0);
+    assert_eq!(rect_of(&h, CONTENT).width(), 120.0 - GUTTER);
+    assert_eq!(rect_of(&h, &row_path(3)).width(), 120.0 - GUTTER);
 }
 
 #[test]
@@ -303,7 +301,7 @@ fn a_horizontal_container_is_as_tall_as_the_viewport_and_as_wide_as_it_needs() {
         ..App::default()
     });
     let content = rect_of(&h, CONTENT);
-    assert_eq!(content.height(), VIEWPORT_HEIGHT);
+    assert_eq!(content.height(), VIEWPORT_HEIGHT - GUTTER);
     assert_eq!(content.width(), 10.0 * 80.0);
 }
 
@@ -364,17 +362,22 @@ fn padding_scrolls_with_the_content_and_the_border_stays_put() {
         10.0 * ROW + 20.0,
         "the padding is part of the content"
     );
-    assert_eq!(content.width(), 196.0, "the viewport is inside the border");
+    assert_eq!(
+        content.width(),
+        196.0 - GUTTER,
+        "the viewport is inside the border and the gutter"
+    );
 }
 
 #[test]
-fn the_scroll_bar_does_not_narrow_the_content() {
+fn the_bar_appearing_does_not_change_the_content_width() {
     let mut h = harness(10);
+    let first = rect_of(&h, CONTENT).width();
     let at = inside(&h);
     h.hover_at(at);
-    h.run_steps(4);
-    assert_eq!(rect_of(&h, CONTENT).width(), 200.0);
-    assert_eq!(rect_of(&h, &row_path(0)).width(), 200.0);
+    h.run_steps(8);
+    assert_eq!(rect_of(&h, CONTENT).width(), first);
+    assert_eq!(rect_of(&h, &row_path(0)).width(), first);
 }
 
 #[test]
@@ -652,13 +655,17 @@ fn the_content_origin_and_viewport_are_readable() {
     scroll::scroll_by(&h.ctx, list_id(&h), vec2(0.0, 45.0));
     h.step();
     let v = viewport(&h);
-    assert_eq!(v.rect, rect_of(&h, LIST));
+    let list = rect_of(&h, LIST);
+    assert_eq!(
+        v.rect,
+        Rect::from_min_size(list.min, list.size() - vec2(GUTTER, 0.0))
+    );
     assert_eq!(v.content, rect_of(&h, CONTENT));
     assert_eq!(v.content.min, v.rect.min - vec2(0.0, 45.0));
     let row3 = rect_of(&h, &row_path(3));
     assert_eq!(
         v.to_content(row3),
-        Rect::from_min_size(Pos2::new(0.0, 3.0 * ROW), vec2(200.0, ROW))
+        Rect::from_min_size(Pos2::new(0.0, 3.0 * ROW), vec2(200.0 - GUTTER, ROW))
     );
     assert_eq!(v.to_screen(v.to_content(row3)), row3);
 }
@@ -996,51 +1003,41 @@ mod nested {
 
 mod bars {
     use super::*;
+    use eggshell_ui::contract::ScrollStyle;
 
-    /// The gutter a solid bar takes in the default egui style.
-    fn gutter(h: &H<'_>) -> f32 {
-        let mut style = h.ctx.global_style().spacing.scroll;
-        style.floating = false;
-        style.allocated_width()
-    }
-
-    fn always(rows: u32) -> H<'static> {
-        harness_with(App {
-            rows,
-            bars: Some(Scrollbar::Always),
-            ..App::default()
-        })
-    }
-
-    fn bar_shapes(h: &H<'_>) -> usize {
+    fn bar_shapes(h: &H<'_>, color: Option<Color32>) -> usize {
         let list = rect_of(h, LIST);
-        let gutter = gutter(h);
         support::shapes(h)
             .into_iter()
             .filter(|shape| match shape {
                 Shape::Rect(r) => {
-                    r.rect.min.x >= list.max.x - gutter - 0.5
+                    r.rect.min.x >= list.max.x - GUTTER - 0.5
                         && r.rect.max.x <= list.max.x + 0.5
                         && r.rect.height() < list.height()
-                        && r.fill != Color32::TRANSPARENT
-                        && !(0..10).any(|i| r.fill == color(i))
+                        && color.map_or(r.fill != Color32::TRANSPARENT, |c| r.fill == c)
+                        && !(0..10).any(|i| r.fill == color_of_row(i))
                 }
                 _ => false,
             })
             .count()
     }
 
+    fn color_of_row(i: u32) -> Color32 {
+        color(i)
+    }
+
+    fn thumb(h: &H<'_>) -> Color32 {
+        eggshell_ui_shadcn::Shadcn::of(&h.ctx).tokens.border
+    }
+
     #[test]
-    fn always_takes_a_gutter_from_the_content_on_the_first_frame_whether_or_not_it_overflows() {
+    fn the_gutter_is_reserved_on_the_first_frame_whether_or_not_the_content_overflows() {
         for rows in [2, 10] {
-            let h = always(rows);
-            let gutter = gutter(&h);
-            assert!(gutter > 0.0, "precondition: the bar has a width");
-            let content = rect_of(&h, CONTENT).width();
-            assert_eq!(content, 200.0 - gutter, "{rows} rows");
+            let h = harness(rows);
+            assert_eq!(rect_of(&h, CONTENT).width(), 200.0 - GUTTER, "{rows} rows");
             assert_eq!(
                 rect_of(&h, &row_path(0)).width(),
-                200.0 - gutter,
+                200.0 - GUTTER,
                 "{rows} rows"
             );
             assert_eq!(
@@ -1048,38 +1045,34 @@ mod bars {
                 200.0,
                 "the container is as asked"
             );
-            assert_eq!(viewport(&h).rect.width(), 200.0 - gutter);
+            assert_eq!(viewport(&h).rect.width(), 200.0 - GUTTER);
         }
-        let h = always(10);
         assert!(
-            rect_of(&h, CONTENT).height() > VIEWPORT_HEIGHT,
-            "precondition: it overflows"
+            rect_of(&harness(10), CONTENT).height() > VIEWPORT_HEIGHT,
+            "precondition: ten rows overflow"
         );
     }
 
     #[test]
-    fn always_draws_the_bar_in_the_gutter_and_hover_does_not_when_idle() {
-        let mut h = always(10);
-        h.run_steps(3);
-        assert!(bar_shapes(&h) > 0, "a bar is drawn");
-        let mut hover = harness(10);
-        hover.run_steps(3);
-        assert_eq!(bar_shapes(&hover), 0, "an idle hover bar is not");
-    }
-
-    #[test]
-    fn always_keeps_the_layout_when_content_grows_past_the_viewport() {
-        let mut h = always(2);
-        let before = (rect_of(&h, CONTENT).width(), rect_of(&h, &row_path(0)));
+    fn the_bar_is_drawn_only_when_the_content_overflows_and_appears_with_no_layout_change() {
+        let mut h = harness(2);
+        h.run_steps(5);
         assert!(
             rect_of(&h, CONTENT).height() <= VIEWPORT_HEIGHT,
             "precondition: it fits"
         );
+        assert_eq!(bar_shapes(&h, Some(thumb(&h))), 0, "no bar when it fits");
+        let before = (rect_of(&h, CONTENT).width(), rect_of(&h, &row_path(0)));
         h.state_mut().app.rows = 10;
-        h.step();
+        h.run_steps(8);
         assert!(
             rect_of(&h, CONTENT).height() > VIEWPORT_HEIGHT,
             "precondition: it overflows"
+        );
+        assert!(
+            bar_shapes(&h, Some(thumb(&h))) > 0,
+            "the thumb is drawn: {:?}",
+            thumb(&h)
         );
         assert_eq!(
             (rect_of(&h, CONTENT).width(), rect_of(&h, &row_path(0))),
@@ -1089,22 +1082,44 @@ mod bars {
     }
 
     #[test]
+    fn no_bar_is_drawn_over_the_content() {
+        let mut h = harness(10);
+        let at = inside(&h);
+        h.hover_at(at);
+        h.run_steps(5);
+        let list = rect_of(&h, LIST);
+        for i in 0..4 {
+            assert!(
+                rect_of(&h, &row_path(i)).max.x <= list.max.x - GUTTER + 0.5,
+                "the rows end where the gutter starts"
+            );
+        }
+        for shape in support::shapes(&h) {
+            if let Shape::Rect(r) = shape
+                && r.rect.max.x > list.max.x - GUTTER + 0.5
+                && r.rect.min.x < list.max.x - GUTTER - 0.5
+                && r.rect.height() < list.height()
+            {
+                panic!("a shape straddles the gutter's edge: {r:?}");
+            }
+        }
+    }
+
+    #[test]
     fn a_horizontal_container_takes_its_gutter_from_the_height() {
         let h = harness_with(App {
             axis: Axis::X,
-            bars: Some(Scrollbar::Always),
             ..App::default()
         });
-        assert_eq!(rect_of(&h, CONTENT).height(), VIEWPORT_HEIGHT - gutter(&h));
+        assert_eq!(rect_of(&h, CONTENT).height(), VIEWPORT_HEIGHT - GUTTER);
         assert_eq!(rect_of(&h, CONTENT).width(), 10.0 * 80.0);
     }
 
     #[test]
-    fn the_timeline_is_continuous_while_scrolling_with_always() {
+    fn the_timeline_is_continuous_while_scrolling() {
         let mut h = harness_with(App {
             kind: Rows::Animated,
             rows: 20,
-            bars: Some(Scrollbar::Always),
             ..App::default()
         });
         record(&h.ctx);
@@ -1121,44 +1136,63 @@ mod bars {
         Timeline::recorded(&h.ctx).assert_continuous();
     }
 
-    fn always_style(ctx: &egui::Context, _: &App) {
-        let mut style = (*eggshell_ui::Style::of(ctx)).clone();
-        style.scroll.visibility = Scrollbar::Always;
-        style.install(ctx);
+    #[test]
+    fn a_container_style_changes_the_gutter_and_the_thumb() {
+        let own = |h: &H<'_>| {
+            let mut style = eggshell_ui::Style::of(&h.ctx).scroll;
+            style.width = 16.0;
+            style.thumb = Color32::from_rgb(200, 30, 30);
+            style
+        };
+        fn styled(b: &mut Builder<'_, '_, App>, app: &App) {
+            let list = b.scroll("list", tw().w_px(200.0).h_px(100.0));
+            let list = match app.style {
+                Some(style) => list.scrollbar_style(style),
+                None => list,
+            };
+            list.children(|s| {
+                for i in 0..10u32 {
+                    s.div_id(i, tw().h_px(ROW).w_full(), |_| {});
+                }
+            });
+        }
+        let mut h = support::harness(SIZE, base(), App::default(), styled);
+        h.step();
+        let style: ScrollStyle = own(&h);
+        h.state_mut().app.style = Some(style);
+        h.run_steps(8);
+        assert_eq!(
+            rect_of(&h, CONTENT).width(),
+            200.0 - 16.0,
+            "the gutter is the style's"
+        );
+        assert!(
+            bar_shapes_with(&h, 16.0, Color32::from_rgb(200, 30, 30)) > 0,
+            "the thumb has the style's colour"
+        );
+    }
+
+    fn bar_shapes_with(h: &H<'_>, gutter: f32, color: Color32) -> usize {
+        let list = rect_of(h, LIST);
+        support::shapes(h)
+            .into_iter()
+            .filter(|shape| {
+                matches!(shape, Shape::Rect(r) if r.fill == color
+                    && r.rect.min.x >= list.max.x - gutter - 0.5)
+            })
+            .count()
     }
 
     #[test]
-    fn the_default_follows_the_style_and_a_chain_overrides_it() {
-        let make = |bars| {
-            let mut h = support::harness_prepared(
-                SIZE,
-                base(),
-                App {
-                    bars,
-                    ..App::default()
-                },
-                view,
-                always_style,
-            );
-            h.step();
-            h
-        };
-        let h = make(None);
-        assert!(
-            rect_of(&h, CONTENT).width() < 200.0,
-            "an unconfigured container takes the gutter"
-        );
-        let h = make(Some(Scrollbar::Hover));
-        assert_eq!(
-            rect_of(&h, CONTENT).width(),
-            200.0,
-            "an explicit Hover does not"
-        );
-        let h = harness(10);
-        assert_eq!(
-            rect_of(&h, CONTENT).width(),
-            200.0,
-            "the shadcn preset says Hover"
-        );
+    fn the_shadcn_thumb_is_the_border_token_in_both_themes() {
+        for theme in [egui::Theme::Light, egui::Theme::Dark] {
+            let h = harness(10);
+            h.ctx.set_theme(theme);
+            let style = eggshell_ui_shadcn::Shadcn::of(&h.ctx).style().scroll;
+            let tokens = eggshell_ui_shadcn::Tokens::for_theme(theme);
+            assert_eq!(style.thumb, tokens.border, "{theme:?}");
+            assert_eq!(style.width, 10.0);
+            assert_eq!(style.track, Color32::TRANSPARENT);
+        }
     }
 }
