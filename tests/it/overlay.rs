@@ -13,6 +13,13 @@ use egui::{
 use egui_kittest::Harness;
 use proptest::prelude::*;
 
+#[path = "../../examples/common/mod.rs"]
+mod common;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/menu.rs"]
+mod menu;
+
 fn body() -> TextStyle {
     TextStyle::new(
         TextSpec {
@@ -1133,5 +1140,121 @@ mod pointer_anchor {
             pos2(250.0, 200.0),
             "reopened, it is where the pointer is then"
         );
+    }
+}
+
+/// The `menu` example through the full path.
+mod menu_example {
+    use super::*;
+    use crate::support::{self, Rig, click_node, rect_of};
+
+    use super::{common, menu};
+    use menu::{ROW_HEIGHT, ROWS, State};
+
+    const SIZE: Vec2 = vec2(600.0, 400.0);
+
+    fn menu() -> Harness<'static, Rig<State>> {
+        let mut harness = support::harness(
+            SIZE,
+            common::base_text(egui::Theme::Light),
+            State::default(),
+            menu::layout,
+        );
+        harness.run_steps(3);
+        harness
+    }
+
+    fn has(harness: &Harness<'_, Rig<State>>, path: &str) -> bool {
+        harness
+            .state()
+            .nodes
+            .iter()
+            .any(|(candidate, _)| candidate == path)
+    }
+
+    #[test]
+    fn the_popover_opens_under_its_button_and_the_button_closes_it() {
+        let mut harness = menu();
+        assert!(!has(&harness, "/Page/Top/Popover"), "precondition: closed");
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        let button = rect_of(&harness, "/Page/Top/PopoverButton");
+        let popover = rect_of(&harness, "/Page/Top/Popover");
+        assert_eq!(popover.min.x, button.min.x);
+        assert_eq!(popover.min.y, button.max.y + 4.0);
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        assert!(!has(&harness, "/Page/Top/Popover"));
+    }
+
+    #[test]
+    fn choosing_an_item_closes_the_popover_and_reports_it() {
+        let mut harness = menu();
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        click_node(&mut harness, "/Page/Top/Popover/Menu/Item(Copy)");
+        harness.run_steps(3);
+        assert!(!has(&harness, "/Page/Top/Popover"));
+        assert_eq!(harness.state().app.chosen.as_deref(), Some("Copy"));
+    }
+
+    #[test]
+    fn the_submenu_is_nested_beside_the_item_it_opens_from() {
+        let mut harness = menu();
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        assert!(
+            !has(&harness, "/Page/Top/Popover/Menu/Submenu"),
+            "precondition: closed"
+        );
+        click_node(&mut harness, "/Page/Top/Popover/Menu/Item(Arrange)");
+        harness.run_steps(3);
+        let item = rect_of(&harness, "/Page/Top/Popover/Menu/Item(Arrange)");
+        let submenu = rect_of(&harness, "/Page/Top/Popover/Menu/Submenu");
+        assert!(
+            submenu.min.x > item.center().x && submenu.min.x < item.max.x,
+            "beside the item, overlapping its edge: {submenu:?} against {item:?}"
+        );
+        click_node(
+            &mut harness,
+            "/Page/Top/Popover/Menu/Submenu/Menu/Item(Back)",
+        );
+        harness.run_steps(3);
+        assert_eq!(harness.state().app.chosen.as_deref(), Some("Back"));
+        assert!(!has(&harness, "/Page/Top/Popover"));
+    }
+
+    #[test]
+    fn the_tall_list_flips_above_its_button_clamps_to_the_room_and_scrolls() {
+        let mut harness = menu();
+        click_node(&mut harness, "/Page/Bottom/ListButton");
+        harness.run_steps(3);
+        let button = rect_of(&harness, "/Page/Bottom/ListButton");
+        let list = rect_of(&harness, "/Page/Bottom/List");
+        let wanted = ROWS as f32 * ROW_HEIGHT;
+        assert!(
+            wanted > SIZE.y,
+            "precondition: the list wants more than the window"
+        );
+        assert!(list.max.y <= button.min.y, "above the button: {list:?}");
+        assert!(
+            list.height() < wanted && list.min.y >= 0.0,
+            "clamped into the room: {list:?}"
+        );
+        assert!(
+            list.width() >= button.width(),
+            "at least as wide as the button"
+        );
+        let content = rect_of(&harness, "/Page/Bottom/List/Menu/Rows/<scrollcontent>");
+        assert_eq!(
+            content.height(),
+            wanted,
+            "all the rows are in the scroll content"
+        );
+
+        click_node(&mut harness, "/Page/Bottom/List/Menu/Rows/Row(2)");
+        harness.run_steps(3);
+        assert_eq!(harness.state().app.chosen.as_deref(), Some("option 2"));
+        assert!(!has(&harness, "/Page/Bottom/List"));
     }
 }
