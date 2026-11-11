@@ -631,13 +631,6 @@ fn a_click_in_a_container_shows_no_ring_only_the_keyboard_does() {
 
 const FRAME: &str = "/\"list\"";
 
-fn framed(focusable: Focusable) -> H {
-    harness_with(App {
-        focusable,
-        ..App::new(Content::Buttons)
-    })
-}
-
 fn focus_style(h: &H) -> eggshell_ui::contract::Focus {
     eggshell_ui::contract::Style::of(&h.ctx).focus
 }
@@ -665,7 +658,6 @@ fn ring_shapes(h: &H, rect: Rect) -> Vec<(usize, Rect, RectShape)> {
             }
             _ => None,
         })
-        .map(|(at, clip, r)| (at, clip, r))
         .collect()
 }
 
