@@ -1,24 +1,24 @@
 # Overlays (M6): design note
 
-**Status:** proposal for approval. Nothing here is built. Two prototype test files back the claims that needed evidence (`tests/it/overlay_egui_evidence.rs`, `tests/it/overlay_placement_prototype.rs`); both are marked as prototypes and are replaced by real tests in the build PRs. Questions only the user can decide are collected in **User decisions** at the end.
+**Status:** approved design for M6 (decisions recorded at the end). Nothing here is built yet. Two prototype test files back the claims that needed evidence (`tests/it/overlay_egui_evidence.rs`, `tests/it/overlay_placement_prototype.rs`); both are marked as prototypes and are replaced by real tests in the build PRs.
 
 Inputs: plan issue #1 (Container API, M6), D18, D19, D22 and §6 and §11 of `design.md`, #21, #35, #85, #40, `dnd.md`, and the code as of origin/main 855eb20 (M5 scroll is built; the owned `Select` uses egui's popup; tooltips use egui's).
 
 ## 0. Summary
 
-| # | Question | Recommendation |
+| # | Question | Design |
 |---|---|---|
 | 1 | Tree model | An overlay is a **separate root in the same tree, solved and drawn in the same frame**, like scroll content. One `Placed`. Drag and drop across overlays needs nothing; #85 stays open only for apps that use several `Placed`, and is not an M6 dependency. |
-| 2 | Stacking | `Band` maps to `egui::Order`; **stacking inside a band is opening order**, with nested overlays always above their parent. **D18's "build order via `move_to_top` every frame" does not work** (finding F1) and is replaced. |
+| 2 | Stacking | `Band` maps to `egui::Order`; **stacking inside a band is opening order**, with nested overlays always above their parent. **D18's "build order via `move_to_top` every frame" does not work** (finding F1) and is replaced by a **repair step**: each frame the library flags exactly the overlays whose place in egui's order is wrong, which converges. |
 | 3 | Placement | One pure function, `place(anchor, size, &Placement, bounds) -> Placed`, flipping to the opposite side, shifting on the cross axis, reporting the room left (for scrolling a tall list). Prototyped with 12 tests. |
 | 4 | Dismissal | Judged **at the press**, top-down through the stack, stops at the first overlay that contains the press (its descendants and its anchor count as inside). Esc goes to the topmost dismissible overlay. Nothing is judged while a drag is live. |
 | 5 | Focus | Three modes, `Enter`, `Stay`, `None`. Esc blurs focus inside egui (F4), so the library restores focus to the trigger on close. |
 | 6 | Modals | Eggshell's own scrim (a full-screen root that senses clicks), plus `Memory::set_modal_layer` for the Tab trap. **Not `egui::Modal`.** Scroll lock is free (F5). |
-| 7 | Sheets, #35 | An edge-anchored overlay. Exit motion by a small `Presence` helper that keeps the overlay mounted during its exit. **M6 does not need ghosts**; #35 stays independent. |
+| 7 | Sheets, #35 | An edge-anchored overlay. Enter and exit motion is part of the overlay chain (`.shown`, `.transition`, `.entrance`, `.on_exited`); the library keeps the overlay present during its exit. **M6 does not need ghosts**; #35 stays independent. |
 | 8 | Scroll | Anchored overlays follow their anchor with no lag (same frame), hide when the anchor is clipped away, and do not close on scroll. Point and pointer anchors stay in screen space. |
 | 9 | Drag and drop | One resolver for "which root is under the pointer"; drop targets inside overlays work; the drag image stays on top. |
-| 10 | Migrations | Move the owned `Select` onto overlays in M6. Move tooltips too, last, if the user wants the shadcn tooltip look. |
-| 11 | Look | New style-contract entries `popover`, `menu`, `dialog`, `sheet`, `tooltip`, `scrim`. Every aesthetic value is the user's to pick. |
+| 10 | Migrations | Move the owned `Select` onto overlays in M6. Tooltips move too, last, with the shadcn look. Stock widgets own their open state. |
+| 11 | Look | New style-contract entries `popover`, `menu`, `dialog`, `sheet`, `tooltip`, `scrim`. The entries exist now; every aesthetic value is the user's to pick, from rendered candidates, in the PR that introduces it. |
 | 12 | Testing | `Placed` exposes overlays; continuity gains two invariants; the fuzzer gets an `OverlayAction` session. |
 | 13 | API | Section 13. |
 | 14 | Build order | Section 14: 7 PRs. |
@@ -27,8 +27,8 @@ Inputs: plan issue #1 (Container API, M6), D18, D19, D22 and §6 and §11 of `de
 
 | | Finding | Evidence |
 |---|---|---|
-| F1 | `ctx.move_to_top(layer)` only sets a flag. At the end of the frame egui does a **stable sort by `(order, flagged)`**. Flagging every overlay every frame lifts them above other layers of the same `Order`, but cannot reorder them among themselves: they keep the order they were first shown in. Swapping the declaration order does not restack. | `flagging_every_frame_in_a_new_declaration_order_does_not_restack`; egui's own comment on `wants_to_be_on_top` ("they will keep their relative order") |
-| F2 | The flag still has to be set every frame: an `Area` raises itself on a press, which would put a parent above its open submenu. | `a_press_on_a_parent_raises_it_over_its_submenu_unless_all_are_flagged` |
+| F1 | `ctx.move_to_top(layer)` only sets a flag. At the end of the frame egui does a **stable sort by `(order, flagged)`**. Flagging every overlay every frame lifts them above other layers of the same `Order`, but cannot reorder them among themselves: they keep the order they were first shown in. Swapping the declaration order does not restack. egui also never forgets a layer's rank (`Areas::end_pass` sorts and does not prune), so a reopened layer keeps its stale place. | `flagging_every_frame_in_a_new_declaration_order_does_not_restack`; egui's own comment on `wants_to_be_on_top` ("they will keep their relative order") |
+| F2 | An `Area` raises itself on a press, which would put a parent above its open submenu unless the layers above it are flagged too. | `a_press_on_a_parent_raises_it_over_its_submenu_unless_all_are_flagged` |
 | F3 | `Memory::set_modal_layer` traps **focus** (Tab no longer reaches layers below) but does **not** block the pointer. `egui::Modal` blocks the pointer with a full-screen click-and-drag widget in its layer; without it clicks pass through. The same applies to any overlay panel: a non-sensing box registers no widget, so the pointer falls through it to the page. Every overlay root needs a blocker. | `a_modal_layer_blocks_layers_below_it_and_not_those_above` |
 | F4 | A focused widget loses focus on Esc **inside egui, at the start of the pass**, before any library code runs. | `escape_blurs_the_focused_widget_before_any_overlay_code_runs` |
 | F5 | A screen-sized layer with a blocker widget also takes the wheel from the page below. Scroll lock needs no code. (`rect_contains_pointer` requires `layer_id_at(pos) == layer`.) | `a_screen_sized_modal_layer_takes_the_wheel_from_the_page` |
@@ -56,7 +56,7 @@ What a separate `Placed` would cost: the host builds, lays out and draws each ov
 
 | Concern | In the same-tree model |
 |---|---|
-| **#85** | Not needed for overlays. It remains for apps that lay out *panels* as separate `Placed` (unchanged by M6). The dnd resolver is lifted from "walk the root" to "walk every root, in stack order, with blockers" (section 9); that is the same-`Placed` generalisation and does not need the context-wide design. Recommend: re-title #85 "across separate `Placed`" and drop the M6 label. |
+| **#85** | Not needed for overlays. It remains for apps that lay out *panels* as separate `Placed` (unchanged by M6). The dnd resolver is lifted from "walk the root" to "walk every root, in stack order, with blockers" (section 9); that is the same-`Placed` generalisation and does not need the context-wide design. #85 is re-titled "across separate `Placed`" and drops the M6 label. |
 | **Hit-testing** | Registration order is egui's hit order inside a layer, and each overlay is its own layer (F8). Each overlay root registers a **blocker** widget first (F3), so the pointer cannot reach the page through a panel. The same "which root is under the pointer" function serves dismissal, drop targets and hover (section 4, section 9). |
 | **Culling** | Overlays are not clipped by the base tree's `overflow`, nor culled by the scroll viewports the anchor sits in (that is the point of an overlay). The overlay's clip is the screen. An overlay's own scroll containers cull as today. |
 | **Keyboard focus** | Tab order is egui's registration order: base, then overlays in stack order, so Tab walks past the base into the overlays. A modal narrows this with `set_modal_layer` (section 6). Nodes inside overlays get `UiBuilder::id(path)` as everywhere, so ids do not depend on the layer; `focus::focus_within` works for an overlay subtree unchanged. |
@@ -69,7 +69,7 @@ What a separate `Placed` would cost: the host builds, lays out and draws each ov
 - Layout order: base, then its scroll contents (existing), then each overlay in slot order: solve at MaxContent, resolve the anchor from nodes collected so far, `place`, solve again with a clamped size if the natural size exceeds the room (section 3), solve its scroll contents, collect.
 - Draw: the `Walk` is run once per root; each overlay inside its own `egui::Area` (id from the overlay's path, tight rect via `ui.allocate_rect`) so it is its own layer.
 
-**Recommendation.** Same tree, separate root, one `Placed`. Re-scope #85 to separate `Placed` only.
+**Design.** Same tree, separate root, one `Placed`. #85 is re-scoped to separate `Placed` only.
 
 ## 2. Layers and stacking
 
@@ -81,23 +81,39 @@ What a separate `Placed` would cost: the host builds, lays out and draws each ov
 | `Popup` (default) | `Foreground` | Popovers, menus, selects, dialogs and their scrims. |
 | `Tooltip` | `Tooltip` | Tooltips; hover cards. Never sensing. |
 
-The drag image stays on `Order::Tooltip` (`draw.rs`, `Id::NULL.with("eggshell-drag-layer")`). It is above every `Floating` and `Popup` overlay and shares the order with `Tooltip` overlays, so the library flags it last each frame. Hover-intent tooltips are not opened while a drag is live (the library decides; nothing relies on egui doing so), so the image never competes with one.
+The drag image stays on `Order::Tooltip` (`draw.rs`, `Id::NULL.with("eggshell-drag-layer")`). It is above every `Floating` and `Popup` overlay and shares the order with `Tooltip` overlays, so the library flags it last each frame (it is not an overlay and is outside the repair step). Hover-intent tooltips are not opened while a drag is live (the library decides; nothing relies on egui doing so), so the image never competes with one.
 
-**Stacking inside a band (corrects D18).** D18 says "stacking = band, then build order; the driver calls `move_to_top` every frame". F1 shows the second half does not produce the first: egui sorts stably on `(order, flag)`, so the final order inside a band is the order in which the layers were *first shown*. Reopening keeps the previous rank (egui documents this).
+**Stacking inside a band (corrects D18).** D18 says "stacking = band, then build order; the driver calls `move_to_top` every frame". F1 shows the second half does not produce the first: egui sorts stably on `(order, flag)`, so the final order inside a band is the order in which the layers were *first shown*. egui never forgets a layer (`Areas::end_pass` is a stable `sort_by_key((order, wants_to_be_on_top))` with no pruning), so a *reopened* overlay keeps its stale rank.
 
-What is actually guaranteed, and enough:
+What is guaranteed:
 
-1. **Band, then opening order.** A newly opened overlay is above every overlay already open in its band.
-2. **Nested overlays are always above their parent** (D19, "submenus above parents"). A nested overlay is declared inside its parent's body, so it can only exist while the parent does, and so it was first shown after (or in the same frame as) the parent. In the same frame egui keeps the order the layers were first created in, which is declaration order for new layers. A parent that closes and reopens takes its children down and up with it, so the pair never reverses.
-3. Every overlay is flagged every frame (F2), so a press cannot raise a parent over its submenu, and overlays stay above any plain egui `Area` the host shows in the same order.
+1. **Band, then opening order.** A newly opened overlay is above every overlay already open in its band, including one reopened after an earlier life.
+2. **Nested overlays are always above their parent** (D19, "submenus above parents"). A nested overlay is declared inside its parent's body, so it exists only while the parent does and opens after (or in the same frame as) it.
 
-What is **not** guaranteed: two *unrelated* overlays opened in an order that differs from their declaration order. The app opens them, so the app controls opening order; there is no use case for restacking an open overlay.
+Example of why egui's order alone is not enough: a Settings dialog is opened once and closed. Later a Folder picker modal opens, and from it Settings is reopened as a sibling declaration. egui still ranks Settings below the picker, so it would come back under the picker's scrim.
 
-An explicit `.raise()` (re-open the layer id) is not offered. If a use appears (a dialog opened from a popover must be above it; it is, because it opens later) revisit with a repair loop (flag one layer per frame in declared order), which is possible but not needed.
+**The repair step.** The library keeps its own stack `D`: the open overlays in opening order (overlays opened in the same frame in declaration order; a nested overlay always after its parent). Each frame, after drawing:
+
+1. Let `E` be egui's current order restricted to the band. Let `k` be the length of the longest prefix of `D` that appears in `E` in the same relative order.
+2. On a press on the overlay at stack index `j` (presses are judged by the library, section 4), use `k = min(k, j)`. egui flags a pressed `Area` itself (F2); flagging everything above it too keeps their order.
+3. Flag (`ctx.move_to_top`) exactly `D[k..]`.
+
+egui's stable partition puts the unflagged `D[0..k]` (already correct) below the flagged `D[k..]` (in `E`'s relative order). `D[k]` ends above all of `D[0..k]`, so the correct prefix grows by at least one per frame: the repair never oscillates and converges in at most as many frames as there are misplaced layers. The realistic cases converge in one frame:
+
+- a new overlay: no flags, egui appends it;
+- one reopened overlay: flag just it;
+- a press on a parent with an open submenu: flag the parent and the submenu;
+- two stale overlays reopened in reverse order: flag just the upper.
+
+Only three or more stale overlays reopened in the same frame in reverse order take two or more frames.
+
+egui sorts the order in `Context::end_pass` (`memory.end_pass`) before painting (`graphics.drain(order)`), so the repair is visible in the frame it runs. Hit-testing in that frame used the previous order; that is harmless, since the user cannot click a layer they have not seen.
+
+There is no `.raise()` in the API: restacking an already-open unrelated overlay is not a use case. The repair step is the mechanism, and overlays stay above any plain egui `Area` the host shows in the same order because they are flagged when misplaced and appended when new.
 
 **Modals.** A modal is a `Popup`-band overlay whose root is the scrim. Opening order puts it above what is open. A popover opened from inside a dialog (a select in a form) is nested in the dialog's body, so it is above it and, being above the modal layer, interactive (verified in `a_modal_layer_blocks_layers_below_it_and_not_those_above`).
 
-**Recommendation.** Keep `Band { Floating, Popup, Tooltip }`; amend D18 to "band, then opening order; nested above parent; all flagged every frame". Add the F1 test to the build PR so a future egui that changes this is noticed.
+**Design.** `Band { Floating, Popup, Tooltip }`; D18 is amended to "band, then opening order; nested above parent; a repair step flags what is misplaced". The build PR carries the F1 test so a future egui that changes this is noticed, plus the F2, reopen-as-sibling, press-on-parent and convergence tests (section 14).
 
 ## 3. Placement
 
@@ -170,7 +186,7 @@ Rules (each pinned by a test):
 
 **Test matrix** (the 12 prototype tests, plus the edge variant): every side x alignment with room; gap and shift incl. negative; flip only when needed; neither fits (roomier side, `available`); cross shift in both directions; margin counts against room; overlay larger than bounds; point anchor in the corner; detached anchor; mirror/transpose symmetry (reflection in y maps Bottom to Top, reflection in x swaps Start and End: one table covers what 12 hand cases would); a result is always inside the bounds that can hold it (a sweep of anchors x sides x aligns); flip stability under clamping.
 
-**Recommendation.** Adopt the `Anchor`, `Placement` and `place` above. Bounds are the screen by default; `.boundary(Rect)` is deferred until needed (a region-scoped popover can pass `Anchor::Rect` and a clamp rect later).
+**Design.** `Anchor`, `Placement` and `place` as above. Bounds are the screen by default; `.boundary(Rect)` is deferred until needed (a region-scoped popover can pass `Anchor::Rect` and a clamp rect later).
 
 ## 4. Dismissal (D22, encoded once)
 
@@ -195,7 +211,7 @@ fn dismissals(stack: &[OverlayState], input: &FrameInput) -> Vec<usize>   // ove
 
 **Order of effects in a frame.** Draw runs first (so a click on an item inside runs its handler), dismissal runs second, from the same frame's input. If the same press activates an item and is judged "inside", nothing dismisses; if an item handler closed its own overlay, the dismissal list simply no longer contains it next frame.
 
-**Recommendation.** Adopt rules 1 to 8 as one function with a unit-test matrix (stack shapes x press positions x Esc x drag live). `on_dismiss` stays `FnOnce(&mut A)`, as in D22.
+**Design.** Rules 1 to 8 as one function with a unit-test matrix (stack shapes x press positions x Esc x drag live). `on_dismiss` stays `FnOnce(&mut A)`, as in D22.
 
 ## 5. Focus and keyboard
 
@@ -227,11 +243,11 @@ pub enum Focus {
 | `Listbox` | listbox | Same keys, but focus `Stay`s and the highlight is a virtual active item: the library keeps the active index in the overlay's temp data and applies the item's `highlighted` look. Enter/Space activate the active item. |
 | `None` | | The content handles its own keys. |
 
-Items are nodes with an item role (`MenuItem`, `MenuItemCheckbox`, `MenuItemRadio`, `ListBoxOption`); the library collects them from the overlay's subtree in paint order. The existing `Select` already implements the `Listbox` behaviour by hand (`List::show`, `hold_keys`, `step`, `edge`); that code moves into the library and is deleted from `select.rs`. Right (or Enter, or hover intent) on an item that owns a submenu is the **item's** concern (`s.menu_item(..).submenu(..)` in the stock widgets), because only it knows its submenu's open state on `App`.
+Items are nodes with an item role (`MenuItem`, `MenuItemCheckbox`, `MenuItemRadio`, `ListBoxOption`); the library collects them from the overlay's subtree in paint order. The existing `Select` already implements the `Listbox` behaviour by hand (`List::show`, `hold_keys`, `step`, `edge`); that code moves into the library and is deleted from `select.rs`. Right (or Enter, or a click) on an item that owns a submenu is the **item's** concern (`s.menu_item(..).submenu(..)` in the stock widgets), because only it knows its submenu's open state on `App`.
 
 **Accesskit.** Roles come from the overlay: `.role(Role::Dialog | Menu | ListBox | Tooltip)`, set with `named(..)` (F9). A modal root additionally sets accesskit's modal flag (`aria-modal`). The trigger gets `expanded` and `has_popup`, as `Select` already sets `expanded`. Item roles are as above. Tooltips are described to the trigger (`aria-describedby`) rather than focused. All of this is what egui already sends for widgets; there is no accessibility work beyond roles and flags.
 
-**Recommendation.** Adopt `Focus` and `Nav` as above. Typeahead and the submenu "safe triangle" (keeping a hover-opened submenu open while the pointer crosses to it) are post-0.1; v0.1 submenus open on click/Enter/Right and on hover after a short delay, and close when a sibling item is hovered with motion (the `moved` rule `Select` uses).
+**Design.** `Focus` and `Nav` as above. v0.1 submenus open on click, Enter and Right only. Typeahead, hover-open and the submenu "safe triangle" (keeping a hover-opened submenu open while the pointer crosses to it) are post-0.1.
 
 ## 6. Modals
 
@@ -254,7 +270,7 @@ What we keep from it, as the two things it actually does:
 - `Focus::Enter` by default; initial focus can be a named node (`Focus::initial("cancel")`); focus returns to the opener on close.
 - Stacked modals: opening order decides (section 2); `set_modal_layer` keeps the topmost, and the lower dialog is inert under the upper scrim.
 
-**Recommendation.** Own scrim, built from the two egui mechanisms above. `Modal` is a presentation of the overlay, not a second type.
+**Design.** Own scrim, built from the two egui mechanisms above. `Modal` is a presentation of the overlay, not a second type.
 
 ## 7. Sheets, drawers, slide-in sidebars (#21) and #35
 
@@ -262,33 +278,49 @@ What we keep from it, as the two things it actually does:
 
 - **Sheet (modal):** `s.overlay("settings").modal(Modal::Edge(Side::Right))`, the box sized by its classes (`w_px(380.0)`, `h_full()`).
 - **Sheet (non-modal):** `s.overlay("panel").anchor(Anchor::Screen).placement(Placement::edge(Side::Right))`, in `Band::Floating`, no scrim, the page stays usable.
-- **Drawer** (draggable bottom sheet, vaul): the same with `Side::Bottom` plus the app's drag handle (`sense_drag` and a paint-only translate that follows the pointer, #21 part 2). Library-side needs nothing beyond `Presence` and the existing translate; a springing helper can come later. Defer to the #21 PR; it is not an M6 requirement.
+- **Drawer** (draggable bottom sheet, vaul): the same with `Side::Bottom` plus the app's drag handle (`sense_drag` and a paint-only translate that follows the pointer, #21 part 2). Library-side needs nothing beyond the chain's presence methods and the existing translate; a springing helper can come later. Defer to the #21 PR; it is not an M6 requirement.
 - **Pushing sidebar:** a layout pattern, not an overlay. As #21 says: animate the width at build, clip, an example. No M6 machinery.
 
-**Enter and exit motion, and #35.** Overlays are *real nodes of the app's tree* while they exist. So their exit can be done by the app keeping them mounted, which is the mechanism #21 proposes and #35 notes as an alternative to ghosts. Library help is one small, pure-ish type:
+**Enter and exit motion, and #35.** Overlays are *real nodes of the app's tree* while they exist, so the library can keep one present during its exit. The presence mechanism lives on the overlay chain, and the overlay is always declared:
 
 ```rust
-pub enum Shown { Open, Closed }
-
-/// Phase and eased progress of an open/close animation, driven from egui's animation clock.
-pub struct Presence { /* phase: Closed | Entering | Open | Exiting; progress: Progress */ }
-impl Presence {
-    pub fn drive(ctx: &Context, key: impl Key, shown: Shown, duration: Duration, ease: Ease) -> Self;
-    pub fn mounted(&self) -> bool;     // anything but Closed: declare the overlay
-}
-// on the overlay:
-.presence(presence, Entrance::Slide(Side::Right))   // or Fade, Zoom, SlideFade
+// App: settings: Shown   (pub enum Shown { Open, Closed })
+s.overlay("settings")
+    .modal(Modal::Edge(Side::Right))
+    .shown(self.settings)                          // required
+    .transition(Duration::from_millis(200))        // optional; absent = appears/vanishes at once
+    .ease_out()                                    // optional; the Tailwind default curve otherwise (the existing Tw `Easing`)
+    .entrance(Entrance::Slide(Side::Right))        // Fade | Zoom | Slide(Side) | SlideFade(Side); default from the style contract
+    .role(Role::Dialog).named("Settings")
+    .on_dismiss(|app| app.settings = Shown::Closed)
+    .children(|s| sheet_box(s, |s| { /* w_px(380.0).h_full() */ }));
 ```
 
-- `drive` uses `ctx.animate_value_with_time` (the clock the pushing-sidebar pattern already uses), so it requests repaints only while moving and is idle otherwise.
-- `.presence()` makes the library (a) fade the scrim by `progress`, (b) translate the content box by `(1 - progress) x its own size` toward the edge, **resolved at draw time** from the node's final rect (the same trick as `paint_centered_at`, since the size is unknown at build), both paint-only (layout is final from the first frame), and (c) make the overlay `inert` while `Exiting`, so a closing dialog takes no input, but it **keeps blocking the page** until it is gone. Re-opening during the exit just flips `shown` and the progress reverses from where it is; no special case, and never both a ghost and a live node.
-- The app declares the overlay while `presence.mounted()`, and `on_dismiss` sets its `shown` to `Closed`.
+- The library owns the phase (`Closed | Entering | Open | Exiting`) under the overlay id. Progress is `src/transition.rs`'s retargetable eased `Progress` (`transition::animate`), so there is no second animation clock; it requests repaints only while moving and is idle otherwise. Reopening mid-exit reverses from the current progress: never both a ghost and a live node.
+- `children` is not called while the overlay is fully `Closed`.
+- **Exiting:** the overlay is inert (a closing dialog takes no input) but still blocks the page until it is gone. The scrim fades with progress. The box translates by `(1 - progress) x its own size` toward the edge, **resolved at draw time** from the node's final rect (the same trick as `paint_centered_at`, since the size is unknown at build). Entrance is paint-only: layout is final from the first frame.
+- `.on_exited(|app| ..)` fires once when `Exiting` reaches `Closed`. It clears a payload the content needs during the exit. Example, a confirm dialog:
 
-**Do we need ghosts (#35) for M6?** No. Ghosts exist for nodes that *vanish because their data did* (todo's Remove): there is no state left to keep them mounted from. An overlay's existence is an app flag, so the app can hold it. Ghosts are also the wrong tool for modals: a ghost takes no input, so the page would be clickable through a fading scrim, whereas a mounted-but-inert exiting overlay keeps blocking.
+```rust
+// App: confirm: Shown, confirm_target: Option<ItemId>
+s.overlay("confirm")
+    .modal(Modal::Center)
+    .shown(self.confirm)
+    .transition(Duration::from_millis(150))
+    .role(Role::Dialog).named("Delete item")
+    .on_dismiss(|app| app.confirm = Shown::Closed)
+    .on_exited(|app| app.confirm_target = None)
+    .children(|s| {
+        // reads self.confirm_target: still set while the dialog fades out
+    });
+```
 
-Cost of not using ghosts: the app (or a stock widget) carries a `Shown` and calls `drive`. That is one line per overlay and is how the pushing sidebar already works. If #35 lands later, nothing here changes; ghosts can additionally serve overlays that the app removes abruptly.
+  The dialog's closing click sets `confirm` to `Closed` and leaves `confirm_target` alone, so the content still has its data for the exit. This boundary is why ghosts (#35) remain for data that is already gone; M6 does not depend on #35.
+- Stock widgets carry this internally, with an entrance from the preset.
 
-**Recommendation.** Build `Presence` with the sheet PR (small, and used by both sheet and dialog). Decouple M6 from #35: say so on #35. The "enter" side needs no machinery beyond the same helper. Motion choice, duration and easing are the user's (section 11).
+**Do we need ghosts (#35) for M6?** No. Ghosts exist for nodes that *vanish because their data did* (todo's Remove): there is no state left to keep them mounted from. An overlay's existence is an app flag, so the library can hold it. Ghosts are also the wrong tool for modals: a ghost takes no input, so the page would be clickable through a fading scrim, whereas an exiting overlay keeps blocking. If #35 lands later, nothing here changes; ghosts can additionally serve overlays that the app removes abruptly.
+
+**Design.** Presence on the chain, built with the sheet PR (small, and used by both sheet and dialog). M6 is decoupled from #35; this is stated on #35. The "enter" side needs no machinery beyond the same phase. Motion choice, duration and easing are the user's (section 11).
 
 ## 8. Scroll interplay
 
@@ -301,7 +333,7 @@ Cost of not using ghosts: the app (or a stock widget) carries a `Shown` and call
 
 **Overlays containing scroll containers.** Supported by construction: the overlay's scroll leaves are solved after the overlay is placed (section 1). A tall list: pass 1 at MaxContent, `place` reports `available`, pass 2 clamps the overlay root's max height to it; the list's scroll container (`grow`, `min_h_0`) takes the clamped height and scrolls. The wheel goes to the overlay under the pointer (its layer rect is tight, F8) and, at the list's end, does *not* chain to the page (the page is another layer), matching native popups.
 
-**Recommendation.** Follow, hide when detached, never close on scroll.
+**Design.** Follow, hide when detached, never close on scroll.
 
 ## 9. Drag and drop interplay
 
@@ -315,7 +347,9 @@ Cost of not using ghosts: the app (or a stock widget) carries a `Shown` and call
 
 **#85.** Not needed. Keep it open for separate `Placed`, and note that the "which root is under the pointer" function is the part that would be lifted to the context if #85 is built.
 
-**Recommendation.** One resolver, `root_at`, shared by dnd, dismissal and hover.
+`root_at` is also where the in-tree pointer-blocking rule of #102 (painted positioned nodes block the pointer, CSS `pointer-events: auto`) is encoded, decided with PR 2.
+
+**Design.** One resolver, `root_at`, shared by dnd, dismissal and hover.
 
 ## 10. Migrations
 
@@ -327,17 +361,17 @@ Cost of not using ghosts: the app (or a stock widget) carries a `Shown` and call
 - it works inside a modal and inside a scroll container (anchor follows);
 - it deletes `List::show`, `hold_keys`-for-popup and `Popup` plumbing (about 150 lines), replaced by `Focus::Stay` + `Nav::Listbox` shared with autosuggest and the combobox.
 
-Select's open state moves from egui popup memory to `App`? **No:** a stock widget with no `App` state keeps it in egui temp data (as it does now, `highlight_id`), and the overlay's `on_dismiss` clears it. D22 is about application-owned overlays; stock widgets own their own. State this in the build PR.
+**Stock widgets own their open state.** Select's open state stays in egui temp data keyed by the widget id (as it is now, `highlight_id`), and the overlay's `on_dismiss` clears it. The same holds for tooltips and the stock menus (dropdown menu, context menu). D22 is about application-owned overlays; stock widgets own their own. A stock menu closes itself on item activation. There is no controlled mode (`open`/`on_open_change`) in v0.1; it can be added later without breaking anything. State this in the build PR.
 
-**Tooltips: migrate, last, subject to the look decision.** `tipped` uses `Response::on_hover_text`. egui's tooltip is a plain popup frame, so the shadcn tooltip (inverted colours, small radius, arrow, short delay) cannot be had from it. A migrated tooltip: hover-intent state in egui temp data keyed by the trigger id (delay from `Style::interaction.tooltip_delay` and grace from `tooltip_grace_time`, so timing is unchanged), a `Band::Tooltip` overlay, `Focus::None`, never sensing, `DismissOn::Never` (closed by the library when the pointer leaves, on press or Esc, or when a drag starts), described to the trigger. Buys: the style-contract look and arrow, rich content (a label with a `kbd` chip), the same placement and flip, visibility in `Headless`, no stray egui layer. Costs: re-doing the hover-intent timing and the disabled-hover case (`on_disabled_hover_text`), both small.
+**Tooltips: migrate, last, with the shadcn look.** `tipped` uses `Response::on_hover_text`. egui's tooltip is a plain popup frame, so the shadcn tooltip (inverted colours, small radius, arrow, short delay) cannot be had from it. A migrated tooltip: hover-intent state in egui temp data keyed by the trigger id (delay from `Style::interaction.tooltip_delay` and grace from `tooltip_grace_time`, so timing is unchanged), a `Band::Tooltip` overlay, `Focus::None`, never sensing, `DismissOn::Never` (closed by the library when the pointer leaves, on press or Esc, or when a drag starts), described to the trigger. Buys: the style-contract look and arrow, rich content (a label with a `kbd` chip), the same placement and flip, visibility in `Headless`, no stray egui layer. Costs: re-doing the hover-intent timing and the disabled-hover case (`on_disabled_hover_text`), both small. The tooltip is the least coupled migration and goes last.
 
-If the user does not want a different tooltip look in v0.1, keep egui's and defer this PR: nothing else depends on it. The tooltip is the least coupled migration and goes last.
+**Stock menus.** The stock menu widgets, with submenus, are in v0.1 (section 5 for the submenu gesture).
 
-**Recommendation.** Migrate `Select` in the same milestone (PR 5). Migrate tooltips in PR 7 if the user picks a shadcn look; otherwise defer them past 0.1.
+**Design.** `Select` migrates in the same milestone (PR 5). Tooltips migrate in PR 7 with the shadcn look. Stock menu widgets with submenus land in PR 6.
 
 ## 11. Look
 
-Look decisions are the user's. The note proposes **which style-contract entries exist**, not their values; shadcn's component sources are the reference, as in the `shadcn defaults` rule.
+Look decisions are the user's. The entries below exist now; their values are chosen by the user from rendered candidates, with shadcn's values recommended, in the PRs that introduce them. The note fixes **which style-contract entries exist**, not their values; shadcn's component sources are the reference, as in the `shadcn defaults` rule.
 
 New entries in `Style` (each a `Look` with a rest state, border, radius, shadow, padding, as `SelectStyle::popup` is):
 
@@ -355,9 +389,9 @@ New entries in `Style` (each a `Look` with a rest state, border, radius, shadow,
 
 The shadcn preset crate fills these from the shadcn tokens, as it does for the controls. The **neutral default** (no preset) gets plain values from the egui style (no change of default look without a decision).
 
-**Needs the user's choice, with candidates rendered at the size they will be used beside what surrounds them:** the tooltip look (inverted or popover; arrow or none), menu item highlight (hover vs focus ring), dialog and sheet geometry, scrim alpha, all durations and easings, close-button presence. Offer: shadcn's values as the recommended candidate for each, as rendered images, in the build PRs that introduce them, not decided here.
+**Needs the user's choice, with candidates rendered at the size they will be used beside what surrounds them:** the tooltip look (inverted or popover; arrow or none), menu item highlight (hover vs focus ring), dialog and sheet geometry, scrim alpha, all durations and easings, close-button presence. Each is offered with shadcn's values as the recommended candidate, as rendered images, in the build PRs that introduce them.
 
-**Known CSS differences that touch overlays** (#40): no rounded clipping, so a scrolling list inside a rounded popover needs its own inner radius; no group opacity, so fading a whole overlay fades each shape separately (the `Presence` fade is a scrim fade plus per-shape alpha; overlapping translucent shapes inside a dialog could show through during the fade). Pre-blend opaque surfaces as the controls already do.
+**Known CSS differences that touch overlays** (#40): no rounded clipping, so a scrolling list inside a rounded popover needs its own inner radius; no group opacity, so fading a whole overlay fades each shape separately (the entrance fade is a scrim fade plus per-shape alpha; overlapping translucent shapes inside a dialog could show through during the fade). Pre-blend opaque surfaces as the controls already do.
 
 ## 12. Testing
 
@@ -391,13 +425,17 @@ s.overlay(key)                          // OverlayChain<Floating>
     .nav(Nav)                           // default None
     .dismiss_on(DismissOn)              // default Default
     .role(Role).named("..")             // accesskit
-    .presence(Presence, Entrance)       // enter/exit motion (section 7)
+    .shown(Shown)                       // open/closed phase owned by the library (section 7)
+    .transition(Duration)               // optional; absent = no motion
+    .ease_out()                         // optional easing
+    .entrance(Entrance)                 // Fade | Zoom | Slide(Side) | SlideFade(Side)
+    .on_exited(|app| ..)                // FnOnce(&mut A), once when Exiting reaches Closed
     .on_dismiss(|app| ..)               // FnOnce(&mut A), D22
     .children(|s| ..);
 
 s.overlay(key).modal(Modal::Center)     // OverlayChain<Modal>: no anchor or placement
     .focus(..).dismiss_on(..).role(Role::Dialog).named("..")
-    .presence(..).on_dismiss(..).children(|s| ..);
+    .shown(..).transition(..).entrance(..).on_dismiss(..).on_exited(..).children(|s| ..);
 ```
 
 Overlay content is ordinary builder code; it takes the text style in effect at the declaration point, like scroll content. The overlay's own box comes from the content's classes (or, for stock kinds, from the style contract).
@@ -510,15 +548,14 @@ if self.confirm.is_some() {
 
 ```rust
 // App: sheet: Shown
-let sheet = Presence::drive(s.ctx(), "settings-sheet", self.sheet, Duration::from_millis(200), Ease::Out);
-if sheet.mounted() {
-    s.overlay("settings-sheet")
-        .modal(Modal::Edge(Side::Right))
-        .presence(sheet, Entrance::Slide(Side::Right))
-        .role(Role::Dialog).named("Settings")
-        .on_dismiss(|app| app.sheet = Shown::Closed)
-        .children(|s| sheet_box(s, |s| { /* w_px(380.0).h_full() */ }));
-}
+s.overlay("settings-sheet")
+    .modal(Modal::Edge(Side::Right))
+    .shown(self.sheet)
+    .transition(Duration::from_millis(200)).ease_out()
+    .entrance(Entrance::Slide(Side::Right))
+    .role(Role::Dialog).named("Settings")
+    .on_dismiss(|app| app.sheet = Shown::Closed)
+    .children(|s| sheet_box(s, |s| { /* w_px(380.0).h_full() */ }));
 // non-modal: .anchor(Anchor::Screen).placement(Placement::edge(Side::Right)).band(Band::Floating)
 ```
 
@@ -529,39 +566,39 @@ if sheet.mounted() {
 1. M6a: overlay core: roots, `place`, `Anchor`/`Placement`, band layers, blocker, stacking (this note's sections 1 to 3).
 2. M6b: dismissal, focus modes, `Nav` (sections 4 and 5), `root_at`.
 3. M6c: modal presentation, scrim, focus trap (section 6).
-4. M6d: `Presence` and sheets (section 7; replaces the M6 part of #21; also records "#35 not required").
+4. M6d: presence on the overlay chain (`.shown`, `.transition`, `.entrance`, `.on_exited`) and sheets (section 7; replaces the M6 part of #21; also records "#35 not required").
 5. M6e: owned `Select` onto overlays (section 10).
 6. M6f: stock menu widgets (`menu_item`, separators, submenu protocol), `menu` example, autosuggest test.
-7. M6g: tooltips onto overlays (needs the look decision).
+7. M6g: tooltips onto overlays, shadcn look.
 8. dnd: `root_at` in the resolver (part of M6b; a dnd test that a target under a popover is unreachable and one inside is).
-9. Amend D18 (stacking) and D22 (stock widgets own their state) in `design.md`; re-title #85.
+9. Amend D18 (stacking; D18 amended to opening order with the repair step) and D22 (stock widgets own their state) in `design.md`; re-title #85.
 10. Continuity: `OffScreen`, `Reflip`. Fuzz: `overlay_session`.
-11. Post-0.1, label it: typeahead, submenu safe triangle, spring-loaded opening, arrows, `.boundary(Rect)`, drawer drag-to-dismiss.
+11. Post-0.1, label it: typeahead, submenu hover-open, submenu safe triangle, spring-loaded opening, arrows, `.boundary(Rect)`, drawer drag-to-dismiss.
 
 **Build order** (each PR small, tested, with the user's hands on any UI change before approval, per CLAUDE.md):
 
 | PR | Content | Why this position |
 |---|---|---|
 | 1 | `src/overlay.rs`: `place` + tests (promote the prototype); `Anchor`, `Placement`, `Band` types; amend D18 | Pure, reviewable alone, nothing integrated |
-| 2 | Roots in the pipeline: `roots` partition, slot reservation (D19), solve/place/collect, `Placed::overlays`, `s.overlay(..).children(..)` for floating overlays, per-overlay `Area` with blocker, flag-every-frame, stacking tests (F1, F2), `Headless` accessors, a minimal `menu` example | The tree model; everything else builds on it |
+| 2 | Roots in the pipeline: `roots` partition, slot reservation (D19), solve/place/collect, `Placed::overlays`, `s.overlay(..).children(..)` for floating overlays, per-overlay `Area` with blocker, stacking repair step + tests (F1, F2, reopen, convergence), `Headless` accessors, a minimal `menu` example | The tree model; everything else builds on it |
 | 3 | Dismissal (`dismissals`, `root_at`, `on_dismiss`), `Focus` modes and restore, `Nav::Menu`/`Listbox`/`Submenu`, accesskit roles; dnd resolver uses `root_at` | Behaviour on a working core |
 | 4 | Modal: scrim, `set_modal_layer`, focus trap, scroll-lock test | Needs 3 |
 | 5 | `Select` migrated; autosuggest test | First consumer; proves `Stay`/`Listbox` |
-| 6 | `Presence`, sheets (modal and non-modal), `menu`/`sheets` examples; stock menu widgets, `chat_shell` menus | Look decisions land here with rendered candidates |
-| 7 | Tooltips migrated (after the look decision); continuity invariants; `overlay_session` fuzz | Last: least coupled |
+| 6 | Chain presence API (`.shown`/`.transition`/`.entrance`/`.on_exited`), sheets (modal and non-modal), `menu`/`sheets` examples; stock menu widgets with submenus, `chat_shell` menus | Look decisions land here with rendered candidates |
+| 7 | Tooltips migrated (shadcn look); continuity invariants; `overlay_session` fuzz | Last: least coupled |
 
 PRs 1 and 3's pure parts can proceed while the look entries (6) wait for the user. The user merges each.
 
-## User decisions needed
+## Decisions (2026-11-11)
 
-1. **Stacking (D18 amendment).** Accept "band, then opening order; nested above parent" in place of build order? (Section 2. A repair loop is the alternative if build-order authority matters.)
-2. **Tree model.** Same tree, one `Placed`; re-scope #85 to separate `Placed`. (Section 1.)
-3. **Modal approach.** Own scrim plus `set_modal_layer`, not `egui::Modal`. (Section 6.)
-4. **#35.** Confirm M6 does not use ghosts and `Presence` is the way overlays animate out; #35 stays an independent v0.1 candidate. (Section 7.)
-5. **Dismissal details.** Judged at the press (not the click); trigger press counts as inside; dismiss on window focus loss; `Esc` to the topmost only. (Section 4.)
-6. **Scroll.** Anchored overlays follow and hide when clipped, never close on scroll. (Section 8.)
-7. **Tooltips.** Migrate to an overlay with the shadcn look, or keep egui's for v0.1. (Section 10.)
-8. **Stock widgets' state.** Select and tooltips keep their own state rather than `App` (a narrow exception to D22). (Section 10.)
-9. **All looks** (section 11): tooltip style and arrow, menu highlight, dialog and sheet geometry, scrim alpha, close button, durations and easings. To be shown rendered in the PRs that add them.
-10. **Scope of v0.1 stock widgets:** menu items with submenus (needed by the reference shell?), or only the overlay primitives plus `Select`? Typeahead and the safe triangle are assumed post-0.1.
-11. **Submenu open gesture:** hover-after-delay in addition to click/Right/Enter, or click/keyboard only for v0.1.
+1. **Stacking:** band, then opening order; nested overlays above their parent; a repair step flags what egui misplaces (section 2).
+2. **Tree model:** same tree, one `Placed`; #85 re-scoped to separate `Placed` (section 1).
+3. **Modals:** own scrim plus `set_modal_layer`, not `egui::Modal` (section 6).
+4. **Presence:** on the overlay chain (`.shown`, `.transition`, `.entrance`, `.on_exited`); M6 does not use ghosts and #35 stays independent (section 7).
+5. **Dismissal:** as section 4.
+6. **Scroll:** as section 8; anchored overlays follow, hide when clipped, never close on scroll.
+7. **Tooltips:** migrate to overlays with the shadcn look (section 10).
+8. **Stock widgets** (Select, tooltips, stock menus) own their open state in egui temp data; no controlled mode in v0.1 (section 10).
+9. **Looks:** the style-contract entries exist now; values are shown rendered and chosen in the build PRs that introduce them (section 11).
+10. **Stock menus with submenus** are in v0.1.
+11. **Submenus** open on click, Enter and Right only; hover-open is post-0.1 (section 5).
