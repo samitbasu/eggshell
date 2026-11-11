@@ -13,7 +13,9 @@ use egui::{
 use taffy::Overflow;
 
 use crate::draw::{PixelGrid, add, inset};
+use crate::measure::Content;
 use crate::pipeline::{Flow, PlacedNode};
+use crate::prim::Prim;
 
 /// Whether frames are drawn with the layout debug overlay.
 ///
@@ -268,13 +270,30 @@ fn paint_readout(ctx: &Context, painter: &Painter) {
 /// fitting: egui's galleys are a fraction wider than the width they wrap at.
 const TOLERANCE: f32 = 0.5;
 
-/// Whether the content of `nodes[index]` did not fit.
-pub(crate) fn overflows(nodes: &[PlacedNode], index: usize) -> bool {
+/// For each node, whether its content did not fit.
+pub(crate) fn overflow(ctx: &Context, nodes: &[PlacedNode], prims: &[Option<Prim>]) -> Vec<bool> {
+    (0..nodes.len())
+        .map(|index| overflows(ctx, nodes, prims, index))
+        .collect()
+}
+
+fn overflows(ctx: &Context, nodes: &[PlacedNode], prims: &[Option<Prim>], index: usize) -> bool {
     let node = &nodes[index];
     if node.end == index + 1 {
-        return node.measured.is_some_and(|measured| {
-            let content = inset(node.rect(), add(node.border, node.padding));
-            measured.x > content.width() + TOLERANCE || measured.y > content.height() + TOLERANCE
+        if node.flow == Flow::Hidden {
+            return false;
+        }
+        let content = inset(node.rect(), add(node.border, node.padding));
+        let content_size = taffy::Size {
+            width: content.width().max(0.0),
+            height: content.height().max(0.0),
+        };
+        let wanted = node.measured.or_else(|| {
+            let prim = prims.get(index)?.as_ref()?;
+            crate::pipeline::wanted(ctx, Content::Prim(prim), &node.text, content_size)
+        });
+        return wanted.is_some_and(|wanted| {
+            wanted.x > content.width() + TOLERANCE || wanted.y > content.height() + TOLERANCE
         });
     }
     let padding = inset(node.rect(), node.border);
@@ -318,14 +337,14 @@ fn shown(nodes: &[PlacedNode]) -> impl Iterator<Item = usize> {
 }
 
 /// Paints the overlay for one placed tree.
-pub(crate) fn paint(ctx: &Context, nodes: &[PlacedNode]) {
+pub(crate) fn paint(ctx: &Context, nodes: &[PlacedNode], overflows: &[bool]) {
     let grid = PixelGrid {
         pixels_per_point: ctx.pixels_per_point(),
     };
     let painter = ctx.layer_painter(LayerId::new(Order::Debug, Id::NULL.with("eggshell-debug")));
     let width = grid.line_width(0.0);
     for index in shown(nodes) {
-        let color = if overflows(nodes, index) {
+        let color = if overflows[index] {
             Debug::OVERFLOW
         } else {
             Debug::OUTLINE
@@ -360,12 +379,26 @@ pub(crate) fn paint(ctx: &Context, nodes: &[PlacedNode]) {
             .filter(|&i| nodes[i].rect().contains(pointer))
             .last()
     {
-        label(&painter, ctx.content_rect(), pointer, nodes, index);
+        label(
+            &painter,
+            ctx.content_rect(),
+            pointer,
+            nodes,
+            index,
+            overflows[index],
+        );
     }
     paint_readout(ctx, &painter);
 }
 
-fn label(painter: &Painter, screen: Rect, pointer: Pos2, nodes: &[PlacedNode], index: usize) {
+fn label(
+    painter: &Painter,
+    screen: Rect,
+    pointer: Pos2,
+    nodes: &[PlacedNode],
+    index: usize,
+    overflows: bool,
+) {
     let node = &nodes[index];
     let Rect { min, max } = node.rect();
     let mut text = format!(
@@ -387,7 +420,7 @@ fn label(painter: &Painter, screen: Rect, pointer: Pos2, nodes: &[PlacedNode], i
             plan.bars.gutter.y
         ));
     }
-    if overflows(nodes, index) {
+    if overflows {
         text.push_str("\ncontent does not fit");
     }
     let galley = painter.layout_no_wrap(text, FontId::monospace(11.0), Color32::WHITE);

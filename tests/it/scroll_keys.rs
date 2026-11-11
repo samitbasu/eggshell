@@ -59,6 +59,9 @@ struct App {
     /// The container sets a `focus:` look of its own.
     explicit_focus: bool,
     fade: Option<EdgeFade>,
+    /// The container is not a Tab stop at all.
+    plain: bool,
+    radius: Option<f32>,
 }
 
 impl App {
@@ -74,6 +77,8 @@ impl App {
             border: None,
             explicit_focus: false,
             fade: None,
+            plain: false,
+            radius: None,
         }
     }
 }
@@ -106,6 +111,12 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
         let mut classes = tw().w_px(width).h_px(VIEWPORT);
         if let Some(color) = app.border {
             classes = classes.border(1.0).border_color(color);
+        }
+        if app.plain {
+            classes = classes.focusable_none();
+        }
+        if let Some(radius) = app.radius {
+            classes = classes.rounded_px(radius);
         }
         if app.explicit_focus {
             classes = classes.focus(|p| p.bg(Color32::LIGHT_RED));
@@ -349,15 +360,13 @@ fn the_innermost_container_holding_the_focus_scrolls_and_the_keys_do_not_chain()
         "the outer one does not"
     );
     press(&mut h, Key::End);
-    let end = offset(&h, inner).y;
-    // egui's own clamp of a nested container's offset ends a few points short
-    // of the content's: `scroll_by` does the same (see the report on #91).
-    assert!(end > max - 6.0, "precondition: it went to the end: {end}");
+    assert_eq!(offset(&h, inner).y, max, "precondition: it went to the end");
     for key in [Key::ArrowDown, Key::PageDown, Key::End, Key::Space] {
         press(&mut h, key);
-        assert!(
-            offset(&h, inner).y <= max,
-            "{key:?} at the end stays within the content"
+        assert_eq!(
+            offset(&h, inner).y,
+            max,
+            "{key:?} at the end stays at the end"
         );
         assert_eq!(
             offset(&h, "/\"outer\""),
@@ -367,11 +376,7 @@ fn the_innermost_container_holding_the_focus_scrolls_and_the_keys_do_not_chain()
     }
     press(&mut h, Key::Home);
     press(&mut h, Key::ArrowUp);
-    assert!(
-        offset(&h, inner).y < 2.0,
-        "back at the start: {:?}",
-        offset(&h, inner)
-    );
+    assert_eq!(offset(&h, inner), Vec2::ZERO, "back at the start");
     assert_eq!(offset(&h, "/\"outer\""), Vec2::ZERO, "nor at the start");
 }
 
@@ -626,67 +631,30 @@ fn a_click_in_a_container_shows_no_ring_only_the_keyboard_does() {
 
 const FRAME: &str = "/\"list\"";
 
-fn framed(focusable: Focusable) -> H {
-    harness_with(App {
-        focusable,
-        ..App::new(Content::Buttons)
-    })
+fn focus_style(h: &H) -> eggshell_ui::contract::Focus {
+    eggshell_ui::contract::Style::of(&h.ctx).focus
 }
 
-fn focus_color(h: &H) -> Color32 {
-    eggshell_ui::contract::Style::of(&h.ctx).focus.color
+/// Every shape of the last frame in paint order, with the clip it is painted in.
+fn painted(h: &H) -> Vec<(Rect, &Shape)> {
+    let mut all = Vec::new();
+    for clipped in &h.output().shapes {
+        let mut flat = Vec::new();
+        support::flatten(&clipped.shape, &mut flat);
+        all.extend(flat.into_iter().map(|shape| (clipped.clip_rect, shape)));
+    }
+    all
 }
 
-fn frame_width(h: &H) -> f32 {
-    eggshell_ui::contract::Style::of(&h.ctx).focus.width
-}
-
-#[test]
-fn a_focusable_containers_content_and_gutter_sit_inside_a_frame_that_does_not_shift_on_focus() {
-    let plain = framed(Focusable::Auto);
-    let mut framed = framed(Focusable::Always);
-    let width = frame_width(&framed);
-    let (plain_view, framed_view) = (viewport(&plain, FRAME), viewport(&framed, FRAME));
-    assert_eq!(
-        rect_of(&plain, FRAME),
-        rect_of(&framed, FRAME),
-        "precondition: the same border box"
-    );
-    assert_eq!(
-        framed_view.rect,
-        plain_view.rect.shrink(width),
-        "the viewport (and so the gutter beside it) is inset by the frame"
-    );
-    assert_eq!(
-        framed_view.rect.width() + 10.0 + 2.0 * width,
-        plain_view.rect.width() + 10.0,
-        "the gutter is inside the frame"
-    );
-    let at_rest = framed.state().nodes.clone();
-    press(&mut framed, Key::Tab);
-    assert_eq!(
-        support::focused_path(&framed).as_deref(),
-        Some(FRAME),
-        "precondition: the container is focused"
-    );
-    assert_eq!(
-        framed.state().nodes,
-        at_rest,
-        "no layout rect moves on focus"
-    );
-    assert_eq!(viewport(&framed, FRAME), framed_view);
-}
-
-fn frame_shapes(h: &H, color: Color32) -> Vec<RectShape> {
-    support::shapes(h)
+/// The shapes that stroke `rect` in the focus ring's colour.
+fn ring_shapes(h: &H, rect: Rect) -> Vec<(usize, Rect, RectShape)> {
+    let color = focus_style(h).color;
+    painted(h)
         .into_iter()
-        .filter_map(|shape| match shape {
-            Shape::Rect(rect)
-                if rect.stroke.color == color
-                    && rect.stroke.width > 0.0
-                    && support::same(rect.rect, rect_of(h, FRAME)) =>
-            {
-                Some(rect.clone())
+        .enumerate()
+        .filter_map(|(at, (clip, shape))| match shape {
+            Shape::Rect(r) if r.stroke.color == color && support::same(r.rect, rect) => {
+                Some((at, clip, r.clone()))
             }
             _ => None,
         })
@@ -694,101 +662,164 @@ fn frame_shapes(h: &H, color: Color32) -> Vec<RectShape> {
 }
 
 #[test]
-fn the_frame_takes_the_ring_colour_on_focus_and_is_clear_at_rest() {
-    let mut h = framed(Focusable::Always);
-    let ring = focus_color(&h);
-    assert!(frame_shapes(&h, ring).is_empty(), "transparent at rest");
-    press(&mut h, Key::Tab);
-    h.run_steps(20);
-    let frames = frame_shapes(&h, ring);
-    assert_eq!(frames.len(), 1, "precondition: the frame is painted");
-    assert_eq!(frames[0].stroke_kind, egui::StrokeKind::Inside);
-    assert_eq!(frames[0].stroke.width, frame_width(&h));
-    assert_eq!(frames[0].rect, rect_of(&h, FRAME));
-    press(&mut h, Key::Tab);
-    h.run_steps(20);
-    assert_eq!(support::focused_path(&h), Some(row_path(0)), "precondition");
-    assert!(frame_shapes(&h, ring).is_empty(), "and clear again");
-}
-
-#[test]
-fn the_frame_at_rest_is_the_containers_own_border_colour_and_its_wider_width_wins() {
-    let own = Color32::from_rgb(200, 30, 30);
+fn the_focus_ring_is_painted_after_all_content_bars_and_fade_inside_the_border_box() {
     let mut h = harness_with(App {
         focusable: Focusable::Always,
-        border: Some(own),
-        ..App::new(Content::Buttons)
+        fade: Some(EdgeFade::new(Opacity::new(0.5), 20.0)),
+        ..App::new(Content::Painted)
     });
-    let rest = frame_shapes(&h, own);
-    assert_eq!(rest.len(), 1, "precondition: the border is painted");
-    assert_eq!(rest[0].stroke.width, frame_width(&h).max(1.0));
     press(&mut h, Key::Tab);
-    h.run_steps(20);
-    let ring = focus_color(&h);
-    assert_eq!(frame_shapes(&h, ring).len(), 1, "the ring colour on focus");
-}
-
-#[test]
-fn nothing_the_focus_look_paints_reaches_the_viewport_or_the_gutter() {
-    let mut h = framed(Focusable::Always);
-    press(&mut h, Key::Tab);
-    h.run_steps(20);
-    let frames = frame_shapes(&h, focus_color(&h));
-    assert_eq!(frames.len(), 1, "precondition: the frame is painted");
-    let frame = &frames[0];
-    let inside = frame.rect.shrink(frame.stroke.width);
-    let view = viewport(&h, FRAME).rect;
+    press(&mut h, Key::PageDown);
+    assert_eq!(support::focused_path(&h).as_deref(), Some(FRAME));
+    assert!(offset(&h, FRAME).y > 0.0, "precondition: scrolled");
+    let border_box = rect_of(&h, FRAME);
+    let rings = ring_shapes(&h, border_box);
+    assert_eq!(rings.len(), 1, "one ring: {rings:?}");
+    let (at, clip, ring) = &rings[0];
+    let focus = focus_style(&h);
+    assert_eq!(ring.stroke_kind, egui::StrokeKind::Inside);
+    assert_eq!(ring.stroke.width, focus.width);
+    assert!(clip.contains_rect(border_box), "fully visible: {clip:?}");
+    let after: Vec<_> = painted(&h)
+        .into_iter()
+        .enumerate()
+        .filter(|&(i, (_, shape))| {
+            i > *at
+                && shape
+                    .visual_bounding_rect()
+                    .intersects(border_box.shrink(1.0))
+        })
+        .collect();
+    assert!(after.is_empty(), "painted over the ring: {after:?}");
+    let under = painted(&h)
+        .into_iter()
+        .take(*at)
+        .filter(|(_, shape)| matches!(shape, Shape::Mesh(_)) || matches!(shape, Shape::Rect(_)))
+        .count();
     assert!(
-        inside.contains_rect(Rect::from_min_max(view.min, view.max + vec2(10.0, 0.0))),
-        "the viewport and its gutter {view:?} are inside {inside:?}"
-    );
-    assert_eq!(
-        support::shapes(&h)
-            .into_iter()
-            .filter(|shape| matches!(shape, Shape::Rect(r) if r.stroke.color == focus_color(&h)))
-            .count(),
-        1,
-        "and the frame is all the focus look paints"
+        under > 3,
+        "precondition: the content, a bar and the fade came first: {under}"
     );
 }
 
 #[test]
-fn a_container_with_a_focus_look_of_its_own_gets_no_frame() {
-    let plain = harness_with(App {
+fn the_ring_follows_the_containers_radius() {
+    let mut h = harness_with(App {
+        focusable: Focusable::Always,
+        radius: Some(12.0),
+        ..App::new(Content::Painted)
+    });
+    press(&mut h, Key::Tab);
+    let rings = ring_shapes(&h, rect_of(&h, FRAME));
+    assert_eq!(rings.len(), 1, "precondition: the ring is painted");
+    assert_eq!(rings[0].2.corner_radius, egui::CornerRadius::same(12));
+}
+
+#[test]
+fn a_focusable_container_lays_out_as_a_plain_one_and_focus_moves_nothing() {
+    let layout = |focusable: Focusable, tab: bool| {
+        harness_with(App {
+            focusable,
+            plain: tab,
+            ..App::new(Content::Painted)
+        })
+    };
+    let plain = layout(Focusable::Auto, true);
+    let mut stop = layout(Focusable::Always, false);
+    assert_eq!(
+        plain.state().nodes,
+        stop.state().nodes,
+        "a Tab stop and a container that is none have the same layout"
+    );
+    assert_eq!(viewport(&plain, FRAME), viewport(&stop, FRAME));
+    let at_rest = stop.state().nodes.clone();
+    record(&stop.ctx);
+    press(&mut stop, Key::Tab);
+    assert_eq!(support::focused_path(&stop).as_deref(), Some(FRAME));
+    assert_eq!(stop.state().nodes, at_rest, "no rect moves on focus");
+    press(&mut stop, Key::Tab);
+    stop.run_steps(5);
+    assert_eq!(stop.state().nodes, at_rest, "nor when it is left");
+    Timeline::recorded(&stop.ctx).assert_continuous();
+}
+
+#[test]
+fn a_container_with_a_focus_look_of_its_own_gets_no_default_ring() {
+    let mut h = harness_with(App {
         explicit_focus: true,
         focusable: Focusable::Always,
-        ..App::new(Content::Buttons)
+        ..App::new(Content::Painted)
     });
-    let reference = harness(Content::Buttons);
-    assert_eq!(
-        viewport(&plain, FRAME).rect,
-        viewport(&reference, FRAME).rect,
-        "nothing is reserved"
+    press(&mut h, Key::Tab);
+    assert_eq!(support::focused_path(&h).as_deref(), Some(FRAME));
+    assert!(ring_shapes(&h, rect_of(&h, FRAME)).is_empty());
+}
+
+fn is_stop(h: &mut H) -> bool {
+    for _ in 0..3 {
+        press(h, Key::Tab);
+        if support::focused_path(h).as_deref() == Some(FRAME) {
+            return true;
+        }
+    }
+    false
+}
+
+fn grow_to(h: &mut H, rows: u32) {
+    h.state_mut().app.rows = rows;
+    h.run_steps(3);
+}
+
+#[test]
+fn auto_is_a_stop_only_while_the_content_overflows_and_always_is_one_regardless() {
+    let mut h = harness_with(App {
+        rows: 2,
+        ..App::new(Content::Painted)
+    });
+    record(&h.ctx);
+    let max = viewport(&h, FRAME).rect.height();
+    assert!(
+        viewport(&h, FRAME).content.height() <= max,
+        "precondition: the content fits"
+    );
+    assert!(!is_stop(&mut h), "fitting content is no stop");
+    grow_to(&mut h, 20);
+    assert!(
+        viewport(&h, FRAME).content.height() > max,
+        "precondition: it overflows"
+    );
+    assert!(is_stop(&mut h), "overflowing content is");
+    grow_to(&mut h, 2);
+    h.run_steps(3);
+    assert_ne!(
+        support::focused_path(&h).as_deref(),
+        Some(FRAME),
+        "and not once it fits again"
+    );
+    assert!(!is_stop(&mut h));
+    Timeline::recorded(&h.ctx).assert_continuous();
+
+    let mut always = harness_with(App {
+        rows: 2,
+        focusable: Focusable::Always,
+        ..App::new(Content::Painted)
+    });
+    assert!(
+        is_stop(&mut always),
+        "Always is a stop with nothing to scroll"
     );
 }
 
 #[test]
-fn focusing_a_container_in_and_out_is_continuous() {
-    let mut h = framed(Focusable::Always);
-    record(&h.ctx);
-    h.run_steps(2);
-    press(&mut h, Key::Tab);
-    h.run_steps(10);
-    press(&mut h, Key::Tab);
-    h.run_steps(10);
-    Timeline::recorded(&h.ctx).assert_continuous();
-}
-
-#[test]
-fn whether_an_auto_container_is_a_stop_is_the_same_every_frame() {
-    for content in [Content::Painted, Content::Buttons, Content::Field] {
-        let mut h = harness(content);
-        let first = viewport(&h, FRAME).rect;
-        for _ in 0..5 {
-            h.run_steps(2);
-            assert_eq!(viewport(&h, FRAME).rect, first, "the frame never flickers");
-        }
-    }
+fn a_horizontal_container_is_a_stop_only_when_it_overflows_sideways() {
+    let mut h = harness_with(App {
+        rows: 2,
+        axis: Axis::X,
+        ..App::new(Content::Painted)
+    });
+    assert!(!is_stop(&mut h));
+    grow_to(&mut h, 20);
+    assert!(is_stop(&mut h));
 }
 
 fn gradients_in(h: &H, area: Rect) -> usize {

@@ -854,7 +854,7 @@ fn without_a_drag_the_edge_does_not_scroll() {
 mod nested {
     use super::*;
 
-    #[derive(Clone, Copy, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
     enum Inner {
         Vertical,
         Horizontal,
@@ -862,6 +862,16 @@ mod nested {
 
     struct Page {
         inner: Inner,
+        tab_stops: TabStops,
+        /// The heights of the outer and the inner container.
+        heights: (f32, f32),
+    }
+
+    /// Whether the containers are Tab stops.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum TabStops {
+        Yes,
+        No,
     }
 
     const OUTER: &str = "/\"outer\"";
@@ -874,12 +884,16 @@ mod nested {
     ///   <div class="h-[400px]"/>
     /// </div>
     /// ```
-    fn page(b: &mut Builder<'_, '_, Page>, page: &Page) {
+    fn page_view(b: &mut Builder<'_, '_, Page>, page: &Page) {
         let inner = page.inner;
-        b.scroll("outer", tw().w_px(200.0).h_px(160.0).focusable_none())
+        let frame = |tw: eggshell_ui::Tw| match page.tab_stops {
+            TabStops::Yes => tw,
+            TabStops::No => tw.focusable_none(),
+        };
+        b.scroll("outer", frame(tw().w_px(200.0).h_px(page.heights.0)))
             .children(|s| {
                 s.div(tw().h_px(40.0), |_| {});
-                let list = s.scroll("inner", tw().w_px(160.0).h_px(80.0).focusable_none());
+                let list = s.scroll("inner", frame(tw().w_px(160.0).h_px(page.heights.1)));
                 let list = match inner {
                     Inner::Vertical => list,
                     Inner::Horizontal => list.axis(Axis::X),
@@ -902,7 +916,17 @@ mod nested {
     type P<'a> = Harness<'a, Rig<Page>>;
 
     fn harness(inner: Inner) -> P<'static> {
-        let mut h = support::harness(SIZE, base(), Page { inner }, page);
+        harness_with(inner, TabStops::No, (160.0, 80.0))
+    }
+
+    fn harness_with(inner: Inner, tab_stops: TabStops, heights: (f32, f32)) -> P<'static> {
+        let page = Page {
+            inner,
+            tab_stops,
+            heights,
+        };
+        let mut h = support::harness(SIZE, base(), page, page_view);
+        record(&h.ctx);
         h.run_steps(2);
         h
     }
@@ -1006,6 +1030,84 @@ mod nested {
         h.hover_at(Pos2::new(inner.center().x, inner.max.y - 2.0));
         h.run_steps(20);
         assert!(offset_of(&h, OUTER).y > 10.0, "the outer took over");
+    }
+
+    fn exact_end(inner: Inner, tab_stops: TabStops, request: impl Fn(&mut P<'_>)) {
+        let mut h = harness_with(inner, tab_stops, (100.0, 60.0));
+        let view = scroll::viewport(&h.ctx, support::id_of(&h, INNER)).expect("laid out");
+        let along = |v: Vec2| if inner == Inner::Vertical { v.y } else { v.x };
+        let max = along(view.content.size() - view.rect.size());
+        assert!(max > 0.0, "precondition: the inner container scrolls");
+        request(&mut h);
+        for frame in 0..11 {
+            let view = scroll::viewport(&h.ctx, support::id_of(&h, INNER)).expect("laid out");
+            assert_eq!(
+                along(view.offset()),
+                max,
+                "{inner:?} {tab_stops:?}: frame {frame} after the request"
+            );
+            let last = rect_of(&h, &format!("{INNER}/19"));
+            match inner {
+                Inner::Vertical => assert_eq!(last.max.y, view.rect.max.y, "frame {frame}"),
+                Inner::Horizontal => assert_eq!(last.max.x, view.rect.max.x, "frame {frame}"),
+            }
+            h.step();
+        }
+        Timeline::recorded(&h.ctx).assert_continuous();
+    }
+
+    #[test]
+    fn scroll_by_reaches_the_end_of_a_nested_container_exactly_and_stays() {
+        for inner in [Inner::Vertical, Inner::Horizontal] {
+            for tab_stops in [TabStops::No, TabStops::Yes] {
+                exact_end(inner, tab_stops, |h| {
+                    scroll::scroll_by(&h.ctx, support::id_of(h, INNER), vec2(5000.0, 5000.0));
+                    h.step();
+                });
+            }
+        }
+    }
+
+    fn short_top_level(b: &mut Builder<'_, '_, Page>, _: &Page) {
+        b.scroll("outer", tw().w_px(200.0).h_px(50.0).focusable_none())
+            .children(|s| {
+                for i in 0..20u32 {
+                    s.div_id(i, tw().h_px(30.0).shrink_0(), |_| {});
+                }
+            });
+    }
+
+    #[test]
+    fn a_top_level_container_shorter_than_a_minimum_scrolled_height_also_ends_exactly() {
+        let page = Page {
+            inner: Inner::Vertical,
+            tab_stops: TabStops::No,
+            heights: (50.0, 0.0),
+        };
+        let mut h = support::harness(SIZE, base(), page, short_top_level);
+        h.run_steps(2);
+        let outer = support::id_of(&h, OUTER);
+        scroll::scroll_by(&h.ctx, outer, vec2(0.0, 1000.0));
+        for frame in 0..11 {
+            h.step();
+            let view = scroll::viewport(&h.ctx, outer).expect("laid out");
+            assert_eq!(view.offset().y, 600.0 - 50.0, "frame {frame}");
+        }
+    }
+
+    #[test]
+    fn the_end_key_reaches_the_end_of_a_nested_container_exactly_and_stays() {
+        for inner in [Inner::Vertical, Inner::Horizontal] {
+            for tab_stops in [TabStops::No, TabStops::Yes] {
+                exact_end(inner, tab_stops, |h| {
+                    let at = rect_of(h, INNER).center();
+                    support::press_and_release(h, at);
+                    h.run_steps(2);
+                    h.key_press(egui::Key::End);
+                    h.step();
+                });
+            }
+        }
     }
 
     #[test]
@@ -1325,5 +1427,135 @@ mod clipping {
             "the last cell ends at the viewport's corner"
         );
         assert_content_stays_in_the_viewport(&h, "scrolled to the end");
+    }
+}
+
+mod container_layout {
+    use super::*;
+
+    const WIDTH: f32 = 200.0;
+
+    type Spec = (eggshell_ui::Tw, u32, eggshell_ui::Tw);
+
+    fn spec_view(b: &mut Builder<'_, '_, Spec>, (classes, kids, kid): &Spec) {
+        b.scroll("list", classes.clone().focusable_none())
+            .children(|s| {
+                for i in 0..*kids {
+                    s.div_id(i, kid.clone(), |_| {});
+                }
+            });
+    }
+
+    fn laid_out(
+        classes: eggshell_ui::Tw,
+        kids: u32,
+        kid: eggshell_ui::Tw,
+    ) -> Harness<'static, Rig<Spec>> {
+        let mut h = support::harness(SIZE, base(), (classes, kids, kid), spec_view);
+        h.step();
+        h
+    }
+
+    #[test]
+    fn flex_col_and_gap_on_the_container_stack_its_children_with_the_gap() {
+        let h = laid_out(
+            tw().w_px(WIDTH).h_px(70.0).flex().flex_col().gap(2.0),
+            3,
+            tw().h_px(20.0).shrink_0(),
+        );
+        let content = rect_of(&h, CONTENT);
+        for i in 0..3u32 {
+            let row = rect_of(&h, &row_path(i));
+            assert_eq!(row.min.y - content.min.y, 28.0 * i as f32, "row {i}");
+            assert_eq!(row.width(), WIDTH - GUTTER, "stretched across the column");
+        }
+        assert_eq!(content.height(), 3.0 * 20.0 + 2.0 * 8.0);
+    }
+
+    #[test]
+    fn flex_row_wrap_wraps_inside_the_viewport_width_less_the_gutter() {
+        let h = laid_out(
+            tw().w_px(WIDTH)
+                .h_px(30.0)
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .gap_x(3.0),
+            4,
+            tw().w_px(80.0).h_px(20.0).shrink_0(),
+        );
+        let at = |i| rect_of(&h, &row_path(i));
+        assert_eq!(
+            at(1).min.x - at(0).min.x,
+            92.0,
+            "two fit in 190: 80 + 12 + 80"
+        );
+        assert_eq!(at(0).min.y, at(1).min.y, "the first two share a line");
+        assert_eq!(at(2).min.x, at(0).min.x, "the third wraps");
+        assert_eq!(at(2).min.y, at(0).min.y + 20.0, "to the next line");
+        assert_eq!(rect_of(&h, CONTENT).width(), WIDTH - GUTTER);
+    }
+
+    #[test]
+    fn a_grid_template_on_the_container_carries_over() {
+        let h = laid_out(
+            tw().w_px(WIDTH).h_px(40.0).grid().grid_cols(2).gap(0.0),
+            4,
+            tw().h_px(20.0),
+        );
+        let at = |i| rect_of(&h, &row_path(i));
+        assert_eq!(at(0).width(), (WIDTH - GUTTER) / 2.0);
+        assert_eq!(at(1).min.x, at(0).max.x, "the second column");
+        assert_eq!(at(2).min.y, at(0).max.y, "the next row");
+    }
+
+    #[test]
+    fn alignment_on_the_container_places_the_children() {
+        let h = laid_out(
+            tw().w_px(WIDTH)
+                .h_px(100.0)
+                .flex()
+                .flex_col()
+                .items_center()
+                .justify_end(),
+            1,
+            tw().w_px(50.0).h_px(20.0).shrink_0(),
+        );
+        let (content, kid) = (rect_of(&h, CONTENT), rect_of(&h, &row_path(0)));
+        assert_eq!(kid.center().x, content.center().x, "centred across");
+        assert_eq!(content.height(), 100.0);
+        assert_eq!(kid.max.y, content.max.y, "pushed to the end");
+    }
+
+    #[test]
+    fn the_frame_keeps_its_border_and_background() {
+        let h = laid_out(
+            tw().w_px(WIDTH)
+                .h_px(100.0)
+                .flex()
+                .flex_col()
+                .gap(2.0)
+                .p(2.0)
+                .border(2.0)
+                .border_color(Color32::RED)
+                .bg(Color32::GOLD),
+            3,
+            tw().h_px(20.0).shrink_0(),
+        );
+        let (list, content) = (rect_of(&h, LIST), rect_of(&h, CONTENT));
+        assert_eq!(list.size(), vec2(WIDTH, 100.0), "the frame's size");
+        assert_eq!(content.min, list.min + vec2(2.0, 2.0), "inside the border");
+        assert_eq!(
+            rect_of(&h, &row_path(0)).min,
+            content.min + vec2(8.0, 8.0),
+            "and the padding"
+        );
+        assert_eq!(support::fill_of(&h, LIST), Some(Color32::GOLD));
+    }
+
+    #[test]
+    fn a_hidden_container_stays_hidden() {
+        let h = laid_out(tw().w_px(WIDTH).h_px(100.0).hidden(), 1, tw().h_px(20.0));
+        assert_eq!(rect_of(&h, LIST).size(), Vec2::ZERO);
     }
 }

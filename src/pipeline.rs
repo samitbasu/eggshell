@@ -97,7 +97,7 @@ pub(crate) struct ScrollNode {
     pub axis: Axis,
     pub edge: Option<EdgeScroll>,
     pub bars: Bars,
-    pub tab_stop: crate::scroll::TabStop,
+    pub tab: crate::scroll::TabRule,
     pub description: crate::scroll::Description,
     /// The root of the content, laid out on its own.
     pub content: NodeId,
@@ -356,6 +356,7 @@ impl<'f, A> Built<'f, A> {
             .filter_map(|(index, node)| Some((node.id?, index)))
             .collect();
         Placed {
+            ctx: ctx.clone(),
             nodes,
             by_id,
             prims,
@@ -494,36 +495,50 @@ fn node_content<'a>(node: &'a Node, measures: &'a [MeasureFn<'_>]) -> Content<'a
     }
 }
 
-/// Measures leaves again at their final content width, for the debug overlay.
+/// Measures the application's leaves again at their final content width, for
+/// the debug overlay: their measure closures end with the layout, so this is
+/// the only time they can be asked. The library's own leaves are measured on
+/// demand, by [`wanted`].
 struct Probe<'a, 'f> {
     ctx: &'a egui::Context,
     measures: &'a [MeasureFn<'f>],
 }
 
 impl Probe<'_, '_> {
-    /// The size the leaf's content wants in a content box `content` wide, or
-    /// `None` for a leaf with no content. Truncated text is cut to the box
-    /// by design, so it never wants more than the box's width.
     fn wanted(&self, node: &Node, content: Size<f32>) -> Option<egui::Vec2> {
-        let content_of = node_content(node, self.measures);
-        if matches!(content_of, Content::Empty) {
-            return None;
+        match node_content(node, self.measures) {
+            Content::Leaf(measure) => wanted(self.ctx, Content::Leaf(measure), &node.text, content),
+            _ => None,
         }
-        let input = LayoutInput {
-            known_dimensions: Size::NONE,
-            available_space: Size {
-                width: AvailableSpace::Definite(content.width),
-                height: AvailableSpace::MaxContent,
-            },
-            ..LayoutInput::HIDDEN
-        };
-        let size = measure_content(self.ctx, content_of, &node.text, &input).size;
-        let width = match node.text.white_space {
-            WhiteSpace::Truncate => size.width.min(content.width),
-            _ => size.width,
-        };
-        Some(vec2(width, size.height))
     }
+}
+
+/// The size a leaf's content wants in a content box `content` wide, or `None`
+/// for a leaf with no content. Truncated text is cut to the box by design, so
+/// it never wants more than the box's width.
+pub(crate) fn wanted(
+    ctx: &egui::Context,
+    content_of: Content<'_>,
+    text: &TextStyle,
+    content: Size<f32>,
+) -> Option<egui::Vec2> {
+    if matches!(content_of, Content::Empty) {
+        return None;
+    }
+    let input = LayoutInput {
+        known_dimensions: Size::NONE,
+        available_space: Size {
+            width: AvailableSpace::Definite(content.width),
+            height: AvailableSpace::MaxContent,
+        },
+        ..LayoutInput::HIDDEN
+    };
+    let size = measure_content(ctx, content_of, text, &input).size;
+    let width = match text.white_space {
+        WhiteSpace::Truncate => size.width.min(content.width),
+        _ => size.width,
+    };
+    Some(vec2(width, size.height))
 }
 
 /// How far past a node's border box its own painting reaches: its shadow and
@@ -640,7 +655,7 @@ fn collect(
             axis: scroll.axis,
             edge: scroll.edge,
             bars: scroll.bars,
-            tab_stop: scroll.tab_stop,
+            tab: scroll.tab,
             description: scroll.description,
             content: scroll.size,
             offset,
@@ -687,7 +702,7 @@ pub struct PlacedNode {
     pub(crate) overflow: Point<Overflow>,
     pub(crate) flow: Flow,
     paint: BoxPaint,
-    text: TextStyle,
+    pub(crate) text: TextStyle,
     text_valign: VAlign,
     z: i16,
     inert: bool,
@@ -696,8 +711,9 @@ pub struct PlacedNode {
     pub(crate) draw: Option<usize>,
     draw_kind: DrawKind,
     pub(crate) scroll: Option<ScrollPlan>,
-    /// What the content of a leaf wants at its final width; recorded only
-    /// while [`Debug::Outlines`] is set.
+    /// What the content of an application-measured leaf wants at its final
+    /// width; recorded only while [`Debug::Outlines`] is set. The library's
+    /// own leaves are measured when asked ([`Placed::overflowing`]).
     pub(crate) measured: Option<egui::Vec2>,
 }
 
@@ -804,6 +820,7 @@ impl PlacedNode {
 /// A laid-out frame. Nodes are in pre-order: the root first, then each
 /// node followed by its descendants.
 pub struct Placed<A> {
+    pub(crate) ctx: egui::Context,
     pub(crate) nodes: Vec<PlacedNode>,
     pub(crate) by_id: HashMap<Id, usize>,
     pub(crate) prims: Vec<Option<Prim>>,
@@ -829,9 +846,18 @@ impl<A> Placed<A> {
 
     /// The paths of the nodes whose content does not fit them: the nodes the
     /// debug overlay outlines in red.
+    ///
+    /// Independent of the overlay. A normal frame pays nothing for it; asking
+    /// measures the text, icons and images of every leaf once more at its
+    /// final width (about the cost of the layout's text measuring), so call
+    /// it from tests and tools, not every frame. Leaves measured by an
+    /// application closure ([`Builder::leaf`](crate::Builder)) cannot be
+    /// measured after the layout; they are included only while
+    /// [`Debug::Outlines`] is set.
     pub fn overflowing(&self) -> Vec<&str> {
+        let overflows = crate::debug::overflow(&self.ctx, &self.nodes, &self.prims);
         (0..self.nodes.len())
-            .filter(|&index| crate::debug::overflows(&self.nodes, index))
+            .filter(|&index| overflows[index])
             .map(|index| self.nodes[index].path())
             .collect()
     }
