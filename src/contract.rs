@@ -642,27 +642,50 @@ pub struct Selection {
     pub text: Option<Color32>,
 }
 
-/// When a scroll container shows its scroll bars.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum Scrollbar {
-    /// Thin bars that float over the content, hidden while the container is
-    /// idle and shown when the pointer is over it or it scrolls: the shadcn
-    /// `ScrollArea` with `type="hover"`.
-    #[default]
-    Hover,
-    /// Bars that are always visible, in a gutter beside the content that is
-    /// reserved whether or not the content overflows: CSS
-    /// `scrollbar-gutter: stable`. The content is laid out in the viewport
-    /// minus the gutter, so it never reflows when it starts to overflow.
-    Always,
-}
-
-/// Scroll containers.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// The scroll bars of scroll containers.
+///
+/// A container always reserves a gutter `width` wide on the axis it scrolls,
+/// and draws the bar in it when the content overflows. The bar is egui's: it
+/// handles the drag, and is painted with these colours.
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ScrollStyle {
-    /// The bars of a container that does not choose its own.
-    pub visibility: Scrollbar,
+    /// The gutter's width, and the bar's: the width of the vertical bar and
+    /// the height of the horizontal one, in points.
+    pub width: f32,
+    /// The thumb at rest.
+    pub thumb: Color32,
+    /// The thumb under the pointer.
+    pub thumb_hover: Color32,
+    /// The thumb while it is dragged.
+    pub thumb_active: Color32,
+    /// The track behind the thumb.
+    pub track: Color32,
+    /// The corner radius of the thumb and the track.
+    pub radius: egui::CornerRadius,
+    /// The shortest the thumb gets, in points.
+    pub min_thumb_length: f32,
+}
+
+impl ScrollStyle {
+    /// What egui's own scroll bars look like in `egui`.
+    pub fn from_egui(egui: &egui::Style) -> Self {
+        let (scroll, widgets) = (egui.spacing.scroll, &egui.visuals.widgets);
+        Self {
+            width: scroll.bar_width,
+            thumb: widgets.inactive.bg_fill,
+            thumb_hover: widgets.hovered.bg_fill,
+            thumb_active: widgets.active.bg_fill,
+            track: egui.visuals.extreme_bg_color,
+            radius: widgets.inactive.corner_radius,
+            min_thumb_length: scroll.handle_min_length,
+        }
+    }
+
+    /// The gutter's width, never negative.
+    pub(crate) fn gutter(&self) -> f32 {
+        self.width.max(0.0)
+    }
 }
 
 /// The look of every widget eggshell draws.
@@ -1083,7 +1106,7 @@ impl Style {
                 fill: v.selection.bg_fill,
                 text: Some(v.selection.stroke.color),
             },
-            scroll: ScrollStyle::default(),
+            scroll: ScrollStyle::from_egui(egui),
         }
     }
 

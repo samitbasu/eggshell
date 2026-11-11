@@ -11,12 +11,11 @@ use std::sync::Arc;
 use egui::text_selection::LabelSelectionState;
 use egui::{
     Align, Color32, Frame, Galley, Id, Image, Layout, Painter, Pos2, Rect, Response, Role, Sense,
-    Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, WidgetInfo, pos2, vec2,
+    Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, Vec2b, WidgetInfo, pos2, vec2,
 };
 use taffy::Overflow;
 
 use crate::continuity::{self, Motion, NodeFrame, RecordedPass};
-use crate::contract::Scrollbar;
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
 use crate::dnd::{self, Stakes};
@@ -808,17 +807,19 @@ impl<A> Walk<'_, A> {
         let node = &nodes[index];
         let plan = node.scroll.as_ref().expect("a scroll container has a plan");
         let id = node.id().expect("a scroll container is identified");
-        let area = egui::ScrollArea::new(plan.axis.enabled())
-            .id_salt(scroll::AREA_SALT)
-            .auto_shrink(false)
-            .content_margin(egui::Margin::ZERO);
-        let bars = plan.bars.visibility;
-        let area = match bars {
-            Scrollbar::Hover => area,
-            Scrollbar::Always => {
-                area.scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
-            }
+        let overflows = {
+            let view = boxes.padding.size() - plan.bars.gutter;
+            Vec2b::new(plan.content.x > view.x, plan.content.y > view.y)
         };
+        let enabled = plan.axis.enabled();
+        let area = egui::ScrollArea::new(Vec2b::new(
+            enabled.x && overflows.x,
+            enabled.y && overflows.y,
+        ))
+        .id_salt(scroll::AREA_SALT)
+        .auto_shrink(false)
+        .content_margin(egui::Margin::ZERO)
+        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
         let area = match plan.moved {
             Moved::Yes => area.scroll_offset(plan.offset),
             Moved::No => area,
@@ -847,15 +848,12 @@ impl<A> Walk<'_, A> {
             inherited,
             None,
             |ui| {
-                let style = &mut ui.spacing_mut().scroll;
-                match bars {
-                    Scrollbar::Hover => {
-                        style.floating = true;
-                        style.floating_allocated_width = 0.0;
-                    }
-                    Scrollbar::Always => *style = scroll::solid_bars(style),
-                }
+                let outer = ui.style().clone();
+                ui.spacing_mut().scroll = plan.bars.egui(&outer.spacing.scroll);
+                plan.bars.paint_in(ui.visuals_mut());
                 area.show_viewport(ui, |ui, _| {
+                    // The bar's colours are for the bar, not for the content.
+                    ui.set_style(outer);
                     ui.allocate_space(plan.content);
                     Walk {
                         app: &mut **app,

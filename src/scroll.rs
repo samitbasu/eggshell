@@ -25,22 +25,22 @@
 //!
 //! # Scroll bars
 //!
-//! [`Scrollbar::Hover`] (the default of the shadcn preset) is egui's floating
-//! bar: thin, hidden while the container is idle, shown when the pointer is
-//! over it or it scrolls. It takes no room.
+//! There are no overlay bars. A container always reserves a **gutter** on the
+//! axis it scrolls (the width for `Axis::Y`, the height for `X`, both for
+//! `Both`), whether or not its content overflows, as CSS
+//! `scrollbar-gutter: stable`, and lays the content out in the viewport
+//! without it. Layout is therefore single-pass: nothing depends on overflow,
+//! and content that grows past the viewport does not reflow. The bar is drawn
+//! in the gutter only on an axis where the content is larger than the
+//! viewport; otherwise the gutter is empty (a track is drawn only if the style
+//! gives it a colour, and only beside a bar). [`Viewport::rect`] is the viewport
+//! without the gutter. `overflow-y-auto` and `overflow-y-scroll` mean this and
+//! nothing else, and a container's own overflow classes are replaced by it.
 //!
-//! [`Scrollbar::Always`] is egui's solid bar, always visible, in a **stable
-//! gutter**, as CSS `scrollbar-gutter: stable`: the bar's width is taken from
-//! the viewport on the scrolling axis (the width for `Axis::Y`, the height
-//! for `X`, both for `Both`) whether or not the content overflows, and the
-//! content is laid out in what remains. Layout therefore stays single-pass:
-//! nothing depends on whether the content overflows, and content that grows
-//! past the viewport does not reflow. [`Viewport::rect`] is the viewport
-//! without the gutter. The bar is egui's, as the style leaves it, except that
-//! it is not floating.
-//!
-//! [`ScrollChain::scrollbar`] chooses per container; without it the
-//! container follows [`Style::scroll`](crate::contract::Style::scroll).
+//! The bar is egui's, which handles its drag, painted with the colours of
+//! [`ScrollStyle`] ([`Style::scroll`](crate::contract::Style::scroll); the
+//! shadcn preset gives shadcn's `ScrollArea`). [`ScrollChain::scrollbar_style`]
+//! changes it for one container.
 //!
 //! # The wheel
 //!//!
@@ -68,7 +68,7 @@
 use egui::{Align, Context, Id, Pos2, Rect, Vec2, Vec2b};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
-pub use crate::contract::Scrollbar;
+pub use crate::contract::ScrollStyle;
 use crate::contract::Style;
 use crate::dnd::{EdgeScroll, drag_pointer};
 use crate::draw::inset;
@@ -129,7 +129,7 @@ pub struct ScrollChain<'a, 'f, A> {
     classes: Tw,
     axis: Axis,
     edge: Option<EdgeScroll>,
-    bars: Option<Scrollbar>,
+    bars: Option<ScrollStyle>,
 }
 
 impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
@@ -150,9 +150,10 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
         self
     }
 
-    /// When the container shows its bars. Unless set, the style's
-    /// ([`Style::scroll`](crate::contract::Style::scroll)).
-    pub fn scrollbar(mut self, bars: Scrollbar) -> Self {
+    /// The container's scroll bar, instead of the style's
+    /// ([`Style::scroll`](crate::contract::Style::scroll)): its width is the
+    /// gutter the container reserves.
+    pub fn scrollbar_style(mut self, bars: ScrollStyle) -> Self {
         self.bars = Some(bars);
         self
     }
@@ -181,8 +182,8 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             edge,
             bars,
         } = self;
-        let visibility = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll.visibility);
-        let bars = Bars::new(b.ctx(), axis, visibility);
+        let style = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll);
+        let bars = Bars::new(style, axis);
         let options = ScrollOptions { axis, edge, bars };
         b.scroll_with(slot.id, &slot.label, classes, options, body)
     }
@@ -344,38 +345,54 @@ pub(crate) struct ScrollOptions {
     pub(crate) bars: Bars,
 }
 
-/// The bars of a container: when they show, and the gutter they take.
+/// The bars of a container: their style, and the gutter they take.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Bars {
-    pub(crate) visibility: Scrollbar,
+    pub(crate) style: ScrollStyle,
     /// What the bars take from the viewport: the width of the vertical bar
-    /// and the height of the horizontal one. Zero for floating bars.
+    /// and the height of the horizontal one.
     pub(crate) gutter: Vec2,
 }
 
-/// egui's scroll style as [`Scrollbar::Always`] draws it: the context's, with
-/// the bars out of the content's way.
-pub(crate) fn solid_bars(style: &egui::style::ScrollStyle) -> egui::style::ScrollStyle {
-    egui::style::ScrollStyle {
-        floating: false,
-        ..*style
-    }
-}
-
 impl Bars {
-    fn new(ctx: &Context, axis: Axis, visibility: Scrollbar) -> Self {
-        let gutter = match visibility {
-            Scrollbar::Hover => Vec2::ZERO,
-            Scrollbar::Always => {
-                let width = solid_bars(&ctx.global_style().spacing.scroll).allocated_width();
-                let enabled = axis.enabled();
-                Vec2::new(
-                    if enabled.y { width } else { 0.0 },
-                    if enabled.x { width } else { 0.0 },
-                )
-            }
-        };
-        Self { visibility, gutter }
+    fn new(style: ScrollStyle, axis: Axis) -> Self {
+        let (width, enabled) = (style.gutter(), axis.enabled());
+        let gutter = Vec2::new(
+            if enabled.y { width } else { 0.0 },
+            if enabled.x { width } else { 0.0 },
+        );
+        Self { style, gutter }
+    }
+
+    /// egui's scroll style for these bars: solid, and `style`'s size.
+    pub(crate) fn egui(&self, base: &egui::style::ScrollStyle) -> egui::style::ScrollStyle {
+        egui::style::ScrollStyle {
+            floating: false,
+            bar_width: self.style.gutter(),
+            bar_inner_margin: 0.0,
+            bar_outer_margin: 0.0,
+            handle_min_length: self.style.min_thumb_length,
+            foreground_color: false,
+            ..*base
+        }
+    }
+
+    /// Paints the bar with `style`'s colours: egui paints it from the
+    /// widget visuals of the `Ui` it is shown in.
+    pub(crate) fn paint_in(&self, visuals: &mut egui::Visuals) {
+        let style = &self.style;
+        let widgets = &mut visuals.widgets;
+        widgets.inactive.bg_fill = style.thumb;
+        widgets.hovered.bg_fill = style.thumb_hover;
+        widgets.active.bg_fill = style.thumb_active;
+        for widget in [
+            &mut widgets.inactive,
+            &mut widgets.hovered,
+            &mut widgets.active,
+        ] {
+            widget.corner_radius = style.radius;
+        }
+        visuals.extreme_bg_color = style.track;
     }
 }
 

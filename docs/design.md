@@ -564,6 +564,7 @@ b.scroll("scroll", tw().grow().min_h_0()).axis(Axis::Y).children(|s| { /* conten
 - Draw: an `egui::ScrollArea` keyed by the scroll node's id owns the offset, the wheel, the bars and the momentum. The content's nodes are walked inside it with those outside the viewport left out (their draw closures do not run, and Tab does not reach them). The node that holds the keyboard focus or the lifted drag, and the drag's image, are never left out.
 - Programmatic scrolling (`scroll_by`, `scroll_to_rect`, `scroll_into_view`) is a request that the next layout applies to the rects of its own frame; `viewport` reads where the viewport and the content are.
 - While a drag is live, a container near whose edge the pointer is scrolls by `EdgeScroll` and requests frames; the innermost container that can move takes it.
+- Scroll bars are never overlays. The container always reserves a gutter (`ScrollStyle::width`) on the axis it scrolls, so layout is single-pass and nothing depends on overflow; egui draws its bar in the gutter only when the content is larger than the viewport. The look is `Style::scroll` (the shadcn preset gives `ScrollArea`'s), per container `scrollbar_style`.
 - Text inheritance continues from the scroll node into its content.
 - Scroll roots may nest (a scrolling table inside a pane inside a scrolling grid). Containers are solved outermost first; an inner `ScrollArea` is drawn inside its outer one, so egui chains the wheel to the outer one at the inner one's edge.
 - Long lists use `virtual_list` (§11.1), which builds only the visible range.
