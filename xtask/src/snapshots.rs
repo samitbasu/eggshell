@@ -30,6 +30,14 @@ pub struct Plan {
     pub filter: Option<String>,
 }
 
+/// The golden check with no filter, as a `cargo xtask ci` step.
+pub fn check_goldens() -> Result<()> {
+    run(&Plan {
+        mode: Mode::Check,
+        filter: None,
+    })
+}
+
 pub fn run(plan: &Plan) -> Result<()> {
     let golden_dir = process::workspace_root().join(GOLDEN_DIR);
     match plan.mode {
@@ -44,7 +52,10 @@ pub fn run(plan: &Plan) -> Result<()> {
 }
 
 fn check(plan: &Plan, golden_dir: &Path) -> Result<()> {
-    let result = renderer_step(plan, &lavapipe_icd()?).run();
+    let icd = lavapipe_icd()?;
+    // Strays from an earlier failed run would otherwise read as mismatches now.
+    clean(golden_dir)?;
+    let result = renderer_step(plan, &icd).run();
     let strays = strays(golden_dir)?;
     for stray in &strays {
         println!("mismatch: {}", stray.display());

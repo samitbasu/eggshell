@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 
-use crate::{clock, process, summary};
+use crate::{clock, process, snapshots, summary};
 
 /// One cargo invocation. Every task is a list of these, so each is announced
 /// and failure-reported the same way.
@@ -137,11 +137,8 @@ pub fn wasm() -> Step {
 
 pub const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
-/// What CI runs, in order.
-///
-/// `cargo xtask snapshots` is deliberately not here: it needs Mesa lavapipe
-/// on the runner, which is a separate decision. Until then the snapshot check
-/// is local, and the PR template asks for it.
+/// What CI runs, in order. The golden check needs Mesa lavapipe, locally and
+/// on the runner alike.
 pub fn ci_steps() -> Vec<Step> {
     vec![
         fmt(FmtMode::Check),
@@ -162,6 +159,7 @@ pub fn ci_steps() -> Vec<Step> {
         Step::cargo("rustdoc", &["doc", "--workspace", "--no-deps"])
             .with_env("RUSTDOCFLAGS", "-D warnings"),
         wasm(),
+        Step::internal("snapshots", snapshots::check_goldens),
     ]
 }
 
@@ -226,6 +224,7 @@ mod tests {
                 "cargo test --workspace --doc",
                 "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
                 "cargo check --target wasm32-unknown-unknown --workspace --exclude xtask --lib --examples",
+                "built-in snapshots check",
             ]
         );
     }

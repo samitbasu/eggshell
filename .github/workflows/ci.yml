@@ -26,6 +26,8 @@ jobs:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      - name: Mesa lavapipe for the golden images
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
       - run: cargo xtask ci
       - name: Disk usage
         if: always()
