@@ -473,9 +473,16 @@ impl Hand<'_> {
                 } else {
                     egui::Modifiers::NONE
                 };
+                let cols = self.harness.state().app.cols;
+                let frame = session.next_frame(&self.harness.ctx);
                 self.harness
                     .key_press_modifiers(modifiers, SCROLL_KEYS[key]);
                 self.harness.run_steps(2);
+                // Space on the focused column control activates it, and the
+                // columns change at once, as `SetCols` does.
+                if self.harness.state().app.cols != cols {
+                    session.resized_instantly.push(frame + 1);
+                }
             }
             DragAction::Idle(count) => self.harness.run_steps(count),
             _ => {}
