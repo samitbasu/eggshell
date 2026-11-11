@@ -255,6 +255,10 @@ enum DragAction {
     /// case is `a_resize_under_a_held_panel_keeps_the_drag`.
     Resize(u32),
     SetCols(u32),
+    /// Swaps the live image for the chip, or back. Not while a panel is held:
+    /// the app's own look change then lasts one frame when the drag ends in
+    /// the next, which the checker rightly reports as an opacity blip.
+    ToggleImage,
     Idle(usize),
 }
 
@@ -268,6 +272,7 @@ fn drag_action() -> impl Strategy<Value = DragAction> {
         2 => Just(DragAction::ReleaseOutside),
         2 => (NARROWEST as u32..=WIDEST as u32).prop_map(DragAction::Resize),
         2 => (1u32..=3).prop_map(DragAction::SetCols),
+        1 => Just(DragAction::ToggleImage),
         2 => (1usize..=8).prop_map(DragAction::Idle),
     ]
 }
@@ -363,6 +368,14 @@ impl Hand<'_> {
                         .push(session.next_frame(&self.harness.ctx));
                 }
                 self.harness.state_mut().app.cols = cols as usize;
+                self.harness.step();
+            }
+            DragAction::ToggleImage if !self.down => {
+                let app = &mut self.harness.state_mut().app;
+                app.image = match app.image {
+                    gallery::Image::Live => gallery::Image::Chip,
+                    gallery::Image::Chip => gallery::Image::Live,
+                };
                 self.harness.step();
             }
             DragAction::Idle(count) => self.harness.run_steps(count),

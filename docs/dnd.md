@@ -8,7 +8,9 @@
 - **`on_drag_end` is on the `Builder`**, not the source node, because a vanished source (`Cause::SourceGone`) has nowhere else to deliver. It delivers `(payload, DragEnd)` once.
 - **`drop_target_if(accept, handler)`** filters by payload value. **`drop_fallback()`** marks the target that takes a drop arriving with no position (winit 0.30 outside drops); there, `position` and `index_hint` are `None`.
 - **`index_hint` items** are the target's direct children that are drag sources or contain one, minus the dragged one's subtree, so a slot wrapper can hold the source. `insertion_index` splits a full-width item (a list or a single column) at its vertical middle.
-- **The source's look while lifted** is the `drag_lifted(|p| ..)` variant. It applies to the live image, or to the node in its slot for `Chip`/`None`.
+- **The source's look while lifted** is the `drag_lifted(|p| ..)` variant. It applies to the live image, or to the node in its slot when the image is a preview or `None`.
+- **`DragImage` is `{ Live, None }`.** `NodeHandle::drag_preview(|b| ..)` makes any subtree the image and wins over `Live`. `build` runs only while this source is the one lifted (so the preview first shows the frame after the lift). The library puts the subtree under an absolute (out-of-flow) node that is a sibling of the source, with an id derived from the source's, so neither the siblings' layout nor the target's `index_hint` items change. Its shapes go to the drag layer, unclipped, with its top-left `drag_grab(ctx)` behind the pointer: the live image's anchor, resolved against this frame's layout. A preview that should sit at the pointer offsets its content by `drag_grab`.
+- **The chip lives in the shadcn crate**, not the core: `drag_chip(b, text)` builds shadcn's tooltip look (`primary` background, `primary-foreground` text, `rounded-md`, `text-xs`, `px-3 py-1.5`, from the tokens of the current theme), 12 points down and right of the pointer; the `DragChip` trait gives `with_drag_chip(text)` on a `NodeHandle`, one line over `drag_preview`. The core knows nothing about chips.
 - **Outside drags:** the pointer position counts as known only after `PointerMoved` since the files appeared, or in the drop pass. A position from before the drag entered is never used, and `drag_over` stays off without one. A refused file drop has no callback; the examples route refusals with a page-wide `Files` target (the innermost accepting target wins).
 - **A gesture belongs to one `Placed`.** Targets laid out by another `Placed` on the same context don't see it (cross-`Placed` drops are tracked separately). A gesture whose scope is no longer drawn is cleared.
 - **Auto-scroll** is a hook (`EdgeScroll`, `drag_pointer`) until M5 provides scroll containers.
@@ -76,7 +78,7 @@ Note: a drag-only node did not take focus on press in the harness; `Tab` did. Ke
 - **Anchor in screen space, resolved at draw time.** The first version painted the lifted node at an offset from its slot computed at build time from *last* frame's slot. On the frame a live reorder moved the slot, the image jumped by the slot's move (seen by the user as a tile drawn over column 1). `paint_centered_at` converts the anchor into an offset from **this** frame's rect when the node is drawn, so it cannot lag (`the_lifted_panel_never_lags_its_slot_when_the_order_changes`, which walks the pointer one frame at a time across the reorder). The same fix removed a one-frame trail under auto-scroll.
 - **The lifted node does not `animate_layout`**, so it never slides behind the image, and FLIP measures layout positions, so the pointer offset never feeds a slide. On release the panel is opaque in its slot on the release frame (`on_release_the_panel_is_opaque_in_its_slot_with_no_flash`).
 - **Superseded: the snapshot ghost.** The first spike copied the source's painted shapes once at drag start (`capture` / `paint_ghost`, by rect containment) and repainted them at the pointer. It froze animated content, lost shadows outside the rect, and baked in the source's opacity. `dnd_reorder` still uses it; production won't. A per-node painted shape range is now needed only by exit transitions (#35).
-- **Chip:** a small text label at the pointer (`paint_chip`, ten lines). It's the fallback where painting the real node doesn't fit (a very large source, or a node that mustn't leave its clip), and an option where a compact image reads better.
+- **Chip:** the spike painted a hard-coded label (`paint_chip`). Production has no chip in the core: see **As built** (`drag_preview`, and the chip in the shadcn crate).
 - The image is painted on `LayerId::new(Order::Tooltip, ..)` with a screen-wide clip, so it is above the scroll clip and above every ordinary layer. Above overlays: see M6.
 
 ### Scroll (M5)
@@ -156,7 +158,9 @@ None were required to run the experiments. For production:
 b.div_id(key, tw().sense_drag().drag_over(|p| p.ring()), |b| ..)
     .drag_source(Item(key))                       // payload: Any + Send + Sync
     .drag_image(DragImage::Live)                  // default: the node itself, painted at the pointer
-                                                  // or ::Chip(text) (a label), or ::None (no image; the slot's look carries it)
+                                                  // or ::None (no image; the slot's look carries it)
+    .drag_preview(|b| ..)                         // any subtree as the image; wins over Live. The shadcn
+                                                  // crate's `with_drag_chip(text)` is one (see As built)
 
 // Target: accepts by payload type, optionally by predicate.
 b.div_id("canvas", tw().sense_hover()

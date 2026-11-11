@@ -353,12 +353,24 @@ pub fn frame_harness<A: 'static>(
     app: A,
     frame: fn(&mut egui::Ui, &mut A, &mut LayoutState),
 ) -> Harness<'static, FrameRig<A>> {
+    frame_harness_scaled(size, 1.0, base_text, app, frame)
+}
+
+/// [`frame_harness`] on a display of `pixels_per_point`; `size` is in points.
+pub fn frame_harness_scaled<A: 'static>(
+    size: Vec2,
+    pixels_per_point: f32,
+    base_text: TextStyle,
+    app: A,
+    frame: fn(&mut egui::Ui, &mut A, &mut LayoutState),
+) -> Harness<'static, FrameRig<A>> {
     let rig = FrameRig {
         app,
         layout: LayoutState::new().with_base_text(base_text),
     };
     let harness = Harness::builder()
         .with_size(size)
+        .with_pixels_per_point(pixels_per_point)
         .with_step_dt(1.0 / 60.0)
         .build_ui_state(
             move |ui, rig: &mut FrameRig<A>| {
@@ -400,5 +412,12 @@ pub fn flatten_all<'a, S>(harness: &'a Harness<'_, S>) -> Vec<&'a Shape> {
     for clipped in &harness.output().shapes {
         flatten(&clipped.shape, &mut all);
     }
+    all
+}
+
+/// The shapes inside `shape`, groups flattened.
+pub fn flatten_all_of(shape: &Shape) -> Vec<&Shape> {
+    let mut all = Vec::new();
+    flatten(shape, &mut all);
     all
 }

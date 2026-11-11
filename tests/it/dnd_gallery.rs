@@ -8,7 +8,7 @@ use std::sync::Arc;
 use eggshell_ui::testing::Timeline;
 use eggshell_ui::{Cause, DragEnd};
 use egui::epaint::Shape;
-use egui::{Event, Key, Modifiers, MouseWheelUnit, Pos2, Rect, vec2};
+use egui::{Color32, Event, Key, Modifiers, MouseWheelUnit, Pos2, Rect, vec2};
 use egui_kittest::Harness;
 
 #[path = "../../examples/common/mod.rs"]
@@ -872,4 +872,65 @@ fn another_tree_drawn_first_keeps_the_preview() {
         before[..6],
         "the other panels make room while the drag is over the grid"
     );
+}
+
+#[test]
+fn the_drag_chip_wears_the_tooltip_look_in_both_themes() {
+    for theme in [egui::Theme::Light, egui::Theme::Dark] {
+        let mut state = State::default();
+        state.image = Image::Chip;
+        let mut h = harness_with(state, gallery::frame);
+        h.ctx.set_theme(theme);
+        h.run_steps(4);
+        lift(&mut h, 0);
+        let pointer = rect(&h, 4).center();
+        pointer_to(&mut h, pointer);
+        let tokens = common::tokens(&h.ctx);
+        let labels: Vec<(Pos2, Color32)> = support::flatten_all(&h)
+            .into_iter()
+            .filter_map(|s| match s {
+                Shape::Text(t) if t.galley.text() == "w0" => {
+                    Some((t.pos, t.override_text_color.unwrap_or(t.fallback_color)))
+                }
+                _ => None,
+            })
+            .collect();
+        let chip: Vec<_> = labels
+            .iter()
+            .filter(|(at, _)| (*at - pointer).length() < 60.0)
+            .collect();
+        assert_eq!(
+            chip.len(),
+            1,
+            "{theme:?}: one label at the pointer: {labels:?}"
+        );
+        assert_eq!(chip[0].1, tokens.primary_foreground, "{theme:?}: text");
+        let fills: Vec<Rect> = support::flatten_all(&h)
+            .into_iter()
+            .filter_map(|s| match s {
+                Shape::Rect(r) if r.fill == tokens.primary && r.rect.contains(chip[0].0) => {
+                    Some(r.rect)
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            fills.len(),
+            1,
+            "{theme:?}: the chip's primary fill sits behind its text"
+        );
+        assert!(
+            fills[0].width() < 80.0 && fills[0].height() < 40.0,
+            "{theme:?}: a small chip: {:?}",
+            fills[0]
+        );
+        let (primary_in_light, primary_in_dark) = (
+            eggshell_ui_shadcn::Shadcn::light().tokens.primary,
+            eggshell_ui_shadcn::Shadcn::dark().tokens.primary,
+        );
+        assert_ne!(
+            primary_in_light, primary_in_dark,
+            "precondition: the themes differ"
+        );
+    }
 }
