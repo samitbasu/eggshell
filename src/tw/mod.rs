@@ -6,9 +6,11 @@
 //! Layout classes write a [`taffy::Style`]. One spacing unit is 4 points, so
 //! `.p(1.5)` is `p-1.5` is 6 points. Methods suffixed `_px` take points
 //! directly, `_frac(n, d)` is the fraction `n/d`, `_full` is 100%, and `_auto`
-//! is the `auto` keyword. Layout methods take bare floats because the method
+//! is the `auto` keyword, and `w_ch`, `min_w_ch` and `max_w_ch` take widths in
+//! `ch`, resolved when the builder knows the node's font. Layout methods take bare floats because the method
 //! name carries the unit, exactly as in Tailwind.
 
+mod ch;
 mod easing;
 mod grid;
 mod layout;
@@ -22,6 +24,7 @@ use taffy::{Display, Style};
 
 use crate::text::TextClasses;
 
+pub(crate) use ch::ChWidths;
 pub use easing::Easing;
 pub use grid::Track;
 use merge::{Layout, Touched};
@@ -37,6 +40,7 @@ const SPACE_UNIT: f32 = 4.0;
 #[derive(Clone, Debug)]
 pub struct Tw {
     pub(crate) style: Style,
+    pub(crate) ch: ChWidths,
     pub(crate) paint: BoxPaint,
     pub(crate) text: TextClasses,
     pub(crate) z: Option<i16>,
@@ -55,6 +59,7 @@ pub fn tw() -> Tw {
             display: Display::Block,
             ..Style::default()
         },
+        ch: ChWidths::default(),
         paint: BoxPaint::default(),
         text: TextClasses::default(),
         z: None,

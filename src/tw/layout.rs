@@ -111,6 +111,35 @@ macro_rules! keywords {
 }
 
 impl Tw {
+    /// `w-[<n>ch]`: the width in `ch`, as CSS: `n` times the advance of "0" in
+    /// the node's resolved font, its own text classes over the inherited ones.
+    ///
+    /// ```html
+    /// <span class="w-[6ch] font-mono text-right">-12.5</span>
+    /// ```
+    pub fn w_ch(self, n: f32) -> Self {
+        self.styled(|s| {
+            *s.width() = Dimension::AUTO;
+            s.ch.width = Some(n);
+        })
+    }
+
+    /// `min-w-[<n>ch]`: the minimum width in `ch`. See [`w_ch`](Self::w_ch).
+    pub fn min_w_ch(self, n: f32) -> Self {
+        self.styled(|s| {
+            *s.min_width() = LengthPercentageAuto::AUTO;
+            s.ch.min_width = Some(n);
+        })
+    }
+
+    /// `max-w-[<n>ch]`: the maximum width in `ch`. See [`w_ch`](Self::w_ch).
+    pub fn max_w_ch(self, n: f32) -> Self {
+        self.styled(|s| {
+            *s.max_width() = LengthPercentageAuto::AUTO;
+            s.ch.max_width = Some(n);
+        })
+    }
+
     keywords! {
         flex, "`flex`: a flex container.", |s| *s.display() = Display::Flex;
         block, "`block`: a block container.", |s| *s.display() = Display::Block;

@@ -15,7 +15,7 @@ use taffy::style::{
 };
 use taffy::{Line, Rect, Size, Style};
 
-use super::{BoxPaint, Opacity, Tw};
+use super::{BoxPaint, ChWidths, Opacity, Tw};
 
 /// The properties a class list has set: a bit for each layout property that
 /// can be merged on its own, then the corner radii and the opacity.
@@ -63,6 +63,7 @@ macro_rules! layout_properties {
                 /// The property, marked as set by the class being written.
                 pub(super) fn $name(&mut self) -> &mut $ty {
                     self.touched.mark(Property::$name);
+                    self.ch.supersede(Property::$name);
                     &mut self.style.$($field).+
                 }
             )+
@@ -77,7 +78,7 @@ macro_rules! layout_properties {
                 $(
                     let mut style = Style::default();
                     let mut touched = Touched::default();
-                    Layout { style: &mut style, touched: &mut touched }.$name();
+                    Layout { style: &mut style, ch: &mut ChWidths::default(), touched: &mut touched }.$name();
                     assert_eq!(
                         touched.0,
                         1 << Property::$name as u32,
@@ -151,7 +152,21 @@ layout_properties! {
 /// the accessor named for it, which records the write for [`Tw::merge`].
 pub(super) struct Layout<'a> {
     style: &'a mut Style,
+    pub(super) ch: &'a mut ChWidths,
     touched: &'a mut Touched,
+}
+
+impl ChWidths {
+    /// A class that writes `property` in points or as a fraction replaces a
+    /// width pending in `ch`.
+    fn supersede(&mut self, property: Property) {
+        match property {
+            Property::width => self.width = None,
+            Property::min_width => self.min_width = None,
+            Property::max_width => self.max_width = None,
+            _ => {}
+        }
+    }
 }
 
 impl Layout<'_> {
@@ -226,6 +241,7 @@ impl Tw {
     pub(super) fn write_layout(&mut self, set: impl FnOnce(&mut Layout<'_>)) {
         set(&mut Layout {
             style: &mut self.style,
+            ch: &mut self.ch,
             touched: &mut self.touched,
         });
     }
@@ -244,7 +260,7 @@ impl Tw {
     ///
     /// | What | Merged |
     /// |---|---|
-    /// | Layout | per property: `p-2` over `px-4` leaves the top and bottom padding; each side, each axis of a size, a gap or an overflow is its own property |
+    /// | Layout | per property: `p-2` over `px-4` leaves the top and bottom padding; each side, each axis of a size, a gap or an overflow is its own property; `w_ch` and `w_px` are the same property |
     /// | Box paint | per property: the background, each border side's colour, ring, shadow, each corner radius, opacity and each divider |
     /// | Text classes | per property, as in layout |
     /// | State variants | per state, then per property within it: `hover:bg-red` over `hover:text-white` keeps both |
@@ -262,6 +278,23 @@ impl Tw {
     #[must_use]
     pub fn merge(mut self, other: Self) -> Self {
         copy_layout(&mut self.style, &other.style, other.touched);
+        for (property, mine, theirs) in [
+            (Property::width, &mut self.ch.width, other.ch.width),
+            (
+                Property::min_width,
+                &mut self.ch.min_width,
+                other.ch.min_width,
+            ),
+            (
+                Property::max_width,
+                &mut self.ch.max_width,
+                other.ch.max_width,
+            ),
+        ] {
+            if other.touched.has(property) {
+                *mine = theirs;
+            }
+        }
         let (mine, theirs) = (&mut self.paint, &other.paint);
         let corners = |own: u8, over: u8, property| {
             if other.touched.has(property) {

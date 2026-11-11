@@ -7,6 +7,7 @@
 )]
 
 mod button_options;
+mod ch;
 mod chat_shell_demo;
 mod children;
 mod choices;

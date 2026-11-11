@@ -409,12 +409,28 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
+    /// The node's layout style, its widths in `ch` measured in its resolved font.
+    fn resolved_style(&self, tw: Tw, node: &Node) -> taffy::Style {
+        let mut style = tw.style;
+        let font = node.text.spec.font_id();
+        tw.ch.resolve(&mut style, || {
+            self.frame.ctx.fonts_mut(|fonts| {
+                fonts
+                    .layout_no_wrap("0".to_owned(), font, Color32::PLACEHOLDER)
+                    .size()
+                    .x
+            })
+        });
+        style
+    }
+
     fn leaf_node(&mut self, tw: Tw, parts: Parts) {
         let node = self.node(&tw, parts);
+        let style = self.resolved_style(tw, &node);
         let id = self
             .st
             .tree
-            .new_leaf_with_context(tw.style, node)
+            .new_leaf_with_context(style, node)
             .expect("taffy accepts a new leaf");
         self.kids.push(id);
     }
@@ -423,13 +439,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// path starts at `path`.
     fn container(&mut self, tw: Tw, parts: Parts, path: Id, body: impl FnOnce(Builder<'_, 'f, A>)) {
         let node = self.node(&tw, parts);
+        let style = self.resolved_style(tw, &node);
         let text = node.text.clone();
         let mut kids = Vec::new();
         body(Builder::new(self.st, self.frame, path, &mut kids, &text));
         let id = self
             .st
             .tree
-            .new_with_children(tw.style, &kids)
+            .new_with_children(style, &kids)
             .expect("children were created in this tree");
         self.st
             .tree
