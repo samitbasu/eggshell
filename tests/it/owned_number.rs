@@ -822,3 +822,45 @@ fn steps_snap_to_multiples_from_the_start_and_count_their_decimals() {
     assert_eq!(Step::new(f64::NAN), Step::ONE);
     assert_eq!(Step::ONE.decimals(), 0);
 }
+
+fn narrow_select(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.select("region", app.region, REGIONS)
+        .named("Region")
+        .classes(tw().w_px(120.0))
+        .on_change(|app: &mut App, region| app.region = region);
+}
+
+fn option_width(window: f32, option: &str) -> f32 {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut harness = support::harness(
+        vec2(window, 400.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App::default(),
+        narrow_select,
+    );
+    harness.run_steps(4);
+    let trigger = harness.get_by_label("Region").rect().width();
+    assert_eq!(trigger, 120.0, "the trigger is narrower than the window");
+    click_node(&mut harness, REGION);
+    harness.run_steps(4);
+    harness
+        .get_by_role_and_label(Role::ListBoxOption, option)
+        .rect()
+        .width()
+}
+
+#[test]
+fn the_select_list_is_as_wide_as_its_options_not_the_window() {
+    for window in [400.0, 800.0, 1200.0] {
+        let width = option_width(window, "North America");
+        assert!(width < 200.0, "{width} wide in a {window} pt window");
+        assert!(
+            width >= 120.0 - 8.0,
+            "{width} is not narrower than the trigger"
+        );
+    }
+    assert_eq!(
+        option_width(400.0, "Europe"),
+        option_width(1200.0, "Europe")
+    );
+}
