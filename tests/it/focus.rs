@@ -319,3 +319,56 @@ fn has_focus_within_sees_widgets_registered_in_the_previous_frame() {
     harness.run_steps(3);
     assert_eq!(rect_of(&harness, "/\"box\"").width(), 200.0);
 }
+
+fn inset_ring_cell() -> eggshell_ui::Tw {
+    tw().w_px(60.0)
+        .h_px(30.0)
+        .bg(PLAIN)
+        .sense_click()
+        .focus(|p| p.ring(2.0, RING).ring_inset())
+}
+
+fn ring_shapes(harness: &Harness<'_, Rig<App>>) -> Vec<RectShape> {
+    harness
+        .output()
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            Shape::Rect(rect) if rect.stroke.color == RING => Some(rect.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn ring_inset_paints_the_ring_inside_the_border_box_and_changes_no_layout() {
+    fn plain(b: &mut Builder<'_, '_, App>, _: &App) {
+        b.div_id("cell", cell(), |_| {});
+    }
+    fn inset(b: &mut Builder<'_, '_, App>, _: &App) {
+        b.div_id("cell", inset_ring_cell(), |_| {});
+    }
+    let mut outside = harness(plain);
+    let mut inside = harness(inset);
+    outside.run();
+    inside.run();
+    assert_eq!(
+        rect_of(&outside, "/\"cell\""),
+        rect_of(&inside, "/\"cell\""),
+        "same layout"
+    );
+    tab(&mut outside, egui::Modifiers::NONE);
+    tab(&mut inside, egui::Modifiers::NONE);
+    let node = rect_of(&inside, "/\"cell\"");
+    let ring = ring_shapes(&inside);
+    assert_eq!(ring.len(), 1, "precondition: the focused node has a ring");
+    assert_eq!(ring[0].stroke_kind, egui::StrokeKind::Inside);
+    assert_eq!(ring[0].rect, node);
+    let ring = ring_shapes(&outside);
+    assert_eq!(ring.len(), 1, "precondition");
+    assert_eq!(
+        ring[0].stroke_kind,
+        egui::StrokeKind::Outside,
+        "the default"
+    );
+}

@@ -576,3 +576,56 @@ fn auto_is_no_stop_for_a_container_of_controls_and_no_role_unless_asked() {
     }
     assert!(h.query_by_role(Role::Log).is_none());
 }
+
+#[test]
+fn a_focused_containers_ring_lies_inside_its_border_box_and_is_not_clipped() {
+    let mut h = harness(Content::Siblings);
+    press(&mut h, Key::Tab);
+    assert_eq!(support::focused_path(&h).as_deref(), Some("/\"a\""));
+    let node = rect_of(&h, "/\"a\"");
+    let ring = eggshell_ui::contract::Style::of(&h.ctx).focus;
+    let rings: Vec<_> = h
+        .output()
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            Shape::Rect(rect) if rect.stroke.color == ring.color => {
+                Some((rect.clone(), clipped.clip_rect))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(rings.len(), 1, "precondition: one ring is painted");
+    let (shape, clip) = &rings[0];
+    assert_eq!(shape.stroke.width, ring.width);
+    assert_eq!(shape.stroke_kind, egui::StrokeKind::Inside);
+    assert!(
+        node.contains_rect(shape.rect),
+        "inside {node:?}: {:?}",
+        shape.rect
+    );
+    assert!(
+        clip.contains_rect(shape.rect),
+        "and not clipped: {clip:?} holds {:?}",
+        shape.rect
+    );
+}
+
+#[test]
+fn a_focused_buttons_ring_is_still_outside() {
+    let mut h = harness(Content::Buttons);
+    press(&mut h, Key::Tab);
+    let row = rect_of(&h, &row_path(0));
+    let ring = support::ring_at(&h, row).expect("a ring outside the button");
+    assert_eq!(ring.stroke_kind, egui::StrokeKind::Outside);
+}
+
+#[test]
+fn a_click_in_a_container_shows_no_ring_only_the_keyboard_does() {
+    let mut h = harness(Content::Siblings);
+    let at = viewport(&h, "/\"a\"").rect.center();
+    support::press_and_release(&mut h, at);
+    h.run_steps(3);
+    assert_eq!(support::focused_path(&h), None, "a click does not focus it");
+    assert!(focus_rings(&h).is_empty(), "and shows no ring");
+}
