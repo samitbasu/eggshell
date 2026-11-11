@@ -1,5 +1,6 @@
-//! Overlays through layout: placement, the clamp, a detached anchor, the
-//! order the slots are declared in and the place in the stack.
+//! Overlays through layout, draw and the pointer: placement, the clamp, a
+//! detached anchor, the order the slots are declared in, stacking and the
+//! blocker.
 
 use eggshell_ui::overlay::{Anchor, Anchored, Band, MatchWidth, Placement, Side};
 use eggshell_ui::scroll::Axis;
@@ -381,5 +382,581 @@ mod layout {
                 .children(|s| panel(s, vec2(20.0, 20.0)));
         });
         assert_eq!(placed.overlay("pop").anchored(), Anchored::Detached);
+    }
+}
+
+/// What the kittest harness records of each overlay in the frame it draws.
+#[derive(Clone, Debug)]
+struct Seen {
+    path: String,
+    layer: LayerId,
+    stack: usize,
+    rect: Rect,
+    anchored: Anchored,
+}
+
+struct World<A> {
+    app: A,
+    layout: LayoutState,
+    view: fn(&mut Builder<'_, '_, A>, &A),
+    seen: Vec<Seen>,
+}
+
+/// Builds, lays out and draws `view` every frame: the real path.
+fn world<A: 'static>(app: A, view: fn(&mut Builder<'_, '_, A>, &A)) -> Harness<'static, World<A>> {
+    let world = World {
+        app,
+        layout: LayoutState::new().with_base_text(body()),
+        view,
+        seen: Vec::new(),
+    };
+    let mut harness = Harness::builder()
+        .with_size(vec2(400.0, 300.0))
+        .with_accessibility_check(true)
+        .build_ui_state(
+            |ui, world: &mut World<A>| {
+                let World {
+                    app,
+                    layout,
+                    view,
+                    seen,
+                } = world;
+                let area = ui.max_rect();
+                let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
+                *seen = placed
+                    .overlays()
+                    .iter()
+                    .map(|overlay| Seen {
+                        path: overlay.path().to_owned(),
+                        layer: overlay.layer(),
+                        stack: overlay.stack_index(),
+                        rect: overlay.rect(),
+                        anchored: overlay.anchored(),
+                    })
+                    .collect();
+                placed.draw(app, ui);
+            },
+            world,
+        );
+    harness.run_steps(3);
+    harness
+}
+
+fn press_and_release<A>(harness: &mut Harness<'_, World<A>>, at: Pos2) {
+    harness.hover_at(at);
+    harness.run_steps(3);
+    for pressed in [true, false] {
+        harness.event(Event::PointerButton {
+            pos: at,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        });
+        harness.step();
+    }
+    harness.run_steps(2);
+}
+
+mod stacking {
+    use super::*;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    enum Pane {
+        A,
+        B,
+        C,
+    }
+
+    impl Pane {
+        /// The panes are 120 by 80 and each overlaps the one before.
+        fn at(self) -> Pos2 {
+            match self {
+                Self::A => pos2(60.0, 60.0),
+                Self::B => pos2(100.0, 100.0),
+                Self::C => pos2(140.0, 140.0),
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct App {
+        open: Vec<Pane>,
+        /// B is declared in A's body.
+        nested: bool,
+        clicked: Vec<String>,
+        band: Option<Band>,
+        bare: bool,
+    }
+
+    fn pane(b: &mut Builder<'_, '_, App>, app: &App, pane: Pane) {
+        b.overlay(pane)
+            .anchor(Anchor::Point(pane.at()))
+            .band(app.band.unwrap_or_default())
+            .children(|s| {
+                let classes = tw().w_px(120.0).h_px(80.0);
+                if app.bare {
+                    s.div_id("box", classes, |_| {});
+                } else {
+                    s.div_id("box", classes.bg(Color32::LIGHT_BLUE).sense_click(), |_| {})
+                        .on_click(move |app: &mut App| app.clicked.push(format!("{pane:?}")));
+                }
+                if app.nested && pane == Pane::A {
+                    self::pane(s, app, Pane::B);
+                }
+            });
+    }
+
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div_id("page", tw().w_full().h_full().sense_click(), |_| {})
+            .on_click(|app: &mut App| app.clicked.push("page".to_owned()));
+        for &which in &app.open {
+            pane(b, app, which);
+        }
+    }
+
+    const OVERLAP_AB: Pos2 = pos2(150.0, 120.0);
+    const ONLY_A: Pos2 = pos2(70.0, 70.0);
+
+    fn layer(harness: &Harness<'_, World<App>>, pane: Pane) -> LayerId {
+        let path = format!("/{pane:?}");
+        harness
+            .state()
+            .seen
+            .iter()
+            .find(|seen| seen.path.ends_with(&path))
+            .unwrap_or_else(|| panic!("{path} is not open: {:?}", harness.state().seen))
+            .layer
+    }
+
+    fn top_at(harness: &Harness<'_, World<App>>, at: Pos2) -> Option<LayerId> {
+        harness.ctx.layer_id_at(at)
+    }
+
+    fn open(panes: &[Pane]) -> Harness<'static, World<App>> {
+        let mut harness = world(App::default(), view);
+        harness.state_mut().app.open = panes.to_vec();
+        harness.run_steps(4);
+        harness
+    }
+
+    /// The open overlays by their order in egui, bottom first.
+    fn in_egui_order(harness: &Harness<'_, World<App>>) -> Vec<String> {
+        let seen = &harness.state().seen;
+        harness
+            .ctx
+            .memory(|memory| memory.layer_ids().collect::<Vec<_>>())
+            .into_iter()
+            .filter_map(|layer| Some(seen.iter().find(|s| s.layer == layer)?.path.clone()))
+            .collect()
+    }
+
+    /// The open overlays by the library's stack, bottom first.
+    fn in_stack_order(harness: &Harness<'_, World<App>>) -> Vec<String> {
+        let mut seen = harness.state().seen.clone();
+        seen.sort_by_key(|s| s.stack);
+        seen.into_iter().map(|s| s.path).collect()
+    }
+
+    #[test]
+    fn an_overlay_is_a_layer_of_its_own_exactly_its_box() {
+        let harness = open(&[Pane::A]);
+        let seen = harness.state().seen[0].clone();
+        assert_eq!(
+            seen.rect,
+            Rect::from_min_size(pos2(60.0, 60.0), vec2(120.0, 80.0))
+        );
+        assert_eq!(top_at(&harness, seen.rect.center()), Some(seen.layer));
+        assert_ne!(
+            top_at(&harness, pos2(300.0, 250.0)),
+            Some(seen.layer),
+            "off the box the page is reached"
+        );
+    }
+
+    #[test]
+    fn scattered_overlays_leave_the_page_between_them_to_the_page() {
+        let mut harness = open(&[Pane::A, Pane::C]);
+        harness.run_steps(2);
+        let layers = [layer(&harness, Pane::A), layer(&harness, Pane::C)];
+        let between = pos2(280.0, 80.0);
+        assert!(
+            layers.iter().all(|l| harness
+                .state()
+                .seen
+                .iter()
+                .all(|s| s.layer != *l || !s.rect.contains(between))),
+            "precondition: the point is outside both boxes"
+        );
+        assert!(
+            top_at(&harness, between).is_none_or(|layer| !layers.contains(&layer)),
+            "one shared layer would cover the page between the two"
+        );
+    }
+
+    #[test]
+    fn a_bare_overlay_still_blocks_the_page_under_it() {
+        let mut harness = world(App::default(), view);
+        harness.state_mut().app.bare = true;
+        harness.run_steps(3);
+        press_and_release(&mut harness, pos2(100.0, 100.0));
+        assert_eq!(
+            harness.state().app.clicked,
+            ["page"],
+            "precondition: with no overlay the page takes the click"
+        );
+        harness.state_mut().app.clicked.clear();
+        harness.state_mut().app.open = vec![Pane::A];
+        harness.run_steps(3);
+        press_and_release(&mut harness, pos2(100.0, 100.0));
+        assert!(
+            harness.state().app.clicked.is_empty(),
+            "an overlay with nothing painted or sensing in it takes the pointer: {:?}",
+            harness.state().app.clicked
+        );
+        press_and_release(&mut harness, pos2(300.0, 250.0));
+        assert_eq!(
+            harness.state().app.clicked,
+            ["page"],
+            "off the box the page is live"
+        );
+    }
+
+    #[test]
+    fn a_node_inside_an_overlay_takes_its_click() {
+        let mut harness = open(&[Pane::A]);
+        press_and_release(&mut harness, pos2(100.0, 100.0));
+        assert_eq!(harness.state().app.clicked, ["A"]);
+    }
+
+    #[test]
+    fn a_tooltip_overlay_lets_the_pointer_through() {
+        let mut harness = world(App::default(), view);
+        harness.state_mut().app.band = Some(Band::Tooltip);
+        harness.state_mut().app.bare = true;
+        harness.state_mut().app.open = vec![Pane::A];
+        harness.run_steps(3);
+        press_and_release(&mut harness, pos2(100.0, 100.0));
+        assert_eq!(harness.state().app.clicked, ["page"]);
+    }
+
+    #[test]
+    fn a_detached_overlay_is_not_drawn_and_takes_no_input() {
+        fn detached(b: &mut Builder<'_, '_, App>, app: &App) {
+            b.div_id("page", tw().w_full().h_full().sense_click(), |_| {})
+                .on_click(|app: &mut App| app.clicked.push("page".to_owned()));
+            let mut trigger = None;
+            b.div_id("pane", tw().w_px(40.0).h_px(20.0).overflow_hidden(), |s| {
+                s.div(tw().h_px(60.0), |_| {});
+                trigger = Some(s.id_of("trigger"));
+                s.div_id("trigger", tw().w_px(10.0).h_px(10.0), |_| {});
+            });
+            if !app.open.is_empty() {
+                b.overlay("pop")
+                    .anchor(Anchor::Node(trigger.expect("the pane's body ran")))
+                    .children(|s| {
+                        s.div_id(
+                            "box",
+                            tw().w_px(120.0).h_px(80.0).bg(Color32::RED).sense_click(),
+                            |_| {},
+                        )
+                        .on_click(|app: &mut App| app.clicked.push("pop".to_owned()));
+                    });
+            }
+        }
+        let mut harness = world(App::default(), detached);
+        harness.state_mut().app.open = vec![Pane::A];
+        harness.run_steps(4);
+        let seen = harness.state().seen[0].clone();
+        assert_eq!(seen.anchored, Anchored::Detached, "precondition");
+        assert!(
+            !harness
+                .ctx
+                .memory(|memory| memory.layer_ids().any(|layer| layer == seen.layer)),
+            "never shown: not a layer"
+        );
+        press_and_release(&mut harness, seen.rect.center());
+        assert_eq!(harness.state().app.clicked, ["page"]);
+    }
+
+    #[test]
+    fn a_new_overlay_is_above_the_ones_open() {
+        let harness = open(&[Pane::A, Pane::B]);
+        assert_eq!(top_at(&harness, OVERLAP_AB), Some(layer(&harness, Pane::B)));
+    }
+
+    /// F1: egui stacks layers of one order as it first saw them, whatever
+    /// order they are flagged in. The library's stack is opening order, so a
+    /// frame that declares them the other way round does not restack.
+    #[test]
+    fn declaring_the_overlays_in_another_order_does_not_restack() {
+        let mut harness = open(&[Pane::A, Pane::B]);
+        harness.state_mut().app.open = vec![Pane::B, Pane::A];
+        harness.run_steps(4);
+        assert_eq!(top_at(&harness, OVERLAP_AB), Some(layer(&harness, Pane::B)));
+        assert_eq!(
+            in_stack_order(&harness),
+            ["/A", "/B"],
+            "the stack is opening order"
+        );
+    }
+
+    /// F2: a press raises the area it lands on in egui, which would put a
+    /// parent over its open submenu.
+    #[test]
+    fn a_press_on_a_parent_leaves_its_submenu_above_it() {
+        let mut harness = world(App::default(), view);
+        harness.state_mut().app.open = vec![Pane::A];
+        harness.state_mut().app.nested = true;
+        harness.run_steps(4);
+        assert_eq!(
+            harness
+                .state()
+                .seen
+                .iter()
+                .map(|s| s.path.as_str())
+                .collect::<Vec<_>>(),
+            ["/A", "/A/B"],
+            "precondition: B is nested in A"
+        );
+        let nested = layer(&harness, Pane::B);
+        assert_eq!(top_at(&harness, OVERLAP_AB), Some(nested));
+        press_and_release(&mut harness, ONLY_A);
+        harness.run_steps(3);
+        assert_eq!(
+            top_at(&harness, OVERLAP_AB),
+            Some(nested),
+            "the press on A did not bring it over B"
+        );
+        assert_eq!(
+            harness.state().app.clicked,
+            ["A"],
+            "precondition: the press landed on A"
+        );
+    }
+
+    #[test]
+    fn a_nested_overlay_is_above_its_parent() {
+        let mut harness = world(App::default(), view);
+        harness.state_mut().app.open = vec![Pane::A];
+        harness.state_mut().app.nested = true;
+        harness.run_steps(4);
+        assert_eq!(top_at(&harness, OVERLAP_AB), Some(layer(&harness, Pane::B)));
+    }
+
+    #[test]
+    fn an_overlay_reopened_as_a_sibling_ends_on_top() {
+        let mut harness = open(&[Pane::A]);
+        harness.state_mut().app.open = vec![];
+        harness.run_steps(4);
+        harness.state_mut().app.open = vec![Pane::B];
+        harness.run_steps(4);
+        harness.state_mut().app.open = vec![Pane::B, Pane::A];
+        harness.run_steps(4);
+        assert_eq!(
+            top_at(&harness, OVERLAP_AB),
+            Some(layer(&harness, Pane::A)),
+            "A was opened last, though egui ranks it under B"
+        );
+    }
+
+    #[test]
+    fn two_overlays_reopened_in_the_reverse_of_egui_s_order_are_repaired() {
+        let mut harness = open(&[Pane::A, Pane::B]);
+        harness.state_mut().app.open = vec![];
+        harness.run_steps(4);
+        harness.state_mut().app.open = vec![Pane::B, Pane::A];
+        harness.run_steps(4);
+        assert_eq!(in_stack_order(&harness), ["/B", "/A"]);
+        assert_eq!(
+            in_egui_order(&harness),
+            ["/B", "/A"],
+            "egui ranked them A, B from their first life"
+        );
+        assert_eq!(top_at(&harness, OVERLAP_AB), Some(layer(&harness, Pane::A)));
+    }
+
+    /// The order a band's overlays are opened in, the order they close in,
+    /// and the order egui first saw them in are all independent, and the
+    /// layers still end up in the library's stack within as many frames as
+    /// there are overlays, and stay there.
+    #[derive(Clone, Debug)]
+    enum Step {
+        Toggle(usize),
+        Reverse,
+    }
+
+    fn steps() -> impl Strategy<Value = Vec<Step>> {
+        proptest::collection::vec(
+            prop_oneof![(0..3_usize).prop_map(Step::Toggle), Just(Step::Reverse)],
+            1..24,
+        )
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(32))]
+        #[test]
+        fn the_order_converges_and_stays(steps in steps()) {
+            let mut harness = world(App::default(), view);
+            let mut reversed = false;
+            for step in steps {
+                match step {
+                    Step::Toggle(which) => {
+                        let pane = [Pane::A, Pane::B, Pane::C][which];
+                        let open = &mut harness.state_mut().app.open;
+                        match open.iter().position(|&p| p == pane) {
+                            Some(at) => { open.remove(at); }
+                            None => open.push(pane),
+                        }
+                    }
+                    Step::Reverse => {
+                        reversed = !reversed;
+                        harness.state_mut().app.open.reverse();
+                    }
+                }
+                let _ = reversed;
+                let misplaced = harness.state().app.open.len();
+                let mut frames = 0;
+                loop {
+                    harness.step();
+                    frames += 1;
+                    if in_egui_order(&harness) == in_stack_order(&harness) || frames > misplaced + 1 {
+                        break;
+                    }
+                }
+                prop_assert_eq!(
+                    in_egui_order(&harness),
+                    in_stack_order(&harness),
+                    "after {} frames", frames
+                );
+                harness.run_steps(2);
+                prop_assert_eq!(in_egui_order(&harness), in_stack_order(&harness), "and it stays");
+            }
+        }
+    }
+}
+
+/// What egui does by itself, which the stacking repair is built on. If a
+/// release of egui changes either, these say so.
+mod egui_layers {
+    use super::*;
+
+    struct Layers {
+        order: Vec<&'static str>,
+        flag_all: bool,
+    }
+
+    fn layer(name: &'static str) -> LayerId {
+        LayerId::new(Order::Foreground, Id::NULL.with(name))
+    }
+
+    fn harness(order: Vec<&'static str>, flag_all: bool) -> Harness<'static, Layers> {
+        let mut harness = Harness::builder()
+            .with_accessibility_check(false)
+            .build_ui_state(
+                |ui: &mut Ui, layers: &mut Layers| {
+                    let ctx = ui.ctx().clone();
+                    for (i, name) in layers.order.iter().enumerate() {
+                        let id = layer(name);
+                        Area::new(id.id)
+                            .order(Order::Foreground)
+                            .fixed_pos(pos2(60.0 + 40.0 * (i as f32), 60.0 + 40.0 * (i as f32)))
+                            .show(&ctx, |ui| {
+                                ui.allocate_exact_size(vec2(100.0, 100.0), Sense::click());
+                            });
+                        if layers.flag_all {
+                            ctx.move_to_top(id);
+                        }
+                    }
+                },
+                Layers { order, flag_all },
+            );
+        harness.run_steps(3);
+        harness
+    }
+
+    const OVERLAP: Pos2 = pos2(120.0, 120.0);
+
+    #[test]
+    fn flagging_every_frame_in_a_new_declaration_order_does_not_restack() {
+        let mut harness = harness(vec!["popup", "submenu"], true);
+        assert_eq!(harness.ctx.layer_id_at(OVERLAP), Some(layer("submenu")));
+        harness.state_mut().order.swap(0, 1);
+        harness.run_steps(3);
+        assert_eq!(
+            harness.ctx.layer_id_at(OVERLAP),
+            Some(layer("submenu")),
+            "egui keeps the order it first saw them in"
+        );
+    }
+
+    #[test]
+    fn a_press_on_a_parent_raises_it_over_its_submenu_unless_all_are_flagged() {
+        let raised_by_a_press = |flag_all: bool| {
+            let mut harness = harness(vec!["popup", "submenu"], flag_all);
+            for pressed in [true, false] {
+                harness.event(Event::PointerButton {
+                    pos: pos2(70.0, 70.0),
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: Modifiers::NONE,
+                });
+                harness.step();
+            }
+            harness.run_steps(2);
+            harness.ctx.layer_id_at(OVERLAP)
+        };
+        assert_eq!(raised_by_a_press(false), Some(layer("popup")));
+        assert_eq!(raised_by_a_press(true), Some(layer("submenu")));
+    }
+}
+
+mod pointer_anchor {
+    use super::*;
+
+    #[derive(Default)]
+    struct App {
+        open: bool,
+    }
+
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        if app.open {
+            b.overlay("menu")
+                .anchor(Anchor::Pointer)
+                .placement(Placement::menu())
+                .children(|s| {
+                    s.div_id("box", tw().w_px(60.0).h_px(40.0), |_| {});
+                });
+        }
+    }
+
+    fn opened_at(harness: &Harness<'_, World<App>>) -> Pos2 {
+        harness.state().seen[0].rect.min
+    }
+
+    #[test]
+    fn it_opens_where_the_pointer_is_and_stays_when_the_pointer_moves() {
+        let mut harness = world(App::default(), view);
+        harness.hover_at(pos2(120.0, 90.0));
+        harness.run_steps(3);
+        harness.state_mut().app.open = true;
+        harness.run_steps(3);
+        assert_eq!(opened_at(&harness), pos2(120.0, 90.0));
+        harness.hover_at(pos2(250.0, 200.0));
+        harness.run_steps(3);
+        assert_eq!(
+            opened_at(&harness),
+            pos2(120.0, 90.0),
+            "it does not chase the pointer"
+        );
+
+        harness.state_mut().app.open = false;
+        harness.run_steps(3);
+        harness.state_mut().app.open = true;
+        harness.run_steps(3);
+        assert_eq!(
+            opened_at(&harness),
+            pos2(250.0, 200.0),
+            "reopened, it is where the pointer is then"
+        );
     }
 }

@@ -77,6 +77,16 @@ pub(crate) enum PointerEvents {
     None,
 }
 
+impl PointerEvents {
+    pub(crate) fn merge(self, other: Self) -> Self {
+        if self == Self::None || other == Self::None {
+            Self::None
+        } else {
+            Self::Auto
+        }
+    }
+}
+
 /// Whether a sensing node takes part in keyboard navigation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Focusability {

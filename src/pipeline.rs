@@ -938,6 +938,11 @@ impl PlacedNode {
         }
     }
 
+    /// Whether the node, by itself, lets the pointer through.
+    pub(crate) fn pointer_events(&self) -> PointerEvents {
+        self.pointer_events
+    }
+
     /// Whether the node takes the pointer from the nodes it covers: it is
     /// the root of an overlay that is not in `Band::Tooltip`.
     ///
