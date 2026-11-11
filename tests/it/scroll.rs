@@ -322,7 +322,7 @@ fn a_horizontal_container_is_as_tall_as_the_viewport_and_as_wide_as_it_needs() {
 #[test]
 fn a_container_that_scrolls_both_ways_is_as_large_as_it_needs_in_both() {
     fn grid(b: &mut Builder<'_, '_, App>, _: &App) {
-        b.scroll("list", tw().w_px(200.0).h_px(100.0))
+        b.scroll("list", tw().w_px(200.0).h_px(100.0).focusable_none())
             .axis(Axis::Both)
             .children(|s| {
                 s.div(tw().flex().flex_col(), |s| {
@@ -350,7 +350,8 @@ fn padding_scrolls_with_the_content_and_the_border_stays_put() {
                 .h_px(100.0)
                 .p(2.5)
                 .border(2.0)
-                .border_color(Color32::RED),
+                .border_color(Color32::RED)
+                .focusable_none(),
         )
         .children(|s| {
             for i in 0..10u32 {
@@ -875,10 +876,10 @@ mod nested {
     /// ```
     fn page(b: &mut Builder<'_, '_, Page>, page: &Page) {
         let inner = page.inner;
-        b.scroll("outer", tw().w_px(200.0).h_px(160.0))
+        b.scroll("outer", tw().w_px(200.0).h_px(160.0).focusable_none())
             .children(|s| {
                 s.div(tw().h_px(40.0), |_| {});
-                let list = s.scroll("inner", tw().w_px(160.0).h_px(80.0));
+                let list = s.scroll("inner", tw().w_px(160.0).h_px(80.0).focusable_none());
                 let list = match inner {
                     Inner::Vertical => list,
                     Inner::Horizontal => list.axis(Axis::X),
@@ -1149,7 +1150,7 @@ mod bars {
             style
         };
         fn styled(b: &mut Builder<'_, '_, App>, app: &App) {
-            let list = b.scroll("list", tw().w_px(200.0).h_px(100.0));
+            let list = b.scroll("list", tw().w_px(200.0).h_px(100.0).focusable_none());
             let list = match app.style {
                 Some(style) => list.scrollbar_style(style),
                 None => list,
@@ -1214,7 +1215,7 @@ mod clipping {
     /// <div class="w-[200px] h-[100px] overflow-auto"> rows x cols cells of 80 by 30 </div>
     /// ```
     fn grid(b: &mut Builder<'_, '_, Grid>, g: &Grid) {
-        b.scroll("list", tw().w_px(200.0).h_px(100.0))
+        b.scroll("list", tw().w_px(200.0).h_px(100.0).focusable_none())
             .axis(g.axis)
             .children(|s| {
                 s.div(tw().flex().flex_col(), |s| {
