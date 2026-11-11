@@ -494,12 +494,13 @@ fn tab_reaches_the_model_then_the_composer_in_order_and_skips_an_inert_send() {
         centre,
         [
             "/Centre/TopBar/Model",
+            "/Centre/Conversation",
             "/Centre/Composer/Field",
             "/Centre/Composer/Mode/Quick",
             "/Centre/Composer/Mode/Standard",
             "/Centre/Composer/Mode/Thorough",
         ],
-        "Send is inert while the draft is empty: {order:?}"
+        "the conversation is a stop, Send is inert while the draft is empty: {order:?}"
     );
 
     harness.state_mut().app.draft = "x".into();

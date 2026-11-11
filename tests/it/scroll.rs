@@ -50,6 +50,9 @@ enum Rows {
     Plain,
     Sources,
     Animated,
+    /// Rows that only paint: they sense nothing, so a scrolled-out row is
+    /// culled whole.
+    Painted,
 }
 
 struct App {
@@ -145,7 +148,10 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                     } else {
                         tw().w_px(80.0).h_full().shrink_0()
                     };
-                    let mut row = size.bg(color(i)).sense_click();
+                    let mut row = size.bg(color(i));
+                    if kind != Rows::Painted {
+                        row = row.sense_click();
+                    }
                     if kind == Rows::Animated {
                         row = row.animate_layout(Duration::from_millis(200));
                     }
@@ -168,6 +174,14 @@ fn harness_with(app: App) -> H<'static> {
     let mut h = support::harness(SIZE, base(), app, view);
     h.step();
     h
+}
+
+fn painted(rows: u32) -> H<'static> {
+    harness_with(App {
+        rows,
+        kind: Rows::Painted,
+        ..App::default()
+    })
 }
 
 fn harness(rows: u32) -> H<'static> {
@@ -382,7 +396,7 @@ fn the_bar_appearing_does_not_change_the_content_width() {
 
 #[test]
 fn nodes_outside_the_viewport_are_not_drawn_and_their_closures_do_not_run() {
-    let mut h = harness(10);
+    let mut h = painted(10);
     assert!(
         rect_of(&h, &row_path(8)).min.y > rect_of(&h, LIST).max.y,
         "precondition: row 8 is far below the viewport"
@@ -408,7 +422,7 @@ fn nodes_outside_the_viewport_are_not_drawn_and_their_closures_do_not_run() {
 
 #[test]
 fn scrolling_changes_which_nodes_are_drawn() {
-    let mut h = harness(10);
+    let mut h = painted(10);
     scroll_down(&mut h, 60.0);
     assert_eq!(offset(&h), vec2(0.0, 60.0), "precondition: it scrolled");
     let rows = drawn(&mut h);
@@ -439,9 +453,23 @@ fn the_node_with_the_keyboard_focus_is_drawn_while_scrolled_out() {
         rect_of(&h, &row_path(0)).max.y < rect_of(&h, LIST).min.y,
         "precondition: row 0 is scrolled out"
     );
-    assert!(drawn(&mut h).contains(&0), "the focused row is still drawn");
+    let fills = |h: &H<'_>| -> Vec<Color32> {
+        support::shapes(h)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                Shape::Rect(rect) => Some(rect.fill),
+                _ => None,
+            })
+            .collect()
+    };
+    h.run_steps(2);
+    let fills = fills(&h);
     assert!(
-        !drawn(&mut h).contains(&1),
+        fills.contains(&color(0)),
+        "the focused row is still painted"
+    );
+    assert!(
+        !fills.contains(&color(1)),
         "while an unfocused row that is scrolled out is not"
     );
 }
