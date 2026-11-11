@@ -171,6 +171,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             enablement,
             on_response,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let slider = &style.slider;
         let (low, high) = (*range.start(), *range.end());

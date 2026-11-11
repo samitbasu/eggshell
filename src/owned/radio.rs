@@ -88,6 +88,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             enablement,
             on_response,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let radio = &style.radio;
         let values: Vec<T> = options.iter().map(|option| option.value).collect();

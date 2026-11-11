@@ -148,6 +148,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             enablement,
             hooks,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let stepper = &style.stepper;
         let (low, high) = (*range.start(), *range.end());

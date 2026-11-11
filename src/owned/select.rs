@@ -117,6 +117,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             enablement,
             on_response,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let select = &style.select;
         let metrics = select.metrics;

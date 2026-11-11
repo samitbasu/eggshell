@@ -14,6 +14,7 @@ use crate::key::{Key, child_id};
 use crate::measure::Measure;
 use crate::overlay::Band;
 use crate::overlay_chain::{OverlayChain, Unplaced};
+use crate::owned::Enablement;
 use crate::pipeline::{
     BuildState, ColorSource, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
 };
@@ -107,6 +108,7 @@ pub struct Builder<'b, 'f, A> {
     path: Id,
     kids: &'b mut Vec<NodeId>,
     inherited: &'b TextStyle,
+    ambient: Enablement,
 }
 
 impl<'b, 'f, A> Builder<'b, 'f, A> {
@@ -115,7 +117,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         frame: &'b mut Frame<'f, A>,
         path: Id,
         kids: &'b mut Vec<NodeId>,
-        inherited: &'b TextStyle,
+        (inherited, ambient): (&'b TextStyle, Enablement),
     ) -> Self {
         Self {
             st,
@@ -123,7 +125,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             path,
             kids,
             inherited,
+            ambient,
         }
+    }
+
+    /// `own`, and disabled when the control is inside an
+    /// [`inert`](Tw::inert) subtree, as a `<fieldset disabled>` disables the
+    /// controls inside it.
+    pub(crate) fn enablement_of(&self, own: Enablement) -> Enablement {
+        self.ambient.and(own)
     }
 
     /// Builds `body` with a key pushed onto the path. No node is created;
@@ -147,14 +157,20 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             id,
             self.kids,
-            self.inherited,
+            (self.inherited, self.ambient),
         )));
         self.st.names.pop_to(mark);
     }
 
     /// The same builder, borrowed for the life of a chain.
     pub(crate) fn reborrow(&mut self) -> Builder<'_, 'f, A> {
-        Builder::new(self.st, self.frame, self.path, self.kids, self.inherited)
+        Builder::new(
+            self.st,
+            self.frame,
+            self.path,
+            self.kids,
+            (self.inherited, self.ambient),
+        )
     }
 
     /// `key` resolved in this scope, for a chain that is finished later.
@@ -284,7 +300,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let mark = self.st.names.push(&slot.label);
         let mut kids = Vec::new();
         body(&mut Scope(Builder::new(
-            self.st, self.frame, slot.id, &mut kids, &text,
+            self.st,
+            self.frame,
+            slot.id,
+            &mut kids,
+            (&text, self.ambient),
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
@@ -327,8 +347,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let mark = self.st.names.push(key);
         let content_path = self.anonymous_path(NodeKind::ScrollContent);
         let mut kids = Vec::new();
+        let ambient = self.ambient_in(&classes);
         body(&mut Scope(Builder::new(
-            self.st, self.frame, id, &mut kids, &leaf.text,
+            self.st,
+            self.frame,
+            id,
+            &mut kids,
+            (&leaf.text, ambient),
         )));
         self.st.names.pop_to(mark);
         let mut content_node = self.node(
@@ -591,14 +616,30 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.kids.push(id);
     }
 
+    /// What the controls inside a node with `classes` inherit.
+    fn ambient_in(&self, classes: &Tw) -> Enablement {
+        if classes.inert {
+            Enablement::Disabled
+        } else {
+            self.ambient
+        }
+    }
+
     /// Builds `body` as the children of a new container whose children's key
     /// path starts at `path`.
     fn container(&mut self, tw: Tw, parts: Parts, path: Id, body: impl FnOnce(Builder<'_, 'f, A>)) {
+        let ambient = self.ambient_in(&tw);
         let node = self.node(&tw, parts);
         let style = self.resolved_style(tw, &node);
         let text = node.text.clone();
         let mut kids = Vec::new();
-        body(Builder::new(self.st, self.frame, path, &mut kids, &text));
+        body(Builder::new(
+            self.st,
+            self.frame,
+            path,
+            &mut kids,
+            (&text, ambient),
+        ));
         let id = self
             .st
             .tree

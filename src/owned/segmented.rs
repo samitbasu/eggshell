@@ -187,6 +187,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             custom,
             on_response,
         } = self;
+        let enablement = b.enablement_of(enablement);
         if let Some(Custom { track, cell }) = custom {
             cells_in(
                 b,

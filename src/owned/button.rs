@@ -377,7 +377,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             children,
         } = self;
         let size = size.unwrap_or(Size::DEFAULT);
-        let enablement = enablement.unwrap_or(Enablement::Enabled);
+        let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
         let press = press.unwrap_or(Press::Shifts);
         debug_assert!(
             !label.is_empty() || name.is_some(),

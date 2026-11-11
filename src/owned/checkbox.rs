@@ -157,6 +157,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             enablement,
             on_response,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let (mark, toggled) = flip([off, on], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = Style::of(b.ctx());

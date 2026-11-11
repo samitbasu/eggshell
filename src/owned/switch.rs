@@ -165,6 +165,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             enablement,
             on_response,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let (mark, toggled) = flip([off, on_value], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = Style::of(b.ctx());
