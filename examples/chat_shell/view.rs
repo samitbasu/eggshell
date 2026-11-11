@@ -27,6 +27,7 @@ pub enum Part {
     Model,
     Mode,
     Conversation,
+    Recents,
     Composer,
     Attach,
     Send,

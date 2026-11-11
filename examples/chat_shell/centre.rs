@@ -98,23 +98,25 @@ fn user(b: &mut B<'_, '_>, k: &Theme, text: &str) {
     );
 }
 
+/// The conversation scrolls on its own: the title bar above it and the
+/// composer below it stay put.
+///
+/// ```html
+/// <div class="grow min-h-0 overflow-y-auto">
+///   <div class="flex flex-col gap-6 w-full max-w-[720px] mx-auto p-4">...</div>
+/// </div>
+/// ```
 fn conversation(b: &mut B<'_, '_>, app: &App) {
     let k = &Theme::of(b.ctx());
-    b.div_id(
-        Part::Conversation,
-        tw().flex()
-            .flex_col()
-            .items_center()
-            .grow()
-            .min_h_0()
-            .overflow_hidden(),
-        |b| {
-            b.div(
+    b.scroll(Part::Conversation, tw().grow().min_h_0())
+        .children(|s| {
+            s.div(
                 tw().flex()
                     .flex_col()
                     .gap(6.0)
                     .w_full()
                     .max_w_px(720.0)
+                    .mx_auto()
                     .p(4.0),
                 |b| {
                     for message in &app.conversation {
@@ -125,8 +127,7 @@ fn conversation(b: &mut B<'_, '_>, app: &App) {
                     }
                 },
             );
-        },
-    );
+        });
 }
 
 fn tool_button(k: &Theme, shape: Tw) -> Tw {
@@ -282,7 +283,7 @@ fn composer(b: &mut B<'_, '_>, app: &App) {
 /// ```html
 /// <main class="flex flex-col grow min-w-0 overflow-hidden bg-background">
 ///   <header>...</header>
-///   <div class="flex flex-col items-center grow min-h-0 overflow-hidden">...</div>
+///   <div class="grow min-h-0 overflow-y-auto">...</div>
 ///   <div class="composer">...</div>
 /// </main>
 /// ```

@@ -40,7 +40,7 @@ fn path(part: Part) -> String {
 }
 
 fn session_path(key: SessionKey) -> String {
-    format!("/Sidebar/{key:?}")
+    format!("/Sidebar/Recents/{key:?}")
 }
 
 fn rect(harness: &Harness<'_, Rig<App>>, part: Part) -> egui::Rect {
