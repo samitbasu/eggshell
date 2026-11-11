@@ -13,7 +13,7 @@ use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
 use crate::pipeline::{
-    BuildState, ColorSource, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
+    BuildState, ColorSource, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
 };
 use crate::prim::{Icon, Prim};
 use crate::scroll::{ScrollChain, ScrollOptions};
@@ -253,7 +253,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) -> NodeHandle<'b, 'f, A> {
         use taffy::{Display, Overflow, Point};
-        let ScrollOptions { axis, edge, bars } = options;
+        let ScrollOptions {
+            axis,
+            edge,
+            bars,
+            focusable,
+            description,
+        } = options;
         let path = self.identify(id, key);
         let parts = Parts {
             id: Some(id),
@@ -292,6 +298,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             axis,
             edge,
             bars,
+            focusable,
+            description,
             content,
             size: egui::Vec2::ZERO,
         });
@@ -358,7 +366,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     {
         let measured = widget.clone();
         self.leaf(key, tw, move |m| measured.measure(m))
-            .draw(move |app, ui| draw(app, ui, widget));
+            .draw_widgets(move |app, ui| draw(app, ui, widget));
     }
 
     /// An identified text leaf, measured and painted by the library.
@@ -477,6 +485,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             prim: parts.prim,
             measure: parts.measure,
             draw: None,
+            draw_kind: DrawKind::Paint,
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
             drag: None,
@@ -614,6 +623,17 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     pub fn draw(mut self, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) -> Self {
         self.b.attach_draw(self.node, draw);
         self
+    }
+
+    /// Like [`draw`](Self::draw), for a closure that adds focusable or
+    /// accessible egui widgets: a text field, a button. The closure still runs
+    /// while the node is scrolled out of a scroll container's view, with
+    /// nothing painted, so that Tab can reach the widgets and assistive
+    /// technology can read them. A closure that only paints is [`draw`](Self::draw):
+    /// it does not run there.
+    pub fn draw_widgets(mut self, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) -> Self {
+        self.edit(|context| context.draw_kind = DrawKind::Widgets);
+        self.draw(draw)
     }
 
     /// Makes the node a drag source carrying `payload`, and makes it sense

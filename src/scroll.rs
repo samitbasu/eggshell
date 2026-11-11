@@ -17,11 +17,28 @@
 //! no slide.
 //!
 //! The viewport clips both painting and hit testing, and the draw does not
-//! visit nodes that are entirely outside it, so their draw closures do not
-//! run. Such nodes are not in egui's focus order either: Tab does not reach a
-//! control that is scrolled out of view, and text selection does not extend
-//! into it. A node that holds the keyboard focus, or the drag that is in
-//! progress, is always visited.
+//! paint nodes that are entirely outside it: their draw closures do not run.
+//! A scrolled-out node that is focusable or has an accessible role or name
+//! still registers its widget at its real rect, painting nothing: Tab
+//! reaches it, scrolls it into view, and assistive technology reads it. That
+//! is the node's one hit test and, if it adds widgets, its draw closure with
+//! the opacity at zero ([`NodeHandle::draw_widgets`](crate::NodeHandle::draw_widgets));
+//! a node that only paints costs a counter lookup. Text selection does not
+//! extend into culled text. A node that holds the keyboard focus, or the
+//! drag that is in progress, is always visited.
+//!
+//! # The keyboard
+//!
+//! A focused container scrolls with ↑ ↓ ← → (one line: the container's text
+//! line height), PageUp / PageDown (the viewport less one line), Home / End
+//! and Space / Shift+Space, as a browser does; the target is the innermost
+//! container that holds the focus, or, with nothing focused, the one last
+//! pressed in. A focused control that uses a key (a text field, a slider)
+//! has it first, and a key never chains to the container around at an edge.
+//! A container is a Tab stop when nothing inside it is, or always with
+//! [`Focusable::Always`]; [`ScrollChain::role`] and [`ScrollChain::named`]
+//! describe it to assistive technology. Focus that moves to a node
+//! scrolls it into view.
 //!
 //! # Scroll bars
 //!
@@ -43,7 +60,7 @@
 //! changes it for one container.
 //!
 //! # The wheel
-//!//!
+//!
 //! The innermost container that can still move takes the wheel; at its edge
 //! egui lets the wheel chain to the container around it. The wheel works
 //! while another widget is being dragged.
@@ -65,7 +82,7 @@
 //! without egui's animation. [`viewport`] reads where the viewport and the
 //! content are.
 
-use egui::{Align, Context, Id, Pos2, Rect, Vec2, Vec2b};
+use egui::{Align, Context, Id, Pos2, Rect, Role, Vec2, Vec2b};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
 pub use crate::contract::ScrollStyle;
@@ -99,6 +116,19 @@ impl Axis {
     }
 }
 
+/// Whether a scroll container is a Tab stop.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Focusable {
+    /// Only when nothing inside it is, as Chrome's keyboard-focusable
+    /// scrollers: plain scrolling text is reachable with Tab, a list of
+    /// controls is reached through them.
+    #[default]
+    Auto,
+    /// Always, before the controls inside it, as a transcript with
+    /// `tabindex="0"`.
+    Always,
+}
+
 /// A scroll container, started with [`Builder::scroll`] and finished with
 /// [`children`](Self::children).
 ///
@@ -129,6 +159,9 @@ pub struct ScrollChain<'a, 'f, A> {
     axis: Axis,
     edge: Option<EdgeScroll>,
     bars: Option<ScrollStyle>,
+    focusable: Focusable,
+    role: Option<Role>,
+    name: Option<String>,
 }
 
 impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
@@ -140,7 +173,31 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             axis: Axis::default(),
             edge: Some(EdgeScroll::default()),
             bars: None,
+            focusable: Focusable::default(),
+            role: None,
+            name: None,
         }
+    }
+
+    /// Whether the container is a Tab stop. [`Focusable::Auto`] unless set.
+    /// A focused container scrolls with the keys (arrows, PageUp/PageDown,
+    /// Home/End, Space); a focused control inside it gets them first.
+    pub fn focusable(mut self, focusable: Focusable) -> Self {
+        self.focusable = focusable;
+        self
+    }
+
+    /// The container's accessible role, such as [`Role::Log`] for a
+    /// transcript. [`Role::ScrollView`] unless set.
+    pub fn role(mut self, role: Role) -> Self {
+        self.role = Some(role);
+        self
+    }
+
+    /// The container's accessible name, the `aria-label` of the web.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// Which way the container scrolls. [`Axis::Y`] unless set.
@@ -180,10 +237,21 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             axis,
             edge,
             bars,
+            focusable,
+            role,
+            name,
         } = self;
+        let focus = Style::of(b.ctx()).focus;
         let style = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll);
+        let classes = classes.focus_ring_unless_set(focus);
         let bars = Bars::new(style, axis);
-        let options = ScrollOptions { axis, edge, bars };
+        let options = ScrollOptions {
+            axis,
+            edge,
+            bars,
+            focusable,
+            description: Description { role, name },
+        };
         b.scroll_with(slot.id, &slot.label, classes, options, body)
     }
 }
@@ -342,6 +410,21 @@ pub(crate) struct ScrollOptions {
     pub(crate) axis: Axis,
     pub(crate) edge: Option<EdgeScroll>,
     pub(crate) bars: Bars,
+    pub(crate) focusable: Focusable,
+    pub(crate) description: Description,
+}
+
+/// How a container is announced by assistive technology, if it is.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Description {
+    pub(crate) role: Option<Role>,
+    pub(crate) name: Option<String>,
+}
+
+impl Description {
+    pub(crate) fn is_set(&self) -> bool {
+        self.role.is_some() || self.name.is_some()
+    }
 }
 
 /// The viewport of a container whose padding box is `padding` and whose
@@ -431,6 +514,8 @@ pub(crate) struct ScrollPlan {
     pub(crate) axis: Axis,
     pub(crate) edge: Option<EdgeScroll>,
     pub(crate) bars: Bars,
+    pub(crate) focusable: Focusable,
+    pub(crate) description: Description,
     /// The content root's size.
     pub(crate) content: Vec2,
     /// How far the content is scrolled.

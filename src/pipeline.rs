@@ -63,6 +63,7 @@ pub(crate) struct Node {
     pub prim: Option<Prim>,
     pub measure: Option<usize>,
     pub draw: Option<usize>,
+    pub draw_kind: DrawKind,
     pub z: i16,
     pub inert: bool,
     pub interaction: Interaction,
@@ -70,11 +71,24 @@ pub(crate) struct Node {
     pub scroll: Option<ScrollNode>,
 }
 
+/// What a node's draw closure does, for a node scrolled out of view.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum DrawKind {
+    /// It paints. It does not run while the node is culled.
+    #[default]
+    Paint,
+    /// It adds focusable or accessible widgets. It still runs while the node
+    /// is culled, without painting.
+    Widgets,
+}
+
 /// What a scroll container's leaf carries until layout.
 pub(crate) struct ScrollNode {
     pub axis: Axis,
     pub edge: Option<EdgeScroll>,
     pub bars: Bars,
+    pub focusable: crate::scroll::Focusable,
+    pub description: crate::scroll::Description,
     /// The root of the content, laid out on its own.
     pub content: NodeId,
     /// The content root's size, once laid out.
@@ -220,6 +234,7 @@ impl LayoutState {
                     prim: None,
                     measure: None,
                     draw: None,
+                    draw_kind: DrawKind::Paint,
                     z: 0,
                     inert: false,
                     interaction: Interaction::default(),
@@ -589,6 +604,7 @@ fn collect(
         interaction: node.interaction,
         drag: node.drag.take(),
         draw: node.draw,
+        draw_kind: node.draw_kind,
         scroll: None,
         measured,
     });
@@ -611,6 +627,8 @@ fn collect(
             axis: scroll.axis,
             edge: scroll.edge,
             bars: scroll.bars,
+            focusable: scroll.focusable,
+            description: scroll.description,
             content: scroll.size,
             offset,
             moved: Moved::No,
@@ -663,6 +681,7 @@ pub struct PlacedNode {
     pub(crate) interaction: Interaction,
     pub(crate) drag: Option<Box<NodeDrag>>,
     pub(crate) draw: Option<usize>,
+    draw_kind: DrawKind,
     pub(crate) scroll: Option<ScrollPlan>,
     /// What the content of a leaf wants at its final width; recorded only
     /// while [`Debug::Outlines`] is set.
@@ -742,6 +761,30 @@ impl PlacedNode {
     /// so gets one hit test.
     pub fn senses(&self) -> bool {
         !self.interaction.sensing.is_none()
+    }
+
+    /// Whether the node must register its widgets while it is scrolled out
+    /// of view: Tab can reach it and assistive technology can read it. A
+    /// scroll container does, if it turns out to be focusable.
+    pub(crate) fn registers(&self) -> bool {
+        self.takes_tab() || self.scroll.is_some() || (self.senses() && self.draw.is_some())
+    }
+
+    /// Whether the node is a Tab stop by what its classes declare, or its
+    /// draw closure adds widgets that may be.
+    pub(crate) fn takes_tab(&self) -> bool {
+        self.draw_kind == DrawKind::Widgets
+            || self
+                .interaction
+                .focusability
+                .sense(self.interaction.sensing)
+                .is_focusable()
+    }
+
+    /// Whether the node's draw closure adds widgets: it runs while the node
+    /// is culled.
+    pub(crate) fn draws_widgets(&self) -> bool {
+        self.draw.is_some() && self.registers()
     }
 
     /// Whether the node carries a draw closure.

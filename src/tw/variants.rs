@@ -473,6 +473,16 @@ impl Tw {
         self
     }
 
+    /// The style's focus ring as the `focus:` look, unless the classes set a
+    /// look of their own. Unlike [`focus`](Self::focus) it makes the node
+    /// sense nothing.
+    pub(crate) fn focus_ring_unless_set(mut self, ring: crate::contract::Focus) -> Self {
+        if self.variants.focus.is_none() {
+            self.variants.focus = Some(Paint::default().ring(ring.width, ring.color));
+        }
+        self
+    }
+
     /// `focus-within:`. The node, or a widget its draw closure or a
     /// descendant's registered, has keyboard focus. Needs an identified node
     /// but no sense. Widgets that appear this frame count from the next one.

@@ -209,7 +209,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                     b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
                         text_field::measure(m, &measured)
                     })
-                    .draw(move |app, ui| spec.run_field(app, ui, &field, editing, set));
+                    .draw_widgets(move |app, ui| spec.run_field(app, ui, &field, editing, set));
                 });
                 let buttons = tw()
                     .flex()

@@ -244,11 +244,23 @@ pub(crate) fn tipped(response: Response, tip: &Tip) -> Response {
 /// `name`, and as on or off when it is `selected`, with the tooltip `tip`.
 fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str, tip: &Tip) -> Response {
     let response = tipped(ui.node_response(), tip);
-    response.widget_info(|| match selected {
-        Some(mark) => WidgetInfo::selected(role, ui.is_enabled(), mark == Mark::On, name),
-        None => WidgetInfo::labeled(role, ui.is_enabled(), name),
-    });
+    describe(&response, ui.is_enabled(), role, selected, name);
     response
+}
+
+/// Describes `response` to assistive technology as a `role` named `name`,
+/// and as on or off when it is `selected`.
+pub(crate) fn describe(
+    response: &Response,
+    enabled: bool,
+    role: Role,
+    selected: Option<Mark>,
+    name: &str,
+) {
+    response.widget_info(|| match selected {
+        Some(mark) => WidgetInfo::selected(role, enabled, mark == Mark::On, name),
+        None => WidgetInfo::labeled(role, enabled, name),
+    });
 }
 
 /// The classes that paint a box with `colors`. A control's text is not
