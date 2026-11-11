@@ -29,7 +29,8 @@ use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
-    BoxPaint, Flip, Focusability, Grouping, Look, Opacity, Presence, Progress, Sides, State,
+    BoxPaint, Flip, Focusability, Grouping, Look, Opacity, Presence, Progress, RingPlacement,
+    Sides, State,
 };
 
 /// Rounds coordinates to whole physical pixels.
@@ -258,7 +259,10 @@ fn paint_box(
             border,
             paint.radius,
             Stroke::new(ring.width, ring.color),
-            StrokeKind::Outside,
+            match paint.ring_placement {
+                RingPlacement::Outside => StrokeKind::Outside,
+                RingPlacement::Inside => StrokeKind::Inside,
+            },
         ));
     }
 }

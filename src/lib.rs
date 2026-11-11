@@ -199,5 +199,6 @@ pub use text::{
 #[doc(hidden)]
 pub use transition::tracked_layout_nodes;
 pub use tw::{
-    Angle, BoxPaint, Divide, Easing, Flip, Opacity, Paint, Progress, Ring, Sides, Track, Tw, tw,
+    Angle, BoxPaint, Divide, Easing, Flip, Opacity, Paint, Progress, Ring, RingPlacement, Sides,
+    Track, Tw, tw,
 };

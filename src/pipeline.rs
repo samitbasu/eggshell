@@ -18,7 +18,7 @@ use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
 use crate::scroll::{Axis, Bars, Moved, ScrollPlan, Settle};
 use crate::text::{TextStyle, VAlign, WhiteSpace};
-use crate::tw::{BoxPaint, Focusability, Grouping, Sensing, Sides, Variants};
+use crate::tw::{BoxPaint, Focusability, Grouping, RingPlacement, Sensing, Sides, Variants};
 
 /// The kind of a node, for diagnostics.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -524,7 +524,10 @@ fn paint_reach(paint: &BoxPaint) -> f32 {
         let offset = shadow.offset[0].abs().max(shadow.offset[1].abs());
         f32::from(offset) + f32::from(shadow.blur) + f32::from(shadow.spread)
     });
-    let ring = paint.ring.map_or(0.0, |ring| ring.width);
+    let ring = match paint.ring_placement {
+        RingPlacement::Outside => paint.ring.map_or(0.0, |ring| ring.width),
+        RingPlacement::Inside => 0.0,
+    };
     OFFSETS + shadow.max(ring)
 }
 

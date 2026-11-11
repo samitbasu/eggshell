@@ -28,7 +28,7 @@ pub(crate) use ch::ChWidths;
 pub use easing::Easing;
 pub use grid::Track;
 use merge::{Layout, Touched};
-pub use paint::{BoxPaint, Divide, Ring, Sides};
+pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
 pub use units::{Angle, Flip, Opacity, Progress};
 pub use variants::Paint;
 pub(crate) use variants::{Focusability, Grouping, Look, Presence, Sensing, State, Variants};

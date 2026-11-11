@@ -27,6 +27,25 @@ pub struct Ring {
     pub color: Color32,
 }
 
+/// Which side of the border box a ring is drawn on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RingPlacement {
+    /// Outside the border box, as Tailwind's `ring`.
+    #[default]
+    Outside,
+    /// Inside the border box, as `ring-inset`.
+    Inside,
+}
+
+impl RingPlacement {
+    pub(crate) fn merge(self, other: Self) -> Self {
+        match other {
+            Self::Inside => Self::Inside,
+            Self::Outside => self,
+        }
+    }
+}
+
 /// Hairlines drawn between consecutive in-flow children.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Divide {
@@ -47,6 +66,8 @@ pub struct BoxPaint {
     pub radius: CornerRadius,
     /// Ring outside the border box.
     pub ring: Option<Ring>,
+    /// Which side of the border box the ring is on.
+    pub ring_placement: RingPlacement,
     /// Drop shadow.
     pub shadow: Option<Shadow>,
     /// Opacity of the node and its subtree.
@@ -154,6 +175,17 @@ impl Tw {
         self.painted(|p| p.ring = Some(Ring { width, color }))
     }
 
+    /// `ring-inset`: the ring is drawn inside the border box, over the
+    /// border and the node's own edge, instead of outside it. It changes no
+    /// layout, and applies to the ring of any state.
+    ///
+    /// ```html
+    /// <div class="ring-2 ring-inset ring-blue-500"></div>
+    /// ```
+    pub fn ring_inset(self) -> Self {
+        self.painted(|p| p.ring_placement = RingPlacement::Inside)
+    }
+
     /// `shadow-*`.
     pub fn shadow(self, shadow: Shadow) -> Self {
         self.painted(|p| p.shadow = Some(shadow))
@@ -256,6 +288,31 @@ mod tests {
         assert_eq!(
             (corners.ne, corners.se, corners.nw, corners.sw),
             (5, 3, 0, 0)
+        );
+    }
+
+    #[test]
+    fn ring_inset_sets_the_placement_and_nothing_else() {
+        let plain = paint(tw().ring(2.0, Color32::RED));
+        let inset = paint(tw().ring(2.0, Color32::RED).ring_inset());
+        assert_eq!(plain.ring_placement, RingPlacement::Outside);
+        assert_eq!(inset.ring_placement, RingPlacement::Inside);
+        assert_eq!(inset.ring, plain.ring);
+        assert_eq!(
+            paint(tw().ring_inset().ring(2.0, Color32::RED)).ring_placement,
+            RingPlacement::Inside,
+            "in either order"
+        );
+    }
+
+    #[test]
+    fn ring_inset_changes_no_layout() {
+        assert_eq!(
+            format!("{:?}", tw().w_px(10.0).ring(2.0, Color32::RED).style()),
+            format!(
+                "{:?}",
+                tw().w_px(10.0).ring(2.0, Color32::RED).ring_inset().style()
+            ),
         );
     }
 
