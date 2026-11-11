@@ -253,7 +253,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         options: ScrollOptions,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) -> NodeHandle<'b, 'f, A> {
-        use taffy::{Display, Overflow, Point};
+        use taffy::{Overflow, Point};
         let ScrollOptions {
             axis,
             edge,
@@ -280,24 +280,18 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             Parts::anonymous(NodeKind::ScrollContent, content_path),
         );
         content_node.text = leaf.text.clone();
+        let mut style = classes.style.clone();
+        let content_style = crate::scroll::take_content_layout(&mut style);
         let content = self
             .st
             .tree
-            .new_with_children(
-                taffy::Style {
-                    display: Display::Block,
-                    padding: classes.style.padding,
-                    ..Default::default()
-                },
-                &kids,
-            )
+            .new_with_children(content_style, &kids)
             .expect("children were created in this tree");
         self.st
             .tree
             .set_node_context(content, Some(content_node))
             .expect("node was just created");
         let tab_stop = TabStop::of(focusable, &classes, &self.st.tree, &kids);
-        let mut style = classes.style;
         if tab_stop == TabStop::Yes && !leaf.interaction.variants.has_focus() {
             frame_for_focus(&mut style, &mut leaf, focus);
         }
@@ -310,7 +304,6 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             content,
             size: egui::Vec2::ZERO,
         });
-        style.padding = taffy::Rect::zero();
         style.overflow = Point {
             x: Overflow::Scroll,
             y: Overflow::Scroll,

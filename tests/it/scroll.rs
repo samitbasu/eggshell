@@ -1327,3 +1327,133 @@ mod clipping {
         assert_content_stays_in_the_viewport(&h, "scrolled to the end");
     }
 }
+
+mod container_layout {
+    use super::*;
+
+    const WIDTH: f32 = 200.0;
+
+    type Spec = (eggshell_ui::Tw, u32, eggshell_ui::Tw);
+
+    fn spec_view(b: &mut Builder<'_, '_, Spec>, (classes, kids, kid): &Spec) {
+        b.scroll("list", classes.clone().focusable_none())
+            .children(|s| {
+                for i in 0..*kids {
+                    s.div_id(i, kid.clone(), |_| {});
+                }
+            });
+    }
+
+    fn laid_out(
+        classes: eggshell_ui::Tw,
+        kids: u32,
+        kid: eggshell_ui::Tw,
+    ) -> Harness<'static, Rig<Spec>> {
+        let mut h = support::harness(SIZE, base(), (classes, kids, kid), spec_view);
+        h.step();
+        h
+    }
+
+    #[test]
+    fn flex_col_and_gap_on_the_container_stack_its_children_with_the_gap() {
+        let h = laid_out(
+            tw().w_px(WIDTH).h_px(70.0).flex().flex_col().gap(2.0),
+            3,
+            tw().h_px(20.0).shrink_0(),
+        );
+        let content = rect_of(&h, CONTENT);
+        for i in 0..3u32 {
+            let row = rect_of(&h, &row_path(i));
+            assert_eq!(row.min.y - content.min.y, 28.0 * i as f32, "row {i}");
+            assert_eq!(row.width(), WIDTH - GUTTER, "stretched across the column");
+        }
+        assert_eq!(content.height(), 3.0 * 20.0 + 2.0 * 8.0);
+    }
+
+    #[test]
+    fn flex_row_wrap_wraps_inside_the_viewport_width_less_the_gutter() {
+        let h = laid_out(
+            tw().w_px(WIDTH)
+                .h_px(30.0)
+                .flex()
+                .flex_row()
+                .flex_wrap()
+                .gap_x(3.0),
+            4,
+            tw().w_px(80.0).h_px(20.0).shrink_0(),
+        );
+        let at = |i| rect_of(&h, &row_path(i));
+        assert_eq!(
+            at(1).min.x - at(0).min.x,
+            92.0,
+            "two fit in 190: 80 + 12 + 80"
+        );
+        assert_eq!(at(0).min.y, at(1).min.y, "the first two share a line");
+        assert_eq!(at(2).min.x, at(0).min.x, "the third wraps");
+        assert_eq!(at(2).min.y, at(0).min.y + 20.0, "to the next line");
+        assert_eq!(rect_of(&h, CONTENT).width(), WIDTH - GUTTER);
+    }
+
+    #[test]
+    fn a_grid_template_on_the_container_carries_over() {
+        let h = laid_out(
+            tw().w_px(WIDTH).h_px(40.0).grid().grid_cols(2).gap(0.0),
+            4,
+            tw().h_px(20.0),
+        );
+        let at = |i| rect_of(&h, &row_path(i));
+        assert_eq!(at(0).width(), (WIDTH - GUTTER) / 2.0);
+        assert_eq!(at(1).min.x, at(0).max.x, "the second column");
+        assert_eq!(at(2).min.y, at(0).max.y, "the next row");
+    }
+
+    #[test]
+    fn alignment_on_the_container_places_the_children() {
+        let h = laid_out(
+            tw().w_px(WIDTH)
+                .h_px(100.0)
+                .flex()
+                .flex_col()
+                .items_center()
+                .justify_end(),
+            1,
+            tw().w_px(50.0).h_px(20.0).shrink_0(),
+        );
+        let (content, kid) = (rect_of(&h, CONTENT), rect_of(&h, &row_path(0)));
+        assert_eq!(kid.center().x, content.center().x, "centred across");
+        assert_eq!(content.height(), 100.0);
+        assert_eq!(kid.max.y, content.max.y, "pushed to the end");
+    }
+
+    #[test]
+    fn the_frame_keeps_its_border_and_background() {
+        let h = laid_out(
+            tw().w_px(WIDTH)
+                .h_px(100.0)
+                .flex()
+                .flex_col()
+                .gap(2.0)
+                .p(2.0)
+                .border(2.0)
+                .border_color(Color32::RED)
+                .bg(Color32::GOLD),
+            3,
+            tw().h_px(20.0).shrink_0(),
+        );
+        let (list, content) = (rect_of(&h, LIST), rect_of(&h, CONTENT));
+        assert_eq!(list.size(), vec2(WIDTH, 100.0), "the frame's size");
+        assert_eq!(content.min, list.min + vec2(2.0, 2.0), "inside the border");
+        assert_eq!(
+            rect_of(&h, &row_path(0)).min,
+            content.min + vec2(8.0, 8.0),
+            "and the padding"
+        );
+        assert_eq!(support::fill_of(&h, LIST), Some(Color32::GOLD));
+    }
+
+    #[test]
+    fn a_hidden_container_stays_hidden() {
+        let h = laid_out(tw().w_px(WIDTH).h_px(100.0).hidden(), 1, tw().h_px(20.0));
+        assert_eq!(rect_of(&h, LIST).size(), Vec2::ZERO);
+    }
+}

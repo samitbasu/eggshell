@@ -186,9 +186,24 @@ fn holds_tab_stop(tree: &taffy::TaffyTree<Node>, nodes: &[taffy::NodeId]) -> boo
 /// [`children`](Self::children).
 ///
 /// The container is a leaf of the tree it sits in: give it a size with its
-/// classes (`h_full`, `grow`, `h_px(200.0)`). Its padding is the content's,
-/// so it scrolls with it; its border and background stay put. Its children
-/// are scoped under its key.
+/// classes (`h_full`, `grow`, `h_px(200.0)`). Its children are scoped under
+/// its key.
+///
+/// As in CSS, the container is the flex or grid container of its children
+/// and the whole thing scrolls. The classes split in two:
+///
+/// - **the content's**, which scroll with it: padding and everything that
+///   lays out the children: `display` (`flex`, `grid`, `block`), `direction`,
+///   `text-align`, flex direction and wrap, `gap`, `align-items`,
+///   `align-content`, `justify-content`, `justify-items`, and the grid
+///   templates (rows, columns, areas, line names) and auto tracks and flow;
+/// - **the frame's**, which stay put: size, min/max size, aspect ratio,
+///   margin, border (and the focus frame), background, radius, shadow,
+///   opacity, and the container's own placement in its parent (`self-*`,
+///   `grow`, `shrink`, `basis`, position and inset, grid placement).
+///
+/// `hidden` hides the container, content and all. The split is
+/// `take_content_layout` in this module, the one list of it.
 ///
 /// ```
 /// use eggshell_ui::scroll::Axis;
@@ -470,6 +485,53 @@ pub(crate) fn area_scope(node: Id) -> Id {
 /// `ScrollArea::id_salt` makes in `area_scope`.
 pub(crate) fn state_id(node: Id) -> Id {
     area_scope(node).with(egui::IdSalt::new(AREA_SALT))
+}
+
+/// Splits a scroll container's `frame` style in two. The returned style is the
+/// content root's: every property that lays out the container's children,
+/// moved out of `frame`. What stays in `frame` is the container's box.
+///
+/// This is the one list of the split; [`ScrollChain`]'s docs describe it.
+/// A `display: none` container stays hidden and its content is a block.
+pub(crate) fn take_content_layout(frame: &mut taffy::Style) -> taffy::Style {
+    use std::mem::replace;
+    use taffy::Display;
+    let fresh = taffy::Style::default();
+    let display = match frame.display {
+        Display::None => Display::Block,
+        _ => std::mem::replace(&mut frame.display, Display::Block),
+    };
+    taffy::Style {
+        display,
+        direction: replace(&mut frame.direction, fresh.direction),
+        text_align: replace(&mut frame.text_align, fresh.text_align),
+        padding: replace(&mut frame.padding, fresh.padding),
+        flex_direction: replace(&mut frame.flex_direction, fresh.flex_direction),
+        flex_wrap: replace(&mut frame.flex_wrap, fresh.flex_wrap),
+        gap: replace(&mut frame.gap, fresh.gap),
+        align_items: replace(&mut frame.align_items, fresh.align_items),
+        align_content: replace(&mut frame.align_content, fresh.align_content),
+        justify_content: replace(&mut frame.justify_content, fresh.justify_content),
+        justify_items: replace(&mut frame.justify_items, fresh.justify_items),
+        grid_template_rows: replace(&mut frame.grid_template_rows, fresh.grid_template_rows),
+        grid_template_columns: replace(
+            &mut frame.grid_template_columns,
+            fresh.grid_template_columns,
+        ),
+        grid_template_areas: replace(&mut frame.grid_template_areas, fresh.grid_template_areas),
+        grid_template_row_names: replace(
+            &mut frame.grid_template_row_names,
+            fresh.grid_template_row_names,
+        ),
+        grid_template_column_names: replace(
+            &mut frame.grid_template_column_names,
+            fresh.grid_template_column_names,
+        ),
+        grid_auto_rows: replace(&mut frame.grid_auto_rows, fresh.grid_auto_rows),
+        grid_auto_columns: replace(&mut frame.grid_auto_columns, fresh.grid_auto_columns),
+        grid_auto_flow: replace(&mut frame.grid_auto_flow, fresh.grid_auto_flow),
+        ..taffy::Style::default()
+    }
 }
 
 /// What a scroll container is built with.
