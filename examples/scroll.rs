@@ -5,13 +5,15 @@
 //! scrolls the innermost container under the pointer that can still move, then
 //! the one around it. The nested pane holds a horizontal carousel and a
 //! vertical list inside a vertical page: the carousel takes horizontal
-//! gestures and leaves vertical ones to the page. The buttons above the first
+//! gestures and leaves vertical ones to the page. The nested containers, and
+//! one pane of their own, show their bars always, in a stable gutter; the
+//! others float theirs, hidden until hovered. The buttons above the first
 //! pane use the programmatic API.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::scroll::{self, Axis};
+use eggshell_ui::scroll::{self, Axis, Scrollbar};
 use eggshell_ui::{Builder, Tw, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Rect, vec2};
@@ -29,6 +31,7 @@ pub enum Part {
     Vertical,
     Horizontal,
     Both,
+    Always,
     Nested,
     Carousel,
     List,
@@ -158,11 +161,32 @@ fn both(b: &mut B<'_, '_>) {
         });
 }
 
+/// A vertical list whose bar is always visible, in a gutter that is there
+/// whether or not the rows overflow.
+///
+/// ```html
+/// <div class="grow min-h-0 overflow-y-scroll p-2" style="scrollbar-gutter: stable">…</div>
+/// ```
+fn always(b: &mut B<'_, '_>) {
+    let t = common::tokens(b.ctx());
+    b.scroll(Part::Always, tw().grow().min_h_0().p(2.0))
+        .scrollbar(Scrollbar::Always)
+        .children(|s| {
+            s.div(tw().flex().flex_col().gap(1.0), |s| {
+                for n in 0..ROWS {
+                    s.div_id(Part::Row(n), item(&t), |s| {
+                        s.text(tw(), format!("Row {n}"));
+                    });
+                }
+            });
+        });
+}
+
 /// A vertical page with a horizontal carousel and a vertical list in it.
 ///
 /// ```html
 /// <div class="grow min-h-0 overflow-y-auto p-2">
-///   <p>…</p> <div class="h-[72px] overflow-x-auto">carousel</div> <p>…</p>
+///   <p>…</p> <div class="h-[88px] overflow-x-auto">carousel</div> <p>…</p>
 ///   <div class="h-[120px] overflow-y-auto">list</div> <p>…</p>
 /// </div>
 /// ```
@@ -179,9 +203,10 @@ fn nested(b: &mut B<'_, '_>) {
             );
             s.scroll(
                 Part::Carousel,
-                tw().h_px(72.0).rounded_md().bg(t.muted).p(2.0),
+                tw().h_px(88.0).rounded_md().bg(t.muted).p(2.0),
             )
             .axis(Axis::X)
+            .scrollbar(Scrollbar::Always)
             .children(|s| {
                 s.div(tw().flex().gap(2.0).h_full(), |s| {
                     for n in 0..CARDS {
@@ -204,6 +229,7 @@ fn nested(b: &mut B<'_, '_>) {
                 "A vertical list in a vertical page: the list moves first.".into(),
             );
             s.scroll(Part::List, tw().h_px(120.0).rounded_md().bg(t.muted).p(2.0))
+                .scrollbar(Scrollbar::Always)
                 .children(|s| {
                     s.div(tw().flex().flex_col().gap(1.0), |s| {
                         for n in 0..ROWS {
@@ -287,6 +313,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                 pane(b, "Vertical", vertical);
                 pane(b, "Horizontal", horizontal);
                 pane(b, "Both", both);
+                pane(b, "Always visible bar", always);
                 pane(b, "Nested", nested);
             });
         },

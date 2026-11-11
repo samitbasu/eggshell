@@ -1288,7 +1288,7 @@ fn scroll_in(name: &str, theme: egui::Theme, scrolled: bool) {
     use eggshell_ui::scroll::scroll_by;
     report_renderer();
     let mut harness = support::harness_prepared(
-        Vec2::new(1100.0, 640.0),
+        Vec2::new(1360.0, 640.0),
         common::base_text(theme),
         scroll_example::State::default(),
         scroll_example::layout,
