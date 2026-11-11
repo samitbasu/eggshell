@@ -47,6 +47,7 @@ mod owned_number;
 mod popup_style;
 mod ports;
 mod prims;
+mod progress;
 mod scroll;
 mod scroll_keys;
 mod selection;

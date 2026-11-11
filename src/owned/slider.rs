@@ -92,6 +92,26 @@ impl Scale {
     }
 }
 
+/// The classes of a slider's track and of the part of it that is filled, up
+/// to `fraction`. A progress bar is drawn with the same.
+pub(super) fn track_and_range(style: &Style, enablement: Enablement, fraction: f32) -> (Tw, Tw) {
+    let slider = &style.slider;
+    let radius = f32::from(slider.radius);
+    let fill = |states| enablement.colors(states, style);
+    let track = painted(
+        tw().w_full()
+            .h_px(slider.track_height)
+            .rounded_px(radius)
+            .overflow_hidden(),
+        fill(slider.track),
+    );
+    let range = painted(
+        tw().h_full().w_frac(fraction, 1.0).rounded_px(radius),
+        fill(slider.range),
+    );
+    (track, range)
+}
+
 impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     /// A slider at `value` within `range`, moving by [`Step::ONE`].
     pub(super) fn new<K: crate::Key>(
@@ -192,8 +212,6 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             0.0
         };
         let thumb = slider.thumb_size;
-        let radius = f32::from(slider.radius);
-        let fill = |states| enablement.colors(states, &style);
         let hit = tw()
             .relative()
             .flex()
@@ -203,17 +221,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             .sense_click_drag()
             .focusable_none();
         let hit = enablement.apply(hit, &style).merge(caller);
-        let bar = painted(
-            tw().w_full()
-                .h_px(slider.track_height)
-                .rounded_px(radius)
-                .overflow_hidden(),
-            fill(slider.track),
-        );
-        let filled = painted(
-            tw().h_full().w_frac(fraction, 1.0).rounded_px(radius),
-            fill(slider.range),
-        );
+        let (bar, filled) = track_and_range(&style, enablement, fraction);
         let travel = tw().absolute().left_px(0.0).right_px(thumb).inset_y(0.0);
         let knob = slider
             .thumb

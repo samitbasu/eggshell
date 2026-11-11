@@ -13,6 +13,7 @@ mod checkbox;
 mod choice;
 mod custom;
 mod number;
+mod progress;
 mod radio;
 mod segmented;
 mod select;
@@ -38,6 +39,7 @@ pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
 pub use number::{Edit, Step};
+pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
 pub use segmented::{Cell, SegmentedChain};
 pub use select::SelectChain;
@@ -615,6 +617,15 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         options: impl IntoIterator<Item = O>,
     ) -> SelectChain<'_, 'f, A, T> {
         SelectChain::new(self.reborrow(), key, current, options)
+    }
+
+    /// A progress bar filled to `progress`, drawn like a slider's track.
+    pub fn progress<K: crate::Key>(
+        &mut self,
+        key: K,
+        progress: crate::Progress,
+    ) -> ProgressChain<'_, 'f, A> {
+        ProgressChain::new(self.reborrow(), key, progress)
     }
 
     /// A stepper at `value` within `range`.
