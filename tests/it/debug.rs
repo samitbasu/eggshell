@@ -182,6 +182,42 @@ fn colour_of(harness: &Harness<'_, Rig<()>>, key: &str) -> Color32 {
 }
 
 #[test]
+fn overflowing_needs_no_overlay() {
+    let mut headless = eggshell_ui::testing::Headless::new(SIZE).base_text(base());
+    let placed = headless.layout(&(), overflowing);
+    assert_eq!(
+        Debug::of(headless.ctx()),
+        Debug::Off,
+        "precondition: the overlay is off"
+    );
+    let found = placed.overflowing();
+    for red in ["nowrap", "too tall", "spills"] {
+        assert!(
+            found
+                .iter()
+                .any(|path| path.ends_with(&format!("\"{red}\""))),
+            "{red} in {found:?}"
+        );
+    }
+    for fine in [
+        "narrow",
+        "roomy",
+        "fits",
+        "short box",
+        "wraps",
+        "wrapping",
+        "clips",
+    ] {
+        assert!(
+            !found
+                .iter()
+                .any(|path| path.ends_with(&format!("\"{fine}\""))),
+            "{fine} in {found:?}"
+        );
+    }
+}
+
+#[test]
 fn nodes_whose_content_did_not_fit_are_red() {
     let mut harness = rig(overflowing);
     run(&mut harness, Debug::Outlines);

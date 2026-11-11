@@ -2,7 +2,7 @@
 //! font, so that live values of bounded length never move the layout.
 
 use eggshell_ui::testing::Headless;
-use eggshell_ui::{Builder, Debug, Placed, Tw, tw};
+use eggshell_ui::{Builder, Placed, Tw, tw};
 use egui::{Color32, FontFamily, FontId, vec2};
 use proptest::prelude::*;
 
@@ -60,9 +60,7 @@ fn lay_out(headless: &mut Headless, values: &[String], cells: Cells) -> Placed<(
 }
 
 fn headless() -> Headless {
-    Headless::new(vec2(1200.0, 100.0))
-        .base_text(common::base_text(egui::Theme::Light))
-        .prepare(|ctx| Debug::set(ctx, Debug::Outlines))
+    Headless::new(vec2(1200.0, 100.0)).base_text(common::base_text(egui::Theme::Light))
 }
 
 /// Up to `DIGITS` characters: an optional sign, then digits.
