@@ -193,6 +193,16 @@ impl UserSelect {
     }
 }
 
+/// How wide digits are, like CSS `font-variant-numeric`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Numerals {
+    /// Each digit has the width the font gives it.
+    #[default]
+    Proportional,
+    /// Every digit takes the width of the font's widest digit.
+    Tabular,
+}
+
 /// Extra space between letters, in points.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Tracking(f32);
@@ -238,6 +248,8 @@ pub struct TextStyle {
     pub select: UserSelect,
     /// Capitalisation.
     pub case: TextCase,
+    /// Digit widths.
+    pub numerals: Numerals,
 }
 
 impl TextStyle {
@@ -253,6 +265,7 @@ impl TextStyle {
             tracking: Tracking::default(),
             case: TextCase::default(),
             select: UserSelect::default(),
+            numerals: Numerals::default(),
         }
     }
 
@@ -297,6 +310,7 @@ pub struct TextClasses {
     pub(crate) tracking: Option<Tracking>,
     pub(crate) case: Option<TextCase>,
     pub(crate) select: Option<UserSelect>,
+    pub(crate) numerals: Option<Numerals>,
 }
 
 impl TextClasses {
@@ -315,6 +329,7 @@ impl TextClasses {
             tracking: other.tracking.or(self.tracking),
             case: other.case.or(self.case),
             select: other.select.or(self.select),
+            numerals: other.numerals.or(self.numerals),
         }
     }
 
@@ -337,6 +352,7 @@ impl TextClasses {
             tracking: self.tracking.unwrap_or(inherited.tracking),
             case: self.case.unwrap_or(inherited.case),
             select: self.select.unwrap_or(inherited.select),
+            numerals: self.numerals.unwrap_or(inherited.numerals),
         }
     }
 }

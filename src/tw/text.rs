@@ -4,8 +4,8 @@ use egui::{Color32, FontFamily};
 
 use super::Tw;
 use crate::text::{
-    FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, Tracking, UserSelect,
-    WhiteSpace,
+    FontStyle, Numerals, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, Tracking,
+    UserSelect, WhiteSpace,
 };
 
 macro_rules! text_flags {
@@ -62,6 +62,8 @@ impl Tw {
         normal_case, "`normal-case`.", |t| t.case = Some(TextCase::Normal);
         select_text, "`select-text`: selectable even inside a node that senses the pointer.", |t| t.select = Some(UserSelect::Text);
         select_none, "`select-none`.", |t| t.select = Some(UserSelect::None);
+        tabular_nums, "`tabular-nums`: every digit as wide as the widest, so a number's width does not depend on its digits.", |t| t.numerals = Some(Numerals::Tabular);
+        proportional_nums, "`proportional-nums`.", |t| t.numerals = Some(Numerals::Proportional);
     }
 
     /// `truncate`: no wrapping, an ellipsis at the end, and `overflow-hidden`
@@ -170,6 +172,20 @@ mod tests {
         assert_eq!(
             resolved(tw().tracking(Tracking::points(0.5))).tracking,
             Tracking::points(0.5)
+        );
+    }
+
+    #[test]
+    fn numerals_inherit_and_the_later_class_wins() {
+        assert_eq!(resolved(tw()).numerals, Numerals::Proportional);
+        assert_eq!(resolved(tw().tabular_nums()).numerals, Numerals::Tabular);
+        assert_eq!(
+            resolved(tw().tabular_nums().proportional_nums()).numerals,
+            Numerals::Proportional
+        );
+        assert_eq!(
+            resolved(tw().proportional_nums().tabular_nums()).numerals,
+            Numerals::Tabular
         );
     }
 
