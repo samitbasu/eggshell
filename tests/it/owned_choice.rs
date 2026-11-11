@@ -21,6 +21,13 @@ enum Unit {
     Nautical,
 }
 
+impl Unit {
+    /// The position of the option, which keys its node.
+    fn at(self) -> usize {
+        self as usize
+    }
+}
+
 const UNITS: [(Unit, &str); 3] = [
     (Unit::Metric, "Metric"),
     (Unit::Imperial, "Imperial"),
@@ -115,7 +122,7 @@ fn tab_to(harness: &mut Harness<'_, Rig<App>>, path: &str) {
 }
 
 fn circle_path(unit: Unit) -> String {
-    format!("/\"units\"/Circle({unit:?})")
+    format!("/\"units\"/Circle({})", unit.at())
 }
 
 #[test]
@@ -151,7 +158,7 @@ fn clicking_a_circle_or_its_label_chooses_it() {
     let mut harness = harness(Theme::Light);
     click_node(&mut harness, &circle_path(Unit::Imperial));
     assert_eq!(harness.state().app.unit, Unit::Imperial);
-    click_node(&mut harness, "/\"units\"/Label(Nautical)");
+    click_node(&mut harness, "/\"units\"/Label(2)");
     harness.run_steps(3);
     assert_eq!(
         harness.state().app.unit,
@@ -191,8 +198,8 @@ fn arrow_keys_move_the_choice_and_the_focus_within_the_group() {
 fn a_disabled_group_cannot_be_focused_or_changed() {
     let mut harness = harness(Theme::Light);
     for unit in [Unit::Imperial, Unit::Nautical] {
-        click_node(&mut harness, &format!("/\"locked\"/Circle({unit:?})"));
-        click_node(&mut harness, &format!("/\"locked\"/Label({unit:?})"));
+        click_node(&mut harness, &format!("/\"locked\"/Circle({})", unit.at()));
+        click_node(&mut harness, &format!("/\"locked\"/Label({})", unit.at()));
     }
     assert_eq!(harness.state().app.locked, Unit::Metric);
     let mut visited = Vec::new();
@@ -358,7 +365,7 @@ fn a_focused_switch_shows_the_styles_ring() {
 }
 
 fn cell_path(unit: Unit) -> String {
-    format!("/\"seg\"/{unit:?}")
+    format!("/\"seg\"/{}", unit.at())
 }
 
 #[test]

@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
+use std::rc::Rc;
 
 use egui::{Key, Role, WidgetInfo};
 
@@ -133,7 +134,8 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
 
     /// Adds the stepper. `set` runs with the new value.
     #[track_caller]
-    pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
+    pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
+        let set = Rc::new(set);
         let Self {
             mut b,
             slot,
@@ -208,10 +210,11 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             b.div_id(Part::Box, group, |b| {
                 b.div(field_box, |b| {
                     let spec = spec.clone();
+                    let set = set.clone();
                     b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
                         text_field::measure(m, &measured)
                     })
-                    .draw_widgets(move |app, ui| spec.run_field(app, ui, &field, editing, set));
+                    .draw_widgets(move |app, ui| spec.run_field(app, ui, &field, editing, &*set));
                 });
                 let buttons = tw()
                     .flex()
@@ -226,6 +229,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                         (Part::Down, down, Chevron::Down, -1, "Decrease"),
                     ] {
                         let spec = spec.clone();
+                        let set = set.clone();
                         let name = format!("{label} {}", spec.name);
                         b.div_id(part, classes, |b| {
                             b.paint(tw().size_px(glyph), paint_chevron(chevron))

@@ -1,9 +1,6 @@
 //! The owned select: an input-like trigger that opens a list of options.
 //! The list is egui's popup until eggshell has overlays of its own.
 
-use std::fmt::Debug;
-use std::hash::Hash;
-
 use egui::{
     Align, Color32, Context, FontId, Frame, Key, Layout, Popup, Role, Sense, SetOpenCommand,
     Stroke, Ui, Vec2, WidgetInfo, vec2,
@@ -43,7 +40,7 @@ pub struct SelectChain<'a, 'f, A, T> {
     on_response: OnResponse<A>,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> SelectChain<'a, 'f, A, T> {
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T> {
     /// A select over `options` of which `current` is chosen.
     pub(super) fn new<K: crate::Key, O: IntoChoice<T>>(
         b: Builder<'a, 'f, A>,
@@ -101,14 +98,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> SelectCha
 
     /// Adds the select. `choose` runs with the chosen value.
     #[track_caller]
-    pub fn on_change(self, choose: impl Fn(&mut A, T) + Copy + 'static) {
+    pub fn on_change(self, choose: impl Fn(&mut A, T) + 'static) {
         self.on_change_with(move |app, _, value| choose(app, value));
     }
 
     /// Adds the select. `choose` gets the application and the egui context,
     /// for a value the context holds.
     #[track_caller]
-    pub fn on_change_with(self, choose: impl Fn(&mut A, &Context, T) + Copy + 'static) {
+    pub fn on_change_with(self, choose: impl Fn(&mut A, &Context, T) + 'static) {
         let Self {
             mut b,
             slot,

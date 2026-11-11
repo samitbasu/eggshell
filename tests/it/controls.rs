@@ -99,10 +99,10 @@ fn a_segmented_choice_changes_the_wrapping() {
     };
     assert_eq!(harness.state().app.wrapping, flex_wrap::Wrapping::Wrap);
 
-    click_node(&mut harness, "/\"wrapping\"/NoWrap");
+    click_node(&mut harness, "/\"wrapping\"/1");
     harness.run_steps(3);
     assert_eq!(harness.state().app.wrapping, flex_wrap::Wrapping::NoWrap);
-    click_node(&mut harness, "/\"wrapping\"/Wrap");
+    click_node(&mut harness, "/\"wrapping\"/0");
     harness.run_steps(3);
     assert_eq!(harness.state().app.wrapping, flex_wrap::Wrapping::Wrap);
     assert!(wraps(&harness));

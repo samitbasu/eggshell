@@ -28,6 +28,7 @@ mod form_demo;
 mod fractions;
 mod fuzz;
 mod gallery;
+mod handlers;
 mod headless;
 mod hello;
 mod interaction;

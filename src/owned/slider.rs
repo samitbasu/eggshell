@@ -4,6 +4,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
+use std::rc::Rc;
 
 use egui::{Key, Rect, Ui, WidgetInfo};
 
@@ -156,7 +157,8 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     /// Adds the slider, as wide as the space it is given. `set` runs with the
     /// new value when the pointer or the keyboard changes it.
     #[track_caller]
-    pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
+    pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
+        let set = Rc::new(set);
         let Self {
             mut b,
             slot,
@@ -221,6 +223,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         b.scope_with(slot.id, &slot.label, |b| {
             let track = b.id_of(Part::Track);
             let on_track = scale.clone();
+            let on_thumb = set.clone();
             b.div_id(Part::Track, hit, |b| {
                 b.div(bar, |b| b.div(filled, |_| {}));
                 b.div(travel, |b| {
@@ -238,7 +241,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                             None
                         };
                         if let Some(value) = keys.or(pointer).filter(|&v| v != scale.value) {
-                            set(app, value);
+                            on_thumb(app, value);
                         }
                         on_response.run(app, &response);
                         response.widget_info(|| {

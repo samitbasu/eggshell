@@ -86,7 +86,7 @@ const FLIPS: [Flip; 6] = [
     },
     Flip {
         widget: "radio",
-        click: "/\"radio\"/Circle(Imperial)",
+        click: "/\"radio\"/Circle(1)",
         changed: |app| app.radio == Unit::Imperial,
     },
     Flip {
@@ -96,12 +96,12 @@ const FLIPS: [Flip; 6] = [
     },
     Flip {
         widget: "segmented",
-        click: "/\"seg\"/Imperial",
+        click: "/\"seg\"/1",
         changed: |app| app.segment == Unit::Imperial,
     },
     Flip {
         widget: "segmented (back to the first cell)",
-        click: "/\"seg\"/Metric",
+        click: "/\"seg\"/0",
         changed: |app| app.segment == Unit::Metric,
     },
 ];

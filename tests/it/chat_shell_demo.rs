@@ -457,17 +457,18 @@ fn the_model_select_changes_the_model_and_the_details_follow() {
 fn the_mode_control_has_one_pressed_cell_and_a_click_changes_it() {
     let mut harness = harness();
     assert_eq!(harness.state().app.mode, Mode::Standard);
-    click_node(&mut harness, "/Centre/Composer/Mode/Thorough");
+    click_node(&mut harness, "/Centre/Composer/Mode/2");
     harness.run_steps(3);
     assert_eq!(harness.state().app.mode, Mode::Thorough);
 
     let selected = color(&harness, Tok::Line);
     let pressed: Vec<Mode> = Mode::ALL
         .iter()
-        .map(|(mode, _)| *mode)
-        .filter(|mode| {
-            fill_of(&harness, &format!("/Centre/Composer/Mode/{mode:?}")) == Some(selected)
+        .enumerate()
+        .filter(|(at, _)| {
+            fill_of(&harness, &format!("/Centre/Composer/Mode/{at}")) == Some(selected)
         })
+        .map(|(_, (mode, _))| *mode)
         .collect();
     assert_eq!(pressed, [Mode::Thorough]);
 }
@@ -496,9 +497,9 @@ fn tab_reaches_the_model_then_the_composer_in_order_and_skips_an_inert_send() {
             "/Centre/TopBar/Model",
             "/Centre/Conversation",
             "/Centre/Composer/Field",
-            "/Centre/Composer/Mode/Quick",
-            "/Centre/Composer/Mode/Standard",
-            "/Centre/Composer/Mode/Thorough",
+            "/Centre/Composer/Mode/0",
+            "/Centre/Composer/Mode/1",
+            "/Centre/Composer/Mode/2",
         ],
         "the conversation is a stop, Send is inert while the draft is empty: {order:?}"
     );
@@ -626,9 +627,9 @@ mod composer_growth {
 mod appearance {
     use super::*;
 
-    const LIGHT: &str = "/Sidebar/Account/Appearance/Light";
-    const DARK: &str = "/Sidebar/Account/Appearance/Dark";
-    const SYSTEM: &str = "/Sidebar/Account/Appearance/System";
+    const LIGHT: &str = "/Sidebar/Account/Appearance/1";
+    const DARK: &str = "/Sidebar/Account/Appearance/2";
+    const SYSTEM: &str = "/Sidebar/Account/Appearance/0";
     const NAV_ROW: &str = "/Sidebar/Link(Projects)";
     const MODEL: &str = "/Centre/TopBar/Model";
 

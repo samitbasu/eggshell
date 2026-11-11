@@ -359,10 +359,10 @@ fn the_shadcn_segmented_style_raises_exactly_the_selected_cell() {
     let mut harness = harness_of(segments);
     let track = rect_of(&harness, "/\"units\"");
     assert_eq!(track.height(), 36.0, "h-9");
-    let metric = rect_of(&harness, "/\"units\"/Metric");
+    let metric = rect_of(&harness, "/\"units\"/0");
     assert_eq!(metric.top() - track.top(), 3.0, "p-[3px]");
     assert_eq!(
-        track.right() - rect_of(&harness, "/\"units\"/Nautical").right(),
+        track.right() - rect_of(&harness, "/\"units\"/2").right(),
         3.0
     );
 
@@ -374,11 +374,11 @@ fn the_shadcn_segmented_style_raises_exactly_the_selected_cell() {
         cells[0]
     );
 
-    click_node(&mut harness, "/\"units\"/Imperial");
+    click_node(&mut harness, "/\"units\"/1");
     harness.run_steps(3);
     assert_eq!(harness.state().app.unit, Unit::Imperial, "precondition");
     let cells = raised_cells(&harness);
-    let imperial = rect_of(&harness, "/\"units\"/Imperial");
+    let imperial = rect_of(&harness, "/\"units\"/1");
     assert_eq!(cells.len(), 1, "still one");
     assert!(cells[0].center().distance(imperial.center()) < 1.0);
 }
@@ -602,8 +602,7 @@ fn many_segments(b: &mut Builder<'_, '_, App>, app: &App) {
 fn segmented_cells_fit_their_track_and_can_wrap() {
     let harness = harness_of(segments);
     let track = rect_of(&harness, "/\"units\"");
-    let cells =
-        ["Metric", "Imperial", "Nautical"].map(|c| rect_of(&harness, &format!("/\"units\"/{c}")));
+    let cells = [0, 1, 2].map(|c| rect_of(&harness, &format!("/\"units\"/{c}")));
     let widest_row = cells.iter().map(|c| c.width()).sum::<f32>() + 6.0;
     assert!(
         track.width() < 395.0,
@@ -617,8 +616,7 @@ fn segmented_cells_fit_their_track_and_can_wrap() {
 
     let harness = harness_of(many_segments);
     let track = rect_of(&harness, "/\"wrapped\"");
-    let cells =
-        ["Metric", "Imperial", "Nautical"].map(|c| rect_of(&harness, &format!("/\"wrapped\"/{c}")));
+    let cells = [0, 1, 2].map(|c| rect_of(&harness, &format!("/\"wrapped\"/{c}")));
     assert!(
         cells[2].top() > cells[0].top(),
         "precondition: the cells do not fit one row: {cells:?}"
