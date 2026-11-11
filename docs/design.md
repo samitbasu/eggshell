@@ -54,7 +54,7 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 | D15 | `tw()` starts as `Display::Block` (CSS default). `flex()` / `grid()` must be explicit. | Tailwind code reads the same as on the web. |
 | D16 | `Tw` carries layout, box paint and text classes. Text classes are inherited down the tree, as in CSS. | One class list per element, as in HTML. |
 | D17 | Floating chrome inside a region is **absolutely positioned** in the base tree (`absolute`, `inset`, `z`). **Overlays** are only for popups that need their own layer and must escape clipping. | Matches the CSS it replaces. Keeps chrome clipped to its region. |
-| D18 | Overlays declare a key, a `Band` (maps to `egui::Order`), an `Anchor` and a `Placement`. Stacking = band, then build order. The driver calls `move_to_top` every frame. | Deterministic, application-controlled stacking. |
+| D18 | Overlays declare a key, a `Band` (maps to `egui::Order`), an `Anchor` and a `Placement`. Stacking = band, then opening order; a nested overlay is above its parent. A per-frame repair step flags the misplaced suffix of the stack (`docs/overlays.md` §2). | egui orders layers by first show, so flagging every frame does not give build order. |
 | D19 | Overlay slots are reserved before the overlay's subtree is built. | A parent popup is laid out and stacked below its submenus. |
 | D20 | Display primitives (text, icons, rules, images, custom paint) are stored on the node and measured and drawn **by the library**. Interactive leaves are measured and drawn by the application. | Labels need no `match` arms. Measure and draw of display content cannot drift apart. |
 | D21 | Measurement and drawing of every interactive primitive go through **one shared sizing helper**. | Prevents drift between predicted and actual size. |
@@ -662,7 +662,7 @@ pub enum Placement { Below, Above, RightOf, LeftOf, At }  // flipped and clamped
 ### 12.3 Behaviour
 
 - The overlay's root is laid out at `MaxContent` (sized to content) after the base root and earlier overlays. Then its position is resolved from the anchor's rect and the placement, flipped and clamped to the screen.
-- Each overlay is drawn in an `egui::Area` with ID `overlay_id.with("overlay")` (its key path's hash), `order(band)`, `fixed_pos`, `constrain(false)`, `movable(false)`. The driver calls `ctx.move_to_top(layer)` for every overlay in band order, then build order, every frame (D18).
+- Each overlay is drawn in an `egui::Area` with ID `overlay_id.with("overlay")` (its key path's hash), `order(band)`, `fixed_pos`, `constrain(false)`, `movable(false)`. The driver's per-frame repair step flags the overlays egui has misplaced (D18).
 - Nodes inside an overlay get the same `UiBuilder::id(path)` treatment as base nodes, so their IDs are independent of the layer.
 - Open/close state lives on `App` (D22). Each overlay declares `on_dismiss`, which the library runs after drawing if the user clicked outside the overlay or pressed Esc that frame.
 
