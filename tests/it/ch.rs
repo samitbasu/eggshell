@@ -7,7 +7,6 @@ use egui::{Color32, FontFamily, FontId, vec2};
 use proptest::prelude::*;
 
 #[path = "../../examples/common/mod.rs"]
-#[allow(dead_code, reason = "only the text roles are used")]
 mod common;
 
 const DIGITS: u32 = 7;
