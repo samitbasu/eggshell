@@ -24,6 +24,9 @@ mod controls_gallery;
 #[path = "../../examples/form.rs"]
 mod form;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/live_values.rs"]
+mod live_values;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/signup_form.rs"]
 mod signup_form;
 #[allow(dead_code, reason = "the example's main is not run here")]
@@ -175,6 +178,10 @@ fn overflows_in(style: ShadcnStyle, theme: Theme) -> Vec<String> {
     found.extend(overflow(
         "todo",
         &place(&ctx, |b| todo::layout(b, &todo::State::default())),
+    ));
+    found.extend(overflow(
+        "live_values",
+        &place(&ctx, |b| live_values::layout(b, &())),
     ));
     found.extend(overflow(
         "form",
