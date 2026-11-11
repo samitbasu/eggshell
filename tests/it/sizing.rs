@@ -261,9 +261,13 @@ fn bare_case(text: &str, lines: Lines) -> Case<TextEdit> {
         widget: widget.hint("Reply").bare(),
         add: Box::new(move |ui, width| {
             input_padded(ui);
+            ui.spacing_mut().interact_size.y = 0.0;
+            let role_line = ui.style().override_font_id.as_ref().map_or(0.0, |f| f.size) * 1.25;
             let mut buffer = text.clone();
             let mut edit = match lines {
-                Lines::Single => egui::TextEdit::singleline(&mut buffer),
+                Lines::Single => {
+                    egui::TextEdit::singleline(&mut buffer).min_size(vec2(0.0, role_line))
+                }
                 Lines::Multi { min, .. } => {
                     egui::TextEdit::multiline(&mut buffer).desired_rows(min)
                 }

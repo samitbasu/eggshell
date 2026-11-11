@@ -36,6 +36,9 @@ pub(crate) struct Sizer<'a> {
     pub ctx: &'a Context,
     pub style: Style,
     pub font: FontId,
+    /// The line height of the node's text role, when the sizer is made from
+    /// one; a `Ui` carries only egui's own spacing.
+    pub role_line_height: Option<f32>,
     pub contract: Arc<EggshellStyle>,
 }
 
@@ -48,6 +51,7 @@ impl<'a> Sizer<'a> {
             ctx,
             style,
             font,
+            role_line_height: Some(text.spec.line_height),
             contract: EggshellStyle::of(ctx),
         }
     }
@@ -64,6 +68,7 @@ impl<'a> Sizer<'a> {
             ctx: ui.ctx(),
             style,
             font,
+            role_line_height: None,
             contract: EggshellStyle::of(ui.ctx()),
         }
     }
