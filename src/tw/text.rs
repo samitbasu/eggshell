@@ -66,6 +66,12 @@ impl Tw {
         proportional_nums, "`proportional-nums`.", |t| t.numerals = Some(Numerals::Proportional);
     }
 
+    /// `line-clamp-<lines>`: wraps over at most `lines` lines (at least one),
+    /// the last ending with an ellipsis where the text overflows.
+    pub fn line_clamp(self, lines: u32) -> Self {
+        self.texted(|t| t.white_space = Some(WhiteSpace::Clamp(lines.max(1))))
+    }
+
     /// `truncate`: no wrapping, an ellipsis at the end, and `overflow-hidden`
     /// so the node may shrink below its text.
     pub fn truncate(self) -> Self {
@@ -186,6 +192,18 @@ mod tests {
         assert_eq!(
             resolved(tw().proportional_nums().tabular_nums()).numerals,
             Numerals::Tabular
+        );
+    }
+
+    #[test]
+    fn line_clamp_keeps_at_least_one_line() {
+        assert_eq!(
+            resolved(tw().line_clamp(3)).white_space,
+            WhiteSpace::Clamp(3)
+        );
+        assert_eq!(
+            resolved(tw().line_clamp(0)).white_space,
+            WhiteSpace::Clamp(1)
         );
     }
 

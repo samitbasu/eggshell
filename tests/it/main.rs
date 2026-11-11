@@ -36,6 +36,7 @@ mod kaolin_sidebar;
 mod known_gaps_demo;
 mod layout;
 mod layout_animation;
+mod line_clamp;
 mod overlay;
 mod owned;
 mod owned_choice;
