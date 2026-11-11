@@ -83,7 +83,7 @@ pub(crate) struct Shown {
     pub(crate) band: Band,
 }
 
-/// Flags for the top the layers of `shown` (the open overlays that were drawn
+/// Flags the layers of `shown` (the open overlays that were drawn
 /// this frame, in opening order, bottom first) that egui has in the wrong
 /// place.
 ///
