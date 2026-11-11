@@ -665,6 +665,40 @@ pub struct ScrollStyle {
     pub radius: egui::CornerRadius,
     /// The shortest the thumb gets, in points.
     pub min_thumb_length: f32,
+    /// Fades the content into the container's background at an edge it can
+    /// still scroll past. [`EdgeFade::OFF`] unless a container opts in with
+    /// [`ScrollChain::fade_edges`](crate::scroll::ScrollChain::fade_edges).
+    pub fade: EdgeFade,
+}
+
+/// The gradient egui paints over the edges of a scroll container that has
+/// more content beyond them.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EdgeFade {
+    /// The opacity of the background colour at the very edge.
+    /// [`Opacity::TRANSPARENT`] draws no fade.
+    pub strength: Opacity,
+    /// How far the fade reaches into the container, in points.
+    pub size: f32,
+}
+
+impl EdgeFade {
+    /// No fade.
+    pub const OFF: Self = Self {
+        strength: Opacity::TRANSPARENT,
+        size: 0.0,
+    };
+
+    /// A fade `size` points deep that reaches `strength` at the edge.
+    pub const fn new(strength: Opacity, size: f32) -> Self {
+        Self { strength, size }
+    }
+}
+
+impl Default for EdgeFade {
+    fn default() -> Self {
+        Self::OFF
+    }
 }
 
 impl ScrollStyle {
@@ -679,6 +713,7 @@ impl ScrollStyle {
             track: egui.visuals.extreme_bg_color,
             radius: widgets.inactive.corner_radius,
             min_thumb_length: scroll.handle_min_length,
+            fade: EdgeFade::OFF,
         }
     }
 

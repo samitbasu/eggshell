@@ -2,9 +2,9 @@
 //! scroll, which container they scroll, Tab into content that is scrolled
 //! out of view, and the accessibility tree of that content.
 
-use eggshell_ui::scroll::{self, Axis, Focusable, ScrollChain};
+use eggshell_ui::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain};
 use eggshell_ui::testing::{Timeline, record};
-use eggshell_ui::{Builder, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Opacity, TextSpec, TextStyle, tw};
 use egui::accesskit::Role;
 use egui::epaint::{RectShape, Shape};
 use egui::{Color32, FontFamily, Id, Key, Modifiers, Rect, Vec2, vec2};
@@ -58,6 +58,7 @@ struct App {
     border: Option<Color32>,
     /// The container sets a `focus:` look of its own.
     explicit_focus: bool,
+    fade: Option<EdgeFade>,
 }
 
 impl App {
@@ -72,6 +73,7 @@ impl App {
             focusable: Focusable::Auto,
             border: None,
             explicit_focus: false,
+            fade: None,
         }
     }
 }
@@ -108,9 +110,14 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
         if app.explicit_focus {
             classes = classes.focus(|p| p.bg(Color32::LIGHT_RED));
         }
-        b.scroll(key, classes)
+        let chain = b
+            .scroll(key, classes)
             .axis(app.axis)
-            .focusable(app.focusable)
+            .focusable(app.focusable);
+        match app.fade {
+            Some(fade) => chain.fade_edges(fade),
+            None => chain,
+        }
     }
     let axis = app.axis;
     b.div(tw().flex(), |b| match app.content {
@@ -781,5 +788,49 @@ fn whether_an_auto_container_is_a_stop_is_the_same_every_frame() {
             h.run_steps(2);
             assert_eq!(viewport(&h, FRAME).rect, first, "the frame never flickers");
         }
+    }
+}
+
+fn gradients_in(h: &H, area: Rect) -> usize {
+    support::shapes(h)
+        .into_iter()
+        .filter(|shape| matches!(shape, Shape::Mesh(mesh) if area.intersects(mesh.calc_bounds())))
+        .count()
+}
+
+fn scrolled_halfway(fade: Option<EdgeFade>) -> H {
+    let mut h = harness_with(App {
+        fade,
+        ..App::new(Content::Painted)
+    });
+    tab_to(&mut h, LIST);
+    press(&mut h, Key::PageDown);
+    assert!(
+        offset(&h, LIST).y > 0.0
+            && offset(&h, LIST).y < viewport(&h, LIST).content.height() - VIEWPORT,
+        "precondition: scrolled to the middle"
+    );
+    h
+}
+
+#[test]
+fn a_default_container_paints_no_fade_and_an_opted_in_one_does() {
+    let plain = scrolled_halfway(None);
+    let area = rect_of(&plain, LIST);
+    assert_eq!(gradients_in(&plain, area), 0, "no fade by default");
+    let faded = scrolled_halfway(Some(EdgeFade::new(Opacity::new(0.5), 20.0)));
+    assert!(
+        gradients_in(&faded, rect_of(&faded, LIST)) >= 2,
+        "a fade at the top and one at the bottom"
+    );
+}
+
+#[test]
+fn neither_the_default_style_nor_the_shadcn_preset_fades() {
+    let from_egui = eggshell_ui::contract::ScrollStyle::from_egui(&egui::Style::default());
+    assert_eq!(from_egui.fade, EdgeFade::OFF);
+    for theme in [egui::Theme::Light, egui::Theme::Dark] {
+        let style = eggshell_ui_shadcn::Shadcn::for_theme(theme).style();
+        assert_eq!(style.scroll.fade, EdgeFade::OFF, "{theme:?}");
     }
 }

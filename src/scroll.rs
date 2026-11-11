@@ -94,7 +94,7 @@
 use egui::{Align, Context, Id, Pos2, Rect, Role, Vec2, Vec2b};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
-pub use crate::contract::ScrollStyle;
+pub use crate::contract::{EdgeFade, ScrollStyle};
 use crate::contract::{Focus, Style};
 use crate::dnd::{EdgeScroll, drag_pointer};
 use crate::key::Key;
@@ -212,6 +212,7 @@ pub struct ScrollChain<'a, 'f, A> {
     axis: Axis,
     edge: Option<EdgeScroll>,
     bars: Option<ScrollStyle>,
+    fade: Option<EdgeFade>,
     focusable: Focusable,
     role: Option<Role>,
     name: Option<String>,
@@ -226,6 +227,7 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             axis: Axis::default(),
             edge: Some(EdgeScroll::default()),
             bars: None,
+            fade: None,
             focusable: Focusable::default(),
             role: None,
             name: None,
@@ -267,6 +269,14 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
         self
     }
 
+    /// Fades the container's edges by `fade` where more content lies beyond
+    /// them, for a carousel or a tab strip. Containers do not fade unless
+    /// this is set ([`ScrollStyle::fade`] is off).
+    pub fn fade_edges(mut self, fade: EdgeFade) -> Self {
+        self.fade = Some(fade);
+        self
+    }
+
     /// Scrolls the container by `edge` when a drag is near its edge. The
     /// default is [`EdgeScroll::default`].
     pub fn edge_scroll(mut self, edge: EdgeScroll) -> Self {
@@ -290,12 +300,16 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             axis,
             edge,
             bars,
+            fade,
             focusable,
             role,
             name,
         } = self;
         let focus = Style::of(b.ctx()).focus;
-        let style = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll);
+        let mut style = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll);
+        if let Some(fade) = fade {
+            style.fade = fade;
+        }
         let bars = Bars::new(style, axis);
         let options = ScrollOptions {
             axis,
@@ -539,6 +553,10 @@ impl Bars {
             bar_outer_margin: 0.0,
             handle_min_length: self.style.min_thumb_length,
             foreground_color: false,
+            fade: egui::style::ScrollFadeStyle {
+                strength: self.style.fade.strength.into(),
+                size: self.style.fade.size,
+            },
             ..*base
         }
     }
