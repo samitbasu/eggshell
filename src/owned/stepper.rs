@@ -12,6 +12,7 @@ use super::{
     Chevron, Enablement, FieldHooks, Tip, centered, described, field_classes, paint_chevron, tipped,
 };
 use crate::builder::Slot;
+use crate::focus::Autofocus;
 use crate::prim::text_field::{self, Field};
 use crate::{Builder, Style, Tw, tw};
 
@@ -55,6 +56,7 @@ pub struct StepperChain<'a, 'f, A> {
     enablement: Enablement,
     hooks: FieldHooks<A>,
     edits: Edits<A>,
+    autofocus: Autofocus,
 }
 
 impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
@@ -77,6 +79,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             enablement: Enablement::Enabled,
             hooks: FieldHooks::default(),
             edits: Edits::default(),
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -136,6 +139,13 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         self
     }
 
+    /// Takes keyboard focus in its field in the first frame the stepper is
+    /// built after a frame in which it was not.
+    pub fn focus_on_appear(mut self) -> Self {
+        self.autofocus = Autofocus::OnAppear;
+        self
+    }
+
     /// Whether the stepper takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -158,6 +168,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             enablement,
             hooks,
             edits,
+            autofocus,
         } = self;
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
@@ -171,6 +182,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             tooltip,
             hooks,
             edits,
+            autofocus,
         };
         let group = enablement
             .fade(
@@ -272,6 +284,7 @@ struct Spec<A> {
     tooltip: Tip,
     hooks: FieldHooks<A>,
     edits: Edits<A>,
+    autofocus: Autofocus,
 }
 
 impl<A> Clone for Spec<A> {
@@ -284,6 +297,7 @@ impl<A> Clone for Spec<A> {
             tooltip: self.tooltip.clone(),
             hooks: self.hooks.clone(),
             edits: self.edits.clone(),
+            autofocus: self.autofocus,
         }
     }
 }
@@ -322,6 +336,7 @@ impl<A> Spec<A> {
         }
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
         let response = tipped(text_field::show(ui, &mut text, field), &self.tooltip);
+        self.autofocus.apply(ui.ctx(), &response);
         response.widget_info(|| WidgetInfo {
             label: Some(self.name.clone()),
             ..WidgetInfo::drag_value(ui.is_enabled(), value)

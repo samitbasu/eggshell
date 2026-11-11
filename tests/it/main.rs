@@ -25,6 +25,7 @@ mod draw;
 mod duplicate_key;
 mod edits;
 mod focus;
+mod focus_on_appear;
 mod form_demo;
 mod fractions;
 mod fuzz;

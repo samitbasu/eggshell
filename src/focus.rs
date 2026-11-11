@@ -31,6 +31,31 @@ pub(crate) fn holds_focus(ctx: &Context, id: Id) -> bool {
     ctx.input(|input| input.focused) && ctx.memory(|memory| memory.has_focus(id))
 }
 
+/// Whether a field takes focus when it appears.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Autofocus {
+    #[default]
+    Never,
+    OnAppear,
+}
+
+impl Autofocus {
+    /// Requests focus for `response`'s widget if this is the first frame it
+    /// is drawn after a frame in which it was not, or ever.
+    pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) {
+        if self == Self::Never {
+            return;
+        }
+        let seen = response.id.with("eggshell-seen");
+        let now = ctx.cumulative_frame_nr();
+        let last = ctx.data_mut(|data| data.get_temp::<u64>(seen));
+        ctx.data_mut(|data| data.insert_temp(seen, now));
+        if last.is_none_or(|last| last + 1 < now) {
+            response.request_focus();
+        }
+    }
+}
+
 /// Whether `node`, or a focusable widget registered inside it, has keyboard
 /// focus.
 ///
