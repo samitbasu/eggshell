@@ -34,6 +34,8 @@ mod kaolin_sidebar;
 mod known_gaps_demo;
 mod layout;
 mod layout_animation;
+mod overlay_egui_evidence;
+mod overlay_placement_prototype;
 mod owned;
 mod owned_choice;
 mod owned_number;
