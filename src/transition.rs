@@ -164,7 +164,8 @@ pub(crate) struct LayoutAnimation {
 
 impl LayoutAnimation {
     /// Starts a frame laid out in `area`. When `area` is not the previous
-    /// frame's, the window was resized: no move starts a slide, but the slides
+    /// frame's size, the window was resized (an area that only moves, as a
+    /// scrolled one does, is not a resize): no move starts a slide, but the slides
     /// in flight in the previous frame go on, retargeted from where they are painted like any
     /// interrupted move.
     pub(crate) fn begin(ctx: &Context, scope: Id, area: Rect) -> Self {
@@ -173,7 +174,7 @@ impl LayoutAnimation {
             .unwrap_or_default();
         let now = ctx.input(|input| input.time);
         let mut previous = before.nodes;
-        if before.area != area {
+        if before.area.size() != area.size() {
             previous.retain(|_, tracked| tracked.progress.elapsed(before.time) < Progress::END);
         }
         Self {

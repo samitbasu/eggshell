@@ -95,6 +95,10 @@ mod sidebar;
 #[path = "../../examples/todo.rs"]
 mod todo;
 
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/dnd_gallery.rs"]
+mod dnd_gallery;
+
 use crate::support;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
@@ -1171,4 +1175,73 @@ mod lyra {
     fn chat_shell_lyra_dark() {
         chat_shell_lyra("chat_shell_lyra_dark", egui::Theme::Dark);
     }
+}
+
+/// The telemetry gallery at rest, three columns, at a fixed time so the
+/// traces are the same every run.
+#[test]
+fn dnd_gallery_light() {
+    dnd_gallery_in("dnd_gallery_light", egui::Theme::Light);
+}
+
+#[test]
+fn dnd_gallery_dark() {
+    dnd_gallery_in("dnd_gallery_dark", egui::Theme::Dark);
+}
+
+fn dnd_gallery_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::frame_harness(
+        Vec2::new(520.0, 400.0),
+        common::base_text(theme),
+        dnd_gallery::State::default(),
+        dnd_gallery::frame,
+    );
+    harness.ctx.set_theme(theme);
+    harness.run_steps(6);
+    harness.snapshot(name);
+}
+
+/// A `with_drag_chip` chip being dragged over the gallery, at 2x.
+#[test]
+fn dnd_gallery_drag_chip_light() {
+    dnd_gallery_chip_in("dnd_gallery_drag_chip_light", egui::Theme::Light);
+}
+
+#[test]
+fn dnd_gallery_drag_chip_dark() {
+    dnd_gallery_chip_in("dnd_gallery_drag_chip_dark", egui::Theme::Dark);
+}
+
+fn dnd_gallery_chip_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut state = dnd_gallery::State::default();
+    state.image = dnd_gallery::Image::Chip;
+    let mut harness = support::frame_harness_scaled(
+        Vec2::new(520.0, 440.0),
+        2.0,
+        common::base_text(theme),
+        state,
+        |ui, app, layout| dnd_gallery::window(ui, app, layout, &mut LayoutState::new()),
+    );
+    harness.ctx.set_theme(theme);
+    harness.run_steps(6);
+    let ctx = harness.ctx.clone();
+    let panel = |key: u32| {
+        support::layout_rect(
+            &ctx,
+            &format!("{}/PanelKey({key})/\"face\"", dnd_gallery::GRID),
+        )
+    };
+    let from = panel(0).center();
+    harness.hover_at(from);
+    harness.run_steps(3);
+    harness.drag_at(from);
+    harness.step();
+    harness.hover_at(from + egui::vec2(0.0, 8.0));
+    harness.step();
+    let over = panel(4).center();
+    harness.hover_at(over);
+    harness.run_steps(24);
+    harness.snapshot(name);
 }

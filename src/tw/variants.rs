@@ -265,15 +265,21 @@ pub(crate) enum State {
     FocusWithin,
     Focus,
     Active,
+    DragAccepts,
+    DragOver,
+    DragLifted,
 }
 
 impl State {
-    pub(crate) const ALL: [Self; 5] = [
+    pub(crate) const ALL: [Self; 8] = [
         Self::GroupHover,
         Self::Hover,
         Self::FocusWithin,
         Self::Focus,
         Self::Active,
+        Self::DragAccepts,
+        Self::DragOver,
+        Self::DragLifted,
     ];
 }
 
@@ -285,9 +291,25 @@ pub(crate) struct Presence {
     pub focus_within: Progress,
     pub focus: Progress,
     pub active: Progress,
+    pub drag_accepts: Progress,
+    pub drag_over: Progress,
+    pub drag_lifted: Progress,
 }
 
 impl Presence {
+    /// No state has taken hold.
+    #[cfg(test)]
+    pub(crate) const AT_REST: Self = Self {
+        group_hover: Progress::START,
+        hover: Progress::START,
+        focus_within: Progress::START,
+        focus: Progress::START,
+        active: Progress::START,
+        drag_accepts: Progress::START,
+        drag_over: Progress::START,
+        drag_lifted: Progress::START,
+    };
+
     fn of(self, state: State) -> Progress {
         match state {
             State::GroupHover => self.group_hover,
@@ -295,6 +317,9 @@ impl Presence {
             State::FocusWithin => self.focus_within,
             State::Focus => self.focus,
             State::Active => self.active,
+            State::DragAccepts => self.drag_accepts,
+            State::DragOver => self.drag_over,
+            State::DragLifted => self.drag_lifted,
         }
     }
 }
@@ -317,6 +342,9 @@ pub(crate) struct Variants {
     group_hover: Option<Paint>,
     focus: Option<Paint>,
     focus_within: Option<Paint>,
+    drag_accepts: Option<Paint>,
+    drag_over: Option<Paint>,
+    drag_lifted: Option<Paint>,
     pub(crate) transition: Option<Duration>,
     pub(crate) animate_layout: Option<Duration>,
     pub(crate) easing: Easing,
@@ -335,6 +363,9 @@ impl Variants {
             group_hover: both(self.group_hover, other.group_hover),
             focus: both(self.focus, other.focus),
             focus_within: both(self.focus_within, other.focus_within),
+            drag_accepts: both(self.drag_accepts, other.drag_accepts),
+            drag_over: both(self.drag_over, other.drag_over),
+            drag_lifted: both(self.drag_lifted, other.drag_lifted),
             transition: other.transition.or(self.transition),
             animate_layout: other.animate_layout.or(self.animate_layout),
             easing: if other.easing == Easing::Default {
@@ -352,6 +383,9 @@ impl Variants {
             State::FocusWithin => self.focus_within.as_ref(),
             State::Focus => self.focus.as_ref(),
             State::Active => self.active.as_ref(),
+            State::DragAccepts => self.drag_accepts.as_ref(),
+            State::DragOver => self.drag_over.as_ref(),
+            State::DragLifted => self.drag_lifted.as_ref(),
         }
     }
 
@@ -447,6 +481,38 @@ impl Tw {
         self
     }
 
+    /// A drag that the node's [`drop_target`](crate::NodeHandle::drop_target)s
+    /// would take is in progress, anywhere in the window: the drop zones of
+    /// a drag light up. Known for in-app drags and, for files dragged in from
+    /// outside, from the moment they hover over the window. Needs an
+    /// identified node.
+    pub fn drag_accepts(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variants.drag_accepts = Some(style(self.variants.drag_accepts.unwrap_or_default()));
+        self
+    }
+
+    /// [`drag_accepts`](Self::drag_accepts), and the drag is over this
+    /// target, so a release here drops here. It applies on top of
+    /// `drag_accepts`. It stays off for files dragged in from outside while
+    /// the platform gives no pointer position (winit 0.30): nothing is shown
+    /// as targeted on a guess. Of nested targets, only the innermost one that
+    /// takes the drag is over.
+    pub fn drag_over(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variants.drag_over = Some(style(self.variants.drag_over.unwrap_or_default()));
+        self
+    }
+
+    /// The node is the source of the drag in progress. With
+    /// [`DragImage::Live`](crate::DragImage::Live) the node is the image that
+    /// follows the pointer, and this is its look; with a [`drag_preview`](crate::NodeHandle::drag_preview) or no image it
+    /// is the look of the node in its slot. The slot of a live image is not
+    /// painted by the node, since the node has left it: style a node around
+    /// it from [`Builder::dragging`](crate::Builder::dragging).
+    pub fn drag_lifted(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variants.drag_lifted = Some(style(self.variants.drag_lifted.unwrap_or_default()));
+        self
+    }
+
     /// Leaves a sensing node out of keyboard navigation, like a splitter
     /// that only a pointer drags. It still senses clicks and drags, and
     /// `focus` variants never apply to it.
@@ -537,6 +603,9 @@ impl Tw {
             || self.variants.get(State::Active).is_some()
             || self.variants.get(State::Focus).is_some()
             || self.variants.get(State::FocusWithin).is_some()
+            || self.variants.get(State::DragAccepts).is_some()
+            || self.variants.get(State::DragOver).is_some()
+            || self.variants.get(State::DragLifted).is_some()
             || self.variants.transition.is_some()
             || self.variants.animate_layout.is_some()
     }
@@ -621,11 +690,10 @@ mod tests {
             .active(|p| p.bg(Color32::BLUE))
             .variants;
         let presence = |hover, focus, active| Presence {
-            group_hover: Progress::START,
             hover,
-            focus_within: Progress::START,
             focus,
             active,
+            ..Presence::AT_REST
         };
         let background = |presence| variants.resolve(look(), presence).paint.background;
         let (on, off) = (Progress::END, Progress::START);
@@ -643,6 +711,39 @@ mod tests {
             styled.variants.hover,
             Some(Paint::default().bg(Color32::RED).text(Color32::WHITE))
         );
+    }
+
+    #[test]
+    fn drag_states_need_an_identity_and_leave_layout_alone() {
+        let red = |p: Paint| p.bg(Color32::RED);
+        for styled in [
+            tw().drag_accepts(red),
+            tw().drag_over(red),
+            tw().drag_lifted(red),
+        ] {
+            assert!(styled.needs_identity());
+            assert_eq!(*styled.style(), *tw().style());
+            assert_eq!(styled.sensing, Sensing::None, "they sense nothing");
+        }
+    }
+
+    #[test]
+    fn drag_over_overrides_drag_accepts() {
+        let variants = tw()
+            .drag_accepts(|p| p.bg(Color32::RED))
+            .drag_over(|p| p.bg(Color32::GREEN))
+            .variants;
+        let background = |presence| variants.resolve(look(), presence).paint.background;
+        let accepting = Presence {
+            drag_accepts: Progress::END,
+            ..Presence::AT_REST
+        };
+        assert_eq!(background(accepting), Some(Color32::RED));
+        let over = Presence {
+            drag_over: Progress::END,
+            ..accepting
+        };
+        assert_eq!(background(over), Some(Color32::GREEN));
     }
 
     #[test]
@@ -708,9 +809,7 @@ mod tests {
         let on = Presence {
             group_hover: Progress::END,
             hover: Progress::END,
-            focus_within: Progress::START,
-            focus: Progress::START,
-            active: Progress::START,
+            ..Presence::AT_REST
         };
         assert_eq!(
             variants.resolve(look(), on).paint.background,

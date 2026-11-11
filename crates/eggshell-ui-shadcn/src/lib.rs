@@ -41,12 +41,14 @@
 //! so a hover on a `muted` surface needs the half-strength variant of the
 //! selected colour, not a different token.
 
+mod drag_chip;
 mod egui_map;
 mod preset;
 mod styles;
 mod theme_color;
 mod tokens;
 
+pub use drag_chip::{DragChip, drag_chip};
 pub use preset::{Shadcn, tokens};
 pub use styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, ShadcnStyle};
 pub use theme_color::ThemeColor;

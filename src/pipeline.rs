@@ -11,6 +11,7 @@ use taffy::{
 
 use crate::builder::Builder;
 use crate::debug::{Debug, Phase, Timer};
+use crate::dnd::{Decls, NodeDrag};
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
@@ -58,6 +59,7 @@ pub(crate) struct Node {
     pub z: i16,
     pub inert: bool,
     pub interaction: Interaction,
+    pub drag: Option<Box<NodeDrag>>,
 }
 
 /// Where a node's text colour comes from.
@@ -93,6 +95,7 @@ pub(crate) struct Frame<'f, A> {
     pub ctx: &'f egui::Context,
     pub measures: Vec<MeasureFn<'f>>,
     pub draws: Vec<DrawFn<A>>,
+    pub drag: Decls<A>,
 }
 
 /// Owns the state a frame is built in; reuse one across frames.
@@ -167,6 +170,7 @@ impl LayoutState {
             ctx,
             measures: Vec::new(),
             draws: Vec::new(),
+            drag: Decls::default(),
         };
         let mut kids = Vec::new();
         f(&mut Builder::new(
@@ -196,6 +200,7 @@ impl LayoutState {
                     z: 0,
                     inert: false,
                     interaction: Interaction::default(),
+                    drag: None,
                 }),
             )
             .expect("root was just created");
@@ -232,7 +237,10 @@ impl<'f, A> Built<'f, A> {
         } = self;
         let _timer = Timer::start(ctx, Phase::Layout);
         let Frame {
-            measures, draws, ..
+            measures,
+            draws,
+            drag,
+            ..
         } = frame;
         st.tree
             .set_style(
@@ -294,6 +302,7 @@ impl<'f, A> Built<'f, A> {
             by_id,
             prims,
             draws,
+            drag,
         }
     }
 }
@@ -464,6 +473,7 @@ fn collect(
         z: node.z,
         inert: node.inert,
         interaction: node.interaction,
+        drag: node.drag.take(),
         draw: node.draw,
         measured,
     });
@@ -502,6 +512,7 @@ pub struct PlacedNode {
     z: i16,
     inert: bool,
     pub(crate) interaction: Interaction,
+    pub(crate) drag: Option<Box<NodeDrag>>,
     pub(crate) draw: Option<usize>,
     /// What the content of a leaf wants at its final width; recorded only
     /// while [`Debug::Outlines`] is set.
@@ -578,6 +589,7 @@ pub struct Placed<A> {
     pub(crate) by_id: HashMap<Id, usize>,
     pub(crate) prims: Vec<Option<Prim>>,
     pub(crate) draws: Vec<Option<DrawFn<A>>>,
+    pub(crate) drag: Decls<A>,
 }
 
 impl<A> Placed<A> {

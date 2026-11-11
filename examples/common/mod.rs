@@ -20,6 +20,7 @@ use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Tw, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
+pub mod dnd;
 pub mod glyphs;
 
 /// The controls panel's width.

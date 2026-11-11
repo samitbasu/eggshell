@@ -77,8 +77,15 @@ pub struct NodeFrame {
     /// The border box layout gave the node.
     pub layout_rect: Rect,
     /// The layout rect moved by every paint offset: the node's own state
-    /// translate and slide, and those of its ancestors.
+    /// translate and slide, and those of its ancestors. A node lifted for a
+    /// drag, and its subtree, are recorded at their layout rects: where input
+    /// carries a node is not motion, and the ancestors' slides do not move
+    /// it. It does not slide, only snap.
     pub painted_rect: Rect,
+    /// How far the ancestors' paint offsets move the node: the part of
+    /// `painted_rect` the node did not move itself. An ancestor that slides
+    /// is judged by its own slide; the nodes inside it follow it.
+    pub ancestors: Vec2,
     /// The node's opacity multiplied with its ancestors'.
     pub opacity: Opacity,
     /// Whether the node slides when layout moves it.
@@ -408,8 +415,9 @@ impl Timeline {
     /// offset changed by `p - l`):
     /// - a node with `animate_layout` must stay continuous: `p` within the step;
     /// - any other node may also move as far as layout moved it, provided its
-    ///   paint offset changed by no more than the step: a layout change
-    ///   without `animate_layout` is an instant move on purpose.
+    ///   own paint offset changed by no more than the step: a layout change
+    ///   without `animate_layout` is an instant move on purpose, and what an
+    ///   ancestor's slide moves it by is the ancestor's to keep continuous.
     ///
     /// Exempt: nodes first drawn in the frame, allowed nodes and frames, and
     /// frames in the middle of a slide, which [`slides`](Self::slides) judges
@@ -432,15 +440,16 @@ impl Timeline {
                     continue;
                 }
                 let carried = carried_by_retarget(prev, now);
+                let moved_by_ancestors = now.ancestors - prev.ancestors;
                 let corners = |rect: Rect| [rect.min, rect.max];
                 let jumps = (0..2).any(|c| {
                     let p = corners(now.painted_rect)[c] - corners(prev.painted_rect)[c] - carried;
                     let l = corners(now.layout_rect)[c] - corners(prev.layout_rect)[c];
-                    let offset_change: Vec2 = p - l;
+                    let own_offset_change: Vec2 = p - l - moved_by_ancestors;
                     let jumped = p.length() > step;
                     match now.motion {
                         Motion::Slides => jumped,
-                        Motion::Snaps => jumped && offset_change.length() > step,
+                        Motion::Snaps => jumped && own_offset_change.length() > step,
                     }
                 });
                 if jumps {
@@ -708,6 +717,7 @@ mod tests {
             path: "/node".to_owned(),
             layout_rect: rect,
             painted_rect: rect.translate(start * (1.0 - progress)),
+            ancestors: Vec2::ZERO,
             opacity: Opacity::new(1.0),
             motion: Motion::Slides,
             slide: Some(Slide {

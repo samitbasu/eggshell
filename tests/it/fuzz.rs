@@ -7,7 +7,7 @@
 //! `cargo xtask fuzz`) runs more.
 
 use eggshell_ui::testing::{Points, Timeline};
-use egui::{Vec2, vec2};
+use egui::{Key, Pos2, Vec2, vec2};
 use egui_kittest::Harness;
 use proptest::prelude::*;
 use proptest::test_runner::{Config, RngAlgorithm, TestError, TestRng, TestRunner};
@@ -18,6 +18,10 @@ use crate::sweep::{Flaw, Grid, IDLE, NARROWEST, WIDEST, grid_harness, set_width}
 #[path = "../../examples/todo.rs"]
 #[allow(dead_code, reason = "the example's main is not run here")]
 mod todo;
+
+#[path = "../../examples/dnd_gallery.rs"]
+#[allow(dead_code, reason = "the example's main is not run here")]
+mod gallery;
 
 const DEFAULT_CASES: u32 = 32;
 /// How far a dragged window edge moves per frame.
@@ -229,8 +233,211 @@ fn run_todo(actions: &[TodoAction]) -> Result<(), TestCaseError> {
     verdict(&session.timeline(&harness.ctx))
 }
 
+/// The gallery's window: wide enough for three columns, short enough to
+/// scroll.
+const GALLERY_HEIGHT: f32 = 400.0;
+const GALLERY_WIDTH: f32 = 520.0;
+/// How far the pointer moves per frame, in points: a quick flick.
+const POINTER_STEP: f32 = 40.0;
+
+#[derive(Clone, Debug)]
+enum DragAction {
+    /// Presses on a panel and moves far enough to lift it.
+    Lift(usize),
+    /// Moves the held panel to the slot of another one, crossing rows.
+    MoveTo(usize),
+    Escape,
+    ReleaseInside,
+    ReleaseOutside,
+    /// Changes the window's width. Not while a panel is held: a reorder the
+    /// resize itself causes coincides with a resize frame, where nodes are
+    /// placed at once (#80), so the checker rightly finds a snap. The held
+    /// case is `a_resize_under_a_held_panel_keeps_the_drag`.
+    Resize(u32),
+    SetCols(u32),
+    /// Swaps the live image for the chip, or back. Not while a panel is held:
+    /// the app's own look change then lasts one frame when the drag ends in
+    /// the next, which the checker rightly reports as an opacity blip.
+    ToggleImage,
+    Idle(usize),
+}
+
+fn drag_action() -> impl Strategy<Value = DragAction> {
+    let panel = 0usize..Grid::MOST_PANELS;
+    prop_oneof![
+        3 => panel.clone().prop_map(DragAction::Lift),
+        6 => panel.prop_map(DragAction::MoveTo),
+        2 => Just(DragAction::Escape),
+        2 => Just(DragAction::ReleaseInside),
+        2 => Just(DragAction::ReleaseOutside),
+        2 => (NARROWEST as u32..=WIDEST as u32).prop_map(DragAction::Resize),
+        2 => (1u32..=3).prop_map(DragAction::SetCols),
+        1 => Just(DragAction::ToggleImage),
+        2 => (1usize..=8).prop_map(DragAction::Idle),
+    ]
+}
+
+fn drag_session() -> impl Strategy<Value = Vec<DragAction>> {
+    prop::collection::vec(drag_action(), 1..=14)
+}
+
+/// A user's hand on the gallery: where the pointer is and whether the button
+/// is down.
+struct Hand<'a> {
+    harness: Harness<'a, support::FrameRig<gallery::State>>,
+    at: Pos2,
+    down: bool,
+    width: f32,
+}
+
+impl Hand<'_> {
+    fn panel_centre(&self, index: usize) -> Option<Pos2> {
+        let keys: Vec<u32> = self
+            .harness
+            .state()
+            .app
+            .panels
+            .iter()
+            .map(|p| p.0.0)
+            .collect();
+        let key = keys[index % keys.len()];
+        let path = format!("{}/PanelKey({key})/\"face\"", gallery::GRID);
+        let rect = support::last_drawn(&self.harness.ctx, &path)?.layout_rect;
+        let visible = egui::Rect::from_min_max(
+            Pos2::new(0.0, 8.0 + 20.0),
+            Pos2::new(self.width, GALLERY_HEIGHT - 8.0 - 20.0),
+        );
+        visible.contains(rect.center()).then(|| rect.center())
+    }
+
+    /// Moves the pointer to `to` the way a hand does: a bounded step a frame.
+    fn glide(&mut self, to: Pos2) {
+        while self.at != to {
+            let to_go = to - self.at;
+            let step = to_go * (POINTER_STEP / to_go.length()).min(1.0);
+            self.at += step;
+            self.harness.hover_at(self.at);
+            self.harness.step();
+        }
+    }
+
+    fn act(&mut self, action: &DragAction, session: &mut Session) {
+        match *action {
+            DragAction::Lift(index) if !self.down => {
+                if let Some(centre) = self.panel_centre(index) {
+                    self.glide(centre);
+                    self.harness.drag_at(centre);
+                    self.harness.step();
+                    self.down = true;
+                    self.glide(centre + vec2(0.0, 6.0));
+                    self.glide(centre + vec2(0.0, 12.0));
+                }
+            }
+            DragAction::MoveTo(index) if self.down => {
+                if let Some(centre) = self.panel_centre(index) {
+                    self.glide(centre);
+                }
+            }
+            DragAction::Escape => {
+                self.harness.key_press(Key::Escape);
+                self.harness.step();
+            }
+            DragAction::ReleaseInside if self.down => {
+                self.harness.drop_at(self.at);
+                self.harness.step();
+                self.down = false;
+            }
+            DragAction::ReleaseOutside if self.down => {
+                self.glide(Pos2::new(self.width + 30.0, self.at.y));
+                self.harness.drop_at(self.at);
+                self.harness.step();
+                self.down = false;
+            }
+            DragAction::Resize(target) if !self.down => {
+                let target = target as f32;
+                while self.width != target {
+                    self.width += (target - self.width).clamp(-EDGE_STEP, EDGE_STEP);
+                    self.harness.set_size(vec2(self.width, GALLERY_HEIGHT));
+                    self.harness.step();
+                }
+            }
+            DragAction::SetCols(cols) => {
+                if self.harness.state().app.cols != cols as usize {
+                    session
+                        .resized_instantly
+                        .push(session.next_frame(&self.harness.ctx));
+                }
+                self.harness.state_mut().app.cols = cols as usize;
+                self.harness.step();
+            }
+            DragAction::ToggleImage if !self.down => {
+                let app = &mut self.harness.state_mut().app;
+                app.image = match app.image {
+                    gallery::Image::Live => gallery::Image::Chip,
+                    gallery::Image::Chip => gallery::Image::Live,
+                };
+                self.harness.step();
+            }
+            DragAction::Idle(count) => self.harness.run_steps(count),
+            _ => {}
+        }
+    }
+}
+
+fn run_drags(actions: &[DragAction]) -> Result<(), TestCaseError> {
+    run_drags_ending(actions).map(|_| ())
+}
+
+/// The gallery's panels, in order, after the session.
+fn run_drags_ending(actions: &[DragAction]) -> Result<Vec<u32>, TestCaseError> {
+    // As many panels as the grid fuzz keeps, so that the checker's step for
+    // a resize is the same: a panel moves `panels - 1` times the edge step.
+    let mut state = gallery::State::default();
+    state.panels.truncate(Grid::MOST_PANELS);
+    let mut harness = support::frame_harness(
+        vec2(GALLERY_WIDTH, GALLERY_HEIGHT),
+        crate::sweep::common::base_text(egui::Theme::Light),
+        state,
+        |ui, app, layout| gallery::window(ui, app, layout, &mut eggshell_ui::LayoutState::new()),
+    );
+    harness.run_steps(4);
+    let mut session = Session::start(&harness.ctx);
+    harness.step();
+    let mut hand = Hand {
+        harness,
+        at: Pos2::new(GALLERY_WIDTH / 2.0, GALLERY_HEIGHT / 2.0),
+        down: false,
+        width: GALLERY_WIDTH,
+    };
+    for action in actions {
+        hand.act(action, &mut session);
+    }
+    if hand.down {
+        hand.harness.drop_at(hand.at);
+    }
+    hand.harness.run_steps(IDLE);
+    verdict(
+        &session
+            .timeline(&hand.harness.ctx)
+            .max_step(Points::new(MAX_GRID_STEP)),
+    )?;
+    Ok(hand
+        .harness
+        .state()
+        .app
+        .panels
+        .iter()
+        .map(|p| p.0.0)
+        .collect())
+}
+
 proptest! {
     #![proptest_config(config())]
+
+    #[test]
+    fn a_dragged_gallery_stays_continuous_under_any_session(actions in drag_session()) {
+        run_drags(&actions)?;
+    }
 
     #[test]
     fn a_gallery_grid_stays_continuous_under_any_session(actions in grid_session()) {
@@ -241,6 +448,33 @@ proptest! {
     fn the_todo_list_stays_continuous_under_any_session(actions in todo_session()) {
         run_todo(&actions)?;
     }
+}
+
+/// The hand of the drag fuzzer really lifts, moves and drops.
+#[test]
+fn the_drag_fuzzer_reorders_when_the_session_says_so() {
+    let moved = run_drags_ending(&[
+        DragAction::Lift(0),
+        DragAction::MoveTo(5),
+        DragAction::ReleaseInside,
+    ])
+    .expect("continuous");
+    assert_ne!(moved[..6], [0, 1, 2, 3, 4, 5], "{moved:?}");
+    let escaped = run_drags_ending(&[
+        DragAction::Lift(0),
+        DragAction::MoveTo(5),
+        DragAction::Escape,
+        DragAction::ReleaseInside,
+    ])
+    .expect("continuous");
+    assert_eq!(escaped[..6], [0, 1, 2, 3, 4, 5], "{escaped:?}");
+    let outside = run_drags_ending(&[
+        DragAction::Lift(0),
+        DragAction::MoveTo(5),
+        DragAction::ReleaseOutside,
+    ])
+    .expect("continuous");
+    assert_eq!(outside[..6], [0, 1, 2, 3, 4, 5], "{outside:?}");
 }
 
 /// The fuzzer is only worth running if it finds a bug that is there.

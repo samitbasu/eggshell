@@ -2,7 +2,7 @@
 //! tree in pre-order and paints box, primitive and draw closure per node.
 
 use egui::emath::TSTransform;
-use egui::epaint::{Mesh, RectShape, StrokeKind, Tessellator};
+use egui::epaint::{Mesh, RectShape, Shape, StrokeKind, Tessellator};
 use egui::layers::ShapeIdx;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -18,6 +18,7 @@ use taffy::Overflow;
 use crate::continuity::{self, Motion, NodeFrame};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
+use crate::dnd::{self, Stakes};
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
@@ -107,6 +108,34 @@ struct Inherited {
     shift: Vec2,
 }
 
+/// The indices of the children of the node at `index`, in layout order.
+pub(crate) fn children_of(nodes: &[PlacedNode], index: usize) -> Vec<usize> {
+    let end = nodes[index].end;
+    let mut children = Vec::new();
+    let mut next = index + 1;
+    while next < end {
+        children.push(next);
+        next = nodes[next].end;
+    }
+    children
+}
+
+/// The node painted lifted, at a screen point.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Lift {
+    /// The node's index in the frame.
+    pub(crate) index: usize,
+    /// Where the top-left of the node's border box is painted, in screen
+    /// space.
+    pub(crate) min: Pos2,
+}
+
+/// The layer lifted nodes are painted on: above every other, so a lifted
+/// node is neither clipped by its ancestors nor covered by anything.
+pub(crate) fn drag_layer() -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Tooltip, Id::NULL.with("eggshell-drag-layer"))
+}
+
 /// A node's boxes, snapped to physical pixels.
 struct Boxes {
     border: Rect,
@@ -147,7 +176,7 @@ impl Boxes {
 
 /// The clip a node's content gets: the padding box on each axis that
 /// `overflow` clips.
-fn content_clip(clip: Rect, padding: Rect, overflow: taffy::Point<Overflow>) -> Rect {
+pub(crate) fn content_clip(clip: Rect, padding: Rect, overflow: taffy::Point<Overflow>) -> Rect {
     let clips = |overflow| overflow != Overflow::Visible;
     let mut clip = clip;
     if clips(overflow.x) {
@@ -420,6 +449,8 @@ struct Walk<'a, A> {
     text_seen: HashMap<Id, u32>,
     animation: LayoutAnimation,
     recording: Option<Vec<NodeFrame>>,
+    lift: Option<Lift>,
+    drag: &'a dnd::Draw,
 }
 
 impl<A> Walk<'_, A> {
@@ -427,17 +458,6 @@ impl<A> Walk<'_, A> {
         let mut painter = self.ui.painter().with_clip_rect(clip);
         painter.multiply_opacity(opacity.into());
         painter
-    }
-
-    fn children(&self, index: usize) -> Vec<usize> {
-        let end = self.nodes[index].end;
-        let mut children = Vec::new();
-        let mut next = index + 1;
-        while next < end {
-            children.push(next);
-            next = self.nodes[next].end;
-        }
-        children
     }
 
     /// The node's one hit test, made before anything is painted so that
@@ -484,6 +504,7 @@ impl<A> Walk<'_, A> {
         response: Option<&Response>,
         hovering: Option<Hovering>,
         group: Option<Hovering>,
+        stakes: Stakes,
     ) -> Presence {
         let variants = &node.interaction.variants;
         let progress = |state: State| {
@@ -507,6 +528,9 @@ impl<A> Walk<'_, A> {
                 State::Active => {
                     response.is_some_and(|r| r.hovered() && r.is_pointer_button_down_on())
                 }
+                State::DragAccepts => stakes.accepts,
+                State::DragOver => stakes.over,
+                State::DragLifted => stakes.lifted,
             };
             let target = if on { Progress::END } else { Progress::START };
             match (variants.transition, node.id()) {
@@ -526,6 +550,9 @@ impl<A> Walk<'_, A> {
             focus_within: progress(State::FocusWithin),
             focus: progress(State::Focus),
             active: progress(State::Active),
+            drag_accepts: progress(State::DragAccepts),
+            drag_over: progress(State::DragOver),
+            drag_lifted: progress(State::DragLifted),
         }
     }
 
@@ -569,7 +596,13 @@ impl<A> Walk<'_, A> {
             .as_ref()
             .filter(|_| needs_hovering)
             .map(|own| self.hovering(index, own));
-        let presence = self.presence(node, response.as_ref(), hovering, parent.group);
+        let presence = self.presence(
+            node,
+            response.as_ref(),
+            hovering,
+            parent.group,
+            self.drag.stakes(index),
+        );
         let group = match interaction.grouping {
             Grouping::Group => hovering,
             Grouping::Ungrouped => parent.group,
@@ -599,8 +632,9 @@ impl<A> Walk<'_, A> {
         };
 
         let opacity = parent.opacity * look.paint.opacity;
-        let slide = match (interaction.variants.animate_layout, node.id()) {
-            (Some(duration), Some(id)) => self.animation.offset(
+        let lifted = self.lift.filter(|lift| lift.index == index);
+        let slide = match (interaction.variants.animate_layout, node.id(), lifted) {
+            (Some(duration), Some(id), None) => self.animation.offset(
                 id,
                 node.rect().min - parent.origin,
                 duration,
@@ -608,26 +642,39 @@ impl<A> Walk<'_, A> {
             ),
             _ => Vec2::ZERO,
         };
-        let translate = look.translate + slide;
-        let shift = parent.shift + translate;
+        // The anchor is screen space. The shapes leave the layer before the
+        // ancestors move what they painted there, so their offsets do not
+        // carry the node, and the recording leaves them out as well as the
+        // anchor: where the pointer carries a node is input, not motion.
+        let (translate, shift) = match lifted {
+            Some(lift) => (lift.min - node.rect().min, Vec2::ZERO),
+            None => {
+                let translate = look.translate + slide;
+                (translate, parent.shift + translate)
+            }
+        };
         if let (Some(frame), Some(id)) = (&mut self.recording, node.id()) {
             frame.push(NodeFrame {
                 id,
                 path: node.path().to_owned(),
                 layout_rect: node.rect(),
                 painted_rect: node.rect().translate(shift),
-                opacity,
-                motion: if interaction.variants.animate_layout.is_some() {
-                    Motion::Slides
+                ancestors: if lifted.is_some() {
+                    Vec2::ZERO
                 } else {
-                    Motion::Snaps
+                    parent.shift
+                },
+                opacity,
+                motion: match (interaction.variants.animate_layout, lifted) {
+                    (Some(_), None) => Motion::Slides,
+                    _ => Motion::Snaps,
                 },
                 slide: self
                     .animation
                     .slide(id, interaction.variants.easing, translate),
             });
         }
-        let moved_from = (translate != Vec2::ZERO).then(|| self.next_shape());
+        let moved_from = (translate != Vec2::ZERO || lifted.is_some()).then(|| self.next_shape());
         paint_box(
             &self.painter(parent.clip, opacity),
             &look.paint,
@@ -676,7 +723,7 @@ impl<A> Walk<'_, A> {
             });
         }
 
-        let in_layout_order = self.children(index);
+        let in_layout_order = children_of(self.nodes, index);
         let mut in_paint_order = in_layout_order.clone();
         in_paint_order.sort_by_key(|&child| self.nodes[child].z());
         for child in in_paint_order {
@@ -685,7 +732,33 @@ impl<A> Walk<'_, A> {
         self.paint_dividers(index, &in_layout_order, inherited);
         if let Some(first) = moved_from {
             self.translate_shapes_since(first, translate);
+            if lifted.is_some() {
+                self.lift_shapes_since(first);
+            }
         }
+    }
+
+    /// Moves what the subtree painted since `first` to the drag layer, with
+    /// the screen as its clip.
+    fn lift_shapes_since(&self, first: ShapeIdx) {
+        let layer = self.ui.layer_id();
+        let screen = self.ui.ctx().content_rect();
+        self.ui.ctx().graphics_mut(|graphics| {
+            let lifted: Vec<Shape> = graphics
+                .entry(layer)
+                .all_entries()
+                .skip(first.0)
+                .map(|clipped| clipped.shape.clone())
+                .collect();
+            let source = graphics.entry(layer);
+            for at in first.0..first.0 + lifted.len() {
+                source.reset_shape(ShapeIdx(at));
+            }
+            let target = graphics.entry(drag_layer());
+            for shape in lifted {
+                target.add(screen, shape);
+            }
+        });
     }
 
     fn next_shape(&self) -> ShapeIdx {
@@ -862,7 +935,8 @@ impl<A> Placed<A> {
             nodes,
             prims,
             draws,
-            ..
+            by_id,
+            mut drag,
         } = self;
         let grid = PixelGrid {
             pixels_per_point: ui.ctx().pixels_per_point(),
@@ -875,9 +949,18 @@ impl<A> Placed<A> {
             text_color: None,
             interactive: Interactive::Outside,
             backdrop: Color32::TRANSPARENT,
-            origin: Pos2::ZERO,
+            origin: nodes[0].rect().min,
             shift: Vec2::ZERO,
         };
+        let (dragging, finish) = dnd::begin(
+            ui.ctx(),
+            ui.scope_id(),
+            &nodes,
+            &by_id,
+            ui.clip_rect(),
+            &mut drag,
+            app,
+        );
         let selection = Style::of(ui.ctx()).selection;
         let animation = LayoutAnimation::begin(ui.ctx(), ui.scope_id(), nodes[0].rect());
         let recording = continuity::recording(ui.ctx()).then(Vec::new);
@@ -893,9 +976,12 @@ impl<A> Placed<A> {
             text_seen: HashMap::new(),
             animation,
             recording,
+            lift: dragging.lift,
+            drag: &dragging,
         };
         walk.visit(0, root);
         let ctx = walk.ui.ctx().clone();
+        finish.finish(&ctx, &nodes, &mut drag, walk.app);
         if let Some(frame) = walk.recording.take() {
             continuity::store(&ctx, frame);
         }
