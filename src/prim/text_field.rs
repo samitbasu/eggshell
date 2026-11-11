@@ -143,7 +143,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         b.leaf_with(slot.id, &slot.label, classes, move |m| {
             measure(m, &measured)
         })
-        .draw(move |app, ui| {
+        .draw_widgets(move |app, ui| {
             let mut edited = text;
             let response = show(ui, &mut edited, &field);
             if response.changed() {

@@ -41,6 +41,7 @@ mod popup_style;
 mod ports;
 mod prims;
 mod scroll;
+mod scroll_keys;
 mod selection;
 mod shadow_pixels;
 mod sizing;

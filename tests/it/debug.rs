@@ -355,7 +355,7 @@ mod scrolling {
     }
 
     fn scroll_box(b: &mut Builder<'_, '_, ()>, axis: Axis) {
-        b.scroll("pane", tw().w_px(200.0).h_px(100.0))
+        b.scroll("pane", tw().w_px(200.0).h_px(100.0).focusable_none())
             .axis(axis)
             .children(|s| s.div(tw().w_px(400.0).h_px(300.0), |_| {}));
     }

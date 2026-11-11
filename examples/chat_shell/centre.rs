@@ -1,6 +1,7 @@
 //! The middle pane: title bar, conversation and composer.
 
 use eggshell_ui::owned::Cell;
+use eggshell_ui::scroll::Focusable;
 use eggshell_ui::{Builder, Opacity, Scope, Tw, tw};
 use egui::{Key, WidgetInfo};
 
@@ -109,6 +110,9 @@ fn user(b: &mut B<'_, '_>, k: &Theme, text: &str) {
 fn conversation(b: &mut B<'_, '_>, app: &App) {
     let k = &Theme::of(b.ctx());
     b.scroll(Part::Conversation, tw().grow().min_h_0())
+        .focusable(Focusable::Always)
+        .role(egui::Role::Log)
+        .named("Conversation")
         .children(|s| {
             s.div(
                 tw().flex()

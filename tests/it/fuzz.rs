@@ -266,8 +266,24 @@ enum DragAction {
     /// The application scrolls the gallery by `points`, in one frame. Also
     /// while a panel is held.
     ScrollBy(i32),
+    /// Tab, or Shift+Tab: focus moves, and into view if it was scrolled out.
+    /// Not while a panel is held.
+    Tab(bool),
+    /// A key that scrolls the container the focus is in (see
+    /// `SCROLL_KEYS`), with Shift for Space. Also while a panel is held.
+    ScrollKey(usize, bool),
     Idle(usize),
 }
+
+const SCROLL_KEYS: [Key; 7] = [
+    Key::ArrowDown,
+    Key::ArrowUp,
+    Key::PageDown,
+    Key::PageUp,
+    Key::Home,
+    Key::End,
+    Key::Space,
+];
 
 /// How far one wheel notch scrolls, in points.
 const NOTCH: f32 = 40.0;
@@ -287,6 +303,8 @@ fn drag_action() -> impl Strategy<Value = DragAction> {
         1 => Just(DragAction::ToggleImage),
         4 => (-8i32..=8).prop_map(DragAction::Wheel),
         2 => (-600i32..=600).prop_map(DragAction::ScrollBy),
+        3 => any::<bool>().prop_map(DragAction::Tab),
+        5 => (0..SCROLL_KEYS.len(), any::<bool>()).prop_map(|(key, shift)| DragAction::ScrollKey(key, shift)),
         2 => (1usize..=8).prop_map(DragAction::Idle),
     ]
 }
@@ -439,6 +457,32 @@ impl Hand<'_> {
                     );
                 }
                 self.harness.step();
+            }
+            DragAction::Tab(shift) if !self.down => {
+                let modifiers = if shift {
+                    egui::Modifiers::SHIFT
+                } else {
+                    egui::Modifiers::NONE
+                };
+                self.harness.key_press_modifiers(modifiers, Key::Tab);
+                self.harness.run_steps(2);
+            }
+            DragAction::ScrollKey(key, shift) => {
+                let modifiers = if shift {
+                    egui::Modifiers::SHIFT
+                } else {
+                    egui::Modifiers::NONE
+                };
+                let cols = self.harness.state().app.cols;
+                let frame = session.next_frame(&self.harness.ctx);
+                self.harness
+                    .key_press_modifiers(modifiers, SCROLL_KEYS[key]);
+                self.harness.run_steps(2);
+                // Space on the focused column control activates it, and the
+                // columns change at once, as `SetCols` does.
+                if self.harness.state().app.cols != cols {
+                    session.resized_instantly.push(frame + 1);
+                }
             }
             DragAction::Idle(count) => self.harness.run_steps(count),
             _ => {}
@@ -602,4 +646,29 @@ fn the_drag_fuzzer_scrolls_when_the_session_says_so() {
             offset(&hand)
         );
     }
+}
+
+/// The keys of the drag fuzzer really scroll the gallery once the focus is
+/// in it.
+#[test]
+fn the_drag_fuzzer_scrolls_with_the_keys_when_the_session_says_so() {
+    let (mut hand, mut session) = gallery_hand();
+    let page = support::last_drawn(&hand.harness.ctx, "/\"page\"").expect("drawn");
+    for _ in 0..20 {
+        if eggshell_ui::focus_within(&hand.harness.ctx, page.id) {
+            break;
+        }
+        hand.act(&DragAction::Tab(false), &mut session);
+    }
+    assert!(
+        eggshell_ui::focus_within(&hand.harness.ctx, page.id),
+        "precondition: the focus reached the page"
+    );
+    hand.act(&DragAction::ScrollKey(5, false), &mut session);
+    hand.settle_scrolling();
+    let offset = eggshell_ui::scroll::viewport(&hand.harness.ctx, page.id)
+        .expect("laid out")
+        .offset()
+        .y;
+    assert!(offset > 100.0, "End scrolled the page to {offset}");
 }

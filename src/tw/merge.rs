@@ -322,6 +322,7 @@ impl Tw {
             left: theirs.border_colors.left.or(left),
         };
         mine.ring = theirs.ring.or(mine.ring);
+        mine.ring_placement = mine.ring_placement.merge(theirs.ring_placement);
         mine.shadow = theirs.shadow.or(mine.shadow);
         mine.divide_x = theirs.divide_x.or(mine.divide_x);
         mine.divide_y = theirs.divide_y.or(mine.divide_y);
@@ -466,6 +467,27 @@ mod tests {
         assert_eq!(merged.grouping, crate::tw::Grouping::Group);
         let merged = tw().focusable_none().merge(tw());
         assert_eq!(merged.focusability, crate::tw::Focusability::Skip);
+    }
+
+    #[test]
+    fn ring_inset_survives_a_later_ring_and_a_later_ring_wins_its_colour() {
+        let merged = tw()
+            .ring(1.0, Color32::RED)
+            .ring_inset()
+            .merge(tw().ring(2.0, Color32::BLUE));
+        assert_eq!(
+            merged.paint.ring_placement,
+            crate::tw::RingPlacement::Inside
+        );
+        assert_eq!(
+            merged.paint.ring.map(|ring| ring.color),
+            Some(Color32::BLUE)
+        );
+        let merged = tw().ring(1.0, Color32::RED).merge(tw().ring_inset());
+        assert_eq!(
+            merged.paint.ring_placement,
+            crate::tw::RingPlacement::Inside
+        );
     }
 
     #[test]

@@ -169,6 +169,7 @@ pub mod owned;
 mod pipeline;
 pub mod prim;
 pub mod scroll;
+mod scroll_keys;
 mod shadow_corners;
 mod sizing;
 pub mod testing;
@@ -198,5 +199,6 @@ pub use text::{
 #[doc(hidden)]
 pub use transition::tracked_layout_nodes;
 pub use tw::{
-    Angle, BoxPaint, Divide, Easing, Flip, Opacity, Paint, Progress, Ring, Sides, Track, Tw, tw,
+    Angle, BoxPaint, Divide, Easing, Flip, Opacity, Paint, Progress, Ring, RingPlacement, Sides,
+    Track, Tw, tw,
 };

@@ -13,9 +13,10 @@ use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
 use crate::pipeline::{
-    BuildState, ColorSource, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
+    BuildState, ColorSource, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
 };
 use crate::prim::{Icon, Prim};
+use crate::scroll::TabStop;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::text::{TextStyle, VAlign};
 use crate::tw::{Grouping, Sensing, Tw, tw};
@@ -253,7 +254,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) -> NodeHandle<'b, 'f, A> {
         use taffy::{Display, Overflow, Point};
-        let ScrollOptions { axis, edge, bars } = options;
+        let ScrollOptions {
+            axis,
+            edge,
+            bars,
+            focusable,
+            focus,
+            description,
+        } = options;
         let path = self.identify(id, key);
         let parts = Parts {
             id: Some(id),
@@ -288,14 +296,20 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .tree
             .set_node_context(content, Some(content_node))
             .expect("node was just created");
+        let tab_stop = TabStop::of(focusable, &classes, &self.st.tree, &kids);
+        let mut style = classes.style;
+        if tab_stop == TabStop::Yes && !leaf.interaction.variants.has_focus() {
+            frame_for_focus(&mut style, &mut leaf, focus);
+        }
         leaf.scroll = Some(ScrollNode {
             axis,
             edge,
             bars,
+            tab_stop,
+            description,
             content,
             size: egui::Vec2::ZERO,
         });
-        let mut style = classes.style;
         style.padding = taffy::Rect::zero();
         style.overflow = Point {
             x: Overflow::Scroll,
@@ -358,7 +372,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     {
         let measured = widget.clone();
         self.leaf(key, tw, move |m| measured.measure(m))
-            .draw(move |app, ui| draw(app, ui, widget));
+            .draw_widgets(move |app, ui| draw(app, ui, widget));
     }
 
     /// An identified text leaf, measured and painted by the library.
@@ -477,6 +491,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             prim: parts.prim,
             measure: parts.measure,
             draw: None,
+            draw_kind: DrawKind::Paint,
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
             drag: None,
@@ -536,6 +551,25 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .expect("node was just created");
         self.kids.push(id);
     }
+}
+
+/// Gives a focusable scroll container the default focus look: a border of
+/// the focus ring's width that is always in the layout, wider if the classes
+/// ask for more, and takes the ring's colour on focus. Content, bars and
+/// fades sit inside it, so nothing is covered and nothing shifts on focus.
+fn frame_for_focus(style: &mut taffy::Style, leaf: &mut Node, focus: crate::contract::Focus) {
+    use taffy::LengthPercentage;
+    let widen = |side: &mut LengthPercentage| {
+        let own = side.into_raw().value();
+        *side = LengthPercentage::length(own.max(focus.width));
+    };
+    widen(&mut style.border.left);
+    widen(&mut style.border.right);
+    widen(&mut style.border.top);
+    widen(&mut style.border.bottom);
+    leaf.interaction
+        .variants
+        .set_focus(crate::Paint::default().border_color(focus.color));
 }
 
 impl<A: 'static> Builder<'_, '_, A> {
@@ -614,6 +648,17 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     pub fn draw(mut self, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) -> Self {
         self.b.attach_draw(self.node, draw);
         self
+    }
+
+    /// Like [`draw`](Self::draw), for a closure that adds focusable or
+    /// accessible egui widgets: a text field, a button. The closure still runs
+    /// while the node is scrolled out of a scroll container's view, with
+    /// nothing painted, so that Tab can reach the widgets and assistive
+    /// technology can read them. A closure that only paints is [`draw`](Self::draw):
+    /// it does not run there.
+    pub fn draw_widgets(mut self, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) -> Self {
+        self.edit(|context| context.draw_kind = DrawKind::Widgets);
+        self.draw(draw)
     }
 
     /// Makes the node a drag source carrying `payload`, and makes it sense

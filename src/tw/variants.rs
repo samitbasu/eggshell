@@ -6,7 +6,7 @@ use core::time::Duration;
 
 use egui::{Color32, Sense, Shadow, Vec2};
 
-use super::{BoxPaint, Easing, Opacity, Progress, Ring, Sides, Tw};
+use super::{BoxPaint, Easing, Opacity, Progress, Ring, RingPlacement, Sides, Tw};
 use crate::text::TextDecoration;
 
 /// What a node senses. Egui's own [`Sense`] cannot say "nothing declared":
@@ -124,6 +124,7 @@ pub struct Paint {
     text: Option<Color32>,
     border: Option<Color32>,
     ring: Option<Ring>,
+    ring_placement: Option<RingPlacement>,
     shadow: Option<Shadow>,
     opacity: Option<Opacity>,
     decoration: Option<TextDecoration>,
@@ -155,6 +156,12 @@ impl Paint {
             width,
             color: color.into(),
         });
+        self
+    }
+
+    /// `ring-inset`: the ring is drawn inside the border box.
+    pub fn ring_inset(mut self) -> Self {
+        self.ring_placement = Some(RingPlacement::Inside);
         self
     }
 
@@ -206,6 +213,7 @@ impl Paint {
             text: other.text.or(self.text),
             border: other.border.or(self.border),
             ring: other.ring.or(self.ring),
+            ring_placement: other.ring_placement.or(self.ring_placement),
             shadow: other.shadow.or(self.shadow),
             opacity: other.opacity.or(self.opacity),
             decoration: other.decoration.or(self.decoration),
@@ -236,6 +244,10 @@ impl Paint {
                 left: border(sides.left),
             },
             ring: self.ring.filter(|_| switched).or(look.paint.ring),
+            ring_placement: self
+                .ring_placement
+                .filter(|_| switched)
+                .unwrap_or(look.paint.ring_placement),
             shadow: self.shadow.filter(|_| switched).or(look.paint.shadow),
             opacity: self.opacity.map_or(look.paint.opacity, |to| {
                 Opacity::new(progress.lerp(look.paint.opacity.into(), to.into()))
@@ -351,6 +363,16 @@ pub(crate) struct Variants {
 }
 
 impl Variants {
+    /// Whether a `focus:` look is set.
+    pub(crate) fn has_focus(&self) -> bool {
+        self.focus.is_some()
+    }
+
+    /// Sets the `focus:` look.
+    pub(crate) fn set_focus(&mut self, paint: Paint) {
+        self.focus = Some(paint);
+    }
+
     /// These variants with `other`'s on top, state by state.
     pub(crate) fn merge(self, other: Self) -> Self {
         let both = |ours: Option<Paint>, theirs: Option<Paint>| match (ours, theirs) {
@@ -614,6 +636,24 @@ impl Tw {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_variants_ring_inset_merges_over_its_ring_and_switches_with_it() {
+        let ring = Paint::default().ring(2.0, Color32::RED);
+        let merged = ring.merge(Paint::default().ring_inset());
+        assert_eq!(merged.ring, ring.ring, "the ring stays");
+        assert_eq!(merged.ring_placement, Some(RingPlacement::Inside));
+        let look = Look {
+            paint: BoxPaint::default(),
+            translate: Vec2::ZERO,
+            text: Color32::BLACK,
+            decoration: TextDecoration::None,
+        };
+        let shown = merged.towards(look, Progress::END);
+        assert_eq!(shown.paint.ring_placement, RingPlacement::Inside);
+        let hidden = merged.towards(look, Progress::START);
+        assert_eq!(hidden.paint.ring_placement, RingPlacement::Outside);
+    }
     use crate::tw::tw;
 
     fn look() -> Look {

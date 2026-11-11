@@ -552,3 +552,16 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
     assert_eq!(thumb(&harness, "/\"air\"/Track").1.fill, rest, "pressed");
     support::release(&mut harness, "/\"air\"/Track");
 }
+
+#[test]
+fn a_click_on_a_segmented_cell_does_not_show_the_focus_ring() {
+    let mut harness = harness(Theme::Light);
+    click_node(&mut harness, &cell_path(Unit::Nautical));
+    harness.run_steps(12);
+    assert_eq!(harness.state().app.segment, Unit::Nautical, "precondition");
+    let cell = rect_of(&harness, &cell_path(Unit::Nautical));
+    assert!(
+        ring_at(&harness, cell).is_none(),
+        "focus-visible: keyboard only"
+    );
+}

@@ -17,11 +17,37 @@
 //! no slide.
 //!
 //! The viewport clips both painting and hit testing, and the draw does not
-//! visit nodes that are entirely outside it, so their draw closures do not
-//! run. Such nodes are not in egui's focus order either: Tab does not reach a
-//! control that is scrolled out of view, and text selection does not extend
-//! into it. A node that holds the keyboard focus, or the drag that is in
-//! progress, is always visited.
+//! paint nodes that are entirely outside it: their draw closures do not run.
+//! A scrolled-out node that is focusable or has an accessible role or name
+//! still registers its widget at its real rect, painting nothing: Tab
+//! reaches it, scrolls it into view, and assistive technology reads it. That
+//! is the node's one hit test and, if it adds widgets, its draw closure with
+//! the opacity at zero ([`NodeHandle::draw_widgets`](crate::NodeHandle::draw_widgets));
+//! a node that only paints costs a counter lookup. Text selection does not
+//! extend into culled text. A node that holds the keyboard focus, or the
+//! drag that is in progress, is always visited.
+//!
+//! # The keyboard
+//!
+//! A focused container scrolls with ↑ ↓ ← → (one line: the container's text
+//! line height), PageUp / PageDown (the viewport less one line), Home / End
+//! and Space / Shift+Space, as a browser does; the target is the innermost
+//! container that holds the focus, or, with nothing focused, the one last
+//! pressed in. A focused control that uses a key (a text field, a slider)
+//! has it first, and a key never chains to the container around at an edge.
+//! A container is a Tab stop when nothing inside it is, or always with
+//! [`Focusable::Always`]; [`ScrollChain::role`] and [`ScrollChain::named`]
+//! describe it to assistive technology. Which it is follows from the classes
+//! of what is inside, when the container is built (a widget added by a draw
+//! closure counts only if it was added with
+//! [`NodeHandle::draw_widgets`](crate::NodeHandle::draw_widgets)), so it is
+//! the same every frame. A Tab stop has a **focus frame**: a border of the
+//! style's focus ring width that is always in the layout (the container's own
+//! border colour at rest, none otherwise) and takes the ring's colour on
+//! focus. Content, bars and fades sit inside it, so focusing covers nothing
+//! and moves nothing. A container whose classes set a `focus:` look keeps
+//! that look and gets no frame. Focus that moves to a node
+//! scrolls it into view.
 //!
 //! # Scroll bars
 //!
@@ -43,7 +69,7 @@
 //! changes it for one container.
 //!
 //! # The wheel
-//!//!
+//!
 //! The innermost container that can still move takes the wheel; at its edge
 //! egui lets the wheel chain to the container around it. The wheel works
 //! while another widget is being dragged.
@@ -65,15 +91,15 @@
 //! without egui's animation. [`viewport`] reads where the viewport and the
 //! content are.
 
-use egui::{Align, Context, Id, Pos2, Rect, Vec2, Vec2b};
+use egui::{Align, Context, Id, Pos2, Rect, Role, Vec2, Vec2b};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
-pub use crate::contract::ScrollStyle;
-use crate::contract::Style;
+pub use crate::contract::{EdgeFade, ScrollStyle};
+use crate::contract::{Focus, Style};
 use crate::dnd::{EdgeScroll, drag_pointer};
 use crate::key::Key;
-use crate::pipeline::PlacedNode;
-use crate::tw::Tw;
+use crate::pipeline::{Node, PlacedNode, takes_tab};
+use crate::tw::{Focusability, Tw};
 
 /// Along which axes a scroll container scrolls.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -97,6 +123,63 @@ impl Axis {
             Self::Both => Vec2b::TRUE,
         }
     }
+}
+
+/// Whether a scroll container is a Tab stop.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Focusable {
+    /// Only when nothing inside it is, as Chrome's keyboard-focusable
+    /// scrollers: plain scrolling text is reachable with Tab, a list of
+    /// controls is reached through them.
+    #[default]
+    Auto,
+    /// Always, before the controls inside it, as a transcript with
+    /// `tabindex="0"`.
+    Always,
+}
+
+/// Whether a scroll container takes part in the Tab order, as decided when it
+/// is built: from what is inside it, so the decision is the same every frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum TabStop {
+    #[default]
+    No,
+    Yes,
+}
+
+impl TabStop {
+    /// Whether a container built from `classes`, with the nodes `kids` as
+    /// its content, is a Tab stop.
+    pub(crate) fn of(
+        focusable: Focusable,
+        classes: &Tw,
+        tree: &taffy::TaffyTree<Node>,
+        kids: &[taffy::NodeId],
+    ) -> Self {
+        let takes = classes.focusability == Focusability::Tab && !classes.inert;
+        let wanted = match focusable {
+            Focusable::Always => true,
+            Focusable::Auto => !holds_tab_stop(tree, kids),
+        };
+        if takes && wanted { Self::Yes } else { Self::No }
+    }
+}
+
+/// Whether one of `nodes`, or of their descendants, is a Tab stop by what its
+/// classes declare. A nested scroll container counts: it is one or holds
+/// one. Inert and hidden subtrees do not.
+fn holds_tab_stop(tree: &taffy::TaffyTree<Node>, nodes: &[taffy::NodeId]) -> bool {
+    nodes.iter().any(|&id| {
+        let hidden = tree
+            .style(id)
+            .is_ok_and(|style| style.display == taffy::Display::None);
+        match tree.get_node_context(id) {
+            Some(node) if node.inert || hidden => false,
+            Some(node) if node.scroll.is_some() => true,
+            Some(node) if takes_tab(&node.interaction, node.draw_kind) => true,
+            _ => holds_tab_stop(tree, &tree.children(id).unwrap_or_default()),
+        }
+    })
 }
 
 /// A scroll container, started with [`Builder::scroll`] and finished with
@@ -129,6 +212,10 @@ pub struct ScrollChain<'a, 'f, A> {
     axis: Axis,
     edge: Option<EdgeScroll>,
     bars: Option<ScrollStyle>,
+    fade: Option<EdgeFade>,
+    focusable: Focusable,
+    role: Option<Role>,
+    name: Option<String>,
 }
 
 impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
@@ -140,7 +227,32 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             axis: Axis::default(),
             edge: Some(EdgeScroll::default()),
             bars: None,
+            fade: None,
+            focusable: Focusable::default(),
+            role: None,
+            name: None,
         }
+    }
+
+    /// Whether the container is a Tab stop. [`Focusable::Auto`] unless set.
+    /// A focused container scrolls with the keys (arrows, PageUp/PageDown,
+    /// Home/End, Space); a focused control inside it gets them first.
+    pub fn focusable(mut self, focusable: Focusable) -> Self {
+        self.focusable = focusable;
+        self
+    }
+
+    /// The container's accessible role, such as [`Role::Log`] for a
+    /// transcript. [`Role::ScrollView`] unless set.
+    pub fn role(mut self, role: Role) -> Self {
+        self.role = Some(role);
+        self
+    }
+
+    /// The container's accessible name, the `aria-label` of the web.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// Which way the container scrolls. [`Axis::Y`] unless set.
@@ -154,6 +266,14 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
     /// gutter the container reserves.
     pub fn scrollbar_style(mut self, bars: ScrollStyle) -> Self {
         self.bars = Some(bars);
+        self
+    }
+
+    /// Fades the container's edges by `fade` where more content lies beyond
+    /// them, for a carousel or a tab strip. Containers do not fade unless
+    /// this is set ([`ScrollStyle::fade`] is off).
+    pub fn fade_edges(mut self, fade: EdgeFade) -> Self {
+        self.fade = Some(fade);
         self
     }
 
@@ -180,10 +300,25 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             axis,
             edge,
             bars,
+            fade,
+            focusable,
+            role,
+            name,
         } = self;
-        let style = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll);
+        let focus = Style::of(b.ctx()).focus;
+        let mut style = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll);
+        if let Some(fade) = fade {
+            style.fade = fade;
+        }
         let bars = Bars::new(style, axis);
-        let options = ScrollOptions { axis, edge, bars };
+        let options = ScrollOptions {
+            axis,
+            edge,
+            bars,
+            focusable,
+            focus,
+            description: Description { role, name },
+        };
         b.scroll_with(slot.id, &slot.label, classes, options, body)
     }
 }
@@ -342,6 +477,22 @@ pub(crate) struct ScrollOptions {
     pub(crate) axis: Axis,
     pub(crate) edge: Option<EdgeScroll>,
     pub(crate) bars: Bars,
+    pub(crate) focusable: Focusable,
+    pub(crate) focus: Focus,
+    pub(crate) description: Description,
+}
+
+/// How a container is announced by assistive technology, if it is.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Description {
+    pub(crate) role: Option<Role>,
+    pub(crate) name: Option<String>,
+}
+
+impl Description {
+    pub(crate) fn is_set(&self) -> bool {
+        self.role.is_some() || self.name.is_some()
+    }
 }
 
 /// The viewport of a container whose padding box is `padding` and whose
@@ -402,6 +553,10 @@ impl Bars {
             bar_outer_margin: 0.0,
             handle_min_length: self.style.min_thumb_length,
             foreground_color: false,
+            fade: egui::style::ScrollFadeStyle {
+                strength: self.style.fade.strength.into(),
+                size: self.style.fade.size,
+            },
             ..*base
         }
     }
@@ -431,6 +586,8 @@ pub(crate) struct ScrollPlan {
     pub(crate) axis: Axis,
     pub(crate) edge: Option<EdgeScroll>,
     pub(crate) bars: Bars,
+    pub(crate) tab_stop: TabStop,
+    pub(crate) description: Description,
     /// The content root's size.
     pub(crate) content: Vec2,
     /// How far the content is scrolled.

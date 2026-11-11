@@ -13,8 +13,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::scroll::{self, Axis};
-use eggshell_ui::{Builder, Tw, tw};
+use eggshell_ui::scroll::{self, Axis, EdgeFade};
+use eggshell_ui::{Builder, Opacity, Tw, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Rect, vec2};
 
@@ -212,6 +212,7 @@ fn nested(b: &mut B<'_, '_>) {
                 tw().h_px(88.0).rounded_md().bg(t.muted).p(2.0),
             )
             .axis(Axis::X)
+            .fade_edges(EdgeFade::new(Opacity::new(0.5), 20.0))
             .children(|s| {
                 s.div(tw().flex().gap(2.0).h_full(), |s| {
                     for n in 0..CARDS {
