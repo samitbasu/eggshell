@@ -59,9 +59,7 @@ fn target<'a>(ctx: &Context, nodes: &'a [PlacedNode]) -> Option<Target<'a>> {
             })
     };
     if ctx.memory(|memory| memory.focused()).is_some() {
-        return scrollers()
-            .filter(|target| focus::focus_within(ctx, target.id))
-            .next_back();
+        return scrollers().rfind(|target| focus::focus_within(ctx, target.id));
     }
     let pressed = pressed_in(ctx)?;
     scrollers().find(|target| target.id == pressed)
