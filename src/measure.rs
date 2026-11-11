@@ -5,7 +5,7 @@ use egui::{Align, Color32, Stroke, TextFormat};
 use taffy::{AvailableSpace, Baselines, LayoutInput, LayoutOutput, Size};
 
 use crate::prim::Prim;
-use crate::text::{FontStyle, TextAlign, TextDecoration, TextStyle, WhiteSpace};
+use crate::text::{FontStyle, Numerals, TextAlign, TextDecoration, TextStyle, WhiteSpace};
 
 /// What an application leaf's measure closure is asked.
 ///
@@ -83,23 +83,44 @@ enum Wrap {
 }
 
 impl TextLeaf<'_> {
-    fn job(&self, text: &str) -> LayoutJob {
+    /// The job measurement and painting share. Under tabular numerals each
+    /// digit is its own section, pushed right by the gap between it and the
+    /// widest digit, so that every digit advances alike.
+    fn job(&self, fonts: &mut FontsView<'_>, text: &str) -> LayoutJob {
         let underline = match self.style.decoration {
             TextDecoration::None => Stroke::NONE,
             TextDecoration::Underline => Stroke::new(1.0, Color32::PLACEHOLDER),
         };
-        LayoutJob::single_section(
-            text.to_owned(),
-            TextFormat {
-                font_id: self.style.spec.font_id(),
-                extra_letter_spacing: self.style.tracking.into(),
-                line_height: Some(self.style.spec.line_height),
-                italics: self.style.font_style == FontStyle::Italic,
-                color: Color32::PLACEHOLDER,
-                underline,
-                ..TextFormat::default()
-            },
-        )
+        let font_id = self.style.spec.font_id();
+        let format = TextFormat {
+            font_id: font_id.clone(),
+            extra_letter_spacing: self.style.tracking.into(),
+            line_height: Some(self.style.spec.line_height),
+            italics: self.style.font_style == FontStyle::Italic,
+            color: Color32::PLACEHOLDER,
+            underline,
+            ..TextFormat::default()
+        };
+        if self.style.numerals == Numerals::Proportional {
+            return LayoutJob::single_section(text.to_owned(), format);
+        }
+        let widest = ('0'..='9')
+            .map(|digit| fonts.glyph_width(&font_id, digit))
+            .fold(0.0, f32::max);
+        let mut job = LayoutJob {
+            break_on_newline: true,
+            ..LayoutJob::default()
+        };
+        for (at, c) in text.char_indices() {
+            let end = at + c.len_utf8();
+            let gap = if c.is_ascii_digit() {
+                widest - fonts.glyph_width(&font_id, c)
+            } else {
+                0.0
+            };
+            job.append(&text[at..end], gap, format.clone());
+        }
+        job
     }
 
     fn galley(
@@ -108,7 +129,7 @@ impl TextLeaf<'_> {
         text: &str,
         wrap: Wrap,
     ) -> std::sync::Arc<egui::Galley> {
-        let mut job = self.job(text);
+        let mut job = self.job(fonts, text);
         match wrap {
             Wrap::Off => job.wrap.max_width = f32::INFINITY,
             Wrap::At(width) => job.wrap.max_width = width,
@@ -125,7 +146,7 @@ impl TextLeaf<'_> {
         width: f32,
     ) -> std::sync::Arc<egui::Galley> {
         let text = self.style.case.apply(self.text);
-        let mut job = self.job(&text);
+        let mut job = self.job(fonts, &text);
         job.halign = match self.style.align {
             TextAlign::Left => Align::LEFT,
             TextAlign::Center => Align::Center,

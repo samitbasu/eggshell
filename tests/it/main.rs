@@ -53,6 +53,7 @@ mod style;
 mod style_switch;
 mod support;
 mod sweep;
+mod tabular_nums;
 mod theme_toggle;
 mod todo_demo;
 mod toggle_group;
