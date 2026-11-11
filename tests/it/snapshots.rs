@@ -99,6 +99,26 @@ mod todo;
 #[path = "../../examples/dnd_gallery.rs"]
 mod dnd_gallery;
 
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/scroll.rs"]
+mod scroll_example;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/overflow.rs"]
+mod overflow;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/flex_scroll.rs"]
+mod flex_scroll;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/image_gallery.rs"]
+mod image_gallery;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/crate_ui.rs"]
+mod crate_ui;
+
 use crate::support;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
@@ -1244,4 +1264,90 @@ fn dnd_gallery_chip_in(name: &str, theme: egui::Theme) {
     harness.hover_at(over);
     harness.run_steps(24);
     harness.snapshot(name);
+}
+
+/// The scroll example at rest: a vertical, a horizontal, a two-way and a
+/// nested container.
+#[test]
+fn scroll_light() {
+    scroll_in("scroll_light", egui::Theme::Light, false);
+}
+
+#[test]
+fn scroll_dark() {
+    scroll_in("scroll_dark", egui::Theme::Dark, false);
+}
+
+/// Every container of the scroll example scrolled, the nested ones both.
+#[test]
+fn scroll_scrolled_light() {
+    scroll_in("scroll_scrolled_light", egui::Theme::Light, true);
+}
+
+fn scroll_in(name: &str, theme: egui::Theme, scrolled: bool) {
+    use eggshell_ui::scroll::scroll_by;
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(1100.0, 640.0),
+        common::base_text(theme),
+        scroll_example::State::default(),
+        scroll_example::layout,
+        |_, _| {},
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    if scrolled {
+        let id = |path: &str| support::id_of(&harness, path);
+        let by = |path: &str, x, y| scroll_by(&harness.ctx, id(path), Vec2::new(x, y));
+        by("/Vertical", 0.0, 330.0);
+        by("/Horizontal", 260.0, 0.0);
+        by("/Both", 150.0, 120.0);
+        by("/Nested", 0.0, 90.0);
+        by("/Nested/Carousel", 180.0, 0.0);
+        by("/Nested/List", 0.0, 150.0);
+        harness.run_steps(3);
+    }
+    harness.snapshot(name);
+}
+
+/// The overflow demo: visible, clip, hidden and scroll, twenty labels each.
+#[test]
+fn overflow_light() {
+    light_snapshot(
+        "overflow_light",
+        Vec2::new(620.0, 360.0),
+        overflow::State::default(),
+        overflow::layout,
+    );
+}
+
+#[test]
+fn flex_scroll_light() {
+    light_snapshot(
+        "flex_scroll_light",
+        Vec2::new(900.0, 700.0),
+        flex_scroll::flex_example::State::default(),
+        flex_scroll::layout,
+    );
+}
+
+#[test]
+fn image_gallery_light() {
+    light_snapshot(
+        "image_gallery_light",
+        Vec2::new(900.0, 700.0),
+        image_gallery::State::default(),
+        image_gallery::layout,
+    );
+}
+
+#[test]
+fn crate_ui_light() {
+    light_snapshot(
+        "crate_ui_light",
+        Vec2::new(800.0, 700.0),
+        crate_ui::State::default(),
+        crate_ui::layout,
+    );
 }
