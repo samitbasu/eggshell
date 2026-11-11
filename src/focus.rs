@@ -13,8 +13,6 @@ use std::sync::Arc;
 
 use egui::{Context, Id, LayerId};
 
-use crate::pipeline::{Flow, PlacedNode};
-
 type Subtrees = HashMap<Id, Box<[Id]>>;
 
 #[derive(Clone, Default)]
@@ -54,40 +52,6 @@ pub fn focus_within(ctx: &Context, node: Id) -> bool {
     known
         .get(&node)
         .is_some_and(|ids| ids.iter().any(|&id| holds_focus(ctx, id)))
-}
-
-/// Whether a node inside the scroll container at `container` is a Tab stop
-/// by what its classes declare. A nested scroll container counts: it is a Tab
-/// stop, or holds one. Inert and hidden subtrees do not.
-pub(crate) fn has_focusable_within(nodes: &[PlacedNode], container: usize) -> bool {
-    let mut at = container + 1;
-    while at < nodes[container].end {
-        let node = &nodes[at];
-        if node.is_inert() || node.flow == Flow::Hidden {
-            at = node.end;
-        } else if node.scroll.is_some() || node.takes_tab() {
-            return true;
-        } else {
-            at += 1;
-        }
-    }
-    false
-}
-
-/// Whether the previous frame registered a focusable widget inside `node`
-/// other than `node`'s own: one a draw closure added.
-pub(crate) fn holds_other_widgets(ctx: &Context, node: Id) -> bool {
-    let records: Records = ctx
-        .data(|data| data.get_temp(records_id()))
-        .unwrap_or_default();
-    let known = if records.pass == ctx.cumulative_pass_nr() {
-        &*records.previous
-    } else {
-        &records.current
-    };
-    known
-        .get(&node)
-        .is_some_and(|ids| ids.iter().any(|&id| id != node))
 }
 
 /// How many widgets `layer` has registered so far this pass.

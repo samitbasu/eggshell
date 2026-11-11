@@ -37,7 +37,16 @@
 //! has it first, and a key never chains to the container around at an edge.
 //! A container is a Tab stop when nothing inside it is, or always with
 //! [`Focusable::Always`]; [`ScrollChain::role`] and [`ScrollChain::named`]
-//! describe it to assistive technology. Focus that moves to a node
+//! describe it to assistive technology. Which it is follows from the classes
+//! of what is inside, when the container is built (a widget added by a draw
+//! closure counts only if it was added with
+//! [`NodeHandle::draw_widgets`](crate::NodeHandle::draw_widgets)), so it is
+//! the same every frame. A Tab stop has a **focus frame**: a border of the
+//! style's focus ring width that is always in the layout (the container's own
+//! border colour at rest, none otherwise) and takes the ring's colour on
+//! focus. Content, bars and fades sit inside it, so focusing covers nothing
+//! and moves nothing. A container whose classes set a `focus:` look keeps
+//! that look and gets no frame. Focus that moves to a node
 //! scrolls it into view.
 //!
 //! # Scroll bars
@@ -86,11 +95,11 @@ use egui::{Align, Context, Id, Pos2, Rect, Role, Vec2, Vec2b};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
 pub use crate::contract::ScrollStyle;
-use crate::contract::Style;
+use crate::contract::{Focus, Style};
 use crate::dnd::{EdgeScroll, drag_pointer};
 use crate::key::Key;
-use crate::pipeline::PlacedNode;
-use crate::tw::Tw;
+use crate::pipeline::{Node, PlacedNode, takes_tab};
+use crate::tw::{Focusability, Tw};
 
 /// Along which axes a scroll container scrolls.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -127,6 +136,50 @@ pub enum Focusable {
     /// Always, before the controls inside it, as a transcript with
     /// `tabindex="0"`.
     Always,
+}
+
+/// Whether a scroll container takes part in the Tab order, as decided when it
+/// is built: from what is inside it, so the decision is the same every frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum TabStop {
+    #[default]
+    No,
+    Yes,
+}
+
+impl TabStop {
+    /// Whether a container built from `classes`, with the nodes `kids` as
+    /// its content, is a Tab stop.
+    pub(crate) fn of(
+        focusable: Focusable,
+        classes: &Tw,
+        tree: &taffy::TaffyTree<Node>,
+        kids: &[taffy::NodeId],
+    ) -> Self {
+        let takes = classes.focusability == Focusability::Tab && !classes.inert;
+        let wanted = match focusable {
+            Focusable::Always => true,
+            Focusable::Auto => !holds_tab_stop(tree, kids),
+        };
+        if takes && wanted { Self::Yes } else { Self::No }
+    }
+}
+
+/// Whether one of `nodes`, or of their descendants, is a Tab stop by what its
+/// classes declare. A nested scroll container counts: it is one or holds
+/// one. Inert and hidden subtrees do not.
+fn holds_tab_stop(tree: &taffy::TaffyTree<Node>, nodes: &[taffy::NodeId]) -> bool {
+    nodes.iter().any(|&id| {
+        let hidden = tree
+            .style(id)
+            .is_ok_and(|style| style.display == taffy::Display::None);
+        match tree.get_node_context(id) {
+            Some(node) if node.inert || hidden => false,
+            Some(node) if node.scroll.is_some() => true,
+            Some(node) if takes_tab(&node.interaction, node.draw_kind) => true,
+            _ => holds_tab_stop(tree, &tree.children(id).unwrap_or_default()),
+        }
+    })
 }
 
 /// A scroll container, started with [`Builder::scroll`] and finished with
@@ -243,13 +296,13 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
         } = self;
         let focus = Style::of(b.ctx()).focus;
         let style = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll);
-        let classes = classes.focus_ring_unless_set(focus);
         let bars = Bars::new(style, axis);
         let options = ScrollOptions {
             axis,
             edge,
             bars,
             focusable,
+            focus,
             description: Description { role, name },
         };
         b.scroll_with(slot.id, &slot.label, classes, options, body)
@@ -411,6 +464,7 @@ pub(crate) struct ScrollOptions {
     pub(crate) edge: Option<EdgeScroll>,
     pub(crate) bars: Bars,
     pub(crate) focusable: Focusable,
+    pub(crate) focus: Focus,
     pub(crate) description: Description,
 }
 
@@ -514,7 +568,7 @@ pub(crate) struct ScrollPlan {
     pub(crate) axis: Axis,
     pub(crate) edge: Option<EdgeScroll>,
     pub(crate) bars: Bars,
-    pub(crate) focusable: Focusable,
+    pub(crate) tab_stop: TabStop,
     pub(crate) description: Description,
     /// The content root's size.
     pub(crate) content: Vec2,

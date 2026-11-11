@@ -16,6 +16,7 @@ use crate::pipeline::{
     BuildState, ColorSource, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
 };
 use crate::prim::{Icon, Prim};
+use crate::scroll::TabStop;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::text::{TextStyle, VAlign};
 use crate::tw::{Grouping, Sensing, Tw, tw};
@@ -258,6 +259,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             edge,
             bars,
             focusable,
+            focus,
             description,
         } = options;
         let path = self.identify(id, key);
@@ -294,16 +296,20 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .tree
             .set_node_context(content, Some(content_node))
             .expect("node was just created");
+        let tab_stop = TabStop::of(focusable, &classes, &self.st.tree, &kids);
+        let mut style = classes.style;
+        if tab_stop == TabStop::Yes && !leaf.interaction.variants.has_focus() {
+            frame_for_focus(&mut style, &mut leaf, focus);
+        }
         leaf.scroll = Some(ScrollNode {
             axis,
             edge,
             bars,
-            focusable,
+            tab_stop,
             description,
             content,
             size: egui::Vec2::ZERO,
         });
-        let mut style = classes.style;
         style.padding = taffy::Rect::zero();
         style.overflow = Point {
             x: Overflow::Scroll,
@@ -545,6 +551,25 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .expect("node was just created");
         self.kids.push(id);
     }
+}
+
+/// Gives a focusable scroll container the default focus look: a border of
+/// the focus ring's width that is always in the layout, wider if the classes
+/// ask for more, and takes the ring's colour on focus. Content, bars and
+/// fades sit inside it, so nothing is covered and nothing shifts on focus.
+fn frame_for_focus(style: &mut taffy::Style, leaf: &mut Node, focus: crate::contract::Focus) {
+    use taffy::LengthPercentage;
+    let widen = |side: &mut LengthPercentage| {
+        let own = side.into_raw().value();
+        *side = LengthPercentage::length(own.max(focus.width));
+    };
+    widen(&mut style.border.left);
+    widen(&mut style.border.right);
+    widen(&mut style.border.top);
+    widen(&mut style.border.bottom);
+    leaf.interaction
+        .variants
+        .set_focus(crate::Paint::default().border_color(focus.color));
 }
 
 impl<A: 'static> Builder<'_, '_, A> {

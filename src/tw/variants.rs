@@ -363,6 +363,16 @@ pub(crate) struct Variants {
 }
 
 impl Variants {
+    /// Whether a `focus:` look is set.
+    pub(crate) fn has_focus(&self) -> bool {
+        self.focus.is_some()
+    }
+
+    /// Sets the `focus:` look.
+    pub(crate) fn set_focus(&mut self, paint: Paint) {
+        self.focus = Some(paint);
+    }
+
     /// These variants with `other`'s on top, state by state.
     pub(crate) fn merge(self, other: Self) -> Self {
         let both = |ours: Option<Paint>, theirs: Option<Paint>| match (ours, theirs) {
@@ -482,16 +492,6 @@ impl Tw {
     pub fn focus(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
         self.variants.focus = Some(style(self.variants.focus.unwrap_or_default()));
         self.sensing = self.sensing.pressable();
-        self
-    }
-
-    /// The style's focus ring as the `focus:` look, unless the classes set a
-    /// look of their own. Unlike [`focus`](Self::focus) it makes the node
-    /// sense nothing.
-    pub(crate) fn focus_ring_unless_set(mut self, ring: crate::contract::Focus) -> Self {
-        if self.variants.focus.is_none() {
-            self.variants.focus = Some(Paint::default().ring(ring.width, ring.color).ring_inset());
-        }
         self
     }
 

@@ -23,14 +23,14 @@ use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
-use crate::scroll::{self, Focusable, Moved};
+use crate::scroll::TabStop;
+use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
-    BoxPaint, Flip, Focusability, Grouping, Look, Opacity, Presence, Progress, RingPlacement,
-    Sides, State,
+    BoxPaint, Flip, Grouping, Look, Opacity, Presence, Progress, RingPlacement, Sides, State,
 };
 
 /// Rounds coordinates to whole physical pixels.
@@ -535,18 +535,14 @@ impl<A> Walk<'_, A> {
         plan.description.is_set().then(Sense::hover)
     }
 
-    /// Whether the scroll container at `index` is a Tab stop: when nothing
-    /// inside it is, as Chrome's keyboard-focusable scrollers.
+    /// Whether the scroll container at `index` is a Tab stop, as it was
+    /// decided when it was built.
     fn scroller_takes_focus(&self, index: usize) -> bool {
         let node = &self.nodes[index];
-        let (Some(id), Some(plan)) = (node.id(), node.scroll.as_ref()) else {
-            return false;
-        };
-        node.interaction.focusability == Focusability::Tab
+        node.scroll
+            .as_ref()
+            .is_some_and(|plan| plan.tab_stop == TabStop::Yes)
             && !node.is_inert()
-            && (plan.focusable == Focusable::Always
-                || (!focus::has_focusable_within(self.nodes, index)
-                    && !focus::holds_other_widgets(self.ui.ctx(), id)))
     }
 
     /// Hovering the node or any sensing descendant hovers the node, as

@@ -71,6 +71,16 @@ pub(crate) struct Node {
     pub scroll: Option<ScrollNode>,
 }
 
+/// Whether a node with this `interaction` and draw is a Tab stop by what its
+/// classes declare, or its draw closure adds widgets that may be.
+pub(crate) fn takes_tab(interaction: &Interaction, draw_kind: DrawKind) -> bool {
+    draw_kind == DrawKind::Widgets
+        || interaction
+            .focusability
+            .sense(interaction.sensing)
+            .is_focusable()
+}
+
 /// What a node's draw closure does, for a node scrolled out of view.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum DrawKind {
@@ -87,7 +97,7 @@ pub(crate) struct ScrollNode {
     pub axis: Axis,
     pub edge: Option<EdgeScroll>,
     pub bars: Bars,
-    pub focusable: crate::scroll::Focusable,
+    pub tab_stop: crate::scroll::TabStop,
     pub description: crate::scroll::Description,
     /// The root of the content, laid out on its own.
     pub content: NodeId,
@@ -630,7 +640,7 @@ fn collect(
             axis: scroll.axis,
             edge: scroll.edge,
             bars: scroll.bars,
-            focusable: scroll.focusable,
+            tab_stop: scroll.tab_stop,
             description: scroll.description,
             content: scroll.size,
             offset,
@@ -776,12 +786,7 @@ impl PlacedNode {
     /// Whether the node is a Tab stop by what its classes declare, or its
     /// draw closure adds widgets that may be.
     pub(crate) fn takes_tab(&self) -> bool {
-        self.draw_kind == DrawKind::Widgets
-            || self
-                .interaction
-                .focusability
-                .sense(self.interaction.sensing)
-                .is_focusable()
+        takes_tab(&self.interaction, self.draw_kind)
     }
 
     /// Whether the node's draw closure adds widgets: it runs while the node
