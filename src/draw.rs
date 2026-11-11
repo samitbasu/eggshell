@@ -915,6 +915,11 @@ impl<A> Walk<'_, A> {
         ))
         .id_salt(scroll::AREA_SALT)
         .auto_shrink(false)
+        // egui inflates a viewport smaller than 64 points to 64 and clamps
+        // the offset to that, so a short container stopped short of its end
+        // and then drifted back.
+        .min_scrolled_width(0.0)
+        .min_scrolled_height(0.0)
         .content_margin(egui::Margin::ZERO)
         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
         let area = match plan.moved {

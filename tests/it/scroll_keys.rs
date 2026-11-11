@@ -349,15 +349,13 @@ fn the_innermost_container_holding_the_focus_scrolls_and_the_keys_do_not_chain()
         "the outer one does not"
     );
     press(&mut h, Key::End);
-    let end = offset(&h, inner).y;
-    // egui's own clamp of a nested container's offset ends a few points short
-    // of the content's: `scroll_by` does the same (see the report on #91).
-    assert!(end > max - 6.0, "precondition: it went to the end: {end}");
+    assert_eq!(offset(&h, inner).y, max, "precondition: it went to the end");
     for key in [Key::ArrowDown, Key::PageDown, Key::End, Key::Space] {
         press(&mut h, key);
-        assert!(
-            offset(&h, inner).y <= max,
-            "{key:?} at the end stays within the content"
+        assert_eq!(
+            offset(&h, inner).y,
+            max,
+            "{key:?} at the end stays at the end"
         );
         assert_eq!(
             offset(&h, "/\"outer\""),
@@ -367,11 +365,7 @@ fn the_innermost_container_holding_the_focus_scrolls_and_the_keys_do_not_chain()
     }
     press(&mut h, Key::Home);
     press(&mut h, Key::ArrowUp);
-    assert!(
-        offset(&h, inner).y < 2.0,
-        "back at the start: {:?}",
-        offset(&h, inner)
-    );
+    assert_eq!(offset(&h, inner), Vec2::ZERO, "back at the start");
     assert_eq!(offset(&h, "/\"outer\""), Vec2::ZERO, "nor at the start");
 }
 

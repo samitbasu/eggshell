@@ -854,7 +854,7 @@ fn without_a_drag_the_edge_does_not_scroll() {
 mod nested {
     use super::*;
 
-    #[derive(Clone, Copy, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
     enum Inner {
         Vertical,
         Horizontal,
@@ -862,6 +862,16 @@ mod nested {
 
     struct Page {
         inner: Inner,
+        tab_stops: TabStops,
+        /// The heights of the outer and the inner container.
+        heights: (f32, f32),
+    }
+
+    /// Whether the containers take Tab stops (and, with them, a focus frame).
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum TabStops {
+        Yes,
+        No,
     }
 
     const OUTER: &str = "/\"outer\"";
@@ -874,12 +884,16 @@ mod nested {
     ///   <div class="h-[400px]"/>
     /// </div>
     /// ```
-    fn page(b: &mut Builder<'_, '_, Page>, page: &Page) {
+    fn page_view(b: &mut Builder<'_, '_, Page>, page: &Page) {
         let inner = page.inner;
-        b.scroll("outer", tw().w_px(200.0).h_px(160.0).focusable_none())
+        let frame = |tw: eggshell_ui::Tw| match page.tab_stops {
+            TabStops::Yes => tw,
+            TabStops::No => tw.focusable_none(),
+        };
+        b.scroll("outer", frame(tw().w_px(200.0).h_px(page.heights.0)))
             .children(|s| {
                 s.div(tw().h_px(40.0), |_| {});
-                let list = s.scroll("inner", tw().w_px(160.0).h_px(80.0).focusable_none());
+                let list = s.scroll("inner", frame(tw().w_px(160.0).h_px(page.heights.1)));
                 let list = match inner {
                     Inner::Vertical => list,
                     Inner::Horizontal => list.axis(Axis::X),
@@ -902,7 +916,17 @@ mod nested {
     type P<'a> = Harness<'a, Rig<Page>>;
 
     fn harness(inner: Inner) -> P<'static> {
-        let mut h = support::harness(SIZE, base(), Page { inner }, page);
+        harness_with(inner, TabStops::No, (160.0, 80.0))
+    }
+
+    fn harness_with(inner: Inner, tab_stops: TabStops, heights: (f32, f32)) -> P<'static> {
+        let page = Page {
+            inner,
+            tab_stops,
+            heights,
+        };
+        let mut h = support::harness(SIZE, base(), page, page_view);
+        record(&h.ctx);
         h.run_steps(2);
         h
     }
@@ -1006,6 +1030,84 @@ mod nested {
         h.hover_at(Pos2::new(inner.center().x, inner.max.y - 2.0));
         h.run_steps(20);
         assert!(offset_of(&h, OUTER).y > 10.0, "the outer took over");
+    }
+
+    fn exact_end(inner: Inner, tab_stops: TabStops, request: impl Fn(&mut P<'_>)) {
+        let mut h = harness_with(inner, tab_stops, (100.0, 60.0));
+        let view = scroll::viewport(&h.ctx, support::id_of(&h, INNER)).expect("laid out");
+        let along = |v: Vec2| if inner == Inner::Vertical { v.y } else { v.x };
+        let max = along(view.content.size() - view.rect.size());
+        assert!(max > 0.0, "precondition: the inner container scrolls");
+        request(&mut h);
+        for frame in 0..11 {
+            let view = scroll::viewport(&h.ctx, support::id_of(&h, INNER)).expect("laid out");
+            assert_eq!(
+                along(view.offset()),
+                max,
+                "{inner:?} {tab_stops:?}: frame {frame} after the request"
+            );
+            let last = rect_of(&h, &format!("{INNER}/19"));
+            match inner {
+                Inner::Vertical => assert_eq!(last.max.y, view.rect.max.y, "frame {frame}"),
+                Inner::Horizontal => assert_eq!(last.max.x, view.rect.max.x, "frame {frame}"),
+            }
+            h.step();
+        }
+        Timeline::recorded(&h.ctx).assert_continuous();
+    }
+
+    #[test]
+    fn scroll_by_reaches_the_end_of_a_nested_container_exactly_and_stays() {
+        for inner in [Inner::Vertical, Inner::Horizontal] {
+            for tab_stops in [TabStops::No, TabStops::Yes] {
+                exact_end(inner, tab_stops, |h| {
+                    scroll::scroll_by(&h.ctx, support::id_of(h, INNER), vec2(5000.0, 5000.0));
+                    h.step();
+                });
+            }
+        }
+    }
+
+    fn short_top_level(b: &mut Builder<'_, '_, Page>, _: &Page) {
+        b.scroll("outer", tw().w_px(200.0).h_px(50.0).focusable_none())
+            .children(|s| {
+                for i in 0..20u32 {
+                    s.div_id(i, tw().h_px(30.0).shrink_0(), |_| {});
+                }
+            });
+    }
+
+    #[test]
+    fn a_top_level_container_shorter_than_a_minimum_scrolled_height_also_ends_exactly() {
+        let page = Page {
+            inner: Inner::Vertical,
+            tab_stops: TabStops::No,
+            heights: (50.0, 0.0),
+        };
+        let mut h = support::harness(SIZE, base(), page, short_top_level);
+        h.run_steps(2);
+        let outer = support::id_of(&h, OUTER);
+        scroll::scroll_by(&h.ctx, outer, vec2(0.0, 1000.0));
+        for frame in 0..11 {
+            h.step();
+            let view = scroll::viewport(&h.ctx, outer).expect("laid out");
+            assert_eq!(view.offset().y, 600.0 - 50.0, "frame {frame}");
+        }
+    }
+
+    #[test]
+    fn the_end_key_reaches_the_end_of_a_nested_container_exactly_and_stays() {
+        for inner in [Inner::Vertical, Inner::Horizontal] {
+            for tab_stops in [TabStops::No, TabStops::Yes] {
+                exact_end(inner, tab_stops, |h| {
+                    let at = rect_of(h, INNER).center();
+                    support::press_and_release(h, at);
+                    h.run_steps(2);
+                    h.key_press(egui::Key::End);
+                    h.step();
+                });
+            }
+        }
     }
 
     #[test]
