@@ -35,18 +35,20 @@
 //! container that holds the focus, or, with nothing focused, the one last
 //! pressed in. A focused control that uses a key (a text field, a slider)
 //! has it first, and a key never chains to the container around at an edge.
-//! A container is a Tab stop when nothing inside it is, or always with
+//! A container is a Tab stop, as Chrome's keyboard-focusable scrollers, when
+//! its content can scroll (it is larger than the viewport on an axis it
+//! scrolls) and nothing inside it is focusable, or always with
 //! [`Focusable::Always`]; [`ScrollChain::role`] and [`ScrollChain::named`]
-//! describe it to assistive technology. Which it is follows from the classes
-//! of what is inside, when the container is built (a widget added by a draw
-//! closure counts only if it was added with
-//! [`NodeHandle::draw_widgets`](crate::NodeHandle::draw_widgets)), so it is
-//! the same every frame. A Tab stop has a **focus frame**: a border of the
-//! style's focus ring width that is always in the layout (the container's own
-//! border colour at rest, none otherwise) and takes the ring's colour on
-//! focus. Content, bars and fades sit inside it, so focusing covers nothing
-//! and moves nothing. A container whose classes set a `focus:` look keeps
-//! that look and gets no frame. Focus that moves to a node
+//! describe it to assistive technology. Whether something inside is
+//! focusable follows from the classes of what is inside, when the container
+//! is built (a widget added by a draw closure counts only if it was added
+//! with [`NodeHandle::draw_widgets`](crate::NodeHandle::draw_widgets)); the
+//! overflow is the layout's, so a container becomes a stop as its content
+//! grows. Being a stop affects no layout. A focused container paints the
+//! style's focus ring inside its border box, **last**: over its content, bars
+//! and fades, as a browser's outline, taking no space and following the
+//! container's corner radius. A container whose classes set a `focus:` look
+//! keeps that look and gets no ring. Focus that moves to a node
 //! scrolls it into view.
 //!
 //! # Scroll bars
@@ -94,8 +96,8 @@
 use egui::{Align, Context, Id, Pos2, Rect, Role, Vec2, Vec2b};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
+use crate::contract::Style;
 pub use crate::contract::{EdgeFade, ScrollStyle};
-use crate::contract::{Focus, Style};
 use crate::dnd::{EdgeScroll, drag_pointer};
 use crate::key::Key;
 use crate::pipeline::{Node, PlacedNode, takes_tab};
@@ -128,9 +130,10 @@ impl Axis {
 /// Whether a scroll container is a Tab stop.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Focusable {
-    /// Only when nothing inside it is, as Chrome's keyboard-focusable
-    /// scrollers: plain scrolling text is reachable with Tab, a list of
-    /// controls is reached through them.
+    /// Only when its content can scroll and nothing inside it is a Tab stop,
+    /// as Chrome's keyboard-focusable scrollers: plain scrolling text is
+    /// reachable with Tab, a list of controls is reached through them, and
+    /// content that fits is no stop.
     #[default]
     Auto,
     /// Always, before the controls inside it, as a transcript with
@@ -138,18 +141,21 @@ pub enum Focusable {
     Always,
 }
 
-/// Whether a scroll container takes part in the Tab order, as decided when it
-/// is built: from what is inside it, so the decision is the same every frame.
+/// When a scroll container is a Tab stop, as decided when it is built from
+/// its classes and the classes of what is inside it. It has no effect on
+/// layout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum TabStop {
+pub(crate) enum TabRule {
     #[default]
-    No,
-    Yes,
+    Never,
+    Always,
+    /// Only while the content overflows the viewport on an axis that scrolls.
+    WhenScrollable,
 }
 
-impl TabStop {
-    /// Whether a container built from `classes`, with the nodes `kids` as
-    /// its content, is a Tab stop.
+impl TabRule {
+    /// The rule of a container built from `classes`, with the nodes `kids`
+    /// as its content.
     pub(crate) fn of(
         focusable: Focusable,
         classes: &Tw,
@@ -157,11 +163,12 @@ impl TabStop {
         kids: &[taffy::NodeId],
     ) -> Self {
         let takes = classes.focusability == Focusability::Tab && !classes.inert;
-        let wanted = match focusable {
-            Focusable::Always => true,
-            Focusable::Auto => !holds_tab_stop(tree, kids),
-        };
-        if takes && wanted { Self::Yes } else { Self::No }
+        match focusable {
+            _ if !takes => Self::Never,
+            Focusable::Always => Self::Always,
+            Focusable::Auto if holds_tab_stop(tree, kids) => Self::Never,
+            Focusable::Auto => Self::WhenScrollable,
+        }
     }
 }
 
@@ -320,7 +327,6 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             role,
             name,
         } = self;
-        let focus = Style::of(b.ctx()).focus;
         let mut style = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll);
         if let Some(fade) = fade {
             style.fade = fade;
@@ -331,7 +337,6 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             edge,
             bars,
             focusable,
-            focus,
             description: Description { role, name },
         };
         b.scroll_with(slot.id, &slot.label, classes, options, body)
@@ -540,7 +545,6 @@ pub(crate) struct ScrollOptions {
     pub(crate) edge: Option<EdgeScroll>,
     pub(crate) bars: Bars,
     pub(crate) focusable: Focusable,
-    pub(crate) focus: Focus,
     pub(crate) description: Description,
 }
 
@@ -648,7 +652,7 @@ pub(crate) struct ScrollPlan {
     pub(crate) axis: Axis,
     pub(crate) edge: Option<EdgeScroll>,
     pub(crate) bars: Bars,
-    pub(crate) tab_stop: TabStop,
+    pub(crate) tab: TabRule,
     pub(crate) description: Description,
     /// The content root's size.
     pub(crate) content: Vec2,
@@ -657,6 +661,27 @@ pub(crate) struct ScrollPlan {
     /// Whether layout moved the offset away from egui's, which then has to
     /// be told.
     pub(crate) moved: Moved,
+}
+
+impl ScrollPlan {
+    /// Whether the content is larger than a viewport of size `viewport` on an
+    /// axis that scrolls.
+    pub(crate) fn overflows(&self, viewport: Vec2) -> Vec2b {
+        let enabled = self.axis.enabled();
+        Vec2b::new(
+            enabled.x && self.content.x > viewport.x,
+            enabled.y && self.content.y > viewport.y,
+        )
+    }
+
+    /// Whether the container is a Tab stop in this layout.
+    pub(crate) fn is_tab_stop(&self, viewport: Vec2) -> bool {
+        match self.tab {
+            TabRule::Never => false,
+            TabRule::Always => true,
+            TabRule::WhenScrollable => self.overflows(viewport).any(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

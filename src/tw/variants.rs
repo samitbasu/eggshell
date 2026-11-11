@@ -368,11 +368,6 @@ impl Variants {
         self.focus.is_some()
     }
 
-    /// Sets the `focus:` look.
-    pub(crate) fn set_focus(&mut self, paint: Paint) {
-        self.focus = Some(paint);
-    }
-
     /// These variants with `other`'s on top, state by state.
     pub(crate) fn merge(self, other: Self) -> Self {
         let both = |ours: Option<Paint>, theirs: Option<Paint>| match (ours, theirs) {

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use egui::text_selection::LabelSelectionState;
 use egui::{
     Align, Color32, Frame, Galley, Id, Image, Layout, Painter, Pos2, Rect, Response, Role, Sense,
-    Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, Vec2b, WidgetInfo, pos2, vec2,
+    Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, WidgetInfo, pos2, vec2,
 };
 use taffy::Overflow;
 
@@ -23,7 +23,6 @@ use crate::focus;
 use crate::measure::TextLeaf;
 use crate::pipeline::{ColorSource, DrawFn, Flow, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
-use crate::scroll::TabStop;
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
@@ -535,13 +534,15 @@ impl<A> Walk<'_, A> {
         plan.description.is_set().then(Sense::hover)
     }
 
-    /// Whether the scroll container at `index` is a Tab stop, as it was
-    /// decided when it was built.
+    /// Whether the scroll container at `index` is a Tab stop in this layout.
     fn scroller_takes_focus(&self, index: usize) -> bool {
         let node = &self.nodes[index];
+        let Some(viewport) = node.scroll_viewport() else {
+            return false;
+        };
         node.scroll
             .as_ref()
-            .is_some_and(|plan| plan.tab_stop == TabStop::Yes)
+            .is_some_and(|plan| plan.is_tab_stop(viewport.size()))
             && !node.is_inert()
     }
 
@@ -870,6 +871,18 @@ impl<A> Walk<'_, A> {
             }
             self.paint_dividers(index, &in_layout_order, inherited);
         }
+        if self.scroller_takes_focus(index)
+            && !interaction.variants.has_focus()
+            && response.as_ref().is_some_and(Response::has_focus)
+        {
+            let ring = Style::of(self.ui.ctx()).focus;
+            self.painter(parent.clip, opacity).add(RectShape::stroke(
+                boxes.border,
+                look.paint.radius,
+                Stroke::new(ring.width, ring.color),
+                StrokeKind::Inside,
+            ));
+        }
         if let Some(first) = moved_from {
             self.translate_shapes_since(first, translate);
             if lifted.is_some() {
@@ -904,24 +917,16 @@ impl<A> Walk<'_, A> {
         let node = &nodes[index];
         let plan = node.scroll.as_ref().expect("a scroll container has a plan");
         let id = node.id().expect("a scroll container is identified");
-        let overflows = {
-            let view = boxes.padding.size() - plan.bars.gutter;
-            Vec2b::new(plan.content.x > view.x, plan.content.y > view.y)
-        };
-        let enabled = plan.axis.enabled();
-        let area = egui::ScrollArea::new(Vec2b::new(
-            enabled.x && overflows.x,
-            enabled.y && overflows.y,
-        ))
-        .id_salt(scroll::AREA_SALT)
-        .auto_shrink(false)
-        // egui inflates a viewport smaller than 64 points to 64 and clamps
-        // the offset to that, so a short container stopped short of its end
-        // and then drifted back.
-        .min_scrolled_width(0.0)
-        .min_scrolled_height(0.0)
-        .content_margin(egui::Margin::ZERO)
-        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
+        let area = egui::ScrollArea::new(plan.overflows(boxes.padding.size() - plan.bars.gutter))
+            .id_salt(scroll::AREA_SALT)
+            .auto_shrink(false)
+            // egui inflates a viewport smaller than 64 points to 64 and clamps
+            // the offset to that, so a short container stopped short of its end
+            // and then drifted back.
+            .min_scrolled_width(0.0)
+            .min_scrolled_height(0.0)
+            .content_margin(egui::Margin::ZERO)
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
         let area = match plan.moved {
             Moved::Yes => area.scroll_offset(plan.offset),
             Moved::No => area,

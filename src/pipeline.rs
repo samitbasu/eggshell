@@ -97,7 +97,7 @@ pub(crate) struct ScrollNode {
     pub axis: Axis,
     pub edge: Option<EdgeScroll>,
     pub bars: Bars,
-    pub tab_stop: crate::scroll::TabStop,
+    pub tab: crate::scroll::TabRule,
     pub description: crate::scroll::Description,
     /// The root of the content, laid out on its own.
     pub content: NodeId,
@@ -655,7 +655,7 @@ fn collect(
             axis: scroll.axis,
             edge: scroll.edge,
             bars: scroll.bars,
-            tab_stop: scroll.tab_stop,
+            tab: scroll.tab,
             description: scroll.description,
             content: scroll.size,
             offset,
