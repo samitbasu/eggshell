@@ -139,6 +139,7 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
 impl<'a, 'f, A: 'static> SwitchChain<'a, 'f, A, bool> {
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
+    #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, bool) + Copy + 'static) {
         self.values(false, true).on_change(on_change);
     }
@@ -147,6 +148,7 @@ impl<'a, 'f, A: 'static> SwitchChain<'a, 'f, A, bool> {
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T, [T; 2]> {
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
+    #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, T) + Copy + 'static) {
         let Self {
             mut b,
@@ -177,6 +179,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             metrics.thumb_on * thumb_scale,
         );
         let name = name.unwrap_or_default();
+        b.claim(&slot);
         b.scope_with(slot.id, &slot.label, |b| {
             let control = b.id_of(Part::Track);
             let tint = transition::animate(

@@ -148,6 +148,7 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
 impl<'a, 'f, A: 'static> ToggleChain<'a, 'f, A, bool> {
     /// Adds the toggle. `on_change` runs with the new value when it is
     /// clicked or activated with Space or Enter.
+    #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, bool) + 'static) {
         self.values(false, true).on_change(on_change);
     }
@@ -156,6 +157,7 @@ impl<'a, 'f, A: 'static> ToggleChain<'a, 'f, A, bool> {
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleChain<'a, 'f, A, T, [T; 2]> {
     /// Adds the toggle. `on_change` runs with the new value when it is
     /// clicked or activated with Space or Enter.
+    #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, T) + 'static) {
         let (mark, toggled) = flip(self.values, self.current);
         self.button
@@ -168,6 +170,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleItemChain<'a, 'f, 
     /// Adds the member. It is on when the group's current value is its own;
     /// pressing it calls the group's `on_change` with its value, unless it is
     /// already on.
+    #[track_caller]
     pub fn add(self) {
         let Member { value, on_change } = self.values;
         let mark = Mark::from(self.current == value);

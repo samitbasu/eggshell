@@ -207,6 +207,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// An identified container. Its children are scoped under `key`.
     ///
     /// The returned [`NodeHandle`] attaches behaviour to the node.
+    #[track_caller]
     pub fn div_id<K: Key>(
         &mut self,
         key: K,
@@ -216,6 +217,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.div_id_with(child_id(self.path, &key), &key, tw, body)
     }
 
+    #[track_caller]
     pub(crate) fn div_id_with(
         &mut self,
         id: Id,
@@ -327,6 +329,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.leaf_with(child_id(self.path, &key), &key, tw, measure)
     }
 
+    #[track_caller]
     pub(crate) fn leaf_with(
         &mut self,
         id: Id,
@@ -350,6 +353,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// from the widget's content (see [`widget`](crate::widget)).
     ///
     /// `draw` gets the widget back to `show` it with the application's data.
+    #[track_caller]
     pub fn widget<K: Key, W: Stock>(
         &mut self,
         key: K,
@@ -365,6 +369,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// An identified text leaf, measured and painted by the library.
+    #[track_caller]
     pub fn span<K: Key>(
         &mut self,
         key: K,
@@ -382,6 +387,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// An identified icon, measured and painted by the library.
+    #[track_caller]
     pub fn icon<K: Key>(&mut self, key: K, tw: Tw, icon: Icon) -> NodeHandle<'_, 'f, A> {
         let id = child_id(self.path, &key);
         let path = self.identify(id, &key);
@@ -427,6 +433,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.leaf_node(tw, Parts::anonymous(kind, path).with_prim(prim));
     }
 
+    /// Registers an identified chain's own key, so that a duplicate panics at
+    /// the call that finishes the chain and not in a closure of the library.
+    #[track_caller]
+    pub(crate) fn claim(&mut self, slot: &Slot) {
+        self.identify(slot.id, &slot.label);
+    }
+
+    #[track_caller]
     fn identify(&mut self, id: Id, key: &dyn Debug) -> String {
         let mark = self.st.names.push(key);
         let path = self.st.names.as_str().to_owned();
@@ -750,6 +764,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     }
 
     /// Runs `act` when the node is clicked. The node must sense clicks.
+    #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
         self.draw(move |app, ui| {
             if ui.node_response().clicked() {

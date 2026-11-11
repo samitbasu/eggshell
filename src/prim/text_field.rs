@@ -130,6 +130,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
 
     /// Adds the field. `on_change` runs with the new text in the frame the
     /// user edits it, and not otherwise.
+    #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, String) + 'static) {
         let Self {
             mut b,

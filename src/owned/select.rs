@@ -100,12 +100,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> SelectCha
     }
 
     /// Adds the select. `choose` runs with the chosen value.
+    #[track_caller]
     pub fn on_change(self, choose: impl Fn(&mut A, T) + Copy + 'static) {
         self.on_change_with(move |app, _, value| choose(app, value));
     }
 
     /// Adds the select. `choose` gets the application and the egui context,
     /// for a value the context holds.
+    #[track_caller]
     pub fn on_change_with(self, choose: impl Fn(&mut A, &Context, T) + Copy + 'static) {
         let Self {
             mut b,

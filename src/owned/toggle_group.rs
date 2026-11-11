@@ -86,6 +86,7 @@ impl<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> ToggleGroup<A, T>
 
     /// Runs `on_change` with a member's value when it is pressed and was not
     /// on.
+    #[track_caller]
     pub fn on_change(mut self, on_change: impl Fn(&mut A, T) + 'static) -> Self {
         self.on_change = Some(Rc::new(on_change));
         self

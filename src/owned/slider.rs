@@ -155,6 +155,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
 
     /// Adds the slider, as wide as the space it is given. `set` runs with the
     /// new value when the pointer or the keyboard changes it.
+    #[track_caller]
     pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
         let Self {
             mut b,
@@ -216,6 +217,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         };
         let name = name.unwrap_or_default();
         let (track_tip, thumb_tip) = (tooltip.clone(), tooltip);
+        b.claim(&slot);
         b.scope_with(slot.id, &slot.label, |b| {
             let track = b.id_of(Part::Track);
             let on_track = scale.clone();
