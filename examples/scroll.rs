@@ -5,15 +5,15 @@
 //! scrolls the innermost container under the pointer that can still move, then
 //! the one around it. The nested pane holds a horizontal carousel and a
 //! vertical list inside a vertical page: the carousel takes horizontal
-//! gestures and leaves vertical ones to the page. The nested containers, and
-//! one pane of their own, show their bars always, in a stable gutter; the
-//! others float theirs, hidden until hovered. The buttons above the first
+//! gestures and leaves vertical ones to the page. Every container reserves a
+//! gutter for its bar and draws the bar only when its content overflows; one
+//! pane gives its bar a style of its own. The buttons above the first
 //! pane use the programmatic API.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::scroll::{self, Axis, Scrollbar};
+use eggshell_ui::scroll::{self, Axis};
 use eggshell_ui::{Builder, Tw, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Rect, vec2};
@@ -31,7 +31,7 @@ pub enum Part {
     Vertical,
     Horizontal,
     Both,
-    Always,
+    Styled,
     Nested,
     Carousel,
     List,
@@ -161,16 +161,22 @@ fn both(b: &mut B<'_, '_>) {
         });
 }
 
-/// A vertical list whose bar is always visible, in a gutter that is there
-/// whether or not the rows overflow.
+/// A vertical list with a bar of its own: wider, with a coloured thumb and a
+/// track. The container reserves the style's width, whatever it is.
 ///
 /// ```html
-/// <div class="grow min-h-0 overflow-y-scroll p-2" style="scrollbar-gutter: stable">…</div>
+/// <div class="grow min-h-0 overflow-y-auto p-2" style="scrollbar-width: 16px; scrollbar-color: primary muted">…</div>
 /// ```
-fn always(b: &mut B<'_, '_>) {
+fn styled(b: &mut B<'_, '_>) {
     let t = common::tokens(b.ctx());
-    b.scroll(Part::Always, tw().grow().min_h_0().p(2.0))
-        .scrollbar(Scrollbar::Always)
+    let mut bar = eggshell_ui::Style::of(b.ctx()).scroll;
+    bar.width = 16.0;
+    bar.thumb = t.primary;
+    bar.thumb_hover = t.primary.gamma_multiply(0.8);
+    bar.thumb_active = t.primary.gamma_multiply(0.6);
+    bar.track = t.muted;
+    b.scroll(Part::Styled, tw().grow().min_h_0().p(2.0))
+        .scrollbar_style(bar)
         .children(|s| {
             s.div(tw().flex().flex_col().gap(1.0), |s| {
                 for n in 0..ROWS {
@@ -206,7 +212,6 @@ fn nested(b: &mut B<'_, '_>) {
                 tw().h_px(88.0).rounded_md().bg(t.muted).p(2.0),
             )
             .axis(Axis::X)
-            .scrollbar(Scrollbar::Always)
             .children(|s| {
                 s.div(tw().flex().gap(2.0).h_full(), |s| {
                     for n in 0..CARDS {
@@ -229,7 +234,6 @@ fn nested(b: &mut B<'_, '_>) {
                 "A vertical list in a vertical page: the list moves first.".into(),
             );
             s.scroll(Part::List, tw().h_px(120.0).rounded_md().bg(t.muted).p(2.0))
-                .scrollbar(Scrollbar::Always)
                 .children(|s| {
                     s.div(tw().flex().flex_col().gap(1.0), |s| {
                         for n in 0..ROWS {
@@ -313,7 +317,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
                 pane(b, "Vertical", vertical);
                 pane(b, "Horizontal", horizontal);
                 pane(b, "Both", both);
-                pane(b, "Always visible bar", always);
+                pane(b, "Custom bar style", styled);
                 pane(b, "Nested", nested);
             });
         },
