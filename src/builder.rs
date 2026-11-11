@@ -8,7 +8,7 @@ use std::sync::Arc;
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
-use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
+use crate::dnd::{DragEnd, DragImage, Dragging, Drop, EdgeScroll, NodeDrag};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
@@ -250,6 +250,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         key: &dyn Debug,
         classes: Tw,
         axis: Axis,
+        edge: Option<EdgeScroll>,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) -> NodeHandle<'b, 'f, A> {
         use taffy::{Display, Overflow, Point};
@@ -289,6 +290,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .expect("node was just created");
         leaf.scroll = Some(ScrollNode {
             axis,
+            edge,
             content,
             size: egui::Vec2::ZERO,
         });

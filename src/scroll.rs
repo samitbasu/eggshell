@@ -29,6 +29,15 @@
 //! egui lets the wheel chain to the container around it. The wheel works
 //! while another widget is being dragged.
 //!
+//! # Drags
+//!
+//! While a drag is live ([`drag_pointer`]) and the
+//! pointer is near the edge of a container, the container scrolls by
+//! [`EdgeScroll`]'s velocity and the frame is repainted, without any code of
+//! the application. [`ScrollChain::edge_scroll`] changes the band and the
+//! speed and [`ScrollChain::no_edge_scroll`] turns it off. Of nested
+//! containers, the innermost that can move in the direction wins.
+//!
 //! # Programmatic scrolling
 //!
 //! [`scroll_by`], [`scroll_to_rect`] and [`scroll_into_view`] ask for a
@@ -37,9 +46,10 @@
 //! without egui's animation. [`viewport`] reads where the viewport and the
 //! content are.
 
-use egui::{Align, Context, Id, Rect, Vec2, Vec2b};
+use egui::{Align, Context, Id, Pos2, Rect, Vec2, Vec2b};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
+use crate::dnd::{EdgeScroll, drag_pointer};
 use crate::draw::inset;
 use crate::key::Key;
 use crate::pipeline::PlacedNode;
@@ -97,6 +107,7 @@ pub struct ScrollChain<'a, 'f, A> {
     slot: Slot,
     classes: Tw,
     axis: Axis,
+    edge: Option<EdgeScroll>,
 }
 
 impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
@@ -106,12 +117,26 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             b,
             classes,
             axis: Axis::default(),
+            edge: Some(EdgeScroll::default()),
         }
     }
 
     /// Which way the container scrolls. [`Axis::Y`] unless set.
     pub fn axis(mut self, axis: Axis) -> Self {
         self.axis = axis;
+        self
+    }
+
+    /// Scrolls the container by `edge` when a drag is near its edge. The
+    /// default is [`EdgeScroll::default`].
+    pub fn edge_scroll(mut self, edge: EdgeScroll) -> Self {
+        self.edge = Some(edge);
+        self
+    }
+
+    /// Does not scroll the container when a drag is near its edge.
+    pub fn no_edge_scroll(mut self) -> Self {
+        self.edge = None;
         self
     }
 
@@ -123,8 +148,9 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             slot,
             classes,
             axis,
+            edge,
         } = self;
-        b.scroll_with(slot.id, &slot.label, classes, axis, body)
+        b.scroll_with(slot.id, &slot.label, classes, axis, edge, body)
     }
 }
 
@@ -281,6 +307,7 @@ pub(crate) fn state_id(node: Id) -> Id {
 #[derive(Clone, Debug)]
 pub(crate) struct ScrollPlan {
     pub(crate) axis: Axis,
+    pub(crate) edge: Option<EdgeScroll>,
     /// The content root's size.
     pub(crate) content: Vec2,
     /// How far the content is scrolled.
@@ -347,10 +374,21 @@ fn reveal(view: (f32, f32), item: (f32, f32), align: Option<Align>) -> f32 {
     }
 }
 
-/// The scrolling one layout does: the requests made since the last.
+/// Whether a drag has already scrolled a container this layout.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Taken {
+    Free,
+    Scrolled,
+}
+
+/// The scrolling one layout does: the requests made since the last, and the
+/// drag's pull at the edges.
 pub(crate) struct Settle {
     ctx: Context,
     pending: Vec<Request>,
+    pointer: Option<Pos2>,
+    dt: f32,
+    edge: Taken,
 }
 
 impl Settle {
@@ -366,6 +404,9 @@ impl Settle {
         Self {
             ctx: ctx.clone(),
             pending,
+            pointer: drag_pointer(ctx),
+            dt: ctx.input(|input| input.stable_dt).min(0.1),
+            edge: Taken::Free,
         }
     }
 
@@ -425,6 +466,18 @@ impl Settle {
         if want != start {
             want = masked(want, plan.axis).clamp(Vec2::ZERO, max);
         }
+        if let (Some(edge), Some(pointer), Taken::Free) = (plan.edge, self.pointer, self.edge)
+            && viewport.expand(f32::from(edge.band)).contains(pointer)
+        {
+            let step = masked(edge.velocity(viewport, pointer) * self.dt, plan.axis);
+            let next = (want + step).clamp(Vec2::ZERO, max);
+            if next != want {
+                want = next;
+                self.edge = Taken::Scrolled;
+                self.ctx.request_repaint();
+            }
+        }
+
         if want != start {
             let by = start - want;
             for node in content.iter_mut() {

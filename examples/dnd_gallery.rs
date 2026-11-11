@@ -5,18 +5,17 @@
 //! insert a panel at the pointer. Near the top or bottom of the viewport a
 //! drag scrolls. 1/2/3 set the columns, G swaps the drag image, Esc cancels.
 //!
-//! The scroll area is egui's `ScrollArea` hosting the eggshell subtree, and
-//! the auto-scroll is the drag's hook (`EdgeScroll`) applied to it; M5 will
-//! bring a container of its own.
+//! The gallery is a scroll container (`b.scroll`), which scrolls itself when a
+//! drag is near its edge.
 
 #[path = "common/mod.rs"]
 mod common;
 
 use core::time::Duration;
 
-use eggshell_ui::{EdgeScroll, File, Files, LayoutState, Opacity, drag_pointer, tw};
+use eggshell_ui::{File, Files, LayoutState, Opacity, tw};
 use eggshell_ui_shadcn::DragChip as _;
-use egui::{Align, Context, Key, Rect, Ui, vec2};
+use egui::{Context, Key, Ui, vec2};
 
 type B<'b, 'f, A> = eggshell_ui::Builder<'b, 'f, A>;
 
@@ -223,95 +222,70 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
     let arriving = b.dragging::<Files>();
     b.on_drag_end::<PanelKey>(|app, key, end| app.status = format!("{key:?}: {end:?}"));
 
-    b.div_id("page", tw().w_full(), |b| {
-        let grid = b.id_of("grid");
-        let mut order: Vec<&(PanelKey, String)> = state.panels.iter().collect();
-        if let Some(drag) = &carried
-            && let Some(to) = drag.index_hint_in(grid)
-            && let Some(from) = order.iter().position(|p| p.0 == *drag.payload)
-        {
-            common::dnd::move_to(&mut order, from, to);
-        }
-        let gap = arriving.and_then(|files| files.index_hint_in(grid));
-        let lifted = carried.as_ref().map(|drag| *drag.payload);
-        b.div_id(
-            "grid",
-            tw().flex().flex_row().flex_wrap().w_full().p(2.0),
-            |b| {
-                for (slot, (key, label)) in order.into_iter().enumerate() {
-                    if gap == Some(slot) {
+    b.scroll("page", tw().size_full())
+        .children(|b| {
+            let grid = b.id_of("grid");
+            let mut order: Vec<&(PanelKey, String)> = state.panels.iter().collect();
+            if let Some(drag) = &carried
+                && let Some(to) = drag.index_hint_in(grid)
+                && let Some(from) = order.iter().position(|p| p.0 == *drag.payload)
+            {
+                common::dnd::move_to(&mut order, from, to);
+            }
+            let gap = arriving.and_then(|files| files.index_hint_in(grid));
+            let lifted = carried.as_ref().map(|drag| *drag.payload);
+            b.div_id(
+                "grid",
+                tw().flex().flex_row().flex_wrap().w_full().p(2.0),
+                |b| {
+                    for (slot, (key, label)) in order.into_iter().enumerate() {
+                        if gap == Some(slot) {
+                            placeholder(b, state.cols);
+                        }
+                        cell(b, *key, label, state, lifted == Some(*key));
+                    }
+                    if gap.is_some_and(|at| at >= state.panels.len()) {
                         placeholder(b, state.cols);
                     }
-                    cell(b, *key, label, state, lifted == Some(*key));
-                }
-                if gap.is_some_and(|at| at >= state.panels.len()) {
-                    placeholder(b, state.cols);
-                }
-            },
-        )
-        .drop_target::<PanelKey>(|app, drop| {
-            app.move_panel(*drop.payload, drop.index_hint);
+                },
+            )
+            .drop_target::<PanelKey>(|app, drop| {
+                app.move_panel(*drop.payload, drop.index_hint);
+            })
+            .drop_target_if::<Files>(
+                |files| files.iter().all(accepts),
+                |app, drop| app.insert_files(&drop.payload, drop.index_hint),
+            )
+            .drop_fallback();
         })
-        .drop_target_if::<Files>(
-            |files| files.iter().all(accepts),
-            |app, drop| app.insert_files(&drop.payload, drop.index_hint),
-        )
+        .drop_target::<Files>(|app, drop| {
+            let names: Vec<String> = drop.payload.iter().map(file_name).collect();
+            app.status = format!("refused {}", names.join(", "));
+        })
         .drop_fallback();
-    })
-    .drop_target::<Files>(|app, drop| {
-        let names: Vec<String> = drop.payload.iter().map(file_name).collect();
-        app.status = format!("refused {}", names.join(", "));
-    })
-    .drop_fallback();
 }
 
-/// One frame: the scroll area, the build, layout and draw inside it, then the
-/// drag's auto-scroll and the reveal of a panel dropped with no position.
-/// Shared by `main` and the tests.
+/// One frame: the build, layout and draw over the central area, then the
+/// reveal of a panel dropped with no position. Shared by `main` and the
+/// tests.
 pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) {
     let ctx = ui.ctx().clone();
-    egui::ScrollArea::vertical()
-        .auto_shrink(false)
-        .show(ui, |ui| {
-            let origin = ui.max_rect().min;
-            let area = Rect::from_min_size(
-                origin,
-                // The viewport, not last frame's content: the grid overflows
-                // it, and a height that followed the content would read as a
-                // resize to `animate_layout` and drop its slides.
-                vec2(ui.available_width(), ui.clip_rect().height()),
-            );
-            let placed = layout_state.build(&ctx, |b| layout(b, app)).layout(area);
-            let content = placed
-                .nodes()
-                .find(|node| node.path() == GRID)
-                .map_or(area, |grid| grid.rect());
-            if let Some(key) = app.reveal.take() {
-                let name = format!("/{key:?}");
-                if let Some(panel) = placed.nodes().find(|node| node.path().ends_with(&name)) {
-                    ui.scroll_to_rect(panel.rect(), Some(Align::Center));
-                } else {
-                    app.reveal = Some(key);
-                }
-            }
-            placed.draw(app, ui);
-            ui.advance_cursor_after_rect(Rect::from_min_size(
-                origin,
-                vec2(area.width(), content.max.y - origin.y),
-            ));
-            auto_scroll(ui);
-        });
-}
-
-fn auto_scroll(ui: &mut Ui) {
-    let ctx = ui.ctx().clone();
-    if let Some(pointer) = drag_pointer(&ctx) {
-        let velocity = EdgeScroll::default().velocity(ui.clip_rect(), pointer);
-        if velocity != egui::Vec2::ZERO {
-            ui.scroll_with_delta(-velocity * ctx.input(|i| i.stable_dt));
-            ctx.request_repaint();
+    let placed = layout_state
+        .build(&ctx, |b| layout(b, app))
+        .layout(ui.max_rect());
+    if let Some(key) = app.reveal.take() {
+        let name = format!("/{key:?}");
+        if let Some(id) = placed
+            .nodes()
+            .find(|node| node.path().ends_with(&name))
+            .and_then(|panel| panel.id())
+        {
+            eggshell_ui::scroll::scroll_into_view(&ctx, id, Some(egui::Align::Center));
+        } else {
+            app.reveal = Some(key);
         }
     }
+    placed.draw(app, ui);
 }
 
 /// The strip above the gallery: the column count, the drag image, and what

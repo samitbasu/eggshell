@@ -154,6 +154,17 @@ pub fn rect_of<A>(harness: &Harness<'_, Rig<A>>, path: &str) -> Rect {
         .1
 }
 
+/// The egui id of the identified node `path`.
+pub fn id_of<A>(harness: &Harness<'_, Rig<A>>, path: &str) -> egui::Id {
+    harness
+        .state()
+        .ids
+        .iter()
+        .find(|(candidate, _)| candidate == path)
+        .unwrap_or_else(|| panic!("no identified node {path}"))
+        .1
+}
+
 pub fn hover_over<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {
     harness.hover_at(at);
     harness.run_steps(3);
@@ -399,11 +410,10 @@ pub fn last_drawn(ctx: &egui::Context, path: &str) -> Option<eggshell_ui::testin
         .cloned()
 }
 
-/// Its layout rect.
+/// Its layout rect, whether or not the last frame painted it.
 pub fn layout_rect(ctx: &egui::Context, path: &str) -> Rect {
-    last_drawn(ctx, path)
-        .unwrap_or_else(|| panic!("no node {path} was drawn"))
-        .layout_rect
+    eggshell_ui::testing::laid_out_rect(ctx, path)
+        .unwrap_or_else(|| panic!("no node {path} was laid out"))
 }
 
 /// Every shape of the last frame, groups flattened, for any harness.

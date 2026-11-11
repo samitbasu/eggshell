@@ -12,7 +12,7 @@ use taffy::{
 
 use crate::builder::Builder;
 use crate::debug::{Debug, Phase, Timer};
-use crate::dnd::{Decls, NodeDrag};
+use crate::dnd::{Decls, EdgeScroll, NodeDrag};
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::prim::Prim;
@@ -73,6 +73,7 @@ pub(crate) struct Node {
 /// What a scroll container's leaf carries until layout.
 pub(crate) struct ScrollNode {
     pub axis: Axis,
+    pub edge: Option<EdgeScroll>,
     /// The root of the content, laid out on its own.
     pub content: NodeId,
     /// The content root's size, once laid out.
@@ -606,6 +607,7 @@ fn collect(
         );
         nodes[index].scroll = Some(ScrollPlan {
             axis: scroll.axis,
+            edge: scroll.edge,
             content: scroll.size,
             offset,
             moved: Moved::No,
