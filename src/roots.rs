@@ -380,4 +380,39 @@ mod tests {
             "only the tooltip is there"
         );
     }
+
+    #[test]
+    fn a_node_blocks_the_pointer_by_what_it_paints() {
+        use egui::Color32;
+        let placed = Headless::new(vec2(100.0, 100.0)).layout(&(), |b, _| {
+            let size = |classes: crate::Tw| classes.w_px(10.0).h_px(10.0);
+            b.div_id("bare", size(tw()), |_| {});
+            b.div_id("filled", size(tw().bg(Color32::RED)), |_| {});
+            b.div_id(
+                "framed",
+                size(tw().border(1.0).border_color(Color32::RED)),
+                |_| {},
+            );
+            b.div_id("colour_only", size(tw().border_color(Color32::RED)), |_| {});
+            b.div_id("width_only", size(tw().border(1.0)), |_| {});
+            b.div_id(
+                "through",
+                size(tw().bg(Color32::RED).pointer_events_none()),
+                |_| {},
+            );
+        });
+        let blocks = |key: &'static str| placed.at(key).node().expect("a node").blocks_pointer();
+        assert!(!blocks("bare"));
+        assert!(blocks("filled"));
+        assert!(blocks("framed"));
+        assert!(
+            !blocks("colour_only"),
+            "a colour with no width paints nothing"
+        );
+        assert!(
+            !blocks("width_only"),
+            "a width with no colour paints nothing"
+        );
+        assert!(!blocks("through"));
+    }
 }

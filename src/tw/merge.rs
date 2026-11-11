@@ -266,7 +266,7 @@ impl Tw {
     /// | State variants | per state, then per property within it: `hover:bg-red` over `hover:text-white` keeps both |
     /// | `transition`, `animate_layout`, `ease-*` | `other`'s when it sets one |
     /// | `z` | `other`'s when it sets one |
-    /// | `sense_*`, `group`, `focusable_none`, `inert` | combined: a node that either list makes sensing, a group, unfocusable or inert is, because no class takes them back |
+    /// | `sense_*`, `group`, `focusable_none`, `inert`, `pointer_events_none` | combined: a node that either list makes sensing, a group, unfocusable, inert or pointer-transparent is, because no class takes them back |
     ///
     /// ```
     /// use eggshell_ui::tw;
@@ -329,6 +329,7 @@ impl Tw {
         self.text = self.text.merge(other.text);
         self.z = other.z.or(self.z);
         self.inert |= other.inert;
+        self.pointer_events = self.pointer_events.merge(other.pointer_events);
         self.sensing = self.sensing.or(other.sensing);
         self.focusability = self.focusability.merge(other.focusability);
         self.grouping = self.grouping.merge(other.grouping);
@@ -467,6 +468,10 @@ mod tests {
         assert_eq!(merged.grouping, crate::tw::Grouping::Group);
         let merged = tw().focusable_none().merge(tw());
         assert_eq!(merged.focusability, crate::tw::Focusability::Skip);
+        let merged = tw().pointer_events_none().merge(tw());
+        assert_eq!(merged.pointer_events, crate::tw::PointerEvents::None);
+        let merged = tw().merge(tw().pointer_events_none());
+        assert_eq!(merged.pointer_events, crate::tw::PointerEvents::None);
     }
 
     #[test]

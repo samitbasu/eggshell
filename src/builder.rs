@@ -538,7 +538,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             draw_kind: DrawKind::Paint,
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
-            pointer_events: PointerEvents::Auto,
+            pointer_events: tw.pointer_events,
             drag: None,
             scroll: None,
             interaction: Interaction {
@@ -734,7 +734,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
             self.b.div_id_with(
                 crate::dnd::preview_id(source),
                 &label,
-                tw().absolute(),
+                tw().absolute().pointer_events_none(),
                 build,
             );
         }

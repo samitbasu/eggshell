@@ -420,7 +420,7 @@ pub fn tw() -> Tw { /* Display::Block (D15) */ }
 - Grid: `grid_cols(n)` (= `repeat(n, minmax(0,1fr))`), `grid_cols_tracks(&[Track])`, `grid_rows(n)`, `col_span col_span_full col_start col_end row_span row_start row_end grid_flow_row grid_flow_col grid_flow_dense` ⚠ (taffy's grid template types changed across versions)
 - Box paint: `bg(c) border_color(c) border_t_color(c)… divide_x(w, c) divide_y(w, c) rounded_none rounded_sm rounded rounded_md rounded_lg rounded_xl rounded_2xl rounded_3xl rounded_full rounded_px(r) ring(w, c) shadow(Shadow) opacity(x)`
 - Text: `role(TextSpec) text(c) font(family) italic underline truncate whitespace_nowrap text_left text_center text_right tracking(x) uppercase capitalize`
-- Behaviour: `inert` (subtree non-interactive, like `pointer-events: none`), `sense_*`, `group`
+- Behaviour: `inert` (subtree non-interactive), `pointer_events_none` (boxes of the subtree do not take the pointer from sensing nodes beneath them, #102), `sense_*`, `group`
 - Variants (paint only): `hover active group_hover transition` (§7.5)
 
 Not expressible on a single node, so do not implement: `space-x-*`, `space-y-*` (use `gap`), `container` (use regions, §11.2). Breakpoint variants (`md:`) are branches in build on the window width. State variants are in §7.5.

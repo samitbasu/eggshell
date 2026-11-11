@@ -943,13 +943,23 @@ impl PlacedNode {
         self.pointer_events
     }
 
-    /// Whether the node takes the pointer from the nodes it covers: it is
-    /// the root of an overlay that is not in `Band::Tooltip`.
+    /// Whether the node takes the pointer from the sensing nodes it covers:
+    /// it paints a background or a border, or it is the root of an overlay,
+    /// and it did not ask to let the pointer through.
     ///
-    /// This is the one definition of a blocking box; [`Placed::root_at`] asks
-    /// it of the roots.
+    /// This is the one definition of a blocking box: the draw registers a
+    /// blocker for such a node, and [`Placed::root_at`] asks it of the roots.
     pub(crate) fn blocks_pointer(&self) -> bool {
-        self.pointer_events == PointerEvents::Auto && self.kind == NodeKind::Overlay
+        let paints_border = [
+            (self.paint.border_colors.top, self.border.top),
+            (self.paint.border_colors.right, self.border.right),
+            (self.paint.border_colors.bottom, self.border.bottom),
+            (self.paint.border_colors.left, self.border.left),
+        ]
+        .into_iter()
+        .any(|(color, width)| color.is_some() && width > 0.0);
+        self.pointer_events == PointerEvents::Auto
+            && (self.kind == NodeKind::Overlay || self.paint.background.is_some() || paints_border)
     }
 
     /// For a scroll container, its viewport: the padding box minus the

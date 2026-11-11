@@ -1,6 +1,6 @@
 //! Overlays through layout, draw and the pointer: placement, the clamp, a
-//! detached anchor, the order the slots are declared in, stacking and the
-//! blocker.
+//! detached anchor, the order the slots are declared in, stacking, the
+//! blocker, and what a painted node does to the pointer (#102).
 
 use eggshell_ui::overlay::{Anchor, Anchored, Band, MatchWidth, Placement, Side};
 use eggshell_ui::scroll::Axis;
@@ -457,6 +457,19 @@ fn press_and_release<A>(harness: &mut Harness<'_, World<A>>, at: Pos2) {
     harness.run_steps(2);
 }
 
+fn drag<A>(harness: &mut Harness<'_, World<A>>, from: Pos2, to: Pos2) {
+    harness.hover_at(from);
+    harness.run_steps(3);
+    harness.drag_at(from);
+    harness.step();
+    harness.hover_at(from.lerp(to, 0.5));
+    harness.step();
+    harness.hover_at(to);
+    harness.step();
+    harness.drop_at(to);
+    harness.run_steps(3);
+}
+
 mod stacking {
     use super::*;
 
@@ -907,6 +920,168 @@ mod egui_layers {
         };
         assert_eq!(raised_by_a_press(false), Some(layer("popup")));
         assert_eq!(raised_by_a_press(true), Some(layer("submenu")));
+    }
+}
+
+/// What a painted node does to the pointer (#102).
+mod pointer {
+    use super::*;
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Panel {
+        Painted,
+        Bordered,
+        Unpainted,
+        PassThrough,
+    }
+
+    struct App {
+        panel: Panel,
+        canvas: Vec<&'static str>,
+        hovered: bool,
+        dragged: bool,
+        button_clicks: u32,
+        card_clicks: u32,
+    }
+
+    impl App {
+        fn new(panel: Panel) -> Self {
+            Self {
+                panel,
+                canvas: Vec::new(),
+                hovered: false,
+                dragged: false,
+                button_clicks: 0,
+                card_clicks: 0,
+            }
+        }
+    }
+
+    const PANEL: Rect = Rect::from_min_max(pos2(100.0, 100.0), pos2(200.0, 200.0));
+    const INSIDE: Pos2 = pos2(180.0, 180.0);
+    const BUTTON: Pos2 = pos2(120.0, 120.0);
+    const OUTSIDE: Pos2 = pos2(300.0, 250.0);
+
+    /// ```html
+    /// <div class="relative">
+    ///   <div id="canvas" class="size-full">…</div>
+    ///   <div class="absolute left-[100px] top-[100px] size-[100px] bg-… [pointer-events-none]">
+    ///     <button class="size-[40px]"/>
+    ///   </div>
+    /// </div>
+    /// ```
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div_id("canvas", tw().w_full().h_full().sense_click_drag(), |_| {})
+            .on_response(|app: &mut App, response| {
+                app.hovered = response.hovered();
+                app.dragged |= response.dragged();
+            })
+            .on_click(|app: &mut App| app.canvas.push("click"));
+        let classes = tw()
+            .absolute()
+            .left_px(PANEL.min.x)
+            .top_px(PANEL.min.y)
+            .w_px(PANEL.width())
+            .h_px(PANEL.height());
+        let classes = match app.panel {
+            Panel::Painted => classes.bg(Color32::LIGHT_GRAY),
+            Panel::Bordered => classes.border(2.0).border_color(Color32::DARK_GRAY),
+            Panel::Unpainted => classes,
+            Panel::PassThrough => classes.bg(Color32::LIGHT_GRAY).pointer_events_none(),
+        };
+        b.div_id("panel", classes, |s| {
+            s.div_id(
+                "button",
+                tw().w_px(40.0).h_px(40.0).sense_click_drag(),
+                |_| {},
+            )
+            .on_click(|app: &mut App| app.button_clicks += 1);
+        });
+    }
+
+    fn page(panel: Panel) -> Harness<'static, World<App>> {
+        world(App::new(panel), view)
+    }
+
+    #[test]
+    fn a_painted_panel_takes_the_pointer_from_the_canvas_beneath_it() {
+        for panel in [Panel::Painted, Panel::Bordered] {
+            let mut harness = page(panel);
+            harness.hover_at(OUTSIDE);
+            harness.run_steps(3);
+            assert!(
+                harness.state().app.hovered,
+                "precondition: the canvas is hovered off the panel"
+            );
+            press_and_release(&mut harness, OUTSIDE);
+            assert_eq!(harness.state().app.canvas, ["click"], "precondition");
+            harness.state_mut().app.canvas.clear();
+
+            harness.hover_at(INSIDE);
+            harness.run_steps(3);
+            assert!(
+                !harness.state().app.hovered,
+                "hover goes no further than the panel"
+            );
+            press_and_release(&mut harness, INSIDE);
+            assert!(harness.state().app.canvas.is_empty(), "nor does a click");
+        }
+    }
+
+    #[test]
+    fn a_drag_that_starts_on_a_button_in_the_panel_does_not_drag_the_canvas() {
+        let mut harness = page(Panel::Painted);
+        drag(&mut harness, BUTTON, pos2(130.0, 130.0));
+        assert!(
+            !harness.state().app.dragged,
+            "the button took the drag, the panel the rest"
+        );
+        let mut through = page(Panel::PassThrough);
+        drag(&mut through, INSIDE, pos2(190.0, 190.0));
+        assert!(
+            through.state().app.dragged,
+            "control: the panel lets it through"
+        );
+    }
+
+    #[test]
+    fn a_panel_with_nothing_painted_leaves_the_canvas_reachable() {
+        let mut harness = page(Panel::Unpainted);
+        press_and_release(&mut harness, INSIDE);
+        assert_eq!(harness.state().app.canvas, ["click"]);
+    }
+
+    #[test]
+    fn pointer_events_none_lets_the_pointer_through_a_painted_panel() {
+        let mut harness = page(Panel::PassThrough);
+        harness.hover_at(INSIDE);
+        harness.run_steps(3);
+        assert!(harness.state().app.hovered);
+        press_and_release(&mut harness, INSIDE);
+        assert_eq!(harness.state().app.canvas, ["click"]);
+    }
+
+    #[test]
+    fn a_node_inside_the_panel_still_takes_its_own_click() {
+        let mut harness = page(Panel::Painted);
+        press_and_release(&mut harness, BUTTON);
+        assert_eq!(harness.state().app.button_clicks, 1);
+        assert!(harness.state().app.canvas.is_empty());
+    }
+
+    /// Descendants are not beneath their ancestors: a painted badge inside a
+    /// sensing card does not take the card's click.
+    #[test]
+    fn a_painted_descendant_of_a_sensing_node_leaves_it_the_click() {
+        fn cards(b: &mut Builder<'_, '_, App>, _: &App) {
+            b.div_id("card", tw().w_px(100.0).h_px(100.0).sense_click(), |s| {
+                s.div(tw().w_px(50.0).h_px(50.0).bg(Color32::GOLD), |_| {});
+            })
+            .on_click(|app: &mut App| app.card_clicks += 1);
+        }
+        let mut harness = world(App::new(Panel::Unpainted), cards);
+        press_and_release(&mut harness, pos2(10.0, 10.0));
+        assert_eq!(harness.state().app.card_clicks, 1);
     }
 }
 
