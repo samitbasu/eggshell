@@ -130,7 +130,7 @@ fn popover(b: &mut Builder<'_, '_, State>, state: &State) {
         .anchor(Anchor::Node(anchor))
         .placement(Placement::below().gap(Distance::new(4.0)))
         .children(|s| {
-            s.div_id(Part::Menu, menu.w_px(180.0), |s| {
+            s.div_id(Part::Menu, menu.min_w_px(128.0), |s| {
                 menu_item(s, Item::Copy, "Copy", |state| {
                     state.chosen = Some("Copy".into());
                     state.popover = false;
@@ -149,7 +149,7 @@ fn popover(b: &mut Builder<'_, '_, State>, state: &State) {
                         .anchor(Anchor::Node(parent))
                         .placement(Placement::submenu())
                         .children(|s| {
-                            s.div_id(Part::Menu, nested.w_px(140.0), |s| {
+                            s.div_id(Part::Menu, nested.min_w_px(128.0), |s| {
                                 menu_item(s, Item::Front, "Bring to front", |state| {
                                     state.chosen = Some("Front".into());
                                     state.popover = false;
