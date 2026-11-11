@@ -12,7 +12,8 @@ mod common;
 
 use std::any::Any;
 
-use eggshell_ui::{DragImage, File, Files, LayoutState, tw};
+use eggshell_ui::{File, Files, LayoutState, tw};
+use eggshell_ui_shadcn::DragChip as _;
 use egui::{Ui, Vec2};
 
 type B<'b, 'f, A> = eggshell_ui::Builder<'b, 'f, A>;
@@ -103,7 +104,7 @@ fn draggable<T: Any + Send + Sync>(
         |b| b.text(tw(), label.clone()),
     )
     .drag_source(payload)
-    .drag_image(DragImage::Chip(label));
+    .with_drag_chip(label);
 }
 
 fn zone(b: &mut B<'_, '_, State>, state: &State, which: Zone, title: &str) {

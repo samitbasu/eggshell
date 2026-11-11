@@ -81,11 +81,11 @@ pub enum DragImage {
     /// slot keeps its layout.
     #[default]
     Live,
-    /// A small label at the pointer. The node stays in its slot, where its
-    /// [`drag_lifted`](crate::Tw::drag_lifted) look applies.
-    Chip(String),
     /// Nothing follows the pointer. The node stays in its slot, where its
     /// [`drag_lifted`](crate::Tw::drag_lifted) look applies.
+    ///
+    /// A [`drag_preview`](crate::NodeHandle::drag_preview), when the source
+    /// has one, is the image whatever this says.
     None,
 }
 
@@ -323,6 +323,8 @@ impl EdgeScroll {
 pub(crate) struct NodeDrag {
     pub(crate) source: Option<Erased>,
     pub(crate) image: DragImage,
+    /// The source declared a drag preview, which is its image.
+    pub(crate) previewed: bool,
     pub(crate) drops: Vec<usize>,
     pub(crate) fallback: bool,
 }
@@ -568,6 +570,26 @@ pub(crate) fn dragging<T: Any + Send + Sync>(ctx: &Context) -> Option<Dragging<T
     })
 }
 
+/// The source of the in-app drag in progress, as the build sees it.
+pub(crate) fn lifted_source(ctx: &Context) -> Option<Id> {
+    live_gesture(ctx).map(|gesture| gesture.source)
+}
+
+/// The id of the node a source's [`drag_preview`](crate::NodeHandle::drag_preview)
+/// is built under: derived from the source's, so it is stable and unique.
+pub(crate) fn preview_id(source: Id) -> Id {
+    source.with("eggshell-drag-preview")
+}
+
+/// How far into the source the pointer was when it was lifted, from the
+/// source's top-left; zero when nothing is lifted. A
+/// [`drag_preview`](crate::NodeHandle::drag_preview) is anchored so that its
+/// top-left is this far behind the pointer, as the live image is: a preview
+/// that should sit at the pointer itself offsets its content by it.
+pub fn drag_grab(ctx: &Context) -> Vec2 {
+    live_gesture(ctx).map_or(Vec2::ZERO, |gesture| gesture.grab)
+}
+
 /// Where the pointer is while a drag is live and its position is known: an
 /// in-app drag, or an outside one that has had pointer events. The input of
 /// [`EdgeScroll::velocity`], after the frame is drawn.
@@ -726,7 +748,6 @@ pub(crate) struct Draw {
 
 /// What is left to do once the frame is painted.
 pub(crate) struct Finish {
-    chip: Option<(String, Pos2)>,
     ending: Ending,
 }
 
@@ -834,7 +855,7 @@ pub(crate) fn begin<A>(
                 files: payload,
             },
         };
-        return (Draw::idle(), Finish { chip: None, ending });
+        return (Draw::idle(), Finish { ending });
     }
 
     let over = found.over.as_ref().map(|hit| Over {
@@ -849,7 +870,6 @@ pub(crate) fn begin<A>(
     }
 
     let mut draw = Draw::idle();
-    let mut chip = None;
     draw.accepting = vec![false; nodes.len()];
     for &(index, _) in &found.accepting {
         draw.accepting[index] = true;
@@ -862,21 +882,23 @@ pub(crate) fn begin<A>(
         && let Some(&at) = by_id.get(&held.source)
     {
         let pointer = pointer.unwrap_or(held.last);
-        match nodes[at].drag.as_ref().map(|drag| &drag.image) {
-            Some(DragImage::Live) => {
-                draw.lift = Some(Lift {
-                    index: at,
-                    min: pointer - held.grab,
-                });
-            }
-            Some(DragImage::Chip(text)) => chip = Some((text.clone(), pointer)),
-            Some(DragImage::None) | None => {}
-        }
+        let image = nodes[at]
+            .drag
+            .as_ref()
+            .map(|drag| (&drag.image, drag.previewed));
+        let carried = match image {
+            Some((_, true)) => by_id.get(&preview_id(held.source)).copied(),
+            Some((DragImage::Live, false)) => Some(at),
+            Some((DragImage::None, false)) | None => None,
+        };
+        draw.lift = carried.map(|index| Lift {
+            index,
+            min: pointer - held.grab,
+        });
     }
     (
         draw,
         Finish {
-            chip,
             ending: Ending::Nothing,
         },
     )
@@ -963,13 +985,12 @@ impl Finish {
         (
             Draw::idle(),
             Self {
-                chip: None,
                 ending: Ending::Nothing,
             },
         )
     }
 
-    /// Ends the draw: delivers a drop, ends the gesture, paints a chip.
+    /// Ends the draw: delivers a drop and ends the gesture.
     pub(crate) fn finish<A>(
         self,
         ctx: &Context,
@@ -999,23 +1020,7 @@ impl Finish {
                 }
             }
         }
-        if let Some((text, at)) = self.chip {
-            paint_chip(ctx, &text, at);
-        }
     }
-}
-
-/// A small label centred on `at`, on the layer above everything.
-fn paint_chip(ctx: &Context, text: &str, at: Pos2) {
-    let painter = ctx.layer_painter(crate::draw::drag_layer());
-    let galley = painter.layout_no_wrap(
-        text.to_owned(),
-        egui::FontId::proportional(14.0),
-        egui::Color32::WHITE,
-    );
-    let rect = Rect::from_center_size(at, galley.size() + vec2(16.0, 8.0));
-    painter.rect_filled(rect, 6.0, egui::Color32::from_black_alpha(200));
-    painter.galley(rect.min + vec2(8.0, 4.0), galley, egui::Color32::WHITE);
 }
 
 #[cfg(test)]

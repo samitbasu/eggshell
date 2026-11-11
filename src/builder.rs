@@ -15,7 +15,7 @@ use crate::measure::Measure;
 use crate::pipeline::{BuildState, ColorSource, Frame, Interaction, MeasureFn, Node, NodeKind};
 use crate::prim::{Icon, Prim};
 use crate::text::{TextStyle, VAlign};
-use crate::tw::{Grouping, Sensing, Tw};
+use crate::tw::{Grouping, Sensing, Tw, tw};
 use crate::widget::Stock;
 
 /// What a node is made of, besides its classes.
@@ -509,7 +509,7 @@ pub struct NodeHandle<'b, 'f, A> {
     node: NodeId,
 }
 
-impl<A: 'static> NodeHandle<'_, '_, A> {
+impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     /// Runs `draw` at draw time in the node's own `Ui`, which is limited to
     /// the node's content rect. See [`NodeUi`](crate::NodeUi).
     pub fn draw(mut self, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) -> Self {
@@ -534,6 +534,40 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
     /// set.
     pub fn drag_image(mut self, image: DragImage) -> Self {
         self.edit(|context| context.drag().image = image);
+        self
+    }
+
+    /// The image of the drag while this node is the source: `build` makes
+    /// any subtree of it. It wins over [`DragImage::Live`], and the source
+    /// stays in its slot, where its [`drag_lifted`](crate::Tw::drag_lifted)
+    /// look applies.
+    ///
+    /// `build` runs only while this source is the one lifted, so nothing is
+    /// built for a drag that is not happening, and the preview first shows
+    /// the build after the lift. The subtree goes under a node the library
+    /// makes: out of flow, so it changes neither the layout of the siblings
+    /// nor the source's `index_hint` items. Its shapes are painted on the
+    /// drag layer, unclipped, with its top-left a [`drag_grab`](crate::drag_grab)
+    /// behind the pointer: the live image's anchor, resolved against this
+    /// frame's layout. The node is a sibling of the source, under an id
+    /// derived from the source's.
+    pub fn drag_preview(mut self, build: impl FnOnce(&mut Scope<'_, 'f, A>)) -> Self {
+        let (source, path) = {
+            let context = self.node_context();
+            (context.id, context.path.clone())
+        };
+        self.edit(|context| context.drag().previewed = true);
+        if let Some(source) =
+            source.filter(|&id| crate::dnd::lifted_source(self.b.frame.ctx) == Some(id))
+        {
+            let label = format!("drag preview of {path}");
+            self.b.div_id_with(
+                crate::dnd::preview_id(source),
+                &label,
+                tw().absolute(),
+                build,
+            );
+        }
         self
     }
 
@@ -566,6 +600,14 @@ impl<A: 'static> NodeHandle<'_, '_, A> {
     pub fn drop_fallback(mut self) -> Self {
         self.edit(|context| context.drag().fallback = true);
         self
+    }
+
+    fn node_context(&mut self) -> &mut Node {
+        self.b
+            .st
+            .tree
+            .get_node_context_mut(self.node)
+            .expect("the handle's node was added to this tree")
     }
 
     fn edit(&mut self, edit: impl FnOnce(&mut Node)) {

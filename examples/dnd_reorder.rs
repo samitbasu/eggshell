@@ -11,7 +11,8 @@ mod common;
 
 use core::time::Duration;
 
-use eggshell_ui::{DragImage, LayoutState, Opacity, tw};
+use eggshell_ui::{LayoutState, Opacity, tw};
+use eggshell_ui_shadcn::DragChip as _;
 use egui::{Context, Key, Modifiers, Response, Ui};
 
 type B<'b, 'f, A> = eggshell_ui::Builder<'b, 'f, A>;
@@ -71,27 +72,29 @@ fn row(b: &mut B<'_, '_, State>, key: ItemKey, title: &str, state: &State, lifte
         (true, Image::Live) => slot.rounded_md().border(1.0).border_color(t.ring),
         _ => slot,
     };
-    let image = match state.image {
-        Image::Chip => DragImage::Chip(title.to_owned()),
-        Image::Live => DragImage::Live,
+    let row = tw()
+        .flex()
+        .items_center()
+        .size_full()
+        .px(3.0)
+        .rounded_md()
+        .border(1.0)
+        .border_color(t.input)
+        .bg(t.muted);
+    // With a chip the lifted row stays in its slot, dimmed; the live image is
+    // the row itself and keeps its look.
+    let row = match state.image {
+        Image::Chip => row.drag_lifted(|p| p.opacity(Opacity::new(0.35))),
+        Image::Live => row,
     };
     b.div_id(key, slot, |b| {
-        b.div_id(
-            "row",
-            tw().flex()
-                .items_center()
-                .size_full()
-                .px(3.0)
-                .rounded_md()
-                .border(1.0)
-                .border_color(t.input)
-                .bg(t.muted)
-                .drag_lifted(|p| p.opacity(Opacity::new(0.35))),
-            |b| b.text(tw().grow().truncate(), title),
-        )
-        .drag_source(key)
-        .drag_image(image)
-        .on_response(move |app, response| move_with_keys(app, response, key));
+        let source = b
+            .div_id("row", row, |b| b.text(tw().grow().truncate(), title))
+            .drag_source(key)
+            .on_response(move |app, response| move_with_keys(app, response, key));
+        if state.image == Image::Chip {
+            source.with_drag_chip(title);
+        }
     });
 }
 

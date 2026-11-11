@@ -14,7 +14,8 @@ mod common;
 
 use core::time::Duration;
 
-use eggshell_ui::{DragImage, EdgeScroll, File, Files, LayoutState, Opacity, drag_pointer, tw};
+use eggshell_ui::{EdgeScroll, File, Files, LayoutState, Opacity, drag_pointer, tw};
+use eggshell_ui_shadcn::DragChip as _;
 use egui::{Align, Context, Key, Rect, Ui, vec2};
 
 type B<'b, 'f, A> = eggshell_ui::Builder<'b, 'f, A>;
@@ -113,10 +114,6 @@ fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, state: &State, lif
         (true, Image::Live) => outer.rounded_md().border(2.0).border_color(t.ring),
         _ => outer,
     };
-    let image = match state.image {
-        Image::Live => DragImage::Live,
-        Image::Chip => DragImage::Chip(label.to_owned()),
-    };
     let face = tw()
         .flex()
         .items_center()
@@ -135,24 +132,27 @@ fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, state: &State, lif
         Image::Live => face,
     };
     b.div_id(key, outer, |b| {
-        b.div_id("face", face, |b| {
-            b.div(
-                tw().flex().flex_col().gap(1.0).p(2.0).w_full().h_full(),
-                |b| {
-                    let now = b.ctx().input(|i| i.time);
-                    b.div(tw().flex().justify_between().items_center(), |b| {
-                        b.text(tw().role(common::sized(12.0)), label);
-                        b.text(
-                            tw().role(common::sized(12.0)).text(t.muted_foreground),
-                            format!("{:+.2}", channel(key, now, 1.0)),
-                        );
-                    });
-                    trace(b, key, t.primary, t.border);
-                },
-            );
-        })
-        .drag_source(key)
-        .drag_image(image);
+        let source = b
+            .div_id("face", face, |b| {
+                b.div(
+                    tw().flex().flex_col().gap(1.0).p(2.0).w_full().h_full(),
+                    |b| {
+                        let now = b.ctx().input(|i| i.time);
+                        b.div(tw().flex().justify_between().items_center(), |b| {
+                            b.text(tw().role(common::sized(12.0)), label);
+                            b.text(
+                                tw().role(common::sized(12.0)).text(t.muted_foreground),
+                                format!("{:+.2}", channel(key, now, 1.0)),
+                            );
+                        });
+                        trace(b, key, t.primary, t.border);
+                    },
+                );
+            })
+            .drag_source(key);
+        if state.image == Image::Chip {
+            source.with_drag_chip(label);
+        }
     });
 }
 

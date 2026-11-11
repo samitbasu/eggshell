@@ -504,7 +504,7 @@ impl Tw {
 
     /// The node is the source of the drag in progress. With
     /// [`DragImage::Live`](crate::DragImage::Live) the node is the image that
-    /// follows the pointer, and this is its look; with a chip or no image it
+    /// follows the pointer, and this is its look; with a [`drag_preview`](crate::NodeHandle::drag_preview) or no image it
     /// is the look of the node in its slot. The slot of a live image is not
     /// painted by the node, since the node has left it: style a node around
     /// it from [`Builder::dragging`](crate::Builder::dragging).
