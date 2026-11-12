@@ -1488,15 +1488,17 @@ impl<A> Placed<A> {
         let shown = walk.overlays();
         stack::repair(&ctx, &shown, pressed);
         overlay_input::judge(
-            &ctx,
-            scope,
-            &nodes,
-            &roots,
-            &shared.subtrees,
+            overlay_input::Frame {
+                ctx: &ctx,
+                scope,
+                nodes: &nodes,
+                roots: &roots,
+                subtrees: &shared.subtrees,
+                drag: live,
+                keys,
+            },
             &mut dismiss,
             app,
-            live,
-            keys,
         );
         finish.finish(&ctx, &nodes, &mut drag, app);
         scroll_keys::note_press(&ctx, &nodes);

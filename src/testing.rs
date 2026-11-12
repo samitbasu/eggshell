@@ -76,6 +76,7 @@ pub struct Headless {
     ctx: egui::Context,
     size: Vec2,
     base_text: Option<TextStyle>,
+    state: LayoutState,
     theme: Option<Theme>,
     pending: Vec<Prepare>,
     warm: bool,
@@ -88,6 +89,7 @@ impl Headless {
             ctx: egui::Context::default(),
             size,
             base_text: None,
+            state: LayoutState::new(),
             theme: None,
             pending: Vec::new(),
             warm: false,
@@ -131,10 +133,17 @@ impl Headless {
         let area = Rect::from_min_size(egui::Pos2::ZERO, self.size);
         let mut view = Some(view);
         let mut placed = None;
-        self.pass(|ctx| {
+        let Self {
+            ctx,
+            size,
+            base_text,
+            state,
+            theme,
+            ..
+        } = self;
+        run_pass(ctx, *size, *theme, |ctx| {
             let view = view.take().expect("a layout runs one pass");
-            let mut state = LayoutState::new();
-            state.set_base_text(self.base_text.clone());
+            state.set_base_text(base_text.clone());
             placed = Some(state.build(ctx, |b| view(b, app)).layout(area));
         });
         placed.expect("a pass runs its closure")
@@ -150,19 +159,24 @@ impl Headless {
         for setup in std::mem::take(&mut self.pending) {
             setup(&self.ctx);
         }
-        self.pass(|_| {});
+        run_pass(&self.ctx, self.size, self.theme, |_| {});
     }
+}
 
-    fn pass(&self, run: impl FnMut(&egui::Context)) {
-        if let Some(theme) = self.theme {
-            self.ctx.set_theme(theme);
-        }
-        let input = egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, self.size)),
-            ..egui::RawInput::default()
-        };
-        self.ctx.run_pass(input, run).drop_without_applying_deltas();
+fn run_pass(
+    ctx: &egui::Context,
+    size: Vec2,
+    theme: Option<Theme>,
+    run: impl FnMut(&egui::Context),
+) {
+    if let Some(theme) = theme {
+        ctx.set_theme(theme);
     }
+    let input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size)),
+        ..egui::RawInput::default()
+    };
+    ctx.run_pass(input, run).drop_without_applying_deltas();
 }
 
 #[derive(Clone, Copy)]

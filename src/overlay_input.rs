@@ -215,20 +215,31 @@ pub(crate) fn claim_keys(
     Keys { escape, default }
 }
 
+/// What `judge` reads of the frame.
+pub(crate) struct Frame<'a> {
+    pub(crate) ctx: &'a Context,
+    /// The `LayoutState`'s overlay stack.
+    pub(crate) scope: Id,
+    pub(crate) nodes: &'a [PlacedNode],
+    pub(crate) roots: &'a [PlacedRoot],
+    pub(crate) subtrees: &'a [(Id, Box<[Id]>)],
+    pub(crate) drag: Drag,
+    pub(crate) keys: Keys,
+}
+
 /// Judges the frame's input against the open overlays, as the last step of a
 /// draw. `subtrees` are the focusable widgets each identified node registered
 /// this frame.
-pub(crate) fn judge<A>(
-    ctx: &Context,
-    scope: Id,
-    nodes: &[PlacedNode],
-    roots: &[PlacedRoot],
-    subtrees: &[(Id, Box<[Id]>)],
-    dismiss: &mut HashMap<Id, DismissFn<A>>,
-    app: &mut A,
-    drag: Drag,
-    keys: Keys,
-) {
+pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>, app: &mut A) {
+    let Frame {
+        ctx,
+        scope,
+        nodes,
+        roots,
+        subtrees,
+        drag,
+        keys,
+    } = frame;
     let open = open_overlays(roots);
     nav::forget_closed(
         ctx,
