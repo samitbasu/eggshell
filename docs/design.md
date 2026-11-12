@@ -221,7 +221,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub fn slider(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> SliderChain;            // .on_change(f)
     pub fn select<T>(&mut self, key: K, current: T, options: impl IntoIterator<Item: IntoChoice<T>>) -> SelectChain; // .on_change(f) | .on_change_with(f)
     pub fn stepper(&mut self, key: K, value: f64, range: RangeInclusive<f64>) -> StepperChain;          // .on_change(f)
-    pub fn text_field(&mut self, key: K, text: impl Into<String>) -> TextFieldChain;                    // .on_change(|app, String|); .when_submitted(f), .when_blurred(f)
+    pub fn text_field(&mut self, key: K, text: impl Into<String>) -> TextFieldChain;                    // .on_change(|app, String|); .when_submitted(f), .when_blurred(|app, Blur|)
 
     // ---- anonymous display content (no key)
     pub fn text(&mut self, tw: Tw, text: impl Into<String>);

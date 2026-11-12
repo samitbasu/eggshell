@@ -221,6 +221,38 @@ impl Typing {
     }
 }
 
+/// Why a text field lost focus, as `when_blurred` is told. It is known the
+/// frame the blur is reported: Esc and Enter are told from the same input
+/// that decides who owns them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Blur {
+    /// Esc took the focus: the user means to abandon the edit.
+    Escaped,
+    /// Enter took the focus: the user means to commit the edit.
+    Submitted,
+    /// Anything else: a click elsewhere, Tab, a programmatic focus change,
+    /// the window losing focus.
+    Elsewhere,
+}
+
+impl Blur {
+    fn key() -> Id {
+        crate::key::root_id().with("blur-cause")
+    }
+
+    fn note(self, ctx: &Context) {
+        ctx.data_mut(|data| data.insert_temp(Self::key(), self));
+    }
+
+    /// The cause decided by this pass's `claim_keys`. Layouts draw one after
+    /// the other, each claiming its keys before its draw closures run, so
+    /// the one stored is always the drawing layout's.
+    pub(crate) fn of(ctx: &Context) -> Self {
+        ctx.data(|data| data.get_temp(Self::key()))
+            .unwrap_or(Self::Elsewhere)
+    }
+}
+
 /// The keys the frame pressed that the library answers, decided from the
 /// layout before any draw closure runs.
 #[derive(Clone, Copy, Debug)]
@@ -267,6 +299,8 @@ pub(crate) fn claim_keys(
     if belongs_to_the_library {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
     }
+    let typing_before = kept.with(|kept| kept.typing) == Typing::Yes;
+    let escaped = escape == Pressed::Yes && Typing::escape_blurred(ctx, kept);
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
     let default = if pressed(Key::Enter) {
         actions::return_button(ctx, nodes, roots, &top_down)
@@ -276,6 +310,14 @@ pub(crate) fn claim_keys(
     if default.is_some() {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Enter));
     }
+    let cause = if escaped {
+        Blur::Escaped
+    } else if typing_before && default.is_none() && pressed(Key::Enter) {
+        Blur::Submitted
+    } else {
+        Blur::Elsewhere
+    };
+    cause.note(ctx);
     Keys { escape, default }
 }
 

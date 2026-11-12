@@ -23,6 +23,7 @@ mod switch;
 mod toggle;
 mod toggle_group;
 
+use crate::overlay_input::Blur;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
@@ -143,6 +144,7 @@ pub(crate) struct OnResponse<A>(Option<Rc<ResponseFn<A>>>);
 
 type ResponseFn<A> = dyn Fn(&mut A, &Response);
 type Hook<A> = Option<Rc<dyn Fn(&mut A)>>;
+type BlurHook<A> = Option<Rc<dyn Fn(&mut A, Blur)>>;
 
 impl<A> Clone for OnResponse<A> {
     fn clone(&self) -> Self {
@@ -172,7 +174,7 @@ impl<A> OnResponse<A> {
 pub(crate) struct FieldHooks<A> {
     pub(crate) response: OnResponse<A>,
     submitted: Hook<A>,
-    blurred: Hook<A>,
+    blurred: BlurHook<A>,
 }
 
 impl<A> Clone for FieldHooks<A> {
@@ -200,12 +202,12 @@ impl<A> FieldHooks<A> {
         self.submitted = Some(Rc::new(then));
     }
 
-    pub(crate) fn blurred(&mut self, then: impl Fn(&mut A) + 'static) {
+    pub(crate) fn blurred(&mut self, then: impl Fn(&mut A, Blur) + 'static) {
         self.blurred = Some(Rc::new(then));
     }
 
     /// Runs the hooks for the frame in which `response`, the field's, was
-    /// shown. egui reports a lost focus for two frames, so a blur is the
+    /// shown. On Enter `submitted` runs before `blurred`. egui reports a lost focus for two frames, so a blur is the
     /// frame in which the focus the field had last frame is gone.
     pub(crate) fn run(&self, app: &mut A, ui: &Ui, response: &Response) {
         self.response.run(app, response);
@@ -224,7 +226,7 @@ impl<A> FieldHooks<A> {
             && had_focus
             && !has_focus
         {
-            then(app);
+            then(app, Blur::of(ui.ctx()));
         }
     }
 }
