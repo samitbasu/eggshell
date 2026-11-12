@@ -31,7 +31,9 @@ use merge::{Layout, Touched};
 pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
 pub use units::{Angle, Flip, Opacity, Progress};
 pub use variants::Paint;
-pub(crate) use variants::{Focusability, Grouping, Look, Presence, Sensing, State, Variants};
+pub(crate) use variants::{
+    Focusability, Grouping, Look, PointerEvents, Presence, Sensing, State, Variants,
+};
 
 /// One Tailwind space unit, in points.
 const SPACE_UNIT: f32 = 4.0;
@@ -45,6 +47,7 @@ pub struct Tw {
     pub(crate) text: TextClasses,
     pub(crate) z: Option<i16>,
     pub(crate) inert: bool,
+    pub(crate) pointer_events: PointerEvents,
     pub(crate) sensing: Sensing,
     pub(crate) focusability: Focusability,
     pub(crate) grouping: Grouping,
@@ -64,6 +67,7 @@ pub fn tw() -> Tw {
         text: TextClasses::default(),
         z: None,
         inert: false,
+        pointer_events: PointerEvents::Auto,
         sensing: Sensing::None,
         focusability: Focusability::Tab,
         grouping: Grouping::Ungrouped,
@@ -107,6 +111,21 @@ impl Tw {
     /// ```
     pub fn inert(mut self) -> Self {
         self.inert = true;
+        self
+    }
+
+    /// Lets the pointer through this node and its descendants to what lies
+    /// beneath them, like CSS `pointer-events: none`.
+    ///
+    /// By default a node that paints a background or a border takes the
+    /// pointer from the sensing nodes painted before it that it covers (CSS
+    /// `pointer-events: auto`): a panel over a canvas keeps the canvas from
+    /// hovering, clicking or dragging through it. Use this on a decoration
+    /// that must not take the pointer. It only stops boxes from blocking: a
+    /// node inside that senses the pointer still does, and there is no way to
+    /// turn blocking back on below it.
+    pub fn pointer_events_none(mut self) -> Self {
+        self.pointer_events = PointerEvents::None;
         self
     }
 

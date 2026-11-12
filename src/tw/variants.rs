@@ -68,6 +68,25 @@ impl From<Sensing> for Sense {
     }
 }
 
+/// Whether the pointer can reach a node painted with a background or border,
+/// or goes through it to what lies beneath, as CSS `pointer-events` does.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum PointerEvents {
+    #[default]
+    Auto,
+    None,
+}
+
+impl PointerEvents {
+    pub(crate) fn merge(self, other: Self) -> Self {
+        if self == Self::None || other == Self::None {
+            Self::None
+        } else {
+            Self::Auto
+        }
+    }
+}
+
 /// Whether a sensing node takes part in keyboard navigation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Focusability {

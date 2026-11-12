@@ -166,13 +166,16 @@ mod focus;
 mod key;
 mod measure;
 pub mod overlay;
+mod overlay_chain;
 pub mod owned;
 mod pipeline;
 pub mod prim;
+mod roots;
 pub mod scroll;
 mod scroll_keys;
 mod shadow_corners;
 mod sizing;
+mod stack;
 pub mod testing;
 mod text;
 mod transition;
@@ -192,6 +195,7 @@ pub use key::Key;
 pub use measure::{Measure, fill};
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
 pub use prim::Icon;
+pub use roots::OverlayRef;
 pub use sizing::Width;
 pub use text::{
     FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle, Tracking,

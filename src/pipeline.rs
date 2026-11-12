@@ -1,12 +1,12 @@
 //! The frame pipeline: [`LayoutState::build`] gives [`Built`], whose
 //! [`layout`](Built::layout) gives [`Placed`].
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use egui::{Id, Rect, vec2};
 use taffy::{
-    AvailableSpace, Baselines, Dimension, Display, LayoutInput, LayoutOutput, NodeId, Overflow,
-    Point, Position, ResolveOrZero, Size, Style, TaffyTree, compute_leaf_layout,
+    AvailableSpace, Baselines, Dimension, Display, LayoutInput, LayoutOutput, LengthPercentageAuto,
+    NodeId, Overflow, Point, Position, ResolveOrZero, Size, Style, TaffyTree, compute_leaf_layout,
     style_helpers::length,
 };
 
@@ -15,10 +15,15 @@ use crate::debug::{Debug, Phase, Timer};
 use crate::dnd::{Decls, EdgeScroll, NodeDrag};
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
+use crate::overlay::{Anchor, Anchored, MatchWidth, place};
 use crate::prim::Prim;
+use crate::roots::{ById, PlacedOverlay, PlacedRoot, PlacedRootKind, RootDecl, RootKind, root_of};
 use crate::scroll::{Axis, Bars, Moved, ScrollPlan, Settle};
+use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
-use crate::tw::{BoxPaint, Focusability, Grouping, RingPlacement, Sensing, Sides, Variants};
+use crate::tw::{
+    BoxPaint, Focusability, Grouping, PointerEvents, RingPlacement, Sensing, Sides, Variants,
+};
 
 /// The kind of a node, for diagnostics.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,6 +55,9 @@ pub enum NodeKind {
     Scroll,
     /// The root of a scroll container's content, laid out on its own.
     ScrollContent,
+    /// The root of an overlay, laid out on its own and placed against its
+    /// anchor.
+    Overlay,
 }
 
 /// taffy's per-node context.
@@ -66,6 +74,7 @@ pub(crate) struct Node {
     pub draw_kind: DrawKind,
     pub z: i16,
     pub inert: bool,
+    pub pointer_events: PointerEvents,
     pub interaction: Interaction,
     pub drag: Option<Box<NodeDrag>>,
     pub scroll: Option<ScrollNode>,
@@ -139,9 +148,19 @@ pub(crate) struct Frame<'f, A> {
     pub measures: Vec<MeasureFn<'f>>,
     pub draws: Vec<DrawFn<A>>,
     pub drag: Decls<A>,
-    /// The scroll containers' leaves, an enclosing container after those
-    /// it encloses.
-    pub scrolls: Vec<NodeId>,
+    /// The roots, the base first and each overlay in the order it was
+    /// declared: a slot is reserved before a body is built, so an overlay
+    /// declared in a body comes after the overlay it is declared in.
+    pub roots: Vec<RootDecl>,
+    /// The root whose body is being built.
+    pub current: usize,
+}
+
+impl<A> Frame<'_, A> {
+    /// Records `leaf` as a scroll container of the root being built.
+    pub(crate) fn add_scroll(&mut self, leaf: NodeId) {
+        self.roots[self.current].scrolls.push(leaf);
+    }
 }
 
 /// Owns the state a frame is built in; reuse one across frames.
@@ -217,7 +236,8 @@ impl LayoutState {
             measures: Vec::new(),
             draws: Vec::new(),
             drag: Decls::default(),
-            scrolls: Vec::new(),
+            roots: vec![RootDecl::base()],
+            current: 0,
         };
         let mut kids = Vec::new();
         f(&mut Builder::new(
@@ -247,12 +267,14 @@ impl LayoutState {
                     draw_kind: DrawKind::Paint,
                     z: 0,
                     inert: false,
+                    pointer_events: PointerEvents::Auto,
                     interaction: Interaction::default(),
                     drag: None,
                     scroll: None,
                 }),
             )
             .expect("root was just created");
+        frame.roots[0].node = Some(root);
         Built {
             st,
             ctx,
@@ -289,7 +311,7 @@ impl<'f, A> Built<'f, A> {
             measures,
             draws,
             drag,
-            scrolls,
+            roots: decls,
             ..
         } = frame;
         st.tree
@@ -318,6 +340,8 @@ impl<'f, A> Built<'f, A> {
             })
             .expect("tree is well formed");
         };
+        let mut decls = decls.into_iter();
+        let base = decls.next().expect("a frame has a base root");
         solve(
             &mut st.tree,
             root,
@@ -326,7 +350,7 @@ impl<'f, A> Built<'f, A> {
                 height: AvailableSpace::Definite(area.height()),
             },
         );
-        for leaf in scrolls.into_iter().rev() {
+        for leaf in base.scrolls.into_iter().rev() {
             solve_content(&mut st.tree, leaf, &solve);
         }
 
@@ -347,14 +371,117 @@ impl<'f, A> Built<'f, A> {
             &mut nodes,
             &mut prims,
         );
+        let mut by_id = ById::new();
+        index_ids(&nodes, 0, &mut by_id);
+        let mut roots = vec![PlacedRoot {
+            first: 0,
+            parent: None,
+            kind: PlacedRootKind::Base,
+        }];
+        let mut stack = Stack::load(ctx);
+        let mut present = HashSet::new();
+        for decl in decls {
+            let RootDecl {
+                kind,
+                parent,
+                node,
+                scrolls,
+            } = decl;
+            let node = node.expect("a root's body was built");
+            let overlay = match kind {
+                RootKind::Base => unreachable!("only the first root is the base"),
+                RootKind::Overlay(overlay) => overlay,
+            };
+            let open = stack.enter(overlay.id, overlay.band);
+            let (anchor, anchored) =
+                resolve_anchor(overlay.anchor, area, &nodes, &by_id, &roots, || {
+                    *open.pointer.get_or_insert_with(|| {
+                        ctx.input(|input| input.pointer.latest_pos())
+                            .unwrap_or(area.min)
+                    })
+                });
+            present.insert(overlay.id);
+            let mut style = st.tree.style(node).expect("node exists").clone();
+            style.min_size.width = match overlay.match_width {
+                MatchWidth::Anchor => LengthPercentageAuto::length(anchor.width()),
+                MatchWidth::Content => LengthPercentageAuto::auto(),
+            };
+            st.tree.set_style(node, style.clone()).expect("node exists");
+            let loose = Size {
+                width: AvailableSpace::MaxContent,
+                height: AvailableSpace::MaxContent,
+            };
+            solve(&mut st.tree, node, loose);
+            let natural = laid_size(&st.tree, node);
+            let mut spot = place(anchor, natural, &overlay.placement, area);
+            let room = Size {
+                width: (natural.x > spot.available.x).then_some(spot.available.x),
+                height: (natural.y > spot.available.y).then_some(spot.available.y),
+            };
+            if room.width.is_some() || room.height.is_some() {
+                style.size = Size {
+                    width: room.width.map_or(Dimension::auto(), Dimension::length),
+                    height: room.height.map_or(Dimension::auto(), Dimension::length),
+                };
+                st.tree.set_style(node, style).expect("node exists");
+                let definite = |room: Option<f32>| {
+                    room.map_or(AvailableSpace::MaxContent, AvailableSpace::Definite)
+                };
+                solve(
+                    &mut st.tree,
+                    node,
+                    Size {
+                        width: definite(room.width),
+                        height: definite(room.height),
+                    },
+                );
+                spot = spot.refit(anchor, laid_size(&st.tree, node), &overlay.placement, area);
+            }
+            for leaf in scrolls.into_iter().rev() {
+                solve_content(&mut st.tree, leaf, &solve);
+            }
+            let first = nodes.len();
+            collect(
+                &mut st.tree,
+                node,
+                spot.rect.min,
+                0,
+                probe.as_ref(),
+                &mut settle,
+                &mut nodes,
+                &mut prims,
+            );
+            index_ids(&nodes, first, &mut by_id);
+            let parent = parent.expect("an overlay is declared in a root");
+            let declared_in = roots[parent]
+                .overlay()
+                .map_or(Anchored::Attached, |parent| parent.anchored);
+            roots.push(PlacedRoot {
+                first,
+                parent: Some(parent),
+                kind: PlacedRootKind::Overlay(PlacedOverlay {
+                    id: overlay.id,
+                    band: overlay.band,
+                    side: spot.side,
+                    anchored: anchored.and(spot.anchored).and(declared_in),
+                    anchor,
+                    stack_index: 0,
+                    description: overlay.description,
+                }),
+            });
+        }
         settle.finish();
+        stack.keep_only(&present);
+        for root in &mut roots {
+            if let PlacedRootKind::Overlay(overlay) = &mut root.kind {
+                overlay.stack_index = stack
+                    .index_of(overlay.id)
+                    .expect("an open overlay is in the stack");
+            }
+        }
+        stack.store(ctx);
         drop(measures);
         let draws = draws.into_iter().map(Some).collect();
-        let by_id = nodes
-            .iter()
-            .enumerate()
-            .filter_map(|(index, node)| Some((node.id?, index)))
-            .collect();
         Placed {
             ctx: ctx.clone(),
             nodes,
@@ -362,8 +489,80 @@ impl<'f, A> Built<'f, A> {
             prims,
             draws,
             drag,
+            roots,
         }
     }
+}
+
+fn laid_size(tree: &TaffyTree<Node>, node: NodeId) -> egui::Vec2 {
+    let size = tree.layout(node).expect("node exists").size;
+    vec2(size.width, size.height)
+}
+
+/// Notes the identified nodes from `from` on.
+fn index_ids(nodes: &[PlacedNode], from: usize, by_id: &mut ById) {
+    by_id.extend(
+        nodes
+            .iter()
+            .enumerate()
+            .skip(from)
+            .filter_map(|(index, node)| Some((node.id()?, index))),
+    );
+}
+
+/// The rect `anchor` stands for among the nodes collected so far, and
+/// whether it can be seen: a node's rect cut by the clips and scroll
+/// viewports above it. An anchor that is not among them (declared in a later
+/// overlay, or not at all) cannot be seen.
+fn resolve_anchor(
+    anchor: Anchor,
+    area: Rect,
+    nodes: &[PlacedNode],
+    by_id: &ById,
+    roots: &[PlacedRoot],
+    pointer: impl FnOnce() -> egui::Pos2,
+) -> (Rect, Anchored) {
+    let point = |at: egui::Pos2| (Rect::from_min_max(at, at), Anchored::Attached);
+    match anchor {
+        Anchor::Node(id) => {
+            let Some(&index) = by_id.get(&id) else {
+                return (area, Anchored::Detached);
+            };
+            let root = &roots[root_of(roots, index)];
+            let seen = reachable(nodes, root.first, index, area);
+            let under_hidden = root
+                .overlay()
+                .is_some_and(|overlay| overlay.anchored == Anchored::Detached);
+            let sees = seen.min.x <= seen.max.x && seen.min.y <= seen.max.y;
+            let anchored = if sees && !under_hidden {
+                Anchored::Attached
+            } else {
+                Anchored::Detached
+            };
+            (nodes[index].rect(), anchored)
+        }
+        Anchor::Point(at) => point(at),
+        Anchor::Rect(rect) => (rect, Anchored::Attached),
+        Anchor::Pointer => point(pointer()),
+        Anchor::Screen => (area, Anchored::Attached),
+    }
+}
+
+/// The part of the node at `index` that lies within the clips of its
+/// ancestors in the root at `root`, starting from `clip`: its rect cut by
+/// every `overflow` clip and scroll viewport above it. Empty (negative) when
+/// the pointer cannot reach any of it.
+pub(crate) fn reachable(nodes: &[PlacedNode], root: usize, index: usize, clip: Rect) -> Rect {
+    let mut at = root;
+    let mut clip = clip;
+    while at != index {
+        clip = nodes[at].clip_for_children(clip);
+        at = crate::draw::children_of(nodes, at)
+            .into_iter()
+            .find(|&child| child <= index && index < nodes[child].end)
+            .expect("the node is inside the root");
+    }
+    nodes[index].rect().intersect(clip)
 }
 
 /// Lays out the content of the scroll container `leaf`, whose own size its
@@ -629,6 +828,7 @@ fn collect(
         text_valign: node.text_valign,
         z: node.z,
         inert: node.inert,
+        pointer_events: node.pointer_events,
         interaction: node.interaction,
         drag: node.drag.take(),
         draw: node.draw,
@@ -706,6 +906,7 @@ pub struct PlacedNode {
     text_valign: VAlign,
     z: i16,
     inert: bool,
+    pointer_events: PointerEvents,
     pub(crate) interaction: Interaction,
     pub(crate) drag: Option<Box<NodeDrag>>,
     pub(crate) draw: Option<usize>,
@@ -723,6 +924,42 @@ impl PlacedNode {
     pub(crate) fn translate(&mut self, by: egui::Vec2) {
         self.rect = self.rect.translate(by);
         self.reach = self.reach.translate(by);
+    }
+
+    /// The clip the node's descendants are painted and reached within, given
+    /// the clip of the node itself: its `overflow` and, for a scroll
+    /// container, its viewport.
+    pub(crate) fn clip_for_children(&self, clip: Rect) -> Rect {
+        let padding = crate::draw::inset(self.rect, self.border);
+        let inner = crate::draw::content_clip(clip, padding, self.overflow);
+        match self.scroll_viewport() {
+            Some(viewport) => inner.intersect(viewport),
+            None => inner,
+        }
+    }
+
+    /// Whether the node, by itself, lets the pointer through.
+    pub(crate) fn pointer_events(&self) -> PointerEvents {
+        self.pointer_events
+    }
+
+    /// Whether the node takes the pointer from the sensing nodes it covers:
+    /// it paints a background or a border, or it is the root of an overlay,
+    /// and it did not ask to let the pointer through.
+    ///
+    /// This is the one definition of a blocking box: the draw registers a
+    /// blocker for such a node, and [`Placed::root_at`] asks it of the roots.
+    pub(crate) fn blocks_pointer(&self) -> bool {
+        let paints_border = [
+            (self.paint.border_colors.top, self.border.top),
+            (self.paint.border_colors.right, self.border.right),
+            (self.paint.border_colors.bottom, self.border.bottom),
+            (self.paint.border_colors.left, self.border.left),
+        ]
+        .into_iter()
+        .any(|(color, width)| color.is_some() && width > 0.0);
+        self.pointer_events == PointerEvents::Auto
+            && (self.kind == NodeKind::Overlay || self.paint.background.is_some() || paints_border)
     }
 
     /// For a scroll container, its viewport: the padding box minus the
@@ -826,6 +1063,8 @@ pub struct Placed<A> {
     pub(crate) prims: Vec<Option<Prim>>,
     pub(crate) draws: Vec<Option<DrawFn<A>>>,
     pub(crate) drag: Decls<A>,
+    /// The base root, then the overlays in the order they were declared.
+    pub(crate) roots: Vec<PlacedRoot>,
 }
 
 impl<A> Placed<A> {

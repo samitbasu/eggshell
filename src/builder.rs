@@ -12,14 +12,17 @@ use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
+use crate::overlay::Band;
+use crate::overlay_chain::{OverlayChain, Unplaced};
 use crate::pipeline::{
     BuildState, ColorSource, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
 };
 use crate::prim::{Icon, Prim};
+use crate::roots::{OverlayDecl, RootDecl, overlay_style};
 use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::text::{TextStyle, VAlign};
-use crate::tw::{Grouping, Sensing, Tw, tw};
+use crate::tw::{Grouping, PointerEvents, Sensing, Tw, tw};
 use crate::widget::Stock;
 
 /// What a node is made of, besides its classes.
@@ -243,6 +246,58 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         ScrollChain::new(self.reborrow(), key, tw)
     }
 
+    /// An overlay: a floating layer placed against an anchor. See
+    /// [`overlay`](crate::overlay).
+    pub fn overlay<K: Key>(&mut self, key: K) -> OverlayChain<'_, 'f, A, Unplaced> {
+        let slot = self.slot(&key);
+        OverlayChain::new(self.reborrow(), slot)
+    }
+
+    /// Declares the overlay `decl` and builds `body` as its content, a root
+    /// of its own. The slot is reserved before the body is built, so
+    /// overlays declared in the body come after this one.
+    pub(crate) fn overlay_with(
+        mut self,
+        slot: &Slot,
+        decl: OverlayDecl,
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) {
+        let band = decl.band;
+        let path = self.identify(slot.id, &slot.label);
+        let parent = self.frame.current;
+        self.frame.roots.push(RootDecl::overlay(decl, parent));
+        let at = self.frame.roots.len() - 1;
+        self.frame.current = at;
+        let mut node = self.node(
+            &tw(),
+            Parts {
+                id: Some(slot.id),
+                ..Parts::anonymous(NodeKind::Overlay, path)
+            },
+        );
+        if band == Band::Tooltip {
+            node.pointer_events = PointerEvents::None;
+        }
+        let text = node.text.clone();
+        let mark = self.st.names.push(&slot.label);
+        let mut kids = Vec::new();
+        body(&mut Scope(Builder::new(
+            self.st, self.frame, slot.id, &mut kids, &text,
+        )));
+        self.st.names.pop_to(mark);
+        self.frame.current = parent;
+        let root = self
+            .st
+            .tree
+            .new_with_children(overlay_style(), &kids)
+            .expect("children were created in this tree");
+        self.st
+            .tree
+            .set_node_context(root, Some(node))
+            .expect("node was just created");
+        self.frame.roots[at].node = Some(root);
+    }
+
     /// Adds a scroll container's leaf to the current parent, with the root of
     /// its content, built from `body`, a tree of its own.
     pub(crate) fn scroll_with(
@@ -310,7 +365,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .new_leaf_with_context(style, leaf)
             .expect("taffy accepts a new leaf");
         self.kids.push(id);
-        self.frame.scrolls.push(id);
+        self.frame.add_scroll(id);
         NodeHandle { b: self, node: id }
     }
 
@@ -483,6 +538,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             draw_kind: DrawKind::Paint,
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
+            pointer_events: tw.pointer_events,
             drag: None,
             scroll: None,
             interaction: Interaction {
@@ -678,7 +734,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
             self.b.div_id_with(
                 crate::dnd::preview_id(source),
                 &label,
-                tw().absolute(),
+                tw().absolute().pointer_events_none(),
                 build,
             );
         }
