@@ -910,6 +910,38 @@ fn controls_gallery_stepper_focused_dark() {
     focused_stepper("controls_gallery_stepper_focused_dark", egui::Theme::Dark);
 }
 
+/// The values section with the enabled select's list open: the chosen
+/// option marked, the first highlighted.
+fn select_open(name: &str, theme: egui::Theme) {
+    owned_section_after(name, controls_gallery::Section::Values, theme, |harness| {
+        let trigger = harness
+            .state()
+            .nodes
+            .iter()
+            .map(|(path, _)| path.clone())
+            .find(|path| path.ends_with("(\"select\", Enabled)"))
+            .expect("the enabled select");
+        support::click_node(harness, &trigger);
+        harness.run_steps(12);
+        let first = harness
+            .state()
+            .nodes
+            .iter()
+            .any(|(path, _)| path.contains("List") && path.ends_with("/Box/Option(0)"));
+        assert!(first, "the list is open");
+    });
+}
+
+#[test]
+fn controls_gallery_select_open_light() {
+    select_open("controls_gallery_select_open_light", egui::Theme::Light);
+}
+
+#[test]
+fn controls_gallery_select_open_dark() {
+    select_open("controls_gallery_select_open_dark", egui::Theme::Dark);
+}
+
 #[test]
 fn controls_gallery_wide() {
     gallery("controls_gallery_wide", 300.0);
