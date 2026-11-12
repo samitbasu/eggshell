@@ -294,7 +294,7 @@ impl<A> Placed<A> {
 
     /// [`overlay`](Self::overlay), or `None` when nothing is there.
     pub fn try_overlay<K: Key>(&self, key: &K) -> Option<OverlayRef<'_>> {
-        self.overlay_with(child_id(crate::key::root_id(), key))
+        self.overlay_with(child_id(self.root, key))
     }
 
     /// The overlay whose root has this id: for a nested overlay, the id of

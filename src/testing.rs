@@ -43,7 +43,7 @@ pub use crate::continuity::{
     Interrupted, Motion, NodeFrame, NodeRef, Points, Slide, SlideId, Timeline, Violation,
     ViolationKind, laid_out_rect, record,
 };
-use crate::key::{Key, child_id, root_id};
+use crate::key::{Key, child_id};
 pub use crate::pipeline::Placed;
 use crate::pipeline::{LayoutState, PlacedNode};
 use crate::prim::Prim;
@@ -106,6 +106,13 @@ impl Headless {
     /// The root text style of every layout, as [`LayoutState::with_base_text`].
     pub fn base_text(mut self, base: TextStyle) -> Self {
         self.base_text = Some(base);
+        self
+    }
+
+    /// Names the layout's [`LayoutState`], for a context that other named
+    /// layouts share.
+    pub fn named(mut self, name: &'static str) -> Self {
+        self.state = LayoutState::named(name);
         self
     }
 
@@ -213,7 +220,7 @@ impl<A> Placed<A> {
         Query {
             layout: self.layout_view(),
             path: String::new(),
-            id: Some(root_id()),
+            id: Some(self.root),
             index: Some(0),
         }
     }

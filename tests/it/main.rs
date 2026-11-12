@@ -43,6 +43,7 @@ mod layout;
 mod layout_animation;
 mod line_clamp;
 mod modal;
+mod named_layouts;
 mod overlay;
 mod overlay_input;
 mod owned;

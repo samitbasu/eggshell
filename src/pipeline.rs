@@ -17,7 +17,7 @@ use crate::dismiss::Opening;
 use crate::dnd::{Decls, EdgeScroll, NodeDrag};
 use crate::focus;
 use crate::kept::Handle;
-use crate::key::{ReadablePath, Seen, root_id};
+use crate::key::{ReadablePath, Seen, layout_root, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
 use crate::owned::Enablement;
@@ -151,10 +151,26 @@ pub(crate) struct BuildState {
     /// Names this state among those sharing a context: the owner a drag's
     /// gesture is tagged with.
     pub scope: Id,
+    /// The id every node's path derives from.
+    pub root: Id,
+    pub name: Option<&'static str>,
+    pub alive: std::sync::Arc<()>,
+    /// Where the pass being built was started.
+    pub built_at: &'static std::panic::Location<'static>,
     pub kept: Handle,
     pub tree: TaffyTree<Node>,
     pub seen: Seen,
     pub names: ReadablePath,
+}
+
+#[cfg(debug_assertions)]
+impl BuildState {
+    pub(crate) fn claimant(&self) -> crate::key::claims::Layout {
+        crate::key::claims::Layout {
+            scope: self.scope,
+            alive: self.alive.clone(),
+        }
+    }
 }
 
 /// One frame's closures. `'f` is how long the build may borrow application data.
@@ -251,12 +267,40 @@ impl LayoutState {
     }
 
     /// An empty state.
+    ///
+    /// Node ids derive from a root shared by every unnamed state, so two
+    /// unnamed states in one egui context must not use the same top-level
+    /// key; [`named`](Self::named) keeps their ids apart.
     pub fn new() -> Self {
+        Self::with_name(None)
+    }
+
+    /// An empty state whose node ids are salted by `name`.
+    ///
+    /// Use it for each of several layouts that share an egui context (a bar
+    /// and a page): their top-level keys then cannot collide in egui's
+    /// per-id memory (focus, scroll offsets, text edits). The salt is a hash
+    /// of the name, so the ids, and the state egui persists under them, are
+    /// the same on every run.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, if another state of the context is built with the
+    /// same name in the same pass.
+    pub fn named(name: &'static str) -> Self {
+        Self::with_name(Some(name))
+    }
+
+    fn with_name(name: Option<&'static str>) -> Self {
         let mut tree = TaffyTree::new();
         tree.disable_rounding();
         Self {
             st: BuildState {
                 scope: fresh_scope(),
+                root: layout_root(name),
+                name,
+                alive: std::sync::Arc::default(),
+                built_at: std::panic::Location::caller(),
                 kept: Handle::default(),
                 tree,
                 seen: Seen::default(),
@@ -286,6 +330,7 @@ impl LayoutState {
     /// [`TextStyle::from_egui`] of `ctx`. `ctx` is also used by
     /// [`Built::layout`] to measure text. `'f` covers this borrow, `ctx`, and
     /// the application data that the frame's measure closures capture.
+    #[track_caller]
     pub fn build<'f, A>(
         &'f mut self,
         ctx: &'f egui::Context,
@@ -297,6 +342,11 @@ impl LayoutState {
             .clone()
             .unwrap_or_else(|| TextStyle::from_egui(ctx));
         let st = &mut self.st;
+        st.built_at = std::panic::Location::caller();
+        #[cfg(debug_assertions)]
+        if st.name.is_some() {
+            crate::key::claims::name(ctx, st.root, &st.claimant(), st.built_at);
+        }
         st.tree.clear();
         st.tree.disable_rounding();
         st.seen.clear();
@@ -314,7 +364,7 @@ impl LayoutState {
         f(&mut Builder::new(
             st,
             &mut frame,
-            root_id(),
+            st.root,
             &mut kids,
             (&base, Enablement::Enabled),
         ));
@@ -453,6 +503,7 @@ impl<'f, A> Built<'f, A> {
             kind: PlacedRootKind::Base,
         }];
         let scope = st.scope;
+        let root = st.root;
         st.kept.with(|kept| kept.area = Some(area));
         let mut stack = Stack::load(&st.kept);
         let mut present = HashSet::new();
@@ -623,6 +674,7 @@ impl<'f, A> Built<'f, A> {
         Placed {
             ctx: ctx.clone(),
             scope,
+            root,
             kept: st.kept.clone(),
             nodes,
             by_id,
@@ -1237,6 +1289,7 @@ impl PlacedNode {
 pub struct Placed<A> {
     pub(crate) ctx: egui::Context,
     pub(crate) scope: Id,
+    pub(crate) root: Id,
     pub(crate) kept: Handle,
     pub(crate) nodes: Vec<PlacedNode>,
     pub(crate) by_id: HashMap<Id, usize>,
