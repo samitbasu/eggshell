@@ -80,6 +80,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
 
     /// Adds the group. `select` runs with the value of the option that was
     /// chosen with the pointer or the keyboard.
+    #[track_caller]
     pub fn on_change(self, select: impl Fn(&mut A, T) + Copy + 'static) {
         let Self {
             mut b,
@@ -102,6 +103,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
             .find(|&at| enabled[at] && values[at] == current)
             .or_else(|| (0..count).find(|&at| enabled[at]))
             .unwrap_or(0);
+        b.claim(&slot);
         b.scope_with(slot.id, &slot.label, |b| {
             let ids: Vec<_> = values
                 .iter()

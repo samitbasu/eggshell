@@ -153,12 +153,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
     }
 
     /// Adds the control. `select` runs with the value of the chosen cell.
+    #[track_caller]
     pub fn on_change(self, select: impl Fn(&mut A, T) + Copy + 'static) {
         self.on_change_with(move |app, _, value| select(app, value));
     }
 
     /// Adds the control. `select` gets the application and the egui context,
     /// for a value the context holds.
+    #[track_caller]
     pub fn on_change_with(self, select: impl Fn(&mut A, &Context, T) + Copy + 'static) {
         let Self {
             b,

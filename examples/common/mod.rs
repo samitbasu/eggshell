@@ -604,7 +604,7 @@ pub fn text_box<S, K>(
             .focus_within(|p| p.border_color(t.ring).ring(t.ring_width, ring(&t))),
         |b| {
             b.text_field_with("field", field)
-                .classes(tw().w_full())
+                .classes(tw().w_full().min_h_px(t.control_height))
                 .on_response(move |_, response| {
                     response.widget_info(|| WidgetInfo::labeled(role, response.enabled(), name));
                 })

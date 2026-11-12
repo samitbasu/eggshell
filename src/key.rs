@@ -115,13 +115,15 @@ impl Seen {
     /// message names both readable paths, which differ when two distinct keys
     /// hash alike (for example variants of different enums).
     #[cfg_attr(not(debug_assertions), expect(unused_variables))]
+    #[track_caller]
     pub(crate) fn register(&mut self, id: Id, readable: &str) {
         #[cfg(debug_assertions)]
         if let Some(first) = self.paths.insert(id, readable.to_owned()) {
+            let at = std::panic::Location::caller();
             if first == readable {
-                panic!("duplicate key path {readable}");
+                panic!("duplicate key path {readable} (declared again at {at})");
             }
-            panic!("key paths {first} and {readable} have the same id");
+            panic!("key paths {first} and {readable} have the same id (declared again at {at})");
         }
     }
 }

@@ -5,10 +5,13 @@
 use std::collections::BTreeMap;
 
 use eggshell_ui::owned::Cell;
+use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::testing::Headless;
 use eggshell_ui::widget::{Stock, TextEdit};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Width, tw};
+use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
-use egui::{Color32, Event, FontFamily, Id, Key, vec2};
+use egui::{Color32, Event, FontFamily, Id, Key, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
@@ -530,4 +533,28 @@ fn named_primitives_are_found_by_their_accessible_name() {
     for name in ["Name", "Notes"] {
         let _ = harness.get_by_label(name);
     }
+}
+
+#[test]
+fn a_bare_field_is_as_tall_as_the_text_it_replaces() {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let placed = Headless::new(vec2(400.0, 300.0))
+        .theme(Theme::Light)
+        .prepare(Shadcn::apply_both)
+        .base_text(TextStyle::new(tokens.text_role(), tokens.foreground))
+        .layout(&(), |b, _| {
+            b.div(tw().flex().flex_col().w_px(120.0), |b| {
+                b.span("readout", tw(), "1.234");
+                b.text_field("framed", "1.234").on_change(|_, _| {});
+                b.text_field_with("bare", Field::singleline("1.234").bare())
+                    .on_change(|_, _| {});
+            });
+        });
+    let height = |key| placed.at(key).rect().height();
+    let (readout, framed, bare) = (height("readout"), height("framed"), height("bare"));
+    assert!(
+        framed > readout,
+        "precondition: the input.height floor is taller than a line ({framed} vs {readout})"
+    );
+    assert_eq!(bare, readout);
 }

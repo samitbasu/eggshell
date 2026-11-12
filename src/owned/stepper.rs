@@ -132,6 +132,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
     }
 
     /// Adds the stepper. `set` runs with the new value.
+    #[track_caller]
     pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
         let Self {
             mut b,
@@ -201,6 +202,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         let glyph = stepper.glyph;
         let field = Field::singleline("").bare();
         let measured = field.clone();
+        b.claim(&slot);
         b.scope_with(slot.id, &slot.label, |b| {
             let editing = b.id_of(Part::Field).with("editing");
             b.div_id(Part::Box, group, |b| {

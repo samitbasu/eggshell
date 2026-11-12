@@ -314,6 +314,7 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
 
     /// Builds `body` as the content and adds the container. The returned
     /// handle attaches behaviour to the container's node.
+    #[track_caller]
     pub fn children(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) -> NodeHandle<'a, 'f, A> {
         let Self {
             b,

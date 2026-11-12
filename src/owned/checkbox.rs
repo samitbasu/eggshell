@@ -133,6 +133,7 @@ impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
 impl<'a, 'f, A: 'static> CheckboxChain<'a, 'f, A, bool> {
     /// Adds the checkbox. `on_change` runs with the new value when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
+    #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, bool) + Copy + 'static) {
         self.values(false, true).on_change(on_change);
     }
@@ -141,6 +142,7 @@ impl<'a, 'f, A: 'static> CheckboxChain<'a, 'f, A, bool> {
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A, T, [T; 2]> {
     /// Adds the checkbox. `on_change` runs with the new value when the box or
     /// the label is clicked, or the box is activated with Space or Enter.
+    #[track_caller]
     pub fn on_change(self, on_change: impl Fn(&mut A, T) + Copy + 'static) {
         let Self {
             mut b,
@@ -172,6 +174,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         );
         let glyph = checkbox.glyph;
         let name = name.unwrap_or_default();
+        b.claim(&slot);
         b.scope_with(slot.id, &slot.label, |b| {
             let control = b.id_of(Part::Box);
             let row = choice_row(&style, &checkbox.text, enablement, checkbox.gap).merge(caller);

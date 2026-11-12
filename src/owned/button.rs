@@ -340,12 +340,14 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
 
     /// Adds a button that does nothing when it is clicked: a placeholder, or
     /// one that is disabled.
+    #[track_caller]
     pub fn add(self) {
         self.on_click(|_| {});
     }
 
     /// Adds the button. `on_click` runs when it is clicked or activated with
     /// Space or Enter.
+    #[track_caller]
     pub fn on_click(self, on_click: impl FnOnce(&mut A) + 'static) {
         let Self {
             mut b,

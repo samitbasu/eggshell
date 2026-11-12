@@ -251,19 +251,25 @@ impl TextEdit {
     fn fit(&self, sizer: &Sizer<'_>, text: &str, width: Option<Width>) -> Fit {
         let spacing = &sizer.style.spacing;
         let input = &sizer.contract.input;
-        let frame = match self.framing {
-            Framing::Framed => Frame::new().inner_margin(Margin::from(input.padding)),
-            Framing::Bare => Frame::NONE,
+        let (frame, floor) = match self.framing {
+            Framing::Framed => (
+                Frame::new().inner_margin(Margin::from(input.padding)),
+                input.height,
+            ),
+            Framing::Bare => (
+                Frame::NONE,
+                match self.lines {
+                    Lines::Single => sizer.role_line_height.unwrap_or(0.0),
+                    Lines::Multi { .. } => 0.0,
+                },
+            ),
         };
         let margin = frame.total_margin().sum();
         let line = sizer.line_height();
         let allocate = width.map_or(spacing.text_edit_width, f32::from);
         let inner_width = allocate - margin.x;
         let min_inner_height = self.rows() as f32 * line;
-        let min_size = vec2(
-            allocate,
-            (min_inner_height + margin.y).at_least(input.height),
-        );
+        let min_size = vec2(allocate, (min_inner_height + margin.y).at_least(floor));
 
         let inner = match (&self.hint, text.is_empty()) {
             (Some(hint), true) => {

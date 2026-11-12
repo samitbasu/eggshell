@@ -5,8 +5,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use egui::{
-    Align, Context, FontId, Frame, Key, Layout, Popup, Role, Sense, SetOpenCommand, Stroke, Ui,
-    Vec2, WidgetInfo, vec2,
+    Align, Color32, Context, FontId, Frame, Key, Layout, Popup, Role, Sense, SetOpenCommand,
+    Stroke, Ui, Vec2, WidgetInfo, vec2,
 };
 
 use super::choice::{self, Choice, IntoChoice};
@@ -100,12 +100,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static> SelectCha
     }
 
     /// Adds the select. `choose` runs with the chosen value.
+    #[track_caller]
     pub fn on_change(self, choose: impl Fn(&mut A, T) + Copy + 'static) {
         self.on_change_with(move |app, _, value| choose(app, value));
     }
 
     /// Adds the select. `choose` gets the application and the egui context,
     /// for a value the context holds.
+    #[track_caller]
     pub fn on_change_with(self, choose: impl Fn(&mut A, &Context, T) + Copy + 'static) {
         let Self {
             mut b,
@@ -267,6 +269,7 @@ impl<T> List<T> {
             .corner_radius(select.popup_radius)
             .inner_margin(select.popup_padding)
             .shadow(popup.paint.shadow.unwrap_or(egui::Shadow::NONE));
+        let widest = self.widest_label(ctx);
         let width = trigger.rect.width();
         let inner = Popup::from_response(trigger)
             .open_memory(command)
@@ -276,12 +279,30 @@ impl<T> List<T> {
             .accessible_name(&self.name)
             .show(|ui| {
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
-                ui.set_min_width(width - 2.0 * (select.popup_padding + popup.border_width));
+                let chrome = 2.0 * (select.popup_padding + popup.border_width);
+                let row = 3.0 * select.item_padding.x + select.chevron + widest;
+                ui.set_width((width - chrome).max(row));
                 self.rows(ui, &mut highlight)
             })
             .and_then(|popup| popup.inner);
         ctx.data_mut(|data| data.insert_temp(highlight_id, highlight));
         chosen.or(inner)
+    }
+
+    fn widest_label(&self, ctx: &Context) -> f32 {
+        let text = &self.style.text;
+        let font = FontId::new(text.size, text.family.clone());
+        ctx.fonts_mut(|fonts| {
+            self.options
+                .iter()
+                .map(|option| {
+                    fonts
+                        .layout_no_wrap(option.label.clone(), font.clone(), Color32::PLACEHOLDER)
+                        .size()
+                        .x
+                })
+                .fold(0.0, f32::max)
+        })
     }
 
     /// The option rows; the one clicked.

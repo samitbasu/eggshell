@@ -79,6 +79,7 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
 
     /// Adds the node. `draw` runs at draw time in the node's own `Ui`, with
     /// the application's state.
+    #[track_caller]
     pub fn ui(self, draw: impl FnOnce(&mut A, &mut Ui) + 'static) {
         let Self {
             mut b,
