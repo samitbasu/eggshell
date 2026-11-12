@@ -23,7 +23,9 @@ fn base() -> TextStyle {
 }
 
 fn rig(view: support::View<()>) -> Harness<'static, Rig<()>> {
-    support::harness(SIZE, base(), (), view)
+    let mut harness = support::harness(SIZE, base(), (), view);
+    harness.state_mut().companion = support::Companion::Alone;
+    harness
 }
 
 fn run(harness: &mut Harness<'_, Rig<()>>, mode: Debug) {

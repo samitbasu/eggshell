@@ -11,6 +11,7 @@ use std::collections::HashSet;
 use egui::{Context, Id, LayerId, Pos2};
 
 use crate::dismiss::{FocusAt, Opening};
+use crate::kept::Handle;
 use crate::overlay::Band;
 
 /// An open overlay.
@@ -43,22 +44,18 @@ pub(crate) enum Entered {
 /// One per [`LayoutState`](crate::LayoutState): a context that lays out
 /// several frames each frame (a header and a body) keeps each one's overlays
 /// apart, so that one frame never closes the overlays of another.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Stack {
-    scope: Id,
     opens: Vec<Open>,
 }
 
 impl Stack {
-    pub(crate) fn load(ctx: &Context, scope: Id) -> Self {
-        ctx.data(|data| data.get_temp(scope)).unwrap_or(Self {
-            scope,
-            opens: Vec::new(),
-        })
+    pub(crate) fn load(kept: &Handle) -> Self {
+        kept.with(|kept| kept.stack.clone())
     }
 
-    pub(crate) fn store(self, ctx: &Context) {
-        ctx.data_mut(|data| data.insert_temp(self.scope, self));
+    pub(crate) fn store(self, kept: &Handle) {
+        kept.with(|kept| kept.stack = self);
     }
 
     /// The entry of the overlay `id`, appended at the top if it was not open.

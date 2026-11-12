@@ -361,7 +361,7 @@ fn animating_an_anonymous_node_is_a_build_error() {
 fn nodes_that_are_no_longer_built_are_forgotten() {
     let mut harness = harness(App::new(&[1, 2, 3], &[1, 2, 3]), rows);
     let tracked = |harness: &Harness<'_, Rig<App>>| {
-        eggshell_ui::tracked_layout_nodes(&harness.ctx, harness.state().scope)
+        eggshell_ui::tracked_layout_nodes(&harness.state().layout)
     };
     assert_eq!(tracked(&harness), 3);
     harness.state_mut().app.order.truncate(1);

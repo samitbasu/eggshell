@@ -1430,7 +1430,8 @@ impl<A> Placed<A> {
             .and_then(|root| Some(self.roots[root].overlay()?.id));
         let Self {
             ctx: _,
-            stack: scope,
+            scope,
+            kept,
             nodes,
             prims,
             draws,
@@ -1448,7 +1449,7 @@ impl<A> Placed<A> {
         let live = dnd::drag_state(ui.ctx());
         let (dragging, finish) = dnd::begin(
             ui.ctx(),
-            ui.scope_id(),
+            scope,
             dnd::Tree {
                 nodes: &nodes,
                 by_id: &by_id,
@@ -1459,7 +1460,7 @@ impl<A> Placed<A> {
             app,
         );
         let selection = Style::of(ui.ctx()).selection;
-        let mut animation = LayoutAnimation::begin(ui.ctx(), ui.scope_id(), nodes[0].rect());
+        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, nodes[0].rect());
         if nodes.iter().any(|node| node.scroll.is_some()) {
             animation.anticipate(&nodes);
         }
@@ -1474,11 +1475,11 @@ impl<A> Placed<A> {
             recording,
             culled: Vec::new(),
             beneath: Vec::new(),
-            highlighted: nav::highlighted(ui.ctx(), scope),
+            highlighted: nav::highlighted(&kept),
         };
-        nav::activate_highlighted(ui.ctx(), scope);
+        nav::activate_highlighted(ui.ctx(), &kept);
         nav::apply_deferred(ui.ctx());
-        let keys = overlay_input::claim_keys(ui.ctx(), &nodes, &roots, live);
+        let keys = overlay_input::claim_keys(ui.ctx(), &kept, &nodes, &roots, live);
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
         let mut walk = Walk {
             app,
@@ -1500,7 +1501,7 @@ impl<A> Placed<A> {
         overlay_input::judge(
             overlay_input::Frame {
                 ctx: &ctx,
-                scope,
+                kept: &kept,
                 nodes: &nodes,
                 roots: &roots,
                 subtrees: &shared.subtrees,
@@ -1530,8 +1531,8 @@ impl<A> Placed<A> {
                 },
             );
         }
+        overlay_input::Typing::note(&ctx, &kept, &shared.subtrees);
         focus::store(&ctx, shared.subtrees);
-        overlay_input::Typing::note(&ctx);
         shared.animation.finish();
         drop(timer);
         if let Some(overflow) = overflow {

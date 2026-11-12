@@ -328,10 +328,13 @@ fn send_is_inert_while_the_draft_is_empty() {
 fn tab_walks_the_sidebar_in_order_and_skips_the_splitters() {
     let mut harness = harness();
     let mut order = Vec::new();
+    support::past_bar(&mut harness);
     for _ in 0..40 {
         harness.key_press(egui::Key::Tab);
         harness.run_steps(2);
-        let path = support::focused_path(&harness).expect("Tab always lands on a stop");
+        let Some(path) = support::focused_node(&harness) else {
+            break;
+        };
         if order.first() == Some(&path) {
             break;
         }
@@ -477,10 +480,13 @@ fn the_mode_control_has_one_pressed_cell_and_a_click_changes_it() {
 fn tab_reaches_the_model_then_the_composer_in_order_and_skips_an_inert_send() {
     let mut harness = harness();
     let mut order = Vec::new();
+    support::past_bar(&mut harness);
     for _ in 0..40 {
         harness.key_press(egui::Key::Tab);
         harness.run_steps(2);
-        let stop = support::focused_node(&harness).expect("a stop");
+        let Some(stop) = support::focused_node(&harness) else {
+            break;
+        };
         if order.first() == Some(&stop) {
             break;
         }
@@ -507,10 +513,13 @@ fn tab_reaches_the_model_then_the_composer_in_order_and_skips_an_inert_send() {
     harness.state_mut().app.draft = "x".into();
     harness.run_steps(3);
     let mut with_send = Vec::new();
+    support::past_bar(&mut harness);
     for _ in 0..40 {
         harness.key_press(egui::Key::Tab);
         harness.run_steps(2);
-        let stop = support::focused_node(&harness).expect("a stop");
+        let Some(stop) = support::focused_node(&harness) else {
+            break;
+        };
         if with_send.first() == Some(&stop) {
             break;
         }

@@ -341,7 +341,7 @@ impl<T: Copy + 'static> List<T> {
             .or_else(|| (0..self.options.len()).find(|&at| enabled(at)));
         if let Some(at) = start {
             let item = s.id_of(Part::Option(at));
-            nav::highlight_initially(s.ctx(), s.scope_id(), self.list, item, self.trigger);
+            nav::highlight_initially(s.ctx(), s.kept(), self.list, item, self.trigger);
         }
         let ctx = s.ctx().clone();
         for (index, option) in self.options.iter().enumerate() {

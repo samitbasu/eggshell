@@ -204,6 +204,7 @@ fn losing_window_focus_cancels() {
 #[test]
 fn alt_arrows_move_the_focused_row_without_a_pointer() {
     let mut h = harness(Image::Chip);
+    support::past_bar(&mut h);
     for _ in 0..3 {
         h.key_press(Key::Tab);
         h.run_steps(2);

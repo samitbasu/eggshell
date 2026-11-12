@@ -332,12 +332,13 @@ fn segments(b: &mut Builder<'_, '_, App>, app: &App) {
 fn raised_cells(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
     let tokens = Tokens::light();
     let raised = tokens.shadow_sm.color;
+    let window = harness.ctx.content_rect();
     let shapes: Vec<_> = harness
         .output()
         .shapes
         .iter()
         .filter_map(|clipped| match &clipped.shape {
-            Shape::Rect(rect) => Some(rect.clone()),
+            Shape::Rect(rect) if window.contains_rect(rect.rect) => Some(rect.clone()),
             _ => None,
         })
         .collect();

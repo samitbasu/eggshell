@@ -16,6 +16,7 @@ use crate::debug::{Debug, Phase, Timer};
 use crate::dismiss::Opening;
 use crate::dnd::{Decls, EdgeScroll, NodeDrag};
 use crate::focus;
+use crate::kept::Handle;
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
@@ -147,8 +148,10 @@ pub(crate) type DismissFn<A> = Box<dyn FnOnce(&mut A)>;
 
 /// Build data that persists across frames so allocations are reused.
 pub(crate) struct BuildState {
-    /// Names this state's overlay stack in the egui context.
+    /// Names this state among those sharing a context: the owner a drag's
+    /// gesture is tagged with.
     pub scope: Id,
+    pub kept: Handle,
     pub tree: TaffyTree<Node>,
     pub seen: Seen,
     pub names: ReadablePath,
@@ -184,6 +187,12 @@ impl<A> Frame<'_, A> {
 /// replaces it, and [`set_base_text`](Self::set_base_text) changes or clears
 /// that between builds. Any subtree can still override fields with text classes on a
 /// div.
+///
+/// Eggshell's own state between frames (the overlay stack, the listbox
+/// highlight, the layout animation) lives here, not in the egui context, so an
+/// app that lays out a bar and a page in one context keeps them apart. egui
+/// keeps egui's own (focus, text-edit memory, the clock), and diagnostics are
+/// context-wide.
 pub struct LayoutState {
     st: BuildState,
     base_text: Option<TextStyle>,
@@ -195,17 +204,13 @@ impl Default for LayoutState {
     }
 }
 
-/// A fresh name for the overlay stack of a [`LayoutState`].
-fn stack_scope() -> Id {
+/// A fresh name for a [`LayoutState`].
+fn fresh_scope() -> Id {
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     root_id().with((
-        "overlay-stack",
+        "layout-state",
         NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
     ))
-}
-
-fn area_key(scope: Id) -> Id {
-    scope.with("layout-area")
 }
 
 /// The room an overlay would have.
@@ -218,17 +223,17 @@ pub(crate) enum Room {
 }
 
 /// Whether an overlay of the `natural` size anchored to `anchor` gets the
-/// room it wants under `placement`, as the last layout of `scope` placed
+/// room it wants under `placement`, as the last layout of the state placed
 /// things. Asks [`place`] itself, so that a build-time decision to scroll
 /// agrees with the clamp the layout applies.
 pub(crate) fn room_for(
     ctx: &egui::Context,
-    scope: Id,
+    kept: &Handle,
     anchor: Id,
     placement: &Placement,
     natural: Vec2,
 ) -> Room {
-    let area = ctx.data(|data| data.get_temp::<Rect>(area_key(scope)));
+    let area = kept.with(|kept| kept.area);
     let anchor = ctx.read_response(anchor).map(|response| response.rect);
     match (area, anchor) {
         (Some(area), Some(anchor))
@@ -241,13 +246,18 @@ pub(crate) fn room_for(
 }
 
 impl LayoutState {
+    pub(crate) fn kept(&self) -> &Handle {
+        &self.st.kept
+    }
+
     /// An empty state.
     pub fn new() -> Self {
         let mut tree = TaffyTree::new();
         tree.disable_rounding();
         Self {
             st: BuildState {
-                scope: stack_scope(),
+                scope: fresh_scope(),
+                kept: Handle::default(),
                 tree,
                 seen: Seen::default(),
                 names: ReadablePath::default(),
@@ -443,8 +453,8 @@ impl<'f, A> Built<'f, A> {
             kind: PlacedRootKind::Base,
         }];
         let scope = st.scope;
-        ctx.data_mut(|data| data.insert_temp(area_key(scope), area));
-        let mut stack = Stack::load(ctx, scope);
+        st.kept.with(|kept| kept.area = Some(area));
+        let mut stack = Stack::load(&st.kept);
         let mut present = HashSet::new();
         for decl in decls {
             let RootDecl {
@@ -607,12 +617,13 @@ impl<'f, A> Built<'f, A> {
                     .expect("an open overlay is in the stack");
             }
         }
-        stack.store(ctx);
+        stack.store(&st.kept);
         drop(measures);
         let draws = draws.into_iter().map(Some).collect();
         Placed {
             ctx: ctx.clone(),
-            stack: scope,
+            scope,
+            kept: st.kept.clone(),
             nodes,
             by_id,
             prims,
@@ -1225,7 +1236,8 @@ impl PlacedNode {
 /// node followed by its descendants.
 pub struct Placed<A> {
     pub(crate) ctx: egui::Context,
-    pub(crate) stack: Id,
+    pub(crate) scope: Id,
+    pub(crate) kept: Handle,
     pub(crate) nodes: Vec<PlacedNode>,
     pub(crate) by_id: HashMap<Id, usize>,
     pub(crate) prims: Vec<Option<Prim>>,

@@ -1005,6 +1005,7 @@ mod listbox {
 
     fn open() -> Harness<'static, Rig<App>> {
         let mut harness = harness(App::default());
+        support::past_bar(&mut harness);
         for _ in 0..3 {
             harness.key_press(Key::Tab);
         }

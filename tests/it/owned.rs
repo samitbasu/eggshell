@@ -222,6 +222,7 @@ fn the_focus_ring_is_shadcns_three_pixels_at_half_ring() {
     for theme in [Theme::Light, Theme::Dark] {
         let mut harness = harness(theme);
         let tokens = Tokens::for_theme(theme);
+        support::past_bar(&mut harness);
         harness.key_press(Key::Tab);
         harness.run_steps(12);
         let node = path(variant::PRIMARY, Enablement::Enabled);
@@ -262,6 +263,7 @@ fn destructive_has_its_own_focus_ring() {
     let mut harness = harness(Theme::Light);
     let node = path(variant::DESTRUCTIVE, Enablement::Enabled);
     click_node(&mut harness, &node);
+    support::past_bar(&mut harness);
     for _ in 0..3 {
         harness.key_press(Key::Tab);
         harness.run_steps(2);
@@ -381,6 +383,7 @@ fn clicking_and_keys_activate() {
     assert_eq!(harness.state().app.clicks, ["primary"]);
 
     harness.hover_at(egui::pos2(490.0, 690.0));
+    support::past_bar(&mut harness);
     harness.key_press(Key::Tab);
     harness.run_steps(2);
     assert_eq!(
@@ -401,6 +404,7 @@ fn clicking_and_keys_activate() {
 fn tab_visits_enabled_controls_only() {
     let mut harness = harness(Theme::Light);
     let mut visited = Vec::new();
+    support::past_bar(&mut harness);
     for _ in 0..12 {
         harness.key_press(Key::Tab);
         harness.run_steps(2);

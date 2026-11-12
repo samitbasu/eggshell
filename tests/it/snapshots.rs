@@ -473,6 +473,7 @@ fn snapshot_themed_in<A: 'static>(
     let mut harness = support::harness_prepared(size, base_text, app, view, prepare);
     common::set_style(&harness.ctx, style);
     harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
     harness.ctx.set_theme(theme);
     harness.run_steps(2);
     if let Some(pointer) = pointer {
@@ -574,6 +575,7 @@ fn debug_overlay_todo() {
         |ctx, _| eggshell_ui::Debug::set(ctx, eggshell_ui::Debug::Outlines),
     );
     harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
     harness.ctx.set_theme(theme);
     harness.run_steps(2);
     harness.hover_at(egui::pos2(200.0, 88.0));
@@ -767,6 +769,7 @@ fn gallery_styled(style: ShadcnStyle, name: &str, width: f32, theme: egui::Theme
     );
     common::set_style(&harness.ctx, style);
     harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
     harness.ctx.set_theme(theme);
     harness.run_steps(4);
     let reports = &harness.state().app.reports;
@@ -841,6 +844,7 @@ fn owned_section_in(
     );
     common::set_style(&harness.ctx, style);
     harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
     harness.ctx.set_theme(theme);
     harness.run_steps(12);
     act(&mut harness);
@@ -1331,6 +1335,7 @@ fn scroll_in(name: &str, theme: egui::Theme, scrolled: bool) {
         |_, _| {},
     );
     harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
     harness.ctx.set_theme(theme);
     harness.run_steps(3);
     if scrolled {
