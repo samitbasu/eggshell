@@ -181,6 +181,41 @@ fn escape_goes(layers: &[Layer], nodes: &[PlacedNode], input: &Input) -> EscapeG
     actions::button_in(nodes, 0, Action::Cancel).map_or(EscapeGoes::Nobody, EscapeGoes::Window)
 }
 
+/// Whether a text input had focus at the end of the last pass, which is what
+/// tells an Esc that only unfocused it from one that is the application's:
+/// egui drops the field's focus before the frame is built.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum Typing {
+    #[default]
+    No,
+    Yes,
+}
+
+impl Typing {
+    fn key() -> Id {
+        crate::key::root_id().with("typing")
+    }
+
+    /// Notes whether a text input has focus now. Run at the end of a pass.
+    pub(crate) fn note(ctx: &Context) {
+        let now = if ctx.text_edit_focused() {
+            Self::Yes
+        } else {
+            Self::No
+        };
+        ctx.data_mut(|data| data.insert_temp(Self::key(), now));
+    }
+
+    /// Whether the Esc of this pass was the one that took a text input's
+    /// focus: it had focus at the end of the last pass and nothing has now.
+    fn escape_blurred(ctx: &Context) -> bool {
+        let before = ctx
+            .data(|data| data.get_temp::<Self>(Self::key()))
+            .unwrap_or_default();
+        before == Self::Yes && ctx.memory(|memory| memory.focused()).is_none()
+    }
+}
+
 /// The keys the frame pressed that the library answers, decided from the
 /// layout before any draw closure runs.
 #[derive(Clone, Copy, Debug)]
@@ -194,7 +229,9 @@ pub(crate) struct Keys {
 /// Decides who Esc and Return belong to and takes them from the frame's
 /// input, so that no draw closure (a custom canvas under a menu) sees a key
 /// that dismissed an overlay or pressed a button: it belongs to the overlay
-/// alone, as with `stopPropagation`. `judge` applies the decisions.
+/// alone, as with `stopPropagation`. An Esc whose only effect was to
+/// unfocus a text field belongs to the field the same way. `judge` applies
+/// the decisions.
 pub(crate) fn claim_keys(
     ctx: &Context,
     nodes: &[PlacedNode],
@@ -217,7 +254,11 @@ pub(crate) fn claim_keys(
     let layers = layers_of(&open, nodes, roots, |_| {
         (FocusAt::Nowhere, FocusAt::Nowhere)
     });
-    if !matches!(escape_goes(&layers, nodes, &input), EscapeGoes::Nobody) {
+    let belongs_to_the_library = match escape_goes(&layers, nodes, &input) {
+        EscapeGoes::Nobody => input.escape && !input.drag_live && Typing::escape_blurred(ctx),
+        EscapeGoes::Overlay | EscapeGoes::Window(_) => true,
+    };
+    if belongs_to_the_library {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
     }
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
@@ -370,7 +411,7 @@ impl Source {
     }
 
     /// Notes the source of this frame's input, if it has any.
-    fn note(ctx: &Context) {
+    pub(crate) fn note(ctx: &Context) {
         let latest = ctx.input(|input| {
             input.events.iter().rev().find_map(|event| match event {
                 Event::PointerButton { pressed: true, .. } => Some(Self::Pointer),

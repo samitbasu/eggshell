@@ -25,6 +25,7 @@ mod dnd_zones;
 mod draw;
 mod duplicate_key;
 mod edits;
+mod escape_field;
 mod focus;
 mod focus_on_appear;
 mod form_demo;

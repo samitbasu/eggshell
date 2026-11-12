@@ -1531,6 +1531,7 @@ impl<A> Placed<A> {
             );
         }
         focus::store(&ctx, shared.subtrees);
+        overlay_input::Typing::note(&ctx);
         shared.animation.finish();
         drop(timer);
         if let Some(overflow) = overflow {
