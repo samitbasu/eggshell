@@ -193,6 +193,7 @@ type H = Harness<'static, Rig<App>>;
 fn harness_with(app: App) -> H {
     let mut h = support::harness(SIZE, base(), app, view);
     h.run_steps(3);
+    support::past_bar(&mut h);
     h
 }
 

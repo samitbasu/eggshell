@@ -110,14 +110,21 @@ fn tab_visits_nodes_in_paint_order_and_skips_the_opted_out() {
 
     // z paints `first` after its siblings, and egui registers in paint order.
     let mut order = Vec::new();
-    for _ in 0..4 {
+    support::past_bar(&mut harness);
+    for _ in 0..3 {
         tab(&mut harness, egui::Modifiers::NONE);
         order.push(focused(&harness));
     }
     assert_eq!(
         order,
-        [Some("second"), Some("last"), Some("first"), Some("second")],
+        [Some("second"), Some("last"), Some("first")],
         "the z-raised node is last in paint order, the opted-out one is absent"
+    );
+    tab(&mut harness, egui::Modifiers::NONE);
+    assert_eq!(
+        support::focused_path(&harness).as_deref(),
+        Some("<widget>"),
+        "the stop after the last is the bar's"
     );
 
     tab(&mut harness, egui::Modifiers::SHIFT);
@@ -132,6 +139,7 @@ fn the_focused_node_paints_its_focus_variant() {
     harness.run();
     assert!(rings(&harness).is_empty(), "no focus, no ring");
 
+    support::past_bar(&mut harness);
     tab(&mut harness, egui::Modifiers::NONE);
     assert_eq!(focused(&harness), Some("second"));
     assert_eq!(rings(&harness), [rect_of(&harness, "/\"second\"")]);
@@ -144,6 +152,7 @@ fn the_focused_node_paints_its_focus_variant() {
 fn enter_and_space_click_the_focused_node() {
     let mut harness = harness(row);
     harness.run();
+    support::past_bar(&mut harness);
     tab(&mut harness, egui::Modifiers::NONE);
     assert_eq!(focused(&harness), Some("second"));
     assert!(harness.state().app.clicks.is_empty(), "precondition");
@@ -190,6 +199,7 @@ fn with_inert(b: &mut Builder<'_, '_, App>, _: &App) {
 fn an_inert_subtree_is_not_a_tab_stop() {
     let mut harness = harness(with_inert);
     harness.run();
+    support::past_bar(&mut harness);
     tab(&mut harness, egui::Modifiers::NONE);
     assert_eq!(focused(&harness), Some("live"));
     tab(&mut harness, egui::Modifiers::NONE);
@@ -267,6 +277,7 @@ fn has_focus_at_build_drives_a_layout_change_one_frame_later() {
     harness.run_steps(2);
     assert_eq!(rect_of(&harness, "/\"box\"").width(), 100.0);
 
+    support::past_bar(&mut harness);
     harness.key_down(Key::Tab);
     harness.step();
     assert_eq!(
@@ -357,6 +368,8 @@ fn ring_inset_paints_the_ring_inside_the_border_box_and_changes_no_layout() {
         rect_of(&inside, "/\"cell\""),
         "same layout"
     );
+    support::past_bar(&mut outside);
+    support::past_bar(&mut inside);
     tab(&mut outside, egui::Modifiers::NONE);
     tab(&mut inside, egui::Modifiers::NONE);
     let node = rect_of(&inside, "/\"cell\"");

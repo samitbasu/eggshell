@@ -175,7 +175,9 @@ fn members_after_other_nodes_and_nested_two_divs_deep_work() {
 
 #[test]
 fn members_are_radio_buttons_in_the_accessibility_tree() {
-    let harness = harness_of(view);
+    let mut harness = harness_of(view);
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.run();
     assert_eq!(
         harness.query_all_by_role(Role::RadioButton).count(),
         LABELS.len()

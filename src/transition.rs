@@ -8,6 +8,7 @@ use core::time::Duration;
 
 use std::collections::HashMap;
 
+use crate::kept::Handle;
 use egui::{Context, Id, Pos2, Rect, Vec2};
 
 use crate::continuity::{Interrupted, Slide, SlideId};
@@ -128,7 +129,7 @@ impl Tracked {
 /// The animated nodes of the last frame drawn into one `Ui`, and the area
 /// they were laid out in.
 #[derive(Clone)]
-struct Tracking {
+pub(crate) struct Tracking {
     area: Rect,
     time: f64,
     nodes: HashMap<Id, Tracked>,
@@ -144,10 +145,6 @@ impl Default for Tracking {
     }
 }
 
-fn tracking_id(scope: Id) -> Id {
-    crate::key::root_id().with(("layout-animation", scope))
-}
-
 /// Moves the painting of nodes with an `animate_layout` from where the
 /// previous frame laid them out to where this one does.
 ///
@@ -156,7 +153,7 @@ fn tracking_id(scope: Id) -> Id {
 /// moves. Nodes not seen this frame are forgotten when it ends.
 pub(crate) struct LayoutAnimation {
     ctx: Context,
-    scope: Id,
+    kept: Handle,
     now: f64,
     previous: HashMap<Id, Tracked>,
     current: HashMap<Id, Tracked>,
@@ -170,10 +167,8 @@ impl LayoutAnimation {
     /// scrolled one does, is not a resize): no move starts a slide, but the slides
     /// in flight in the previous frame go on, retargeted from where they are painted like any
     /// interrupted move.
-    pub(crate) fn begin(ctx: &Context, scope: Id, area: Rect) -> Self {
-        let before: Tracking = ctx
-            .data(|data| data.get_temp(tracking_id(scope)))
-            .unwrap_or_default();
+    pub(crate) fn begin(ctx: &Context, kept: &Handle, area: Rect) -> Self {
+        let before = kept.with(|kept| kept.animation.clone());
         let now = ctx.input(|input| input.time);
         let mut previous = before.nodes;
         if before.area.size() != area.size() {
@@ -181,7 +176,7 @@ impl LayoutAnimation {
         }
         Self {
             ctx: ctx.clone(),
-            scope,
+            kept: kept.clone(),
             now,
             previous,
             current: HashMap::new(),
@@ -274,22 +269,18 @@ impl LayoutAnimation {
     pub(crate) fn finish(self) {
         let nodes = self.current;
         let area = self.area;
-        self.ctx.data_mut(|data| {
-            data.insert_temp(
-                tracking_id(self.scope),
-                Tracking {
-                    area,
-                    time: self.now,
-                    nodes,
-                },
-            );
+        self.kept.with(|kept| {
+            kept.animation = Tracking {
+                area,
+                time: self.now,
+                nodes,
+            };
         });
     }
 }
 
-/// How many nodes the layout animation of the `Ui` with id `scope` tracks.
+/// How many nodes the layout animation of `layout` tracks.
 #[doc(hidden)]
-pub fn tracked_layout_nodes(ctx: &Context, scope: Id) -> usize {
-    ctx.data(|data| data.get_temp::<Tracking>(tracking_id(scope)))
-        .map_or(0, |tracking| tracking.nodes.len())
+pub fn tracked_layout_nodes(layout: &crate::LayoutState) -> usize {
+    layout.kept().with(|kept| kept.animation.nodes.len())
 }

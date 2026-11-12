@@ -60,10 +60,13 @@ fn fill(harness: &mut Harness<'_, Rig<State>>, part: Profile, text: &str) {
 /// Every Tab stop, in order, until the first comes round again.
 fn tab_stops(harness: &mut Harness<'_, Rig<State>>) -> Vec<String> {
     let mut order = Vec::new();
+    support::past_bar(harness);
     for _ in 0..40 {
         harness.key_press(Key::Tab);
         harness.run_steps(2);
-        let stop = focused_node(harness).expect("Tab always lands on a stop");
+        let Some(stop) = focused_node(harness) else {
+            break;
+        };
         if order.first() == Some(&stop) {
             break;
         }

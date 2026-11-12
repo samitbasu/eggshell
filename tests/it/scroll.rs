@@ -442,6 +442,7 @@ fn scrolling_changes_which_nodes_are_drawn() {
 fn the_node_with_the_keyboard_focus_is_drawn_while_scrolled_out() {
     let mut h = harness(10);
     let id = support::id_of(&h, &row_path(0));
+    support::past_bar(&mut h);
     h.key_press(egui::Key::Tab);
     h.key_press(egui::Key::Tab);
     h.run_steps(2);
@@ -1003,7 +1004,7 @@ mod nested {
             mime: String::new(),
         }];
         h.hover_at(Pos2::new(inner.center().x, inner.max.y - 2.0));
-        h.run_steps(20);
+        h.run_steps(10);
         assert!(
             offset_of(&h, INNER).y > 20.0,
             "the inner scrolled: {:?}",

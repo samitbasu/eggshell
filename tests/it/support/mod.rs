@@ -11,6 +11,84 @@ use egui::epaint::{RectShape, Shape, StrokeKind};
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
 use egui_kittest::Harness;
 
+/// What else shares the egui context with the layout under test.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Companion {
+    /// A second `LayoutState` laid out before the view every frame, as the
+    /// examples' theme bar is: library state kept per context instead of per
+    /// layout shows up as a failure.
+    #[default]
+    Bar,
+    /// The view alone, for pixel-exact goldens.
+    Alone,
+}
+
+/// A small layout of focusable controls, laid out and drawn just above the
+/// window so that it takes part in focus, Tab order and every per-frame pass
+/// without painting over or catching the pointer of the view under test.
+pub struct Bar {
+    layout: LayoutState,
+    last_stop: Option<egui::Id>,
+}
+
+/// A rig that carries a [`Bar`].
+pub trait Barred {
+    fn bar(&self) -> &Bar;
+}
+
+impl<A> Barred for Rig<A> {
+    fn bar(&self) -> &Bar {
+        &self.bar
+    }
+}
+
+impl<A> Barred for FrameRig<A> {
+    fn bar(&self) -> &Bar {
+        &self.bar
+    }
+}
+
+/// Puts focus on the bar's last Tab stop, so that the next Tab enters the
+/// view's first: a test that Tabs "from nothing" starts here, as a user who
+/// has Tabbed past the app's bar does. Does nothing when the rig has no bar.
+pub fn past_bar<S: Barred>(harness: &mut Harness<'_, S>) {
+    if let Some(stop) = harness.state().bar().last_stop {
+        harness.ctx.memory_mut(|memory| memory.request_focus(stop));
+        harness.run_steps(2);
+    }
+}
+
+impl Bar {
+    pub fn new(base_text: TextStyle) -> Self {
+        Self {
+            layout: LayoutState::new().with_base_text(base_text),
+            last_stop: None,
+        }
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        let window = ui.max_rect();
+        let area = Rect::from_min_size(
+            Pos2::new(window.min.x, window.min.y - BAR_HEIGHT),
+            Vec2::new(window.width(), BAR_HEIGHT),
+        );
+        let placed = self
+            .layout
+            .build(ui.ctx(), |b: &mut Builder<'_, '_, ()>| {
+                b.div(eggshell_ui::tw().flex().items_center().gap(3.0), |b| {
+                    b.segmented("bar-segmented", 0u8, [(0u8, "One"), (1, "Two")])
+                        .on_change(|_: &mut (), _| {});
+                    b.button("bar-button", "Bar").on_click(|_: &mut ()| {});
+                });
+            })
+            .layout(area);
+        self.last_stop = placed.nodes().filter_map(|node| node.id()).last();
+        placed.draw(&mut (), ui);
+    }
+}
+
+const BAR_HEIGHT: f32 = 44.0;
+
 pub type View<A> = for<'b, 'f> fn(&mut Builder<'b, 'f, A>, &A);
 
 /// What the rig paints under the layout.
@@ -26,10 +104,10 @@ pub enum Page {
 
 pub struct Rig<A> {
     pub page: Page,
-    layout: LayoutState,
+    pub companion: Companion,
+    pub bar: Bar,
+    pub layout: LayoutState,
     pub app: A,
-    /// The `scope_id` of the `Ui` the layout is drawn into.
-    pub scope: egui::Id,
     view: View<A>,
     prepare: fn(&egui::Context, &A),
     /// Every node of the last frame: its readable path and border box.
@@ -93,9 +171,10 @@ fn harness_timed<A: 'static>(
 ) -> Harness<'static, Rig<A>> {
     let rig = Rig {
         page: Page::default(),
+        companion: Companion::default(),
+        bar: Bar::new(base_text.clone()),
         layout: LayoutState::new().with_base_text(base_text),
         app,
-        scope: egui::Id::NULL,
         view,
         prepare,
         nodes: Vec::new(),
@@ -111,15 +190,15 @@ fn harness_timed<A: 'static>(
                 let area = ui.max_rect();
                 let Rig {
                     page,
+                    companion,
+                    bar,
                     layout,
                     app,
-                    scope,
                     view,
                     prepare,
                     nodes,
                     ids,
                 } = rig;
-                *scope = ui.scope_id();
                 if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                     eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
                 }
@@ -128,6 +207,9 @@ fn harness_timed<A: 'static>(
                     let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
                     ui.painter()
                         .rect_filled(ui.ctx().content_rect(), 0.0, background);
+                }
+                if *companion == Companion::Bar {
+                    bar.show(ui);
                 }
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *nodes = placed
@@ -355,6 +437,7 @@ pub fn sweep<A, T>(
 /// after the draw): `frame` runs inside the harness's root `Ui` each step.
 pub struct FrameRig<A> {
     pub app: A,
+    pub bar: Bar,
     pub layout: LayoutState,
 }
 
@@ -377,6 +460,7 @@ pub fn frame_harness_scaled<A: 'static>(
 ) -> Harness<'static, FrameRig<A>> {
     let rig = FrameRig {
         app,
+        bar: Bar::new(base_text.clone()),
         layout: LayoutState::new().with_base_text(base_text),
     };
     let harness = Harness::builder()
@@ -391,6 +475,7 @@ pub fn frame_harness_scaled<A: 'static>(
                 let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
                 ui.painter()
                     .rect_filled(ui.ctx().content_rect(), 0.0, background);
+                rig.bar.show(ui);
                 frame(ui, &mut rig.app, &mut rig.layout);
             },
             rig,

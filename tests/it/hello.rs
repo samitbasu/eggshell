@@ -411,10 +411,14 @@ mod signup {
     fn tab_walks_the_form_in_order() {
         let mut harness = signup(640.0);
         let mut order = Vec::new();
+        support::past_bar(&mut harness);
         for _ in 0..12 {
             harness.key_press(egui::Key::Tab);
             harness.run_steps(2);
-            order.push(focused_node(&harness).expect("a stop"));
+            let Some(stop) = focused_node(&harness) else {
+                break;
+            };
+            order.push(stop);
         }
         let expected: Vec<String> = [
             Part::FirstName,

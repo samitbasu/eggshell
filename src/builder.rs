@@ -191,12 +191,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         placement: &crate::overlay::Placement,
         natural: egui::Vec2,
     ) -> crate::pipeline::Room {
-        crate::pipeline::room_for(self.frame.ctx, self.st.scope, anchor, placement, natural)
+        crate::pipeline::room_for(self.frame.ctx, &self.st.kept, anchor, placement, natural)
     }
 
-    /// Names this builder's `LayoutState` among those sharing a context.
-    pub(crate) fn scope_id(&self) -> Id {
-        self.st.scope
+    pub(crate) fn kept(&self) -> &crate::kept::Handle {
+        &self.st.kept
     }
 
     /// The egui context the frame is built with, for reading the local state

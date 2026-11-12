@@ -19,6 +19,7 @@ use crate::nav::{self, Menu};
 use crate::overlay::{Anchor, AnchorLookup, Behavior, Focus, Nav};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::roots::{Form, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
+use crate::kept::Handle;
 use crate::stack::{Entered, Stack};
 
 /// Whether an in-app drag is live.
@@ -181,9 +182,11 @@ fn escape_goes(layers: &[Layer], nodes: &[PlacedNode], input: &Input) -> EscapeG
     actions::button_in(nodes, 0, Action::Cancel).map_or(EscapeGoes::Nobody, EscapeGoes::Window)
 }
 
-/// Whether a text input had focus at the end of the last pass, which is what
-/// tells an Esc that only unfocused it from one that is the application's:
-/// egui drops the field's focus before the frame is built.
+/// Whether a text input of this layout had focus at the end of the last pass,
+/// which is what tells an Esc that only unfocused it from one that is the
+/// application's: egui drops the field's focus before the frame is built.
+/// Another layout's field does not count, or the first layout drawn would take
+/// the Esc from the one that has the field.
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum Typing {
     #[default]
@@ -192,26 +195,24 @@ pub(crate) enum Typing {
 }
 
 impl Typing {
-    fn key() -> Id {
-        crate::key::root_id().with("typing")
-    }
-
-    /// Notes whether a text input has focus now. Run at the end of a pass.
-    pub(crate) fn note(ctx: &Context) {
-        let now = if ctx.text_edit_focused() {
+    /// Notes whether a text input among `subtrees` has focus now. Run at the
+    /// end of a pass.
+    pub(crate) fn note(ctx: &Context, kept: &Handle, subtrees: &[(Id, Box<[Id]>)]) {
+        let own = ctx.memory(|memory| memory.focused()).is_some_and(|focused| {
+            subtrees.iter().any(|(_, widgets)| widgets.contains(&focused))
+        });
+        let now = if own && ctx.text_edit_focused() {
             Self::Yes
         } else {
             Self::No
         };
-        ctx.data_mut(|data| data.insert_temp(Self::key(), now));
+        kept.with(|kept| kept.typing = now);
     }
 
     /// Whether the Esc of this pass was the one that took a text input's
     /// focus: it had focus at the end of the last pass and nothing has now.
-    fn escape_blurred(ctx: &Context) -> bool {
-        let before = ctx
-            .data(|data| data.get_temp::<Self>(Self::key()))
-            .unwrap_or_default();
+    fn escape_blurred(ctx: &Context, kept: &Handle) -> bool {
+        let before = kept.with(|kept| kept.typing);
         before == Self::Yes && ctx.memory(|memory| memory.focused()).is_none()
     }
 }
@@ -234,6 +235,7 @@ pub(crate) struct Keys {
 /// the decisions.
 pub(crate) fn claim_keys(
     ctx: &Context,
+    kept: &Handle,
     nodes: &[PlacedNode],
     roots: &[PlacedRoot],
     drag: Drag,
@@ -255,7 +257,7 @@ pub(crate) fn claim_keys(
         (FocusAt::Nowhere, FocusAt::Nowhere)
     });
     let belongs_to_the_library = match escape_goes(&layers, nodes, &input) {
-        EscapeGoes::Nobody => input.escape && !input.drag_live && Typing::escape_blurred(ctx),
+        EscapeGoes::Nobody => input.escape && !input.drag_live && Typing::escape_blurred(ctx, kept),
         EscapeGoes::Overlay | EscapeGoes::Window(_) => true,
     };
     if belongs_to_the_library {
@@ -276,8 +278,7 @@ pub(crate) fn claim_keys(
 /// What `judge` reads of the frame.
 pub(crate) struct Frame<'a> {
     pub(crate) ctx: &'a Context,
-    /// The `LayoutState`'s overlay stack.
-    pub(crate) scope: Id,
+    pub(crate) kept: &'a Handle,
     pub(crate) nodes: &'a [PlacedNode],
     pub(crate) roots: &'a [PlacedRoot],
     pub(crate) subtrees: &'a [(Id, Box<[Id]>)],
@@ -291,7 +292,7 @@ pub(crate) struct Frame<'a> {
 pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>, app: &mut A) {
     let Frame {
         ctx,
-        scope,
+        kept,
         nodes,
         roots,
         subtrees,
@@ -300,12 +301,11 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     } = frame;
     let open = open_overlays(roots);
     nav::forget_closed(
-        ctx,
-        scope,
+        kept,
         &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
     );
     let source = Source::last(ctx);
-    let mut stack = Stack::load(ctx, scope);
+    let mut stack = Stack::load(kept);
     let layers = layers_of(&open, nodes, roots, |open| {
         let before = stack
             .get_mut(open.overlay.id)
@@ -371,7 +371,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             }
         }
     }
-    stack.store(ctx);
+    stack.store(kept);
 
     let menus: Vec<Menu> = open
         .iter()
@@ -391,7 +391,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             anchor: open.anchor_node(),
         })
         .collect();
-    for id in nav::navigate(ctx, scope, &menus) {
+    for id in nav::navigate(ctx, kept, &menus) {
         if let Some(then) = dismiss.remove(&id) {
             then(app);
         }

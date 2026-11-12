@@ -393,6 +393,7 @@ fn a_segmented_control_has_exactly_one_pressed_cell_and_clicks_change_it() {
 #[test]
 fn the_keyboard_chooses_a_cell() {
     let mut harness = picker_harness();
+    support::past_bar(&mut harness);
     harness.key_press(Key::Tab);
     harness.key_press(Key::Tab);
     harness.run_steps(2);

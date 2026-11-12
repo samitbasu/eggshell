@@ -462,6 +462,7 @@ fn installing_a_modified_style_changes_every_owned_widget() {
 #[test]
 fn a_radio_group_is_one_tab_stop_on_the_chosen_option() {
     let mut harness = harness(Theme::Light);
+    support::past_bar(&mut harness);
     harness.key_press(Key::Tab);
     harness.run_steps(2);
     assert_eq!(
@@ -507,6 +508,7 @@ fn tab_enters_a_group_on_its_chosen_option_wherever_it_is() {
     let mut harness = harness(Theme::Light);
     harness.state_mut().app.unit = Unit::Nautical;
     harness.run_steps(3);
+    support::past_bar(&mut harness);
     harness.key_press(Key::Tab);
     harness.run_steps(2);
     assert_eq!(
