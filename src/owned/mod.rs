@@ -226,7 +226,7 @@ impl<A> FieldHooks<A> {
             && had_focus
             && !has_focus
         {
-            then(app, Blur::of(ui.ctx()));
+            then(app, crate::draw::blur_cause(ui));
         }
     }
 }

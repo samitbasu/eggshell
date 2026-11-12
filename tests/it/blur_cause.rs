@@ -148,3 +148,78 @@ fn escape_reverts_and_leaving_writes() {
     let app = &harness.state().app;
     assert_eq!((app.draft.as_str(), app.saved.as_str()), ("xyz", "xyz"));
 }
+
+#[derive(Default)]
+struct Log {
+    top: Vec<Blur>,
+    bottom: Vec<Blur>,
+}
+
+struct Two {
+    top: eggshell_ui::LayoutState,
+    bottom: eggshell_ui::LayoutState,
+    log: Log,
+}
+
+#[test]
+fn the_cause_does_not_leak_between_two_layouts() {
+    use egui_kittest::kittest::Queryable as _;
+    let state = Two {
+        top: eggshell_ui::LayoutState::new().with_base_text(base_text()),
+        bottom: eggshell_ui::LayoutState::new().with_base_text(base_text()),
+        log: Log::default(),
+    };
+    let mut harness = Harness::builder()
+        .with_size(vec2(400.0, 300.0))
+        .build_ui_state(
+            |ui, two: &mut Two| {
+                let Two { top, bottom, log } = two;
+                let window = ui.max_rect();
+                let (upper, lower) = (
+                    egui::Rect::from_min_size(window.min, vec2(400.0, 100.0)),
+                    egui::Rect::from_min_size(window.min + vec2(0.0, 150.0), vec2(400.0, 100.0)),
+                );
+                top.build(ui.ctx(), |b: &mut Builder<'_, '_, Log>| {
+                    b.text_field("top", "")
+                        .named("Top")
+                        .classes(tw().w_px(160.0))
+                        .when_blurred(|log: &mut Log, cause| log.top.push(cause))
+                        .on_change(|_: &mut Log, _| {});
+                })
+                .layout(upper)
+                .draw(log, ui);
+                bottom
+                    .build(ui.ctx(), |b: &mut Builder<'_, '_, Log>| {
+                        b.text_field("bottom", "")
+                            .named("Bottom")
+                            .classes(tw().w_px(160.0))
+                            .when_blurred(|log: &mut Log, cause| log.bottom.push(cause))
+                            .on_change(|_: &mut Log, _| {});
+                    })
+                    .layout(lower)
+                    .draw(log, ui);
+            },
+            state,
+        );
+    harness.run_steps(4);
+
+    harness.get_by_label("Top").click();
+    harness.run_steps(6);
+    harness.get_by_label("Bottom").click();
+    harness.run_steps(6);
+    assert_eq!(harness.state().log.top, [Blur::Elsewhere], "precondition");
+
+    harness.key_press(Key::Escape);
+    harness.run_steps(6);
+    let log = &harness.state().log;
+    assert_eq!(log.bottom, [Blur::Escaped]);
+    assert_eq!(log.top, [Blur::Elsewhere], "the other layout heard nothing");
+
+    harness.get_by_label("Top").click();
+    harness.run_steps(6);
+    harness.key_press(Key::Escape);
+    harness.run_steps(6);
+    let log = &harness.state().log;
+    assert_eq!(log.top, [Blur::Elsewhere, Blur::Escaped]);
+    assert_eq!(log.bottom, [Blur::Escaped], "nor did this one");
+}

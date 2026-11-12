@@ -235,24 +235,6 @@ pub enum Blur {
     Elsewhere,
 }
 
-impl Blur {
-    fn key() -> Id {
-        crate::key::root_id().with("blur-cause")
-    }
-
-    fn note(self, ctx: &Context) {
-        ctx.data_mut(|data| data.insert_temp(Self::key(), self));
-    }
-
-    /// The cause decided by this pass's `claim_keys`. Layouts draw one after
-    /// the other, each claiming its keys before its draw closures run, so
-    /// the one stored is always the drawing layout's.
-    pub(crate) fn of(ctx: &Context) -> Self {
-        ctx.data(|data| data.get_temp(Self::key()))
-            .unwrap_or(Self::Elsewhere)
-    }
-}
-
 /// The keys the frame pressed that the library answers, decided from the
 /// layout before any draw closure runs.
 #[derive(Clone, Copy, Debug)]
@@ -261,6 +243,8 @@ pub(crate) struct Keys {
     pub(crate) escape: Pressed,
     /// The default button Return goes to.
     pub(crate) default: Option<Id>,
+    /// Why a text field that loses focus in this pass does.
+    pub(crate) blur: Blur,
 }
 
 /// Decides who Esc and Return belong to and takes them from the frame's
@@ -317,8 +301,11 @@ pub(crate) fn claim_keys(
     } else {
         Blur::Elsewhere
     };
-    cause.note(ctx);
-    Keys { escape, default }
+    Keys {
+        escape,
+        default,
+        blur: cause,
+    }
 }
 
 /// What `judge` reads of the frame.
