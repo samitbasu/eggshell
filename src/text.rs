@@ -72,8 +72,10 @@ impl VAlign {
     }
 
     /// How far down a box `spare` points taller than the text the text starts.
+    /// A negative `spare` (text taller than its box) is kept, as CSS's default
+    /// (unsafe) alignment does: centred text overflows evenly above and below,
+    /// end-aligned text overflows upward.
     pub(crate) fn offset(self, spare: f32) -> f32 {
-        let spare = spare.max(0.0);
         match self {
             Self::Top => 0.0,
             Self::Middle => spare / 2.0,
