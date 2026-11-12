@@ -11,6 +11,7 @@ use egui::{Key, Rect, Ui, WidgetInfo};
 use super::number::{self, Edit, Edits, Step};
 use super::{Enablement, OnResponse, Tip, painted, tipped};
 use crate::builder::Slot;
+use crate::contract::Colors;
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -92,24 +93,27 @@ impl Scale {
     }
 }
 
-/// The classes of a slider's track and of the part of it that is filled, up
-/// to `fraction`. A progress bar is drawn with the same.
-pub(super) fn track_and_range(style: &Style, enablement: Enablement, fraction: f32) -> (Tw, Tw) {
-    let slider = &style.slider;
-    let radius = f32::from(slider.radius);
-    let fill = |states| enablement.colors(states, style);
-    let track = painted(
+/// The classes of a track `height` thick, filled with `colors`.
+pub(super) fn track_classes((height, radius): (f32, u8), colors: Colors) -> Tw {
+    painted(
         tw().w_full()
-            .h_px(slider.track_height)
-            .rounded_px(radius)
+            .h_px(height)
+            .rounded_px(f32::from(radius))
             .overflow_hidden(),
-        fill(slider.track),
-    );
+        colors,
+    )
+}
+
+/// The classes of a track and of the part of it that is filled, up to
+/// `fraction`, with the colours of `track` and `range`.
+fn track_and_range(shape: (f32, u8), (track, range): (Colors, Colors), fraction: f32) -> (Tw, Tw) {
     let range = painted(
-        tw().h_full().w_frac(fraction, 1.0).rounded_px(radius),
-        fill(slider.range),
+        tw().h_full()
+            .w_frac(fraction, 1.0)
+            .rounded_px(f32::from(shape.1)),
+        range,
     );
-    (track, range)
+    (track_classes(shape, track), range)
 }
 
 impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
@@ -221,7 +225,14 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             .sense_click_drag()
             .focusable_none();
         let hit = enablement.apply(hit, &style).merge(caller);
-        let (bar, filled) = track_and_range(&style, enablement, fraction);
+        let (bar, filled) = track_and_range(
+            (slider.track_height, slider.radius),
+            (
+                enablement.colors(slider.track, &style),
+                enablement.colors(slider.range, &style),
+            ),
+            fraction,
+        );
         let travel = tw().absolute().left_px(0.0).right_px(thumb).inset_y(0.0);
         let knob = slider
             .thumb

@@ -1,13 +1,14 @@
-//! `Builder::progress`: the slider's track and range, announced as a progress
-//! indicator.
+//! `Builder::progress`: the style's progress track and range, announced as a
+//! progress indicator.
 
 use eggshell_ui::{Builder, Progress, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
-use egui::{Role, Theme, vec2};
+use egui::epaint::Shape;
+use egui::{Rect, Role, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, box_at, rect_of};
+use crate::support::{self, Rig, box_at, rect_of, shapes};
 
 struct App {
     progress: Progress,
@@ -40,17 +41,27 @@ fn style() -> Style {
 }
 
 #[test]
-fn the_bar_is_the_sliders_track_and_range_filled_to_the_fraction() {
+fn the_bar_is_the_styles_track_and_range_filled_to_the_fraction() {
     let harness = harness(Progress::new(0.4));
-    let slider = style().slider;
+    let progress = style().progress;
     let bar = rect_of(&harness, "/\"upload\"");
+    assert_eq!(progress.height, 8.0, "shadcn h-2");
+    assert_ne!(progress.track.fill.a(), u8::MAX, "the track is translucent");
     assert_eq!(bar.width(), 200.0);
-    assert_eq!(bar.height(), slider.track_height);
-    assert_eq!(box_at(&harness, bar).fill, slider.track.rest.fill);
-    let range = rect_of(&harness, "/\"upload\"/<div>");
-    assert_eq!(range.width(), 80.0);
-    assert_eq!(range.height(), slider.track_height);
-    assert_eq!(box_at(&harness, range).fill, slider.range.rest.fill);
+    assert_eq!(bar.height(), progress.height);
+    assert_eq!(box_at(&harness, bar).fill, progress.track.fill);
+    let fill = shapes(&harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Path(path) if path.fill == progress.range.fill => {
+                Some(Rect::from_points(&path.points))
+            }
+            _ => None,
+        })
+        .expect("the fill was painted");
+    assert_eq!(fill.left(), bar.left());
+    assert_eq!(fill.width(), 0.4 * bar.width(), "ends at the value");
+    assert_eq!((fill.top(), fill.bottom()), (bar.top(), bar.bottom()));
 }
 
 #[test]
