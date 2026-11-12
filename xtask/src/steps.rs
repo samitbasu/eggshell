@@ -156,6 +156,8 @@ pub fn ci_steps() -> Vec<Step> {
                 "clippy",
                 "--workspace",
                 "--all-targets",
+                "--features",
+                "eggshell-ui/snapshots",
                 "--",
                 "-D",
                 "warnings",
@@ -225,7 +227,7 @@ mod tests {
             [
                 "cargo fmt --all --check",
                 "built-in clock check",
-                "cargo clippy --workspace --all-targets -- -D warnings",
+                "cargo clippy --workspace --all-targets --features eggshell-ui/snapshots -- -D warnings",
                 "built-in test check",
                 "cargo test --workspace --doc",
                 "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
