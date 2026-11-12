@@ -201,7 +201,7 @@ fn navigate<A, T: Copy>(
     previous: Option<(T, Id)>,
     next: Option<(T, Id)>,
 ) {
-    number::hold_keys(ui, false);
+    number::hold_arrows(ui);
     let pressed = |key| number::pressed(ui, key);
     let forward = pressed(Key::ArrowDown) | pressed(Key::ArrowRight);
     let backward = pressed(Key::ArrowUp) | pressed(Key::ArrowLeft);

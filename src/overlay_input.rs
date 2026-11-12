@@ -14,11 +14,11 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2};
 use crate::actions::{self, Action};
 use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, dismissals, esc_target};
 use crate::draw::children_of;
-use crate::focus;
+use crate::focus::{self, PointerOn};
 use crate::nav::{self, Menu};
 use crate::overlay::{Anchor, AnchorLookup, Behavior, Focus, Nav};
 use crate::pipeline::{DismissFn, PlacedNode};
-use crate::roots::{Form, PlacedOverlay, PlacedRoot, stacked_top_down};
+use crate::roots::{Form, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
 use crate::stack::{Entered, Stack};
 
 /// Whether an in-app drag is live.
@@ -37,6 +37,22 @@ pub(crate) fn press_origin(ctx: &Context) -> Option<Pos2> {
             .then(|| input.pointer.press_origin())
             .flatten()
     })
+}
+
+/// Whether the pointer is on an overlay that leaves focus on its anchor.
+pub(crate) fn pointer_on(ctx: &Context, nodes: &[PlacedNode], roots: &[PlacedRoot]) -> PointerOn {
+    let Some(at) = ctx.input(|input| input.pointer.interact_pos()) else {
+        return PointerOn::Elsewhere;
+    };
+    let root = root_at(roots, nodes, at);
+    let on_it = roots[root].overlay().is_some_and(|overlay| {
+        overlay.behavior.focus == Focus::Stay && nodes[roots[root].first].rect().contains(at)
+    });
+    if on_it {
+        PointerOn::StayingOverlay
+    } else {
+        PointerOn::Elsewhere
+    }
 }
 
 /// An attached overlay.
@@ -165,6 +181,41 @@ fn escape_goes(layers: &[Layer], nodes: &[PlacedNode], input: &Input) -> EscapeG
     actions::button_in(nodes, 0, Action::Cancel).map_or(EscapeGoes::Nobody, EscapeGoes::Window)
 }
 
+/// Whether a text input had focus at the end of the last pass, which is what
+/// tells an Esc that only unfocused it from one that is the application's:
+/// egui drops the field's focus before the frame is built.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum Typing {
+    #[default]
+    No,
+    Yes,
+}
+
+impl Typing {
+    fn key() -> Id {
+        crate::key::root_id().with("typing")
+    }
+
+    /// Notes whether a text input has focus now. Run at the end of a pass.
+    pub(crate) fn note(ctx: &Context) {
+        let now = if ctx.text_edit_focused() {
+            Self::Yes
+        } else {
+            Self::No
+        };
+        ctx.data_mut(|data| data.insert_temp(Self::key(), now));
+    }
+
+    /// Whether the Esc of this pass was the one that took a text input's
+    /// focus: it had focus at the end of the last pass and nothing has now.
+    fn escape_blurred(ctx: &Context) -> bool {
+        let before = ctx
+            .data(|data| data.get_temp::<Self>(Self::key()))
+            .unwrap_or_default();
+        before == Self::Yes && ctx.memory(|memory| memory.focused()).is_none()
+    }
+}
+
 /// The keys the frame pressed that the library answers, decided from the
 /// layout before any draw closure runs.
 #[derive(Clone, Copy, Debug)]
@@ -178,7 +229,9 @@ pub(crate) struct Keys {
 /// Decides who Esc and Return belong to and takes them from the frame's
 /// input, so that no draw closure (a custom canvas under a menu) sees a key
 /// that dismissed an overlay or pressed a button: it belongs to the overlay
-/// alone, as with `stopPropagation`. `judge` applies the decisions.
+/// alone, as with `stopPropagation`. An Esc whose only effect was to
+/// unfocus a text field belongs to the field the same way. `judge` applies
+/// the decisions.
 pub(crate) fn claim_keys(
     ctx: &Context,
     nodes: &[PlacedNode],
@@ -201,7 +254,11 @@ pub(crate) fn claim_keys(
     let layers = layers_of(&open, nodes, roots, |_| {
         (FocusAt::Nowhere, FocusAt::Nowhere)
     });
-    if !matches!(escape_goes(&layers, nodes, &input), EscapeGoes::Nobody) {
+    let belongs_to_the_library = match escape_goes(&layers, nodes, &input) {
+        EscapeGoes::Nobody => input.escape && !input.drag_live && Typing::escape_blurred(ctx),
+        EscapeGoes::Overlay | EscapeGoes::Window(_) => true,
+    };
+    if belongs_to_the_library {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
     }
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
@@ -244,6 +301,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     let open = open_overlays(roots);
     nav::forget_closed(
         ctx,
+        scope,
         &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
     );
     let source = Source::last(ctx);
@@ -323,6 +381,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         .map(|open| Menu {
             id: open.overlay.id,
             nav: open.overlay.behavior.nav,
+            wrap: open.overlay.behavior.wrap,
             items: items(ctx, nodes, roots[open.root].first),
             own: subtrees
                 .iter()
@@ -332,7 +391,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             anchor: open.anchor_node(),
         })
         .collect();
-    for id in nav::navigate(ctx, &menus) {
+    for id in nav::navigate(ctx, scope, &menus) {
         if let Some(then) = dismiss.remove(&id) {
             then(app);
         }
@@ -353,7 +412,7 @@ impl Source {
     }
 
     /// Notes the source of this frame's input, if it has any.
-    fn note(ctx: &Context) {
+    pub(crate) fn note(ctx: &Context) {
         let latest = ctx.input(|input| {
             input.events.iter().rev().find_map(|event| match event {
                 Event::PointerButton { pressed: true, .. } => Some(Self::Pointer),

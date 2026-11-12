@@ -4,7 +4,7 @@ use egui::Role;
 
 use crate::builder::{Builder, Scope, Slot};
 use crate::overlay::{
-    Anchor, Band, Behavior, DismissOn, Focus, MatchWidth, Modal, Nav, Outside, Placement,
+    Anchor, Band, Behavior, DismissOn, Focus, MatchWidth, Modal, Nav, Outside, Placement, Wrap,
 };
 use crate::pipeline::DismissFn;
 use crate::roots::{OverlayDecl, Presentation};
@@ -170,6 +170,13 @@ impl<A, State> OverlayChain<'_, '_, A, State> {
     /// The keyboard pattern of the overlay's items. [`Nav::None`] unless set.
     pub fn nav(mut self, nav: Nav) -> Self {
         self.behavior.nav = nav;
+        self
+    }
+
+    /// What the arrow keys do at the first and last item of the overlay's
+    /// [`Nav`]. [`Wrap::Around`] unless set.
+    pub fn wrap(mut self, wrap: Wrap) -> Self {
+        self.behavior.wrap = wrap;
         self
     }
 

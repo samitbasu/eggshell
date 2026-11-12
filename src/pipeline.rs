@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use egui::{Id, Rect, Role, vec2};
+use egui::{Id, Rect, Role, Vec2, vec2};
 use taffy::{
     AvailableSpace, Baselines, Dimension, Display, LayoutInput, LayoutOutput, LengthPercentageAuto,
     NodeId, Overflow, Point, Position, ResolveOrZero, Size, Style, TaffyTree, compute_leaf_layout,
@@ -18,7 +18,7 @@ use crate::dnd::{Decls, EdgeScroll, NodeDrag};
 use crate::focus;
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
-use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, place};
+use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
 use crate::owned::Enablement;
 use crate::prim::Prim;
 use crate::roots::{
@@ -202,6 +202,42 @@ fn stack_scope() -> Id {
         "overlay-stack",
         NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
     ))
+}
+
+fn area_key(scope: Id) -> Id {
+    scope.with("layout-area")
+}
+
+/// The room an overlay would have.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Room {
+    /// It fits as it is, or it is not known where it would go.
+    Enough,
+    /// Taller than the room it would have: it must scroll.
+    Short,
+}
+
+/// Whether an overlay of the `natural` size anchored to `anchor` gets the
+/// room it wants under `placement`, as the last layout of `scope` placed
+/// things. Asks [`place`] itself, so that a build-time decision to scroll
+/// agrees with the clamp the layout applies.
+pub(crate) fn room_for(
+    ctx: &egui::Context,
+    scope: Id,
+    anchor: Id,
+    placement: &Placement,
+    natural: Vec2,
+) -> Room {
+    let area = ctx.data(|data| data.get_temp::<Rect>(area_key(scope)));
+    let anchor = ctx.read_response(anchor).map(|response| response.rect);
+    match (area, anchor) {
+        (Some(area), Some(anchor))
+            if place(anchor, natural, placement, area).available.y < natural.y =>
+        {
+            Room::Short
+        }
+        _ => Room::Enough,
+    }
 }
 
 impl LayoutState {
@@ -407,6 +443,7 @@ impl<'f, A> Built<'f, A> {
             kind: PlacedRootKind::Base,
         }];
         let scope = st.scope;
+        ctx.data_mut(|data| data.insert_temp(area_key(scope), area));
         let mut stack = Stack::load(ctx, scope);
         let mut present = HashSet::new();
         for decl in decls {

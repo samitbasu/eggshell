@@ -140,13 +140,11 @@ impl Default for Step {
 /// How far PageUp and PageDown move, in steps.
 pub(super) const PAGE: i32 = 10;
 
-/// Keeps the arrow keys (and, with `escape`, Escape) on the focused node, so
-/// they do not move the focus.
-pub(super) fn hold_keys(ui: &Ui, escape: bool) {
+/// Keeps the arrow keys on the focused node, so they do not move the focus.
+pub(super) fn hold_arrows(ui: &Ui) {
     let filter = EventFilter {
         horizontal_arrows: true,
         vertical_arrows: true,
-        escape,
         ..EventFilter::default()
     };
     let id = ui.node_id();

@@ -6,6 +6,7 @@
     reason = "each example includes the shared examples/common module"
 )]
 
+mod autosuggest;
 mod button_options;
 mod ch;
 mod chat_shell_demo;
@@ -24,6 +25,7 @@ mod dnd_zones;
 mod draw;
 mod duplicate_key;
 mod edits;
+mod escape_field;
 mod focus;
 mod focus_on_appear;
 mod form_demo;
@@ -52,6 +54,7 @@ mod prims;
 mod progress;
 mod scroll;
 mod scroll_keys;
+mod select;
 mod selection;
 mod shadow_pixels;
 mod sizing;

@@ -76,7 +76,7 @@ impl Scale {
 
     /// The value after the keys pressed this frame, if any.
     fn after_keys(&self, ui: &Ui) -> Option<f64> {
-        number::hold_keys(ui, false);
+        number::hold_arrows(ui);
         let ends = [
             (Key::Home, *self.range.start()),
             (Key::End, *self.range.end()),

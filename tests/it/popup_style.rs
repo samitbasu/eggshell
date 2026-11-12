@@ -135,10 +135,15 @@ fn the_select_list_does_not_depend_on_the_global_visuals() {
     let calm = open_select_shapes(false);
     let garish = open_select_shapes(true);
     let list = |shapes: &[String]| -> Vec<String> {
-        let start = shapes
+        let trigger_value = shapes
             .iter()
-            .position(|shape| shape.starts_with("Vec"))
-            .expect("the list casts its own shadow, and nothing else here does");
+            .position(|shape| shape.starts_with("Text") && shape.contains("\"One\""))
+            .expect("the trigger shows its value");
+        let start = trigger_value
+            + shapes[trigger_value..]
+                .iter()
+                .position(|shape| shape.starts_with("Rect"))
+                .expect("the list casts its own shadow, the first thing it draws");
         shapes[start..].to_vec()
     };
     let (calm, garish) = (list(&calm), list(&garish));

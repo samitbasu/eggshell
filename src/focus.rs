@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use egui::{Context, Id, LayerId};
+use egui::{Context, Id, LayerId, SurrenderFocusOn};
 
 use crate::dismiss::FocusAt;
 use crate::stack::Open;
@@ -124,6 +124,47 @@ pub(crate) fn store(ctx: &Context, subtrees: impl IntoIterator<Item = (Id, Box<[
             .current
             .extend(subtrees.into_iter().filter(|(_, ids)| !ids.is_empty()));
     });
+}
+
+/// Where the pointer is, as far as the focus of the widget under an overlay
+/// is concerned.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PointerOn {
+    /// On an overlay that leaves focus where it is ([`Focus::Stay`]).
+    StayingOverlay,
+    Elsewhere,
+}
+
+/// Keeps egui from taking the focus of a text field or trigger away for a
+/// press on its own suggestion list or options, as `preventDefault` on
+/// `mousedown` does on the web. Held until dropped.
+pub(crate) struct AnchorFocusHeld {
+    ctx: Context,
+    surrender: SurrenderFocusOn,
+}
+
+impl AnchorFocusHeld {
+    /// Holds the focus for as long as the result lives, if the pointer is on
+    /// a staying overlay. egui surrenders the focus of a widget when a click
+    /// lands elsewhere, as the widget registers.
+    pub(crate) fn new(ctx: &Context, pointer: PointerOn) -> Option<Self> {
+        (pointer == PointerOn::StayingOverlay).then(|| Self {
+            ctx: ctx.clone(),
+            surrender: ctx.options_mut(|options| {
+                std::mem::replace(
+                    &mut options.input_options.surrender_focus_on,
+                    SurrenderFocusOn::Never,
+                )
+            }),
+        })
+    }
+}
+
+impl Drop for AnchorFocusHeld {
+    fn drop(&mut self) {
+        self.ctx
+            .options_mut(|options| options.input_options.surrender_focus_on = self.surrender);
+    }
 }
 
 /// The widgets to give focus back to once the pointer is idle.
