@@ -26,7 +26,7 @@ use crate::overlay::{Anchored, Band};
 use crate::overlay_input::{self, press_origin};
 use crate::pipeline::{ColorSource, DrawFn, Flow, NodeKind, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
-use crate::roots::{PlacedRoot, covers_screen};
+use crate::roots::{Form, PlacedRoot, covers_screen, stacked_top_down};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
@@ -625,11 +625,13 @@ impl<A> Walk<'_, A> {
     fn block(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
         let node = &self.nodes[index];
         let id = crate::key::root_id().with("blocker").with(index);
-        let described = self
+        let overlay = self
             .roots
             .iter()
             .find(|root| root.first == index)
-            .and_then(PlacedRoot::overlay)
+            .and_then(PlacedRoot::overlay);
+        let modal = overlay.is_some_and(|overlay| matches!(overlay.form, Form::Modal(_)));
+        let described = overlay
             .map(|overlay| &overlay.description)
             .filter(|description| description.is_set());
         node_ui(
@@ -643,6 +645,10 @@ impl<A> Walk<'_, A> {
                     let role = description.role.unwrap_or(Role::GenericContainer);
                     let name = description.name.as_deref().unwrap_or_default();
                     crate::owned::describe(&response, ui.is_enabled(), role, None, name);
+                }
+                if modal {
+                    ui.ctx()
+                        .accesskit_node_builder(response.id, |node| node.set_modal());
                 }
             },
         );
@@ -1358,6 +1364,16 @@ impl<A> Walk<'_, A> {
                     band: overlay.band,
                 },
             ));
+        }
+        if let Some(top) = stacked_top_down(self.roots)
+            .into_iter()
+            .filter_map(|index| self.roots[index].overlay())
+            .find(|overlay| {
+                overlay.anchored == Anchored::Attached && matches!(overlay.form, Form::Modal(_))
+            })
+        {
+            let layer = top.band.layer(top.id);
+            ctx.memory_mut(|memory| memory.set_modal_layer(layer));
         }
         shown.sort_by_key(|(stack_index, _)| *stack_index);
         shown.into_iter().map(|(_, shown)| shown).collect()

@@ -241,6 +241,13 @@ impl Pending {
     }
 }
 
+/// Activates `item` as a click on the next frame: a default or cancel button
+/// answering its key.
+pub(crate) fn request_activation(ctx: &Context, item: Id) {
+    Pending::set(ctx, item);
+    ctx.request_repaint();
+}
+
 /// Whether Enter or Space activated the highlighted item `item` since it was
 /// last asked: a click it did not get from the pointer. Asking takes it.
 pub(crate) fn take_activation(ctx: &Context, item: Id) -> bool {

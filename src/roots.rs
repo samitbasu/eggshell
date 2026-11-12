@@ -10,12 +10,12 @@
 use std::collections::HashMap;
 
 use egui::{Id, LayerId, Pos2, Rect, Vec2};
-use taffy::{FlexDirection, NodeId, Style};
+use taffy::{AlignContent, AlignItems, FlexDirection, NodeId, Size, Style, style_helpers::length};
 
 use crate::dismiss::Opening;
 use crate::key::{Key, child_id};
 use crate::overlay::{
-    Anchor, AnchorLookup, Anchored, Band, Behavior, MatchWidth, Outside, Placement, Side,
+    Anchor, AnchorLookup, Anchored, Band, Behavior, MatchWidth, Modal, Outside, Placement, Side,
 };
 use crate::pipeline::{Placed, PlacedNode};
 use crate::scroll::Description;
@@ -28,13 +28,21 @@ pub(crate) enum RootKind {
     Overlay(OverlayDecl),
 }
 
+/// How an overlay is put on screen: next to an anchor, or as a modal.
+pub(crate) enum Presentation {
+    Floating {
+        anchor: Anchor,
+        placement: Placement,
+        match_width: MatchWidth,
+    },
+    Modal(Modal),
+}
+
 /// What an overlay's chain declared.
 pub(crate) struct OverlayDecl {
     pub(crate) id: Id,
-    pub(crate) anchor: Anchor,
-    pub(crate) placement: Placement,
+    pub(crate) presentation: Presentation,
     pub(crate) band: Band,
-    pub(crate) match_width: MatchWidth,
     pub(crate) description: Description,
     pub(crate) behavior: Behavior,
     pub(crate) declared_at: &'static std::panic::Location<'static>,
@@ -83,12 +91,59 @@ pub(crate) fn overlay_style() -> Style {
     }
 }
 
+/// The style of a modal's root: the screen, with its one child (the box)
+/// placed by `modal`.
+pub(crate) fn modal_style(modal: Modal, area: Rect) -> Style {
+    let (direction, justify, align) = match modal {
+        Modal::Center => (FlexDirection::Row, AlignContent::CENTER, AlignItems::CENTER),
+        Modal::Edge(Side::Left) => (
+            FlexDirection::Row,
+            AlignContent::FLEX_START,
+            AlignItems::STRETCH,
+        ),
+        Modal::Edge(Side::Right) => (
+            FlexDirection::Row,
+            AlignContent::FLEX_END,
+            AlignItems::STRETCH,
+        ),
+        Modal::Edge(Side::Top) => (
+            FlexDirection::Column,
+            AlignContent::FLEX_START,
+            AlignItems::STRETCH,
+        ),
+        Modal::Edge(Side::Bottom) => (
+            FlexDirection::Column,
+            AlignContent::FLEX_END,
+            AlignItems::STRETCH,
+        ),
+    };
+    Style {
+        display: taffy::Display::Flex,
+        flex_direction: direction,
+        justify_content: justify,
+        align_items: align,
+        size: Size {
+            width: length(area.width()),
+            height: length(area.height()),
+        },
+        ..Style::default()
+    }
+}
+
+/// How an overlay ended up on screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Form {
+    /// Next to its anchor, on this side of it.
+    Floating(Side),
+    Modal(Modal),
+}
+
 /// An overlay after layout.
 #[derive(Clone, Debug)]
 pub(crate) struct PlacedOverlay {
     pub(crate) id: Id,
     pub(crate) band: Band,
-    pub(crate) side: Side,
+    pub(crate) form: Form,
     pub(crate) anchored: Anchored,
     pub(crate) anchor: Rect,
     pub(crate) anchor_decl: Anchor,
@@ -271,9 +326,21 @@ impl<'p> OverlayRef<'p> {
         self.node().rect()
     }
 
-    /// The side of its anchor the overlay ended on; a flip changes it.
-    pub fn side(&self) -> Side {
-        self.overlay.side
+    /// The side of its anchor a floating overlay ended on; a flip changes it.
+    /// A modal has none.
+    pub fn side(&self) -> Option<Side> {
+        match self.overlay.form {
+            Form::Floating(side) => Some(side),
+            Form::Modal(_) => None,
+        }
+    }
+
+    /// How the overlay presents, if it is a modal.
+    pub fn modal(&self) -> Option<Modal> {
+        match self.overlay.form {
+            Form::Modal(modal) => Some(modal),
+            Form::Floating(_) => None,
+        }
     }
 
     /// Whether the anchor can be seen. A detached overlay is not drawn and

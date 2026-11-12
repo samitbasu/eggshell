@@ -8,6 +8,7 @@ use std::sync::Arc;
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
+use crate::contract::Style;
 use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
@@ -20,7 +21,7 @@ use crate::pipeline::{
     ScrollNode,
 };
 use crate::prim::{Icon, Prim};
-use crate::roots::{OverlayDecl, RootDecl, overlay_style};
+use crate::roots::{OverlayDecl, Presentation, RootDecl, overlay_style};
 use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::text::{TextStyle, VAlign};
@@ -284,6 +285,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) {
         let band = decl.band;
+        let classes = match decl.presentation {
+            Presentation::Modal(_) => tw().bg(Style::of(self.ctx()).scrim),
+            Presentation::Floating { .. } => tw(),
+        };
         if let Some(on_dismiss) = on_dismiss {
             self.frame.dismiss.insert(slot.id, on_dismiss);
         }
@@ -293,7 +298,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let at = self.frame.roots.len() - 1;
         self.frame.current = at;
         let mut node = self.node(
-            &tw(),
+            &classes,
             Parts {
                 id: Some(slot.id),
                 ..Parts::anonymous(NodeKind::Overlay, path)
@@ -587,6 +592,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             drag: None,
             scroll: None,
             description: None,
+            action: None,
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
@@ -874,6 +880,12 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     /// [`named`](Self::named).
     pub fn role(mut self, role: egui::Role) -> Self {
         self.edit(|context| context.description.get_or_insert_default().role = Some(role));
+        self
+    }
+
+    /// Makes the node the button that Return or Esc presses.
+    pub(crate) fn action(mut self, action: crate::actions::Action) -> Self {
+        self.edit(|context| context.action = Some(action));
         self
     }
 

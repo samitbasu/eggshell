@@ -11,12 +11,14 @@ use std::collections::HashMap;
 
 use egui::{Context, Event, Id, Key, Modifiers, Pos2};
 
-use crate::dismiss::{Cause, Input, Layer, dismissals};
+use crate::actions::{self, Action};
+use crate::dismiss::{Boundary, Cause, Input, Layer, dismissals, esc_target};
+use crate::draw::children_of;
 use crate::focus;
 use crate::nav::{self, Menu};
 use crate::overlay::{Anchor, AnchorLookup, Nav};
 use crate::pipeline::{DismissFn, PlacedNode};
-use crate::roots::{PlacedOverlay, PlacedRoot, stacked_top_down};
+use crate::roots::{Form, PlacedOverlay, PlacedRoot, stacked_top_down};
 use crate::stack::{Entered, Stack};
 
 /// Whether an in-app drag is live.
@@ -84,6 +86,20 @@ fn open_overlays(roots: &[PlacedRoot]) -> Vec<Open<'_>> {
         .collect()
 }
 
+/// The box of the overlay at `root`: the root's rect, or for a modal, whose
+/// root is the scrim, what its content takes of it.
+fn box_of(nodes: &[PlacedNode], roots: &[PlacedRoot], root: usize) -> egui::Rect {
+    let first = roots[root].first;
+    match roots[root].overlay().map(|overlay| overlay.form) {
+        Some(Form::Modal(_)) => children_of(nodes, first)
+            .into_iter()
+            .fold(egui::Rect::NOTHING, |rect, child| {
+                rect.union(nodes[child].rect())
+            }),
+        _ => nodes[first].rect(),
+    }
+}
+
 /// Judges the frame's input against the open overlays, as the last step of a
 /// draw. `subtrees` are the focusable widgets each identified node registered
 /// this frame.
@@ -101,9 +117,6 @@ pub(crate) fn judge<A>(
         ctx,
         &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
     );
-    if open.is_empty() {
-        return;
-    }
     let mut stack = Stack::load(ctx);
     let position = |root: usize| open.iter().position(|open| open.root == root);
     let layers: Vec<Layer> = open
@@ -116,7 +129,12 @@ pub(crate) fn judge<A>(
                 .unwrap_or_default();
             Layer {
                 parent: roots[open.root].parent.and_then(position),
-                rect: nodes[roots[open.root].first].rect(),
+                rect: box_of(nodes, roots, open.root),
+                boundary: match overlay.form {
+                    Form::Modal(_) => Boundary::Scrim,
+                    Form::Floating(_) => Boundary::Open,
+                },
+                cancel: actions::button_in(nodes, roots[open.root].first, Action::Cancel),
                 trigger: matches!(overlay.anchor_decl, Anchor::Node(_) | Anchor::Rect(_))
                     .then_some(overlay.anchor),
                 band: overlay.band,
@@ -147,17 +165,37 @@ pub(crate) fn judge<A>(
         describe_trigger(ctx, open);
     }
     let found = dismissals(&layers, &input);
-    if found.iter().any(|found| found.cause == Cause::Esc) {
+    let mut escaped = found
+        .iter()
+        .any(|found| matches!(found.cause, Cause::Esc | Cause::Cancel));
+    let mut dismissed = Vec::new();
+    for found in &found {
+        match (found.cause, layers[found.layer].cancel) {
+            (Cause::Cancel, Some(button)) => actions::press(ctx, button),
+            _ => {
+                let id = open[found.layer].overlay.id;
+                dismissed.push(id);
+                if let Some(then) = dismiss.remove(&id) {
+                    then(app);
+                }
+            }
+        }
+    }
+    if input.escape
+        && !input.drag_live
+        && esc_target(&layers).is_none()
+        && let Some(button) = actions::button_in(nodes, 0, Action::Cancel)
+    {
+        actions::press(ctx, button);
+        escaped = true;
+    }
+    if escaped {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
     }
-    let dismissed: Vec<Id> = found
-        .iter()
-        .map(|found| open[found.layer].overlay.id)
-        .collect();
-    for id in &dismissed {
-        if let Some(then) = dismiss.remove(id) {
-            then(app);
-        }
+    let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
+    actions::on_return(ctx, nodes, roots, &top_down);
+    if open.is_empty() {
+        return;
     }
 
     for (open, layer) in open.iter().zip(&layers) {

@@ -58,7 +58,11 @@ mod layout {
 
     fn below(placed: &Placed<()>, key: &'static str) -> (Rect, Side, Anchored) {
         let overlay = placed.overlay(key);
-        (overlay.rect(), overlay.side(), overlay.anchored())
+        (
+            overlay.rect(),
+            overlay.side().expect("a floating overlay"),
+            overlay.anchored(),
+        )
     }
 
     #[test]
@@ -177,7 +181,11 @@ mod layout {
                 .children(tall_list);
         });
         let tall = placed.overlay("tall");
-        assert_eq!(tall.side(), Side::Top, "above has the room: 200 against 70");
+        assert_eq!(
+            tall.side(),
+            Some(Side::Top),
+            "above has the room: 200 against 70"
+        );
         assert_eq!(tall.rect().max.y, 200.0);
         assert_eq!(tall.rect().height(), 200.0, "clamped to the room above");
         assert_eq!(placed.at("tall").at("list").rect().height(), 200.0);
