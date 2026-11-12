@@ -43,6 +43,58 @@
 //! (they are generic over their arguments and write through closures), so a
 //! `const CARD: Tw` cannot be built. Calling the function is cheap.
 //!
+//! # Grids: striped rows
+//!
+//! A row stripe is not painted on the cells: each cell's background stops at
+//! the column gap. As in CSS, give each striped row one more item that spans
+//! every column (`col-span-full`) in that row, declared before the row's
+//! cells so it is painted under them. The cells then need explicit places
+//! (`col-start`, `row-start`), because auto-placement would treat the
+//! stripe's row as full.
+//!
+//! ```html
+//! <div class="grid grid-cols-[auto_1fr] gap-x-4">
+//!   <div class="col-span-full row-start-2 rounded-md bg-muted"></div>
+//!   <span class="col-start-1 row-start-1">Port</span><span class="col-start-2 row-start-1">COM3</span>
+//!   <span class="col-start-1 row-start-2">Baud</span><span class="col-start-2 row-start-2">115200</span>
+//! </div>
+//! ```
+//!
+//! ```
+//! use eggshell_ui::testing::Headless;
+//! use eggshell_ui::{Builder, Track, tw};
+//! use egui::{Color32, vec2};
+//!
+//! const ROWS: [(&str, &str); 3] = [("Port", "COM3"), ("Baud", "115200"), ("Parity", "None")];
+//!
+//! fn striped(b: &mut Builder<'_, '_, ()>, _: &()) {
+//!     let columns = [Track::auto(), Track::fr(1.0)];
+//!     b.div_id("table", tw().grid().grid_cols_tracks(&columns).gap_x(4.0).w_px(240.0), |b| {
+//!         for (index, (key, value)) in ROWS.into_iter().enumerate() {
+//!             let row = index as i16 + 1;
+//!             if index % 2 == 1 {
+//!                 let stripe = tw().col_span_full().row_start(row).rounded_md();
+//!                 b.div_id(("stripe", index), stripe.bg(Color32::from_gray(240)), |_| {});
+//!             }
+//!             b.span(("key", index), tw().col_start(1).row_start(row), key);
+//!             b.span(("value", index), tw().col_start(2).row_start(row), value);
+//!         }
+//!     });
+//! }
+//!
+//! let placed = Headless::new(vec2(300.0, 200.0)).layout(&(), striped);
+//! let table = placed.at("table");
+//! let (stripe, key, value) = (
+//!     table.at(("stripe", 1_usize)).rect(),
+//!     table.at(("key", 1_usize)).rect(),
+//!     table.at(("value", 1_usize)).rect(),
+//! );
+//! assert!(value.left() > key.right(), "the row has a column gap");
+//! // The stripe runs from the first cell to the last, across the gap.
+//! assert_eq!((stripe.left(), stripe.right()), (key.left(), table.rect().right()));
+//! assert_eq!((stripe.top(), stripe.bottom()), (key.top(), key.bottom()));
+//! ```
+//!
 //! # Controls
 //!
 //! The owned controls are chained builders that start from the builder and
