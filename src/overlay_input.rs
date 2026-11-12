@@ -14,7 +14,7 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2};
 use crate::dismiss::{Cause, Input, Layer, dismissals};
 use crate::focus;
 use crate::nav::{self, Menu};
-use crate::overlay::{Anchor, Nav};
+use crate::overlay::{Anchor, AnchorLookup, Nav};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::roots::{PlacedOverlay, PlacedRoot, stacked_top_down};
 use crate::stack::{Entered, Stack};
@@ -64,9 +64,10 @@ fn open_overlays(roots: &[PlacedRoot]) -> Vec<Open<'_>> {
         .into_iter()
         .rev()
         .filter(|&root| {
-            roots[root]
-                .overlay()
-                .is_some_and(|overlay| overlay.anchored == crate::overlay::Anchored::Attached)
+            roots[root].overlay().is_some_and(|overlay| {
+                overlay.anchored == crate::overlay::Anchored::Attached
+                    || overlay.lookup == AnchorLookup::Missing
+            })
         })
         .collect();
     order
@@ -123,6 +124,7 @@ pub(crate) fn judge<A>(
                 outside: overlay.behavior.outside(),
                 opening: overlay.opening,
                 focus_before,
+                lookup: overlay.lookup,
                 focus_now: focus::at(ctx, overlay.id, &open.nested, open.anchor_node()),
             }
         })
@@ -138,7 +140,10 @@ pub(crate) fn judge<A>(
                 .any(|event| matches!(event, Event::WindowFocused(false)))
         }),
     };
-    for open in &open {
+    for open in open
+        .iter()
+        .filter(|open| open.overlay.lookup == AnchorLookup::Found)
+    {
         describe_trigger(ctx, open);
     }
     let found = dismissals(&layers, &input);
@@ -160,7 +165,7 @@ pub(crate) fn judge<A>(
             continue;
         };
         entry.focus = layer.focus_now;
-        if entry.entered == Entered::Not {
+        if entry.entered == Entered::Not && layer.lookup == AnchorLookup::Found {
             entry.entered = Entered::Yet;
             if open.overlay.behavior.focus == crate::overlay::Focus::Enter
                 && let Some(first) = first_focusable(subtrees, open.overlay.id)
@@ -175,6 +180,7 @@ pub(crate) fn judge<A>(
         .iter()
         .filter(|open| open.overlay.behavior.nav != Nav::None)
         .filter(|open| !dismissed.contains(&open.overlay.id))
+        .filter(|open| open.overlay.lookup == AnchorLookup::Found)
         .map(|open| Menu {
             id: open.overlay.id,
             nav: open.overlay.behavior.nav,

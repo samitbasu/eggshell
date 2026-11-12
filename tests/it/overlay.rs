@@ -381,14 +381,31 @@ mod layout {
         assert_eq!(placed.overlay("edge").rect().max.x, SCREEN.x);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
-    fn an_anchor_that_is_not_in_the_frame_hides_the_overlay() {
-        let placed = headless().layout(&(), |b, _| {
-            b.overlay("pop")
-                .anchor(Anchor::Node(Id::NULL.with("nobody")))
-                .children(|s| panel(s, vec2(20.0, 20.0)));
-        });
-        assert_eq!(placed.overlay("pop").anchored(), Anchored::Detached);
+    fn an_anchor_that_is_not_in_the_frame_when_the_overlay_opens_panics_at_its_declaration() {
+        let line = line!() + 3;
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            headless().layout(&(), |b, _| {
+                b.overlay("pop")
+                    .anchor(Anchor::Node(Id::NULL.with("nobody")))
+                    .children(|s| panel(s, vec2(20.0, 20.0)));
+            });
+        }));
+        let payload = caught.expect_err("a missing anchor is a programming error");
+        let message = payload
+            .downcast_ref::<String>()
+            .expect("a formatted message");
+        assert!(
+            message.contains("anchored to a node that doesn't exist")
+                && message.contains(r#"/"pop""#),
+            "{message}"
+        );
+        assert!(
+            message.contains(&format!("{}:{line}:", file!())),
+            "names the declaration site {}:{line}: {message}",
+            file!()
+        );
     }
 }
 

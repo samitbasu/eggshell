@@ -17,7 +17,7 @@ use crate::dnd::{Decls, EdgeScroll, NodeDrag};
 use crate::focus;
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
-use crate::overlay::{Anchor, Anchored, Focus, MatchWidth, place};
+use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, place};
 use crate::prim::Prim;
 use crate::roots::{ById, PlacedOverlay, PlacedRoot, PlacedRootKind, RootDecl, RootKind, root_of};
 use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
@@ -405,7 +405,7 @@ impl<'f, A> Built<'f, A> {
             if opening == Opening::Opened && overlay.behavior.focus != Focus::None {
                 open.restore = ctx.memory(|memory| memory.focused());
             }
-            let (anchor, anchored) =
+            let (anchor, anchored, lookup) =
                 resolve_anchor(overlay.anchor, area, &nodes, &by_id, &roots, || {
                     *open.pointer.get_or_insert_with(|| {
                         ctx.input(|input| input.pointer.latest_pos())
@@ -413,6 +413,23 @@ impl<'f, A> Built<'f, A> {
                     })
                 });
             present.insert(overlay.id);
+            if lookup == AnchorLookup::Missing && opening == Opening::Opened {
+                #[cfg(debug_assertions)]
+                {
+                    let path = st
+                        .tree
+                        .get_node_context(node)
+                        .map_or_else(String::new, |context| context.path.clone());
+                    let Anchor::Node(id) = overlay.anchor else {
+                        unreachable!("only a node anchor can be missing")
+                    };
+                    panic!(
+                        "overlay {path} is anchored to a node that doesn't exist in this frame \
+                         ({id:?}) (declared at {})",
+                        overlay.declared_at
+                    );
+                }
+            }
             let mut style = st.tree.style(node).expect("node exists").clone();
             style.min_size.width = match overlay.match_width {
                 MatchWidth::Anchor => LengthPercentageAuto::length(anchor.width()),
@@ -479,6 +496,7 @@ impl<'f, A> Built<'f, A> {
                     anchor,
                     anchor_decl: overlay.anchor,
                     opening,
+                    lookup,
                     behavior: overlay.behavior,
                     stack_index: 0,
                     description: overlay.description,
@@ -537,12 +555,18 @@ fn resolve_anchor(
     by_id: &ById,
     roots: &[PlacedRoot],
     pointer: impl FnOnce() -> egui::Pos2,
-) -> (Rect, Anchored) {
-    let point = |at: egui::Pos2| (Rect::from_min_max(at, at), Anchored::Attached);
+) -> (Rect, Anchored, AnchorLookup) {
+    let point = |at: egui::Pos2| {
+        (
+            Rect::from_min_max(at, at),
+            Anchored::Attached,
+            AnchorLookup::Found,
+        )
+    };
     match anchor {
         Anchor::Node(id) => {
             let Some(&index) = by_id.get(&id) else {
-                return (area, Anchored::Detached);
+                return (area, Anchored::Detached, AnchorLookup::Missing);
             };
             let root = &roots[root_of(roots, index)];
             let seen = reachable(nodes, root.first, index, area);
@@ -555,12 +579,12 @@ fn resolve_anchor(
             } else {
                 Anchored::Detached
             };
-            (nodes[index].rect(), anchored)
+            (nodes[index].rect(), anchored, AnchorLookup::Found)
         }
         Anchor::Point(at) => point(at),
-        Anchor::Rect(rect) => (rect, Anchored::Attached),
+        Anchor::Rect(rect) => (rect, Anchored::Attached, AnchorLookup::Found),
         Anchor::Pointer => point(pointer()),
-        Anchor::Screen => (area, Anchored::Attached),
+        Anchor::Screen => (area, Anchored::Attached, AnchorLookup::Found),
     }
 }
 

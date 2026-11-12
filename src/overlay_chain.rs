@@ -55,12 +55,15 @@ pub struct OverlayChain<'b, 'f, A, State> {
     description: Description,
     behavior: Behavior,
     on_dismiss: Option<DismissFn<A>>,
+    declared_at: &'static std::panic::Location<'static>,
     state: State,
 }
 
 impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
+    #[track_caller]
     pub(crate) fn new(b: Builder<'b, 'f, A>, slot: Slot) -> Self {
         Self {
+            declared_at: std::panic::Location::caller(),
             b,
             slot,
             placement: Placement::default(),
@@ -84,6 +87,7 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
             description,
             behavior,
             on_dismiss,
+            declared_at,
             state: Unplaced,
         } = self;
         OverlayChain {
@@ -95,6 +99,7 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
             description,
             behavior,
             on_dismiss,
+            declared_at,
             state: Floating { anchor },
         }
     }
@@ -187,6 +192,7 @@ impl<'f, A> OverlayChain<'_, 'f, A, Floating> {
             description,
             behavior,
             on_dismiss,
+            declared_at,
             state: Floating { anchor },
         } = self;
         let decl = OverlayDecl {
@@ -197,6 +203,7 @@ impl<'f, A> OverlayChain<'_, 'f, A, Floating> {
             match_width,
             description,
             behavior,
+            declared_at,
         };
         b.overlay_with(&slot, decl, on_dismiss, body);
     }

@@ -364,9 +364,19 @@ impl Default for Placement {
 pub enum Anchored {
     /// The anchor meets the bounds.
     Attached,
-    /// The anchor lies wholly outside the bounds (scrolled out of its
-    /// viewport): the overlay is hidden, its open state untouched.
+    /// The anchor lies wholly outside the bounds, or is clipped away by its
+    /// containers (scrolled out of its viewport): the overlay is hidden, its
+    /// open state untouched. An anchor that is not in the frame at all is not
+    /// this: the overlay is dismissed.
     Detached,
+}
+
+/// Whether the node an overlay is anchored to is in the frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AnchorLookup {
+    Found,
+    /// An [`Anchor::Node`] naming no node of the frame.
+    Missing,
 }
 
 impl Anchored {

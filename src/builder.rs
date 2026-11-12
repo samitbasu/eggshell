@@ -251,6 +251,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// An overlay: a floating layer placed against an anchor. See
     /// [`overlay`](crate::overlay).
+    #[track_caller]
     pub fn overlay<K: Key>(&mut self, key: K) -> OverlayChain<'_, 'f, A, Unplaced> {
         let slot = self.slot(&key);
         OverlayChain::new(self.reborrow(), slot)

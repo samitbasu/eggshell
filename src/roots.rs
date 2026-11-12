@@ -14,7 +14,9 @@ use taffy::{FlexDirection, NodeId, Style};
 
 use crate::dismiss::Opening;
 use crate::key::{Key, child_id};
-use crate::overlay::{Anchor, Anchored, Band, Behavior, MatchWidth, Outside, Placement, Side};
+use crate::overlay::{
+    Anchor, AnchorLookup, Anchored, Band, Behavior, MatchWidth, Outside, Placement, Side,
+};
 use crate::pipeline::{Placed, PlacedNode};
 use crate::scroll::Description;
 
@@ -35,6 +37,7 @@ pub(crate) struct OverlayDecl {
     pub(crate) match_width: MatchWidth,
     pub(crate) description: Description,
     pub(crate) behavior: Behavior,
+    pub(crate) declared_at: &'static std::panic::Location<'static>,
 }
 
 /// A root, from the moment its body starts to be built.
@@ -90,6 +93,7 @@ pub(crate) struct PlacedOverlay {
     pub(crate) anchor: Rect,
     pub(crate) anchor_decl: Anchor,
     pub(crate) opening: Opening,
+    pub(crate) lookup: AnchorLookup,
     pub(crate) behavior: Behavior,
     /// Position among the open overlays, bottom first: the order they were
     /// opened in.

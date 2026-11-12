@@ -59,6 +59,7 @@ struct App {
     submenu: bool,
     dialog: bool,
     list: bool,
+    hide_trigger: bool,
     popover_dismiss: DismissOn,
     popover_outside: Option<Outside>,
     menu_outside: Option<Outside>,
@@ -103,8 +104,10 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .focusable_none(),
         |s| {
             s.div_id(Part::Top, tw().flex().gap(2.0).h_px(30.0), |s| {
-                s.button(Part::Trigger, "Trigger")
-                    .on_click(|app: &mut App| app.popover = !app.popover);
+                if !app.hide_trigger {
+                    s.button(Part::Trigger, "Trigger")
+                        .on_click(|app: &mut App| app.popover = !app.popover);
+                }
                 s.button(Part::MenuTrigger, "Menu")
                     .on_click(|app: &mut App| app.menu = !app.menu);
                 s.button(Part::Other, "Other")
@@ -429,6 +432,16 @@ mod popover {
         click_node(&mut harness, "/Page/Top/Other");
         settle(&mut harness);
         assert_eq!(log(&harness), ["popover dismissed"]);
+    }
+
+    #[test]
+    fn it_is_dismissed_when_its_anchor_leaves_the_frame() {
+        let mut harness = harness(App::default());
+        open_popover(&mut harness);
+        harness.state_mut().app.hide_trigger = true;
+        settle(&mut harness);
+        assert_eq!(log(&harness), ["popover dismissed"]);
+        assert!(!harness.state().app.popover);
     }
 
     #[test]

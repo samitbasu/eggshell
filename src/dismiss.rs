@@ -10,7 +10,7 @@
 
 use egui::{Pos2, Rect};
 
-use crate::overlay::{Band, DismissOn, Outside};
+use crate::overlay::{AnchorLookup, Band, DismissOn, Outside};
 
 /// Where keyboard focus is, relative to an overlay.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -45,6 +45,8 @@ pub(crate) struct Layer {
     pub(crate) opening: Opening,
     pub(crate) focus_before: FocusAt,
     pub(crate) focus_now: FocusAt,
+    /// A missing anchor makes the overlay take no part in the other rules.
+    pub(crate) lookup: AnchorLookup,
 }
 
 /// What the frame's input did.
@@ -68,6 +70,8 @@ pub(crate) enum Cause {
     WindowBlur,
     /// Another overlay opened while this swallowing one was open.
     Exclusive,
+    /// The node the overlay is anchored to is not in the frame.
+    AnchorGone,
 }
 
 /// An overlay to dismiss.
@@ -108,8 +112,15 @@ impl Found {
 ///    nested in it, dismisses the swallowing one: menus are exclusive.
 ///    Tooltips do not count.
 pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
-    let top_down = || (0..layers.len()).rev();
+    let top_down = || {
+        (0..layers.len())
+            .rev()
+            .filter(|&at| layers[at].lookup == AnchorLookup::Found)
+    };
     let mut found = Found::default();
+    for at in (0..layers.len()).filter(|&at| layers[at].lookup == AnchorLookup::Missing) {
+        found.add(at, Cause::AnchorGone);
+    }
     if input.window_blurred {
         for at in top_down().filter(|&at| layers[at].dismiss_on.focus_out()) {
             found.add(at, Cause::WindowBlur);
@@ -157,6 +168,9 @@ fn contains(layers: &[Layer], at: usize, press: Pos2) -> bool {
 fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
     let mut swallowed_by = None;
     for at in (0..layers.len()).rev() {
+        if layers[at].lookup == AnchorLookup::Missing {
+            continue;
+        }
         if swallowed_by.is_some_and(|by| !nested_in(layers, by, at)) {
             break;
         }
@@ -174,12 +188,15 @@ fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
 }
 
 fn exclusive(layers: &[Layer], found: &mut Found) {
-    for opened in (0..layers.len())
-        .filter(|&at| layers[at].opening == Opening::Opened && layers[at].band != Band::Tooltip)
-    {
+    for opened in (0..layers.len()).filter(|&at| {
+        layers[at].opening == Opening::Opened
+            && layers[at].band != Band::Tooltip
+            && layers[at].lookup == AnchorLookup::Found
+    }) {
         for below in 0..opened {
             let layer = &layers[below];
-            if layer.outside == Outside::Swallow
+            if layer.lookup == AnchorLookup::Found
+                && layer.outside == Outside::Swallow
                 && layer.dismiss_on == DismissOn::Default
                 && !nested_in(layers, opened, below)
             {
@@ -212,6 +229,7 @@ mod tests {
             opening: Opening::Open,
             focus_before: FocusAt::Nowhere,
             focus_now: FocusAt::Nowhere,
+            lookup: AnchorLookup::Found,
         }
     }
 
@@ -491,6 +509,41 @@ mod tests {
         assert_eq!(
             closed(&[opened(menu(0.0)), opened(menu(150.0))], &Input::default()),
             vec![0]
+        );
+    }
+
+    #[test]
+    fn an_overlay_whose_anchor_is_gone_is_dismissed_and_takes_no_part_in_the_rest() {
+        let gone = Layer {
+            lookup: AnchorLookup::Missing,
+            rect: Rect::NOTHING,
+            ..menu(0.0)
+        };
+        assert_eq!(
+            dismissals(&[gone], &Input::default()),
+            vec![Dismissal {
+                layer: 0,
+                cause: Cause::AnchorGone
+            }]
+        );
+        let opened = Layer {
+            opening: Opening::Opened,
+            ..popover(150.0)
+        };
+        assert_eq!(
+            closed(&[popover(0.0), gone], &press(INSIDE)),
+            vec![1],
+            "it neither contains the press nor ends the walk"
+        );
+        assert_eq!(closed(&[gone, opened], &Input::default()), vec![0]);
+        let missing_opened = Layer {
+            opening: Opening::Opened,
+            ..gone
+        };
+        assert_eq!(
+            closed(&[menu(0.0), missing_opened], &Input::default()),
+            vec![1],
+            "an overlay that is not there does not dismiss a menu"
         );
     }
 
