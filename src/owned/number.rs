@@ -2,10 +2,85 @@
 //! keys that move them.
 
 use std::ops::RangeInclusive;
+use std::rc::Rc;
 
 use egui::{EventFilter, Key, Modifiers, Ui};
 
 use crate::NodeUi as _;
+
+/// The start or the end of an edit of a slider or a stepper, for what the
+/// application does while a value is being changed (not re-syncing a draft
+/// from live state) or only when the change is done (sending an intent).
+///
+/// One edit is one gesture: a press on the thumb or the track to its release;
+/// one key press, which begins and ends at once; for a stepper's field, the
+/// typing from the first change to the field losing focus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Edit {
+    /// The edit starts, before the first value it sets.
+    Began,
+    /// The edit is over, after the last value it sets.
+    Ended,
+}
+
+/// The `on_edit` handler of a slider or a stepper, if it has one.
+pub(super) struct Edits<A>(Option<Rc<EditFn<A>>>);
+
+type EditFn<A> = dyn Fn(&mut A, Edit);
+
+impl<A> Clone for Edits<A> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<A> Default for Edits<A> {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl<A> Edits<A> {
+    pub(super) fn set(&mut self, then: impl Fn(&mut A, Edit) + 'static) {
+        self.0 = Some(Rc::new(then));
+    }
+
+    pub(super) fn emit(&self, app: &mut A, edit: Edit) {
+        if let Some(then) = &self.0 {
+            then(app, edit);
+        }
+    }
+
+    /// Runs `change` as one edit.
+    pub(super) fn once(&self, app: &mut A, change: impl FnOnce(&mut A)) {
+        self.emit(app, Edit::Began);
+        change(app);
+        self.emit(app, Edit::Ended);
+    }
+
+    /// Runs `change` in the frame of a pointer press on the node `id`,
+    /// which is `down` while the button is held on it. Call it every frame:
+    /// the press is [`Began`](Edit::Began) when `down` turns on, and the
+    /// release [`Ended`](Edit::Ended) when it turns off.
+    pub(super) fn pointer(
+        &self,
+        app: &mut A,
+        ui: &Ui,
+        (id, down): (egui::Id, bool),
+        change: impl FnOnce(&mut A),
+    ) {
+        let key = id.with("eggshell-edit");
+        let was = ui.data(|data| data.get_temp::<bool>(key)).unwrap_or(false);
+        ui.data_mut(|data| data.insert_temp(key, down));
+        if down && !was {
+            self.emit(app, Edit::Began);
+        }
+        change(app);
+        if was && !down {
+            self.emit(app, Edit::Ended);
+        }
+    }
+}
 
 /// The distance between the values of a slider or a stepper, always positive.
 #[derive(Clone, Copy, Debug, PartialEq)]

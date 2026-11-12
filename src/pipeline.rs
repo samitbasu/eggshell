@@ -18,6 +18,7 @@ use crate::focus;
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, place};
+use crate::owned::Enablement;
 use crate::prim::Prim;
 use crate::roots::{ById, PlacedOverlay, PlacedRoot, PlacedRootKind, RootDecl, RootKind, root_of};
 use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
@@ -252,7 +253,7 @@ impl LayoutState {
             &mut frame,
             root_id(),
             &mut kids,
-            &base,
+            (&base, Enablement::Enabled),
         ));
         let root = st
             .tree

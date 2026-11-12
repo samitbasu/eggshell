@@ -1,7 +1,6 @@
 //! The owned radio group: circles that choose one value, with arrow keys.
 
-use std::fmt::Debug;
-use std::hash::Hash;
+use std::rc::Rc;
 
 use egui::{Id, Key, Role, Ui};
 
@@ -12,9 +11,9 @@ use crate::builder::Slot;
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
-enum Part<T> {
-    Circle(T),
-    Label(T),
+enum Part {
+    Circle(usize),
+    Label(usize),
 }
 
 /// Radio buttons that choose one of `options`, drawn from the [`Style`]. Start
@@ -36,11 +35,8 @@ pub struct RadioGroupChain<'a, 'f, A, T> {
     on_response: OnResponse<A>,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
-    RadioGroupChain<'a, 'f, A, T>
-{
-    /// A group of `options` of which `current` is chosen. Values must be
-    /// distinct.
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, A, T> {
+    /// A group of `options` of which `current` is chosen.
     pub(super) fn new<K: crate::Key, O: IntoChoice<T>>(
         b: Builder<'a, 'f, A>,
         key: K,
@@ -81,7 +77,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
     /// Adds the group. `select` runs with the value of the option that was
     /// chosen with the pointer or the keyboard.
     #[track_caller]
-    pub fn on_change(self, select: impl Fn(&mut A, T) + Copy + 'static) {
+    pub fn on_change(self, select: impl Fn(&mut A, T) + 'static) {
+        let select = Rc::new(select);
         let Self {
             mut b,
             slot,
@@ -91,6 +88,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
             enablement,
             on_response,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let radio = &style.radio;
         let values: Vec<T> = options.iter().map(|option| option.value).collect();
@@ -105,9 +103,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
             .unwrap_or(0);
         b.claim(&slot);
         b.scope_with(slot.id, &slot.label, |b| {
-            let ids: Vec<_> = values
-                .iter()
-                .map(|&value| b.id_of(Part::Circle(value)))
+            let ids: Vec<_> = (0..count)
+                .map(|index| b.id_of(Part::Circle(index)))
                 .collect();
             let group = tw().flex().flex_col().gap(3.0).merge(classes);
             b.div(group, |b| {
@@ -136,6 +133,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
                         circle.focusable_none()
                     };
                     let on_response = on_response.clone();
+                    let (on_circle, on_label) = (select.clone(), select.clone());
                     let around = |offset: usize| {
                         (1..count)
                             .map(|step| (index + step * offset) % count)
@@ -148,7 +146,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
                     b.div(
                         choice_row(&style, &radio.text, enablement, radio.gap),
                         |b| {
-                            b.div_id(Part::Circle(value), circle, |b| {
+                            b.div_id(Part::Circle(index), circle, |b| {
                                 if chosen {
                                     b.paint(tw().size_px(dot), |painter, rect, color| {
                                         painter.circle_filled(
@@ -168,22 +166,22 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
                                     &tooltip,
                                 );
                                 if response.clicked() {
-                                    select(app, value);
+                                    on_circle(app, value);
                                 }
                                 on_response.run(app, &response);
                                 take_focus_if_asked(ui, response.id);
                                 if response.has_focus() {
-                                    navigate(app, ui, select, previous, next);
+                                    navigate(app, ui, &*on_circle, previous, next);
                                 }
                             });
                             choice_label(
                                 b,
-                                Part::Label(value),
+                                Part::Label(index),
                                 control,
                                 label,
                                 enablement,
                                 move |app| {
-                                    select(app, value);
+                                    on_label(app, value);
                                 },
                             );
                         },

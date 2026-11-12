@@ -13,6 +13,7 @@ mod checkbox;
 mod choice;
 mod custom;
 mod number;
+mod progress;
 mod radio;
 mod segmented;
 mod select;
@@ -37,7 +38,8 @@ pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
-pub use number::Step;
+pub use number::{Edit, Step};
+pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
 pub use segmented::{Cell, SegmentedChain};
 pub use select::SelectChain;
@@ -576,11 +578,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
 
     /// Radio buttons for `options` (anything [`IntoChoice`]), of which
     /// `current` is chosen. Values must be distinct.
-    pub fn radio_group<
-        K: crate::Key,
-        T: Copy + PartialEq + Hash + Debug + 'static,
-        O: IntoChoice<T>,
-    >(
+    pub fn radio_group<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &mut self,
         key: K,
         current: T,
@@ -591,11 +589,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
 
     /// A segmented control over `options` (anything [`IntoChoice`]), of which
     /// `current` is selected. Values must be distinct.
-    pub fn segmented<
-        K: crate::Key,
-        T: Copy + PartialEq + Hash + Debug + 'static,
-        O: IntoChoice<T>,
-    >(
+    pub fn segmented<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &mut self,
         key: K,
         current: T,
@@ -616,13 +610,22 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
 
     /// A select over `options` (anything [`IntoChoice`]), of which `current`
     /// is chosen; the trigger shows the label of the chosen one.
-    pub fn select<K: crate::Key, T: Copy + PartialEq + Hash + Debug + 'static, O: IntoChoice<T>>(
+    pub fn select<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &mut self,
         key: K,
         current: T,
         options: impl IntoIterator<Item = O>,
     ) -> SelectChain<'_, 'f, A, T> {
         SelectChain::new(self.reborrow(), key, current, options)
+    }
+
+    /// A progress bar filled to `progress`, drawn like a slider's track.
+    pub fn progress<K: crate::Key>(
+        &mut self,
+        key: K,
+        progress: crate::Progress,
+    ) -> ProgressChain<'_, 'f, A> {
+        ProgressChain::new(self.reborrow(), key, progress)
     }
 
     /// A stepper at `value` within `range`.

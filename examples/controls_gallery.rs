@@ -23,7 +23,7 @@ use eggshell_ui::contract::{Colors, Paint, States, Style, Variant};
 use eggshell_ui::owned;
 use eggshell_ui::prim::text_field::{self, Field};
 use eggshell_ui::widget::{Lines, TextEdit};
-use eggshell_ui::{Builder, Scope, TextStyle, Tw, tw};
+use eggshell_ui::{Builder, Progress, Scope, TextStyle, Tw, tw};
 use eggshell_ui_shadcn::{size, variant};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
@@ -870,6 +870,12 @@ fn values_section(s: &mut S<'_, '_>, state: &State) {
                     .on_change(|s: &mut State, value| s.owned_slider = value);
             });
         }
+        row(b, "progress", |b| {
+            b.progress("progress", Progress::new(state.owned_slider as f32 / 100.0))
+                .named("Volume")
+                .classes(tw().w_px(150.0))
+                .add();
+        });
         for enablement in ENABLEMENTS {
             row(b, &named("select", enablement), |b| {
                 b.select(("select", enablement), state.owned_select, REGION_OPTIONS)

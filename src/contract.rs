@@ -541,6 +541,20 @@ pub struct SliderStyle {
     pub transition: Duration,
 }
 
+/// Determinate progress bars: a track filled up to a fraction.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ProgressStyle {
+    /// Thickness of the bar.
+    pub height: f32,
+    /// Corner radius of the track and its range; `u8::MAX` makes them round.
+    pub radius: u8,
+    /// The track's colours; only `fill` applies.
+    pub track: Colors,
+    /// The range's colours; only `fill` applies.
+    pub range: Colors,
+}
+
 /// Select triggers and the list of options they open.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -748,6 +762,8 @@ pub struct Style {
     pub segmented: SegmentedStyle,
     /// Sliders.
     pub slider: SliderStyle,
+    /// Progress bars.
+    pub progress: ProgressStyle,
     /// Select triggers.
     pub select: SelectStyle,
     /// Steppers.
@@ -1027,6 +1043,20 @@ impl Style {
                     surface,
                 )),
                 transition,
+            },
+            progress: ProgressStyle {
+                height: s.slider_rail_height,
+                radius: u8::MAX,
+                track: Colors {
+                    fill: w.inactive.bg_fill,
+                    border: clear,
+                    text: clear,
+                },
+                range: Colors {
+                    fill: selected.fill,
+                    border: clear,
+                    text: clear,
+                },
             },
             slider: SliderStyle {
                 track_height: s.slider_rail_height,

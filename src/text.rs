@@ -92,6 +92,9 @@ pub enum WhiteSpace {
     NoWrap,
     /// Never wrap, and end with an ellipsis where the text overflows.
     Truncate,
+    /// Wrap at word boundaries over at most this many lines, the last ending
+    /// with an ellipsis where the text overflows.
+    Clamp(u32),
 }
 
 /// Horizontal alignment of text within its box.

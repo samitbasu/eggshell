@@ -159,7 +159,7 @@ fn every_form_of_option_builds_a_working_control() {
                 "{label} is a cell of every control"
             );
         }
-        click_node(&mut harness, &format!("/\"f{form}\"/C"));
+        click_node(&mut harness, &format!("/\"f{form}\"/2"));
         harness.run_steps(3);
         assert_eq!(harness.state().app.forms[form], Dir::C, "form {form}");
     }
@@ -175,7 +175,7 @@ fn a_display_value_and_a_reference_to_one_label_a_radio_group_and_a_select() {
             .on_change(|app: &mut App, dir| app.select = dir);
     }
     let mut harness = harness(view);
-    click_node(&mut harness, "/\"r\"/Circle(B)");
+    click_node(&mut harness, "/\"r\"/Circle(1)");
     assert_eq!(harness.state().app.radio, Dir::B);
     assert!(
         harness
@@ -226,9 +226,9 @@ fn a_disabled_option_is_announced_disabled_and_the_others_are_not() {
 #[test]
 fn a_disabled_option_cannot_be_chosen_with_the_pointer() {
     let mut harness = harness(disabled_option);
-    click_node(&mut harness, "/\"r\"/Circle(B)");
-    click_node(&mut harness, "/\"r\"/Label(B)");
-    click_node(&mut harness, "/\"s\"/B");
+    click_node(&mut harness, "/\"r\"/Circle(1)");
+    click_node(&mut harness, "/\"r\"/Label(1)");
+    click_node(&mut harness, "/\"s\"/1");
     harness.run_steps(3);
     assert_eq!(harness.state().app.radio, Dir::A);
     assert_eq!(harness.state().app.segmented, Dir::A);
@@ -247,10 +247,10 @@ fn a_disabled_option_cannot_be_chosen_with_the_pointer() {
 #[test]
 fn the_arrow_keys_skip_a_disabled_radio_option_and_tab_skips_a_disabled_cell() {
     let mut harness = harness(disabled_option);
-    tab_to(&mut harness, "/\"r\"/Circle(A)");
+    tab_to(&mut harness, "/\"r\"/Circle(0)");
     press(&mut harness, Key::ArrowDown);
     assert_eq!(harness.state().app.radio, Dir::C, "Beta is skipped");
-    assert_eq!(focused_path(&harness).as_deref(), Some("/\"r\"/Circle(C)"));
+    assert_eq!(focused_path(&harness).as_deref(), Some("/\"r\"/Circle(2)"));
     press(&mut harness, Key::ArrowDown);
     assert_eq!(harness.state().app.radio, Dir::A, "and the group wraps");
     press(&mut harness, Key::ArrowUp);
@@ -262,10 +262,10 @@ fn the_arrow_keys_skip_a_disabled_radio_option_and_tab_skips_a_disabled_cell() {
         visited.extend(focused_path(&harness));
     }
     assert!(
-        visited.iter().any(|path| path == "/\"s\"/A"),
+        visited.iter().any(|path| path == "/\"s\"/0"),
         "the segmented control is reached: {visited:?}"
     );
-    assert!(visited.iter().all(|path| path != "/\"s\"/B"), "{visited:?}");
+    assert!(visited.iter().all(|path| path != "/\"s\"/1"), "{visited:?}");
 }
 
 #[test]

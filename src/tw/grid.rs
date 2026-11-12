@@ -19,60 +19,94 @@ use super::Tw;
 /// # let _ = columns;
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Track(TrackSizingFunction);
+pub struct Track {
+    sizing: TrackSizingFunction,
+    repeat: Option<RepetitionCount>,
+}
 
 impl Track {
     /// A fixed length in points.
     pub fn px(points: f32) -> Self {
-        Self(length(points))
+        Self::single(length(points))
     }
 
     /// A share of the free space.
     pub fn fr(fraction: f32) -> Self {
-        Self(fr(fraction))
+        Self::single(fr(fraction))
     }
 
     /// Sized by its content and the free space.
     pub fn auto() -> Self {
-        Self(TrackSizingFunction::AUTO)
+        Self::single(TrackSizingFunction::AUTO)
     }
 
     /// As narrow as its content allows.
     pub fn min_content() -> Self {
-        Self(TrackSizingFunction::MIN_CONTENT)
+        Self::single(TrackSizingFunction::MIN_CONTENT)
     }
 
     /// As wide as its content wants.
     pub fn max_content() -> Self {
-        Self(TrackSizingFunction::MAX_CONTENT)
+        Self::single(TrackSizingFunction::MAX_CONTENT)
     }
 
     /// `minmax(min, max)`: the minimum is taken from `min`'s lower bound and
     /// the maximum from `max`'s upper bound.
     pub fn minmax(min: Self, max: Self) -> Self {
-        Self(MinMax {
-            min: min.0.min_sizing_function(),
-            max: max.0.max_sizing_function(),
+        Self::single(MinMax {
+            min: min.sizing.min_sizing_function(),
+            max: max.sizing.max_sizing_function(),
         })
+    }
+
+    /// `repeat(auto-fill, <track>)`: as many columns (or rows) of `track` as
+    /// fit, empty ones included, so that a partial last row keeps the size of
+    /// the others. Needs a definite size on its axis.
+    pub fn repeat_fill(track: Self) -> Self {
+        track.repeated(RepetitionCount::AutoFill)
+    }
+
+    /// `repeat(auto-fit, <track>)`: like [`repeat_fill`](Self::repeat_fill),
+    /// but tracks that hold no item collapse to nothing, so the others take
+    /// their space.
+    pub fn repeat_fit(track: Self) -> Self {
+        track.repeated(RepetitionCount::AutoFit)
+    }
+
+    fn single(sizing: TrackSizingFunction) -> Self {
+        Self {
+            sizing,
+            repeat: None,
+        }
+    }
+
+    fn repeated(self, count: RepetitionCount) -> Self {
+        Self {
+            repeat: Some(count),
+            ..self
+        }
     }
 
     /// `minmax(0, <fraction>fr)`: tracks that share space evenly.
     pub fn flex(fraction: f32) -> Self {
-        Self(flex(fraction))
+        Self::single(flex(fraction))
     }
 }
 
 fn template(tracks: &[Track]) -> Vec<GridTemplateComponent<String>> {
     tracks
         .iter()
-        .map(|track| GridTemplateComponent::Single(track.0))
+        .map(|track| match track.repeat {
+            None => GridTemplateComponent::Single(track.sizing),
+            Some(count) => repeat(count, vec![track.sizing]),
+        })
         .collect()
 }
 
 fn even(count: u16) -> Vec<GridTemplateComponent<String>> {
     vec![repeat(
         RepetitionCount::Count(count),
-        vec![Track::flex(1.0).0],
+        vec![Track::flex(1.0).sizing],
     )]
 }
 
@@ -176,10 +210,13 @@ mod tests {
 
     #[test]
     fn tracks_map_to_taffy() {
-        assert_eq!(Track::px(48.0).0, length::<_, TrackSizingFunction>(48.0));
-        assert_eq!(Track::fr(2.0).0, fr::<_, TrackSizingFunction>(2.0));
         assert_eq!(
-            Track::minmax(Track::px(0.0), Track::fr(1.0)).0,
+            Track::px(48.0).sizing,
+            length::<_, TrackSizingFunction>(48.0)
+        );
+        assert_eq!(Track::fr(2.0).sizing, fr::<_, TrackSizingFunction>(2.0));
+        assert_eq!(
+            Track::minmax(Track::px(0.0), Track::fr(1.0)).sizing,
             minmax::<TrackSizingFunction>(length(0.0), fr(1.0))
         );
         assert_eq!(

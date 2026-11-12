@@ -60,7 +60,8 @@ impl From<Opacity> for f32 {
     }
 }
 
-/// How far a transition has come, in the closed unit interval.
+/// How far something has come, in the closed unit interval: a transition, or
+/// a task shown by a progress bar.
 ///
 /// Construction clamps, and NaN becomes [`Progress::START`].
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]

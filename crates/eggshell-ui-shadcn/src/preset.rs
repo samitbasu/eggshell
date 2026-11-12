@@ -406,6 +406,14 @@ impl Shadcn {
             slider.transition = transition;
             slider
         };
+        style.progress = {
+            let mut progress = style.progress;
+            progress.height = 8.0;
+            progress.radius = u8::MAX;
+            progress.track = flat(t.primary.gamma_multiply(0.2), t.foreground);
+            progress.range = flat(t.primary, t.primary_foreground);
+            progress
+        };
         style.select = {
             let mut select = style.select;
             select.trigger = input_box;
