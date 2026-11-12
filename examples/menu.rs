@@ -14,7 +14,7 @@ mod common;
 
 use eggshell_ui::overlay::{Anchor, Distance, MatchWidth, Nav, Placement};
 use eggshell_ui::scroll::Axis;
-use eggshell_ui::{Builder, Scope, Style, Tw, tw};
+use eggshell_ui::{Builder, Scope, tw};
 use egui::Role;
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -54,39 +54,8 @@ pub struct State {
 pub const ROWS: u32 = 40;
 pub const ROW_HEIGHT: f32 = 28.0;
 
-/// The box of a menu or list: the select's popup look.
-fn popup_box(b: &Builder<'_, '_, State>) -> Tw {
-    let select = &Style::of(b.ctx()).select;
-    let colors = select.popup.paint.states.rest;
-    let classes = tw()
-        .flex()
-        .flex_col()
-        .min_h_0()
-        .bg(colors.fill)
-        .border(select.popup.border_width)
-        .border_color(colors.border)
-        .rounded_px(f32::from(select.popup_radius))
-        .p(select.popup_padding / 4.0)
-        .text(colors.text);
-    match select.popup.paint.shadow {
-        Some(shadow) => classes.shadow(shadow),
-        None => classes,
-    }
-}
-
-/// An item of a menu or list: the select's item look.
-fn item_classes(b: &Builder<'_, '_, State>) -> Tw {
-    let select = &Style::of(b.ctx()).select;
-    let hover = select.item.paint.states.hover;
-    tw().px(select.item_padding.x / 4.0)
-        .py(select.item_padding.y / 4.0)
-        .rounded_px(f32::from(select.item_radius))
-        .sense_click()
-        .hover(move |p| p.bg(hover.fill).text(hover.text))
-}
-
 fn menu_item(s: &mut Scope<'_, '_, State>, item: Item, label: &str, act: fn(&mut State)) {
-    let classes = item_classes(s);
+    let classes = common::popup_item(s);
     s.div_id(Part::Item(item), classes, |s| s.text(tw(), label))
         .role(Role::MenuItem)
         .named(label)
@@ -130,7 +99,7 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
 
 fn popover(b: &mut Builder<'_, '_, State>, state: &State) {
     let anchor = b.id_of(Part::PopoverButton);
-    let menu = popup_box(b);
+    let menu = common::popup_box(b);
     b.overlay(Part::Popover)
         .anchor(Anchor::Node(anchor))
         .placement(Placement::below().gap(Distance::new(4.0)))
@@ -156,7 +125,7 @@ fn popover(b: &mut Builder<'_, '_, State>, state: &State) {
                 });
                 if state.submenu {
                     let parent = s.id_of(Part::Item(Item::Arrange));
-                    let nested = popup_box(s);
+                    let nested = common::popup_box(s);
                     s.overlay(Part::Submenu)
                         .anchor(Anchor::Node(parent))
                         .placement(Placement::submenu())
@@ -183,8 +152,8 @@ fn popover(b: &mut Builder<'_, '_, State>, state: &State) {
 
 fn list(b: &mut Builder<'_, '_, State>) {
     let anchor = b.id_of(Part::ListButton);
-    let list = popup_box(b);
-    let row = item_classes(b);
+    let list = common::popup_box(b);
+    let row = common::popup_item(b);
     b.overlay(Part::List)
         .anchor(Anchor::Node(anchor))
         .placement(Placement::below().gap(Distance::new(4.0)))

@@ -40,6 +40,7 @@ mod known_gaps_demo;
 mod layout;
 mod layout_animation;
 mod line_clamp;
+mod modal;
 mod overlay;
 mod overlay_input;
 mod owned;
