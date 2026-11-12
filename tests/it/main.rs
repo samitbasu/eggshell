@@ -6,6 +6,7 @@
     reason = "each example includes the shared examples/common module"
 )]
 
+mod autosuggest;
 mod button_options;
 mod ch;
 mod chat_shell_demo;

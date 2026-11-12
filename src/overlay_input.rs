@@ -14,11 +14,11 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2};
 use crate::actions::{self, Action};
 use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, dismissals, esc_target};
 use crate::draw::children_of;
-use crate::focus;
+use crate::focus::{self, PointerOn};
 use crate::nav::{self, Menu};
 use crate::overlay::{Anchor, AnchorLookup, Behavior, Focus, Nav};
 use crate::pipeline::{DismissFn, PlacedNode};
-use crate::roots::{Form, PlacedOverlay, PlacedRoot, stacked_top_down};
+use crate::roots::{Form, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
 use crate::stack::{Entered, Stack};
 
 /// Whether an in-app drag is live.
@@ -37,6 +37,22 @@ pub(crate) fn press_origin(ctx: &Context) -> Option<Pos2> {
             .then(|| input.pointer.press_origin())
             .flatten()
     })
+}
+
+/// Whether the pointer is on an overlay that leaves focus on its anchor.
+pub(crate) fn pointer_on(ctx: &Context, nodes: &[PlacedNode], roots: &[PlacedRoot]) -> PointerOn {
+    let Some(at) = ctx.input(|input| input.pointer.interact_pos()) else {
+        return PointerOn::Elsewhere;
+    };
+    let root = root_at(roots, nodes, at);
+    let on_it = roots[root].overlay().is_some_and(|overlay| {
+        overlay.behavior.focus == Focus::Stay && nodes[roots[root].first].rect().contains(at)
+    });
+    if on_it {
+        PointerOn::StayingOverlay
+    } else {
+        PointerOn::Elsewhere
+    }
 }
 
 /// An attached overlay.

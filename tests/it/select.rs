@@ -282,6 +282,23 @@ fn only_one_option_looks_highlighted_whether_the_pointer_or_the_keys_moved_it() 
 }
 
 #[test]
+fn choosing_with_the_pointer_leaves_focus_on_the_trigger() {
+    let mut harness = harness();
+    tab_to(&mut harness, PICK);
+    press(&mut harness, Key::Enter);
+    assert!(open(&harness), "precondition");
+    support::press(&mut harness, &row(LIST, 2));
+    assert_eq!(
+        focused_path(&harness).as_deref(),
+        Some(PICK),
+        "held through the press"
+    );
+    support::release(&mut harness, &row(LIST, 2));
+    assert_eq!(harness.state().app.changes, [2]);
+    assert_eq!(focused_path(&harness).as_deref(), Some(PICK));
+}
+
+#[test]
 fn the_arrows_stop_at_the_ends_of_the_list() {
     let mut harness = harness();
     tab_to(&mut harness, PICK);

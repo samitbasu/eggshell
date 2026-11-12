@@ -1421,6 +1421,10 @@ impl<A> Placed<A> {
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
+        let _anchor_focus = focus::AnchorFocusHeld::new(
+            ui.ctx(),
+            overlay_input::pointer_on(ui.ctx(), &self.nodes, &self.roots),
+        );
         let pressed = press_origin(ui.ctx())
             .map(|at| self.root_at(at))
             .and_then(|root| Some(self.roots[root].overlay()?.id));
