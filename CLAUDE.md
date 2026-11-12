@@ -166,13 +166,14 @@ copying this file elsewhere.
   input, so one-frame-stale layout shows there. `web` needs a `wasm-bindgen`
   CLI matching `Cargo.lock`; it prints the install command if not.
 - Golden images (`tests/snapshots/`, rendered by `tests/it/snapshots.rs` behind the
-  `snapshots` cargo feature) are checked with `cargo xtask snapshots`, which
-  forces Mesa lavapipe so every machine renders the same pixels. It is not in
-  `cargo xtask ci` yet. After a change that can move pixels, run it; on a
-  mismatch open the `.diff.png` files it prints. If the change is intended,
+  `snapshots` cargo feature) are checked by `cargo xtask ci`, whose test step
+  builds the workspace with that feature and renders on Mesa lavapipe so every
+  machine draws the same pixels. `cargo xtask snapshots` runs only the goldens,
+  for a focused re-run or an update. On a mismatch open the `.diff.png` files
+  either prints. If the change is intended,
   `cargo xtask snapshots --update` regenerates the goldens and lists the
   added, modified and removed ones: look at each image (the PNG diff is the
   review, as in a code diff) before committing, and say in the commit message
   what changed and why. Never update goldens to silence a failure.
-  `--filter NAME` limits the run to goldens whose test name starts with `NAME`; `--clean` deletes stray `.new.png` and
-  `.diff.png` files.
+  `--filter NAME` limits the run to goldens whose test name starts with `NAME`; `--clean` deletes stray `.new.png`,
+  `.diff.png` and `.old.png` files.
