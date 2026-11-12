@@ -558,3 +558,35 @@ fn a_bare_field_is_as_tall_as_the_text_it_replaces() {
     );
     assert_eq!(bare, readout);
 }
+
+fn bare_field_in_a_box(b: &mut Builder<'_, '_, String>, text: &String) {
+    b.div_id(
+        "box",
+        tw().flex().flex_col().w_px(160.0).px(1.5).py(0.5),
+        |b| {
+            b.text_field_with("bare", Field::singleline(text).bare().named("Bare"))
+                .on_change(|app: &mut String, value| *app = value);
+        },
+    );
+}
+
+#[test]
+fn a_bare_field_draws_its_widget_in_its_leaf_not_at_the_input_height() {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let harness = support::harness_prepared(
+        vec2(400.0, 200.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        "x".to_owned(),
+        bare_field_in_a_box,
+        |ctx, _| Shadcn::apply_both(ctx),
+    );
+    let leaf = rect_of(&harness, "/\"box\"/\"bare\"");
+    let input_height = eggshell_ui::Style::of(&harness.ctx).input.height;
+    assert!(
+        leaf.height() < input_height,
+        "precondition: the leaf ({}) is shorter than input.height ({input_height})",
+        leaf.height()
+    );
+    let drawn = harness.get_by_label("Bare").rect();
+    assert_eq!(drawn, leaf, "the field's widget rect is its leaf");
+}
