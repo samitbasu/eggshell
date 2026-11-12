@@ -301,6 +301,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     let open = open_overlays(roots);
     nav::forget_closed(
         ctx,
+        scope,
         &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
     );
     let source = Source::last(ctx);
@@ -390,7 +391,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             anchor: open.anchor_node(),
         })
         .collect();
-    for id in nav::navigate(ctx, &menus) {
+    for id in nav::navigate(ctx, scope, &menus) {
         if let Some(then) = dismiss.remove(&id) {
             then(app);
         }

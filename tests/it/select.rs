@@ -255,6 +255,11 @@ fn a_list_opened_with_the_pointer_is_chosen_with_the_keyboard() {
         "precondition: nothing focused"
     );
     press(&mut harness, Key::ArrowDown);
+    assert_eq!(
+        focused_path(&harness),
+        None,
+        "the arrow moved the highlight, not egui's focus"
+    );
     press(&mut harness, Key::Enter);
     assert_eq!(
         harness.state().app.changes,
@@ -504,4 +509,65 @@ fn clicking_the_trigger_again_closes_the_list() {
     click_node(&mut harness, PICK);
     settle(&mut harness);
     assert!(open(&harness), "and a third opens it again");
+}
+
+/// Two frames laid out in one context each pass, as the examples' shell does
+/// with its theme bar and its page: the bar declares no overlay.
+mod beside_another_frame {
+    use super::*;
+    use eggshell_ui::LayoutState;
+
+    struct Shell {
+        bar: LayoutState,
+        page: LayoutState,
+        app: App,
+    }
+
+    fn harness() -> Harness<'static, Shell> {
+        let mut harness = Harness::builder().with_size(SCREEN).build_ui_state(
+            |ui, shell: &mut Shell| {
+                if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
+                    eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+                }
+                let area = ui.max_rect();
+                let Shell { bar, page, app } = shell;
+                bar.build(ui.ctx(), |b| b.div(tw().h_px(10.0), |_| {}))
+                    .layout(egui::Rect::from_min_size(
+                        area.min,
+                        vec2(area.width(), 10.0),
+                    ))
+                    .draw(app, ui);
+                page.build(ui.ctx(), |b| view(b, &*app))
+                    .layout(area)
+                    .draw(app, ui);
+            },
+            Shell {
+                bar: LayoutState::new().with_base_text(base_text()),
+                page: LayoutState::new().with_base_text(base_text()),
+                app: App::default(),
+            },
+        );
+        harness.run_steps(4);
+        harness
+    }
+
+    #[test]
+    fn the_highlight_survives_the_other_frames_judgement() {
+        let mut harness = harness();
+        harness
+            .get_by_role_and_label(Role::ComboBox, "Pick")
+            .click();
+        harness.run_steps(6);
+        assert!(
+            harness
+                .query_by_role_and_label(Role::ListBoxOption, "Asia Pacific")
+                .is_some(),
+            "precondition: the list is open"
+        );
+        harness.key_press(Key::ArrowDown);
+        harness.run_steps(6);
+        harness.key_press(Key::Enter);
+        harness.run_steps(6);
+        assert_eq!(harness.state().app.changes, [2]);
+    }
 }

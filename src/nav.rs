@@ -96,7 +96,7 @@ fn keyed<'a>(ctx: &Context, menus: &'a [Menu], focused: Option<Id>) -> Option<&'
 
 /// Applies the frame's navigation keys. Returns the overlays to dismiss.
 /// `menus` are the open overlays with a pattern, the one on the bottom first.
-pub(crate) fn navigate(ctx: &Context, menus: &[Menu]) -> Vec<Id> {
+pub(crate) fn navigate(ctx: &Context, scope: Id, menus: &[Menu]) -> Vec<Id> {
     let focused = ctx.memory(|memory| memory.focused());
     let Some(menu) = keyed(ctx, menus, focused) else {
         return Vec::new();
@@ -126,7 +126,7 @@ pub(crate) fn navigate(ctx: &Context, menus: &[Menu]) -> Vec<Id> {
                 focus_item(ctx, to, focused);
             }
         }
-        Nav::Listbox => listbox(ctx, menu, home_end),
+        Nav::Listbox => listbox(ctx, scope, menu, home_end),
     }
     dismiss
 }
@@ -170,8 +170,8 @@ fn hold_arrows(ctx: &Context, focused: Id) {
     ctx.memory_mut(|memory| memory.set_focus_lock_filter(focused, filter));
 }
 
-fn listbox(ctx: &Context, menu: &Menu, home_end: HomeEnd) {
-    let mut active = Active::load(ctx);
+fn listbox(ctx: &Context, scope: Id, menu: &Menu, home_end: HomeEnd) {
+    let mut active = Active::load(ctx, scope);
     let current = active.of(menu.id).filter(|item| menu.items.contains(item));
     if let Some(step) = Step::of_key(ctx, home_end)
         && let Some(to) = target(&menu.items, current, step, menu.wrap)
@@ -183,7 +183,7 @@ fn listbox(ctx: &Context, menu: &Menu, home_end: HomeEnd) {
         active.set(menu.id, to, menu.anchor);
         ctx.request_repaint();
     }
-    active.store(ctx);
+    active.store(ctx, scope);
 }
 
 /// The item under a pointer that moved: the highlight follows it, so that
@@ -208,18 +208,21 @@ struct Highlight {
     anchor: Option<Id>,
 }
 
-fn active_key() -> Id {
-    crate::key::root_id().with("listbox-active")
+/// One per [`LayoutState`](crate::LayoutState), as the overlay stack is: the
+/// judgement of a frame that declares no listbox must not forget the
+/// highlight of another frame's.
+fn active_key(scope: Id) -> Id {
+    scope.with("listbox-active")
 }
 
 impl Active {
-    fn load(ctx: &Context) -> Self {
-        ctx.data(|data| data.get_temp(active_key()))
+    fn load(ctx: &Context, scope: Id) -> Self {
+        ctx.data(|data| data.get_temp(active_key(scope)))
             .unwrap_or_default()
     }
 
-    fn store(self, ctx: &Context) {
-        ctx.data_mut(|data| data.insert_temp(active_key(), self));
+    fn store(self, ctx: &Context, scope: Id) {
+        ctx.data_mut(|data| data.insert_temp(active_key(scope), self));
     }
 
     fn of(&self, listbox: Id) -> Option<Id> {
@@ -233,19 +236,19 @@ impl Active {
 
 /// Highlights `item` in the listbox `listbox` as it opens, scrolled to the
 /// middle of its container, unless the listbox already has a highlight.
-pub(crate) fn highlight_initially(ctx: &Context, listbox: Id, item: Id, anchor: Id) {
-    let mut active = Active::load(ctx);
+pub(crate) fn highlight_initially(ctx: &Context, scope: Id, listbox: Id, item: Id, anchor: Id) {
+    let mut active = Active::load(ctx, scope);
     if active.of(listbox).is_some() {
         return;
     }
     active.set(listbox, item, Some(anchor));
-    active.store(ctx);
+    active.store(ctx, scope);
     scroll_into_view(ctx, item, Some(Align::Center));
 }
 
 /// The items listboxes highlight now.
-pub(crate) fn highlighted(ctx: &Context) -> Vec<Id> {
-    Active::load(ctx)
+pub(crate) fn highlighted(ctx: &Context, scope: Id) -> Vec<Id> {
+    Active::load(ctx, scope)
         .0
         .into_values()
         .map(|highlight| highlight.item)
@@ -253,12 +256,12 @@ pub(crate) fn highlighted(ctx: &Context) -> Vec<Id> {
 }
 
 /// Forgets the highlight of the listboxes that are not in `open`.
-pub(crate) fn forget_closed(ctx: &Context, open: &[Id]) {
-    let mut active = Active::load(ctx);
+pub(crate) fn forget_closed(ctx: &Context, scope: Id, open: &[Id]) {
+    let mut active = Active::load(ctx, scope);
     let before = active.0.len();
     active.0.retain(|listbox, _| open.contains(listbox));
     if active.0.len() != before {
-        active.store(ctx);
+        active.store(ctx, scope);
     }
 }
 
@@ -266,8 +269,8 @@ pub(crate) fn forget_closed(ctx: &Context, open: &[Id]) {
 /// activation of the highlighted item of the listbox the focus is on. Run
 /// before the frame's widgets, so that the trigger or field that has the
 /// focus does not take the key itself.
-pub(crate) fn activate_highlighted(ctx: &Context) {
-    let active = Active::load(ctx);
+pub(crate) fn activate_highlighted(ctx: &Context, scope: Id) {
+    let active = Active::load(ctx, scope);
     if active.0.is_empty() {
         return;
     }

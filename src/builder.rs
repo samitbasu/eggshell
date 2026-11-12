@@ -194,6 +194,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         crate::pipeline::room_for(self.frame.ctx, self.st.scope, anchor, placement, natural)
     }
 
+    /// Names this builder's `LayoutState` among those sharing a context.
+    pub(crate) fn scope_id(&self) -> Id {
+        self.st.scope
+    }
+
     /// The egui context the frame is built with, for reading the local state
     /// that draw closures keep in egui's memory under ids from
     /// [`id_of`](Self::id_of).

@@ -1474,9 +1474,9 @@ impl<A> Placed<A> {
             recording,
             culled: Vec::new(),
             beneath: Vec::new(),
-            highlighted: nav::highlighted(ui.ctx()),
+            highlighted: nav::highlighted(ui.ctx(), scope),
         };
-        nav::activate_highlighted(ui.ctx());
+        nav::activate_highlighted(ui.ctx(), scope);
         nav::apply_deferred(ui.ctx());
         let keys = overlay_input::claim_keys(ui.ctx(), &nodes, &roots, live);
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
