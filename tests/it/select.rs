@@ -491,3 +491,17 @@ mod dialog {
         assert_eq!(focused_path(&harness).as_deref(), Some(INNER));
     }
 }
+
+#[test]
+fn clicking_the_trigger_again_closes_the_list() {
+    let mut harness = harness();
+    click_node(&mut harness, PICK);
+    settle(&mut harness);
+    assert!(open(&harness), "precondition");
+    click_node(&mut harness, PICK);
+    settle(&mut harness);
+    assert!(!open(&harness), "the second click closes it");
+    click_node(&mut harness, PICK);
+    settle(&mut harness);
+    assert!(open(&harness), "and a third opens it again");
+}
