@@ -26,6 +26,11 @@ jobs:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+        with:
+          # The test build carries the golden feature; bump this when the
+          # features it builds with change, or the old cache is restored whole
+          # and never saved again.
+          key: workspace-goldens-clippy
       - name: Mesa lavapipe for the golden images
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
       - run: cargo xtask ci

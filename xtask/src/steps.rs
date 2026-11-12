@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
@@ -51,6 +51,13 @@ impl Step {
             env: Vec::new(),
             internal: Some(check),
         }
+    }
+
+    /// Points Vulkan at the lavapipe driver whose manifest is `icd`.
+    pub fn on_lavapipe(self, icd: &Path) -> Self {
+        let icd = icd.display().to_string();
+        self.with_env("VK_ICD_FILENAMES", icd.clone())
+            .with_env("VK_DRIVER_FILES", icd)
     }
 
     pub fn with_env(mut self, key: &'static str, value: impl Into<String>) -> Self {
@@ -137,8 +144,8 @@ pub fn wasm() -> Step {
 
 pub const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
-/// What CI runs, in order. The golden check needs Mesa lavapipe, locally and
-/// on the runner alike.
+/// What CI runs, in order. The test step carries the golden check, which needs
+/// Mesa lavapipe, locally and on the runner alike.
 pub fn ci_steps() -> Vec<Step> {
     vec![
         fmt(FmtMode::Check),
@@ -149,17 +156,18 @@ pub fn ci_steps() -> Vec<Step> {
                 "clippy",
                 "--workspace",
                 "--all-targets",
+                "--features",
+                "eggshell-ui/snapshots",
                 "--",
                 "-D",
                 "warnings",
             ],
         ),
-        Step::cargo("test", &["test", "--workspace", "--all-targets"]),
+        Step::internal("test", snapshots::test_with_goldens),
         Step::cargo("doctest", &["test", "--workspace", "--doc"]),
         Step::cargo("rustdoc", &["doc", "--workspace", "--no-deps"])
             .with_env("RUSTDOCFLAGS", "-D warnings"),
         wasm(),
-        Step::internal("snapshots", snapshots::check_goldens),
     ]
 }
 
@@ -219,12 +227,11 @@ mod tests {
             [
                 "cargo fmt --all --check",
                 "built-in clock check",
-                "cargo clippy --workspace --all-targets -- -D warnings",
-                "cargo test --workspace --all-targets",
+                "cargo clippy --workspace --all-targets --features eggshell-ui/snapshots -- -D warnings",
+                "built-in test check",
                 "cargo test --workspace --doc",
                 "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
                 "cargo check --target wasm32-unknown-unknown --workspace --exclude xtask --lib --examples",
-                "built-in snapshots check",
             ]
         );
     }
