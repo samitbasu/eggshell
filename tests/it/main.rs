@@ -36,6 +36,7 @@ mod known_gaps_demo;
 mod layout;
 mod layout_animation;
 mod overlay;
+mod overlay_input;
 mod owned;
 mod owned_choice;
 mod owned_number;

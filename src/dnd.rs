@@ -69,7 +69,9 @@ use egui::{Context, DragAndDrop, DroppedFileHandle, Event, Id, Pos2, Rect, Vec2,
 
 use crate::draw::{Lift, children_of};
 use crate::key::root_id;
+use crate::overlay_input::Drag;
 use crate::pipeline::{Flow, PlacedNode};
+use crate::roots::{PlacedRoot, root_at, root_of, stacked_top_down};
 
 type Erased = Arc<dyn Any + Send + Sync>;
 
@@ -549,6 +551,15 @@ fn live_gesture(ctx: &Context) -> Option<Gesture> {
     (DragAndDrop::has_payload_of_type::<Lifted>(ctx) && !released && !lost).then_some(gesture)
 }
 
+/// Whether an in-app drag is live this pass.
+pub(crate) fn drag_state(ctx: &Context) -> Drag {
+    if live_gesture(ctx).is_some() {
+        Drag::Live
+    } else {
+        Drag::Idle
+    }
+}
+
 fn fresh(ctx: &Context, pass: u64) -> bool {
     ctx.cumulative_pass_nr().saturating_sub(pass) <= 1
 }
@@ -632,9 +643,11 @@ fn outside_position_known(ctx: &Context, pass: u64, input: &Input) -> bool {
     known
 }
 
-/// The targets of a frame in paint order, with the part of each the pointer
-/// can reach: its final layout rect, cut by the clips above it.
-fn targets(nodes: &[PlacedNode], clip: Rect) -> Vec<(usize, Rect)> {
+/// The targets of a frame in stacking order, with the part of each the
+/// pointer can reach: its final layout rect, cut by the clips above it. The
+/// page's come first, then each overlay's from the bottom of the stack up, so
+/// that the last to contain the pointer is the topmost.
+fn targets(nodes: &[PlacedNode], roots: &[PlacedRoot], clip: Rect) -> Vec<(usize, Rect)> {
     fn walk(nodes: &[PlacedNode], index: usize, clip: Rect, found: &mut Vec<(usize, Rect)>) {
         let node = &nodes[index];
         if node.flow == Flow::Hidden || node.is_inert() {
@@ -656,6 +669,9 @@ fn targets(nodes: &[PlacedNode], clip: Rect) -> Vec<(usize, Rect)> {
     }
     let mut found = Vec::new();
     walk(nodes, 0, clip, &mut found);
+    for root in stacked_top_down(roots).into_iter().rev() {
+        walk(nodes, roots[root].first, clip, &mut found);
+    }
     found
 }
 
@@ -694,18 +710,22 @@ struct Hit {
 
 fn resolve<A>(
     nodes: &[PlacedNode],
+    roots: &[PlacedRoot],
     decls: &Decls<A>,
     payload: &Erased,
     pointer: Option<Pos2>,
     leaving: Option<Id>,
     clip: Rect,
 ) -> Resolved {
-    let accepting: Vec<(usize, Rect)> = targets(nodes, clip)
+    let accepting: Vec<(usize, Rect)> = targets(nodes, roots, clip)
         .into_iter()
         .filter(|&(index, _)| decls.accepts(&nodes[index], payload))
         .collect();
     let over = pointer.and_then(|pos| {
-        let (index, _) = accepting.iter().rfind(|(_, reach)| reach.contains(pos))?;
+        let under = root_at(roots, nodes, pos);
+        let (index, _) = accepting
+            .iter()
+            .rfind(|&&(index, reach)| root_of(roots, index) == under && reach.contains(pos))?;
         Some(Hit {
             index: *index,
             position: pos - nodes[*index].rect().min,
@@ -777,17 +797,29 @@ impl Draw {
     }
 }
 
+/// The laid-out frame a drag is resolved against.
+#[derive(Clone, Copy)]
+pub(crate) struct Tree<'a> {
+    pub(crate) nodes: &'a [PlacedNode],
+    pub(crate) by_id: &'a HashMap<Id, usize>,
+    pub(crate) roots: &'a [PlacedRoot],
+}
+
 /// Starts a draw: begins a gesture a source started, ends one that was
 /// cancelled, and resolves what the drag is over.
 pub(crate) fn begin<A>(
     ctx: &Context,
     scope: Id,
-    nodes: &[PlacedNode],
-    by_id: &HashMap<Id, usize>,
+    tree: Tree<'_>,
     clip: Rect,
     decls: &mut Decls<A>,
     app: &mut A,
 ) -> (Draw, Finish) {
+    let Tree {
+        nodes,
+        by_id,
+        roots,
+    } = tree;
     let pass = ctx.cumulative_pass_nr();
     let input = Input::read(ctx);
     let positioned = outside_position_known(ctx, pass, &input);
@@ -846,7 +878,7 @@ pub(crate) fn begin<A>(
             // its to change. A record nobody refreshes goes stale after a pass.
             _ => return Finish::nothing(),
         };
-    let found = resolve(nodes, decls, &payload, pointer, leaving, clip);
+    let found = resolve(nodes, roots, decls, &payload, pointer, leaving, clip);
 
     let releasing = gesture.is_some() && input.released;
     let dropping = gesture.is_none() && input.dropped.is_some();
@@ -1153,6 +1185,7 @@ mod tests {
         ) -> Option<(String, Option<usize>)> {
             let found = resolve(
                 &placed.nodes,
+                &placed.roots,
                 &placed.drag,
                 &erased(payload),
                 Some(at),
@@ -1213,6 +1246,109 @@ mod tests {
                 over(&placed, Card, Pos2::new(50.0, 200.0), None),
                 None,
                 "the part of the target the window clips away"
+            );
+        }
+
+        fn popover_over_the_zone(
+            nav: crate::overlay::Nav,
+            band: crate::overlay::Band,
+        ) -> Placed<()> {
+            placed(|b, _| {
+                b.div_id("zone", tw().w_px(100.0).h_px(100.0), |_| {})
+                    .drop_target::<Card>(|_, _| {});
+                b.overlay("pop")
+                    .anchor(crate::overlay::Anchor::Point(Pos2::new(50.0, 50.0)))
+                    .nav(nav)
+                    .band(band)
+                    .children(|s| {
+                        s.div_id("box", tw().w_px(100.0).h_px(100.0), |s| {
+                            s.div_id("inner", tw().w_px(40.0).h_px(40.0), |_| {})
+                                .drop_target::<Card>(|_, _| {});
+                        });
+                    });
+            })
+        }
+
+        const ON_BOTH: Pos2 = Pos2::new(95.0, 95.0);
+        const ONLY_ZONE: Pos2 = Pos2::new(25.0, 25.0);
+
+        fn path_over(placed: &Placed<()>, at: Pos2) -> Option<String> {
+            over(placed, Card, at, None).map(|hit| hit.0)
+        }
+
+        #[test]
+        fn a_page_target_under_a_popover_is_unreachable() {
+            let placed =
+                popover_over_the_zone(crate::overlay::Nav::None, crate::overlay::Band::Popup);
+            assert!(
+                placed
+                    .at("zone")
+                    .node()
+                    .expect("a node")
+                    .rect()
+                    .contains(ON_BOTH)
+                    && placed.overlay("pop").rect().contains(ON_BOTH),
+                "precondition: the popover covers part of the zone"
+            );
+            assert_eq!(path_over(&placed, ON_BOTH), None);
+            assert_eq!(path_over(&placed, ONLY_ZONE).as_deref(), Some(r#"/"zone""#));
+        }
+
+        #[test]
+        fn a_target_inside_a_popover_is_reachable() {
+            let placed =
+                popover_over_the_zone(crate::overlay::Nav::None, crate::overlay::Band::Popup);
+            let inner = placed.overlay("pop").rect().min + vec2(10.0, 10.0);
+            assert!(
+                placed
+                    .at("zone")
+                    .node()
+                    .expect("a node")
+                    .rect()
+                    .contains(inner),
+                "precondition: the target is over the zone"
+            );
+            assert_eq!(
+                path_over(&placed, inner).as_deref(),
+                Some(r#"/"pop"/"box"/"inner""#)
+            );
+        }
+
+        #[test]
+        fn a_swallowing_overlay_covers_every_page_target() {
+            let placed =
+                popover_over_the_zone(crate::overlay::Nav::Menu, crate::overlay::Band::Popup);
+            assert_eq!(path_over(&placed, ONLY_ZONE), None, "even outside its box");
+            let inner = placed.overlay("pop").rect().min + vec2(10.0, 10.0);
+            assert!(path_over(&placed, inner).is_some(), "its own are reachable");
+        }
+
+        #[test]
+        fn a_tooltip_leaves_the_page_reachable() {
+            let placed =
+                popover_over_the_zone(crate::overlay::Nav::None, crate::overlay::Band::Tooltip);
+            assert_eq!(path_over(&placed, ON_BOTH).as_deref(), Some(r#"/"zone""#));
+        }
+
+        #[test]
+        fn of_two_overlays_with_targets_the_one_opened_later_wins() {
+            let placed = placed(|b, _| {
+                for (key, at) in [("first", 0.0), ("second", 20.0)] {
+                    b.overlay(key)
+                        .anchor(crate::overlay::Anchor::Point(Pos2::new(at, at)))
+                        .children(|s| {
+                            s.div_id("box", tw().w_px(100.0).h_px(100.0), |_| {})
+                                .drop_target::<Card>(|_, _| {});
+                        });
+                }
+            });
+            assert_eq!(
+                path_over(&placed, Pos2::new(50.0, 50.0)).as_deref(),
+                Some(r#"/"second"/"box""#)
+            );
+            assert_eq!(
+                path_over(&placed, Pos2::new(10.0, 10.0)).as_deref(),
+                Some(r#"/"first"/"box""#)
             );
         }
 

@@ -13,6 +13,9 @@ use std::sync::Arc;
 
 use egui::{Context, Id, LayerId};
 
+use crate::dismiss::FocusAt;
+use crate::stack::Open;
+
 type Subtrees = HashMap<Id, Box<[Id]>>;
 
 #[derive(Clone, Default)]
@@ -96,4 +99,75 @@ pub(crate) fn store(ctx: &Context, subtrees: impl IntoIterator<Item = (Id, Box<[
             .current
             .extend(subtrees.into_iter().filter(|(_, ids)| !ids.is_empty()));
     });
+}
+
+/// The widgets to give focus back to once the pointer is idle.
+#[derive(Clone, Default)]
+struct Returning(Vec<Id>);
+
+fn returning_id() -> Id {
+    crate::key::root_id().with("focus-returning")
+}
+
+/// Gives focus back to the widgets the `closed` overlays took it from, if
+/// focus was in one of them or nowhere: Esc has already taken it away
+/// (egui drops focus on Esc before any other code runs), and a click
+/// somewhere that cannot take focus did the same. If focus is on another
+/// widget, the user put it there. A widget that is no longer on screen cannot
+/// take it.
+///
+/// `closed` is bottom first. The outermost overlay's widget is the one that
+/// ends up with focus.
+///
+/// While a pointer button is down, or was released this frame, focus waits:
+/// egui drops the focus of a widget when a click lands elsewhere, which would
+/// undo it. It is then given back if it is nowhere.
+pub(crate) fn restore(ctx: &Context, closed: &[Open]) {
+    let mut returning = ctx
+        .data(|data| data.get_temp::<Returning>(returning_id()))
+        .unwrap_or_default();
+    let stranded = !closed.is_empty()
+        && (ctx.memory(|memory| memory.focused()).is_none()
+            || closed.iter().any(|open| focus_within(ctx, open.id)));
+    if stranded {
+        returning.0 = closed
+            .iter()
+            .rev()
+            .filter_map(|open| open.restore)
+            .collect();
+    }
+    let pointer_idle =
+        ctx.input(|input| !input.pointer.any_down() && !input.pointer.any_released());
+    let nowhere = ctx.memory(|memory| memory.focused()).is_none();
+    if pointer_idle && (stranded || nowhere) {
+        for target in std::mem::take(&mut returning.0) {
+            if ctx.read_response(target).is_some() {
+                ctx.memory_mut(|memory| memory.request_focus(target));
+            }
+        }
+    }
+    ctx.data_mut(|data| data.insert_temp(returning_id(), returning));
+}
+
+/// Where focus is relative to the overlay `id`: in it, in the overlays
+/// nested in it (`nested`), or on its `anchor`. Focus on a widget that was
+/// not drawn this pass, such as one of an overlay that just closed, is
+/// nowhere: egui lets go of it a pass later.
+pub(crate) fn at(ctx: &Context, id: Id, nested: &[Id], anchor: Option<Id>) -> FocusAt {
+    let Some(focused) = ctx.memory(|memory| memory.focused()) else {
+        return FocusAt::Nowhere;
+    };
+    let drawn = ctx.viewport(|viewport| viewport.this_pass.widgets.get(focused).is_some());
+    if !drawn || !ctx.input(|input| input.focused) {
+        return FocusAt::Nowhere;
+    }
+    let inside = std::iter::once(id)
+        .chain(nested.iter().copied())
+        .chain(anchor)
+        .any(|node| focus_within(ctx, node));
+    if inside {
+        FocusAt::Inside
+    } else {
+        FocusAt::Elsewhere
+    }
 }

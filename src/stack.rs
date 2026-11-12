@@ -10,6 +10,7 @@ use std::collections::HashSet;
 
 use egui::{Context, Id, LayerId, Pos2};
 
+use crate::dismiss::{FocusAt, Opening};
 use crate::overlay::Band;
 
 /// An open overlay.
@@ -20,6 +21,19 @@ pub(crate) struct Open {
     /// Where the pointer was when the overlay opened, for
     /// [`Anchor::Pointer`](crate::overlay::Anchor::Pointer).
     pub(crate) pointer: Option<Pos2>,
+    /// The widget that had focus when the overlay opened, which gets it back
+    /// when the overlay closes.
+    pub(crate) restore: Option<Id>,
+    /// Whether focus has been moved into the overlay yet.
+    pub(crate) entered: Entered,
+    /// Where focus was at the end of the last frame the overlay was drawn.
+    pub(crate) focus: FocusAt,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Entered {
+    Not,
+    Yet,
 }
 
 /// The open overlays in the order they were opened, bottom first. Overlays
@@ -42,25 +56,39 @@ impl Stack {
     }
 
     /// The entry of the overlay `id`, appended at the top if it was not open.
-    pub(crate) fn enter(&mut self, id: Id, band: Band) -> &mut Open {
-        let at = self
-            .0
-            .iter()
-            .position(|open| open.id == id)
-            .unwrap_or_else(|| {
-                self.0.push(Open {
-                    id,
-                    band,
-                    pointer: None,
-                });
-                self.0.len() - 1
+    pub(crate) fn enter(&mut self, id: Id, band: Band) -> (&mut Open, Opening) {
+        let found = self.0.iter().position(|open| open.id == id);
+        let opening = if found.is_some() {
+            Opening::Open
+        } else {
+            Opening::Opened
+        };
+        let at = found.unwrap_or_else(|| {
+            self.0.push(Open {
+                id,
+                band,
+                pointer: None,
+                restore: None,
+                entered: Entered::Not,
+                focus: FocusAt::Nowhere,
             });
-        &mut self.0[at]
+            self.0.len() - 1
+        });
+        (&mut self.0[at], opening)
     }
 
-    /// Forgets the overlays that were not declared this frame.
-    pub(crate) fn keep_only(&mut self, present: &HashSet<Id>) {
-        self.0.retain(|open| present.contains(&open.id));
+    /// Forgets the overlays that were not declared this frame, and returns
+    /// them.
+    pub(crate) fn keep_only(&mut self, present: &HashSet<Id>) -> Vec<Open> {
+        let (kept, closed) = std::mem::take(&mut self.0)
+            .into_iter()
+            .partition(|open| present.contains(&open.id));
+        self.0 = kept;
+        closed
+    }
+
+    pub(crate) fn get_mut(&mut self, id: Id) -> Option<&mut Open> {
+        self.0.iter_mut().find(|open| open.id == id)
     }
 
     pub(crate) fn index_of(&self, id: Id) -> Option<usize> {

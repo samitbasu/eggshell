@@ -1225,6 +1225,42 @@ mod menu_example {
     }
 
     #[test]
+    fn a_click_away_and_escape_close_the_menu() {
+        let mut harness = menu();
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        let away = pos2(SIZE.x - 20.0, SIZE.y / 2.0);
+        assert!(
+            !rect_of(&harness, "/Page/Top/Popover").contains(away),
+            "precondition: away from the menu"
+        );
+        support::press_and_release(&mut harness, away);
+        harness.run_steps(3);
+        assert!(!has(&harness, "/Page/Top/Popover"));
+
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        harness.key_press(egui::Key::Escape);
+        harness.run_steps(3);
+        assert!(!has(&harness, "/Page/Top/Popover"));
+    }
+
+    #[test]
+    fn the_menu_is_usable_from_the_keyboard() {
+        let mut harness = menu();
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        for _ in 0..2 {
+            harness.key_press(egui::Key::ArrowDown);
+            harness.run_steps(3);
+        }
+        harness.key_press(egui::Key::Enter);
+        harness.run_steps(3);
+        assert_eq!(harness.state().app.chosen.as_deref(), Some("Delete"));
+        assert!(!has(&harness, "/Page/Top/Popover"));
+    }
+
+    #[test]
     fn the_tall_list_flips_above_its_button_clamps_to_the_room_and_scrolls() {
         let mut harness = menu();
         click_node(&mut harness, "/Page/Bottom/ListButton");

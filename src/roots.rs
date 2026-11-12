@@ -12,8 +12,9 @@ use std::collections::HashMap;
 use egui::{Id, LayerId, Pos2, Rect, Vec2};
 use taffy::{FlexDirection, NodeId, Style};
 
+use crate::dismiss::Opening;
 use crate::key::{Key, child_id};
-use crate::overlay::{Anchor, Anchored, Band, MatchWidth, Placement, Side};
+use crate::overlay::{Anchor, Anchored, Band, Behavior, MatchWidth, Outside, Placement, Side};
 use crate::pipeline::{Placed, PlacedNode};
 use crate::scroll::Description;
 
@@ -33,6 +34,7 @@ pub(crate) struct OverlayDecl {
     pub(crate) band: Band,
     pub(crate) match_width: MatchWidth,
     pub(crate) description: Description,
+    pub(crate) behavior: Behavior,
 }
 
 /// A root, from the moment its body starts to be built.
@@ -86,6 +88,9 @@ pub(crate) struct PlacedOverlay {
     pub(crate) side: Side,
     pub(crate) anchored: Anchored,
     pub(crate) anchor: Rect,
+    pub(crate) anchor_decl: Anchor,
+    pub(crate) opening: Opening,
+    pub(crate) behavior: Behavior,
     /// Position among the open overlays, bottom first: the order they were
     /// opened in.
     pub(crate) stack_index: usize,
@@ -97,6 +102,14 @@ pub(crate) struct PlacedOverlay {
 pub(crate) enum PlacedRootKind {
     Base,
     Overlay(PlacedOverlay),
+}
+
+impl PlacedOverlay {
+    /// Whether the overlay takes the press that dismisses it. `root` is the
+    /// overlay's root node.
+    pub(crate) fn swallows(&self, root: &PlacedNode) -> bool {
+        self.behavior.outside() == Outside::Swallow && root.blocks_pointer()
+    }
 }
 
 /// A root of a laid-out frame.
@@ -117,6 +130,20 @@ impl PlacedRoot {
     }
 }
 
+/// Whether the overlay at `root` has a blocker that covers the whole screen:
+/// it swallows the press that dismisses it, and no overlay it is nested in
+/// does already. A submenu leaves the page to its menu's blocker, so that a
+/// press on the menu reaches the menu's items.
+pub(crate) fn covers_screen(roots: &[PlacedRoot], nodes: &[PlacedNode], root: usize) -> bool {
+    let swallows = |at: usize| {
+        roots[at]
+            .overlay()
+            .is_some_and(|overlay| overlay.swallows(&nodes[roots[at].first]))
+    };
+    swallows(root)
+        && !std::iter::successors(roots[root].parent, |&at| roots[at].parent).any(swallows)
+}
+
 /// The roots of a frame.
 pub(crate) fn root_of(roots: &[PlacedRoot], index: usize) -> usize {
     roots
@@ -126,18 +153,18 @@ pub(crate) fn root_of(roots: &[PlacedRoot], index: usize) -> usize {
 }
 
 /// The root that takes the pointer at `p`: the topmost attached overlay
-/// whose box blocks it, or the base (root 0) when none does.
+/// whose box blocks it, or the base (root 0) when none does. An overlay that
+/// swallows presses blocks the whole screen.
 pub(crate) fn root_at(roots: &[PlacedRoot], nodes: &[PlacedNode], p: Pos2) -> usize {
     stacked_top_down(roots)
         .into_iter()
         .find(|&index| {
             let root = &roots[index];
             let node = &nodes[root.first];
-            node.blocks_pointer()
-                && node.rect().contains(p)
-                && root
-                    .overlay()
-                    .is_some_and(|overlay| overlay.anchored == Anchored::Attached)
+            root.overlay()
+                .is_some_and(|overlay| overlay.anchored == Anchored::Attached)
+                && node.blocks_pointer()
+                && (node.rect().contains(p) || covers_screen(roots, nodes, index))
         })
         .unwrap_or(0)
 }
@@ -161,8 +188,10 @@ impl<A> Placed<A> {
     /// The root that takes the pointer at `p`: the index in the frame's
     /// roots of the topmost attached overlay that blocks it, or 0, the base.
     ///
-    /// This is the one answer to "what is on top here": drop targets and
-    /// dismissal ask it, so they cannot disagree with what the pointer reaches.
+    /// This is the one answer to "what is on top here": drop targets and the
+    /// press that raises a layer ask it, so they cannot disagree with what
+    /// the pointer reaches. Whether a press dismisses an overlay is another
+    /// question, which `dismissals` answers.
     pub(crate) fn root_at(&self, p: Pos2) -> usize {
         root_at(&self.roots, &self.nodes, p)
     }

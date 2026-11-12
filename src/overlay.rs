@@ -144,6 +144,110 @@ pub enum MatchWidth {
     Anchor,
 }
 
+/// What dismisses an overlay: the library calls its
+/// [`on_dismiss`](OverlayChain::on_dismiss) and the application closes it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum DismissOn {
+    /// A press outside it, Esc, focus leaving it, and the window losing
+    /// focus.
+    #[default]
+    Default,
+    /// Esc only: a confirmation that must be answered, or a suggestion list
+    /// whose outside click is the field's own concern.
+    EscOnly,
+    /// Nothing: a tooltip, which the library closes itself.
+    Never,
+}
+
+impl DismissOn {
+    pub(crate) fn outside(self) -> bool {
+        self == Self::Default
+    }
+
+    pub(crate) fn esc(self) -> bool {
+        self != Self::Never
+    }
+
+    pub(crate) fn focus_out(self) -> bool {
+        self == Self::Default
+    }
+}
+
+/// What becomes of the press that dismisses an overlay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Outside {
+    /// It goes on to what is under the overlay: a popover.
+    PassThrough,
+    /// The overlay takes it, and nothing under it sees it: a menu. While such
+    /// an overlay is open its blocker covers the whole screen and draws
+    /// nothing.
+    Swallow,
+}
+
+impl Outside {
+    /// What an overlay that navigates as `nav` does unless told otherwise:
+    /// menus swallow. A listbox passes through, since an autosuggest's anchor
+    /// is the field the press may be on; a select says
+    /// [`Swallow`](Self::Swallow) itself.
+    pub(crate) fn of(nav: Nav) -> Self {
+        match nav {
+            Nav::Menu | Nav::Submenu => Self::Swallow,
+            Nav::Listbox | Nav::None => Self::PassThrough,
+        }
+    }
+}
+
+/// Where keyboard focus goes when an overlay opens, and where it comes back
+/// to when it closes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Focus {
+    /// Into the overlay: its first focusable. Menus, dialogs, popovers with
+    /// fields.
+    #[default]
+    Enter,
+    /// Stays where it is: a select's list or an autosuggest, where the
+    /// trigger or field keeps focus and the highlight is virtual.
+    Stay,
+    /// Not involved: a tooltip.
+    None,
+}
+
+/// The keyboard pattern of an overlay's items. Items are the nodes with an
+/// item role ([`NodeHandle::role`](crate::NodeHandle::role) with
+/// `MenuItem`, `MenuItemCheckbox`, `MenuItemRadio` or `ListBoxOption`) that
+/// can take focus; a disabled item is skipped.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Nav {
+    /// The content handles its own keys.
+    #[default]
+    None,
+    /// Up and Down move focus between items, wrapping; Home and End go to the
+    /// first and last. The items are real focus targets.
+    Menu,
+    /// [`Menu`](Self::Menu), and Left dismisses the overlay and focuses the
+    /// item it is anchored to.
+    Submenu,
+    /// The same keys, but focus stays where it is and the highlight is
+    /// virtual: Enter and Space activate the highlighted item.
+    Listbox,
+}
+
+/// What an overlay does with input, as its chain declared it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Behavior {
+    pub(crate) dismiss_on: DismissOn,
+    pub(crate) outside: Option<Outside>,
+    pub(crate) focus: Focus,
+    pub(crate) nav: Nav,
+}
+
+impl Behavior {
+    /// What a press outside the overlay does to the press.
+    pub(crate) fn outside(self) -> Outside {
+        self.outside.unwrap_or_else(|| Outside::of(self.nav))
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Relation {
     /// Outside the anchor, next to the chosen side.

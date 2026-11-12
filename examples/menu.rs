@@ -2,17 +2,20 @@
 //! list that flips to the side with room, clamps to it and scrolls.
 //!
 //! An overlay is declared in the scope of its button, so that it finds the
-//! button's id with `id_of`. The app owns the open state, and there is no dismissal yet: click the
-//! button again to close. The boxes reuse the select's popup look.
+//! button's id with `id_of`. The app owns the open state and the library calls
+//! `on_dismiss` for a press outside, Esc, or focus leaving: click away, press
+//! Esc, or Tab out to close. The menus take the arrow keys, Home and End; Enter
+//! chooses; Left closes the submenu. The boxes reuse the select's popup look.
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::overlay::{Anchor, Distance, MatchWidth, Placement};
+use eggshell_ui::overlay::{Anchor, Distance, MatchWidth, Nav, Placement};
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::{Builder, Scope, Style, Tw, tw};
+use egui::Role;
 
 #[derive(Clone, Copy, Debug, Hash)]
 pub enum Part {
@@ -85,6 +88,8 @@ fn item_classes(b: &Builder<'_, '_, State>) -> Tw {
 fn menu_item(s: &mut Scope<'_, '_, State>, item: Item, label: &str, act: fn(&mut State)) {
     let classes = item_classes(s);
     s.div_id(Part::Item(item), classes, |s| s.text(tw(), label))
+        .role(Role::MenuItem)
+        .named(label)
         .on_click(act);
 }
 
@@ -129,6 +134,13 @@ fn popover(b: &mut Builder<'_, '_, State>, state: &State) {
     b.overlay(Part::Popover)
         .anchor(Anchor::Node(anchor))
         .placement(Placement::below().gap(Distance::new(4.0)))
+        .nav(Nav::Menu)
+        .role(Role::Menu)
+        .named("Actions")
+        .on_dismiss(|state: &mut State| {
+            state.popover = false;
+            state.submenu = false;
+        })
         .children(|s| {
             s.div_id(Part::Menu, menu.min_w_px(128.0), |s| {
                 menu_item(s, Item::Copy, "Copy", |state| {
@@ -148,6 +160,10 @@ fn popover(b: &mut Builder<'_, '_, State>, state: &State) {
                     s.overlay(Part::Submenu)
                         .anchor(Anchor::Node(parent))
                         .placement(Placement::submenu())
+                        .nav(Nav::Submenu)
+                        .role(Role::Menu)
+                        .named("Arrange")
+                        .on_dismiss(|state: &mut State| state.submenu = false)
                         .children(|s| {
                             s.div_id(Part::Menu, nested.min_w_px(128.0), |s| {
                                 menu_item(s, Item::Front, "Bring to front", |state| {
@@ -173,6 +189,10 @@ fn list(b: &mut Builder<'_, '_, State>) {
         .anchor(Anchor::Node(anchor))
         .placement(Placement::below().gap(Distance::new(4.0)))
         .match_width(MatchWidth::Anchor)
+        .nav(Nav::Menu)
+        .role(Role::Menu)
+        .named("Options")
+        .on_dismiss(|state: &mut State| state.list = false)
         .children(|s| {
             s.div_id(Part::Menu, list.min_w_px(160.0), |s| {
                 s.scroll(Part::Rows, tw().h_px(ROWS as f32 * ROW_HEIGHT).min_h_0())
@@ -182,6 +202,8 @@ fn list(b: &mut Builder<'_, '_, State>) {
                             s.div_id(Part::Row(index), row.clone().h_px(ROW_HEIGHT), |s| {
                                 s.text(tw(), format!("Option {index}"));
                             })
+                            .role(Role::MenuItem)
+                            .named(format!("Option {index}"))
                             .on_click(move |state: &mut State| {
                                 state.chosen = Some(format!("option {index}"));
                                 state.list = false;
