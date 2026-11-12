@@ -470,6 +470,8 @@ impl Shadcn {
         style.scroll.thumb_active = t.border;
         style.scroll.track = clear;
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
+        // shadcn's overlays: `bg-black/50`.
+        style.scrim = Color32::from_black_alpha(128);
         style
     }
 

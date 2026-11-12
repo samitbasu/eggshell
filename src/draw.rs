@@ -26,7 +26,7 @@ use crate::overlay::{Anchored, Band};
 use crate::overlay_input::{self, press_origin};
 use crate::pipeline::{ColorSource, DrawFn, Flow, NodeKind, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
-use crate::roots::{PlacedRoot, covers_screen};
+use crate::roots::{Form, PlacedRoot, covers_screen, stacked_top_down};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
@@ -625,11 +625,13 @@ impl<A> Walk<'_, A> {
     fn block(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
         let node = &self.nodes[index];
         let id = crate::key::root_id().with("blocker").with(index);
-        let described = self
+        let overlay = self
             .roots
             .iter()
             .find(|root| root.first == index)
-            .and_then(PlacedRoot::overlay)
+            .and_then(PlacedRoot::overlay);
+        let modal = overlay.is_some_and(|overlay| matches!(overlay.form, Form::Modal(_)));
+        let described = overlay
             .map(|overlay| &overlay.description)
             .filter(|description| description.is_set());
         node_ui(
@@ -643,6 +645,10 @@ impl<A> Walk<'_, A> {
                     let role = description.role.unwrap_or(Role::GenericContainer);
                     let name = description.name.as_deref().unwrap_or_default();
                     crate::owned::describe(&response, ui.is_enabled(), role, None, name);
+                }
+                if modal {
+                    ui.ctx()
+                        .accesskit_node_builder(response.id, |node| node.set_modal());
                 }
             },
         );
@@ -685,9 +691,10 @@ impl<A> Walk<'_, A> {
         let descendants = &self.nodes[index + 1..node.end];
         Hovering::of(
             own.hovered()
-                || node
-                    .id()
-                    .is_some_and(|id| self.shared.highlighted.contains(&id))
+                || node.id().is_some_and(|id| {
+                    self.shared.highlighted.contains(&id)
+                        || (node.is_item() && focus::holds_focus(ctx, id))
+                })
                 || descendants
                     .iter()
                     .filter(|descendant| descendant.senses())
@@ -1359,6 +1366,16 @@ impl<A> Walk<'_, A> {
                 },
             ));
         }
+        if let Some(top) = stacked_top_down(self.roots)
+            .into_iter()
+            .filter_map(|index| self.roots[index].overlay())
+            .find(|overlay| {
+                overlay.anchored == Anchored::Attached && matches!(overlay.form, Form::Modal(_))
+            })
+        {
+            let layer = top.band.layer(top.id);
+            ctx.memory_mut(|memory| memory.set_modal_layer(layer));
+        }
         shown.sort_by_key(|(stack_index, _)| *stack_index);
         shown.into_iter().map(|(_, shown)| shown).collect()
     }
@@ -1405,6 +1422,7 @@ impl<A> Placed<A> {
             .and_then(|root| Some(self.roots[root].overlay()?.id));
         let Self {
             ctx: _,
+            stack: scope,
             nodes,
             prims,
             draws,
@@ -1451,6 +1469,8 @@ impl<A> Placed<A> {
             highlighted: nav::highlighted(ui.ctx()),
         };
         nav::activate_highlighted(ui.ctx());
+        nav::apply_deferred(ui.ctx());
+        let keys = overlay_input::claim_keys(ui.ctx(), &nodes, &roots, live);
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
         let mut walk = Walk {
             app,
@@ -1470,13 +1490,17 @@ impl<A> Placed<A> {
         let shown = walk.overlays();
         stack::repair(&ctx, &shown, pressed);
         overlay_input::judge(
-            &ctx,
-            &nodes,
-            &roots,
-            &shared.subtrees,
+            overlay_input::Frame {
+                ctx: &ctx,
+                scope,
+                nodes: &nodes,
+                roots: &roots,
+                subtrees: &shared.subtrees,
+                drag: live,
+                keys,
+            },
             &mut dismiss,
             app,
-            live,
         );
         finish.finish(&ctx, &nodes, &mut drag, app);
         scroll_keys::note_press(&ctx, &nodes);

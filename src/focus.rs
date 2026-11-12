@@ -144,6 +144,9 @@ fn returning_id() -> Id {
 /// `closed` is bottom first. The outermost overlay's widget is the one that
 /// ends up with focus.
 ///
+/// A widget under a modal waits: egui, which learns of a closed modal a frame
+/// late, would drop the focus it was given.
+///
 /// While a pointer button is down, or was released this frame, focus waits:
 /// egui drops the focus of a widget when a click lands elsewhere, which would
 /// undo it. It is then given back if it is nowhere.
@@ -166,8 +169,13 @@ pub(crate) fn restore(ctx: &Context, closed: &[Open]) {
     let nowhere = ctx.memory(|memory| memory.focused()).is_none();
     if pointer_idle && (stranded || nowhere) {
         for target in std::mem::take(&mut returning.0) {
-            if ctx.read_response(target).is_some() {
+            let Some(response) = ctx.read_response(target) else {
+                continue;
+            };
+            if ctx.memory(|memory| memory.is_above_modal_layer(response.layer_id)) {
                 ctx.memory_mut(|memory| memory.request_focus(target));
+            } else {
+                returning.0.push(target);
             }
         }
     }

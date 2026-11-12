@@ -774,6 +774,9 @@ pub struct Style {
     pub selection: Selection,
     /// Scroll containers.
     pub scroll: ScrollStyle,
+    /// What a modal overlay paints over the screen behind its box. Usually
+    /// translucent.
+    pub scrim: Color32,
 }
 
 #[derive(Clone)]
@@ -1172,6 +1175,7 @@ impl Style {
                 text: Some(v.selection.stroke.color),
             },
             scroll: ScrollStyle::from_egui(egui),
+            scrim: Color32::from_black_alpha(100),
         }
     }
 

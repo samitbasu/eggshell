@@ -4,10 +4,10 @@ use egui::Role;
 
 use crate::builder::{Builder, Scope, Slot};
 use crate::overlay::{
-    Anchor, Band, Behavior, DismissOn, Focus, MatchWidth, Nav, Outside, Placement,
+    Anchor, Band, Behavior, DismissOn, Focus, MatchWidth, Modal, Nav, Outside, Placement,
 };
 use crate::pipeline::DismissFn;
-use crate::roots::OverlayDecl;
+use crate::roots::{OverlayDecl, Presentation};
 use crate::scroll::Description;
 
 /// An overlay chain that has no anchor yet.
@@ -18,6 +18,15 @@ pub struct Unplaced;
 #[derive(Clone, Copy, Debug)]
 pub struct Floating {
     anchor: Anchor,
+    placement: Placement,
+    match_width: MatchWidth,
+}
+
+/// An overlay chain that covers the screen with a scrim and holds a dialog
+/// box or a sheet, which the content's classes size.
+#[derive(Clone, Copy, Debug)]
+pub struct Modally {
+    modal: Modal,
 }
 
 /// An overlay being declared: [`Builder::overlay`] starts it, and
@@ -43,15 +52,15 @@ pub struct Floating {
 /// ```
 ///
 /// The state parameter says what is declared so far: `anchor` turns an
-/// [`Unplaced`] chain into a [`Floating`] one, the only kind that can build its
-/// content, so an overlay without a place is a compile error.
+/// [`Unplaced`] chain into a [`Floating`] one and `modal` into a [`Modally`]
+/// one. Those are the only kinds that can build their content, so an overlay
+/// without a place is a compile error, and one that is both modal and
+/// anchored cannot be written.
 #[must_use = "an overlay is declared by `children`"]
 pub struct OverlayChain<'b, 'f, A, State> {
     b: Builder<'b, 'f, A>,
     slot: Slot,
-    placement: Placement,
     band: Band,
-    match_width: MatchWidth,
     description: Description,
     behavior: Behavior,
     on_dismiss: Option<DismissFn<A>>,
@@ -66,9 +75,7 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
             declared_at: std::panic::Location::caller(),
             b,
             slot,
-            placement: Placement::default(),
             band: Band::default(),
-            match_width: MatchWidth::default(),
             description: Description::default(),
             behavior: Behavior::default(),
             on_dismiss: None,
@@ -78,12 +85,28 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
 
     /// What the overlay is placed against.
     pub fn anchor(self, anchor: Anchor) -> OverlayChain<'b, 'f, A, Floating> {
+        self.with_state(Floating {
+            anchor,
+            placement: Placement::default(),
+            match_width: MatchWidth::default(),
+        })
+    }
+
+    /// Makes the overlay a modal: its root covers the screen with the
+    /// style's scrim, which takes every press and the wheel, and the
+    /// content's classes size the box inside it. [`Modal::Center`] centres
+    /// the box, [`Modal::Edge`] docks it to a side of the screen. Focus is
+    /// trapped in the modal (and in what is above it) while it is open, and
+    /// a press on the scrim or Esc dismisses it, as [`DismissOn`] says.
+    pub fn modal(self, modal: Modal) -> OverlayChain<'b, 'f, A, Modally> {
+        self.with_state(Modally { modal })
+    }
+
+    fn with_state<State>(self, state: State) -> OverlayChain<'b, 'f, A, State> {
         let Self {
             b,
             slot,
-            placement,
             band,
-            match_width,
             description,
             behavior,
             on_dismiss,
@@ -93,37 +116,21 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
         OverlayChain {
             b,
             slot,
-            placement,
             band,
-            match_width,
             description,
             behavior,
             on_dismiss,
             declared_at,
-            state: Floating { anchor },
+            state,
         }
     }
 }
 
 impl<A, State> OverlayChain<'_, '_, A, State> {
-    /// Which side of the anchor the overlay goes on, and how it flips and
-    /// shifts to stay on screen. [`Placement::below`] unless set.
-    pub fn placement(mut self, placement: Placement) -> Self {
-        self.placement = placement;
-        self
-    }
-
     /// The layer family: how the overlay stacks against other layers.
     /// [`Band::Popup`] unless set.
     pub fn band(mut self, band: Band) -> Self {
         self.band = band;
-        self
-    }
-
-    /// How the overlay's width relates to its anchor's.
-    /// [`MatchWidth::Content`] unless set.
-    pub fn match_width(mut self, match_width: MatchWidth) -> Self {
-        self.match_width = match_width;
         self
     }
 
@@ -175,6 +182,46 @@ impl<A, State> OverlayChain<'_, '_, A, State> {
     }
 }
 
+impl<A> OverlayChain<'_, '_, A, Floating> {
+    /// Which side of the anchor the overlay goes on, and how it flips and
+    /// shifts to stay on screen. [`Placement::below`] unless set.
+    pub fn placement(mut self, placement: Placement) -> Self {
+        self.state.placement = placement;
+        self
+    }
+
+    /// How the overlay's width relates to its anchor's.
+    /// [`MatchWidth::Content`] unless set.
+    pub fn match_width(mut self, match_width: MatchWidth) -> Self {
+        self.state.match_width = match_width;
+        self
+    }
+}
+
+impl<'f, A, State> OverlayChain<'_, 'f, A, State> {
+    fn declare(self, presentation: Presentation, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
+        let Self {
+            b,
+            slot,
+            band,
+            description,
+            behavior,
+            on_dismiss,
+            declared_at,
+            state: _,
+        } = self;
+        let decl = OverlayDecl {
+            id: slot.id,
+            presentation,
+            band,
+            description,
+            behavior,
+            declared_at,
+        };
+        b.overlay_with(&slot, decl, on_dismiss, body);
+    }
+}
+
 impl<'f, A> OverlayChain<'_, 'f, A, Floating> {
     /// Builds the overlay's content: an ordinary builder body that takes the
     /// text style in effect here, like the content of a scroll container.
@@ -183,28 +230,32 @@ impl<'f, A> OverlayChain<'_, 'f, A, Floating> {
     /// Declare the overlay every frame it is open. It closes when a frame
     /// does not declare it; the library holds no open state of its own.
     pub fn children(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
-        let Self {
-            b,
-            slot,
-            placement,
-            band,
-            match_width,
-            description,
-            behavior,
-            on_dismiss,
-            declared_at,
-            state: Floating { anchor },
-        } = self;
-        let decl = OverlayDecl {
-            id: slot.id,
+        let Floating {
             anchor,
             placement,
-            band,
             match_width,
-            description,
-            behavior,
-            declared_at,
-        };
-        b.overlay_with(&slot, decl, on_dismiss, body);
+        } = self.state;
+        self.declare(
+            Presentation::Floating {
+                anchor,
+                placement,
+                match_width,
+            },
+            body,
+        );
+    }
+}
+
+impl<'f, A> OverlayChain<'_, 'f, A, Modally> {
+    /// Builds the modal's content: the dialog box or the sheet, a child of
+    /// the screen-sized root. Size it with the box's own classes; nothing
+    /// places it but the [`Modal`] the chain was given.
+    ///
+    /// Declare the overlay every frame it is open, as for a floating one. A
+    /// modal opened from inside another is above it, and the lower one takes
+    /// no input until it closes.
+    pub fn children(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
+        let Modally { modal } = self.state;
+        self.declare(Presentation::Modal(modal), body);
     }
 }

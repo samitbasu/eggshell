@@ -208,6 +208,7 @@
 //!   ([`Colors::faded_over`](contract::Colors::faded_over)) and are never
 //!   translucent.
 
+mod actions;
 mod builder;
 mod continuity;
 pub mod contract;

@@ -8,7 +8,7 @@
 //!
 //! The rules are in `docs/overlays.md`, section 4.
 
-use egui::{Pos2, Rect};
+use egui::{Id, Pos2, Rect};
 
 use crate::overlay::{AnchorLookup, Band, DismissOn, Outside};
 
@@ -31,12 +31,27 @@ pub(crate) enum Opening {
     Open,
 }
 
+/// What an overlay is to the press that lands outside its box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Boundary {
+    /// What is outside it is the page, or the overlays below.
+    Open,
+    /// What is outside it is its scrim: the press ends there and nothing
+    /// below is judged.
+    Scrim,
+}
+
 /// An open, attached overlay as dismissal sees it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Layer {
     /// The overlay this one is declared in, as an index in the slice.
     pub(crate) parent: Option<usize>,
+    /// The overlay's box: for a modal, the dialog or sheet, not the scrim.
     pub(crate) rect: Rect,
+    pub(crate) boundary: Boundary,
+    /// The button that [`cancel_action`](crate::owned::ButtonChain::cancel_action)
+    /// made the overlay's Esc, enabled or not.
+    pub(crate) cancel: Option<Id>,
     /// The anchor, if pressing it is the trigger's own business.
     pub(crate) trigger: Option<Rect>,
     pub(crate) band: Band,
@@ -66,6 +81,9 @@ pub(crate) struct Input {
 pub(crate) enum Cause {
     Outside,
     Esc,
+    /// Esc, for an overlay whose cancel button answers it: the button runs
+    /// instead of `on_dismiss`.
+    Cancel,
     FocusOut,
     WindowBlur,
     /// Another overlay opened while this swallowing one was open.
@@ -102,8 +120,11 @@ impl Found {
 ///    its box, inside an overlay nested in it, or, if it passes presses
 ///    through, on its anchor (the trigger toggles). An overlay that swallows
 ///    presses ends the walk, but for the overlays it is nested in: the press
-///    went to it and no further.
-/// 3. Esc goes to the topmost overlay that takes it.
+///    went to it and no further. A modal ends the walk whatever it is nested
+///    in: the press landed on its scrim, which is its outside.
+/// 3. Esc goes to the topmost overlay that takes it: one that dismisses on
+///    Esc, or that has a cancel button. The cancel button answers it, and the
+///    overlay is not otherwise dismissed.
 /// 4. Focus moving from inside an overlay to a widget outside it dismisses
 ///    it; focus becoming none does not.
 /// 5. The window losing focus dismisses every overlay that dismisses on focus
@@ -122,7 +143,7 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
         found.add(at, Cause::AnchorGone);
     }
     if input.window_blurred {
-        for at in top_down().filter(|&at| layers[at].dismiss_on.focus_out()) {
+        for at in top_down().filter(|&at| dismisses_on_focus_loss(&layers[at])) {
             found.add(at, Cause::WindowBlur);
         }
     }
@@ -131,9 +152,14 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
             press_outside(layers, press, &mut found);
         }
         if input.escape
-            && let Some(at) = top_down().find(|&at| layers[at].dismiss_on.esc())
+            && let Some(at) = esc_target(layers)
         {
-            found.add(at, Cause::Esc);
+            let cause = if layers[at].cancel.is_some() {
+                Cause::Cancel
+            } else {
+                Cause::Esc
+            };
+            found.add(at, cause);
         }
         for at in top_down().filter(|&at| leaving(&layers[at])) {
             found.add(at, Cause::FocusOut);
@@ -145,8 +171,23 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
     found
 }
 
+/// The overlay Esc goes to: the topmost that dismisses on Esc or has a
+/// cancel button. With none, Esc is the page's.
+pub(crate) fn esc_target(layers: &[Layer]) -> Option<usize> {
+    (0..layers.len())
+        .rev()
+        .filter(|&at| layers[at].lookup == AnchorLookup::Found)
+        .find(|&at| layers[at].dismiss_on.esc() || layers[at].cancel.is_some())
+}
+
+/// A modal traps focus, so focus leaving it, or the window losing focus, is
+/// no reason to close it.
+fn dismisses_on_focus_loss(layer: &Layer) -> bool {
+    layer.dismiss_on.focus_out() && layer.boundary == Boundary::Open
+}
+
 fn leaving(layer: &Layer) -> bool {
-    layer.dismiss_on.focus_out()
+    dismisses_on_focus_loss(layer)
         && layer.focus_before == FocusAt::Inside
         && layer.focus_now == FocusAt::Elsewhere
 }
@@ -178,6 +219,12 @@ fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
             break;
         }
         let layer = &layers[at];
+        if layer.boundary == Boundary::Scrim {
+            if layer.dismiss_on.outside() {
+                found.add(at, Cause::Outside);
+            }
+            break;
+        }
         if layer.dismiss_on.outside() {
             found.add(at, Cause::Outside);
         }
@@ -222,6 +269,8 @@ mod tests {
         Layer {
             parent: None,
             rect: rect(x, 100.0),
+            boundary: Boundary::Open,
+            cancel: None,
             trigger: Some(Rect::from_min_size(pos2(x, 60.0), vec2(100.0, 30.0))),
             band: Band::Popup,
             dismiss_on: DismissOn::Default,
@@ -236,6 +285,16 @@ mod tests {
     fn menu(x: f32) -> Layer {
         Layer {
             outside: Outside::Swallow,
+            ..popover(x)
+        }
+    }
+
+    /// A modal whose box is at `x`: it has no anchor and its scrim is
+    /// everything else.
+    fn modal(x: f32) -> Layer {
+        Layer {
+            boundary: Boundary::Scrim,
+            trigger: None,
             ..popover(x)
         }
     }
@@ -560,5 +619,171 @@ mod tests {
             ..Input::default()
         };
         assert_eq!(closed(&[layer], &input), vec![0]);
+    }
+
+    const BUTTON: Id = Id::NULL;
+
+    #[test]
+    fn a_press_on_the_scrim_dismisses_the_modal_and_a_press_in_its_box_does_not() {
+        let layers = [modal(0.0)];
+        assert!(
+            !layers[0].rect.contains(PAGE),
+            "precondition: PAGE is scrim"
+        );
+        assert_eq!(closed(&layers, &press(INSIDE)), Vec::<usize>::new());
+        assert_eq!(closed(&layers, &press(PAGE)), vec![0]);
+    }
+
+    #[test]
+    fn the_scrim_ends_the_walk_so_nothing_below_the_modal_is_judged() {
+        let layers = [popover(300.0), menu(150.0), modal(0.0)];
+        assert_eq!(closed(&layers, &press(PAGE)), vec![2]);
+    }
+
+    #[test]
+    fn a_press_on_the_scrim_of_a_nested_modal_leaves_the_modal_it_is_nested_in() {
+        let confirm = Layer {
+            rect: rect(150.0, 100.0),
+            trigger: None,
+            ..nested(modal(0.0), 0)
+        };
+        let layers = [modal(0.0), confirm];
+        assert!(!confirm.rect.contains(INSIDE), "precondition: on the scrim");
+        assert_eq!(closed(&layers, &press(INSIDE)), vec![1]);
+        assert_eq!(
+            closed(&layers, &press(confirm.rect.center())),
+            Vec::<usize>::new()
+        );
+    }
+
+    #[test]
+    fn a_press_on_the_scrim_closes_what_is_open_over_the_modal_first() {
+        let select = Layer {
+            rect: rect(150.0, 100.0),
+            ..nested(popover(0.0), 0)
+        };
+        assert_eq!(closed(&[modal(0.0), select], &press(PAGE)), vec![1, 0]);
+        assert_eq!(
+            closed(&[modal(0.0), select], &press(INSIDE)),
+            vec![1],
+            "a press in the dialog closes only the select"
+        );
+    }
+
+    #[test]
+    fn a_modal_that_must_be_answered_ignores_the_scrim_and_takes_esc() {
+        let confirm = Layer {
+            dismiss_on: DismissOn::EscOnly,
+            ..modal(0.0)
+        };
+        assert_eq!(closed(&[confirm], &press(PAGE)), Vec::<usize>::new());
+        assert_eq!(closed(&[confirm], &ESC), vec![0]);
+        let never = Layer {
+            dismiss_on: DismissOn::Never,
+            ..modal(0.0)
+        };
+        assert_eq!(closed(&[never], &press(PAGE)), Vec::<usize>::new());
+        assert_eq!(closed(&[never], &ESC), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn a_menu_in_a_modal_closes_first_and_the_scrim_press_closes_the_modal_with_it() {
+        let layers = [modal(0.0), nested(menu(150.0), 0)];
+        assert_eq!(closed(&layers, &press(PAGE)), vec![1, 0]);
+    }
+
+    #[test]
+    fn a_modal_is_not_dismissed_by_focus_leaving_or_the_window_blurring() {
+        let leaving = Layer {
+            focus_before: FocusAt::Inside,
+            focus_now: FocusAt::Elsewhere,
+            ..modal(0.0)
+        };
+        assert_eq!(closed(&[leaving], &Input::default()), Vec::<usize>::new());
+        let blurred = Input {
+            window_blurred: true,
+            ..Input::default()
+        };
+        assert_eq!(closed(&[modal(0.0)], &blurred), Vec::<usize>::new());
+        assert_eq!(closed(&[popover(0.0)], &blurred), vec![0], "a popover is");
+    }
+
+    #[test]
+    fn a_modal_opening_leaves_the_menus_it_is_nested_in_and_closes_other_menus() {
+        let opened = |layer: Layer| Layer {
+            opening: Opening::Opened,
+            ..layer
+        };
+        assert_eq!(
+            closed(&[menu(150.0), opened(modal(0.0))], &Input::default()),
+            vec![0]
+        );
+        assert_eq!(
+            closed(
+                &[menu(150.0), opened(nested(modal(0.0), 0))],
+                &Input::default()
+            ),
+            Vec::<usize>::new()
+        );
+    }
+
+    #[test]
+    fn a_cancel_button_answers_esc_in_place_of_the_dismissal() {
+        let cancelled = Layer {
+            cancel: Some(BUTTON),
+            ..modal(0.0)
+        };
+        let found = dismissals(&[cancelled], &ESC);
+        assert_eq!(
+            found,
+            vec![Dismissal {
+                layer: 0,
+                cause: Cause::Cancel
+            }]
+        );
+        assert_eq!(
+            closed(&[cancelled], &press(PAGE)),
+            vec![0],
+            "the scrim is still a dismissal"
+        );
+    }
+
+    #[test]
+    fn a_cancel_button_takes_esc_whatever_dismiss_on_says() {
+        let held = Layer {
+            dismiss_on: DismissOn::Never,
+            cancel: Some(BUTTON),
+            ..modal(0.0)
+        };
+        assert_eq!(closed(&[held], &ESC), vec![0]);
+    }
+
+    #[test]
+    fn esc_goes_to_the_topmost_overlay_even_when_a_lower_one_has_a_cancel_button() {
+        let cancelled = Layer {
+            cancel: Some(BUTTON),
+            ..modal(0.0)
+        };
+        let select = nested(popover(150.0), 0);
+        let found = dismissals(&[cancelled, select], &ESC);
+        assert_eq!(
+            found,
+            vec![Dismissal {
+                layer: 1,
+                cause: Cause::Esc
+            }],
+            "the select closes; the dialog's cancel waits for the next Esc"
+        );
+    }
+
+    #[test]
+    fn with_no_overlay_to_take_it_esc_is_the_pages() {
+        let never = Layer {
+            dismiss_on: DismissOn::Never,
+            ..popover(0.0)
+        };
+        assert_eq!(esc_target(&[]), None);
+        assert_eq!(esc_target(&[never]), None);
+        assert_eq!(esc_target(&[popover(0.0), never]), Some(0));
     }
 }
