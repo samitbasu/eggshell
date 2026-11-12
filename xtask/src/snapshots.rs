@@ -30,16 +30,20 @@ pub struct Plan {
     pub filter: Option<String>,
 }
 
-/// The golden check with no filter, as a `cargo xtask ci` step.
-pub fn check_goldens() -> Result<()> {
-    run(&Plan {
-        mode: Mode::Check,
-        filter: None,
-    })
+/// The workspace's whole test run with the goldens in it, as `cargo xtask ci`
+/// runs it. `-p eggshell-ui --features snapshots` resolves the shared
+/// dependencies' features differently from `--workspace` and rebuilds sixty-odd
+/// crates, so the goldens ride in the one workspace build instead.
+pub fn test_with_goldens() -> Result<()> {
+    guarded(&golden_dir(), workspace_step)
+}
+
+fn golden_dir() -> PathBuf {
+    process::workspace_root().join(GOLDEN_DIR)
 }
 
 pub fn run(plan: &Plan) -> Result<()> {
-    let golden_dir = process::workspace_root().join(GOLDEN_DIR);
+    let golden_dir = golden_dir();
     match plan.mode {
         Mode::Clean => {
             let removed = clean(&golden_dir)?;
@@ -52,10 +56,15 @@ pub fn run(plan: &Plan) -> Result<()> {
 }
 
 fn check(plan: &Plan, golden_dir: &Path) -> Result<()> {
+    guarded(golden_dir, |icd| renderer_step(plan, icd))
+}
+
+/// Runs the step `renderer` makes and fails on any stray image it leaves.
+fn guarded(golden_dir: &Path, renderer: impl FnOnce(&Path) -> Step) -> Result<()> {
     let icd = lavapipe_icd()?;
     // Strays from an earlier failed run would otherwise read as mismatches now.
     clean(golden_dir)?;
-    let result = renderer_step(plan, &icd).run();
+    let result = renderer(&icd).run();
     let strays = strays(golden_dir)?;
     for stray in &strays {
         println!("mismatch: {}", stray.display());
@@ -106,13 +115,28 @@ fn renderer_step(plan: &Plan, icd: &Path) -> Step {
             "--nocapture",
         ],
     )
-    .with_env("VK_ICD_FILENAMES", icd.display().to_string())
-    .with_env("VK_DRIVER_FILES", icd.display().to_string());
+    .on_lavapipe(icd);
     if plan.mode == Mode::Update {
         step = step.with_env("UPDATE_SNAPSHOTS", "1");
     }
     step.args.push(snapshot_filter(plan.filter.as_deref()));
     step
+}
+
+/// Every test of the workspace, the goldens among them, with the software
+/// renderer selected for the child only.
+fn workspace_step(icd: &Path) -> Step {
+    Step::cargo(
+        "test",
+        &[
+            "test",
+            "--workspace",
+            "--all-targets",
+            "--features",
+            "eggshell-ui/snapshots",
+        ],
+    )
+    .on_lavapipe(icd)
 }
 
 /// The libtest filter selecting the `snapshots` module of the `it` binary,
@@ -258,6 +282,15 @@ mod tests {
             step.to_string(),
             "VK_ICD_FILENAMES=\"/icd/lvp.json\" VK_DRIVER_FILES=\"/icd/lvp.json\" \
              cargo test --package eggshell-ui --features snapshots --test it -- --nocapture snapshots::"
+        );
+    }
+
+    #[test]
+    fn the_workspace_run_carries_the_goldens_and_selects_lavapipe() {
+        assert_eq!(
+            workspace_step(Path::new("/icd/lvp.json")).to_string(),
+            "VK_ICD_FILENAMES=\"/icd/lvp.json\" VK_DRIVER_FILES=\"/icd/lvp.json\" \
+             cargo test --workspace --all-targets --features eggshell-ui/snapshots"
         );
     }
 
