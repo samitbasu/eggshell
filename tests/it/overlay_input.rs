@@ -360,6 +360,21 @@ fn open_menu(harness: &mut Harness<'_, Rig<App>>) {
     assert!(harness.state().app.menu, "precondition: open");
 }
 
+/// Opens the menu with Enter on its trigger, so that focus enters it: a menu
+/// opened with the pointer takes none.
+fn open_menu_from_the_keyboard(harness: &mut Harness<'_, Rig<App>>) {
+    for _ in 0..12 {
+        if focused_path(harness).as_deref() == Some("/Page/Top/MenuTrigger") {
+            break;
+        }
+        harness.key_press(Key::Tab);
+        settle(harness);
+    }
+    harness.key_press(Key::Enter);
+    settle(harness);
+    assert!(harness.state().app.menu, "precondition: open");
+}
+
 fn log(harness: &Harness<'_, Rig<App>>) -> Vec<String> {
     harness.state().app.log.clone()
 }
@@ -830,7 +845,7 @@ mod focus {
     #[test]
     fn a_submenu_gives_focus_back_to_the_item_that_opened_it() {
         let mut harness = harness(App::default());
-        open_menu(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
         for _ in 0..3 {
             harness.key_press(Key::ArrowDown);
             settle(&mut harness);
@@ -876,14 +891,14 @@ mod keys {
     #[test]
     fn a_menu_opens_with_its_first_item_focused() {
         let mut harness = harness(App::default());
-        open_menu(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
         assert_eq!(focused_item(&harness), ONE);
     }
 
     #[test]
     fn down_and_up_move_between_items_and_wrap() {
         let mut harness = harness(App::default());
-        open_menu(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
         press(&mut harness, Key::ArrowDown);
         assert_eq!(focused_item(&harness), TWO);
         press(&mut harness, Key::ArrowUp);
@@ -897,7 +912,7 @@ mod keys {
     #[test]
     fn home_and_end_go_to_the_ends() {
         let mut harness = harness(App::default());
-        open_menu(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
         press(&mut harness, Key::End);
         assert_eq!(focused_item(&harness), DIALOG);
         press(&mut harness, Key::Home);
@@ -910,7 +925,7 @@ mod keys {
             disabled_item: Some(1),
             ..App::default()
         });
-        open_menu(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
         press(&mut harness, Key::ArrowDown);
         assert_eq!(focused_item(&harness), THREE);
         press(&mut harness, Key::ArrowUp);
@@ -920,7 +935,7 @@ mod keys {
     #[test]
     fn the_arrows_do_not_leave_the_menu_for_the_page() {
         let mut harness = harness(App::default());
-        open_menu(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
         for _ in 0..8 {
             press(&mut harness, Key::ArrowDown);
             assert!(
@@ -934,7 +949,7 @@ mod keys {
     #[test]
     fn enter_chooses_the_focused_item() {
         let mut harness = harness(App::default());
-        open_menu(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
         press(&mut harness, Key::ArrowDown);
         press(&mut harness, Key::Enter);
         assert_eq!(log(&harness), ["Two chosen"]);
@@ -943,9 +958,14 @@ mod keys {
     #[test]
     fn the_keys_belong_to_the_submenu_while_focus_is_in_it() {
         let mut harness = harness(App::default());
-        open_menu(&mut harness);
-        click_node(&mut harness, "/Page/Top/Menu/Box/More");
-        settle(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
+        for _ in 0..4 {
+            if focused_item(&harness) == "/Page/Top/Menu/Box/More" {
+                break;
+            }
+            press(&mut harness, Key::ArrowDown);
+        }
+        press(&mut harness, Key::Enter);
         let sub = |index: u8| format!("/Page/Top/Menu/Box/Submenu/Box/SubItem({index})");
         assert_eq!(focused_item(&harness), sub(0));
         press(&mut harness, Key::ArrowDown);
@@ -957,7 +977,7 @@ mod keys {
     #[test]
     fn left_closes_the_submenu_and_focuses_its_item() {
         let mut harness = harness(App::default());
-        open_menu(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
         click_node(&mut harness, "/Page/Top/Menu/Box/More");
         settle(&mut harness);
         press(&mut harness, Key::ArrowLeft);
@@ -969,7 +989,7 @@ mod keys {
     #[test]
     fn left_in_a_menu_that_is_not_a_submenu_does_nothing() {
         let mut harness = harness(App::default());
-        open_menu(&mut harness);
+        open_menu_from_the_keyboard(&mut harness);
         press(&mut harness, Key::ArrowLeft);
         assert!(harness.state().app.menu);
         assert_eq!(focused_item(&harness), ONE);

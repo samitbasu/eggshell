@@ -612,3 +612,34 @@ pub fn text_box<S, K>(
         },
     );
 }
+
+/// The box of a menu or list: the select's popup look.
+pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
+    let select = &eggshell_ui::Style::of(b.ctx()).select;
+    let colors = select.popup.paint.states.rest;
+    let classes = tw()
+        .flex()
+        .flex_col()
+        .min_h_0()
+        .bg(colors.fill)
+        .border(select.popup.border_width)
+        .border_color(colors.border)
+        .rounded_px(f32::from(select.popup_radius))
+        .p(select.popup_padding / 4.0)
+        .text(colors.text);
+    match select.popup.paint.shadow {
+        Some(shadow) => classes.shadow(shadow),
+        None => classes,
+    }
+}
+
+/// An item of a menu or list: the select's item look.
+pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
+    let select = &eggshell_ui::Style::of(b.ctx()).select;
+    let hover = select.item.paint.states.hover;
+    tw().px(select.item_padding.x / 4.0)
+        .py(select.item_padding.y / 4.0)
+        .rounded_px(f32::from(select.item_radius))
+        .sense_click()
+        .hover(move |p| p.bg(hover.fill).text(hover.text))
+}

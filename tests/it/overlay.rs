@@ -58,7 +58,11 @@ mod layout {
 
     fn below(placed: &Placed<()>, key: &'static str) -> (Rect, Side, Anchored) {
         let overlay = placed.overlay(key);
-        (overlay.rect(), overlay.side(), overlay.anchored())
+        (
+            overlay.rect(),
+            overlay.side().expect("a floating overlay"),
+            overlay.anchored(),
+        )
     }
 
     #[test]
@@ -177,7 +181,11 @@ mod layout {
                 .children(tall_list);
         });
         let tall = placed.overlay("tall");
-        assert_eq!(tall.side(), Side::Top, "above has the room: 200 against 70");
+        assert_eq!(
+            tall.side(),
+            Some(Side::Top),
+            "above has the room: 200 against 70"
+        );
         assert_eq!(tall.rect().max.y, 200.0);
         assert_eq!(tall.rect().height(), 200.0, "clamped to the room above");
         assert_eq!(placed.at("tall").at("list").rect().height(), 200.0);
@@ -1267,13 +1275,17 @@ mod menu_example {
         let mut harness = menu();
         click_node(&mut harness, "/Page/Top/PopoverButton");
         harness.run_steps(3);
-        for _ in 0..2 {
+        for _ in 0..3 {
             harness.key_press(egui::Key::ArrowDown);
             harness.run_steps(3);
         }
         harness.key_press(egui::Key::Enter);
         harness.run_steps(3);
-        assert_eq!(harness.state().app.chosen.as_deref(), Some("Delete"));
+        assert_eq!(
+            harness.state().app.chosen.as_deref(),
+            Some("Delete"),
+            "opened with the pointer, the first Down goes to the first item"
+        );
         assert!(!has(&harness, "/Page/Top/Popover"));
     }
 

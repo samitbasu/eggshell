@@ -904,3 +904,74 @@ fn egui_sees_the_backgrounds_eggshell_painted_as_the_stack_backdrop() {
         ]
     );
 }
+
+/// The span `label`'s laid-out box and the rect of its painted text.
+fn label_and_text(classes: eggshell_ui::Tw) -> (Rect, Rect) {
+    let shapes = shapes(&mut (), 1.0, |b| {
+        b.div(tw().flex().items_start(), |b| {
+            b.span("label", classes.clone(), "Velocity");
+        });
+    });
+    let text = shapes
+        .iter()
+        .find_map(|clipped| match &clipped.shape {
+            Shape::Text(text) if text.galley.text() == "Velocity" => {
+                Some(Rect::from_min_size(text.pos, text.galley.size()))
+            }
+            _ => None,
+        })
+        .expect("the label is painted");
+    let placed = eggshell_ui::testing::Headless::new(SCREEN.size())
+        .base_text(base())
+        .layout(&(), |b, _| {
+            b.div(tw().flex().items_start(), |b| {
+                b.span("label", classes, "Velocity");
+            });
+        });
+    (placed.at("label").rect(), text)
+}
+
+#[test]
+fn text_taller_than_its_box_overflows_evenly_when_centred() {
+    let centred = || tw().flex().items_center().w_px(120.0).h_px(22.0);
+    let (node, fits) = label_and_text(centred());
+    assert!(fits.height() < node.height(), "control: the line fits");
+    assert_eq!(
+        fits.center().y,
+        node.center().y,
+        "control: centred when it fits"
+    );
+    for padding in [2.0_f32, 4.0] {
+        let (node, text) = label_and_text(centred().py(padding / 4.0));
+        let content = node.height() - 2.0 * padding;
+        assert!(
+            text.height() > content,
+            "precondition: the line overflows its content box"
+        );
+        assert_eq!(
+            text.center().y,
+            node.center().y,
+            "py {padding}: overflows evenly"
+        );
+    }
+}
+
+#[test]
+fn text_taller_than_its_box_ends_at_the_bottom_when_aligned_to_the_end() {
+    let (node, text) = label_and_text(tw().flex().items_end().w_px(120.0).h_px(12.0));
+    assert!(
+        text.height() > node.height(),
+        "precondition: the line overflows"
+    );
+    assert_eq!(text.bottom(), node.bottom());
+}
+
+#[test]
+fn text_taller_than_its_box_starts_at_the_top_when_aligned_to_the_start() {
+    let (node, text) = label_and_text(tw().flex().items_start().w_px(120.0).h_px(12.0));
+    assert!(
+        text.height() > node.height(),
+        "precondition: the line overflows"
+    );
+    assert_eq!(text.top(), node.top());
+}

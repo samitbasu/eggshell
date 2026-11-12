@@ -6,6 +6,7 @@ use egui::{Context, Role};
 
 use super::Mark;
 use super::{Enablement, OnResponse, Tip, centered, described};
+use crate::actions::Action;
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
 use crate::{Builder, Icon, Scope, Style, Tw, tw};
@@ -69,6 +70,7 @@ pub struct ButtonChain<'a, 'f, A> {
     opts: ButtonOptions,
     on_response: OnResponse<A>,
     children: Option<Children<'a, 'f, A>>,
+    action: Option<Action>,
 }
 
 type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
@@ -217,6 +219,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             },
             on_response: OnResponse::default(),
             children: None,
+            action: None,
         }
     }
 
@@ -229,6 +232,28 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// Reports the button to assistive technology as `role`.
     pub(super) fn role(mut self, role: Role) -> Self {
         self.role = role;
+        self
+    }
+
+    /// Makes this the button Return presses: the default of the nearest
+    /// overlay root around the focus, or of the window when it is not in an
+    /// overlay. Return does nothing to a button that is disabled, and is left
+    /// to a focused multi-line text field or button. If a root has several
+    /// default buttons, the first declared is the one.
+    pub fn default_action(mut self) -> Self {
+        self.action = Some(Action::Default);
+        self
+    }
+
+    /// Makes this the button Esc presses: the cancel button of the topmost
+    /// overlay that takes Esc, or of the window when no overlay does. The
+    /// button's handler runs in place of the overlay's
+    /// [`on_dismiss`](crate::overlay::OverlayChain::on_dismiss) (a press on a
+    /// modal's scrim still calls that). Esc does nothing to an overlay whose
+    /// cancel button is disabled. If a root has several cancel buttons, the
+    /// first declared is the one.
+    pub fn cancel_action(mut self) -> Self {
+        self.action = Some(Action::Cancel);
         self
     }
 
@@ -375,6 +400,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 },
             on_response,
             children,
+            action,
         } = self;
         let size = size.unwrap_or(Size::DEFAULT);
         let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
@@ -422,7 +448,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         let classes = enablement.fade(classes, &style).merge(caller);
         let name = name.unwrap_or_else(|| label.clone());
         let glyph = metrics.glyph;
-        b.div_id_with(slot.id, &slot.label, classes, |b| {
+        let node = b.div_id_with(slot.id, &slot.label, classes, |b| {
             if let Some(icon) = icon {
                 b.glyph(tw().size_px(glyph).shrink_0(), icon);
             }
@@ -432,10 +458,14 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             if let Some(children) = children {
                 children(b);
             }
-        })
-        .draw(move |app, ui| {
+        });
+        let node = match action {
+            Some(action) => node.action(action),
+            None => node,
+        };
+        node.draw(move |app, ui| {
             let response = described(ui, role, selected, &name, &tooltip);
-            if response.clicked() {
+            if response.clicked() || crate::nav::take_activation(ui.ctx(), response.id) {
                 on_click(app, ui.ctx());
             }
             on_response.run(app, &response);

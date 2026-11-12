@@ -36,6 +36,10 @@ mod button_children;
 mod toggle_group;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/dialog.rs"]
+mod dialog;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/chat_shell/main.rs"]
 mod chat_shell;
 
@@ -1350,4 +1354,84 @@ fn crate_ui_light() {
         crate_ui::State::default(),
         crate_ui::layout,
     );
+}
+
+/// The dialog example's modals over its scrolling page: the dialog, a
+/// confirmation opened from it, its role menu, and a sheet.
+fn dialog_in(name: &str, theme: egui::Theme, state: dialog::State) {
+    let state = dialog::State {
+        name: "Pedro Duarte".to_owned(),
+        ..state
+    };
+    snapshot_themed(
+        name,
+        SIZE,
+        (
+            state,
+            dialog::layout,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        ),
+        Some(egui::pos2(2.0, 2.0)),
+        (theme, common::use_accent::<dialog::State>),
+    );
+}
+
+fn open_dialog() -> dialog::State {
+    dialog::State {
+        dialog: true,
+        ..dialog::State::default()
+    }
+}
+
+#[test]
+fn dialog_light() {
+    dialog_in("dialog_light", egui::Theme::Light, open_dialog());
+}
+
+#[test]
+fn dialog_dark() {
+    dialog_in("dialog_dark", egui::Theme::Dark, open_dialog());
+}
+
+fn confirming() -> dialog::State {
+    dialog::State {
+        confirm: true,
+        ..open_dialog()
+    }
+}
+
+#[test]
+fn dialog_confirm_light() {
+    dialog_in("dialog_confirm_light", egui::Theme::Light, confirming());
+}
+
+#[test]
+fn dialog_confirm_dark() {
+    dialog_in("dialog_confirm_dark", egui::Theme::Dark, confirming());
+}
+
+#[test]
+fn dialog_role_menu_light() {
+    let picking = dialog::State {
+        picker: true,
+        ..open_dialog()
+    };
+    dialog_in("dialog_role_menu_light", egui::Theme::Light, picking);
+}
+
+fn sheet() -> dialog::State {
+    dialog::State {
+        sheet: true,
+        ..dialog::State::default()
+    }
+}
+
+#[test]
+fn sheet_light() {
+    dialog_in("sheet_light", egui::Theme::Light, sheet());
+}
+
+#[test]
+fn sheet_dark() {
+    dialog_in("sheet_dark", egui::Theme::Dark, sheet());
 }

@@ -118,12 +118,40 @@ pub(crate) fn navigate(ctx: &Context, menus: &[Menu]) -> Vec<Id> {
             } else if let Some(step) = Step::of_key(ctx, home_end)
                 && let Some(to) = target(&menu.items, focused, step)
             {
-                ctx.memory_mut(|memory| memory.request_focus(to));
+                focus_item(ctx, to, focused);
             }
         }
         Nav::Listbox => listbox(ctx, menu, home_end),
     }
     dismiss
+}
+
+/// Gives `to` the focus. With nothing focused before, egui has already read
+/// the arrow as a move of focus this pass and would move it again from `to`,
+/// so the focus is given at the start of the next frame instead.
+fn focus_item(ctx: &Context, to: Id, before: Option<Id>) {
+    if before.is_some() {
+        ctx.memory_mut(|memory| memory.request_focus(to));
+    } else {
+        ctx.data_mut(|data| data.insert_temp(deferred_key(), to));
+        ctx.request_repaint();
+    }
+}
+
+fn deferred_key() -> Id {
+    crate::key::root_id().with("deferred-item-focus")
+}
+
+/// Gives focus to the item a navigation key chose last frame, if nothing
+/// has taken it since. Run before the frame's widgets.
+pub(crate) fn apply_deferred(ctx: &Context) {
+    let Some(item) = ctx.data(|data| data.get_temp::<Id>(deferred_key())) else {
+        return;
+    };
+    ctx.data_mut(|data| data.remove::<Id>(deferred_key()));
+    if ctx.memory(|memory| memory.focused()).is_none() {
+        ctx.memory_mut(|memory| memory.request_focus(item));
+    }
 }
 
 /// Keeps the focused widget's arrow keys from moving the focus: the overlay
@@ -239,6 +267,13 @@ impl Pending {
         let pass = ctx.cumulative_pass_nr();
         ctx.data_mut(|data| data.insert_temp(pending_key(), Self { item, pass }));
     }
+}
+
+/// Activates `item` as a click on the next frame: a default or cancel button
+/// answering its key.
+pub(crate) fn request_activation(ctx: &Context, item: Id) {
+    Pending::set(ctx, item);
+    ctx.request_repaint();
 }
 
 /// Whether Enter or Space activated the highlighted item `item` since it was

@@ -10,6 +10,7 @@ use taffy::{
     style_helpers::length,
 };
 
+use crate::actions::Action;
 use crate::builder::Builder;
 use crate::debug::{Debug, Phase, Timer};
 use crate::dismiss::Opening;
@@ -20,7 +21,10 @@ use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, place};
 use crate::owned::Enablement;
 use crate::prim::Prim;
-use crate::roots::{ById, PlacedOverlay, PlacedRoot, PlacedRootKind, RootDecl, RootKind, root_of};
+use crate::roots::{
+    ById, Form, PlacedOverlay, PlacedRoot, PlacedRootKind, Presentation, RootDecl, RootKind,
+    modal_style, root_of,
+};
 use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
 use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
@@ -82,6 +86,7 @@ pub(crate) struct Node {
     pub drag: Option<Box<NodeDrag>>,
     pub scroll: Option<ScrollNode>,
     pub description: Option<Box<Description>>,
+    pub action: Option<Action>,
 }
 
 /// Whether a node with this `interaction` and draw is a Tab stop by what its
@@ -142,6 +147,8 @@ pub(crate) type DismissFn<A> = Box<dyn FnOnce(&mut A)>;
 
 /// Build data that persists across frames so allocations are reused.
 pub(crate) struct BuildState {
+    /// Names this state's overlay stack in the egui context.
+    pub scope: Id,
     pub tree: TaffyTree<Node>,
     pub seen: Seen,
     pub names: ReadablePath,
@@ -188,6 +195,15 @@ impl Default for LayoutState {
     }
 }
 
+/// A fresh name for the overlay stack of a [`LayoutState`].
+fn stack_scope() -> Id {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    root_id().with((
+        "overlay-stack",
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+    ))
+}
+
 impl LayoutState {
     /// An empty state.
     pub fn new() -> Self {
@@ -195,6 +211,7 @@ impl LayoutState {
         tree.disable_rounding();
         Self {
             st: BuildState {
+                scope: stack_scope(),
                 tree,
                 seen: Seen::default(),
                 names: ReadablePath::default(),
@@ -280,6 +297,7 @@ impl LayoutState {
                     drag: None,
                     scroll: None,
                     description: None,
+                    action: None,
                 }),
             )
             .expect("root was just created");
@@ -388,7 +406,8 @@ impl<'f, A> Built<'f, A> {
             parent: None,
             kind: PlacedRootKind::Base,
         }];
-        let mut stack = Stack::load(ctx);
+        let scope = st.scope;
+        let mut stack = Stack::load(ctx, scope);
         let mut present = HashSet::new();
         for decl in decls {
             let RootDecl {
@@ -406,67 +425,105 @@ impl<'f, A> Built<'f, A> {
             if opening == Opening::Opened && overlay.behavior.focus != Focus::None {
                 open.restore = ctx.memory(|memory| memory.focused());
             }
-            let (anchor, anchored, lookup) =
-                resolve_anchor(overlay.anchor, area, &nodes, &by_id, &roots, || {
-                    *open.pointer.get_or_insert_with(|| {
-                        ctx.input(|input| input.pointer.latest_pos())
-                            .unwrap_or(area.min)
-                    })
-                });
-            present.insert(overlay.id);
-            if lookup == AnchorLookup::Missing && opening == Opening::Opened {
-                #[cfg(debug_assertions)]
-                {
-                    let path = st
-                        .tree
-                        .get_node_context(node)
-                        .map_or_else(String::new, |context| context.path.clone());
-                    let Anchor::Node(id) = overlay.anchor else {
-                        unreachable!("only a node anchor can be missing")
+            let (anchor_decl, anchor, anchored, lookup, rect, form) = match overlay.presentation {
+                Presentation::Floating {
+                    anchor: anchor_decl,
+                    placement,
+                    match_width,
+                } => {
+                    let (anchor, anchored, lookup) =
+                        resolve_anchor(anchor_decl, area, &nodes, &by_id, &roots, || {
+                            *open.pointer.get_or_insert_with(|| {
+                                ctx.input(|input| input.pointer.latest_pos())
+                                    .unwrap_or(area.min)
+                            })
+                        });
+                    if lookup == AnchorLookup::Missing && opening == Opening::Opened {
+                        #[cfg(debug_assertions)]
+                        {
+                            let path = st
+                                .tree
+                                .get_node_context(node)
+                                .map_or_else(String::new, |context| context.path.clone());
+                            let Anchor::Node(id) = anchor_decl else {
+                                unreachable!("only a node anchor can be missing")
+                            };
+                            panic!(
+                                "overlay {path} is anchored to a node that doesn't exist in this frame \
+                                 ({id:?}) (declared at {})",
+                                overlay.declared_at
+                            );
+                        }
+                    }
+                    let mut style = st.tree.style(node).expect("node exists").clone();
+                    style.min_size.width = match match_width {
+                        MatchWidth::Anchor => LengthPercentageAuto::length(anchor.width()),
+                        MatchWidth::Content => LengthPercentageAuto::auto(),
                     };
-                    panic!(
-                        "overlay {path} is anchored to a node that doesn't exist in this frame \
-                         ({id:?}) (declared at {})",
-                        overlay.declared_at
-                    );
+                    st.tree.set_style(node, style.clone()).expect("node exists");
+                    let loose = Size {
+                        width: AvailableSpace::MaxContent,
+                        height: AvailableSpace::MaxContent,
+                    };
+                    solve(&mut st.tree, node, loose);
+                    let natural = laid_size(&st.tree, node);
+                    let mut spot = place(anchor, natural, &placement, area);
+                    let room = Size {
+                        width: (natural.x > spot.available.x).then_some(spot.available.x),
+                        height: (natural.y > spot.available.y).then_some(spot.available.y),
+                    };
+                    if room.width.is_some() || room.height.is_some() {
+                        style.size = Size {
+                            width: room.width.map_or(Dimension::auto(), Dimension::length),
+                            height: room.height.map_or(Dimension::auto(), Dimension::length),
+                        };
+                        st.tree.set_style(node, style).expect("node exists");
+                        let definite = |room: Option<f32>| {
+                            room.map_or(AvailableSpace::MaxContent, AvailableSpace::Definite)
+                        };
+                        solve(
+                            &mut st.tree,
+                            node,
+                            Size {
+                                width: definite(room.width),
+                                height: definite(room.height),
+                            },
+                        );
+                        spot = spot.refit(anchor, laid_size(&st.tree, node), &placement, area);
+                    }
+                    (
+                        anchor_decl,
+                        anchor,
+                        anchored.and(spot.anchored),
+                        lookup,
+                        spot.rect,
+                        Form::Floating(spot.side),
+                    )
                 }
-            }
-            let mut style = st.tree.style(node).expect("node exists").clone();
-            style.min_size.width = match overlay.match_width {
-                MatchWidth::Anchor => LengthPercentageAuto::length(anchor.width()),
-                MatchWidth::Content => LengthPercentageAuto::auto(),
+                Presentation::Modal(modal) => {
+                    let screen = ctx.content_rect();
+                    st.tree
+                        .set_style(node, modal_style(modal, screen))
+                        .expect("node exists");
+                    solve(
+                        &mut st.tree,
+                        node,
+                        Size {
+                            width: AvailableSpace::Definite(screen.width()),
+                            height: AvailableSpace::Definite(screen.height()),
+                        },
+                    );
+                    (
+                        Anchor::Screen,
+                        screen,
+                        Anchored::Attached,
+                        AnchorLookup::Found,
+                        screen,
+                        Form::Modal(modal),
+                    )
+                }
             };
-            st.tree.set_style(node, style.clone()).expect("node exists");
-            let loose = Size {
-                width: AvailableSpace::MaxContent,
-                height: AvailableSpace::MaxContent,
-            };
-            solve(&mut st.tree, node, loose);
-            let natural = laid_size(&st.tree, node);
-            let mut spot = place(anchor, natural, &overlay.placement, area);
-            let room = Size {
-                width: (natural.x > spot.available.x).then_some(spot.available.x),
-                height: (natural.y > spot.available.y).then_some(spot.available.y),
-            };
-            if room.width.is_some() || room.height.is_some() {
-                style.size = Size {
-                    width: room.width.map_or(Dimension::auto(), Dimension::length),
-                    height: room.height.map_or(Dimension::auto(), Dimension::length),
-                };
-                st.tree.set_style(node, style).expect("node exists");
-                let definite = |room: Option<f32>| {
-                    room.map_or(AvailableSpace::MaxContent, AvailableSpace::Definite)
-                };
-                solve(
-                    &mut st.tree,
-                    node,
-                    Size {
-                        width: definite(room.width),
-                        height: definite(room.height),
-                    },
-                );
-                spot = spot.refit(anchor, laid_size(&st.tree, node), &overlay.placement, area);
-            }
+            present.insert(overlay.id);
             for leaf in scrolls.into_iter().rev() {
                 solve_content(&mut st.tree, leaf, &solve);
             }
@@ -474,7 +531,7 @@ impl<'f, A> Built<'f, A> {
             collect(
                 &mut st.tree,
                 node,
-                spot.rect.min,
+                rect.min,
                 0,
                 probe.as_ref(),
                 &mut settle,
@@ -492,10 +549,10 @@ impl<'f, A> Built<'f, A> {
                 kind: PlacedRootKind::Overlay(PlacedOverlay {
                     id: overlay.id,
                     band: overlay.band,
-                    side: spot.side,
-                    anchored: anchored.and(spot.anchored).and(declared_in),
+                    form,
+                    anchored: anchored.and(declared_in),
                     anchor,
-                    anchor_decl: overlay.anchor,
+                    anchor_decl,
                     opening,
                     lookup,
                     behavior: overlay.behavior,
@@ -518,6 +575,7 @@ impl<'f, A> Built<'f, A> {
         let draws = draws.into_iter().map(Some).collect();
         Placed {
             ctx: ctx.clone(),
+            stack: scope,
             nodes,
             by_id,
             prims,
@@ -876,6 +934,7 @@ fn collect(
         draw_kind: node.draw_kind,
         scroll: None,
         description: node.description.take(),
+        action: node.action,
         measured,
     });
     for child in tree.children(id).expect("node exists") {
@@ -955,6 +1014,7 @@ pub struct PlacedNode {
     draw_kind: DrawKind,
     pub(crate) scroll: Option<ScrollPlan>,
     description: Option<Box<Description>>,
+    action: Option<Action>,
     /// What the content of an application-measured leaf wants at its final
     /// width; recorded only while [`Debug::Outlines`] is set. The library's
     /// own leaves are measured when asked ([`Placed::overflowing`]).
@@ -1078,6 +1138,11 @@ impl PlacedNode {
         self.description.as_deref()
     }
 
+    /// The key the node answers, if it is a default or cancel button.
+    pub(crate) fn action(&self) -> Option<Action> {
+        self.action
+    }
+
     /// Whether the node is an item of a menu or a listbox: it has an item
     /// role.
     pub(crate) fn is_item(&self) -> bool {
@@ -1123,6 +1188,7 @@ impl PlacedNode {
 /// node followed by its descendants.
 pub struct Placed<A> {
     pub(crate) ctx: egui::Context,
+    pub(crate) stack: Id,
     pub(crate) nodes: Vec<PlacedNode>,
     pub(crate) by_id: HashMap<Id, usize>,
     pub(crate) prims: Vec<Option<Prim>>,

@@ -20,7 +20,7 @@ pub enum Mode {
     Check,
     /// Regenerate the goldens and list what changed.
     Update,
-    /// Delete the `.new.png` and `.diff.png` files a failed check leaves.
+    /// Delete the `.new.png`, `.diff.png` and `.old.png` files kittest leaves.
     Clean,
 }
 
@@ -74,6 +74,7 @@ fn update(plan: &Plan, golden_dir: &Path) -> Result<()> {
     let icd = lavapipe_icd()?;
     clean(golden_dir)?;
     renderer_step(plan, &icd).run()?;
+    clean(golden_dir)?;
     let changes = parse_changes(&process::git(&[
         "status",
         "--porcelain",
@@ -121,8 +122,12 @@ fn snapshot_filter(name: Option<&str>) -> String {
     format!("snapshots::{}", name.unwrap_or_default())
 }
 
+/// What kittest leaves beside a golden: `.new.png` and `.diff.png` from a
+/// failed check, `.old.png` from an update.
 fn is_stray(file_name: &str) -> bool {
-    file_name.ends_with(".new.png") || file_name.ends_with(".diff.png")
+    [".new.png", ".diff.png", ".old.png"]
+        .iter()
+        .any(|suffix| file_name.ends_with(suffix))
 }
 
 fn strays(dir: &Path) -> Result<Vec<PathBuf>> {
@@ -280,6 +285,7 @@ mod tests {
     fn strays_are_new_and_diff_images_only() {
         assert!(is_stray("a.new.png"));
         assert!(is_stray("a.diff.png"));
+        assert!(is_stray("a.old.png"));
         assert!(!is_stray("a.png"));
         assert!(!is_stray("renew.pngx"));
     }

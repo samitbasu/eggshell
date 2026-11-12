@@ -9,7 +9,7 @@
 
 use egui::{Id, Order, Pos2, Rect, Vec2, pos2, vec2};
 
-pub use crate::overlay_chain::{Floating, OverlayChain, Unplaced};
+pub use crate::overlay_chain::{Floating, Modally, OverlayChain, Unplaced};
 
 /// A signed length in points: a gap, a shift or a margin.
 ///
@@ -100,6 +100,15 @@ pub enum Anchor {
     Pointer,
     /// The screen: sheets and other edge overlays.
     Screen,
+}
+
+/// How a modal overlay presents its box on the scrim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Modal {
+    /// Centred on the screen: a dialog.
+    Center,
+    /// Docked to a side of the screen, stretched along it: a sheet.
+    Edge(Side),
 }
 
 /// The layer family an overlay is drawn in. Inside a band, overlays stack in
