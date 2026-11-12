@@ -1421,6 +1421,7 @@ impl<A> Placed<A> {
             .and_then(|root| Some(self.roots[root].overlay()?.id));
         let Self {
             ctx: _,
+            stack: scope,
             nodes,
             prims,
             draws,
@@ -1487,6 +1488,7 @@ impl<A> Placed<A> {
         stack::repair(&ctx, &shown, pressed);
         overlay_input::judge(
             &ctx,
+            scope,
             &nodes,
             &roots,
             &shared.subtrees,

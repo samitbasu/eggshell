@@ -147,6 +147,8 @@ pub(crate) type DismissFn<A> = Box<dyn FnOnce(&mut A)>;
 
 /// Build data that persists across frames so allocations are reused.
 pub(crate) struct BuildState {
+    /// Names this state's overlay stack in the egui context.
+    pub scope: Id,
     pub tree: TaffyTree<Node>,
     pub seen: Seen,
     pub names: ReadablePath,
@@ -193,6 +195,15 @@ impl Default for LayoutState {
     }
 }
 
+/// A fresh name for the overlay stack of a [`LayoutState`].
+fn stack_scope() -> Id {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    root_id().with((
+        "overlay-stack",
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+    ))
+}
+
 impl LayoutState {
     /// An empty state.
     pub fn new() -> Self {
@@ -200,6 +211,7 @@ impl LayoutState {
         tree.disable_rounding();
         Self {
             st: BuildState {
+                scope: stack_scope(),
                 tree,
                 seen: Seen::default(),
                 names: ReadablePath::default(),
@@ -394,7 +406,8 @@ impl<'f, A> Built<'f, A> {
             parent: None,
             kind: PlacedRootKind::Base,
         }];
-        let mut stack = Stack::load(ctx);
+        let scope = st.scope;
+        let mut stack = Stack::load(ctx, scope);
         let mut present = HashSet::new();
         for decl in decls {
             let RootDecl {
@@ -562,6 +575,7 @@ impl<'f, A> Built<'f, A> {
         let draws = draws.into_iter().map(Some).collect();
         Placed {
             ctx: ctx.clone(),
+            stack: scope,
             nodes,
             by_id,
             prims,
@@ -1174,6 +1188,7 @@ impl PlacedNode {
 /// node followed by its descendants.
 pub struct Placed<A> {
     pub(crate) ctx: egui::Context,
+    pub(crate) stack: Id,
     pub(crate) nodes: Vec<PlacedNode>,
     pub(crate) by_id: HashMap<Id, usize>,
     pub(crate) prims: Vec<Option<Prim>>,

@@ -39,32 +39,38 @@ pub(crate) enum Entered {
 /// The open overlays in the order they were opened, bottom first. Overlays
 /// opened in one frame are in declaration order, and an overlay declared in
 /// another's body is after it.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct Stack(Vec<Open>);
-
-fn key() -> Id {
-    crate::key::root_id().with("overlay-stack")
+///
+/// One per [`LayoutState`](crate::LayoutState): a context that lays out
+/// several frames each frame (a header and a body) keeps each one's overlays
+/// apart, so that one frame never closes the overlays of another.
+#[derive(Clone, Debug)]
+pub(crate) struct Stack {
+    scope: Id,
+    opens: Vec<Open>,
 }
 
 impl Stack {
-    pub(crate) fn load(ctx: &Context) -> Self {
-        ctx.data(|data| data.get_temp(key())).unwrap_or_default()
+    pub(crate) fn load(ctx: &Context, scope: Id) -> Self {
+        ctx.data(|data| data.get_temp(scope)).unwrap_or(Self {
+            scope,
+            opens: Vec::new(),
+        })
     }
 
     pub(crate) fn store(self, ctx: &Context) {
-        ctx.data_mut(|data| data.insert_temp(key(), self));
+        ctx.data_mut(|data| data.insert_temp(self.scope, self));
     }
 
     /// The entry of the overlay `id`, appended at the top if it was not open.
     pub(crate) fn enter(&mut self, id: Id, band: Band) -> (&mut Open, Opening) {
-        let found = self.0.iter().position(|open| open.id == id);
+        let found = self.opens.iter().position(|open| open.id == id);
         let opening = if found.is_some() {
             Opening::Open
         } else {
             Opening::Opened
         };
         let at = found.unwrap_or_else(|| {
-            self.0.push(Open {
+            self.opens.push(Open {
                 id,
                 band,
                 pointer: None,
@@ -72,27 +78,27 @@ impl Stack {
                 entered: Entered::Not,
                 focus: FocusAt::Nowhere,
             });
-            self.0.len() - 1
+            self.opens.len() - 1
         });
-        (&mut self.0[at], opening)
+        (&mut self.opens[at], opening)
     }
 
     /// Forgets the overlays that were not declared this frame, and returns
     /// them.
     pub(crate) fn keep_only(&mut self, present: &HashSet<Id>) -> Vec<Open> {
-        let (kept, closed) = std::mem::take(&mut self.0)
+        let (kept, closed) = std::mem::take(&mut self.opens)
             .into_iter()
             .partition(|open| present.contains(&open.id));
-        self.0 = kept;
+        self.opens = kept;
         closed
     }
 
     pub(crate) fn get_mut(&mut self, id: Id) -> Option<&mut Open> {
-        self.0.iter_mut().find(|open| open.id == id)
+        self.opens.iter_mut().find(|open| open.id == id)
     }
 
     pub(crate) fn index_of(&self, id: Id) -> Option<usize> {
-        self.0.iter().position(|open| open.id == id)
+        self.opens.iter().position(|open| open.id == id)
     }
 }
 

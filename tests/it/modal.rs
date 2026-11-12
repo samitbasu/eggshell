@@ -781,3 +781,60 @@ mod style {
         }
     }
 }
+
+/// A context that lays out two frames each frame, as the examples' shell does
+/// (a theme bar, then the page): the second frame declares no overlay, and
+/// must not close the first one's.
+mod two_frames {
+    use eggshell_ui::LayoutState;
+    use egui::Ui;
+
+    use super::dialog::State;
+    use super::*;
+
+    struct Shell {
+        header: LayoutState,
+        state: State,
+    }
+
+    fn frame(ui: &mut Ui, shell: &mut Shell, page: &mut LayoutState) {
+        let area = ui.max_rect();
+        let ctx = ui.ctx().clone();
+        let top = egui::Rect::from_min_size(area.min, vec2(area.width(), 10.0));
+        shell
+            .header
+            .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
+                b.div_id("header", tw().w_full().h_px(10.0), |_| {});
+            })
+            .layout(top)
+            .draw(&mut (), ui);
+        page.set_base_text(Some(common::base_text(egui::Theme::Light)));
+        page.build(&ctx, |b| dialog::layout(b, &shell.state))
+            .layout(area)
+            .draw(&mut shell.state, ui);
+    }
+
+    #[test]
+    fn tab_leaves_a_text_field_and_the_dialog_stays_open() {
+        let mut harness = support::frame_harness(
+            SCREEN,
+            common::base_text(egui::Theme::Light),
+            Shell {
+                header: LayoutState::new(),
+                state: State::default(),
+            },
+            frame,
+        );
+        harness.run_steps(4);
+        harness.state_mut().app.state.dialog = true;
+        harness.run_steps(8);
+        let name = harness.ctx.memory(|memory| memory.focused());
+        assert!(name.is_some(), "precondition: focus entered the dialog");
+        harness.key_press(Key::Tab);
+        harness.run_steps(8);
+        let moved = harness.ctx.memory(|memory| memory.focused());
+        assert_ne!(moved, name, "Tab moved the focus");
+        assert!(moved.is_some(), "and into the dialog's next control");
+        assert!(harness.state().app.state.dialog);
+    }
+}

@@ -105,6 +105,7 @@ fn box_of(nodes: &[PlacedNode], roots: &[PlacedRoot], root: usize) -> egui::Rect
 /// this frame.
 pub(crate) fn judge<A>(
     ctx: &Context,
+    scope: Id,
     nodes: &[PlacedNode],
     roots: &[PlacedRoot],
     subtrees: &[(Id, Box<[Id]>)],
@@ -117,7 +118,7 @@ pub(crate) fn judge<A>(
         ctx,
         &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
     );
-    let mut stack = Stack::load(ctx);
+    let mut stack = Stack::load(ctx, scope);
     let position = |root: usize| open.iter().position(|open| open.root == root);
     let layers: Vec<Layer> = open
         .iter()
