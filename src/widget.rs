@@ -196,6 +196,11 @@ impl TextEdit {
     /// instead of showing one row too many or too few for a frame.
     pub fn show(&self, ui: &mut Ui, text: &mut String) -> Response {
         Style::of(ui.ctx()).map_input(ui.style_mut());
+        if self.framing == Framing::Bare {
+            // egui floors a single-line field at interact_size.y, which
+            // map_input set to input.height; a bare field is its leaf's height.
+            ui.spacing_mut().interact_size.y = 0.0;
+        }
         let rect = ui.max_rect();
         let id = Self::id_in(ui);
         let width = Width::new(rect.width());
