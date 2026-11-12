@@ -22,11 +22,11 @@ use crate::dnd::{self, Stakes};
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::nav;
-use crate::overlay::{Anchored, Band};
+use crate::overlay::{Anchored, Band, Nav};
 use crate::overlay_input::{self, press_origin};
 use crate::pipeline::{ColorSource, DrawFn, Flow, NodeKind, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
-use crate::roots::{Form, PlacedRoot, covers_screen, stacked_top_down};
+use crate::roots::{Form, PlacedRoot, covers_screen, root_of, stacked_top_down};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
@@ -684,23 +684,27 @@ impl<A> Walk<'_, A> {
     }
 
     /// Hovering the node or any sensing descendant hovers the node, as
-    /// `:hover` does in CSS.
+    /// `:hover` does in CSS. An item of a listbox is hovered only by its
+    /// highlight, which the pointer moves (see [`nav`]): the pointer and the
+    /// keys never leave two items looking hovered.
     fn hovering(&self, index: usize, own: &Response) -> Hovering {
         let ctx = self.ui.ctx();
         let node = &self.nodes[index];
         let descendants = &self.nodes[index + 1..node.end];
-        Hovering::of(
-            own.hovered()
-                || node.id().is_some_and(|id| {
-                    self.shared.highlighted.contains(&id)
-                        || (node.is_item() && focus::holds_focus(ctx, id))
-                })
-                || descendants
-                    .iter()
-                    .filter(|descendant| descendant.senses())
-                    .filter_map(PlacedNode::id)
-                    .any(|id| ctx.read_response(id).is_some_and(|r| r.hovered())),
-        )
+        let highlighted = node.id().is_some_and(|id| {
+            self.shared.highlighted.contains(&id) || (node.is_item() && focus::holds_focus(ctx, id))
+        });
+        let pointed = own.hovered()
+            || descendants
+                .iter()
+                .filter(|descendant| descendant.senses())
+                .filter_map(PlacedNode::id)
+                .any(|id| ctx.read_response(id).is_some_and(|r| r.hovered()));
+        let in_listbox = node.is_item()
+            && self.roots[root_of(self.roots, index)]
+                .overlay()
+                .is_some_and(|overlay| overlay.behavior.nav == Nav::Listbox);
+        Hovering::of(highlighted || (pointed && !in_listbox))
     }
 
     /// How far each state variant has taken hold, animated when the node has

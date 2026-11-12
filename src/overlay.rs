@@ -241,6 +241,16 @@ pub enum Nav {
     Listbox,
 }
 
+/// What an arrow key does at the first or last item of a [`Nav`] overlay.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Wrap {
+    /// Goes on to the other end: menus, and a listbox unless told otherwise.
+    #[default]
+    Around,
+    /// Stays on the item: a select's list, as Radix's.
+    Stop,
+}
+
 /// What an overlay does with input, as its chain declared it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Behavior {
@@ -248,6 +258,7 @@ pub(crate) struct Behavior {
     pub(crate) outside: Option<Outside>,
     pub(crate) focus: Focus,
     pub(crate) nav: Nav,
+    pub(crate) wrap: Wrap,
 }
 
 impl Behavior {

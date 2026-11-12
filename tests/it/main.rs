@@ -52,6 +52,7 @@ mod prims;
 mod progress;
 mod scroll;
 mod scroll_keys;
+mod select;
 mod selection;
 mod shadow_pixels;
 mod sizing;

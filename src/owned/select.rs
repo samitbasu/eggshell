@@ -1,25 +1,70 @@
 //! The owned select: an input-like trigger that opens a list of options.
-//! The list is egui's popup until eggshell has overlays of its own.
+//! The list is an overlay anchored to the trigger, and the select owns whether
+//! it is open: in egui's temp data, keyed by the trigger.
 
-use egui::{
-    Align, Color32, Context, FontId, Frame, Key, Layout, Popup, Role, Sense, SetOpenCommand,
-    Stroke, Ui, Vec2, WidgetInfo, vec2,
-};
+use std::rc::Rc;
+use std::sync::Arc;
+
+use egui::accesskit::HasPopup;
+use egui::{Context, Id, Key, Role, WidgetInfo, vec2};
 
 use super::choice::{self, Choice, IntoChoice};
-use super::number::{hold_keys, pressed};
-use super::{Chevron, Enablement, OnResponse, Tip, paint_check, paint_chevron, tipped};
+use super::number::{hold_arrows, pressed};
+use super::{
+    Chevron, Enablement, Mark, OnResponse, Tip, describe, paint_check, paint_chevron, painted,
+    tipped,
+};
 use crate::builder::Slot;
-use crate::{Builder, NodeUi as _, Style, Tw, tw};
+use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Wrap};
+use crate::overlay_chain::OverlayChain;
+use crate::pipeline::Room;
+use crate::scroll::{Axis, Focusable};
+use crate::{Builder, NodeUi as _, Scope, Style, Tw, nav, tw};
+
+/// The parts of a select's list.
+#[derive(Hash, Debug, Clone, Copy)]
+enum Part {
+    List,
+    Box,
+    Rows,
+    Option(usize),
+}
+
+/// Whether the list is shown.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum Listing {
+    #[default]
+    Closed,
+    Open,
+}
+
+impl Listing {
+    fn of(ctx: &Context, trigger: Id) -> Self {
+        ctx.data(|data| data.get_temp(trigger.with("select-listing")))
+            .unwrap_or_default()
+    }
+
+    fn store(self, ctx: &Context, trigger: Id) {
+        ctx.data_mut(|data| data.insert_temp(trigger.with("select-listing"), self));
+        ctx.request_repaint();
+    }
+
+    fn toggled(self) -> Self {
+        match self {
+            Self::Closed => Self::Open,
+            Self::Open => Self::Closed,
+        }
+    }
+}
 
 /// A trigger that shows the chosen option and opens the list of `options`,
 /// drawn from the [`Style`]. Start one with [`Builder::select`] and finish it
 /// with [`on_change`](Self::on_change).
 ///
-/// With the trigger focused, Space, Enter and ArrowDown open the list. While
-/// it is open the arrows (and Home and End) move the highlight, Enter or
-/// Space choose the highlighted option, and Escape closes it. Clicking an
-/// option chooses it.
+/// With the trigger focused, Space, Enter, ArrowDown and ArrowUp open the
+/// list. While it is open the arrows (and Home and End) move the highlight,
+/// Enter or Space choose the highlighted option, and Escape closes it.
+/// Clicking an option chooses it. A list taller than the room it has scrolls.
 ///
 /// ```html
 /// <button role="combobox" class="flex items-center justify-between gap-2 h-9 w-fit px-3 rounded-md
@@ -31,6 +76,7 @@ use crate::{Builder, NodeUi as _, Style, Tw, tw};
 pub struct SelectChain<'a, 'f, A, T> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
+    list: Slot,
     current: T,
     options: Vec<Choice<T>>,
     name: Option<String>,
@@ -50,6 +96,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
     ) -> Self {
         Self {
             slot: b.slot(&key),
+            list: b.slot(&(key, Part::List)),
             b,
             current,
             options: choice::collect(options),
@@ -109,6 +156,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         let Self {
             mut b,
             slot,
+            list,
             current: chosen,
             options,
             name,
@@ -118,7 +166,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             on_response,
         } = self;
         let enablement = b.enablement_of(enablement);
-        let style = Style::of(b.ctx());
+        let ctx = b.ctx().clone();
+        let trigger = slot.id;
+        if enablement == Enablement::Disabled {
+            Listing::Closed.store(&ctx, trigger);
+        }
+        let style = Style::of(&ctx);
         let select = &style.select;
         let metrics = select.metrics;
         let classes = select
@@ -138,13 +191,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         let shown = current.map_or_else(String::new, |at| options[at].label.clone());
         let name = name.unwrap_or_default();
         let (chevron, opacity) = (select.chevron, select.chevron_opacity);
-        let list = List {
-            style: style.clone(),
-            options,
-            current,
-            name: name.clone(),
-        };
-        b.div_id_with(slot.id, &slot.label, classes, |b| {
+        let value = shown.clone();
+        let label = name.clone();
+        b.div_id_with(trigger, &slot.label, classes, |b| {
             b.text(tw(), shown);
             b.paint(
                 tw().size_px(chevron).shrink_0().opacity(opacity),
@@ -153,207 +202,184 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         })
         .draw(move |app, ui| {
             let response = tipped(ui.node_response(), &tooltip);
-            if let Some(chosen) = list.show(ui, &response) {
-                choose(app, ui.ctx(), list.options[chosen].value);
+            let ctx = ui.ctx();
+            hold_arrows(ui);
+            let listing = Listing::of(ctx, trigger);
+            let arrowed = response.has_focus()
+                && listing == Listing::Closed
+                && (pressed(ui, Key::ArrowDown) | pressed(ui, Key::ArrowUp));
+            if response.clicked() || arrowed {
+                listing.toggled().store(ctx, trigger);
             }
             on_response.run(app, &response);
-            let open = Popup::is_id_open(ui.ctx(), Popup::default_response_id(&response));
             response.widget_info(|| WidgetInfo {
-                current_text_value: Some(list.shown().to_owned()),
-                ..WidgetInfo::labeled(Role::ComboBox, ui.is_enabled(), &name)
+                current_text_value: Some(value.clone()),
+                ..WidgetInfo::labeled(Role::ComboBox, ui.is_enabled(), &label)
             });
-            ui.ctx()
-                .accesskit_node_builder(response.id, |node| node.set_expanded(open));
+            let open = Listing::of(ctx, trigger) == Listing::Open;
+            ctx.accesskit_node_builder(response.id, |node| {
+                node.set_expanded(open);
+                node.set_has_popup(HasPopup::Listbox);
+            });
         });
+        if Listing::of(&ctx, trigger) == Listing::Open {
+            let options = List {
+                style,
+                options,
+                current,
+                trigger,
+                list: list.id,
+            };
+            let choose: Choose<A, T> = Rc::new(choose);
+            let close = ctx.clone();
+            OverlayChain::new(b.reborrow(), list)
+                .anchor(Anchor::Node(trigger))
+                .placement(placement())
+                .match_width(MatchWidth::Anchor)
+                .focus(Focus::Stay)
+                .nav(Nav::Listbox)
+                .wrap(Wrap::Stop)
+                .outside(Outside::Swallow)
+                .role(Role::ListBox)
+                .named(name)
+                .on_dismiss(move |_| Listing::Closed.store(&close, trigger))
+                .children(|s| options.show(s, &choose));
+        }
     }
 }
 
-/// The options and what drives their popup.
+/// Where the list goes: under the trigger, flipping above it for want of room.
+fn placement() -> Placement {
+    Placement::below().gap(Distance::new(4.0))
+}
+
+type Choose<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
+
+/// The options of an open list.
 struct List<T> {
-    style: std::sync::Arc<Style>,
+    style: Arc<Style>,
     options: Vec<Choice<T>>,
     current: Option<usize>,
-    name: String,
+    trigger: Id,
+    list: Id,
 }
 
-impl<T> List<T> {
-    fn enabled(&self, at: usize) -> bool {
-        self.options[at].enablement == Enablement::Enabled
+impl<T: Copy + 'static> List<T> {
+    fn row_height(&self) -> f32 {
+        self.style.text.line_height + 2.0 * self.style.select.item_padding.y
     }
 
-    /// The nearest enabled option from `at` in the direction of `forward`,
-    /// or `at` when there is none.
-    fn step(&self, at: usize, forward: bool) -> usize {
-        let candidates: Vec<usize> = if forward {
-            (at + 1..self.options.len()).collect()
-        } else {
-            (0..at).rev().collect()
-        };
-        candidates
-            .into_iter()
-            .find(|&next| self.enabled(next))
-            .unwrap_or(at)
-    }
-
-    fn edge(&self, forward: bool) -> usize {
-        let mut all = 0..self.options.len();
-        let found = if forward {
-            all.rfind(|&at| self.enabled(at))
-        } else {
-            all.find(|&at| self.enabled(at))
-        };
-        found.unwrap_or(0)
-    }
-
-    fn shown(&self) -> &str {
-        self.current
-            .map_or("", |at| self.options[at].label.as_str())
-    }
-
-    /// Opens, drives and draws the popup under `trigger`; the option chosen
-    /// with the pointer or the keyboard this frame, if any.
-    fn show(&self, ui: &Ui, trigger: &egui::Response) -> Option<usize> {
-        let ctx = ui.ctx();
-        let popup_id = Popup::default_response_id(trigger);
-        let highlight_id = popup_id.with("highlight");
-        let open = Popup::is_id_open(ctx, popup_id);
-        let mut highlight = ctx
-            .data(|data| data.get_temp::<usize>(highlight_id))
-            .filter(|_| open)
-            .or(self.current)
-            .unwrap_or(0);
-        let mut command = None;
-        let mut chosen = None;
-        if trigger.has_focus() {
-            hold_keys(ui, open);
-            if open {
-                if pressed(ui, Key::ArrowDown) {
-                    highlight = self.step(highlight, true);
-                }
-                if pressed(ui, Key::ArrowUp) {
-                    highlight = self.step(highlight, false);
-                }
-                if pressed(ui, Key::Home) {
-                    highlight = self.edge(false);
-                }
-                if pressed(ui, Key::End) {
-                    highlight = self.edge(true);
-                }
-            } else if pressed(ui, Key::ArrowDown) {
-                command = Some(SetOpenCommand::Bool(true));
-                highlight = self.current.unwrap_or(0);
-            }
-        }
-        let confirmed = open
-            && self
-                .options
-                .get(highlight)
-                .is_some_and(|_| self.enabled(highlight))
-            && trigger.has_focus()
-            && ui.input(|input| input.key_pressed(Key::Enter) || input.key_pressed(Key::Space));
-        if confirmed {
-            chosen = Some(highlight);
-            command = Some(SetOpenCommand::Bool(false));
-        } else if trigger.clicked() {
-            command = Some(SetOpenCommand::Toggle);
-            highlight = self.current.unwrap_or(0);
-        }
+    /// The box around the rows.
+    fn box_classes(&self) -> Tw {
         let select = &self.style.select;
         let popup = &select.popup;
         let colors = popup.paint.states.rest;
-        let frame = Frame::new()
-            .fill(colors.fill)
-            .stroke(Stroke::new(popup.border_width, colors.border))
-            .corner_radius(select.popup_radius)
-            .inner_margin(select.popup_padding)
-            .shadow(popup.paint.shadow.unwrap_or(egui::Shadow::NONE));
-        let widest = self.widest_label(ctx);
-        let width = trigger.rect.width();
-        let inner = Popup::from_response(trigger)
-            .open_memory(command)
-            .gap(4.0)
-            .frame(frame)
-            .layout(Layout::top_down_justified(Align::Min))
-            .accessible_name(&self.name)
-            .show(|ui| {
-                ui.spacing_mut().item_spacing = Vec2::ZERO;
-                let chrome = 2.0 * (select.popup_padding + popup.border_width);
-                let row = 3.0 * select.item_padding.x + select.chevron + widest;
-                ui.set_width((width - chrome).max(row));
-                self.rows(ui, &mut highlight)
-            })
-            .and_then(|popup| popup.inner);
-        ctx.data_mut(|data| data.insert_temp(highlight_id, highlight));
-        chosen.or(inner)
+        let classes = tw()
+            .flex()
+            .flex_col()
+            .min_h_0()
+            .p(select.popup_padding / 4.0)
+            .border(popup.border_width)
+            .border_color(colors.border)
+            .bg(colors.fill)
+            .text(colors.text)
+            .rounded_px(f32::from(select.popup_radius))
+            .role(self.style.text.clone());
+        match popup.paint.shadow {
+            Some(shadow) => classes.shadow(shadow),
+            None => classes,
+        }
     }
 
-    fn widest_label(&self, ctx: &Context) -> f32 {
-        let text = &self.style.text;
-        let font = FontId::new(text.size, text.family.clone());
-        ctx.fonts_mut(|fonts| {
-            self.options
-                .iter()
-                .map(|option| {
-                    fonts
-                        .layout_no_wrap(option.label.clone(), font.clone(), Color32::PLACEHOLDER)
-                        .size()
-                        .x
-                })
-                .fold(0.0, f32::max)
-        })
-    }
-
-    /// The option rows; the one clicked.
-    fn rows(&self, ui: &mut Ui, highlight: &mut usize) -> Option<usize> {
+    /// One row: the highlighted one takes the item's `hover` colours.
+    fn row_classes(&self, enablement: Enablement) -> Tw {
         let select = &self.style.select;
-        let item = select.item;
-        let text = &self.style.text;
-        let font = FontId::new(text.size, text.family.clone());
+        let item = select.item.paint.states;
         let pad = select.item_padding;
-        let height = text.line_height + 2.0 * pad.y;
-        let mut clicked = None;
+        let base = tw()
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(pad.x / 4.0)
+            .px(pad.x / 4.0)
+            .h_px(self.row_height())
+            .rounded_px(f32::from(select.item_radius))
+            .whitespace_nowrap()
+            .focusable_none();
+        match enablement {
+            Enablement::Disabled => painted(base, item.disabled).inert(),
+            Enablement::Enabled => painted(base.sense_click(), item.rest)
+                .hover(|p| p.bg(item.hover.fill).text(item.hover.text)),
+        }
+    }
+
+    fn show<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
+        let select = &self.style.select;
+        let popup = &select.popup;
+        let rows = self.options.len() as f32 * self.row_height();
+        let chrome = 2.0 * (select.popup_padding + popup.border_width);
+        let natural = vec2(0.0, rows + chrome);
+        let room = s.room_for(self.trigger, &placement(), natural);
+        s.div_id(Part::Box, self.box_classes(), |s| match room {
+            Room::Enough => self.rows(s, choose),
+            Room::Short => {
+                let scroller = tw().flex().flex_col().h_px(rows).min_h_0().focusable_none();
+                s.scroll(Part::Rows, scroller)
+                    .axis(Axis::Y)
+                    .focusable(Focusable::Auto)
+                    .children(|s| self.rows(s, choose));
+            }
+        });
+    }
+
+    fn rows<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
+        let select = &self.style.select;
+        let enabled = |at: usize| self.options[at].enablement == Enablement::Enabled;
+        let start = self
+            .current
+            .filter(|&at| enabled(at))
+            .or_else(|| (0..self.options.len()).find(|&at| enabled(at)));
+        if let Some(at) = start {
+            let item = s.id_of(Part::Option(at));
+            nav::highlight_initially(s.ctx(), self.list, item, self.trigger);
+        }
+        let ctx = s.ctx().clone();
         for (index, option) in self.options.iter().enumerate() {
-            let label = &option.label;
-            let enabled = self.enabled(index);
-            let sense = if enabled {
-                Sense::click()
-            } else {
-                Sense::hover()
-            };
-            let (rect, response) =
-                ui.allocate_exact_size(vec2(ui.available_width(), height), sense);
-            let response = tipped(response, &option.tooltip);
-            let moved = ui.input(|input| input.pointer.delta() != Vec2::ZERO);
-            if enabled && response.hovered() && moved {
-                *highlight = index;
-            }
-            let chosen = Some(index) == self.current;
-            let colors = if !enabled {
-                item.paint.states.disabled
-            } else if *highlight == index {
-                item.paint.states.hover
-            } else {
-                item.paint.states.rest
-            };
-            let painter = ui.painter();
-            painter.rect_filled(rect, select.item_radius, colors.fill);
-            let galley = painter.layout_no_wrap(label.clone(), font.clone(), colors.text);
-            let at = egui::pos2(rect.left() + pad.x, rect.center().y - galley.size().y / 2.0);
-            painter.galley(at, galley, colors.text);
-            if chosen {
-                let side = select.chevron;
-                let mark = egui::Rect::from_center_size(
-                    egui::pos2(rect.right() - pad.x - side / 2.0, rect.center().y),
-                    Vec2::splat(side),
+            let enablement = self.options[index].enablement;
+            let marked = Some(index) == self.current;
+            let (label, value) = (option.label.clone(), option.value);
+            let side = select.chevron;
+            let row = s
+                .div_id(Part::Option(index), self.row_classes(enablement), |s| {
+                    s.text(tw(), label.clone());
+                    if marked {
+                        s.paint(tw().size_px(side).shrink_0(), paint_check);
+                    } else {
+                        s.div(tw().size_px(side).shrink_0(), |_| {});
+                    }
+                })
+                .role(Role::ListBoxOption)
+                .named(label.clone());
+            let mut row = row.draw(move |_, ui| {
+                describe(
+                    &ui.node_response(),
+                    enablement == Enablement::Enabled,
+                    Role::ListBoxOption,
+                    Some(Mark::from(marked)),
+                    &label,
                 );
-                paint_check(painter, mark, colors.text);
+            });
+            if let Some(tip) = &option.tooltip {
+                row = row.tooltip(tip.clone());
             }
-            response
-                .widget_info(|| WidgetInfo::selected(Role::ListBoxOption, enabled, chosen, label));
-            if enabled && response.clicked() {
-                clicked = Some(index);
+            if enablement == Enablement::Enabled {
+                let (choose, close) = (Rc::clone(choose), ctx.clone());
+                let trigger = self.trigger;
+                row.on_click(move |app| {
+                    choose(app, &close, value);
+                    Listing::Closed.store(&close, trigger);
+                });
             }
         }
-        clicked
     }
 }

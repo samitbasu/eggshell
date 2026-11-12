@@ -323,6 +323,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         .map(|open| Menu {
             id: open.overlay.id,
             nav: open.overlay.behavior.nav,
+            wrap: open.overlay.behavior.wrap,
             items: items(ctx, nodes, roots[open.root].first),
             own: subtrees
                 .iter()

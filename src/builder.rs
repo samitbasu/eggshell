@@ -183,6 +183,17 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
+    /// Whether an overlay `natural` points big, anchored to the node `anchor`
+    /// and placed by `placement`, has the room it wants.
+    pub(crate) fn room_for(
+        &self,
+        anchor: Id,
+        placement: &crate::overlay::Placement,
+        natural: egui::Vec2,
+    ) -> crate::pipeline::Room {
+        crate::pipeline::room_for(self.frame.ctx, self.st.scope, anchor, placement, natural)
+    }
+
     /// The egui context the frame is built with, for reading the local state
     /// that draw closures keep in egui's memory under ids from
     /// [`id_of`](Self::id_of).
