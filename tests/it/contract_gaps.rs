@@ -116,7 +116,7 @@ const COMBINATIONS: [(Theme, ShadcnStyle); 4] = [
 ];
 
 fn cell_path(mode: Mode) -> String {
-    format!("/\"seg\"/{mode:?}")
+    format!("/\"seg\"/{}", mode as usize)
 }
 
 /// The box a text was painted in, if one was painted inside `inside`.
@@ -506,7 +506,7 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
         let base = plain.state().app.style.text.size;
         for (path, text) in [
             ("/\"button\"", "Save"),
-            ("/\"seg\"/Light", "Light"),
+            ("/\"seg\"/0", "Light"),
             ("/\"select\"", "Light"),
             ("/\"check\"/<div>", "Agree"),
         ] {
@@ -525,7 +525,7 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
         );
         for (path, text, size) in [
             ("/\"button\"", "Save", 21.0),
-            ("/\"seg\"/Light", "Light", 17.0),
+            ("/\"seg\"/0", "Light", 17.0),
             ("/\"select\"", "Light", 19.0),
             ("/\"check\"/<div>", "Agree", 23.0),
         ] {

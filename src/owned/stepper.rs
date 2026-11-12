@@ -3,14 +3,16 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
+use std::rc::Rc;
 
 use egui::{Key, Role, WidgetInfo};
 
-use super::number::{Step, pressed};
+use super::number::{Edit, Edits, Step, pressed};
 use super::{
     Chevron, Enablement, FieldHooks, Tip, centered, described, field_classes, paint_chevron, tipped,
 };
 use crate::builder::Slot;
+use crate::focus::Autofocus;
 use crate::prim::text_field::{self, Field};
 use crate::{Builder, Style, Tw, tw};
 
@@ -53,6 +55,8 @@ pub struct StepperChain<'a, 'f, A> {
     classes: Tw,
     enablement: Enablement,
     hooks: FieldHooks<A>,
+    edits: Edits<A>,
+    autofocus: Autofocus,
 }
 
 impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
@@ -74,6 +78,8 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             classes: tw(),
             enablement: Enablement::Enabled,
             hooks: FieldHooks::default(),
+            edits: Edits::default(),
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -125,6 +131,21 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         self
     }
 
+    /// Runs `then` as each edit begins and ends (see [`Edit`]): once for each
+    /// press of a button or of an arrow key, and once for typing in the
+    /// field, from its first change until it loses focus.
+    pub fn on_edit(mut self, then: impl Fn(&mut A, Edit) + 'static) -> Self {
+        self.edits.set(then);
+        self
+    }
+
+    /// Takes keyboard focus in its field in the first frame the stepper is
+    /// built after a frame in which it was not.
+    pub fn focus_on_appear(mut self) -> Self {
+        self.autofocus = Autofocus::OnAppear;
+        self
+    }
+
     /// Whether the stepper takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -133,7 +154,8 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
 
     /// Adds the stepper. `set` runs with the new value.
     #[track_caller]
-    pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
+    pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
+        let set = Rc::new(set);
         let Self {
             mut b,
             slot,
@@ -145,7 +167,10 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             classes,
             enablement,
             hooks,
+            edits,
+            autofocus,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let stepper = &style.stepper;
         let (low, high) = (*range.start(), *range.end());
@@ -156,6 +181,8 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             name: name.unwrap_or_default(),
             tooltip,
             hooks,
+            edits,
+            autofocus,
         };
         let group = enablement
             .fade(
@@ -208,10 +235,11 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             b.div_id(Part::Box, group, |b| {
                 b.div(field_box, |b| {
                     let spec = spec.clone();
+                    let set = set.clone();
                     b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
                         text_field::measure(m, &measured)
                     })
-                    .draw_widgets(move |app, ui| spec.run_field(app, ui, &field, editing, set));
+                    .draw_widgets(move |app, ui| spec.run_field(app, ui, &field, editing, &*set));
                 });
                 let buttons = tw()
                     .flex()
@@ -226,6 +254,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                         (Part::Down, down, Chevron::Down, -1, "Decrease"),
                     ] {
                         let spec = spec.clone();
+                        let set = set.clone();
                         let name = format!("{label} {}", spec.name);
                         b.div_id(part, classes, |b| {
                             b.paint(tw().size_px(glyph), paint_chevron(chevron))
@@ -234,7 +263,9 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                             if described(ui, Role::Button, None, name.trim(), &spec.tooltip)
                                 .clicked()
                             {
-                                set(app, spec.step.moved(spec.value, steps, &spec.range));
+                                spec.edits.once(app, |app| {
+                                    set(app, spec.step.moved(spec.value, steps, &spec.range));
+                                });
                             }
                         });
                     }
@@ -252,6 +283,8 @@ struct Spec<A> {
     name: String,
     tooltip: Tip,
     hooks: FieldHooks<A>,
+    edits: Edits<A>,
+    autofocus: Autofocus,
 }
 
 impl<A> Clone for Spec<A> {
@@ -263,6 +296,8 @@ impl<A> Clone for Spec<A> {
             name: self.name.clone(),
             tooltip: self.tooltip.clone(),
             hooks: self.hooks.clone(),
+            edits: self.edits.clone(),
+            autofocus: self.autofocus,
         }
     }
 }
@@ -283,6 +318,8 @@ impl<A> Spec<A> {
         let (low, high) = (*self.range.start(), *self.range.end());
         let mut value = self.value;
         let mut typed = ui.data(|data| data.get_temp::<String>(editing));
+        let session = editing.with("session");
+        let typing = ui.data(|data| data.get_temp::<()>(session)).is_some();
         if ui.memory(|memory| memory.has_focus(Field::id_in(ui))) {
             let current = typed.as_deref().and_then(parse).unwrap_or(value);
             let steps =
@@ -290,11 +327,16 @@ impl<A> Spec<A> {
             if steps != 0 {
                 value = self.step.moved(current, steps, &self.range);
                 typed = None;
-                set(app, value);
+                if typing {
+                    set(app, value);
+                } else {
+                    self.edits.once(app, |app| set(app, value));
+                }
             }
         }
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
         let response = tipped(text_field::show(ui, &mut text, field), &self.tooltip);
+        self.autofocus.apply(ui.ctx(), &response);
         response.widget_info(|| WidgetInfo {
             label: Some(self.name.clone()),
             ..WidgetInfo::drag_value(ui.is_enabled(), value)
@@ -305,6 +347,10 @@ impl<A> Spec<A> {
         });
         if response.changed() {
             let number = parse(&text).map(|number| number.clamp(low, high));
+            if !typing {
+                self.edits.emit(app, Edit::Began);
+                ui.data_mut(|data| data.insert_temp(session, ()));
+            }
             if let Some(number) = number.filter(|&number| number != self.value) {
                 set(app, number);
             }
@@ -314,6 +360,10 @@ impl<A> Spec<A> {
                 set(app, self.step.snap(number, &self.range));
             }
             ui.data_mut(|data| data.remove::<String>(editing));
+            if typing {
+                self.edits.emit(app, Edit::Ended);
+                ui.data_mut(|data| data.remove::<()>(session));
+            }
         }
         self.hooks.run(app, ui, &response);
     }

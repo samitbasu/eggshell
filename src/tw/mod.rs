@@ -101,9 +101,10 @@ impl Tw {
     /// Makes the subtree non-interactive, like HTML's `inert` attribute: its
     /// widgets are disabled and take no input or focus.
     ///
-    /// As on the web, inert content looks unchanged. To make it look disabled,
-    /// add opacity, which fades boxes, text and widgets together (Tailwind's
-    /// `inert:opacity-50`):
+    /// The owned controls inside it (buttons, checkboxes, sliders, ...) are
+    /// drawn in their disabled look, as inside a `<fieldset disabled>`. Other
+    /// inert content looks unchanged; to dim it, add opacity, which fades
+    /// boxes, text and widgets together (Tailwind's `inert:opacity-50`):
     ///
     /// ```
     /// use eggshell_ui::{Opacity, tw};

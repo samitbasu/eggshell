@@ -134,6 +134,7 @@ impl TextLeaf<'_> {
             Wrap::Off => job.wrap.max_width = f32::INFINITY,
             Wrap::At(width) => job.wrap.max_width = width,
         }
+        self.clamp_rows(&mut job);
         fonts.layout_job(job)
     }
 
@@ -153,7 +154,7 @@ impl TextLeaf<'_> {
             TextAlign::Right => Align::RIGHT,
         };
         match self.style.white_space {
-            WhiteSpace::Normal => job.wrap.max_width = width,
+            WhiteSpace::Normal | WhiteSpace::Clamp(_) => job.wrap.max_width = width,
             WhiteSpace::NoWrap => job.wrap.max_width = f32::INFINITY,
             WhiteSpace::Truncate => {
                 job.wrap.max_width = width;
@@ -161,7 +162,14 @@ impl TextLeaf<'_> {
                 job.wrap.break_anywhere = true;
             }
         }
+        self.clamp_rows(&mut job);
         fonts.layout_job(job)
+    }
+
+    fn clamp_rows(&self, job: &mut LayoutJob) {
+        if let WhiteSpace::Clamp(rows) = self.style.white_space {
+            job.wrap.max_rows = rows as usize;
+        }
     }
 
     /// Width of the widest whitespace-separated word, unwrapped.
@@ -181,7 +189,10 @@ impl TextLeaf<'_> {
         text: &str,
         input: &LayoutInput,
     ) -> (Wrap, Option<f32>) {
-        if self.style.white_space != WhiteSpace::Normal {
+        if !matches!(
+            self.style.white_space,
+            WhiteSpace::Normal | WhiteSpace::Clamp(_)
+        ) {
             return (Wrap::Off, None);
         }
         match (input.known_dimensions.width, input.available_space.width) {

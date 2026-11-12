@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 
-use egui::Role;
+use egui::{Context, Role};
 
 use super::Mark;
 use super::{Enablement, OnResponse, Tip, centered, described};
@@ -349,6 +349,13 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// Space or Enter.
     #[track_caller]
     pub fn on_click(self, on_click: impl FnOnce(&mut A) + 'static) {
+        self.on_click_with(move |app, _| on_click(app));
+    }
+
+    /// Adds the button. `on_click` gets the application and the egui context,
+    /// for an effect the context performs, such as copying text.
+    #[track_caller]
+    pub fn on_click_with(self, on_click: impl FnOnce(&mut A, &Context) + 'static) {
         let Self {
             mut b,
             slot,
@@ -370,7 +377,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             children,
         } = self;
         let size = size.unwrap_or(Size::DEFAULT);
-        let enablement = enablement.unwrap_or(Enablement::Enabled);
+        let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
         let press = press.unwrap_or(Press::Shifts);
         debug_assert!(
             !label.is_empty() || name.is_some(),
@@ -429,7 +436,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         .draw(move |app, ui| {
             let response = described(ui, role, selected, &name, &tooltip);
             if response.clicked() {
-                on_click(app);
+                on_click(app, ui.ctx());
             }
             on_response.run(app, &response);
         });

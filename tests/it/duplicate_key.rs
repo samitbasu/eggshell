@@ -62,4 +62,18 @@ fn a_duplicate_control_names_the_call_that_finishes_it() {
         b.text_field("name", "").on_change(|_, _| {});
     });
     assert_names_call(&message, line);
+    let message = panic_message(|b| {
+        b.segmented("seg", 0, [(0, "A"), (1, "B")])
+            .on_change(|_, _| {});
+        line = line!() + 2;
+        b.segmented("seg", 0, [(0, "A"), (1, "B")])
+            .on_change(|_, _| {});
+    });
+    assert_names_call(&message, line);
+    let message = panic_message(|b| {
+        b.button("ok", "OK").on_click_with(|_, _| {});
+        line = line!() + 1;
+        b.button("ok", "OK").on_click_with(|_, _| {});
+    });
+    assert_names_call(&message, line);
 }

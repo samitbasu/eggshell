@@ -1,16 +1,17 @@
 //! The owned segmented control: a single-choice track of cells, each a Tab
 //! stop.
 
-use std::fmt::Debug;
-use std::hash::Hash;
+use std::rc::Rc;
 
 use egui::{Context, Role};
 
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
-use super::{Enablement, OnResponse, centered, described};
+use super::{Enablement, OnResponse, Tip, centered, described, tipped};
 use crate::builder::Slot;
-use crate::{Builder, Style, Tw, tw};
+use crate::{Builder, NodeUi as _, Style, Tw, tw};
+
+type Handler<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
 
 /// Whether a cell is the chosen one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,7 +35,8 @@ enum Rows {
 /// [`Builder::segmented`] and finish it with [`on_change`](Self::on_change).
 ///
 /// Clicking a cell, or pressing Enter or Space on it, runs the handler with
-/// its value. Cells are identified by their value, so values must be distinct.
+/// its value. Cells are identified by their position, so the options keep their order
+/// for as long as a cell's state (focus, hover) should follow it.
 ///
 /// ```html
 /// <div class="flex items-center w-fit h-9 p-[3px] rounded-lg bg-muted">
@@ -44,7 +46,7 @@ enum Rows {
 ///
 /// ```
 /// # use eggshell_ui::Builder;
-/// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+/// #[derive(Clone, Copy, PartialEq)]
 /// enum Unit { Metric, Imperial }
 /// struct App { unit: Unit }
 ///
@@ -65,6 +67,7 @@ pub struct SegmentedChain<'a, 'f, A, T> {
     options: Vec<Choice<T>>,
     rows: Rows,
     enablement: Enablement,
+    tooltip: Tip,
     track: Tw,
     cells: Tw,
     custom: Option<Custom<'a>>,
@@ -78,9 +81,7 @@ struct Custom<'a> {
     cell: Box<dyn Fn(Cell) -> Tw + 'a>,
 }
 
-impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
-    SegmentedChain<'a, 'f, A, T>
-{
+impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A, T> {
     /// A control of `options` of which `current` is selected.
     pub(super) fn new<K: crate::Key, O: IntoChoice<T>>(
         b: Builder<'a, 'f, A>,
@@ -95,6 +96,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
             options: choice::collect(options),
             rows: Rows::One,
             enablement: Enablement::Enabled,
+            tooltip: None,
             track: tw(),
             cells: tw(),
             custom: None,
@@ -146,6 +148,15 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
         self
     }
 
+    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
+    /// shows it: with egui's timing and style, and also when the control is
+    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// name and does not replace it. A cell's own tooltip shows instead of it.
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
     /// Whether the control takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -154,14 +165,15 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
 
     /// Adds the control. `select` runs with the value of the chosen cell.
     #[track_caller]
-    pub fn on_change(self, select: impl Fn(&mut A, T) + Copy + 'static) {
+    pub fn on_change(self, select: impl Fn(&mut A, T) + 'static) {
         self.on_change_with(move |app, _, value| select(app, value));
     }
 
     /// Adds the control. `select` gets the application and the egui context,
     /// for a value the context holds.
     #[track_caller]
-    pub fn on_change_with(self, select: impl Fn(&mut A, &Context, T) + Copy + 'static) {
+    pub fn on_change_with(self, select: impl Fn(&mut A, &Context, T) + 'static) {
+        let select: Handler<A, T> = Rc::new(select);
         let Self {
             b,
             slot,
@@ -169,17 +181,19 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
             options,
             rows,
             enablement,
+            tooltip,
             track,
             cells: caller,
             custom,
             on_response,
         } = self;
+        let enablement = b.enablement_of(enablement);
         if let Some(Custom { track, cell }) = custom {
             cells_in(
                 b,
                 slot,
                 (current, options, enablement),
-                track,
+                (track, tooltip),
                 |state, enablement| {
                     let classes = cell(state);
                     match enablement {
@@ -235,7 +249,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
             b,
             slot,
             (current, options, enablement),
-            container,
+            (container, tooltip),
             cell,
             icon,
             (select, on_response),
@@ -243,23 +257,33 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>
     }
 }
 
-fn cells_in<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>(
+#[track_caller]
+fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
     mut b: Builder<'_, '_, A>,
     slot: Slot,
     (current, options, group): (T, Vec<Choice<T>>, Enablement),
-    container: Tw,
+    (container, tooltip): (Tw, Tip),
     cell: impl Fn(Cell, Enablement) -> Tw,
     icon_classes: Tw,
-    (select, on_response): (impl Fn(&mut A, &Context, T) + Copy + 'static, OnResponse<A>),
+    (select, on_response): (Handler<A, T>, OnResponse<A>),
 ) {
-    b.div_id_with(slot.id, &slot.label, container, |b| {
-        for Choice {
-            value,
-            label,
-            icon,
-            tooltip,
-            enablement,
-        } in options
+    let container = if tooltip.is_some() {
+        container.sense_hover()
+    } else {
+        container
+    };
+    let control_tip = tooltip.clone();
+    let handle = b.div_id_with(slot.id, &slot.label, container, |b| {
+        for (
+            index,
+            Choice {
+                value,
+                label,
+                icon,
+                tooltip,
+                enablement,
+            },
+        ) in options.into_iter().enumerate()
         {
             let state = if value == current {
                 Cell::Pressed
@@ -268,7 +292,9 @@ fn cells_in<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>(
             };
             let classes = cell(state, group.and(enablement)).sense_click();
             let name = label.clone();
+            let tooltip = tooltip.or_else(|| control_tip.clone());
             let on_response = on_response.clone();
+            let select = select.clone();
             let clicked = move |app: &mut A, ui: &mut egui::Ui| {
                 let mark = Mark::from(state == Cell::Pressed);
                 let response = described(ui, Role::RadioButton, Some(mark), &name, &tooltip);
@@ -282,10 +308,10 @@ fn cells_in<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>(
             };
             match icon {
                 None => {
-                    b.span(value, classes, label).draw(draw);
+                    b.span(index, classes, label).draw(draw);
                 }
                 Some(icon) => {
-                    b.div_id(value, classes, |b| {
+                    b.div_id(index, classes, |b| {
                         b.glyph(icon_classes.clone().shrink_0(), icon);
                         b.text(tw(), label);
                     })
@@ -294,4 +320,9 @@ fn cells_in<A: 'static, T: Copy + PartialEq + Hash + Debug + 'static>(
             }
         }
     });
+    if tooltip.is_some() {
+        handle.draw(move |_, ui| {
+            tipped(ui.node_response(), &tooltip);
+        });
+    }
 }

@@ -82,7 +82,7 @@ mod demos {
     #[test]
     fn the_vertical_direction_stacks_them_and_aligns_across_the_width() {
         let mut harness = demos(State::default());
-        click_node(&mut harness, "/Direction/Vertical");
+        click_node(&mut harness, "/Direction/1");
         harness.run_steps(3);
         assert_eq!(harness.state().app.direction, Direction::Vertical);
         let [start, center, end, stretch] = ALIGNS.map(|a| rect(&harness, Part::Aligned(a)));

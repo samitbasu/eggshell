@@ -3,6 +3,7 @@
 
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::rc::Rc;
 
 use egui::{Role, Vec2};
 
@@ -140,7 +141,7 @@ impl<'a, 'f, A: 'static> SwitchChain<'a, 'f, A, bool> {
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
     #[track_caller]
-    pub fn on_change(self, on_change: impl Fn(&mut A, bool) + Copy + 'static) {
+    pub fn on_change(self, on_change: impl Fn(&mut A, bool) + 'static) {
         self.values(false, true).on_change(on_change);
     }
 }
@@ -149,7 +150,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
     /// Adds the switch. `on_change` runs with the new value when the track or
     /// the label is clicked, or the track is activated with Space or Enter.
     #[track_caller]
-    pub fn on_change(self, on_change: impl Fn(&mut A, T) + Copy + 'static) {
+    pub fn on_change(self, on_change: impl Fn(&mut A, T) + 'static) {
         let Self {
             mut b,
             slot,
@@ -164,8 +165,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             enablement,
             on_response,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let (mark, toggled) = flip([off, on_value], current);
-        let on_toggle = move |app: &mut A| on_change(app, toggled);
+        let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = Style::of(b.ctx());
         let switch = &style.switch;
         let metrics = *switch.sizes.get(size);
@@ -205,6 +207,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 .w_px(track.x)
                 .h_px(track.y);
             let row = choice_row(&style, &switch.text, enablement, switch.gap).merge(caller);
+            let on_press = on_toggle.clone();
             b.div(row, |b| {
                 b.div_id(Part::Track, classes, |b| {
                     b.paint(tw().w_full().h_full(), move |painter, rect, _| {
@@ -228,12 +231,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 .draw(move |app, ui| {
                     let response = described(ui, Role::Switch, Some(mark), &name, &tooltip);
                     if response.clicked() {
-                        on_toggle(app);
+                        on_press(app);
                     }
                     on_response.run(app, &response);
                 });
                 if let Some(label) = label {
-                    choice_label(b, Part::Label, control, label, enablement, on_toggle);
+                    choice_label(b, Part::Label, control, label, enablement, move |app| {
+                        on_toggle(app)
+                    });
                 }
             });
         });

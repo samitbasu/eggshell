@@ -82,7 +82,7 @@ fn tab_visits_the_controls_top_to_bottom_and_skips_what_is_inert() {
         .map(field_path)
         .chain([Notifications::EmailAlerts, Notifications::PushAlerts].map(track_path))
         .chain([path(Section::Preferences, Preferences::Language)])
-        .chain(["Light", "Dark", "System"].map(|cell| format!("/Preferences/\"theme\"/{cell}")))
+        .chain((0..3).map(|cell| format!("/Preferences/\"theme\"/{cell}")))
         .chain(Mark::ALL.map(|mark| path(Section::Preferences, Preferences::Mark(mark))))
         .chain(
             form::SWATCHES
@@ -235,7 +235,7 @@ fn the_bio_grows_with_its_lines_up_to_six_rows() {
 fn a_segmented_control_chooses_the_theme() {
     let mut harness = harness();
     assert_eq!(harness.state().app.theme, Theme::System);
-    click_node(&mut harness, "/Preferences/\"theme\"/Dark");
+    click_node(&mut harness, "/Preferences/\"theme\"/1");
     harness.run_steps(2);
     assert_eq!(harness.state().app.theme, Theme::Dark);
 }

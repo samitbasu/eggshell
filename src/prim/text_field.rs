@@ -9,6 +9,7 @@ use egui::{Response, Ui};
 use taffy::Size;
 
 use crate::builder::Slot;
+use crate::focus::Autofocus;
 use crate::owned::FieldHooks;
 use crate::widget::Stock as _;
 use crate::{Builder, Key, Measure, Tw, tw};
@@ -48,6 +49,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
             field,
             classes: tw(),
             hooks: FieldHooks::default(),
+            autofocus: Autofocus::Never,
         }
     }
 }
@@ -62,6 +64,7 @@ pub struct TextFieldChain<'a, 'f, A> {
     text: String,
     classes: Tw,
     hooks: FieldHooks<A>,
+    autofocus: Autofocus,
 }
 
 impl<A: 'static> TextFieldChain<'_, '_, A> {
@@ -93,6 +96,15 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// field that sits inside a box of the application's own.
     pub fn bare(mut self) -> Self {
         self.field = self.field.bare();
+        self
+    }
+
+    /// Takes keyboard focus in the first frame the field is built after a
+    /// frame in which it was not: an inline edit or a sheet's name field that
+    /// appears on a click. A field that stays built keeps whatever focus it
+    /// has.
+    pub fn focus_on_appear(mut self) -> Self {
+        self.autofocus = Autofocus::OnAppear;
         self
     }
 
@@ -139,6 +151,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             text,
             classes,
             hooks,
+            autofocus,
         } = self;
         let measured = field.clone();
         b.leaf_with(slot.id, &slot.label, classes, move |m| {
@@ -147,6 +160,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         .draw_widgets(move |app, ui| {
             let mut edited = text;
             let response = show(ui, &mut edited, &field);
+            autofocus.apply(ui.ctx(), &response);
             if response.changed() {
                 on_change(app, edited);
             }

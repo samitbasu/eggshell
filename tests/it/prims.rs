@@ -347,7 +347,7 @@ fn picker_harness() -> Harness<'static, Rig<Picker>> {
 }
 
 fn cell_path(mode: Mode) -> String {
-    format!("/\"mode\"/{mode:?}")
+    format!("/\"mode\"/{}", mode as usize)
 }
 
 /// The modes whose cells are painted pressed.

@@ -152,7 +152,7 @@ fn a_choice_changes_the_hint_and_the_fields_follow() {
         rect_of(harness, &format!("/{:?}", Control::EditMulti)).height()
     };
     let before = height(&harness);
-    click_node(&mut harness, "/\"label\"/Wrapping");
+    click_node(&mut harness, "/\"label\"/2");
     harness.run_steps(3);
     assert_eq!(harness.state().app.label, Label::Wrapping);
     assert!(

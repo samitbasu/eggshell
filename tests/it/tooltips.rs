@@ -72,6 +72,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
                     Choice::new(Pick::B, "Beta").tooltip("Tip for cell"),
                 ],
             )
+            .tooltip("Tip for segmented")
             .on_change(|_, _| {});
             b.slider("slider", 50.0, 0.0..=100.0)
                 .named("Level")
@@ -148,14 +149,15 @@ fn checkbox_switch_slider_select_and_stepper_show_theirs() {
 
 #[test]
 fn an_option_of_a_radio_group_or_segmented_control_shows_its_own() {
-    hover_shows("/\"radio\"/Circle(B)", "Tip for beta");
-    hover_shows("/\"segmented\"/B", "Tip for cell");
+    hover_shows("/\"radio\"/Circle(1)", "Tip for beta");
+    hover_shows("/\"segmented\"/1", "Tip for cell");
+    hover_shows("/\"segmented\"/0", "Tip for segmented");
 }
 
 #[test]
 fn only_the_option_with_a_tooltip_shows_one() {
     let mut harness = harness();
-    hover_node(&mut harness, "/\"radio\"/Circle(A)");
+    hover_node(&mut harness, "/\"radio\"/Circle(0)");
     harness.run_steps(6);
     assert!(harness.query_by_label("Tip for beta").is_none());
 }

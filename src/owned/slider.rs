@@ -4,12 +4,14 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
+use std::rc::Rc;
 
 use egui::{Key, Rect, Ui, WidgetInfo};
 
-use super::number::{self, Step};
+use super::number::{self, Edit, Edits, Step};
 use super::{Enablement, OnResponse, Tip, painted, tipped};
 use crate::builder::Slot;
+use crate::contract::Colors;
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -46,6 +48,7 @@ pub struct SliderChain<'a, 'f, A> {
     classes: Tw,
     enablement: Enablement,
     on_response: OnResponse<A>,
+    edits: Edits<A>,
 }
 
 /// What a draw closure needs to turn the pointer and the keys into a value.
@@ -90,6 +93,29 @@ impl Scale {
     }
 }
 
+/// The classes of a track `height` thick, filled with `colors`.
+pub(super) fn track_classes((height, radius): (f32, u8), colors: Colors) -> Tw {
+    painted(
+        tw().w_full()
+            .h_px(height)
+            .rounded_px(f32::from(radius))
+            .overflow_hidden(),
+        colors,
+    )
+}
+
+/// The classes of a track and of the part of it that is filled, up to
+/// `fraction`, with the colours of `track` and `range`.
+fn track_and_range(shape: (f32, u8), (track, range): (Colors, Colors), fraction: f32) -> (Tw, Tw) {
+    let range = painted(
+        tw().h_full()
+            .w_frac(fraction, 1.0)
+            .rounded_px(f32::from(shape.1)),
+        range,
+    );
+    (track_classes(shape, track), range)
+}
+
 impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     /// A slider at `value` within `range`, moving by [`Step::ONE`].
     pub(super) fn new<K: crate::Key>(
@@ -109,6 +135,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             classes: tw(),
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
+            edits: Edits::default(),
         }
     }
 
@@ -147,6 +174,14 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         self
     }
 
+    /// Runs `then` as each edit begins and ends (see [`Edit`]): once for a
+    /// press on the thumb or the track, however far it drags, and once for
+    /// each key press.
+    pub fn on_edit(mut self, then: impl Fn(&mut A, Edit) + 'static) -> Self {
+        self.edits.set(then);
+        self
+    }
+
     /// Whether the slider takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -156,7 +191,8 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     /// Adds the slider, as wide as the space it is given. `set` runs with the
     /// new value when the pointer or the keyboard changes it.
     #[track_caller]
-    pub fn on_change(self, set: impl Fn(&mut A, f64) + Copy + 'static) {
+    pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
+        let set = Rc::new(set);
         let Self {
             mut b,
             slot,
@@ -168,7 +204,9 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             classes: caller,
             enablement,
             on_response,
+            edits,
         } = self;
+        let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let slider = &style.slider;
         let (low, high) = (*range.start(), *range.end());
@@ -178,8 +216,6 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             0.0
         };
         let thumb = slider.thumb_size;
-        let radius = f32::from(slider.radius);
-        let fill = |states| enablement.colors(states, &style);
         let hit = tw()
             .relative()
             .flex()
@@ -189,16 +225,13 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             .sense_click_drag()
             .focusable_none();
         let hit = enablement.apply(hit, &style).merge(caller);
-        let bar = painted(
-            tw().w_full()
-                .h_px(slider.track_height)
-                .rounded_px(radius)
-                .overflow_hidden(),
-            fill(slider.track),
-        );
-        let filled = painted(
-            tw().h_full().w_frac(fraction, 1.0).rounded_px(radius),
-            fill(slider.range),
+        let (bar, filled) = track_and_range(
+            (slider.track_height, slider.radius),
+            (
+                enablement.colors(slider.track, &style),
+                enablement.colors(slider.range, &style),
+            ),
+            fraction,
         );
         let travel = tw().absolute().left_px(0.0).right_px(thumb).inset_y(0.0);
         let knob = slider
@@ -221,6 +254,8 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         b.scope_with(slot.id, &slot.label, |b| {
             let track = b.id_of(Part::Track);
             let on_track = scale.clone();
+            let on_thumb = set.clone();
+            let thumb_edits = edits.clone();
             b.div_id(Part::Track, hit, |b| {
                 b.div(bar, |b| b.div(filled, |_| {}));
                 b.div(travel, |b| {
@@ -237,8 +272,17 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                         } else {
                             None
                         };
-                        if let Some(value) = keys.or(pointer).filter(|&v| v != scale.value) {
-                            set(app, value);
+                        let changed = |value: Option<f64>| value.filter(|&v| v != scale.value);
+                        let down = (response.id, response.is_pointer_button_down_on());
+                        thumb_edits.pointer(app, ui, down, |app| {
+                            if let Some(value) =
+                                changed(keys.is_none().then_some(pointer).flatten())
+                            {
+                                on_thumb(app, value);
+                            }
+                        });
+                        if let Some(value) = changed(keys) {
+                            thumb_edits.once(app, |app| on_thumb(app, value));
                         }
                         on_response.run(app, &response);
                         response.widget_info(|| {
@@ -255,12 +299,14 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             .draw(move |app, ui| {
                 let response = tipped(ui.node_response(), &track_tip);
                 let pressed = response.is_pointer_button_down_on();
-                if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
-                    let value = on_track.at(at.x, response.rect);
-                    if value != on_track.value {
-                        set(app, value);
+                edits.pointer(app, ui, (response.id, pressed), |app| {
+                    if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
+                        let value = on_track.at(at.x, response.rect);
+                        if value != on_track.value {
+                            set(app, value);
+                        }
                     }
-                }
+                });
             });
         });
     }
