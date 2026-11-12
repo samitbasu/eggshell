@@ -1468,6 +1468,7 @@ impl<A> Placed<A> {
             highlighted: nav::highlighted(ui.ctx()),
         };
         nav::activate_highlighted(ui.ctx());
+        let keys = overlay_input::claim_keys(ui.ctx(), &nodes, &roots, live);
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
         let mut walk = Walk {
             app,
@@ -1495,6 +1496,7 @@ impl<A> Placed<A> {
             &mut dismiss,
             app,
             live,
+            keys,
         );
         finish.finish(&ctx, &nodes, &mut drag, app);
         scroll_keys::note_press(&ctx, &nodes);

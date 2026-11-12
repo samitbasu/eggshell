@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use egui::{Context, Event, Id, Key, Modifiers, Pos2};
 
 use crate::actions::{self, Action};
-use crate::dismiss::{Boundary, Cause, Input, Layer, dismissals, esc_target};
+use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, dismissals, esc_target};
 use crate::draw::children_of;
 use crate::focus;
 use crate::nav::{self, Menu};
@@ -100,34 +100,19 @@ fn box_of(nodes: &[PlacedNode], roots: &[PlacedRoot], root: usize) -> egui::Rect
     }
 }
 
-/// Judges the frame's input against the open overlays, as the last step of a
-/// draw. `subtrees` are the focusable widgets each identified node registered
-/// this frame.
-pub(crate) fn judge<A>(
-    ctx: &Context,
-    scope: Id,
+/// The layers dismissal judges, from the attached overlays; `focus` says
+/// where focus was and is relative to each.
+fn layers_of(
+    open: &[Open<'_>],
     nodes: &[PlacedNode],
     roots: &[PlacedRoot],
-    subtrees: &[(Id, Box<[Id]>)],
-    dismiss: &mut HashMap<Id, DismissFn<A>>,
-    app: &mut A,
-    drag: Drag,
-) {
-    let open = open_overlays(roots);
-    nav::forget_closed(
-        ctx,
-        &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
-    );
-    let mut stack = Stack::load(ctx, scope);
+    mut focus: impl FnMut(&Open<'_>) -> (FocusAt, FocusAt),
+) -> Vec<Layer> {
     let position = |root: usize| open.iter().position(|open| open.root == root);
-    let layers: Vec<Layer> = open
-        .iter()
+    open.iter()
         .map(|open| {
             let overlay = open.overlay;
-            let focus_before = stack
-                .get_mut(overlay.id)
-                .map(|entry| entry.focus)
-                .unwrap_or_default();
+            let (focus_before, focus_now) = focus(open);
             Layer {
                 parent: roots[open.root].parent.and_then(position),
                 rect: box_of(nodes, roots, open.root),
@@ -144,13 +129,125 @@ pub(crate) fn judge<A>(
                 opening: overlay.opening,
                 focus_before,
                 lookup: overlay.lookup,
-                focus_now: focus::at(ctx, overlay.id, &open.nested, open.anchor_node()),
+                focus_now,
             }
         })
-        .collect();
+        .collect()
+}
+
+/// Whether a key was pressed this frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Pressed {
+    Yes,
+    No,
+}
+
+/// Where Esc goes, when it is pressed.
+enum EscapeGoes {
+    /// To an overlay: its dismissal, or its cancel button.
+    Overlay,
+    /// To the window's cancel button.
+    Window(Id),
+    /// To nobody: the application's own.
+    Nobody,
+}
+
+/// The one place Esc's destination is decided: the topmost overlay that takes
+/// it (`dismissals` then dismisses it or presses its cancel button), else the
+/// window's cancel button.
+fn escape_goes(layers: &[Layer], nodes: &[PlacedNode], input: &Input) -> EscapeGoes {
+    if !input.escape || input.drag_live {
+        return EscapeGoes::Nobody;
+    }
+    if esc_target(layers).is_some() {
+        return EscapeGoes::Overlay;
+    }
+    actions::button_in(nodes, 0, Action::Cancel).map_or(EscapeGoes::Nobody, EscapeGoes::Window)
+}
+
+/// The keys the frame pressed that the library answers, decided from the
+/// layout before any draw closure runs.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Keys {
+    /// Whether Esc was pressed, even if it was then taken.
+    pub(crate) escape: Pressed,
+    /// The default button Return goes to.
+    pub(crate) default: Option<Id>,
+}
+
+/// Decides who Esc and Return belong to and takes them from the frame's
+/// input, so that no draw closure (a custom canvas under a menu) sees a key
+/// that dismissed an overlay or pressed a button: it belongs to the overlay
+/// alone, as with `stopPropagation`. `judge` applies the decisions.
+pub(crate) fn claim_keys(
+    ctx: &Context,
+    nodes: &[PlacedNode],
+    roots: &[PlacedRoot],
+    drag: Drag,
+) -> Keys {
+    let open = open_overlays(roots);
+    let pressed = |key| ctx.input(|input| input.key_pressed(key));
+    let escape = if pressed(Key::Escape) {
+        Pressed::Yes
+    } else {
+        Pressed::No
+    };
+    let input = Input {
+        escape: escape == Pressed::Yes,
+        drag_live: drag == Drag::Live,
+        ..Input::default()
+    };
+    let layers = layers_of(&open, nodes, roots, |_| {
+        (FocusAt::Nowhere, FocusAt::Nowhere)
+    });
+    if !matches!(escape_goes(&layers, nodes, &input), EscapeGoes::Nobody) {
+        ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
+    }
+    let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
+    let default = if pressed(Key::Enter) {
+        actions::return_button(ctx, nodes, roots, &top_down)
+    } else {
+        None
+    };
+    if default.is_some() {
+        ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Enter));
+    }
+    Keys { escape, default }
+}
+
+/// Judges the frame's input against the open overlays, as the last step of a
+/// draw. `subtrees` are the focusable widgets each identified node registered
+/// this frame.
+pub(crate) fn judge<A>(
+    ctx: &Context,
+    scope: Id,
+    nodes: &[PlacedNode],
+    roots: &[PlacedRoot],
+    subtrees: &[(Id, Box<[Id]>)],
+    dismiss: &mut HashMap<Id, DismissFn<A>>,
+    app: &mut A,
+    drag: Drag,
+    keys: Keys,
+) {
+    let open = open_overlays(roots);
+    nav::forget_closed(
+        ctx,
+        &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
+    );
+    let mut stack = Stack::load(ctx, scope);
+    let layers = layers_of(&open, nodes, roots, |open| {
+        let before = stack
+            .get_mut(open.overlay.id)
+            .map(|entry| entry.focus)
+            .unwrap_or_default();
+        (
+            before,
+            focus::at(ctx, open.overlay.id, &open.nested, open.anchor_node()),
+        )
+    });
     let input = Input {
         press: press_origin(ctx),
-        escape: ctx.input(|input| input.key_pressed(Key::Escape)),
+        escape: keys.escape == Pressed::Yes,
         drag_live: drag == Drag::Live,
         window_blurred: ctx.input(|input| {
             input
@@ -166,9 +263,6 @@ pub(crate) fn judge<A>(
         describe_trigger(ctx, open);
     }
     let found = dismissals(&layers, &input);
-    let mut escaped = found
-        .iter()
-        .any(|found| matches!(found.cause, Cause::Esc | Cause::Cancel));
     let mut dismissed = Vec::new();
     for found in &found {
         match (found.cause, layers[found.layer].cancel) {
@@ -182,19 +276,12 @@ pub(crate) fn judge<A>(
             }
         }
     }
-    if input.escape
-        && !input.drag_live
-        && esc_target(&layers).is_none()
-        && let Some(button) = actions::button_in(nodes, 0, Action::Cancel)
-    {
+    if let EscapeGoes::Window(button) = escape_goes(&layers, nodes, &input) {
         actions::press(ctx, button);
-        escaped = true;
     }
-    if escaped {
-        ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
+    if let Some(button) = keys.default {
+        actions::press(ctx, button);
     }
-    let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
-    actions::on_return(ctx, nodes, roots, &top_down);
     if open.is_empty() {
         return;
     }

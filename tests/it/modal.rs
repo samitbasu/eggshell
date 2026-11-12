@@ -838,3 +838,108 @@ mod two_frames {
         assert!(harness.state().app.state.dialog);
     }
 }
+
+/// A key that dismisses an overlay or presses a button belongs to it: a draw
+/// closure under it never sees the event (#146).
+mod keys_are_taken {
+    use eggshell_ui::overlay::{Anchor, Focus, Nav};
+
+    use super::*;
+
+    #[derive(Clone, Copy, Debug, Hash)]
+    enum P {
+        Canvas,
+        Menu,
+        Item,
+        Ok,
+    }
+
+    #[derive(Default)]
+    struct App {
+        menu: bool,
+        default: bool,
+        escapes: u32,
+        enters: u32,
+        log: Vec<&'static str>,
+    }
+
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div_id(P::Canvas, tw().w_full().h_full(), |_| {})
+            .draw(|app: &mut App, ui| {
+                let (escapes, enters) = ui.ctx().input(|input| {
+                    let count = |wanted: Key| {
+                        input
+                            .events
+                            .iter()
+                            .filter(|event| {
+                                matches!(event, Event::Key { key, pressed: true, .. } if *key == wanted)
+                            })
+                            .count() as u32
+                    };
+                    (count(Key::Escape), count(Key::Enter))
+                });
+                app.escapes += escapes;
+                app.enters += enters;
+            });
+        if app.default {
+            b.button(P::Ok, "Ok")
+                .default_action()
+                .on_click(|app: &mut App| app.log.push("default"));
+        }
+        if app.menu {
+            b.overlay(P::Menu)
+                .anchor(Anchor::Point(pos2(100.0, 100.0)))
+                .nav(Nav::Menu)
+                .focus(Focus::Enter)
+                .on_dismiss(|app: &mut App| {
+                    app.menu = false;
+                    app.log.push("dismissed");
+                })
+                .children(|s| {
+                    s.button(P::Item, "Item").add();
+                });
+        }
+    }
+
+    fn harness(app: App) -> Harness<'static, Rig<App>> {
+        let mut harness = support::harness(vec2(400.0, 300.0), base_text(), app, view);
+        settle(&mut harness);
+        harness
+    }
+
+    #[test]
+    fn esc_that_dismisses_a_menu_is_not_seen_by_the_node_under_it() {
+        let mut harness = harness(App {
+            menu: true,
+            ..App::default()
+        });
+        press_key(&mut harness, Key::Escape);
+        assert_eq!(harness.state().app.log, ["dismissed"], "precondition");
+        assert_eq!(harness.state().app.escapes, 0);
+    }
+
+    #[test]
+    fn esc_with_no_overlay_reaches_the_node() {
+        let mut harness = harness(App::default());
+        press_key(&mut harness, Key::Escape);
+        assert_eq!(harness.state().app.escapes, 1);
+    }
+
+    #[test]
+    fn return_that_presses_a_default_button_is_not_seen_by_the_node() {
+        let mut harness = harness(App {
+            default: true,
+            ..App::default()
+        });
+        press_key(&mut harness, Key::Enter);
+        assert_eq!(harness.state().app.log, ["default"], "precondition");
+        assert_eq!(harness.state().app.enters, 0);
+    }
+
+    #[test]
+    fn return_with_no_default_button_reaches_the_node() {
+        let mut harness = harness(App::default());
+        press_key(&mut harness, Key::Enter);
+        assert_eq!(harness.state().app.enters, 1);
+    }
+}

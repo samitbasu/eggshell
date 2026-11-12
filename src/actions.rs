@@ -11,7 +11,7 @@
 //!
 //! [`ButtonChain::default_action`]: crate::owned::ButtonChain::default_action
 
-use egui::{Context, Id, Key};
+use egui::{Context, Id};
 
 use crate::focus;
 use crate::nav;
@@ -80,19 +80,19 @@ fn return_root(ctx: &Context, roots: &[PlacedRoot], nodes: &[PlacedNode], open: 
     }
 }
 
-/// Presses the default button if Return was pressed and nothing focused
-/// takes it. `open` are the roots of the attached overlays, topmost first.
-pub(crate) fn on_return(ctx: &Context, nodes: &[PlacedNode], roots: &[PlacedRoot], open: &[usize]) {
-    if !ctx.input(|input| input.key_pressed(Key::Enter)) {
-        return;
-    }
+/// The default button Return goes to, if nothing focused takes Return
+/// itself. `open` are the roots of the attached overlays, topmost first.
+pub(crate) fn return_button(
+    ctx: &Context,
+    nodes: &[PlacedNode],
+    roots: &[PlacedRoot],
+    open: &[usize],
+) -> Option<Id> {
     if let Some(focused) = ctx.memory(|memory| memory.focused())
         && takes_return(ctx, nodes, focused)
     {
-        return;
+        return None;
     }
     let root = return_root(ctx, roots, nodes, open);
-    if let Some(button) = button_in(nodes, roots[root].first, Action::Default) {
-        press(ctx, button);
-    }
+    button_in(nodes, roots[root].first, Action::Default)
 }
