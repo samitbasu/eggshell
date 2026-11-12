@@ -691,9 +691,10 @@ impl<A> Walk<'_, A> {
         let descendants = &self.nodes[index + 1..node.end];
         Hovering::of(
             own.hovered()
-                || node
-                    .id()
-                    .is_some_and(|id| self.shared.highlighted.contains(&id))
+                || node.id().is_some_and(|id| {
+                    self.shared.highlighted.contains(&id)
+                        || (node.is_item() && focus::holds_focus(ctx, id))
+                })
                 || descendants
                     .iter()
                     .filter(|descendant| descendant.senses())
@@ -1468,6 +1469,7 @@ impl<A> Placed<A> {
             highlighted: nav::highlighted(ui.ctx()),
         };
         nav::activate_highlighted(ui.ctx());
+        nav::apply_deferred(ui.ctx());
         let keys = overlay_input::claim_keys(ui.ctx(), &nodes, &roots, live);
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
         let mut walk = Walk {

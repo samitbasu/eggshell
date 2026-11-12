@@ -753,6 +753,93 @@ mod example {
         assert!(!harness.state().app.picker && !harness.state().app.dialog);
     }
 
+    const ROLES_LAST: usize = 2;
+
+    const ROLE_BUTTON: &str = "/Dialog/Box/Group(\"Role\")/RoleButton";
+
+    fn item(index: usize) -> String {
+        format!("/Dialog/Box/Group(\"Role\")/RoleMenu/Role/RoleItem({index})")
+    }
+
+    fn open_menu_with_the_pointer() -> Harness<'static, Rig<State>> {
+        let mut harness = dialog();
+        click_node(&mut harness, ROLE_BUTTON);
+        settle(&mut harness);
+        assert!(harness.state().app.picker, "precondition: open");
+        harness
+    }
+
+    fn highlight(harness: &Harness<'_, Rig<State>>) -> egui::Color32 {
+        eggshell_ui::Style::of(&harness.ctx)
+            .select
+            .item
+            .paint
+            .states
+            .hover
+            .fill
+    }
+
+    #[test]
+    fn a_menu_opened_with_the_pointer_takes_no_focus_and_down_goes_to_the_first_item() {
+        let mut harness = open_menu_with_the_pointer();
+        assert!(
+            !focus(&harness).contains("RoleItem"),
+            "nothing is focused yet: {}",
+            focus(&harness)
+        );
+        press_key(&mut harness, Key::ArrowDown);
+        assert_eq!(focus(&harness), item(0));
+        press_key(&mut harness, Key::ArrowDown);
+        assert_eq!(focus(&harness), item(1));
+        press_key(&mut harness, Key::ArrowUp);
+        assert_eq!(focus(&harness), item(0));
+    }
+
+    #[test]
+    fn up_from_a_menu_opened_with_the_pointer_goes_to_the_last_item() {
+        let mut harness = open_menu_with_the_pointer();
+        press_key(&mut harness, Key::ArrowUp);
+        assert_eq!(focus(&harness), item(ROLES_LAST));
+    }
+
+    #[test]
+    fn a_menu_opened_from_the_keyboard_focuses_its_first_item() {
+        let mut harness = dialog();
+        click_node(&mut harness, "/Dialog/Box/Group(\"Name\")/Name");
+        for _ in 0..4 {
+            if support::focused_path(&harness).as_deref() == Some(ROLE_BUTTON) {
+                break;
+            }
+            tab(&mut harness);
+        }
+        assert_eq!(
+            support::focused_path(&harness).as_deref(),
+            Some(ROLE_BUTTON)
+        );
+        press_key(&mut harness, Key::Enter);
+        assert!(harness.state().app.picker, "precondition: open");
+        assert_eq!(focus(&harness), item(0));
+    }
+
+    #[test]
+    fn the_item_with_keyboard_focus_has_the_highlighted_look() {
+        let mut harness = open_menu_with_the_pointer();
+        let outside = support::fill_of(&harness, &item(1));
+        assert_ne!(outside, Some(highlight(&harness)), "precondition");
+        press_key(&mut harness, Key::ArrowDown);
+        press_key(&mut harness, Key::ArrowDown);
+        assert_eq!(focus(&harness), item(1), "precondition");
+        assert_eq!(
+            support::fill_of(&harness, &item(1)),
+            Some(highlight(&harness))
+        );
+        assert_ne!(
+            support::fill_of(&harness, &item(0)),
+            Some(highlight(&harness)),
+            "only the focused item"
+        );
+    }
+
     #[test]
     fn esc_in_the_menu_closes_only_the_menu() {
         let mut harness = dialog();

@@ -16,7 +16,7 @@ use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, dismissals, esc_tar
 use crate::draw::children_of;
 use crate::focus;
 use crate::nav::{self, Menu};
-use crate::overlay::{Anchor, AnchorLookup, Nav};
+use crate::overlay::{Anchor, AnchorLookup, Behavior, Focus, Nav};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::roots::{Form, PlacedOverlay, PlacedRoot, stacked_top_down};
 use crate::stack::{Entered, Stack};
@@ -185,6 +185,7 @@ pub(crate) fn claim_keys(
     roots: &[PlacedRoot],
     drag: Drag,
 ) -> Keys {
+    Source::note(ctx);
     let open = open_overlays(roots);
     let pressed = |key| ctx.input(|input| input.key_pressed(key));
     let escape = if pressed(Key::Escape) {
@@ -245,6 +246,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         ctx,
         &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
     );
+    let source = Source::last(ctx);
     let mut stack = Stack::load(ctx, scope);
     let layers = layers_of(&open, nodes, roots, |open| {
         let before = stack
@@ -304,7 +306,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         entry.focus = layer.focus_now;
         if entry.entered == Entered::Not && layer.lookup == AnchorLookup::Found {
             entry.entered = Entered::Yet;
-            if open.overlay.behavior.focus == crate::overlay::Focus::Enter
+            if enters_focus(open.overlay.behavior, source)
                 && let Some(first) = first_focusable(subtrees, open.overlay.id)
             {
                 ctx.memory_mut(|memory| memory.request_focus(first));
@@ -335,6 +337,49 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             then(app);
         }
     }
+}
+
+/// What the user last operated, which decides whether a menu takes focus
+/// when it opens.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Source {
+    Pointer,
+    Keyboard,
+}
+
+impl Source {
+    fn key() -> Id {
+        crate::key::root_id().with("input-source")
+    }
+
+    /// Notes the source of this frame's input, if it has any.
+    fn note(ctx: &Context) {
+        let latest = ctx.input(|input| {
+            input.events.iter().rev().find_map(|event| match event {
+                Event::PointerButton { pressed: true, .. } => Some(Self::Pointer),
+                Event::Key { pressed: true, .. } => Some(Self::Keyboard),
+                _ => None,
+            })
+        });
+        if let Some(latest) = latest {
+            ctx.data_mut(|data| data.insert_temp(Self::key(), latest));
+        }
+    }
+
+    /// Where the last input came from; with none (an overlay opened by the
+    /// application), the keyboard.
+    fn last(ctx: &Context) -> Self {
+        ctx.data(|data| data.get_temp(Self::key()))
+            .unwrap_or(Self::Keyboard)
+    }
+}
+
+/// Whether an overlay that just opened takes the focus. A menu opened with
+/// the pointer does not, as in Radix: nothing is highlighted until an arrow
+/// key, whose first press goes to the first (Down) or last (Up) item.
+fn enters_focus(behavior: Behavior, source: Source) -> bool {
+    let menu = matches!(behavior.nav, Nav::Menu | Nav::Submenu);
+    behavior.focus == Focus::Enter && !(menu && source == Source::Pointer)
 }
 
 fn first_focusable(subtrees: &[(Id, Box<[Id]>)], id: Id) -> Option<Id> {

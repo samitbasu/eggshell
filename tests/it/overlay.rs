@@ -1275,13 +1275,17 @@ mod menu_example {
         let mut harness = menu();
         click_node(&mut harness, "/Page/Top/PopoverButton");
         harness.run_steps(3);
-        for _ in 0..2 {
+        for _ in 0..3 {
             harness.key_press(egui::Key::ArrowDown);
             harness.run_steps(3);
         }
         harness.key_press(egui::Key::Enter);
         harness.run_steps(3);
-        assert_eq!(harness.state().app.chosen.as_deref(), Some("Delete"));
+        assert_eq!(
+            harness.state().app.chosen.as_deref(),
+            Some("Delete"),
+            "opened with the pointer, the first Down goes to the first item"
+        );
         assert!(!has(&harness, "/Page/Top/Popover"));
     }
 
