@@ -11,7 +11,7 @@ engineering practices.
 
 Automation lives in the `xtask` crate; run `cargo xtask --help` for the list.
 
-- `cargo xtask ci`: everything CI runs (fmt check, clippy, tests, doctests, rustdoc), stopping at the first failure
+- `cargo xtask ci`: everything CI runs (fmt check, clock check, clippy, tests, doctests, rustdoc, wasm build, golden images); every step runs, and the failed ones are listed at the end
 - `cargo xtask fmt [--check]`: format the workspace
 - `cargo xtask test [-- ARGS]`: all tests and doctests; `ARGS` go to `cargo test`
 - `cargo xtask coverage [--lcov]`: coverage via `cargo-llvm-cov` (HTML report, or `lcov.info`)
@@ -39,8 +39,8 @@ headlessly by `egui_kittest` with wgpu. They sit behind the `snapshots` cargo
 feature, so plain `cargo test` needs no GPU. `cargo xtask snapshots` enables the
 feature and points Vulkan at Mesa lavapipe (the software renderer, from the
 `mesa-vulkan-drivers` package) so the pixels do not depend on your GPU; it fails
-with a message if lavapipe is not installed. It is not part of `cargo xtask ci`
-yet.
+with a message if lavapipe is not installed. `cargo xtask ci` runs the check,
+so lavapipe is needed there too.
 
 - Check (the default) fails on any difference and prints the path of every
   `name.new.png` (what was drawn) and `name.diff.png` (where it differs) so you
