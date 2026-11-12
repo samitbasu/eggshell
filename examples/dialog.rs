@@ -239,6 +239,7 @@ fn dialog(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
                                 state.picker = false;
                             });
                         s.button(Part::Save, "Save changes")
+                            .variant(variant::PRIMARY)
                             .default_action()
                             .on_click(|state: &mut State| {
                                 state.saved = Some(state.name.clone());
