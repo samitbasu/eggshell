@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use egui::{Id, Rect, vec2};
+use egui::{Id, Rect, Role, vec2};
 use taffy::{
     AvailableSpace, Baselines, Dimension, Display, LayoutInput, LayoutOutput, LengthPercentageAuto,
     NodeId, Overflow, Point, Position, ResolveOrZero, Size, Style, TaffyTree, compute_leaf_layout,
@@ -12,14 +12,16 @@ use taffy::{
 
 use crate::builder::Builder;
 use crate::debug::{Debug, Phase, Timer};
+use crate::dismiss::Opening;
 use crate::dnd::{Decls, EdgeScroll, NodeDrag};
+use crate::focus;
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
-use crate::overlay::{Anchor, Anchored, MatchWidth, place};
+use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, place};
 use crate::owned::Enablement;
 use crate::prim::Prim;
 use crate::roots::{ById, PlacedOverlay, PlacedRoot, PlacedRootKind, RootDecl, RootKind, root_of};
-use crate::scroll::{Axis, Bars, Moved, ScrollPlan, Settle};
+use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
 use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
 use crate::tw::{
@@ -79,6 +81,7 @@ pub(crate) struct Node {
     pub interaction: Interaction,
     pub drag: Option<Box<NodeDrag>>,
     pub scroll: Option<ScrollNode>,
+    pub description: Option<Box<Description>>,
 }
 
 /// Whether a node with this `interaction` and draw is a Tab stop by what its
@@ -135,6 +138,7 @@ pub(crate) struct Interaction {
 
 pub(crate) type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
 pub(crate) type DrawFn<A> = Box<dyn FnOnce(&mut A, &mut egui::Ui)>;
+pub(crate) type DismissFn<A> = Box<dyn FnOnce(&mut A)>;
 
 /// Build data that persists across frames so allocations are reused.
 pub(crate) struct BuildState {
@@ -153,6 +157,8 @@ pub(crate) struct Frame<'f, A> {
     /// declared: a slot is reserved before a body is built, so an overlay
     /// declared in a body comes after the overlay it is declared in.
     pub roots: Vec<RootDecl>,
+    /// What to run when an overlay is dismissed, by the overlay's id.
+    pub dismiss: HashMap<Id, DismissFn<A>>,
     /// The root whose body is being built.
     pub current: usize,
 }
@@ -238,6 +244,7 @@ impl LayoutState {
             draws: Vec::new(),
             drag: Decls::default(),
             roots: vec![RootDecl::base()],
+            dismiss: HashMap::new(),
             current: 0,
         };
         let mut kids = Vec::new();
@@ -272,6 +279,7 @@ impl LayoutState {
                     interaction: Interaction::default(),
                     drag: None,
                     scroll: None,
+                    description: None,
                 }),
             )
             .expect("root was just created");
@@ -313,6 +321,7 @@ impl<'f, A> Built<'f, A> {
             draws,
             drag,
             roots: decls,
+            dismiss,
             ..
         } = frame;
         st.tree
@@ -393,8 +402,11 @@ impl<'f, A> Built<'f, A> {
                 RootKind::Base => unreachable!("only the first root is the base"),
                 RootKind::Overlay(overlay) => overlay,
             };
-            let open = stack.enter(overlay.id, overlay.band);
-            let (anchor, anchored) =
+            let (open, opening) = stack.enter(overlay.id, overlay.band);
+            if opening == Opening::Opened && overlay.behavior.focus != Focus::None {
+                open.restore = ctx.memory(|memory| memory.focused());
+            }
+            let (anchor, anchored, lookup) =
                 resolve_anchor(overlay.anchor, area, &nodes, &by_id, &roots, || {
                     *open.pointer.get_or_insert_with(|| {
                         ctx.input(|input| input.pointer.latest_pos())
@@ -402,6 +414,23 @@ impl<'f, A> Built<'f, A> {
                     })
                 });
             present.insert(overlay.id);
+            if lookup == AnchorLookup::Missing && opening == Opening::Opened {
+                #[cfg(debug_assertions)]
+                {
+                    let path = st
+                        .tree
+                        .get_node_context(node)
+                        .map_or_else(String::new, |context| context.path.clone());
+                    let Anchor::Node(id) = overlay.anchor else {
+                        unreachable!("only a node anchor can be missing")
+                    };
+                    panic!(
+                        "overlay {path} is anchored to a node that doesn't exist in this frame \
+                         ({id:?}) (declared at {})",
+                        overlay.declared_at
+                    );
+                }
+            }
             let mut style = st.tree.style(node).expect("node exists").clone();
             style.min_size.width = match overlay.match_width {
                 MatchWidth::Anchor => LengthPercentageAuto::length(anchor.width()),
@@ -466,13 +495,17 @@ impl<'f, A> Built<'f, A> {
                     side: spot.side,
                     anchored: anchored.and(spot.anchored).and(declared_in),
                     anchor,
+                    anchor_decl: overlay.anchor,
+                    opening,
+                    lookup,
+                    behavior: overlay.behavior,
                     stack_index: 0,
                     description: overlay.description,
                 }),
             });
         }
         settle.finish();
-        stack.keep_only(&present);
+        focus::restore(ctx, &stack.keep_only(&present));
         for root in &mut roots {
             if let PlacedRootKind::Overlay(overlay) = &mut root.kind {
                 overlay.stack_index = stack
@@ -490,6 +523,7 @@ impl<'f, A> Built<'f, A> {
             prims,
             draws,
             drag,
+            dismiss,
             roots,
         }
     }
@@ -522,12 +556,18 @@ fn resolve_anchor(
     by_id: &ById,
     roots: &[PlacedRoot],
     pointer: impl FnOnce() -> egui::Pos2,
-) -> (Rect, Anchored) {
-    let point = |at: egui::Pos2| (Rect::from_min_max(at, at), Anchored::Attached);
+) -> (Rect, Anchored, AnchorLookup) {
+    let point = |at: egui::Pos2| {
+        (
+            Rect::from_min_max(at, at),
+            Anchored::Attached,
+            AnchorLookup::Found,
+        )
+    };
     match anchor {
         Anchor::Node(id) => {
             let Some(&index) = by_id.get(&id) else {
-                return (area, Anchored::Detached);
+                return (area, Anchored::Detached, AnchorLookup::Missing);
             };
             let root = &roots[root_of(roots, index)];
             let seen = reachable(nodes, root.first, index, area);
@@ -540,12 +580,12 @@ fn resolve_anchor(
             } else {
                 Anchored::Detached
             };
-            (nodes[index].rect(), anchored)
+            (nodes[index].rect(), anchored, AnchorLookup::Found)
         }
         Anchor::Point(at) => point(at),
-        Anchor::Rect(rect) => (rect, Anchored::Attached),
+        Anchor::Rect(rect) => (rect, Anchored::Attached, AnchorLookup::Found),
         Anchor::Pointer => point(pointer()),
-        Anchor::Screen => (area, Anchored::Attached),
+        Anchor::Screen => (area, Anchored::Attached, AnchorLookup::Found),
     }
 }
 
@@ -835,6 +875,7 @@ fn collect(
         draw: node.draw,
         draw_kind: node.draw_kind,
         scroll: None,
+        description: node.description.take(),
         measured,
     });
     for child in tree.children(id).expect("node exists") {
@@ -913,6 +954,7 @@ pub struct PlacedNode {
     pub(crate) draw: Option<usize>,
     draw_kind: DrawKind,
     pub(crate) scroll: Option<ScrollPlan>,
+    description: Option<Box<Description>>,
     /// What the content of an application-measured leaf wants at its final
     /// width; recorded only while [`Debug::Outlines`] is set. The library's
     /// own leaves are measured when asked ([`Placed::overflowing`]).
@@ -1030,6 +1072,28 @@ impl PlacedNode {
         !self.interaction.sensing.is_none()
     }
 
+    /// How the node is announced to assistive technology, if it was given a
+    /// role or a name with [`NodeHandle::role`](crate::NodeHandle::role).
+    pub(crate) fn description(&self) -> Option<&Description> {
+        self.description.as_deref()
+    }
+
+    /// Whether the node is an item of a menu or a listbox: it has an item
+    /// role.
+    pub(crate) fn is_item(&self) -> bool {
+        self.description()
+            .and_then(|description| description.role)
+            .is_some_and(|role| {
+                matches!(
+                    role,
+                    Role::MenuItem
+                        | Role::MenuItemCheckBox
+                        | Role::MenuItemRadio
+                        | Role::ListBoxOption
+                )
+            })
+    }
+
     /// Whether the node must register its widgets while it is scrolled out
     /// of view: Tab can reach it and assistive technology can read it. A
     /// scroll container does, if it turns out to be focusable.
@@ -1064,6 +1128,7 @@ pub struct Placed<A> {
     pub(crate) prims: Vec<Option<Prim>>,
     pub(crate) draws: Vec<Option<DrawFn<A>>>,
     pub(crate) drag: Decls<A>,
+    pub(crate) dismiss: HashMap<Id, DismissFn<A>>,
     /// The base root, then the overlays in the order they were declared.
     pub(crate) roots: Vec<PlacedRoot>,
 }

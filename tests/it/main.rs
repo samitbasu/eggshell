@@ -41,6 +41,7 @@ mod layout;
 mod layout_animation;
 mod line_clamp;
 mod overlay;
+mod overlay_input;
 mod owned;
 mod owned_choice;
 mod owned_number;

@@ -16,7 +16,8 @@ use crate::overlay::Band;
 use crate::overlay_chain::{OverlayChain, Unplaced};
 use crate::owned::Enablement;
 use crate::pipeline::{
-    BuildState, ColorSource, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind, ScrollNode,
+    BuildState, ColorSource, DismissFn, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind,
+    ScrollNode,
 };
 use crate::prim::{Icon, Prim};
 use crate::roots::{OverlayDecl, RootDecl, overlay_style};
@@ -266,6 +267,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// An overlay: a floating layer placed against an anchor. See
     /// [`overlay`](crate::overlay).
+    #[track_caller]
     pub fn overlay<K: Key>(&mut self, key: K) -> OverlayChain<'_, 'f, A, Unplaced> {
         let slot = self.slot(&key);
         OverlayChain::new(self.reborrow(), slot)
@@ -278,9 +280,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         mut self,
         slot: &Slot,
         decl: OverlayDecl,
+        on_dismiss: Option<DismissFn<A>>,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) {
         let band = decl.band;
+        if let Some(on_dismiss) = on_dismiss {
+            self.frame.dismiss.insert(slot.id, on_dismiss);
+        }
         let path = self.identify(slot.id, &slot.label);
         let parent = self.frame.current;
         self.frame.roots.push(RootDecl::overlay(decl, parent));
@@ -580,6 +586,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             pointer_events: tw.pointer_events,
             drag: None,
             scroll: None,
+            description: None,
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
@@ -860,11 +867,28 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
         })
     }
 
+    /// Announces the node to assistive technology as a `role`. A node
+    /// with an item role (`MenuItem`, `MenuItemCheckBox`, `MenuItemRadio`,
+    /// `ListBoxOption`) is an item of the menu or listbox it is in, for
+    /// [`Nav`](crate::overlay::Nav). The node must sense; give it a name with
+    /// [`named`](Self::named).
+    pub fn role(mut self, role: egui::Role) -> Self {
+        self.edit(|context| context.description.get_or_insert_default().role = Some(role));
+        self
+    }
+
+    /// The node's accessible name, the `aria-label` of the web.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        let name = name.into();
+        self.edit(|context| context.description.get_or_insert_default().name = Some(name));
+        self
+    }
+
     /// Runs `act` when the node is clicked. The node must sense clicks.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
         self.draw(move |app, ui| {
-            if ui.node_response().clicked() {
+            if ui.node_response().clicked() || crate::nav::take_activation(ui.ctx(), ui.node_id()) {
                 act(app);
             }
         })

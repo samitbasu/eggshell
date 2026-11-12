@@ -21,10 +21,12 @@ use crate::debug::{self, Debug, Phase, Timer};
 use crate::dnd::{self, Stakes};
 use crate::focus;
 use crate::measure::TextLeaf;
+use crate::nav;
 use crate::overlay::{Anchored, Band};
+use crate::overlay_input::{self, press_origin};
 use crate::pipeline::{ColorSource, DrawFn, Flow, NodeKind, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
-use crate::roots::PlacedRoot;
+use crate::roots::{PlacedRoot, covers_screen};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
@@ -493,6 +495,8 @@ struct Shared<A> {
     /// The nodes of the layer being walked that take the pointer, in the
     /// order they were registered: what a later blocker may cover.
     beneath: Vec<Beneath>,
+    /// The items listboxes highlight, which look hovered.
+    highlighted: Vec<Id>,
 }
 
 /// How far two boxes may overlap and still only touch: layout leaves
@@ -571,6 +575,10 @@ impl<A> Walk<'_, A> {
                 if let Some(plan) = node.scroll.as_ref().filter(|_| !node.senses()) {
                     let role = plan.description.role.unwrap_or(Role::ScrollView);
                     let name = plan.description.name.as_deref().unwrap_or_default();
+                    crate::owned::describe(&own, ui.is_enabled(), role, None, name);
+                } else if let Some(description) = node.description() {
+                    let role = description.role.unwrap_or(Role::GenericContainer);
+                    let name = description.name.as_deref().unwrap_or_default();
                     crate::owned::describe(&own, ui.is_enabled(), role, None, name);
                 }
                 response = Some(own);
@@ -677,6 +685,9 @@ impl<A> Walk<'_, A> {
         let descendants = &self.nodes[index + 1..node.end];
         Hovering::of(
             own.hovered()
+                || node
+                    .id()
+                    .is_some_and(|id| self.shared.highlighted.contains(&id))
                 || descendants
                     .iter()
                     .filter(|descendant| descendant.senses())
@@ -1291,17 +1302,6 @@ impl<A> Walk<'_, A> {
     }
 }
 
-/// Where the pointer went down this frame, if it did.
-fn press_origin(ctx: &egui::Context) -> Option<Pos2> {
-    ctx.input(|input| {
-        input
-            .pointer
-            .any_pressed()
-            .then(|| input.pointer.press_origin())
-            .flatten()
-    })
-}
-
 impl<A> Walk<'_, A> {
     /// Draws every attached overlay, in the order they were declared, each in
     /// a layer of its own, and returns the ones drawn in the order they were
@@ -1310,14 +1310,16 @@ impl<A> Walk<'_, A> {
         let ctx = self.ui.ctx().clone();
         let screen = ctx.content_rect();
         let mut shown = Vec::new();
-        for root in self.roots {
+        for (index, root) in self.roots.iter().enumerate() {
             let Some(overlay) = root.overlay() else {
                 continue;
             };
             if overlay.anchored == Anchored::Detached {
                 continue;
             }
-            let rect = self.nodes[root.first].rect();
+            let root_rect = self.nodes[root.first].rect();
+            let swallows = covers_screen(self.roots, self.nodes, index);
+            let rect = if swallows { screen } else { root_rect };
             let layer = overlay.band.layer(overlay.id);
             // Seeded so that the layer is its box from the first frame, with
             // no sizing pass in which egui would hide it.
@@ -1343,8 +1345,11 @@ impl<A> Walk<'_, A> {
                 .fade_in(false)
                 .show(&ctx, |ui| {
                     ui.allocate_space(rect.size());
+                    if swallows {
+                        ui.interact(rect, overlay.id.with("swallow"), Sense::CLICK | Sense::DRAG);
+                    }
                     self.in_layer(ui)
-                        .visit(root.first, Inherited::root(screen, rect.min));
+                        .visit(root.first, Inherited::root(screen, root_rect.min));
                 });
             shown.push((
                 overlay.stack_index,
@@ -1386,8 +1391,11 @@ impl<A> Placed<A> {
     /// Each overlay is drawn after the page, in a layer of its own that is
     /// exactly its box (an [`egui::Area`] per overlay): its root takes the
     /// pointer from the layers below it, and an overlay whose anchor cannot be
-    /// seen is not drawn at all. Last, the stack of overlays is repaired (see
-    /// [`overlay`](crate::overlay)).
+    /// seen is not drawn at all. An overlay that swallows presses has that
+    /// layer cover the screen, drawing nothing. Last, the stack of overlays is
+    /// repaired (see [`overlay`](crate::overlay)), and the frame's input is
+    /// judged against the open overlays: dismissal, focus entering, and the
+    /// keys of [`Nav`](crate::overlay::Nav).
     ///
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
@@ -1402,6 +1410,7 @@ impl<A> Placed<A> {
             draws,
             by_id,
             mut drag,
+            mut dismiss,
             roots,
         } = self;
         let overflow = (Debug::of(ui.ctx()) == Debug::Outlines)
@@ -1410,11 +1419,15 @@ impl<A> Placed<A> {
             pixels_per_point: ui.ctx().pixels_per_point(),
         };
         let root = Inherited::root(ui.clip_rect(), nodes[0].rect().min);
+        let live = dnd::drag_state(ui.ctx());
         let (dragging, finish) = dnd::begin(
             ui.ctx(),
             ui.scope_id(),
-            &nodes,
-            &by_id,
+            dnd::Tree {
+                nodes: &nodes,
+                by_id: &by_id,
+                roots: &roots,
+            },
             ui.clip_rect(),
             &mut drag,
             app,
@@ -1435,7 +1448,9 @@ impl<A> Placed<A> {
             recording,
             culled: Vec::new(),
             beneath: Vec::new(),
+            highlighted: nav::highlighted(ui.ctx()),
         };
+        nav::activate_highlighted(ui.ctx());
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
         let mut walk = Walk {
             app,
@@ -1454,7 +1469,16 @@ impl<A> Placed<A> {
         let ctx = walk.ui.ctx().clone();
         let shown = walk.overlays();
         stack::repair(&ctx, &shown, pressed);
-        finish.finish(&ctx, &nodes, &mut drag, walk.app);
+        overlay_input::judge(
+            &ctx,
+            &nodes,
+            &roots,
+            &shared.subtrees,
+            &mut dismiss,
+            app,
+            live,
+        );
+        finish.finish(&ctx, &nodes, &mut drag, app);
         scroll_keys::note_press(&ctx, &nodes);
         scroll_keys::apply_keys(&ctx, &nodes);
         scroll_keys::follow_focus(&ctx, &shared.subtrees);

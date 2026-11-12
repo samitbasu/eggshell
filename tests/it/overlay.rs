@@ -381,14 +381,31 @@ mod layout {
         assert_eq!(placed.overlay("edge").rect().max.x, SCREEN.x);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
-    fn an_anchor_that_is_not_in_the_frame_hides_the_overlay() {
-        let placed = headless().layout(&(), |b, _| {
-            b.overlay("pop")
-                .anchor(Anchor::Node(Id::NULL.with("nobody")))
-                .children(|s| panel(s, vec2(20.0, 20.0)));
-        });
-        assert_eq!(placed.overlay("pop").anchored(), Anchored::Detached);
+    fn an_anchor_that_is_not_in_the_frame_when_the_overlay_opens_panics_at_its_declaration() {
+        let line = line!() + 3;
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            headless().layout(&(), |b, _| {
+                b.overlay("pop")
+                    .anchor(Anchor::Node(Id::NULL.with("nobody")))
+                    .children(|s| panel(s, vec2(20.0, 20.0)));
+            });
+        }));
+        let payload = caught.expect_err("a missing anchor is a programming error");
+        let message = payload
+            .downcast_ref::<String>()
+            .expect("a formatted message");
+        assert!(
+            message.contains("anchored to a node that doesn't exist")
+                && message.contains(r#"/"pop""#),
+            "{message}"
+        );
+        assert!(
+            message.contains(&format!("{}:{line}:", file!())),
+            "names the declaration site {}:{line}: {message}",
+            file!()
+        );
     }
 }
 
@@ -1221,6 +1238,42 @@ mod menu_example {
         );
         harness.run_steps(3);
         assert_eq!(harness.state().app.chosen.as_deref(), Some("Back"));
+        assert!(!has(&harness, "/Page/Top/Popover"));
+    }
+
+    #[test]
+    fn a_click_away_and_escape_close_the_menu() {
+        let mut harness = menu();
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        let away = pos2(SIZE.x - 20.0, SIZE.y / 2.0);
+        assert!(
+            !rect_of(&harness, "/Page/Top/Popover").contains(away),
+            "precondition: away from the menu"
+        );
+        support::press_and_release(&mut harness, away);
+        harness.run_steps(3);
+        assert!(!has(&harness, "/Page/Top/Popover"));
+
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        harness.key_press(egui::Key::Escape);
+        harness.run_steps(3);
+        assert!(!has(&harness, "/Page/Top/Popover"));
+    }
+
+    #[test]
+    fn the_menu_is_usable_from_the_keyboard() {
+        let mut harness = menu();
+        click_node(&mut harness, "/Page/Top/PopoverButton");
+        harness.run_steps(3);
+        for _ in 0..2 {
+            harness.key_press(egui::Key::ArrowDown);
+            harness.run_steps(3);
+        }
+        harness.key_press(egui::Key::Enter);
+        harness.run_steps(3);
+        assert_eq!(harness.state().app.chosen.as_deref(), Some("Delete"));
         assert!(!has(&harness, "/Page/Top/Popover"));
     }
 
