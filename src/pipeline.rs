@@ -16,6 +16,7 @@ use crate::debug::{Debug, Phase, Timer};
 use crate::dismiss::Opening;
 use crate::dnd::{Decls, EdgeScroll, NodeDrag};
 use crate::focus;
+use crate::kept::Handle;
 use crate::key::{ReadablePath, Seen, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
@@ -26,7 +27,6 @@ use crate::roots::{
     modal_style, root_of,
 };
 use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
-use crate::kept::Handle;
 use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
 use crate::tw::{

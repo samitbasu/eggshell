@@ -15,11 +15,11 @@ use crate::actions::{self, Action};
 use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, dismissals, esc_target};
 use crate::draw::children_of;
 use crate::focus::{self, PointerOn};
+use crate::kept::Handle;
 use crate::nav::{self, Menu};
 use crate::overlay::{Anchor, AnchorLookup, Behavior, Focus, Nav};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::roots::{Form, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
-use crate::kept::Handle;
 use crate::stack::{Entered, Stack};
 
 /// Whether an in-app drag is live.
@@ -198,9 +198,13 @@ impl Typing {
     /// Notes whether a text input among `subtrees` has focus now. Run at the
     /// end of a pass.
     pub(crate) fn note(ctx: &Context, kept: &Handle, subtrees: &[(Id, Box<[Id]>)]) {
-        let own = ctx.memory(|memory| memory.focused()).is_some_and(|focused| {
-            subtrees.iter().any(|(_, widgets)| widgets.contains(&focused))
-        });
+        let own = ctx
+            .memory(|memory| memory.focused())
+            .is_some_and(|focused| {
+                subtrees
+                    .iter()
+                    .any(|(_, widgets)| widgets.contains(&focused))
+            });
         let now = if own && ctx.text_edit_focused() {
             Self::Yes
         } else {
