@@ -113,7 +113,7 @@ fn tab_to(harness: &mut Harness<'_, Rig<App>>, path: &str) {
 
 fn press(harness: &mut Harness<'_, Rig<App>>, key: Key) {
     harness.key_press(key);
-    harness.run_steps(3);
+    harness.run_steps(8);
 }
 
 const TRACK: &str = "/\"volume\"/Track";

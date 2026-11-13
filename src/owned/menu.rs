@@ -16,7 +16,7 @@ use super::{Chevron, Enablement, Mark, OnResponse, describe, paint_check, paint_
 use crate::builder::{Scope, Slot};
 use crate::contract::{MenuStyle, Style, Variant};
 use crate::kept::Handle;
-use crate::overlay::{Anchor, Distance, Nav, Outside, Placement};
+use crate::overlay::{Anchor, Distance, Nav, Outside, Placement, Shown};
 use crate::overlay_chain::OverlayChain;
 use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
 
@@ -773,13 +773,11 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
                 }
             })
             .on_click(move |_| on_click.change(|menus| menus.toggle(trigger)));
-        if !open {
-            return;
-        }
         let close = shared.clone();
         OverlayChain::new(b.reborrow(), list)
             .anchor(Anchor::Node(trigger))
             .placement(Placement::below().gap(Distance::new(4.0)))
+            .shown(if open { Shown::Open } else { Shown::Closed })
             .nav(Nav::Menu)
             .role(Role::Menu)
             .named(name.unwrap_or_default())

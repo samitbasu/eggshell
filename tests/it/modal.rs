@@ -2,7 +2,7 @@
 //! by `egui_kittest::Harness`, build, layout, draw and the judgement of the
 //! frame's input.
 
-use eggshell_ui::overlay::{DismissOn, Modal, Side};
+use eggshell_ui::overlay::{DismissOn, Modal, Shown, Side};
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, TextSpec, TextStyle, tw};
@@ -33,7 +33,7 @@ fn base_text() -> TextStyle {
 }
 
 fn settle<A>(harness: &mut Harness<'_, Rig<A>>) {
-    harness.run_steps(6);
+    harness.run_steps(12);
 }
 
 fn click_at<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {
@@ -465,7 +465,7 @@ mod example {
         let mut harness = harness(State::default());
         click_node(&mut harness, "/Page/Intro/Actions/OpenDialog");
         settle(&mut harness);
-        assert!(harness.state().app.dialog, "precondition: open");
+        assert!(harness.state().app.dialog.is_open(), "precondition: open");
         harness
     }
 
@@ -473,7 +473,10 @@ mod example {
         let mut harness = dialog();
         click_node(&mut harness, "/Dialog/Box/Footer/Delete");
         settle(&mut harness);
-        assert!(harness.state().app.confirm, "precondition: confirm open");
+        assert!(
+            harness.state().app.confirm.is_open(),
+            "precondition: confirm open"
+        );
         harness
     }
 
@@ -530,7 +533,7 @@ mod example {
         click_node(&mut harness, "/Page/Intro/Actions/OpenSheet");
         settle(&mut harness);
         let boxed = rect_of(&harness, "/Sheet/Box");
-        assert!(harness.state().app.sheet, "precondition: open");
+        assert!(harness.state().app.sheet.is_open(), "precondition: open");
         assert_eq!(boxed.max.x, SCREEN.x);
         assert_eq!((boxed.min.y, boxed.max.y), (0.0, SCREEN.y));
         assert!(boxed.width() <= 384.0 + 0.5, "{boxed:?}");
@@ -543,8 +546,8 @@ mod example {
             .prepare(eggshell_ui_shadcn::Shadcn::apply_both)
             .layout(&State::default(), |b, _| {
                 let open = State {
-                    dialog: true,
-                    sheet: true,
+                    dialog: Shown::Open,
+                    sheet: Shown::Open,
                     ..State::default()
                 };
                 layout(b, &open);
@@ -585,7 +588,7 @@ mod example {
         );
         wheel(&mut modal, outside_box);
         assert_eq!(page_offset(&modal), before, "scroll lock");
-        modal.state_mut().app.dialog = false;
+        modal.state_mut().app.dialog = Shown::Closed;
         settle(&mut modal);
         wheel(&mut modal, outside_box);
         assert!(
@@ -603,8 +606,14 @@ mod example {
             "precondition: the page's button is outside the box"
         );
         click_at(&mut harness, sheet_button);
-        assert!(!harness.state().app.sheet, "it never got the press");
-        assert!(!harness.state().app.dialog, "the scrim press dismissed");
+        assert!(
+            !harness.state().app.sheet.is_open(),
+            "it never got the press"
+        );
+        assert!(
+            !harness.state().app.dialog.is_open(),
+            "the scrim press dismissed"
+        );
     }
 
     #[test]
@@ -638,10 +647,13 @@ mod example {
         }
         assert_eq!(support::focused_path(&harness).as_deref(), Some(opener));
         press_key(&mut harness, Key::Enter);
-        assert!(harness.state().app.dialog, "precondition: open");
+        assert!(harness.state().app.dialog.is_open(), "precondition: open");
         assert!(focus(&harness).starts_with("/Dialog/"));
         press_key(&mut harness, Key::Escape);
-        assert!(!harness.state().app.dialog, "precondition: closed");
+        assert!(
+            !harness.state().app.dialog.is_open(),
+            "precondition: closed"
+        );
         assert_eq!(support::focused_path(&harness).as_deref(), Some(opener));
     }
 
@@ -654,11 +666,11 @@ mod example {
         assert_eq!(harness.state().app.name, "Ada", "precondition: typed");
         press_key(&mut harness, Key::Enter);
         assert_eq!(harness.state().app.saved.as_deref(), Some("Ada"));
-        assert!(!harness.state().app.dialog);
+        assert!(!harness.state().app.dialog.is_open());
 
         let mut harness = self::dialog();
         press_key(&mut harness, Key::Escape);
-        assert!(!harness.state().app.dialog);
+        assert!(!harness.state().app.dialog.is_open());
         assert_eq!(harness.state().app.saved, None, "cancel saves nothing");
     }
 
@@ -676,7 +688,7 @@ mod example {
             harness.state().app.saved.is_none(),
             "Save is under the scrim"
         );
-        assert!(harness.state().app.dialog && harness.state().app.confirm);
+        assert!(harness.state().app.dialog.is_open() && harness.state().app.confirm.is_open());
         let lap = lap(&mut harness);
         assert!(
             lap.iter()
@@ -690,12 +702,18 @@ mod example {
         let mut harness = confirm();
         click_at(&mut harness, pos2(5.0, 5.0));
         assert!(
-            harness.state().app.confirm && harness.state().app.dialog,
+            harness.state().app.confirm.is_open() && harness.state().app.dialog.is_open(),
             "the scrim does nothing to an EscOnly confirmation, nor to the dialog below"
         );
         press_key(&mut harness, Key::Escape);
-        assert!(!harness.state().app.confirm, "its cancel button ran");
-        assert!(harness.state().app.dialog, "the dialog is still open");
+        assert!(
+            !harness.state().app.confirm.is_open(),
+            "its cancel button ran"
+        );
+        assert!(
+            harness.state().app.dialog.is_open(),
+            "the dialog is still open"
+        );
     }
 
     #[test]
@@ -707,10 +725,10 @@ mod example {
             focus(&harness)
         );
         press_key(&mut harness, Key::Enter);
-        assert!(!harness.state().app.confirm, "Cancel ran");
+        assert!(!harness.state().app.confirm.is_open(), "Cancel ran");
         assert_eq!(harness.state().app.deleted, 0);
         assert!(harness.state().app.saved.is_none(), "not the dialog's Save");
-        assert!(harness.state().app.dialog);
+        assert!(harness.state().app.dialog.is_open());
     }
 
     #[test]
@@ -740,7 +758,10 @@ mod example {
         click_at(&mut harness, item.center());
         assert_eq!(harness.state().app.role, 1);
         assert!(!harness.state().app.picker);
-        assert!(harness.state().app.dialog, "the dialog stays open");
+        assert!(
+            harness.state().app.dialog.is_open(),
+            "the dialog stays open"
+        );
     }
 
     #[test]
@@ -750,7 +771,7 @@ mod example {
         settle(&mut harness);
         assert!(harness.state().app.picker, "precondition: the menu opened");
         click_at(&mut harness, pos2(5.0, 5.0));
-        assert!(!harness.state().app.picker && !harness.state().app.dialog);
+        assert!(!harness.state().app.picker && !harness.state().app.dialog.is_open());
     }
 
     const ROLES_LAST: usize = 2;
@@ -847,7 +868,7 @@ mod example {
         settle(&mut harness);
         press_key(&mut harness, Key::Escape);
         assert!(!harness.state().app.picker);
-        assert!(harness.state().app.dialog);
+        assert!(harness.state().app.dialog.is_open());
     }
 }
 
@@ -864,7 +885,7 @@ mod style {
             eggshell_ui_shadcn::Shadcn::light(),
             eggshell_ui_shadcn::Shadcn::dark(),
         ] {
-            assert_eq!(preset.style().scrim, Color32::from_black_alpha(128));
+            assert_eq!(preset.style().scrim, Color32::from_black_alpha(204));
         }
     }
 }
@@ -913,7 +934,7 @@ mod two_frames {
             frame,
         );
         harness.run_steps(4);
-        harness.state_mut().app.state.dialog = true;
+        harness.state_mut().app.state.dialog = Shown::Open;
         harness.run_steps(8);
         let name = harness.ctx.memory(|memory| memory.focused());
         assert!(name.is_some(), "precondition: focus entered the dialog");
@@ -922,7 +943,7 @@ mod two_frames {
         let moved = harness.ctx.memory(|memory| memory.focused());
         assert_ne!(moved, name, "Tab moved the focus");
         assert!(moved.is_some(), "and into the dialog's next control");
-        assert!(harness.state().app.state.dialog);
+        assert!(harness.state().app.state.dialog.is_open());
     }
 }
 

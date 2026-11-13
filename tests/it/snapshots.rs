@@ -1419,7 +1419,7 @@ fn dialog_in(name: &str, theme: egui::Theme, state: dialog::State) {
 
 fn open_dialog() -> dialog::State {
     dialog::State {
-        dialog: true,
+        dialog: eggshell_ui::overlay::Shown::Open,
         ..dialog::State::default()
     }
 }
@@ -1436,7 +1436,7 @@ fn dialog_dark() {
 
 fn confirming() -> dialog::State {
     dialog::State {
-        confirm: true,
+        confirm: eggshell_ui::overlay::Shown::Open,
         ..open_dialog()
     }
 }
@@ -1462,7 +1462,7 @@ fn dialog_role_menu_light() {
 
 fn sheet() -> dialog::State {
     dialog::State {
-        sheet: true,
+        sheet: eggshell_ui::overlay::Shown::Open,
         ..dialog::State::default()
     }
 }
@@ -1553,4 +1553,136 @@ fn menu_destructive_light() {
 #[test]
 fn menu_destructive_dark() {
     menu_destructive("menu_destructive_dark", egui::Theme::Dark);
+}
+
+/// Frames of the dialog, the sheet and the menu entering and leaving, for
+/// review (the motion is the user's choice): `cargo test --features
+/// snapshots --test it motion_strips -- --ignored` with `EGGSHELL_MOTION_DIR`
+/// naming where the PNGs go, and `VK_ICD_FILENAMES` the software renderer.
+mod motion {
+    use super::*;
+    use eggshell_ui::overlay::Shown;
+
+    fn out() -> std::path::PathBuf {
+        let dir = std::env::var("EGGSHELL_MOTION_DIR")
+            .expect("EGGSHELL_MOTION_DIR names the output directory");
+        std::fs::create_dir_all(&dir).expect("the directory can be made");
+        dir.into()
+    }
+
+    /// Five frames a quarter of `duration` apart, from 0% to 100%.
+    fn frames<A: 'static>(harness: &mut Harness<'static, support::Rig<A>>, name: &str) {
+        for quarter in 0..5 {
+            harness.step();
+            let image = harness.render().expect("renders");
+            image
+                .save(out().join(format!("{name}_{}.png", quarter * 25)))
+                .expect("saves");
+        }
+    }
+
+    fn dialog_harness(
+        theme: egui::Theme,
+        step_dt: f32,
+        state: dialog::State,
+    ) -> Harness<'static, support::Rig<dialog::State>> {
+        let style = ShadcnStyle::Vega;
+        let mut harness = support::harness_stepped(
+            SIZE,
+            step_dt,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+            dialog::State {
+                name: "Pedro Duarte".to_owned(),
+                ..state
+            },
+            dialog::layout,
+        );
+        common::set_style(&harness.ctx, style);
+        harness.state_mut().page = support::Page::Themed;
+        harness.state_mut().companion = support::Companion::Alone;
+        harness.ctx.set_theme(theme);
+        harness.run_steps(8);
+        harness
+    }
+
+    fn modal_strips(
+        kind: &str,
+        open: fn(&mut dialog::State, eggshell_ui::overlay::Shown),
+        enter: f32,
+        exit: f32,
+    ) {
+        report_renderer();
+        for (theme, label) in [(egui::Theme::Light, "light"), (egui::Theme::Dark, "dark")] {
+            let mut harness = dialog_harness(theme, enter / 4.0, dialog::State::default());
+            open(&mut harness.state_mut().app, Shown::Open);
+            frames(&mut harness, &format!("{kind}_enter_{label}"));
+
+            let mut harness = dialog_harness(theme, exit / 4.0, dialog::State::default());
+            open(&mut harness.state_mut().app, Shown::Open);
+            harness.run_steps(40);
+            open(&mut harness.state_mut().app, Shown::Closed);
+            frames(&mut harness, &format!("{kind}_exit_{label}"));
+        }
+    }
+
+    #[test]
+    #[ignore = "writes review images, see the module comment"]
+    fn motion_strips_dialog() {
+        modal_strips("dialog", |state, on| state.dialog = on, 0.2, 0.2);
+    }
+
+    #[test]
+    #[ignore = "writes review images, see the module comment"]
+    fn motion_strips_sheet() {
+        modal_strips("sheet", |state, on| state.sheet = on, 0.5, 0.3);
+    }
+
+    fn menu_harness(theme: egui::Theme) -> Harness<'static, support::Rig<menu::State>> {
+        let style = ShadcnStyle::Vega;
+        let mut harness = support::harness_stepped(
+            Vec2::new(420.0, 400.0),
+            0.0375,
+            common::base_text_styled(theme, style),
+            menu::State {
+                grid: true,
+                ..menu::State::default()
+            },
+            menu::layout,
+        );
+        common::set_style(&harness.ctx, style);
+        harness.state_mut().page = support::Page::Themed;
+        harness.state_mut().companion = support::Companion::Alone;
+        harness.ctx.set_theme(theme);
+        harness.run_steps(8);
+        harness
+    }
+
+    #[test]
+    #[ignore = "writes review images, see the module comment"]
+    fn motion_strips_menu() {
+        report_renderer();
+        for (theme, label) in [(egui::Theme::Light, "light"), (egui::Theme::Dark, "dark")] {
+            let mut harness = menu_harness(theme);
+            let at = support::rect_of(&harness, "/Page/Top/PopoverButton").center();
+            support::hover_over(&mut harness, at);
+            harness.event(egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            });
+            harness.step();
+            harness.event(egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            });
+            harness.step();
+            frames(&mut harness, &format!("menu_enter_{label}"));
+            harness.run_steps(12);
+            harness.key_press(egui::Key::Escape);
+            frames(&mut harness, &format!("menu_exit_{label}"));
+        }
+    }
 }

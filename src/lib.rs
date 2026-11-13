@@ -226,6 +226,7 @@ mod overlay_chain;
 mod overlay_input;
 pub mod owned;
 mod pipeline;
+mod presence;
 pub mod prim;
 mod roots;
 pub mod scroll;
