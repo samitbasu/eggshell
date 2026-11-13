@@ -26,6 +26,7 @@ use crate::region::RegionDecl;
 use crate::roots::{OverlayDecl, Presentation, RootDecl, overlay_style};
 use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
+use crate::sizing::Width;
 use crate::text::{TextStyle, VAlign};
 use crate::tw::{Grouping, PointerEvents, Sensing, Tw, tw};
 use crate::widget::Stock;
@@ -375,21 +376,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// more measure of the candidate.
     ///
     /// ```
-    /// # use eggshell_ui::{Builder, tw};
+    /// # use eggshell_ui::{Builder, Width, tw};
     /// fn title(b: &mut Builder<'_, '_, ()>, full: bool) {
     ///     b.text(tw(), if full { "A long title for a pane" } else { "Title" });
     /// }
     ///
     /// fn pick(b: &mut Builder<'_, '_, ()>, room: f32) {
     ///     let full = |b: &mut Builder<'_, '_, ()>| title(b, true);
-    ///     if b.max_content_width(full) <= room {
+    ///     if b.max_content_width(full) <= Width::new(room) {
     ///         full(b);
     ///     } else {
     ///         title(b, false);
     ///     }
     /// }
     /// ```
-    pub fn max_content_width(&mut self, candidate: impl FnOnce(&mut Builder<'_, 'f, A>)) -> f32 {
+    pub fn max_content_width(&mut self, candidate: impl FnOnce(&mut Builder<'_, 'f, A>)) -> Width {
         let ctx = self.frame.ctx;
         let mut st = self.st.scratch();
         let mut frame = Frame::new(ctx);
@@ -410,7 +411,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             height: taffy::AvailableSpace::MaxContent,
         };
         solve(ctx, &frame.measures, &mut st.tree, root, loose);
-        st.tree.layout(root).expect("node exists").size.width
+        Width::new(st.tree.layout(root).expect("node exists").size.width)
     }
 
     /// An overlay: a floating layer placed against an anchor. See

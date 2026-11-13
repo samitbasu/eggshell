@@ -238,7 +238,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                    item: impl FnMut(&mut Builder<'_, 'f, A>, R));                // each row scoped under its own key
     pub fn overlay(&mut self, key: K, band: Band, anchor: Anchor, place: Placement,
                    on_dismiss: impl FnOnce(&mut A) + 'static, body: impl FnOnce(&mut Builder<'_, 'f, A>));
-    pub fn max_content_width(&mut self, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> f32;
+    pub fn max_content_width(&mut self, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> Width;
 }
 
 /// Library helpers
@@ -631,7 +631,7 @@ Inside a region (where the available width is known), the application can measur
 b.region("title_bar", tw().flex_1().min_w_0().h(7.0), move |b, size| {
     let full = |b: &mut B<'_, '_>| title_full(b, pane);
     let compact = |b: &mut B<'_, '_>| title_compact(b, pane);
-    if b.max_content_width(full) <= size.x { full(b) } else { compact(b) }   // else an icons-only form, …
+    if b.max_content_width(full) <= Width::new(size.x) { full(b) } else { compact(b) }   // else an icons-only form, …
 });
 ```
 

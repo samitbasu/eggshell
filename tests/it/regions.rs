@@ -283,7 +283,7 @@ fn candidate<A>(b: &mut Builder<'_, '_, A>) {
 fn max_content_width_is_the_width_the_subtree_has_at_max_content() {
     let measured = Cell::new(0.0);
     let placed = headless(vec2(600.0, 200.0)).layout(&measured, |b, measured| {
-        measured.set(b.max_content_width(candidate));
+        measured.set(b.max_content_width(candidate).into());
         b.div(tw().flex(), candidate);
     });
     let laid = placed.at("cand").rect().width();
@@ -300,7 +300,7 @@ fn max_content_width_does_not_depend_on_the_room_the_region_has() {
         let measured = Cell::new(0.0);
         let placed = headless(vec2(600.0, 200.0)).layout(&measured, |b, measured| {
             b.region("host", tw().w_px(width).h_px(10.0), move |b, _| {
-                measured.set(b.max_content_width(candidate));
+                measured.set(b.max_content_width(candidate).into());
                 b.div(tw().flex(), candidate);
             });
         });
@@ -325,7 +325,7 @@ fn a_scratch_build_leaves_no_trace() {
         b.div(tw().flex(), candidate);
     });
     let measured_first = headless(vec2(600.0, 200.0)).layout(&(), |b, _| {
-        let width = b.max_content_width(candidate);
+        let width = f32::from(b.max_content_width(candidate));
         assert!(width > 0.0);
         b.div(tw().flex(), candidate);
     });
@@ -342,11 +342,11 @@ fn a_scratch_build_leaves_no_trace() {
 fn a_scratch_build_discards_its_closures() {
     let held = Rc::new(());
     headless(vec2(600.0, 200.0)).layout(&(), |b, _| {
-        let width = b.max_content_width(|b| {
+        let width = f32::from(b.max_content_width(|b| {
             let held = held.clone();
             b.span("probe", tw(), "hi")
                 .draw(move |(): &mut (), _| drop(held.clone()));
-        });
+        }));
         assert!(width > 0.0);
         assert_eq!(Rc::strong_count(&held), 1, "the scratch build dropped it");
     });

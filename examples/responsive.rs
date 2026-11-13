@@ -13,7 +13,7 @@ mod common;
 use common::glyphs::{self, Glyph};
 use eggshell_ui::owned::Face;
 use eggshell_ui::scroll::Axis;
-use eggshell_ui::{Builder, tw};
+use eggshell_ui::{Builder, Width, tw};
 use eggshell_ui_shadcn::{size, variant};
 use egui::Vec2;
 
@@ -155,7 +155,7 @@ fn title_bar<A: 'static>(b: &mut B<'_, '_, A>, pane: &Pane, form: Form) {
 fn form_for<A: 'static>(b: &mut B<'_, '_, A>, pane: &Pane, room: Vec2) -> Form {
     [Form::Full, Form::Compact]
         .into_iter()
-        .find(|&form| b.max_content_width(|b| title_bar(b, pane, form)) <= room.x)
+        .find(|&form| b.max_content_width(|b| title_bar(b, pane, form)) <= Width::new(room.x))
         .unwrap_or(Form::Icons)
 }
 
