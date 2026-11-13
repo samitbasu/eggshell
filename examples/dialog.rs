@@ -180,18 +180,15 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
                 }
             });
         });
-    if state.dialog {
-        dialog(b, state, &t);
-    }
-    if state.sheet {
-        sheet(b, &t);
-    }
+    dialog(b, state, &t);
+    sheet(b, state, &t);
 }
 
 fn dialog(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
     let dialog = dialog_box(t);
     b.overlay(Part::Dialog)
         .modal(Modal::Center)
+        .shown(state.dialog)
         .role(Role::Dialog)
         .named("Edit profile")
         .on_dismiss(|state: &mut State| {
@@ -248,9 +245,7 @@ fn dialog(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
                             });
                     });
                 });
-                if state.confirm {
-                    confirm(s, t);
-                }
+                confirm(s, state, t);
             });
         });
 }
@@ -294,10 +289,11 @@ fn role_menu(s: &mut Scope<'_, '_, State>, state: &State) {
         });
 }
 
-fn confirm(s: &mut Scope<'_, '_, State>, t: &Tokens) {
+fn confirm(s: &mut Scope<'_, '_, State>, state: &State, t: &Tokens) {
     let dialog = dialog_box(t);
     s.overlay(Part::Confirm)
         .modal(Modal::Center)
+        .shown(state.confirm)
         .role(Role::AlertDialog)
         .named("Are you absolutely sure?")
         .dismiss_on(DismissOn::EscOnly)
@@ -329,10 +325,11 @@ fn confirm(s: &mut Scope<'_, '_, State>, t: &Tokens) {
         });
 }
 
-fn sheet(b: &mut Builder<'_, '_, State>, t: &Tokens) {
+fn sheet(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
     let sheet = sheet_box(t);
     b.overlay(Part::Sheet)
         .modal(Modal::Edge(Side::Right))
+        .shown(state.sheet)
         .role(Role::Dialog)
         .named("Settings")
         .on_dismiss(|state: &mut State| state.sheet = false)

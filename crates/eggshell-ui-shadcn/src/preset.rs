@@ -1,10 +1,10 @@
 use std::time::Duration;
 
 use eggshell_ui::contract::{
-    self, Colors, Focus, Keyed, Look as BoxLook, Metrics, Paint, Size, States, SwitchMetrics,
-    Variant,
+    self, Colors, Entry, Focus, Keyed, KindMotion, Look as BoxLook, Metrics, Paint, Size, States,
+    SwitchMetrics, Variant,
 };
-use eggshell_ui::{Opacity, TextSpec, Tracking};
+use eggshell_ui::{Easing, Opacity, TextSpec, Tracking};
 use egui::{Color32, Context, Id, Shadow, Theme};
 
 use crate::styles::{DestructiveLook, HoverSurface, SecondaryHover, ShadcnStyle};
@@ -498,6 +498,30 @@ impl Shadcn {
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
         // shadcn's overlays: `bg-black/50`.
         style.scrim = Color32::from_black_alpha(128);
+        // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
+        // selects: `fade-in-0 zoom-in-95 slide-in-from-*-2`. DialogContent:
+        // `fade-in-0 zoom-in-95 duration-200`. SheetContent:
+        // `slide-in-from-*`, `ease-in-out`, 500 ms open and 300 ms close.
+        let animate = KindMotion {
+            entry: Entry::Pop,
+            enter: Duration::from_millis(150),
+            exit: Duration::from_millis(150),
+            easing: Easing::Default,
+        };
+        style.motion.popover = animate;
+        style.motion.menu = animate;
+        style.motion.dialog = KindMotion {
+            entry: Entry::Zoom,
+            enter: Duration::from_millis(200),
+            exit: Duration::from_millis(200),
+            easing: Easing::Default,
+        };
+        style.motion.sheet = KindMotion {
+            entry: Entry::Slide,
+            enter: Duration::from_millis(500),
+            exit: Duration::from_millis(300),
+            easing: Easing::InOut,
+        };
         style
     }
 

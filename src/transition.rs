@@ -18,7 +18,7 @@ use crate::tw::{Easing, Progress};
 /// One transition in flight, from where the previous one left the value to
 /// `target`.
 #[derive(Clone, Copy)]
-struct Transition {
+pub(crate) struct Transition {
     from: Progress,
     target: Progress,
     start: f64,
@@ -26,7 +26,7 @@ struct Transition {
 }
 
 impl Transition {
-    fn settled(at: Progress, now: f64) -> Self {
+    pub(crate) fn settled(at: Progress, now: f64) -> Self {
         Self {
             from: at,
             target: at,
@@ -44,7 +44,7 @@ impl Transition {
         }
     }
 
-    fn elapsed(&self, now: f64) -> Progress {
+    pub(crate) fn elapsed(&self, now: f64) -> Progress {
         let elapsed = (now - self.start).max(0.0) as f32;
         let total = self.duration.as_secs_f32();
         if total > 0.0 {
@@ -54,12 +54,25 @@ impl Transition {
         }
     }
 
-    fn value(&self, now: f64, easing: Easing) -> Progress {
+    pub(crate) fn value(&self, now: f64, easing: Easing) -> Progress {
         Progress::new(
             easing
                 .ease(self.elapsed(now))
                 .lerp(self.from.into(), self.target.into()),
         )
+    }
+
+    /// This transition if it already heads for `target`, else retargeted.
+    pub(crate) fn toward(self, target: Progress, now: f64, easing: Easing, full: Duration) -> Self {
+        if self.target == target {
+            self
+        } else {
+            self.retarget(target, now, easing, full)
+        }
+    }
+
+    pub(crate) fn in_flight(&self, now: f64) -> bool {
+        self.elapsed(now) < Progress::END
     }
 
     /// Retargets from the current value. As in CSS, a transition reversed
@@ -96,13 +109,9 @@ pub(crate) fn animate(
     let previous = ctx
         .data(|data| data.get_temp::<Transition>(id))
         .unwrap_or(Transition::settled(target, now));
-    let transition = if previous.target == target {
-        previous
-    } else {
-        previous.retarget(target, now, easing, duration)
-    };
+    let transition = previous.toward(target, now, easing, duration);
     ctx.data_mut(|data| data.insert_temp(id, transition));
-    if transition.elapsed(now) < Progress::END {
+    if transition.in_flight(now) {
         ctx.request_repaint();
     }
     transition.value(now, easing)

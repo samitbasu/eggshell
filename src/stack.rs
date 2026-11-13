@@ -109,7 +109,7 @@ fn intact_prefix(ranks: &[usize]) -> usize {
 }
 
 /// An overlay shown this frame.
-pub(crate) struct Shown {
+pub(crate) struct Drawn {
     pub(crate) id: Id,
     pub(crate) band: Band,
 }
@@ -129,7 +129,7 @@ pub(crate) struct Shown {
 /// `pressed` is the overlay a pointer press landed on this frame: egui raises
 /// that layer by itself, so it and the layers above it are flagged too, which
 /// keeps their order (a press on a menu must not bring it over its submenu).
-pub(crate) fn repair(ctx: &Context, shown: &[Shown], pressed: Option<Id>) {
+pub(crate) fn repair(ctx: &Context, shown: &[Drawn], pressed: Option<Id>) {
     let order: Vec<LayerId> = ctx.memory(|memory| memory.layer_ids().collect());
     for band in [Band::Floating, Band::Popup, Band::Tooltip] {
         let layers: Vec<(Id, LayerId)> = shown

@@ -33,7 +33,7 @@ fn base_text() -> TextStyle {
 }
 
 fn settle<A>(harness: &mut Harness<'_, Rig<A>>) {
-    harness.run_steps(6);
+    harness.run_steps(12);
 }
 
 fn click_at<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {

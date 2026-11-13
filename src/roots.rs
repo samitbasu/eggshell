@@ -18,6 +18,7 @@ use crate::overlay::{
     Anchor, AnchorLookup, Anchored, Band, Behavior, MatchWidth, Modal, Outside, Placement, Side,
 };
 use crate::pipeline::{Placed, PlacedNode};
+use crate::presence::Staged;
 use crate::scroll::Description;
 
 /// What a root is, and what only that kind of root declares.
@@ -46,6 +47,7 @@ pub(crate) struct OverlayDecl {
     pub(crate) description: Description,
     pub(crate) behavior: Behavior,
     pub(crate) declared_at: &'static std::panic::Location<'static>,
+    pub(crate) staged: Staged,
 }
 
 /// A root, from the moment its body starts to be built.
@@ -154,6 +156,7 @@ pub(crate) struct PlacedOverlay {
     /// opened in.
     pub(crate) stack_index: usize,
     pub(crate) description: Description,
+    pub(crate) staged: Staged,
 }
 
 /// What a laid-out root is.
