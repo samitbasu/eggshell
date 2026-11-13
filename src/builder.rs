@@ -552,6 +552,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let path = self.st.names.as_str().to_owned();
         self.st.names.pop_to(mark);
         self.st.seen.register(id, &path);
+        #[cfg(debug_assertions)]
+        if self.path == self.st.root {
+            crate::key::claims::top_level(
+                self.frame.ctx,
+                id,
+                &path,
+                &self.st.claimant(),
+                self.st.built_at,
+            );
+        }
         path
     }
 

@@ -377,14 +377,21 @@ where
 /// ```html
 /// <header class="flex items-center justify-end h-11 px-3 bg-background border-b border-border">…toggle…</header>
 /// ```
-#[derive(Default)]
 pub struct ThemeBar {
     layout: LayoutState,
 }
 
+impl Default for ThemeBar {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ThemeBar {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            layout: LayoutState::named("theme-bar"),
+        }
     }
 
     /// Shows the strip as a top panel of `ui`.

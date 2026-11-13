@@ -57,6 +57,144 @@ pub(crate) fn root_id() -> Id {
     Id::NULL.with("eggshell")
 }
 
+/// The root of a layout's key paths: [`root_id`], salted by the layout's name
+/// if it has one. The salt is a hash of the name, so ids (and the state egui
+/// keeps under them) are stable across runs.
+pub(crate) fn layout_root(name: Option<&'static str>) -> Id {
+    name.map_or_else(root_id, |name| root_id().with(("named-layout", name)))
+}
+
+/// What one `LayoutState` claimed in a pass: the debug-build cross-layout check.
+///
+/// This lives in the egui context, not in a `LayoutState`, because it exists
+/// to see across the layouts of one context; like the other diagnostics it is
+/// context-wide by nature.
+#[cfg(debug_assertions)]
+pub(crate) mod claims {
+    use std::collections::HashMap;
+    use std::panic::Location;
+    use std::sync::{Arc, Weak};
+
+    use egui::Id;
+
+    /// A claim outlives its layout in the context's data; `alive` tells a
+    /// layout that is gone (a throwaway built once and dropped) from one
+    /// still in use, which alone can collide.
+    #[derive(Clone)]
+    struct Claim {
+        scope: Id,
+        alive: Weak<()>,
+        at: &'static Location<'static>,
+    }
+
+    impl Claim {
+        fn new(layout: &Layout, at: &'static Location<'static>) -> Self {
+            Self {
+                scope: layout.scope,
+                alive: Arc::downgrade(&layout.alive),
+                at,
+            }
+        }
+
+        fn clashes_with(&self, layout: &Layout) -> bool {
+            self.scope != layout.scope && self.alive.strong_count() > 0
+        }
+    }
+
+    /// Who is claiming.
+    pub(crate) struct Layout {
+        pub(crate) scope: Id,
+        pub(crate) alive: Arc<()>,
+    }
+
+    #[derive(Default, Clone)]
+    struct Claims {
+        pass: u64,
+        names: HashMap<Id, Claim>,
+        tops: HashMap<Id, Claim>,
+    }
+
+    fn with<R>(ctx: &egui::Context, f: impl FnOnce(&mut Claims) -> R) -> R {
+        let pass = ctx.cumulative_pass_nr();
+        ctx.data_mut(|data| {
+            let claims = data.get_temp_mut_or_default::<Claims>(Id::NULL.with("eggshell-claims"));
+            if claims.pass != pass {
+                *claims = Claims {
+                    pass,
+                    ..Claims::default()
+                };
+            }
+            f(claims)
+        })
+    }
+
+    /// Claims the name of a named layout for one pass.
+    ///
+    /// # Panics
+    ///
+    /// If another layout of the context claimed the same name this pass.
+    pub(crate) fn name(
+        ctx: &egui::Context,
+        root: Id,
+        layout: &Layout,
+        at: &'static Location<'static>,
+    ) {
+        let first = with(ctx, |claims| {
+            let first = claims
+                .names
+                .entry(root)
+                .or_insert_with(|| Claim::new(layout, at));
+            if first.clashes_with(layout) {
+                Some(first.clone())
+            } else {
+                *first = Claim::new(layout, at);
+                None
+            }
+        });
+        if let Some(first) = first {
+            panic!(
+                "two layouts in one egui context are named the same (built at {} and {at}); \
+                 a name salts one layout's ids, so it must be unique",
+                first.at
+            );
+        }
+    }
+
+    /// Claims a top-level key (`id` is under `root`) for one pass.
+    ///
+    /// # Panics
+    ///
+    /// If another layout with the same root claimed `id` this pass.
+    pub(crate) fn top_level(
+        ctx: &egui::Context,
+        id: Id,
+        readable: &str,
+        layout: &Layout,
+        at: &'static Location<'static>,
+    ) {
+        let first = with(ctx, |claims| {
+            let first = claims
+                .tops
+                .entry(id)
+                .or_insert_with(|| Claim::new(layout, at));
+            if first.clashes_with(layout) {
+                Some(first.clone())
+            } else {
+                *first = Claim::new(layout, at);
+                None
+            }
+        });
+        if let Some(first) = first {
+            panic!(
+                "top-level key {readable} is used by two layouts in one egui context (built at \
+                 {} and {at}); their ids and egui's state under them collide. Give one \
+                 `LayoutState::named(..)`",
+                first.at
+            );
+        }
+    }
+}
+
 /// The readable form of the path being built, as a stack of segments.
 #[derive(Default)]
 pub(crate) struct ReadablePath(String);

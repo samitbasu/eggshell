@@ -28,7 +28,7 @@ pub enum Companion {
 /// without painting over or catching the pointer of the view under test.
 pub struct Bar {
     layout: LayoutState,
-    last_stop: Option<egui::Id>,
+    pub last_stop: Option<egui::Id>,
 }
 
 /// A rig that carries a [`Bar`].
@@ -61,7 +61,7 @@ pub fn past_bar<S: Barred>(harness: &mut Harness<'_, S>) {
 impl Bar {
     pub fn new(base_text: TextStyle) -> Self {
         Self {
-            layout: LayoutState::new().with_base_text(base_text),
+            layout: LayoutState::named("rig-bar").with_base_text(base_text),
             last_stop: None,
         }
     }
