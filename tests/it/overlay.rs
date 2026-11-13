@@ -2,10 +2,11 @@
 //! detached anchor, the order the slots are declared in, stacking, the
 //! blocker, and what a painted node does to the pointer (#102).
 
-use eggshell_ui::overlay::{Anchor, Anchored, Band, MatchWidth, Placement, Side};
+use eggshell_ui::overlay::{Anchor, Anchored, Band, Boundary, Flip, MatchWidth, Placement, Side};
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::testing::Headless;
 use eggshell_ui::{Builder, LayoutState, Placed, Scope, TextSpec, TextStyle, tw};
+use eggshell_ui::{Distance, Sides};
 use egui::{
     Area, Color32, Event, FontFamily, Id, LayerId, Modifiers, Order, PointerButton, Pos2, Rect,
     Sense, Ui, Vec2, pos2, vec2,
@@ -406,6 +407,34 @@ mod layout {
             .expect("a formatted message");
         assert!(
             message.contains("anchored to a node that doesn't exist")
+                && message.contains(r#"/"pop""#),
+            "{message}"
+        );
+        assert!(
+            message.contains(&format!("{}:{line}:", file!())),
+            "names the declaration site {}:{line}: {message}",
+            file!()
+        );
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn a_boundary_that_is_not_in_the_frame_when_the_overlay_opens_panics_at_its_declaration() {
+        let line = line!() + 3;
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            headless().layout(&(), |b, _| {
+                b.overlay("pop")
+                    .anchor(Anchor::Point(pos2(20.0, 20.0)))
+                    .placement(Placement::below().boundary(Boundary::Node(Id::NULL.with("nobody"))))
+                    .children(|s| panel(s, vec2(20.0, 20.0)));
+            });
+        }));
+        let payload = caught.expect_err("a missing boundary is a programming error");
+        let message = payload
+            .downcast_ref::<String>()
+            .expect("a formatted message");
+        assert!(
+            message.contains("bounded by a node that doesn't exist")
                 && message.contains(r#"/"pop""#),
             "{message}"
         );
@@ -1338,5 +1367,120 @@ mod menu_example {
         harness.run_steps(3);
         assert_eq!(harness.state().app.chosen.as_deref(), Some("option 2"));
         assert!(!has(&harness, "/Page/Bottom/List"));
+    }
+}
+
+mod boundary {
+    use super::*;
+
+    const CANVAS: Rect = Rect::from_min_max(pos2(50.0, 40.0), pos2(350.0, 260.0));
+    const PANEL: Vec2 = vec2(120.0, 60.0);
+
+    #[derive(Default)]
+    struct App {
+        anchor: Option<Rect>,
+        canvas: bool,
+        dismissed: u32,
+        canvas_id: std::cell::Cell<Option<Id>>,
+    }
+
+    fn d(points: f32) -> Distance {
+        Distance::new(points)
+    }
+
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        if app.canvas {
+            b.div_id(
+                "canvas",
+                tw().absolute()
+                    .sense_click()
+                    .left_px(CANVAS.left())
+                    .top_px(CANVAS.top())
+                    .w_px(CANVAS.width())
+                    .h_px(CANVAS.height()),
+                |_| {},
+            );
+        }
+        let Some(anchor) = app.anchor else { return };
+        let canvas = b.id_of("canvas");
+        app.canvas_id.set(Some(canvas));
+        b.overlay("pop")
+            .anchor(Anchor::Rect(anchor))
+            .placement(
+                Placement::below()
+                    .flip(Flip::Never)
+                    .boundary(Boundary::Node(canvas).inset(Sides {
+                        top: d(8.0),
+                        left: d(8.0),
+                        right: d(8.0),
+                        bottom: d(48.0),
+                    })),
+            )
+            .on_dismiss(|app: &mut App| {
+                app.dismissed += 1;
+                app.anchor = None;
+            })
+            .children(|s| {
+                s.div_id("panel", tw().w_px(PANEL.x).h_px(PANEL.y), |_| {});
+            });
+    }
+
+    fn overlay_rect(harness: &Harness<'_, World<App>>) -> Rect {
+        harness.state().seen[0].rect
+    }
+
+    #[test]
+    fn an_overlay_anchored_inside_a_canvas_stays_inside_the_canvas_minus_the_insets() {
+        let mut harness = world(
+            App {
+                canvas: true,
+                ..App::default()
+            },
+            view,
+        );
+        harness.state_mut().app.anchor = Some(Rect::ZERO);
+        harness.run_steps(3);
+        let canvas = harness
+            .ctx
+            .read_response(harness.state().app.canvas_id.get().expect("laid out"))
+            .expect("the canvas is in the frame")
+            .rect;
+        assert_eq!(canvas.size(), CANVAS.size(), "precondition: the canvas");
+        let inside = Rect::from_min_max(canvas.min + vec2(8.0, 8.0), canvas.max - vec2(8.0, 48.0));
+        let corners = [
+            canvas.left_top(),
+            pos2(canvas.right() - 10.0, canvas.top()),
+            pos2(canvas.left(), canvas.bottom() - 10.0),
+            pos2(canvas.right() - 10.0, canvas.bottom() - 10.0),
+            canvas.center(),
+        ];
+        for at in corners {
+            harness.state_mut().app.anchor = Some(Rect::from_min_size(at, vec2(10.0, 10.0)));
+            harness.run_steps(3);
+            let rect = overlay_rect(&harness);
+            assert_eq!(rect.size(), PANEL, "its content's size, at {at:?}");
+            assert!(
+                inside.contains_rect(rect),
+                "{at:?}: {rect:?} not in {inside:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_boundary_node_that_disappears_dismisses_the_overlay() {
+        let anchor = Rect::from_min_size(CANVAS.center(), vec2(10.0, 10.0));
+        let mut harness = world(
+            App {
+                canvas: true,
+                anchor: Some(anchor),
+                ..App::default()
+            },
+            view,
+        );
+        assert_eq!(harness.state().seen.len(), 1, "precondition: open");
+        assert_eq!(harness.state().app.dismissed, 0);
+        harness.state_mut().app.canvas = false;
+        harness.run_steps(3);
+        assert_eq!(harness.state().app.dismissed, 1);
     }
 }

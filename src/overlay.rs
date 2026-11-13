@@ -7,6 +7,7 @@
 //!
 //! The design is in `docs/overlays.md`.
 
+use crate::tw::Sides;
 use egui::{Id, Order, Pos2, Rect, Vec2, pos2, vec2};
 
 pub use crate::overlay_chain::{Floating, Modally, OverlayChain, Unplaced};
@@ -82,7 +83,9 @@ pub enum Align {
 /// What to do when the preferred side has no room.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Flip {
-    /// Stay on the preferred side and be shifted into the bounds.
+    /// Stay on the preferred side and be shifted into the bounds, over the
+    /// anchor if need be: the overlay keeps its size, so
+    /// [`Spot::available`] is the whole bounds along the main axis.
     Never,
     /// Move to the opposite side when it fits, or has more room.
     ToOpposite,
@@ -269,6 +272,44 @@ impl Behavior {
     }
 }
 
+/// The region an overlay is kept inside, besides the window.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Boundary {
+    /// The window.
+    #[default]
+    Window,
+    /// An identified node's rect this frame. A node that is not in the frame
+    /// dismisses the overlay, as a missing [`Anchor::Node`] does.
+    Node(Id),
+    /// A rect in screen space.
+    Rect(Rect),
+}
+
+impl Boundary {
+    /// This boundary pulled in by a distance on each side: a small margin
+    /// at the top and a large band at the bottom.
+    #[must_use]
+    pub fn inset(self, inset: Sides<Distance>) -> InsetBoundary {
+        InsetBoundary {
+            boundary: self,
+            inset,
+        }
+    }
+}
+
+/// A [`Boundary`] pulled in by a distance on each side.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct InsetBoundary {
+    boundary: Boundary,
+    inset: Sides<Distance>,
+}
+
+impl From<Boundary> for InsetBoundary {
+    fn from(boundary: Boundary) -> Self {
+        boundary.inset(Sides::default())
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Relation {
     /// Outside the anchor, next to the chosen side.
@@ -290,6 +331,7 @@ pub struct Placement {
     shift: Distance,
     flip: Flip,
     margin: Distance,
+    boundary: InsetBoundary,
 }
 
 impl Placement {
@@ -304,6 +346,7 @@ impl Placement {
             shift: Distance::ZERO,
             flip: Flip::ToOpposite,
             margin: Distance::ZERO,
+            boundary: InsetBoundary::default(),
         }
     }
 
@@ -371,6 +414,34 @@ impl Placement {
     #[must_use]
     pub fn margin(self, margin: Distance) -> Self {
         Self { margin, ..self }
+    }
+
+    /// Keeps the overlay inside a region as well as the window: it slides
+    /// along both axes to stay in, and a flip counts the room inside it.
+    /// `Boundary::Node(canvas).inset(..)` and a plain `Boundary::Rect(..)`
+    /// both work.
+    #[must_use]
+    pub fn boundary(self, boundary: impl Into<InsetBoundary>) -> Self {
+        Self {
+            boundary: boundary.into(),
+            ..self
+        }
+    }
+
+    /// The node the boundary is, if it is one.
+    pub(crate) fn boundary_node(&self) -> Option<Id> {
+        match self.boundary.boundary {
+            Boundary::Node(id) => Some(id),
+            Boundary::Window | Boundary::Rect(_) => None,
+        }
+    }
+
+    /// This placement with a node boundary replaced by the node's `rect`.
+    pub(crate) fn with_node_rect(mut self, rect: Rect) -> Self {
+        if self.boundary_node().is_some() {
+            self.boundary.boundary = Boundary::Rect(rect);
+        }
+        self
     }
 }
 
@@ -456,7 +527,17 @@ pub fn place(anchor: Rect, size: Vec2, placement: &Placement, bounds: Rect) -> S
     let margin = f32::from(placement.margin);
     let gap = f32::from(placement.gap);
     let shift = f32::from(placement.shift);
-    let area = bounds.shrink(margin);
+    let region = match placement.boundary.boundary {
+        Boundary::Rect(rect) => rect,
+        Boundary::Window | Boundary::Node(_) => bounds,
+    };
+    let inset = placement.boundary.inset;
+    let region = Rect::from_min_max(
+        region.min + vec2(f32::from(inset.left), f32::from(inset.top)),
+        region.max - vec2(f32::from(inset.right), f32::from(inset.bottom)),
+    );
+    let min = region.min.max(bounds.min);
+    let area = Rect::from_min_max(min, region.max.min(bounds.max).max(min)).shrink(margin);
     let relation = placement.relation;
 
     let room = |side: Side| match (relation, side) {
@@ -510,7 +591,16 @@ pub fn place(anchor: Rect, size: Vec2, placement: &Placement, bounds: Rect) -> S
     min.x = min.x.min(area.right() - size.x).max(area.left());
     min.y = min.y.min(area.bottom() - size.y).max(area.top());
 
-    let main = room(side).max(0.0);
+    let main = match placement.flip {
+        Flip::Never => {
+            if side.is_vertical() {
+                area.height()
+            } else {
+                area.width()
+            }
+        }
+        Flip::ToOpposite => room(side).max(0.0),
+    };
     let available = if side.is_vertical() {
         vec2(area.width(), main)
     } else {
@@ -887,5 +977,154 @@ mod tests {
             BOUNDS,
         );
         assert_eq!(end.rect.min, pos2(0.0, 240.0));
+    }
+
+    mod boundary {
+        use super::*;
+
+        const CANVAS: Rect = Rect::from_min_max(pos2(50.0, 40.0), pos2(350.0, 260.0));
+
+        fn insets() -> Sides<Distance> {
+            Sides {
+                top: d(8.0),
+                left: d(8.0),
+                right: d(8.0),
+                bottom: d(48.0),
+            }
+        }
+
+        fn inside() -> Rect {
+            Rect::from_min_max(pos2(58.0, 48.0), pos2(342.0, 212.0))
+        }
+
+        fn bounded(placement: Placement) -> Placement {
+            placement.boundary(Boundary::Rect(CANVAS).inset(insets()))
+        }
+
+        #[test]
+        fn the_default_boundary_is_the_window() {
+            let a = anchor();
+            for side in SIDES {
+                let plain = at(side, Align::Center);
+                assert_eq!(
+                    place(a, SIZE, &plain.boundary(Boundary::Window), BOUNDS),
+                    place(a, SIZE, &plain, BOUNDS)
+                );
+            }
+            assert_eq!(Placement::default().boundary, InsetBoundary::default());
+        }
+
+        #[test]
+        fn an_anchor_near_each_edge_slides_the_overlay_inside_the_inset_boundary() {
+            let anchors = [
+                Rect::from_min_size(pos2(CANVAS.left() - 20.0, 100.0), vec2(30.0, 20.0)),
+                Rect::from_min_size(pos2(CANVAS.right() - 10.0, 100.0), vec2(30.0, 20.0)),
+                Rect::from_min_size(pos2(150.0, CANVAS.top() - 10.0), vec2(30.0, 20.0)),
+                Rect::from_min_size(pos2(150.0, CANVAS.bottom() - 10.0), vec2(30.0, 20.0)),
+            ];
+            for anchor in anchors {
+                for side in SIDES {
+                    let p = bounded(at(side, Align::Start).flip(Flip::Never));
+                    let spot = place(anchor, SIZE, &p, BOUNDS);
+                    assert_eq!(spot.side, side);
+                    assert!(
+                        inside().contains_rect(spot.rect),
+                        "{anchor:?} {side:?}: {:?} not in {:?}",
+                        spot.rect,
+                        inside()
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn never_flipping_slides_instead() {
+            let low = Rect::from_min_size(pos2(150.0, 190.0), vec2(40.0, 20.0));
+            assert!(inside().bottom() - low.bottom() < SIZE.y, "no room below");
+            assert!(BOUNDS.bottom() - low.bottom() >= SIZE.y, "the window has");
+            let spot = place(
+                low,
+                SIZE,
+                &bounded(Placement::below().flip(Flip::Never)),
+                BOUNDS,
+            );
+            assert_eq!(spot.side, Side::Bottom);
+            assert_eq!(spot.rect.bottom(), inside().bottom());
+        }
+
+        #[test]
+        fn the_flip_decision_uses_the_room_inside_the_boundary() {
+            let low = Rect::from_min_size(pos2(150.0, 190.0), vec2(40.0, 20.0));
+            assert!(
+                BOUNDS.bottom() - low.bottom() >= SIZE.y,
+                "the window has room"
+            );
+            let window_only = place(low, SIZE, &Placement::below(), BOUNDS);
+            assert_eq!(window_only.side, Side::Bottom);
+            let spot = place(low, SIZE, &bounded(Placement::below()), BOUNDS);
+            assert_eq!(spot.side, Side::Top);
+            assert_eq!(spot.rect.bottom(), low.top());
+        }
+
+        #[test]
+        fn available_is_measured_inside_the_boundary() {
+            let spot = place(
+                Rect::from_min_size(pos2(150.0, 100.0), vec2(40.0, 20.0)),
+                SIZE,
+                &bounded(Placement::below()),
+                BOUNDS,
+            );
+            assert_eq!(
+                spot.available,
+                vec2(inside().width(), inside().bottom() - 120.0)
+            );
+        }
+
+        #[test]
+        fn never_flipping_offers_the_whole_boundary_so_the_overlay_keeps_its_size() {
+            let at_the_bottom = Rect::from_min_size(pos2(150.0, 200.0), vec2(40.0, 20.0));
+            let spot = place(
+                at_the_bottom,
+                SIZE,
+                &bounded(Placement::below().flip(Flip::Never)),
+                BOUNDS,
+            );
+            assert_eq!(spot.available, inside().size());
+            assert_eq!(spot.rect.size(), SIZE);
+        }
+
+        #[test]
+        fn the_window_still_clamps_a_boundary_that_extends_past_it() {
+            let wide = Rect::from_min_max(pos2(-100.0, -100.0), pos2(900.0, 900.0));
+            let p = Placement::below()
+                .flip(Flip::Never)
+                .boundary(Boundary::Rect(wide));
+            let spot = place(
+                Rect::from_min_size(pos2(380.0, 290.0), vec2(20.0, 10.0)),
+                SIZE,
+                &p,
+                BOUNDS,
+            );
+            assert!(BOUNDS.contains_rect(spot.rect), "{:?}", spot.rect);
+            assert_eq!(spot.rect.max, BOUNDS.max);
+        }
+
+        #[test]
+        fn a_boundary_outside_the_window_leaves_an_empty_area_not_a_panic() {
+            let away = Rect::from_min_size(pos2(1000.0, 1000.0), vec2(50.0, 50.0));
+            let p = Placement::below().boundary(Boundary::Rect(away));
+            let spot = place(anchor(), SIZE, &p, BOUNDS);
+            assert_eq!(spot.rect.size(), SIZE);
+        }
+
+        #[test]
+        fn a_node_boundary_is_a_rect_once_resolved() {
+            let node = Id::NULL.with("canvas");
+            let p = Placement::below().boundary(Boundary::Node(node).inset(insets()));
+            assert_eq!(p.boundary_node(), Some(node));
+            let resolved = p.with_node_rect(CANVAS);
+            assert_eq!(resolved.boundary_node(), None);
+            assert_eq!(resolved, bounded(Placement::below()));
+        }
     }
 }
