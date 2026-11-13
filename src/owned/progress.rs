@@ -115,8 +115,8 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
         self
     }
 
-    /// Shown while the pointer hovers the bar, as egui's `on_hover_text`
-    /// shows it. It adds to the accessible name and does not replace it.
+    /// Shown while the pointer hovers the bar, in a tooltip overlay
+    /// ([`TooltipStyle`](crate::contract::TooltipStyle)). It adds to the accessible name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
         self
@@ -144,7 +144,7 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
             });
         })
         .draw(move |_, ui| {
-            let response = tipped(ui.node_response(), &tooltip);
+            let response = tipped(ui, ui.node_response(), &tooltip);
             response.widget_info(|| WidgetInfo {
                 value: Some(percent),
                 ..WidgetInfo::labeled(Role::ProgressIndicator, ui.is_enabled(), &name)

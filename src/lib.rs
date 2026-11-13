@@ -236,6 +236,7 @@ mod sizing;
 mod stack;
 pub mod testing;
 mod text;
+mod tooltip;
 mod transition;
 mod tw;
 pub mod widget;

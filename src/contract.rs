@@ -623,6 +623,41 @@ pub struct MenuStyle {
     pub dot: f32,
 }
 
+/// A tooltip's arrow: a square turned 45 degrees, filled like the box, half
+/// of it outside the box and pointing at the trigger.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Arrow {
+    /// Side of the square, in points. The gap between the trigger and the
+    /// box grows by it, as Radix's does.
+    pub size: f32,
+}
+
+/// Tooltips: the box, the text it wraps, the optional arrow and the timing.
+/// How one enters and leaves is [`MotionStyle::tooltip`].
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct TooltipStyle {
+    /// The box: its `rest` colours, border and shadow.
+    pub popup: Look,
+    /// Corner radius of the box.
+    pub radius: u8,
+    /// Left-right and top-bottom padding of the box.
+    pub padding: Vec2,
+    /// The text role, or `None` for [`Style::text`].
+    pub text: Option<TextSpec>,
+    /// The widest the box gets; longer text wraps. A pointed arrow needs a
+    /// borderless box.
+    pub max_width: f32,
+    /// The arrow, if there is one.
+    pub arrow: Option<Arrow>,
+    /// The space between the trigger and the box (or its arrow).
+    pub offset: Distance,
+    /// How long the pointer rests on a trigger before its tooltip opens.
+    pub delay: Duration,
+    /// How long after a tooltip closes the next one opens at once.
+    pub grace: Duration,
+}
+
 /// Steppers: a number field and two buttons, one above the other, in a single
 /// bordered group.
 #[derive(Clone, Debug, PartialEq)]
@@ -805,6 +840,8 @@ pub struct Style {
     pub select: SelectStyle,
     /// Menus, and the lists selects open.
     pub menu: MenuStyle,
+    /// Tooltips.
+    pub tooltip: TooltipStyle,
     /// Steppers.
     pub stepper: StepperStyle,
     /// Text fields.
@@ -1202,6 +1239,26 @@ impl Style {
                 shortcut_tracking: Tracking::ZERO,
                 indicator: s.icon_width,
                 dot: s.icon_width_inner / 2.0,
+            },
+            tooltip: TooltipStyle {
+                popup: Look::new(States::still(
+                    Colors {
+                        fill: v.window_fill,
+                        border: v.window_stroke.color,
+                        text: v.text_color(),
+                    },
+                    v.window_fill,
+                ))
+                .bordered(v.window_stroke.width.max(1.0))
+                .shadowed(v.popup_shadow),
+                radius,
+                padding: vec2(f32::from(s.menu_margin.left), f32::from(s.menu_margin.top)),
+                text: None,
+                max_width: s.tooltip_width,
+                arrow: None,
+                offset: Distance::new(4.0),
+                delay: Duration::from_secs_f32(egui.interaction.tooltip_delay.max(0.0)),
+                grace: Duration::from_secs_f32(egui.interaction.tooltip_grace_time.max(0.0)),
             },
             stepper: StepperStyle {
                 group: choice_off.bordered(choice_border),

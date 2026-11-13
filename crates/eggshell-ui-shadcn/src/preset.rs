@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use eggshell_ui::contract::{
-    self, Colors, Entry, Focus, Keyed, KindMotion, Look as BoxLook, Metrics, Paint, Size, States,
-    SwitchMetrics, Variant,
+    self, Arrow, Colors, Entry, Focus, Keyed, KindMotion, Look as BoxLook, Metrics, Paint, Size,
+    States, SwitchMetrics, Variant,
 };
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::{Easing, Opacity, TextSpec, Tracking};
-use egui::{Color32, Context, Id, Shadow, Theme};
+use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
 use crate::styles::{DestructiveLook, HoverSurface, SecondaryHover, ShadcnStyle};
 use crate::{ThemeColor, Tokens, size, variant};
@@ -463,6 +463,29 @@ impl Shadcn {
             menu.dot = 8.0;
             menu
         };
+        // shadcn's TooltipContent: `bg-foreground text-background rounded-md
+        // px-3 py-1.5 text-xs` with a 10 pt arrow. The delay is egui's and
+        // the grace is Radix's `skipDelayDuration`, until the user picks.
+        style.tooltip = {
+            let mut tooltip = style.tooltip;
+            tooltip.popup = BoxLook::new(States::still(
+                flat(t.foreground, t.background),
+                t.foreground,
+            ));
+            tooltip.radius = t.radius_md();
+            tooltip.padding = vec2(12.0, 6.0);
+            tooltip.text = Some(TextSpec {
+                size: 12.0,
+                line_height: 16.0,
+                family: egui::FontFamily::Proportional,
+            });
+            tooltip.max_width = 320.0;
+            tooltip.arrow = Some(Arrow { size: 10.0 });
+            tooltip.offset = Distance::new(0.0);
+            tooltip.delay = Duration::from_millis(500);
+            tooltip.grace = Duration::from_millis(300);
+            tooltip
+        };
         style.stepper = {
             let mut stepper = style.stepper;
             stepper.group = input_box;
@@ -513,6 +536,10 @@ impl Shadcn {
         };
         style.motion.popover = animate;
         style.motion.menu = animate;
+        style.motion.tooltip = KindMotion {
+            entry: Entry::Zoom,
+            ..animate
+        };
         style.motion.dialog = KindMotion {
             entry: Entry::Zoom,
             enter: Duration::from_millis(200),

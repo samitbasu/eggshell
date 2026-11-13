@@ -130,9 +130,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         self
     }
 
-    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
-    /// shows it: with egui's timing and style, and also when the control is
-    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// Shown while the pointer hovers the control, in a tooltip overlay
+    /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
+    /// delay, at once when it has keyboard focus, and also when the control is
+    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
@@ -212,7 +213,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             );
         })
         .draw(move |app, ui| {
-            let response = tipped(ui.node_response(), &tooltip);
+            let response = tipped(ui, ui.node_response(), &tooltip);
             let ctx = ui.ctx();
             hold_arrows(ui);
             let listing = Listing::of(ctx, trigger);

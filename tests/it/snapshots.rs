@@ -1686,3 +1686,108 @@ mod motion {
         }
     }
 }
+
+/// The tooltip look candidates, for review (the look is the user's choice):
+/// `cargo test --features snapshots --test it tooltip_candidates -- --ignored`
+/// with `EGGSHELL_TOOLTIP_DIR` naming where the PNGs go, and
+/// `VK_ICD_FILENAMES` the software renderer.
+mod tooltip_candidates {
+    use super::*;
+    use eggshell_ui::Style;
+    use eggshell_ui::overlay::Distance;
+    use eggshell_ui_shadcn::Shadcn;
+
+    fn out() -> std::path::PathBuf {
+        let dir = std::env::var("EGGSHELL_TOOLTIP_DIR")
+            .expect("EGGSHELL_TOOLTIP_DIR names the output directory");
+        std::fs::create_dir_all(&dir).expect("the directory can be made");
+        dir.into()
+    }
+
+    fn change(ctx: &egui::Context, edit: impl FnOnce(&mut Style)) {
+        let mut style = (*Style::of(ctx)).clone();
+        edit(&mut style);
+        style.install(ctx);
+    }
+
+    /// (a) shadcn's TooltipContent: inverted, with its arrow.
+    fn inverted_with_arrow(_: &egui::Context, _: &()) {}
+
+    /// (b) the same without the arrow.
+    fn inverted_without_arrow(ctx: &egui::Context, _: &()) {
+        change(ctx, |style| {
+            style.tooltip.arrow = None;
+            style.tooltip.offset = Distance::new(4.0);
+        });
+    }
+
+    /// (c) a popover: `bg-popover`, a border and `shadow-md`, no arrow.
+    fn popover(ctx: &egui::Context, _: &()) {
+        let tokens = Shadcn::of(ctx).tokens;
+        change(ctx, |style| {
+            let colors = eggshell_ui::contract::Colors {
+                fill: tokens.popover,
+                border: tokens.border,
+                text: tokens.popover_foreground,
+            };
+            style.tooltip.popup = eggshell_ui::contract::Look::new(
+                eggshell_ui::contract::States::still(colors, tokens.popover),
+            )
+            .bordered(1.0)
+            .shadowed(tokens.shadow_md);
+            style.tooltip.arrow = None;
+            style.tooltip.offset = Distance::new(4.0);
+        });
+    }
+
+    fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
+        b.div(tw().flex().justify_center().p(4.0).pt(16.0), |b| {
+            b.button("add", "Add to library")
+                .tooltip("Add to library")
+                .add();
+        });
+    }
+
+    fn render(name: &str, theme: egui::Theme, scale: f32, prepare: fn(&egui::Context, &())) {
+        let tokens = Tokens::for_theme(theme);
+        let mut harness = support::harness_scaled(
+            Vec2::new(240.0, 120.0),
+            scale,
+            TextStyle::new(layouts::BODY, tokens.foreground),
+            (),
+            view,
+            prepare,
+        );
+        common::set_style(&harness.ctx, ShadcnStyle::Vega);
+        harness.state_mut().page = support::Page::Themed;
+        harness.state_mut().companion = support::Companion::Alone;
+        harness.ctx.set_theme(theme);
+        harness.run_steps(8);
+        support::hover_node(&mut harness, "/\"add\"");
+        harness.run_steps(30);
+        let label = if theme == egui::Theme::Light {
+            "light"
+        } else {
+            "dark"
+        };
+        let suffix = if scale > 1.0 { "@2x" } else { "" };
+        harness
+            .render()
+            .expect("renders")
+            .save(out().join(format!("{name}_{label}{suffix}.png")))
+            .expect("saves");
+    }
+
+    #[test]
+    #[ignore = "writes review images, see the module comment"]
+    fn tooltip_candidates() {
+        report_renderer();
+        for theme in [egui::Theme::Light, egui::Theme::Dark] {
+            for scale in [1.0, 2.0] {
+                render("a_inverted_arrow", theme, scale, inverted_with_arrow);
+                render("b_inverted_plain", theme, scale, inverted_without_arrow);
+                render("c_popover", theme, scale, popover);
+            }
+        }
+    }
+}
