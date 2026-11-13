@@ -40,7 +40,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
         s.text_field("city", app.city.clone())
             .named("City")
             .classes(tw().w_px(160.0))
-            .when_blurred(|app: &mut App| app.log.push("blur".into()))
+            .when_blurred(|app: &mut App, _| app.log.push("blur".into()))
             .on_change(|app: &mut App, text| app.city = text);
         s.text_field("zip", app.zip.clone())
             .named("Zip")

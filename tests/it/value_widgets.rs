@@ -52,7 +52,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
         b.text_field("name", &app.name)
             .named("Name")
             .when_submitted(|app: &mut App| app.submitted += 1)
-            .when_blurred(|app: &mut App| app.blurred += 1)
+            .when_blurred(|app: &mut App, _| app.blurred += 1)
             .on_change(|app: &mut App, name| {
                 app.changes += 1;
                 app.name = name;

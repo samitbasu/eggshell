@@ -10,6 +10,7 @@ use taffy::Size;
 
 use crate::builder::Slot;
 use crate::focus::Autofocus;
+use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
 use crate::widget::Stock as _;
 use crate::{Builder, Key, Measure, Tw, tw};
@@ -134,8 +135,9 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
-    /// Runs `then` when the field loses focus, also when Enter does it.
-    pub fn when_blurred(mut self, then: impl Fn(&mut A) + 'static) -> Self {
+    /// Runs `then` with why, when the field loses focus. Enter blurs it too:
+    /// `when_submitted` runs first, then this with [`Blur::Submitted`].
+    pub fn when_blurred(mut self, then: impl Fn(&mut A, Blur) + 'static) -> Self {
         self.hooks.blurred(then);
         self
     }

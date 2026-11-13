@@ -7,6 +7,7 @@
 )]
 
 mod autosuggest;
+mod blur_cause;
 mod button_options;
 mod ch;
 mod chat_shell_demo;

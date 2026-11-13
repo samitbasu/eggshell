@@ -23,6 +23,7 @@ use crate::focus;
 use crate::measure::TextLeaf;
 use crate::nav;
 use crate::overlay::{Anchored, Band, Nav};
+use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::pipeline::{ColorSource, DrawFn, Flow, NodeKind, Placed, PlacedNode};
 use crate::prim::{Icon, Prim};
@@ -497,6 +498,8 @@ struct Shared<A> {
     beneath: Vec<Beneath>,
     /// The items listboxes highlight, which look hovered.
     highlighted: Vec<Id>,
+    /// Why a field losing focus in this pass does, told to its hooks.
+    blur: Blur,
 }
 
 /// How far two boxes may overlap and still only touch: layout leaves
@@ -1057,9 +1060,13 @@ impl<A> Walk<'_, A> {
                 .max_rect(boxes.content)
                 .scope_id(id.with(DRAW_SCOPE));
             let app = &mut *self.app;
+            let blur = self.shared.blur;
             node_ui(self.ui, builder, inherited, Some(text), |ui| {
                 let scope = ui.unique_id();
-                ui.data_mut(|data| data.insert_temp(scope, NodeIdTag(id)));
+                ui.data_mut(|data| {
+                    data.insert_temp(scope, NodeIdTag(id));
+                    data.insert_temp(scope, BlurTag(blur));
+                });
                 draw(app, ui)
             });
         }
@@ -1477,10 +1484,12 @@ impl<A> Placed<A> {
             culled: Vec::new(),
             beneath: Vec::new(),
             highlighted: nav::highlighted(&kept),
+            blur: Blur::Elsewhere,
         };
         nav::activate_highlighted(ui.ctx(), &kept);
         nav::apply_deferred(ui.ctx());
         let keys = overlay_input::claim_keys(ui.ctx(), &kept, &nodes, &roots, live);
+        shared.blur = keys.blur;
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
         let mut walk = Walk {
             app,
@@ -1579,6 +1588,17 @@ const DRAW_SCOPE: &str = "eggshell-draw";
 
 #[derive(Clone, Copy)]
 struct NodeIdTag(egui::Id);
+
+#[derive(Clone, Copy)]
+struct BlurTag(Blur);
+
+/// Why a field in the draw closure's `Ui` that lost focus in this pass did,
+/// as its layout's `claim_keys` decided.
+pub(crate) fn blur_cause(ui: &Ui) -> Blur {
+    let scope = ui.unique_id();
+    ui.data(|data| data.get_temp::<BlurTag>(scope))
+        .map_or(Blur::Elsewhere, |tag| tag.0)
+}
 
 /// Reads the response the library gave the node whose draw closure is
 /// running.

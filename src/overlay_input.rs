@@ -221,6 +221,20 @@ impl Typing {
     }
 }
 
+/// Why a text field lost focus, as `when_blurred` is told. It is known the
+/// frame the blur is reported: Esc and Enter are told from the same input
+/// that decides who owns them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Blur {
+    /// Esc took the focus: the user means to abandon the edit.
+    Escaped,
+    /// Enter took the focus: the user means to commit the edit.
+    Submitted,
+    /// Anything else: a click elsewhere, Tab, a programmatic focus change,
+    /// the window losing focus.
+    Elsewhere,
+}
+
 /// The keys the frame pressed that the library answers, decided from the
 /// layout before any draw closure runs.
 #[derive(Clone, Copy, Debug)]
@@ -229,6 +243,8 @@ pub(crate) struct Keys {
     pub(crate) escape: Pressed,
     /// The default button Return goes to.
     pub(crate) default: Option<Id>,
+    /// Why a text field that loses focus in this pass does.
+    pub(crate) blur: Blur,
 }
 
 /// Decides who Esc and Return belong to and takes them from the frame's
@@ -267,6 +283,8 @@ pub(crate) fn claim_keys(
     if belongs_to_the_library {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
     }
+    let typing_before = kept.with(|kept| kept.typing) == Typing::Yes;
+    let escaped = escape == Pressed::Yes && Typing::escape_blurred(ctx, kept);
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
     let default = if pressed(Key::Enter) {
         actions::return_button(ctx, nodes, roots, &top_down)
@@ -276,7 +294,18 @@ pub(crate) fn claim_keys(
     if default.is_some() {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Enter));
     }
-    Keys { escape, default }
+    let cause = if escaped {
+        Blur::Escaped
+    } else if typing_before && default.is_none() && pressed(Key::Enter) {
+        Blur::Submitted
+    } else {
+        Blur::Elsewhere
+    };
+    Keys {
+        escape,
+        default,
+        blur: cause,
+    }
 }
 
 /// What `judge` reads of the frame.
