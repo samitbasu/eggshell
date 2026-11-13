@@ -407,16 +407,32 @@ fn nothing_requests_a_repaint_once_the_motion_has_settled() {
 }
 
 #[test]
-fn a_fade_fades_the_box_and_the_scrim_with_the_progress() {
+fn a_fade_leaves_the_box_opaque_and_fades_only_the_scrim() {
     let mut harness = harness(fade_view);
     open(&mut harness);
     harness.run_steps(4);
-    let part_way = painted_box(&harness).expect("painted").fill;
-    assert!(
-        part_way.a() > 0 && part_way.a() < 255,
-        "translucent mid-fade: {part_way:?}"
+    assert_eq!(
+        painted_box(&harness).expect("painted").fill,
+        BOX_FILL,
+        "the box is not faded"
     );
-    assert_eq!(painted_offset(&harness), 0.0, "a fade does not move");
+    assert_eq!(
+        painted_offset(&harness),
+        0.0,
+        "a fade does not move the box"
+    );
+    let scrim = support::shapes(&harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            egui::Shape::Rect(rect) if rect.rect.width() >= SCREEN.x - 1.0 => Some(rect.fill),
+            _ => None,
+        })
+        .expect("the scrim is painted");
+    let full = eggshell_ui::Style::of(&harness.ctx).scrim.a();
+    assert!(
+        scrim.a() > 0 && scrim.a() < full,
+        "the scrim is part-way: {scrim:?} of {full}"
+    );
     harness.run_steps(12);
     assert_eq!(painted_box(&harness).expect("painted").fill, BOX_FILL);
 }
@@ -509,7 +525,7 @@ mod example {
     #[test]
     fn the_sheet_slides_in_over_the_shadcn_duration_and_slides_out() {
         let mut harness = harness();
-        harness.state_mut().app.sheet = true;
+        harness.state_mut().app.sheet = Shown::Open;
         harness.step();
         let layout = rect_of(&harness, "/Sheet/Box");
         let painted = |harness: &Harness<'_, Rig<State>>| {
@@ -535,7 +551,7 @@ mod example {
         assert!(part_way > layout.min.x, "still on its way after 0.2 s");
         harness.run_steps(14);
         assert!((painted(&harness) - layout.min.x).abs() < 1.0, "arrived");
-        harness.state_mut().app.sheet = false;
+        harness.state_mut().app.sheet = Shown::Closed;
         harness.run_steps(2);
         assert!(
             harness.state().nodes.iter().any(|(p, _)| p == "/Sheet/Box"),
@@ -555,7 +571,7 @@ mod example {
     #[test]
     fn the_dialog_fades_and_zooms_in() {
         let mut harness = harness();
-        harness.state_mut().app.dialog = true;
+        harness.state_mut().app.dialog = Shown::Open;
         harness.step();
         let layout = rect_of(&harness, "/Dialog/Box");
         let width = |harness: &Harness<'_, Rig<State>>| {
@@ -578,5 +594,52 @@ mod example {
         assert!(first < layout.width() * 0.97, "zoomed out: {first}");
         harness.run_steps(14);
         assert!(width(&harness) >= layout.width() - 1.0, "settled");
+    }
+
+    #[test]
+    fn the_dialog_box_stays_opaque_while_the_scrim_fades() {
+        let mut harness = harness();
+        harness.state_mut().app.dialog = Shown::Open;
+        harness.run_steps(2);
+        let layout = rect_of(&harness, "/Dialog/Box");
+        let fills: Vec<_> = support::shapes(&harness)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Rect(rect)
+                    if rect.rect.width() > layout.width() * 0.9
+                        && rect.rect.width() < layout.width() * 1.1
+                        && rect.rect.height() > layout.height() * 0.9 =>
+                {
+                    Some(rect.fill)
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(
+            fills.iter().any(|fill| fill.a() == 255),
+            "precondition: the box is painted, mid-motion: {fills:?}"
+        );
+        assert!(
+            fills
+                .iter()
+                .filter(|fill| fill.r() > 0)
+                .all(|fill| fill.a() == 255),
+            "no translucent box fill: {fills:?}"
+        );
+        let scrim = support::shapes(&harness)
+            .into_iter()
+            .find_map(|shape| match shape {
+                egui::Shape::Rect(rect)
+                    if rect.rect.width() >= SCREEN.x - 1.0 && rect.fill.a() < 255 =>
+                {
+                    Some(rect.fill)
+                }
+                _ => None,
+            });
+        let scrim = scrim.expect("the scrim is painted");
+        assert!(
+            scrim.a() > 0 && scrim.a() < 128,
+            "the scrim is part-way: {scrim:?}"
+        );
     }
 }

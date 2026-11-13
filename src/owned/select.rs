@@ -15,7 +15,7 @@ use super::{
     Chevron, Enablement, Mark, OnResponse, Tip, describe, paint_check, paint_chevron, tipped,
 };
 use crate::builder::Slot;
-use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Wrap};
+use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::pipeline::Room;
 use crate::scroll::{Axis, Focusable};
@@ -223,7 +223,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             });
         });
         {
-            let shown = Listing::of(&ctx, trigger) == Listing::Open;
+            let shown = match Listing::of(&ctx, trigger) {
+                Listing::Open => Shown::Open,
+                Listing::Closed => Shown::Closed,
+            };
             let options = List {
                 style,
                 options,

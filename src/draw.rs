@@ -520,7 +520,7 @@ enum Stage {
     /// The root of a modal: its own fill is the scrim, which fades with the
     /// overlay's progress, while the box in it has the overlay's entrance.
     Scrim(Opacity),
-    /// A box that fades, scales and moves with the overlay's progress.
+    /// A box that scales and moves with the overlay's progress.
     Box { staged: Staged, form: Form },
 }
 
@@ -963,17 +963,16 @@ impl<A> Walk<'_, A> {
         };
 
         let stage = self.shared.stages.get(&index).copied();
-        let (staged_opacity, staged_offset, staged_scale, scrim) = match stage {
+        let (staged_offset, staged_scale, scrim) = match stage {
             Some(Stage::Box { staged, form }) => (
-                staged.opacity(),
                 staged.offset(node.rect().size(), form),
                 staged.scale(),
                 Opacity::OPAQUE,
             ),
-            Some(Stage::Scrim(scrim)) => (Opacity::OPAQUE, Vec2::ZERO, 1.0, scrim),
-            None => (Opacity::OPAQUE, Vec2::ZERO, 1.0, Opacity::OPAQUE),
+            Some(Stage::Scrim(scrim)) => (Vec2::ZERO, 1.0, scrim),
+            None => (Vec2::ZERO, 1.0, Opacity::OPAQUE),
         };
-        let opacity = parent.opacity * look.paint.opacity * staged_opacity;
+        let opacity = parent.opacity * look.paint.opacity;
         let own_opacity = opacity * scrim;
         let lifted = self.lift.filter(|lift| lift.index == index);
         let slide = match (interaction.variants.animate_layout, node.id(), lifted) {

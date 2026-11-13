@@ -1419,7 +1419,7 @@ fn dialog_in(name: &str, theme: egui::Theme, state: dialog::State) {
 
 fn open_dialog() -> dialog::State {
     dialog::State {
-        dialog: true,
+        dialog: eggshell_ui::overlay::Shown::Open,
         ..dialog::State::default()
     }
 }
@@ -1436,7 +1436,7 @@ fn dialog_dark() {
 
 fn confirming() -> dialog::State {
     dialog::State {
-        confirm: true,
+        confirm: eggshell_ui::overlay::Shown::Open,
         ..open_dialog()
     }
 }
@@ -1462,7 +1462,7 @@ fn dialog_role_menu_light() {
 
 fn sheet() -> dialog::State {
     dialog::State {
-        sheet: true,
+        sheet: eggshell_ui::overlay::Shown::Open,
         ..dialog::State::default()
     }
 }
@@ -1561,6 +1561,7 @@ fn menu_destructive_dark() {
 /// naming where the PNGs go, and `VK_ICD_FILENAMES` the software renderer.
 mod motion {
     use super::*;
+    use eggshell_ui::overlay::Shown;
 
     fn out() -> std::path::PathBuf {
         let dir = std::env::var("EGGSHELL_MOTION_DIR")
@@ -1604,17 +1605,22 @@ mod motion {
         harness
     }
 
-    fn modal_strips(kind: &str, open: fn(&mut dialog::State, bool), enter: f32, exit: f32) {
+    fn modal_strips(
+        kind: &str,
+        open: fn(&mut dialog::State, eggshell_ui::overlay::Shown),
+        enter: f32,
+        exit: f32,
+    ) {
         report_renderer();
         for (theme, label) in [(egui::Theme::Light, "light"), (egui::Theme::Dark, "dark")] {
             let mut harness = dialog_harness(theme, enter / 4.0, dialog::State::default());
-            open(&mut harness.state_mut().app, true);
+            open(&mut harness.state_mut().app, Shown::Open);
             frames(&mut harness, &format!("{kind}_enter_{label}"));
 
             let mut harness = dialog_harness(theme, exit / 4.0, dialog::State::default());
-            open(&mut harness.state_mut().app, true);
+            open(&mut harness.state_mut().app, Shown::Open);
             harness.run_steps(40);
-            open(&mut harness.state_mut().app, false);
+            open(&mut harness.state_mut().app, Shown::Closed);
             frames(&mut harness, &format!("{kind}_exit_{label}"));
         }
     }

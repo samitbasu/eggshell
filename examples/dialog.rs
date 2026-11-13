@@ -15,7 +15,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::overlay::{DismissOn, Modal, Nav, Side};
+use eggshell_ui::overlay::{DismissOn, Modal, Nav, Shown, Side};
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::{Builder, Scope, Tw, tw};
@@ -55,10 +55,10 @@ const ROWS: u32 = 40;
 
 #[derive(Default)]
 pub struct State {
-    pub dialog: bool,
-    pub confirm: bool,
+    pub dialog: Shown,
+    pub confirm: Shown,
     pub picker: bool,
-    pub sheet: bool,
+    pub sheet: Shown,
     pub name: String,
     pub role: usize,
     pub saved: Option<String>,
@@ -155,10 +155,10 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
             s.div_id(Part::Intro, tw().flex().flex_col().gap(6.0).p(6.0), |s| {
                 s.div_id(Part::Actions, tw().flex().items_center().gap(2.0), |s| {
                     s.button(Part::OpenDialog, "Edit profile")
-                        .on_click(|state: &mut State| state.dialog = true);
+                        .on_click(|state: &mut State| state.dialog = Shown::Open);
                     s.button(Part::OpenSheet, "Open sheet")
                         .variant(variant::OUTLINE)
-                        .on_click(|state: &mut State| state.sheet = true);
+                        .on_click(|state: &mut State| state.sheet = Shown::Open);
                     if let Some(saved) = &state.saved {
                         s.text(
                             tw().text(t.muted_foreground),
@@ -192,7 +192,7 @@ fn dialog(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
         .role(Role::Dialog)
         .named("Edit profile")
         .on_dismiss(|state: &mut State| {
-            state.dialog = false;
+            state.dialog = Shown::Closed;
             state.picker = false;
         })
         .children(|s| {
@@ -226,13 +226,13 @@ fn dialog(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
                 s.div_id(Part::Footer, tw().flex().justify_between(), |s| {
                     s.button(Part::Delete, "Delete")
                         .variant(variant::DESTRUCTIVE)
-                        .on_click(|state: &mut State| state.confirm = true);
+                        .on_click(|state: &mut State| state.confirm = Shown::Open);
                     s.div(tw().flex().gap(2.0), |s| {
                         s.button(Part::Cancel, "Cancel")
                             .variant(variant::OUTLINE)
                             .cancel_action()
                             .on_click(|state: &mut State| {
-                                state.dialog = false;
+                                state.dialog = Shown::Closed;
                                 state.picker = false;
                             });
                         s.button(Part::Save, "Save changes")
@@ -240,7 +240,7 @@ fn dialog(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
                             .default_action()
                             .on_click(|state: &mut State| {
                                 state.saved = Some(state.name.clone());
-                                state.dialog = false;
+                                state.dialog = Shown::Closed;
                                 state.picker = false;
                             });
                     });
@@ -297,7 +297,7 @@ fn confirm(s: &mut Scope<'_, '_, State>, state: &State, t: &Tokens) {
         .role(Role::AlertDialog)
         .named("Are you absolutely sure?")
         .dismiss_on(DismissOn::EscOnly)
-        .on_dismiss(|state: &mut State| state.confirm = false)
+        .on_dismiss(|state: &mut State| state.confirm = Shown::Closed)
         .children(|s| {
             s.div_id(Part::Box, dialog.max_w_px(448.0), |s| {
                 header(
@@ -310,14 +310,14 @@ fn confirm(s: &mut Scope<'_, '_, State>, state: &State, t: &Tokens) {
                     s.button(Part::Cancel, "Cancel")
                         .variant(variant::OUTLINE)
                         .cancel_action()
-                        .on_click(|state: &mut State| state.confirm = false);
+                        .on_click(|state: &mut State| state.confirm = Shown::Closed);
                     s.button(Part::Continue, "Continue")
                         .variant(variant::DESTRUCTIVE)
                         .default_action()
                         .on_click(|state: &mut State| {
                             state.deleted += 1;
-                            state.confirm = false;
-                            state.dialog = false;
+                            state.confirm = Shown::Closed;
+                            state.dialog = Shown::Closed;
                             state.picker = false;
                         });
                 });
@@ -332,7 +332,7 @@ fn sheet(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
         .shown(state.sheet)
         .role(Role::Dialog)
         .named("Settings")
-        .on_dismiss(|state: &mut State| state.sheet = false)
+        .on_dismiss(|state: &mut State| state.sheet = Shown::Closed)
         .children(|s| {
             s.div_id(Part::Box, sheet, |s| {
                 header(
@@ -345,7 +345,7 @@ fn sheet(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
                     s.button(Part::Close, "Close")
                         .variant(variant::OUTLINE)
                         .cancel_action()
-                        .on_click(|state: &mut State| state.sheet = false);
+                        .on_click(|state: &mut State| state.sheet = Shown::Closed);
                 });
             });
         });

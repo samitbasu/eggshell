@@ -584,26 +584,28 @@ fn the_list_pops_in_with_the_styles_menu_motion_and_leaves_the_same_way() {
         !motion.enter.is_zero(),
         "precondition: the shadcn preset moves menus"
     );
-    let list_box = format!("{LIST}/Box");
-    let opacity = |harness: &Harness<'_, Rig<App>>| {
-        support::last_drawn(&harness.ctx, &list_box).map(|node| (node.opacity, node.motion))
+    let moved = |harness: &Harness<'_, Rig<App>>| {
+        let node = support::last_drawn(&harness.ctx, LIST)?;
+        Some((node.painted_rect != node.layout_rect, node.motion))
     };
 
     click_node(&mut harness, PICK);
     harness.step();
-    let entering = opacity(&harness).expect("the list is drawn while it enters");
     assert_eq!(
-        support::last_drawn(&harness.ctx, LIST).map(|node| node.motion),
-        Some(Motion::Presents)
+        moved(&harness),
+        Some((true, Motion::Presents)),
+        "scaled and nudged while it enters"
     );
-    assert!(f32::from(entering.0) < 1.0, "fading in: {:?}", entering.0);
     harness.run_steps(20);
-    assert_eq!(f32::from(opacity(&harness).expect("open").0), 1.0);
+    assert_eq!(moved(&harness).map(|moved| moved.0), Some(false), "settled");
 
     harness.key_press(Key::Escape);
     harness.run_steps(3);
-    let leaving = opacity(&harness).expect("the list is drawn while it leaves");
-    assert!(f32::from(leaving.0) < 1.0, "fading out: {:?}", leaving.0);
+    assert_eq!(
+        moved(&harness).map(|moved| moved.0),
+        Some(true),
+        "scaled and nudged while it leaves"
+    );
     harness.run_steps(20);
     assert!(
         harness

@@ -499,8 +499,8 @@ impl Shadcn {
         // shadcn's overlays: `bg-black/50`.
         style.scrim = Color32::from_black_alpha(128);
         // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
-        // selects: `fade-in-0 zoom-in-95 slide-in-from-*-2`. DialogContent:
-        // `fade-in-0 zoom-in-95 duration-200`. SheetContent:
+        // selects: `zoom-in-95 slide-in-from-*-2`. DialogContent:
+        // `zoom-in-95 duration-200`. SheetContent:
         // `slide-in-from-*`, `ease-in-out`, 500 ms open and 300 ms close.
         let animate = KindMotion {
             entry: Entry::Pop,

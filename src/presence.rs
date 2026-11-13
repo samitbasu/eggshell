@@ -34,41 +34,36 @@ pub enum Shown {
     Closed,
 }
 
-impl From<bool> for Shown {
-    fn from(open: bool) -> Self {
-        if open { Self::Open } else { Self::Closed }
+impl Shown {
+    /// Whether the state says open.
+    pub fn is_open(self) -> bool {
+        self == Self::Open
     }
 }
 
 /// How an overlay arrives and leaves.
 ///
-/// The fade is per shape, not a group opacity: where translucent shapes of
-/// one box overlap, they show through each other while it fades.
+/// Only the scrim of a modal fades. The box and its contents are never faded:
+/// without group opacity (#40) a per-shape fade lets the page show through the
+/// box mid-motion. The entrances move the box instead.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Entrance {
-    /// Fades the box (and the scrim of a modal).
+    /// No motion of the box; the scrim of a modal fades.
     Fade,
-    /// Fades the box while it scales up from 95% about its centre: shadcn's
-    /// `fade-in-0 zoom-in-95`.
+    /// Scales the box up from 95% about its centre: shadcn's `zoom-in-95`.
     Zoom,
     /// [`Zoom`](Self::Zoom) with a short slide away from the anchor, for an
-    /// overlay that floats next to one: shadcn's `fade-in-0 zoom-in-95
+    /// overlay that floats next to one: shadcn's `zoom-in-95
     /// slide-in-from-top-2`. A modal has no anchor and only zooms.
     Pop,
     /// Slides in from this side of the screen by the box's own size.
     Slide(Side),
-    /// [`Slide`](Self::Slide), fading as it goes.
-    SlideFade(Side),
 }
 
 impl Entrance {
     const ZOOM_FROM: f32 = 0.95;
     /// shadcn's `slide-in-from-top-2`, 0.5rem.
     const POP_SLIDE: f32 = 8.0;
-
-    fn fades(self) -> bool {
-        !matches!(self, Self::Slide(_))
-    }
 
     fn scale(self, progress: Progress) -> f32 {
         match self {
@@ -81,7 +76,7 @@ impl Entrance {
     fn offset(self, progress: Progress, size: Vec2, form: Form) -> Vec2 {
         let left = 1.0 - f32::from(progress);
         match (self, form) {
-            (Self::Slide(side) | Self::SlideFade(side), _) => direction(side) * size * left,
+            (Self::Slide(side), _) => direction(side) * size * left,
             (Self::Pop, Form::Floating(side)) => {
                 direction(side.opposite()) * Self::POP_SLIDE * left
             }
@@ -112,11 +107,8 @@ pub enum Entry {
     /// [`Entrance::Pop`].
     Pop,
     /// [`Entrance::Slide`] from the edge a modal is docked to; an overlay
-    /// without one fades.
+    /// without one has no box motion.
     Slide,
-    /// [`Entrance::SlideFade`] from the edge a modal is docked to; an overlay
-    /// without one fades.
-    SlideFade,
 }
 
 impl Entry {
@@ -126,8 +118,7 @@ impl Entry {
             (Self::Zoom, _) => Entrance::Zoom,
             (Self::Pop, _) => Entrance::Pop,
             (Self::Slide, Some(side)) => Entrance::Slide(side),
-            (Self::SlideFade, Some(side)) => Entrance::SlideFade(side),
-            (Self::Slide | Self::SlideFade, None) => Entrance::Fade,
+            (Self::Slide, None) => Entrance::Fade,
         }
     }
 }
@@ -222,14 +213,6 @@ impl Staged {
 
     pub(crate) fn scrim(&self) -> Opacity {
         Opacity::new(self.progress.into())
-    }
-
-    pub(crate) fn opacity(&self) -> Opacity {
-        if self.entrance.fades() {
-            self.scrim()
-        } else {
-            Opacity::OPAQUE
-        }
     }
 
     pub(crate) fn scale(&self) -> f32 {
@@ -457,7 +440,6 @@ mod tests {
         };
         let form = Form::Modal(crate::overlay::Modal::Edge(Side::Right));
         assert_eq!(staged.offset(vec2(380.0, 600.0), form), vec2(380.0, 0.0));
-        assert_eq!(staged.opacity(), Opacity::OPAQUE);
         let settled = Staged {
             progress: Progress::END,
             ..staged
