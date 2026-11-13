@@ -482,7 +482,7 @@ impl Shadcn {
             tooltip.max_width = 320.0;
             tooltip.arrow = Some(Arrow { size: 10.0 });
             tooltip.offset = Distance::new(0.0);
-            tooltip.delay = Duration::from_millis(500);
+            tooltip.delay = Duration::from_millis(300);
             tooltip.grace = Duration::from_millis(300);
             tooltip
         };
