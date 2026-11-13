@@ -1153,13 +1153,9 @@ impl PlacedNode {
         self.pointer_events
     }
 
-    /// Whether the node takes the pointer from the sensing nodes it covers:
-    /// it paints a background or a border, or it is the root of an overlay,
-    /// and it did not ask to let the pointer through.
-    ///
-    /// This is the one definition of a blocking box: the draw registers a
-    /// blocker for such a node, and [`Placed::root_at`] asks it of the roots.
-    pub(crate) fn blocks_pointer(&self) -> bool {
+    /// Whether the node paints a background or a border: it is a box, which
+    /// the pointer cannot pass through unless it asked to.
+    pub(crate) fn paints_box(&self) -> bool {
         let paints_border = [
             (self.paint.border_colors.top, self.border.top),
             (self.paint.border_colors.right, self.border.right),
@@ -1168,8 +1164,18 @@ impl PlacedNode {
         ]
         .into_iter()
         .any(|(color, width)| color.is_some() && width > 0.0);
+        self.paint.background.is_some() || paints_border
+    }
+
+    /// Whether the node takes the pointer from what lies beneath it: it paints
+    /// a box, or it is the root of an overlay, and it did not ask to let the
+    /// pointer through.
+    ///
+    /// The draw registers a hit-test widget for such a node, and
+    /// [`Placed::root_at`] asks it of the roots.
+    pub(crate) fn blocks_pointer(&self) -> bool {
         self.pointer_events == PointerEvents::Auto
-            && (self.kind == NodeKind::Overlay || self.paint.background.is_some() || paints_border)
+            && (self.kind == NodeKind::Overlay || self.paints_box())
     }
 
     /// For a scroll container, its viewport: the padding box minus the

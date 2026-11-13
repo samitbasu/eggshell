@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use egui::response::Flags;
 use egui::text_selection::LabelSelectionState;
 use egui::{
     Align, Color32, Frame, Galley, Id, Image, Layout, Painter, Pos2, Rect, Response, Role, Sense,
@@ -106,9 +107,29 @@ enum Culling {
     On,
 }
 
+/// Whether a box takes drags from the widgets beneath it. Beneath a node that
+/// takes drags itself, or a scroll container whose content drags to scroll
+/// (egui's `ScrollSource`: on a touch screen), they are the ancestor's, and
+/// the box lets them through to it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Drags {
+    Block,
+    PassThrough,
+}
+
+impl Drags {
+    fn sense(self) -> Sense {
+        match self {
+            Self::Block => Sense::CLICK | Sense::DRAG,
+            Self::PassThrough => Sense::CLICK,
+        }
+    }
+}
+
 /// What a node passes down to its subtree.
 #[derive(Clone, Copy)]
 struct Inherited {
+    drags: Drags,
     culling: Culling,
     clip: Rect,
     opacity: Opacity,
@@ -137,6 +158,7 @@ impl Inherited {
     /// the layout position it is at.
     fn root(clip: Rect, origin: Pos2) -> Self {
         Self {
+            drags: Drags::Block,
             culling: Culling::Off,
             clip,
             opacity: Opacity::OPAQUE,
@@ -503,9 +525,10 @@ struct Shared<A> {
     recording: Option<Vec<NodeFrame>>,
     /// While recording, the identified nodes left out as culled.
     culled: Vec<Id>,
-    /// The nodes of the layer being walked that take the pointer, in the
-    /// order they were registered: what a later blocker may cover.
-    beneath: Vec<Beneath>,
+    /// The id of each node's box widget.
+    box_ids: Vec<Id>,
+    /// The boxes the pointer is on or pressing, from the last pass.
+    hot: Vec<Hot>,
     /// The items listboxes highlight, which look hovered.
     highlighted: Vec<Id>,
     /// Why a field losing focus in this pass does, told to its hooks.
@@ -522,21 +545,6 @@ enum Stage {
     Scrim(Opacity),
     /// A box that scales and moves with the overlay's progress.
     Box { staged: Staged, form: Form },
-}
-
-/// How far two boxes may overlap and still only touch: layout leaves
-/// neighbours overlapping by a fraction of a point.
-const TOUCH: f32 = 0.5;
-
-/// A node that takes the pointer, registered before the node being walked.
-struct Beneath {
-    index: usize,
-    /// One past the last descendant's index.
-    end: usize,
-    /// Where the pointer can reach it.
-    reach: Rect,
-    /// Whether it takes presses, and not only hovers.
-    presses: bool,
 }
 
 struct Walk<'a, A> {
@@ -583,14 +591,23 @@ impl<A> Walk<'_, A> {
     /// The node's one hit test, made before anything is painted so that
     /// hover styling and clicks agree. Registration order is egui's hit
     /// order: later wins, and the walk is pre-order with siblings by `z`.
+    ///
+    /// A node that senses hover only takes clicks too, as any box does.
     fn interact(
         &mut self,
-        node: &PlacedNode,
+        index: usize,
         sense: Sense,
         boxes: &Boxes,
         inherited: Inherited,
-    ) -> Response {
+    ) -> (Response, Merged) {
+        let node = &self.nodes[index];
         let id = node.id().expect("a sensing node is identified");
+        let sense = if node.senses() && !sense.interactive() {
+            sense | Sense::CLICK
+        } else {
+            sense
+        };
+        let had_focus = self.ui.ctx().memory(|memory| memory.has_focus(id));
         let mut response = None;
         node_ui(
             self.ui,
@@ -611,60 +628,69 @@ impl<A> Walk<'_, A> {
                 response = Some(own);
             },
         );
-        response.expect("node_ui runs its contents")
+        let mut response = response.expect("node_ui runs its contents");
+        let merged = self.merge_hot(index, &mut response);
+        let lost_focus = had_focus && !self.ui.ctx().memory(|memory| memory.has_focus(id));
+        if lost_focus && merged == Merged::Bubbled && response.flags.intersects(Hot::PRESS) {
+            // egui took the focus because the click was not on the node's own
+            // widget, which a box in its subtree covers.
+            response.request_focus();
+        }
+        (response, merged)
     }
 
-    /// Registers what the node does to the pointer that reaches nodes beneath
-    /// it. A node that blocks it (see [`PlacedNode::blocks_pointer`]) takes
-    /// it from the nodes registered before it that it covers, and a node that
-    /// takes the pointer itself is one a later blocker may cover.
+    /// Adds to the response of the sensing node at `index` what the boxes of
+    /// its subtree won: they cover the node's own widget, so a press on one
+    /// is the node's unless a nearer node would take it.
+    fn merge_hot(&self, index: usize, response: &mut Response) -> Merged {
+        let node = &self.nodes[index];
+        let mut merged = Merged::Own;
+        for hot in self
+            .shared
+            .hot
+            .iter()
+            .filter(|hot| index < hot.index && hot.index < node.end)
+        {
+            response.flags |= hot.flags & Hot::HOVER;
+            if nearest_clicker(self.nodes, hot.index) == Some(index) {
+                response.flags |= hot.flags & Hot::PRESS;
+                if let Some(at) = hot.at.filter(|_| response.interact_pointer_pos().is_none()) {
+                    response.interact_pointer_pos_or_nan = at;
+                }
+            }
+            merged = Merged::Bubbled;
+        }
+        merged
+    }
+
+    /// Registers the node's box, if it paints one and does not sense: a
+    /// widget over its border box that takes clicks, so that the nodes
+    /// registered before it, whatever they are, do not. A press it wins is
+    /// the nearest sensing ancestor's (see [`Hot`]). Egui's hit test is the
+    /// only one: a box registered after a widget covers it, as in CSS.
     ///
-    /// Only what can be covered gets a blocker: a node's ancestors are not
-    /// beneath it, and a painted card in a scroll container covers nothing, so
-    /// dragging the card still scrolls. Nor is anything covered that a
-    /// pressable ancestor, registered after it, already wins over. The root of an overlay always blocks,
-    /// since what lies beneath it is another layer.
+    /// The root of an overlay gets a blocker that also takes drags, since
+    /// what lies beneath it is another layer.
     fn cover(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
         let node = &self.nodes[index];
-        let reach = node.rect().intersect(inherited.clip);
-        let covers = || {
-            let is_ancestor = |other: &&Beneath| other.index < index && index < other.end;
-            reach.is_positive()
-                && self.shared.beneath.iter().any(|other| {
-                    let overlap = other.reach.intersect(reach);
-                    let shadowed = || {
-                        self.shared.beneath.iter().filter(is_ancestor).any(|above| {
-                            above.presses
-                                && above.index > other.index
-                                && above.reach.contains_rect(overlap)
-                        })
-                    };
-                    !is_ancestor(&other)
-                        && overlap.width() > TOUCH
-                        && overlap.height() > TOUCH
-                        && !shadowed()
-                })
-        };
-        let blocks = inherited.pointer_events == PointerEvents::Auto && node.blocks_pointer();
-        if blocks && (node.kind() == NodeKind::Overlay || covers()) {
-            self.block(index, boxes, inherited);
+        if inherited.pointer_events != PointerEvents::Auto {
+            return;
         }
-        if node.senses() || node.draws_widgets() {
-            self.shared.beneath.push(Beneath {
-                index,
-                end: node.end,
-                reach,
-                presses: self
-                    .sense_of(index)
-                    .is_some_and(|sense| sense.senses_click() || sense.senses_drag()),
-            });
+        if node.kind() == NodeKind::Overlay {
+            self.block(index, boxes, inherited);
+        } else if node.paints_box() && !node.senses() && inherited.inertness == Inertness::Live {
+            // Not `node_ui`: a child `Ui` gets an accessibility node.
+            let id = self.shared.box_ids[index];
+            let clip = self.ui.clip_rect();
+            self.ui.set_clip_rect(inherited.clip);
+            self.ui.interact(boxes.border, id, inherited.drags.sense());
+            self.ui.set_clip_rect(clip);
         }
     }
 
     /// The node's blocker: a widget over its border box that takes clicks and
     /// drags, registered before the node's descendants so that they win.
     fn block(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
-        let node = &self.nodes[index];
         let id = crate::key::root_id().with("blocker").with(index);
         let overlay = self
             .roots
@@ -702,7 +728,6 @@ impl<A> Walk<'_, A> {
                 }
             },
         );
-        debug_assert!(node.blocks_pointer());
     }
 
     /// What the node's one hit test senses, if it gets one: what its classes
@@ -868,10 +893,10 @@ impl<A> Walk<'_, A> {
         self.noting(index, |walk| {
             let boxes = Boxes::of(node, walk.grid);
             if let Some(sense) = walk.sense_of(index) {
-                walk.interact(node, sense, &boxes, hidden);
+                walk.interact(index, sense, &boxes, hidden);
             }
             if node.draws_widgets() {
-                walk.run_draw(index, &boxes, hidden, node.text());
+                walk.run_draw(index, &boxes, hidden, node.text(), None);
             }
             for child in walk.in_paint_order(index) {
                 walk.register_culled(child, hidden);
@@ -926,17 +951,21 @@ impl<A> Walk<'_, A> {
             },
         );
 
-        let response = self.sense_of(index).map(|sense| {
-            self.interact(
-                node,
-                sense,
-                &boxes,
-                Inherited {
-                    inertness,
-                    ..parent
-                },
-            )
-        });
+        let (response, merged) = match self.sense_of(index) {
+            Some(sense) => {
+                let (response, merged) = self.interact(
+                    index,
+                    sense,
+                    &boxes,
+                    Inherited {
+                        inertness,
+                        ..parent
+                    },
+                );
+                (Some(response), merged)
+            }
+            None => (None, Merged::Own),
+        };
         let needs_hovering = interaction.grouping == Grouping::Group
             || interaction.variants.get(State::Hover).is_some();
         let hovering = response
@@ -1060,6 +1089,13 @@ impl<A> Walk<'_, A> {
             opacity,
             inertness,
             pointer_events,
+            drags: if interaction.sensing.drags()
+                || (node.scroll.is_some() && scroll::drag_scrolls(self.ui.ctx()))
+            {
+                Drags::PassThrough
+            } else {
+                parent.drags
+            },
             origin: node.rect().min,
             shift,
             scrolled: parent.scrolled,
@@ -1080,7 +1116,8 @@ impl<A> Walk<'_, A> {
         if let Some(prim) = self.shared.prims[index].take() {
             self.paint_prim(prim, index, node, &text, &boxes, inherited);
         }
-        self.run_draw(index, &boxes, inherited, &text);
+        let bubbled = response.as_ref().filter(|_| merged == Merged::Bubbled);
+        self.run_draw(index, &boxes, inherited, &text, bubbled);
 
         if node.scroll.is_some() {
             self.scroll_content(index, &boxes, inherited);
@@ -1113,7 +1150,14 @@ impl<A> Walk<'_, A> {
     }
 
     /// Runs the node's draw closure in its own `Ui`, if it has one.
-    fn run_draw(&mut self, index: usize, boxes: &Boxes, inherited: Inherited, text: &TextStyle) {
+    fn run_draw(
+        &mut self,
+        index: usize,
+        boxes: &Boxes,
+        inherited: Inherited,
+        text: &TextStyle,
+        bubbled: Option<&Response>,
+    ) {
         let node = &self.nodes[index];
         if let Some(draw) = node.draw.and_then(|slot| self.shared.draws[slot].take()) {
             let id = node.id().expect("a node with a draw closure is identified");
@@ -1127,6 +1171,11 @@ impl<A> Walk<'_, A> {
                 ui.data_mut(|data| {
                     data.insert_temp(scope, NodeIdTag(id));
                     data.insert_temp(scope, BlurTag(blur));
+                    if let Some(response) = bubbled {
+                        data.insert_temp(scope, BubbledTag(response.clone()));
+                    } else {
+                        data.remove::<BubbledTag>(scope);
+                    }
                 });
                 draw(app, ui)
             });
@@ -1145,6 +1194,7 @@ impl<A> Walk<'_, A> {
         let area = egui::ScrollArea::new(plan.overflows(boxes.padding.size() - plan.bars.gutter))
             .id_salt(scroll::AREA_SALT)
             .auto_shrink(false)
+            .scroll_source(scroll::source())
             // egui inflates a viewport smaller than 64 points to 64 and clamps
             // the offset to that, so a short container stopped short of its end
             // and then drifted back.
@@ -1433,7 +1483,6 @@ impl<A> Walk<'_, A> {
                     },
                 );
             });
-            self.shared.beneath.clear();
             let staged = overlay.staged;
             let mut inherited = Inherited::root(screen, root_rect.min);
             if !staged.is_steady() {
@@ -1563,6 +1612,7 @@ impl<A> Placed<A> {
         let recording = continuity::recording(ui.ctx()).then(Vec::new);
         let ordinals = text_ordinals(&nodes, &prims);
         let registrants = registrant_counts(&nodes);
+        let box_ids = box_ids(scope, &nodes);
         let mut shared = Shared {
             prims,
             draws,
@@ -1570,7 +1620,8 @@ impl<A> Placed<A> {
             animation,
             recording,
             culled: Vec::new(),
-            beneath: Vec::new(),
+            hot: hot_boxes(ui.ctx(), &nodes, &box_ids),
+            box_ids,
             highlighted: nav::highlighted(&kept),
             blur: Blur::Elsewhere,
             stages: HashMap::new(),
@@ -1684,6 +1735,89 @@ struct NodeIdTag(egui::Id);
 #[derive(Clone, Copy)]
 struct BlurTag(Blur);
 
+/// The node's response with what its subtree's boxes won merged in, for
+/// [`NodeUi::node_response`].
+#[derive(Clone)]
+struct BubbledTag(Response);
+
+/// Whether a sensing node's response has anything of its subtree's boxes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Merged {
+    Own,
+    Bubbled,
+}
+
+/// A box the pointer is on or pressing, last pass, that senses nothing of its
+/// own: egui gave the press to it, and it is the nearest sensing ancestor's.
+///
+/// A press goes to the nearest ancestor that senses clicks and no further, as
+/// it did when boxes did not take presses. CSS bubbles to every ancestor
+/// until a handler stops it; that would merge `PRESS` into every sensing
+/// ancestor here, and a handler could tell the response to stop.
+struct Hot {
+    index: usize,
+    flags: Flags,
+    at: Option<Pos2>,
+}
+
+impl Hot {
+    /// What every sensing ancestor sees: the pointer is over a descendant.
+    const HOVER: Flags = Flags::HOVERED;
+    /// What the nearest clicking ancestor sees.
+    const PRESS: Flags = Flags::CLICKED
+        .union(Flags::LONG_TOUCHED)
+        .union(Flags::IS_POINTER_BUTTON_DOWN_ON);
+}
+
+/// The id of the widget each node's box registers, for the node's own id is
+/// its response's. Identified nodes derive it from theirs; the others from
+/// their key path and how many nodes with the same path come before them, so
+/// that it holds while siblings elsewhere come and go, as a press is held.
+fn box_ids(scope: Id, nodes: &[PlacedNode]) -> Vec<Id> {
+    let mut seen: HashMap<&str, u32> = HashMap::new();
+    nodes
+        .iter()
+        .map(|node| match node.id() {
+            Some(id) => id.with("box"),
+            None => {
+                let ordinal = seen.entry(node.path()).or_default();
+                *ordinal += 1;
+                scope.with(("box", node.path(), *ordinal))
+            }
+        })
+        .collect()
+}
+
+/// The boxes the pointer is on or pressing, from egui's last hit test.
+fn hot_boxes(ctx: &egui::Context, nodes: &[PlacedNode], box_ids: &[Id]) -> Vec<Hot> {
+    if ctx.input(|input| input.pointer.latest_pos().is_none()) {
+        return Vec::new();
+    }
+    nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, node)| node.paints_box() && !node.senses() && node.kind() != NodeKind::Overlay)
+        .filter_map(|(index, _)| {
+            let response = ctx.read_response(box_ids[index])?;
+            response
+                .flags
+                .intersects(Hot::HOVER | Hot::PRESS)
+                .then(|| Hot {
+                    index,
+                    flags: response.flags,
+                    at: response.interact_pointer_pos(),
+                })
+        })
+        .collect()
+}
+
+/// The nearest ancestor of the node at `index` that senses clicks.
+fn nearest_clicker(nodes: &[PlacedNode], index: usize) -> Option<usize> {
+    (0..index)
+        .rev()
+        .find(|&above| nodes[above].end > index && nodes[above].interaction.sensing.clicks())
+}
+
 /// Why a field in the draw closure's `Ui` that lost focus in this pass did,
 /// as its layout's `claim_keys` decided.
 pub(crate) fn blur_cause(ui: &Ui) -> Blur {
@@ -1747,6 +1881,9 @@ impl NodeUi for Ui {
 
     fn node_response(&self) -> Response {
         let id = self.node_id();
+        if let Some(BubbledTag(response)) = self.data(|data| data.get_temp(self.unique_id())) {
+            return response;
+        }
         self.ctx()
             .read_response(id)
             .unwrap_or_else(|| self.interact(self.max_rect(), id, Sense::hover()))
