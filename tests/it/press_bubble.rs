@@ -18,9 +18,12 @@ enum Leaf {
     Paint,
     PaintedDiv,
     BorderedDiv,
+    RingedRule,
+    RingedRoundedRule,
+    RingedImage,
 }
 
-const LEAVES: [Leaf; 10] = [
+const LEAVES: [Leaf; 13] = [
     Leaf::Text,
     Leaf::Span,
     Leaf::Glyph,
@@ -31,8 +34,12 @@ const LEAVES: [Leaf; 10] = [
     Leaf::Paint,
     Leaf::PaintedDiv,
     Leaf::BorderedDiv,
+    Leaf::RingedRule,
+    Leaf::RingedRoundedRule,
+    Leaf::RingedImage,
 ];
 
+const TILE: &str = "/\"tile\"";
 const PARENT: &str = "/\"parent\"";
 
 struct App {
@@ -81,6 +88,13 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 Leaf::Image => b.image(fill, source()),
                 Leaf::Rule => b.rule(fill),
                 Leaf::RuleWithBackground => b.rule(fill.bg(Color32::GRAY)),
+                Leaf::RingedRule => b.rule(fill.ring(1.0, Color32::GRAY)),
+                Leaf::RingedRoundedRule => b.rule(
+                    fill.rounded_lg()
+                        .ring(1.0, Color32::GRAY)
+                        .bg(Color32::BLACK),
+                ),
+                Leaf::RingedImage => b.image(fill.rounded_lg().ring(1.0, Color32::GRAY), source()),
                 Leaf::Paint => b.paint(fill, |_, _, _| {}),
                 Leaf::PaintedDiv => b.div(fill.bg(Color32::GRAY), |_| {}),
                 Leaf::BorderedDiv => b.div(fill.border(1.0).border_color(Color32::GRAY), |_| {}),
@@ -141,4 +155,103 @@ fn a_press_on_any_non_sensing_leaf_reaches_the_sensing_parent() {
         failed.is_empty(),
         "the parent lost the press under {failed:?}"
     );
+}
+
+#[derive(Default)]
+struct Sheet {
+    clicks: u32,
+}
+
+/// ```html
+/// <div class="absolute inset-0" onclick="..."></div> <!-- the canvas beneath -->
+/// <div class="absolute inset-0 flex">
+///   <div class="bg ring shadow rounded-xl p-2">
+///     <div class="flex">
+///       <button class="flex flex-col gap-1.5 w-46 p-1.5 rounded-xl hover:bg" title="Open">
+///         <div class="w-full h-28 rounded-lg ring-1 bg"></div>
+///         <span>name</span><span>kind</span>
+///       </button>
+///     </div>
+///   </div>
+/// </div>
+/// ```
+fn sheet(b: &mut Builder<'_, '_, Sheet>, _: &Sheet) {
+    let shadow = egui::Shadow {
+        offset: [0, 4],
+        blur: 8,
+        spread: 0,
+        color: Color32::from_black_alpha(80),
+    };
+    b.div_id("canvas", tw().absolute().inset(0.0).sense_click(), |_| {});
+    b.div(tw().absolute().inset(0.0).flex(), |b| {
+        b.div(
+            tw().bg(Color32::DARK_GRAY)
+                .ring(1.0, Color32::GRAY)
+                .shadow(shadow)
+                .rounded_xl()
+                .p(2.0),
+            |b| {
+                b.div(tw().flex(), |b| {
+                    b.div_id(
+                        "tile",
+                        tw().flex()
+                            .flex_col()
+                            .gap(1.5)
+                            .w(46.0)
+                            .p(1.5)
+                            .rounded_xl()
+                            .sense_click()
+                            .hover(|p| p.bg(Color32::RED)),
+                        |b| {
+                            b.rule(
+                                tw().w_full()
+                                    .h(28.0)
+                                    .rounded_lg()
+                                    .ring(1.0, Color32::GRAY)
+                                    .bg(Color32::BLACK),
+                            );
+                            b.text(tw(), "name");
+                            b.text(tw(), "kind");
+                        },
+                    )
+                    .role(egui::Role::Button)
+                    .named("Open")
+                    .tooltip("Open it")
+                    .on_click(|app: &mut Sheet| app.clicks += 1);
+                });
+            },
+        );
+    });
+}
+
+#[test]
+fn a_ringed_leaf_in_a_ringed_sheet_leaves_the_tile_its_press() {
+    let mut harness = support::harness(
+        vec2(500.0, 400.0),
+        TextStyle::new(
+            TextSpec {
+                size: 16.0,
+                line_height: 20.0,
+                family: FontFamily::Proportional,
+            },
+            Color32::WHITE,
+        ),
+        Sheet::default(),
+        sheet,
+    );
+    harness.run();
+    let tile = rect_of(&harness, TILE);
+    let leaf = harness
+        .state()
+        .nodes
+        .iter()
+        .skip_while(|(path, _)| path != TILE)
+        .nth(1)
+        .expect("the leaf")
+        .1;
+    assert!(tile.contains_rect(leaf));
+    hover_over(&mut harness, leaf.center());
+    harness.run_steps(40);
+    press_and_release(&mut harness, leaf.center());
+    assert_eq!(harness.state().app.clicks, 1);
 }
