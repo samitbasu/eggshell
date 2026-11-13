@@ -222,7 +222,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
                 node.set_has_popup(HasPopup::Listbox);
             });
         });
-        if Listing::of(&ctx, trigger) == Listing::Open {
+        {
+            let shown = Listing::of(&ctx, trigger) == Listing::Open;
             let options = List {
                 style,
                 options,
@@ -235,6 +236,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             OverlayChain::new(b.reborrow(), list)
                 .anchor(Anchor::Node(trigger))
                 .placement(placement())
+                .shown(shown)
                 .match_width(MatchWidth::Anchor)
                 .focus(Focus::Stay)
                 .nav(Nav::Listbox)

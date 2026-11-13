@@ -571,3 +571,46 @@ mod beside_another_frame {
         assert_eq!(harness.state().app.changes, [2]);
     }
 }
+
+#[test]
+fn the_list_pops_in_with_the_styles_menu_motion_and_leaves_the_same_way() {
+    use eggshell_ui::testing::{Motion, record};
+
+    let mut harness = support::harness_stepped(SCREEN, 0.02, base_text(), App::default(), view);
+    harness.run_steps(4);
+    record(&harness.ctx);
+    let motion = Style::of(&harness.ctx).motion.menu;
+    assert!(
+        !motion.enter.is_zero(),
+        "precondition: the shadcn preset moves menus"
+    );
+    let list_box = format!("{LIST}/Box");
+    let opacity = |harness: &Harness<'_, Rig<App>>| {
+        support::last_drawn(&harness.ctx, &list_box).map(|node| (node.opacity, node.motion))
+    };
+
+    click_node(&mut harness, PICK);
+    harness.step();
+    let entering = opacity(&harness).expect("the list is drawn while it enters");
+    assert_eq!(
+        support::last_drawn(&harness.ctx, LIST).map(|node| node.motion),
+        Some(Motion::Presents)
+    );
+    assert!(f32::from(entering.0) < 1.0, "fading in: {:?}", entering.0);
+    harness.run_steps(20);
+    assert_eq!(f32::from(opacity(&harness).expect("open").0), 1.0);
+
+    harness.key_press(Key::Escape);
+    harness.run_steps(3);
+    let leaving = opacity(&harness).expect("the list is drawn while it leaves");
+    assert!(f32::from(leaving.0) < 1.0, "fading out: {:?}", leaving.0);
+    harness.run_steps(20);
+    assert!(
+        harness
+            .state()
+            .nodes
+            .iter()
+            .all(|(path, _)| !path.starts_with(LIST)),
+        "gone once the exit has run"
+    );
+}

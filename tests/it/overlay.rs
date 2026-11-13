@@ -1211,7 +1211,7 @@ mod menu_example {
         assert_eq!(popover.min.x, button.min.x);
         assert_eq!(popover.min.y, button.max.y + 4.0);
         click_node(&mut harness, "/Page/Top/PopoverButton");
-        harness.run_steps(3);
+        harness.run_steps(8);
         assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
     }
 
@@ -1224,7 +1224,7 @@ mod menu_example {
             &mut harness,
             "/Page/Top/(PopoverButton, Menu)/Box/Item(Copy)",
         );
-        harness.run_steps(3);
+        harness.run_steps(8);
         assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
         assert_eq!(harness.state().app.chosen.as_deref(), Some("Copy"));
     }
@@ -1262,7 +1262,7 @@ mod menu_example {
             &mut harness,
             "/Page/Top/(PopoverButton, Menu)/Box/(Item(Arrange), Submenu)/Box/Item(Back)",
         );
-        harness.run_steps(3);
+        harness.run_steps(8);
         assert_eq!(harness.state().app.chosen.as_deref(), Some("Back"));
         assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
     }
@@ -1278,13 +1278,13 @@ mod menu_example {
             "precondition: away from the menu"
         );
         support::press_and_release(&mut harness, away);
-        harness.run_steps(3);
+        harness.run_steps(8);
         assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
 
         click_node(&mut harness, "/Page/Top/PopoverButton");
         harness.run_steps(3);
         harness.key_press(egui::Key::Escape);
-        harness.run_steps(3);
+        harness.run_steps(8);
         assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
     }
 
@@ -1298,7 +1298,7 @@ mod menu_example {
             harness.run_steps(3);
         }
         harness.key_press(egui::Key::Enter);
-        harness.run_steps(3);
+        harness.run_steps(8);
         assert!(
             harness.state().app.grid,
             "opened with the pointer, the first Down goes to Copy and the second skips the disabled Paste to Show grid"

@@ -773,13 +773,11 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
                 }
             })
             .on_click(move |_| on_click.change(|menus| menus.toggle(trigger)));
-        if !open {
-            return;
-        }
         let close = shared.clone();
         OverlayChain::new(b.reborrow(), list)
             .anchor(Anchor::Node(trigger))
             .placement(Placement::below().gap(Distance::new(4.0)))
+            .shown(open)
             .nav(Nav::Menu)
             .role(Role::Menu)
             .named(name.unwrap_or_default())
