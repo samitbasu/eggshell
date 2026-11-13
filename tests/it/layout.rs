@@ -4,8 +4,6 @@
 //! preconditions (the text is wide enough to wrap, the siblings differ) so it
 //! cannot silently stop testing anything.
 
-use std::sync::OnceLock;
-
 use eggshell_ui::{
     Builder, FontStyle, Icon, LayoutState, NodeKind, Placed, TextDecoration, TextSpec, TextStyle,
     Track, tw,
@@ -47,14 +45,19 @@ fn base() -> TextStyle {
     TextStyle::new(BODY, Color32::BLACK)
 }
 
+/// One context per test thread: tests run in parallel, and layouts built at
+/// once in a shared context with the same top-level key are the clash
+/// `LayoutState::named` exists to catch.
 fn ctx() -> &'static Context {
-    static CTX: OnceLock<Context> = OnceLock::new();
-    CTX.get_or_init(|| {
-        let ctx = Context::default();
-        ctx.run_ui(Default::default(), |_| {})
-            .drop_without_applying_deltas();
-        ctx
-    })
+    thread_local! {
+        static CTX: &'static Context = {
+            let ctx = Context::default();
+            ctx.run_ui(Default::default(), |_| {})
+                .drop_without_applying_deltas();
+            Box::leak(Box::new(ctx))
+        };
+    }
+    CTX.with(|ctx| *ctx)
 }
 
 fn fixed_state() -> LayoutState {
