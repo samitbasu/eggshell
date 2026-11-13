@@ -660,6 +660,7 @@ pub struct DropdownChain<'a, 'f, A, K> {
     face: Face,
     options: ButtonOptions,
     name: Option<String>,
+    offset: Option<Distance>,
     enablement: Enablement,
     on_response: OnResponse<A>,
 }
@@ -672,6 +673,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             face,
             options: ButtonOptions::new(),
             name: None,
+            offset: None,
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
         }
@@ -708,6 +710,13 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         self
     }
 
+    /// The gap between the trigger and its menu, in place of the style's
+    /// [`MenuStyle::offset`](crate::contract::MenuStyle::offset).
+    pub fn offset(mut self, offset: Distance) -> Self {
+        self.offset = Some(offset);
+        self
+    }
+
     /// Whether the trigger takes input. A trigger that becomes disabled
     /// closes its menu.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
@@ -730,6 +739,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             face,
             options,
             name,
+            offset,
             enablement,
             on_response,
         } = self;
@@ -776,7 +786,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         let close = shared.clone();
         OverlayChain::new(b.reborrow(), list)
             .anchor(Anchor::Node(trigger))
-            .placement(Placement::below().gap(Distance::new(4.0)))
+            .placement(Placement::below().gap(offset.unwrap_or(shared.style.menu.offset)))
             .shown(if open { Shown::Open } else { Shown::Closed })
             .nav(Nav::Menu)
             .role(Role::Menu)

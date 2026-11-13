@@ -4,6 +4,7 @@ use eggshell_ui::contract::{
     self, Colors, Entry, Focus, Keyed, KindMotion, Look as BoxLook, Metrics, Paint, Size, States,
     SwitchMetrics, Variant,
 };
+use eggshell_ui::overlay::Distance;
 use eggshell_ui::{Easing, Opacity, TextSpec, Tracking};
 use egui::{Color32, Context, Id, Shadow, Theme};
 
@@ -433,6 +434,7 @@ impl Shadcn {
             menu.radius = t.radius_md();
             menu.padding = t.popup_padding;
             menu.min_width = 128.0;
+            menu.offset = Distance::new(4.0);
             menu.item = BoxLook::new(States::new(
                 flat(clear, t.popover_foreground),
                 accented,

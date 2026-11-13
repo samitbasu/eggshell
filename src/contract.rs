@@ -13,6 +13,7 @@
 //! [`Style::install_for`]). Scoping a different style to a subtree is future
 //! work; [`Style::of`] is the single place that would change.
 
+use crate::overlay::Distance;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -588,6 +589,8 @@ pub struct MenuStyle {
     pub padding: f32,
     /// The least width of a menu.
     pub min_width: f32,
+    /// The gap between a trigger and its dropdown menu or select list.
+    pub offset: Distance,
     /// An item; its `hover` colours mark the highlighted one, the one the
     /// pointer is on or that has the keyboard focus.
     pub item: Look,
@@ -1180,6 +1183,7 @@ impl Style {
                 ),
                 separator: w.noninteractive.bg_stroke.color,
                 separator_margin: s.item_spacing.y,
+                offset: Distance::new(4.0),
                 heading: v.weak_text_color(),
                 text: None,
                 shortcut: v.weak_text_color(),

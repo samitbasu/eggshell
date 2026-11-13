@@ -80,6 +80,7 @@ pub struct SelectChain<'a, 'f, A, T> {
     current: T,
     options: Vec<Choice<T>>,
     name: Option<String>,
+    offset: Option<Distance>,
     tooltip: Tip,
     classes: Tw,
     enablement: Enablement,
@@ -101,6 +102,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             current,
             options: choice::collect(options),
             name: None,
+            offset: None,
             tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
@@ -111,6 +113,13 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
     /// The accessible name, the equivalent of `aria-label`.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// The gap between the trigger and its list, in place of the style's
+    /// [`MenuStyle::offset`](crate::contract::MenuStyle::offset).
+    pub fn offset(mut self, offset: Distance) -> Self {
+        self.offset = Some(offset);
         self
     }
 
@@ -160,6 +169,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             current: chosen,
             options,
             name,
+            offset,
             tooltip,
             classes: caller,
             enablement,
@@ -172,6 +182,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             Listing::Closed.store(&ctx, trigger);
         }
         let style = Style::of(&ctx);
+        let offset = offset.unwrap_or(style.menu.offset);
         let select = &style.select;
         let metrics = select.metrics;
         let classes = select
@@ -233,12 +244,13 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
                 current,
                 trigger,
                 list: list.id,
+                offset,
             };
             let choose: Choose<A, T> = Rc::new(choose);
             let close = ctx.clone();
             OverlayChain::new(b.reborrow(), list)
                 .anchor(Anchor::Node(trigger))
-                .placement(placement())
+                .placement(options.placement())
                 .shown(shown)
                 .match_width(MatchWidth::Anchor)
                 .focus(Focus::Stay)
@@ -253,11 +265,6 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
     }
 }
 
-/// Where the list goes: under the trigger, flipping above it for want of room.
-fn placement() -> Placement {
-    Placement::below().gap(Distance::new(4.0))
-}
-
 type Choose<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
 
 /// The options of an open list.
@@ -267,6 +274,7 @@ struct List<T> {
     current: Option<usize>,
     trigger: Id,
     list: Id,
+    offset: Distance,
 }
 
 impl<T: Copy + 'static> List<T> {
@@ -280,6 +288,11 @@ impl<T: Copy + 'static> List<T> {
     fn box_classes(&self) -> Tw {
         let text = self.style.role(&self.style.menu.text);
         self.style.menu.box_classes(text)
+    }
+
+    /// Where the list goes: under the trigger, flipping above it for want of room.
+    fn placement(&self) -> Placement {
+        Placement::below().gap(self.offset)
     }
 
     /// One row: the highlighted one takes the item's `hover` colours.
@@ -297,7 +310,7 @@ impl<T: Copy + 'static> List<T> {
         let rows = self.options.len() as f32 * self.row_height();
         let chrome = 2.0 * (menu.padding + menu.popup.border_width);
         let natural = vec2(0.0, rows + chrome);
-        let room = s.room_for(self.trigger, &placement(), natural);
+        let room = s.room_for(self.trigger, &self.placement(), natural);
         s.div_id(Part::Box, self.box_classes(), |s| match room {
             Room::Enough => self.rows(s, choose),
             Room::Short => {
