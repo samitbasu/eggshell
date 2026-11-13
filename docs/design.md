@@ -465,7 +465,7 @@ States that the application knows at build time (selected, pressed, armed, curre
 1. `let r = ui.interact(border_box, node_id, sense)`. `node_id` is the hash of the node's key path (D5).
 2. Resolve active variants from `r` (and the group stack), blend with transitions, paint box and primitive.
 3. Store `r` for the node, then call the node's draw closure.
-4. The draw reads it through an extension trait: `ui.node_response() -> Response` (clicks, drags, context-click, pointer position, tooltips via `on_hover_text`).
+4. The draw reads it through an extension trait: `ui.node_response() -> Response` (clicks, drags, context-click, pointer position).
 
 ```rust
 pub trait NodeUi { fn node_response(&self) -> egui::Response; fn node_id(&self) -> egui::Id; }   // library-provided; the draw `Ui`'s scope id is derived from the node id, which egui keeps for the node's border-box widget

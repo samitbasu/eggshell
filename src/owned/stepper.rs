@@ -104,9 +104,10 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         self
     }
 
-    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
-    /// shows it: with egui's timing and style, and also when the control is
-    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// Shown while the pointer hovers the control, in a tooltip overlay
+    /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
+    /// delay, at once when it has keyboard focus, and also when the control is
+    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
@@ -337,7 +338,8 @@ impl<A> Spec<A> {
             }
         }
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
-        let response = tipped(text_field::show(ui, &mut text, field), &self.tooltip);
+        let response = text_field::show(ui, &mut text, field);
+        let response = tipped(ui, response, &self.tooltip);
         self.autofocus.apply(ui.ctx(), &response);
         response.widget_info(|| WidgetInfo {
             label: Some(self.name.clone()),

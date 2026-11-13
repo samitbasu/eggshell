@@ -160,6 +160,8 @@ pub struct MotionStyle {
     pub dialog: KindMotion,
     /// Modals docked to a screen edge.
     pub sheet: KindMotion,
+    /// Tooltips.
+    pub tooltip: KindMotion,
 }
 
 impl MotionStyle {
@@ -169,6 +171,7 @@ impl MotionStyle {
         menu: KindMotion::INSTANT,
         dialog: KindMotion::INSTANT,
         sheet: KindMotion::INSTANT,
+        tooltip: KindMotion::INSTANT,
     };
 }
 
@@ -285,6 +288,10 @@ impl Presences {
             progress,
             entrance: motion.entrance,
         })
+    }
+
+    pub(crate) fn contains(&self, id: Id) -> bool {
+        self.entries.contains_key(&id)
     }
 
     /// Forgets the overlays a frame did not declare, and starts the next

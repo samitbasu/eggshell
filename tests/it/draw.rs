@@ -26,7 +26,7 @@ fn base() -> TextStyle {
 }
 
 /// Builds `build` over the whole screen, draws it with `app`, and returns the shapes.
-pub(super) fn shapes<A>(
+pub(super) fn shapes<A: 'static>(
     app: &mut A,
     pixels_per_point: f32,
     build: impl for<'f> FnOnce(&mut eggshell_ui::Builder<'_, 'f, A>),
