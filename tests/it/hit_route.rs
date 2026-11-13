@@ -508,3 +508,48 @@ fn a_press_on_a_painted_child_leaves_the_focus_elsewhere_as_a_press_on_the_card_
     };
     assert_eq!(press_at(true), press_at(false));
 }
+
+/// ```html
+/// <div class="flex flex-col">
+///   <div class="w-[1px] h-[0px]"></div> <!-- inserted while the press is held -->
+///   <div id="card" class="w-[100px] p-4" onclick="...">
+///     <div class="w-[40px] h-[40px] bg-red"></div> <!-- anonymous -->
+///   </div>
+/// </div>
+/// ```
+fn anonymous_badge(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.div(tw().flex().flex_col(), |b| {
+        if app.pass_through {
+            b.div(tw().w_px(1.0).h_px(0.0), |_| {});
+        }
+        b.div_id("card", tw().w_px(100.0).p(16.0).sense_click(), |b| {
+            b.div(tw().w_px(40.0).h_px(40.0).bg(Color32::RED), |_| {});
+        })
+        .on_click(|app: &mut App| app.clicks += 1);
+    });
+}
+
+#[test]
+fn a_press_held_while_a_sibling_is_inserted_above_still_completes_as_a_click() {
+    let mut h = harness(App::default(), anonymous_badge);
+    let card = rect_of(&h, "/\"card\"");
+    let at = card.center();
+    hover_over(&mut h, at);
+    h.event(egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.step();
+    h.state_mut().app.pass_through = true;
+    h.run_steps(3);
+    h.event(egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.step();
+    assert_eq!(h.state().app.clicks, 1);
+}

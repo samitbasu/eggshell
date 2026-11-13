@@ -525,8 +525,8 @@ struct Shared<A> {
     recording: Option<Vec<NodeFrame>>,
     /// While recording, the identified nodes left out as culled.
     culled: Vec<Id>,
-    /// What names this layout among those sharing a context.
-    scope: Id,
+    /// The id of each node's box widget.
+    box_ids: Vec<Id>,
     /// The boxes the pointer is on or pressing, from the last pass.
     hot: Vec<Hot>,
     /// The items listboxes highlight, which look hovered.
@@ -680,7 +680,7 @@ impl<A> Walk<'_, A> {
             self.block(index, boxes, inherited);
         } else if node.paints_box() && !node.senses() && inherited.inertness == Inertness::Live {
             // Not `node_ui`: a child `Ui` gets an accessibility node.
-            let id = box_id(self.shared.scope, self.nodes, index);
+            let id = self.shared.box_ids[index];
             let clip = self.ui.clip_rect();
             self.ui.set_clip_rect(inherited.clip);
             self.ui.interact(boxes.border, id, inherited.drags.sense());
@@ -1612,6 +1612,7 @@ impl<A> Placed<A> {
         let recording = continuity::recording(ui.ctx()).then(Vec::new);
         let ordinals = text_ordinals(&nodes, &prims);
         let registrants = registrant_counts(&nodes);
+        let box_ids = box_ids(scope, &nodes);
         let mut shared = Shared {
             prims,
             draws,
@@ -1619,8 +1620,8 @@ impl<A> Placed<A> {
             animation,
             recording,
             culled: Vec::new(),
-            scope,
-            hot: hot_boxes(ui.ctx(), scope, &nodes),
+            hot: hot_boxes(ui.ctx(), &nodes, &box_ids),
+            box_ids,
             highlighted: nav::highlighted(&kept),
             blur: Blur::Elsewhere,
             stages: HashMap::new(),
@@ -1768,17 +1769,27 @@ impl Hot {
         .union(Flags::IS_POINTER_BUTTON_DOWN_ON);
 }
 
-/// The id of the widget a node's box registers: the node's own id would be
-/// the node's response.
-fn box_id(scope: Id, nodes: &[PlacedNode], index: usize) -> Id {
-    match nodes[index].id() {
-        Some(id) => id.with("box"),
-        None => scope.with(("box", index)),
-    }
+/// The id of the widget each node's box registers, for the node's own id is
+/// its response's. Identified nodes derive it from theirs; the others from
+/// their key path and how many nodes with the same path come before them, so
+/// that it holds while siblings elsewhere come and go, as a press is held.
+fn box_ids(scope: Id, nodes: &[PlacedNode]) -> Vec<Id> {
+    let mut seen: HashMap<&str, u32> = HashMap::new();
+    nodes
+        .iter()
+        .map(|node| match node.id() {
+            Some(id) => id.with("box"),
+            None => {
+                let ordinal = seen.entry(node.path()).or_default();
+                *ordinal += 1;
+                scope.with(("box", node.path(), *ordinal))
+            }
+        })
+        .collect()
 }
 
 /// The boxes the pointer is on or pressing, from egui's last hit test.
-fn hot_boxes(ctx: &egui::Context, scope: Id, nodes: &[PlacedNode]) -> Vec<Hot> {
+fn hot_boxes(ctx: &egui::Context, nodes: &[PlacedNode], box_ids: &[Id]) -> Vec<Hot> {
     if ctx.input(|input| input.pointer.latest_pos().is_none()) {
         return Vec::new();
     }
@@ -1787,7 +1798,7 @@ fn hot_boxes(ctx: &egui::Context, scope: Id, nodes: &[PlacedNode]) -> Vec<Hot> {
         .enumerate()
         .filter(|(_, node)| node.paints_box() && !node.senses() && node.kind() != NodeKind::Overlay)
         .filter_map(|(index, _)| {
-            let response = ctx.read_response(box_id(scope, nodes, index))?;
+            let response = ctx.read_response(box_ids[index])?;
             response
                 .flags
                 .intersects(Hot::HOVER | Hot::PRESS)
