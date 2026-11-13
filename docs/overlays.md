@@ -394,7 +394,7 @@ New entries in `Style` (each a `Look` with a rest state, border, radius, shadow,
 | `dialog` | box, header/footer, title and description text, close button | width, radius, padding, footer layout, close button present or not |
 | `sheet` | box per side, border side, header/footer | default width, border, shadow |
 | `tooltip` | bubble, arrow | **inverted vs popover look**, radius, padding, arrow on or off, delay |
-| `scrim` | modal backdrop | colour/alpha (shadcn `bg-black/50`), blur is out of scope (#40, known difference). Built in PR 4 as `Style::scrim`, a colour: shadcn black at 128/255, neutral `from_black_alpha(100)` (egui's own modal backdrop). |
+| `scrim` | modal backdrop | colour/alpha (shadcn `bg-black/50`), blur is out of scope (#40, known difference). Built in PR 4 as `Style::scrim`, a colour: shadcn black at 204/255 (80%, darker than shadcn's `bg-black/50` because there is no blur; user's pick from rendered candidates, 2026-11-12), neutral `from_black_alpha(100)` (egui's own modal backdrop). |
 | `motion` | open/close duration, easing, entrance per kind | the numbers and curves |
 
 The select's list is drawn from `Style::menu` (PR 6b): `SelectStyle` lost its `popup*` and `item*` fields to `MenuStyle`, so the list and the menus cannot drift.

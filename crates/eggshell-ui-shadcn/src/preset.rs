@@ -496,8 +496,9 @@ impl Shadcn {
         style.scroll.thumb_active = t.border;
         style.scroll.track = clear;
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
-        // shadcn's overlays: `bg-black/50`.
-        style.scrim = Color32::from_black_alpha(128);
+        // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
+        // scrim alone separates a dialog from the page, so it is darker.
+        style.scrim = Color32::from_black_alpha(204);
         // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
         // selects: `zoom-in-95 slide-in-from-*-2`. DialogContent:
         // `zoom-in-95 duration-200`. SheetContent:

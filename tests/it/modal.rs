@@ -885,7 +885,7 @@ mod style {
             eggshell_ui_shadcn::Shadcn::light(),
             eggshell_ui_shadcn::Shadcn::dark(),
         ] {
-            assert_eq!(preset.style().scrim, Color32::from_black_alpha(128));
+            assert_eq!(preset.style().scrim, Color32::from_black_alpha(204));
         }
     }
 }
