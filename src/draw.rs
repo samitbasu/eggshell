@@ -607,6 +607,7 @@ impl<A> Walk<'_, A> {
         } else {
             sense
         };
+        let had_focus = self.ui.ctx().memory(|memory| memory.has_focus(id));
         let mut response = None;
         node_ui(
             self.ui,
@@ -629,6 +630,12 @@ impl<A> Walk<'_, A> {
         );
         let mut response = response.expect("node_ui runs its contents");
         let merged = self.merge_hot(index, &mut response);
+        let lost_focus = had_focus && !self.ui.ctx().memory(|memory| memory.has_focus(id));
+        if lost_focus && merged == Merged::Bubbled && response.flags.intersects(Hot::PRESS) {
+            // egui took the focus because the click was not on the node's own
+            // widget, which a box in its subtree covers.
+            response.request_focus();
+        }
         (response, merged)
     }
 

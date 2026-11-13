@@ -443,3 +443,68 @@ fn with_a_touch_screen_a_drag_on_painted_content_scrolls_the_area() {
     support::drag(&mut h, panel.center(), panel.center() + vec2(0.0, -40.0));
     assert!(scrolled(&h) > 10.0, "scrolled {}", scrolled(&h));
 }
+
+/// ```html
+/// <button id="other" class="w-[60px] h-[20px]"></button>
+/// <div id="card" class="w-[100px] p-4 bg-gray" onclick="..."> <!-- focusable -->
+///   <div id="badge" class="w-[40px] h-[40px] bg-red"></div>
+/// </div>
+/// ```
+fn focusable_card(b: &mut Builder<'_, '_, App>, _: &App) {
+    b.div(tw().flex().flex_col().gap(8.0), |b| {
+        b.button("other", "Other").on_click(|_: &mut App| {});
+        b.div_id(
+            "card",
+            tw().w_px(100.0)
+                .p(16.0)
+                .bg(Color32::DARK_GRAY)
+                .sense_click(),
+            |b| {
+                b.div_id("badge", tw().w_px(40.0).h_px(40.0).bg(Color32::RED), |_| {});
+            },
+        )
+        .on_click(|app: &mut App| app.clicks += 1);
+    });
+}
+
+fn focus(h: &mut H, path: &str) {
+    let id = support::id_of(h, path);
+    h.ctx.memory_mut(|memory| memory.request_focus(id));
+    h.run_steps(2);
+    assert_eq!(
+        support::focused_path(h).as_deref(),
+        Some(path),
+        "precondition"
+    );
+}
+
+#[test]
+fn a_press_on_a_painted_child_keeps_the_focus_of_its_focused_card() {
+    let mut h = harness(App::default(), focusable_card);
+    focus(&mut h, "/\"card\"");
+    let at = rect_of(&h, "/\"card\"/\"badge\"").center();
+    hover_over(&mut h, at);
+    press_and_release(&mut h, at);
+    h.run_steps(2);
+    assert_eq!(h.state().app.clicks, 1);
+    assert_eq!(support::focused_path(&h).as_deref(), Some("/\"card\""));
+}
+
+#[test]
+fn a_press_on_a_painted_child_leaves_the_focus_elsewhere_as_a_press_on_the_card_does() {
+    let press_at = |badge: bool| {
+        let mut h = harness(App::default(), focusable_card);
+        focus(&mut h, "/\"other\"");
+        let card = rect_of(&h, "/\"card\"");
+        let at = if badge {
+            rect_of(&h, "/\"card\"/\"badge\"").center()
+        } else {
+            card.left_top() + vec2(4.0, 4.0)
+        };
+        hover_over(&mut h, at);
+        press_and_release(&mut h, at);
+        h.run_steps(2);
+        support::focused_path(&h)
+    };
+    assert_eq!(press_at(true), press_at(false));
+}
