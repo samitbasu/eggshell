@@ -385,3 +385,61 @@ fn a_box_is_a_widget_but_neither_an_accessibility_node_nor_a_tab_stop() {
     assert_eq!(widget_count(&painted), widget_count(&plain) + 1);
     assert_eq!(accessible_nodes(&painted), accessible_nodes(&plain));
 }
+
+/// ```html
+/// <div id="list" class="w-[200px] h-[100px] overflow-y-auto">
+///   <div class="relative flex flex-col">
+///     <div id="under" class="w-[100px] h-[100px]" draggable></div>
+///     <div id="panel" class="absolute w-[60px] h-[60px] bg-gray"></div>
+///     <div class="h-[300px]"></div>
+///   </div>
+/// </div>
+/// ```
+fn panel_in_scroll(b: &mut Builder<'_, '_, App>, app: &App) {
+    let under = if app.pass_through {
+        tw().w_px(100.0).h_px(100.0)
+    } else {
+        tw().w_px(100.0).h_px(100.0).sense_drag()
+    };
+    b.scroll("list", tw().w_px(200.0).h_px(100.0))
+        .children(|s| {
+            s.div(tw().flex().flex_col(), |s| {
+                s.div_id("under", under, |_| {})
+                    .on_response(|app: &mut App, response| app.sees_payload |= response.dragged());
+                s.div_id(
+                    "panel",
+                    tw().absolute().w_px(60.0).h_px(60.0).bg(Color32::GRAY),
+                    |_| {},
+                );
+                s.div(tw().h_px(300.0), |_| {});
+            });
+        });
+}
+
+#[test]
+fn with_a_mouse_a_painted_panel_in_a_scroll_area_blocks_a_sibling_drag() {
+    let mut h = harness(App::default(), panel_in_scroll);
+    let panel = rect_of(&h, "/\"list\"/\"panel\"");
+    let under = rect_of(&h, "/\"list\"/\"under\"");
+    assert!(
+        under.contains_rect(panel),
+        "precondition: the panel covers it"
+    );
+    support::drag(&mut h, panel.center(), panel.center() + vec2(0.0, 20.0));
+    assert!(!h.state().app.sees_payload);
+}
+
+#[test]
+fn with_a_touch_screen_a_drag_on_painted_content_scrolls_the_area() {
+    let mut h = harness(
+        App {
+            pass_through: true,
+            ..App::default()
+        },
+        panel_in_scroll,
+    );
+    touch_screen(&mut h);
+    let panel = rect_of(&h, "/\"list\"/\"panel\"");
+    support::drag(&mut h, panel.center(), panel.center() + vec2(0.0, -40.0));
+    assert!(scrolled(&h) > 10.0, "scrolled {}", scrolled(&h));
+}

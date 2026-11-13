@@ -108,7 +108,8 @@ enum Culling {
 }
 
 /// Whether a box takes drags from the widgets beneath it. Beneath a node that
-/// takes drags itself, or a scroll container, they are the ancestor's, and
+/// takes drags itself, or a scroll container whose content drags to scroll
+/// (egui's `ScrollSource`: on a touch screen), they are the ancestor's, and
 /// the box lets them through to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Drags {
@@ -1081,7 +1082,9 @@ impl<A> Walk<'_, A> {
             opacity,
             inertness,
             pointer_events,
-            drags: if interaction.sensing.drags() || node.scroll.is_some() {
+            drags: if interaction.sensing.drags()
+                || (node.scroll.is_some() && scroll::drag_scrolls(self.ui.ctx()))
+            {
                 Drags::PassThrough
             } else {
                 parent.drags
@@ -1184,6 +1187,7 @@ impl<A> Walk<'_, A> {
         let area = egui::ScrollArea::new(plan.overflows(boxes.padding.size() - plan.bars.gutter))
             .id_salt(scroll::AREA_SALT)
             .auto_shrink(false)
+            .scroll_source(scroll::source())
             // egui inflates a viewport smaller than 64 points to 64 and clamps
             // the offset to that, so a short container stopped short of its end
             // and then drifted back.

@@ -482,6 +482,17 @@ fn submit(ctx: &Context, request: Request) {
 /// The salt of the `ScrollArea`'s id.
 pub(crate) const AREA_SALT: &str = "area";
 
+/// What scrolls a container's `ScrollArea`: egui's default, named once so
+/// that what the draw says of dragging the content is what the area does.
+pub(crate) fn source() -> egui::scroll_area::ScrollSource {
+    egui::scroll_area::ScrollSource::default()
+}
+
+/// Whether dragging the content of a scroll container scrolls it now.
+pub(crate) fn drag_scrolls(ctx: &Context) -> bool {
+    source().drag.enabled(ctx)
+}
+
 /// The scope of the `Ui` a container's `ScrollArea` is shown in.
 pub(crate) fn area_scope(node: Id) -> Id {
     node.with("eggshell-scroll")
