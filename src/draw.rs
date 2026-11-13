@@ -535,6 +535,8 @@ struct Beneath {
     end: usize,
     /// Where the pointer can reach it.
     reach: Rect,
+    /// Whether it takes presses, and not only hovers.
+    presses: bool,
 }
 
 struct Walk<'a, A> {
@@ -619,17 +621,28 @@ impl<A> Walk<'_, A> {
     ///
     /// Only what can be covered gets a blocker: a node's ancestors are not
     /// beneath it, and a painted card in a scroll container covers nothing, so
-    /// dragging the card still scrolls. The root of an overlay always blocks,
+    /// dragging the card still scrolls. Nor is anything covered that a
+    /// pressable ancestor, registered after it, already wins over. The root of an overlay always blocks,
     /// since what lies beneath it is another layer.
     fn cover(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
         let node = &self.nodes[index];
         let reach = node.rect().intersect(inherited.clip);
         let covers = || {
+            let is_ancestor = |other: &&Beneath| other.index < index && index < other.end;
             reach.is_positive()
                 && self.shared.beneath.iter().any(|other| {
-                    let ancestor = other.index < index && index < other.end;
                     let overlap = other.reach.intersect(reach);
-                    !ancestor && overlap.width() > TOUCH && overlap.height() > TOUCH
+                    let shadowed = || {
+                        self.shared.beneath.iter().filter(is_ancestor).any(|above| {
+                            above.presses
+                                && above.index > other.index
+                                && above.reach.contains_rect(overlap)
+                        })
+                    };
+                    !is_ancestor(&other)
+                        && overlap.width() > TOUCH
+                        && overlap.height() > TOUCH
+                        && !shadowed()
                 })
         };
         let blocks = inherited.pointer_events == PointerEvents::Auto && node.blocks_pointer();
@@ -641,6 +654,9 @@ impl<A> Walk<'_, A> {
                 index,
                 end: node.end,
                 reach,
+                presses: self
+                    .sense_of(index)
+                    .is_some_and(|sense| sense.senses_click() || sense.senses_drag()),
             });
         }
     }
