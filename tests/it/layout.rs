@@ -4,7 +4,6 @@
 //! preconditions (the text is wide enough to wrap, the siblings differ) so it
 //! cannot silently stop testing anything.
 
-
 use eggshell_ui::{
     Builder, FontStyle, Icon, LayoutState, NodeKind, Placed, TextDecoration, TextSpec, TextStyle,
     Track, tw,
