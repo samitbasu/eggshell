@@ -477,3 +477,55 @@ fn a_resting_pointer_gets_its_tooltip_without_further_input() {
         "and the frames stop once it is shown"
     );
 }
+
+/// The four corners of every filled four-point path painted in `fill`.
+fn diamonds(harness: &Harness<'_, Rig<App>>, fill: egui::Color32) -> Vec<Rect> {
+    support::shapes(harness)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Path(path) if path.points.len() == 4 && path.fill == fill => {
+                Some(Rect::from_points(&path.points))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn the_arrow_is_painted_between_the_box_and_its_trigger() {
+    let mut harness = harness();
+    hover_node(&mut harness, "/\"undo\"");
+    wait(&mut harness, DELAY + GRACE);
+    let tip = tip_box(&harness).expect("precondition: the tooltip is shown");
+    let trigger = rect_of(&harness, "/\"undo\"");
+    assert!(
+        tip.bottom() <= trigger.top(),
+        "precondition: the tooltip sits above its trigger"
+    );
+    let style = Style::of(&harness.ctx);
+    let size = style
+        .tooltip
+        .arrow
+        .expect("precondition: the shadcn style has an arrow")
+        .size;
+    let fill = style.tooltip.popup.paint.states.rest.fill;
+    let arrows = diamonds(&harness, fill);
+    assert_eq!(arrows.len(), 1, "one arrow in the box's fill: {arrows:?}");
+    let arrow = arrows[0];
+    assert!(
+        (arrow.center().x - trigger.center().x).abs() < 0.5,
+        "centred on the trigger: {arrow:?} vs {trigger:?}"
+    );
+    assert!(
+        arrow.top() < tip.bottom() && arrow.bottom() > tip.bottom(),
+        "straddles the box's bottom edge: {arrow:?} vs {tip:?}"
+    );
+    assert!(
+        arrow.bottom() <= trigger.top(),
+        "and stops short of the trigger"
+    );
+    assert!(
+        (arrow.width() - size * std::f32::consts::SQRT_2).abs() < 0.5,
+        "a {size} pt square turned 45°"
+    );
+}

@@ -8,6 +8,7 @@
 
 mod autosuggest;
 mod blur_cause;
+mod borrowed_app;
 mod button_options;
 mod ch;
 mod chat_shell_demo;

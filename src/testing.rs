@@ -131,7 +131,7 @@ impl Headless {
     ///
     /// `view` gets `app` for the frame's lifetime `'f`, as an application's
     /// own root does, so it may hand borrows of `app` to the nodes it builds.
-    pub fn layout<A: 'static>(
+    pub fn layout<A>(
         &mut self,
         app: &A,
         view: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>, &'f A),
