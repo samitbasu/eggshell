@@ -59,7 +59,7 @@ fn place<A: 'static>(
 }
 
 /// [`place`] for a view that borrows `app` for the frame.
-fn place_borrowing<A>(
+fn place_borrowing<A: 'static>(
     ctx: &Context,
     app: &A,
     build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>, &'f A),
