@@ -73,6 +73,15 @@ pub(crate) struct Tooltips {
 }
 
 impl Tooltips {
+    /// The triggers whose tooltip is open, in order.
+    fn open_triggers(&self) -> Vec<Id> {
+        self.present
+            .iter()
+            .filter(|present| present.open)
+            .map(|present| present.trigger)
+            .collect()
+    }
+
     fn is_open(&self) -> bool {
         self.present.iter().any(|present| present.open)
     }
@@ -246,12 +255,21 @@ pub(crate) fn end(ctx: &Context, kept: &Handle, interruption: Option<Interruptio
     };
     let now = Duration::from_secs_f64(ctx.input(|input| input.time).max(0.0));
     let wanted = wanted(triggers);
-    let wait = kept.with(|kept| {
-        kept.tooltips
-            .tick(now, timing, wanted.as_ref(), interruption)
+    let (wait, changed) = kept.with(|kept| {
+        let before = kept.tooltips.open_triggers();
+        let wait = kept
+            .tooltips
+            .tick(now, timing, wanted.as_ref(), interruption);
+        (wait, kept.tooltips.open_triggers() != before)
     });
     if let Some(wait) = wait {
         ctx.request_repaint_after(wait);
+    }
+    // The state moves at the end of the draw and the overlay is declared by
+    // the next build, which a reactive app (eframe, the browser) only runs
+    // when asked: without input, a tooltip that just opened would never show.
+    if changed {
+        ctx.request_repaint();
     }
 }
 

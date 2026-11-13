@@ -446,3 +446,34 @@ fn the_shadcn_tooltip_is_inverted_with_an_arrow() {
         );
     }
 }
+
+/// Steps frames only while egui asks for one, as a reactive app (eframe, the
+/// browser) does when no input arrives: a resting pointer produces none.
+fn run_while_repainting(harness: &mut Harness<'_, Rig<App>>, limit: Duration) {
+    for _ in 0..frames(limit) {
+        if !harness.ctx.has_requested_repaint() {
+            break;
+        }
+        harness.step();
+    }
+}
+
+#[test]
+fn a_resting_pointer_gets_its_tooltip_without_further_input() {
+    let mut harness = harness();
+    hover_node(&mut harness, "/\"undo\"");
+    assert!(
+        !is_shown(&harness),
+        "precondition: the delay has not run out yet"
+    );
+    run_while_repainting(&mut harness, DELAY * 4);
+    assert!(
+        is_shown(&harness),
+        "the tooltip opens with no input after the hover, on repaints the library asks for"
+    );
+    run_while_repainting(&mut harness, DELAY * 4);
+    assert!(
+        !harness.ctx.has_requested_repaint(),
+        "and the frames stop once it is shown"
+    );
+}
