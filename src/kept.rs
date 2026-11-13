@@ -12,6 +12,7 @@ use egui::Rect;
 
 use crate::nav::Active;
 use crate::overlay_input::Typing;
+use crate::owned::Menus;
 use crate::stack::Stack;
 use crate::transition::Tracking;
 
@@ -20,6 +21,7 @@ pub(crate) struct Kept {
     pub(crate) stack: Stack,
     pub(crate) listbox: Active,
     pub(crate) typing: Typing,
+    pub(crate) menus: Menus,
     pub(crate) animation: Tracking,
     /// The area the last layout placed things in.
     pub(crate) area: Option<Rect>,

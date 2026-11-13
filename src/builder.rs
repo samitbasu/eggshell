@@ -80,6 +80,14 @@ impl Debug for Label {
 }
 
 impl Slot {
+    /// A slot with `id` that debugs as `readable`.
+    pub(crate) fn labelled(id: Id, readable: String) -> Self {
+        Self {
+            id,
+            label: Label(readable),
+        }
+    }
+
     pub(crate) fn readable(&self) -> &str {
         &self.label.0
     }
@@ -906,6 +914,36 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     pub fn role(mut self, role: egui::Role) -> Self {
         self.edit(|context| context.description.get_or_insert_default().role = Some(role));
         self
+    }
+
+    /// Opens a context menu, which `items` fills, at the pointer when the
+    /// node is secondary-clicked. The menu is shown while it is open, and
+    /// the library owns whether it is. The node must be identified; if it
+    /// does not sense clicks it starts to, and stays out of the Tab order.
+    #[track_caller]
+    pub fn context_menu(
+        mut self,
+        items: impl for<'m> FnOnce(&mut crate::owned::Menu<'m, 'f, A>),
+    ) -> Self {
+        let (owner, path) = {
+            let context = self.node_context();
+            (
+                context.id.expect("a context menu needs an identified node"),
+                context.path.clone(),
+            )
+        };
+        self.edit(|context| {
+            let interaction = &mut context.interaction;
+            if interaction.sensing == Sensing::None || interaction.sensing == Sensing::Hover {
+                interaction.focusability = crate::tw::Focusability::Skip;
+            }
+            interaction.sensing = interaction.sensing.or(Sensing::Click);
+        });
+        let kept = self.b.kept().clone();
+        let mut this =
+            self.draw(move |_, ui| crate::owned::open_on_secondary_click(ui, &kept, owner));
+        crate::owned::context(this.b.reborrow(), owner, &path, items);
+        this
     }
 
     /// Makes the node the button that Return or Esc presses.

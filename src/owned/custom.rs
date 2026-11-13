@@ -34,6 +34,7 @@ pub struct CustomChain<'a, 'f, A> {
     classes: Tw,
     measure: Option<MeasureFn<'f>>,
     name: Option<String>,
+    role: Role,
     tooltip: Tip,
     on_response: OnResponse<A>,
 }
@@ -46,6 +47,7 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
             classes,
             measure: None,
             name: None,
+            role: Role::Unknown,
             tooltip: None,
             on_response: OnResponse::default(),
         }
@@ -61,6 +63,16 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
     /// The accessible name of the node.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// Announces the node as a `role`, with the semantics of
+    /// [`NodeHandle::role`](crate::NodeHandle::role): a node with an item role
+    /// (`MenuItem`, `MenuItemCheckBox`, `MenuItemRadio`, `ListBoxOption`) is
+    /// an item of the menu or listbox it is in, found by the arrow keys. The
+    /// node must sense, and needs a [`named`](Self::named) name.
+    pub fn role(mut self, role: Role) -> Self {
+        self.role = role;
         self
     }
 
@@ -87,19 +99,25 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
             classes,
             measure,
             name,
+            role,
             tooltip,
             on_response,
         } = self;
         let measure: MeasureFn<'f> = measure.unwrap_or_else(|| Box::new(fill));
-        b.leaf_with(slot.id, &slot.label, classes, measure)
-            .draw(move |app, ui| {
-                let response = tipped(ui.node_response(), &tooltip);
-                if let Some(name) = &name {
-                    response
-                        .widget_info(|| WidgetInfo::labeled(Role::Unknown, ui.is_enabled(), name));
-                }
-                on_response.run(app, &response);
-                draw(app, ui);
-            });
+        let mut node = b.leaf_with(slot.id, &slot.label, classes, measure);
+        if role != Role::Unknown {
+            node = node.role(role);
+            if let Some(name) = &name {
+                node = node.named(name.clone());
+            }
+        }
+        node.draw(move |app, ui| {
+            let response = tipped(ui.node_response(), &tooltip);
+            if let Some(name) = &name {
+                response.widget_info(|| WidgetInfo::labeled(role, ui.is_enabled(), name));
+            }
+            on_response.run(app, &response);
+            draw(app, ui);
+        });
     }
 }

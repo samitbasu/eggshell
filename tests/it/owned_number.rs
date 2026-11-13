@@ -410,13 +410,13 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     harness.run_steps(4);
     assert!(is_open(&harness), "a click opens");
 
-    let list = style(Theme::Light).select;
+    let list = style(Theme::Light).menu;
     let colors = list.popup.paint.states.rest;
     assert!(
         shapes(&harness).iter().any(|shape| matches!(
             shape,
             Shape::Rect(r) if r.fill == colors.fill && r.stroke.color == colors.border
-                && r.corner_radius == egui::CornerRadius::same(list.popup_radius)
+                && r.corner_radius == egui::CornerRadius::same(list.radius)
         )),
         "the list is drawn in the popup colours"
     );

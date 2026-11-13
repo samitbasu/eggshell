@@ -20,7 +20,7 @@ use std::time::Duration;
 
 use egui::{Color32, Context, FontFamily, Id, Shadow, Theme, Vec2, vec2};
 
-use crate::{Opacity, Progress, TextSpec};
+use crate::{Opacity, Progress, TextSpec, Tracking};
 
 /// A button variant, named by the style that defines it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -555,7 +555,7 @@ pub struct ProgressStyle {
     pub range: Colors,
 }
 
-/// Select triggers and the list of options they open.
+/// Select triggers. The list they open is drawn from [`MenuStyle`].
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SelectStyle {
@@ -570,20 +570,53 @@ pub struct SelectStyle {
     pub chevron: f32,
     /// How much of the trigger's text colour the chevron keeps.
     pub chevron_opacity: Opacity,
-    /// The list's box: its `rest` colours, border and shadow.
+    /// How long state changes animate.
+    pub transition: Duration,
+}
+
+/// Menus: the box, items, separators, headings, shortcuts and indicators of a
+/// dropdown, a context menu and a submenu, and the list a select opens.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MenuStyle {
+    /// The box: its `rest` colours, border and shadow.
     pub popup: Look,
-    /// Corner radius of the list.
-    pub popup_radius: u8,
-    /// Padding between the list and its items.
-    pub popup_padding: f32,
-    /// An item; its `hover` colours mark the highlighted one.
+    /// Corner radius of the box.
+    pub radius: u8,
+    /// Padding between the box and its items.
+    pub padding: f32,
+    /// The least width of a menu.
+    pub min_width: f32,
+    /// An item; its `hover` colours mark the highlighted one, the one the
+    /// pointer is on or that has the keyboard focus.
     pub item: Look,
     /// Corner radius of an item.
     pub item_radius: u8,
     /// Left-right and top-bottom padding of an item.
     pub item_padding: Vec2,
-    /// How long state changes animate.
-    pub transition: Duration,
+    /// Space between the parts of an item: its indicator, label and shortcut.
+    pub item_gap: f32,
+    /// A destructive item: `rest` and `hover` colours.
+    pub destructive: States,
+    /// A separator's colour.
+    pub separator: Color32,
+    /// The space above and below a separator.
+    pub separator_margin: f32,
+    /// The colour of a group heading.
+    pub heading: Color32,
+    /// The text role of items and headings, or `None` for [`Style::text`].
+    pub text: Option<TextSpec>,
+    /// The colour of a shortcut.
+    pub shortcut: Color32,
+    /// The text role of a shortcut.
+    pub shortcut_text: TextSpec,
+    /// The letter spacing of a shortcut.
+    pub shortcut_tracking: Tracking,
+    /// Side of the square an item keeps for its check or radio mark, and of
+    /// the submenu chevron.
+    pub indicator: f32,
+    /// Side of a radio item's dot.
+    pub dot: f32,
 }
 
 /// Steppers: a number field and two buttons, one above the other, in a single
@@ -766,6 +799,8 @@ pub struct Style {
     pub progress: ProgressStyle,
     /// Select triggers.
     pub select: SelectStyle,
+    /// Menus, and the lists selects open.
+    pub menu: MenuStyle,
     /// Steppers.
     pub stepper: StepperStyle,
     /// Text fields.
@@ -1099,6 +1134,9 @@ impl Style {
                 text: None,
                 chevron: s.icon_width,
                 chevron_opacity: Opacity::new(0.5),
+                transition,
+            },
+            menu: MenuStyle {
                 popup: Look::new(States::still(
                     Colors {
                         fill: v.window_fill,
@@ -1109,8 +1147,9 @@ impl Style {
                 ))
                 .bordered(v.window_stroke.width.max(1.0))
                 .shadowed(v.popup_shadow),
-                popup_radius: radius,
-                popup_padding: 2.0,
+                radius,
+                padding: 2.0,
+                min_width: s.combo_width,
                 item: Look::new(States::new(
                     Colors {
                         fill: clear,
@@ -1122,7 +1161,40 @@ impl Style {
                 )),
                 item_radius: radius,
                 item_padding: vec2(s.button_padding.x, s.button_padding.y),
-                transition,
+                item_gap: s.item_spacing.x,
+                destructive: States::new(
+                    Colors {
+                        fill: clear,
+                        border: clear,
+                        text: v.error_fg_color,
+                    },
+                    Colors {
+                        fill: v.error_fg_color.gamma_multiply(0.15),
+                        border: clear,
+                        text: v.error_fg_color,
+                    },
+                    v.window_fill,
+                ),
+                separator: w.noninteractive.bg_stroke.color,
+                separator_margin: s.item_spacing.y,
+                heading: v.weak_text_color(),
+                text: None,
+                shortcut: v.weak_text_color(),
+                shortcut_text: {
+                    let small = egui
+                        .text_styles
+                        .get(&egui::TextStyle::Small)
+                        .cloned()
+                        .unwrap_or_default();
+                    TextSpec {
+                        size: small.size,
+                        line_height: (small.size * 1.25).round(),
+                        family: FontFamily::Proportional,
+                    }
+                },
+                shortcut_tracking: Tracking::ZERO,
+                indicator: s.icon_width,
+                dot: s.icon_width_inner / 2.0,
             },
             stepper: StepperStyle {
                 group: choice_off.bordered(choice_border),

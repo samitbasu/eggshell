@@ -168,7 +168,7 @@ fn tab_to(harness: &mut Harness<'_, Rig<App>>, path: &str) {
 
 /// The rows, among `0..count` of `list`, drawn in the item's highlight colours.
 fn highlighted(harness: &Harness<'_, Rig<App>>, list: &str, count: usize) -> Vec<usize> {
-    let hover = Style::of(&harness.ctx).select.item.paint.states.hover.fill;
+    let hover = Style::of(&harness.ctx).menu.item.paint.states.hover.fill;
     (0..count)
         .filter(|&index| support::fill_of(harness, &row(list, index)) == Some(hover))
         .collect()
@@ -412,7 +412,7 @@ mod tall {
         press(&mut harness, Key::End);
         assert!(visible(&harness, 49), "End shows the last option");
         assert!(!visible(&harness, 0));
-        let hover = Style::of(&harness.ctx).select.item.paint.states.hover.fill;
+        let hover = Style::of(&harness.ctx).menu.item.paint.states.hover.fill;
         assert_eq!(
             support::fill_of(&harness, &tall_row(49)),
             Some(hover),
