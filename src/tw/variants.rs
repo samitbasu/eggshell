@@ -22,11 +22,11 @@ pub(crate) enum Sensing {
 }
 
 impl Sensing {
-    fn clicks(self) -> bool {
+    pub(crate) fn clicks(self) -> bool {
         matches!(self, Self::Click | Self::ClickDrag)
     }
 
-    fn drags(self) -> bool {
+    pub(crate) fn drags(self) -> bool {
         matches!(self, Self::Drag | Self::ClickDrag)
     }
 
