@@ -44,6 +44,7 @@ mod layout;
 mod layout_animation;
 mod line_clamp;
 mod menu;
+mod menu_offset;
 mod modal;
 mod named_layouts;
 mod overlay;
