@@ -59,6 +59,8 @@ mod presence;
 mod press_bubble;
 mod prims;
 mod progress;
+mod regions;
+mod responsive_example;
 mod scroll;
 mod scroll_keys;
 mod select;

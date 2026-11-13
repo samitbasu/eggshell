@@ -225,6 +225,12 @@ impl ReadablePath {
     pub(crate) fn clear(&mut self) {
         self.0.clear();
     }
+
+    /// Makes `path`, a readable path taken earlier, the one being built.
+    pub(crate) fn reset_to(&mut self, path: &str) {
+        self.0.clear();
+        self.0.push_str(path);
+    }
 }
 
 /// The id a key has under `parent`.

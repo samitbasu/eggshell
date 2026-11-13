@@ -89,7 +89,7 @@ impl Bar {
 
 const BAR_HEIGHT: f32 = 44.0;
 
-pub type View<A> = for<'b, 'f> fn(&mut Builder<'b, 'f, A>, &A);
+pub type View<A> = for<'b, 'f> fn(&mut Builder<'b, 'f, A>, &'f A);
 
 /// What the rig paints under the layout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

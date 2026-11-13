@@ -6,8 +6,10 @@
 //! a list of clickable nodes and a segmented control inside the tree.
 //!
 //! Taffy has no `order` property: the "order" demo builds the children in the
-//! desired order instead. The guide's responsive navigation and three-column
-//! layout belong to M7.
+//! desired order instead. The guide's responsive navigation and its
+//! mobile-first three-column layout take their breakpoints from the width of a
+//! region (a CSS media query on the viewport becomes a container query), so
+//! they follow the window.
 //! Guide: https://css-tricks.com/snippets/css/a-guide-to-flexbox/
 
 #[path = "common/mod.rs"]
@@ -82,6 +84,8 @@ impl Default for State {
                 Demo::choosing("flex-basis", &BASES, flex_basis),
                 Demo::choosing("align-self", &ALIGN_SELVES, align_self),
                 Demo::choosing("order", &ORDERS, order),
+                Demo::fixed("Responsive navigation", responsive_navigation),
+                Demo::fixed("Mobile-first three columns", three_columns),
             ],
             demo: 0,
             choice: 0,
@@ -493,6 +497,72 @@ pub fn order<A>(b: &mut B<'_, '_, A>, order: [usize; 5]) {
         for index in order {
             b.div(link(), |b| b.text(tw(), LINKS[index]));
         }
+    });
+}
+
+/// The guide's responsive navigation: the links sit at the right, spread
+/// below 800 points and stack below 600. The breakpoints are the region's
+/// width, which is the width the navigation has.
+///
+/// ```html
+/// <nav class="flex flex-wrap gap-2 p-2 ... h-[300px] justify-end max-[800px]:justify-around max-[600px]:flex-col">
+///   <a class="px-3 py-2 bg-[#00008b] text-white rounded text-center">Home</a>
+///   <!-- About, Pricing, Blog, Contact -->
+/// </nav>
+/// ```
+pub fn responsive_navigation<A>(b: &mut B<'_, '_, A>) {
+    b.region("navigation", tw().w_full().h_px(300.0), |b, size| {
+        let nav = bar().flex_wrap().items_start().size_full();
+        let nav = if size.x < 600.0 {
+            nav.flex_col()
+        } else if size.x < 800.0 {
+            nav.justify_around()
+        } else {
+            nav.justify_end()
+        };
+        b.div(nav, |b| links(b, |_| link().text_center()));
+    });
+}
+
+/// The guide's mobile-first layout: header, main, two asides and footer, one
+/// per row; the asides side by side from 600 points; from 800 the main
+/// content, three times as wide, between them. `order` is the order the
+/// children are built in.
+///
+/// ```html
+/// <div class="flex flex-wrap gap-2 p-2 ... h-[400px]">
+///   <header class="... grow basis-full">Header</header>
+///   <aside class="... grow basis-full min-[600px]:basis-auto">Aside 1</aside>
+///   <main class="... grow basis-full min-[800px]:grow-[3] min-[800px]:basis-0">Main</main>
+///   <aside class="... grow basis-full min-[600px]:basis-auto">Aside 2</aside>
+///   <footer class="... grow basis-full">Footer</footer>
+/// </div>
+/// ```
+pub fn three_columns<A>(b: &mut B<'_, '_, A>) {
+    b.region("page", tw().w_full().h_px(400.0), |b, size| {
+        let side = if size.x >= 600.0 {
+            link().grow().basis_auto()
+        } else {
+            link().grow().basis_full()
+        };
+        let main = if size.x >= 800.0 {
+            link().grow_by(3.0).basis_px(0.0)
+        } else {
+            link().grow().basis_full()
+        };
+        let full = || link().grow().basis_full();
+        b.div(bar().flex_wrap().size_full(), |b| {
+            b.div(full(), |b| b.text(tw(), "Header"));
+            if size.x >= 800.0 {
+                b.div(side.clone(), |b| b.text(tw(), "Aside 1"));
+                b.div(main, |b| b.text(tw(), "Main"));
+            } else {
+                b.div(main, |b| b.text(tw(), "Main"));
+                b.div(side.clone(), |b| b.text(tw(), "Aside 1"));
+            }
+            b.div(side, |b| b.text(tw(), "Aside 2"));
+            b.div(full(), |b| b.text(tw(), "Footer"));
+        });
     });
 }
 

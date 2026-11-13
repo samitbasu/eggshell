@@ -55,6 +55,18 @@ fn place<A>(ctx: &Context, build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) 
         .layout(AREA)
 }
 
+/// [`place`] for a view that borrows `app` for the frame.
+fn place_borrowing<A>(
+    ctx: &Context,
+    app: &A,
+    build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>, &'f A),
+) -> Placed<A> {
+    LayoutState::new()
+        .with_base_text(common::base_text_in(ctx))
+        .build(ctx, |b| build(b, app))
+        .layout(AREA)
+}
+
 fn controls(b: &mut Builder<'_, '_, ()>) {
     b.div(tw().flex().flex_col().gap(2.0).w_px(400.0), |b| {
         b.button("button", "Save").add();
@@ -211,7 +223,7 @@ fn overflows_in(style: ShadcnStyle, theme: Theme) -> Vec<String> {
     let app = chat_shell::state::App::default();
     found.extend(overflow(
         "chat_shell",
-        &place(&ctx, |b| chat_shell::view::layout(b, &app)),
+        &place_borrowing(&ctx, &app, chat_shell::view::layout),
     ));
     found
 }

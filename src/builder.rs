@@ -18,10 +18,11 @@ use crate::overlay_chain::{OverlayChain, Unplaced};
 use crate::owned::Enablement;
 use crate::pipeline::{
     BuildState, ColorSource, DismissFn, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind,
-    ScrollNode,
+    Pass, ScrollNode, solve,
 };
 use crate::presence::{self, Motion, Step};
 use crate::prim::{Icon, Prim};
+use crate::region::RegionDecl;
 use crate::roots::{OverlayDecl, Presentation, RootDecl, overlay_style};
 use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
@@ -288,6 +289,128 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         A: 'static,
     {
         ScrollChain::new(self.reborrow(), key, tw)
+    }
+
+    /// A region: a leaf that only layout sizes, whose content `body` builds
+    /// after the layout around it, in the same frame.
+    ///
+    /// `body` runs with the leaf's content-box size, and what it builds is
+    /// laid out at exactly that size as a tree of its own, so what it builds
+    /// can depend on the room it has. The leaf's size is its classes' alone
+    /// (`flex_1`, a width, a height): it never depends on the content, as a
+    /// CSS container query's container does not. Regions nest, an enclosing
+    /// one's `body` running before those inside it; scroll containers and
+    /// overlays declared in `body` follow. Text classes are inherited into
+    /// `body`, and an overlay in it may be anchored to a node outside.
+    ///
+    /// `body` borrows application data for the frame (`'f`), so a function
+    /// that declares a region names `'f`:
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, tw};
+    /// struct App { title: String }
+    ///
+    /// fn canvas<'f>(app: &'f App, b: &mut Builder<'_, 'f, App>) {
+    ///     b.region("canvas", tw().flex_1().min_w_0(), move |b, size| {
+    ///         if size.x > 300.0 {
+    ///             b.text(tw(), app.title.as_str());
+    ///         }
+    ///     });
+    /// }
+    /// ```
+    ///
+    /// It does not compile without it:
+    ///
+    /// ```compile_fail
+    /// # use eggshell_ui::{Builder, tw};
+    /// # struct App { title: String }
+    /// fn canvas(app: &App, b: &mut Builder<'_, '_, App>) {
+    ///     b.region("canvas", tw(), move |b, _| b.text(tw(), app.title.as_str()));
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn region<K: Key>(
+        &mut self,
+        key: K,
+        tw: Tw,
+        body: impl FnOnce(&mut Builder<'_, 'f, A>, egui::Vec2) + 'f,
+    ) {
+        let id = child_id(self.path, &key);
+        let readable = self.identify(id, &key);
+        let ambient = self.ambient_in(&tw);
+        let parts = Parts {
+            id: Some(id),
+            ..Parts::anonymous(NodeKind::Region, readable.clone())
+        };
+        self.leaf_node(tw, parts);
+        let leaf = *self.kids.last().expect("the leaf was just added");
+        let text = self
+            .st
+            .tree
+            .get_node_context(leaf)
+            .expect("the leaf has a context")
+            .text
+            .clone();
+        self.frame.roots[self.frame.current]
+            .regions
+            .push(RegionDecl {
+                leaf,
+                id,
+                readable,
+                text,
+                ambient,
+                body: Box::new(body),
+            });
+    }
+
+    /// The width `candidate` has when it is laid out as wide as it wants: to
+    /// choose, in a [`region`](Self::region), the first of several forms that
+    /// fits the room.
+    ///
+    /// `candidate` is built into a tree of its own, with the text classes
+    /// inherited here and under this scope's keys, and thrown away. Its keys
+    /// are not registered, so it may be built again for real in the same
+    /// frame, and neither the closures, the overlays and the regions it
+    /// declares nor anything else it adds outlives the call. The cost is one
+    /// more measure of the candidate.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, tw};
+    /// fn title(b: &mut Builder<'_, '_, ()>, full: bool) {
+    ///     b.text(tw(), if full { "A long title for a pane" } else { "Title" });
+    /// }
+    ///
+    /// fn pick(b: &mut Builder<'_, '_, ()>, room: f32) {
+    ///     let full = |b: &mut Builder<'_, '_, ()>| title(b, true);
+    ///     if b.max_content_width(full) <= room {
+    ///         full(b);
+    ///     } else {
+    ///         title(b, false);
+    ///     }
+    /// }
+    /// ```
+    pub fn max_content_width(&mut self, candidate: impl FnOnce(&mut Builder<'_, 'f, A>)) -> f32 {
+        let ctx = self.frame.ctx;
+        let mut st = self.st.scratch();
+        let mut frame = Frame::new(ctx);
+        let mut kids = Vec::new();
+        candidate(&mut Builder::new(
+            &mut st,
+            &mut frame,
+            self.path,
+            &mut kids,
+            (self.inherited, self.ambient),
+        ));
+        let root = st
+            .tree
+            .new_with_children(overlay_style(), &kids)
+            .expect("children were created in this tree");
+        let loose = Size {
+            width: taffy::AvailableSpace::MaxContent,
+            height: taffy::AvailableSpace::MaxContent,
+        };
+        solve(ctx, &frame.measures, &mut st.tree, root, loose);
+        st.tree.layout(root).expect("node exists").size.width
     }
 
     /// An overlay: a floating layer placed against an anchor. See
@@ -573,6 +696,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let mark = self.st.names.push(key);
         let path = self.st.names.as_str().to_owned();
         self.st.names.pop_to(mark);
+        if self.st.pass == Pass::Scratch {
+            return path;
+        }
         self.st.seen.register(id, &path);
         #[cfg(debug_assertions)]
         if self.path == self.st.root {
@@ -638,6 +764,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             pointer_events: tw.pointer_events,
             drag: None,
             scroll: None,
+            region: None,
             description: None,
             action: None,
             interaction: Interaction {

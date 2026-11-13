@@ -22,6 +22,7 @@ use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
 use crate::owned::Enablement;
 use crate::prim::Prim;
+use crate::region::{self, RegionDecl};
 use crate::roots::{
     ById, Form, PlacedOverlay, PlacedRoot, PlacedRootKind, Presentation, RootDecl, RootKind,
     modal_style, root_of,
@@ -66,6 +67,11 @@ pub enum NodeKind {
     /// The root of an overlay, laid out on its own and placed against its
     /// anchor.
     Overlay,
+    /// An identified region: a leaf that only layout sizes, with the root of
+    /// its content built after the layout around it.
+    Region,
+    /// The root of a region's content, laid out at its leaf's content box.
+    RegionContent,
 }
 
 /// taffy's per-node context.
@@ -86,8 +92,37 @@ pub(crate) struct Node {
     pub interaction: Interaction,
     pub drag: Option<Box<NodeDrag>>,
     pub scroll: Option<ScrollNode>,
+    /// For a region's leaf, the root of its content, once built.
+    pub region: Option<NodeId>,
     pub description: Option<Box<Description>>,
     pub action: Option<Action>,
+}
+
+impl Node {
+    /// A node with no identity, paint or behaviour.
+    pub(crate) fn bare(kind: NodeKind, path: String, text: TextStyle) -> Self {
+        Self {
+            id: None,
+            path,
+            kind,
+            paint: BoxPaint::default(),
+            text,
+            text_valign: VAlign::Top,
+            prim: None,
+            measure: None,
+            draw: None,
+            draw_kind: DrawKind::Paint,
+            z: 0,
+            inert: false,
+            pointer_events: PointerEvents::Auto,
+            interaction: Interaction::default(),
+            drag: None,
+            scroll: None,
+            region: None,
+            description: None,
+            action: None,
+        }
+    }
 }
 
 /// Whether a node with this `interaction` and draw is a Tab stop by what its
@@ -161,6 +196,36 @@ pub(crate) struct BuildState {
     pub tree: TaffyTree<Node>,
     pub seen: Seen,
     pub names: ReadablePath,
+    pub pass: Pass,
+}
+
+/// Whether what is being built is the frame, or a candidate measured and
+/// thrown away ([`Builder::max_content_width`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Pass {
+    Live,
+    Scratch,
+}
+
+impl BuildState {
+    /// A state to build a candidate in: its own tree, its own memory, and no
+    /// claim on any key, so that building it leaves nothing behind.
+    pub(crate) fn scratch(&self) -> Self {
+        let mut tree = TaffyTree::new();
+        tree.disable_rounding();
+        Self {
+            scope: self.scope,
+            root: self.root,
+            name: self.name,
+            alive: self.alive.clone(),
+            built_at: self.built_at,
+            kept: Handle::default(),
+            tree,
+            seen: Seen::default(),
+            names: ReadablePath::default(),
+            pass: Pass::Scratch,
+        }
+    }
 }
 
 #[cfg(debug_assertions)]
@@ -182,7 +247,7 @@ pub(crate) struct Frame<'f, A> {
     /// The roots, the base first and each overlay in the order it was
     /// declared: a slot is reserved before a body is built, so an overlay
     /// declared in a body comes after the overlay it is declared in.
-    pub roots: Vec<RootDecl>,
+    pub roots: Vec<RootDecl<'f, A>>,
     /// What to run when an overlay is dismissed, by the overlay's id.
     pub dismiss: HashMap<Id, DismissFn<A>>,
     /// What to run for the overlays that finished leaving this frame.
@@ -191,7 +256,26 @@ pub(crate) struct Frame<'f, A> {
     pub current: usize,
 }
 
-impl<A> Frame<'_, A> {
+impl<'f, A> Frame<'f, A> {
+    /// Takes the declaration of root `at` for layout, leaving an empty one
+    /// that the closures of its regions declare into.
+    pub(crate) fn take_decl(&mut self, at: usize) -> RootDecl<'f, A> {
+        std::mem::replace(&mut self.roots[at], RootDecl::base())
+    }
+
+    pub(crate) fn new(ctx: &'f egui::Context) -> Self {
+        Self {
+            ctx,
+            measures: Vec::new(),
+            draws: Vec::new(),
+            drag: Decls::default(),
+            roots: vec![RootDecl::base()],
+            dismiss: HashMap::new(),
+            exited: Vec::new(),
+            current: 0,
+        }
+    }
+
     /// Records `leaf` as a scroll container of the root being built.
     pub(crate) fn add_scroll(&mut self, leaf: NodeId) {
         self.roots[self.current].scrolls.push(leaf);
@@ -307,6 +391,7 @@ impl LayoutState {
                 tree,
                 seen: Seen::default(),
                 names: ReadablePath::default(),
+                pass: Pass::Live,
             },
             base_text: None,
         }
@@ -353,16 +438,7 @@ impl LayoutState {
         st.tree.disable_rounding();
         st.seen.clear();
         st.names.clear();
-        let mut frame = Frame {
-            ctx,
-            measures: Vec::new(),
-            draws: Vec::new(),
-            drag: Decls::default(),
-            roots: vec![RootDecl::base()],
-            dismiss: HashMap::new(),
-            exited: Vec::new(),
-            current: 0,
-        };
+        let mut frame = Frame::new(ctx);
         let mut kids = Vec::new();
         f(&mut Builder::new(
             st,
@@ -378,26 +454,7 @@ impl LayoutState {
         st.tree
             .set_node_context(
                 root,
-                Some(Node {
-                    id: None,
-                    path: "<root>".to_owned(),
-                    kind: NodeKind::Root,
-                    paint: BoxPaint::default(),
-                    text: base,
-                    text_valign: VAlign::Top,
-                    prim: None,
-                    measure: None,
-                    draw: None,
-                    draw_kind: DrawKind::Paint,
-                    z: 0,
-                    inert: false,
-                    pointer_events: PointerEvents::Auto,
-                    interaction: Interaction::default(),
-                    drag: None,
-                    scroll: None,
-                    description: None,
-                    action: None,
-                }),
+                Some(Node::bare(NodeKind::Root, "<root>".to_owned(), base)),
             )
             .expect("root was just created");
         frame.roots[0].node = Some(root);
@@ -429,19 +486,10 @@ impl<'f, A> Built<'f, A> {
         let Self {
             st,
             ctx,
-            frame,
+            mut frame,
             root,
         } = self;
         let _timer = Timer::start(ctx, Phase::Layout);
-        let Frame {
-            measures,
-            draws,
-            drag,
-            roots: decls,
-            dismiss,
-            exited,
-            ..
-        } = frame;
         st.tree
             .set_style(
                 root,
@@ -455,22 +503,10 @@ impl<'f, A> Built<'f, A> {
                 },
             )
             .expect("root exists");
-        let solve = |tree: &mut TaffyTree<Node>, root: NodeId, available: Size<AvailableSpace>| {
-            tree.compute_layout_with_measure(root, available, |input, _, node, style| {
-                let Some(node) = node else {
-                    return leaf_layout(input, style, |_| {
-                        LayoutOutput::from_outer_size(Size::ZERO)
-                    });
-                };
-                leaf_layout(input, style, |input| {
-                    measure_content(ctx, node_content(node, &measures), &node.text, &input)
-                })
-            })
-            .expect("tree is well formed");
-        };
-        let mut decls = decls.into_iter();
-        let base = decls.next().expect("a frame has a base root");
+        let base = frame.take_decl(0);
         solve(
+            ctx,
+            &frame.measures,
             &mut st.tree,
             root,
             Size {
@@ -478,23 +514,23 @@ impl<'f, A> Built<'f, A> {
                 height: AvailableSpace::Definite(area.height()),
             },
         );
-        for leaf in base.scrolls.into_iter().rev() {
-            solve_content(&mut st.tree, leaf, &solve);
-        }
+        settle_below(ctx, st, &mut frame, 0, base.scrolls, base.regions);
 
         let mut nodes = Vec::new();
         let mut prims = Vec::new();
-        let probe = (Debug::of(ctx) == Debug::Outlines).then_some(Probe {
-            ctx,
-            measures: &measures,
-        });
+        let outlines = Debug::of(ctx) == Debug::Outlines;
         let mut settle = Settle::new(ctx);
         collect(
             &mut st.tree,
             root,
             area.min,
             0,
-            probe.as_ref(),
+            outlines
+                .then_some(Probe {
+                    ctx,
+                    measures: &frame.measures,
+                })
+                .as_ref(),
             &mut settle,
             &mut nodes,
             &mut prims,
@@ -511,13 +547,17 @@ impl<'f, A> Built<'f, A> {
         st.kept.with(|kept| kept.area = Some(area));
         let mut stack = Stack::load(&st.kept);
         let mut present = HashSet::new();
-        for decl in decls {
+        // Regions may declare overlays, which come after those declared in
+        // the build.
+        let mut at = 1;
+        while at < frame.roots.len() {
             let RootDecl {
                 kind,
                 parent,
                 node,
                 scrolls,
-            } = decl;
+                regions,
+            } = frame.take_decl(at);
             let node = node.expect("a root's body was built");
             let overlay = match kind {
                 RootKind::Base => unreachable!("only the first root is the base"),
@@ -567,7 +607,7 @@ impl<'f, A> Built<'f, A> {
                         width: AvailableSpace::MaxContent,
                         height: AvailableSpace::MaxContent,
                     };
-                    solve(&mut st.tree, node, loose);
+                    solve(ctx, &frame.measures, &mut st.tree, node, loose);
                     let natural = laid_size(&st.tree, node);
                     let mut spot = place(anchor, natural, &placement, area);
                     let room = Size {
@@ -584,6 +624,8 @@ impl<'f, A> Built<'f, A> {
                             room.map_or(AvailableSpace::MaxContent, AvailableSpace::Definite)
                         };
                         solve(
+                            ctx,
+                            &frame.measures,
                             &mut st.tree,
                             node,
                             Size {
@@ -608,6 +650,8 @@ impl<'f, A> Built<'f, A> {
                         .set_style(node, modal_style(modal, screen))
                         .expect("node exists");
                     solve(
+                        ctx,
+                        &frame.measures,
                         &mut st.tree,
                         node,
                         Size {
@@ -626,16 +670,19 @@ impl<'f, A> Built<'f, A> {
                 }
             };
             present.insert(overlay.id);
-            for leaf in scrolls.into_iter().rev() {
-                solve_content(&mut st.tree, leaf, &solve);
-            }
+            settle_below(ctx, st, &mut frame, at, scrolls, regions);
             let first = nodes.len();
             collect(
                 &mut st.tree,
                 node,
                 rect.min,
                 0,
-                probe.as_ref(),
+                outlines
+                    .then_some(Probe {
+                        ctx,
+                        measures: &frame.measures,
+                    })
+                    .as_ref(),
                 &mut settle,
                 &mut nodes,
                 &mut prims,
@@ -663,6 +710,7 @@ impl<'f, A> Built<'f, A> {
                     staged: overlay.staged,
                 }),
             });
+            at += 1;
         }
         settle.finish();
         focus::restore(ctx, &stack.keep_only(&present));
@@ -675,6 +723,14 @@ impl<'f, A> Built<'f, A> {
         }
         stack.store(&st.kept);
         st.kept.with(|kept| kept.presences.sweep());
+        let Frame {
+            measures,
+            draws,
+            drag,
+            dismiss,
+            exited,
+            ..
+        } = frame;
         drop(measures);
         let draws = draws.into_iter().map(Some).collect();
         Placed {
@@ -691,6 +747,49 @@ impl<'f, A> Built<'f, A> {
             exited,
             roots,
         }
+    }
+}
+
+/// Solves the tree under `root` in the room `available`, calling the
+/// application leaves' measures.
+pub(crate) fn solve(
+    ctx: &egui::Context,
+    measures: &[MeasureFn<'_>],
+    tree: &mut TaffyTree<Node>,
+    root: NodeId,
+    available: Size<AvailableSpace>,
+) {
+    tree.compute_layout_with_measure(root, available, |input, _, node, style| {
+        let Some(node) = node else {
+            return leaf_layout(input, style, |_| LayoutOutput::from_outer_size(Size::ZERO));
+        };
+        leaf_layout(input, style, |input| {
+            measure_content(ctx, node_content(node, measures), &node.text, &input)
+        })
+    })
+    .expect("tree is well formed");
+}
+
+/// Lays out what hangs off a root that has been solved: the content of its
+/// scroll containers, an enclosing one first, and then its regions, each built
+/// at its leaf's size and solved before the regions and scroll containers that
+/// it declared in turn.
+fn settle_below<'f, A>(
+    ctx: &egui::Context,
+    st: &mut BuildState,
+    frame: &mut Frame<'f, A>,
+    at: usize,
+    scrolls: Vec<NodeId>,
+    regions: Vec<RegionDecl<'f, A>>,
+) {
+    for leaf in scrolls.into_iter().rev() {
+        solve_content(&mut st.tree, leaf, &|tree, root, available| {
+            solve(ctx, &frame.measures, tree, root, available);
+        });
+    }
+    for region in regions {
+        let (scrolls, regions) = region::run(ctx, st, frame, at, region);
+        settle_below(ctx, st, frame, at, scrolls, regions);
     }
 }
 
@@ -1016,6 +1115,7 @@ fn collect(
         });
     prims.push(node.prim.take());
     let scroll = node.scroll.take();
+    let region = node.region.take();
     let index = nodes.len();
     nodes.push(PlacedNode {
         id: node.id,
@@ -1047,6 +1147,22 @@ fn collect(
     for child in tree.children(id).expect("node exists") {
         let at = nodes.len();
         collect(tree, child, min, depth + 1, probe, settle, nodes, prims);
+        let reach = nodes[index].reach.union(nodes[at].reach);
+        nodes[index].reach = reach;
+    }
+    if let Some(content) = region {
+        let (inset, _) = region::content_box(tree, id);
+        let at = nodes.len();
+        collect(
+            tree,
+            content,
+            min + inset,
+            depth + 1,
+            probe,
+            settle,
+            nodes,
+            prims,
+        );
         let reach = nodes[index].reach.union(nodes[at].reach);
         nodes[index].reach = reach;
     }
