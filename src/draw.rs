@@ -35,6 +35,7 @@ use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
+use crate::tooltip;
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
     BoxPaint, Flip, Grouping, Look, Opacity, PointerEvents, Presence, Progress, RingPlacement,
@@ -1564,6 +1565,8 @@ impl<A> Placed<A> {
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
+        let interruption = tooltip::interruption(ui.ctx(), dnd::drag_state(ui.ctx()));
+        tooltip::begin(ui.ctx());
         let _anchor_focus = focus::AnchorFocusHeld::new(
             ui.ctx(),
             overlay_input::pointer_on(ui.ctx(), &self.nodes, &self.roots),
@@ -1662,6 +1665,7 @@ impl<A> Placed<A> {
             app,
         );
         finish.finish(&ctx, &nodes, &mut drag, app);
+        tooltip::end(&ctx, &kept, interruption);
         for then in exited {
             then(app);
         }
@@ -1829,7 +1833,7 @@ pub(crate) fn blur_cause(ui: &Ui) -> Blur {
 /// Reads the response the library gave the node whose draw closure is
 /// running.
 pub trait NodeUi {
-    /// The node's response: clicks, drags, hover, pointer position, tooltips.
+    /// The node's response: clicks, drags, hover, pointer position.
     ///
     /// The library made the node's one hit test before painting it, with its
     /// border box, so hover styling and this response agree. A node that

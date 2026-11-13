@@ -158,9 +158,10 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         self
     }
 
-    /// Shown while the pointer hovers the control, as egui's `on_hover_text`
-    /// shows it: with egui's timing and style, and also when the control is
-    /// disabled, as an HTML `title` is. It adds to the control's accessible
+    /// Shown while the pointer hovers the control, in a tooltip overlay
+    /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
+    /// delay, at once when it has keyboard focus, and also when the control is
+    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.tooltip = Some(text.into());
@@ -260,7 +261,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                 b.div(bar, |b| b.div(filled, |_| {}));
                 b.div(travel, |b| {
                     b.div_id(Part::Thumb, knob, |_| {}).draw(move |app, ui| {
-                        let response = tipped(ui.node_response(), &thumb_tip);
+                        let response = tipped(ui, ui.node_response(), &thumb_tip);
                         let track = ui.ctx().read_response(track).map(|r| r.rect);
                         let pointer = response
                             .interact_pointer_pos()
@@ -297,7 +298,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                 });
             })
             .draw(move |app, ui| {
-                let response = tipped(ui.node_response(), &track_tip);
+                let response = tipped(ui, ui.node_response(), &track_tip);
                 let pressed = response.is_pointer_button_down_on();
                 edits.pointer(app, ui, (response.id, pressed), |app| {
                     if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {

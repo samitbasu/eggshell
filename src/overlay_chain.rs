@@ -321,7 +321,7 @@ impl<'f, A, State> OverlayChain<'_, 'f, A, State> {
             declared_at,
             state: _,
         } = self;
-        let motion = presence.resolve(b.ctx(), &presentation, behavior.nav, declared_at);
+        let motion = presence.resolve(b.ctx(), &presentation, (band, behavior.nav), declared_at);
         let decl = OverlayDecl {
             id: slot.id,
             presentation,
@@ -379,7 +379,7 @@ impl<A> Presence<A> {
         &self,
         ctx: &egui::Context,
         presentation: &Presentation,
-        nav: Nav,
+        (band, nav): (Band, Nav),
         declared_at: &'static std::panic::Location<'static>,
     ) -> Option<Motion> {
         let Some(shown) = self.shown else {
@@ -395,6 +395,7 @@ impl<A> Presence<A> {
         };
         let motion = &crate::Style::of(ctx).motion;
         let (kind, edge) = match presentation {
+            Presentation::Floating { .. } if band == Band::Tooltip => (motion.tooltip, None),
             Presentation::Floating { .. }
                 if matches!(nav, Nav::Menu | Nav::Submenu | Nav::Listbox) =>
             {

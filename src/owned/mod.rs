@@ -238,19 +238,17 @@ impl<A> FieldHooks<A> {
 pub(crate) type Tip = Option<WidgetText>;
 
 /// `response` with `tip` shown on hover, also when the control is disabled.
-pub(crate) fn tipped(response: Response, tip: &Tip) -> Response {
-    match tip {
-        Some(tip) => response
-            .on_hover_text(tip.clone())
-            .on_disabled_hover_text(tip.clone()),
-        None => response,
+pub(crate) fn tipped(ui: &Ui, response: Response, tip: &Tip) -> Response {
+    if let Some(tip) = tip {
+        crate::tooltip::register(ui, &response, tip.text());
     }
+    response
 }
 
 /// The node's response, described to assistive technology as a `role` named
 /// `name`, and as on or off when it is `selected`, with the tooltip `tip`.
 fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str, tip: &Tip) -> Response {
-    let response = tipped(ui.node_response(), tip);
+    let response = tipped(ui, ui.node_response(), tip);
     describe(&response, ui.is_enabled(), role, selected, name);
     response
 }

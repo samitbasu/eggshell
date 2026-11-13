@@ -418,7 +418,7 @@ impl LayoutState {
     /// [`Built::layout`] to measure text. `'f` covers this borrow, `ctx`, and
     /// the application data that the frame's measure closures capture.
     #[track_caller]
-    pub fn build<'f, A>(
+    pub fn build<'f, A: 'static>(
         &'f mut self,
         ctx: &'f egui::Context,
         f: impl FnOnce(&mut Builder<'_, 'f, A>),
@@ -440,13 +440,15 @@ impl LayoutState {
         st.names.clear();
         let mut frame = Frame::new(ctx);
         let mut kids = Vec::new();
-        f(&mut Builder::new(
+        let mut builder = Builder::new(
             st,
             &mut frame,
             st.root,
             &mut kids,
             (&base, Enablement::Enabled),
-        ));
+        );
+        f(&mut builder);
+        crate::tooltip::declare(&mut builder);
         let root = st
             .tree
             .new_with_children(Style::default(), &kids)

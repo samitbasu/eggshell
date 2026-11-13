@@ -460,6 +460,11 @@ impl Source {
         }
     }
 
+    /// Whether the last input was a key (or there was none).
+    pub(crate) fn last_is_keyboard(ctx: &Context) -> bool {
+        Self::last(ctx) == Self::Keyboard
+    }
+
     /// Where the last input came from; with none (an overlay opened by the
     /// application), the keyboard.
     fn last(ctx: &Context) -> Self {
@@ -517,4 +522,9 @@ fn describe_trigger(ctx: &Context, open: &Open<'_>) {
             node.set_has_popup(popup);
         }
     });
+}
+
+/// Whether the last input was from the keyboard, as opposed to a press.
+pub(crate) fn keyboard_was_last(ctx: &Context) -> bool {
+    Source::last_is_keyboard(ctx)
 }

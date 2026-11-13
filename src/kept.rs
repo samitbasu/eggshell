@@ -15,6 +15,7 @@ use crate::overlay_input::Typing;
 use crate::owned::Menus;
 use crate::presence::Presences;
 use crate::stack::Stack;
+use crate::tooltip::Tooltips;
 use crate::transition::Tracking;
 
 #[derive(Default)]
@@ -25,6 +26,7 @@ pub(crate) struct Kept {
     pub(crate) menus: Menus,
     pub(crate) animation: Tracking,
     pub(crate) presences: Presences,
+    pub(crate) tooltips: Tooltips,
     /// The area the last layout placed things in.
     pub(crate) area: Option<Rect>,
 }

@@ -1039,12 +1039,20 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
         self.draw(move |app, ui| then(app, &ui.node_response()))
     }
 
-    /// Shows `text` while the node is hovered, also when it is disabled, as
-    /// the owned widgets' `tooltip` does.
-    pub fn tooltip(self, text: impl Into<egui::WidgetText>) -> Self {
+    /// Shows `text` in a tooltip overlay while the node is hovered, also when
+    /// it is disabled, as the owned widgets' `tooltip` does. The node senses
+    /// hover if it senses nothing else.
+    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         let tip = Some(text.into());
+        self.edit(|context| {
+            let interaction = &mut context.interaction;
+            if interaction.sensing == Sensing::None {
+                interaction.focusability = crate::tw::Focusability::Skip;
+            }
+            interaction.sensing = interaction.sensing.or(Sensing::Hover);
+        });
         self.draw(move |_, ui| {
-            crate::owned::tipped(ui.node_response(), &tip);
+            crate::owned::tipped(ui, ui.node_response(), &tip);
         })
     }
 

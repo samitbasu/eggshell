@@ -72,7 +72,7 @@ fn place_in(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, ()>)) -> Pla
     place_app(area, f)
 }
 
-fn place_app<A>(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
+fn place_app<A: 'static>(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
     fixed_state().build(ctx(), f).layout(area)
 }
 

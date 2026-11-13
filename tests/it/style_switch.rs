@@ -48,7 +48,10 @@ fn context(theme: Theme, style: ShadcnStyle) -> Context {
     ctx
 }
 
-fn place<A>(ctx: &Context, build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
+fn place<A: 'static>(
+    ctx: &Context,
+    build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>),
+) -> Placed<A> {
     LayoutState::new()
         .with_base_text(common::base_text_in(ctx))
         .build(ctx, build)
