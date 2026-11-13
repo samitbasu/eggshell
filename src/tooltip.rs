@@ -8,16 +8,88 @@
 //! `Kept::tooltips`, so it is per `LayoutState`.
 
 use core::time::Duration;
+use std::any::Any;
+use std::hash::Hash;
+use std::sync::Arc;
 
-use egui::{Context, Id, Key, Pos2, Rect, Shape, Ui, Vec2, pos2};
+use egui::{Context, Id, Key, Pos2, Rect, Shape, Ui, Vec2, WidgetText, pos2};
 
-use crate::builder::Builder;
+use crate::builder::{Builder, Surface};
 use crate::kept::Handle;
 use crate::overlay::{Anchor, Band, DismissOn, Distance, Focus, Placement};
 use crate::overlay_chain::OverlayChain;
 use crate::overlay_input::Drag;
 use crate::presence::Shown;
 use crate::tw::tw;
+
+/// What a tooltip shows.
+#[derive(Clone)]
+pub(crate) enum Content {
+    Text(WidgetText),
+    /// A [`Built`], typed by the application it is built for, which the
+    /// state it is kept in is not.
+    Built(Arc<dyn Any + Send + Sync>),
+}
+
+type BuildFn<A> = dyn Fn(&mut Builder<'_, '_, A>) + Send + Sync;
+
+struct Built<A>(Box<BuildFn<A>>);
+
+impl Content {
+    pub(crate) fn built<A: 'static>(
+        build: impl Fn(&mut Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        Self::Built(Arc::new(Built::<A>(Box::new(build))))
+    }
+
+    /// Adds what this shows to `b`, drawn on a tooltip. The content of an
+    /// application other than `b`'s adds nothing.
+    fn build<A: 'static>(&self, b: &mut Builder<'_, '_, A>) {
+        b.on_surface(Surface::Tooltip, |b| match self {
+            Self::Text(text) => b.rich(tw(), text.clone()),
+            Self::Built(built) => {
+                if let Some(built) = built.downcast_ref::<Built<A>>() {
+                    (built.0)(b);
+                }
+            }
+        });
+    }
+}
+
+/// A trigger's tooltip: what it shows, and its text, which describes the
+/// trigger to assistive technology.
+#[derive(Clone)]
+pub(crate) struct Tooltip {
+    content: Content,
+    description: String,
+}
+
+impl Tooltip {
+    /// The tooltip showing `content`, for a trigger built by `b`. A built
+    /// content's text is found by building it where nothing shows it, under
+    /// `trigger`, so two triggers' contents do not share keys.
+    pub(crate) fn new<A: 'static>(
+        b: &mut Builder<'_, '_, A>,
+        trigger: impl Hash + std::fmt::Debug,
+        content: Content,
+    ) -> Self {
+        match content {
+            Content::Text(text) => Self::text(text),
+            Content::Built(_) => Self {
+                description: b.text_of(trigger, |b| content.build(b)),
+                content,
+            },
+        }
+    }
+
+    /// The tooltip showing `text`.
+    pub(crate) fn text(text: WidgetText) -> Self {
+        Self {
+            description: text.text().to_owned(),
+            content: Content::Text(text),
+        }
+    }
+}
 
 /// Why a trigger wants its tooltip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,10 +101,10 @@ pub(crate) enum Cause {
 }
 
 /// A trigger drawn this frame that wants its tooltip.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub(crate) struct Trigger {
     pub(crate) id: Id,
-    pub(crate) text: String,
+    pub(crate) content: Content,
     pub(crate) cause: Cause,
 }
 
@@ -51,10 +123,10 @@ pub(crate) struct Timing {
     pub(crate) grace: Duration,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 struct Present {
     trigger: Id,
-    text: String,
+    content: Content,
     open: bool,
 }
 
@@ -111,12 +183,12 @@ impl Tooltips {
             .find(|present| present.trigger == trigger.id)
         {
             Some(present) => {
-                present.text.clone_from(&trigger.text);
+                present.content.clone_from(&trigger.content);
                 present.open = true;
             }
             None => self.present.push(Present {
                 trigger: trigger.id,
-                text: trigger.text.clone(),
+                content: trigger.content.clone(),
                 open: true,
             }),
         }
@@ -190,15 +262,15 @@ pub(crate) fn begin(ctx: &Context) {
     ctx.data_mut(|data| data.insert_temp(requests_id(), Vec::<Trigger>::new()));
 }
 
-/// Says that the node of the draw closure `ui` is a trigger for `text`.
+/// Says that the node of the draw closure `ui` is a trigger for `tip`.
 /// `response` is the one the node's hover and focus are read from.
-pub(crate) fn register(ui: &Ui, response: &egui::Response, text: &str) {
+pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
     use crate::draw::NodeUi as _;
     let id = ui.node_id();
     let wants = |cause| {
         let trigger = Trigger {
             id,
-            text: text.to_owned(),
+            content: tip.content.clone(),
             cause,
         };
         ui.data_mut(|data| {
@@ -213,7 +285,7 @@ pub(crate) fn register(ui: &Ui, response: &egui::Response, text: &str) {
         wants(Cause::Pointer);
     }
     ui.ctx().accesskit_node_builder(response.id, |node| {
-        node.set_description(text);
+        node.set_description(tip.description.as_str());
     });
 }
 
@@ -331,7 +403,7 @@ pub(crate) fn declare<'f, A: 'static>(b: &mut Builder<'_, 'f, A>) {
             .dismiss_on(DismissOn::Never)
             .shown(if tip.open { Shown::Open } else { Shown::Closed })
             .children(|s| {
-                let node = s.div_id("Box", classes, |s| s.text(tw(), tip.text));
+                let node = s.div_id("Box", classes, |s| tip.content.build(s));
                 if let Some(arrow) = arrow {
                     node.draw(move |_, ui| {
                         let rect = ui.max_rect().expand2(inset);
@@ -392,9 +464,13 @@ mod tests {
     fn trigger(name: &str, cause: Cause) -> Trigger {
         Trigger {
             id: Id::NULL.with(name),
-            text: name.to_owned(),
+            content: Content::Text(name.into()),
             cause,
         }
+    }
+
+    fn id_of(trigger: Option<Trigger>) -> Option<Id> {
+        trigger.map(|trigger| trigger.id)
     }
 
     fn open_ids(tooltips: &Tooltips) -> Vec<Id> {
@@ -495,10 +571,10 @@ mod tests {
         let outer = trigger("outer", Cause::Pointer);
         let inner = trigger("inner", Cause::Pointer);
         assert_eq!(
-            wanted(vec![focus.clone(), outer.clone(), inner.clone()]),
-            Some(inner)
+            id_of(wanted(vec![focus.clone(), outer, inner.clone()])),
+            Some(inner.id)
         );
-        assert_eq!(wanted(vec![focus.clone()]), Some(focus));
-        assert_eq!(wanted(vec![]), None);
+        assert_eq!(id_of(wanted(vec![focus.clone()])), Some(focus.id));
+        assert_eq!(id_of(wanted(vec![])), None);
     }
 }

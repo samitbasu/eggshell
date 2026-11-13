@@ -8,7 +8,7 @@ use eggshell_ui::owned::{Choice, Enablement};
 use eggshell_ui::testing::{Timeline, record};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
-use egui::{Key, Rect, Shape, Theme, pos2, vec2};
+use egui::{Key, Rect, RichText, Shape, Theme, pos2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -30,6 +30,7 @@ const PICKS: [(Pick, &str); 2] = [(Pick::A, "Alpha"), (Pick::B, "Beta")];
 #[derive(Default)]
 struct App {
     undone: u32,
+    inside: u32,
 }
 
 fn prepare(ctx: &egui::Context, _: &App) {
@@ -475,5 +476,261 @@ fn a_resting_pointer_gets_its_tooltip_without_further_input() {
     assert!(
         !harness.ctx.has_requested_repaint(),
         "and the frames stop once it is shown"
+    );
+}
+
+const RED: egui::Color32 = egui::Color32::from_rgb(200, 20, 20);
+
+/// ```html
+/// <div class="flex flex-col items-start gap-4 p-4 pt-10">
+///   <span title="Red mono">Rich</span>
+///   <span title="Strong words">Strong</span>
+///   <button>Target</button>
+///   <button>Built</button>  <!-- tooltip: Save <kbd>Ctrl+S</kbd> -->
+///   <button disabled>Off</button>  <!-- tooltip: Cannot <kbd>Ctrl+S</kbd> -->
+///   <kbd>K</kbd>
+/// </div>
+/// ```
+fn rich_view(b: &mut Builder<'_, '_, App>, _: &App) {
+    b.div(
+        tw().flex()
+            .flex_col()
+            .items_start()
+            .gap(4.0)
+            .p(4.0)
+            .pt(10.0),
+        |b| {
+            b.span("rich", tw(), "Rich")
+                .tooltip(RichText::new("Red mono").color(RED).monospace());
+            b.span("strong", tw(), "Strong")
+                .tooltip(RichText::new("Strong words").strong());
+            b.button("target", "Target")
+                .on_click(|app: &mut App| app.undone += 1);
+            b.button("built", "Built")
+                .tooltip_with(|s| {
+                    s.text(tw(), "Save");
+                    s.kbd("Ctrl+S");
+                    s.button("inside", "Inside")
+                        .on_click(|app: &mut App| app.inside += 1);
+                })
+                .add();
+            b.button("off", "Off")
+                .tooltip_with(|s| {
+                    s.text(tw(), "Cannot");
+                    s.kbd("Ctrl+S");
+                })
+                .enablement(Enablement::Disabled)
+                .add();
+            b.kbd("K");
+        },
+    );
+}
+
+fn rich_harness() -> Harness<'static, Rig<App>> {
+    harness_of(rich_view)
+}
+
+fn galley_of<'h>(harness: &'h Harness<'_, Rig<App>>, text: &str) -> &'h egui::Galley {
+    support::shapes(harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Text(shape) if shape.galley.text() == text => Some(&*shape.galley),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("{text:?} is painted"))
+}
+
+fn tooltip_ink(harness: &Harness<'_, Rig<App>>) -> egui::Color32 {
+    Style::of(&harness.ctx).tooltip.popup.paint.states.rest.text
+}
+
+#[test]
+fn a_rich_text_tooltip_keeps_its_colour_and_font() {
+    let mut harness = rich_harness();
+    hover_node(&mut harness, "/\"rich\"");
+    wait(&mut harness, DELAY + GRACE);
+    let galley = galley_of(&harness, "Red mono");
+    let format = &galley.job.sections[0].format;
+    assert_eq!(format.color, RED);
+    assert_eq!(format.font_id.family, egui::FontFamily::Monospace);
+}
+
+#[test]
+fn strong_rich_text_takes_the_tooltip_ink() {
+    let mut harness = rich_harness();
+    hover_node(&mut harness, "/\"strong\"");
+    wait(&mut harness, DELAY + GRACE);
+    let ink = tooltip_ink(&harness);
+    assert_ne!(
+        ink,
+        harness.ctx.global_style().visuals.strong_text_color(),
+        "precondition: egui's strong colour is not the tooltip's ink"
+    );
+    let galley = galley_of(&harness, "Strong words");
+    assert_eq!(galley.job.sections[0].format.color, ink);
+}
+
+#[test]
+fn a_plain_string_tooltip_still_takes_the_text_path() {
+    let mut harness = harness();
+    hover_node(&mut harness, "/\"undo\"");
+    wait(&mut harness, DELAY + GRACE);
+    let galley = galley_of(&harness, "Undo (Ctrl+Z)");
+    assert_eq!(
+        galley.job.sections[0].format.color,
+        egui::Color32::PLACEHOLDER,
+        "the library's text leaf, coloured by the painter"
+    );
+}
+
+#[test]
+fn a_built_tooltip_shows_its_content_in_the_box() {
+    let mut harness = rich_harness();
+    hover_node(&mut harness, "/\"built\"");
+    wait(&mut harness, DELAY + GRACE);
+    let tip = tip_box(&harness).expect("the tooltip is shown");
+    for text in ["Save", "Ctrl+S"] {
+        let galley = support::shapes(&harness)
+            .into_iter()
+            .find_map(|shape| match shape {
+                Shape::Text(shape) if shape.galley.text() == text => Some(shape.pos),
+                _ => None,
+            });
+        let at = galley.unwrap_or_else(|| panic!("{text:?} is painted"));
+        assert!(
+            tip.contains(at),
+            "{text:?} at {at:?} is inside the box {tip:?}"
+        );
+    }
+}
+
+#[test]
+fn a_built_tooltip_opens_on_the_frames_the_library_asks_for() {
+    let mut harness = rich_harness();
+    hover_node(&mut harness, "/\"built\"");
+    assert!(
+        !is_shown(&harness),
+        "precondition: the delay has not run out"
+    );
+    run_while_repainting(&mut harness, DELAY * 4);
+    assert!(painted(&harness, "Ctrl+S"), "shown with no further input");
+    run_while_repainting(&mut harness, DELAY * 4);
+    assert!(
+        !harness.ctx.has_requested_repaint(),
+        "and the frames stop once it is shown"
+    );
+}
+
+#[test]
+fn a_disabled_trigger_shows_its_built_tooltip() {
+    let mut harness = rich_harness();
+    hover_node(&mut harness, "/\"off\"");
+    wait(&mut harness, DELAY + GRACE);
+    assert!(painted(&harness, "Cannot"));
+}
+
+#[test]
+fn a_built_tooltip_never_takes_the_pointer() {
+    let mut harness = rich_harness();
+    hover_node(&mut harness, "/\"built\"");
+    wait(&mut harness, DELAY + GRACE);
+    let tip = tip_box(&harness).expect("the tooltip is shown");
+    let target = rect_of(&harness, "/\"target\"");
+    assert!(
+        tip.intersects(target),
+        "precondition: the tooltip {tip:?} covers the button {target:?}"
+    );
+    let inside = tooltip_nodes(&harness)
+        .into_iter()
+        .find(|(path, _)| path.ends_with("\"inside\""))
+        .map(|(_, rect)| rect)
+        .expect("the content's button is laid out");
+    assert!(
+        inside.intersects(target),
+        "precondition: the content's button {inside:?} covers the target {target:?}"
+    );
+    let at = inside.intersect(target).intersect(tip).center();
+    support::hover_over(&mut harness, at);
+    support::press_and_release(&mut harness, at);
+    let app = &harness.state().app;
+    assert_eq!(app.inside, 0, "the content took nothing");
+    assert_eq!(app.undone, 1, "the click reached the button beneath");
+}
+
+#[test]
+fn a_built_tooltip_describes_its_trigger_with_its_text_while_closed() {
+    let harness = rich_harness();
+    assert!(!is_shown(&harness), "precondition: no tooltip is open");
+    let node = harness.get_by_label("Built");
+    assert_eq!(
+        node.accesskit_node().description().as_deref(),
+        Some("Save Ctrl+S Inside")
+    );
+}
+
+#[test]
+fn a_built_tooltip_follows_hover_intent() {
+    let mut harness = rich_harness();
+    hover_node(&mut harness, "/\"built\"");
+    wait(&mut harness, DELAY - Duration::from_millis(150));
+    assert!(!is_shown(&harness), "not before the delay");
+    wait(&mut harness, Duration::from_millis(300));
+    assert!(is_shown(&harness), "after it");
+    harness.key_press(Key::Escape);
+    wait(&mut harness, Duration::from_millis(400));
+    assert!(!is_shown(&harness), "Escape hides it");
+    wait(&mut harness, DELAY + GRACE);
+    assert!(!is_shown(&harness), "and keeps it hidden while still on it");
+}
+
+#[test]
+fn keyboard_focus_shows_a_built_tooltip_at_once() {
+    let mut harness = rich_harness();
+    harness.state_mut().companion = support::Companion::Alone;
+    for _ in 0..2 {
+        harness.key_press(Key::Tab);
+        harness.run_steps(2);
+    }
+    assert_eq!(
+        support::focused_node(&harness).as_deref(),
+        Some("/\"built\""),
+        "precondition: Tab reached the button with the built tooltip"
+    );
+    assert!(painted(&harness, "Ctrl+S"), "no delay for focus");
+    assert!(
+        tooltip_nodes(&harness)
+            .iter()
+            .any(|(path, _)| path.ends_with("\"inside\"")),
+        "precondition: the tooltip holds a button"
+    );
+    harness.key_press(Key::Tab);
+    harness.run_steps(2);
+    let focused = support::focused_path(&harness);
+    assert!(
+        !focused
+            .as_deref()
+            .is_some_and(|path| path.contains("Tooltip(")),
+        "Tab never moves into the tooltip, as it did to {focused:?}"
+    );
+}
+
+#[test]
+fn a_kbd_takes_the_tooltip_look_inside_a_tooltip_and_its_own_on_the_page() {
+    let mut harness = rich_harness();
+    hover_node(&mut harness, "/\"built\"");
+    wait(&mut harness, DELAY + GRACE);
+    let kbd = Style::of(&harness.ctx).kbd.clone();
+    assert_ne!(
+        kbd.page.text, kbd.tooltip.text,
+        "precondition: the two looks differ"
+    );
+    let everywhere = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 600.0));
+    assert_eq!(
+        support::text_color(&harness, everywhere, "K"),
+        kbd.page.text
+    );
+    assert_eq!(
+        support::text_color(&harness, everywhere, "Ctrl+S"),
+        kbd.tooltip.text
     );
 }

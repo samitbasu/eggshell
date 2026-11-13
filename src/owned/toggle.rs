@@ -124,6 +124,16 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
         self
     }
 
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.button = self.button.tooltip_with(build);
+        self
+    }
+
     /// Whether the toggle takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.button = self.button.enablement(enablement);

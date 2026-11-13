@@ -658,6 +658,26 @@ pub struct TooltipStyle {
     pub grace: Duration,
 }
 
+/// Key chips (`kbd`): a key or a chord, shown as a small box.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct KbdStyle {
+    /// A chip on the page.
+    pub page: Colors,
+    /// A chip inside a tooltip, which is drawn on the tooltip's box.
+    pub tooltip: Colors,
+    /// Border width in points; zero for none.
+    pub border_width: f32,
+    /// Corner radius.
+    pub radius: u8,
+    /// Left-right padding.
+    pub padding_x: f32,
+    /// Height, and the least width, so one key is a square.
+    pub height: f32,
+    /// The text role, or `None` for the text around the chip.
+    pub text: Option<TextSpec>,
+}
+
 /// Steppers: a number field and two buttons, one above the other, in a single
 /// bordered group.
 #[derive(Clone, Debug, PartialEq)]
@@ -842,6 +862,8 @@ pub struct Style {
     pub menu: MenuStyle,
     /// Tooltips.
     pub tooltip: TooltipStyle,
+    /// Key chips.
+    pub kbd: KbdStyle,
     /// Steppers.
     pub stepper: StepperStyle,
     /// Text fields.
@@ -1259,6 +1281,23 @@ impl Style {
                 offset: Distance::new(4.0),
                 delay: Duration::from_secs_f32(egui.interaction.tooltip_delay.max(0.0)),
                 grace: Duration::from_secs_f32(egui.interaction.tooltip_grace_time.max(0.0)),
+            },
+            kbd: KbdStyle {
+                page: Colors {
+                    fill: v.code_bg_color,
+                    border: Color32::TRANSPARENT,
+                    text: v.text_color(),
+                },
+                tooltip: Colors {
+                    fill: v.code_bg_color,
+                    border: Color32::TRANSPARENT,
+                    text: v.text_color(),
+                },
+                border_width: 0.0,
+                radius,
+                padding_x: 4.0,
+                height: s.interact_size.y.min(20.0),
+                text: None,
             },
             stepper: StepperStyle {
                 group: choice_off.bordered(choice_border),

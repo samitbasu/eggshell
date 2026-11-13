@@ -20,7 +20,6 @@ use crate::kept::Handle;
 use crate::key::{ReadablePath, Seen, layout_root, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
-use crate::owned::Enablement;
 use crate::prim::Prim;
 use crate::roots::{
     ById, Form, PlacedOverlay, PlacedRoot, PlacedRootKind, Presentation, RootDecl, RootKind,
@@ -369,7 +368,7 @@ impl LayoutState {
             &mut frame,
             st.root,
             &mut kids,
-            (&base, Enablement::Enabled),
+            (&base, crate::builder::Ambient::PAGE),
         );
         f(&mut builder);
         crate::tooltip::declare(&mut builder);

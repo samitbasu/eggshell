@@ -6,7 +6,7 @@ use egui::{Id, Key, Role, Ui};
 
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
-use super::{Enablement, OnResponse, choice_label, choice_row, described, number};
+use super::{Enablement, OnResponse, Tooltip, choice_label, choice_row, described, number};
 use crate::builder::Slot;
 use crate::{Builder, Style, Tw, tw};
 
@@ -116,6 +116,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                         enablement: own,
                         ..
                     } = option;
+                    let tooltip = tooltip.map(Tooltip::text);
                     let enablement = enablement.and(own);
                     let chosen = value == current;
                     let look = if chosen { &radio.on } else { &radio.off };

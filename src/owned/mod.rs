@@ -31,10 +31,7 @@ use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::time::Duration;
 
-use egui::{
-    Color32, Id, Painter, Pos2, Rect, Response, Role, Shape, Stroke, Ui, WidgetInfo, WidgetText,
-    pos2,
-};
+use egui::{Color32, Id, Painter, Pos2, Rect, Response, Role, Shape, Stroke, Ui, WidgetInfo, pos2};
 
 pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
@@ -54,6 +51,7 @@ pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
 
 use crate::contract::{Colors, Disabled, Look, Paint, States, Style};
+pub(crate) use crate::tooltip::{Content, Tooltip};
 use crate::{Builder, NodeUi as _, TextSpec, Tw, tw};
 
 /// Whether a checkbox is ticked, a radio button chosen or a selectable
@@ -234,13 +232,22 @@ impl<A> FieldHooks<A> {
     }
 }
 
-/// A control's tooltip, if it has one.
-pub(crate) type Tip = Option<WidgetText>;
+/// What a control's tooltip shows, if it has one, until the control is
+/// built.
+pub(crate) type TipContent = Option<Content>;
+
+/// A built control's tooltip, if it has one.
+pub(crate) type Tip = Option<Tooltip>;
+
+/// The tooltip of the control `trigger` that `b` builds, showing `content`.
+pub(crate) fn tip<A: 'static>(b: &mut Builder<'_, '_, A>, trigger: Id, content: TipContent) -> Tip {
+    content.map(|content| Tooltip::new(b, trigger, content))
+}
 
 /// `response` with `tip` shown on hover, also when the control is disabled.
 pub(crate) fn tipped(ui: &Ui, response: Response, tip: &Tip) -> Response {
     if let Some(tip) = tip {
-        crate::tooltip::register(ui, &response, tip.text());
+        crate::tooltip::register(ui, &response, tip);
     }
     response
 }

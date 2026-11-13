@@ -4,7 +4,7 @@
 use egui::{Painter, Pos2, Rect, Role, Shape, Stroke, WidgetInfo, pos2};
 
 use super::slider::track_classes;
-use super::{Tip, tipped};
+use super::{Content, TipContent, tip, tipped};
 use crate::builder::Slot;
 use crate::{Builder, NodeUi as _, Progress, Style, Tw, tw};
 
@@ -86,7 +86,7 @@ pub struct ProgressChain<'a, 'f, A> {
     slot: Slot,
     progress: Progress,
     name: Option<String>,
-    tooltip: Tip,
+    tooltip: TipContent,
     classes: Tw,
 }
 
@@ -118,7 +118,19 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
     /// Shown while the pointer hovers the bar, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)). It adds to the accessible name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+        self.tooltip = Some(Content::Text(text.into()));
+        self
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
+    /// The content takes no input, and its text describes the control to
+    /// assistive technology.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.tooltip = Some(Content::built(build));
         self
     }
 
@@ -132,6 +144,7 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
             tooltip,
             classes,
         } = self;
+        let tooltip = tip(&mut b, slot.id, tooltip);
         let style = Style::of(b.ctx());
         let bar = &style.progress;
         let track = track_classes((bar.height, bar.radius), bar.track).merge(classes);

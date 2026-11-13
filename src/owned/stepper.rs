@@ -9,7 +9,8 @@ use egui::{Key, Role, WidgetInfo};
 
 use super::number::{Edit, Edits, Step, pressed};
 use super::{
-    Chevron, Enablement, FieldHooks, Tip, centered, described, field_classes, paint_chevron, tipped,
+    Chevron, Content, Enablement, FieldHooks, Tip, TipContent, centered, described, field_classes,
+    paint_chevron, tip, tipped,
 };
 use crate::builder::Slot;
 use crate::focus::Autofocus;
@@ -52,7 +53,7 @@ pub struct StepperChain<'a, 'f, A> {
     range: RangeInclusive<f64>,
     step: Step,
     name: Option<String>,
-    tooltip: Tip,
+    tooltip: TipContent,
     classes: Tw,
     enablement: Enablement,
     hooks: FieldHooks<A>,
@@ -107,10 +108,22 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
     /// Shown while the pointer hovers the control, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
     /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
+    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+        self.tooltip = Some(Content::Text(text.into()));
+        self
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
+    /// The content takes no input, and its text describes the control to
+    /// assistive technology.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.tooltip = Some(Content::built(build));
         self
     }
 
@@ -173,6 +186,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             edits,
             autofocus,
         } = self;
+        let tooltip = tip(&mut b, slot.id, tooltip);
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let stepper = &style.stepper;

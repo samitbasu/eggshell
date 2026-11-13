@@ -352,8 +352,8 @@ impl<'p> Query<'p> {
         let texts: Vec<(usize, &str)> = self
             .descendants()
             .filter_map(|index| match &self.layout.prims[index] {
-                Some(Prim::Text(shown)) => Some((index, shown.as_str())),
-                _ => None,
+                Some(prim) => prim.text().map(|shown| (index, shown)),
+                None => None,
             })
             .collect();
         let matching: Vec<usize> = texts

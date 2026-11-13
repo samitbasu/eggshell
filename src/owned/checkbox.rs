@@ -9,7 +9,8 @@ use egui::Role;
 
 use super::Mark;
 use super::{
-    Enablement, OnResponse, Tip, Unset, choice_label, choice_row, described, flip, paint_check,
+    Content, Enablement, OnResponse, TipContent, Unset, choice_label, choice_row, described, flip,
+    paint_check, tip,
 };
 use crate::builder::Slot;
 use crate::{Builder, Style, Tw, tw};
@@ -47,7 +48,7 @@ pub struct CheckboxChain<'a, 'f, A, T, V = Unset> {
     slot: Slot,
     label: Option<String>,
     name: Option<String>,
-    tooltip: Tip,
+    tooltip: TipContent,
     current: T,
     values: V,
     classes: Tw,
@@ -111,10 +112,22 @@ impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
     /// Shown while the pointer hovers the control, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
     /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
+    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+        self.tooltip = Some(Content::Text(text.into()));
+        self
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
+    /// The content takes no input, and its text describes the control to
+    /// assistive technology.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.tooltip = Some(Content::built(build));
         self
     }
 
@@ -158,6 +171,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             enablement,
             on_response,
         } = self;
+        let tooltip = tip(&mut b, slot.id, tooltip);
         let enablement = b.enablement_of(enablement);
         let (mark, toggled) = flip([off, on], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
