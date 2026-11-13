@@ -12,6 +12,7 @@ mod button;
 mod checkbox;
 mod choice;
 mod custom;
+mod menu;
 mod number;
 mod progress;
 mod radio;
@@ -39,6 +40,8 @@ pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
+pub use menu::{Action, Checkbox, DropdownChain, ItemChain, Menu, Radio};
+pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use number::{Edit, Step};
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
@@ -432,6 +435,7 @@ fn paint_check(painter: &Painter, rect: Rect, color: Color32) {
 enum Chevron {
     Up,
     Down,
+    Right,
 }
 
 fn paint_chevron(chevron: Chevron) -> impl Fn(&Painter, Rect, Color32) + 'static {
@@ -439,6 +443,7 @@ fn paint_chevron(chevron: Chevron) -> impl Fn(&Painter, Rect, Color32) + 'static
         let points = match chevron {
             Chevron::Down => CHEVRON_DOWN,
             Chevron::Up => CHEVRON_DOWN.map(|(x, y)| (x, 24.0 - y)),
+            Chevron::Right => CHEVRON_DOWN.map(|(x, y)| (y, x)),
         };
         paint_strokes(painter, rect, color, points);
     }
@@ -619,6 +624,15 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         options: impl IntoIterator<Item = O>,
     ) -> SelectChain<'_, 'f, A, T> {
         SelectChain::new(self.reborrow(), key, current, options)
+    }
+
+    /// A button that opens a menu under it, which the chain's `items` fills.
+    pub fn dropdown_menu<K: crate::Key + Clone>(
+        &mut self,
+        key: K,
+        face: impl Into<Face>,
+    ) -> DropdownChain<'_, 'f, A, K> {
+        DropdownChain::new(self.reborrow(), key, face.into())
     }
 
     /// A progress bar filled to `progress`, drawn like a slider's track.

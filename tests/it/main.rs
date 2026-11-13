@@ -43,6 +43,7 @@ mod known_gaps_demo;
 mod layout;
 mod layout_animation;
 mod line_clamp;
+mod menu;
 mod modal;
 mod named_layouts;
 mod overlay;

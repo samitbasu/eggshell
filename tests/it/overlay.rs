@@ -1200,16 +1200,19 @@ mod menu_example {
     #[test]
     fn the_popover_opens_under_its_button_and_the_button_closes_it() {
         let mut harness = menu();
-        assert!(!has(&harness, "/Page/Top/Popover"), "precondition: closed");
+        assert!(
+            !has(&harness, "/Page/Top/(PopoverButton, Menu)"),
+            "precondition: closed"
+        );
         click_node(&mut harness, "/Page/Top/PopoverButton");
         harness.run_steps(3);
         let button = rect_of(&harness, "/Page/Top/PopoverButton");
-        let popover = rect_of(&harness, "/Page/Top/Popover");
+        let popover = rect_of(&harness, "/Page/Top/(PopoverButton, Menu)");
         assert_eq!(popover.min.x, button.min.x);
         assert_eq!(popover.min.y, button.max.y + 4.0);
         click_node(&mut harness, "/Page/Top/PopoverButton");
         harness.run_steps(3);
-        assert!(!has(&harness, "/Page/Top/Popover"));
+        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
     }
 
     #[test]
@@ -1217,9 +1220,12 @@ mod menu_example {
         let mut harness = menu();
         click_node(&mut harness, "/Page/Top/PopoverButton");
         harness.run_steps(3);
-        click_node(&mut harness, "/Page/Top/Popover/Menu/Item(Copy)");
+        click_node(
+            &mut harness,
+            "/Page/Top/(PopoverButton, Menu)/Box/Item(Copy)",
+        );
         harness.run_steps(3);
-        assert!(!has(&harness, "/Page/Top/Popover"));
+        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
         assert_eq!(harness.state().app.chosen.as_deref(), Some("Copy"));
     }
 
@@ -1229,24 +1235,36 @@ mod menu_example {
         click_node(&mut harness, "/Page/Top/PopoverButton");
         harness.run_steps(3);
         assert!(
-            !has(&harness, "/Page/Top/Popover/Menu/Submenu"),
+            !has(
+                &harness,
+                "/Page/Top/(PopoverButton, Menu)/Box/(Item(Arrange), Submenu)"
+            ),
             "precondition: closed"
         );
-        click_node(&mut harness, "/Page/Top/Popover/Menu/Item(Arrange)");
+        click_node(
+            &mut harness,
+            "/Page/Top/(PopoverButton, Menu)/Box/Item(Arrange)",
+        );
         harness.run_steps(3);
-        let item = rect_of(&harness, "/Page/Top/Popover/Menu/Item(Arrange)");
-        let submenu = rect_of(&harness, "/Page/Top/Popover/Menu/Submenu");
+        let item = rect_of(
+            &harness,
+            "/Page/Top/(PopoverButton, Menu)/Box/Item(Arrange)",
+        );
+        let submenu = rect_of(
+            &harness,
+            "/Page/Top/(PopoverButton, Menu)/Box/(Item(Arrange), Submenu)",
+        );
         assert!(
             submenu.min.x > item.center().x && submenu.min.x < item.max.x,
             "beside the item, overlapping its edge: {submenu:?} against {item:?}"
         );
         click_node(
             &mut harness,
-            "/Page/Top/Popover/Menu/Submenu/Menu/Item(Back)",
+            "/Page/Top/(PopoverButton, Menu)/Box/(Item(Arrange), Submenu)/Box/Item(Back)",
         );
         harness.run_steps(3);
         assert_eq!(harness.state().app.chosen.as_deref(), Some("Back"));
-        assert!(!has(&harness, "/Page/Top/Popover"));
+        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
     }
 
     #[test]
@@ -1256,18 +1274,18 @@ mod menu_example {
         harness.run_steps(3);
         let away = pos2(SIZE.x - 20.0, SIZE.y / 2.0);
         assert!(
-            !rect_of(&harness, "/Page/Top/Popover").contains(away),
+            !rect_of(&harness, "/Page/Top/(PopoverButton, Menu)").contains(away),
             "precondition: away from the menu"
         );
         support::press_and_release(&mut harness, away);
         harness.run_steps(3);
-        assert!(!has(&harness, "/Page/Top/Popover"));
+        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
 
         click_node(&mut harness, "/Page/Top/PopoverButton");
         harness.run_steps(3);
         harness.key_press(egui::Key::Escape);
         harness.run_steps(3);
-        assert!(!has(&harness, "/Page/Top/Popover"));
+        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
     }
 
     #[test]
@@ -1275,18 +1293,17 @@ mod menu_example {
         let mut harness = menu();
         click_node(&mut harness, "/Page/Top/PopoverButton");
         harness.run_steps(3);
-        for _ in 0..3 {
+        for _ in 0..2 {
             harness.key_press(egui::Key::ArrowDown);
             harness.run_steps(3);
         }
         harness.key_press(egui::Key::Enter);
         harness.run_steps(3);
-        assert_eq!(
-            harness.state().app.chosen.as_deref(),
-            Some("Delete"),
-            "opened with the pointer, the first Down goes to the first item"
+        assert!(
+            harness.state().app.grid,
+            "opened with the pointer, the first Down goes to Copy and the second skips the disabled Paste to Show grid"
         );
-        assert!(!has(&harness, "/Page/Top/Popover"));
+        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
     }
 
     #[test]

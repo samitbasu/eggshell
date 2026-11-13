@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use eggshell_ui::Opacity;
 use eggshell_ui::contract::{
     self, Colors, Focus, Keyed, Look as BoxLook, Metrics, Paint, Size, States, SwitchMetrics,
     Variant,
 };
+use eggshell_ui::{Opacity, TextSpec, Tracking};
 use egui::{Color32, Context, Id, Shadow, Theme};
 
 use crate::styles::{DestructiveLook, HoverSurface, SecondaryHover, ShadcnStyle};
@@ -420,20 +420,46 @@ impl Shadcn {
             select.metrics = control;
             select.chevron = 16.0;
             select.chevron_opacity = Opacity::new(0.5);
-            select.popup = BoxLook::new(States::still(popup_colors, t.popover))
+            select.transition = transition;
+            select
+        };
+        // shadcn's DropdownMenu: `rounded-md border p-1 shadow-md min-w-[8rem]`,
+        // items `rounded-sm px-2 py-1.5 gap-2`, `focus:bg-accent`.
+        style.menu = {
+            let mut menu = style.menu;
+            menu.popup = BoxLook::new(States::still(popup_colors, t.popover))
                 .bordered(1.0)
                 .shadowed(t.shadow_md);
-            select.popup_radius = t.radius_md();
-            select.popup_padding = t.popup_padding;
-            select.item = BoxLook::new(States::new(
+            menu.radius = t.radius_md();
+            menu.padding = t.popup_padding;
+            menu.min_width = 128.0;
+            menu.item = BoxLook::new(States::new(
                 flat(clear, t.popover_foreground),
                 accented,
                 t.popover,
             ));
-            select.item_radius = t.radius_sm();
-            select.item_padding = t.item_padding;
-            select.transition = transition;
-            select
+            menu.item_radius = t.radius_sm();
+            menu.item_padding = t.item_padding;
+            menu.item_gap = t.item_padding.x;
+            let tint = if dark { 0.2 } else { 0.1 };
+            menu.destructive = States::new(
+                flat(clear, t.destructive),
+                flat(t.destructive.gamma_multiply(tint), t.destructive),
+                t.popover,
+            );
+            menu.separator = t.border;
+            menu.separator_margin = 4.0;
+            menu.heading = t.popover_foreground;
+            menu.shortcut = t.muted_foreground;
+            menu.shortcut_text = TextSpec {
+                size: 12.0,
+                line_height: 16.0,
+                family: egui::FontFamily::Proportional,
+            };
+            menu.shortcut_tracking = Tracking::points(1.2);
+            menu.indicator = 16.0;
+            menu.dot = 8.0;
+            menu
         };
         style.stepper = {
             let mut stepper = style.stepper;

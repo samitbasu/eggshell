@@ -40,6 +40,10 @@ mod toggle_group;
 mod dialog;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/menu.rs"]
+mod menu;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/chat_shell/main.rs"]
 mod chat_shell;
 
@@ -1471,4 +1475,82 @@ fn sheet_light() {
 #[test]
 fn sheet_dark() {
     dialog_in("sheet_dark", egui::Theme::Dark, sheet());
+}
+
+/// The menu example's dropdown, opened and driven through the real path.
+fn menu_after(
+    name: &str,
+    theme: egui::Theme,
+    act: impl FnOnce(&mut Harness<'static, support::Rig<menu::State>>),
+) {
+    report_renderer();
+    let style = ShadcnStyle::Vega;
+    let mut harness = support::harness_prepared(
+        Vec2::new(420.0, 400.0),
+        common::base_text_styled(theme, style),
+        menu::State {
+            grid: true,
+            ..menu::State::default()
+        },
+        menu::layout,
+        common::use_accent::<menu::State>,
+    );
+    common::set_style(&harness.ctx, style);
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(12);
+    act(&mut harness);
+    harness.snapshot(name);
+}
+
+const ACTIONS: &str = "/Page/Top/(PopoverButton, Menu)/Box";
+
+/// The dropdown with its Arrange submenu open and the pointer on one of its
+/// items: shortcuts, a disabled item, headings, a checked box, the chosen
+/// radio, the chevron and the destructive item.
+fn menu_open(name: &str, theme: egui::Theme) {
+    menu_after(name, theme, |harness| {
+        support::click_node(harness, "/Page/Top/PopoverButton");
+        harness.run_steps(8);
+        support::click_node(harness, &format!("{ACTIONS}/Item(Arrange)"));
+        harness.run_steps(8);
+        let front = format!("{ACTIONS}/(Item(Arrange), Submenu)/Box/Item(Front)");
+        support::hover_node(harness, &front);
+        harness.run_steps(8);
+        assert!(
+            harness.state().nodes.iter().any(|(path, _)| *path == front),
+            "the submenu is open"
+        );
+    });
+}
+
+#[test]
+fn menu_open_light() {
+    menu_open("menu_open_light", egui::Theme::Light);
+}
+
+#[test]
+fn menu_open_dark() {
+    menu_open("menu_open_dark", egui::Theme::Dark);
+}
+
+/// The destructive item under the pointer.
+fn menu_destructive(name: &str, theme: egui::Theme) {
+    menu_after(name, theme, |harness| {
+        support::click_node(harness, "/Page/Top/PopoverButton");
+        harness.run_steps(8);
+        support::hover_node(harness, &format!("{ACTIONS}/Item(Delete)"));
+        harness.run_steps(8);
+    });
+}
+
+#[test]
+fn menu_destructive_light() {
+    menu_destructive("menu_destructive_light", egui::Theme::Light);
+}
+
+#[test]
+fn menu_destructive_dark() {
+    menu_destructive("menu_destructive_dark", egui::Theme::Dark);
 }

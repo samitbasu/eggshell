@@ -771,7 +771,7 @@ mod example {
 
     fn highlight(harness: &Harness<'_, Rig<State>>) -> egui::Color32 {
         eggshell_ui::Style::of(&harness.ctx)
-            .select
+            .menu
             .item
             .paint
             .states

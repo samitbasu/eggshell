@@ -9,10 +9,10 @@ use egui::accesskit::HasPopup;
 use egui::{Context, Id, Key, Role, WidgetInfo, vec2};
 
 use super::choice::{self, Choice, IntoChoice};
+use super::menu::Tone;
 use super::number::{hold_arrows, pressed};
 use super::{
-    Chevron, Enablement, Mark, OnResponse, Tip, describe, paint_check, paint_chevron, painted,
-    tipped,
+    Chevron, Enablement, Mark, OnResponse, Tip, describe, paint_check, paint_chevron, tipped,
 };
 use crate::builder::Slot;
 use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Wrap};
@@ -266,58 +266,31 @@ struct List<T> {
 
 impl<T: Copy + 'static> List<T> {
     fn row_height(&self) -> f32 {
-        self.style.text.line_height + 2.0 * self.style.select.item_padding.y
+        self.style
+            .menu
+            .row_height(self.style.role(&self.style.menu.text))
     }
 
     /// The box around the rows.
     fn box_classes(&self) -> Tw {
-        let select = &self.style.select;
-        let popup = &select.popup;
-        let colors = popup.paint.states.rest;
-        let classes = tw()
-            .flex()
-            .flex_col()
-            .min_h_0()
-            .p(select.popup_padding / 4.0)
-            .border(popup.border_width)
-            .border_color(colors.border)
-            .bg(colors.fill)
-            .text(colors.text)
-            .rounded_px(f32::from(select.popup_radius))
-            .role(self.style.text.clone());
-        match popup.paint.shadow {
-            Some(shadow) => classes.shadow(shadow),
-            None => classes,
-        }
+        let text = self.style.role(&self.style.menu.text);
+        self.style.menu.box_classes(text)
     }
 
     /// One row: the highlighted one takes the item's `hover` colours.
     fn row_classes(&self, enablement: Enablement) -> Tw {
-        let select = &self.style.select;
-        let item = select.item.paint.states;
-        let pad = select.item_padding;
-        let base = tw()
-            .flex()
-            .items_center()
+        let text = self.style.role(&self.style.menu.text);
+        self.style
+            .menu
+            .row_classes(Tone::Plain, enablement, text)
             .justify_between()
-            .gap(pad.x / 4.0)
-            .px(pad.x / 4.0)
-            .h_px(self.row_height())
-            .rounded_px(f32::from(select.item_radius))
-            .whitespace_nowrap()
-            .focusable_none();
-        match enablement {
-            Enablement::Disabled => painted(base, item.disabled).inert(),
-            Enablement::Enabled => painted(base.sense_click(), item.rest)
-                .hover(|p| p.bg(item.hover.fill).text(item.hover.text)),
-        }
+            .focusable_none()
     }
 
     fn show<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
-        let select = &self.style.select;
-        let popup = &select.popup;
+        let menu = &self.style.menu;
         let rows = self.options.len() as f32 * self.row_height();
-        let chrome = 2.0 * (select.popup_padding + popup.border_width);
+        let chrome = 2.0 * (menu.padding + menu.popup.border_width);
         let natural = vec2(0.0, rows + chrome);
         let room = s.room_for(self.trigger, &placement(), natural);
         s.div_id(Part::Box, self.box_classes(), |s| match room {
@@ -333,7 +306,6 @@ impl<T: Copy + 'static> List<T> {
     }
 
     fn rows<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
-        let select = &self.style.select;
         let enabled = |at: usize| self.options[at].enablement == Enablement::Enabled;
         let start = self
             .current
@@ -348,7 +320,7 @@ impl<T: Copy + 'static> List<T> {
             let enablement = self.options[index].enablement;
             let marked = Some(index) == self.current;
             let (label, value) = (option.label.clone(), option.value);
-            let side = select.chevron;
+            let side = self.style.select.chevron;
             let row = s
                 .div_id(Part::Option(index), self.row_classes(enablement), |s| {
                     s.text(tw(), label.clone());
