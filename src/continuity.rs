@@ -22,13 +22,19 @@ use egui::{Context, Id, Rect, Vec2};
 
 use crate::tw::{Opacity, Progress};
 
-/// Whether a node declared `animate_layout`.
+/// How a node may move on its own: by sliding over a layout change, or as part
+/// of an overlay's entrance or exit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Motion {
     /// A change of its layout position is painted at once.
     Snaps,
     /// A change of its layout position is slid over.
     Slides,
+    /// The node is the box (or the scrim) of an overlay that enters or leaves
+    /// with motion, which moves and fades it from frame to frame while its
+    /// layout stays put. Judged like a slide: it may not jump.
+    Presents,
 }
 
 /// Names one slide: the same for every frame of it, and different for the
@@ -488,7 +494,9 @@ impl Timeline {
                     let own_offset_change: Vec2 = p - l - moved_by_ancestors;
                     let jumped = p.length() > step;
                     match now.motion {
-                        Motion::Slides => (p - moved_by_scrolling).length() > step,
+                        Motion::Slides | Motion::Presents => {
+                            (p - moved_by_scrolling).length() > step
+                        }
                         Motion::Snaps => jumped && own_offset_change.length() > step,
                     }
                 });

@@ -185,6 +185,8 @@ pub(crate) struct Frame<'f, A> {
     pub roots: Vec<RootDecl>,
     /// What to run when an overlay is dismissed, by the overlay's id.
     pub dismiss: HashMap<Id, DismissFn<A>>,
+    /// What to run for the overlays that finished leaving this frame.
+    pub exited: Vec<DismissFn<A>>,
     /// The root whose body is being built.
     pub current: usize,
 }
@@ -358,6 +360,7 @@ impl LayoutState {
             drag: Decls::default(),
             roots: vec![RootDecl::base()],
             dismiss: HashMap::new(),
+            exited: Vec::new(),
             current: 0,
         };
         let mut kids = Vec::new();
@@ -436,6 +439,7 @@ impl<'f, A> Built<'f, A> {
             drag,
             roots: decls,
             dismiss,
+            exited,
             ..
         } = frame;
         st.tree
@@ -656,6 +660,7 @@ impl<'f, A> Built<'f, A> {
                     behavior: overlay.behavior,
                     stack_index: 0,
                     description: overlay.description,
+                    staged: overlay.staged,
                 }),
             });
         }
@@ -669,6 +674,7 @@ impl<'f, A> Built<'f, A> {
             }
         }
         stack.store(&st.kept);
+        st.kept.with(|kept| kept.presences.sweep());
         drop(measures);
         let draws = draws.into_iter().map(Some).collect();
         Placed {
@@ -682,6 +688,7 @@ impl<'f, A> Built<'f, A> {
             draws,
             drag,
             dismiss,
+            exited,
             roots,
         }
     }
@@ -1297,6 +1304,7 @@ pub struct Placed<A> {
     pub(crate) draws: Vec<Option<DrawFn<A>>>,
     pub(crate) drag: Decls<A>,
     pub(crate) dismiss: HashMap<Id, DismissFn<A>>,
+    pub(crate) exited: Vec<DismissFn<A>>,
     /// The base root, then the overlays in the order they were declared.
     pub(crate) roots: Vec<PlacedRoot>,
 }

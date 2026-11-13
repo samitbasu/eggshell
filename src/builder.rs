@@ -20,6 +20,7 @@ use crate::pipeline::{
     BuildState, ColorSource, DismissFn, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind,
     ScrollNode,
 };
+use crate::presence::{self, Motion, Step};
 use crate::prim::{Icon, Prim};
 use crate::roots::{OverlayDecl, Presentation, RootDecl, overlay_style};
 use crate::scroll::TabRule;
@@ -305,8 +306,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         slot: &Slot,
         decl: OverlayDecl,
         on_dismiss: Option<DismissFn<A>>,
+        (motion, on_exited): (Option<Motion>, Option<DismissFn<A>>),
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) {
+        let mut decl = decl;
+        if let Some(motion) = motion {
+            match presence::step(&self.st.kept, self.frame.ctx, slot.id, &motion) {
+                Step::Closed { exited } => {
+                    if let Some(then) = on_exited.filter(|_| exited) {
+                        self.frame.exited.push(then);
+                    }
+                    return;
+                }
+                Step::Present(staged) => decl.staged = staged,
+            }
+        }
         let band = decl.band;
         let classes = match decl.presentation {
             Presentation::Modal(_) => tw().bg(Style::of(self.ctx()).scrim),

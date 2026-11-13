@@ -26,12 +26,13 @@ use crate::overlay::{Anchored, Band, Nav};
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::pipeline::{ColorSource, DrawFn, Flow, NodeKind, Placed, PlacedNode};
+use crate::presence::Staged;
 use crate::prim::{Icon, Prim};
 use crate::roots::{Form, PlacedRoot, covers_screen, root_of, stacked_top_down};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
-use crate::stack::{self, Shown};
+use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
@@ -484,6 +485,15 @@ fn image_for(icon: Icon, tint: Color32) -> Image<'static> {
         .rotate(rotate.into(), Vec2::splat(0.5))
 }
 
+/// `rect` scaled by `scale` about its centre.
+fn scaled_about_centre(rect: Rect, scale: f32) -> Rect {
+    if scale == 1.0 {
+        rect
+    } else {
+        Rect::from_center_size(rect.center(), rect.size() * scale)
+    }
+}
+
 /// What the walk of a frame accumulates, whichever `Ui` it is in.
 struct Shared<A> {
     prims: Vec<Option<Prim>>,
@@ -500,6 +510,18 @@ struct Shared<A> {
     highlighted: Vec<Id>,
     /// Why a field losing focus in this pass does, told to its hooks.
     blur: Blur,
+    /// The nodes of overlays that are entering or leaving, by index.
+    stages: HashMap<usize, Stage>,
+}
+
+/// How an entering or leaving overlay is painted at one of its nodes.
+#[derive(Clone, Copy)]
+enum Stage {
+    /// The root of a modal: its own fill is the scrim, which fades with the
+    /// overlay's progress, while the box in it has the overlay's entrance.
+    Scrim(Opacity),
+    /// A box that scales and moves with the overlay's progress.
+    Box { staged: Staged, form: Form },
 }
 
 /// How far two boxes may overlap and still only touch: layout leaves
@@ -653,6 +675,15 @@ impl<A> Walk<'_, A> {
         let described = overlay
             .map(|overlay| &overlay.description)
             .filter(|description| description.is_set());
+        // An overlay that is leaving is inert, but its blocker keeps the page
+        // from taking the pointer until it is gone.
+        let inherited = match overlay {
+            Some(_) => Inherited {
+                inertness: Inertness::Live,
+                ..inherited
+            },
+            None => inherited,
+        };
         node_ui(
             self.ui,
             UiBuilder::new().max_rect(boxes.border),
@@ -947,7 +978,18 @@ impl<A> Walk<'_, A> {
             })
         };
 
+        let stage = self.shared.stages.get(&index).copied();
+        let (staged_offset, staged_scale, scrim) = match stage {
+            Some(Stage::Box { staged, form }) => (
+                staged.offset(node.rect().size(), form),
+                staged.scale(),
+                Opacity::OPAQUE,
+            ),
+            Some(Stage::Scrim(scrim)) => (Vec2::ZERO, 1.0, scrim),
+            None => (Vec2::ZERO, 1.0, Opacity::OPAQUE),
+        };
         let opacity = parent.opacity * look.paint.opacity;
+        let own_opacity = opacity * scrim;
         let lifted = self.lift.filter(|lift| lift.index == index);
         let slide = match (interaction.variants.animate_layout, node.id(), lifted) {
             (Some(duration), Some(id), None) => self.shared.animation.offset(
@@ -965,7 +1007,7 @@ impl<A> Walk<'_, A> {
         let (translate, shift) = match lifted {
             Some(lift) => (lift.min - node.rect().min, Vec2::ZERO),
             None => {
-                let translate = look.translate + slide;
+                let translate = look.translate + slide + staged_offset;
                 (translate, parent.shift + translate)
             }
         };
@@ -974,16 +1016,17 @@ impl<A> Walk<'_, A> {
                 id,
                 path: node.path().to_owned(),
                 layout_rect: node.rect(),
-                painted_rect: node.rect().translate(shift),
+                painted_rect: scaled_about_centre(node.rect(), staged_scale).translate(shift),
                 ancestors: if lifted.is_some() {
                     Vec2::ZERO
                 } else {
                     parent.shift
                 },
                 scrolled: parent.scrolled,
-                opacity,
-                motion: match (interaction.variants.animate_layout, lifted) {
-                    (Some(_), None) => Motion::Slides,
+                opacity: own_opacity,
+                motion: match (interaction.variants.animate_layout, lifted, stage) {
+                    (_, None, Some(_)) => Motion::Presents,
+                    (Some(_), None, None) => Motion::Slides,
                     _ => Motion::Snaps,
                 },
                 slide: self
@@ -992,9 +1035,10 @@ impl<A> Walk<'_, A> {
                     .slide(id, interaction.variants.easing, translate),
             });
         }
-        let moved_from = (translate != Vec2::ZERO || lifted.is_some()).then(|| self.next_shape());
+        let moved_from = (translate != Vec2::ZERO || lifted.is_some() || staged_scale != 1.0)
+            .then(|| self.next_shape());
         paint_box(
-            &self.painter(parent.clip, opacity),
+            &self.painter(parent.clip, own_opacity),
             &look.paint,
             &boxes,
             node.border,
@@ -1060,7 +1104,8 @@ impl<A> Walk<'_, A> {
             ));
         }
         if let Some(first) = moved_from {
-            self.translate_shapes_since(first, translate);
+            let about = node.rect().center().to_vec2() * (1.0 - staged_scale);
+            self.transform_shapes_since(first, TSTransform::new(about + translate, staged_scale));
             if lifted.is_some() {
                 self.lift_shapes_since(first);
             }
@@ -1200,12 +1245,12 @@ impl<A> Walk<'_, A> {
 
     /// Moves what the subtree painted since `first`, and the clips it was
     /// painted with, as a CSS transform does: layout and hit rects stay.
-    fn translate_shapes_since(&self, first: ShapeIdx, by: Vec2) {
+    fn transform_shapes_since(&self, first: ShapeIdx, by: TSTransform) {
         let layer = self.ui.layer_id();
         self.ui.ctx().graphics_mut(|graphics| {
             let list = graphics.entry(layer);
             let end = list.next_idx();
-            list.transform_range(first, end, TSTransform::from_translation(by));
+            list.transform_range(first, end, by);
         });
     }
 
@@ -1337,10 +1382,29 @@ impl<A> Walk<'_, A> {
 }
 
 impl<A> Walk<'_, A> {
+    /// Notes how the overlay rooted at `first` is painted while it enters or
+    /// leaves.
+    fn stage(&mut self, first: usize, form: Form, staged: Staged) {
+        let boxed = Stage::Box { staged, form };
+        match form {
+            Form::Modal(_) => {
+                self.shared
+                    .stages
+                    .insert(first, Stage::Scrim(staged.scrim()));
+                for child in children_of(self.nodes, first) {
+                    self.shared.stages.insert(child, boxed);
+                }
+            }
+            Form::Floating(_) => {
+                self.shared.stages.insert(first, boxed);
+            }
+        }
+    }
+
     /// Draws every attached overlay, in the order they were declared, each in
     /// a layer of its own, and returns the ones drawn in the order they were
     /// opened. Walks `self` from the page's `Ui`.
-    fn overlays(&mut self) -> Vec<Shown> {
+    fn overlays(&mut self) -> Vec<Drawn> {
         let ctx = self.ui.ctx().clone();
         let screen = ctx.content_rect();
         let mut shown = Vec::new();
@@ -1370,6 +1434,14 @@ impl<A> Walk<'_, A> {
                 );
             });
             self.shared.beneath.clear();
+            let staged = overlay.staged;
+            let mut inherited = Inherited::root(screen, root_rect.min);
+            if !staged.is_steady() {
+                self.stage(root.first, overlay.form, staged);
+            }
+            if staged.is_exiting() {
+                inherited.inertness = Inertness::Inert;
+            }
             egui::Area::new(layer.id)
                 .order(layer.order)
                 .fixed_pos(rect.min)
@@ -1382,12 +1454,11 @@ impl<A> Walk<'_, A> {
                     if swallows {
                         ui.interact(rect, overlay.id.with("swallow"), Sense::CLICK | Sense::DRAG);
                     }
-                    self.in_layer(ui)
-                        .visit(root.first, Inherited::root(screen, root_rect.min));
+                    self.in_layer(ui).visit(root.first, inherited);
                 });
             shown.push((
                 overlay.stack_index,
-                Shown {
+                Drawn {
                     id: overlay.id,
                     band: overlay.band,
                 },
@@ -1462,6 +1533,7 @@ impl<A> Placed<A> {
             mut drag,
             mut dismiss,
             roots,
+            exited,
             root: _,
         } = self;
         let overflow = (Debug::of(ui.ctx()) == Debug::Outlines)
@@ -1501,6 +1573,7 @@ impl<A> Placed<A> {
             beneath: Vec::new(),
             highlighted: nav::highlighted(&kept),
             blur: Blur::Elsewhere,
+            stages: HashMap::new(),
         };
         nav::activate_highlighted(ui.ctx(), &kept);
         nav::apply_deferred(ui.ctx());
@@ -1538,6 +1611,9 @@ impl<A> Placed<A> {
             app,
         );
         finish.finish(&ctx, &nodes, &mut drag, app);
+        for then in exited {
+            then(app);
+        }
         scroll_keys::note_press(&ctx, &nodes);
         scroll_keys::apply_keys(&ctx, &nodes);
         scroll_keys::follow_focus(&ctx, &shared.subtrees);

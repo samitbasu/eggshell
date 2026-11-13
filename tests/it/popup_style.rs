@@ -73,8 +73,14 @@ fn a_popup_opened_in_a_node_takes_the_global_style_not_the_nodes() {
     assert_ne!(probe.in_popup, probe.scoped, "and not the node's");
 }
 
-#[derive(Default)]
-struct Pick(usize);
+/// The layout is kept between frames, as presence needs.
+struct Pick(usize, LayoutState);
+
+impl Default for Pick {
+    fn default() -> Self {
+        Self(0, LayoutState::new())
+    }
+}
 
 fn open_select_shapes(restyle_global: bool) -> Vec<String> {
     let mut harness = Harness::builder()
@@ -107,8 +113,9 @@ fn open_select_shapes(restyle_global: bool) -> Vec<String> {
                     },
                     Color32::BLACK,
                 );
-                LayoutState::new()
-                    .with_base_text(base)
+                let mut layout = std::mem::take(&mut pick.1);
+                layout.set_base_text(Some(base));
+                layout
                     .build(&ctx, |b| {
                         b.select("select", pick.0, [(0, "One"), (1, "Two"), (2, "Three")])
                             .named("pick")
@@ -116,12 +123,13 @@ fn open_select_shapes(restyle_global: bool) -> Vec<String> {
                     })
                     .layout(area)
                     .draw(pick, ui);
+                pick.1 = layout;
             },
             Pick::default(),
         );
     harness.run_steps(2);
     harness.get_by_label("pick").click();
-    harness.run_steps(4);
+    harness.run_steps(12);
     harness
         .output()
         .shapes

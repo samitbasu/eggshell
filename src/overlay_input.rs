@@ -77,15 +77,17 @@ fn is_nested_in(roots: &[PlacedRoot], root: usize, ancestor: usize) -> bool {
     std::iter::successors(roots[root].parent, |&at| roots[at].parent).any(|at| at == ancestor)
 }
 
-/// The attached overlays, the one on the bottom first.
+/// The attached overlays, the one on the bottom first. An overlay that is
+/// leaving is not among them: it takes no key and is not judged again.
 fn open_overlays(roots: &[PlacedRoot]) -> Vec<Open<'_>> {
     let order: Vec<usize> = stacked_top_down(roots)
         .into_iter()
         .rev()
         .filter(|&root| {
             roots[root].overlay().is_some_and(|overlay| {
-                overlay.anchored == crate::overlay::Anchored::Attached
-                    || overlay.lookup == AnchorLookup::Missing
+                !overlay.staged.is_exiting()
+                    && (overlay.anchored == crate::overlay::Anchored::Attached
+                        || overlay.lookup == AnchorLookup::Missing)
             })
         })
         .collect();

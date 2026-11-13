@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use egui::{Color32, Context, FontFamily, Id, Shadow, Theme, Vec2, vec2};
 
+pub use crate::presence::{Entry, KindMotion, MotionStyle};
 use crate::{Opacity, Progress, TextSpec, Tracking};
 
 /// A button variant, named by the style that defines it.
@@ -812,6 +813,8 @@ pub struct Style {
     /// What a modal overlay paints over the screen behind its box. Usually
     /// translucent.
     pub scrim: Color32,
+    /// How overlays that declare when they are shown enter and leave.
+    pub motion: MotionStyle,
 }
 
 #[derive(Clone)]
@@ -1248,6 +1251,7 @@ impl Style {
             },
             scroll: ScrollStyle::from_egui(egui),
             scrim: Color32::from_black_alpha(100),
+            motion: MotionStyle::INSTANT,
         }
     }
 

@@ -440,7 +440,7 @@ fn the_model_select_changes_the_model_and_the_details_follow() {
     click_node(&mut harness, "/Centre/TopBar/Model");
     harness.run_steps(3);
     harness.get_by_label(MODELS[2]).click();
-    harness.run_steps(3);
+    harness.run_steps(12);
     assert_eq!(harness.state().app.model, 2);
     assert_eq!(rect(&harness, Part::Centre), before, "nothing moved");
 

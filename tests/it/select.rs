@@ -571,3 +571,48 @@ mod beside_another_frame {
         assert_eq!(harness.state().app.changes, [2]);
     }
 }
+
+#[test]
+fn the_list_pops_in_with_the_styles_menu_motion_and_leaves_the_same_way() {
+    use eggshell_ui::testing::{Motion, record};
+
+    let mut harness = support::harness_stepped(SCREEN, 0.02, base_text(), App::default(), view);
+    harness.run_steps(4);
+    record(&harness.ctx);
+    let motion = Style::of(&harness.ctx).motion.menu;
+    assert!(
+        !motion.enter.is_zero(),
+        "precondition: the shadcn preset moves menus"
+    );
+    let moved = |harness: &Harness<'_, Rig<App>>| {
+        let node = support::last_drawn(&harness.ctx, LIST)?;
+        Some((node.painted_rect != node.layout_rect, node.motion))
+    };
+
+    click_node(&mut harness, PICK);
+    harness.step();
+    assert_eq!(
+        moved(&harness),
+        Some((true, Motion::Presents)),
+        "scaled and nudged while it enters"
+    );
+    harness.run_steps(20);
+    assert_eq!(moved(&harness).map(|moved| moved.0), Some(false), "settled");
+
+    harness.key_press(Key::Escape);
+    harness.run_steps(3);
+    assert_eq!(
+        moved(&harness).map(|moved| moved.0),
+        Some(true),
+        "scaled and nudged while it leaves"
+    );
+    harness.run_steps(20);
+    assert!(
+        harness
+            .state()
+            .nodes
+            .iter()
+            .all(|(path, _)| !path.starts_with(LIST)),
+        "gone once the exit has run"
+    );
+}
