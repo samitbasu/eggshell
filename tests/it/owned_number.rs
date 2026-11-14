@@ -3,7 +3,7 @@
 
 use eggshell_ui::owned::{Enablement, Step};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
+use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens};
 use egui::epaint::Shape;
 use egui::{Key, Modifiers, Rect, Role, Theme, pos2, vec2};
 use egui_kittest::Harness;
@@ -282,8 +282,14 @@ fn a_focused_thumb_shows_the_ring_and_the_slider_is_one_tab_stop() {
         tab_to(&mut harness, THUMB);
         harness.run_steps(12);
         let ring = ring_at(&harness, rect_of(&harness, THUMB)).expect("a ring on the thumb");
-        assert_eq!(ring.stroke.width, style.focus.width);
-        assert_eq!(ring.stroke.color, style.focus.color);
+        let halo = style
+            .slider
+            .thumb
+            .paint
+            .focus
+            .expect("the thumb's own ring");
+        assert_eq!(ring.stroke.width, halo.width);
+        assert_eq!(ring.stroke.color, halo.color);
         harness.key_press(Key::Tab);
         harness.run_steps(2);
         assert_ne!(
@@ -291,6 +297,51 @@ fn a_focused_thumb_shows_the_ring_and_the_slider_is_one_tab_stop() {
             Some(TRACK),
             "the track is not a stop"
         );
+    }
+}
+
+#[test]
+fn the_thumb_shows_its_halo_under_the_pointer_and_not_at_rest() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let mut harness = harness(theme);
+        let halo = style(theme)
+            .slider
+            .thumb
+            .paint
+            .hover_ring
+            .expect("the thumb's halo");
+        let thumb = rect_of(&harness, THUMB);
+        assert!(
+            ring_at(&harness, thumb).is_none(),
+            "{theme:?}: no ring at rest"
+        );
+        harness.hover_at(thumb.center());
+        harness.run_steps(12);
+        let ring = ring_at(&harness, thumb).expect("a halo under the pointer");
+        assert_eq!(ring.stroke.width, halo.width, "{theme:?}");
+        assert_eq!(ring.stroke.color, halo.color, "{theme:?}");
+        harness.hover_at(pos2(390.0, 490.0));
+        harness.run_steps(12);
+        assert!(
+            ring_at(&harness, thumb).is_none(),
+            "{theme:?}: the halo goes with the pointer"
+        );
+    }
+}
+
+#[test]
+fn the_halo_is_shadcns_per_style_in_the_ring_colour_at_half() {
+    for (style, width) in [(ShadcnStyle::Vega, 4.0), (ShadcnStyle::Lyra, 1.0)] {
+        let preset = Shadcn::for_theme(Theme::Light).with_style(style);
+        let halo = preset
+            .style()
+            .slider
+            .thumb
+            .paint
+            .hover_ring
+            .expect("a halo");
+        assert_eq!(halo.width, width, "{style:?}: hover:ring-{width}");
+        assert_eq!(halo.color, preset.tokens.ring.gamma_multiply(0.5));
     }
 }
 
