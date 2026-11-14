@@ -23,8 +23,8 @@ use crate::pipeline::{
 };
 use crate::presence::{self, Motion, Step};
 use crate::prim::{Icon, Prim};
-use crate::region::RegionDecl;
-use crate::roots::{OverlayDecl, Presentation, RootDecl, overlay_style};
+use crate::region::{RegionBody, RegionDecl};
+use crate::roots::{OverlayDecl, Presentation, RootDecl, RootKind, overlay_style};
 use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
@@ -123,6 +123,14 @@ pub struct Builder<'b, 'f, A> {
     path: Id,
     kids: &'b mut Vec<NodeId>,
     inherited: &'b TextStyle,
+    ambient: Ambient,
+}
+
+/// The leaf a virtual list's rows are built into, as its region needs it.
+pub(crate) struct RowsLeaf {
+    leaf: NodeId,
+    readable: String,
+    text: TextStyle,
     ambient: Ambient,
 }
 
@@ -315,6 +323,134 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         ScrollChain::new(self.reborrow(), key, tw)
     }
 
+    /// A virtual list: a scroll container of `rows` that builds only the rows
+    /// in and near its viewport. See [`vlist`](crate::vlist).
+    ///
+    /// Each row is built under its own key (the row itself), so a row's egui
+    /// state stays with it while it is scrolled away and back. `rows` and the
+    /// rows' builder borrow application data for the frame (`'f`), so a
+    /// function that declares a list names `'f`, as one that declares a
+    /// [`region`](Self::region) does.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, tw};
+    /// #[derive(Clone, Copy, Debug, Hash)]
+    /// struct Line(u32);
+    ///
+    /// fn log<'f>(b: &mut Builder<'_, 'f, ()>, lines: &'f [Line]) {
+    ///     b.virtual_list("log", tw().h_px(200.0), lines)
+    ///         .fixed_px(20.0)
+    ///         .items(|s, line| s.text(tw(), format!("line {}", line.0)));
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn virtual_list<K: Key, R: Key + Copy>(
+        &mut self,
+        key: K,
+        tw: Tw,
+        rows: &'f [R],
+    ) -> crate::vlist::ListChain<'_, 'f, A, R>
+    where
+        A: 'static,
+    {
+        let slot = self.slot(&key);
+        crate::vlist::ListChain::new(self.reborrow(), slot, tw, rows)
+    }
+
+    /// Declares the rows of the virtual list `list`, built into `leaf` by
+    /// `run` once the frame is laid out.
+    pub(crate) fn list_region(
+        &mut self,
+        RowsLeaf {
+            leaf,
+            readable,
+            text,
+            ambient,
+        }: RowsLeaf,
+        list: Id,
+        run: crate::vlist::ListRun<'f, A>,
+    ) {
+        self.frame.roots[self.frame.current]
+            .regions
+            .push(RegionDecl {
+                leaf,
+                id: list,
+                readable,
+                text,
+                ambient,
+                body: RegionBody::List(run),
+            });
+    }
+
+    /// A handle to `node`, a node this builder added.
+    pub(crate) fn into_handle(self, node: NodeId) -> NodeHandle<'b, 'f, A> {
+        NodeHandle { b: self, node }
+    }
+
+    /// The text style in effect here.
+    pub(crate) fn text_style(&self) -> &TextStyle {
+        self.inherited
+    }
+
+    /// The leaf a virtual list's rows are built into once it is laid out:
+    /// as wide as the content and `height` tall.
+    pub(crate) fn rows_leaf(&mut self, height: f32) -> RowsLeaf {
+        let id = child_id(self.path, &crate::vlist::RowsKey);
+        let readable = self.identify(id, &crate::vlist::RowsKey);
+        let tw = tw().w_full().h_px(height);
+        let ambient = self.ambient_in(&tw);
+        self.leaf_node(
+            tw,
+            Parts {
+                id: Some(id),
+                ..Parts::anonymous(NodeKind::Region, readable.clone())
+            },
+        );
+        let leaf = *self.kids.last().expect("the leaf was just added");
+        let text = self
+            .st
+            .tree
+            .get_node_context(leaf)
+            .expect("the leaf has a context")
+            .text
+            .clone();
+        RowsLeaf {
+            leaf,
+            readable,
+            text,
+            ambient,
+        }
+    }
+
+    /// How many roots have been declared so far this frame.
+    pub(crate) fn roots_declared(&self) -> usize {
+        self.frame.roots.len()
+    }
+
+    /// The overlays declared from the root at `from` on.
+    pub(crate) fn overlays_from(&self, from: usize) -> impl Iterator<Item = Id> + '_ {
+        self.frame.roots[from..]
+            .iter()
+            .filter_map(|root| match &root.kind {
+                RootKind::Overlay(overlay) => Some(overlay.id),
+                RootKind::Base => None,
+            })
+    }
+
+    /// The nodes the overlays declared so far are anchored to.
+    pub(crate) fn anchored_to(&self) -> impl Iterator<Item = Id> + '_ {
+        self.frame.roots.iter().filter_map(|root| match &root.kind {
+            RootKind::Overlay(overlay) => match overlay.presentation {
+                Presentation::Floating {
+                    anchor: crate::overlay::Anchor::Node(id),
+                    ..
+                } => Some(id),
+                _ => None,
+            },
+            RootKind::Base => None,
+        })
+    }
+
     /// A region: a leaf that only layout sizes, whose content `body` builds
     /// after the layout around it, in the same frame.
     ///
@@ -383,7 +519,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 readable,
                 text,
                 ambient,
-                body: Box::new(body),
+                body: RegionBody::Closure(Box::new(body)),
             });
     }
 
@@ -1118,6 +1254,22 @@ impl<A: 'static> Builder<'_, '_, A> {
 pub struct NodeHandle<'b, 'f, A> {
     b: Builder<'b, 'f, A>,
     node: NodeId,
+}
+
+impl<A> NodeHandle<'_, '_, A> {
+    pub(crate) fn node(&self) -> NodeId {
+        self.node
+    }
+
+    /// The node's id; it is identified.
+    pub(crate) fn id(&self) -> Id {
+        self.b
+            .st
+            .tree
+            .get_node_context(self.node)
+            .and_then(|node| node.id)
+            .expect("the node is identified")
+    }
 }
 
 impl<'f, A: 'static> NodeHandle<'_, 'f, A> {

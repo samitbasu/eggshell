@@ -234,8 +234,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     // ---- roots (children scoped under key)
     pub fn scroll(&mut self, key: K, tw: Tw, axis: Axis, body: impl FnOnce(&mut Builder<'_, 'f, A>));
     pub fn region(&mut self, key: K, tw: Tw, body: impl FnOnce(&mut Builder<'_, 'f, A>, Vec2) + 'f);
-    pub fn virtual_list<R: Copy + Hash + Debug>(&mut self, key: K, tw: Tw, list: VList, rows: &[R],
-                   item: impl FnMut(&mut Builder<'_, 'f, A>, R));                // each row scoped under its own key
+    pub fn virtual_list<R: Key + Copy>(&mut self, key: K, tw: Tw, rows: &'f [R]) -> ListChain<'_, 'f, A, R>;
+                   // .estimate_px(h) | .fixed_px(h), .overscan_px(d), then .items(|b, row| …): each row scoped under its own key
     pub fn overlay(&mut self, key: K, band: Band, anchor: Anchor, place: Placement,
                    on_dismiss: impl FnOnce(&mut A) + 'static, body: impl FnOnce(&mut Builder<'_, 'f, A>));
     pub fn max_content_width(&mut self, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> Width;
@@ -576,35 +576,54 @@ b.scroll("scroll", tw().grow().min_h_0()).axis(Axis::Y).children(|s| { /* conten
 For long lists whose rows differ in height (History: date headers, revision rows, the current-revision card; Assets: rows whose tags wrap).
 
 ```rust
-pub struct VList { pub estimate: f32, pub overscan: f32 }   // estimate: height for rows not yet measured
+b.virtual_list(key, tw, &rows)            // rows: &'f [R], R: Key + Copy; each row is its own key
+    .estimate_px(44.0)                    // rows differ in height: the height of a row not yet measured
+    .overscan_px(600.0)                   // optional: rows this far past the viewport are built too
+    .items(|b, row| …);                   // builds one row, under the row's key; FnMut + 'f
 
-pub fn virtual_list<R: Copy + Hash + Debug>(
-    &mut self, key: K, tw: Tw, list: VList, rows: &[R],
-    item: impl FnMut(&mut Builder<'_, 'f, A>, R),      // each row scoped under its own key
-);
+b.virtual_list(key, tw, &lines).fixed_px(20.0).items(|b, line| …);   // all rows one height
 ```
+
+`estimate_px` and `fixed_px` set one setting; the last call wins. With neither, a row counts as one line of the list's text until it is measured. Lengths are bare points, as `Tw`'s `_px` classes are.
 
 ```rust
 #[derive(Clone, Copy, Hash, Debug)] enum HistRow { Day(&'static str), Current(RevKey), Rev(RevKey) }
 
-b.virtual_list("list", tw().flex_1().min_h_0(), VList { estimate: 44.0, overscan: 300.0 }, &rows, |b, row| match row {
-    HistRow::Day(d)       => b.text(tw().pt(3.0).px(3.0).pb(1.0).role(k[Meta]), d),
-    HistRow::Current(key) => current_card(b, k, rev(key)),     // keys inside a row are unique within the row
-    HistRow::Rev(key)     => rev_row(b, k, rev(key)),
-});
+fn history<'f>(b: &mut Builder<'_, 'f, App>, rows: &'f [HistRow]) {
+    b.virtual_list("list", tw().flex_1().min_h_0(), rows)
+        .estimate_px(44.0)
+        .items(|b, row| match row {
+            HistRow::Day(d)       => b.text(tw().pt(3.0).px(3.0).pb(1.0).role(k[Meta]), d),
+            HistRow::Current(key) => current_card(b, k, rev(key)),     // keys inside a row are unique within the row
+            HistRow::Rev(key)     => rev_row(b, k, rev(key)),
+        });
+}
 ```
 
 Mechanism (library-owned, per list):
 
-1. **Height cache.** `HashMap<egui::Id, f32>` keyed by `list_id.with(row_key)`, held in `LayoutState`. Rows never laid out use `estimate`. The cache is cleared when the list's content width changes, because heights depend on width. Entries for keys absent this frame are dropped.
+1. **Height cache.** Each row's height as last measured, keyed by the row's key, held in `LayoutState` (D11a). Rows never laid out use the estimate. The cache is cleared when the list's content width changes, because heights depend on width. Entries for keys absent this frame are dropped.
 2. **Offsets.** Each frame, compute running totals over `rows` from cached or estimated heights. One linear pass. Total = content height.
-3. **Visible range.** Read last frame's scroll offset from egui memory under the list's ID. Binary-search the running totals for `[offset − overscan, offset + viewport + overscan]`. Call `item` only for that range. Each built row is wrapped in a library group, absolutely positioned at its offset inside a content node of the total height.
+3. **Visible range.** Chosen once the list's container is laid out in the frame, as a region's body runs (§11.2): the viewport and the offset are the frame's own. Binary-search the running totals for `[offset − overscan, offset + viewport + overscan]`. Call `item` only for that range. The built rows are stacked in one column, absolutely positioned at the first one's offset inside a content node of the total height.
 4. **Correction.** After layout, store the real heights of built rows. If rows above the first visible row changed height, adjust the scroll offset by the difference so visible content does not move (scroll anchoring), and request a repaint.
-5. **Pinned rows.** A row that holds keyboard focus or owns an open popup is always built, even outside the range, because egui drops focus from widgets that are not drawn in a frame. Rows report this through the library (it checks whether egui's focused ID lies under the row's path) ⚠.
-6. **Scroll to a row.** `scroll_to(list_id, key)` uses the running-total offset (possibly an estimate), then corrects once after measuring.
-7. **Uniform rows.** If `estimate` is given as a fixed height (`VList::fixed(h)`), skip the cache and use egui's `ScrollArea::show_rows` path.
+5. **Pinned rows.** A row that holds keyboard focus or owns an open popup is always built, even outside the range, because egui drops focus from widgets that are not drawn in a frame.
+6. **Scroll to a row.** `vlist::scroll_to(ctx, list_id, key, align)` uses the running-total offset (possibly an estimate), then corrects once after measuring.
+7. **Uniform rows.** `fixed_px(h)` skips the cache: the offsets are `i × h` and the range is arithmetic.
 
 Rows are ordinary built content scoped under their row key (D4, D5), so egui state for a row survives scrolling away and back.
+
+#### As built (M8)
+
+- **Structure.** A list is a scroll container (§11) whose content is one leaf, `<rows>`, as wide as the content and as tall as the running total. The rows are that leaf's region content (`RegionBody::List`): run in the region pass, so they are built at the frame's viewport and offset, with no frame of lag on the first show or a resize. `rows` and `item` borrow for `'f`, so a function that declares a list names `'f`, as for a region (§11.4).
+- **Placement.** The rows in the range sit in flow in one flex column, placed at the first one's running offset; a wrong estimate never makes built rows overlap or leave gaps, and only the space above and the total depend on estimates. A pinned row outside the range sits alone at its own running offset, before the column if it is above, after it if below, so the Tab order follows the list.
+- **Anchoring, two ways.** After the rows are solved, the difference between the measured and the used heights of the built rows above the first visible row is applied to the offset in the same frame (`scroll_by`, applied by that layout's settle step), so a row measured anew never moves what is seen. The first visible row's laid-out top is kept; the next frame compares it with the row's new running offset and moves the offset by the difference before it chooses the range, so rows inserted or removed above, and pinned rows measured anew, do not move it either. Neither applies at offset 0: at the very top, rows inserted above show, as a browser's scroll anchoring does not hold the top. A list scrolled to its end holds its end instead: as the rows there are measured and the total changes, the offset follows the end, so one scroll past the end lands on the last row, asking for frames until the heights settle. A `scroll_by` asked of the list is counted when the range is chosen, so the rows at the new offset are built in the frame that applies it (the keyboard's scrolling is `scroll_by`).
+- **The cache's key** is the row's own hash (`IdSalt`), not its egui id: within one list the rows are one type, and the cheaper hash keeps the per-frame pass over every row short. The row's egui id (`list_id.with(row_key)`) is what its nodes are keyed under.
+- **Pinned rows.** A row built in the last frame is built again while `focus_within` its node, while an overlay declared inside it is open, or while an overlay declared this frame is anchored to a node that was inside it (without that, the anchor would be missing).
+- **egui's rubber band.** egui bounds a `ScrollArea`'s offset by the last frame's content and springs an offset past it back, carrying the spring's velocity into the next frames. A container whose offset the layout sets in a frame in which its content grew (a list whose rows were just measured) is shown without the rubber band for that frame, so the offset lands where the layout put it.
+- **Tab** reaches the built rows only. The container's Tab-stop rule is settled after the rows are built, so a list of controls is no stop of its own.
+- **`scroll_to`** is kept in the context under the list's id until the list next runs, which builds the target where its running offset puts it and aligns it through `scroll_to_rect`; the anchoring corrects it once the row is measured.
+- **Fixed rows** are given exactly their height. `ScrollArea::show_rows` is not used: the list draws through the eggshell scroll container, which taffy lays out, and the range is the same formula's.
+- **Cost.** A fixed list's frame is O(visible rows). A measured list also makes one pass over every row's key each frame, hashing it and looking up its height; `benches/frame.rs` measures both at 1,000 to 100,000 rows.
 
 ### 11.2 Regions (D25)
 

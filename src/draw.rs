@@ -1247,6 +1247,13 @@ impl<A> Walk<'_, A> {
             |ui| {
                 let outer = ui.style().clone();
                 ui.spacing_mut().scroll = plan.bars.egui(&outer.spacing.scroll);
+                // egui bounds the offset by the last frame's content, and
+                // springs one past them back, carrying the spring's velocity
+                // into the next frames: an offset set at the end of content
+                // that grew this frame would creep back short of it.
+                if plan.moved == Moved::Yes {
+                    ui.spacing_mut().scroll.kinetic.rubber_band = false;
+                }
                 plan.bars.paint_in(ui.visuals_mut());
                 area.show_viewport(ui, |ui, _| {
                     // The bar's colours are for the bar, not for the content.

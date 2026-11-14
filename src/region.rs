@@ -16,10 +16,18 @@ use taffy::{AvailableSpace, Display, NodeId, Size, Style, TaffyTree, style_helpe
 use crate::builder::{Ambient, Builder};
 use crate::pipeline::{BuildState, Frame, Node, NodeKind, solve};
 use crate::text::TextStyle;
+use crate::vlist::ListRun;
 
 /// What a region's closure is given, besides its size: a builder under the
 /// region's key.
 pub(crate) type RegionFn<'f, A> = Box<dyn FnOnce(&mut Builder<'_, 'f, A>, Vec2) + 'f>;
+
+/// What builds a region's content: the application's closure, or the rows of
+/// a virtual list, which the library places and measures.
+pub(crate) enum RegionBody<'f, A> {
+    Closure(RegionFn<'f, A>),
+    List(ListRun<'f, A>),
+}
 
 /// A region from the moment it is declared until its closure runs.
 pub(crate) struct RegionDecl<'f, A> {
@@ -29,7 +37,7 @@ pub(crate) struct RegionDecl<'f, A> {
     pub(crate) readable: String,
     pub(crate) text: TextStyle,
     pub(crate) ambient: Ambient,
-    pub(crate) body: RegionFn<'f, A>,
+    pub(crate) body: RegionBody<'f, A>,
 }
 
 /// The distance from a laid-out leaf's border box to its content box, and the
@@ -82,10 +90,22 @@ pub(crate) fn run<'f, A>(
     frame.current = at;
     st.names.reset_to(&readable);
     let mut kids = Vec::new();
-    body(
-        &mut Builder::new(st, frame, id, &mut kids, (&text, ambient)),
-        size,
-    );
+    let laid = match body {
+        RegionBody::Closure(body) => {
+            body(
+                &mut Builder::new(st, frame, id, &mut kids, (&text, ambient)),
+                size,
+            );
+            None
+        }
+        RegionBody::List(mut list) => {
+            let view = list.view(ctx, &st.tree, leaf, size.x);
+            Some(list.build(
+                &mut Builder::new(st, frame, id, &mut kids, (&text, ambient)),
+                view,
+            ))
+        }
+    };
     let content = st
         .tree
         .new_with_children(content_style(size), &kids)
@@ -114,6 +134,9 @@ pub(crate) fn run<'f, A>(
             height: AvailableSpace::Definite(size.y),
         },
     );
+    if let Some(laid) = laid {
+        laid.settle(ctx, &mut st.tree);
+    }
     let declared = &mut frame.roots[at];
     (
         std::mem::take(&mut declared.scrolls),
