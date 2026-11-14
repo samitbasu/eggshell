@@ -586,3 +586,25 @@ fn a_zero_or_unknown_estimate_still_builds_only_a_viewport_and_overscan() {
         harness.step();
     }
 }
+
+#[test]
+fn a_scroll_by_shows_rows_in_the_frame_it_is_applied() {
+    let mut harness = harness_of(App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(20.0),
+    ));
+    scroll::scroll_by(&harness.ctx, list_id(&harness), vec2(0.0, 2000.0));
+    harness.step();
+    let view = viewport(&harness);
+    assert_eq!(
+        view.offset().y,
+        2000.0,
+        "precondition: applied in this frame"
+    );
+    assert!(
+        row_rect(&harness, 100).top() == view.rect.top(),
+        "the row at the new offset is built and shown: {:?}",
+        built_rows(&harness)
+    );
+}

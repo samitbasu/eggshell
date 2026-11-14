@@ -17,7 +17,8 @@
 //! The first visible row stays where it is on the screen when the rows above
 //! it change: when they are measured anew, and when rows are inserted above
 //! it or removed, the scroll offset moves by as much as the row did (scroll
-//! anchoring), except at the very top, where new rows show.
+//! anchoring), except at the very top, where new rows show. A list scrolled
+//! to its end stays at its end while the rows there are measured.
 //!
 //! A row built in the last frame is built again, wherever it is, while a
 //! widget inside it has keyboard focus, while an overlay declared inside it
@@ -241,8 +242,8 @@ pub(crate) struct ListState {
     width: Option<f32>,
     /// The rows built in the last frame.
     built: Vec<BuiltRow>,
-    /// The first visible row as last laid out, and its top.
-    anchor: Option<Anchor>,
+    /// What the last frame held still for the next.
+    hold: Option<Hold>,
     /// Kept allocations.
     keys: Vec<IdSalt>,
     offsets: Vec<f32>,
@@ -262,11 +263,14 @@ struct BuiltRow {
     overlays: Vec<Id>,
 }
 
+/// What a list keeps in place on the screen while the rows above it change.
 #[derive(Clone, Copy, Debug)]
-struct Anchor {
-    key: IdSalt,
-    at: usize,
-    top: f32,
+enum Hold {
+    /// The first visible row, by its key, where it was found, and its top
+    /// as laid out.
+    Row { key: IdSalt, at: usize, top: f32 },
+    /// The end of the list, which the offset was at.
+    End { offset: f32 },
 }
 
 /// The lists of a `LayoutState`, by the list's id.
@@ -462,6 +466,17 @@ pub(crate) struct View {
 }
 
 impl View {
+    /// The farthest the content can be scrolled.
+    fn limit(&self) -> f32 {
+        (self.content - self.viewport.y).max(0.0)
+    }
+
+    /// Whether the content is scrolled to its end, and can be scrolled.
+    fn at_end(&self) -> bool {
+        let limit = self.limit();
+        limit > 0.0 && self.offset >= limit - SAME
+    }
+
     /// The part of the rows `margin` beyond the viewport's edges.
     fn span(&self, margin: f32) -> Span {
         let start = self.offset - self.top;
@@ -508,17 +523,21 @@ impl<'f, A> ListRun<'f, A> {
             viewport,
             content: node.size.y,
         };
-        let anchor = self.forget_if_resized(width);
-        if let Some(anchor) = anchor
-            && view.offset > 0.0
-            && let Some(at) = self.find(anchor.key, anchor.at)
-        {
-            let moved = self.plan.tops.top(at) - anchor.top;
-            if moved.abs() > SAME {
-                view.offset += moved;
-                scroll::scroll_by(ctx, list, vec2(0.0, moved));
+        let requested = scroll::requested_by(ctx, list).y;
+        let moved = match self.forget_if_resized(width) {
+            Some(Hold::End { offset }) if view.offset >= offset - SAME => {
+                view.limit() - view.offset
             }
+            Some(Hold::Row { key, at, top }) if view.offset > 0.0 => self
+                .find(key, at)
+                .map_or(0.0, |at| self.plan.tops.top(at) - top),
+            _ => 0.0,
+        };
+        if moved.abs() > SAME {
+            view.offset += moved;
+            scroll::scroll_by(ctx, list, vec2(0.0, moved));
         }
+        view.offset = (view.offset + requested).clamp(0.0, view.limit());
         let request = ctx.data_mut(|data| {
             let request = data.get_temp::<ScrollTo>(request_key(list));
             data.remove::<ScrollTo>(request_key(list));
@@ -530,9 +549,8 @@ impl<'f, A> ListRun<'f, A> {
             let tops = &self.plan.tops;
             let row = (view.top + tops.top(at), view.top + tops.top(at + 1));
             let shown = (view.offset, view.offset + view.viewport.y);
-            let limit = (view.content - view.viewport.y).max(0.0);
             view.offset =
-                (view.offset + scroll::reveal(shown, row, request.align)).clamp(0.0, limit);
+                (view.offset + scroll::reveal(shown, row, request.align)).clamp(0.0, view.limit());
             let rect = Rect::from_min_max(pos2(0.0, row.0), pos2(view.viewport.x, row.1));
             scroll::scroll_to_rect(ctx, list, rect, request.align);
         }
@@ -540,15 +558,15 @@ impl<'f, A> ListRun<'f, A> {
     }
 
     /// Forgets the kept heights if the list is no longer `width` wide, and
-    /// returns the anchor kept from the last frame.
-    fn forget_if_resized(&mut self, width: f32) -> Option<Anchor> {
-        let (resized, anchor) = self.plan.with_state(|state| {
+    /// returns what the last frame held still.
+    fn forget_if_resized(&mut self, width: f32) -> Option<Hold> {
+        let (resized, hold) = self.plan.with_state(|state| {
             let resized = state.width.is_some_and(|was| (was - width).abs() > SAME);
             state.width = Some(width);
             if resized {
                 state.heights.clear();
             }
-            (resized, state.anchor)
+            (resized, state.hold)
         });
         if resized
             && let (RowHeights::Measured { estimate }, Tops::Measured { offsets }) =
@@ -557,7 +575,7 @@ impl<'f, A> ListRun<'f, A> {
             let rows = offsets.len() - 1;
             running_offsets(std::iter::repeat_n(estimate, rows), offsets);
         }
-        anchor
+        hold
     }
 
     /// The row whose key is `key`, looked for at `hint` first.
@@ -658,6 +676,7 @@ impl<'f, A> ListRun<'f, A> {
             built,
             first_visible,
             column_top,
+            end: view.at_end().then_some(view.offset),
         }
     }
 }
@@ -688,6 +707,8 @@ pub(crate) struct Laid {
     first_visible: usize,
     /// Where the column of visible rows was placed, if any were built.
     column_top: Option<f32>,
+    /// The offset, if the content was scrolled to its end.
+    end: Option<f32>,
 }
 
 impl Laid {
@@ -702,10 +723,11 @@ impl Laid {
             built,
             first_visible,
             column_top,
+            end,
         } = self;
         let mut moved = 0.0;
         let mut changed = false;
-        let mut anchor = None;
+        let mut first = None;
         let mut top = column_top.unwrap_or(0.0);
         let mut rows_kept = Vec::with_capacity(built.len());
         let mut heights = Vec::with_capacity(built.len());
@@ -718,7 +740,7 @@ impl Laid {
                     moved += height - used;
                 }
                 if row.at == first_visible {
-                    anchor = Some(Anchor {
+                    first = Some(Hold::Row {
                         key: row.key,
                         at: row.at,
                         top,
@@ -769,7 +791,7 @@ impl Laid {
             }
             state.keys = keys;
             state.built = rows_kept;
-            state.anchor = anchor;
+            state.hold = end.map(|offset| Hold::End { offset }).or(first);
         });
     }
 }

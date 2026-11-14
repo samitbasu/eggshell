@@ -475,6 +475,28 @@ fn viewport_key(scroll: Id) -> Id {
     scroll.with("eggshell-scroll-viewport")
 }
 
+/// The scrolling by a delta asked of the container `scroll` that the next
+/// layout will apply, in total.
+pub(crate) fn requested_by(ctx: &Context, scroll: Id) -> Vec2 {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data(|data| {
+        data.get_temp::<Pending>(pending_key())
+            .map_or(Vec2::ZERO, |pending| {
+                pending
+                    .0
+                    .iter()
+                    .filter(|request| {
+                        request.container == Some(scroll) && pass <= request.pass + REQUEST_LIFE
+                    })
+                    .filter_map(|request| match request.wish {
+                        Wish::By(delta) => Some(delta),
+                        _ => None,
+                    })
+                    .fold(Vec2::ZERO, |total, delta| total + delta)
+            })
+    })
+}
+
 fn submit(ctx: &Context, request: Request) {
     ctx.data_mut(|data| {
         data.get_temp_mut_or_default::<Pending>(pending_key())
