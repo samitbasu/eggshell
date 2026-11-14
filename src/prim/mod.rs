@@ -10,7 +10,7 @@ pub mod text_field;
 
 use egui::{Color32, ImageSource, Painter, Rect, WidgetText};
 
-use crate::{Angle, Flip};
+use crate::{Angle, Mirror};
 
 /// An icon: an image source tinted with the inherited text colour.
 ///
@@ -22,7 +22,7 @@ pub struct Icon {
     /// Rotation about the centre.
     pub rotate: Angle,
     /// Mirroring, applied before the rotation.
-    pub flip: Flip,
+    pub mirror: Mirror,
 }
 
 impl Icon {
@@ -31,7 +31,7 @@ impl Icon {
         Self {
             src,
             rotate: Angle::ZERO,
-            flip: Flip::None,
+            mirror: Mirror::None,
         }
     }
 
@@ -44,8 +44,8 @@ impl Icon {
     }
 
     /// This icon mirrored.
-    pub fn flipped(self, flip: Flip) -> Self {
-        Self { flip, ..self }
+    pub fn mirrored(self, mirror: Mirror) -> Self {
+        Self { mirror, ..self }
     }
 }
 

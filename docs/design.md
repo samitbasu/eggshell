@@ -531,7 +531,7 @@ Whether a widget stretches is a layout decision (`flex_1`, `w_full`), never the 
 
 `text`, `glyph` / `icon`, `image`, `paint`, and `span` (text with an ID). Rules (separators) are not primitives: `b.rule(tw)` is an empty box whose `bg` is the line color, horizontal with `h_px(1.0).w_full()` (or `self_stretch` in a column), vertical with `w_px(1.0).self_stretch()` or a fixed `h`. The library measures them, paints them in the content box using the node's resolved text style, and, for identified ones (`span`, `icon`), then calls the node's draw closure, which reads `ui.node_response()` for clicks, tooltips and cursor (§7.5).
 
-`Icon` is a library value: `Icon { src: ImageSource<'static>, rotate: f32, flip_x: bool }`, tinted with the inherited text color. Applications define their icon set as functions returning `ImageSource` ⚠.
+`Icon` is a library value: `Icon { src: ImageSource<'static>, rotate: f32, mirror: Mirror }`, tinted with the inherited text color. Applications define their icon set as functions returning `ImageSource` ⚠.
 
 ### 10.2 Interactive (drawn by the node's closure, library-provided helpers)
 
