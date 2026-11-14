@@ -253,7 +253,7 @@ pub use draw::NodeUi;
 pub use focus::focus_within;
 pub use key::Key;
 pub use measure::{Measure, fill};
-pub use overlay::Distance;
+pub use overlay::{Boundary, Distance, InsetBoundary};
 pub use overlay_input::Blur;
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
 pub use prim::Icon;

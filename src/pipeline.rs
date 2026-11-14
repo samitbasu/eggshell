@@ -336,10 +336,14 @@ pub(crate) fn room_for(
     natural: Vec2,
 ) -> Room {
     let area = kept.with(|kept| kept.area);
-    let anchor = ctx.read_response(anchor).map(|response| response.rect);
-    match (area, anchor) {
-        (Some(area), Some(anchor))
-            if place(anchor, natural, placement, area).available.y < natural.y =>
+    let rect = |id| ctx.read_response(id).map(|response| response.rect);
+    let placement = match placement.boundary_node() {
+        Some(node) => rect(node).map(|rect| placement.with_node_rect(rect)),
+        None => Some(*placement),
+    };
+    match (area, rect(anchor), placement) {
+        (Some(area), Some(anchor), Some(placement))
+            if place(anchor, natural, &placement, area).available.y < natural.y =>
         {
             Room::Short
         }
@@ -582,6 +586,14 @@ impl<'f, A> Built<'f, A> {
                                     .unwrap_or(area.min)
                             })
                         });
+                    let boundary = placement
+                        .boundary_node()
+                        .map(|id| by_id.get(&id).map(|&index| nodes[index].rect()).ok_or(id));
+                    let (placement, lookup) = match boundary {
+                        Some(Ok(rect)) => (placement.with_node_rect(rect), lookup),
+                        Some(Err(_)) => (placement, AnchorLookup::Missing),
+                        None => (placement, lookup),
+                    };
                     if lookup == AnchorLookup::Missing && opening == Opening::Opened {
                         #[cfg(debug_assertions)]
                         {
@@ -589,11 +601,15 @@ impl<'f, A> Built<'f, A> {
                                 .tree
                                 .get_node_context(node)
                                 .map_or_else(String::new, |context| context.path.clone());
-                            let Anchor::Node(id) = anchor_decl else {
-                                unreachable!("only a node anchor can be missing")
+                            let (what, id) = match (anchor_decl, boundary) {
+                                (Anchor::Node(id), _) if !by_id.contains_key(&id) => {
+                                    ("anchored to", id)
+                                }
+                                (_, Some(Err(id))) => ("bounded by", id),
+                                _ => unreachable!("only a node can be missing"),
                             };
                             panic!(
-                                "overlay {path} is anchored to a node that doesn't exist in this frame \
+                                "overlay {path} is {what} a node that doesn't exist in this frame \
                                  ({id:?}) (declared at {})",
                                 overlay.declared_at
                             );

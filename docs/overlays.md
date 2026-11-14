@@ -188,6 +188,15 @@ Rules (each pinned by a test):
 
 **Design.** `Anchor`, `Placement` and `place` as above. Bounds are the screen by default; `.boundary(Rect)` is deferred until needed (a region-scoped popover can pass `Anchor::Rect` and a clamp rect later).
 
+**As built (#172, `Placement::boundary`).**
+
+- `Placement::boundary(impl Into<InsetBoundary>)`, with `Boundary::{Window (default), Node(Id), Rect(Rect)}` and `Boundary::inset(Sides<Distance>) -> InsetBoundary`; a bare `Boundary` converts with no inset. The inset is on `Boundary` (not on `Placement`) so that a region and its insets travel together: `.boundary(Boundary::Node(canvas).inset(Sides { top: d(8.0), left: d(8.0), right: d(8.0), bottom: d(48.0) }))`. `Sides<T>` is the existing `tw::Sides` (re-exported at the root) with a new `Sides::all`; the other constructors are struct update from `Sides::default()`.
+- `place(anchor, size, placement, bounds)` keeps its signature: `bounds` stays the window. The boundary rect (inset, then intersected with the window, then `margin`) is the area the overlay slides into, flips by and measures `available` in. An empty intersection collapses to a point at the window-side corner rather than panicking. `Anchored` still compares the anchor with the window. `Boundary::Node` is resolved by the pipeline (`Placement::with_node_rect`) from this frame's rects, as an anchor is; `place` treats an unresolved node as the window. `pipeline::room_for` (the stock select's build-time scroll decision) resolves it the same way, from the last frame's response.
+- **Missing boundary node** follows #139: debug builds panic on the frame the overlay opens, naming the overlay and its declaration (`bounded by a node that doesn't exist`); afterwards (and in release) the lookup is `Missing` and the overlay is dismissed. It is the same `AnchorLookup`, so one rule covers anchor and boundary.
+- **Behaviour change under `Flip::Never`** (beside an anchor): `Spot::available` along the main axis is the whole area, not the room on the side, because a never-flipping overlay slides over its anchor and keeps its size. Before, content with no room on its side was clamped to zero height. Nothing in the crate used `Flip::Never` besides `Placement::edge` (unchanged: it already offered the whole area) and the internal refit (which ignores `available`).
+- `Default` placements are unchanged: no golden or existing test moved.
+
+
 ## 4. Dismissal (D22, encoded once)
 
 Open state lives on `App`; the library calls `on_dismiss` and the app closes. Everything below is **one function** run after the draw, over this frame's final rects and input; no site decides dismissal on its own.
