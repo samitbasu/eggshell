@@ -115,7 +115,7 @@ pub struct Rig<A> {
     ids: Vec<(String, egui::Id)>,
 }
 
-pub fn harness<A: 'static>(
+pub fn harness<A>(
     size: Vec2,
     base_text: TextStyle,
     app: A,
@@ -126,7 +126,7 @@ pub fn harness<A: 'static>(
 
 /// [`harness`] for an app that sets egui's style: `prepare` runs before
 /// every frame is built.
-pub fn harness_prepared<A: 'static>(
+pub fn harness_prepared<A>(
     size: Vec2,
     base_text: TextStyle,
     app: A,
@@ -137,7 +137,7 @@ pub fn harness_prepared<A: 'static>(
 }
 
 /// [`harness`] whose frames are `step_dt` seconds apart.
-pub fn harness_stepped<A: 'static>(
+pub fn harness_stepped<A>(
     size: Vec2,
     step_dt: f32,
     base_text: TextStyle,
@@ -148,7 +148,7 @@ pub fn harness_stepped<A: 'static>(
 }
 
 /// [`harness_prepared`] whose frames are `step_dt` seconds apart.
-pub fn harness_scaled_stepped<A: 'static>(
+pub fn harness_scaled_stepped<A>(
     size: Vec2,
     step_dt: f32,
     base_text: TextStyle,
@@ -161,7 +161,7 @@ pub fn harness_scaled_stepped<A: 'static>(
 
 /// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
 /// points.
-pub fn harness_scaled<A: 'static>(
+pub fn harness_scaled<A>(
     size: Vec2,
     pixels_per_point: f32,
     base_text: TextStyle,
@@ -172,7 +172,7 @@ pub fn harness_scaled<A: 'static>(
     harness_timed(size, pixels_per_point, 0.05, base_text, app, view, prepare)
 }
 
-fn harness_timed<A: 'static>(
+fn harness_timed<A>(
     size: Vec2,
     pixels_per_point: f32,
     step_dt: f32,

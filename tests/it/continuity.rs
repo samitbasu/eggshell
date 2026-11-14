@@ -19,7 +19,7 @@ struct Fixture<A> {
     layout: LayoutState,
 }
 
-fn rig<A: 'static>(
+fn rig<A>(
     app: A,
     view: fn(&mut Builder<'_, '_, A>, &A),
     area: fn(&A) -> Vec2,

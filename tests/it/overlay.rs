@@ -464,7 +464,7 @@ struct World<A> {
 }
 
 /// Builds, lays out and draws `view` every frame: the real path.
-fn world<A: 'static>(app: A, view: fn(&mut Builder<'_, '_, A>, &A)) -> Harness<'static, World<A>> {
+fn world<A>(app: A, view: fn(&mut Builder<'_, '_, A>, &A)) -> Harness<'static, World<A>> {
     let world = World {
         app,
         layout: LayoutState::new().with_base_text(body()),
