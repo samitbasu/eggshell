@@ -480,6 +480,22 @@ fn pending_key() -> Id {
     crate::key::root_id().with("scroll-requests")
 }
 
+fn bar_hold_key(scroll: Id) -> Id {
+    scroll.with("eggshell-scroll-bar-hold")
+}
+
+/// Records whether the pointer's button is down on a bar of the container
+/// `scroll`, whose `ScrollArea` is `area`. egui sets the offset from the
+/// pointer's place on a held bar in every frame, so the offset a layout
+/// would move to by other means is undone in the frame it is drawn.
+pub(crate) fn note_bar_hold(ctx: &Context, scroll: Id, area: Id) {
+    let held = (0..2).any(|axis| {
+        ctx.read_response(area.with(axis))
+            .is_some_and(|bar| bar.is_pointer_button_down_on())
+    });
+    ctx.data_mut(|data| data.insert_temp(bar_hold_key(scroll), held));
+}
+
 fn viewport_key(scroll: Id) -> Id {
     scroll.with("eggshell-scroll-viewport")
 }
@@ -879,6 +895,9 @@ impl Settle {
                     );
                 }
             }
+        }
+        if self.ctx.data(|data| data.get_temp(bar_hold_key(id))) == Some(true) {
+            want = start;
         }
         if want != start {
             want = masked(want, plan.axis).clamp(Vec2::ZERO, max);
