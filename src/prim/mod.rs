@@ -8,7 +8,7 @@
 
 pub mod text_field;
 
-use egui::{Color32, ImageSource, Painter, Rect};
+use egui::{Color32, ImageSource, Painter, Rect, WidgetText};
 
 use crate::{Angle, Flip};
 
@@ -54,7 +54,20 @@ pub(crate) type PaintFn = Box<dyn Fn(&Painter, Rect, Color32)>;
 /// What a node displays, when it displays anything.
 pub(crate) enum Prim {
     Text(String),
+    /// Text with egui's formatting; never a [`WidgetText::Text`].
+    Rich(WidgetText),
     Icon(Icon),
     Image(ImageSource<'static>),
     Paint(PaintFn),
+}
+
+impl Prim {
+    /// The text this shows, if it is text.
+    pub(crate) fn text(&self) -> Option<&str> {
+        match self {
+            Self::Text(text) => Some(text),
+            Self::Rich(text) => Some(text.text()),
+            Self::Icon(_) | Self::Image(_) | Self::Paint(_) => None,
+        }
+    }
 }

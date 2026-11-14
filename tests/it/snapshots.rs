@@ -1791,3 +1791,152 @@ mod tooltip_candidates {
         }
     }
 }
+
+/// A button's built tooltip, text and a key chip, open beside the page's
+/// own key chip.
+fn rich_tooltip_view(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div(
+        tw().flex()
+            .items_center()
+            .justify_center()
+            .gap(3.0)
+            .p(4.0)
+            .pt(16.0),
+        |b| {
+            b.button("save", "Save")
+                .tooltip_with(|s| {
+                    s.div(tw().flex().items_center().gap(2.0), |s| {
+                        s.text(tw(), "Save");
+                        s.kbd("Ctrl+S");
+                    });
+                })
+                .add();
+            b.kbd("Ctrl+S");
+        },
+    );
+}
+
+fn rich_tooltip_open(harness: &mut Harness<'static, support::Rig<()>>, theme: egui::Theme) {
+    common::set_style(&harness.ctx, ShadcnStyle::Vega);
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(8);
+    support::hover_node(harness, "/\"save\"");
+    harness.run_steps(30);
+    assert!(
+        harness
+            .state()
+            .nodes
+            .iter()
+            .any(|(path, _)| path.contains("Tooltip(")),
+        "the tooltip is open"
+    );
+}
+
+fn rich_tooltip_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let tokens = Tokens::for_theme(theme);
+    let mut harness = support::harness_prepared(
+        Vec2::new(240.0, 120.0),
+        TextStyle::new(layouts::BODY, tokens.foreground),
+        (),
+        rich_tooltip_view,
+        |_, _| {},
+    );
+    rich_tooltip_open(&mut harness, theme);
+    harness.snapshot(name);
+}
+
+#[test]
+fn rich_tooltip_light() {
+    rich_tooltip_in("rich_tooltip_light", egui::Theme::Light);
+}
+
+#[test]
+fn rich_tooltip_dark() {
+    rich_tooltip_in("rich_tooltip_dark", egui::Theme::Dark);
+}
+
+/// Candidate looks for a key chip on a tooltip, rendered for review:
+/// `cargo test --features snapshots --test it kbd_candidates -- --ignored`
+/// with `EGGSHELL_TOOLTIP_DIR` naming where the PNGs go, and
+/// `VK_ICD_FILENAMES` the software renderer.
+mod kbd_candidates {
+    use super::*;
+    use eggshell_ui::Style;
+    use eggshell_ui::contract::Colors;
+    use eggshell_ui_shadcn::Shadcn;
+
+    fn out() -> std::path::PathBuf {
+        let dir = std::env::var("EGGSHELL_TOOLTIP_DIR")
+            .expect("EGGSHELL_TOOLTIP_DIR names the output directory");
+        std::fs::create_dir_all(&dir).expect("the directory can be made");
+        dir.into()
+    }
+
+    fn change(ctx: &egui::Context, edit: impl FnOnce(&mut Style)) {
+        let mut style = (*Style::of(ctx)).clone();
+        edit(&mut style);
+        style.install_for(ctx, ctx.theme());
+    }
+
+    /// (a) shadcn's Kbd in a tooltip: `bg-background/20 text-background`,
+    /// `/10` in the dark theme.
+    fn tinted(_: &egui::Context, _: &()) {}
+
+    /// (b) an outline: no fill, a 1 pt `background/40` border.
+    fn outlined(ctx: &egui::Context, _: &()) {
+        let tokens = Shadcn::of(ctx).tokens;
+        change(ctx, |style| {
+            style.kbd.tooltip = Colors {
+                fill: Color32::TRANSPARENT,
+                border: tokens.background.gamma_multiply(0.4),
+                text: tokens.background,
+            };
+            style.kbd.border_width = 1.0;
+        });
+    }
+
+    /// (c) the page's chip as it is: `bg-muted text-muted-foreground`.
+    fn muted(ctx: &egui::Context, _: &()) {
+        change(ctx, |style| style.kbd.tooltip = style.kbd.page);
+    }
+
+    fn render(name: &str, theme: egui::Theme, scale: f32, prepare: fn(&egui::Context, &())) {
+        let tokens = Tokens::for_theme(theme);
+        let mut harness = support::harness_scaled(
+            Vec2::new(240.0, 120.0),
+            scale,
+            TextStyle::new(layouts::BODY, tokens.foreground),
+            (),
+            rich_tooltip_view,
+            prepare,
+        );
+        rich_tooltip_open(&mut harness, theme);
+        let label = if theme == egui::Theme::Light {
+            "light"
+        } else {
+            "dark"
+        };
+        let suffix = if scale > 1.0 { "@2x" } else { "" };
+        harness
+            .render()
+            .expect("renders")
+            .save(out().join(format!("kbd_{name}_{label}{suffix}.png")))
+            .expect("saves");
+    }
+
+    #[test]
+    #[ignore = "writes review images, see the module comment"]
+    fn kbd_candidates() {
+        report_renderer();
+        for theme in [egui::Theme::Light, egui::Theme::Dark] {
+            for scale in [1.0, 2.0] {
+                render("a_tinted", theme, scale, tinted);
+                render("b_outlined", theme, scale, outlined);
+                render("c_muted", theme, scale, muted);
+            }
+        }
+    }
+}

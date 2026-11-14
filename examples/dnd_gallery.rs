@@ -312,6 +312,7 @@ pub fn toolbar(b: &mut B<'_, '_, State>, state: &State) {
         |b| {
             b.text(tw().text(t.muted_foreground), "Columns");
             b.segmented("columns", state.cols, [(1, "1"), (2, "2"), (3, "3")])
+                .tooltip_with(|s| shortcut(s, "Columns", &["1", "2", "3"]))
                 .on_change(|state: &mut State, cols| state.cols = cols);
             b.text(tw().text(t.muted_foreground), "Drag image");
             b.segmented(
@@ -319,10 +320,23 @@ pub fn toolbar(b: &mut B<'_, '_, State>, state: &State) {
                 state.image,
                 [(Image::Live, "Live"), (Image::Chip, "Chip")],
             )
+            .tooltip_with(|s| shortcut(s, "Switch the drag image", &["G"]))
             .on_change(|state: &mut State, image| state.image = image);
             b.text(tw().text(t.muted_foreground), state.status.clone());
         },
     );
+}
+
+/// A tooltip's content: what a control does and the keys that do it too.
+fn shortcut(b: &mut B<'_, '_, State>, what: &str, keys: &[&str]) {
+    b.div(tw().flex().items_center().gap(2.0), |b| {
+        b.text(tw(), what);
+        b.div(tw().flex().items_center().gap(1.0), |b| {
+            for key in keys {
+                b.kbd(*key);
+            }
+        });
+    });
 }
 
 fn shortcuts(ctx: &Context, state: &mut State) {

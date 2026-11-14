@@ -12,7 +12,8 @@ use super::choice::{self, Choice, IntoChoice};
 use super::menu::Tone;
 use super::number::{hold_arrows, pressed};
 use super::{
-    Chevron, Enablement, Mark, OnResponse, Tip, describe, paint_check, paint_chevron, tipped,
+    Chevron, Content, Enablement, Mark, OnResponse, TipContent, describe, paint_check,
+    paint_chevron, tip, tipped,
 };
 use crate::builder::Slot;
 use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Shown, Wrap};
@@ -81,7 +82,7 @@ pub struct SelectChain<'a, 'f, A, T> {
     options: Vec<Choice<T>>,
     name: Option<String>,
     offset: Option<Distance>,
-    tooltip: Tip,
+    tooltip: TipContent,
     classes: Tw,
     enablement: Enablement,
     on_response: OnResponse<A>,
@@ -133,10 +134,22 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
     /// Shown while the pointer hovers the control, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
     /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
+    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+        self.tooltip = Some(Content::Text(text.into()));
+        self
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
+    /// The content takes no input, and its text describes the control to
+    /// assistive technology.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.tooltip = Some(Content::built(build));
         self
     }
 
@@ -176,6 +189,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             enablement,
             on_response,
         } = self;
+        let tooltip = tip(&mut b, slot.id, tooltip);
         let enablement = b.enablement_of(enablement);
         let ctx = b.ctx().clone();
         let trigger = slot.id;

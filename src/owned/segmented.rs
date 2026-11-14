@@ -7,7 +7,9 @@ use egui::{Context, Role};
 
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
-use super::{Enablement, OnResponse, Tip, centered, described, tipped};
+use super::{
+    Content, Enablement, OnResponse, Tip, TipContent, Tooltip, centered, described, tip, tipped,
+};
 use crate::builder::Slot;
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
@@ -67,7 +69,7 @@ pub struct SegmentedChain<'a, 'f, A, T> {
     options: Vec<Choice<T>>,
     rows: Rows,
     enablement: Enablement,
-    tooltip: Tip,
+    tooltip: TipContent,
     track: Tw,
     cells: Tw,
     custom: Option<Custom<'a>>,
@@ -151,10 +153,22 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
     /// Shown while the pointer hovers the control, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
     /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
+    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it. A cell's own tooltip shows instead of it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+        self.tooltip = Some(Content::Text(text.into()));
+        self
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
+    /// The content takes no input, and its text describes the control to
+    /// assistive technology.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.tooltip = Some(Content::built(build));
         self
     }
 
@@ -176,7 +190,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
     pub fn on_change_with(self, select: impl Fn(&mut A, &Context, T) + 'static) {
         let select: Handler<A, T> = Rc::new(select);
         let Self {
-            b,
+            mut b,
             slot,
             current,
             options,
@@ -188,6 +202,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             custom,
             on_response,
         } = self;
+        let tooltip = tip(&mut b, slot.id, tooltip);
         let enablement = b.enablement_of(enablement);
         if let Some(Custom { track, cell }) = custom {
             cells_in(
@@ -293,7 +308,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
             };
             let classes = cell(state, group.and(enablement)).sense_click();
             let name = label.clone();
-            let tooltip = tooltip.or_else(|| control_tip.clone());
+            let tooltip = tooltip.map(Tooltip::text).or_else(|| control_tip.clone());
             let on_response = on_response.clone();
             let select = select.clone();
             let clicked = move |app: &mut A, ui: &mut egui::Ui| {

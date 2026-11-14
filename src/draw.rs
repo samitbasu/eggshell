@@ -1317,29 +1317,12 @@ impl<A> Walk<'_, A> {
         let content = boxes.content;
         match prim {
             Prim::Text(string) => {
-                let leaf = TextLeaf {
-                    text: &string,
-                    style: text,
-                };
-                let galley = self
-                    .ui
-                    .ctx()
-                    .fonts_mut(|fonts| leaf.drawn_galley(fonts, boxes.wrap_width));
-                let top = node
-                    .text_valign()
-                    .offset(content.height() - galley.size().y);
-                let anchor: Pos2 = match text.align {
-                    TextAlign::Left => content.left_top(),
-                    TextAlign::Center => content.center_top(),
-                    TextAlign::Right => content.right_top(),
-                } + vec2(0.0, top);
-                if text.select.selects(inherited.interactive) {
-                    let id = self.selection_id(index, node);
-                    self.select_text(id, galley, anchor, content, text, inherited);
-                } else {
-                    self.painter(inherited.clip, inherited.opacity)
-                        .galley(anchor, galley, text.color);
-                }
+                let leaf = TextLeaf::plain(&string, text);
+                self.paint_text(&leaf, index, node, boxes, inherited);
+            }
+            Prim::Rich(rich) => {
+                let leaf = TextLeaf::rich(self.ui.ctx(), &rich, text);
+                self.paint_text(&leaf, index, node, boxes, inherited);
             }
             Prim::Icon(icon) => self.paint_image(image_for(icon, text.color), content, inherited),
             Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
@@ -1348,6 +1331,37 @@ impl<A> Walk<'_, A> {
                 content,
                 text.color,
             ),
+        }
+    }
+
+    fn paint_text(
+        &mut self,
+        leaf: &TextLeaf<'_>,
+        index: usize,
+        node: &PlacedNode,
+        boxes: &Boxes,
+        inherited: Inherited,
+    ) {
+        let content = boxes.content;
+        let text = leaf.style;
+        let galley = self
+            .ui
+            .ctx()
+            .fonts_mut(|fonts| leaf.drawn_galley(fonts, boxes.wrap_width));
+        let top = node
+            .text_valign()
+            .offset(content.height() - galley.size().y);
+        let anchor: Pos2 = match text.align {
+            TextAlign::Left => content.left_top(),
+            TextAlign::Center => content.center_top(),
+            TextAlign::Right => content.right_top(),
+        } + vec2(0.0, top);
+        if text.select.selects(inherited.interactive) {
+            let id = self.selection_id(index, node);
+            self.select_text(id, galley, anchor, content, text, inherited);
+        } else {
+            self.painter(inherited.clip, inherited.opacity)
+                .galley(anchor, galley, text.color);
         }
     }
 
@@ -1719,7 +1733,7 @@ fn text_ordinals(nodes: &[PlacedNode], prims: &[Option<Prim>]) -> Vec<u32> {
         .iter()
         .zip(prims)
         .map(|(node, prim)| match prim {
-            Some(Prim::Text(_)) => {
+            Some(prim) if prim.text().is_some() => {
                 let count = seen.entry(node.path()).or_insert(0);
                 *count += 1;
                 *count
