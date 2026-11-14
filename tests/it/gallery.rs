@@ -12,6 +12,9 @@ mod controls_gallery;
 
 use crate::support;
 
+#[path = "../../examples/common/mod.rs"]
+mod common;
+
 use controls_gallery::{
     CellWidth, Control, Interact, Label, Padding, State, TextSize, layout, prepare,
 };
@@ -230,5 +233,44 @@ fn only_the_cells_section_shows_the_cell_controls() {
             shown,
             "the legend in {section:?}"
         );
+    }
+}
+
+/// The name column of every row in `harness`'s section.
+fn name_cells(harness: &Harness<'_, Rig<State>>) -> Vec<egui::Rect> {
+    let width = controls_gallery::NAME_COLUMN * 4.0;
+    harness
+        .state()
+        .nodes
+        .iter()
+        .map(|(_, rect)| *rect)
+        .filter(|rect| (rect.width() - width).abs() < 0.01)
+        .collect()
+}
+
+#[test]
+fn every_row_name_fits_on_one_line() {
+    use controls_gallery::Section;
+    let line = controls_gallery::base_text().spec.line_height;
+    for style in eggshell_ui_shadcn::ShadcnStyle::ALL {
+        for section in [Section::Buttons, Section::Choices, Section::Values] {
+            let mut harness = harness(State {
+                section,
+                ..State::default()
+            });
+            common::set_style(&harness.ctx, style);
+            harness.run_steps(4);
+            let names = name_cells(&harness);
+            assert!(
+                names.len() >= 6,
+                "precondition: the {section:?} rows have name cells: {names:?}"
+            );
+            for name in names {
+                assert!(
+                    name.height() <= line + 0.01,
+                    "{style:?} {section:?}: a name wraps in {name:?}"
+                );
+            }
+        }
     }
 }
