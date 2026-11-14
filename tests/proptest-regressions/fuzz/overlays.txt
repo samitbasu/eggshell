@@ -17,3 +17,5 @@ cc 2dc0b2dd4d1b1a042c160e78b740ee80ca459185d11ddab035982c0586212c92 # shrinks to
 cc 55028aea4e24cc19ecb9beb8f6c9fa3d57e3bbee8e3d03b1ba657cdfba205dcf # shrinks to actions = [OpenPopover, ShiftTab, ShiftTab, OpenAnchorPopover, OpenMenu]
 cc a5a935ecdc5089f71b214f1c5314eba620615266978d3c0e115a5a4a6944c869 # shrinks to actions = [Tab, ArrowDown, Tab, ArrowDown, Esc]
 cc de9159151c85d0fd9cb2f75e7d436844c6e8ccd311a2448716a725b7b8747f9d # shrinks to actions = [OpenPopover, HoverTrigger(1), OpenAnchorPopover, ArrowDown]
+cc d4d48cfc4675bf330925996b37f5810800dd8219aae3bef05e77a23737424d3f # shrinks to actions = [OpenContextMenu(82, 0), OpenSubmenu, ArrowLeft]
+cc 627d3be75f18447c641439f7310f9fc3056486997c1a847e69d30aa83582c92f # shrinks to actions = [OpenAnchorPopover, ArrowUp, ClickAt(4, 52)]

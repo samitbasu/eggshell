@@ -1202,6 +1202,36 @@ fn a_press_on_a_trigger_with_its_tooltip_up_closes_the_popover_below() {
     .expect("holds");
 }
 
+/// ArrowLeft in a submenu of the context menu closes the submenu and keeps
+/// focus inside the context menu. Filed as #203.
+#[test]
+fn arrow_left_in_a_context_submenu_keeps_focus_in_the_menu() {
+    run(
+        &[
+            Action::OpenContextMenu(82, 0),
+            Action::OpenSubmenu,
+            Action::ArrowLeft,
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
+/// A popover whose anchor is in a scroll container does not blink out for a
+/// frame when a press lands on the page.
+#[test]
+fn a_scroll_popover_does_not_blink_when_the_page_is_pressed() {
+    run(
+        &[
+            Action::OpenAnchorPopover,
+            Action::ArrowUp,
+            Action::ClickAt(4, 52),
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
 /// Outside the overlays: with a pointer button held, End on a focused button
 /// in a scroll container scrolls it for the frame of the key press and puts
 /// it back in the frame of the release, which hides the button's tooltip (a

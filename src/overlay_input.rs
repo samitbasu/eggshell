@@ -218,14 +218,17 @@ fn box_of(nodes: &[PlacedNode], roots: &[PlacedRoot], root: usize) -> egui::Rect
 }
 
 /// The layers dismissal judges, from the attached overlays; `focus` says
-/// where focus was and is relative to each.
+/// where focus was and is relative to each. A trigger reaches as far as
+/// egui's hit test does, so that a press that clicks it is not also outside.
 fn layers_of(
+    ctx: &Context,
     open: &[Open<'_>],
     nodes: &[PlacedNode],
     roots: &[PlacedRoot],
     mut focus: impl FnMut(&Open<'_>) -> (FocusAt, FocusAt),
 ) -> Vec<Layer> {
     let position = |root: usize| open.iter().position(|open| open.root == root);
+    let reach = ctx.global_style().interaction.interact_radius;
     open.iter()
         .map(|open| {
             let overlay = open.overlay;
@@ -239,7 +242,7 @@ fn layers_of(
                 },
                 cancel: actions::button_in(nodes, roots[open.root].first, Action::Cancel),
                 trigger: matches!(overlay.anchor_decl, Anchor::Node(_) | Anchor::Rect(_))
-                    .then_some(overlay.anchor),
+                    .then(|| overlay.anchor.expand(reach)),
                 band: overlay.band,
                 dismiss_on: overlay.behavior.dismiss_on,
                 outside: overlay.behavior.outside(),
@@ -376,7 +379,7 @@ pub(crate) fn claim_keys(
         drag_live: drag == Drag::Live,
         ..Input::default()
     };
-    let layers = layers_of(&open, nodes, roots, |_| {
+    let layers = layers_of(ctx, &open, nodes, roots, |_| {
         (FocusAt::Nowhere, FocusAt::Nowhere)
     });
     let belongs_to_the_library = match escape_goes(&layers, nodes, &input) {
@@ -451,7 +454,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     );
     let source = Source::last(ctx);
     let mut stack = Stack::load(kept);
-    let layers = layers_of(&open, nodes, roots, |open| {
+    let layers = layers_of(ctx, &open, nodes, roots, |open| {
         let before = stack
             .get_mut(open.overlay.id)
             .map(|entry| entry.focus)
