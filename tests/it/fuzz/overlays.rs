@@ -394,6 +394,7 @@ fn rig_harness() -> Harness<'static, Rig> {
         .with_step_dt(STEP_DT)
         .build_ui_state(
             |ui, rig: &mut Rig| {
+                crate::support::full_motion(ui.ctx());
                 let area = ui.max_rect();
                 let Rig {
                     app,

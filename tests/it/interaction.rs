@@ -44,6 +44,7 @@ fn harness_stepping<A>(app: A, view: View<A>, step_dt: f32) -> Harness<'static, 
         .with_step_dt(step_dt)
         .build_ui_state(
             |ui, rig: &mut Rig<A>| {
+                crate::support::full_motion(ui.ctx());
                 let area = ui.max_rect();
                 rig.origin = area.min;
                 let Rig {

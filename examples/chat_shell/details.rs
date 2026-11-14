@@ -1,5 +1,6 @@
 //! The right pane: environment, context, changes and background tasks.
 
+use eggshell_ui::overlay::Shown;
 use eggshell_ui::{Builder, Scope, Tw, tw};
 use egui::Color32;
 
@@ -46,35 +47,50 @@ impl TaskState {
     }
 }
 
-/// A section: a small header over a grouped form.
+/// A section: a small header over a grouped form. Clicking the header folds
+/// the form away and back, by its height.
 ///
 /// ```html
-/// <section class="flex flex-col gap-1.5">
-///   <h3 class="text-[11px] uppercase text-muted-foreground">Environment</h3>
-///   <div class="flex flex-col rounded-lg border bg-background divide-y">...rows</div>
+/// <section class="flex flex-col">
+///   <h3 class="pb-2 text-[11px] uppercase text-muted-foreground">Environment</h3>
+///   <div class="overflow-hidden"> <!-- as tall as the form wants times how far it is open -->
+///     <div class="flex flex-col rounded-lg border bg-background divide-y">...rows</div>
+///   </div>
 /// </section>
 /// ```
-fn section(b: &mut B<'_, '_>, k: &Theme, title: &'static str, rows: impl FnOnce(&mut S<'_, '_>)) {
-    b.div_id(title, tw().flex().flex_col().gap(1.5), |b| {
-        b.text(
-            tw().role(k[Role::Meta].clone())
+fn section<'f>(
+    b: &mut B<'_, 'f>,
+    k: &Theme,
+    app: &'f App,
+    title: &'static str,
+    rows: impl FnOnce(&mut S<'_, 'f>),
+) {
+    b.div_id(title, tw().flex().flex_col(), |b| {
+        b.div_id(
+            Part::Head(title),
+            tw().sense_click()
+                .role(k[Role::Meta].clone())
                 .text(k[Tok::InkDim])
                 .uppercase()
-                .pb(0.5),
-            title,
-        );
-        b.div_id(
-            Part::Group,
-            tw().flex()
-                .flex_col()
-                .border(1.0)
-                .border_color(k[Tok::Line])
-                .rounded_lg()
-                .bg(k[Tok::Ground])
-                .divide_y(1.0, k[Tok::Line])
-                .overflow_hidden(),
-            rows,
-        );
+                .pb(2.0),
+            |b| b.text(tw(), title),
+        )
+        .on_click(move |app: &mut App| app.toggle_section(title));
+        b.collapsible(Part::Fold(title), Shown::from(!app.is_folded(title)))
+            .children(|b| {
+                b.div_id(
+                    Part::Group,
+                    tw().flex()
+                        .flex_col()
+                        .border(1.0)
+                        .border_color(k[Tok::Line])
+                        .rounded_lg()
+                        .bg(k[Tok::Ground])
+                        .divide_y(1.0, k[Tok::Line])
+                        .overflow_hidden(),
+                    rows,
+                );
+            });
     });
 }
 
@@ -147,9 +163,9 @@ fn context(b: &mut B<'_, '_>, app: &App) {
 /// ```html
 /// <aside class="flex flex-col shrink-0 gap-5 p-4 bg-card overflow-hidden" style="width: 288px">...</aside>
 /// ```
-pub fn details(s: &mut S<'_, '_>, app: &App) {
+pub fn details<'f>(s: &mut S<'_, 'f>, app: &'f App) {
     let k = &Theme::of(s.ctx());
-    section(s, k, "Environment", |b| {
+    section(s, k, app, "Environment", |b| {
         for (label, value) in [
             ("Branch", "main"),
             ("Runtime", "local"),
@@ -158,8 +174,8 @@ pub fn details(s: &mut S<'_, '_>, app: &App) {
             row(b, k, label, |b| b.text(tw().truncate(), value));
         }
     });
-    section(s, k, "Context", |b| context(b, app));
-    section(s, k, "Changes", |b| {
+    section(s, k, app, "Context", |b| context(b, app));
+    section(s, k, app, "Changes", |b| {
         for (file, added, removed) in CHANGES {
             row(b, k, file, |b| {
                 b.div(tw().flex().gap(1.5), |b| {
@@ -169,7 +185,7 @@ pub fn details(s: &mut S<'_, '_>, app: &App) {
             });
         }
     });
-    section(s, k, "Background tasks", |b| {
+    section(s, k, app, "Background tasks", |b| {
         for (name, state) in TASKS {
             row(b, k, name, |b| {
                 b.text(tw().text(state.color(k)), state.label());
