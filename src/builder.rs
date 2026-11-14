@@ -920,7 +920,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// The node's layout style, its widths in `ch` measured in its resolved font.
     fn resolved_style(&self, tw: Tw, node: &Node) -> taffy::Style {
         let mut style = tw.style;
-        let font = node.text.spec.font_id();
+        let font = node.text.spec.font_id(self.frame.ctx);
         tw.ch.resolve(&mut style, || {
             self.frame.ctx.fonts_mut(|fonts| {
                 fonts

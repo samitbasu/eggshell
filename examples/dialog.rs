@@ -119,7 +119,7 @@ fn sheet_box(t: &Tokens) -> Tw {
 /// ```
 fn header(s: &mut Scope<'_, '_, State>, t: &Tokens, title: &str, description: &str) {
     s.div(tw().flex().flex_col().gap(2.0), |s| {
-        s.text(tw().role(common::sized(18.0)), title);
+        s.text(tw().role(common::sized(18.0)).font_semibold(), title);
         s.text(
             tw().role(common::sized(14.0)).text(t.muted_foreground),
             description,
@@ -136,7 +136,7 @@ fn field<'f>(
     control: impl FnOnce(&mut Scope<'_, 'f, State>),
 ) {
     s.div_id(Part::Group(label), tw().flex().flex_col().gap(2.0), |s| {
-        s.text(tw().role(common::sized(14.0)), label);
+        s.text(tw().role(common::sized(14.0)).font_medium(), label);
         control(s);
     });
 }

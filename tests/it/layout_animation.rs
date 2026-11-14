@@ -5,7 +5,7 @@
 use core::time::Duration;
 
 use eggshell_ui::testing::{Points, Timeline, record};
-use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
@@ -90,6 +90,7 @@ fn harness(app: App, view: support::View<App>) -> Harness<'static, Rig<App>> {
             size: 16.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     );

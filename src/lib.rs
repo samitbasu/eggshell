@@ -262,8 +262,8 @@ pub use prim::Icon;
 pub use roots::OverlayRef;
 pub use sizing::Width;
 pub use text::{
-    FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle, Tracking,
-    WhiteSpace,
+    Face, Faces, FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle,
+    Tracking, Weight, WhiteSpace,
 };
 #[doc(hidden)]
 pub use transition::tracked_layout_nodes;

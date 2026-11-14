@@ -4,7 +4,7 @@
 //! width that makes text wrap.
 
 use eggshell_ui::widget::{Lines, Stock, TextEdit};
-use eggshell_ui::{TextSpec, TextStyle, Width};
+use eggshell_ui::{TextSpec, TextStyle, Weight, Width};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
 use egui::{
     Color32, Context, FontFamily, Rect, Response, Style, Theme, Ui, UiBuilder, Vec2, pos2, vec2,
@@ -16,6 +16,7 @@ fn text_style(size: f32) -> TextStyle {
             size,
             line_height: size * 1.25,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::WHITE,
     )
@@ -107,7 +108,7 @@ fn drawn(
     let mut size = Vec2::ZERO;
     for _ in 0..2 {
         let output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            ui.style_mut().override_font_id = Some(text.spec.font_id());
+            ui.style_mut().override_font_id = Some(text.spec.font_id(ui.ctx()));
             let room = Rect::from_min_size(pos2(0.0, 0.0), vec2(width.unwrap_or(5000.0), 5000.0));
             ui.scope_builder(UiBuilder::new().max_rect(room), |ui| {
                 size = add(ui).rect.size();

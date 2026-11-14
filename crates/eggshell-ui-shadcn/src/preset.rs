@@ -5,11 +5,11 @@ use eggshell_ui::contract::{
     States, SwitchMetrics, Variant,
 };
 use eggshell_ui::overlay::Distance;
-use eggshell_ui::{Easing, Opacity, TextSpec, Tracking};
+use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
 use crate::styles::{DestructiveLook, HoverSurface, SecondaryHover, ShadcnStyle};
-use crate::{ThemeColor, Tokens, size, variant};
+use crate::{FontSet, ThemeColor, Tokens, size, variant};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -311,10 +311,12 @@ impl Shadcn {
         };
         let mut style = contract::Style::default();
         style.text = t.text_role();
+        style.faces = t.font.as_ref().map(FontSet::declared).unwrap_or_default();
         style.focus = ring;
         style.label = States::still(flat(clear, t.foreground), t.background);
         style.button = {
             let mut button = style.button;
+            button.text = Some(t.text_role_at(t.control_weight));
             button.variants = variants;
             button.sizes = Keyed::new(Size::DEFAULT, control).with(size::ICON, square(control));
             button.toggle_sizes =
@@ -334,6 +336,7 @@ impl Shadcn {
         };
         style.checkbox = {
             let mut checkbox = style.checkbox;
+            checkbox.text = Some(t.text_role_at(t.label_weight));
             checkbox.size = 16.0;
             checkbox.radius = t.checkbox_radius;
             checkbox.glyph = 14.0;
@@ -346,6 +349,7 @@ impl Shadcn {
         };
         style.radio = {
             let mut radio = style.radio;
+            radio.text = Some(t.text_role_at(t.label_weight));
             radio.size = 16.0;
             radio.dot = 8.0;
             radio.gap = 8.0;
@@ -357,6 +361,7 @@ impl Shadcn {
         };
         style.switch = {
             let mut switch = style.switch;
+            switch.text = Some(t.text_role_at(t.label_weight));
             switch.sizes = Keyed::new(
                 Size::DEFAULT,
                 SwitchMetrics {
@@ -374,6 +379,7 @@ impl Shadcn {
         };
         style.segmented = {
             let mut segmented = style.segmented;
+            segmented.text = Some(t.text_role_at(t.control_weight));
             segmented.track_fill = t.muted;
             segmented.track_radius = t.radius;
             segmented.track_padding = t.list_padding;
@@ -452,11 +458,13 @@ impl Shadcn {
             menu.separator = t.border;
             menu.separator_margin = 4.0;
             menu.heading = t.popover_foreground;
+            menu.heading_weight = t.label_weight;
             menu.shortcut = t.muted_foreground;
             menu.shortcut_text = TextSpec {
                 size: 12.0,
                 line_height: 16.0,
                 family: egui::FontFamily::Proportional,
+                weight: Weight::Normal,
             };
             menu.shortcut_tracking = Tracking::points(1.2);
             menu.indicator = 16.0;
@@ -478,6 +486,7 @@ impl Shadcn {
                 size: 12.0,
                 line_height: 16.0,
                 family: egui::FontFamily::Proportional,
+                weight: Weight::Normal,
             });
             tooltip.max_width = 320.0;
             tooltip.arrow = Some(Arrow { size: 10.0 });
@@ -508,6 +517,7 @@ impl Shadcn {
                 size: 12.0,
                 line_height: 16.0,
                 family: egui::FontFamily::Proportional,
+                weight: t.control_weight,
             });
             kbd
         };
@@ -580,10 +590,27 @@ impl Shadcn {
         style
     }
 
+    /// This preset drawing its text in `font`, or with `None` in egui's
+    /// fonts as the application has set them.
+    #[must_use]
+    pub fn with_fonts(mut self, font: Option<FontSet>) -> Self {
+        self.tokens.font = font;
+        self
+    }
+
     /// Sets the egui style of this preset's theme from the tokens and
     /// remembers them for [`tokens`]. Safe to call every frame
     /// but only needed again when the tokens change.
+    ///
+    /// It also adds the tokens' [`font`](Tokens::font) to the context's
+    /// fonts, in front of the fonts egui has, once: egui keeps the faces it
+    /// already has by name. egui draws with added fonts from the next pass,
+    /// or from this one if no text has been laid out in it yet; until then
+    /// a weight is drawn in the nearest lighter registered face.
     pub fn apply(&self, ctx: &Context) {
+        if let Some(font) = &self.tokens.font {
+            font.install(ctx);
+        }
         let tokens = self.tokens.clone();
         ctx.style_mut_of(self.theme, |style| tokens.set_style(self.theme, style));
         ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));

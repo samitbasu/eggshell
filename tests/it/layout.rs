@@ -78,11 +78,12 @@ fn place_app<A>(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> 
 
 /// The unwrapped width of `text`, from egui directly.
 fn width_of(spec: &TextSpec, text: &str) -> f32 {
+    let font = spec.font_id(ctx());
     ctx().fonts_mut(|fonts| {
         fonts
             .layout_job(LayoutJob::simple(
                 text.to_owned(),
-                spec.font_id(),
+                font,
                 Color32::WHITE,
                 f32::INFINITY,
             ))

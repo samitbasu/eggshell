@@ -44,7 +44,7 @@ pub(crate) struct Sizer<'a> {
 
 impl<'a> Sizer<'a> {
     pub fn new(ctx: &'a Context, text: &TextStyle) -> Self {
-        let font = text.spec.font_id();
+        let font = text.spec.font_id(ctx);
         let mut style = (*ctx.global_style()).clone();
         style.override_font_id = Some(font.clone());
         Self {

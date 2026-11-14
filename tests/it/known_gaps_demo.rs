@@ -8,7 +8,7 @@ use egui::{RawInput, Rect, pos2};
 #[path = "../../examples/known_gaps.rs"]
 mod known_gaps;
 
-use known_gaps::{CARD_RADIUS, CARD_SIZE, SHADOWS, WEIGHTS, find_faces};
+use known_gaps::{CARD_RADIUS, CARD_SIZE, SHADOWS};
 
 const SCREEN: Rect = Rect {
     min: pos2(0.0, 0.0),
@@ -110,31 +110,7 @@ fn the_reference_is_tighter_than_the_clamped_shadow_where_the_spread_is_negative
 }
 
 #[test]
-fn the_whole_window_builds_without_weighted_faces() {
-    let shapes = draw(|b| known_gaps::window(b, None));
+fn the_whole_window_builds() {
+    let shapes = draw(known_gaps::window);
     assert!(!shadow_shapes(&shapes).is_empty());
-}
-
-#[test]
-fn faces_need_every_weight_in_one_family() {
-    let root = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("known_gaps_fonts");
-    let _ = std::fs::remove_dir_all(&root);
-    let nested = root.join("deep");
-    std::fs::create_dir_all(&nested).unwrap();
-    let touch = |name: &str| std::fs::write(nested.join(name), b"").unwrap();
-
-    for name in ["Inter-Regular.ttf", "Inter-Medium.ttf", "Inter-Bold.ttf"] {
-        touch(name);
-    }
-    assert_eq!(
-        find_faces(std::slice::from_ref(&root)),
-        None,
-        "SemiBold is missing"
-    );
-
-    touch("Inter-SemiBold.otf");
-    let faces = find_faces(&[root]).expect("all four weights present");
-    assert_eq!(faces.name, "Inter");
-    assert_eq!(faces.files.len(), WEIGHTS.len());
-    assert!(faces.files[2].ends_with("Inter-SemiBold.otf"));
 }

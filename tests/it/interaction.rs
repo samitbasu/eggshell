@@ -4,7 +4,9 @@
 
 use core::time::Duration;
 
-use eggshell_ui::{Builder, Easing, LayoutState, Opacity, Progress, TextSpec, TextStyle, tw};
+use eggshell_ui::{
+    Builder, Easing, LayoutState, Opacity, Progress, TextSpec, TextStyle, Weight, tw,
+};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -30,6 +32,7 @@ fn harness_stepping<A>(app: A, view: View<A>, step_dt: f32) -> Harness<'static, 
             size: 16.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     ));

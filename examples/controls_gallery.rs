@@ -66,7 +66,7 @@ impl State {
 const STAGE_INSET: f32 = 5.0;
 
 /// Wide enough for the Section control with a border on every cell.
-const PANEL_WIDTH: f32 = 248.0;
+const PANEL_WIDTH: f32 = 256.0;
 
 impl From<CellWidth> for f32 {
     fn from(width: CellWidth) -> f32 {
@@ -596,7 +596,7 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
 /// The controls that vary what the cells are given.
 ///
 /// ```html
-/// <aside class="flex flex-col gap-3 p-3 w-[248px]">
+/// <aside class="flex flex-col gap-3 p-3 w-64">
 ///   the section choice, then for the cells section a range input,
 ///   four rows of choices and the legend
 /// </aside>

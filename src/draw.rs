@@ -463,7 +463,7 @@ fn divider(prev: Rect, next: Rect, axis: Axis, width: f32, grid: PixelGrid) -> O
 
 fn text_overrides(ui: &mut Ui, text: &TextStyle) {
     ui.visuals_mut().override_text_color = Some(text.color);
-    ui.style_mut().override_font_id = Some(text.spec.font_id());
+    ui.style_mut().override_font_id = Some(text.spec.font_id(ui.ctx()));
 }
 
 /// Runs `add_contents` in a child `Ui` that is not allocated in `parent`.
@@ -1321,7 +1321,7 @@ impl<A> Walk<'_, A> {
         let content = boxes.content;
         match prim {
             Prim::Text(string) => {
-                let leaf = TextLeaf::plain(&string, text);
+                let leaf = TextLeaf::plain(self.ui.ctx(), &string, text);
                 self.paint_text(&leaf, index, node, boxes, inherited);
             }
             Prim::Rich(rich) => {

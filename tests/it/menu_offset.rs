@@ -3,7 +3,7 @@
 
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::owned::Mark;
-use eggshell_ui::{Builder, Style, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
 
@@ -20,6 +20,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

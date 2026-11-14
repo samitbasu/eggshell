@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use eggshell_ui::overlay::Anchor;
 use eggshell_ui::testing::Headless;
-use eggshell_ui::{Builder, LayoutState, Placed, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, LayoutState, Placed, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Pos2, Rect, Vec2, pos2, vec2};
 use egui_kittest::Harness;
 
@@ -19,6 +19,7 @@ fn base() -> TextStyle {
             size: 14.0,
             line_height: 18.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )
@@ -241,6 +242,7 @@ fn text_inheritance_continues_into_a_region() {
             size: 20.0,
             line_height: 24.0,
             family: FontFamily::Monospace,
+            weight: Weight::Normal,
         };
         b.div(tw().text(Color32::RED).role(role), |b| {
             b.region("host", tw().w_px(100.0).h_px(50.0), |b, _| {

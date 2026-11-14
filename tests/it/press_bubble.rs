@@ -1,7 +1,7 @@
 //! A node that senses nothing and has no handler is transparent to presses:
 //! the nearest sensing ancestor gets them, whatever the leaf paints.
 
-use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Pos2, vec2};
 
 use crate::support::{self, hover_over, press_and_release, rect_of};
@@ -116,6 +116,7 @@ fn a_press_on_any_non_sensing_leaf_reaches_the_sensing_parent() {
                     size: 16.0,
                     line_height: 20.0,
                     family: FontFamily::Proportional,
+                    weight: Weight::Normal,
                 },
                 Color32::WHITE,
             ),
@@ -233,6 +234,7 @@ fn a_ringed_leaf_in_a_ringed_sheet_leaves_the_tile_its_press() {
                 size: 16.0,
                 line_height: 20.0,
                 family: FontFamily::Proportional,
+                weight: Weight::Normal,
             },
             Color32::WHITE,
         ),

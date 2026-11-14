@@ -8,7 +8,7 @@ use eggshell_ui::owned::Enablement;
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens, variant};
 use egui::epaint::Shape;
-use egui::{Color32, FontFamily, FontId, Key, Role, Theme, vec2};
+use egui::{Color32, Key, Role, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -283,7 +283,7 @@ fn destructive_has_its_own_focus_ring() {
 fn sizes_are_what_the_classes_imply() {
     let mut harness = harness(Theme::Light);
     let style = style(Theme::Light);
-    let font = FontId::new(style.text.size, FontFamily::Proportional);
+    let font = style.role(&style.button.text).font_id(&harness.ctx);
     let text_width = |harness: &Harness<'_, Rig<App>>, text: &str| {
         harness.ctx.fonts_mut(|fonts| {
             fonts

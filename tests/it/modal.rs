@@ -5,7 +5,7 @@
 use eggshell_ui::overlay::{DismissOn, Modal, Shown, Side};
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, MouseWheelUnit, Pos2, Role, pos2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -27,6 +27,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

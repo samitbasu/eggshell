@@ -199,7 +199,7 @@ fn kaolin_greys_follow_the_theme_and_the_demo_colours_do_not() {
 fn known_gaps_chrome_follows_the_theme_and_the_shadow_stage_stays_light() {
     let light = Tokens::light();
     for theme in THEMES {
-        let (placed, t) = place::<()>(theme, |b| known_gaps::window(b, None));
+        let (placed, t) = place::<()>(theme, known_gaps::window);
         let colours = backgrounds(&placed);
         assert!(colours.contains(&t.muted), "{theme:?}: the shadow section");
         assert!(colours.contains(&t.background), "{theme:?}: weights");

@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 
 use eggshell_ui::testing::Headless;
-use eggshell_ui::{NodeKind, Placed, TextSpec, TextStyle};
+use eggshell_ui::{NodeKind, Placed, TextSpec, TextStyle, Weight};
 use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, FontFamily, vec2};
 
@@ -24,6 +24,7 @@ fn place(width: f32) -> Placed<()> {
                 size: 14.0,
                 line_height: 18.0,
                 family: FontFamily::Proportional,
+                weight: Weight::Normal,
             },
             Color32::BLACK,
         ))

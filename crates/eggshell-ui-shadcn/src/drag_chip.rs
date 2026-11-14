@@ -1,6 +1,6 @@
 //! The drag chip: shadcn's tooltip look as the image of a drag.
 
-use eggshell_ui::{Builder, NodeHandle, TextSpec, drag_grab, tw};
+use eggshell_ui::{Builder, NodeHandle, TextSpec, Weight, drag_grab, tw};
 use egui::{FontFamily, vec2};
 
 use crate::{Shadcn, tokens};
@@ -14,6 +14,7 @@ const TEXT_XS: TextSpec = TextSpec {
     size: 12.0,
     line_height: 16.0,
     family: FontFamily::Proportional,
+    weight: Weight::Normal,
 };
 
 /// Builds a chip reading `text` at the pointer, for a

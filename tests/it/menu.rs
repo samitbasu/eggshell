@@ -3,7 +3,7 @@
 
 use eggshell_ui::overlay::{Anchor, Nav, Placement};
 use eggshell_ui::owned::{Enablement, Mark};
-use eggshell_ui::{Builder, NodeUi as _, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, NodeUi as _, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::{HasPopup, Toggled};
 use egui::{Color32, Event, FontFamily, Key, Modifiers, PointerButton, Role, vec2};
 use egui_kittest::Harness;
@@ -35,6 +35,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

@@ -1535,6 +1535,54 @@ fn menu_open_dark() {
     menu_open("menu_open_dark", egui::Theme::Dark);
 }
 
+/// ```html
+/// <div class="flex flex-col gap-2 p-4 text-xl">
+///   <p class="font-normal">font-normal Settings</p> … one line per weight
+/// </div>
+/// ```
+fn weights(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div(tw().flex().flex_col().gap(2.0).p(4.0), |b| {
+        for (class, weight) in [
+            ("font-normal", eggshell_ui::Weight::Normal),
+            ("font-medium", eggshell_ui::Weight::Medium),
+            ("font-semibold", eggshell_ui::Weight::SemiBold),
+            ("font-bold", eggshell_ui::Weight::Bold),
+        ] {
+            b.text(
+                tw().role(common::sized(20.0)).font_weight(weight),
+                format!("{class} Settings and preferences"),
+            );
+        }
+    });
+}
+
+/// The four weight classes in the shadcn preset's font (#13).
+#[test]
+fn font_weights_light() {
+    report_renderer();
+    let theme = egui::Theme::Light;
+    let mut harness = support::harness(
+        Vec2::new(460.0, 180.0),
+        common::base_text(theme),
+        (),
+        weights,
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    let bold = eggshell_ui::TextSpec {
+        weight: eggshell_ui::Weight::Bold,
+        ..common::sized(20.0)
+    };
+    assert_eq!(
+        bold.font_id(&harness.ctx).family,
+        egui::FontFamily::Name("Geist/700".into()),
+        "precondition: the weights draw Geist's faces"
+    );
+    harness.snapshot("font_weights_light");
+}
+
 /// The destructive item under the pointer.
 fn menu_destructive(name: &str, theme: egui::Theme) {
     menu_after(name, theme, |harness| {

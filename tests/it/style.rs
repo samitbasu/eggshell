@@ -2,7 +2,7 @@
 //! the library's primitives drawn with its proportions.
 
 use eggshell_ui::widget::{Stock, TextEdit};
-use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Width, tw};
+use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, Width, tw};
 use eggshell_ui_shadcn::{Shadcn, ThemeColor, Tokens, tokens};
 use egui::epaint::Shape;
 use egui::{Color32, Context, FontFamily, Rect, Theme, vec2};
@@ -18,6 +18,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Keyed, Size, Variant};
-use eggshell_ui::{LayoutState, Style, TextSpec, TextStyle};
+use eggshell_ui::{LayoutState, Style, TextSpec, TextStyle, Weight};
 use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, Context, FontFamily, Theme, vec2};
 use egui_kittest::Harness;
@@ -111,6 +111,7 @@ fn core_draws_a_button_with_no_preset() {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     ));

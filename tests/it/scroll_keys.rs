@@ -4,7 +4,7 @@
 
 use eggshell_ui::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain};
 use eggshell_ui::testing::{Timeline, record};
-use eggshell_ui::{Builder, Opacity, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Opacity, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::Role;
 use egui::epaint::{RectShape, Shape};
 use egui::{Color32, FontFamily, Id, Key, Modifiers, Rect, Vec2, vec2};
@@ -25,6 +25,7 @@ fn base() -> TextStyle {
             size: 14.0,
             line_height: LINE,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

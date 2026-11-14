@@ -1,27 +1,188 @@
 //! Text styling, and how it is inherited down the tree.
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 
-use egui::{Color32, FontFamily, FontId};
+use egui::{Color32, Context, FontFamily, FontId, Id};
 
-/// A text role: size, line height and font family, all resolved by the
-/// application. Font weight is expressed by the family, because egui does not
-/// synthesize weights.
+/// A text role: size, line height, font family and weight.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextSpec {
     /// Font size in points.
     pub size: f32,
     /// Height of one line in points.
     pub line_height: f32,
-    /// The registered font family.
+    /// The registered font family, drawn at [`Weight::Normal`].
     pub family: FontFamily,
+    /// The weight, drawn by the face the [`Style`](crate::Style)'s
+    /// [`Faces`] name for it.
+    pub weight: Weight,
 }
 
 impl TextSpec {
-    /// The egui font for this role.
-    pub fn font_id(&self) -> FontId {
-        FontId::new(self.size, self.family.clone())
+    /// The egui font for this role in `ctx`: the family of the face the
+    /// installed [`Style`](crate::Style)'s [`Faces`] give its weight.
+    ///
+    /// A weight with no registered face is drawn by the nearest lighter one
+    /// that has a face, never by a synthesised or heavier one. Debug builds
+    /// print a warning, once per context, family and weight, when the style
+    /// declares no face for the weight at all.
+    pub fn font_id(&self, ctx: &Context) -> FontId {
+        FontId::new(self.size, self.face(ctx).0)
     }
+
+    fn face(&self, ctx: &Context) -> (FontFamily, Warned) {
+        if self.weight == Weight::Normal {
+            return (self.family.clone(), Warned::No);
+        }
+        let style = crate::Style::of(ctx);
+        let registered = ctx.fonts(|fonts| fonts.families());
+        match style
+            .faces
+            .resolve(&self.family, self.weight, |face| registered.contains(face))
+        {
+            Resolution::Face(face) | Resolution::Pending(face) => (face, Warned::No),
+            Resolution::Missing(face) => (face, warn_missing(ctx, &self.family, self.weight)),
+        }
+    }
+}
+
+/// A font weight, as Tailwind's `font-normal`, `font-medium`,
+/// `font-semibold` and `font-bold` name them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Weight {
+    /// 400.
+    #[default]
+    Normal,
+    /// 500.
+    Medium,
+    /// 600.
+    SemiBold,
+    /// 700.
+    Bold,
+}
+
+impl Weight {
+    /// Every weight, lightest first.
+    pub const ALL: [Self; 4] = [Self::Normal, Self::Medium, Self::SemiBold, Self::Bold];
+
+    /// The CSS weight: 400, 500, 600 or 700.
+    pub fn number(self) -> u16 {
+        match self {
+            Self::Normal => 400,
+            Self::Medium => 500,
+            Self::SemiBold => 600,
+            Self::Bold => 700,
+        }
+    }
+}
+
+/// One entry of [`Faces`]: the registered family that draws `family` at
+/// `weight`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Face {
+    /// The family a [`TextSpec`] names.
+    pub family: FontFamily,
+    /// The weight drawn.
+    pub weight: Weight,
+    /// The registered family that has the face.
+    pub face: FontFamily,
+}
+
+/// Which registered family draws each weight of a family. A family is its
+/// own [`Weight::Normal`] face.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Faces(Vec<Face>);
+
+/// How [`Faces`] resolved a weight.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Resolution {
+    /// The weight's own face.
+    Face(FontFamily),
+    /// A lighter face: the weight's face is declared but egui has not
+    /// registered it yet, as on the pass fonts are added.
+    Pending(FontFamily),
+    /// A lighter face: no face is declared for the weight.
+    Missing(FontFamily),
+}
+
+impl Faces {
+    /// These faces with `face` drawing `family` at `weight`, replacing any
+    /// face declared for the pair before.
+    #[must_use]
+    pub fn with(mut self, family: FontFamily, weight: Weight, face: FontFamily) -> Self {
+        self.0
+            .retain(|entry| entry.family != family || entry.weight != weight);
+        self.0.push(Face {
+            family,
+            weight,
+            face,
+        });
+        self
+    }
+
+    /// Every declared face.
+    pub fn iter(&self) -> impl Iterator<Item = &Face> {
+        self.0.iter()
+    }
+
+    pub(crate) fn resolve(
+        &self,
+        family: &FontFamily,
+        weight: Weight,
+        registered: impl Fn(&FontFamily) -> bool,
+    ) -> Resolution {
+        let declared = |entry: &&Face| entry.family == *family && entry.weight <= weight;
+        let usable = self
+            .0
+            .iter()
+            .filter(declared)
+            .filter(|entry| registered(&entry.face))
+            .max_by_key(|entry| entry.weight);
+        let face = usable.map_or_else(|| family.clone(), |entry| entry.face.clone());
+        if usable.is_some_and(|entry| entry.weight == weight) || weight == Weight::Normal {
+            Resolution::Face(face)
+        } else if self
+            .0
+            .iter()
+            .filter(declared)
+            .any(|entry| entry.weight == weight)
+        {
+            Resolution::Pending(face)
+        } else {
+            Resolution::Missing(face)
+        }
+    }
+}
+
+/// Whether resolving a weight printed the missing-face warning.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Warned {
+    Yes,
+    No,
+}
+
+#[derive(Clone, Default)]
+struct MissingFaces(HashSet<(FontFamily, Weight)>);
+
+fn warn_missing(ctx: &Context, family: &FontFamily, weight: Weight) -> Warned {
+    if !cfg!(debug_assertions) {
+        return Warned::No;
+    }
+    let first = ctx.data_mut(|data| {
+        data.get_temp_mut_or_default::<MissingFaces>(Id::NULL.with("eggshell-missing-faces"))
+            .0
+            .insert((family.clone(), weight))
+    });
+    if !first {
+        return Warned::No;
+    }
+    eprintln!(
+        "eggshell: no {weight:?} ({}) face of {family:?} is declared in the style's `faces`; \
+         drawing the nearest lighter weight that has one",
+        weight.number()
+    );
+    Warned::Yes
 }
 
 /// Where a text node places its lines when its box is taller than they are.
@@ -295,6 +456,7 @@ impl TextStyle {
                 size: font_id.size,
                 line_height,
                 family: font_id.family,
+                weight: Weight::Normal,
             },
             style.visuals.text_color(),
         )
@@ -307,6 +469,7 @@ pub struct TextClasses {
     pub(crate) size: Option<f32>,
     pub(crate) line_height: Option<f32>,
     pub(crate) family: Option<FontFamily>,
+    pub(crate) weight: Option<Weight>,
     pub(crate) color: Option<Color32>,
     pub(crate) font_style: Option<FontStyle>,
     pub(crate) decoration: Option<TextDecoration>,
@@ -326,6 +489,7 @@ impl TextClasses {
             size: other.size.or(self.size),
             line_height: other.line_height.or(self.line_height),
             family: other.family.or(self.family),
+            weight: other.weight.or(self.weight),
             color: other.color.or(self.color),
             font_style: other.font_style.or(self.font_style),
             decoration: other.decoration.or(self.decoration),
@@ -348,6 +512,7 @@ impl TextClasses {
                     .family
                     .clone()
                     .unwrap_or_else(|| inherited.spec.family.clone()),
+                weight: self.weight.unwrap_or(inherited.spec.weight),
             },
             color: self.color.unwrap_or(inherited.color),
             font_style: self.font_style.unwrap_or(inherited.font_style),
@@ -363,6 +528,135 @@ impl TextClasses {
 }
 
 #[cfg(test)]
+mod weight_tests {
+    use super::*;
+
+    fn named(name: &str) -> FontFamily {
+        FontFamily::Name(name.into())
+    }
+
+    fn faces() -> Faces {
+        Faces::default()
+            .with(FontFamily::Proportional, Weight::Medium, named("medium"))
+            .with(FontFamily::Proportional, Weight::Bold, named("bold"))
+    }
+
+    fn all(_: &FontFamily) -> bool {
+        true
+    }
+
+    #[test]
+    fn a_declared_registered_weight_is_its_own_face() {
+        assert_eq!(
+            faces().resolve(&FontFamily::Proportional, Weight::Bold, all),
+            Resolution::Face(named("bold"))
+        );
+    }
+
+    #[test]
+    fn a_missing_weight_falls_back_to_the_nearest_lighter_face() {
+        assert_eq!(
+            faces().resolve(&FontFamily::Proportional, Weight::SemiBold, all),
+            Resolution::Missing(named("medium")),
+            "SemiBold has no face: Medium, never Bold"
+        );
+        assert_eq!(
+            Faces::default().resolve(&FontFamily::Proportional, Weight::Medium, all),
+            Resolution::Missing(FontFamily::Proportional),
+            "no faces at all: the family itself, which is Normal"
+        );
+    }
+
+    #[test]
+    fn a_declared_weight_egui_has_not_registered_yet_is_pending() {
+        let only_medium = |face: &FontFamily| *face == named("medium");
+        assert_eq!(
+            faces().resolve(&FontFamily::Proportional, Weight::Bold, only_medium),
+            Resolution::Pending(named("medium"))
+        );
+    }
+
+    #[test]
+    fn faces_of_another_family_do_not_apply() {
+        assert_eq!(
+            faces().resolve(&FontFamily::Monospace, Weight::Bold, all),
+            Resolution::Missing(FontFamily::Monospace)
+        );
+    }
+
+    /// A context with egui's default fonts, plus `medium` registered as a
+    /// named family, and a style that declares it for Proportional.
+    fn context() -> Context {
+        let ctx = Context::default();
+        let mut fonts = egui::FontDefinitions::default();
+        let chain = fonts.families[&FontFamily::Proportional].clone();
+        fonts.families.insert(named("medium"), chain);
+        ctx.set_fonts(fonts);
+        let mut style = crate::Style::from_egui(&ctx.global_style());
+        style.faces =
+            Faces::default().with(FontFamily::Proportional, Weight::Medium, named("medium"));
+        style.install(&ctx);
+        ctx.run_ui(egui::RawInput::default(), |_| {})
+            .drop_without_applying_deltas();
+        ctx
+    }
+
+    fn spec(weight: Weight) -> TextSpec {
+        TextSpec {
+            size: 14.0,
+            line_height: 20.0,
+            family: FontFamily::Proportional,
+            weight,
+        }
+    }
+
+    #[test]
+    fn a_weight_reaches_the_font_id_of_its_registered_face() {
+        let ctx = context();
+        assert!(
+            ctx.fonts(|fonts| fonts.families().contains(&named("medium"))),
+            "precondition: the medium face is registered"
+        );
+        assert_eq!(
+            spec(Weight::Medium).font_id(&ctx),
+            FontId::new(14.0, named("medium"))
+        );
+        assert_eq!(
+            spec(Weight::Normal).font_id(&ctx),
+            FontId::new(14.0, FontFamily::Proportional)
+        );
+    }
+
+    #[test]
+    fn a_heavier_weight_without_a_face_draws_the_lighter_one() {
+        let ctx = context();
+        assert_eq!(
+            spec(Weight::Bold).font_id(&ctx),
+            FontId::new(14.0, named("medium"))
+        );
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    fn the_missing_face_warning_is_printed_once_per_family_and_weight() {
+        let ctx = context();
+        let warned = |weight| spec(weight).face(&ctx).1;
+        assert_eq!(warned(Weight::Bold), Warned::Yes);
+        assert_eq!(warned(Weight::Bold), Warned::No);
+        assert_eq!(
+            warned(Weight::SemiBold),
+            Warned::Yes,
+            "another weight warns too"
+        );
+        assert_eq!(
+            warned(Weight::Medium),
+            Warned::No,
+            "a declared face never warns"
+        );
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -372,6 +666,7 @@ mod tests {
                 size: 14.0,
                 line_height: 18.0,
                 family: FontFamily::Proportional,
+                weight: Weight::Normal,
             },
             Color32::BLACK,
         )

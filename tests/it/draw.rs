@@ -4,7 +4,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use eggshell_ui::{Icon, LayoutState, NodeUi, Opacity, TextSpec, TextStyle, Tracking, tw};
+use eggshell_ui::{Icon, LayoutState, NodeUi, Opacity, TextSpec, TextStyle, Tracking, Weight, tw};
 use egui::epaint::{ClippedShape, Shape};
 use egui::{Color32, FontFamily, FontId, Id, Pos2, RawInput, Rect, pos2, vec2};
 use egui_kittest::Harness;
@@ -20,6 +20,7 @@ fn base() -> TextStyle {
             size: 16.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )
@@ -563,7 +564,10 @@ fn text_is_painted_in_the_resolved_style() {
     assert!(format.italics);
     assert!(!format.underline.is_empty());
     assert_eq!(format.extra_letter_spacing, 1.0);
-    assert_eq!(format.font_id, base().spec.font_id());
+    assert_eq!(
+        format.font_id,
+        egui::FontId::new(base().spec.size, base().spec.family)
+    );
     assert_eq!(shape.pos.x, 200.0, "centred in the 400 point box");
     assert_eq!(shape.pos.y, 0.0);
 }
@@ -623,7 +627,7 @@ fn a_word_stays_on_one_row_where_snapping_narrows_its_box() {
     let galley = |width: f32| {
         let mut job = egui::text::LayoutJob::single_section(
             "Blog".to_owned(),
-            egui::TextFormat::simple(base().spec.font_id(), Color32::BLACK),
+            egui::TextFormat::simple(base().spec.font_id(&ctx), Color32::BLACK),
         );
         job.wrap.max_width = width;
         ctx.fonts_mut(|fonts| fonts.layout_job(job))
@@ -747,6 +751,7 @@ fn the_nodes_text_style_reaches_egui_widgets_in_its_ui() {
                 size: 31.0,
                 line_height: 40.0,
                 family: family.clone(),
+                weight: Weight::Normal,
             })
             .text(Color32::RED),
             |_| {},

@@ -2,7 +2,7 @@
 //! `egui_kittest::Harness`, egui's focus traversal, the `focus` variants and
 //! the focus record that answers `focus_within`.
 
-use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Key, Rect, vec2};
 use egui_kittest::Harness;
@@ -21,6 +21,7 @@ fn base_text() -> TextStyle {
             size: 16.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::WHITE,
     )

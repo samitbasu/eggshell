@@ -16,7 +16,7 @@ use std::ops::RangeInclusive;
 
 use eggshell_ui::owned::Cell;
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Tw, tw};
+use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Tw, Weight, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
@@ -135,6 +135,7 @@ pub fn sized(size: f32) -> TextSpec {
         size,
         line_height: size * 1.25,
         family: FontFamily::Proportional,
+        weight: Weight::Normal,
     }
 }
 
@@ -144,6 +145,7 @@ pub fn mono(size: f32) -> TextSpec {
         size,
         line_height: size * 1.25,
         family: FontFamily::Monospace,
+        weight: Weight::Normal,
     }
 }
 

@@ -1,6 +1,6 @@
 //! shadcn's styles: parameter sets that differ in a handful of values.
 
-use eggshell_ui::Opacity;
+use eggshell_ui::{Opacity, Weight};
 use egui::vec2;
 
 use crate::Tokens;
@@ -61,6 +61,8 @@ impl ShadcnStyle {
                 t.hover_surface = HoverSurface::Accent;
                 t.destructive_look = DestructiveLook::Solid;
                 t.elevation = Elevation::Raised;
+                t.control_weight = Weight::Medium;
+                t.label_weight = Weight::Medium;
             }
             Self::Lyra => {
                 t.radius = 0;
@@ -86,6 +88,8 @@ impl ShadcnStyle {
                 t.hover_surface = HoverSurface::Muted;
                 t.destructive_look = DestructiveLook::Tinted;
                 t.elevation = Elevation::Flat;
+                t.control_weight = Weight::Medium;
+                t.label_weight = Weight::Normal;
             }
         }
     }

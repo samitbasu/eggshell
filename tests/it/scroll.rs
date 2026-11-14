@@ -6,7 +6,7 @@ use core::time::Duration;
 
 use eggshell_ui::scroll::{self, Axis};
 use eggshell_ui::testing::{Timeline, record};
-use eggshell_ui::{Builder, EdgeBand, EdgeScroll, ScrollSpeed, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, EdgeBand, EdgeScroll, ScrollSpeed, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{
     Align, Color32, Event, FontFamily, Id, Modifiers, MouseWheelUnit, Pos2, Rect, Vec2, vec2,
@@ -32,6 +32,7 @@ fn base() -> TextStyle {
             size: 14.0,
             line_height: 18.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )
