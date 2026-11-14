@@ -16,7 +16,8 @@ use taffy::{AlignContent, AlignItems, FlexDirection, NodeId, Size, Style, style_
 use crate::dismiss::Opening;
 use crate::key::{Key, child_id};
 use crate::overlay::{
-    Anchor, AnchorLookup, Anchored, Band, Behavior, MatchWidth, Modal, Outside, Placement, Side,
+    Anchor, AnchorLookup, Anchored, Band, Behavior, Focus, MatchWidth, Modal, Outside, Placement,
+    Side,
 };
 use crate::pipeline::{Placed, PlacedNode};
 use crate::presence::Staged;
@@ -159,6 +160,10 @@ pub(crate) struct PlacedOverlay {
     pub(crate) form: Form,
     pub(crate) anchored: Anchored,
     pub(crate) anchor: Rect,
+    /// The part of the window the overlay may be in.
+    pub(crate) bounds: Rect,
+    /// The size the overlay measured at before the room clamped it.
+    pub(crate) natural: Vec2,
     pub(crate) anchor_decl: Anchor,
     pub(crate) opening: Opening,
     pub(crate) lookup: AnchorLookup,
@@ -376,6 +381,34 @@ impl<'p> OverlayRef<'p> {
     /// The anchor this frame, as a rect.
     pub fn anchor(&self) -> Rect {
         self.overlay.anchor
+    }
+
+    /// The part of the window the overlay may be in: the window, cut to its
+    /// [`Placement::boundary`](crate::overlay::Placement::boundary). A modal
+    /// has the whole window.
+    pub fn bounds(&self) -> Rect {
+        self.overlay.bounds
+    }
+
+    /// The size the overlay measured at before the room clamped it.
+    pub fn natural_size(&self) -> Vec2 {
+        self.overlay.natural
+    }
+
+    /// Whether the overlay is leaving: it is kept on screen, inert, until its
+    /// exit has run, and is not one of the overlays that are open.
+    pub fn is_exiting(&self) -> bool {
+        self.overlay.staged.is_exiting()
+    }
+
+    /// Where focus goes when the overlay opens.
+    pub fn focus(&self) -> Focus {
+        self.overlay.behavior.focus
+    }
+
+    /// What becomes of the press that dismisses the overlay.
+    pub fn outside(&self) -> Outside {
+        self.overlay.behavior.outside()
     }
 
     /// The band the overlay is in.

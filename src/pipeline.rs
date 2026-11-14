@@ -581,7 +581,9 @@ impl<'f, A> Built<'f, A> {
             if opening == Opening::Opened && overlay.behavior.focus != Focus::None {
                 open.restore = ctx.memory(|memory| memory.focused());
             }
-            let (anchor_decl, anchor, anchored, lookup, rect, form) = match overlay.presentation {
+            let (anchor_decl, anchor, anchored, lookup, rect, form, bounds, natural) = match overlay
+                .presentation
+            {
                 Presentation::Floating {
                     anchor: anchor_decl,
                     placement,
@@ -668,6 +670,8 @@ impl<'f, A> Built<'f, A> {
                         lookup,
                         spot.rect,
                         Form::Floating(spot.side),
+                        placement.region(area),
+                        natural,
                     )
                 }
                 Presentation::Modal(modal) => {
@@ -692,6 +696,8 @@ impl<'f, A> Built<'f, A> {
                         AnchorLookup::Found,
                         screen,
                         Form::Modal(modal),
+                        screen,
+                        screen.size(),
                     )
                 }
             };
@@ -727,6 +733,8 @@ impl<'f, A> Built<'f, A> {
                     form,
                     anchored: anchored.and(declared_in),
                     anchor,
+                    bounds,
+                    natural,
                     anchor_decl,
                     opening,
                     lookup,
@@ -739,7 +747,7 @@ impl<'f, A> Built<'f, A> {
             at += 1;
         }
         settle.finish();
-        focus::restore(ctx, &stack.keep_only(&present));
+        focus::restore(ctx, &st.kept, &stack.keep_only(&present));
         for root in &mut roots {
             if let PlacedRootKind::Overlay(overlay) = &mut root.kind {
                 overlay.stack_index = stack

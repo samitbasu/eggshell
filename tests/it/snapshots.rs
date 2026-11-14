@@ -1601,6 +1601,79 @@ fn menu_destructive_dark() {
     menu_destructive("menu_destructive_dark", egui::Theme::Dark);
 }
 
+/// The menu example's hand-built list, a popover: it flips above its button,
+/// is clamped to the room there and scrolls.
+fn menu_list_open(name: &str, theme: egui::Theme) {
+    menu_after(name, theme, |harness| {
+        support::click_node(harness, "/Page/Bottom/ListButton");
+        harness.run_steps(8);
+        assert!(
+            harness
+                .state()
+                .nodes
+                .iter()
+                .any(|(path, _)| path.contains("/List/Menu/Rows")),
+            "the list is open"
+        );
+    });
+}
+
+#[test]
+fn menu_list_open_light() {
+    menu_list_open("menu_list_open_light", egui::Theme::Light);
+}
+
+#[test]
+fn menu_list_open_dark() {
+    menu_list_open("menu_list_open_dark", egui::Theme::Dark);
+}
+
+/// A button's tooltip after the pointer has rested on it: shadcn's inverted
+/// box with its arrow.
+fn tooltip_open(name: &str, theme: egui::Theme) {
+    fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
+        b.div(tw().flex().justify_center().p(4.0).pt(16.0), |b| {
+            b.button("add", "Add to library")
+                .tooltip("Add to library")
+                .add();
+        });
+    }
+    report_renderer();
+    let style = ShadcnStyle::Vega;
+    let mut harness = support::harness(
+        Vec2::new(240.0, 120.0),
+        common::base_text_styled(theme, style),
+        (),
+        view,
+    );
+    common::set_style(&harness.ctx, style);
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(8);
+    support::hover_node(&mut harness, "/\"add\"");
+    harness.run_steps(30);
+    assert!(
+        harness
+            .state()
+            .nodes
+            .iter()
+            .any(|(path, _)| path.contains("Tooltip(")),
+        "the tooltip is open"
+    );
+    harness.snapshot(name);
+}
+
+#[test]
+fn tooltip_open_light() {
+    tooltip_open("tooltip_open_light", egui::Theme::Light);
+}
+
+#[test]
+fn tooltip_open_dark() {
+    tooltip_open("tooltip_open_dark", egui::Theme::Dark);
+}
+
 /// Frames of the dialog, the sheet and the menu entering and leaving, for
 /// review (the motion is the user's choice): `cargo test --features
 /// snapshots --test it motion_strips -- --ignored` with `EGGSHELL_MOTION_DIR`

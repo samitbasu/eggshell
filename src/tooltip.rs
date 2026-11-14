@@ -171,15 +171,29 @@ struct Waiting {
     since: Duration,
 }
 
+/// Ticks in which focus restored to a trigger may show up in the frame's
+/// triggers: egui applies a requested focus a pass later.
+const RESTORE_TICKS: u8 = 3;
+
 #[derive(Default)]
 pub(crate) struct Tooltips {
     present: Vec<Present>,
     waiting: Option<Waiting>,
     latched: Option<Id>,
+    /// A trigger that focus was just restored to, and how many ticks to wait
+    /// for the frame's triggers to show it.
+    restoring: Option<(Id, u8)>,
     closed_at: Option<Duration>,
 }
 
 impl Tooltips {
+    /// Focus was given back to `target` by an overlay closing. That is focus
+    /// staying put, not arriving: a tooltip that Esc closed stays closed
+    /// until the trigger is left and returned to.
+    pub(crate) fn focus_restored(&mut self, target: Id) {
+        self.restoring = Some((target, RESTORE_TICKS));
+    }
+
     /// The triggers whose tooltip is open, in order.
     fn open_triggers(&self) -> Vec<Id> {
         self.present
@@ -244,6 +258,16 @@ impl Tooltips {
             self.waiting = None;
             self.close_all(now);
             return None;
+        }
+        if let Some((target, left)) = self.restoring {
+            match wanted.map(|trigger| trigger.id) {
+                Some(id) if id == target => {
+                    self.latched = Some(target);
+                    self.restoring = None;
+                }
+                None if left > 1 => self.restoring = Some((target, left - 1)),
+                _ => self.restoring = None,
+            }
         }
         if self.latched != wanted.map(|trigger| trigger.id) {
             self.latched = None;
@@ -565,6 +589,22 @@ mod tests {
             tooltips.tick(ms(450), TIMING, Some(&a), None),
             Some(ms(500))
         );
+    }
+
+    #[test]
+    fn focus_restored_to_the_trigger_is_not_an_arrival() {
+        let mut tooltips = Tooltips::default();
+        let a = trigger("a", Cause::Focus);
+        tooltips.tick(ms(0), TIMING, Some(&a), None);
+        tooltips.tick(ms(50), TIMING, None, Some(Interruption::Escape));
+        tooltips.focus_restored(a.id);
+        for at in [100, 150, 200] {
+            tooltips.tick(ms(at), TIMING, Some(&a), None);
+            assert!(open_ids(&tooltips).is_empty(), "open at {at}");
+        }
+        tooltips.tick(ms(250), TIMING, None, None);
+        tooltips.tick(ms(300), TIMING, Some(&a), None);
+        assert_eq!(open_ids(&tooltips), [a.id], "a fresh arrival opens it");
     }
 
     #[test]

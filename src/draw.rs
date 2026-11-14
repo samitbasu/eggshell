@@ -16,7 +16,7 @@ use egui::{
 };
 use taffy::Overflow;
 
-use crate::continuity::{self, Motion, NodeFrame, RecordedPass};
+use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
 use crate::dnd::{self, Stakes};
@@ -1504,7 +1504,7 @@ impl<A> Walk<'_, A> {
                         pivot_pos: Some(rect.min),
                         pivot: egui::Align2::LEFT_TOP,
                         size: Some(rect.size()),
-                        interactable: true,
+                        interactable: overlay.band != Band::Tooltip,
                         last_became_visible_at: None,
                     },
                 );
@@ -1721,6 +1721,7 @@ impl<A> Placed<A> {
                     nodes: frame,
                     laid_out,
                     culled: std::mem::take(&mut shared.culled),
+                    overlays: placed_overlays(&nodes, &roots),
                 },
             );
         }
@@ -1732,6 +1733,28 @@ impl<A> Placed<A> {
             debug::paint(&ctx, &nodes, &overflow);
         }
     }
+}
+
+/// The overlays the frame draws, as the checks of placement judge them.
+fn placed_overlays(nodes: &[PlacedNode], roots: &[PlacedRoot]) -> Vec<OverlayFrame> {
+    roots
+        .iter()
+        .filter_map(|root| {
+            let overlay = root.overlay()?;
+            let node = &nodes[root.first];
+            (overlay.anchored == Anchored::Attached).then(|| OverlayFrame {
+                id: overlay.id,
+                path: node.path().to_owned(),
+                bounds: overlay.bounds,
+                anchor: overlay.anchor,
+                natural: overlay.natural,
+                side: match overlay.form {
+                    Form::Floating(side) => Some(side),
+                    Form::Modal(_) => None,
+                },
+            })
+        })
+        .collect()
 }
 
 /// For each node, and one past the last, how many nodes before it register
