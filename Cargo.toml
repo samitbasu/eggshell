@@ -10,6 +10,7 @@ repository = "https://github.com/samitbasu/eggshell"
 [dependencies]
 taffy = "0.15.1"
 egui = "0.37"
+nohash-hasher = "0.2"
 web-time = "1.1"
 
 [features]

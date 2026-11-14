@@ -168,8 +168,9 @@ pub fn base_text_in(ctx: &Context) -> TextStyle {
 pub type Layout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, ()>, &S);
 
 /// Builds one frame of a layout from the example's state, which is also the
-/// application its draw closures act on.
-pub type AppLayout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &S);
+/// application its draw closures act on. The state is borrowed for the frame
+/// (`'f`), so a layout may hand it to a region or a virtual list.
+pub type AppLayout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &'f S);
 
 /// Runs `layout` over the whole window.
 pub fn run<S: 'static>(title: &str, state: S, layout: Layout<S>) -> eframe::Result {

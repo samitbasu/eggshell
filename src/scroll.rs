@@ -175,7 +175,7 @@ impl TabRule {
 /// Whether one of `nodes`, or of their descendants, is a Tab stop by what its
 /// classes declare. A nested scroll container counts: it is one or holds
 /// one. Inert and hidden subtrees do not.
-fn holds_tab_stop(tree: &taffy::TaffyTree<Node>, nodes: &[taffy::NodeId]) -> bool {
+pub(crate) fn holds_tab_stop(tree: &taffy::TaffyTree<Node>, nodes: &[taffy::NodeId]) -> bool {
     nodes.iter().any(|&id| {
         let hidden = tree
             .style(id)
@@ -242,8 +242,13 @@ pub struct ScrollChain<'a, 'f, A> {
 
 impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
     pub(crate) fn new<K: Key>(b: Builder<'a, 'f, A>, key: K, classes: Tw) -> Self {
+        let slot = b.slot(&key);
+        Self::with_slot(b, slot, classes)
+    }
+
+    pub(crate) fn with_slot(b: Builder<'a, 'f, A>, slot: Slot, classes: Tw) -> Self {
         Self {
-            slot: b.slot(&key),
+            slot,
             b,
             classes,
             axis: Axis::default(),
@@ -740,7 +745,7 @@ fn masked(vector: Vec2, axis: Axis) -> Vec2 {
 /// How far to move the offset along one axis to show `item` in `view`, both
 /// as `(start, end)`. With an `align` the item is aligned that way; without,
 /// it moves the least, and an item larger than the view shows its start.
-fn reveal(view: (f32, f32), item: (f32, f32), align: Option<Align>) -> f32 {
+pub(crate) fn reveal(view: (f32, f32), item: (f32, f32), align: Option<Align>) -> f32 {
     match align {
         Some(align) => {
             let at = align.to_factor();

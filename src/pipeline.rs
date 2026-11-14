@@ -741,7 +741,10 @@ impl<'f, A> Built<'f, A> {
             }
         }
         stack.store(&st.kept);
-        st.kept.with(|kept| kept.presences.sweep());
+        st.kept.with(|kept| {
+            kept.presences.sweep();
+            kept.lists.sweep(ctx.cumulative_pass_nr());
+        });
         let Frame {
             measures,
             draws,
