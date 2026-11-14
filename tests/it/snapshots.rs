@@ -116,6 +116,10 @@ mod scroll_example;
 mod overflow;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/long_list.rs"]
+mod long_list;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/flex_scroll.rs"]
 mod flex_scroll;
 
@@ -1354,6 +1358,48 @@ fn scroll_in(name: &str, theme: egui::Theme, scrolled: bool) {
         harness.run_steps(3);
     }
     harness.snapshot(name);
+}
+
+/// The long list: date headers and notes whose tags wrap, at the top and
+/// scrolled a long way down, where every row above is still an estimate.
+fn long_list_in(name: &str, theme: egui::Theme, scrolled: bool) {
+    use eggshell_ui::scroll::scroll_by;
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(560.0, 640.0),
+        common::base_text(theme),
+        long_list::State::default(),
+        long_list::layout,
+        |_, _| {},
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    if scrolled {
+        scroll_by(
+            &harness.ctx,
+            support::id_of(&harness, "/List"),
+            Vec2::new(0.0, 200_000.0),
+        );
+        harness.run_steps(4);
+    }
+    harness.snapshot(name);
+}
+
+#[test]
+fn long_list_light() {
+    long_list_in("long_list_light", egui::Theme::Light, false);
+}
+
+#[test]
+fn long_list_dark() {
+    long_list_in("long_list_dark", egui::Theme::Dark, false);
+}
+
+#[test]
+fn long_list_scrolled_light() {
+    long_list_in("long_list_scrolled_light", egui::Theme::Light, true);
 }
 
 /// The overflow demo: visible, clip, hidden and scroll, twenty labels each.
