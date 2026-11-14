@@ -215,6 +215,52 @@ pub struct App {
     drag: Option<Drag>,
 }
 
+/// How many messages come before the current exchange.
+pub const HISTORY: usize = 3_000;
+
+const ASKS: [&str; 6] = [
+    "Can the cache keep the last layout when nothing changed?",
+    "Why does the list jump when a row grows?",
+    "Is there a faster way to measure the text?",
+    "What should the parser do with a stray brace?",
+    "Could the build skip the unchanged crates?",
+    "How do I keep the focus when the panel closes?",
+];
+
+const ANSWERS: [&str; 6] = [
+    "It can. Keep the inputs the layout depends on next to the result, and compare them before solving again.",
+    "The rows above the one you are reading changed height, so everything below them moved. Hold the first visible row in place and the jump goes away.",
+    "Measure each word once and reuse it: most frames lay out the same strings at the same size.",
+    "Report it with the position it was found at, then skip to the next statement so that one mistake does not hide the rest.",
+    "Yes. Hash each crate's sources and its dependencies' hashes, and rebuild only when one changes.",
+    "Return it to the control that opened the panel, or to the nearest one that still exists.",
+];
+
+const SNIPPETS: [&str; 3] = [
+    "if inputs == last.inputs { return last.layout; }",
+    "let id = list_id.with(row_key);",
+    "focus.restore_to(opener);",
+];
+
+/// The messages before the current exchange: questions and their answers,
+/// some with code.
+fn history() -> impl Iterator<Item = Message> {
+    (0..HISTORY).map(|at| {
+        let turn = at / 2;
+        if at % 2 == 0 {
+            return Message::User(ASKS[turn % ASKS.len()].to_owned());
+        }
+        let mut blocks = vec![paragraph(ANSWERS[turn % ANSWERS.len()])];
+        if turn % 3 == 1 {
+            blocks.push(code(SNIPPETS[turn % SNIPPETS.len()]));
+        }
+        if turn % 4 == 2 {
+            blocks.push(paragraph(ANSWERS[(turn + 1) % ANSWERS.len()]));
+        }
+        Message::Assistant(blocks)
+    })
+}
+
 fn paragraph(text: &str) -> Block {
     Block::Paragraph(text.to_owned())
 }
@@ -241,7 +287,8 @@ impl Default for App {
                 session(6, "Explain the borrow checker error", None),
             ],
             selected: SessionKey(1),
-            conversation: [
+            conversation: history()
+                .chain([
                 Message::User(
                     "The tokenizer allocates a new string for every token. Can we avoid that?"
                         .into(),
@@ -262,8 +309,7 @@ impl Default for App {
                 Message::Assistant(vec![paragraph(
                     "Done. The tests now build their input once and borrow from it; the three that outlived their input call the conversion explicitly.",
                 )]),
-            ]
-            .into_iter()
+            ])
             .collect(),
             context_used: Progress::new(0.42),
             draft: String::new(),

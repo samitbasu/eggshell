@@ -131,6 +131,7 @@ fn conversation<'f>(b: &mut B<'_, 'f>, app: &'f App) {
         app.conversation.ids(),
     )
     .estimate_px(96.0)
+    .start_at_end()
     .focusable(Focusable::Always)
     .role(egui::Role::Log)
     .named("Conversation")
