@@ -6,16 +6,20 @@
 //! chooses, Right opens the submenu and Left closes it. Click away, press Esc
 //! or Tab out to close. The list is a hand-built overlay of the same look.
 //!
+//! Copy and Paste are commands (`Commands`): the menu takes their title,
+//! shortcut and enablement from the table, and Ctrl+C (Cmd+C on a Mac) runs
+//! Copy with the menu closed. Paste is disabled, and so is its menu item.
+//!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
 #[path = "common/mod.rs"]
 mod common;
 
 use eggshell_ui::overlay::{Anchor, Distance, MatchWidth, Nav, Placement};
-use eggshell_ui::owned::{Enablement, Mark};
+use eggshell_ui::owned::Mark;
 use eggshell_ui::scroll::Axis;
-use eggshell_ui::{Builder, tw};
-use egui::Role;
+use eggshell_ui::{Builder, Command, Commands, tw};
+use egui::{Key, KeyboardShortcut, Modifiers, Role};
 
 #[derive(Clone, Copy, Debug, Hash)]
 pub enum Part {
@@ -83,7 +87,8 @@ pub const ROW_HEIGHT: f32 = 28.0;
 ///   <div> <button>List</button> </div>
 /// </div>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+    b.commands(&commands(), state);
     b.div_id(
         Part::Page,
         tw().flex().flex_col().justify_between().h_full().p(4.0),
@@ -105,18 +110,30 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
     );
 }
 
+fn commands() -> Commands<State> {
+    Commands::new()
+        .add(
+            Part::Item(Item::Copy),
+            Command::new("Copy", |state: &mut State| {
+                state.chosen = Some("Copy".into());
+            })
+            .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::C)),
+        )
+        .add(
+            Part::Item(Item::Paste),
+            Command::new("Paste", |_| {})
+                .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::V))
+                .enabled(|_| false),
+        )
+}
+
 fn actions(b: &mut Builder<'_, '_, State>, state: &State) {
     let (grid, snap, size) = (state.grid, state.snap, state.size);
     b.dropdown_menu(Part::PopoverButton, "Actions")
         .variant(eggshell_ui_shadcn::variant::OUTLINE)
         .items(|m| {
-            m.item(Part::Item(Item::Copy), "Copy")
-                .shortcut("Ctrl+C")
-                .on_click(|state: &mut State| state.chosen = Some("Copy".into()));
-            m.item(Part::Item(Item::Paste), "Paste")
-                .shortcut("Ctrl+V")
-                .enablement(Enablement::Disabled)
-                .on_click(|_| {});
+            m.command(Part::Item(Item::Copy));
+            m.command(Part::Item(Item::Paste));
             m.separator();
             m.label("View");
             m.checkbox_item(Part::Item(Item::Grid), "Show grid", Mark::from(grid))
