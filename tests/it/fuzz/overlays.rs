@@ -752,9 +752,14 @@ impl Desk {
     /// Frames for the library's lags to pass, and for every overlay that is
     /// leaving to be gone: focus returns to the opener when the exit has run.
     fn settle(&mut self) -> Result<(), TestCaseError> {
-        for _ in 0..EXIT_LIMIT {
+        self.steps(SETTLE)?;
+        for waited in 0..=EXIT_LIMIT {
             if !self.seen().overlays.iter().any(|overlay| overlay.exiting) {
-                return self.steps(SETTLE);
+                return if waited == 0 {
+                    Ok(())
+                } else {
+                    self.steps(SETTLE)
+                };
             }
             self.step()?;
         }
@@ -774,6 +779,11 @@ impl Desk {
 
     fn perform(&mut self, action: &Action) -> Result<(), TestCaseError> {
         match *action {
+            Action::ArrowDown | Action::ArrowUp | Action::Home | Action::End
+                if self.strictness == Strictness::Decided && self.down =>
+            {
+                Ok(())
+            }
             Action::OpenMenu => self.click_node("\"menu\""),
             Action::OpenSelect => self.click_node("\"pick\""),
             Action::OpenPopover => self.click_node("\"popover\""),
@@ -875,7 +885,9 @@ impl Desk {
     /// one that takes part in input: the topmost one that takes the key,
     /// which an overlay with a cancel button does by pressing it. (No drag is
     /// live in this app, and a text field's Esc is its own only when no
-    /// overlay is open.)
+    /// overlay is open.) Focus then returns to the widget that had it when the
+    /// overlay opened, unless a pointer button is held: the library waits for
+    /// it to be released.
     fn escape_closed_one(
         &self,
         before: &Seen,
@@ -903,6 +915,7 @@ impl Desk {
             .collect();
         if let [gone] = closed[..]
             && gone.focus == Focus::Enter
+            && !self.down
             && let Some(opener) = self.opener_of(gone.id)
             && self.seen().nodes.iter().any(|(_, id, _)| *id == opener)
         {
@@ -1026,7 +1039,7 @@ proptest! {
     ///   dismissal, so another menu can open beside it (`open_overlays` leaves
     ///   detached overlays out of `exclusive`).
     #[test]
-    #[ignore = "two open design questions, see the doc comment"]
+    #[ignore = "open questions, see the doc comment and docs/overlays.md, As built in PR 8"]
     fn focus_stays_with_the_overlays_under_any_session(actions in overlay_session()) {
         run(&actions, Strictness::Strict)?;
     }
@@ -1034,6 +1047,43 @@ proptest! {
 
 /// The shrunk case of the first open question: Tab from a menu opened with
 /// the pointer.
+/// The third open finding, outside the overlays: with a pointer button held,
+/// End on a focused button in a scroll container scrolls it for the frame of
+/// the key press and puts it back in the frame of the release, which hides
+/// the tooltip of the button (a gap) for that frame. Without the button held
+/// the container stays scrolled. The decided session does not press the
+/// scroll keys while a button is held.
+#[test]
+#[ignore = "open finding: End with a button held scrolls for one frame and snaps back"]
+fn end_with_a_button_held_scrolls_and_stays() {
+    run(
+        &[
+            Action::ShiftTab,
+            Action::PressAt(58, 44),
+            Action::ShiftTab,
+            Action::End,
+        ],
+        Strictness::Strict,
+    )
+    .expect("holds");
+}
+
+/// Focus is not given back while a button is held (an Esc during a press).
+#[test]
+fn escape_with_a_button_held_closes_the_menu_and_waits_to_give_focus_back() {
+    run(
+        &[
+            Action::Tab,
+            Action::ArrowDown,
+            Action::PressAt(0, 0),
+            Action::ArrowDown,
+            Action::Esc,
+        ],
+        Strictness::Decided,
+    )
+    .expect("holds");
+}
+
 #[test]
 #[ignore = "open design question: focus moves to the page while the menu stays open"]
 fn tab_from_a_menu_opened_with_the_pointer_closes_it() {
@@ -1065,6 +1115,23 @@ fn a_press_under_a_leaving_tooltip_does_not_raise_it() {
             Action::HoverTrigger(1),
             Action::ResizeWindow(240, 220),
             Action::OpenModal,
+        ],
+        Strictness::Decided,
+    )
+    .expect("holds");
+}
+
+/// A popover hidden because its anchor left the window comes back over the
+/// dialog that opened meanwhile: egui raises an area that was not shown last
+/// frame, and the stack repair did not know.
+#[test]
+fn a_popover_that_comes_back_does_not_rise_over_a_later_dialog() {
+    run(
+        &[
+            Action::OpenAnchorPopover,
+            Action::ResizeWindow(240, 220),
+            Action::OpenModal,
+            Action::ResizeWindow(240, 308),
         ],
         Strictness::Decided,
     )
