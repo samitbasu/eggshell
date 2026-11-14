@@ -380,14 +380,13 @@ impl Tokens {
         self.input.gamma_multiply(0.5)
     }
 
-    /// These tokens re-tinted with `theme_color`'s `primary`, `primary-foreground`
-    /// and `ring` for `theme`, which must be the theme they were made for.
+    /// These tokens re-tinted with `theme_color`'s `primary` and
+    /// `primary-foreground` for `theme`, which must be the theme they were made for.
     #[must_use]
     pub fn with_theme_color(self, theme_color: ThemeColor, theme: Theme) -> Self {
         let Hues {
             primary,
             primary_foreground,
-            ring,
         } = theme_color.hues(theme);
         let (switch_thumb_on, switch_track_on) = match theme {
             Theme::Light => (self.switch_thumb_on, primary),
@@ -396,7 +395,6 @@ impl Tokens {
         Self {
             primary,
             primary_foreground,
-            ring,
             switch_track_on,
             switch_thumb_on,
             ..self
