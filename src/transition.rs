@@ -90,6 +90,17 @@ impl Transition {
     }
 }
 
+/// `duration`, or zero where the style asks for no motion: egui's
+/// `animation_time` of zero is "reduced motion", the one switch every eggshell
+/// animation (state transitions, slides, presence, size) goes through.
+pub(crate) fn allowed(ctx: &Context, duration: Duration) -> Duration {
+    if ctx.global_style().animation_time == 0.0 {
+        Duration::ZERO
+    } else {
+        duration
+    }
+}
+
 /// The value of the transition keyed by `id` towards `target`
 /// ([`Progress::START`] or [`Progress::END`]) over `duration`, eased.
 ///
@@ -102,6 +113,7 @@ pub(crate) fn animate(
     duration: Duration,
     easing: Easing,
 ) -> Progress {
+    let duration = allowed(ctx, duration);
     if duration.is_zero() {
         return target;
     }
@@ -168,6 +180,23 @@ pub(crate) struct LayoutAnimation {
     current: HashMap<Id, Tracked>,
     area: Rect,
     reach: f32,
+    /// Whether a layout move starts a slide.
+    starts_slides: StartsSlides,
+}
+
+/// Whether a node whose layout moved slides from where it was. A frame with a
+/// size animation in flight moves nodes by layout itself, smoothly, so they
+/// follow it: a slide on top would lag the motion and start anew every frame.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StartsSlides {
+    Yes,
+    No,
+}
+
+impl StartsSlides {
+    pub(crate) fn unless_size_in_flight(in_flight: bool) -> Self {
+        if in_flight { Self::No } else { Self::Yes }
+    }
 }
 
 impl LayoutAnimation {
@@ -191,7 +220,14 @@ impl LayoutAnimation {
             current: HashMap::new(),
             area,
             reach: 0.0,
+            starts_slides: StartsSlides::Yes,
         }
+    }
+
+    /// Sets whether this frame's layout moves start slides.
+    pub(crate) fn starting(mut self, starts_slides: StartsSlides) -> Self {
+        self.starts_slides = starts_slides;
+        self
     }
 
     /// Notes how far from its layout this frame leaves each animated node of
@@ -234,11 +270,16 @@ impl LayoutAnimation {
         easing: Easing,
     ) -> Vec2 {
         let now = self.now;
+        let duration = allowed(&self.ctx, duration);
         let tracked = match self.previous.get(&id) {
-            Some(previous) if previous.relative == relative => Tracked {
-                relative,
-                ..*previous
-            },
+            Some(previous)
+                if previous.relative == relative || self.starts_slides == StartsSlides::No =>
+            {
+                Tracked {
+                    relative,
+                    ..*previous
+                }
+            }
             Some(previous) => Tracked {
                 relative,
                 start: previous.relative + previous.offset(now, easing) - relative,

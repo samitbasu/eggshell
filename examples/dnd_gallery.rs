@@ -3,7 +3,9 @@
 //! the panels reflowing across rows as the pointer crosses them; the drag
 //! image is the panel itself, or a chip. Image files dropped from the OS
 //! insert a panel at the pointer. Near the top or bottom of the viewport a
-//! drag scrolls. 1/2/3 set the columns, G swaps the drag image, Esc cancels.
+//! drag scrolls. 1/2/3 set the columns, G swaps the drag image, H switches
+//! between dragging a panel from anywhere and from its grip only, Esc
+//! cancels.
 //!
 //! The gallery is a scroll container (`b.scroll`), which scrolls itself when a
 //! drag is near its edge.
@@ -13,6 +15,7 @@ mod common;
 
 use core::time::Duration;
 
+use common::glyphs::{self, Glyph};
 use eggshell_ui::{File, Files, LayoutState, Opacity, tw};
 use eggshell_ui_shadcn::DragChip as _;
 use egui::{Context, Key, Ui, vec2};
@@ -30,10 +33,18 @@ pub enum Image {
     Live,
 }
 
+/// Where a drag that lifts a panel starts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Lift {
+    Anywhere,
+    Grip,
+}
+
 pub struct State {
     pub panels: Vec<(PanelKey, String)>,
     pub cols: usize,
     pub image: Image,
+    pub lift: Lift,
     /// What the last drag or drop did, shown in the toolbar.
     pub status: String,
     /// A panel to scroll into view: one dropped with no position, which went
@@ -48,6 +59,7 @@ impl Default for State {
             panels: Vec::new(),
             cols: 3,
             image: Image::Live,
+            lift: Lift::Anywhere,
             status: String::new(),
             reveal: None,
             next: 0,
@@ -101,7 +113,8 @@ pub fn accepts(file: &File) -> bool {
 }
 
 /// The panel in its slot: the slot is outlined while the panel is carried
-/// away by a live image. The face is the drag source.
+/// away by a live image. The face is the drag source, lifted from anywhere
+/// or from its grip.
 fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, state: &State, lifted: bool) {
     let t = common::tokens(b.ctx());
     let outer = tw()
@@ -138,7 +151,16 @@ fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, state: &State, lif
                     |b| {
                         let now = b.ctx().input(|i| i.time);
                         b.div(tw().flex().justify_between().items_center(), |b| {
-                            b.text(tw().role(common::sized(12.0)), label);
+                            let title = |b: &mut B<'_, '_, State>| {
+                                b.text(tw().role(common::sized(12.0)), label);
+                            };
+                            match state.lift {
+                                Lift::Anywhere => title(b),
+                                Lift::Grip => b.div(tw().flex().items_center().gap(1.0), |b| {
+                                    grip(b, label);
+                                    title(b);
+                                }),
+                            }
                             b.text(
                                 tw().role(common::sized(12.0)).text(t.muted_foreground),
                                 format!("{:+.2}", channel(key, now, 1.0)),
@@ -149,10 +171,36 @@ fn cell(b: &mut B<'_, '_, State>, key: PanelKey, label: &str, state: &State, lif
                 );
             })
             .drag_source(key);
+        let source = match state.lift {
+            Lift::Anywhere => source,
+            Lift::Grip => source.drag_handle("grip"),
+        };
         if state.image == Image::Chip {
             source.with_drag_chip(label);
         }
     });
+}
+
+/// The handle a panel is lifted by in grip mode.
+fn grip(b: &mut B<'_, '_, State>, label: &str) {
+    let t = common::tokens(b.ctx());
+    let icon = glyphs::icon(b.ctx(), Glyph::GripVertical);
+    b.div_id(
+        "grip",
+        tw().flex()
+            .items_center()
+            .justify_center()
+            .shrink_0()
+            .w_px(24.0)
+            .h_px(24.0)
+            .rounded_sm()
+            .text(t.muted_foreground)
+            .hover(|p| p.bg(t.border)),
+        |b| {
+            b.icon("glyph", tw().w_px(16.0).h_px(16.0), icon);
+        },
+    )
+    .named(format!("Move {label}"));
 }
 
 /// A telemetry channel's value at `time` seconds, `x` from 0 (oldest) to 1
@@ -288,13 +336,14 @@ pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) {
     placed.draw(app, ui);
 }
 
-/// The strip above the gallery: the column count, the drag image, and what
-/// the last drag did.
+/// The strip above the gallery: the column count, the drag image, where a
+/// drag starts, and what the last drag did.
 ///
 /// ```html
 /// <div class="flex items-center gap-3 px-3 h-11 border-b">
 ///   <span>Columns</span> <div role="radiogroup">1 2 3</div>
 ///   <span>Drag image</span> <div role="radiogroup">Live Chip</div>
+///   <div role="radiogroup">Panel Grip</div>
 ///   <span>status</span>
 /// </div>
 /// ```
@@ -322,6 +371,13 @@ pub fn toolbar(b: &mut B<'_, '_, State>, state: &State) {
             )
             .tooltip_with(|s| shortcut(s, "Switch the drag image", &["G"]))
             .on_change(|state: &mut State, image| state.image = image);
+            b.segmented(
+                "lift",
+                state.lift,
+                [(Lift::Anywhere, "Panel"), (Lift::Grip, "Grip")],
+            )
+            .tooltip_with(|s| shortcut(s, "Drag a panel from anywhere, or by its grip", &["H"]))
+            .on_change(|state: &mut State, lift| state.lift = lift);
             b.text(tw().text(t.muted_foreground), state.status.clone());
         },
     );
@@ -351,11 +407,17 @@ fn shortcuts(ctx: &Context, state: &mut State) {
             Image::Live => Image::Chip,
         };
     }
+    if ctx.input(|i| i.key_pressed(Key::H)) {
+        state.lift = match state.lift {
+            Lift::Anywhere => Lift::Grip,
+            Lift::Grip => Lift::Anywhere,
+        };
+    }
 }
 
-/// The window below the theme bar: the toolbar's own eggshell tree, then the
-/// gallery's. `main`, the tests and the fuzzer all draw it, so they exercise
-/// the same arrangement of trees.
+/// The window below the theme bar: the shortcuts, the toolbar's own eggshell
+/// tree, then the gallery's. `main`, the tests and the fuzzer all draw it, so
+/// they exercise the same arrangement of trees.
 pub fn window(
     ui: &mut Ui,
     state: &mut State,
@@ -363,6 +425,7 @@ pub fn window(
     toolbar_layout: &mut LayoutState,
 ) {
     let ctx = ui.ctx().clone();
+    shortcuts(&ctx, state);
     egui::Panel::top("gallery_toolbar")
         .exact_size(44.0)
         .show_separator_line(false)
@@ -390,7 +453,6 @@ fn main() -> eframe::Result {
         common::use_preset(&ctx);
         theme_bar.show(ui);
         layout_state.set_base_text(Some(common::base_text_in(&ctx)));
-        shortcuts(&ctx, &mut state);
         window(ui, &mut state, &mut layout_state, &mut toolbar_state);
     })
 }

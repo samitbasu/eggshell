@@ -116,6 +116,30 @@ mod scroll_example;
 mod overflow;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/long_list.rs"]
+mod long_list;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/virtual_grid.rs"]
+mod virtual_grid;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/virtual_list_example.rs"]
+mod virtual_list_example;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/virtual_list_stable_id.rs"]
+mod virtual_list_stable_id;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/stargazers.rs"]
+mod stargazers;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/chat.rs"]
+mod chat;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/flex_scroll.rs"]
 mod flex_scroll;
 
@@ -1356,6 +1380,170 @@ fn scroll_in(name: &str, theme: egui::Theme, scrolled: bool) {
     harness.snapshot(name);
 }
 
+/// The long list: date headers and notes whose tags wrap, at the top and
+/// scrolled a long way down, where every row above is still an estimate.
+fn long_list_in(name: &str, theme: egui::Theme, scrolled: bool) {
+    use eggshell_ui::scroll::scroll_by;
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(560.0, 640.0),
+        common::base_text(theme),
+        long_list::State::default(),
+        long_list::layout,
+        |_, _| {},
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    if scrolled {
+        scroll_by(
+            &harness.ctx,
+            support::id_of(&harness, "/List"),
+            Vec2::new(0.0, 200_000.0),
+        );
+        harness.run_steps(4);
+    }
+    harness.snapshot(name);
+}
+
+#[test]
+fn long_list_light() {
+    long_list_in("long_list_light", egui::Theme::Light, false);
+}
+
+#[test]
+fn long_list_dark() {
+    long_list_in("long_list_dark", egui::Theme::Dark, false);
+}
+
+#[test]
+fn long_list_scrolled_light() {
+    long_list_in("long_list_scrolled_light", egui::Theme::Light, true);
+}
+
+/// An example ported onto `virtual_list`, at its start, in `theme`.
+fn port_in<S: Default + 'static>(
+    name: &str,
+    size: Vec2,
+    theme: egui::Theme,
+    view: support::View<S>,
+) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        size,
+        common::base_text(theme),
+        S::default(),
+        view,
+        |_, _| {},
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(4);
+    harness.snapshot(name);
+}
+
+#[test]
+fn virtual_grid_light() {
+    port_in(
+        "virtual_grid_light",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Light,
+        virtual_grid::layout,
+    );
+}
+
+#[test]
+fn virtual_grid_dark() {
+    port_in(
+        "virtual_grid_dark",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Dark,
+        virtual_grid::layout,
+    );
+}
+
+#[test]
+fn virtual_list_example_light() {
+    port_in(
+        "virtual_list_example_light",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Light,
+        virtual_list_example::layout,
+    );
+}
+
+#[test]
+fn virtual_list_example_dark() {
+    port_in(
+        "virtual_list_example_dark",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Dark,
+        virtual_list_example::layout,
+    );
+}
+
+#[test]
+fn virtual_list_stable_id_light() {
+    port_in(
+        "virtual_list_stable_id_light",
+        Vec2::new(560.0, 400.0),
+        egui::Theme::Light,
+        virtual_list_stable_id::layout,
+    );
+}
+
+#[test]
+fn virtual_list_stable_id_dark() {
+    port_in(
+        "virtual_list_stable_id_dark",
+        Vec2::new(560.0, 400.0),
+        egui::Theme::Dark,
+        virtual_list_stable_id::layout,
+    );
+}
+
+#[test]
+fn stargazers_light() {
+    port_in(
+        "stargazers_light",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Light,
+        stargazers::layout,
+    );
+}
+
+#[test]
+fn stargazers_dark() {
+    port_in(
+        "stargazers_dark",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Dark,
+        stargazers::layout,
+    );
+}
+
+#[test]
+fn chat_light() {
+    port_in(
+        "chat_light",
+        Vec2::new(560.0, 560.0),
+        egui::Theme::Light,
+        chat::layout,
+    );
+}
+
+#[test]
+fn chat_dark() {
+    port_in(
+        "chat_dark",
+        Vec2::new(560.0, 560.0),
+        egui::Theme::Dark,
+        chat::layout,
+    );
+}
+
 /// The overflow demo: visible, clip, hidden and scroll, twenty labels each.
 #[test]
 fn overflow_light() {
@@ -2060,4 +2248,56 @@ mod kbd_candidates {
             }
         }
     }
+}
+
+/// The slider thumb under the pointer while the keyboard focuses it: the
+/// halo is the focus ring's, not the hover ring's.
+fn slider_thumb_halo(style: ShadcnStyle, name: &str) {
+    struct Volume(f64);
+    let view: support::View<Volume> = |b, app| {
+        b.div(
+            tw().flex().items_center().w_full().h_px(32.0).px(16.0),
+            |b| {
+                b.slider("volume", app.0, 0.0..=100.0)
+                    .named("Volume")
+                    .on_change(|app: &mut Volume, v| app.0 = v);
+            },
+        );
+    };
+    report_renderer();
+    let text = TextStyle::new(layouts::BODY, Color32::BLACK);
+    let mut harness = support::harness_prepared(
+        Vec2::new(220.0, 48.0),
+        text,
+        Volume(40.0),
+        view,
+        |ctx, _| common::use_preset(ctx),
+    );
+    common::set_style(&harness.ctx, style);
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(egui::Theme::Light);
+    harness.run_steps(3);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(3);
+    let thumb = harness
+        .state()
+        .nodes
+        .iter()
+        .find(|(path, _)| path.ends_with("Thumb"))
+        .map(|(_, rect)| rect.center())
+        .expect("the slider's thumb");
+    harness.hover_at(thumb);
+    harness.run_steps(12);
+    harness.snapshot(name);
+}
+
+#[test]
+fn slider_thumb_halo_vega() {
+    slider_thumb_halo(ShadcnStyle::Vega, "slider_thumb_halo_vega");
+}
+
+#[test]
+fn slider_thumb_halo_lyra() {
+    slider_thumb_halo(ShadcnStyle::Lyra, "slider_thumb_halo_lyra");
 }

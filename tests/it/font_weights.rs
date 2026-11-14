@@ -129,3 +129,66 @@ fn a_role_carries_its_weight() {
     };
     assert_eq!(spec.font_id(&harness.ctx).family, geist(Weight::SemiBold));
 }
+
+/// The names of the faces that have `c` in `family`, first choice first.
+fn faces_for(harness: &Harness<'_, support::Rig<()>>, family: &FontFamily, c: char) -> Vec<String> {
+    harness.ctx.fonts_mut(|fonts| {
+        fonts
+            .characters(family)
+            .get(&c)
+            .cloned()
+            .unwrap_or_default()
+    })
+}
+
+#[test]
+fn geist_draws_its_own_key_symbols_and_the_symbol_face_comes_last() {
+    let harness = harness(|_, _| {});
+    for weight in Weight::ALL {
+        let family = geist(weight);
+        let shift = faces_for(&harness, &family, '\u{21e7}');
+        let command = faces_for(&harness, &family, '\u{2318}');
+        assert_eq!(
+            shift.first().map(String::as_str),
+            Some(format!("Geist/{}", weight.number()).as_str()),
+            "{weight:?}: Geist has its own ⇧: {shift:?}"
+        );
+        assert!(
+            command
+                .first()
+                .is_some_and(|face| face.starts_with("eggshell-symbols")),
+            "{weight:?}: ⌘, which Geist lacks, comes from the symbol face: {command:?}"
+        );
+        assert!(
+            shift
+                .last()
+                .is_some_and(|face| face.starts_with("eggshell-symbols")),
+            "{weight:?}: the symbol face is the last fallback: {shift:?}"
+        );
+    }
+}
+
+#[test]
+fn a_medium_key_chip_draws_the_command_symbol() {
+    let chip = "\u{2318}K";
+    let mut harness = support::harness(
+        Vec2::new(200.0, 60.0),
+        common::base_text(Theme::Light),
+        (),
+        |b, _| b.kbd("\u{2318}K"),
+    );
+    harness.run_steps(3);
+    let drawn = support::shapes(&harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Text(text) if text.galley.text() == chip => {
+                Some(text.galley.job.sections[0].format.font_id.family.clone())
+            }
+            _ => None,
+        });
+    assert_eq!(
+        drawn,
+        Some(geist(Weight::Medium)),
+        "{chip:?} is drawn medium"
+    );
+}

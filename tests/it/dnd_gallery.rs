@@ -19,7 +19,7 @@ mod common;
 mod gallery;
 
 use crate::support::{self, FrameRig};
-use gallery::{Image, State};
+use gallery::{Image, Lift, State};
 
 type H<'a> = Harness<'a, FrameRig<State>>;
 
@@ -944,4 +944,62 @@ fn the_drag_chip_wears_the_tooltip_look_in_both_themes() {
             "precondition: the themes differ"
         );
     }
+}
+
+fn grip_path(key: u32) -> String {
+    format!("{}/\"grip\"", face_path(key))
+}
+
+fn lift_from(h: &mut H<'_>, from: Pos2) {
+    h.hover_at(from);
+    h.run_steps(3);
+    h.drag_at(from);
+    h.step();
+    h.hover_at(from + vec2(0.0, 6.0));
+    h.step();
+    h.hover_at(from + vec2(0.0, 12.0));
+    h.run_steps(2);
+}
+
+#[test]
+fn h_switches_to_grip_mode_where_only_the_grip_lifts_a_panel() {
+    let mut h = harness(3);
+    assert_eq!(
+        h.state().app.lift,
+        Lift::Anywhere,
+        "precondition: a panel lifts from anywhere by default"
+    );
+    assert!(
+        eggshell_ui::testing::laid_out_rect(&h.ctx, &grip_path(2)).is_none(),
+        "no grip by default"
+    );
+    h.key_press(Key::H);
+    h.run_steps(3);
+    assert_eq!(h.state().app.lift, Lift::Grip);
+    let grip = support::layout_rect(&h.ctx, &grip_path(2));
+    let face = face_layout(&h, 2);
+    assert!(face.contains_rect(grip), "the grip is on the face");
+
+    let body = face.center();
+    assert!(
+        !grip.contains(body),
+        "precondition: the face's centre is not the grip"
+    );
+    lift_from(&mut h, body);
+    assert!(!carried(&h), "the face's body no longer lifts the panel");
+    h.drop_at(body + vec2(0.0, 12.0));
+    h.run_steps(3);
+
+    lift_from(&mut h, grip.center());
+    assert!(carried(&h), "the grip lifts the panel");
+    move_past(&mut h, 4);
+    assert_eq!(layout_order(&h)[..6], [0, 1, 3, 4, 2, 5], "the panel moves");
+    let at = rect(&h, 2).center();
+    h.drop_at(at);
+    h.run_steps(3);
+    assert_eq!(order(&h)[..6], [0, 1, 3, 4, 2, 5]);
+
+    h.key_press(Key::H);
+    h.run_steps(3);
+    assert_eq!(h.state().app.lift, Lift::Anywhere, "H switches back");
 }

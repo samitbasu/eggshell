@@ -210,6 +210,7 @@
 
 mod actions;
 mod builder;
+mod collapse;
 mod commands;
 mod continuity;
 pub mod contract;
@@ -236,14 +237,17 @@ mod scroll_keys;
 mod shadow_corners;
 mod sizing;
 mod stack;
+mod symbols;
 pub mod testing;
 mod text;
 mod tooltip;
 mod transition;
 mod tw;
+pub mod vlist;
 pub mod widget;
 
 pub use builder::{Builder, NodeHandle, Scope};
+pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
 pub use commands::{Command, Commands, InText};
 pub use contract::Style;
 pub use debug::Debug;

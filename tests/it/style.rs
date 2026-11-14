@@ -413,7 +413,7 @@ fn a_text_field_under_the_preset_is_h9_with_px3() {
 }
 
 #[test]
-fn an_accent_retints_primary_and_ring_and_nothing_else() {
+fn an_accent_retints_primary_and_nothing_else() {
     for theme in [Theme::Light, Theme::Dark] {
         let neutral = Shadcn::for_theme(theme);
         assert_eq!(neutral.clone().theme_color(ThemeColor::Neutral), neutral);
@@ -425,12 +425,11 @@ fn an_accent_retints_primary_and_ring_and_nothing_else() {
             let (a, b) = (&neutral.tokens, &tinted.tokens);
             assert_ne!(a.primary, b.primary, "{accent:?} {theme:?}");
             assert_ne!(a.primary_foreground, b.primary_foreground);
-            assert_ne!(a.ring, b.ring);
+            assert_eq!(a.ring, b.ring, "the ring is the base colour's");
             assert_eq!(b.switch_track_on, b.primary, "the switch follows");
             let same = Tokens {
                 primary: a.primary,
                 primary_foreground: a.primary_foreground,
-                ring: a.ring,
                 switch_track_on: a.switch_track_on,
                 switch_thumb_on: a.switch_thumb_on,
                 ..b.clone()
@@ -473,7 +472,6 @@ fn a_dark_accent_fills_with_its_bright_shade_and_keeps_its_label_readable() {
         .filter(|a| *a != ThemeColor::Neutral)
     {
         let t = Shadcn::dark().theme_color(accent).tokens;
-        assert_eq!(t.primary, t.ring, "{accent:?}: the 500 shade");
         assert!(
             contrast(t.primary, t.primary_foreground) >= 4.5,
             "{accent:?}: {}",

@@ -250,6 +250,9 @@ pub struct Paint {
     pub shadow: Option<Shadow>,
     /// This paint's own focus ring, where it is not [`Style::focus`].
     pub focus: Option<Focus>,
+    /// A ring while the pointer is over the box or presses it, as the focus
+    /// ring is drawn: shadcn's slider thumb halo.
+    pub hover_ring: Option<Focus>,
 }
 
 impl Paint {
@@ -259,6 +262,7 @@ impl Paint {
             states,
             shadow: None,
             focus: None,
+            hover_ring: None,
         }
     }
 
@@ -278,6 +282,17 @@ impl Paint {
         Self {
             states: self.states.towards(other.states, progress),
             ..other
+        }
+    }
+
+    /// This paint with `ring` as its focus ring and as its ring under the
+    /// pointer.
+    #[must_use]
+    pub fn haloed(self, ring: Focus) -> Self {
+        Self {
+            focus: Some(ring),
+            hover_ring: Some(ring),
+            ..self
         }
     }
 

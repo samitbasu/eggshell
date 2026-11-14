@@ -13,6 +13,8 @@ pub enum Glyph {
     Cross,
     Caret,
     Check,
+    GripVertical,
+    GripHorizontal,
 }
 
 const SIDE: usize = 64;
@@ -21,6 +23,15 @@ fn distance_to_segment(p: Vec2, a: Vec2, b: Vec2) -> f32 {
     let ab = b - a;
     let t = ((p - a).dot(ab) / ab.length_sq()).clamp(0.0, 1.0);
     (p - (a + ab * t)).length()
+}
+
+/// Lucide's grip: a dot of radius 2 at each of `xs` by `ys`, on its 24-unit
+/// grid.
+fn dots<const X: usize, const Y: usize>(p: Vec2, xs: [f32; X], ys: [f32; Y]) -> f32 {
+    xs.iter()
+        .flat_map(|x| ys.iter().map(move |y| vec2(*x, *y) / 24.0))
+        .map(|centre| 2.0 / 24.0 - (p - centre).length())
+        .fold(f32::NEG_INFINITY, f32::max)
 }
 
 /// How much of the pixel at `p` (in the unit square) the glyph covers.
@@ -59,6 +70,8 @@ fn coverage(glyph: Glyph, p: Vec2) -> f32 {
         Glyph::Check => {
             line(vec2(0.2, 0.55), vec2(0.42, 0.75)).max(line(vec2(0.42, 0.75), vec2(0.8, 0.28)))
         }
+        Glyph::GripVertical => dots(p, [9.0, 15.0], [5.0, 12.0, 19.0]),
+        Glyph::GripHorizontal => dots(p, [5.0, 12.0, 19.0], [9.0, 15.0]),
     };
     (sdf * SIDE as f32 + 0.5).clamp(0.0, 1.0)
 }

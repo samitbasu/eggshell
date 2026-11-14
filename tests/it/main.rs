@@ -6,6 +6,7 @@
     reason = "each example includes the shared examples/common module"
 )]
 
+mod accordion_example;
 mod autosuggest;
 mod blur_cause;
 mod borrowed_app;
@@ -14,6 +15,7 @@ mod ch;
 mod chat_shell_demo;
 mod children;
 mod choices;
+mod collapsible;
 mod commands;
 mod compile_fail;
 mod continuity;
@@ -22,6 +24,7 @@ mod contract_gaps;
 mod controls;
 mod debug;
 mod dnd_gallery;
+mod dnd_handle;
 mod dnd_preview;
 mod dnd_reorder;
 mod dnd_zones;
@@ -47,6 +50,7 @@ mod known_gaps_demo;
 mod layout;
 mod layout_animation;
 mod line_clamp;
+mod long_list_example;
 mod menu;
 mod menu_offset;
 mod modal;
@@ -62,6 +66,7 @@ mod presence;
 mod press_bubble;
 mod prims;
 mod progress;
+mod reduced_motion;
 mod regions;
 mod responsive_example;
 mod scroll;
@@ -84,4 +89,6 @@ mod todo_demo;
 mod toggle_group;
 mod tooltips;
 mod value_widgets;
+mod vlist;
+mod vlist_ports;
 mod widgets;

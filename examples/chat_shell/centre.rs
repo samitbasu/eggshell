@@ -6,7 +6,7 @@ use eggshell_ui::{Builder, Opacity, Scope, Tw, tw};
 use egui::{Key, WidgetInfo};
 
 use super::icons::{self, Glyph};
-use super::state::{App, Block, MODELS, Message, Mode};
+use super::state::{App, Block, MODELS, Message, MessageId, Mode};
 use super::theme::{Role, Theme, Tok};
 use super::view::Part;
 
@@ -99,39 +99,51 @@ fn user(b: &mut B<'_, '_>, k: &Theme, text: &str) {
     );
 }
 
+/// A message's place in the column the conversation is read in: 720 points
+/// at most, centred, with 16 points around the column and 24 between
+/// messages.
+fn column(app: &App, id: MessageId) -> Tw {
+    let conversation = &app.conversation;
+    tw().flex()
+        .flex_col()
+        .w_full()
+        .max_w_px(720.0)
+        .mx_auto()
+        .px(4.0)
+        .pt(if conversation.is_first(id) { 4.0 } else { 0.0 })
+        .pb(if conversation.is_last(id) { 4.0 } else { 6.0 })
+}
+
 /// The conversation scrolls on its own: the title bar above it and the
-/// composer below it stay put.
+/// composer below it stay put. Only the messages in and near the viewport
+/// are built.
 ///
 /// ```html
 /// <div class="grow min-h-0 overflow-y-auto">
 ///   <div class="flex flex-col gap-6 w-full max-w-[720px] mx-auto p-4">...</div>
 /// </div>
 /// ```
-fn conversation(b: &mut B<'_, '_>, app: &App) {
-    let k = &Theme::of(b.ctx());
-    b.scroll(Part::Conversation, tw().grow().min_h_0())
-        .focusable(Focusable::Always)
-        .role(egui::Role::Log)
-        .named("Conversation")
-        .children(|s| {
-            s.div(
-                tw().flex()
-                    .flex_col()
-                    .gap(6.0)
-                    .w_full()
-                    .max_w_px(720.0)
-                    .mx_auto()
-                    .p(4.0),
-                |b| {
-                    for message in &app.conversation {
-                        match message {
-                            Message::Assistant(blocks) => assistant(b, k, blocks),
-                            Message::User(text) => user(b, k, text),
-                        }
-                    }
-                },
-            );
+fn conversation<'f>(b: &mut B<'_, 'f>, app: &'f App) {
+    let k = Theme::of(b.ctx());
+    b.virtual_list(
+        Part::Conversation,
+        tw().grow().min_h_0(),
+        app.conversation.ids(),
+    )
+    .estimate_px(96.0)
+    .start_at_end()
+    .focusable(Focusable::Always)
+    .role(egui::Role::Log)
+    .named("Conversation")
+    .items(move |s, id| {
+        let Some(message) = app.conversation.get(id) else {
+            return;
+        };
+        s.div(column(app, id), |b| match message {
+            Message::Assistant(blocks) => assistant(b, &k, blocks),
+            Message::User(text) => user(b, &k, text),
         });
+    });
 }
 
 fn tool_button(k: &Theme, shape: Tw) -> Tw {
@@ -291,7 +303,7 @@ fn composer(b: &mut B<'_, '_>, app: &App) {
 ///   <div class="composer">...</div>
 /// </main>
 /// ```
-pub fn centre(s: &mut S<'_, '_>, app: &App) {
+pub fn centre<'f>(s: &mut S<'_, 'f>, app: &'f App) {
     top_bar(s, app);
     conversation(s, app);
     composer(s, app);

@@ -97,6 +97,9 @@ pub struct Tokens {
     pub slider_track: f32,
     /// The corner radius of the slider's track and thumb; `u8::MAX` is round.
     pub slider_radius: u8,
+    /// The width of the ring around the slider thumb under the pointer and
+    /// with focus (`hover:ring-4`).
+    pub slider_halo: f32,
     /// The padding of a tab list cell.
     pub cell_padding: Vec2,
     /// The padding between a popup and its items.
@@ -277,6 +280,7 @@ impl Tokens {
             checkbox_radius: 0,
             slider_track: 0.0,
             slider_radius: 0,
+            slider_halo: 0.0,
             cell_padding: Vec2::ZERO,
             popup_padding: 0.0,
             item_padding: Vec2::ZERO,
@@ -388,14 +392,13 @@ impl Tokens {
         self.input.gamma_multiply(0.5)
     }
 
-    /// These tokens re-tinted with `theme_color`'s `primary`, `primary-foreground`
-    /// and `ring` for `theme`, which must be the theme they were made for.
+    /// These tokens re-tinted with `theme_color`'s `primary` and
+    /// `primary-foreground` for `theme`, which must be the theme they were made for.
     #[must_use]
     pub fn with_theme_color(self, theme_color: ThemeColor, theme: Theme) -> Self {
         let Hues {
             primary,
             primary_foreground,
-            ring,
         } = theme_color.hues(theme);
         let (switch_thumb_on, switch_track_on) = match theme {
             Theme::Light => (self.switch_thumb_on, primary),
@@ -404,7 +407,6 @@ impl Tokens {
         Self {
             primary,
             primary_foreground,
-            ring,
             switch_track_on,
             switch_thumb_on,
             ..self

@@ -23,7 +23,7 @@ use crate::dnd::{self, Stakes};
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::nav;
-use crate::overlay::{Anchored, Band, Nav};
+use crate::overlay::{Anchored, Nav};
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::pipeline::{ColorSource, DrawFn, Flow, NodeKind, Placed, PlacedNode};
@@ -36,7 +36,7 @@ use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::tooltip;
-use crate::transition::{self, LayoutAnimation};
+use crate::transition::{self, LayoutAnimation, StartsSlides};
 use crate::tw::{
     BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,
     Sides, State,
@@ -971,6 +971,9 @@ impl<A> Walk<'_, A> {
             }
             None => (None, Merged::Own),
         };
+        if let Some(response) = &response {
+            dnd::show_grab(self.ui.ctx(), nodes, index, response);
+        }
         let needs_hovering = interaction.grouping == Grouping::Group
             || interaction.variants.get(State::Hover).is_some();
         let hovering = response
@@ -1060,6 +1063,7 @@ impl<A> Walk<'_, A> {
                 opacity: own_opacity,
                 motion: match (interaction.variants.animate_layout, lifted, stage) {
                     (_, None, Some(_)) => Motion::Presents,
+                    _ if node.collapsible => Motion::Resizes,
                     (Some(_), None, None) => Motion::Slides,
                     _ => Motion::Snaps,
                 },
@@ -1244,6 +1248,13 @@ impl<A> Walk<'_, A> {
             |ui| {
                 let outer = ui.style().clone();
                 ui.spacing_mut().scroll = plan.bars.egui(&outer.spacing.scroll);
+                // egui bounds the offset by the last frame's content, and
+                // springs one past them back, carrying the spring's velocity
+                // into the next frames: an offset set at the end of content
+                // that grew this frame would creep back short of it.
+                if plan.moved == Moved::Yes {
+                    ui.spacing_mut().scroll.kinetic.rubber_band = false;
+                }
                 plan.bars.paint_in(ui.visuals_mut());
                 area.show_viewport(ui, |ui, _| {
                     // The bar's colours are for the bar, not for the content.
@@ -1497,7 +1508,7 @@ impl<A> Walk<'_, A> {
                         pivot_pos: Some(rect.min),
                         pivot: egui::Align2::LEFT_TOP,
                         size: Some(rect.size()),
-                        interactable: overlay.band != Band::Tooltip,
+                        interactable: overlay.band.senses_input(),
                         last_became_visible_at: None,
                     },
                 );
@@ -1515,7 +1526,7 @@ impl<A> Walk<'_, A> {
                 .fixed_pos(rect.min)
                 .constrain(false)
                 .movable(false)
-                .interactable(overlay.band != Band::Tooltip)
+                .interactable(overlay.band.senses_input())
                 .fade_in(false)
                 .show(&ctx, |ui| {
                     ui.allocate_space(rect.size());
@@ -1605,6 +1616,7 @@ impl<A> Placed<A> {
             roots,
             exited,
             commands,
+            size_in_flight,
             root: _,
         } = self;
         let overflow = (Debug::of(ui.ctx()) == Debug::Outlines)
@@ -1627,7 +1639,8 @@ impl<A> Placed<A> {
             app,
         );
         let selection = Style::of(ui.ctx()).selection;
-        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, nodes[0].rect());
+        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, nodes[0].rect())
+            .starting(StartsSlides::unless_size_in_flight(size_in_flight));
         if nodes.iter().any(|node| node.scroll.is_some()) {
             animation.anticipate(&nodes);
         }

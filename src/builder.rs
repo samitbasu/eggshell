@@ -8,9 +8,10 @@ use std::sync::Arc;
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
+use crate::collapse::{Collapse, CollapseAxis, CollapsibleChain, Declared};
 use crate::commands::{Command, Commands, live_roots};
 use crate::contract::Style;
-use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
+use crate::dnd::{Activator, DragEnd, DragImage, Dragging, Drop, NodeDrag, Source};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
@@ -21,16 +22,16 @@ use crate::pipeline::{
     BuildState, ColorSource, DismissFn, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind,
     Pass, ScrollNode, solve,
 };
-use crate::presence::{self, Motion, Step};
+use crate::presence::{self, Entrance, Motion, Phase as Presence, Shown, Step};
 use crate::prim::{Icon, Prim};
-use crate::region::RegionDecl;
-use crate::roots::{OverlayDecl, Presentation, RootDecl, overlay_style};
+use crate::region::{RegionBody, RegionDecl};
+use crate::roots::{OverlayDecl, Presentation, RootDecl, RootKind, overlay_style};
 use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
 use crate::text::{TextStyle, VAlign};
 use crate::tooltip::{Content, Tooltip};
-use crate::tw::{Grouping, PointerEvents, Sensing, Tw, tw};
+use crate::tw::{Grouping, PointerEvents, Progress, Sensing, Tw, tw};
 use crate::widget::Stock;
 
 /// What a node is made of, besides its classes.
@@ -40,6 +41,7 @@ struct Parts {
     path: String,
     prim: Option<Prim>,
     measure: Option<usize>,
+    collapse: Option<Collapse>,
 }
 
 impl Node {
@@ -56,6 +58,7 @@ impl Parts {
             path,
             prim: None,
             measure: None,
+            collapse: None,
         }
     }
 
@@ -123,6 +126,14 @@ pub struct Builder<'b, 'f, A> {
     path: Id,
     kids: &'b mut Vec<NodeId>,
     inherited: &'b TextStyle,
+    ambient: Ambient,
+}
+
+/// The leaf a virtual list's rows are built into, as its region needs it.
+pub(crate) struct RowsLeaf {
+    leaf: NodeId,
+    readable: String,
+    text: TextStyle,
     ambient: Ambient,
 }
 
@@ -315,6 +326,134 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         ScrollChain::new(self.reborrow(), key, tw)
     }
 
+    /// A virtual list: a scroll container of `rows` that builds only the rows
+    /// in and near its viewport. See [`vlist`](crate::vlist).
+    ///
+    /// Each row is built under its own key (the row itself), so a row's egui
+    /// state stays with it while it is scrolled away and back. `rows` and the
+    /// rows' builder borrow application data for the frame (`'f`), so a
+    /// function that declares a list names `'f`, as one that declares a
+    /// [`region`](Self::region) does.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, tw};
+    /// #[derive(Clone, Copy, Debug, Hash)]
+    /// struct Line(u32);
+    ///
+    /// fn log<'f>(b: &mut Builder<'_, 'f, ()>, lines: &'f [Line]) {
+    ///     b.virtual_list("log", tw().h_px(200.0), lines)
+    ///         .fixed_px(20.0)
+    ///         .items(|s, line| s.text(tw(), format!("line {}", line.0)));
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn virtual_list<K: Key, R: Key + Copy>(
+        &mut self,
+        key: K,
+        tw: Tw,
+        rows: &'f [R],
+    ) -> crate::vlist::ListChain<'_, 'f, A, R>
+    where
+        A: 'static,
+    {
+        let slot = self.slot(&key);
+        crate::vlist::ListChain::new(self.reborrow(), slot, tw, rows)
+    }
+
+    /// Declares the rows of the virtual list `list`, built into `leaf` by
+    /// `run` once the frame is laid out.
+    pub(crate) fn list_region(
+        &mut self,
+        RowsLeaf {
+            leaf,
+            readable,
+            text,
+            ambient,
+        }: RowsLeaf,
+        list: Id,
+        run: crate::vlist::ListRun<'f, A>,
+    ) {
+        self.frame.roots[self.frame.current]
+            .regions
+            .push(RegionDecl {
+                leaf,
+                id: list,
+                readable,
+                text,
+                ambient,
+                body: RegionBody::List(run),
+            });
+    }
+
+    /// A handle to `node`, a node this builder added.
+    pub(crate) fn into_handle(self, node: NodeId) -> NodeHandle<'b, 'f, A> {
+        NodeHandle { b: self, node }
+    }
+
+    /// The text style in effect here.
+    pub(crate) fn text_style(&self) -> &TextStyle {
+        self.inherited
+    }
+
+    /// The leaf a virtual list's rows are built into once it is laid out:
+    /// as wide as the content and `height` tall.
+    pub(crate) fn rows_leaf(&mut self, height: f32) -> RowsLeaf {
+        let id = child_id(self.path, &crate::vlist::RowsKey);
+        let readable = self.identify(id, &crate::vlist::RowsKey);
+        let tw = tw().w_full().h_px(height);
+        let ambient = self.ambient_in(&tw);
+        self.leaf_node(
+            tw,
+            Parts {
+                id: Some(id),
+                ..Parts::anonymous(NodeKind::Region, readable.clone())
+            },
+        );
+        let leaf = *self.kids.last().expect("the leaf was just added");
+        let text = self
+            .st
+            .tree
+            .get_node_context(leaf)
+            .expect("the leaf has a context")
+            .text
+            .clone();
+        RowsLeaf {
+            leaf,
+            readable,
+            text,
+            ambient,
+        }
+    }
+
+    /// How many roots have been declared so far this frame.
+    pub(crate) fn roots_declared(&self) -> usize {
+        self.frame.roots.len()
+    }
+
+    /// The overlays declared from the root at `from` on.
+    pub(crate) fn overlays_from(&self, from: usize) -> impl Iterator<Item = Id> + '_ {
+        self.frame.roots[from..]
+            .iter()
+            .filter_map(|root| match &root.kind {
+                RootKind::Overlay(overlay) => Some(overlay.id),
+                RootKind::Base => None,
+            })
+    }
+
+    /// The nodes the overlays declared so far are anchored to.
+    pub(crate) fn anchored_to(&self) -> impl Iterator<Item = Id> + '_ {
+        self.frame.roots.iter().filter_map(|root| match &root.kind {
+            RootKind::Overlay(overlay) => match overlay.presentation {
+                Presentation::Floating {
+                    anchor: crate::overlay::Anchor::Node(id),
+                    ..
+                } => Some(id),
+                _ => None,
+            },
+            RootKind::Base => None,
+        })
+    }
+
     /// A region: a leaf that only layout sizes, whose content `body` builds
     /// after the layout around it, in the same frame.
     ///
@@ -383,7 +522,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 readable,
                 text,
                 ambient,
-                body: Box::new(body),
+                body: RegionBody::Closure(Box::new(body)),
             });
     }
 
@@ -508,6 +647,128 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         Width::new(st.tree.layout(root).expect("node exists").size.width)
     }
 
+    /// A part of the page that opens and closes by its size, an accordion
+    /// item or a collapsing sidebar. See [`CollapsibleChain`].
+    ///
+    /// While it is opening or closing the wrapper is a fraction of the size
+    /// its content wants, so what follows it moves with it, and the content
+    /// is clipped at its natural size. A closed region is not built.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, tw};
+    /// # use eggshell_ui::overlay::Shown;
+    /// struct App { open: bool }
+    ///
+    /// fn item<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
+    ///     b.collapsible("details", Shown::from(app.open))
+    ///         .content(tw().p(4.0))
+    ///         .children(|b| b.text(tw(), "Only as tall as it needs"));
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn collapsible<K: Key>(&mut self, key: K, shown: Shown) -> CollapsibleChain<'_, 'f, A> {
+        let slot = self.slot(&key);
+        CollapsibleChain::new(self.reborrow(), slot, shown)
+    }
+
+    /// Declares the collapsible `decl` and builds its content.
+    #[track_caller]
+    pub(crate) fn collapsible_with(
+        mut self,
+        slot: &Slot,
+        decl: Declared<A>,
+        header: impl FnOnce(&mut Scope<'_, 'f, A>, Progress),
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) -> NodeHandle<'b, 'f, A> {
+        let Declared {
+            shown,
+            axis,
+            transition,
+            easing,
+            classes,
+            content,
+            on_collapsed,
+        } = decl;
+        let motion = Motion {
+            shown,
+            enter: transition,
+            exit: transition,
+            easing,
+            entrance: Entrance::Fade,
+        };
+        let step = presence::step(
+            &self.st.kept,
+            self.frame.ctx,
+            slot.id,
+            &motion,
+            presence::First::Settled,
+        );
+        let open = match &step {
+            Step::Closed { .. } => Progress::START,
+            Step::Present(staged) => staged.progress,
+        };
+        header(&mut Scope(self.reborrow()), open);
+        let wrapper = match axis {
+            CollapseAxis::Height => classes.overflow_hidden().flex().flex_col(),
+            CollapseAxis::Width => classes.overflow_hidden().flex().flex_row(),
+        };
+        let path = self.identify(slot.id, &slot.label);
+        let mark = self.st.names.push(&slot.label);
+        let parts = |collapse| Parts {
+            id: Some(slot.id),
+            collapse,
+            ..Parts::anonymous(NodeKind::DivId, path.clone())
+        };
+        match step {
+            Step::Closed { exited } => {
+                if let Some(then) = on_collapsed.filter(|_| exited) {
+                    self.frame.exited.push(then);
+                }
+                let closed = match axis {
+                    CollapseAxis::Height => wrapper.h_px(0.0),
+                    CollapseAxis::Width => wrapper.w_px(0.0),
+                };
+                self.container(
+                    closed,
+                    parts(Some(Collapse {
+                        axis,
+                        motion: None,
+                        flight: None,
+                    })),
+                    slot.id,
+                    |_| {},
+                );
+            }
+            Step::Present(staged) => {
+                let moving = staged.phase != Presence::Open;
+                self.frame.size_in_flight |= moving;
+                let collapse = Collapse {
+                    axis,
+                    motion: moving.then_some(staged.progress),
+                    flight: None,
+                };
+                let wrapper = if staged.is_exiting() {
+                    wrapper.inert()
+                } else {
+                    wrapper
+                };
+                self.container(wrapper, parts(Some(collapse)), slot.id, |mut b| {
+                    let inner = b.anonymous_path(NodeKind::Div);
+                    let at = b.path;
+                    b.container(
+                        content.shrink_0(),
+                        Parts::anonymous(NodeKind::Div, inner),
+                        at,
+                        |b| body(&mut Scope(b)),
+                    );
+                });
+            }
+        }
+        self.st.names.pop_to(mark);
+        let node = *self.kids.last().expect("the wrapper was just added");
+        NodeHandle { b: self, node }
+    }
+
     /// An overlay: a floating layer placed against an anchor. See
     /// [`overlay`](crate::overlay).
     #[track_caller]
@@ -529,7 +790,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ) {
         let mut decl = decl;
         if let Some(motion) = motion {
-            match presence::step(&self.st.kept, self.frame.ctx, slot.id, &motion) {
+            match presence::step(
+                &self.st.kept,
+                self.frame.ctx,
+                slot.id,
+                &motion,
+                presence::First::Enters,
+            ) {
                 Step::Closed { exited } => {
                     if let Some(then) = on_exited.filter(|_| exited) {
                         self.frame.exited.push(then);
@@ -905,6 +1172,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             drag: None,
             scroll: None,
             region: None,
+            collapse: parts.collapse,
             description: None,
             action: None,
             interaction: Interaction {
@@ -1120,6 +1388,26 @@ pub struct NodeHandle<'b, 'f, A> {
     node: NodeId,
 }
 
+impl<'b, 'f, A> NodeHandle<'b, 'f, A> {
+    pub(crate) fn node(&self) -> NodeId {
+        self.node
+    }
+
+    pub(crate) fn into_builder(self) -> Builder<'b, 'f, A> {
+        self.b
+    }
+
+    /// The node's id; it is identified.
+    pub(crate) fn id(&self) -> Id {
+        self.b
+            .st
+            .tree
+            .get_node_context(self.node)
+            .and_then(|node| node.id)
+            .expect("the node is identified")
+    }
+}
+
 impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     /// Runs `draw` at draw time in the node's own `Ui`, which is limited to
     /// the node's content rect. See [`NodeUi`](crate::NodeUi).
@@ -1140,16 +1428,107 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     }
 
     /// Makes the node a drag source carrying `payload`, and makes it sense
-    /// drags. The node must keep its key across rebuilds for as long as it is
+    /// drags and show a grab cursor (see [`drag_handle`](Self::drag_handle)
+    /// to lift it from one part only). The node must keep its key across rebuilds for as long as it is
     /// dragged, so a reorder that moves it keeps the drag; if it leaves the
     /// tree the drag is cancelled
     /// ([`Cause::SourceGone`](crate::Cause::SourceGone)). See [`dnd`](crate).
     pub fn drag_source<T: Any + Send + Sync>(mut self, payload: T) -> Self {
         self.edit(|context| {
-            context.interaction.sensing = context.interaction.sensing.or(Sensing::Drag);
-            context.drag().source = Some(Arc::new(payload));
+            let declared = context.interaction.sensing;
+            context.interaction.sensing = declared.or(Sensing::Drag);
+            context.drag().source = Some(Source {
+                payload: Arc::new(payload),
+                activator: Activator::Itself,
+                declared,
+            });
         });
         self
+    }
+
+    /// Makes the node of this source's subtree declared with `key` its
+    /// handle: only a drag that starts on the handle lifts the source. The
+    /// rest of the source keeps its own pointer behaviour: its buttons click,
+    /// its text selects, and a node in it that senses drags gets them.
+    /// Everything else of the drag is the source's: its payload, its image,
+    /// its place among a target's items, and the grab offset, measured from
+    /// the source's top-left. The handle senses drags, is focusable, and shows
+    /// a grab cursor; give it a name ([`named`](Self::named)) that says what
+    /// it moves.
+    ///
+    /// `key` is resolved as [`id_of`](Builder::id_of) resolves it in the
+    /// source's body, so anonymous containers between the two do not count,
+    /// but a handle inside another identified container cannot be named.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, unless the node is a [`drag_source`](Self::drag_source)
+    /// and `key` names a node in its subtree that is not a source itself.
+    #[track_caller]
+    pub fn drag_handle<K: Key>(mut self, key: K) -> Self {
+        let (source, path) = {
+            let context = self.node_context();
+            (
+                context.id.expect("a node handle's node is identified"),
+                context.path.clone(),
+            )
+        };
+        let handle = child_id(source, &key);
+        let found = self.descendant(handle);
+        let Some(found) = found else {
+            debug_assert!(
+                false,
+                "{path}: drag_handle({key:?}) names no node in the source's subtree \
+                 (at {})",
+                std::panic::Location::caller()
+            );
+            return self;
+        };
+        let became = self.edit(|context| match &mut context.drag {
+            Some(drag) => match &mut drag.source {
+                Some(source) => {
+                    source.activator = Activator::Handle(handle);
+                    context.interaction.sensing = source.declared;
+                    true
+                }
+                None => false,
+            },
+            None => false,
+        });
+        debug_assert!(
+            became,
+            "{path}: drag_handle({key:?}) on a node that is not a drag_source \
+             (at {})",
+            std::panic::Location::caller()
+        );
+        let tree = &mut self.b.st.tree;
+        let handle_node = tree
+            .get_node_context_mut(found)
+            .expect("a descendant is in the tree");
+        debug_assert!(
+            handle_node
+                .drag
+                .as_ref()
+                .is_none_or(|drag| drag.source.is_none()),
+            "{path}: drag_handle({key:?}) names a drag source; a handle is not one \
+             (at {})",
+            std::panic::Location::caller()
+        );
+        handle_node.interaction.sensing = handle_node.interaction.sensing.or(Sensing::Drag);
+        self
+    }
+
+    /// The node with `id` in this node's subtree, not the node itself.
+    fn descendant(&self, id: Id) -> Option<NodeId> {
+        let tree = &self.b.st.tree;
+        let mut pending = tree.children(self.node).unwrap_or_default();
+        while let Some(node) = pending.pop() {
+            if tree.get_node_context(node).and_then(|context| context.id) == Some(id) {
+                return Some(node);
+            }
+            pending.extend(tree.children(node).unwrap_or_default());
+        }
+        None
     }
 
     /// How the node looks while it is dragged. [`DragImage::Live`] unless
@@ -1232,14 +1611,14 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
             .expect("the handle's node was added to this tree")
     }
 
-    fn edit(&mut self, edit: impl FnOnce(&mut Node)) {
+    fn edit<R>(&mut self, edit: impl FnOnce(&mut Node) -> R) -> R {
         let context = self
             .b
             .st
             .tree
             .get_node_context_mut(self.node)
             .expect("the handle's node was added to this tree");
-        edit(context);
+        edit(context)
     }
 
     /// Runs `then` with the node's response each frame it is drawn: the escape
@@ -1324,6 +1703,17 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     pub(crate) fn action(mut self, action: crate::actions::Action) -> Self {
         self.edit(|context| context.action = Some(action));
         self
+    }
+
+    /// Announces whether what the node controls is open, the `aria-expanded`
+    /// of the web: for the header of a [`collapsible`](Builder::collapsible),
+    /// with the [`Button`](egui::Role::Button) role.
+    pub fn expanded(self, open: bool) -> Self {
+        self.draw(move |_, ui| {
+            let id = ui.node_response().id;
+            ui.ctx()
+                .accesskit_node_builder(id, |node| node.set_expanded(open));
+        })
     }
 
     /// The node's accessible name, the `aria-label` of the web.

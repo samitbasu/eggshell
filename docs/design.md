@@ -70,6 +70,8 @@ egui supplies interaction (input, focus, text editing, IME, popups). taffy suppl
 | D30 | **A component takes `&mut Scope`.** `Scope` is the builder that `b.scope(key, …)` and `div_id(key, …)` hand to their bodies. It dereferences to `Builder`, so the whole builder API is available and a `&mut Scope` passes where a `&mut Builder` is wanted; the reverse does not compile. A component function takes `&mut Scope<'_, '_, A>`, so each use sits under a key its caller chose. Each component has its own key enum. | Keys a component declares cannot leak into its caller's scope or collide with siblings, and two uses in one parent need two instance keys, all checked at compile time. A `Scope<A, K>` with typed child keys was rejected: it makes helper functions awkward. |
 | D31 | **Owned widgets are chained builders that start from `b`**: `b.button(key, "Save").variant(PRIMARY).on_click(\|app\| …)`. `b.<widget>(key, …)` returns a `#[must_use]` builder that borrows `b`; options come first and a terminating call adds the widget: `on_click` (button, and anything else that only triggers), `on_change(|app, value| …)` on every control that holds a value (checkbox, switch, toggle button, radio, segmented, slider, select, stepper, text field). The control is given the current value when it is built and shows it; `on_change` receives the value the user chose, and the application stores it. A checkbox or switch over a `bool` needs nothing more; over any other two-valued type it takes `.values(off, on)` first. `add()` adds a button that does nothing. Hooks come before the terminator: `on_response(|app, &Response| …)` on every control, `when_submitted` and `when_blurred` on the text field and the stepper. A builder dropped without its terminator is an `unused_must_use` warning, which CI denies. | The widget is named once; a forgotten terminator cannot pass CI. |
 | D32 | **Styles are plain values**: `fn card() -> Tw`, composed with `merge` (the later list wins per property, as `cn()` / `tailwind-merge` do). No class-string macro. | A `Tw` is a pure value, so styles compose and can be checked on their own. Class methods are not `const fn`, so a style is a function. |
+| D33 | **Size animates in layout, not in paint**: `b.collapsible(key, Shown)` is a clipping wrapper whose size along one axis is its content's natural size times its presence progress, found by laying the tree out twice in a frame with a wrapper in motion; neighbours reflow, the content is clipped and never scaled. | No group transforms (#40), so a scaled paint would stretch text; the two-pass solve needs no measured history and has no one-frame lag. |
+| D34 | **Reduced motion is one switch**: egui's `style.animation_time == 0` makes every eggshell motion (state transitions, slides, presence, size) instant, through `transition::allowed`. | One place decides, so a new kind of motion cannot forget it. |
 | D29 | **Keys are local and readable.** Each module opens its own scope; keys are names and data keys; keys referred to from elsewhere (anchors, local state) are computed once (`b.id_of`) and passed on. | Typos and collisions are confined and caught by the duplicate check. |
 
 ## 4. Identity
@@ -234,8 +236,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     // ---- roots (children scoped under key)
     pub fn scroll(&mut self, key: K, tw: Tw, axis: Axis, body: impl FnOnce(&mut Builder<'_, 'f, A>));
     pub fn region(&mut self, key: K, tw: Tw, body: impl FnOnce(&mut Builder<'_, 'f, A>, Vec2) + 'f);
-    pub fn virtual_list<R: Copy + Hash + Debug>(&mut self, key: K, tw: Tw, list: VList, rows: &[R],
-                   item: impl FnMut(&mut Builder<'_, 'f, A>, R));                // each row scoped under its own key
+    pub fn virtual_list<R: Key + Copy>(&mut self, key: K, tw: Tw, rows: &'f [R]) -> ListChain<'_, 'f, A, R>;
+                   // .estimate_px(h) | .fixed_px(h), .overscan_px(d), then .items(|b, row| …): each row scoped under its own key
     pub fn overlay(&mut self, key: K, band: Band, anchor: Anchor, place: Placement,
                    on_dismiss: impl FnOnce(&mut A) + 'static, body: impl FnOnce(&mut Builder<'_, 'f, A>));
     pub fn max_content_width(&mut self, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> Width;
@@ -454,7 +456,7 @@ b.div_id(("row", key), tw().flex().h(7.0).items_center().gap(1.0).rounded_md()
 - `active(|p| …)`: primary button held on the node.
 - `group_hover(|p| …)`: hover of the nearest ancestor marked `.group()`. That ancestor must be identified with a sense. It is drawn before its descendants, so its state is known when they are drawn.
 - `transition(Duration)`: animate between base and variant paint with `ctx.animate_value_with_time(node_id.with(variant), …)` ⚠. Applies to colors and opacity.
-- `animate_layout(Duration)`: when layout moves an identified node, paint it from its previous position to the new one (FLIP), along the node's `ease_*` curve. Layout and hit rects are final at once; only the paint-only translate moves. Positions are compared within the parent's rect, so a moving parent carries its children and they animate only their own moves. First appearances and every node of a frame whose area changed (window resize) are placed at once, a deliberate difference from CSS. A move interrupted mid-flight starts from the painted position. Position only; size is #62, exit animations #35.
+- `animate_layout(Duration)`: when layout moves an identified node, paint it from its previous position to the new one (FLIP), along the node's `ease_*` curve. Layout and hit rects are final at once; only the paint-only translate moves. Positions are compared within the parent's rect, so a moving parent carries its children and they animate only their own moves. First appearances and every node of a frame whose area changed (window resize) are placed at once, a deliberate difference from CSS. A move interrupted mid-flight starts from the painted position. Position only: size is the collapsible (§11.5), exit animations #35. While a size animation is in flight in a frame, layout moves nodes smoothly itself, so no move starts a slide in it (`StartsSlides`, one predicate).
 - Deferred: `focus_within`, `focus_visible`.
 
 States that the application knows at build time (selected, pressed, armed, current, disabled) are conditional classes, not variants. `.tap.dead:hover{background:none}` becomes "do not add `.hover` when dead", plus `inert()`.
@@ -576,35 +578,54 @@ b.scroll("scroll", tw().grow().min_h_0()).axis(Axis::Y).children(|s| { /* conten
 For long lists whose rows differ in height (History: date headers, revision rows, the current-revision card; Assets: rows whose tags wrap).
 
 ```rust
-pub struct VList { pub estimate: f32, pub overscan: f32 }   // estimate: height for rows not yet measured
+b.virtual_list(key, tw, &rows)            // rows: &'f [R], R: Key + Copy; each row is its own key
+    .estimate_px(44.0)                    // rows differ in height: the height of a row not yet measured
+    .overscan_px(600.0)                   // optional: rows this far past the viewport are built too
+    .items(|b, row| …);                   // builds one row, under the row's key; FnMut + 'f
 
-pub fn virtual_list<R: Copy + Hash + Debug>(
-    &mut self, key: K, tw: Tw, list: VList, rows: &[R],
-    item: impl FnMut(&mut Builder<'_, 'f, A>, R),      // each row scoped under its own key
-);
+b.virtual_list(key, tw, &lines).fixed_px(20.0).items(|b, line| …);   // all rows one height
 ```
+
+`estimate_px` and `fixed_px` set one setting; the last call wins. With neither, a row counts as one line of the list's text until it is measured. Lengths are bare points, as `Tw`'s `_px` classes are.
 
 ```rust
 #[derive(Clone, Copy, Hash, Debug)] enum HistRow { Day(&'static str), Current(RevKey), Rev(RevKey) }
 
-b.virtual_list("list", tw().flex_1().min_h_0(), VList { estimate: 44.0, overscan: 300.0 }, &rows, |b, row| match row {
-    HistRow::Day(d)       => b.text(tw().pt(3.0).px(3.0).pb(1.0).role(k[Meta]), d),
-    HistRow::Current(key) => current_card(b, k, rev(key)),     // keys inside a row are unique within the row
-    HistRow::Rev(key)     => rev_row(b, k, rev(key)),
-});
+fn history<'f>(b: &mut Builder<'_, 'f, App>, rows: &'f [HistRow]) {
+    b.virtual_list("list", tw().flex_1().min_h_0(), rows)
+        .estimate_px(44.0)
+        .items(|b, row| match row {
+            HistRow::Day(d)       => b.text(tw().pt(3.0).px(3.0).pb(1.0).role(k[Meta]), d),
+            HistRow::Current(key) => current_card(b, k, rev(key)),     // keys inside a row are unique within the row
+            HistRow::Rev(key)     => rev_row(b, k, rev(key)),
+        });
+}
 ```
 
 Mechanism (library-owned, per list):
 
-1. **Height cache.** `HashMap<egui::Id, f32>` keyed by `list_id.with(row_key)`, held in `LayoutState`. Rows never laid out use `estimate`. The cache is cleared when the list's content width changes, because heights depend on width. Entries for keys absent this frame are dropped.
+1. **Height cache.** Each row's height as last measured, keyed by the row's key, held in `LayoutState` (D11a). Rows never laid out use the estimate. The cache is cleared when the list's content width changes, because heights depend on width. Entries for keys absent this frame are dropped.
 2. **Offsets.** Each frame, compute running totals over `rows` from cached or estimated heights. One linear pass. Total = content height.
-3. **Visible range.** Read last frame's scroll offset from egui memory under the list's ID. Binary-search the running totals for `[offset − overscan, offset + viewport + overscan]`. Call `item` only for that range. Each built row is wrapped in a library group, absolutely positioned at its offset inside a content node of the total height.
+3. **Visible range.** Chosen once the list's container is laid out in the frame, as a region's body runs (§11.2): the viewport and the offset are the frame's own. Binary-search the running totals for `[offset − overscan, offset + viewport + overscan]`. Call `item` only for that range. The built rows are stacked in one column, absolutely positioned at the first one's offset inside a content node of the total height.
 4. **Correction.** After layout, store the real heights of built rows. If rows above the first visible row changed height, adjust the scroll offset by the difference so visible content does not move (scroll anchoring), and request a repaint.
-5. **Pinned rows.** A row that holds keyboard focus or owns an open popup is always built, even outside the range, because egui drops focus from widgets that are not drawn in a frame. Rows report this through the library (it checks whether egui's focused ID lies under the row's path) ⚠.
-6. **Scroll to a row.** `scroll_to(list_id, key)` uses the running-total offset (possibly an estimate), then corrects once after measuring.
-7. **Uniform rows.** If `estimate` is given as a fixed height (`VList::fixed(h)`), skip the cache and use egui's `ScrollArea::show_rows` path.
+5. **Pinned rows.** A row that holds keyboard focus or owns an open popup is always built, even outside the range, because egui drops focus from widgets that are not drawn in a frame.
+6. **Scroll to a row.** `vlist::scroll_to(ctx, list_id, key, align)` uses the running-total offset (possibly an estimate), then corrects once after measuring.
+7. **Uniform rows.** `fixed_px(h)` skips the cache: the offsets are `i × h` and the range is arithmetic.
 
 Rows are ordinary built content scoped under their row key (D4, D5), so egui state for a row survives scrolling away and back.
+
+#### As built (M8)
+
+- **Structure.** A list is a scroll container (§11) whose content is one leaf, `<rows>`, as wide as the content and as tall as the running total. The rows are that leaf's region content (`RegionBody::List`): run in the region pass, so they are built at the frame's viewport and offset, with no frame of lag on the first show or a resize. `rows` and `item` borrow for `'f`, so a function that declares a list names `'f`, as for a region (§11.4).
+- **Placement.** The rows in the range sit in flow in one flex column, placed at the first one's running offset; a wrong estimate never makes built rows overlap or leave gaps, and only the space above and the total depend on estimates. A pinned row outside the range sits alone at its own running offset, before the column if it is above, after it if below, so the Tab order follows the list.
+- **Anchoring, two ways.** After the rows are solved, the difference between the measured and the used heights of the built rows above the first visible row is applied to the offset in the same frame (`scroll_by`, applied by that layout's settle step), so a row measured anew never moves what is seen. The first visible row's laid-out top is kept; the next frame compares it with the row's new running offset and moves the offset by the difference before it chooses the range, so rows inserted or removed above, and pinned rows measured anew, do not move it either. Neither applies at offset 0: at the very top, rows inserted above show, as a browser's scroll anchoring does not hold the top. A list scrolled to its end holds its end instead: as the rows there are measured and the total changes, the offset follows the end, so one scroll past the end lands on the last row, asking for frames until the heights settle. A `scroll_by` asked of the list is counted when the range is chosen, so the rows at the new offset are built in the frame that applies it (the keyboard's scrolling is `scroll_by`).
+- **The cache's key** is the row's own hash (`IdSalt`), not its egui id: within one list the rows are one type, and the cheaper hash keeps the per-frame pass over every row short. The row's egui id (`list_id.with(row_key)`) is what its nodes are keyed under.
+- **Pinned rows.** A row built in the last frame is built again while `focus_within` its node, while an overlay declared inside it is open, or while an overlay declared this frame is anchored to a node that was inside it (without that, the anchor would be missing).
+- **egui's rubber band.** egui bounds a `ScrollArea`'s offset by the last frame's content and springs an offset past it back, carrying the spring's velocity into the next frames. A container whose offset the layout sets in a frame in which its content grew (a list whose rows were just measured) is shown without the rubber band for that frame, so the offset lands where the layout put it.
+- **Tab** reaches the built rows only. The container's Tab-stop rule is settled after the rows are built, so a list of controls is no stop of its own.
+- **`scroll_to`** is kept in the context under the list's id until the list next runs, which builds the target where its running offset puts it and aligns it through `scroll_to_rect`; the anchoring corrects it once the row is measured.
+- **Fixed rows** are given exactly their height. `ScrollArea::show_rows` is not used: the list draws through the eggshell scroll container, which taffy lays out, and the range is the same formula's.
+- **Cost.** A fixed list's frame is O(visible rows). A measured list also makes one pass over every row's key each frame, hashing it and looking up its height; `benches/frame.rs` measures both at 1,000 to 100,000 rows.
 
 ### 11.2 Regions (D25)
 
@@ -646,6 +667,19 @@ b.region("title_bar", tw().flex_1().min_w_0().h(7.0), move |b, size| {
 - **State.** A closure builds into the frame's one `BuildState` and `Frame`, so ids, the duplicate check, the cross-layout check, measures, draws, drag declarations and dismissal handlers are the same as for the rest of the build. The closure builds under the region's readable path, and inherits the text style and the inert state at the leaf.
 - **`max_content_width`** builds into a fresh `BuildState` and `Frame` (its own tree and its own `Handle`, `Pass::Scratch`), solves the root at max-content in the way an overlay's root is solved, and drops all of it. Nothing it declares reaches the frame; nothing it reads of `kept` (open menus, presences, the last area) is the frame's. Its keys are never registered, and the cross-layout claim is skipped.
 - **Lifetimes.** A function that declares a region names `'f` (`fn view<'f>(app: &'f App, b: &mut Builder<'_, 'f, App>)`), and so do its callers up to the root. `tests/ui/region_needs_a_named_lifetime.rs` keeps the error. A function pointer type of the form `for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &S)`, as the examples' `AppLayout`, cannot name it: take `&'f S`.
+
+### 11.5 Collapsibles (#62)
+
+`b.collapsible(key, Shown)` builds a wrapper (`overflow-hidden`, a flex box along the axis) around a content block (`shrink-0`, so it keeps its natural size). `.axis(CollapseAxis::Height | Width)`, `.transition`/`.ease_*` (200 ms ease-out by default, shadcn's accordion), `.classes` for the wrapper, `.content` for the block, `.on_collapsed(f)` once it has finished closing.
+
+- **Presence.** The progress is `presence::Presences` stepping the node's id at build, with `First::Settled`: a region first seen open is open, one that has rested closed opens with motion. A toggle in the middle reverses from where it is, lasting in proportion to the distance left. A closed region is built as an empty wrapper of no size and its content is not built.
+- **Two-pass solve.** `solve` lays the root out with every wrapper in motion `auto`, reads each wrapper's natural size, sets it to natural × progress and lays out again; it does this for every root it solves (the page, overlays, scroll contents, regions). Cost: one more solve in frames where a wrapper moves. Nested wrappers in motion are set together, so an outer one's natural size counts an inner one at its natural size; both are exact when they settle.
+- **Scratch passes** (`max_content_width`) have no kept state: a collapsible there is at what it is shown as, so a measured row is its target size.
+- **Clipping** is the wrapper's rectangle (no rounded clipping, #40); the wrapper's own padding and border do not open and close, so put them on the content. The wrapper is `inert` while it closes.
+- **Gaps.** A closed wrapper stays a zero-size child, so a parent's `gap` counts it: put spacing in the content's padding.
+- **FLIP.** While a size animation is in flight, `LayoutAnimation::starts_slides` is `No`: layout itself moves what follows, so no move starts a slide, and slides already running go on.
+- **Header.** `children_with_header(|b, progress| .., |b| ..)` builds a header just before the wrapper and gives it the eased open progress the size follows (zero closed, one open), so a chevron turning `180° × progress` cannot drift from the size, and snaps with it under reduced motion. The header is an ordinary node: a `sense_click` row with `.role(Role::Button)`, `.named(..)` and `.expanded(open)` is focusable and toggles on Enter and Space.
+- **Continuity.** A wrapper records `Motion::Resizes`; `Timeline::resizes` bounds its size change per frame (`max_resize`).
 
 ## 12. Layers and overlays
 
@@ -765,7 +799,7 @@ Recommended defaults:
 4. **Tabular figures.** egui does not expose OpenType features ⚠. Choose a UI font with tabular digits by default, or add a numerals face.
 5. **Later details:** per-row grid track lists (`grid_rows_tracks` with `MinMax(pt, fr)`), flex grow factors (`grow_by(x)`), scroll content at least as tall as its viewport (`min-h-full` inside a scroll area, so `fr` rows fill when content is short), dashed borders.
 6. **Deferred to the applications that need them:** wheel routing (a selected pane consumes the wheel before its enclosing `ScrollArea` ⚠).
-7. **Drag and drop** is in: `drag_source`, `drop_target`, the `drag_accepts` / `drag_over` / `drag_lifted` variants and the live drag image (the `dnd` module and the `dnd_*` examples). Auto-scroll is a hook (`EdgeScroll`) until M5; overlays as targets wait for M6.
+7. **Drag and drop** is in: `drag_source` (with an optional `drag_handle`), `drop_target`, the `drag_accepts` / `drag_over` / `drag_lifted` variants and the live drag image (the `dnd` module and the `dnd_*` examples). Auto-scroll is a hook (`EdgeScroll`) until M5; overlays as targets wait for M6.
 8. **Deferred:** `focus_within` / `focus_visible` variants, rich text runs and inline links, explicit tab order, accessibility (the AccessKit tree is flat), first-frame overlay flicker, a macro for pass-through `match` arms.
 
 ## 16. Prior art

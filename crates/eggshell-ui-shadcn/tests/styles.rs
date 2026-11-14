@@ -124,3 +124,19 @@ fn vega_with_a_style_applied_is_the_plain_preset() {
         );
     }
 }
+
+#[test]
+fn the_ring_is_the_neutral_ring_under_every_theme_colour() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let neutral = Shadcn::for_theme(theme).theme_color(ThemeColor::Neutral);
+        for color in ThemeColor::ALL {
+            let preset = Shadcn::for_theme(theme).theme_color(color);
+            assert_eq!(
+                preset.tokens.ring, neutral.tokens.ring,
+                "{theme:?} {color:?}: the registry's coloured themes leave `ring` to the base colour"
+            );
+            let ring = preset.style().focus.color;
+            assert_eq!(ring, neutral.style().focus.color, "{theme:?} {color:?}");
+        }
+    }
+}

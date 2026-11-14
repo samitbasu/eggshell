@@ -47,8 +47,8 @@ impl Shadcn {
         self
     }
 
-    /// This preset with `theme_color`'s colours for `primary`,
-    /// `primary-foreground` and `ring`.
+    /// This preset with `theme_color`'s colours for `primary` and
+    /// `primary-foreground`.
     #[must_use]
     pub fn theme_color(mut self, theme_color: ThemeColor) -> Self {
         self.tokens = self.tokens.with_theme_color(theme_color, self.theme);
@@ -410,6 +410,10 @@ impl Shadcn {
                 BoxLook::new(States::still(thumb_colors, t.background)).bordered(1.0),
                 t.shadow_sm,
             );
+            slider.thumb.paint = slider.thumb.paint.haloed(Focus {
+                width: t.slider_halo,
+                color: t.ring.gamma_multiply(0.5),
+            });
             slider.transition = transition;
             slider
         };
@@ -556,6 +560,8 @@ impl Shadcn {
         style.scroll.thumb_active = t.border;
         style.scroll.track = clear;
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
+        // Radix's ScrollArea keeps its thumb at least 18 px long.
+        style.scroll.min_thumb_length = 18.0;
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);
