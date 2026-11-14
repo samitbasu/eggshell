@@ -36,11 +36,11 @@ fn harness() -> Harness<'static, Rig<App>> {
 }
 
 fn path(part: Part) -> String {
-    format!("/{part:?}")
+    format!("/Frame/{part:?}")
 }
 
 fn session_path(key: SessionKey) -> String {
-    format!("/Sidebar/Recents/{key:?}")
+    format!("/Frame/Sidebar/Recents/{key:?}")
 }
 
 fn rect(harness: &Harness<'_, Rig<App>>, part: Part) -> egui::Rect {
@@ -64,7 +64,7 @@ fn drag_splitter(harness: &mut Harness<'_, Rig<App>>, pane: Pane, dx: f32) {
 #[test]
 fn the_three_panes_and_two_splitters_fill_the_window() {
     let harness = harness();
-    let root = rect_of(&harness, "/<div>");
+    let root = rect_of(&harness, "/Frame/<div>");
     let columns = [
         Part::Sidebar,
         Part::Splitter(Pane::Sidebar),
@@ -93,14 +93,14 @@ fn the_three_panes_and_two_splitters_fill_the_window() {
 #[test]
 fn the_composer_is_pinned_to_the_bottom_of_the_centre_pane() {
     let pinned = |harness: &Harness<'_, Rig<App>>| {
-        rect(harness, Part::Centre).max.y - rect_of(harness, "/Centre/Composer").max.y
+        rect(harness, Part::Centre).max.y - rect_of(harness, "/Frame/Centre/Composer").max.y
     };
     let mut harness = harness();
     let full = pinned(&harness);
     assert_eq!(full, 16.0, "the pane's bottom padding");
     assert!(
-        rect_of(&harness, "/Centre/Conversation").max.y
-            <= rect_of(&harness, "/Centre/Composer").min.y,
+        rect_of(&harness, "/Frame/Centre/Conversation").max.y
+            <= rect_of(&harness, "/Frame/Centre/Composer").min.y,
         "precondition: the conversation sits above the composer"
     );
 
@@ -156,7 +156,7 @@ fn pane_widths_clamp_and_do_not_drift() {
 #[test]
 fn the_splitter_shows_a_resize_cursor_and_lights_its_line_under_the_pointer() {
     let mut harness = harness();
-    let line = "/Splitter(Sidebar)/<rule>";
+    let line = "/Frame/Splitter(Sidebar)/<rule>";
     let splitter = rect(&harness, Part::Splitter(Pane::Sidebar));
     assert_ne!(
         fill_of(&harness, line),
@@ -182,7 +182,7 @@ fn the_splitter_shows_a_resize_cursor_and_lights_its_line_under_the_pointer() {
 #[test]
 fn hovering_a_nav_row_repaints_it() {
     let mut harness = harness();
-    let row = format!("/Sidebar/{:?}", Part::Link(Link::Projects));
+    let row = format!("/Frame/Sidebar/{:?}", Part::Link(Link::Projects));
     let hover = color(&harness, Tok::Hover);
     assert_ne!(fill_of(&harness, &row), Some(hover), "precondition");
 
@@ -249,7 +249,7 @@ fn user_messages(harness: &Harness<'_, Rig<App>>) -> Vec<String> {
 
 /// Focuses the reply field by clicking it and types `text` into it.
 fn type_reply(harness: &mut Harness<'_, Rig<App>>, text: &str) {
-    click_node(harness, "/Centre/Composer/Field");
+    click_node(harness, "/Frame/Centre/Composer/Field");
     harness.run_steps(2);
     harness.get_by_label("Message").type_text(text);
     harness.run_steps(3);
@@ -275,7 +275,7 @@ fn clicking_send_appends_the_trimmed_draft_and_clears_it() {
     type_reply(&mut harness, "  a question \n");
     assert_eq!(harness.state().app.draft, "  a question \n");
 
-    click_node(&mut harness, "/Centre/Composer/Send");
+    click_node(&mut harness, "/Frame/Centre/Composer/Send");
     harness.run_steps(3);
     let mut expected = before;
     expected.push("a question".into());
@@ -301,17 +301,17 @@ fn send_is_inert_while_the_draft_is_empty() {
     let mut harness = harness();
     let before = user_messages(&harness);
     let dimmed = |harness: &Harness<'_, Rig<App>>| {
-        fill_of(harness, "/Centre/Composer/Send").map(|fill| fill.a())
+        fill_of(harness, "/Frame/Centre/Composer/Send").map(|fill| fill.a())
     };
     let empty = dimmed(&harness);
 
-    click_node(&mut harness, "/Centre/Composer/Send");
+    click_node(&mut harness, "/Frame/Centre/Composer/Send");
     harness.run_steps(3);
     assert_eq!(user_messages(&harness), before, "nothing to send");
 
     harness.state_mut().app.draft = "   ".into();
     harness.run_steps(2);
-    click_node(&mut harness, "/Centre/Composer/Send");
+    click_node(&mut harness, "/Frame/Centre/Composer/Send");
     harness.run_steps(3);
     assert_eq!(user_messages(&harness), before, "whitespace is empty");
 
@@ -342,7 +342,7 @@ fn tab_walks_the_sidebar_in_order_and_skips_the_splitters() {
     }
     let sessions: Vec<_> = order
         .iter()
-        .filter(|path| path.starts_with("/Sidebar/"))
+        .filter(|path| path.starts_with("/Frame/Sidebar/"))
         .collect();
     assert!(
         sessions.len() > 2,
@@ -371,8 +371,8 @@ fn composer_heights(harness: &mut Harness<'_, Rig<App>>, lines: usize) -> (f32, 
     harness.state_mut().app.draft = vec!["line"; lines].join("\n");
     harness.run_steps(3);
     (
-        rect_of(harness, "/Centre/Composer/Field").height(),
-        rect_of(harness, "/Centre/Composer").height(),
+        rect_of(harness, "/Frame/Centre/Composer/Field").height(),
+        rect_of(harness, "/Frame/Centre/Composer").height(),
     )
 }
 
@@ -399,10 +399,10 @@ fn the_composer_grows_with_its_text_up_to_a_cap_and_stays_at_the_bottom() {
     );
 
     let centre = rect(&harness, Part::Centre);
-    let composer = rect_of(&harness, "/Centre/Composer");
+    let composer = rect_of(&harness, "/Frame/Centre/Composer");
     assert_eq!(centre.max.y - composer.max.y, 16.0, "still pinned");
     assert!(
-        rect_of(&harness, "/Centre/Conversation").max.y <= composer.min.y,
+        rect_of(&harness, "/Frame/Centre/Conversation").max.y <= composer.min.y,
         "the conversation gave way"
     );
 }
@@ -411,22 +411,25 @@ fn the_composer_grows_with_its_text_up_to_a_cap_and_stays_at_the_bottom() {
 fn a_capped_field_still_edits_and_enter_makes_a_row() {
     let mut harness = harness();
     let (_, _) = composer_heights(&mut harness, 12);
-    let capped = rect_of(&harness, "/Centre/Composer/Field").height();
+    let capped = rect_of(&harness, "/Frame/Centre/Composer/Field").height();
     type_reply(&mut harness, "tail");
     assert!(harness.state().app.draft.contains("tail"));
-    assert_eq!(rect_of(&harness, "/Centre/Composer/Field").height(), capped);
+    assert_eq!(
+        rect_of(&harness, "/Frame/Centre/Composer/Field").height(),
+        capped
+    );
 
     harness.state_mut().app.draft.clear();
     harness.run_steps(3);
-    let resting = rect_of(&harness, "/Centre/Composer/Field").height();
-    click_node(&mut harness, "/Centre/Composer/Field");
+    let resting = rect_of(&harness, "/Frame/Centre/Composer/Field").height();
+    click_node(&mut harness, "/Frame/Centre/Composer/Field");
     harness.run_steps(2);
     for _ in 0..4 {
         harness.key_press(egui::Key::Enter);
         harness.run_steps(2);
     }
     assert!(
-        rect_of(&harness, "/Centre/Composer/Field").height() > resting,
+        rect_of(&harness, "/Frame/Centre/Composer/Field").height() > resting,
         "four newlines make a fifth row"
     );
 }
@@ -437,7 +440,7 @@ fn the_model_select_changes_the_model_and_the_details_follow() {
     let before = rect(&harness, Part::Centre);
     assert_eq!(harness.state().app.model, 0, "precondition");
 
-    click_node(&mut harness, "/Centre/TopBar/Model");
+    click_node(&mut harness, "/Frame/Centre/TopBar/Model");
     harness.run_steps(3);
     harness.get_by_label(MODELS[2]).click();
     harness.run_steps(12);
@@ -460,7 +463,7 @@ fn the_model_select_changes_the_model_and_the_details_follow() {
 fn the_mode_control_has_one_pressed_cell_and_a_click_changes_it() {
     let mut harness = harness();
     assert_eq!(harness.state().app.mode, Mode::Standard);
-    click_node(&mut harness, "/Centre/Composer/Mode/2");
+    click_node(&mut harness, "/Frame/Centre/Composer/Mode/2");
     harness.run_steps(3);
     assert_eq!(harness.state().app.mode, Mode::Thorough);
 
@@ -469,7 +472,7 @@ fn the_mode_control_has_one_pressed_cell_and_a_click_changes_it() {
         .iter()
         .enumerate()
         .filter(|(at, _)| {
-            fill_of(&harness, &format!("/Centre/Composer/Mode/{at}")) == Some(selected)
+            fill_of(&harness, &format!("/Frame/Centre/Composer/Mode/{at}")) == Some(selected)
         })
         .map(|(_, (mode, _))| *mode)
         .collect();
@@ -495,17 +498,17 @@ fn tab_reaches_the_model_then_the_composer_in_order_and_skips_an_inert_send() {
     let centre: Vec<&str> = order
         .iter()
         .map(String::as_str)
-        .filter(|stop| stop.starts_with("/Centre/"))
+        .filter(|stop| stop.starts_with("/Frame/Centre/"))
         .collect();
     assert_eq!(
         centre,
         [
-            "/Centre/TopBar/Model",
-            "/Centre/Conversation",
-            "/Centre/Composer/Field",
-            "/Centre/Composer/Mode/0",
-            "/Centre/Composer/Mode/1",
-            "/Centre/Composer/Mode/2",
+            "/Frame/Centre/TopBar/Model",
+            "/Frame/Centre/Conversation",
+            "/Frame/Centre/Composer/Field",
+            "/Frame/Centre/Composer/Mode/0",
+            "/Frame/Centre/Composer/Mode/1",
+            "/Frame/Centre/Composer/Mode/2",
         ],
         "the conversation is a stop, Send is inert while the draft is empty: {order:?}"
     );
@@ -525,7 +528,11 @@ fn tab_reaches_the_model_then_the_composer_in_order_and_skips_an_inert_send() {
         }
         with_send.push(stop);
     }
-    assert!(with_send.iter().any(|stop| stop == "/Centre/Composer/Send"));
+    assert!(
+        with_send
+            .iter()
+            .any(|stop| stop == "/Frame/Centre/Composer/Send")
+    );
 }
 
 mod composer_growth {
@@ -536,7 +543,7 @@ mod composer_growth {
 
     const MIN_ROWS: usize = 3;
     const MAX_ROWS: usize = 8;
-    const FIELD: &str = "/Centre/Composer/Field";
+    const FIELD: &str = "/Frame/Centre/Composer/Field";
 
     fn scaled_harness(pixels_per_point: f32) -> Harness<'static, Rig<App>> {
         let mut harness = support::harness_scaled(
@@ -549,7 +556,7 @@ mod composer_growth {
         );
         harness.ctx.set_theme(egui::Theme::Dark);
         harness.run();
-        click_node(&mut harness, "/Centre/Composer/Field");
+        click_node(&mut harness, "/Frame/Centre/Composer/Field");
         harness.run();
         harness
     }
@@ -636,11 +643,11 @@ mod composer_growth {
 mod appearance {
     use super::*;
 
-    const LIGHT: &str = "/Sidebar/Account/Appearance/1";
-    const DARK: &str = "/Sidebar/Account/Appearance/2";
-    const SYSTEM: &str = "/Sidebar/Account/Appearance/0";
-    const NAV_ROW: &str = "/Sidebar/Link(Projects)";
-    const MODEL: &str = "/Centre/TopBar/Model";
+    const LIGHT: &str = "/Frame/Sidebar/Account/Appearance/1";
+    const DARK: &str = "/Frame/Sidebar/Account/Appearance/2";
+    const SYSTEM: &str = "/Frame/Sidebar/Account/Appearance/0";
+    const NAV_ROW: &str = "/Frame/Sidebar/Link(Projects)";
+    const MODEL: &str = "/Frame/Centre/TopBar/Model";
 
     fn settle(harness: &mut Harness<'_, Rig<App>>) {
         harness.run_steps(10);
@@ -675,8 +682,8 @@ mod appearance {
     #[test]
     fn switching_recolours_the_next_frame_and_back() {
         let mut harness = harness();
-        let sidebar = "/Sidebar";
-        let composer = "/Centre/Composer";
+        let sidebar = "/Frame/Sidebar";
+        let composer = "/Frame/Centre/Composer";
         let dark = Theme::new(egui::Theme::Dark);
         let light = Theme::new(egui::Theme::Light);
         assert_ne!(dark[Tok::Panel], light[Tok::Panel], "precondition");
@@ -789,7 +796,7 @@ mod accents {
             );
             let meter = rect_of(
                 &harness,
-                "/Details/\"Context\"/Group/Row(\"Context window\")/Meter",
+                "/Frame/Details/\"Context\"/Group/Row(\"Context window\")/Meter",
             );
             assert!(meter.is_positive(), "precondition: the meter is laid out");
             assert!(
@@ -833,11 +840,11 @@ mod grouped_form {
             let mut harness = harness_in(theme, App::default());
             harness.run_steps(3);
             let line = Theme::of(&harness.ctx)[Tok::Line];
-            let group = rect_of(&harness, "/Details/\"Environment\"/Group");
+            let group = rect_of(&harness, "/Frame/Details/\"Environment\"/Group");
             let rows = ["Branch", "Runtime", "Model"].map(|label| {
                 rect_of(
                     &harness,
-                    &format!("/Details/\"Environment\"/Group/Row(\"{label}\")"),
+                    &format!("/Frame/Details/\"Environment\"/Group/Row(\"{label}\")"),
                 )
             });
             assert!(
@@ -924,11 +931,11 @@ mod scrolling {
     /// Where the part is in the tree.
     fn at(part: Part) -> &'static str {
         match part {
-            Part::TopBar => "/Centre/TopBar",
-            Part::Conversation => "/Centre/Conversation",
-            Part::Composer => "/Centre/Composer",
-            Part::Recents => "/Sidebar/Recents",
-            Part::Account => "/Sidebar/Account",
+            Part::TopBar => "/Frame/Centre/TopBar",
+            Part::Conversation => "/Frame/Centre/Conversation",
+            Part::Composer => "/Frame/Centre/Composer",
+            Part::Recents => "/Frame/Sidebar/Recents",
+            Part::Account => "/Frame/Sidebar/Account",
             other => unreachable!("{other:?}"),
         }
     }
@@ -1019,5 +1026,91 @@ mod scrolling {
         support::press_and_release(&mut harness, below);
         harness.run_steps(2);
         assert_eq!(harness.state().app.selected, before, "nothing was selected");
+    }
+}
+
+mod collapsing {
+    use chat_shell::state::Panes;
+
+    use super::*;
+
+    fn shown(harness: &Harness<'_, Rig<App>>, part: Part) -> bool {
+        let wanted = path(part);
+        harness
+            .state()
+            .nodes
+            .iter()
+            .any(|(candidate, _)| *candidate == wanted)
+    }
+
+    fn panes_shown(harness: &Harness<'_, Rig<App>>) -> [bool; 4] {
+        [
+            Part::Sidebar,
+            Part::Splitter(Pane::Sidebar),
+            Part::Details,
+            Part::Splitter(Pane::Details),
+        ]
+        .map(|part| shown(harness, part))
+    }
+
+    fn resized(size: Vec2) -> Harness<'static, Rig<App>> {
+        let mut harness = harness();
+        harness.set_size(size);
+        harness.step();
+        harness
+    }
+
+    #[test]
+    fn the_thresholds_are_where_the_panes_are_given_up() {
+        let at = |width: f32| Panes::fitting(vec2(width, 600.0));
+        assert_eq!(at(1000.0), Panes::All);
+        assert_eq!(at(999.0), Panes::WithoutDetails);
+        assert_eq!(at(720.0), Panes::WithoutDetails);
+        assert_eq!(at(719.0), Panes::CentreOnly);
+    }
+
+    #[test]
+    fn a_wide_window_shows_all_three_panes() {
+        let harness = resized(vec2(1200.0, 760.0));
+        assert_eq!(panes_shown(&harness), [true; 4]);
+    }
+
+    #[test]
+    fn a_narrower_window_gives_up_the_details_panel_first() {
+        let wide = resized(vec2(1200.0, 760.0));
+        let harness = resized(vec2(900.0, 760.0));
+        assert_eq!(panes_shown(&harness), [true, true, false, false]);
+        let (centre, window) = (rect(&harness, Part::Centre), rect_of(&harness, "/Frame"));
+        assert_eq!(
+            centre.max.x, window.max.x,
+            "the conversation takes the room the panel leaves"
+        );
+        assert!(centre.width() > rect(&wide, Part::Centre).width() - 400.0);
+    }
+
+    #[test]
+    fn a_narrow_window_leaves_only_the_conversation() {
+        let harness = resized(vec2(600.0, 760.0));
+        assert_eq!(panes_shown(&harness), [false; 4]);
+        assert_eq!(rect(&harness, Part::Centre), rect_of(&harness, "/Frame"));
+    }
+
+    #[test]
+    fn the_first_frame_after_a_resize_already_shows_the_panes_that_fit() {
+        let mut harness = harness();
+        assert_eq!(panes_shown(&harness), [true; 4], "precondition: all shown");
+        for (size, expected) in [
+            (vec2(900.0, 760.0), [true, true, false, false]),
+            (vec2(600.0, 760.0), [false; 4]),
+            (vec2(1200.0, 760.0), [true; 4]),
+        ] {
+            harness.set_size(size);
+            harness.step();
+            assert_eq!(panes_shown(&harness), expected, "at {size:?}");
+            assert!(
+                !harness.ctx.requested_repaint_last_pass(),
+                "no second frame is asked for at {size:?}"
+            );
+        }
     }
 }

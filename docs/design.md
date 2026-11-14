@@ -238,7 +238,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                    item: impl FnMut(&mut Builder<'_, 'f, A>, R));                // each row scoped under its own key
     pub fn overlay(&mut self, key: K, band: Band, anchor: Anchor, place: Placement,
                    on_dismiss: impl FnOnce(&mut A) + 'static, body: impl FnOnce(&mut Builder<'_, 'f, A>));
-    pub fn max_content_width(&mut self, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> f32;
+    pub fn max_content_width(&mut self, f: impl FnOnce(&mut Builder<'_, 'f, A>)) -> Width;
 }
 
 /// Library helpers
@@ -631,12 +631,21 @@ Inside a region (where the available width is known), the application can measur
 b.region("title_bar", tw().flex_1().min_w_0().h(7.0), move |b, size| {
     let full = |b: &mut B<'_, '_>| title_full(b, pane);
     let compact = |b: &mut B<'_, '_>| title_compact(b, pane);
-    if b.max_content_width(full) <= size.x { full(b) } else { compact(b) }   // else an icons-only form, …
+    if b.max_content_width(full) <= Width::new(size.x) { full(b) } else { compact(b) }   // else an icons-only form, …
 });
 ```
 
 - `max_content_width` builds into a scratch tree (same text inheritance, paths not registered, no duplicate check, closures discarded) and returns the root's max-content width.
 - Cost is one extra measure pass per candidate tried. Text measurement goes through egui's galley cache.
+
+### 11.4 As built (M7)
+
+- **Where the content lives.** A region is an identified leaf (`NodeKind::Region`) with no measure, so its size is its classes' alone. Its content is a `NodeKind::RegionContent` root that hangs off the leaf's context, as a scroll container's content does, and is collected as the leaf's child at the leaf's content box. Paths read `/key/<regioncontent>/…`; the children are keyed under the region's key, so `placed.at("host").at("child")` finds them.
+- **The content root** is `Display::Block` at exactly the content box, as the base root is: a child that wants the whole region says `size_full()`, and `flex_1` has no effect directly under it.
+- **Order.** After a root (the base, or an overlay) is solved, its scroll containers' content is solved, an enclosing one first, and then its regions in declaration order. Each region closure runs, its content is solved, and the scroll containers and regions it declared are handled the same way before the next sibling. An overlay a region declares is laid out after the overlays the build declared, so a stack's opening order follows the order of layout. A region in an overlay is run when the overlay is.
+- **State.** A closure builds into the frame's one `BuildState` and `Frame`, so ids, the duplicate check, the cross-layout check, measures, draws, drag declarations and dismissal handlers are the same as for the rest of the build. The closure builds under the region's readable path, and inherits the text style and the inert state at the leaf.
+- **`max_content_width`** builds into a fresh `BuildState` and `Frame` (its own tree and its own `Handle`, `Pass::Scratch`), solves the root at max-content in the way an overlay's root is solved, and drops all of it. Nothing it declares reaches the frame; nothing it reads of `kept` (open menus, presences, the last area) is the frame's. Its keys are never registered, and the cross-layout claim is skipped.
+- **Lifetimes.** A function that declares a region names `'f` (`fn view<'f>(app: &'f App, b: &mut Builder<'_, 'f, App>)`), and so do its callers up to the root. `tests/ui/region_needs_a_named_lifetime.rs` keeps the error. A function pointer type of the form `for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &S)`, as the examples' `AppLayout`, cannot name it: take `&'f S`.
 
 ## 12. Layers and overlays
 

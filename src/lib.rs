@@ -228,6 +228,7 @@ pub mod owned;
 mod pipeline;
 mod presence;
 pub mod prim;
+mod region;
 mod roots;
 pub mod scroll;
 mod scroll_keys;

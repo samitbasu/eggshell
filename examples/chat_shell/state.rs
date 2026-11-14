@@ -2,6 +2,7 @@
 
 use eggshell_ui::Progress;
 use eggshell_ui_shadcn::ThemeColor;
+use egui::Vec2;
 
 /// A pane whose width the user drags.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -28,6 +29,40 @@ impl Pane {
     /// Which way a pointer moving right moves the pane's inner edge.
     const fn grows_rightward(self) -> bool {
         matches!(self, Self::Sidebar)
+    }
+}
+
+/// Which panes the window leaves room for: the details panel is the first to
+/// go, then the sidebar, and the conversation always stays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Panes {
+    All,
+    WithoutDetails,
+    CentreOnly,
+}
+
+impl Panes {
+    /// The window width from which the sidebar is shown.
+    const SIDEBAR_FROM: f32 = 720.0;
+    /// The window width from which the details panel is shown.
+    const DETAILS_FROM: f32 = 1000.0;
+
+    /// The panes shown in a window of `room`.
+    pub fn fitting(room: Vec2) -> Self {
+        if room.x >= Self::DETAILS_FROM {
+            Self::All
+        } else if room.x >= Self::SIDEBAR_FROM {
+            Self::WithoutDetails
+        } else {
+            Self::CentreOnly
+        }
+    }
+
+    pub fn shows(self, pane: Pane) -> bool {
+        match pane {
+            Pane::Sidebar => self != Self::CentreOnly,
+            Pane::Details => self == Self::All,
+        }
     }
 }
 
