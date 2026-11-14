@@ -40,3 +40,10 @@ wasm-bindgen-futures = "0.4"
 
 [workspace]
 members = ["crates/eggshell-ui-shadcn", "xtask"]
+
+# `cargo xtask fuzz`: the sessions run about six times faster than in dev, and
+# the workspace rebuilds in seconds where release takes minutes.
+[profile.fuzz]
+inherits = "dev"
+opt-level = 1
+debug = "line-tables-only"

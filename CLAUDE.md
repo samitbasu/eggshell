@@ -153,8 +153,10 @@ copying this file elsewhere.
   per former test file (`cargo test --test it layout::`). Each test crate
   statically links egui and friends, and a binary per file exhausted the CI
   runner's disk. Add new test files as modules there, not as `tests/*.rs`.
-- `cargo xtask ci` is the single definition of "CI passes". Also available:
-  `fmt [--check]`, `test [-- ARGS]`, `coverage [--lcov]`,
+- `cargo xtask ci` is the single definition of "CI passes"; it includes the
+  `fuzz` step (`cargo xtask fuzz`), which GitHub runs as a parallel job beside
+  `cargo xtask ci --skip fuzz`. Also available:
+  `fmt [--check]`, `test [-- ARGS]`, `fuzz [--cases N]`, `coverage [--lcov]`,
   `example [NAME] [--release]`, `web NAME [--release] [--port N]`. See
   `cargo xtask --help`.
 - The library and every example build for the browser (`wasm32-unknown-unknown`,

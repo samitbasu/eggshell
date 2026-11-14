@@ -109,12 +109,15 @@ pub fn test(extra: &[String]) -> Step {
     step
 }
 
-/// Cases per fuzz test for `cargo xtask fuzz`; `ci` runs the tests' small default.
-pub const FUZZ_CASES: u32 = 2000;
+/// Cases per fuzz test for `ci` and `cargo xtask fuzz`.
+pub const FUZZ_CASES: u32 = 500;
 
 pub fn fuzz(cases: u32) -> Step {
-    Step::cargo("fuzz", &["test", "--test", "it", "fuzz::", "--release"])
-        .with_env("PROPTEST_CASES", cases.to_string())
+    Step::cargo(
+        "fuzz",
+        &["test", "--test", "it", "fuzz::", "--profile", "fuzz"],
+    )
+    .with_env("PROPTEST_CASES", cases.to_string())
 }
 
 pub fn example(name: &str, profile: Profile) -> Step {
@@ -168,7 +171,28 @@ pub fn ci_steps() -> Vec<Step> {
         Step::cargo("rustdoc", &["doc", "--workspace", "--no-deps"])
             .with_env("RUSTDOCFLAGS", "-D warnings"),
         wasm(),
+        fuzz(FUZZ_CASES),
     ]
+}
+
+/// The CI steps without those named in `skip`, so a runner can split them
+/// across parallel jobs; a name that is not a step is an error.
+pub fn ci_steps_skipping(skip: &[String]) -> Result<Vec<Step>> {
+    let steps = ci_steps();
+    if let Some(unknown) = skip
+        .iter()
+        .find(|name| !steps.iter().any(|step| step.name == name.as_str()))
+    {
+        let names: Vec<_> = steps.iter().map(|step| step.name).collect();
+        bail!(
+            "no CI step is named `{unknown}`; the steps are: {}",
+            names.join(", ")
+        );
+    }
+    Ok(steps
+        .into_iter()
+        .filter(|step| !skip.iter().any(|name| name == step.name))
+        .collect())
 }
 
 /// Runs every step, so a failure does not hide the next one, and ends with
@@ -232,8 +256,30 @@ mod tests {
                 "cargo test --workspace --doc",
                 "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
                 "cargo check --target wasm32-unknown-unknown --workspace --exclude xtask --lib --examples",
+                "PROPTEST_CASES=\"500\" cargo test --test it fuzz:: --profile fuzz",
             ]
         );
+    }
+
+    #[test]
+    fn ci_skips_the_named_steps_only() {
+        let skip = ["fuzz".to_owned(), "wasm".to_owned()];
+        let names: Vec<_> = ci_steps_skipping(&skip)
+            .unwrap()
+            .iter()
+            .map(|step| step.name)
+            .collect();
+        assert_eq!(
+            names,
+            ["fmt", "clock", "clippy", "test", "doctest", "rustdoc"]
+        );
+        assert_eq!(ci_steps_skipping(&[]).unwrap().len(), ci_steps().len());
+    }
+
+    #[test]
+    fn ci_rejects_skipping_an_unknown_step() {
+        let error = ci_steps_skipping(&["fuz".to_owned()]).unwrap_err();
+        assert!(error.to_string().contains("`fuz`"), "{error}");
     }
 
     #[test]

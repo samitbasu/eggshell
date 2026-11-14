@@ -33,12 +33,21 @@ jobs:
           key: workspace-goldens-clippy
       - name: Mesa lavapipe for the golden images
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
-      - run: cargo xtask ci
+      # The fuzz step runs in the `fuzz` job, beside this one.
+      - run: cargo xtask ci --skip fuzz
       - name: Disk usage
         if: always()
         run: |
           df -h
           du -sh target
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo xtask fuzz
 
   msrv:
     runs-on: ubuntu-latest
