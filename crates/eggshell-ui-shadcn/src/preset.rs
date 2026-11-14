@@ -47,8 +47,8 @@ impl Shadcn {
         self
     }
 
-    /// This preset with `theme_color`'s colours for `primary`,
-    /// `primary-foreground` and `ring`.
+    /// This preset with `theme_color`'s colours for `primary` and
+    /// `primary-foreground`.
     #[must_use]
     pub fn theme_color(mut self, theme_color: ThemeColor) -> Self {
         self.tokens = self.tokens.with_theme_color(theme_color, self.theme);
