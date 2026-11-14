@@ -11,11 +11,11 @@ engineering practices.
 
 Automation lives in the `xtask` crate; run `cargo xtask --help` for the list.
 
-- `cargo xtask ci`: everything CI runs (fmt check, clock check, clippy, tests, doctests, rustdoc, wasm build, golden images); every step runs, and the failed ones are listed at the end
+- `cargo xtask ci [--skip STEP]`: everything CI runs (fmt check, clock check, clippy, tests, doctests, rustdoc, wasm build, golden images, fuzz); every step runs, and the failed ones are listed at the end. `--skip` leaves a step out by name (repeatable); GitHub runs the `fuzz` step as a parallel job
 - `cargo xtask fmt [--check]`: format the workspace
 - `cargo xtask test [-- ARGS]`: all tests and doctests; `ARGS` go to `cargo test`
 - `cargo xtask coverage [--lcov]`: coverage via `cargo-llvm-cov` (HTML report, or `lcov.info`)
-- `cargo xtask fuzz [--cases N]`: the randomised continuity fuzzers with many cases (2000 by default, in release); not part of `ci`, whose default is 32 per test. A failing sequence is shrunk and saved under `tests/proptest-regressions/`, to be committed
+- `cargo xtask fuzz [--cases N]`: the randomised continuity fuzzers with many cases (500 per test by default, in the lightly optimised `fuzz` profile), the `fuzz` step of `ci`; plain `cargo test` runs 32 per test. Pass a larger `--cases` for a deeper hunt. A failing sequence is shrunk and saved under `tests/proptest-regressions/`, to be committed
 - `cargo xtask example [NAME] [--release]`: run an example, or list them
 - `cargo xtask web NAME [--release] [--port N]`: build an example for the browser (wasm32) and serve it locally until Ctrl+C (see below)
 - `cargo xtask snapshots [--update] [--filter NAME] [--clean]`: golden-image tests (see below)
