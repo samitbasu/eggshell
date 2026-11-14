@@ -7,3 +7,4 @@
 cc b012224f88c0cdb8a9fadda6bbbb3895854e7e53daab8927418e638c1235c1ba # shrinks to actions = [ClickUp(1)]
 cc b85852ca7505b866e49b9de52fa150e9f070061845227f3de9a631b088ed5ff0 # shrinks to actions = [SetWidth(240), AddPanel(0)]
 cc b4fa7f38948eb702c189ee6ae9e86ef04eca2fbd67a3f1ed659ab4f01d5adf87 # shrinks to actions = [Lift(0), MoveTo(1)]
+cc d35261723535baba9b6a2117f6fd874308c5a4db7f5cc26fea14147d9492693d # shrinks to actions = [ToggleImage, Lift(0), Escape]
