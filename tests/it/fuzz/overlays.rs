@@ -516,10 +516,9 @@ struct Desk {
     session: Session,
 }
 
-/// Which invariants a session judges. `Strict` adds two that the library's
+/// Which invariants a session judges. `Strict` adds one that the library's
 /// documented rules leave open (see the ignored test): where focus is after
-/// each action, and whether a menu hidden because its anchor left the window
-/// still counts as open.
+/// each action.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Strictness {
     Decided,
@@ -768,15 +767,6 @@ impl Desk {
         )))
     }
 
-    /// A context menu is anchored to a point that a smaller window can leave
-    /// outside it: that is the second open question.
-    fn context_menu_is_open(&self) -> bool {
-        self.seen()
-            .overlays
-            .iter()
-            .any(|overlay| overlay.path.contains("ContextMenu(") && !overlay.exiting)
-    }
-
     fn perform(&mut self, action: &Action) -> Result<(), TestCaseError> {
         match *action {
             Action::ArrowDown | Action::ArrowUp | Action::Home | Action::End
@@ -859,11 +849,6 @@ impl Desk {
                 }
                 self.step()
             }
-            Action::ResizeWindow(..)
-                if self.strictness == Strictness::Decided && self.context_menu_is_open() =>
-            {
-                Ok(())
-            }
             Action::ResizeWindow(w, h) => {
                 let target = vec2(w as f32, h as f32);
                 while self.size != target {
@@ -940,10 +925,7 @@ impl Desk {
     /// An overlay opened while a menu was open closed it, unless it is
     /// nested in it.
     fn at_most_one_menu(&self) -> Result<(), TestCaseError> {
-        let counts = |overlay: &&Open| {
-            overlay.is_menu()
-                && (self.strictness == Strictness::Strict || overlay.anchored == Anchored::Attached)
-        };
+        let counts = |overlay: &&Open| overlay.is_menu();
         let menus: Vec<&str> = self
             .seen()
             .overlays
@@ -1028,18 +1010,12 @@ proptest! {
     }
 
     /// What the documented rules leave open, as `docs/overlays.md` section 12
-    /// states the invariants:
-    ///
-    /// - Focus is inside the topmost overlay that takes it in, nowhere, or on
-    ///   its anchor. A menu opened with the pointer takes no focus, and Tab
-    ///   then moves focus to the page without closing it (`dismiss.rs` pins
-    ///   that `Nowhere -> Elsewhere` is not focus leaving).
-    /// - At most one menu is open. A context menu whose point anchor left the
-    ///   window (a smaller window) is hidden but open, and takes no part in
-    ///   dismissal, so another menu can open beside it (`open_overlays` leaves
-    ///   detached overlays out of `exclusive`).
+    /// states the invariants: focus is inside the topmost overlay that takes it in, nowhere, or on
+    /// its anchor. A menu opened with the pointer takes no focus, and Tab
+    /// then moves focus to the page without closing it (`dismiss.rs` pins
+    /// that `Nowhere -> Elsewhere` is not focus leaving).
     #[test]
-    #[ignore = "open questions, see the doc comment and docs/overlays.md, As built in PR 8"]
+    #[ignore = "open question, see the doc comment and docs/overlays.md, As built in PR 8"]
     fn focus_stays_with_the_overlays_under_any_session(actions in overlay_session()) {
         run(&actions, Strictness::Strict)?;
     }
@@ -1052,9 +1028,9 @@ proptest! {
 /// the key press and puts it back in the frame of the release, which hides
 /// the tooltip of the button (a gap) for that frame. Without the button held
 /// the container stays scrolled. The decided session does not press the
-/// scroll keys while a button is held.
+/// scroll keys while a button is held. Filed as #184.
 #[test]
-#[ignore = "open finding: End with a button held scrolls for one frame and snaps back"]
+#[ignore = "#184: End with a button held scrolls for one frame and snaps back"]
 fn end_with_a_button_held_scrolls_and_stays() {
     run(
         &[
@@ -1090,10 +1066,9 @@ fn tab_from_a_menu_opened_with_the_pointer_closes_it() {
     run(&[Action::OpenMenu, Action::Tab], Strictness::Strict).expect("holds");
 }
 
-/// The shrunk case of the second: a context menu hidden by a smaller window
-/// does not make way for the dropdown.
+/// A context menu hidden by a smaller window is dismissed when the dropdown
+/// opens: menus are exclusive, seen or not.
 #[test]
-#[ignore = "open design question: a detached menu stays open beside another"]
 fn a_menu_hidden_by_a_smaller_window_makes_way_for_the_next() {
     run(
         &[
@@ -1101,7 +1076,7 @@ fn a_menu_hidden_by_a_smaller_window_makes_way_for_the_next() {
             Action::ResizeWindow(240, 220),
             Action::OpenMenu,
         ],
-        Strictness::Strict,
+        Strictness::Decided,
     )
     .expect("holds");
 }

@@ -12,12 +12,12 @@ use std::collections::HashMap;
 use egui::{Context, Event, Id, Key, Modifiers, Pos2};
 
 use crate::actions::{self, Action};
-use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, dismissals, esc_target};
+use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, Opening, dismissals, esc_target};
 use crate::draw::children_of;
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
 use crate::nav::{self, Menu};
-use crate::overlay::{Anchor, AnchorLookup, Behavior, Focus, Nav};
+use crate::overlay::{Anchor, AnchorLookup, Band, Behavior, DismissOn, Focus, Nav, Outside};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::roots::{Form, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
 use crate::stack::{Entered, Stack};
@@ -71,6 +71,43 @@ impl Open<'_> {
             _ => None,
         }
     }
+}
+
+/// The menus that are open but hidden, because their anchor left the window,
+/// that an overlay opened this frame makes way for: menus are exclusive, seen
+/// or not, or the hidden one would come back over the one opened beside it.
+/// Hidden overlays take no part in the other rules, so `dismissals` does not
+/// see them.
+fn hidden_menus_made_way_for(roots: &[PlacedRoot], open: &[Open<'_>], layers: &[Layer]) -> Vec<Id> {
+    let opened: Vec<&Open<'_>> = open
+        .iter()
+        .zip(layers)
+        .filter(|(_, layer)| {
+            layer.opening == Opening::Opened
+                && layer.band != Band::Tooltip
+                && layer.lookup == AnchorLookup::Found
+        })
+        .map(|(open, _)| open)
+        .collect();
+    roots
+        .iter()
+        .enumerate()
+        .filter_map(|(root, placed)| Some((root, placed.overlay()?)))
+        .filter(|(_, hidden)| {
+            hidden.anchored == crate::overlay::Anchored::Detached
+                && !hidden.staged.is_exiting()
+                && hidden.lookup == AnchorLookup::Found
+                && hidden.behavior.outside() == Outside::Swallow
+                && hidden.behavior.dismiss_on == DismissOn::Default
+        })
+        .filter(|(root, hidden)| {
+            opened.iter().any(|opened| {
+                opened.overlay.stack_index > hidden.stack_index
+                    && !is_nested_in(roots, opened.root, *root)
+            })
+        })
+        .map(|(_, hidden)| hidden.id)
+        .collect()
 }
 
 fn is_nested_in(roots: &[PlacedRoot], root: usize, ancestor: usize) -> bool {
@@ -380,6 +417,11 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
                     then(app);
                 }
             }
+        }
+    }
+    for id in hidden_menus_made_way_for(roots, &open, &layers) {
+        if let Some(then) = dismiss.remove(&id) {
+            then(app);
         }
     }
     if let EscapeGoes::Window(button) = escape_goes(&layers, nodes, &input) {
