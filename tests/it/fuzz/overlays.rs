@@ -1203,3 +1203,23 @@ fn end_with_a_button_held_scrolls_and_stays() {
     )
     .expect("holds");
 }
+
+/// Open question (tooltips): Esc closes a tooltip and the select list under
+/// it; the list's exit gives focus back to the trigger, which opens the
+/// trigger's tooltip again at once for keyboard focus. The tooltip's exit
+/// ends one pass before the new one opens, so it blinks out and back in.
+#[test]
+#[ignore = "open question: an Esc-closed tooltip reopens when focus is restored to its trigger"]
+fn escape_does_not_blink_the_tooltip_of_the_trigger_it_restores_focus_to() {
+    run(
+        &[
+            Action::Tab,
+            Action::ArrowDown,
+            Action::Tab,
+            Action::ArrowDown,
+            Action::Esc,
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
