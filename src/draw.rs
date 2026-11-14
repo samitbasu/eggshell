@@ -1604,6 +1604,7 @@ impl<A> Placed<A> {
             mut dismiss,
             roots,
             exited,
+            commands,
             root: _,
         } = self;
         let overflow = (Debug::of(ui.ctx()) == Debug::Outlines)
@@ -1651,6 +1652,16 @@ impl<A> Placed<A> {
         nav::apply_deferred(ui.ctx());
         let keys = overlay_input::claim_keys(ui.ctx(), &kept, &nodes, &roots, live);
         shared.blur = keys.blur;
+        let typing = kept.with(|kept| kept.typing);
+        for root in crate::commands::live_roots(
+            overlay_input::topmost_root(&roots),
+            |root| roots[root].parent,
+            |root| roots[root].is_modal(),
+        ) {
+            if let Some((_, table)) = commands.iter().find(|(at, _)| *at == root) {
+                crate::commands::dispatch(ui.ctx(), typing, table, app);
+            }
+        }
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
         let mut walk = Walk {
             app,

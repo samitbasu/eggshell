@@ -169,7 +169,7 @@ pub type Layout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, ()>, &S);
 
 /// Builds one frame of a layout from the example's state, which is also the
 /// application its draw closures act on.
-pub type AppLayout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &S);
+pub type AppLayout<S> = for<'b, 'f> fn(&mut Builder<'b, 'f, S>, &'f S);
 
 /// Runs `layout` over the whole window.
 pub fn run<S: 'static>(title: &str, state: S, layout: Layout<S>) -> eframe::Result {

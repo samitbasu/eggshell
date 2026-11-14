@@ -261,6 +261,36 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         self.chain(key, label.into(), Action, Role::MenuItem, Lead::Nothing)
     }
 
+    /// An item for the command `id` names in the [`Commands`](crate::Commands)
+    /// declared on the builder: its label is the command's title, it shows the
+    /// command's shortcut as the platform writes it, it is disabled while the
+    /// command is, and activating it runs the command, which closes the menu.
+    ///
+    /// Debug builds panic if no table declares `id`.
+    #[track_caller]
+    pub fn command<K: crate::Key>(&mut self, id: K) {
+        let Some((command, enabled)) = self.b.command(&id) else {
+            #[cfg(debug_assertions)]
+            panic!("menu item for {id:?}: no command of that key is declared");
+            #[cfg(not(debug_assertions))]
+            return;
+        };
+        let keys = command
+            .chord()
+            .map(|chord| self.b.ctx().format_shortcut(&chord));
+        let mut item = self.item(id, command.title());
+        if let Some(keys) = keys {
+            item = item.shortcut(keys);
+        }
+        let item = if enabled {
+            item
+        } else {
+            item.enablement(Enablement::Disabled)
+        };
+        let run = command.runner();
+        item.on_click(run);
+    }
+
     /// An item with a check mark where `current` is on, for a setting that
     /// is on or off. Finish it with [`on_change`](ItemChain::on_change).
     pub fn checkbox_item<K: crate::Key>(
