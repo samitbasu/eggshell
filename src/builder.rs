@@ -8,6 +8,7 @@ use std::sync::Arc;
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
+use crate::collapse::{Collapse, CollapseAxis, CollapsibleChain, Declared};
 use crate::commands::{Command, Commands, live_roots};
 use crate::contract::Style;
 use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
@@ -21,7 +22,7 @@ use crate::pipeline::{
     BuildState, ColorSource, DismissFn, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind,
     Pass, ScrollNode, solve,
 };
-use crate::presence::{self, Motion, Step};
+use crate::presence::{self, Entrance, Motion, Phase as Presence, Shown, Step};
 use crate::prim::{Icon, Prim};
 use crate::region::{RegionBody, RegionDecl};
 use crate::roots::{OverlayDecl, Presentation, RootDecl, RootKind, overlay_style};
@@ -30,7 +31,7 @@ use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
 use crate::text::{TextStyle, VAlign};
 use crate::tooltip::{Content, Tooltip};
-use crate::tw::{Grouping, PointerEvents, Sensing, Tw, tw};
+use crate::tw::{Grouping, PointerEvents, Progress, Sensing, Tw, tw};
 use crate::widget::Stock;
 
 /// What a node is made of, besides its classes.
@@ -40,6 +41,7 @@ struct Parts {
     path: String,
     prim: Option<Prim>,
     measure: Option<usize>,
+    collapse: Option<Collapse>,
 }
 
 impl Node {
@@ -56,6 +58,7 @@ impl Parts {
             path,
             prim: None,
             measure: None,
+            collapse: None,
         }
     }
 
@@ -644,6 +647,128 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         Width::new(st.tree.layout(root).expect("node exists").size.width)
     }
 
+    /// A part of the page that opens and closes by its size, an accordion
+    /// item or a collapsing sidebar. See [`CollapsibleChain`].
+    ///
+    /// While it is opening or closing the wrapper is a fraction of the size
+    /// its content wants, so what follows it moves with it, and the content
+    /// is clipped at its natural size. A closed region is not built.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, tw};
+    /// # use eggshell_ui::overlay::Shown;
+    /// struct App { open: bool }
+    ///
+    /// fn item<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
+    ///     b.collapsible("details", Shown::from(app.open))
+    ///         .content(tw().p(4.0))
+    ///         .children(|b| b.text(tw(), "Only as tall as it needs"));
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn collapsible<K: Key>(&mut self, key: K, shown: Shown) -> CollapsibleChain<'_, 'f, A> {
+        let slot = self.slot(&key);
+        CollapsibleChain::new(self.reborrow(), slot, shown)
+    }
+
+    /// Declares the collapsible `decl` and builds its content.
+    #[track_caller]
+    pub(crate) fn collapsible_with(
+        mut self,
+        slot: &Slot,
+        decl: Declared<A>,
+        header: impl FnOnce(&mut Scope<'_, 'f, A>, Progress),
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) -> NodeHandle<'b, 'f, A> {
+        let Declared {
+            shown,
+            axis,
+            transition,
+            easing,
+            classes,
+            content,
+            on_collapsed,
+        } = decl;
+        let motion = Motion {
+            shown,
+            enter: transition,
+            exit: transition,
+            easing,
+            entrance: Entrance::Fade,
+        };
+        let step = presence::step(
+            &self.st.kept,
+            self.frame.ctx,
+            slot.id,
+            &motion,
+            presence::First::Settled,
+        );
+        let open = match &step {
+            Step::Closed { .. } => Progress::START,
+            Step::Present(staged) => staged.progress,
+        };
+        header(&mut Scope(self.reborrow()), open);
+        let wrapper = match axis {
+            CollapseAxis::Height => classes.overflow_hidden().flex().flex_col(),
+            CollapseAxis::Width => classes.overflow_hidden().flex().flex_row(),
+        };
+        let path = self.identify(slot.id, &slot.label);
+        let mark = self.st.names.push(&slot.label);
+        let parts = |collapse| Parts {
+            id: Some(slot.id),
+            collapse,
+            ..Parts::anonymous(NodeKind::DivId, path.clone())
+        };
+        match step {
+            Step::Closed { exited } => {
+                if let Some(then) = on_collapsed.filter(|_| exited) {
+                    self.frame.exited.push(then);
+                }
+                let closed = match axis {
+                    CollapseAxis::Height => wrapper.h_px(0.0),
+                    CollapseAxis::Width => wrapper.w_px(0.0),
+                };
+                self.container(
+                    closed,
+                    parts(Some(Collapse {
+                        axis,
+                        motion: None,
+                        flight: None,
+                    })),
+                    slot.id,
+                    |_| {},
+                );
+            }
+            Step::Present(staged) => {
+                let moving = staged.phase != Presence::Open;
+                self.frame.size_in_flight |= moving;
+                let collapse = Collapse {
+                    axis,
+                    motion: moving.then_some(staged.progress),
+                    flight: None,
+                };
+                let wrapper = if staged.is_exiting() {
+                    wrapper.inert()
+                } else {
+                    wrapper
+                };
+                self.container(wrapper, parts(Some(collapse)), slot.id, |mut b| {
+                    let inner = b.anonymous_path(NodeKind::Div);
+                    let at = b.path;
+                    b.container(
+                        content.shrink_0(),
+                        Parts::anonymous(NodeKind::Div, inner),
+                        at,
+                        |b| body(&mut Scope(b)),
+                    );
+                });
+            }
+        }
+        self.st.names.pop_to(mark);
+        let node = *self.kids.last().expect("the wrapper was just added");
+        NodeHandle { b: self, node }
+    }
+
     /// An overlay: a floating layer placed against an anchor. See
     /// [`overlay`](crate::overlay).
     #[track_caller]
@@ -665,7 +790,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ) {
         let mut decl = decl;
         if let Some(motion) = motion {
-            match presence::step(&self.st.kept, self.frame.ctx, slot.id, &motion) {
+            match presence::step(
+                &self.st.kept,
+                self.frame.ctx,
+                slot.id,
+                &motion,
+                presence::First::Enters,
+            ) {
                 Step::Closed { exited } => {
                     if let Some(then) = on_exited.filter(|_| exited) {
                         self.frame.exited.push(then);
@@ -1041,6 +1172,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             drag: None,
             scroll: None,
             region: None,
+            collapse: parts.collapse,
             description: None,
             action: None,
             interaction: Interaction {
@@ -1476,6 +1608,17 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     pub(crate) fn action(mut self, action: crate::actions::Action) -> Self {
         self.edit(|context| context.action = Some(action));
         self
+    }
+
+    /// Announces whether what the node controls is open, the `aria-expanded`
+    /// of the web: for the header of a [`collapsible`](Builder::collapsible),
+    /// with the [`Button`](egui::Role::Button) role.
+    pub fn expanded(self, open: bool) -> Self {
+        self.draw(move |_, ui| {
+            let id = ui.node_response().id;
+            ui.ctx()
+                .accesskit_node_builder(id, |node| node.set_expanded(open));
+        })
     }
 
     /// The node's accessible name, the `aria-label` of the web.

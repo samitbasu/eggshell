@@ -19,7 +19,7 @@ use crate::kept::Handle;
 use crate::overlay::Side;
 use crate::pipeline::DismissFn;
 use crate::roots::Form;
-use crate::transition::Transition;
+use crate::transition::{self, Transition};
 use crate::tw::{Easing, Opacity, Progress};
 
 /// Whether an overlay is shown or being closed, as the application's state
@@ -32,6 +32,12 @@ pub enum Shown {
     /// The overlay is closed: it exits, or has exited.
     #[default]
     Closed,
+}
+
+impl From<bool> for Shown {
+    fn from(open: bool) -> Self {
+        if open { Self::Open } else { Self::Closed }
+    }
 }
 
 impl Shown {
@@ -246,25 +252,42 @@ pub(crate) enum Step {
     Present(Staged),
 }
 
+/// What an id seen for the first time is at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum First {
+    /// Closed: shown, it enters.
+    Enters,
+    /// At what it is shown as: no motion on a first sight.
+    Settled,
+}
+
 /// The overlays that have a presence, by id.
 #[derive(Default)]
 pub(crate) struct Presences {
     entries: HashMap<Id, Transition>,
     seen: HashSet<Id>,
+    /// The [`First::Settled`] ids that have rested closed, so that opening
+    /// one is a motion and not a first sight.
+    rests: HashSet<Id>,
 }
 
 impl Presences {
     /// Moves the presence of `id` to this frame.
-    pub(crate) fn step(&mut self, ctx: &Context, id: Id, motion: &Motion) -> Step {
+    pub(crate) fn step(&mut self, ctx: &Context, id: Id, motion: &Motion, first: First) -> Step {
         let now = ctx.input(|input| input.time);
         self.seen.insert(id);
         let (target, full) = match motion.shown {
             Shown::Open => (Progress::END, motion.enter),
             Shown::Closed => (Progress::START, motion.exit),
         };
+        let full = transition::allowed(ctx, full);
         let known = self.entries.get(&id).copied();
+        let unseen = match first {
+            First::Settled if !self.rests.contains(&id) => target,
+            _ => Progress::START,
+        };
         let transition = known
-            .unwrap_or_else(|| Transition::settled(Progress::START, now))
+            .unwrap_or_else(|| Transition::settled(unseen, now))
             .toward(target, now, motion.easing, full);
         let in_flight = transition.in_flight(now);
         let progress = transition.value(now, motion.easing);
@@ -274,12 +297,16 @@ impl Presences {
             (Shown::Closed, true) => Phase::Exiting,
             (Shown::Closed, false) => {
                 self.entries.remove(&id);
+                if first == First::Settled {
+                    self.rests.insert(id);
+                }
                 return Step::Closed {
                     exited: known.is_some(),
                 };
             }
         };
         self.entries.insert(id, transition);
+        self.rests.remove(&id);
         if in_flight {
             ctx.request_repaint();
         }
@@ -299,12 +326,13 @@ impl Presences {
     pub(crate) fn sweep(&mut self) {
         let seen = std::mem::take(&mut self.seen);
         self.entries.retain(|id, _| seen.contains(id));
+        self.rests.retain(|id| seen.contains(id));
     }
 }
 
 /// Steps the presence of `id` in the layout's kept state.
-pub(crate) fn step(kept: &Handle, ctx: &Context, id: Id, motion: &Motion) -> Step {
-    kept.with(|kept| kept.presences.step(ctx, id, motion))
+pub(crate) fn step(kept: &Handle, ctx: &Context, id: Id, motion: &Motion, first: First) -> Step {
+    kept.with(|kept| kept.presences.step(ctx, id, motion, first))
 }
 
 /// What to run once an overlay has left.
@@ -330,7 +358,12 @@ mod tests {
             time: Some(time),
             ..egui::RawInput::default()
         });
-        let step = presences.step(&ctx, Id::NULL.with("overlay"), &motion(shown));
+        let step = presences.step(
+            &ctx,
+            Id::NULL.with("overlay"),
+            &motion(shown),
+            First::Enters,
+        );
         ctx.end_pass().textures_delta.clear();
         step
     }
@@ -431,8 +464,18 @@ mod tests {
         };
         let ctx = Context::default();
         ctx.begin_pass(egui::RawInput::default());
-        let opened = presences.step(&ctx, Id::NULL.with("overlay"), &instant(Shown::Open));
-        let closed = presences.step(&ctx, Id::NULL.with("overlay"), &instant(Shown::Closed));
+        let opened = presences.step(
+            &ctx,
+            Id::NULL.with("overlay"),
+            &instant(Shown::Open),
+            First::Enters,
+        );
+        let closed = presences.step(
+            &ctx,
+            Id::NULL.with("overlay"),
+            &instant(Shown::Closed),
+            First::Enters,
+        );
         ctx.end_pass().textures_delta.clear();
         assert_eq!(phase(&opened), Some(Phase::Open));
         assert!(matches!(closed, Step::Closed { exited: true }));

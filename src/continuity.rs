@@ -37,6 +37,10 @@ pub enum Motion {
     /// the motion alone: the paint offset it adds to its layout may not jump.
     /// Where layout puts the node is its anchor's, which may move at once.
     Presents,
+    /// The node is a collapsible's wrapper, whose size is animated by layout
+    /// while it opens or closes. [`resizes`](Timeline::resizes) judges how far
+    /// its size may change in a frame; it is placed by layout like any node.
+    Resizes,
 }
 
 /// Names one slide: the same for every frame of it, and different for the
@@ -299,6 +303,13 @@ pub enum ViolationKind {
         /// The layout rect in this one.
         after: Rect,
     },
+    /// A collapsible changed size by more than one frame of its motion allows.
+    Resized {
+        /// The layout size in the previous frame.
+        before: Vec2,
+        /// The layout size in this one.
+        after: Vec2,
+    },
     /// An overlay was painted outside the bounds that can hold it.
     OffScreen {
         /// Where the overlay was painted.
@@ -374,6 +385,11 @@ impl fmt::Display for Violation {
                 f,
                 "unsettled: layout of {path} changed from {before:?} to {after:?} in frame {frame}, within the last frames of the run"
             ),
+            ViolationKind::Resized { before, after } => write!(
+                f,
+                "resized: {path} went from size {before:?} in frame {} to {after:?} in frame {frame}",
+                frame - 1
+            ),
             ViolationKind::OffScreen { rect, bounds } => write!(
                 f,
                 "off screen: overlay {path} is painted at {rect:?} in frame {frame}, outside the bounds {bounds:?} that can hold it"
@@ -396,6 +412,7 @@ pub struct Timeline {
     /// Per frame, the overlays that were placed.
     overlays: Vec<Vec<OverlayFrame>>,
     max_step: Points,
+    max_resize: Points,
     slide_tolerance: Points,
     max_opacity_step: Opacity,
     settle_window: usize,
@@ -454,6 +471,7 @@ impl Timeline {
             overlays: vec![Vec::new(); frames.len()],
             frames,
             max_step: Points::new(40.0),
+            max_resize: Points::new(60.0),
             slide_tolerance: Points::new(4.0),
             max_opacity_step: Opacity::new(0.5),
             settle_window: 4,
@@ -481,6 +499,13 @@ impl Timeline {
     /// jump. Default 40 points.
     pub fn max_step(mut self, step: Points) -> Self {
         self.max_step = step;
+        self
+    }
+
+    /// How far a collapsible's size may change in a frame while it opens or
+    /// closes. Default 60 points.
+    pub fn max_resize(mut self, step: Points) -> Self {
+        self.max_resize = step;
         self
     }
 
@@ -569,7 +594,9 @@ impl Timeline {
                     match now.motion {
                         Motion::Slides => (p - moved_by_scrolling).length() > step,
                         Motion::Presents => own_offset_change.length() > step,
-                        Motion::Snaps => jumped && own_offset_change.length() > step,
+                        Motion::Snaps | Motion::Resizes => {
+                            jumped && own_offset_change.length() > step
+                        }
                     }
                 });
                 if jumps {
@@ -579,6 +606,43 @@ impl Timeline {
                         kind: ViolationKind::Teleport {
                             before: prev.painted_rect,
                             after: now.painted_rect,
+                        },
+                    });
+                }
+            }
+        }
+        found.sort_by(|a, b| (a.frame, &a.path).cmp(&(b.frame, &b.path)));
+        found
+    }
+
+    /// Collapsibles whose size changed by more than [`max_resize`](Self::max_resize)
+    /// in one frame along the dimension that moves, which a size animation
+    /// does in steps its progress allows and a snap does not. Exempt: nodes
+    /// first drawn in the frame, allowed nodes and frames.
+    pub fn resizes(&self) -> Vec<Violation> {
+        let step = f32::from(self.max_resize);
+        let mut found = Vec::new();
+        let frames = self.by_id();
+        for (k, pair) in frames.windows(2).enumerate().map(|(i, w)| (i + 1, w)) {
+            let (before, after) = (&pair[0], &pair[1]);
+            if self.allowed_frames.contains(&k) {
+                continue;
+            }
+            for (id, now) in after {
+                let Some(prev) = before.get(id) else { continue };
+                if now.motion != Motion::Resizes
+                    || self.allowed_nodes.iter().any(|allowed| allowed.names(now))
+                {
+                    continue;
+                }
+                let change = (now.layout_rect.size() - prev.layout_rect.size()).abs();
+                if change.max_elem() > step {
+                    found.push(Violation {
+                        path: now.path.clone(),
+                        frame: k,
+                        kind: ViolationKind::Resized {
+                            before: prev.layout_rect.size(),
+                            after: now.layout_rect.size(),
                         },
                     });
                 }
@@ -764,7 +828,7 @@ impl Timeline {
                 }
                 let rect = match node.motion {
                     Motion::Presents => node.layout_rect,
-                    Motion::Snaps | Motion::Slides => node.painted_rect,
+                    Motion::Snaps | Motion::Slides | Motion::Resizes => node.painted_rect,
                 };
                 let bounds = overlay.bounds;
                 if leaves_bounds(rect, bounds) {
@@ -838,6 +902,7 @@ impl Timeline {
             self.settles(),
             self.off_screens(),
             self.reflips(),
+            self.resizes(),
         ]
         .concat()
     }
@@ -876,6 +941,12 @@ impl Timeline {
     #[track_caller]
     pub fn assert_on_screen(&self) {
         report(&self.off_screens());
+    }
+
+    /// Panics unless [`resizes`](Self::resizes) is empty.
+    #[track_caller]
+    pub fn assert_resizes_stay_in_steps(&self) {
+        report(&self.resizes());
     }
 
     /// Panics unless [`reflips`](Self::reflips) is empty.

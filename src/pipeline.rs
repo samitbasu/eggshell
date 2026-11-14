@@ -12,6 +12,7 @@ use taffy::{
 
 use crate::actions::Action;
 use crate::builder::Builder;
+use crate::collapse::{Collapse, Flight};
 use crate::commands::Commands;
 use crate::debug::{Debug, Phase, Timer};
 use crate::dismiss::Opening;
@@ -94,6 +95,8 @@ pub(crate) struct Node {
     pub scroll: Option<ScrollNode>,
     /// For a region's leaf, the root of its content, once built.
     pub region: Option<NodeId>,
+    /// For a collapsible's wrapper that is opening or closing.
+    pub collapse: Option<Collapse>,
     pub description: Option<Box<Description>>,
     pub action: Option<Action>,
 }
@@ -119,6 +122,7 @@ impl Node {
             drag: None,
             scroll: None,
             region: None,
+            collapse: None,
             description: None,
             action: None,
         }
@@ -259,6 +263,8 @@ pub(crate) struct Frame<'f, A> {
     pub commands: Vec<(usize, Commands<A>)>,
     /// The application data the commands' enablement is read from.
     pub app: Option<&'f A>,
+    /// Whether a collapsible is opening or closing in this frame.
+    pub size_in_flight: bool,
 }
 
 impl<'f, A> Frame<'f, A> {
@@ -281,6 +287,7 @@ impl<'f, A> Frame<'f, A> {
             build_built: None,
             commands: Vec::new(),
             app: None,
+            size_in_flight: false,
         }
     }
 
@@ -767,6 +774,7 @@ impl<'f, A> Built<'f, A> {
             dismiss,
             exited,
             commands,
+            size_in_flight,
             ..
         } = frame;
         drop(measures);
@@ -785,6 +793,7 @@ impl<'f, A> Built<'f, A> {
             exited,
             roots,
             commands,
+            size_in_flight,
         }
     }
 }
@@ -798,15 +807,17 @@ pub(crate) fn solve(
     root: NodeId,
     available: Size<AvailableSpace>,
 ) {
-    tree.compute_layout_with_measure(root, available, |input, _, node, style| {
-        let Some(node) = node else {
-            return leaf_layout(input, style, |_| LayoutOutput::from_outer_size(Size::ZERO));
-        };
-        leaf_layout(input, style, |input| {
-            measure_content(ctx, node_content(node, measures), &node.text, &input)
+    crate::collapse::solve_in_motion(tree, root, |tree| {
+        tree.compute_layout_with_measure(root, available, |input, _, node, style| {
+            let Some(node) = node else {
+                return leaf_layout(input, style, |_| LayoutOutput::from_outer_size(Size::ZERO));
+            };
+            leaf_layout(input, style, |input| {
+                measure_content(ctx, node_content(node, measures), &node.text, &input)
+            })
         })
-    })
-    .expect("tree is well formed");
+        .expect("tree is well formed");
+    });
 }
 
 /// Lays out what hangs off a root that has been solved: the content of its
@@ -1173,6 +1184,8 @@ fn collect(
         text_valign: node.text_valign,
         z: node.z,
         inert: node.inert,
+        collapsible: node.collapse.is_some(),
+        flight: node.collapse.and_then(|collapse| collapse.flight),
         pointer_events: node.pointer_events,
         interaction: node.interaction,
         drag: node.drag.take(),
@@ -1269,6 +1282,9 @@ pub struct PlacedNode {
     text_valign: VAlign,
     z: i16,
     inert: bool,
+    /// Whether the node is a collapsible's wrapper.
+    pub(crate) collapsible: bool,
+    flight: Option<Flight>,
     pointer_events: PointerEvents,
     pub(crate) interaction: Interaction,
     pub(crate) drag: Option<Box<NodeDrag>>,
@@ -1389,6 +1405,12 @@ impl PlacedNode {
         self.z
     }
 
+    /// For a collapsible's wrapper that is opening or closing, where it is
+    /// going and where it is.
+    pub fn size_flight(&self) -> Option<Flight> {
+        self.flight
+    }
+
     /// Whether the node was marked inert.
     pub fn is_inert(&self) -> bool {
         self.inert
@@ -1470,6 +1492,8 @@ pub struct Placed<A> {
     pub(crate) roots: Vec<PlacedRoot>,
     /// The commands each root declared, by the root's index.
     pub(crate) commands: Vec<(usize, Commands<A>)>,
+    /// Whether a collapsible is opening or closing in this frame.
+    pub(crate) size_in_flight: bool,
 }
 
 impl<A> Placed<A> {

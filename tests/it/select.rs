@@ -526,6 +526,7 @@ mod beside_another_frame {
     fn harness() -> Harness<'static, Shell> {
         let mut harness = Harness::builder().with_size(SCREEN).build_ui_state(
             |ui, shell: &mut Shell| {
+                support::full_motion(ui.ctx());
                 if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                     eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
                 }

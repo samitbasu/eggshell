@@ -102,12 +102,29 @@ pub enum Page {
     Themed,
 }
 
+/// Puts egui's animation time back where kittest zeroes it: with a zero one
+/// every eggshell motion is switched off, which is for the tests of that.
+pub fn full_motion(ctx: &egui::Context) {
+    if ctx.global_style().animation_time == 0.0 {
+        ctx.global_style_mut(|style| style.animation_time = 1.0 / 12.0);
+    }
+}
+
+/// Whether a rig runs with the style's animation time at zero.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ReducedMotion {
+    No,
+    Yes,
+}
+
 pub struct Rig<A> {
     pub page: Page,
     pub companion: Companion,
     pub bar: Bar,
     pub layout: LayoutState,
     pub app: A,
+    /// Whether the frame is built with the style's animation time at zero.
+    pub reduced_motion: ReducedMotion,
     view: View<A>,
     prepare: fn(&egui::Context, &A),
     /// Every node of the last frame: its readable path and border box.
@@ -187,6 +204,7 @@ fn harness_timed<A>(
         bar: Bar::new(base_text.clone()),
         layout: LayoutState::new().with_base_text(base_text),
         app,
+        reduced_motion: ReducedMotion::No,
         view,
         prepare,
         nodes: Vec::new(),
@@ -206,11 +224,15 @@ fn harness_timed<A>(
                     bar,
                     layout,
                     app,
+                    reduced_motion,
                     view,
                     prepare,
                     nodes,
                     ids,
                 } = rig;
+                if *reduced_motion == ReducedMotion::No {
+                    full_motion(ui.ctx());
+                }
                 if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                     eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
                 }
@@ -481,6 +503,7 @@ pub fn frame_harness_scaled<A: 'static>(
         .with_step_dt(1.0 / 60.0)
         .build_ui_state(
             move |ui, rig: &mut FrameRig<A>| {
+                full_motion(ui.ctx());
                 if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                     eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
                 }
