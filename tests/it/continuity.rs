@@ -37,6 +37,7 @@ fn rig<A>(
         .with_step_dt(0.05)
         .build_ui_state(
             |ui, fixture: &mut Fixture<A>| {
+                crate::support::full_motion(ui.ctx());
                 let area = Rect::from_min_size(Pos2::ZERO, (fixture.area)(&fixture.app));
                 let placed = fixture
                     .layout

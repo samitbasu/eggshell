@@ -36,7 +36,7 @@ use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::tooltip;
-use crate::transition::{self, LayoutAnimation};
+use crate::transition::{self, LayoutAnimation, StartsSlides};
 use crate::tw::{
     BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,
     Sides, State,
@@ -1063,6 +1063,7 @@ impl<A> Walk<'_, A> {
                 opacity: own_opacity,
                 motion: match (interaction.variants.animate_layout, lifted, stage) {
                     (_, None, Some(_)) => Motion::Presents,
+                    _ if node.collapsible => Motion::Resizes,
                     (Some(_), None, None) => Motion::Slides,
                     _ => Motion::Snaps,
                 },
@@ -1615,6 +1616,7 @@ impl<A> Placed<A> {
             roots,
             exited,
             commands,
+            size_in_flight,
             root: _,
         } = self;
         let overflow = (Debug::of(ui.ctx()) == Debug::Outlines)
@@ -1637,7 +1639,8 @@ impl<A> Placed<A> {
             app,
         );
         let selection = Style::of(ui.ctx()).selection;
-        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, nodes[0].rect());
+        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, nodes[0].rect())
+            .starting(StartsSlides::unless_size_in_flight(size_in_flight));
         if nodes.iter().any(|node| node.scroll.is_some()) {
             animation.anticipate(&nodes);
         }

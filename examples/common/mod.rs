@@ -651,3 +651,21 @@ pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
         .sense_click()
         .hover(move |p| p.bg(hover.fill).text(hover.text))
 }
+
+/// A chevron-down (lucide's `m6 9 6 6 6-6`) turned by `degrees`, for
+/// [`Builder::paint`](eggshell_ui::Builder::paint): a disclosure arrow that
+/// points up at 180 degrees.
+pub fn chevron(
+    color: egui::Color32,
+    degrees: f32,
+) -> impl Fn(&egui::Painter, egui::Rect, egui::Color32) + 'static {
+    move |painter, rect, _| {
+        let centre = rect.center();
+        let scale = rect.width().min(rect.height()) / 24.0;
+        let (sin, cos) = degrees.to_radians().sin_cos();
+        let at = |x: f32, y: f32| centre + egui::vec2(x * cos - y * sin, x * sin + y * cos) * scale;
+        let stroke = egui::Stroke::new(1.5, color);
+        painter.line_segment([at(-6.0, -3.0), at(0.0, 3.0)], stroke);
+        painter.line_segment([at(0.0, 3.0), at(6.0, -3.0)], stroke);
+    }
+}
