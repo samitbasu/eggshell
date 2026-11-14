@@ -9,7 +9,7 @@
 
 use core::time::Duration;
 
-use egui::{Context, Id, Key, Pos2, Rect, Shape, Ui, Vec2, pos2};
+use egui::{Context, Id, Key, Painter, Pos2, Rect, Shape, Ui, Vec2, pos2};
 
 use crate::builder::Builder;
 use crate::kept::Handle;
@@ -283,7 +283,7 @@ impl std::fmt::Debug for Tip {
 }
 
 /// Declares the overlay of every tooltip that is open or still leaving.
-pub(crate) fn declare<'f, A: 'static>(b: &mut Builder<'_, 'f, A>) {
+pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
     let style = crate::Style::of(b.ctx());
     let present = b.kept().with(|kept| kept.tooltips.present.clone());
     for tip in present {
@@ -322,7 +322,7 @@ pub(crate) fn declare<'f, A: 'static>(b: &mut Builder<'_, 'f, A>) {
             Some(shadow) => classes.shadow(shadow),
             None => classes,
         };
-        let inset = tooltip.padding + Vec2::splat(tooltip.popup.border_width);
+        let border = Vec2::splat(tooltip.popup.border_width);
         OverlayChain::new(b.reborrow(), slot)
             .band(Band::Tooltip)
             .anchor(Anchor::Node(trigger))
@@ -331,13 +331,15 @@ pub(crate) fn declare<'f, A: 'static>(b: &mut Builder<'_, 'f, A>) {
             .dismiss_on(DismissOn::Never)
             .shown(if tip.open { Shown::Open } else { Shown::Closed })
             .children(|s| {
-                let node = s.div_id("Box", classes, |s| s.text(tw(), tip.text));
-                if let Some(arrow) = arrow {
-                    node.draw(move |_, ui| {
-                        let rect = ui.max_rect().expand2(inset);
-                        paint_arrow(ui, rect, trigger, arrow.size, colors.fill);
-                    });
-                }
+                s.div_id("Box", classes, |s| {
+                    s.text(tw(), tip.text);
+                    if let Some(arrow) = arrow {
+                        s.paint(
+                            tw().absolute().inset_px(0.0),
+                            arrow_painter(trigger, arrow.size, colors.fill, border),
+                        );
+                    }
+                });
             });
     }
 }
@@ -346,8 +348,25 @@ pub(crate) fn declare<'f, A: 'static>(b: &mut Builder<'_, 'f, A>) {
 /// `translate-y-[calc(-50%_-_2px)]` of a square that starts at the edge.
 const ARROW_SINK: f32 = 2.0;
 
-fn paint_arrow(ui: &Ui, rect: Rect, trigger: Id, size: f32, fill: egui::Color32) {
-    let Some(anchor) = ui
+/// Paints the arrow that points from the tooltip's box to its `trigger`.
+///
+/// Not generic over the app, unlike a draw closure written inside
+/// [`declare`]: a closure's type carries the type parameters of the function
+/// it is written in, so a `'static` one there would demand `A: 'static` of
+/// every layout.
+fn arrow_painter(
+    trigger: Id,
+    size: f32,
+    fill: egui::Color32,
+    border: Vec2,
+) -> impl Fn(&Painter, Rect, egui::Color32) + 'static {
+    move |painter, padding_box, _| {
+        paint_arrow(painter, padding_box.expand2(border), trigger, size, fill);
+    }
+}
+
+fn paint_arrow(painter: &Painter, rect: Rect, trigger: Id, size: f32, fill: egui::Color32) {
+    let Some(anchor) = painter
         .ctx()
         .read_response(trigger)
         .map(|response| response.rect)
@@ -372,8 +391,7 @@ fn paint_arrow(ui: &Ui, rect: Rect, trigger: Id, size: f32, fill: egui::Color32)
         pos2(centre.x + reach, centre.y),
         pos2(centre.x, centre.y + reach),
     ];
-    ui.painter()
-        .add(Shape::convex_polygon(points, fill, egui::Stroke::NONE));
+    painter.add(Shape::convex_polygon(points, fill, egui::Stroke::NONE));
 }
 
 #[cfg(test)]

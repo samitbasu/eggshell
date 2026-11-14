@@ -333,7 +333,7 @@ impl LayoutState {
     /// [`Built::layout`] to measure text. `'f` covers this borrow, `ctx`, and
     /// the application data that the frame's measure closures capture.
     #[track_caller]
-    pub fn build<'f, A: 'static>(
+    pub fn build<'f, A>(
         &'f mut self,
         ctx: &'f egui::Context,
         f: impl FnOnce(&mut Builder<'_, 'f, A>),
