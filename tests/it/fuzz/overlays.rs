@@ -1185,6 +1185,106 @@ fn a_menu_opened_over_a_closing_popover_does_not_leave_focus_on_the_page() {
     .expect("holds");
 }
 
+/// A press on a trigger whose tooltip is up closes the popover below the
+/// tooltip, so that focus leaving the popover opened by the press does not
+/// leave the first one open. Filed as #199.
+#[test]
+fn a_press_on_a_trigger_with_its_tooltip_up_closes_the_popover_below() {
+    run(
+        &[
+            Action::OpenPopover,
+            Action::HoverTrigger(1),
+            Action::OpenAnchorPopover,
+            Action::ArrowDown,
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
+/// ArrowLeft in a submenu of the context menu closes the submenu and keeps
+/// focus inside the context menu. Filed as #203.
+#[test]
+fn arrow_left_in_a_context_submenu_keeps_focus_in_the_menu() {
+    run(
+        &[
+            Action::OpenContextMenu(82, 0),
+            Action::OpenSubmenu,
+            Action::ArrowLeft,
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
+/// A popover whose anchor is in a scroll container does not blink out for a
+/// frame when a press lands on the page.
+#[test]
+fn a_scroll_popover_does_not_blink_when_the_page_is_pressed() {
+    run(
+        &[
+            Action::OpenAnchorPopover,
+            Action::ArrowUp,
+            Action::ClickAt(4, 52),
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
+/// A press between two triggers, within egui's reach of both, goes to the
+/// closer, and the popover opened from one of them is dismissed or toggled
+/// exactly as that click goes: closed by its own trigger's click, and
+/// dismissed, with the dialog opened, by the neighbour's.
+#[test]
+fn a_press_between_triggers_dismisses_as_the_click_goes() {
+    let reach = egui::Context::default()
+        .global_style()
+        .interaction
+        .interact_radius;
+    for (offset, closer) in [(3.5, "popover"), (4.5, "dialog")] {
+        let mut desk = Desk::new(Scroll::Raw);
+        desk.act(&Action::OpenPopover).expect("holds");
+        let popover = desk.seen().node("\"popover\"").expect("drawn").1;
+        let dialog = desk.seen().node("\"dialog\"").expect("drawn").1;
+        let at = egui::pos2(popover.right() + offset, popover.center().y);
+        assert!(
+            popover.distance_to_pos(at) <= reach && dialog.distance_to_pos(at) <= reach,
+            "{at:?} is within {reach} of both {popover:?} and {dialog:?}"
+        );
+        desk.click(at, PointerButton::Primary).expect("holds");
+        desk.settle().expect("holds");
+        let app = desk.app();
+        assert!(
+            !app.popover,
+            "the popover is closed for a press at {offset}"
+        );
+        assert_eq!(
+            app.dialog == Shown::Open,
+            closer == "dialog",
+            "the press goes to {closer}"
+        );
+    }
+}
+
+/// Two menus opened over a hovered trigger, then popovers: Shift+Tab keeps
+/// focus in the topmost overlay.
+#[test]
+fn shift_tab_after_stacked_popovers_stays_in_the_topmost_overlay() {
+    run(
+        &[
+            Action::OpenMenu,
+            Action::OpenMenu,
+            Action::HoverTrigger(1),
+            Action::OpenAnchorPopover,
+            Action::OpenPopover,
+            Action::ShiftTab,
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
 /// Outside the overlays: with a pointer button held, End on a focused button
 /// in a scroll container scrolls it for the frame of the key press and puts
 /// it back in the frame of the release, which hides the button's tooltip (a
