@@ -210,6 +210,7 @@
 
 mod actions;
 mod builder;
+mod commands;
 mod continuity;
 pub mod contract;
 mod debug;
@@ -244,6 +245,7 @@ pub mod vlist;
 pub mod widget;
 
 pub use builder::{Builder, NodeHandle, Scope};
+pub use commands::{Command, Commands, InText};
 pub use contract::Style;
 pub use debug::Debug;
 pub use dnd::{

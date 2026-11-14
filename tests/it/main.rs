@@ -14,6 +14,7 @@ mod ch;
 mod chat_shell_demo;
 mod children;
 mod choices;
+mod commands;
 mod compile_fail;
 mod continuity;
 mod contract;

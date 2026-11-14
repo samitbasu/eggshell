@@ -12,6 +12,7 @@ use taffy::{
 
 use crate::actions::Action;
 use crate::builder::Builder;
+use crate::commands::Commands;
 use crate::debug::{Debug, Phase, Timer};
 use crate::dismiss::Opening;
 use crate::dnd::{Decls, EdgeScroll, NodeDrag};
@@ -254,6 +255,10 @@ pub(crate) struct Frame<'f, A> {
     /// The root whose body is being built.
     pub current: usize,
     pub build_built: Option<crate::tooltip::BuildBuilt<A>>,
+    /// The commands each root declared, by the root's index.
+    pub commands: Vec<(usize, Commands<A>)>,
+    /// The application data the commands' enablement is read from.
+    pub app: Option<&'f A>,
 }
 
 impl<'f, A> Frame<'f, A> {
@@ -274,6 +279,8 @@ impl<'f, A> Frame<'f, A> {
             exited: Vec::new(),
             current: 0,
             build_built: None,
+            commands: Vec::new(),
+            app: None,
         }
     }
 
@@ -751,6 +758,7 @@ impl<'f, A> Built<'f, A> {
             drag,
             dismiss,
             exited,
+            commands,
             ..
         } = frame;
         drop(measures);
@@ -768,6 +776,7 @@ impl<'f, A> Built<'f, A> {
             dismiss,
             exited,
             roots,
+            commands,
         }
     }
 }
@@ -1451,6 +1460,8 @@ pub struct Placed<A> {
     pub(crate) exited: Vec<DismissFn<A>>,
     /// The base root, then the overlays in the order they were declared.
     pub(crate) roots: Vec<PlacedRoot>,
+    /// The commands each root declared, by the root's index.
+    pub(crate) commands: Vec<(usize, Commands<A>)>,
 }
 
 impl<A> Placed<A> {
