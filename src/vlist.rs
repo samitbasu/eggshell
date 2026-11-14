@@ -30,15 +30,16 @@
 use std::collections::HashMap;
 use std::ops::Range;
 
-use egui::{Align, Context, Id, IdSalt, Rect, Vec2, pos2, vec2};
+use egui::{Align, Context, Id, IdSalt, Rect, Role, Vec2, pos2, vec2};
 use nohash_hasher::IntMap;
 use taffy::{NodeId, TaffyTree};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
+use crate::dnd::EdgeScroll;
 use crate::kept::Handle;
 use crate::key::Key;
 use crate::pipeline::Node;
-use crate::scroll::{self, Axis, ScrollChain, TabRule};
+use crate::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain, ScrollStyle, TabRule};
 use crate::tw::{Tw, tw};
 
 /// How a list sizes its rows, and how far past its viewport it builds them.
@@ -97,11 +98,13 @@ const SAME: f32 = 0.01;
 /// row counts as [`estimate_px`](Self::estimate_px) tall, one line of the
 /// list's text unless set. Rows that are all one height are faster as
 /// [`fixed_px`](Self::fixed_px). The last of the two called wins.
+///
+/// The list is a scroll container: [`focusable`](Self::focusable),
+/// [`role`](Self::role), [`named`](Self::named) and the other options are
+/// [`ScrollChain`]'s, for the list's container. It scrolls vertically.
 #[must_use = "a virtual list is not added until you call `.items(..)`"]
 pub struct ListChain<'a, 'f, A, R> {
-    b: Builder<'a, 'f, A>,
-    slot: Slot,
-    classes: Tw,
+    scroll: ScrollChain<'a, 'f, A>,
     rows: &'f [R],
     heights: Option<RowHeights>,
     overscan: f32,
@@ -110,13 +113,56 @@ pub struct ListChain<'a, 'f, A, R> {
 impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
     pub(crate) fn new(b: Builder<'a, 'f, A>, slot: Slot, classes: Tw, rows: &'f [R]) -> Self {
         Self {
-            b,
-            slot,
-            classes,
+            scroll: ScrollChain::with_slot(b, slot, classes),
             rows,
             heights: None,
             overscan: OVERSCAN,
         }
+    }
+
+    fn container(
+        self,
+        option: impl FnOnce(ScrollChain<'a, 'f, A>) -> ScrollChain<'a, 'f, A>,
+    ) -> Self {
+        Self {
+            scroll: option(self.scroll),
+            ..self
+        }
+    }
+
+    /// See [`ScrollChain::focusable`].
+    pub fn focusable(self, focusable: Focusable) -> Self {
+        self.container(|scroll| scroll.focusable(focusable))
+    }
+
+    /// See [`ScrollChain::role`].
+    pub fn role(self, role: Role) -> Self {
+        self.container(|scroll| scroll.role(role))
+    }
+
+    /// See [`ScrollChain::named`].
+    pub fn named(self, name: impl Into<String>) -> Self {
+        self.container(|scroll| scroll.named(name))
+    }
+
+    /// See [`ScrollChain::scrollbar_style`].
+    pub fn scrollbar_style(self, bars: ScrollStyle) -> Self {
+        self.container(|scroll| scroll.scrollbar_style(bars))
+    }
+
+    /// See [`ScrollChain::fade_edges`].
+    pub fn fade_edges(self, fade: EdgeFade) -> Self {
+        self.container(|scroll| scroll.fade_edges(fade))
+    }
+
+    /// See [`ScrollChain::edge_scroll`].
+    pub fn edge_scroll(self, edge: EdgeScroll) -> Self {
+        self.container(|scroll| scroll.edge_scroll(edge))
+    }
+
+    /// See [`ScrollChain::no_edge_scroll`].
+    pub fn no_edge_scroll(self) -> Self {
+        self.container(ScrollChain::no_edge_scroll)
     }
 
     /// Rows of differing heights, each measured the first time it is built:
@@ -147,35 +193,33 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
     #[track_caller]
     pub fn items(self, item: impl FnMut(&mut Scope<'_, 'f, A>, R) + 'f) -> NodeHandle<'a, 'f, A> {
         let Self {
-            mut b,
-            slot,
-            classes,
+            scroll,
             rows,
             heights,
             overscan,
         } = self;
-        let list = slot.id;
-        let kept = b.kept().clone();
-        let pass = b.ctx().cumulative_pass_nr();
+        let list = scroll.id();
+        let kept = scroll.builder().kept().clone();
+        let pass = scroll.builder().ctx().cumulative_pass_nr();
         let mut planned = None;
-        let scroll = ScrollChain::with_slot(b.reborrow(), slot, classes)
-            .children(|s| {
-                let heights = heights
-                    .unwrap_or_else(|| RowHeights::measured(s.text_style().spec.line_height));
-                let plan = Plan::new(
-                    &kept,
-                    pass,
-                    list,
-                    VList {
-                        rows: heights,
-                        overscan,
-                    },
-                    rows,
-                );
-                let leaf = s.rows_leaf(plan.total());
-                planned = Some((plan, leaf));
-            })
-            .node();
+        let handle = scroll.children(|s| {
+            let heights =
+                heights.unwrap_or_else(|| RowHeights::measured(s.text_style().spec.line_height));
+            let plan = Plan::new(
+                &kept,
+                pass,
+                list,
+                VList {
+                    rows: heights,
+                    overscan,
+                },
+                rows,
+            );
+            let leaf = s.rows_leaf(plan.total());
+            planned = Some((plan, leaf));
+        });
+        let scroll = handle.node();
+        let mut b = handle.into_builder();
         let (plan, leaf) = planned.expect("the content was built");
         b.list_region(leaf, list, plan.run(scroll, Items::new(rows, item)));
         b.into_handle(scroll)

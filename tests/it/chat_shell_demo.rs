@@ -1107,9 +1107,17 @@ mod collapsing {
             harness.set_size(size);
             harness.step();
             assert_eq!(panes_shown(&harness), expected, "at {size:?}");
+            // A conversation whose width changed measures its messages at the
+            // new width, which can take frames of its own; the panes do not.
+            let mut more = 0;
+            while harness.ctx.requested_repaint_last_pass() && more < 3 {
+                harness.step();
+                more += 1;
+                assert_eq!(panes_shown(&harness), expected, "still at {size:?}");
+            }
             assert!(
                 !harness.ctx.requested_repaint_last_pass(),
-                "no second frame is asked for at {size:?}"
+                "the frames stop at {size:?}"
             );
         }
     }

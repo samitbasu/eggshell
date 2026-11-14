@@ -140,13 +140,71 @@ pub enum Message {
     User(String),
 }
 
+/// A message's data key, given when it joins the conversation and never
+/// given again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MessageId(u32);
+
+/// The messages, oldest first, each under its own key.
+#[derive(Default)]
+pub struct Conversation {
+    ids: Vec<MessageId>,
+    messages: Vec<Message>,
+    next: u32,
+}
+
+impl Conversation {
+    pub fn push(&mut self, message: Message) {
+        self.ids.push(MessageId(self.next));
+        self.messages.push(message);
+        self.next += 1;
+    }
+
+    pub fn clear(&mut self) {
+        self.ids.clear();
+        self.messages.clear();
+    }
+
+    /// The keys of the messages, oldest first.
+    pub fn ids(&self) -> &[MessageId] {
+        &self.ids
+    }
+
+    pub fn get(&self, id: MessageId) -> Option<&Message> {
+        let at = self.ids.binary_search(&id).ok()?;
+        Some(&self.messages[at])
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Message> {
+        self.messages.iter()
+    }
+
+    pub fn is_first(&self, id: MessageId) -> bool {
+        self.ids.first() == Some(&id)
+    }
+
+    pub fn is_last(&self, id: MessageId) -> bool {
+        self.ids.last() == Some(&id)
+    }
+}
+
+impl FromIterator<Message> for Conversation {
+    fn from_iter<I: IntoIterator<Item = Message>>(messages: I) -> Self {
+        let mut conversation = Self::default();
+        for message in messages {
+            conversation.push(message);
+        }
+        conversation
+    }
+}
+
 pub struct App {
     /// The shadcn theme colour that tints the meter, the send button, the
     /// busy markers and focus.
     pub theme_color: ThemeColor,
     pub sessions: Vec<Session>,
     pub selected: SessionKey,
-    pub conversation: Vec<Message>,
+    pub conversation: Conversation,
     pub context_used: Progress,
     pub draft: String,
     /// An index into [`MODELS`].
@@ -183,7 +241,7 @@ impl Default for App {
                 session(6, "Explain the borrow checker error", None),
             ],
             selected: SessionKey(1),
-            conversation: vec![
+            conversation: [
                 Message::User(
                     "The tokenizer allocates a new string for every token. Can we avoid that?"
                         .into(),
@@ -204,7 +262,9 @@ impl Default for App {
                 Message::Assistant(vec![paragraph(
                     "Done. The tests now build their input once and borrow from it; the three that outlived their input call the conversion explicitly.",
                 )]),
-            ],
+            ]
+            .into_iter()
+            .collect(),
             context_used: Progress::new(0.42),
             draft: String::new(),
             model: 0,

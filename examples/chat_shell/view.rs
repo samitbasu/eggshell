@@ -106,7 +106,7 @@ pub fn layout<'f>(b: &mut B<'_, 'f>, app: &'f App) {
     });
 }
 
-fn frame(b: &mut B<'_, '_>, app: &App, panes: Panes) {
+fn frame<'f>(b: &mut B<'_, 'f>, app: &'f App, panes: Panes) {
     let k = &Theme::of(b.ctx());
     b.div(
         tw().flex()

@@ -1256,9 +1256,13 @@ pub struct NodeHandle<'b, 'f, A> {
     node: NodeId,
 }
 
-impl<A> NodeHandle<'_, '_, A> {
+impl<'b, 'f, A> NodeHandle<'b, 'f, A> {
     pub(crate) fn node(&self) -> NodeId {
         self.node
+    }
+
+    pub(crate) fn into_builder(self) -> Builder<'b, 'f, A> {
+        self.b
     }
 
     /// The node's id; it is identified.
