@@ -69,6 +69,10 @@ pub(crate) struct RootDecl<'f, A> {
 }
 
 impl<A> RootDecl<'_, A> {
+    pub(crate) fn is_modal(&self) -> bool {
+        matches!(&self.kind, RootKind::Overlay(overlay) if matches!(overlay.presentation, Presentation::Modal(_)))
+    }
+
     pub(crate) fn base() -> Self {
         Self {
             kind: RootKind::Base,

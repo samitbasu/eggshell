@@ -37,6 +37,7 @@ struct App {
     canvas_saw_s: u32,
     table: Option<fn() -> Commands<App>>,
     twice: bool,
+    dialog_item: Option<Cmd>,
 }
 
 const fn chord(modifiers: Modifiers, key: Key) -> KeyboardShortcut {
@@ -149,7 +150,12 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
                 s.div_id(
                     "Box",
                     tw().w_px(200.0).h_px(100.0).bg(Color32::WHITE),
-                    |_| {},
+                    |s| {
+                        if let Some(command) = app.dialog_item {
+                            s.dropdown_menu("dialog menu", "Dialog menu")
+                                .items(move |m| m.command(command));
+                        }
+                    },
                 );
             });
     }
@@ -289,6 +295,38 @@ mod modals {
         let mut harness = opened();
         press(&mut harness, Modifiers::COMMAND, Key::Enter);
         assert_eq!(log(&harness), ["confirm"]);
+    }
+
+    fn open_dialog_menu(item: Cmd) -> Harness<'static, Rig<App>> {
+        let mut harness = harness_of(App {
+            can_save: true,
+            dialog: true,
+            dialog_item: Some(item),
+            ..App::default()
+        });
+        harness.run_steps(12);
+        harness
+            .get_by_role_and_label(Role::Button, "Dialog menu")
+            .click();
+        harness.run_steps(6);
+        harness
+    }
+
+    #[test]
+    fn a_menu_in_a_dialog_offers_the_dialogs_commands() {
+        let mut harness = open_dialog_menu(Cmd::Confirm);
+        harness
+            .get_by_role_and_label(Role::MenuItem, "Confirm")
+            .click();
+        harness.run_steps(6);
+        assert_eq!(log(&harness), ["confirm"]);
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "no command of that key is declared")]
+    fn a_menu_in_a_dialog_does_not_offer_a_page_command_whose_chord_is_dead() {
+        open_dialog_menu(Cmd::Save);
     }
 
     #[test]

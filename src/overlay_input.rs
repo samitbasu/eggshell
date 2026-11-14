@@ -105,13 +105,9 @@ fn open_overlays(roots: &[PlacedRoot]) -> Vec<Open<'_>> {
         .collect()
 }
 
-/// The root of the topmost open modal, if there is one.
-pub(crate) fn topmost_modal(roots: &[PlacedRoot]) -> Option<usize> {
-    open_overlays(roots)
-        .iter()
-        .rev()
-        .find(|open| matches!(open.overlay.form, Form::Modal(_)))
-        .map(|open| open.root)
+/// The root of the topmost open overlay, or the page's.
+pub(crate) fn topmost_root(roots: &[PlacedRoot]) -> usize {
+    open_overlays(roots).last().map_or(0, |open| open.root)
 }
 
 /// The box of the overlay at `root`: the root's rect, or for a modal, whose

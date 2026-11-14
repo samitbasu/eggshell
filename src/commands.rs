@@ -249,6 +249,25 @@ fn same_chord(a: KeyboardShortcut, b: KeyboardShortcut) -> bool {
     a.logical_key == b.logical_key && a.modifiers.matches_exact(b.modifiers)
 }
 
+/// The roots whose commands are live from `start`: `start`, then the root
+/// that opened it, and so on up to the page, ending at the first modal, whose
+/// own table is the last that runs. The dispatcher and a menu item's lookup
+/// both go by this, so an item offers exactly the commands whose chords run.
+pub(crate) fn live_roots(
+    start: usize,
+    parent_of: impl Fn(usize) -> Option<usize>,
+    is_modal: impl Fn(usize) -> bool,
+) -> Vec<usize> {
+    let mut live = vec![start];
+    let mut at = start;
+    while !is_modal(at) {
+        let Some(parent) = parent_of(at) else { break };
+        live.push(parent);
+        at = parent;
+    }
+    live
+}
+
 /// Runs the commands of `table` whose chord this frame pressed, each once, in
 /// table order, taking the key from the frame's input. A chord is left alone
 /// for a command that is disabled, or that yields to a text field that has

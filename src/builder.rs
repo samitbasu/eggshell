@@ -8,7 +8,7 @@ use std::sync::Arc;
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
-use crate::commands::{Command, Commands};
+use crate::commands::{Command, Commands, live_roots};
 use crate::contract::Style;
 use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
 use crate::draw::NodeUi;
@@ -440,11 +440,17 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .push((self.frame.current, table.clone()));
     }
 
-    /// The command `id` names, from this root's table or else the page's.
+    /// The command `id` names, from the tables whose chords are live here.
     pub(crate) fn command<K: Key>(&self, id: &K) -> Option<(Command<A>, bool)> {
         let app = self.frame.app?;
         let tables = &self.frame.commands;
-        let table = [self.frame.current, 0]
+        let roots = &self.frame.roots;
+        let live = live_roots(
+            self.frame.current,
+            |root| roots[root].parent,
+            |root| roots[root].is_modal(),
+        );
+        let table = live
             .into_iter()
             .find_map(|root| tables.iter().find(|(at, _)| *at == root))?;
         let command = *table.1.find(id)?;
