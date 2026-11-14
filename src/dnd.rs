@@ -1033,12 +1033,26 @@ fn lift(
     input: &Input,
     pass: u64,
 ) -> Option<Gesture> {
-    let started = ctx.drag_started_id()?;
+    // egui marks a widget that senses only drag as dragged from the press; a
+    // click on a button inside it is no lift, so it waits for the threshold.
+    // The press that lifted once, and was cancelled, does not lift again.
+    let press = ctx.input(|i| {
+        i.pointer
+            .is_decidedly_dragging()
+            .then(|| i.pointer.press_start_time())
+            .flatten()
+    })?;
+    let lifted_by_press = key("lifted press");
+    if ctx.data(|data| data.get_temp::<u64>(lifted_by_press)) == Some(press.to_bits()) {
+        return None;
+    }
+    let started = ctx.dragged_id()?;
     let at_source = lifted_by(nodes, *by_id.get(&started)?)?;
     let node = &nodes[at_source];
     let payload = node.drag.as_ref()?.source.as_ref()?.payload.clone();
     let at = input.press_origin.or(input.interact)?;
     DragAndDrop::set_payload(ctx, Lifted);
+    ctx.data_mut(|data| data.insert_temp(lifted_by_press, press.to_bits()));
     Some(Gesture {
         scope,
         source: node.id()?,

@@ -387,6 +387,9 @@ impl Hand<'_> {
                     self.down = true;
                     self.glide(centre + vec2(0.0, 6.0));
                     self.glide(centre + vec2(0.0, 12.0));
+                    // The pointer crosses egui's drag threshold on the way, which
+                    // is where the lift starts; a hand does not cancel in that frame.
+                    self.harness.step();
                 }
             }
             DragAction::MoveTo(index) if self.down => {
