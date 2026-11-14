@@ -375,6 +375,8 @@ struct Rig {
     layout: LayoutState,
     bar: Bar,
     seen: Seen,
+    /// The focus right after the bar, the layout drawn first, in each pass.
+    focus_after_bar: Vec<Option<Id>>,
 }
 
 fn rig_harness() -> Harness<'static, Rig> {
@@ -385,6 +387,7 @@ fn rig_harness() -> Harness<'static, Rig> {
         layout: LayoutState::new().with_base_text(base.clone()),
         bar: Bar::new(base),
         seen: Seen::default(),
+        focus_after_bar: Vec::new(),
     };
     Harness::builder()
         .with_size(WINDOW)
@@ -397,6 +400,7 @@ fn rig_harness() -> Harness<'static, Rig> {
                     layout,
                     bar,
                     seen,
+                    focus_after_bar,
                 } = rig;
                 if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                     eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
@@ -405,6 +409,7 @@ fn rig_harness() -> Harness<'static, Rig> {
                 ui.painter()
                     .rect_filled(ui.ctx().content_rect(), 0.0, background);
                 bar.show(ui);
+                focus_after_bar.push(ui.ctx().memory(|memory| memory.focused()));
                 let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
                 *seen = Seen::of(&placed);
                 placed.draw(app, ui);
@@ -1016,12 +1021,20 @@ fn tab_is_swallowed_while_a_menu_is_open() {
     assert!(desk.seen().open().any(Open::is_menu), "precondition: open");
     let focus = desk.focused();
     for action in [Action::Tab, Action::ShiftTab] {
+        let passes = desk.harness.state().focus_after_bar.len();
         desk.act(&action).expect("holds");
         assert!(
             desk.seen().open().any(Open::is_menu),
             "{action:?} closed it"
         );
         assert_eq!(desk.focused(), focus, "{action:?} moved focus");
+        // The layout drawn before the menu's already sees the pass: focus
+        // must not move even for it, or it would gain focus for the pass.
+        let seen = &desk.harness.state().focus_after_bar[passes..];
+        assert!(
+            seen.iter().all(|at| *at == focus),
+            "{action:?} moved focus for a layout drawn first: {seen:?}"
+        );
     }
 }
 

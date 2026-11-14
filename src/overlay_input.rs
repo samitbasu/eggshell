@@ -64,50 +64,52 @@ struct Open<'a> {
     nested: Vec<Id>,
 }
 
-/// The focus at the end of the last pass. egui moves focus for Tab as the
-/// widgets are created, and a layout drawn before the one with the menu (a
-/// header) has created them by the time the menu's keys are claimed, so a Tab
-/// that a menu swallows is undone afterwards.
-#[derive(Clone, Copy, Default)]
-struct FocusTrail {
-    pass: u64,
-    before: Option<Id>,
-    latest: Option<Id>,
+/// Whether a menu that swallows Tab was open at the end of the last pass: the
+/// one context-wide piece of eggshell state (D11a), because the pass's focus
+/// move is made in egui's `begin_pass`, before any layout, and a layout
+/// drawn earlier in the pass (a header, or an app's own) would act on it
+/// before this one's keys are claimed. Every layout sets it; the plugin reads
+/// and clears it at the start of the next pass.
+fn tab_held_id() -> Id {
+    crate::key::root_id().with("tab-held")
 }
 
-impl FocusTrail {
-    fn key() -> Id {
-        crate::key::root_id().with("focus-trail")
+fn note_tab_held(ctx: &Context) {
+    ctx.data_mut(|data| data.insert_temp(tab_held_id(), true));
+}
+
+/// Cancels Tab at the start of the pass while a menu is open: egui has set
+/// the pass's focus direction but nothing has acted on it, so no widget
+/// gains focus, scrolls into view or tells assistive technology.
+struct HoldTab;
+
+impl egui::Plugin for HoldTab {
+    fn debug_name(&self) -> &'static str {
+        "eggshell-ui hold tab"
     }
 
-    fn begin(ctx: &Context) {
-        let pass = ctx.cumulative_pass_nr();
-        ctx.data_mut(|data| {
-            let trail = data.get_temp_mut_or_default::<Self>(Self::key());
-            if trail.pass != pass {
-                *trail = Self {
-                    pass,
-                    before: trail.latest,
-                    latest: trail.latest,
-                };
-            }
+    fn on_begin_pass(&mut self, ui: &mut egui::Ui) {
+        let ctx = ui.ctx();
+        let held = ctx
+            .data_mut(|data| data.remove_temp::<bool>(tab_held_id()))
+            .unwrap_or(false);
+        if !held {
+            return;
+        }
+        let tabbed = ctx.input_mut(|input| {
+            let plain = input.consume_key(Modifiers::NONE, Key::Tab);
+            let shifted = input.consume_key(Modifiers::SHIFT, Key::Tab);
+            plain || shifted
         });
+        if tabbed {
+            ctx.memory_mut(|memory| memory.move_focus(egui::FocusDirection::None));
+        }
     }
+}
 
-    fn note(ctx: &Context) {
-        let now = ctx.memory(|memory| memory.focused());
-        ctx.data_mut(|data| data.get_temp_mut_or_default::<Self>(Self::key()).latest = now);
-    }
-
-    fn undo_move(ctx: &Context) {
-        let before = ctx
-            .data(|data| data.get_temp::<Self>(Self::key()))
-            .and_then(|trail| trail.before);
-        ctx.memory_mut(|memory| match (before, memory.focused()) {
-            (Some(before), _) => memory.request_focus(before),
-            (None, Some(now)) => memory.surrender_focus(now),
-            (None, None) => {}
-        });
+fn register_hold_tab(ctx: &Context) {
+    if ctx.plugin_opt::<HoldTab>().is_none() {
+        ctx.add_plugin(HoldTab);
     }
 }
 
@@ -336,15 +338,13 @@ pub(crate) struct Keys {
     pub(crate) escape: Pressed,
     /// Whether Tab was pressed, even if a menu then took it.
     pub(crate) tab: Pressed,
-    /// Whether a menu took the Tab.
-    pub(crate) tab_held: Pressed,
     /// The default button Return goes to.
     pub(crate) default: Option<Id>,
     /// Why a text field that loses focus in this pass does.
     pub(crate) blur: Blur,
 }
 
-/// Decides who Esc, Return and, in a menu, Tab belong to and takes them from the frame's
+/// Decides who Esc and Return belong to and takes them from the frame's
 /// input, so that no draw closure (a custom canvas under a menu) sees a key
 /// that dismissed an overlay or pressed a button: it belongs to the overlay
 /// alone, as with `stopPropagation`. An Esc whose only effect was to
@@ -358,7 +358,7 @@ pub(crate) fn claim_keys(
     drag: Drag,
 ) -> Keys {
     Source::note(ctx);
-    FocusTrail::begin(ctx);
+    register_hold_tab(ctx);
     let open = open_overlays(roots);
     let pressed = |key| ctx.input(|input| input.key_pressed(key));
     let escape = if pressed(Key::Escape) {
@@ -386,16 +386,6 @@ pub(crate) fn claim_keys(
     } else {
         Pressed::No
     };
-    let tab_held = if open.iter().any(Open::holds_tab) {
-        let held = ctx.input_mut(|input| {
-            let plain = input.consume_key(Modifiers::NONE, Key::Tab);
-            let shifted = input.consume_key(Modifiers::SHIFT, Key::Tab);
-            plain || shifted
-        });
-        if held { Pressed::Yes } else { Pressed::No }
-    } else {
-        Pressed::No
-    };
     let typing_before = kept.with(|kept| kept.typing) == Typing::Yes;
     let escaped = escape == Pressed::Yes && Typing::escape_blurred(ctx, kept);
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
@@ -417,7 +407,6 @@ pub(crate) fn claim_keys(
     Keys {
         escape,
         tab,
-        tab_held,
         default,
         blur: cause,
     }
@@ -447,11 +436,10 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         drag,
         keys,
     } = frame;
-    if keys.tab_held == Pressed::Yes {
-        FocusTrail::undo_move(ctx);
-    }
-    FocusTrail::note(ctx);
     let open = open_overlays(roots);
+    if open.iter().any(Open::holds_tab) {
+        note_tab_held(ctx);
+    }
     nav::forget_closed(
         kept,
         &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
