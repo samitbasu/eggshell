@@ -436,6 +436,23 @@ impl Placement {
         }
     }
 
+    /// The part of the window the overlay may be in: the boundary, inset,
+    /// intersected with the window. Empty, it collapses to a point at the
+    /// window-side corner.
+    pub(crate) fn region(&self, window: Rect) -> Rect {
+        let region = match self.boundary.boundary {
+            Boundary::Rect(rect) => rect,
+            Boundary::Window | Boundary::Node(_) => window,
+        };
+        let inset = self.boundary.inset;
+        let region = Rect::from_min_max(
+            region.min + vec2(f32::from(inset.left), f32::from(inset.top)),
+            region.max - vec2(f32::from(inset.right), f32::from(inset.bottom)),
+        );
+        let min = region.min.max(window.min);
+        Rect::from_min_max(min, region.max.min(window.max).max(min))
+    }
+
     /// This placement with a node boundary replaced by the node's `rect`.
     pub(crate) fn with_node_rect(mut self, rect: Rect) -> Self {
         if self.boundary_node().is_some() {
@@ -527,17 +544,7 @@ pub fn place(anchor: Rect, size: Vec2, placement: &Placement, bounds: Rect) -> S
     let margin = f32::from(placement.margin);
     let gap = f32::from(placement.gap);
     let shift = f32::from(placement.shift);
-    let region = match placement.boundary.boundary {
-        Boundary::Rect(rect) => rect,
-        Boundary::Window | Boundary::Node(_) => bounds,
-    };
-    let inset = placement.boundary.inset;
-    let region = Rect::from_min_max(
-        region.min + vec2(f32::from(inset.left), f32::from(inset.top)),
-        region.max - vec2(f32::from(inset.right), f32::from(inset.bottom)),
-    );
-    let min = region.min.max(bounds.min);
-    let area = Rect::from_min_max(min, region.max.min(bounds.max).max(min)).shrink(margin);
+    let area = placement.region(bounds).shrink(margin);
     let relation = placement.relation;
 
     let room = |side: Side| match (relation, side) {

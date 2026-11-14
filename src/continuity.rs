@@ -20,6 +20,7 @@ use std::fmt::{self, Write as _};
 
 use egui::{Context, Id, Rect, Vec2};
 
+use crate::overlay::Side;
 use crate::tw::{Opacity, Progress};
 
 /// How a node may move on its own: by sliding over a layout change, or as part
@@ -32,8 +33,9 @@ pub enum Motion {
     /// A change of its layout position is slid over.
     Slides,
     /// The node is the box (or the scrim) of an overlay that enters or leaves
-    /// with motion, which moves and fades it from frame to frame while its
-    /// layout stays put. Judged like a slide: it may not jump.
+    /// with motion, which moves and fades it from frame to frame. Judged on
+    /// the motion alone: the paint offset it adds to its layout may not jump.
+    /// Where layout puts the node is its anchor's, which may move at once.
     Presents,
 }
 
@@ -106,6 +108,26 @@ pub struct NodeFrame {
     pub slide: Option<Slide>,
 }
 
+/// One floating or modal overlay as one frame placed it, for the checks that
+/// judge placement ([`OffScreen`](ViolationKind::OffScreen),
+/// [`Reflip`](ViolationKind::Reflip)). Overlays whose anchor cannot be seen
+/// are not drawn and are not recorded.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OverlayFrame {
+    /// The overlay root's egui id: the id of its [`NodeFrame`].
+    pub id: Id,
+    /// The overlay root's readable key path.
+    pub path: String,
+    /// The part of the window the overlay may be in.
+    pub bounds: Rect,
+    /// The anchor's rect.
+    pub anchor: Rect,
+    /// The size the overlay measured at before the room clamped it.
+    pub natural: Vec2,
+    /// The side of its anchor it was placed on; a modal has none.
+    pub side: Option<Side>,
+}
+
 /// What the draw pass records for one pass of the context.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RecordedPass {
@@ -117,6 +139,7 @@ pub(crate) struct RecordedPass {
     /// The identified nodes the pass left out because they were outside the
     /// viewport of a scroll container. Not painting them is not a gap.
     pub(crate) culled: Vec<Id>,
+    pub(crate) overlays: Vec<OverlayFrame>,
 }
 
 #[derive(Clone, Default)]
@@ -153,6 +176,7 @@ pub(crate) fn store(ctx: &Context, recorded: RecordedPass) {
                 last.nodes.extend(recorded.nodes);
                 last.laid_out.extend(recorded.laid_out);
                 last.culled.extend(recorded.culled);
+                last.overlays.extend(recorded.overlays);
             }
             _ => history.passes.push(recorded),
         }
@@ -275,6 +299,20 @@ pub enum ViolationKind {
         /// The layout rect in this one.
         after: Rect,
     },
+    /// An overlay was painted outside the bounds that can hold it.
+    OffScreen {
+        /// Where the overlay was painted.
+        rect: Rect,
+        /// The bounds it should be inside.
+        bounds: Rect,
+    },
+    /// An overlay changed side with nothing that decides the side changed.
+    Reflip {
+        /// The side in the previous frame.
+        before: Side,
+        /// The side in this one.
+        after: Side,
+    },
 }
 
 /// One broken invariant: which node, in which frame (an index into the
@@ -336,6 +374,15 @@ impl fmt::Display for Violation {
                 f,
                 "unsettled: layout of {path} changed from {before:?} to {after:?} in frame {frame}, within the last frames of the run"
             ),
+            ViolationKind::OffScreen { rect, bounds } => write!(
+                f,
+                "off screen: overlay {path} is painted at {rect:?} in frame {frame}, outside the bounds {bounds:?} that can hold it"
+            ),
+            ViolationKind::Reflip { before, after } => write!(
+                f,
+                "reflip: overlay {path} went from side {before:?} in frame {} to {after:?} in frame {frame}, though its anchor, natural size and bounds did not change",
+                frame - 1
+            ),
         }
     }
 }
@@ -346,6 +393,8 @@ pub struct Timeline {
     frames: Vec<Vec<NodeFrame>>,
     /// Per frame, the nodes left out as outside a viewport.
     culled: Vec<HashSet<Id>>,
+    /// Per frame, the overlays that were placed.
+    overlays: Vec<Vec<OverlayFrame>>,
     max_step: Points,
     slide_tolerance: Points,
     max_opacity_step: Opacity,
@@ -356,6 +405,27 @@ pub struct Timeline {
 
 /// How far a layout rect may move between frames and still be "unchanged".
 const LAYOUT_EPSILON: f32 = 0.01;
+
+/// How far outside its bounds an overlay may be painted: a rect is rounded to
+/// physical pixels when it is drawn.
+const BOUNDS_EPSILON: f32 = 0.5;
+
+/// Whether `rect` is outside `bounds` on an axis along which they could hold
+/// it: along an axis the rect is larger than the bounds, `place` starts it at
+/// their edge and it cannot be inside.
+pub fn leaves_bounds(rect: Rect, bounds: Rect) -> bool {
+    (0..2).any(|axis| {
+        let (lo, hi) = (rect.min[axis], rect.max[axis]);
+        let (min, max) = (bounds.min[axis], bounds.max[axis]);
+        hi - lo <= max - min + BOUNDS_EPSILON
+            && (lo < min - BOUNDS_EPSILON || hi > max + BOUNDS_EPSILON)
+    })
+}
+
+fn moved(a: Rect, b: Rect) -> bool {
+    (a.min - b.min).abs().max_elem() > LAYOUT_EPSILON
+        || (a.max - b.max).abs().max_elem() > LAYOUT_EPSILON
+}
 
 impl Timeline {
     /// Everything [`record`] has collected on `ctx` so far, one frame per
@@ -370,8 +440,10 @@ impl Timeline {
             .iter()
             .map(|pass| pass.culled.iter().copied().collect())
             .collect();
+        let overlays = passes.iter().map(|pass| pass.overlays.clone()).collect();
         Self {
             culled,
+            overlays,
             ..Self::from_frames(passes.into_iter().map(|pass| pass.nodes).collect())
         }
     }
@@ -379,6 +451,7 @@ impl Timeline {
     fn from_frames(frames: Vec<Vec<NodeFrame>>) -> Self {
         Self {
             culled: vec![HashSet::new(); frames.len()],
+            overlays: vec![Vec::new(); frames.len()],
             frames,
             max_step: Points::new(40.0),
             slide_tolerance: Points::new(4.0),
@@ -494,9 +567,8 @@ impl Timeline {
                     let own_offset_change: Vec2 = p - l - moved_by_ancestors;
                     let jumped = p.length() > step;
                     match now.motion {
-                        Motion::Slides | Motion::Presents => {
-                            (p - moved_by_scrolling).length() > step
-                        }
+                        Motion::Slides => (p - moved_by_scrolling).length() > step,
+                        Motion::Presents => own_offset_change.length() > step,
                         Motion::Snaps => jumped && own_offset_change.length() > step,
                     }
                 });
@@ -652,10 +724,6 @@ impl Timeline {
             let (before, after) = (&frames[k - 1], &frames[k]);
             for (id, now) in after {
                 let Some(prev) = before.get(id) else { continue };
-                let moved = |a: Rect, b: Rect| {
-                    (a.min - b.min).abs().max_elem() > LAYOUT_EPSILON
-                        || (a.max - b.max).abs().max_elem() > LAYOUT_EPSILON
-                };
                 if moved(prev.layout_rect, now.layout_rect) {
                     found.push(Violation {
                         path: now.path.clone(),
@@ -672,6 +740,93 @@ impl Timeline {
         found
     }
 
+    /// Overlays painted outside the bounds that can hold them (the window cut
+    /// to the overlay's boundary), in the frames that painted them.
+    ///
+    /// Judged per axis: along an axis the overlay is larger than the bounds
+    /// they cannot hold it, and it starts at their edge (`place`), so only
+    /// the axes it fits are checked. A box that is mid-entrance moves on
+    /// purpose, starting displaced from its place, so it is judged where
+    /// layout put it. Exempt: allowed nodes and frames.
+    pub fn off_screens(&self) -> Vec<Violation> {
+        let mut found = Vec::new();
+        let frames = self.by_id();
+        for (k, overlays) in self.overlays.iter().enumerate() {
+            if self.allowed_frames.contains(&k) {
+                continue;
+            }
+            for overlay in overlays {
+                let Some(node) = frames[k].get(&overlay.id) else {
+                    continue;
+                };
+                if self.allowed_nodes.iter().any(|allowed| allowed.names(node)) {
+                    continue;
+                }
+                let rect = match node.motion {
+                    Motion::Presents => node.layout_rect,
+                    Motion::Snaps | Motion::Slides => node.painted_rect,
+                };
+                let bounds = overlay.bounds;
+                if leaves_bounds(rect, bounds) {
+                    found.push(Violation {
+                        path: overlay.path.clone(),
+                        frame: k,
+                        kind: ViolationKind::OffScreen { rect, bounds },
+                    });
+                }
+            }
+        }
+        found.sort_by(|a, b| (a.frame, &a.path).cmp(&(b.frame, &b.path)));
+        found
+    }
+
+    /// Overlays whose side changed between two frames in which nothing that
+    /// decides the side did: the anchor's rect, the natural size and the
+    /// bounds. The choice of side depends on those alone, so a change
+    /// without one is an oscillation. Exempt: allowed nodes and frames.
+    pub fn reflips(&self) -> Vec<Violation> {
+        let mut found = Vec::new();
+        let frames = self.by_id();
+        for (k, pair) in self
+            .overlays
+            .windows(2)
+            .enumerate()
+            .map(|(i, w)| (i + 1, w))
+        {
+            if self.allowed_frames.contains(&k) {
+                continue;
+            }
+            for now in &pair[1] {
+                let Some(prev) = pair[0].iter().find(|prev| prev.id == now.id) else {
+                    continue;
+                };
+                let (Some(before), Some(after)) = (prev.side, now.side) else {
+                    continue;
+                };
+                if before == after
+                    || moved(prev.anchor, now.anchor)
+                    || moved(prev.bounds, now.bounds)
+                    || (prev.natural - now.natural).abs().max_elem() > LAYOUT_EPSILON
+                {
+                    continue;
+                }
+                if frames[k]
+                    .get(&now.id)
+                    .is_some_and(|node| self.allowed_nodes.iter().any(|a| a.names(node)))
+                {
+                    continue;
+                }
+                found.push(Violation {
+                    path: now.path.clone(),
+                    frame: k,
+                    kind: ViolationKind::Reflip { before, after },
+                });
+            }
+        }
+        found.sort_by(|a, b| (a.frame, &a.path).cmp(&(b.frame, &b.path)));
+        found
+    }
+
     /// Every violation of every invariant, with the defaults or the
     /// tolerances set.
     pub fn violations(&self) -> Vec<Violation> {
@@ -681,6 +836,8 @@ impl Timeline {
             self.gaps(),
             self.double_paints(),
             self.settles(),
+            self.off_screens(),
+            self.reflips(),
         ]
         .concat()
     }
@@ -713,6 +870,18 @@ impl Timeline {
     #[track_caller]
     pub fn assert_settles(&self) {
         report(&self.settles());
+    }
+
+    /// Panics unless [`off_screens`](Self::off_screens) is empty.
+    #[track_caller]
+    pub fn assert_on_screen(&self) {
+        report(&self.off_screens());
+    }
+
+    /// Panics unless [`reflips`](Self::reflips) is empty.
+    #[track_caller]
+    pub fn assert_no_reflips(&self) {
+        report(&self.reflips());
     }
 
     /// Runs every check. Panics with one line per violation.
@@ -793,6 +962,143 @@ mod tests {
             found[0].to_string(),
             "regressed: the slide of /node went from progress 0.5 in frame 1 to 0.25 in frame 2"
         );
+    }
+
+    const WINDOW: Rect = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(400.0, 300.0));
+
+    /// A frame with one overlay painted at `rect`, placed on `side` of an
+    /// anchor at `anchor_x`.
+    fn overlay_frame(rect: Rect, side: Side, anchor_x: f32) -> (Vec<NodeFrame>, Vec<OverlayFrame>) {
+        let node = NodeFrame {
+            id: Id::NULL,
+            path: "/menu".to_owned(),
+            layout_rect: rect,
+            painted_rect: rect,
+            ancestors: Vec2::ZERO,
+            scrolled: Vec2::ZERO,
+            opacity: Opacity::new(1.0),
+            motion: Motion::Snaps,
+            slide: None,
+        };
+        let overlay = OverlayFrame {
+            id: Id::NULL,
+            path: "/menu".to_owned(),
+            bounds: WINDOW,
+            anchor: Rect::from_min_size(egui::pos2(anchor_x, 100.0), Vec2::splat(20.0)),
+            natural: rect.size(),
+            side: Some(side),
+        };
+        (vec![node], vec![overlay])
+    }
+
+    fn overlay_timeline(frames: Vec<(Vec<NodeFrame>, Vec<OverlayFrame>)>) -> Timeline {
+        let (nodes, overlays) = frames.into_iter().unzip();
+        Timeline {
+            overlays,
+            ..Timeline::from_frames(nodes)
+        }
+    }
+
+    fn at(x: f32, y: f32) -> Rect {
+        Rect::from_min_size(egui::pos2(x, y), Vec2::new(80.0, 60.0))
+    }
+
+    #[test]
+    fn an_overlay_painted_past_the_window_edge_is_off_screen() {
+        let timeline = overlay_timeline(vec![
+            overlay_frame(at(100.0, 130.0), Side::Bottom, 100.0),
+            overlay_frame(at(340.0, 130.0), Side::Bottom, 100.0),
+        ]);
+        let found = timeline.off_screens();
+        assert!(
+            matches!(&found[..], [v] if v.frame == 1 && matches!(v.kind, ViolationKind::OffScreen { .. })),
+            "{found:?}"
+        );
+        assert!(
+            found[0]
+                .to_string()
+                .starts_with("off screen: overlay /menu")
+        );
+    }
+
+    #[test]
+    fn an_overlay_inside_its_bounds_or_too_large_for_them_is_on_screen() {
+        let large = Rect::from_min_size(egui::pos2(0.0, 0.0), Vec2::new(80.0, 500.0));
+        overlay_timeline(vec![
+            overlay_frame(at(0.0, 0.0), Side::Bottom, 100.0),
+            overlay_frame(at(320.0, 240.0), Side::Bottom, 100.0),
+            overlay_frame(large, Side::Bottom, 100.0),
+        ])
+        .assert_on_screen();
+    }
+
+    #[test]
+    fn a_box_mid_entrance_is_judged_where_layout_put_it() {
+        let (mut nodes, overlays) = overlay_frame(at(320.0, 240.0), Side::Bottom, 100.0);
+        nodes[0].motion = Motion::Presents;
+        nodes[0].painted_rect = at(326.0, 246.0);
+        overlay_timeline(vec![(nodes, overlays)]).assert_on_screen();
+    }
+
+    #[test]
+    fn a_side_that_changes_while_nothing_that_decides_it_does_is_a_reflip() {
+        let timeline = overlay_timeline(vec![
+            overlay_frame(at(100.0, 130.0), Side::Bottom, 100.0),
+            overlay_frame(at(100.0, 40.0), Side::Top, 100.0),
+        ]);
+        let found = timeline.reflips();
+        assert!(
+            matches!(&found[..], [v] if v.frame == 1 && v.kind == ViolationKind::Reflip { before: Side::Bottom, after: Side::Top }),
+            "{found:?}"
+        );
+    }
+
+    #[test]
+    fn a_side_that_changes_with_the_anchor_or_the_size_is_not_a_reflip() {
+        let (nodes, mut resized) = overlay_frame(at(100.0, 40.0), Side::Top, 100.0);
+        resized[0].natural = Vec2::new(80.0, 90.0);
+        overlay_timeline(vec![
+            overlay_frame(at(100.0, 130.0), Side::Bottom, 100.0),
+            overlay_frame(at(100.0, 40.0), Side::Top, 140.0),
+            (nodes.clone(), resized),
+            overlay_frame(at(100.0, 130.0), Side::Bottom, 140.0),
+        ])
+        .assert_no_reflips();
+        let (_, mut narrowed) = overlay_frame(at(100.0, 130.0), Side::Bottom, 140.0);
+        narrowed[0].bounds = Rect::from_min_size(egui::pos2(0.0, 0.0), Vec2::new(400.0, 200.0));
+        overlay_timeline(vec![
+            overlay_frame(at(100.0, 40.0), Side::Top, 140.0),
+            (nodes, narrowed),
+        ])
+        .assert_no_reflips();
+    }
+
+    fn presenting(layout_x: f32, offset_x: f32) -> Vec<NodeFrame> {
+        let layout = Rect::from_min_size(egui::pos2(layout_x, 0.0), Vec2::splat(10.0));
+        vec![NodeFrame {
+            id: Id::NULL,
+            path: "/tip".to_owned(),
+            layout_rect: layout,
+            painted_rect: layout.translate(Vec2::new(offset_x, 0.0)),
+            ancestors: Vec2::ZERO,
+            scrolled: Vec2::ZERO,
+            opacity: Opacity::new(1.0),
+            motion: Motion::Presents,
+            slide: None,
+        }]
+    }
+
+    #[test]
+    fn a_presented_box_follows_its_anchor_when_layout_moves_it_at_once() {
+        Timeline::from_frames(vec![presenting(0.0, 4.0), presenting(300.0, 4.0)])
+            .assert_no_teleports();
+    }
+
+    #[test]
+    fn a_presented_box_may_not_jump_by_its_own_motion() {
+        let found =
+            Timeline::from_frames(vec![presenting(0.0, 0.0), presenting(0.0, 100.0)]).teleports();
+        assert!(matches!(&found[..], [v] if v.frame == 1), "{found:?}");
     }
 
     #[test]

@@ -40,8 +40,8 @@ use std::fmt::Write as _;
 use egui::{Id, Rect, Theme, Vec2};
 
 pub use crate::continuity::{
-    Interrupted, Motion, NodeFrame, NodeRef, Points, Slide, SlideId, Timeline, Violation,
-    ViolationKind, laid_out_rect, record,
+    Interrupted, Motion, NodeFrame, NodeRef, OverlayFrame, Points, Slide, SlideId, Timeline,
+    Violation, ViolationKind, laid_out_rect, leaves_bounds, record,
 };
 use crate::key::{Key, child_id};
 pub use crate::pipeline::Placed;

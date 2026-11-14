@@ -12,12 +12,12 @@ use std::collections::HashMap;
 use egui::{Context, Event, Id, Key, Modifiers, Pos2};
 
 use crate::actions::{self, Action};
-use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, dismissals, esc_target};
+use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, Opening, dismissals, esc_target};
 use crate::draw::children_of;
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
 use crate::nav::{self, Menu};
-use crate::overlay::{Anchor, AnchorLookup, Behavior, Focus, Nav};
+use crate::overlay::{Anchor, AnchorLookup, Band, Behavior, DismissOn, Focus, Nav, Outside};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::roots::{Form, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
 use crate::stack::{Entered, Stack};
@@ -64,13 +64,106 @@ struct Open<'a> {
     nested: Vec<Id>,
 }
 
+/// Whether a menu that swallows Tab was open at the end of the last pass: the
+/// one context-wide piece of eggshell state (D11a), because the pass's focus
+/// move is made in egui's `begin_pass`, before any layout, and a layout
+/// drawn earlier in the pass (a header, or an app's own) would act on it
+/// before this one's keys are claimed. Every layout sets it; the plugin reads
+/// and clears it at the start of the next pass.
+fn tab_held_id() -> Id {
+    crate::key::root_id().with("tab-held")
+}
+
+fn note_tab_held(ctx: &Context) {
+    ctx.data_mut(|data| data.insert_temp(tab_held_id(), true));
+}
+
+/// Cancels Tab at the start of the pass while a menu is open: egui has set
+/// the pass's focus direction but nothing has acted on it, so no widget
+/// gains focus, scrolls into view or tells assistive technology.
+struct HoldTab;
+
+impl egui::Plugin for HoldTab {
+    fn debug_name(&self) -> &'static str {
+        "eggshell-ui hold tab"
+    }
+
+    fn on_begin_pass(&mut self, ui: &mut egui::Ui) {
+        let ctx = ui.ctx();
+        let held = ctx
+            .data_mut(|data| data.remove_temp::<bool>(tab_held_id()))
+            .unwrap_or(false);
+        if !held {
+            return;
+        }
+        let tabbed = ctx.input_mut(|input| {
+            let plain = input.consume_key(Modifiers::NONE, Key::Tab);
+            let shifted = input.consume_key(Modifiers::SHIFT, Key::Tab);
+            plain || shifted
+        });
+        if tabbed {
+            ctx.memory_mut(|memory| memory.move_focus(egui::FocusDirection::None));
+        }
+    }
+}
+
+fn register_hold_tab(ctx: &Context) {
+    if ctx.plugin_opt::<HoldTab>().is_none() {
+        ctx.add_plugin(HoldTab);
+    }
+}
+
 impl Open<'_> {
+    /// Whether the overlay is a menu, which swallows Tab as Radix's does:
+    /// nothing moves until Esc, a press outside or a choice.
+    fn holds_tab(&self) -> bool {
+        self.overlay.behavior.outside() == Outside::Swallow
+            || matches!(self.overlay.behavior.nav, Nav::Menu | Nav::Submenu)
+    }
+
     fn anchor_node(&self) -> Option<Id> {
         match self.overlay.anchor_decl {
             Anchor::Node(id) => Some(id),
             _ => None,
         }
     }
+}
+
+/// The menus that are open but hidden, because their anchor left the window,
+/// that an overlay opened this frame makes way for: menus are exclusive, seen
+/// or not, or the hidden one would come back over the one opened beside it.
+/// Hidden overlays take no part in the other rules, so `dismissals` does not
+/// see them.
+fn hidden_menus_made_way_for(roots: &[PlacedRoot], open: &[Open<'_>], layers: &[Layer]) -> Vec<Id> {
+    let opened: Vec<&Open<'_>> = open
+        .iter()
+        .zip(layers)
+        .filter(|(_, layer)| {
+            layer.opening == Opening::Opened
+                && layer.band != Band::Tooltip
+                && layer.lookup == AnchorLookup::Found
+        })
+        .map(|(open, _)| open)
+        .collect();
+    roots
+        .iter()
+        .enumerate()
+        .filter_map(|(root, placed)| Some((root, placed.overlay()?)))
+        .filter(|(_, hidden)| {
+            hidden.anchored == crate::overlay::Anchored::Detached
+                && !hidden.staged.is_exiting()
+                && hidden.lookup == AnchorLookup::Found
+                && hidden.behavior.outside() == Outside::Swallow
+                && hidden.behavior.dismiss_on == DismissOn::Default
+        })
+        .filter(|(root, hidden)| {
+            opened.iter().any(|opened| {
+                opened.overlay.stack_index > hidden.stack_index
+                    && !is_nested_in(roots, opened.root, *root)
+            })
+        })
+        .map(|(_, hidden)| hidden.id)
+        .collect()
 }
 
 fn is_nested_in(roots: &[PlacedRoot], root: usize, ancestor: usize) -> bool {
@@ -248,6 +341,8 @@ pub enum Blur {
 pub(crate) struct Keys {
     /// Whether Esc was pressed, even if it was then taken.
     pub(crate) escape: Pressed,
+    /// Whether Tab was pressed, even if a menu then took it.
+    pub(crate) tab: Pressed,
     /// The default button Return goes to.
     pub(crate) default: Option<Id>,
     /// Why a text field that loses focus in this pass does.
@@ -268,6 +363,7 @@ pub(crate) fn claim_keys(
     drag: Drag,
 ) -> Keys {
     Source::note(ctx);
+    register_hold_tab(ctx);
     let open = open_overlays(roots);
     let pressed = |key| ctx.input(|input| input.key_pressed(key));
     let escape = if pressed(Key::Escape) {
@@ -290,6 +386,11 @@ pub(crate) fn claim_keys(
     if belongs_to_the_library {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
     }
+    let tab = if pressed(Key::Tab) {
+        Pressed::Yes
+    } else {
+        Pressed::No
+    };
     let typing_before = kept.with(|kept| kept.typing) == Typing::Yes;
     let escaped = escape == Pressed::Yes && Typing::escape_blurred(ctx, kept);
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
@@ -310,6 +411,7 @@ pub(crate) fn claim_keys(
     };
     Keys {
         escape,
+        tab,
         default,
         blur: cause,
     }
@@ -340,6 +442,9 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         keys,
     } = frame;
     let open = open_overlays(roots);
+    if open.iter().any(Open::holds_tab) {
+        note_tab_held(ctx);
+    }
     nav::forget_closed(
         kept,
         &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
@@ -359,6 +464,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     let input = Input {
         press: press_origin(ctx),
         escape: keys.escape == Pressed::Yes,
+        tab: keys.tab == Pressed::Yes,
         drag_live: drag == Drag::Live,
         window_blurred: ctx.input(|input| {
             input
@@ -387,6 +493,11 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             }
         }
     }
+    for id in hidden_menus_made_way_for(roots, &open, &layers) {
+        if let Some(then) = dismiss.remove(&id) {
+            then(app);
+        }
+    }
     if let EscapeGoes::Window(button) = escape_goes(&layers, nodes, &input) {
         actions::press(ctx, button);
     }
@@ -408,6 +519,14 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
                 && let Some(first) = first_focusable(subtrees, open.overlay.id)
             {
                 ctx.memory_mut(|memory| memory.request_focus(first));
+            } else if open.holds_tab()
+                && layer.focus_now == FocusAt::Elsewhere
+                && let Some(focused) = ctx.memory(|memory| memory.focused())
+            {
+                // Opened with the pointer: nothing is focused, not the page
+                // under the menu (a closing popover gives its focus back as
+                // the menu opens).
+                ctx.memory_mut(|memory| memory.surrender_focus(focused));
             }
         }
     }

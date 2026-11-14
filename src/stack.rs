@@ -129,6 +129,8 @@ pub(crate) struct Drawn {
 /// `pressed` is the overlay a pointer press landed on this frame: egui raises
 /// that layer by itself, so it and the layers above it are flagged too, which
 /// keeps their order (a press on a menu must not bring it over its submenu).
+/// So is the first layer that was not shown last frame, which egui raises as
+/// well, and those above it.
 pub(crate) fn repair(ctx: &Context, shown: &[Drawn], pressed: Option<Id>) {
     let order: Vec<LayerId> = ctx.memory(|memory| memory.layer_ids().collect());
     for band in [Band::Floating, Band::Popup, Band::Tooltip] {
@@ -147,6 +149,12 @@ pub(crate) fn repair(ctx: &Context, shown: &[Drawn], pressed: Option<Id>) {
             })
             .collect();
         let mut intact = intact_prefix(&ranks);
+        // egui raises by itself an area that was not shown last frame, as the
+        // overlay is when its anchor comes back into view.
+        let unseen = layers
+            .iter()
+            .position(|(_, layer)| !ctx.memory(|memory| memory.areas().visible_last_frame(layer)));
+        intact = unseen.map_or(intact, |unseen| intact.min(unseen));
         if let Some(pressed) = layers.iter().position(|(id, _)| Some(*id) == pressed) {
             intact = intact.min(pressed);
         }

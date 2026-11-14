@@ -70,6 +70,8 @@ pub(crate) struct Input {
     /// Where a pointer button went down this frame.
     pub(crate) press: Option<Pos2>,
     pub(crate) escape: bool,
+    /// Tab or Shift+Tab was pressed.
+    pub(crate) tab: bool,
     /// A drag gesture is live.
     pub(crate) drag_live: bool,
     /// The window lost focus.
@@ -161,7 +163,7 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
             };
             found.add(at, cause);
         }
-        for at in top_down().filter(|&at| leaving(&layers[at])) {
+        for at in top_down().filter(|&at| leaving(&layers[at], input)) {
             found.add(at, Cause::FocusOut);
         }
     }
@@ -186,10 +188,19 @@ fn dismisses_on_focus_loss(layer: &Layer) -> bool {
     layer.dismiss_on.focus_out() && layer.boundary == Boundary::Open
 }
 
-fn leaving(layer: &Layer) -> bool {
+/// Focus left the overlay: it went to a widget elsewhere. A Tab is leaving
+/// too when it started from nowhere (a click on the overlay's own padding
+/// dropped the focus), or took focus off the last widget on its way round to
+/// the first, which is nowhere for a pass.
+fn leaving(layer: &Layer, input: &Input) -> bool {
     dismisses_on_focus_loss(layer)
-        && layer.focus_before == FocusAt::Inside
-        && layer.focus_now == FocusAt::Elsewhere
+        && match (layer.focus_before, layer.focus_now) {
+            (FocusAt::Inside, FocusAt::Elsewhere) => true,
+            (FocusAt::Inside, FocusAt::Nowhere) | (FocusAt::Nowhere, FocusAt::Elsewhere) => {
+                input.tab
+            }
+            _ => false,
+        }
 }
 
 /// Whether `ancestor` is one of the overlays `layer` is nested in.
@@ -317,6 +328,7 @@ mod tests {
     const ESC: Input = Input {
         press: None,
         escape: true,
+        tab: false,
         drag_live: false,
         window_blurred: false,
     };
@@ -482,6 +494,42 @@ mod tests {
             ..moved(FocusAt::Inside, FocusAt::Elsewhere)
         };
         assert_eq!(closed(&[esc_only], &idle), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn a_tab_that_takes_focus_off_the_overlay_is_leaving_even_through_nowhere() {
+        let tab = Input {
+            tab: true,
+            ..Input::default()
+        };
+        for (before, now) in [
+            (FocusAt::Inside, FocusAt::Elsewhere),
+            (FocusAt::Inside, FocusAt::Nowhere),
+            (FocusAt::Nowhere, FocusAt::Elsewhere),
+        ] {
+            let layer = Layer {
+                focus_before: before,
+                focus_now: now,
+                ..popover(0.0)
+            };
+            assert_eq!(closed(&[layer], &tab), vec![0], "{before:?} to {now:?}");
+        }
+        for (before, now) in [
+            (FocusAt::Inside, FocusAt::Inside),
+            (FocusAt::Elsewhere, FocusAt::Elsewhere),
+            (FocusAt::Nowhere, FocusAt::Nowhere),
+        ] {
+            let layer = Layer {
+                focus_before: before,
+                focus_now: now,
+                ..popover(0.0)
+            };
+            assert_eq!(
+                closed(&[layer], &tab),
+                Vec::<usize>::new(),
+                "{before:?} to {now:?}"
+            );
+        }
     }
 
     #[test]
