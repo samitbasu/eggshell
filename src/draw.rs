@@ -38,7 +38,7 @@ use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::tooltip;
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
-    BoxPaint, Flip, Grouping, Look, Opacity, PointerEvents, Presence, Progress, RingPlacement,
+    BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,
     Sides, State,
 };
 
@@ -494,12 +494,16 @@ fn node_ui(
 }
 
 fn image_for(icon: Icon, tint: Color32) -> Image<'static> {
-    let Icon { src, rotate, flip } = icon;
-    let (u, v) = match flip {
-        Flip::None => ((0.0, 1.0), (0.0, 1.0)),
-        Flip::Horizontal => ((1.0, 0.0), (0.0, 1.0)),
-        Flip::Vertical => ((0.0, 1.0), (1.0, 0.0)),
-        Flip::Both => ((1.0, 0.0), (1.0, 0.0)),
+    let Icon {
+        src,
+        rotate,
+        mirror,
+    } = icon;
+    let (u, v) = match mirror {
+        Mirror::None => ((0.0, 1.0), (0.0, 1.0)),
+        Mirror::Horizontal => ((1.0, 0.0), (0.0, 1.0)),
+        Mirror::Vertical => ((0.0, 1.0), (1.0, 0.0)),
+        Mirror::Both => ((1.0, 0.0), (1.0, 0.0)),
     };
     let uv = Rect::from_min_max(pos2(u.0, v.0), pos2(u.1, v.1));
     Image::new(src)

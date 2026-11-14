@@ -29,7 +29,7 @@ pub use easing::Easing;
 pub use grid::Track;
 use merge::{Layout, Touched};
 pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
-pub use units::{Angle, Flip, Opacity, Progress};
+pub use units::{Angle, Mirror, Opacity, Progress};
 pub use variants::Paint;
 pub(crate) use variants::{
     Focusability, Grouping, Look, PointerEvents, Presence, Sensing, State, Variants,
