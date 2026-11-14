@@ -2201,3 +2201,55 @@ mod kbd_candidates {
         }
     }
 }
+
+/// The slider thumb under the pointer while the keyboard focuses it: the
+/// halo is the focus ring's, not the hover ring's.
+fn slider_thumb_halo(style: ShadcnStyle, name: &str) {
+    struct Volume(f64);
+    let view: support::View<Volume> = |b, app| {
+        b.div(
+            tw().flex().items_center().w_full().h_px(32.0).px(16.0),
+            |b| {
+                b.slider("volume", app.0, 0.0..=100.0)
+                    .named("Volume")
+                    .on_change(|app: &mut Volume, v| app.0 = v);
+            },
+        );
+    };
+    report_renderer();
+    let text = TextStyle::new(layouts::BODY, Color32::BLACK);
+    let mut harness = support::harness_prepared(
+        Vec2::new(220.0, 48.0),
+        text,
+        Volume(40.0),
+        view,
+        |ctx, _| common::use_preset(ctx),
+    );
+    common::set_style(&harness.ctx, style);
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(egui::Theme::Light);
+    harness.run_steps(3);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(3);
+    let thumb = harness
+        .state()
+        .nodes
+        .iter()
+        .find(|(path, _)| path.ends_with("Thumb"))
+        .map(|(_, rect)| rect.center())
+        .expect("the slider's thumb");
+    harness.hover_at(thumb);
+    harness.run_steps(12);
+    harness.snapshot(name);
+}
+
+#[test]
+fn slider_thumb_halo_vega() {
+    slider_thumb_halo(ShadcnStyle::Vega, "slider_thumb_halo_vega");
+}
+
+#[test]
+fn slider_thumb_halo_lyra() {
+    slider_thumb_halo(ShadcnStyle::Lyra, "slider_thumb_halo_lyra");
+}

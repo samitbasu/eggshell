@@ -337,16 +337,24 @@ impl Paint {
             Enablement::Enabled => {
                 let ring = self.focus.unwrap_or(style.focus);
                 let (rest, focused) = (states.rest, states.focused);
+                let halo = |p: crate::tw::Paint| match self.hover_ring {
+                    Some(ring) => p.ring(ring.width, ring.color),
+                    None => p,
+                };
                 let classes = painted(base, rest)
                     .hover(|p| {
-                        p.bg(states.hover.fill)
-                            .border_color(states.hover.border)
-                            .text(states.hover.text)
+                        halo(
+                            p.bg(states.hover.fill)
+                                .border_color(states.hover.border)
+                                .text(states.hover.text),
+                        )
                     })
                     .active(|p| {
-                        p.bg(states.pressed.fill)
-                            .border_color(states.pressed.border)
-                            .text(states.pressed.text)
+                        halo(
+                            p.bg(states.pressed.fill)
+                                .border_color(states.pressed.border)
+                                .text(states.pressed.text),
+                        )
                     })
                     .focus(|p| {
                         let p = if focused.fill == rest.fill {

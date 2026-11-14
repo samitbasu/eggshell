@@ -404,6 +404,10 @@ impl Shadcn {
                 BoxLook::new(States::still(thumb_colors, t.background)).bordered(1.0),
                 t.shadow_sm,
             );
+            slider.thumb.paint = slider.thumb.paint.haloed(Focus {
+                width: t.slider_halo,
+                color: t.ring.gamma_multiply(0.5),
+            });
             slider.transition = transition;
             slider
         };

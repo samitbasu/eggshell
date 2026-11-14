@@ -52,6 +52,7 @@ impl ShadcnStyle {
                 t.slider_track = 6.0;
                 t.slider_thumb = 16.0;
                 t.slider_radius = u8::MAX;
+                t.slider_halo = 4.0;
                 t.list_padding = 3.0;
                 t.cell_padding = vec2(8.0, 4.0);
                 t.popup_padding = 4.0;
@@ -77,6 +78,7 @@ impl ShadcnStyle {
                 t.slider_track = 4.0;
                 t.slider_thumb = 12.0;
                 t.slider_radius = 0;
+                t.slider_halo = 1.0;
                 t.list_padding = 3.0;
                 t.cell_padding = vec2(6.0, 2.0);
                 t.popup_padding = 4.0;
