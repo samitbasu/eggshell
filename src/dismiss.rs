@@ -221,7 +221,7 @@ fn contains(layers: &[Layer], at: usize, press: Pos2) -> bool {
 fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
     let mut swallowed_by = None;
     for at in (0..layers.len()).rev() {
-        if layers[at].lookup == AnchorLookup::Missing || layers[at].band == Band::Tooltip {
+        if layers[at].lookup == AnchorLookup::Missing || !layers[at].band.senses_input() {
             continue;
         }
         if swallowed_by.is_some_and(|by| !nested_in(layers, by, at)) {
