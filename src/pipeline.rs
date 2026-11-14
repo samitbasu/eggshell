@@ -1386,6 +1386,10 @@ impl PlacedNode {
         self.z
     }
 
+    pub(crate) fn is_drag_source(&self) -> bool {
+        self.drag.as_ref().is_some_and(|drag| drag.source.is_some())
+    }
+
     /// Whether the node was marked inert.
     pub fn is_inert(&self) -> bool {
         self.inert

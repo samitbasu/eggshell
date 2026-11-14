@@ -765,7 +765,7 @@ Recommended defaults:
 4. **Tabular figures.** egui does not expose OpenType features ⚠. Choose a UI font with tabular digits by default, or add a numerals face.
 5. **Later details:** per-row grid track lists (`grid_rows_tracks` with `MinMax(pt, fr)`), flex grow factors (`grow_by(x)`), scroll content at least as tall as its viewport (`min-h-full` inside a scroll area, so `fr` rows fill when content is short), dashed borders.
 6. **Deferred to the applications that need them:** wheel routing (a selected pane consumes the wheel before its enclosing `ScrollArea` ⚠).
-7. **Drag and drop** is in: `drag_source`, `drop_target`, the `drag_accepts` / `drag_over` / `drag_lifted` variants and the live drag image (the `dnd` module and the `dnd_*` examples). Auto-scroll is a hook (`EdgeScroll`) until M5; overlays as targets wait for M6.
+7. **Drag and drop** is in: `drag_source` (with an optional `drag_handle`), `drop_target`, the `drag_accepts` / `drag_over` / `drag_lifted` variants and the live drag image (the `dnd` module and the `dnd_*` examples). Auto-scroll is a hook (`EdgeScroll`) until M5; overlays as targets wait for M6.
 8. **Deferred:** `focus_within` / `focus_visible` variants, rich text runs and inline links, explicit tab order, accessibility (the AccessKit tree is flat), first-frame overlay flicker, a macro for pass-through `match` arms.
 
 ## 16. Prior art
