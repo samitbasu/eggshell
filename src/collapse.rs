@@ -265,3 +265,81 @@ pub(crate) fn solve_in_motion(
     }
     compute(tree);
 }
+
+/// How much farther the wrappers moving along `axis` under `node` have to go
+/// than they have gone: the sum of target − current. What a container whose
+/// height is cached while it is laid out (a virtual list's row) adds to its
+/// measured size to know where it is going. Valid once the tree is solved.
+#[allow(dead_code, reason = "read by the virtual list's settle step")]
+pub(crate) fn flight_in(tree: &TaffyTree<Node>, node: NodeId, axis: CollapseAxis) -> f32 {
+    let mut remaining = 0.0;
+    let mut stack = vec![node];
+    while let Some(at) = stack.pop() {
+        if let Some(flight) = tree
+            .get_node_context(at)
+            .and_then(|context| context.collapse)
+            .and_then(|collapse| collapse.flight)
+            .filter(|flight| flight.axis == axis)
+        {
+            remaining += flight.target - flight.current;
+        }
+        stack.extend(tree.children(at).expect("node exists"));
+    }
+    remaining
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{Color32, FontFamily};
+    use taffy::Style;
+
+    use super::*;
+    use crate::pipeline::NodeKind;
+    use crate::text::{TextSpec, TextStyle};
+
+    fn node(flight: Option<Flight>) -> Node {
+        let text = TextStyle::new(
+            TextSpec {
+                size: 14.0,
+                line_height: 20.0,
+                family: FontFamily::Proportional,
+            },
+            Color32::BLACK,
+        );
+        let mut node = Node::bare(NodeKind::Div, String::new(), text);
+        node.collapse = flight.map(|flight| Collapse {
+            axis: flight.axis,
+            motion: None,
+            flight: Some(flight),
+        });
+        node
+    }
+
+    fn flight(axis: CollapseAxis, target: f32, current: f32) -> Option<Flight> {
+        Some(Flight {
+            axis,
+            target,
+            current,
+        })
+    }
+
+    #[test]
+    fn the_flight_in_a_subtree_sums_what_is_left_along_the_axis() {
+        let mut tree = TaffyTree::<Node>::new();
+        let mut leaf = |f| {
+            tree.new_leaf_with_context(Style::default(), node(f))
+                .expect("leaf")
+        };
+        let opening = leaf(flight(CollapseAxis::Height, 100.0, 30.0));
+        let closing = leaf(flight(CollapseAxis::Height, 50.0, 80.0));
+        let sideways = leaf(flight(CollapseAxis::Width, 40.0, 0.0));
+        let still = leaf(None);
+        let row = tree
+            .new_with_children(Style::default(), &[opening, closing, sideways, still])
+            .expect("row");
+        tree.set_node_context(row, Some(node(None))).expect("row");
+        assert_eq!(flight_in(&tree, row, CollapseAxis::Height), 70.0 - 30.0);
+        assert_eq!(flight_in(&tree, row, CollapseAxis::Width), 40.0);
+        assert_eq!(flight_in(&tree, still, CollapseAxis::Height), 0.0);
+    }
+}
