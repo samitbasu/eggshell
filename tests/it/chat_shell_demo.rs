@@ -796,7 +796,7 @@ mod accents {
             );
             let meter = rect_of(
                 &harness,
-                "/Frame/Details/\"Context\"/Group/Row(\"Context window\")/Meter",
+                "/Frame/Details/\"Context\"/Fold(\"Context\")/Group/Row(\"Context window\")/Meter",
             );
             assert!(meter.is_positive(), "precondition: the meter is laid out");
             assert!(
@@ -840,11 +840,14 @@ mod grouped_form {
             let mut harness = harness_in(theme, App::default());
             harness.run_steps(3);
             let line = Theme::of(&harness.ctx)[Tok::Line];
-            let group = rect_of(&harness, "/Frame/Details/\"Environment\"/Group");
+            let group = rect_of(
+                &harness,
+                "/Frame/Details/\"Environment\"/Fold(\"Environment\")/Group",
+            );
             let rows = ["Branch", "Runtime", "Model"].map(|label| {
                 rect_of(
                     &harness,
-                    &format!("/Frame/Details/\"Environment\"/Group/Row(\"{label}\")"),
+                    &format!("/Frame/Details/\"Environment\"/Fold(\"Environment\")/Group/Row(\"{label}\")"),
                 )
             });
             assert!(
@@ -1213,5 +1216,30 @@ mod long_conversation {
             (last.bottom() - view.bottom()).abs() < 1.0,
             "it ends the viewport: {last:?} in {view:?}"
         );
+    }
+}
+
+mod folding {
+    use super::*;
+
+    const HEAD: &str = "/Frame/Details/\"Changes\"/Head(\"Changes\")";
+    const FOLD: &str = "/Frame/Details/\"Changes\"/Fold(\"Changes\")";
+    const NEXT: &str = "/Frame/Details/\"Background tasks\"";
+
+    #[test]
+    fn clicking_a_details_header_folds_its_section_and_the_next_one_follows() {
+        let mut harness = harness();
+        harness.run_steps(6);
+        let open = rect_of(&harness, FOLD).height();
+        let next = rect_of(&harness, NEXT).min.y;
+        assert!(open > 50.0, "precondition: the section has rows: {open}");
+        click_node(&mut harness, HEAD);
+        harness.run_steps(30);
+        assert_eq!(rect_of(&harness, FOLD).height(), 0.0);
+        assert_eq!(rect_of(&harness, NEXT).min.y, next - open);
+        click_node(&mut harness, HEAD);
+        harness.run_steps(30);
+        assert_eq!(rect_of(&harness, FOLD).height(), open);
+        assert_eq!(rect_of(&harness, NEXT).min.y, next);
     }
 }

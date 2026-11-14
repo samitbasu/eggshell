@@ -213,6 +213,8 @@ pub struct App {
     sidebar: PaneWidth,
     details: PaneWidth,
     drag: Option<Drag>,
+    /// The titles of the details sections that are folded.
+    folded: Vec<&'static str>,
 }
 
 /// How many messages come before the current exchange.
@@ -318,11 +320,24 @@ impl Default for App {
             sidebar: PaneWidth::new(Pane::Sidebar, Pane::Sidebar.default_width()),
             details: PaneWidth::new(Pane::Details, Pane::Details.default_width()),
             drag: None,
+            folded: Vec::new(),
         }
     }
 }
 
 impl App {
+    pub fn is_folded(&self, section: &'static str) -> bool {
+        self.folded.contains(&section)
+    }
+
+    pub fn toggle_section(&mut self, section: &'static str) {
+        if let Some(at) = self.folded.iter().position(|&folded| folded == section) {
+            self.folded.remove(at);
+        } else {
+            self.folded.push(section);
+        }
+    }
+
     pub fn width(&self, pane: Pane) -> PaneWidth {
         match pane {
             Pane::Sidebar => self.sidebar,
