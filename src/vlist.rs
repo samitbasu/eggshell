@@ -56,11 +56,34 @@ pub(crate) enum RowHeights {
     Fixed(f32),
 }
 
+impl RowHeights {
+    fn measured(estimate: f32) -> Self {
+        Self::Measured {
+            estimate: row_height(estimate),
+        }
+    }
+
+    fn fixed(height: f32) -> Self {
+        Self::Fixed(row_height(height))
+    }
+}
+
+/// `points` as the height of a row not laid out: at least [`MIN_ROW`], which
+/// a height that is not a number becomes too.
+fn row_height(points: f32) -> f32 {
+    if points.is_finite() {
+        points.max(MIN_ROW)
+    } else {
+        MIN_ROW
+    }
+}
+
 /// The overscan of a list unless set: rows this far beyond each edge of the
 /// viewport are built too.
 const OVERSCAN: f32 = 500.0;
 
-/// The least height a fixed row may have.
+/// The least height a row counts as before it is laid out: a row of no
+/// height would bring every row after it into view.
 const MIN_ROW: f32 = 1.0;
 
 /// How much a height may change and still count as unchanged.
@@ -96,18 +119,18 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
     }
 
     /// Rows of differing heights, each measured the first time it is built:
-    /// until then a row counts as `points` tall.
+    /// until then a row counts as `points` tall. Less than one point, or a
+    /// height that is not a number, becomes one.
     pub fn estimate_px(mut self, points: f32) -> Self {
-        self.heights = Some(RowHeights::Measured {
-            estimate: points.max(0.0),
-        });
+        self.heights = Some(RowHeights::measured(points));
         self
     }
 
     /// Rows that are all `points` tall: nothing is measured, and each row is
-    /// given that height. Less than one point becomes one.
+    /// given that height. Less than one point, or a height that is not a
+    /// number, becomes one.
     pub fn fixed_px(mut self, points: f32) -> Self {
-        self.heights = Some(RowHeights::Fixed(points.max(MIN_ROW)));
+        self.heights = Some(RowHeights::fixed(points));
         self
     }
 
@@ -136,9 +159,8 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
         let mut planned = None;
         let scroll = ScrollChain::with_slot(b.reborrow(), slot, classes)
             .children(|s| {
-                let heights = heights.unwrap_or(RowHeights::Measured {
-                    estimate: s.text_style().spec.line_height,
-                });
+                let heights = heights
+                    .unwrap_or_else(|| RowHeights::measured(s.text_style().spec.line_height));
                 let plan = Plan::new(
                     &kept,
                     pass,

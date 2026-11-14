@@ -562,3 +562,27 @@ fn tab_goes_to_the_first_row_s_control_not_to_the_list() {
         "a list of controls is reached through them: {focused}"
     );
 }
+
+#[test]
+fn a_zero_or_unknown_estimate_still_builds_only_a_viewport_and_overscan() {
+    for estimate in [0.0, f32::NAN] {
+        let tokens = Tokens::for_theme(Theme::Light);
+        // Building the harness runs the first frame.
+        let mut harness = support::harness(
+            vec2(400.0, 600.0),
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            App::new(
+                100_000,
+                VList::estimated(estimate).overscan(50.0),
+                Rows::Tall(20.0),
+            ),
+            view,
+        );
+        let built = harness.state().app.built.get();
+        assert!(
+            built > 0 && built <= (VIEWPORT + 2.0 * 50.0) as usize,
+            "estimate {estimate}: {built} rows built in the first frame"
+        );
+        harness.step();
+    }
+}
