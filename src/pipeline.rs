@@ -443,6 +443,7 @@ impl LayoutState {
         f: impl FnOnce(&mut Builder<'_, 'f, A>),
     ) -> Built<'f, A> {
         let _timer = Timer::start(ctx, Phase::Build);
+        crate::symbols::install(ctx);
         let base = self
             .base_text
             .clone()
