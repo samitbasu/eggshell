@@ -11,3 +11,6 @@ cc d5845d76a2c6f7422e0f67045d7238ab6363b01cab1314a6774926e020b63e7c # shrinks to
 cc 2c146ca6e649d6a65c92958bd9d098caadfcf1042c200cb3439d0f17a150f39c # shrinks to actions = [ShiftTab, PressAt(58, 44), ShiftTab, End]
 cc 709c4dc8335a631f4fb24a0723a0c62ea321da6391863a6b4ddcde3fbf19c08d # shrinks to actions = [OpenModal, ClickAt(43, 57), ClickAt(4, 17)]
 cc 49189da1b3e53553b756d270ac689c593d2e9a076ce301a9bb93a550c342719f # shrinks to actions = [OpenAnchorPopover, ResizeWindow(240, 220), OpenModal, ResizeWindow(240, 308)]
+cc cfd364f8b36de10910766818853bc865be3ac122b2e39f9aadc81c85a99beda1 # shrinks to actions = [OpenPopover, Tab]
+cc b6cb4be8a0e1189c1f61d6ea5cbe163f134506433b1fca9c278894c550ac811e # shrinks to actions = [OpenPopover, Tab]
+cc 2dc0b2dd4d1b1a042c160e78b740ee80ca459185d11ddab035982c0586212c92 # shrinks to actions = [OpenAnchorPopover, ClickAt(5, 63), Tab]

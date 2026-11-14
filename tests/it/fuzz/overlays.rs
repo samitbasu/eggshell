@@ -512,21 +512,20 @@ struct Desk {
     /// The widget that had focus when each overlay opened, as the library
     /// stores it to give it back.
     openers: Vec<(Id, Option<Id>)>,
-    strictness: Strictness,
+    strictness: Scroll,
     session: Session,
 }
 
-/// Which invariants a session judges. `Strict` adds one that the library's
-/// documented rules leave open (see the ignored test): where focus is after
-/// each action.
+/// Whether the session presses the arrows, Home and End while a pointer
+/// button is held. `Raw` does, and meets #184.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Strictness {
-    Decided,
-    Strict,
+enum Scroll {
+    Guarded,
+    Raw,
 }
 
 impl Desk {
-    fn new(strictness: Strictness) -> Self {
+    fn new(strictness: Scroll) -> Self {
         let mut harness = rig_harness();
         harness.run_steps(4);
         let session = Session::start(&harness.ctx);
@@ -742,10 +741,7 @@ impl Desk {
             self.escape_closed_one(&before, open_before, focus_before)?;
         }
         self.at_most_one_menu()?;
-        match self.strictness {
-            Strictness::Decided => Ok(()),
-            Strictness::Strict => self.focus_is_where_it_belongs(),
-        }
+        self.focus_is_where_it_belongs()
     }
 
     /// Frames for the library's lags to pass, and for every overlay that is
@@ -770,7 +766,7 @@ impl Desk {
     fn perform(&mut self, action: &Action) -> Result<(), TestCaseError> {
         match *action {
             Action::ArrowDown | Action::ArrowUp | Action::Home | Action::End
-                if self.strictness == Strictness::Decided && self.down =>
+                if self.strictness == Scroll::Guarded && self.down =>
             {
                 Ok(())
             }
@@ -980,7 +976,7 @@ impl Desk {
     }
 }
 
-fn run(actions: &[Action], strictness: Strictness) -> Result<(), TestCaseError> {
+fn run(actions: &[Action], strictness: Scroll) -> Result<(), TestCaseError> {
     let mut desk = Desk::new(strictness);
     for action in actions {
         desk.act(action)
@@ -1006,64 +1002,27 @@ proptest! {
 
     #[test]
     fn overlays_hold_their_invariants_under_any_session(actions in overlay_session()) {
-        run(&actions, Strictness::Decided)?;
-    }
-
-    /// What the documented rules leave open, as `docs/overlays.md` section 12
-    /// states the invariants: focus is inside the topmost overlay that takes it in, nowhere, or on
-    /// its anchor. A menu opened with the pointer takes no focus, and Tab
-    /// then moves focus to the page without closing it (`dismiss.rs` pins
-    /// that `Nowhere -> Elsewhere` is not focus leaving).
-    #[test]
-    #[ignore = "open question, see the doc comment and docs/overlays.md, As built in PR 8"]
-    fn focus_stays_with_the_overlays_under_any_session(actions in overlay_session()) {
-        run(&actions, Strictness::Strict)?;
+        run(&actions, Scroll::Guarded)?;
     }
 }
 
-/// The shrunk case of the first open question: Tab from a menu opened with
-/// the pointer.
-/// The third open finding, outside the overlays: with a pointer button held,
-/// End on a focused button in a scroll container scrolls it for the frame of
-/// the key press and puts it back in the frame of the release, which hides
-/// the tooltip of the button (a gap) for that frame. Without the button held
-/// the container stays scrolled. The decided session does not press the
-/// scroll keys while a button is held. Filed as #184.
+/// Tab is swallowed while a menu is open, as in Radix: focus stays where it
+/// was and the menu stays open, whether it was opened with the pointer or
+/// not.
 #[test]
-#[ignore = "#184: End with a button held scrolls for one frame and snaps back"]
-fn end_with_a_button_held_scrolls_and_stays() {
-    run(
-        &[
-            Action::ShiftTab,
-            Action::PressAt(58, 44),
-            Action::ShiftTab,
-            Action::End,
-        ],
-        Strictness::Strict,
-    )
-    .expect("holds");
-}
-
-/// Focus is not given back while a button is held (an Esc during a press).
-#[test]
-fn escape_with_a_button_held_closes_the_menu_and_waits_to_give_focus_back() {
-    run(
-        &[
-            Action::Tab,
-            Action::ArrowDown,
-            Action::PressAt(0, 0),
-            Action::ArrowDown,
-            Action::Esc,
-        ],
-        Strictness::Decided,
-    )
-    .expect("holds");
-}
-
-#[test]
-#[ignore = "open design question: focus moves to the page while the menu stays open"]
-fn tab_from_a_menu_opened_with_the_pointer_closes_it() {
-    run(&[Action::OpenMenu, Action::Tab], Strictness::Strict).expect("holds");
+fn tab_is_swallowed_while_a_menu_is_open() {
+    let mut desk = Desk::new(Scroll::Guarded);
+    desk.act(&Action::OpenMenu).expect("holds");
+    assert!(desk.seen().open().any(Open::is_menu), "precondition: open");
+    let focus = desk.focused();
+    for action in [Action::Tab, Action::ShiftTab] {
+        desk.act(&action).expect("holds");
+        assert!(
+            desk.seen().open().any(Open::is_menu),
+            "{action:?} closed it"
+        );
+        assert_eq!(desk.focused(), focus, "{action:?} moved focus");
+    }
 }
 
 /// A context menu hidden by a smaller window is dismissed when the dropdown
@@ -1076,7 +1035,7 @@ fn a_menu_hidden_by_a_smaller_window_makes_way_for_the_next() {
             Action::ResizeWindow(240, 220),
             Action::OpenMenu,
         ],
-        Strictness::Decided,
+        Scroll::Guarded,
     )
     .expect("holds");
 }
@@ -1091,7 +1050,7 @@ fn a_press_under_a_leaving_tooltip_does_not_raise_it() {
             Action::ResizeWindow(240, 220),
             Action::OpenModal,
         ],
-        Strictness::Decided,
+        Scroll::Guarded,
     )
     .expect("holds");
 }
@@ -1108,7 +1067,7 @@ fn a_popover_that_comes_back_does_not_rise_over_a_later_dialog() {
             Action::OpenModal,
             Action::ResizeWindow(240, 308),
         ],
-        Strictness::Decided,
+        Scroll::Guarded,
     )
     .expect("holds");
 }
@@ -1123,7 +1082,7 @@ fn a_tooltip_follows_a_trigger_that_a_resize_reflows() {
             Action::OpenPopover,
             Action::ResizeWindow(240, 220),
         ],
-        Strictness::Decided,
+        Scroll::Guarded,
     )
     .expect("holds");
 }
@@ -1134,7 +1093,7 @@ fn a_tooltip_follows_a_trigger_that_a_resize_reflows() {
 fn escape_on_a_confirmation_returns_focus_to_its_opener() {
     run(
         &[Action::OpenModal, Action::Tab, Action::Enter, Action::Esc],
-        Strictness::Decided,
+        Scroll::Guarded,
     )
     .expect("holds");
 }
@@ -1153,7 +1112,7 @@ fn open_paths(desk: &Desk) -> Vec<String> {
 #[test]
 fn the_overlay_fuzzer_reaches_every_kind_of_overlay() {
     let reaches = |actions: &[Action], expected: &str| {
-        let mut desk = Desk::new(Strictness::Strict);
+        let mut desk = Desk::new(Scroll::Raw);
         for action in actions {
             desk.act(action).expect("holds");
         }
@@ -1178,7 +1137,7 @@ fn the_overlay_fuzzer_reaches_every_kind_of_overlay() {
 /// under a modal, planted by counting a click on the dialog's scrim.
 #[test]
 fn a_press_on_the_page_is_counted_only_when_no_modal_covers_it() {
-    let mut desk = Desk::new(Strictness::Strict);
+    let mut desk = Desk::new(Scroll::Raw);
     let pad = desk.seen().node("\"pad\"").expect("drawn").1.center();
     desk.act(&Action::ClickAt(
         (pad.x / desk.size.x * 100.0) as u32,

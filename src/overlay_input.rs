@@ -64,7 +64,61 @@ struct Open<'a> {
     nested: Vec<Id>,
 }
 
+/// The focus at the end of the last pass. egui moves focus for Tab as the
+/// widgets are created, and a layout drawn before the one with the menu (a
+/// header) has created them by the time the menu's keys are claimed, so a Tab
+/// that a menu swallows is undone afterwards.
+#[derive(Clone, Copy, Default)]
+struct FocusTrail {
+    pass: u64,
+    before: Option<Id>,
+    latest: Option<Id>,
+}
+
+impl FocusTrail {
+    fn key() -> Id {
+        crate::key::root_id().with("focus-trail")
+    }
+
+    fn begin(ctx: &Context) {
+        let pass = ctx.cumulative_pass_nr();
+        ctx.data_mut(|data| {
+            let trail = data.get_temp_mut_or_default::<Self>(Self::key());
+            if trail.pass != pass {
+                *trail = Self {
+                    pass,
+                    before: trail.latest,
+                    latest: trail.latest,
+                };
+            }
+        });
+    }
+
+    fn note(ctx: &Context) {
+        let now = ctx.memory(|memory| memory.focused());
+        ctx.data_mut(|data| data.get_temp_mut_or_default::<Self>(Self::key()).latest = now);
+    }
+
+    fn undo_move(ctx: &Context) {
+        let before = ctx
+            .data(|data| data.get_temp::<Self>(Self::key()))
+            .and_then(|trail| trail.before);
+        ctx.memory_mut(|memory| match (before, memory.focused()) {
+            (Some(before), _) => memory.request_focus(before),
+            (None, Some(now)) => memory.surrender_focus(now),
+            (None, None) => {}
+        });
+    }
+}
+
 impl Open<'_> {
+    /// Whether the overlay is a menu, which swallows Tab as Radix's does:
+    /// nothing moves until Esc, a press outside or a choice.
+    fn holds_tab(&self) -> bool {
+        self.overlay.behavior.outside() == Outside::Swallow
+            || matches!(self.overlay.behavior.nav, Nav::Menu | Nav::Submenu)
+    }
+
     fn anchor_node(&self) -> Option<Id> {
         match self.overlay.anchor_decl {
             Anchor::Node(id) => Some(id),
@@ -280,13 +334,17 @@ pub enum Blur {
 pub(crate) struct Keys {
     /// Whether Esc was pressed, even if it was then taken.
     pub(crate) escape: Pressed,
+    /// Whether Tab was pressed, even if a menu then took it.
+    pub(crate) tab: Pressed,
+    /// Whether a menu took the Tab.
+    pub(crate) tab_held: Pressed,
     /// The default button Return goes to.
     pub(crate) default: Option<Id>,
     /// Why a text field that loses focus in this pass does.
     pub(crate) blur: Blur,
 }
 
-/// Decides who Esc and Return belong to and takes them from the frame's
+/// Decides who Esc, Return and, in a menu, Tab belong to and takes them from the frame's
 /// input, so that no draw closure (a custom canvas under a menu) sees a key
 /// that dismissed an overlay or pressed a button: it belongs to the overlay
 /// alone, as with `stopPropagation`. An Esc whose only effect was to
@@ -300,6 +358,7 @@ pub(crate) fn claim_keys(
     drag: Drag,
 ) -> Keys {
     Source::note(ctx);
+    FocusTrail::begin(ctx);
     let open = open_overlays(roots);
     let pressed = |key| ctx.input(|input| input.key_pressed(key));
     let escape = if pressed(Key::Escape) {
@@ -322,6 +381,21 @@ pub(crate) fn claim_keys(
     if belongs_to_the_library {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
     }
+    let tab = if pressed(Key::Tab) {
+        Pressed::Yes
+    } else {
+        Pressed::No
+    };
+    let tab_held = if open.iter().any(Open::holds_tab) {
+        let held = ctx.input_mut(|input| {
+            let plain = input.consume_key(Modifiers::NONE, Key::Tab);
+            let shifted = input.consume_key(Modifiers::SHIFT, Key::Tab);
+            plain || shifted
+        });
+        if held { Pressed::Yes } else { Pressed::No }
+    } else {
+        Pressed::No
+    };
     let typing_before = kept.with(|kept| kept.typing) == Typing::Yes;
     let escaped = escape == Pressed::Yes && Typing::escape_blurred(ctx, kept);
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
@@ -342,6 +416,8 @@ pub(crate) fn claim_keys(
     };
     Keys {
         escape,
+        tab,
+        tab_held,
         default,
         blur: cause,
     }
@@ -371,6 +447,10 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         drag,
         keys,
     } = frame;
+    if keys.tab_held == Pressed::Yes {
+        FocusTrail::undo_move(ctx);
+    }
+    FocusTrail::note(ctx);
     let open = open_overlays(roots);
     nav::forget_closed(
         kept,
@@ -391,6 +471,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     let input = Input {
         press: press_origin(ctx),
         escape: keys.escape == Pressed::Yes,
+        tab: keys.tab == Pressed::Yes,
         drag_live: drag == Drag::Live,
         window_blurred: ctx.input(|input| {
             input
