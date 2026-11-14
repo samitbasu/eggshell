@@ -105,6 +105,15 @@ fn open_overlays(roots: &[PlacedRoot]) -> Vec<Open<'_>> {
         .collect()
 }
 
+/// The root of the topmost open modal, if there is one.
+pub(crate) fn topmost_modal(roots: &[PlacedRoot]) -> Option<usize> {
+    open_overlays(roots)
+        .iter()
+        .rev()
+        .find(|open| matches!(open.overlay.form, Form::Modal(_)))
+        .map(|open| open.root)
+}
+
 /// The box of the overlay at `root`: the root's rect, or for a modal, whose
 /// root is the scrim, what its content takes of it.
 fn box_of(nodes: &[PlacedNode], roots: &[PlacedRoot], root: usize) -> egui::Rect {

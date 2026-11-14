@@ -8,6 +8,7 @@ use std::sync::Arc;
 use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
+use crate::commands::{Command, Commands};
 use crate::contract::Style;
 use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
 use crate::draw::NodeUi;
@@ -384,6 +385,70 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 ambient,
                 body: Box::new(body),
             });
+    }
+
+    /// Declares the commands of the root being built: the page, or the
+    /// overlay whose body this is. See [`Commands`].
+    ///
+    /// `app` is passed here, once, because the builder holds no application
+    /// data of its own: a command's [`enabled`](crate::Command::enabled) is
+    /// read from it at build, so that a menu item for the command is
+    /// disabled as it is built. Pass the `&'f A` the view was given.
+    ///
+    /// Under an open modal only the modal's own table runs; the page's is
+    /// silent. Debug builds panic on a table whose keys or chords repeat, on
+    /// a bare Esc or Enter, and on a root that declares its commands twice.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, Command, Commands};
+    /// # use egui::{Key, KeyboardShortcut, Modifiers};
+    /// #[derive(Hash, Debug)]
+    /// enum Cmd { Save }
+    /// #[derive(Default)]
+    /// struct App { saved: u32, dirty: bool }
+    ///
+    /// fn commands() -> Commands<App> {
+    ///     Commands::new().add(
+    ///         Cmd::Save,
+    ///         Command::new("Save", |app: &mut App| app.saved += 1)
+    ///             .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::S))
+    ///             .enabled(|app| app.dirty),
+    ///     )
+    /// }
+    ///
+    /// fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
+    ///     b.commands(&commands(), app);
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn commands(&mut self, table: &Commands<A>, app: &'f A) {
+        #[cfg(debug_assertions)]
+        {
+            table.validate();
+            assert!(
+                self.frame
+                    .commands
+                    .iter()
+                    .all(|(root, _)| *root != self.frame.current),
+                "commands are declared twice in one root, the second at {}",
+                std::panic::Location::caller()
+            );
+        }
+        self.frame.app = Some(app);
+        self.frame
+            .commands
+            .push((self.frame.current, table.clone()));
+    }
+
+    /// The command `id` names, from this root's table or else the page's.
+    pub(crate) fn command<K: Key>(&self, id: &K) -> Option<(Command<A>, bool)> {
+        let app = self.frame.app?;
+        let tables = &self.frame.commands;
+        let table = [self.frame.current, 0]
+            .into_iter()
+            .find_map(|root| tables.iter().find(|(at, _)| *at == root))?;
+        let command = *table.1.find(id)?;
+        Some((command, command.is_enabled(app)))
     }
 
     /// The width `candidate` has when it is laid out as wide as it wants: to
