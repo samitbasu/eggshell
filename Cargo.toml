@@ -10,6 +10,7 @@ repository = "https://github.com/samitbasu/eggshell"
 [dependencies]
 taffy = "0.15.1"
 egui = "0.37"
+nohash-hasher = "0.2"
 web-time = "1.1"
 
 [features]
@@ -28,6 +29,11 @@ eggshell-ui-shadcn = { path = "crates/eggshell-ui-shadcn" }
 # select, and the fuzzers only run natively.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 proptest = "1.12.0"
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "frame"
+harness = false
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-futures = "0.4"

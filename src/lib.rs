@@ -242,6 +242,7 @@ mod text;
 mod tooltip;
 mod transition;
 mod tw;
+pub mod vlist;
 pub mod widget;
 
 pub use builder::{Builder, NodeHandle, Scope};
