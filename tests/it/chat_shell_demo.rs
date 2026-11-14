@@ -156,7 +156,7 @@ fn pane_widths_clamp_and_do_not_drift() {
 #[test]
 fn the_splitter_shows_a_resize_cursor_and_lights_its_line_under_the_pointer() {
     let mut harness = harness();
-    let line = "/Frame/Splitter(Sidebar)/<rule>";
+    let line = "/Frame/Splitter(Sidebar)/\"line\"";
     let splitter = rect(&harness, Part::Splitter(Pane::Sidebar));
     assert_ne!(
         fill_of(&harness, line),
@@ -169,7 +169,12 @@ fn the_splitter_shows_a_resize_cursor_and_lights_its_line_under_the_pointer() {
         harness.output().platform_output.cursor_icon,
         CursorIcon::ResizeHorizontal
     );
-    assert_eq!(fill_of(&harness, line), Some(color(&harness, Tok::Accent)));
+    harness.run_steps(6);
+    assert_eq!(
+        fill_of(&harness, line),
+        Some(color(&harness, Tok::Accent)),
+        "lit once its transition has run"
+    );
 
     hover_node(&mut harness, &path(Part::Centre));
     assert_ne!(
@@ -1241,5 +1246,32 @@ mod folding {
         harness.run_steps(30);
         assert_eq!(rect_of(&harness, FOLD).height(), open);
         assert_eq!(rect_of(&harness, NEXT).min.y, next);
+    }
+}
+
+mod splitter_glow {
+    use super::*;
+
+    const LINE: &str = "/Frame/Splitter(Sidebar)/\"line\"";
+
+    #[test]
+    fn hovering_a_splitter_fades_its_line_to_the_accent() {
+        let mut harness = harness();
+        support::full_motion(&harness.ctx);
+        harness.run_steps(4);
+        let (line, accent) = (color(&harness, Tok::Line), color(&harness, Tok::Accent));
+        assert_eq!(fill_of(&harness, LINE), Some(line), "precondition: at rest");
+        hover_node(&mut harness, &path(Part::Splitter(Pane::Sidebar)));
+        let mid = fill_of(&harness, LINE).expect("the line is painted");
+        let between = |channel: fn(egui::Color32) -> u8| {
+            let (from, to, now) = (channel(line), channel(accent), channel(mid));
+            from.min(to) < now && now < from.max(to)
+        };
+        assert!(
+            between(|c| c.r()) || between(|c| c.g()) || between(|c| c.b()),
+            "mid-transition {mid:?} is between {line:?} and {accent:?}"
+        );
+        harness.run_steps(6);
+        assert_eq!(fill_of(&harness, LINE), Some(accent));
     }
 }
