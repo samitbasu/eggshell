@@ -11,7 +11,7 @@ use taffy::{NodeId, Size};
 use crate::collapse::{Collapse, CollapseAxis, CollapsibleChain, Declared};
 use crate::commands::{Command, Commands, live_roots};
 use crate::contract::Style;
-use crate::dnd::{DragEnd, DragImage, Dragging, Drop, NodeDrag};
+use crate::dnd::{Activator, DragEnd, DragImage, Dragging, Drop, NodeDrag, Source};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
@@ -1428,16 +1428,107 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     }
 
     /// Makes the node a drag source carrying `payload`, and makes it sense
-    /// drags. The node must keep its key across rebuilds for as long as it is
+    /// drags and show a grab cursor (see [`drag_handle`](Self::drag_handle)
+    /// to lift it from one part only). The node must keep its key across rebuilds for as long as it is
     /// dragged, so a reorder that moves it keeps the drag; if it leaves the
     /// tree the drag is cancelled
     /// ([`Cause::SourceGone`](crate::Cause::SourceGone)). See [`dnd`](crate).
     pub fn drag_source<T: Any + Send + Sync>(mut self, payload: T) -> Self {
         self.edit(|context| {
-            context.interaction.sensing = context.interaction.sensing.or(Sensing::Drag);
-            context.drag().source = Some(Arc::new(payload));
+            let declared = context.interaction.sensing;
+            context.interaction.sensing = declared.or(Sensing::Drag);
+            context.drag().source = Some(Source {
+                payload: Arc::new(payload),
+                activator: Activator::Itself,
+                declared,
+            });
         });
         self
+    }
+
+    /// Makes the node of this source's subtree declared with `key` its
+    /// handle: only a drag that starts on the handle lifts the source. The
+    /// rest of the source keeps its own pointer behaviour: its buttons click,
+    /// its text selects, and a node in it that senses drags gets them.
+    /// Everything else of the drag is the source's: its payload, its image,
+    /// its place among a target's items, and the grab offset, measured from
+    /// the source's top-left. The handle senses drags, is focusable, and shows
+    /// a grab cursor; give it a name ([`named`](Self::named)) that says what
+    /// it moves.
+    ///
+    /// `key` is resolved as [`id_of`](Builder::id_of) resolves it in the
+    /// source's body, so anonymous containers between the two do not count,
+    /// but a handle inside another identified container cannot be named.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, unless the node is a [`drag_source`](Self::drag_source)
+    /// and `key` names a node in its subtree that is not a source itself.
+    #[track_caller]
+    pub fn drag_handle<K: Key>(mut self, key: K) -> Self {
+        let (source, path) = {
+            let context = self.node_context();
+            (
+                context.id.expect("a node handle's node is identified"),
+                context.path.clone(),
+            )
+        };
+        let handle = child_id(source, &key);
+        let found = self.descendant(handle);
+        let Some(found) = found else {
+            debug_assert!(
+                false,
+                "{path}: drag_handle({key:?}) names no node in the source's subtree \
+                 (at {})",
+                std::panic::Location::caller()
+            );
+            return self;
+        };
+        let became = self.edit(|context| match &mut context.drag {
+            Some(drag) => match &mut drag.source {
+                Some(source) => {
+                    source.activator = Activator::Handle(handle);
+                    context.interaction.sensing = source.declared;
+                    true
+                }
+                None => false,
+            },
+            None => false,
+        });
+        debug_assert!(
+            became,
+            "{path}: drag_handle({key:?}) on a node that is not a drag_source \
+             (at {})",
+            std::panic::Location::caller()
+        );
+        let tree = &mut self.b.st.tree;
+        let handle_node = tree
+            .get_node_context_mut(found)
+            .expect("a descendant is in the tree");
+        debug_assert!(
+            handle_node
+                .drag
+                .as_ref()
+                .is_none_or(|drag| drag.source.is_none()),
+            "{path}: drag_handle({key:?}) names a drag source; a handle is not one \
+             (at {})",
+            std::panic::Location::caller()
+        );
+        handle_node.interaction.sensing = handle_node.interaction.sensing.or(Sensing::Drag);
+        self
+    }
+
+    /// The node with `id` in this node's subtree, not the node itself.
+    fn descendant(&self, id: Id) -> Option<NodeId> {
+        let tree = &self.b.st.tree;
+        let mut pending = tree.children(self.node).unwrap_or_default();
+        while let Some(node) = pending.pop() {
+            if tree.get_node_context(node).and_then(|context| context.id) == Some(id) {
+                return Some(node);
+            }
+            pending.extend(tree.children(node).unwrap_or_default());
+        }
+        None
     }
 
     /// How the node looks while it is dragged. [`DragImage::Live`] unless
@@ -1520,14 +1611,14 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
             .expect("the handle's node was added to this tree")
     }
 
-    fn edit(&mut self, edit: impl FnOnce(&mut Node)) {
+    fn edit<R>(&mut self, edit: impl FnOnce(&mut Node) -> R) -> R {
         let context = self
             .b
             .st
             .tree
             .get_node_context_mut(self.node)
             .expect("the handle's node was added to this tree");
-        edit(context);
+        edit(context)
     }
 
     /// Runs `then` with the node's response each frame it is drawn: the escape

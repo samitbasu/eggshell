@@ -1405,6 +1405,10 @@ impl PlacedNode {
         self.z
     }
 
+    pub(crate) fn is_drag_source(&self) -> bool {
+        self.drag.as_ref().is_some_and(|drag| drag.source.is_some())
+    }
+
     /// For a collapsible's wrapper that is opening or closing, where it is
     /// going and where it is.
     pub fn size_flight(&self) -> Option<Flight> {

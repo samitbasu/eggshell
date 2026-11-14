@@ -971,6 +971,9 @@ impl<A> Walk<'_, A> {
             }
             None => (None, Merged::Own),
         };
+        if let Some(response) = &response {
+            dnd::show_grab(self.ui.ctx(), nodes, index, response);
+        }
         let needs_hovering = interaction.grouping == Grouping::Group
             || interaction.variants.get(State::Hover).is_some();
         let hovering = response
