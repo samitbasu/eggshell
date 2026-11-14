@@ -48,13 +48,22 @@ fn context(theme: Theme, style: ShadcnStyle) -> Context {
     ctx
 }
 
-fn place<A: 'static>(
-    ctx: &Context,
-    build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>),
-) -> Placed<A> {
+fn place<A>(ctx: &Context, build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
     LayoutState::new()
         .with_base_text(common::base_text_in(ctx))
         .build(ctx, build)
+        .layout(AREA)
+}
+
+/// [`place`] for a view that borrows `app` for the frame.
+fn place_borrowing<A>(
+    ctx: &Context,
+    app: &A,
+    build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>, &'f A),
+) -> Placed<A> {
+    LayoutState::new()
+        .with_base_text(common::base_text_in(ctx))
+        .build(ctx, |b| build(b, app))
         .layout(AREA)
 }
 
@@ -214,7 +223,7 @@ fn overflows_in(style: ShadcnStyle, theme: Theme) -> Vec<String> {
     let app = chat_shell::state::App::default();
     found.extend(overflow(
         "chat_shell",
-        &place(&ctx, |b| chat_shell::view::layout(b, &app)),
+        &place_borrowing(&ctx, &app, chat_shell::view::layout),
     ));
     found
 }

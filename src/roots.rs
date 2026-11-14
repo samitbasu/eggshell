@@ -5,7 +5,8 @@
 //! root is a root of the same taffy tree and is collected into the same
 //! [`Placed`] node list, so ids, hit order, Tab order and drag and drop see one
 //! frame. [`RootKind`] is the one place a new kind of root (a pop-out window)
-//! has to be added.
+//! has to be added. The content of a region is not a root of its own here: it
+//! hangs off the region's leaf, as a scroll container's does.
 
 use std::collections::HashMap;
 
@@ -19,6 +20,7 @@ use crate::overlay::{
 };
 use crate::pipeline::{Placed, PlacedNode};
 use crate::presence::Staged;
+use crate::region::RegionDecl;
 use crate::scroll::Description;
 
 /// What a root is, and what only that kind of root declares.
@@ -51,7 +53,7 @@ pub(crate) struct OverlayDecl {
 }
 
 /// A root, from the moment its body starts to be built.
-pub(crate) struct RootDecl {
+pub(crate) struct RootDecl<'f, A> {
     pub(crate) kind: RootKind,
     /// The root the declaration was made in.
     pub(crate) parent: Option<usize>,
@@ -61,15 +63,19 @@ pub(crate) struct RootDecl {
     /// The scroll containers' leaves in this root and in their contents, an
     /// enclosing container after those it encloses.
     pub(crate) scrolls: Vec<NodeId>,
+    /// The regions' leaves in this root and in its scroll containers' content,
+    /// in the order they were declared.
+    pub(crate) regions: Vec<RegionDecl<'f, A>>,
 }
 
-impl RootDecl {
+impl<A> RootDecl<'_, A> {
     pub(crate) fn base() -> Self {
         Self {
             kind: RootKind::Base,
             parent: None,
             node: None,
             scrolls: Vec::new(),
+            regions: Vec::new(),
         }
     }
 
@@ -79,6 +85,7 @@ impl RootDecl {
             parent: Some(parent),
             node: None,
             scrolls: Vec::new(),
+            regions: Vec::new(),
         }
     }
 }

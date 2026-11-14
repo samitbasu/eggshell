@@ -31,6 +31,10 @@ const PICKS: [(Pick, &str); 2] = [(Pick::A, "Alpha"), (Pick::B, "Beta")];
 struct App {
     undone: u32,
     inside: u32,
+    /// The built-tooltip trigger is not built.
+    gone: bool,
+    /// A second built-tooltip trigger is built.
+    second: bool,
 }
 
 fn prepare(ctx: &egui::Context, _: &App) {
@@ -713,6 +717,55 @@ fn a_closed_built_tooltip_is_built_only_for_accesskit() {
     );
 }
 
+fn vanishing_view(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.div(
+        tw().flex()
+            .flex_col()
+            .items_start()
+            .gap(4.0)
+            .p(4.0)
+            .pt(10.0),
+        |b| {
+            if !app.gone {
+                b.button("first", "First")
+                    .tooltip_with(|s| s.text(tw(), "First tip"))
+                    .add();
+            }
+            if app.second {
+                b.button("second", "Second")
+                    .tooltip_with(|s| s.text(tw(), "Second tip"))
+                    .add();
+            }
+        },
+    );
+}
+
+/// Whether the first trigger's tooltip is still shown on the frame after its
+/// trigger stops being built.
+fn shown_after_its_trigger_goes(second: bool) -> bool {
+    let mut harness = harness_of(vanishing_view);
+    harness.state_mut().app.second = second;
+    harness.run_steps(2);
+    hover_node(&mut harness, "/\"first\"");
+    wait(&mut harness, DELAY + GRACE);
+    assert!(painted(&harness, "First tip"), "precondition: it is open");
+    harness.state_mut().app.gone = true;
+    harness.run_steps(1);
+    is_shown(&harness)
+}
+
+#[test]
+fn a_built_tooltip_whose_trigger_goes_leaves_only_while_it_can_be_built() {
+    assert!(
+        shown_after_its_trigger_goes(true),
+        "with another built trigger in the frame, it plays its exit"
+    );
+    assert!(
+        !shown_after_its_trigger_goes(false),
+        "with none, it ends at once rather than leave as an empty box"
+    );
+}
+
 #[test]
 fn a_built_tooltip_follows_hover_intent() {
     let mut harness = rich_harness();
@@ -777,5 +830,57 @@ fn a_kbd_takes_the_tooltip_look_inside_a_tooltip_and_its_own_on_the_page() {
     assert_eq!(
         support::text_color(&harness, everywhere, "Ctrl+S"),
         kbd.tooltip.text
+    );
+}
+
+/// The four corners of every filled four-point path painted in `fill`.
+fn diamonds(harness: &Harness<'_, Rig<App>>, fill: egui::Color32) -> Vec<Rect> {
+    support::shapes(harness)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Path(path) if path.points.len() == 4 && path.fill == fill => {
+                Some(Rect::from_points(&path.points))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn the_arrow_is_painted_between_the_box_and_its_trigger() {
+    let mut harness = harness();
+    hover_node(&mut harness, "/\"undo\"");
+    wait(&mut harness, DELAY + GRACE);
+    let tip = tip_box(&harness).expect("precondition: the tooltip is shown");
+    let trigger = rect_of(&harness, "/\"undo\"");
+    assert!(
+        tip.bottom() <= trigger.top(),
+        "precondition: the tooltip sits above its trigger"
+    );
+    let style = Style::of(&harness.ctx);
+    let size = style
+        .tooltip
+        .arrow
+        .expect("precondition: the shadcn style has an arrow")
+        .size;
+    let fill = style.tooltip.popup.paint.states.rest.fill;
+    let arrows = diamonds(&harness, fill);
+    assert_eq!(arrows.len(), 1, "one arrow in the box's fill: {arrows:?}");
+    let arrow = arrows[0];
+    assert!(
+        (arrow.center().x - trigger.center().x).abs() < 0.5,
+        "centred on the trigger: {arrow:?} vs {trigger:?}"
+    );
+    assert!(
+        arrow.top() < tip.bottom() && arrow.bottom() > tip.bottom(),
+        "straddles the box's bottom edge: {arrow:?} vs {tip:?}"
+    );
+    assert!(
+        arrow.bottom() <= trigger.top(),
+        "and stops short of the trigger"
+    );
+    assert!(
+        (arrow.width() - size * std::f32::consts::SQRT_2).abs() < 0.5,
+        "a {size} pt square turned 45°"
     );
 }

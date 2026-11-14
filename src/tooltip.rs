@@ -12,7 +12,7 @@ use std::any::Any;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use egui::{Context, Id, Key, Pos2, Rect, Shape, Ui, Vec2, WidgetText, pos2};
+use egui::{Context, Id, Key, Painter, Pos2, Rect, Shape, Ui, Vec2, WidgetText, pos2};
 
 use crate::builder::{Builder, Surface};
 use crate::kept::Handle;
@@ -35,6 +35,17 @@ type BuildFn<A> = dyn Fn(&mut Builder<'_, '_, A>) + Send + Sync;
 
 struct Built<A>(Box<BuildFn<A>>);
 
+/// Builds a [`Content::Built`] for the application `A`. Only a caller that
+/// knows `A: 'static` can make one, so a frame holds the one its triggers
+/// left, and declaring the tooltips asks nothing of `A`.
+pub(crate) type BuildBuilt<A> = fn(&mut Builder<'_, '_, A>, &(dyn Any + Send + Sync));
+
+fn build_built<A: 'static>(b: &mut Builder<'_, '_, A>, built: &(dyn Any + Send + Sync)) {
+    if let Some(built) = built.downcast_ref::<Built<A>>() {
+        (built.0)(b);
+    }
+}
+
 impl Content {
     pub(crate) fn built<A: 'static>(
         build: impl Fn(&mut Builder<'_, '_, A>) + Send + Sync + 'static,
@@ -42,14 +53,26 @@ impl Content {
         Self::Built(Arc::new(Built::<A>(Box::new(build))))
     }
 
-    /// Adds what this shows to `b`, drawn on a tooltip. The content of an
-    /// application other than `b`'s adds nothing.
-    fn build<A: 'static>(&self, b: &mut Builder<'_, '_, A>) {
+    /// Whether `b` can build this. Built content cannot in a frame where no
+    /// trigger of built content was built, as when a leaving tooltip's
+    /// trigger is gone and was the only one.
+    fn shows_in<A>(&self, b: &Builder<'_, '_, A>) -> bool {
+        match self {
+            Self::Text(_) => true,
+            Self::Built(_) => b.build_built().is_some(),
+        }
+    }
+
+    /// Adds what this shows to `b`, drawn on a tooltip. Built content adds
+    /// nothing where it does not [show](Self::shows_in), and for an
+    /// application other than `b`'s.
+    fn build<A>(&self, b: &mut Builder<'_, '_, A>) {
+        let build_built = b.build_built();
         b.on_surface(Surface::Tooltip, |b| match self {
             Self::Text(text) => b.rich(tw(), text.clone()),
             Self::Built(built) => {
-                if let Some(built) = built.downcast_ref::<Built<A>>() {
-                    (built.0)(b);
+                if let Some(build_built) = build_built {
+                    build_built(b, &**built);
                 }
             }
         });
@@ -77,11 +100,14 @@ impl Tooltip {
     ) -> Self {
         match content {
             Content::Text(text) => Self::text(text),
-            Content::Built(_) => Self {
-                description: accesskit_is_on(b.ctx())
-                    .then(|| b.text_of(trigger, |b| content.build(b))),
-                content,
-            },
+            Content::Built(_) => {
+                b.set_build_built(build_built::<A>);
+                Self {
+                    description: accesskit_is_on(b.ctx())
+                        .then(|| b.text_of(trigger, |b| content.build(b))),
+                    content,
+                }
+            }
         }
     }
 
@@ -366,19 +392,20 @@ impl std::fmt::Debug for Tip {
 }
 
 /// Declares the overlay of every tooltip that is open or still leaving.
-pub(crate) fn declare<'f, A: 'static>(b: &mut Builder<'_, 'f, A>) {
+pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
     let style = crate::Style::of(b.ctx());
     let present = b.kept().with(|kept| kept.tooltips.present.clone());
     for tip in present {
         let slot = b.slot(&Tip(tip.trigger));
+        let shows = tip.content.shows_in(b);
         let kept = b.kept().with(|kept| {
             let leaving = kept.presences.contains(slot.id);
-            if !tip.open && !leaving {
+            if !shows || (!tip.open && !leaving) {
                 kept.tooltips
                     .present
                     .retain(|present| present.trigger != tip.trigger);
             }
-            tip.open || leaving
+            shows && (tip.open || leaving)
         });
         if !kept {
             continue;
@@ -405,7 +432,7 @@ pub(crate) fn declare<'f, A: 'static>(b: &mut Builder<'_, 'f, A>) {
             Some(shadow) => classes.shadow(shadow),
             None => classes,
         };
-        let inset = tooltip.padding + Vec2::splat(tooltip.popup.border_width);
+        let border = Vec2::splat(tooltip.popup.border_width);
         OverlayChain::new(b.reborrow(), slot)
             .band(Band::Tooltip)
             .anchor(Anchor::Node(trigger))
@@ -414,13 +441,15 @@ pub(crate) fn declare<'f, A: 'static>(b: &mut Builder<'_, 'f, A>) {
             .dismiss_on(DismissOn::Never)
             .shown(if tip.open { Shown::Open } else { Shown::Closed })
             .children(|s| {
-                let node = s.div_id("Box", classes, |s| tip.content.build(s));
-                if let Some(arrow) = arrow {
-                    node.draw(move |_, ui| {
-                        let rect = ui.max_rect().expand2(inset);
-                        paint_arrow(ui, rect, trigger, arrow.size, colors.fill);
-                    });
-                }
+                s.div_id("Box", classes, |s| {
+                    tip.content.build(s);
+                    if let Some(arrow) = arrow {
+                        s.paint(
+                            tw().absolute().inset_px(0.0),
+                            arrow_painter(trigger, arrow.size, colors.fill, border),
+                        );
+                    }
+                });
             });
     }
 }
@@ -429,8 +458,25 @@ pub(crate) fn declare<'f, A: 'static>(b: &mut Builder<'_, 'f, A>) {
 /// `translate-y-[calc(-50%_-_2px)]` of a square that starts at the edge.
 const ARROW_SINK: f32 = 2.0;
 
-fn paint_arrow(ui: &Ui, rect: Rect, trigger: Id, size: f32, fill: egui::Color32) {
-    let Some(anchor) = ui
+/// Paints the arrow that points from the tooltip's box to its `trigger`.
+///
+/// Not generic over the app, unlike a draw closure written inside
+/// [`declare`]: a closure's type carries the type parameters of the function
+/// it is written in, so a `'static` one there would demand `A: 'static` of
+/// every layout.
+fn arrow_painter(
+    trigger: Id,
+    size: f32,
+    fill: egui::Color32,
+    border: Vec2,
+) -> impl Fn(&Painter, Rect, egui::Color32) + 'static {
+    move |painter, padding_box, _| {
+        paint_arrow(painter, padding_box.expand2(border), trigger, size, fill);
+    }
+}
+
+fn paint_arrow(painter: &Painter, rect: Rect, trigger: Id, size: f32, fill: egui::Color32) {
+    let Some(anchor) = painter
         .ctx()
         .read_response(trigger)
         .map(|response| response.rect)
@@ -455,8 +501,7 @@ fn paint_arrow(ui: &Ui, rect: Rect, trigger: Id, size: f32, fill: egui::Color32)
         pos2(centre.x + reach, centre.y),
         pos2(centre.x, centre.y + reach),
     ];
-    ui.painter()
-        .add(Shape::convex_polygon(points, fill, egui::Stroke::NONE));
+    painter.add(Shape::convex_polygon(points, fill, egui::Stroke::NONE));
 }
 
 #[cfg(test)]

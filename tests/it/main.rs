@@ -8,6 +8,7 @@
 
 mod autosuggest;
 mod blur_cause;
+mod borrowed_app;
 mod button_options;
 mod ch;
 mod chat_shell_demo;
@@ -59,6 +60,8 @@ mod presence;
 mod press_bubble;
 mod prims;
 mod progress;
+mod regions;
+mod responsive_example;
 mod scroll;
 mod scroll_keys;
 mod select;

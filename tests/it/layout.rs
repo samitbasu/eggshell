@@ -72,7 +72,7 @@ fn place_in(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, ()>)) -> Pla
     place_app(area, f)
 }
 
-fn place_app<A: 'static>(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
+fn place_app<A>(area: Rect, f: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
     fixed_state().build(ctx(), f).layout(area)
 }
 
@@ -1250,6 +1250,74 @@ fn guide_baseline_aligns_text_of_different_sizes() {
     let baselines: Vec<f32> = texts.iter().skip(1).map(|text| text.min.y).collect();
     assert_eq!(baselines.len(), 5);
     assert!(baselines.iter().any(|y| *y != baselines[0]));
+}
+
+/// The links of the guide's demo `title`, laid out in a window `width` wide:
+/// the container they are in, and each of them.
+fn guide_at(title: &str, width: f32) -> (Rect, Vec<Rect>) {
+    let state = flexbox_guide::State::showing(title, 0);
+    let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 600.0));
+    let divs = divs(&place_app(area, |b| flexbox_guide::guide(b, &state)));
+    (divs[1], divs[2..].to_vec())
+}
+
+#[test]
+fn guide_navigation_is_right_aligned_then_spread_then_stacked_with_the_region_width() {
+    let nav = |width| guide_at("Responsive navigation", width);
+
+    let (bar, links) = nav(900.0);
+    assert!(links.iter().all(|link| link.min.y == links[0].min.y));
+    assert_close(links[4].max.x, bar.max.x - BAR_INSET);
+    assert!(
+        links[0].min.x > bar.min.x + BAR_INSET + 100.0,
+        "pushed to the right"
+    );
+
+    let (bar, links) = nav(700.0);
+    assert!(links.iter().all(|link| link.min.y == links[0].min.y));
+    let edge = links[0].min.x - (bar.min.x + BAR_INSET);
+    assert!(edge > 1.0, "free space to distribute");
+    assert_close(bar.max.x - BAR_INSET - links[4].max.x, edge);
+
+    let (bar, links) = nav(500.0);
+    assert!(links.windows(2).all(|pair| pair[1].min.y > pair[0].min.y));
+    assert!(links.iter().all(|link| link.min.x == links[0].min.x));
+    assert!(links.iter().all(|link| bar.contains_rect(*link)));
+}
+
+#[test]
+fn guide_three_columns_stack_then_pair_the_asides_then_put_the_main_between_them() {
+    let page = |width| guide_at("Mobile-first three columns", width);
+    let rows = |links: &[Rect]| {
+        let mut tops: Vec<f32> = links.iter().map(|link| link.min.y).collect();
+        tops.dedup_by(|a, b| (*a - *b).abs() < 1e-2);
+        tops.len()
+    };
+
+    let (_, links) = page(500.0);
+    assert_eq!(rows(&links), 5, "one to a row");
+    assert!(links.iter().all(|link| link.width() == links[0].width()));
+
+    let (_, links) = page(700.0);
+    let [header, main, aside_1, aside_2, footer] = links[..] else {
+        panic!("five panes")
+    };
+    assert_eq!(rows(&links), 4, "the asides share a row");
+    assert_eq!(aside_1.min.y, aside_2.min.y);
+    assert!(main.min.y < aside_1.min.y && aside_1.max.y <= footer.min.y);
+    assert!(aside_1.max.x <= aside_2.min.x);
+    assert!(header.width() > aside_1.width());
+
+    let (_, links) = page(900.0);
+    let [header, aside_1, main, aside_2, footer] = links[..] else {
+        panic!("five panes")
+    };
+    assert_eq!(rows(&links), 3, "header, the three columns, footer");
+    assert_eq!(aside_1.min.y, main.min.y);
+    assert_eq!(main.min.y, aside_2.min.y);
+    assert!(aside_1.max.x <= main.min.x && main.max.x <= aside_2.min.x);
+    assert!(main.width() > 2.0 * aside_1.width());
+    assert!(header.max.y <= aside_1.min.y && aside_1.max.y <= footer.min.y);
 }
 
 #[test]

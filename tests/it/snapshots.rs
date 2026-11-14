@@ -422,7 +422,7 @@ fn flexbox_guide_justify_space_evenly() {
 }
 
 /// An example with its controls panel beside an 800 x 600 demo.
-fn snapshot_controlled<A: 'static>(name: &str, app: A, view: support::View<A>) {
+fn snapshot_controlled<A>(name: &str, app: A, view: support::View<A>) {
     snapshot_app(
         name,
         Vec2::new(1040.0, 600.0),
@@ -436,7 +436,7 @@ fn snapshot_controlled<A: 'static>(name: &str, app: A, view: support::View<A>) {
 /// Draws an interactive example of `size` in the light theme the examples
 /// run in, with the pointer at `pointer` (in the layout's coordinates, 8
 /// points in from the window's corner), and compares it with the golden `name`.
-fn snapshot_app<A: 'static>(
+fn snapshot_app<A>(
     name: &str,
     size: Vec2,
     app: A,
@@ -454,7 +454,7 @@ fn snapshot_app<A: 'static>(
 }
 
 /// [`snapshot_app`] in `theme`, which stock widgets draw themselves in.
-fn snapshot_themed<A: 'static>(
+fn snapshot_themed<A>(
     name: &str,
     size: Vec2,
     app: (A, support::View<A>, TextStyle),
@@ -465,7 +465,7 @@ fn snapshot_themed<A: 'static>(
 }
 
 /// [`snapshot_themed`] with the examples switched to `style`.
-fn snapshot_themed_in<A: 'static>(
+fn snapshot_themed_in<A>(
     style: ShadcnStyle,
     name: &str,
     size: Vec2,
@@ -996,7 +996,7 @@ fn signup_snapshot(name: &str, size: Vec2, state: signup_form::State) {
     );
 }
 
-fn light_snapshot<A: 'static>(name: &str, size: Vec2, app: A, view: support::View<A>) {
+fn light_snapshot<A>(name: &str, size: Vec2, app: A, view: support::View<A>) {
     snapshot_app(
         name,
         size,
@@ -1571,7 +1571,7 @@ mod motion {
     }
 
     /// Five frames a quarter of `duration` apart, from 0% to 100%.
-    fn frames<A: 'static>(harness: &mut Harness<'static, support::Rig<A>>, name: &str) {
+    fn frames<A>(harness: &mut Harness<'static, support::Rig<A>>, name: &str) {
         for quarter in 0..5 {
             harness.step();
             let image = harness.render().expect("renders");

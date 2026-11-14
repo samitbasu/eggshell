@@ -15,7 +15,7 @@ use crate::{Style as EggshellStyle, TextStyle};
 
 /// A width a widget will be given, for wrapping its text and growing its
 /// height.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Width(f32);
 
 impl Width {

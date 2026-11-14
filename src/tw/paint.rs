@@ -18,6 +18,18 @@ pub struct Sides<T> {
     pub left: T,
 }
 
+impl<T: Copy> Sides<T> {
+    /// `value` on every side.
+    pub fn all(value: T) -> Self {
+        Self {
+            top: value,
+            right: value,
+            bottom: value,
+            left: value,
+        }
+    }
+}
+
 /// A ring drawn outside the border box; it does not affect layout.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Ring {
