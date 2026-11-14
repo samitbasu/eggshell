@@ -119,7 +119,7 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
             {
                 dismiss.push(menu.id);
                 if let Some(anchor) = menu.anchor {
-                    ctx.memory_mut(|memory| memory.request_focus(anchor));
+                    focus_item(ctx, anchor, focused);
                 }
             } else if let Some(step) = Step::of_key(ctx, home_end)
                 && let Some(to) = target(&menu.items, focused, step, menu.wrap)

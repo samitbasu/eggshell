@@ -139,6 +139,12 @@ impl From<Band> for Order {
 }
 
 impl Band {
+    /// Whether the overlay senses the pointer: a tooltip does not, and a
+    /// press on its trigger is the page's.
+    pub(crate) fn senses_input(self) -> bool {
+        self != Self::Tooltip
+    }
+
     /// The egui layer of the overlay `id` in this band: one layer per
     /// overlay, so that its bounding box is the overlay's box and the layers
     /// between overlays belong to the page.

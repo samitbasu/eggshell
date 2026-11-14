@@ -3,7 +3,9 @@
 //! A node that is a **source** ([`NodeHandle::drag_source`]) carries a payload
 //! of any type. A node that is a **target** ([`NodeHandle::drop_target`])
 //! takes the payloads of one type. Files dragged in from the OS are a
-//! payload too, [`Files`], and a target takes them the same way.
+//! payload too, [`Files`], and a target takes them the same way. A source
+//! with a [`drag_handle`](NodeHandle::drag_handle) lifts only from the
+//! handle, and is still what moves.
 //!
 //! ```
 //! use eggshell_ui::{Builder, Drop, DragImage, tw};
@@ -72,6 +74,7 @@ use crate::key::root_id;
 use crate::overlay_input::Drag;
 use crate::pipeline::{Flow, PlacedNode};
 use crate::roots::{PlacedRoot, root_at, root_of, stacked_top_down};
+use crate::tw::Sensing;
 
 type Erased = Arc<dyn Any + Send + Sync>;
 
@@ -323,12 +326,61 @@ impl EdgeScroll {
 /// What a node declares of itself in a drag.
 #[derive(Debug, Default)]
 pub(crate) struct NodeDrag {
-    pub(crate) source: Option<Erased>,
+    pub(crate) source: Option<Source>,
     pub(crate) image: DragImage,
     /// The source declared a drag preview, which is its image.
     pub(crate) previewed: bool,
     pub(crate) drops: Vec<usize>,
     pub(crate) fallback: bool,
+}
+
+/// A drag source: what it carries, and where a drag that lifts it starts.
+#[derive(Debug)]
+pub(crate) struct Source {
+    pub(crate) payload: Erased,
+    pub(crate) activator: Activator,
+    /// What the node sensed before it became a source, which it goes back
+    /// to when a handle takes its drags.
+    pub(crate) declared: Sensing,
+}
+
+/// Where a drag that lifts a source starts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Activator {
+    /// Anywhere on the source.
+    Itself,
+    /// Only on the handle, the node with this id in the source's subtree.
+    Handle(Id),
+}
+
+/// The source a drag starting on the node at `index` lifts: the node itself
+/// if it is a source with no handle, or the source whose handle it is.
+pub(crate) fn lifted_by(nodes: &[PlacedNode], index: usize) -> Option<usize> {
+    let activator = |at: usize| {
+        let source = nodes[at].drag.as_ref()?.source.as_ref()?;
+        Some(source.activator)
+    };
+    if activator(index) == Some(Activator::Itself) {
+        return Some(index);
+    }
+    let handle = Activator::Handle(nodes[index].id()?);
+    (0..index)
+        .rev()
+        .filter(|&above| nodes[above].end > index)
+        .find(|&above| activator(above) == Some(handle))
+}
+
+/// Shows the pointer what a press would do: `Grab` over what starts a drag
+/// while none is live, `Grabbing` for the whole of a live one.
+pub(crate) fn show_grab(
+    ctx: &Context,
+    nodes: &[PlacedNode],
+    index: usize,
+    response: &egui::Response,
+) {
+    if response.hovered() && live_gesture(ctx).is_none() && lifted_by(nodes, index).is_some() {
+        ctx.set_cursor_icon(egui::CursorIcon::Grab);
+    }
 }
 
 /// The closures a frame declared for drags, for the draw to deliver.
@@ -685,11 +737,7 @@ fn item_hint(nodes: &[PlacedNode], index: usize, leaving: Option<Id>, pos: Pos2)
     let rects: Vec<Rect> = children_of(nodes, index)
         .into_iter()
         .filter(|&child| nodes[child].flow != Flow::Hidden)
-        .filter(|&child| {
-            holds(child, &|node| {
-                node.drag.as_ref().is_some_and(|d| d.source.is_some())
-            })
-        })
+        .filter(|&child| holds(child, &PlacedNode::is_drag_source))
         .filter(|&child| leaving.is_none_or(|id| !holds(child, &|node| node.id() == Some(id))))
         .map(|child| nodes[child].rect())
         .collect();
@@ -844,7 +892,7 @@ pub(crate) fn begin<A>(
     if let Some(held) = &gesture {
         let source_here = by_id
             .get(&held.source)
-            .is_some_and(|&at| nodes[at].drag.as_ref().is_some_and(|d| d.source.is_some()));
+            .is_some_and(|&at| nodes[at].is_drag_source());
         let cause = if input.focus_lost {
             Some(Cause::FocusLost)
         } else if !DragAndDrop::has_payload_of_type::<Lifted>(ctx) && !input.released {
@@ -986,13 +1034,14 @@ fn lift(
     pass: u64,
 ) -> Option<Gesture> {
     let started = ctx.drag_started_id()?;
-    let node = &nodes[*by_id.get(&started)?];
-    let payload = node.drag.as_ref()?.source.clone()?;
+    let at_source = lifted_by(nodes, *by_id.get(&started)?)?;
+    let node = &nodes[at_source];
+    let payload = node.drag.as_ref()?.source.as_ref()?.payload.clone();
     let at = input.press_origin.or(input.interact)?;
     DragAndDrop::set_payload(ctx, Lifted);
     Some(Gesture {
         scope,
-        source: started,
+        source: node.id()?,
         payload,
         grab: at - node.rect().min,
         last: at,
@@ -1037,6 +1086,9 @@ impl Finish {
         decls: &mut Decls<A>,
         app: &mut A,
     ) {
+        if live_gesture(ctx).is_some() {
+            ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
+        }
         match self.ending {
             Ending::Nothing => {}
             Ending::Released { gesture, hit } => {

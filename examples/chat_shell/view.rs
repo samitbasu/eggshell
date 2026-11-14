@@ -1,7 +1,9 @@
 //! The three-pane frame and the splitters between the panes.
 
 use super::common;
+use core::time::Duration;
 use eggshell_ui::{Builder, tw};
+
 use egui::CursorIcon;
 
 use super::centre::{centre, centre_style};
@@ -41,11 +43,12 @@ pub enum Part {
 }
 
 /// A thin node between two panes: a drag handle with a one-point line that
-/// lights up under the pointer.
+/// fades to the accent under the pointer. The line is keyed: a transition
+/// needs a node of its own to keep its progress under.
 ///
 /// ```html
 /// <div class="group flex justify-center w-1.5 shrink-0 cursor-col-resize">
-///   <div class="w-px h-full bg-border group-hover:bg-primary"></div>
+///   <div class="w-px h-full bg-border group-hover:bg-primary transition-colors duration-150"></div>
 /// </div>
 /// ```
 fn splitter(b: &mut B<'_, '_>, pane: Pane) {
@@ -61,11 +64,14 @@ fn splitter(b: &mut B<'_, '_>, pane: Pane) {
             .focusable_none()
             .group(),
         |b| {
-            b.rule(
+            b.div_id(
+                "line",
                 tw().w_px(1.0)
                     .h_full()
                     .bg(k[Tok::Line])
-                    .group_hover(|p| p.bg(k[Tok::Accent])),
+                    .group_hover(|p| p.bg(k[Tok::Accent]))
+                    .transition(Duration::from_millis(150)),
+                |_| {},
             );
         },
     )

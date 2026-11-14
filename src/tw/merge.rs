@@ -230,6 +230,16 @@ impl Shape<'_> {
         &mut self.paint.radius.se
     }
 
+    pub(super) fn radius_nw(&mut self) -> &mut u8 {
+        self.touched.mark(Property::RadiusNw);
+        &mut self.paint.radius.nw
+    }
+
+    pub(super) fn radius_sw(&mut self) -> &mut u8 {
+        self.touched.mark(Property::RadiusSw);
+        &mut self.paint.radius.sw
+    }
+
     pub(super) fn set_opacity(&mut self, opacity: Opacity) {
         self.touched.mark(Property::Opacity);
         self.paint.opacity = opacity;

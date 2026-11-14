@@ -246,6 +246,15 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
         Self::with_slot(b, slot, classes)
     }
 
+    /// The container's id.
+    pub(crate) fn id(&self) -> Id {
+        self.slot.id
+    }
+
+    pub(crate) fn builder(&self) -> &Builder<'a, 'f, A> {
+        &self.b
+    }
+
     pub(crate) fn with_slot(b: Builder<'a, 'f, A>, slot: Slot, classes: Tw) -> Self {
         Self {
             slot,

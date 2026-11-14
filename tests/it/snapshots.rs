@@ -120,6 +120,26 @@ mod overflow;
 mod long_list;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/virtual_grid.rs"]
+mod virtual_grid;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/virtual_list_example.rs"]
+mod virtual_list_example;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/virtual_list_stable_id.rs"]
+mod virtual_list_stable_id;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/stargazers.rs"]
+mod stargazers;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/chat.rs"]
+mod chat;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/flex_scroll.rs"]
 mod flex_scroll;
 
@@ -1400,6 +1420,128 @@ fn long_list_dark() {
 #[test]
 fn long_list_scrolled_light() {
     long_list_in("long_list_scrolled_light", egui::Theme::Light, true);
+}
+
+/// An example ported onto `virtual_list`, at its start, in `theme`.
+fn port_in<S: Default + 'static>(
+    name: &str,
+    size: Vec2,
+    theme: egui::Theme,
+    view: support::View<S>,
+) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        size,
+        common::base_text(theme),
+        S::default(),
+        view,
+        |_, _| {},
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(4);
+    harness.snapshot(name);
+}
+
+#[test]
+fn virtual_grid_light() {
+    port_in(
+        "virtual_grid_light",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Light,
+        virtual_grid::layout,
+    );
+}
+
+#[test]
+fn virtual_grid_dark() {
+    port_in(
+        "virtual_grid_dark",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Dark,
+        virtual_grid::layout,
+    );
+}
+
+#[test]
+fn virtual_list_example_light() {
+    port_in(
+        "virtual_list_example_light",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Light,
+        virtual_list_example::layout,
+    );
+}
+
+#[test]
+fn virtual_list_example_dark() {
+    port_in(
+        "virtual_list_example_dark",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Dark,
+        virtual_list_example::layout,
+    );
+}
+
+#[test]
+fn virtual_list_stable_id_light() {
+    port_in(
+        "virtual_list_stable_id_light",
+        Vec2::new(560.0, 400.0),
+        egui::Theme::Light,
+        virtual_list_stable_id::layout,
+    );
+}
+
+#[test]
+fn virtual_list_stable_id_dark() {
+    port_in(
+        "virtual_list_stable_id_dark",
+        Vec2::new(560.0, 400.0),
+        egui::Theme::Dark,
+        virtual_list_stable_id::layout,
+    );
+}
+
+#[test]
+fn stargazers_light() {
+    port_in(
+        "stargazers_light",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Light,
+        stargazers::layout,
+    );
+}
+
+#[test]
+fn stargazers_dark() {
+    port_in(
+        "stargazers_dark",
+        Vec2::new(480.0, 400.0),
+        egui::Theme::Dark,
+        stargazers::layout,
+    );
+}
+
+#[test]
+fn chat_light() {
+    port_in(
+        "chat_light",
+        Vec2::new(560.0, 560.0),
+        egui::Theme::Light,
+        chat::layout,
+    );
+}
+
+#[test]
+fn chat_dark() {
+    port_in(
+        "chat_dark",
+        Vec2::new(560.0, 560.0),
+        egui::Theme::Dark,
+        chat::layout,
+    );
 }
 
 /// The overflow demo: visible, clip, hidden and scroll, twenty labels each.

@@ -23,7 +23,7 @@ use crate::dnd::{self, Stakes};
 use crate::focus;
 use crate::measure::TextLeaf;
 use crate::nav;
-use crate::overlay::{Anchored, Band, Nav};
+use crate::overlay::{Anchored, Nav};
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::pipeline::{ColorSource, DrawFn, Flow, NodeKind, Placed, PlacedNode};
@@ -971,6 +971,9 @@ impl<A> Walk<'_, A> {
             }
             None => (None, Merged::Own),
         };
+        if let Some(response) = &response {
+            dnd::show_grab(self.ui.ctx(), nodes, index, response);
+        }
         let needs_hovering = interaction.grouping == Grouping::Group
             || interaction.variants.get(State::Hover).is_some();
         let hovering = response
@@ -1505,7 +1508,7 @@ impl<A> Walk<'_, A> {
                         pivot_pos: Some(rect.min),
                         pivot: egui::Align2::LEFT_TOP,
                         size: Some(rect.size()),
-                        interactable: overlay.band != Band::Tooltip,
+                        interactable: overlay.band.senses_input(),
                         last_became_visible_at: None,
                     },
                 );
@@ -1523,7 +1526,7 @@ impl<A> Walk<'_, A> {
                 .fixed_pos(rect.min)
                 .constrain(false)
                 .movable(false)
-                .interactable(overlay.band != Band::Tooltip)
+                .interactable(overlay.band.senses_input())
                 .fade_in(false)
                 .show(&ctx, |ui| {
                     ui.allocate_space(rect.size());
