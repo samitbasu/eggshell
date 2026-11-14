@@ -1,6 +1,7 @@
 //! An accordion: three sections, one open at a time, over a list.
 //!
-//! Click a header to open its section and close the open one. The sections
+//! Click a header, or focus it and press Enter or Space, to open its section
+//! and close the open one; the chevron turns with the section. The sections
 //! open and close by their height over 200 ms, ease-out, and the list below
 //! moves with them: layout is what animates, so nothing is scaled and no text
 //! stretches. Toggle a section while it moves and it turns round from where it
@@ -13,6 +14,7 @@ mod common;
 
 use eggshell_ui::overlay::Shown;
 use eggshell_ui::{Builder, tw};
+use egui::{Color32, Role};
 
 #[derive(Clone, Copy, Debug, Hash)]
 pub enum Part {
@@ -74,12 +76,36 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
             s.div_id(Part::Accordion, tw().flex().flex_col(), |s| {
                 for (index, (title, body)) in SECTIONS.into_iter().enumerate() {
                     s.div_id(Part::Item(index), tw().flex().flex_col(), |s| {
-                        s.button(Part::Head(index), title)
-                            .variant(eggshell_ui_shadcn::variant::GHOST)
-                            .on_click(move |state: &mut State| state.toggle(index));
-                        s.collapsible(Part::Body(index), Shown::from(state.open == Some(index)))
+                        let open = state.open == Some(index);
+                        let muted = eggshell_ui_shadcn::tokens(s.ctx())
+                            .map_or(Color32::GRAY, |tokens| tokens.muted_foreground);
+                        s.collapsible(Part::Body(index), Shown::from(open))
                             .content(tw().px(2.0).pb(3.0))
-                            .children(|s| s.text(tw(), body));
+                            .children_with_header(
+                                |s, progress| {
+                                    s.div_id(
+                                        Part::Head(index),
+                                        tw().sense_click()
+                                            .flex()
+                                            .items_center()
+                                            .justify_between()
+                                            .px(2.0)
+                                            .py(3.0),
+                                        |s| {
+                                            s.text(tw(), title);
+                                            s.paint(
+                                                tw().size_px(16.0).shrink_0(),
+                                                common::chevron(muted, 180.0 * f32::from(progress)),
+                                            );
+                                        },
+                                    )
+                                    .role(Role::Button)
+                                    .named(title)
+                                    .expanded(open)
+                                    .on_click(move |state: &mut State| state.toggle(index));
+                                },
+                                |s| s.text(tw(), body),
+                            );
                     });
                 }
             });

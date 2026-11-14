@@ -678,6 +678,7 @@ b.region("title_bar", tw().flex_1().min_w_0().h(7.0), move |b, size| {
 - **Clipping** is the wrapper's rectangle (no rounded clipping, #40); the wrapper's own padding and border do not open and close, so put them on the content. The wrapper is `inert` while it closes.
 - **Gaps.** A closed wrapper stays a zero-size child, so a parent's `gap` counts it: put spacing in the content's padding.
 - **FLIP.** While a size animation is in flight, `LayoutAnimation::starts_slides` is `No`: layout itself moves what follows, so no move starts a slide, and slides already running go on.
+- **Header.** `children_with_header(|b, progress| .., |b| ..)` builds a header just before the wrapper and gives it the eased open progress the size follows (zero closed, one open), so a chevron turning `180° × progress` cannot drift from the size, and snaps with it under reduced motion. The header is an ordinary node: a `sense_click` row with `.role(Role::Button)`, `.named(..)` and `.expanded(open)` is focusable and toggles on Enter and Space.
 - **Continuity.** A wrapper records `Motion::Resizes`; `Timeline::resizes` bounds its size change per frame (`max_resize`).
 
 ## 12. Layers and overlays

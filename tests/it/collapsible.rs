@@ -549,3 +549,94 @@ mod flight {
         assert_eq!(pass(&ctx, &mut layout, &app, 1.0), None, "open and still");
     }
 }
+
+mod header {
+    use std::cell::Cell;
+
+    use super::*;
+
+    #[derive(Default)]
+    struct Page {
+        open: bool,
+        progress: Cell<f32>,
+    }
+
+    /// ```html
+    /// <header/> <collapsible> <div class="h-[100px]"></div> </collapsible>
+    /// ```
+    fn view<'f>(b: &mut Builder<'_, 'f, Page>, app: &'f Page) {
+        b.collapsible("body", Shown::from(app.open))
+            .children_with_header(
+                |_, progress| app.progress.set(f32::from(progress)),
+                |s| {
+                    s.div_id("fill", tw().w_px(200.0).h_px(FILL), |_| {});
+                },
+            );
+    }
+
+    fn harness() -> Harness<'static, Rig<Page>> {
+        let mut harness =
+            support::harness_stepped(vec2(400.0, 300.0), STEP, base_text(), Page::default(), view);
+        harness.run_steps(4);
+        harness
+    }
+
+    fn lag(harness: &Harness<'_, Rig<Page>>) -> f32 {
+        let height = rect_of(harness, r#"/"body""#).height();
+        (harness.state().app.progress.get() - height / FILL).abs()
+    }
+
+    #[test]
+    fn the_header_is_told_how_far_open_the_region_is_by_the_value_its_size_follows() {
+        let mut harness = harness();
+        assert_eq!(harness.state().app.progress.get(), 0.0, "closed");
+        harness.state_mut().app.open = true;
+        let mut between = 0;
+        for _ in 0..40 {
+            harness.step();
+            assert!(lag(&harness) < 0.005, "{}", lag(&harness));
+            let progress = harness.state().app.progress.get();
+            between += usize::from(progress > 0.05 && progress < 0.95);
+        }
+        assert!(between > 5, "precondition: it was in between");
+        assert_eq!(harness.state().app.progress.get(), 1.0);
+    }
+
+    #[test]
+    fn it_reverses_with_the_size() {
+        let mut harness = harness();
+        harness.state_mut().app.open = true;
+        harness.run_steps(8);
+        let before = harness.state().app.progress.get();
+        assert!(before > 0.2 && before < 0.95, "precondition: {before}");
+        harness.state_mut().app.open = false;
+        harness.step();
+        let mut last = harness.state().app.progress.get();
+        assert!((last - before).abs() < 0.1, "no jump: {before} then {last}");
+        for _ in 0..30 {
+            harness.step();
+            let now = harness.state().app.progress.get();
+            assert!(now <= last + 1e-6, "falls: {last} then {now}");
+            assert!(lag(&harness) < 0.005);
+            last = now;
+        }
+        assert_eq!(last, 0.0);
+    }
+
+    #[test]
+    fn a_style_without_animation_time_snaps_it() {
+        let mut harness = harness();
+        harness.state_mut().reduced_motion = ReducedMotion::Yes;
+        harness
+            .ctx
+            .global_style_mut(|style| style.animation_time = 0.0);
+        harness.state_mut().app.open = true;
+        harness.step();
+        harness.step();
+        assert_eq!(harness.state().app.progress.get(), 1.0);
+        harness.state_mut().app.open = false;
+        harness.step();
+        harness.step();
+        assert_eq!(harness.state().app.progress.get(), 0.0);
+    }
+}

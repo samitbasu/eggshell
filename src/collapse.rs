@@ -176,6 +176,22 @@ impl<'b, 'f, A> CollapsibleChain<'b, 'f, A> {
     /// `gap` still counts it: put spacing in the content's padding.
     #[track_caller]
     pub fn children(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) -> NodeHandle<'b, 'f, A> {
+        self.children_with_header(|_, _| {}, body)
+    }
+
+    /// [`children`](Self::children), with a header built just before the
+    /// wrapper, as a sibling of it. The header is given how far open the
+    /// region is, the eased progress its size follows: use it for what moves
+    /// with the region, such as a chevron turning over, so that the two cannot
+    /// drift. Zero is closed and one is open; it is the same value in the
+    /// frame, and a style without animation time snaps it as it snaps the
+    /// size.
+    #[track_caller]
+    pub fn children_with_header(
+        self,
+        header: impl FnOnce(&mut Scope<'_, 'f, A>, Progress),
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) -> NodeHandle<'b, 'f, A> {
         let Self {
             b,
             slot,
@@ -198,6 +214,7 @@ impl<'b, 'f, A> CollapsibleChain<'b, 'f, A> {
                 content,
                 on_collapsed,
             },
+            header,
             body,
         )
     }

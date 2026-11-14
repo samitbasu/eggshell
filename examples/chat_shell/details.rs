@@ -4,6 +4,7 @@ use eggshell_ui::overlay::Shown;
 use eggshell_ui::{Builder, Scope, Tw, tw};
 use egui::Color32;
 
+use super::common;
 use super::state::{App, MODELS, Pane};
 use super::theme::{Role, Theme, Tok};
 use super::view::Part;
@@ -52,7 +53,7 @@ impl TaskState {
 ///
 /// ```html
 /// <section class="flex flex-col">
-///   <h3 class="pb-2 text-[11px] uppercase text-muted-foreground">Environment</h3>
+///   <h3 class="flex justify-between pb-2 text-[11px] uppercase text-muted-foreground">Environment <chevron-down/></h3>
 ///   <div class="overflow-hidden"> <!-- as tall as the form wants times how far it is open -->
 ///     <div class="flex flex-col rounded-lg border bg-background divide-y">...rows</div>
 ///   </div>
@@ -65,32 +66,49 @@ fn section<'f>(
     title: &'static str,
     rows: impl FnOnce(&mut S<'_, 'f>),
 ) {
+    let open = !app.is_folded(title);
     b.div_id(title, tw().flex().flex_col(), |b| {
-        b.div_id(
-            Part::Head(title),
-            tw().sense_click()
-                .role(k[Role::Meta].clone())
-                .text(k[Tok::InkDim])
-                .uppercase()
-                .pb(2.0),
-            |b| b.text(tw(), title),
-        )
-        .on_click(move |app: &mut App| app.toggle_section(title));
-        b.collapsible(Part::Fold(title), Shown::from(!app.is_folded(title)))
-            .children(|b| {
-                b.div_id(
-                    Part::Group,
-                    tw().flex()
-                        .flex_col()
-                        .border(1.0)
-                        .border_color(k[Tok::Line])
-                        .rounded_lg()
-                        .bg(k[Tok::Ground])
-                        .divide_y(1.0, k[Tok::Line])
-                        .overflow_hidden(),
-                    rows,
-                );
-            });
+        b.collapsible(Part::Fold(title), Shown::from(open))
+            .children_with_header(
+                |b, progress| {
+                    b.div_id(
+                        Part::Head(title),
+                        tw().sense_click()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .role(k[Role::Meta].clone())
+                            .text(k[Tok::InkDim])
+                            .uppercase()
+                            .pb(2.0),
+                        |b| {
+                            b.text(tw(), title);
+                            b.paint(
+                                tw().size_px(16.0).shrink_0(),
+                                common::chevron(k[Tok::InkDim], 180.0 * f32::from(progress)),
+                            );
+                        },
+                    )
+                    .role(egui::Role::Button)
+                    .named(title)
+                    .expanded(open)
+                    .on_click(move |app: &mut App| app.toggle_section(title));
+                },
+                |b| {
+                    b.div_id(
+                        Part::Group,
+                        tw().flex()
+                            .flex_col()
+                            .border(1.0)
+                            .border_color(k[Tok::Line])
+                            .rounded_lg()
+                            .bg(k[Tok::Ground])
+                            .divide_y(1.0, k[Tok::Line])
+                            .overflow_hidden(),
+                        rows,
+                    );
+                },
+            );
     });
 }
 

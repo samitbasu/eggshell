@@ -31,7 +31,7 @@ use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
 use crate::text::{TextStyle, VAlign};
 use crate::tooltip::{Content, Tooltip};
-use crate::tw::{Grouping, PointerEvents, Sensing, Tw, tw};
+use crate::tw::{Grouping, PointerEvents, Progress, Sensing, Tw, tw};
 use crate::widget::Stock;
 
 /// What a node is made of, besides its classes.
@@ -677,6 +677,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         mut self,
         slot: &Slot,
         decl: Declared<A>,
+        header: impl FnOnce(&mut Scope<'_, 'f, A>, Progress),
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) -> NodeHandle<'b, 'f, A> {
         let Declared {
@@ -702,6 +703,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &motion,
             presence::First::Settled,
         );
+        let open = match &step {
+            Step::Closed { .. } => Progress::START,
+            Step::Present(staged) => staged.progress,
+        };
+        header(&mut Scope(self.reborrow()), open);
         let wrapper = match axis {
             CollapseAxis::Height => classes.overflow_hidden().flex().flex_col(),
             CollapseAxis::Width => classes.overflow_hidden().flex().flex_row(),
@@ -1602,6 +1608,17 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     pub(crate) fn action(mut self, action: crate::actions::Action) -> Self {
         self.edit(|context| context.action = Some(action));
         self
+    }
+
+    /// Announces whether what the node controls is open, the `aria-expanded`
+    /// of the web: for the header of a [`collapsible`](Builder::collapsible),
+    /// with the [`Button`](egui::Role::Button) role.
+    pub fn expanded(self, open: bool) -> Self {
+        self.draw(move |_, ui| {
+            let id = ui.node_response().id;
+            ui.ctx()
+                .accesskit_node_builder(id, |node| node.set_expanded(open));
+        })
     }
 
     /// The node's accessible name, the `aria-label` of the web.
