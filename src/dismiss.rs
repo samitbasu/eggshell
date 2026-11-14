@@ -41,6 +41,27 @@ pub(crate) enum Boundary {
     Scrim,
 }
 
+/// An overlay's trigger, as far as a press on it is concerned.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Trigger {
+    /// A trigger that does not sense: the press is on it if it is in its box.
+    Rect(Rect),
+    /// A trigger that senses, which egui says the press went to.
+    Pressed,
+    /// A trigger that senses, which the press did not go to.
+    Unpressed,
+}
+
+impl Trigger {
+    fn holds(self, press: Pos2) -> bool {
+        match self {
+            Self::Rect(rect) => rect.contains(press),
+            Self::Pressed => true,
+            Self::Unpressed => false,
+        }
+    }
+}
+
 /// An open, attached overlay as dismissal sees it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Layer {
@@ -53,7 +74,7 @@ pub(crate) struct Layer {
     /// made the overlay's Esc, enabled or not.
     pub(crate) cancel: Option<Id>,
     /// The anchor, if pressing it is the trigger's own business.
-    pub(crate) trigger: Option<Rect>,
+    pub(crate) trigger: Option<Trigger>,
     pub(crate) band: Band,
     pub(crate) dismiss_on: DismissOn,
     pub(crate) outside: Outside,
@@ -213,7 +234,7 @@ fn contains(layers: &[Layer], at: usize, press: Pos2) -> bool {
     let layer = &layers[at];
     layer.rect.contains(press)
         || (layer.outside == Outside::PassThrough
-            && layer.trigger.is_some_and(|trigger| trigger.contains(press)))
+            && layer.trigger.is_some_and(|trigger| trigger.holds(press)))
         || (0..layers.len())
             .any(|other| nested_in(layers, other, at) && layers[other].rect.contains(press))
 }
@@ -283,7 +304,10 @@ mod tests {
             rect: rect(x, 100.0),
             boundary: Boundary::Open,
             cancel: None,
-            trigger: Some(Rect::from_min_size(pos2(x, 60.0), vec2(100.0, 30.0))),
+            trigger: Some(Trigger::Rect(Rect::from_min_size(
+                pos2(x, 60.0),
+                vec2(100.0, 30.0),
+            ))),
             band: Band::Popup,
             dismiss_on: DismissOn::Default,
             outside: Outside::PassThrough,
@@ -314,7 +338,7 @@ mod tests {
     fn nested(layer: Layer, parent: usize) -> Layer {
         Layer {
             parent: Some(parent),
-            trigger: Some(rect(0.0, 0.0)),
+            trigger: Some(Trigger::Rect(rect(0.0, 0.0))),
             ..layer
         }
     }
@@ -344,6 +368,19 @@ mod tests {
     const INSIDE: Pos2 = pos2(50.0, 150.0);
     const ON_TRIGGER: Pos2 = pos2(50.0, 70.0);
     const PAGE: Pos2 = pos2(350.0, 350.0);
+
+    #[test]
+    fn a_trigger_that_senses_is_pressed_when_egui_says_so_wherever_the_press_is() {
+        let with = |trigger| Layer {
+            trigger: Some(trigger),
+            ..popover(0.0)
+        };
+        assert_eq!(
+            closed(&[with(Trigger::Pressed)], &press(PAGE)),
+            Vec::<usize>::new()
+        );
+        assert_eq!(closed(&[with(Trigger::Unpressed)], &press(ON_TRIGGER)), [0]);
+    }
 
     #[test]
     fn a_press_on_the_trigger_of_a_tooltip_reaches_the_overlays_below_it() {

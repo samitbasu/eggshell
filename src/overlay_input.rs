@@ -12,7 +12,9 @@ use std::collections::HashMap;
 use egui::{Context, Event, Id, Key, Modifiers, Pos2};
 
 use crate::actions::{self, Action};
-use crate::dismiss::{Boundary, Cause, FocusAt, Input, Layer, Opening, dismissals, esc_target};
+use crate::dismiss::{
+    Boundary, Cause, FocusAt, Input, Layer, Opening, Trigger, dismissals, esc_target,
+};
 use crate::draw::children_of;
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
@@ -218,8 +220,7 @@ fn box_of(nodes: &[PlacedNode], roots: &[PlacedRoot], root: usize) -> egui::Rect
 }
 
 /// The layers dismissal judges, from the attached overlays; `focus` says
-/// where focus was and is relative to each. A trigger reaches as far as
-/// egui's hit test does, so that a press that clicks it is not also outside.
+/// where focus was and is relative to each.
 fn layers_of(
     ctx: &Context,
     open: &[Open<'_>],
@@ -228,7 +229,6 @@ fn layers_of(
     mut focus: impl FnMut(&Open<'_>) -> (FocusAt, FocusAt),
 ) -> Vec<Layer> {
     let position = |root: usize| open.iter().position(|open| open.root == root);
-    let reach = ctx.global_style().interaction.interact_radius;
     open.iter()
         .map(|open| {
             let overlay = open.overlay;
@@ -241,8 +241,7 @@ fn layers_of(
                     Form::Floating(_) => Boundary::Open,
                 },
                 cancel: actions::button_in(nodes, roots[open.root].first, Action::Cancel),
-                trigger: matches!(overlay.anchor_decl, Anchor::Node(_) | Anchor::Rect(_))
-                    .then(|| overlay.anchor.expand(reach)),
+                trigger: trigger_of(ctx, overlay),
                 band: overlay.band,
                 dismiss_on: overlay.behavior.dismiss_on,
                 outside: overlay.behavior.outside(),
@@ -253,6 +252,22 @@ fn layers_of(
             }
         })
         .collect()
+}
+
+/// The overlay's trigger as dismissal judges a press on it. A trigger that
+/// senses is pressed when egui says it is, since egui gives a press within its
+/// reach to the closest widget and the click goes there; one that does not is
+/// judged by where it is.
+fn trigger_of(ctx: &Context, overlay: &PlacedOverlay) -> Option<Trigger> {
+    match overlay.anchor_decl {
+        Anchor::Node(id) => Some(match ctx.read_response(id) {
+            Some(response) if response.is_pointer_button_down_on() => Trigger::Pressed,
+            Some(response) if response.sense.interactive() => Trigger::Unpressed,
+            _ => Trigger::Rect(overlay.anchor),
+        }),
+        Anchor::Rect(_) => Some(Trigger::Rect(overlay.anchor)),
+        _ => None,
+    }
 }
 
 /// Whether a key was pressed this frame.

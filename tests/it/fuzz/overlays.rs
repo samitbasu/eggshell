@@ -1232,6 +1232,59 @@ fn a_scroll_popover_does_not_blink_when_the_page_is_pressed() {
     .expect("holds");
 }
 
+/// A press between two triggers, within egui's reach of both, goes to the
+/// closer, and the popover opened from one of them is dismissed or toggled
+/// exactly as that click goes: closed by its own trigger's click, and
+/// dismissed, with the dialog opened, by the neighbour's.
+#[test]
+fn a_press_between_triggers_dismisses_as_the_click_goes() {
+    let reach = egui::Context::default()
+        .global_style()
+        .interaction
+        .interact_radius;
+    for (offset, closer) in [(3.5, "popover"), (4.5, "dialog")] {
+        let mut desk = Desk::new(Scroll::Raw);
+        desk.act(&Action::OpenPopover).expect("holds");
+        let popover = desk.seen().node("\"popover\"").expect("drawn").1;
+        let dialog = desk.seen().node("\"dialog\"").expect("drawn").1;
+        let at = egui::pos2(popover.right() + offset, popover.center().y);
+        assert!(
+            popover.distance_to_pos(at) <= reach && dialog.distance_to_pos(at) <= reach,
+            "{at:?} is within {reach} of both {popover:?} and {dialog:?}"
+        );
+        desk.click(at, PointerButton::Primary).expect("holds");
+        desk.settle().expect("holds");
+        let app = desk.app();
+        assert!(
+            !app.popover,
+            "the popover is closed for a press at {offset}"
+        );
+        assert_eq!(
+            app.dialog == Shown::Open,
+            closer == "dialog",
+            "the press goes to {closer}"
+        );
+    }
+}
+
+/// Two menus opened over a hovered trigger, then popovers: Shift+Tab keeps
+/// focus in the topmost overlay.
+#[test]
+fn shift_tab_after_stacked_popovers_stays_in_the_topmost_overlay() {
+    run(
+        &[
+            Action::OpenMenu,
+            Action::OpenMenu,
+            Action::HoverTrigger(1),
+            Action::OpenAnchorPopover,
+            Action::OpenPopover,
+            Action::ShiftTab,
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
 /// Outside the overlays: with a pointer button held, End on a focused button
 /// in a scroll container scrolls it for the frame of the key press and puts
 /// it back in the frame of the release, which hides the button's tooltip (a
