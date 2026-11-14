@@ -23,6 +23,8 @@ mod todo;
 #[allow(dead_code, reason = "the example's main is not run here")]
 mod gallery;
 
+mod overlays;
+
 const DEFAULT_CASES: u32 = 32;
 /// How far a dragged window edge moves per frame.
 const EDGE_STEP: f32 = 12.0;
