@@ -668,6 +668,51 @@ fn a_built_tooltip_describes_its_trigger_with_its_text_while_closed() {
     );
 }
 
+/// How often a closed built tooltip's content is built over a few frames,
+/// with no pointer or focus on its trigger. Kittest needs accesskit, so this
+/// drives a context of its own.
+fn closed_builds(accesskit: bool) -> usize {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+    let builds = Arc::new(AtomicUsize::new(0));
+    let ctx = egui::Context::default();
+    ctx.run_pass(Default::default(), |_| {})
+        .textures_delta
+        .clear();
+    if accesskit {
+        ctx.enable_accesskit();
+    }
+    let mut state = eggshell_ui::LayoutState::new();
+    for _ in 0..4 {
+        let mut output = ctx.run_pass(Default::default(), |ctx| {
+            let builds = builds.clone();
+            state.build(ctx, |b: &mut Builder<'_, '_, ()>| {
+                b.button("counted", "Counted")
+                    .tooltip_with(move |s| {
+                        builds.fetch_add(1, Relaxed);
+                        s.text(tw(), "Counted");
+                    })
+                    .add();
+            });
+        });
+        output.textures_delta.clear();
+    }
+    builds.load(Relaxed)
+}
+
+#[test]
+fn a_closed_built_tooltip_is_built_only_for_accesskit() {
+    assert!(
+        closed_builds(true) > 0,
+        "precondition: with accesskit on, the description is built"
+    );
+    assert_eq!(
+        closed_builds(false),
+        0,
+        "nothing reads it, so nothing builds it"
+    );
+}
+
 #[test]
 fn a_built_tooltip_follows_hover_intent() {
     let mut harness = rich_harness();

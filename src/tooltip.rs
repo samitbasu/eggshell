@@ -61,13 +61,15 @@ impl Content {
 #[derive(Clone)]
 pub(crate) struct Tooltip {
     content: Content,
-    description: String,
+    /// `None` where nothing reads it.
+    description: Option<String>,
 }
 
 impl Tooltip {
-    /// The tooltip showing `content`, for a trigger built by `b`. A built
-    /// content's text is found by building it where nothing shows it, under
-    /// `trigger`, so two triggers' contents do not share keys.
+    /// The tooltip showing `content`, for a trigger built by `b`. While
+    /// accesskit is on, a built content's text is found by building it where
+    /// nothing shows it, under `trigger`, so two triggers' contents do not
+    /// share keys.
     pub(crate) fn new<A: 'static>(
         b: &mut Builder<'_, '_, A>,
         trigger: impl Hash + std::fmt::Debug,
@@ -76,7 +78,8 @@ impl Tooltip {
         match content {
             Content::Text(text) => Self::text(text),
             Content::Built(_) => Self {
-                description: b.text_of(trigger, |b| content.build(b)),
+                description: accesskit_is_on(b.ctx())
+                    .then(|| b.text_of(trigger, |b| content.build(b))),
                 content,
             },
         }
@@ -85,10 +88,16 @@ impl Tooltip {
     /// The tooltip showing `text`.
     pub(crate) fn text(text: WidgetText) -> Self {
         Self {
-            description: text.text().to_owned(),
+            description: Some(text.text().to_owned()),
             content: Content::Text(text),
         }
     }
+}
+
+/// egui has no public query for this; its root node is made only while
+/// accesskit is on.
+fn accesskit_is_on(ctx: &Context) -> bool {
+    ctx.has_accesskit_node(egui::accesskit_root_id())
 }
 
 /// Why a trigger wants its tooltip.
@@ -284,9 +293,11 @@ pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
     if response.contains_pointer() {
         wants(Cause::Pointer);
     }
-    ui.ctx().accesskit_node_builder(response.id, |node| {
-        node.set_description(tip.description.as_str());
-    });
+    if let Some(description) = &tip.description {
+        ui.ctx().accesskit_node_builder(response.id, |node| {
+            node.set_description(description.as_str());
+        });
+    }
 }
 
 /// The triggers this frame, resolved: a pointer over a trigger beats focus
