@@ -237,6 +237,7 @@ mod scroll_keys;
 mod shadow_corners;
 mod sizing;
 mod stack;
+mod symbols;
 pub mod testing;
 mod text;
 mod tooltip;
