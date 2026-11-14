@@ -1185,6 +1185,23 @@ fn a_menu_opened_over_a_closing_popover_does_not_leave_focus_on_the_page() {
     .expect("holds");
 }
 
+/// A press on a trigger whose tooltip is up closes the popover below the
+/// tooltip, so that focus leaving the popover opened by the press does not
+/// leave the first one open. Filed as #199.
+#[test]
+fn a_press_on_a_trigger_with_its_tooltip_up_closes_the_popover_below() {
+    run(
+        &[
+            Action::OpenPopover,
+            Action::HoverTrigger(1),
+            Action::OpenAnchorPopover,
+            Action::ArrowDown,
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
 /// Outside the overlays: with a pointer button held, End on a focused button
 /// in a scroll container scrolls it for the frame of the key press and puts
 /// it back in the frame of the release, which hides the button's tooltip (a

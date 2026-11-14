@@ -118,7 +118,8 @@ impl Found {
 ///
 /// 1. Press, Esc and focus are not judged while a drag is live.
 /// 2. A press dismisses, top-down, each overlay that does not contain it,
-///    and stops at the first that does. An overlay contains a press inside
+///    and stops at the first that does. A tooltip is not in the walk: it
+///    covers nothing, and its trigger is the page's. An overlay contains a press inside
 ///    its box, inside an overlay nested in it, or, if it passes presses
 ///    through, on its anchor (the trigger toggles). An overlay that swallows
 ///    presses ends the walk, but for the overlays it is nested in: the press
@@ -220,7 +221,7 @@ fn contains(layers: &[Layer], at: usize, press: Pos2) -> bool {
 fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
     let mut swallowed_by = None;
     for at in (0..layers.len()).rev() {
-        if layers[at].lookup == AnchorLookup::Missing {
+        if layers[at].lookup == AnchorLookup::Missing || layers[at].band == Band::Tooltip {
             continue;
         }
         if swallowed_by.is_some_and(|by| !nested_in(layers, by, at)) {
@@ -343,6 +344,15 @@ mod tests {
     const INSIDE: Pos2 = pos2(50.0, 150.0);
     const ON_TRIGGER: Pos2 = pos2(50.0, 70.0);
     const PAGE: Pos2 = pos2(350.0, 350.0);
+
+    #[test]
+    fn a_press_on_the_trigger_of_a_tooltip_reaches_the_overlays_below_it() {
+        let tooltip = Layer {
+            band: Band::Tooltip,
+            ..popover(0.0)
+        };
+        assert_eq!(closed(&[popover(200.0), tooltip], &press(ON_TRIGGER)), [0]);
+    }
 
     #[test]
     fn a_press_inside_dismisses_nothing_and_one_on_the_page_dismisses() {
