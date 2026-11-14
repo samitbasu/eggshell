@@ -1153,3 +1153,40 @@ fn a_press_on_the_page_is_counted_only_when_no_modal_covers_it() {
     .expect("holds");
     assert_eq!(desk.app().page_clicks, 1, "the scrim took the press");
 }
+
+/// A popover that a press on a menu's trigger closes does not give focus
+/// back to the page under the menu that opens.
+#[test]
+fn a_menu_opened_over_a_closing_popover_does_not_leave_focus_on_the_page() {
+    run(
+        &[
+            Action::OpenPopover,
+            Action::ShiftTab,
+            Action::ShiftTab,
+            Action::OpenAnchorPopover,
+            Action::OpenMenu,
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
+/// Outside the overlays: with a pointer button held, End on a focused button
+/// in a scroll container scrolls it for the frame of the key press and puts
+/// it back in the frame of the release, which hides the button's tooltip (a
+/// gap) for that frame. The session does not press the arrows, Home or End
+/// while a button is held (`Scroll::Guarded`). Filed as #184.
+#[test]
+#[ignore = "#184: End with a button held scrolls for one frame and snaps back"]
+fn end_with_a_button_held_scrolls_and_stays() {
+    run(
+        &[
+            Action::ShiftTab,
+            Action::PressAt(58, 44),
+            Action::ShiftTab,
+            Action::End,
+        ],
+        Scroll::Raw,
+    )
+    .expect("holds");
+}

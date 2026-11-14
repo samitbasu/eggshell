@@ -526,6 +526,14 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
                 && let Some(first) = first_focusable(subtrees, open.overlay.id)
             {
                 ctx.memory_mut(|memory| memory.request_focus(first));
+            } else if open.holds_tab()
+                && layer.focus_now == FocusAt::Elsewhere
+                && let Some(focused) = ctx.memory(|memory| memory.focused())
+            {
+                // Opened with the pointer: nothing is focused, not the page
+                // under the menu (a closing popover gives its focus back as
+                // the menu opens).
+                ctx.memory_mut(|memory| memory.surrender_focus(focused));
             }
         }
     }
