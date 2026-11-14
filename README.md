@@ -55,3 +55,5 @@ so lavapipe is needed there too.
 ## License
 
 MIT
+
+The symbol fallback face (`src/fonts/DejaVuSans-symbols.ttf`) is a subset of DejaVu Sans, under the licence in `src/fonts/DejaVuSans-LICENSE.txt` (Bitstream Vera with public-domain changes). `src/fonts/README.md` says how it was made.

@@ -483,6 +483,53 @@ mod menus {
     }
 
     #[test]
+    fn a_menu_item_shows_on_a_mac_with_the_shortcut_in_symbols() {
+        let mut harness = harness();
+        harness.ctx.set_os(egui::os::OperatingSystem::Mac);
+        open_file(&mut harness);
+        let written = harness.ctx.format_shortcut(&SAVE);
+        assert!(
+            written.contains('\u{2318}'),
+            "{written:?} is not in symbols"
+        );
+        let menu = rect_of(&harness, MENU);
+        let shown = support::shapes(&harness).into_iter().any(|shape| {
+            matches!(shape, egui::Shape::Text(text)
+                if text.galley.text() == written && menu.contains(text.pos))
+        });
+        assert!(shown, "{written:?} is not in the menu");
+    }
+
+    #[test]
+    fn a_key_chip_draws_the_mac_modifier_symbols() {
+        let chip = "\u{2318}\u{21e7}S";
+        let mut harness = support::harness(vec2(200.0, 60.0), base_text(), (), |b, _| {
+            b.kbd("\u{2318}\u{21e7}S")
+        });
+        harness.ctx.set_os(egui::os::OperatingSystem::Mac);
+        harness.run_steps(3);
+        let drawn = support::shapes(&harness)
+            .into_iter()
+            .any(|shape| matches!(shape, egui::Shape::Text(text) if text.galley.text() == chip));
+        assert!(drawn, "{chip:?} is not drawn");
+    }
+
+    #[test]
+    fn every_key_symbol_has_a_glyph_in_the_proportional_family() {
+        let harness = harness();
+        let missing: Vec<char> = "\u{2318}\u{21e7}\u{2325}\u{2303}\u{232b}\u{21b5}\u{21e5}\u{2190}\u{2191}\u{2192}\u{2193}\u{23ce}"
+            .chars()
+            .filter(|symbol| {
+                let font = egui::FontId::proportional(14.0);
+                !harness
+                    .ctx
+                    .fonts_mut(|fonts| fonts.has_glyphs(&font, &symbol.to_string()))
+            })
+            .collect();
+        assert!(missing.is_empty(), "no glyph for {missing:?}");
+    }
+
+    #[test]
     fn an_item_is_disabled_with_its_command() {
         let mut harness = harness_of(App::default());
         open_file(&mut harness);
