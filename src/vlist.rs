@@ -35,6 +35,7 @@ use nohash_hasher::IntMap;
 use taffy::{NodeId, TaffyTree};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
+use crate::collapse::CollapseAxis;
 use crate::dnd::EdgeScroll;
 use crate::kept::Handle;
 use crate::key::Key;
@@ -334,6 +335,14 @@ struct BuiltRow {
     inside: Vec<Id>,
     /// The overlays declared inside it.
     overlays: Vec<Id>,
+    /// Whether a size inside it is still moving.
+    moving: Moving,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Moving {
+    No,
+    Yes,
 }
 
 /// What a list keeps in place on the screen while the rows above it change.
@@ -710,7 +719,8 @@ impl<'f, A> ListRun<'f, A> {
         let mut pinned: Vec<usize> = built
             .iter()
             .filter(|row| {
-                crate::focus::focus_within(ctx, row.id)
+                row.moving == Moving::Yes
+                    || crate::focus::focus_within(ctx, row.id)
                     || row
                         .overlays
                         .iter()
@@ -864,13 +874,21 @@ impl Laid {
                 }
                 top += height;
             }
-            heights.push((row.key, height));
+            // A row whose size is moving is kept at where it is going, so
+            // that it places the rows after it right once it is not built.
+            let flight = crate::collapse::flight_in(tree, row.node, CollapseAxis::Height);
+            heights.push((row.key, height + flight));
             rows_kept.push(BuiltRow {
                 key: row.key,
                 at: row.at,
                 id: row.id,
                 inside: identified_in(tree, row.node),
                 overlays: row.overlays.clone(),
+                moving: if flight.abs() > SAME {
+                    Moving::Yes
+                } else {
+                    Moving::No
+                },
             });
         }
         let nodes: Vec<NodeId> = built.iter().map(|row| row.node).collect();

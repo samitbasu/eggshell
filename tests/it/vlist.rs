@@ -5,7 +5,7 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 
-use eggshell_ui::overlay::Anchor;
+use eggshell_ui::overlay::{Anchor, Shown};
 use eggshell_ui::vlist;
 use eggshell_ui::{Builder, TextStyle, scroll, tw};
 use eggshell_ui_shadcn::Tokens;
@@ -74,6 +74,8 @@ struct App {
     menu_on: Option<Row>,
     menu_in: Option<Row>,
     start_at_end: bool,
+    /// The row whose 200-point collapsible is open.
+    opened: Option<Row>,
 }
 
 impl App {
@@ -90,6 +92,7 @@ impl App {
             menu_on: None,
             menu_in: None,
             start_at_end: false,
+            opened: None,
         }
     }
 
@@ -129,6 +132,10 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
             s.overlay("inner")
                 .anchor(Anchor::Node(cell))
                 .children(|s| s.text(tw(), "Inner"));
+        }
+        if row == Row(3) {
+            s.collapsible("more", Shown::from(app.opened == Some(row)))
+                .children(|s| s.div(tw().h_px(200.0), |_| {}));
         }
         s.custom("cell", tw().w_full())
             .measure(move |m| {
@@ -697,4 +704,36 @@ fn scroll_to_the_bottom_of_the_viewport_lands_there_as_rows_are_measured() {
         (row.bottom() - view.bottom()).abs() < 1.0,
         "row 500 {row:?} ends the viewport {view:?}"
     );
+}
+
+#[test]
+fn a_row_whose_size_is_in_flight_counts_at_its_target_and_stays_built() {
+    let mut harness = harness_of(App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(20.0),
+    ));
+    let rest = viewport(&harness).content.height();
+    harness.state_mut().app.opened = Some(Row(3));
+    harness.run_steps(2);
+    assert!(
+        harness.ctx.has_requested_repaint(),
+        "precondition: the collapsible is still opening"
+    );
+    assert_eq!(
+        viewport(&harness).content.height(),
+        rest + 200.0,
+        "mid-flight, the content counts the row at where it is going"
+    );
+    scroll_by(&mut harness, 5000.0);
+    assert!(
+        built_rows(&harness).contains(&3),
+        "the row stays built while it moves, scrolled away"
+    );
+    harness.run_steps(40);
+    assert!(
+        !built_rows(&harness).contains(&3),
+        "and is let go once it has landed"
+    );
+    assert_eq!(viewport(&harness).content.height(), rest + 200.0);
 }
