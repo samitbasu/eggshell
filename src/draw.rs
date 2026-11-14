@@ -1639,7 +1639,7 @@ impl<A> Placed<A> {
             app,
         );
         let selection = Style::of(ui.ctx()).selection;
-        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, nodes[0].rect())
+        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, &nodes)
             .starting(StartsSlides::unless_size_in_flight(size_in_flight));
         if nodes.iter().any(|node| node.scroll.is_some()) {
             animation.anticipate(&nodes);

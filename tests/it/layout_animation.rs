@@ -217,7 +217,7 @@ fn a_child_does_not_animate_again_when_only_its_parent_moved() {
 }
 
 #[test]
-fn a_resize_moves_everything_at_once() {
+fn a_reorder_on_a_resize_frame_still_slides() {
     let mut harness = harness(App::new(&[1, 2], &[1, 2]), rows);
     reverse(&mut harness);
     harness.set_size(vec2(500.0, 300.0));
@@ -228,12 +228,13 @@ fn a_resize_moves_everything_at_once() {
         "precondition: the row layout is built"
     );
     for key in [1, 2] {
-        assert_eq!(
+        assert_ne!(
             painted_offset(&harness, color(key), &format!("/{key}")),
-            0.0
+            0.0,
+            "row {key} changed its place among its siblings"
         );
     }
-    assert!(!requested_repaint(&harness));
+    assert!(requested_repaint(&harness));
 }
 
 /// ```html
