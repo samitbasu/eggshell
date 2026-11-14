@@ -740,7 +740,7 @@ impl<'f, A> Built<'f, A> {
             at += 1;
         }
         settle.finish();
-        focus::restore(ctx, &stack.keep_only(&present));
+        focus::restore(ctx, &st.kept, &stack.keep_only(&present));
         for root in &mut roots {
             if let PlacedRootKind::Overlay(overlay) = &mut root.kind {
                 overlay.stack_index = stack
