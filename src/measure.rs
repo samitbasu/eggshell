@@ -1,7 +1,10 @@
 //! Measurement of node content for taffy, answered by egui's galley layout.
 
-use egui::epaint::{FontsView, text::LayoutJob};
-use egui::{Align, Color32, Stroke, TextFormat};
+use std::sync::Arc;
+
+use egui::epaint::FontsView;
+use egui::epaint::text::{ByteIndex, LayoutJob, LayoutSection};
+use egui::{Align, Color32, FontSelection, Stroke, TextFormat, WidgetText};
 use taffy::{AvailableSpace, Baselines, LayoutInput, LayoutOutput, Size};
 
 use crate::prim::Prim;
@@ -56,10 +59,7 @@ impl<'a> Measure<'a> {
 
     /// The size of `text` in the leaf's text style, wrapped as the query asks.
     pub fn text_size(&self, text: &str) -> Size<f32> {
-        let leaf = TextLeaf {
-            text,
-            style: self.text,
-        };
+        let leaf = TextLeaf::plain(text, self.text);
         self.ctx
             .fonts_mut(|fonts| measure_text(fonts, &leaf, self.input))
             .size
@@ -71,10 +71,18 @@ pub fn fill(_: &Measure<'_>) -> Size<f32> {
     Size::ZERO
 }
 
-/// A text leaf: its text and the style it is measured in.
+/// A text leaf: what it shows and the style it is measured in.
 pub(crate) struct TextLeaf<'a> {
-    pub text: &'a str,
+    pub text: Shown<'a>,
     pub style: &'a TextStyle,
+}
+
+/// The text a leaf shows.
+pub(crate) enum Shown<'a> {
+    /// Text in the leaf's style.
+    Plain(&'a str),
+    /// Text formatted by egui, laid out unwrapped.
+    Rich(LayoutJob),
 }
 
 enum Wrap {
@@ -82,11 +90,48 @@ enum Wrap {
     At(f32),
 }
 
-impl TextLeaf<'_> {
-    /// The job measurement and painting share. Under tabular numerals each
-    /// digit is its own section, pushed right by the gap between it and the
-    /// widest digit, so that every digit advances alike.
-    fn job(&self, fonts: &mut FontsView<'_>, text: &str) -> LayoutJob {
+impl<'a> TextLeaf<'a> {
+    /// A leaf showing `text` in `style`.
+    pub(crate) fn plain(text: &'a str, style: &'a TextStyle) -> Self {
+        Self {
+            text: Shown::Plain(text),
+            style,
+        }
+    }
+
+    /// A leaf showing `text` with egui's formatting, in `style`'s font and
+    /// colour where `text` does not set its own.
+    pub(crate) fn rich(ctx: &egui::Context, text: &WidgetText, style: &'a TextStyle) -> Self {
+        let job = text.clone().into_layout_job(
+            &ink_style(ctx, style.color),
+            FontSelection::FontId(style.spec.font_id()),
+            Align::Min,
+        );
+        let mut job = Arc::unwrap_or_clone(job);
+        for section in &mut job.sections {
+            let format = &mut section.format;
+            format.line_height = format.line_height.or(Some(
+                style.spec.line_height * format.font_id.size / style.spec.size,
+            ));
+        }
+        Self {
+            text: Shown::Rich(job),
+            style,
+        }
+    }
+
+    /// The unwrapped job measurement and painting share.
+    fn job(&self, fonts: &mut FontsView<'_>) -> LayoutJob {
+        match &self.text {
+            Shown::Plain(text) => self.plain_job(fonts, &self.style.case.apply(text)),
+            Shown::Rich(job) => job.clone(),
+        }
+    }
+
+    /// Under tabular numerals each digit is its own section, pushed right by
+    /// the gap between it and the widest digit, so that every digit advances
+    /// alike.
+    fn plain_job(&self, fonts: &mut FontsView<'_>, text: &str) -> LayoutJob {
         let underline = match self.style.decoration {
             TextDecoration::None => Stroke::NONE,
             TextDecoration::Underline => Stroke::new(1.0, Color32::PLACEHOLDER),
@@ -126,10 +171,9 @@ impl TextLeaf<'_> {
     fn galley(
         &self,
         fonts: &mut FontsView<'_>,
-        text: &str,
+        mut job: LayoutJob,
         wrap: Wrap,
     ) -> std::sync::Arc<egui::Galley> {
-        let mut job = self.job(fonts, text);
         match wrap {
             Wrap::Off => job.wrap.max_width = f32::INFINITY,
             Wrap::At(width) => job.wrap.max_width = width,
@@ -139,15 +183,14 @@ impl TextLeaf<'_> {
     }
 
     /// The galley to paint in a content box `width` wide, anchored at the box
-    /// edge the text aligns to. Its colour is [`Color32::PLACEHOLDER`], for
-    /// the painter to resolve.
+    /// edge the text aligns to. Plain text is coloured
+    /// [`Color32::PLACEHOLDER`], for the painter to resolve.
     pub(crate) fn drawn_galley(
         &self,
         fonts: &mut FontsView<'_>,
         width: f32,
     ) -> std::sync::Arc<egui::Galley> {
-        let text = self.style.case.apply(self.text);
-        let mut job = self.job(fonts, &text);
+        let mut job = self.job(fonts);
         job.halign = match self.style.align {
             TextAlign::Left => Align::LEFT,
             TextAlign::Center => Align::Center,
@@ -173,8 +216,8 @@ impl TextLeaf<'_> {
     }
 
     /// Width of the widest whitespace-separated word, unwrapped.
-    fn min_content_width(&self, fonts: &mut FontsView<'_>, text: &str) -> f32 {
-        text.split_whitespace()
+    fn min_content_width(&self, fonts: &mut FontsView<'_>, job: &LayoutJob) -> f32 {
+        words(job)
             .map(|word| self.galley(fonts, word, Wrap::Off).size().x)
             .fold(0.0, f32::max)
     }
@@ -186,7 +229,7 @@ impl TextLeaf<'_> {
     fn plan(
         &self,
         fonts: &mut FontsView<'_>,
-        text: &str,
+        job: &LayoutJob,
         input: &LayoutInput,
     ) -> (Wrap, Option<f32>) {
         if !matches!(
@@ -198,12 +241,58 @@ impl TextLeaf<'_> {
         match (input.known_dimensions.width, input.available_space.width) {
             (Some(width), _) | (None, AvailableSpace::Definite(width)) => (Wrap::At(width), None),
             (None, AvailableSpace::MinContent) => {
-                let width = self.min_content_width(fonts, text);
+                let width = self.min_content_width(fonts, job);
                 (Wrap::At(width), Some(width))
             }
             (None, AvailableSpace::MaxContent) => (Wrap::Off, None),
         }
     }
+}
+
+/// An egui style in which egui's own text colours are `ink`: rich text's
+/// `strong` and `weak` would otherwise take egui's visuals, which a box with
+/// colours of its own (an inverted tooltip) does not follow.
+fn ink_style(ctx: &egui::Context, ink: Color32) -> egui::Style {
+    let mut style = (*ctx.global_style()).clone();
+    style.override_font_id = None;
+    style.override_text_style = None;
+    let visuals = &mut style.visuals;
+    visuals.override_text_color = Some(ink);
+    visuals.widgets.active.fg_stroke.color = ink;
+    visuals.weak_text_color = None;
+    style
+}
+
+/// Each whitespace-separated word of `job`, as a job of its own that keeps
+/// the formatting of the sections it spans.
+fn words(job: &LayoutJob) -> impl Iterator<Item = LayoutJob> + '_ {
+    let text = job.text.as_str();
+    text.split_whitespace().map(move |word| {
+        let start = ByteIndex(word.as_ptr() as usize - text.as_ptr() as usize);
+        let end = start + word.len();
+        let sections = job
+            .sections
+            .iter()
+            .filter_map(|section| {
+                let from = section.byte_range.start.max(start);
+                let to = section.byte_range.end.min(end);
+                (from < to).then(|| LayoutSection {
+                    leading_space: if section.byte_range.start >= start {
+                        section.leading_space
+                    } else {
+                        0.0
+                    },
+                    byte_range: from - start.0..to - start.0,
+                    format: section.format.clone(),
+                })
+            })
+            .collect();
+        LayoutJob {
+            text: word.to_owned(),
+            sections,
+            ..LayoutJob::default()
+        }
+    })
 }
 
 /// Answers a taffy measure query for a text leaf.
@@ -214,9 +303,9 @@ pub(crate) fn measure_text(
     leaf: &TextLeaf<'_>,
     input: &LayoutInput,
 ) -> LayoutOutput {
-    let text = leaf.style.case.apply(leaf.text);
-    let (wrap, exact_width) = leaf.plan(fonts, &text, input);
-    let galley = leaf.galley(fonts, &text, wrap);
+    let job = leaf.job(fonts);
+    let (wrap, exact_width) = leaf.plan(fonts, &job, input);
+    let galley = leaf.galley(fonts, job, wrap);
     let natural = galley.size();
     let size = Size {
         width: input
@@ -266,10 +355,11 @@ pub(crate) fn measure_content(
 ) -> LayoutOutput {
     match content {
         Content::Prim(Prim::Text(string)) => {
-            let leaf = TextLeaf {
-                text: string,
-                style: text,
-            };
+            let leaf = TextLeaf::plain(string, text);
+            ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, input))
+        }
+        Content::Prim(Prim::Rich(rich)) => {
+            let leaf = TextLeaf::rich(ctx, rich, text);
             ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, input))
         }
         Content::Prim(Prim::Icon(_)) => known_or(
@@ -333,10 +423,7 @@ pub(crate) mod testing {
         available: Size<AvailableSpace>,
     ) -> LayoutOutput {
         let style = body_style();
-        let leaf = TextLeaf {
-            text,
-            style: &style,
-        };
+        let leaf = TextLeaf::plain(text, &style);
         ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, &input(known, available)))
     }
 }

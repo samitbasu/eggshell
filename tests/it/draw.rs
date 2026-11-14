@@ -26,7 +26,7 @@ fn base() -> TextStyle {
 }
 
 /// Builds `build` over the whole screen, draws it with `app`, and returns the shapes.
-pub(super) fn shapes<A: 'static>(
+pub(super) fn shapes<A>(
     app: &mut A,
     pixels_per_point: f32,
     build: impl for<'f> FnOnce(&mut eggshell_ui::Builder<'_, 'f, A>),
@@ -659,7 +659,7 @@ fn icons_are_tinted_with_the_text_colour() {
         texture.id(),
         vec2(4.0, 4.0),
     )))
-    .flipped(eggshell_ui::Flip::Horizontal);
+    .mirrored(eggshell_ui::Mirror::Horizontal);
     let shapes = shapes(&mut (), 1.0, move |b| {
         b.div(tw().text(Color32::RED), |b| {
             b.glyph(tw().size_px(16.0), icon);
@@ -685,7 +685,7 @@ fn icons_are_tinted_with_the_text_colour() {
     assert_eq!(
         (uv_x(pos2(0.0, 0.0)), uv_x(pos2(16.0, 0.0))),
         (1.0, 0.0),
-        "a horizontal flip mirrors the uv"
+        "a horizontal mirror flips the uv"
     );
 }
 

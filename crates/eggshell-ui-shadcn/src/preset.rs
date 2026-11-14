@@ -486,6 +486,31 @@ impl Shadcn {
             tooltip.grace = Duration::from_millis(300);
             tooltip
         };
+        // shadcn's Kbd: `bg-muted text-muted-foreground h-5 min-w-5 rounded-sm
+        // px-1 text-xs font-medium`, and inside a tooltip
+        // `bg-background/20 text-background` (`/10` in the dark theme).
+        style.kbd = {
+            let mut kbd = style.kbd;
+            kbd.page = flat(t.muted, t.muted_foreground);
+            kbd.tooltip = flat(
+                if dark {
+                    t.background_10()
+                } else {
+                    t.background_20()
+                },
+                t.background,
+            );
+            kbd.border_width = 0.0;
+            kbd.radius = t.radius_sm();
+            kbd.padding_x = 4.0;
+            kbd.height = 20.0;
+            kbd.text = Some(TextSpec {
+                size: 12.0,
+                line_height: 16.0,
+                family: egui::FontFamily::Proportional,
+            });
+            kbd
+        };
         style.stepper = {
             let mut stepper = style.stepper;
             stepper.group = input_box;

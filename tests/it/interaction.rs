@@ -20,11 +20,11 @@ struct Rig<A> {
 
 const STEP: f32 = 0.05;
 
-fn harness<A: 'static>(app: A, view: View<A>) -> Harness<'static, Rig<A>> {
+fn harness<A>(app: A, view: View<A>) -> Harness<'static, Rig<A>> {
     harness_stepping(app, view, STEP)
 }
 
-fn harness_stepping<A: 'static>(app: A, view: View<A>, step_dt: f32) -> Harness<'static, Rig<A>> {
+fn harness_stepping<A>(app: A, view: View<A>, step_dt: f32) -> Harness<'static, Rig<A>> {
     let layout = LayoutState::new().with_base_text(TextStyle::new(
         TextSpec {
             size: 16.0,

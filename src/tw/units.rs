@@ -126,7 +126,7 @@ impl From<Angle> for f32 {
 
 /// Mirroring of an image or icon.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum Flip {
+pub enum Mirror {
     /// Not mirrored.
     #[default]
     None,

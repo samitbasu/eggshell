@@ -28,6 +28,7 @@ use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
 use crate::text::{TextStyle, VAlign};
+use crate::tooltip::{Content, Tooltip};
 use crate::tw::{Grouping, PointerEvents, Sensing, Tw, tw};
 use crate::widget::Stock;
 
@@ -121,7 +122,28 @@ pub struct Builder<'b, 'f, A> {
     path: Id,
     kids: &'b mut Vec<NodeId>,
     inherited: &'b TextStyle,
-    ambient: Enablement,
+    ambient: Ambient,
+}
+
+/// What a subtree's nodes take from where it is built, beyond text.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Ambient {
+    pub(crate) enablement: Enablement,
+    pub(crate) surface: Surface,
+}
+
+impl Ambient {
+    pub(crate) const PAGE: Self = Self {
+        enablement: Enablement::Enabled,
+        surface: Surface::Page,
+    };
+}
+
+/// What a node is drawn on, for the stock pieces whose look depends on it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Surface {
+    Page,
+    Tooltip,
 }
 
 impl<'b, 'f, A> Builder<'b, 'f, A> {
@@ -130,7 +152,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         frame: &'b mut Frame<'f, A>,
         path: Id,
         kids: &'b mut Vec<NodeId>,
-        (inherited, ambient): (&'b TextStyle, Enablement),
+        (inherited, ambient): (&'b TextStyle, Ambient),
     ) -> Self {
         Self {
             st,
@@ -146,7 +168,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// [`inert`](Tw::inert) subtree, as a `<fieldset disabled>` disables the
     /// controls inside it.
     pub(crate) fn enablement_of(&self, own: Enablement) -> Enablement {
-        self.ambient.and(own)
+        self.ambient.enablement.and(own)
     }
 
     /// Builds `body` with a key pushed onto the path. No node is created;
@@ -656,6 +678,51 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.display(tw, NodeKind::Text, Prim::Text(text.into()));
     }
 
+    /// Anonymous text with egui's formatting: a [`RichText`](egui::RichText)'s
+    /// colour, size, font family, style and decorations, or a laid-out
+    /// [`LayoutJob`](egui::text::LayoutJob) or galley. Plain text is
+    /// [`text`](Self::text). What the text does not set comes from the node's
+    /// text style; egui's `strong` and `weak` colours are the node's colour,
+    /// as egui has no bold.
+    pub fn rich(&mut self, tw: Tw, text: impl Into<egui::WidgetText>) {
+        match text.into() {
+            egui::WidgetText::Text(text) => self.text(tw, text),
+            rich => self.display(tw, NodeKind::Text, Prim::Rich(rich)),
+        }
+    }
+
+    /// A key chip: `keys`, a key or a chord, in a small box, as HTML's
+    /// `<kbd>`. Inside a tooltip it takes the look the style gives a chip on
+    /// a tooltip ([`KbdStyle`](crate::contract::KbdStyle)).
+    pub fn kbd(&mut self, keys: impl Into<String>) {
+        let style = crate::Style::of(self.frame.ctx);
+        let kbd = &style.kbd;
+        let colors = match self.surface() {
+            Surface::Page => kbd.page,
+            Surface::Tooltip => kbd.tooltip,
+        };
+        let classes = tw()
+            .flex()
+            .items_center()
+            .justify_center()
+            .shrink_0()
+            .h_px(kbd.height)
+            .min_w_px(kbd.height)
+            .px(kbd.padding_x / 4.0)
+            .border(kbd.border_width)
+            .border_color(colors.border)
+            .rounded_px(f32::from(kbd.radius))
+            .bg(colors.fill)
+            .text(colors.text)
+            .whitespace_nowrap();
+        let classes = match kbd.text.clone() {
+            Some(spec) => classes.role(spec),
+            None => classes,
+        };
+        let keys = keys.into();
+        self.div(classes, |b| b.text(tw(), keys));
+    }
+
     /// An anonymous icon, one em square unless sized by classes.
     pub fn glyph(&mut self, tw: Tw, icon: Icon) {
         self.display(tw, NodeKind::Glyph, Prim::Icon(icon));
@@ -805,12 +872,82 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// What the controls inside a node with `classes` inherit.
-    fn ambient_in(&self, classes: &Tw) -> Enablement {
+    fn ambient_in(&self, classes: &Tw) -> Ambient {
         if classes.inert {
-            Enablement::Disabled
+            Ambient {
+                enablement: Enablement::Disabled,
+                ..self.ambient
+            }
         } else {
             self.ambient
         }
+    }
+
+    /// Builds `body` in place, its nodes drawn on `surface`.
+    pub(crate) fn on_surface(
+        &mut self,
+        surface: Surface,
+        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+    ) {
+        body(&mut Builder::new(
+            self.st,
+            self.frame,
+            self.path,
+            self.kids,
+            (
+                self.inherited,
+                Ambient {
+                    surface,
+                    ..self.ambient
+                },
+            ),
+        ));
+    }
+
+    /// The text `body` shows, its pieces joined by spaces, in the order
+    /// they are drawn. Its nodes are built under `salt` and left out of the
+    /// frame, so nothing is laid out or drawn.
+    pub(crate) fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>> {
+        self.frame.build_built
+    }
+
+    pub(crate) fn set_build_built(&mut self, build: crate::tooltip::BuildBuilt<A>) {
+        self.frame.build_built = Some(build);
+    }
+
+    pub(crate) fn text_of(
+        &mut self,
+        salt: impl std::hash::Hash + Debug,
+        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+    ) -> String {
+        let mut kids = Vec::new();
+        let mark = self.st.names.push_label("text-of");
+        body(&mut Builder::new(
+            self.st,
+            self.frame,
+            self.path.with(("eggshell-text-of", salt)),
+            &mut kids,
+            (self.inherited, self.ambient),
+        ));
+        self.st.names.pop_to(mark);
+        let tree = &self.st.tree;
+        let mut pieces = Vec::new();
+        let mut stack: Vec<NodeId> = kids.into_iter().rev().collect();
+        while let Some(node) = stack.pop() {
+            if let Some(text) = tree
+                .get_node_context(node)
+                .and_then(|node| node.prim.as_ref()?.text())
+            {
+                pieces.push(text.to_owned());
+            }
+            stack.extend(tree.children(node).into_iter().flatten().rev());
+        }
+        pieces.join(" ")
+    }
+
+    /// What is drawn here: the page, or a tooltip's box.
+    pub(crate) fn surface(&self) -> Surface {
+        self.ambient.surface
     }
 
     /// Builds `body` as the children of a new container whose children's key
@@ -1042,8 +1179,22 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     /// Shows `text` in a tooltip overlay while the node is hovered, also when
     /// it is disabled, as the owned widgets' `tooltip` does. The node senses
     /// hover if it senses nothing else.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        let tip = Some(text.into());
+    pub fn tooltip(self, text: impl Into<egui::WidgetText>) -> Self {
+        self.tipped(Content::Text(text.into()))
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](Builder::kbd) chip. The
+    /// content takes no input, and its text describes the node to assistive
+    /// technology.
+    pub fn tooltip_with(
+        self,
+        build: impl Fn(&mut Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.tipped(Content::built(build))
+    }
+
+    fn tipped(mut self, content: Content) -> Self {
         self.edit(|context| {
             let interaction = &mut context.interaction;
             if interaction.sensing == Sensing::None {
@@ -1051,6 +1202,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
             }
             interaction.sensing = interaction.sensing.or(Sensing::Hover);
         });
+        let tip = Some(Tooltip::new(&mut self.b, self.node, content));
         self.draw(move |_, ui| {
             crate::owned::tipped(ui, ui.node_response(), &tip);
         })

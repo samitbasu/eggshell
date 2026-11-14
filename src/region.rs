@@ -13,8 +13,7 @@
 use egui::{Id, Vec2, vec2};
 use taffy::{AvailableSpace, Display, NodeId, Size, Style, TaffyTree, style_helpers::length};
 
-use crate::builder::Builder;
-use crate::owned::Enablement;
+use crate::builder::{Ambient, Builder};
 use crate::pipeline::{BuildState, Frame, Node, NodeKind, solve};
 use crate::text::TextStyle;
 
@@ -29,7 +28,7 @@ pub(crate) struct RegionDecl<'f, A> {
     pub(crate) id: Id,
     pub(crate) readable: String,
     pub(crate) text: TextStyle,
-    pub(crate) ambient: Enablement,
+    pub(crate) ambient: Ambient,
     pub(crate) body: RegionFn<'f, A>,
 }
 

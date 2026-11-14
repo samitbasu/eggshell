@@ -9,7 +9,7 @@ use std::rc::Rc;
 use egui::{Key, Rect, Ui, WidgetInfo};
 
 use super::number::{self, Edit, Edits, Step};
-use super::{Enablement, OnResponse, Tip, painted, tipped};
+use super::{Content, Enablement, OnResponse, TipContent, painted, tip, tipped};
 use crate::builder::Slot;
 use crate::contract::Colors;
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
@@ -44,7 +44,7 @@ pub struct SliderChain<'a, 'f, A> {
     range: RangeInclusive<f64>,
     step: Step,
     name: Option<String>,
-    tooltip: Tip,
+    tooltip: TipContent,
     classes: Tw,
     enablement: Enablement,
     on_response: OnResponse<A>,
@@ -161,10 +161,22 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     /// Shown while the pointer hovers the control, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
     /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
+    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+        self.tooltip = Some(Content::Text(text.into()));
+        self
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
+    /// The content takes no input, and its text describes the control to
+    /// assistive technology.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.tooltip = Some(Content::built(build));
         self
     }
 
@@ -207,6 +219,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             on_response,
             edits,
         } = self;
+        let tooltip = tip(&mut b, slot.id, tooltip);
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let slider = &style.slider;

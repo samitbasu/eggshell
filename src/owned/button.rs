@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use egui::{Context, Role};
 
 use super::Mark;
-use super::{Enablement, OnResponse, Tip, centered, described};
+use super::{Content, Enablement, OnResponse, TipContent, centered, described, tip};
 use crate::actions::Action;
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
@@ -103,7 +103,7 @@ pub struct ButtonOptions {
     variant: Option<Variant>,
     size: Option<Size>,
     name: Option<String>,
-    tooltip: Tip,
+    tooltip: TipContent,
     enablement: Option<Enablement>,
     press: Option<Press>,
     classes: Tw,
@@ -187,10 +187,10 @@ impl ButtonOptions {
     /// Shown while the pointer hovers the control, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
     /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
+    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+        self.tooltip = Some(Content::Text(text.into()));
         self
     }
 
@@ -307,10 +307,22 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// Shown while the pointer hovers the control, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
     /// delay, at once when it has keyboard focus, and also when the control is
-    /// disabled, as an HTML `title` is. Rich text is shown as plain text. It adds to the control's accessible
+    /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.opts = self.opts.tooltip(text);
+        self
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
+    /// The content takes no input, and its text describes the control to
+    /// assistive technology.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.opts.tooltip = Some(Content::built(build));
         self
     }
 
@@ -404,6 +416,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             children,
             action,
         } = self;
+        let tooltip = tip(&mut b, slot.id, tooltip);
         let size = size.unwrap_or(Size::DEFAULT);
         let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
         let press = press.unwrap_or(Press::Shifts);

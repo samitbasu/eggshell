@@ -355,6 +355,16 @@ impl Tokens {
         self.destructive.gamma_multiply(0.6)
     }
 
+    /// `background/20`: a key chip on a tooltip in the light theme.
+    pub fn background_20(&self) -> Color32 {
+        self.background.gamma_multiply(0.2)
+    }
+
+    /// `background/10`: a key chip on a tooltip in the dark theme.
+    pub fn background_10(&self) -> Color32 {
+        self.background.gamma_multiply(0.1)
+    }
+
     /// `input/30`: the fill of inputs, outline buttons and unchecked boxes in
     /// the dark theme.
     pub fn input_30(&self) -> Color32 {

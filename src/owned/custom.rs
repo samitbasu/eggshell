@@ -3,7 +3,7 @@
 use egui::{Role, Ui, WidgetInfo};
 use taffy::Size;
 
-use super::{OnResponse, Tip, tipped};
+use super::{Content, OnResponse, TipContent, tip, tipped};
 use crate::builder::Slot;
 use crate::{Builder, Measure, NodeUi as _, Tw, fill};
 
@@ -35,7 +35,7 @@ pub struct CustomChain<'a, 'f, A> {
     measure: Option<MeasureFn<'f>>,
     name: Option<String>,
     role: Role,
-    tooltip: Tip,
+    tooltip: TipContent,
     on_response: OnResponse<A>,
 }
 
@@ -79,7 +79,19 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
     /// Shown while the pointer hovers the node, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)).
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+        self.tooltip = Some(Content::Text(text.into()));
+        self
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box, such as text and a [`kbd`](crate::Builder::kbd) chip.
+    /// The content takes no input, and its text describes the control to
+    /// assistive technology.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+    ) -> Self {
+        self.tooltip = Some(Content::built(build));
         self
     }
 
@@ -103,6 +115,7 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
             tooltip,
             on_response,
         } = self;
+        let tooltip = tip(&mut b, slot.id, tooltip);
         let measure: MeasureFn<'f> = measure.unwrap_or_else(|| Box::new(fill));
         let mut node = b.leaf_with(slot.id, &slot.label, classes, measure);
         if role != Role::Unknown {

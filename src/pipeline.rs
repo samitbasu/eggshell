@@ -20,7 +20,6 @@ use crate::kept::Handle;
 use crate::key::{ReadablePath, Seen, layout_root, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
-use crate::owned::Enablement;
 use crate::prim::Prim;
 use crate::region::{self, RegionDecl};
 use crate::roots::{
@@ -254,6 +253,7 @@ pub(crate) struct Frame<'f, A> {
     pub exited: Vec<DismissFn<A>>,
     /// The root whose body is being built.
     pub current: usize,
+    pub build_built: Option<crate::tooltip::BuildBuilt<A>>,
 }
 
 impl<'f, A> Frame<'f, A> {
@@ -273,6 +273,7 @@ impl<'f, A> Frame<'f, A> {
             dismiss: HashMap::new(),
             exited: Vec::new(),
             current: 0,
+            build_built: None,
         }
     }
 
@@ -449,7 +450,7 @@ impl LayoutState {
             &mut frame,
             st.root,
             &mut kids,
-            (&base, Enablement::Enabled),
+            (&base, crate::builder::Ambient::PAGE),
         );
         f(&mut builder);
         crate::tooltip::declare(&mut builder);
