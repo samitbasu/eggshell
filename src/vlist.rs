@@ -47,6 +47,16 @@ use crate::tw::{Tw, tw};
 pub(crate) struct VList {
     pub(crate) rows: RowHeights,
     pub(crate) overscan: f32,
+    pub(crate) start: Start,
+}
+
+/// Where a list opens the first time it is laid out.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Start {
+    #[default]
+    Top,
+    /// At its end, which it then holds as its rows are measured.
+    End,
 }
 
 /// What a list knows of its rows' heights before it lays them out.
@@ -91,6 +101,10 @@ const MIN_ROW: f32 = 1.0;
 /// How much a height may change and still count as unchanged.
 const SAME: f32 = 0.01;
 
+/// How near its end a list's offset counts as at it: egui rounds the
+/// viewport it clamps the offset to to pixels, and the layout does not.
+const AT_END: f32 = 1.0;
+
 /// A virtual list, started with [`Builder::virtual_list`] and finished with
 /// [`items`](Self::items).
 ///
@@ -108,6 +122,7 @@ pub struct ListChain<'a, 'f, A, R> {
     rows: &'f [R],
     heights: Option<RowHeights>,
     overscan: f32,
+    start: Start,
 }
 
 impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
@@ -117,7 +132,16 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             rows,
             heights: None,
             overscan: OVERSCAN,
+            start: Start::Top,
         }
+    }
+
+    /// Opens the list at its end the first time it is laid out, as a chat
+    /// opens on its latest message. A list at its end stays there as its
+    /// rows are measured and as rows are added, until it is scrolled away.
+    pub fn start_at_end(mut self) -> Self {
+        self.start = Start::End;
+        self
     }
 
     fn container(
@@ -197,6 +221,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             rows,
             heights,
             overscan,
+            start,
         } = self;
         let list = scroll.id();
         let kept = scroll.builder().kept().clone();
@@ -212,6 +237,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
                 VList {
                     rows: heights,
                     overscan,
+                    start,
                 },
                 rows,
             );
@@ -288,6 +314,9 @@ pub(crate) struct ListState {
     built: Vec<BuiltRow>,
     /// What the last frame held still for the next.
     hold: Option<Hold>,
+    /// The part of the last frame's correction its content was too short to
+    /// take: the content grows once the rows it measured count.
+    owed: f32,
     /// Kept allocations.
     keys: Vec<IdSalt>,
     offsets: Vec<f32>,
@@ -427,9 +456,16 @@ impl Plan {
         let VList {
             rows: heights,
             overscan,
+            start,
         } = settings;
         let (tops, keys) = kept.with(|kept| {
-            let state = kept.lists.0.entry(list).or_default();
+            let state = kept.lists.0.entry(list).or_insert_with(|| ListState {
+                hold: match start {
+                    Start::Top => None,
+                    Start::End => Some(Hold::End { offset: 0.0 }),
+                },
+                ..ListState::default()
+            });
             state.pass = pass;
             match heights {
                 RowHeights::Fixed(height) => (
@@ -507,6 +543,20 @@ pub(crate) struct View {
     viewport: Vec2,
     /// The content's height.
     content: f32,
+    /// The row a [`scroll_to`] asked for this frame, which the list keeps in
+    /// place while it measures the rows around it.
+    target: Option<Anchor>,
+}
+
+/// The row a list keeps where it is on the screen while it measures the
+/// rows it built.
+#[derive(Clone, Copy, Debug)]
+struct Anchor {
+    at: usize,
+    /// How much of the row's own change of height to keep off the screen
+    /// position of its top: none when its top was placed, all when its
+    /// bottom was.
+    own: f32,
 }
 
 impl View {
@@ -518,7 +568,7 @@ impl View {
     /// Whether the content is scrolled to its end, and can be scrolled.
     fn at_end(&self) -> bool {
         let limit = self.limit();
-        limit > 0.0 && self.offset >= limit - SAME
+        limit > 0.0 && self.offset >= limit - AT_END
     }
 
     /// The part of the rows `margin` beyond the viewport's edges.
@@ -566,17 +616,21 @@ impl<'f, A> ListRun<'f, A> {
             offset: scroll::stored_offset(ctx, list, Axis::Y, node.size, viewport).y,
             viewport,
             content: node.size.y,
+            target: None,
         };
         let requested = scroll::requested_by(ctx, list).y;
         let moved = match self.forget_if_resized(width) {
-            Some(Hold::End { offset }) if view.offset >= offset - SAME => {
-                view.limit() - view.offset
+            Some(Hold::End { offset }) if view.offset >= offset - AT_END => {
+                let gap = view.limit() - view.offset;
+                if gap.abs() > AT_END { gap } else { 0.0 }
             }
             Some(Hold::Row { key, at, top }) if view.offset > 0.0 => self
                 .find(key, at)
                 .map_or(0.0, |at| self.plan.tops.top(at) - top),
             _ => 0.0,
-        };
+        } + self
+            .plan
+            .with_state(|state| std::mem::take(&mut state.owed));
         if moved.abs() > SAME {
             view.offset += moved;
             scroll::scroll_by(ctx, list, vec2(0.0, moved));
@@ -593,10 +647,16 @@ impl<'f, A> ListRun<'f, A> {
             let tops = &self.plan.tops;
             let row = (view.top + tops.top(at), view.top + tops.top(at + 1));
             let shown = (view.offset, view.offset + view.viewport.y);
-            view.offset =
-                (view.offset + scroll::reveal(shown, row, request.align)).clamp(0.0, view.limit());
+            let reveal = scroll::reveal(shown, row, request.align);
+            view.offset = (view.offset + reveal).clamp(0.0, view.limit());
             let rect = Rect::from_min_max(pos2(0.0, row.0), pos2(view.viewport.x, row.1));
             scroll::scroll_to_rect(ctx, list, rect, request.align);
+            let own = match request.align {
+                Some(align) => align.to_factor(),
+                None if reveal > 0.0 => 1.0,
+                None => 0.0,
+            };
+            view.target = Some(Anchor { at, own });
         }
         view
     }
@@ -669,7 +729,10 @@ impl<'f, A> ListRun<'f, A> {
     /// `b`, and returns them for [`Laid::settle`].
     pub(crate) fn build(mut self, b: &mut Builder<'_, 'f, A>, view: View) -> Laid {
         let range = self.plan.tops.visible(view.span(self.plan.overscan));
-        let first_visible = self.plan.tops.visible(view.span(0.0)).start;
+        let anchor = view.target.unwrap_or_else(|| Anchor {
+            at: self.plan.tops.visible(view.span(0.0)).start,
+            own: 0.0,
+        });
         let pinned = self.pinned(b, &range);
         let classes = match self.plan.rows {
             RowHeights::Fixed(height) => tw().h_px(height).shrink_0(),
@@ -718,9 +781,11 @@ impl<'f, A> ListRun<'f, A> {
             plan: self.plan,
             scroll: self.scroll,
             built,
-            first_visible,
+            anchor,
             column_top,
             end: view.at_end().then_some(view.offset),
+            offset: view.offset,
+            limit: view.limit(),
         }
     }
 }
@@ -748,11 +813,15 @@ pub(crate) struct Laid {
     plan: Plan,
     scroll: NodeId,
     built: Vec<Built>,
-    first_visible: usize,
+    anchor: Anchor,
     /// Where the column of visible rows was placed, if any were built.
     column_top: Option<f32>,
     /// The offset, if the content was scrolled to its end.
     end: Option<f32>,
+    /// The offset the rows were chosen for, and the farthest this frame's
+    /// content lets it go.
+    offset: f32,
+    limit: f32,
 }
 
 impl Laid {
@@ -765,9 +834,11 @@ impl Laid {
             plan,
             scroll,
             built,
-            first_visible,
+            anchor,
             column_top,
             end,
+            offset,
+            limit,
         } = self;
         let mut moved = 0.0;
         let mut changed = false;
@@ -780,10 +851,11 @@ impl Laid {
             let used = plan.tops.height(row.at);
             changed |= (height - used).abs() > SAME;
             if row.flow == Flow::Column {
-                if row.at < first_visible {
+                if row.at < anchor.at {
                     moved += height - used;
                 }
-                if row.at == first_visible {
+                if row.at == anchor.at {
+                    moved += (height - used) * anchor.own;
                     first = Some(Hold::Row {
                         key: row.key,
                         at: row.at,
@@ -836,6 +908,8 @@ impl Laid {
             state.keys = keys;
             state.built = rows_kept;
             state.hold = end.map(|offset| Hold::End { offset }).or(first);
+            let intended = offset + moved;
+            state.owed = intended - intended.clamp(0.0, limit);
         });
     }
 }

@@ -73,6 +73,7 @@ struct App {
     fields: bool,
     menu_on: Option<Row>,
     menu_in: Option<Row>,
+    start_at_end: bool,
 }
 
 impl App {
@@ -88,6 +89,7 @@ impl App {
             fields: false,
             menu_on: None,
             menu_in: None,
+            start_at_end: false,
         }
     }
 
@@ -106,6 +108,11 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
     let list = match app.list {
         VList::Estimated { estimate, overscan } => list.estimate_px(estimate).overscan_px(overscan),
         VList::Fixed { height, overscan } => list.fixed_px(height).overscan_px(overscan),
+    };
+    let list = if app.start_at_end {
+        list.start_at_end()
+    } else {
+        list
     };
     list.items(move |s, row| {
         app.built.set(app.built.get() + 1);
@@ -606,5 +613,88 @@ fn a_scroll_by_shows_rows_in_the_frame_it_is_applied() {
         row_rect(&harness, 100).top() == view.rect.top(),
         "the row at the new offset is built and shown: {:?}",
         built_rows(&harness)
+    );
+}
+
+fn last_row_ends_the_viewport(harness: &Harness<'_, Rig<App>>) -> bool {
+    let last = harness.state().app.rows.last().expect("rows").0;
+    let view = viewport(harness).rect;
+    built_rows(harness).contains(&last)
+        && (row_rect(harness, last).bottom() - view.bottom()).abs() < 0.5
+}
+
+#[test]
+fn a_list_that_starts_at_its_end_opens_on_its_last_row() {
+    let mut app = App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(40.0),
+    );
+    app.start_at_end = true;
+    let harness = harness_of(app);
+    assert!(
+        last_row_ends_the_viewport(&harness),
+        "the last row ends the viewport: built {:?}",
+        built_rows(&harness)
+    );
+}
+
+#[test]
+fn a_row_added_at_the_end_shows_while_the_list_is_at_its_end() {
+    let mut app = App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(40.0),
+    );
+    app.start_at_end = true;
+    let mut harness = harness_of(app);
+    assert!(
+        last_row_ends_the_viewport(&harness),
+        "precondition: at the end"
+    );
+    harness.state_mut().app.rows.push(Row(5000));
+    harness.step();
+    run_while_repainting(&mut harness, 10);
+    assert!(
+        last_row_ends_the_viewport(&harness),
+        "the new row ends the viewport"
+    );
+}
+
+#[test]
+fn a_row_added_at_the_end_leaves_a_list_scrolled_away_where_it_is() {
+    let mut app = App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(40.0),
+    );
+    app.start_at_end = true;
+    let mut harness = harness_of(app);
+    scroll_by(&mut harness, -2000.0);
+    let offset = viewport(&harness).offset().y;
+    assert!(
+        !last_row_ends_the_viewport(&harness),
+        "precondition: scrolled away"
+    );
+    harness.state_mut().app.rows.push(Row(5000));
+    harness.step();
+    run_while_repainting(&mut harness, 10);
+    assert_eq!(viewport(&harness).offset().y, offset);
+}
+
+#[test]
+fn scroll_to_the_bottom_of_the_viewport_lands_there_as_rows_are_measured() {
+    let mut harness = harness_of(App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(40.0),
+    ));
+    vlist::scroll_to(&harness.ctx, list_id(&harness), Row(500), Some(Align::Max));
+    harness.run_steps(4);
+    let view = viewport(&harness).rect;
+    let row = row_rect(&harness, 500);
+    assert!(
+        (row.bottom() - view.bottom()).abs() < 1.0,
+        "row 500 {row:?} ends the viewport {view:?}"
     );
 }
