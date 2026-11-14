@@ -546,6 +546,8 @@ impl Shadcn {
         style.scroll.thumb_active = t.border;
         style.scroll.track = clear;
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
+        // Radix's ScrollArea keeps its thumb at least 18 px long.
+        style.scroll.min_thumb_length = 18.0;
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);

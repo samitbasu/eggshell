@@ -156,7 +156,7 @@ fn pane_widths_clamp_and_do_not_drift() {
 #[test]
 fn the_splitter_shows_a_resize_cursor_and_lights_its_line_under_the_pointer() {
     let mut harness = harness();
-    let line = "/Frame/Splitter(Sidebar)/<rule>";
+    let line = "/Frame/Splitter(Sidebar)/\"line\"";
     let splitter = rect(&harness, Part::Splitter(Pane::Sidebar));
     assert_ne!(
         fill_of(&harness, line),
@@ -169,7 +169,12 @@ fn the_splitter_shows_a_resize_cursor_and_lights_its_line_under_the_pointer() {
         harness.output().platform_output.cursor_icon,
         CursorIcon::ResizeHorizontal
     );
-    assert_eq!(fill_of(&harness, line), Some(color(&harness, Tok::Accent)));
+    harness.run_steps(6);
+    assert_eq!(
+        fill_of(&harness, line),
+        Some(color(&harness, Tok::Accent)),
+        "lit once its transition has run"
+    );
 
     hover_node(&mut harness, &path(Part::Centre));
     assert_ne!(
@@ -1110,11 +1115,112 @@ mod collapsing {
             harness.set_size(size);
             harness.step();
             assert_eq!(panes_shown(&harness), expected, "at {size:?}");
+            // A conversation whose width changed measures its messages at the
+            // new width, which can take frames of its own; the panes do not.
+            // At its end, each frame measures the messages it shows and can
+            // bring a few more into view, so it settles in a handful.
+            let mut more = 0;
+            while harness.ctx.requested_repaint_last_pass() && more < 6 {
+                harness.step();
+                more += 1;
+                assert_eq!(panes_shown(&harness), expected, "still at {size:?}");
+            }
             assert!(
                 !harness.ctx.requested_repaint_last_pass(),
-                "no second frame is asked for at {size:?}"
+                "the frames stop at {size:?}"
             );
         }
+    }
+}
+
+mod long_conversation {
+    use super::*;
+    use chat_shell::state::HISTORY;
+
+    /// The messages built in the last frame, and the last message's rect if
+    /// it is built.
+    fn messages(harness: &Harness<'_, Rig<App>>) -> (usize, Option<egui::Rect>) {
+        let last = format!(
+            "/{:?}",
+            harness
+                .state()
+                .app
+                .conversation
+                .ids()
+                .last()
+                .expect("a conversation")
+        );
+        let rows: Vec<&(String, egui::Rect)> = harness
+            .state()
+            .nodes
+            .iter()
+            .filter(|(path, _)| {
+                path.rsplit('/')
+                    .next()
+                    .is_some_and(|segment| segment.starts_with("MessageId("))
+            })
+            .collect();
+        let last = rows
+            .iter()
+            .find(|(path, _)| path.ends_with(&last))
+            .map(|(_, rect)| *rect);
+        (rows.len(), last)
+    }
+
+    fn viewport(harness: &Harness<'_, Rig<App>>) -> egui::Rect {
+        let id = support::id_of(harness, "/Frame/Centre/Conversation");
+        eggshell_ui::scroll::viewport(&harness.ctx, id)
+            .expect("the conversation was laid out")
+            .rect
+    }
+
+    #[test]
+    fn it_opens_on_the_latest_message_and_builds_only_a_screenful() {
+        let mut harness = harness();
+        harness.run_steps(4);
+        assert!(
+            harness.state().app.conversation.ids().len() > HISTORY,
+            "precondition: a long conversation"
+        );
+        let (built, last) = messages(&harness);
+        let last = last.expect("the latest message is built");
+        let view = viewport(&harness);
+        // Within a pixel: egui rounds the viewport it scrolls to pixels.
+        assert!(
+            view.expand(1.0).contains_rect(last),
+            "{last:?} is in {view:?}"
+        );
+        assert!(
+            (last.bottom() - view.bottom()).abs() < 1.0,
+            "it ends the viewport: {last:?} in {view:?}"
+        );
+        assert!(built < 60, "{built} messages built");
+    }
+
+    #[test]
+    fn a_message_sent_at_the_end_shows_at_the_bottom() {
+        let mut harness = harness();
+        harness.run_steps(4);
+        harness.state_mut().app.draft = "One more question.".into();
+        harness.state_mut().app.send();
+        harness.step();
+        let mut frames = 0;
+        while harness.ctx.has_requested_repaint() && frames < 6 {
+            harness.step();
+            frames += 1;
+        }
+        let (_, last) = messages(&harness);
+        let last = last.expect("the new message is built");
+        let view = viewport(&harness);
+        // Within a pixel: egui rounds the viewport it scrolls to pixels.
+        assert!(
+            view.expand(1.0).contains_rect(last),
+            "{last:?} is in {view:?}"
+        );
+        assert!(
+            (last.bottom() - view.bottom()).abs() < 1.0,
+            "it ends the viewport: {last:?} in {view:?}"
+        );
     }
 }
 
@@ -1140,5 +1246,32 @@ mod folding {
         harness.run_steps(30);
         assert_eq!(rect_of(&harness, FOLD).height(), open);
         assert_eq!(rect_of(&harness, NEXT).min.y, next);
+    }
+}
+
+mod splitter_glow {
+    use super::*;
+
+    const LINE: &str = "/Frame/Splitter(Sidebar)/\"line\"";
+
+    #[test]
+    fn hovering_a_splitter_fades_its_line_to_the_accent() {
+        let mut harness = harness();
+        support::full_motion(&harness.ctx);
+        harness.run_steps(4);
+        let (line, accent) = (color(&harness, Tok::Line), color(&harness, Tok::Accent));
+        assert_eq!(fill_of(&harness, LINE), Some(line), "precondition: at rest");
+        hover_node(&mut harness, &path(Part::Splitter(Pane::Sidebar)));
+        let mid = fill_of(&harness, LINE).expect("the line is painted");
+        let between = |channel: fn(egui::Color32) -> u8| {
+            let (from, to, now) = (channel(line), channel(accent), channel(mid));
+            from.min(to) < now && now < from.max(to)
+        };
+        assert!(
+            between(|c| c.r()) || between(|c| c.g()) || between(|c| c.b()),
+            "mid-transition {mid:?} is between {line:?} and {accent:?}"
+        );
+        harness.run_steps(6);
+        assert_eq!(fill_of(&harness, LINE), Some(accent));
     }
 }

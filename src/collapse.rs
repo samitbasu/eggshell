@@ -287,7 +287,6 @@ pub(crate) fn solve_in_motion(
 /// than they have gone: the sum of target − current. What a container whose
 /// height is cached while it is laid out (a virtual list's row) adds to its
 /// measured size to know where it is going. Valid once the tree is solved.
-#[allow(dead_code, reason = "read by the virtual list's settle step")]
 pub(crate) fn flight_in(tree: &TaffyTree<Node>, node: NodeId, axis: CollapseAxis) -> f32 {
     let mut remaining = 0.0;
     let mut stack = vec![node];

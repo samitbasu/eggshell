@@ -5,7 +5,7 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 
-use eggshell_ui::overlay::Anchor;
+use eggshell_ui::overlay::{Anchor, Shown};
 use eggshell_ui::vlist;
 use eggshell_ui::{Builder, TextStyle, scroll, tw};
 use eggshell_ui_shadcn::Tokens;
@@ -73,6 +73,9 @@ struct App {
     fields: bool,
     menu_on: Option<Row>,
     menu_in: Option<Row>,
+    start_at_end: bool,
+    /// The row whose 200-point collapsible is open.
+    opened: Option<Row>,
 }
 
 impl App {
@@ -88,6 +91,8 @@ impl App {
             fields: false,
             menu_on: None,
             menu_in: None,
+            start_at_end: false,
+            opened: None,
         }
     }
 
@@ -107,6 +112,11 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
         VList::Estimated { estimate, overscan } => list.estimate_px(estimate).overscan_px(overscan),
         VList::Fixed { height, overscan } => list.fixed_px(height).overscan_px(overscan),
     };
+    let list = if app.start_at_end {
+        list.start_at_end()
+    } else {
+        list
+    };
     list.items(move |s, row| {
         app.built.set(app.built.get() + 1);
         if app.fields {
@@ -122,6 +132,10 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
             s.overlay("inner")
                 .anchor(Anchor::Node(cell))
                 .children(|s| s.text(tw(), "Inner"));
+        }
+        if row == Row(3) {
+            s.collapsible("more", Shown::from(app.opened == Some(row)))
+                .children(|s| s.div(tw().h_px(200.0), |_| {}));
         }
         s.custom("cell", tw().w_full())
             .measure(move |m| {
@@ -607,4 +621,119 @@ fn a_scroll_by_shows_rows_in_the_frame_it_is_applied() {
         "the row at the new offset is built and shown: {:?}",
         built_rows(&harness)
     );
+}
+
+fn last_row_ends_the_viewport(harness: &Harness<'_, Rig<App>>) -> bool {
+    let last = harness.state().app.rows.last().expect("rows").0;
+    let view = viewport(harness).rect;
+    built_rows(harness).contains(&last)
+        && (row_rect(harness, last).bottom() - view.bottom()).abs() < 0.5
+}
+
+#[test]
+fn a_list_that_starts_at_its_end_opens_on_its_last_row() {
+    let mut app = App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(40.0),
+    );
+    app.start_at_end = true;
+    let harness = harness_of(app);
+    assert!(
+        last_row_ends_the_viewport(&harness),
+        "the last row ends the viewport: built {:?}",
+        built_rows(&harness)
+    );
+}
+
+#[test]
+fn a_row_added_at_the_end_shows_while_the_list_is_at_its_end() {
+    let mut app = App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(40.0),
+    );
+    app.start_at_end = true;
+    let mut harness = harness_of(app);
+    assert!(
+        last_row_ends_the_viewport(&harness),
+        "precondition: at the end"
+    );
+    harness.state_mut().app.rows.push(Row(5000));
+    harness.step();
+    run_while_repainting(&mut harness, 10);
+    assert!(
+        last_row_ends_the_viewport(&harness),
+        "the new row ends the viewport"
+    );
+}
+
+#[test]
+fn a_row_added_at_the_end_leaves_a_list_scrolled_away_where_it_is() {
+    let mut app = App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(40.0),
+    );
+    app.start_at_end = true;
+    let mut harness = harness_of(app);
+    scroll_by(&mut harness, -2000.0);
+    let offset = viewport(&harness).offset().y;
+    assert!(
+        !last_row_ends_the_viewport(&harness),
+        "precondition: scrolled away"
+    );
+    harness.state_mut().app.rows.push(Row(5000));
+    harness.step();
+    run_while_repainting(&mut harness, 10);
+    assert_eq!(viewport(&harness).offset().y, offset);
+}
+
+#[test]
+fn scroll_to_the_bottom_of_the_viewport_lands_there_as_rows_are_measured() {
+    let mut harness = harness_of(App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(40.0),
+    ));
+    vlist::scroll_to(&harness.ctx, list_id(&harness), Row(500), Some(Align::Max));
+    harness.run_steps(4);
+    let view = viewport(&harness).rect;
+    let row = row_rect(&harness, 500);
+    assert!(
+        (row.bottom() - view.bottom()).abs() < 1.0,
+        "row 500 {row:?} ends the viewport {view:?}"
+    );
+}
+
+#[test]
+fn a_row_whose_size_is_in_flight_counts_at_its_target_and_stays_built() {
+    let mut harness = harness_of(App::new(
+        1000,
+        VList::estimated(20.0).overscan(50.0),
+        Rows::Tall(20.0),
+    ));
+    let rest = viewport(&harness).content.height();
+    harness.state_mut().app.opened = Some(Row(3));
+    harness.run_steps(2);
+    assert!(
+        harness.ctx.has_requested_repaint(),
+        "precondition: the collapsible is still opening"
+    );
+    assert_eq!(
+        viewport(&harness).content.height(),
+        rest + 200.0,
+        "mid-flight, the content counts the row at where it is going"
+    );
+    scroll_by(&mut harness, 5000.0);
+    assert!(
+        built_rows(&harness).contains(&3),
+        "the row stays built while it moves, scrolled away"
+    );
+    harness.run_steps(40);
+    assert!(
+        !built_rows(&harness).contains(&3),
+        "and is let go once it has landed"
+    );
+    assert_eq!(viewport(&harness).content.height(), rest + 200.0);
 }

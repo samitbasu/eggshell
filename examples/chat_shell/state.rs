@@ -140,13 +140,71 @@ pub enum Message {
     User(String),
 }
 
+/// A message's data key, given when it joins the conversation and never
+/// given again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MessageId(u32);
+
+/// The messages, oldest first, each under its own key.
+#[derive(Default)]
+pub struct Conversation {
+    ids: Vec<MessageId>,
+    messages: Vec<Message>,
+    next: u32,
+}
+
+impl Conversation {
+    pub fn push(&mut self, message: Message) {
+        self.ids.push(MessageId(self.next));
+        self.messages.push(message);
+        self.next += 1;
+    }
+
+    pub fn clear(&mut self) {
+        self.ids.clear();
+        self.messages.clear();
+    }
+
+    /// The keys of the messages, oldest first.
+    pub fn ids(&self) -> &[MessageId] {
+        &self.ids
+    }
+
+    pub fn get(&self, id: MessageId) -> Option<&Message> {
+        let at = self.ids.binary_search(&id).ok()?;
+        Some(&self.messages[at])
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Message> {
+        self.messages.iter()
+    }
+
+    pub fn is_first(&self, id: MessageId) -> bool {
+        self.ids.first() == Some(&id)
+    }
+
+    pub fn is_last(&self, id: MessageId) -> bool {
+        self.ids.last() == Some(&id)
+    }
+}
+
+impl FromIterator<Message> for Conversation {
+    fn from_iter<I: IntoIterator<Item = Message>>(messages: I) -> Self {
+        let mut conversation = Self::default();
+        for message in messages {
+            conversation.push(message);
+        }
+        conversation
+    }
+}
+
 pub struct App {
     /// The shadcn theme colour that tints the meter, the send button, the
     /// busy markers and focus.
     pub theme_color: ThemeColor,
     pub sessions: Vec<Session>,
     pub selected: SessionKey,
-    pub conversation: Vec<Message>,
+    pub conversation: Conversation,
     pub context_used: Progress,
     pub draft: String,
     /// An index into [`MODELS`].
@@ -157,6 +215,52 @@ pub struct App {
     drag: Option<Drag>,
     /// The titles of the details sections that are folded.
     folded: Vec<&'static str>,
+}
+
+/// How many messages come before the current exchange.
+pub const HISTORY: usize = 3_000;
+
+const ASKS: [&str; 6] = [
+    "Can the cache keep the last layout when nothing changed?",
+    "Why does the list jump when a row grows?",
+    "Is there a faster way to measure the text?",
+    "What should the parser do with a stray brace?",
+    "Could the build skip the unchanged crates?",
+    "How do I keep the focus when the panel closes?",
+];
+
+const ANSWERS: [&str; 6] = [
+    "It can. Keep the inputs the layout depends on next to the result, and compare them before solving again.",
+    "The rows above the one you are reading changed height, so everything below them moved. Hold the first visible row in place and the jump goes away.",
+    "Measure each word once and reuse it: most frames lay out the same strings at the same size.",
+    "Report it with the position it was found at, then skip to the next statement so that one mistake does not hide the rest.",
+    "Yes. Hash each crate's sources and its dependencies' hashes, and rebuild only when one changes.",
+    "Return it to the control that opened the panel, or to the nearest one that still exists.",
+];
+
+const SNIPPETS: [&str; 3] = [
+    "if inputs == last.inputs { return last.layout; }",
+    "let id = list_id.with(row_key);",
+    "focus.restore_to(opener);",
+];
+
+/// The messages before the current exchange: questions and their answers,
+/// some with code.
+fn history() -> impl Iterator<Item = Message> {
+    (0..HISTORY).map(|at| {
+        let turn = at / 2;
+        if at % 2 == 0 {
+            return Message::User(ASKS[turn % ASKS.len()].to_owned());
+        }
+        let mut blocks = vec![paragraph(ANSWERS[turn % ANSWERS.len()])];
+        if turn % 3 == 1 {
+            blocks.push(code(SNIPPETS[turn % SNIPPETS.len()]));
+        }
+        if turn % 4 == 2 {
+            blocks.push(paragraph(ANSWERS[(turn + 1) % ANSWERS.len()]));
+        }
+        Message::Assistant(blocks)
+    })
 }
 
 fn paragraph(text: &str) -> Block {
@@ -185,7 +289,8 @@ impl Default for App {
                 session(6, "Explain the borrow checker error", None),
             ],
             selected: SessionKey(1),
-            conversation: vec![
+            conversation: history()
+                .chain([
                 Message::User(
                     "The tokenizer allocates a new string for every token. Can we avoid that?"
                         .into(),
@@ -206,7 +311,8 @@ impl Default for App {
                 Message::Assistant(vec![paragraph(
                     "Done. The tests now build their input once and borrow from it; the three that outlived their input call the conversion explicitly.",
                 )]),
-            ],
+            ])
+            .collect(),
             context_used: Progress::new(0.42),
             draft: String::new(),
             model: 0,
