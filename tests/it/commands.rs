@@ -2,7 +2,7 @@
 //! `egui_kittest::Harness`, build, layout, draw and the dispatcher that runs
 //! after the library has claimed Esc and Return.
 
-use eggshell_ui::overlay::Modal;
+use eggshell_ui::overlay::{Anchor, Modal};
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, Command, Commands, InText, TextSpec, TextStyle, tw};
 use egui::{Color32, FontFamily, Key, KeyboardShortcut, Modifiers, Role, vec2};
@@ -25,6 +25,8 @@ enum Cmd {
     Help,
     Jump,
     Confirm,
+    Local,
+    Shadow,
 }
 
 #[derive(Default)]
@@ -38,6 +40,7 @@ struct App {
     table: Option<fn() -> Commands<App>>,
     twice: bool,
     dialog_item: Option<Cmd>,
+    popover: bool,
 }
 
 const fn chord(modifiers: Modifiers, key: Key) -> KeyboardShortcut {
@@ -107,6 +110,20 @@ fn dialog_commands() -> Commands<App> {
     )
 }
 
+fn popover_commands() -> Commands<App> {
+    Commands::new()
+        .add(
+            Cmd::Local,
+            Command::new("Local", |app: &mut App| app.log.push("local"))
+                .shortcut(chord(Modifiers::COMMAND, Key::L)),
+        )
+        .add(
+            Cmd::Shadow,
+            Command::new("Shadow", |app: &mut App| app.log.push("shadow"))
+                .shortcut(chord(Modifiers::COMMAND, Key::C)),
+        )
+}
+
 fn base_text() -> TextStyle {
     TextStyle::new(
         TextSpec {
@@ -141,6 +158,16 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
                 }
             });
     });
+    if app.popover {
+        b.overlay("popover").anchor(Anchor::Screen).children(|s| {
+            s.commands(&popover_commands(), app);
+            s.div_id(
+                "Pop",
+                tw().w_px(100.0).h_px(50.0).bg(Color32::WHITE),
+                |_| {},
+            );
+        });
+    }
     if app.dialog {
         b.overlay("dialog")
             .modal(Modal::Center)
@@ -338,6 +365,40 @@ mod modals {
         assert!(log(&harness).is_empty(), "{:?}", log(&harness));
         press(&mut harness, Modifiers::COMMAND, Key::S);
         assert_eq!(log(&harness), ["save"], "the page's commands are back");
+    }
+}
+
+mod popovers {
+    use super::*;
+
+    fn opened() -> Harness<'static, Rig<App>> {
+        let mut harness = harness();
+        harness.state_mut().app.popover = true;
+        harness.run_steps(12);
+        assert!(
+            harness
+                .state()
+                .nodes
+                .iter()
+                .any(|(path, _)| path.starts_with(r#"/"popover""#)),
+            "precondition: the popover is open"
+        );
+        harness
+    }
+
+    #[test]
+    fn a_popovers_commands_run_beside_the_pages() {
+        let mut harness = opened();
+        press(&mut harness, Modifiers::COMMAND, Key::L);
+        press(&mut harness, Modifiers::COMMAND, Key::S);
+        assert_eq!(log(&harness), ["local", "save"]);
+    }
+
+    #[test]
+    fn a_chord_in_both_tables_runs_the_nearest_command_only() {
+        let mut harness = opened();
+        press(&mut harness, Modifiers::COMMAND, Key::C);
+        assert_eq!(log(&harness), ["shadow"]);
     }
 }
 

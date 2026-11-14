@@ -450,10 +450,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             |root| roots[root].parent,
             |root| roots[root].is_modal(),
         );
-        let table = live
+        let command = live
             .into_iter()
-            .find_map(|root| tables.iter().find(|(at, _)| *at == root))?;
-        let command = *table.1.find(id)?;
+            .filter_map(|root| tables.iter().find(|(at, _)| *at == root))
+            .find_map(|(_, table)| table.find(id))
+            .copied()?;
         Some((command, command.is_enabled(app)))
     }
 

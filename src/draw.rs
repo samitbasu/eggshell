@@ -1652,22 +1652,15 @@ impl<A> Placed<A> {
         nav::apply_deferred(ui.ctx());
         let keys = overlay_input::claim_keys(ui.ctx(), &kept, &nodes, &roots, live);
         shared.blur = keys.blur;
-        let live_roots = crate::commands::live_roots(
+        let typing = kept.with(|kept| kept.typing);
+        for root in crate::commands::live_roots(
             overlay_input::topmost_root(&roots),
             |root| roots[root].parent,
-            |root| {
-                matches!(
-                    roots[root].overlay().map(|overlay| overlay.form),
-                    Some(Form::Modal(_))
-                )
-            },
-        );
-        if let Some((_, table)) = live_roots
-            .into_iter()
-            .find_map(|root| commands.iter().find(|(at, _)| *at == root))
-        {
-            let typing = kept.with(|kept| kept.typing);
-            crate::commands::dispatch(ui.ctx(), typing, table, app);
+            |root| roots[root].is_modal(),
+        ) {
+            if let Some((_, table)) = commands.iter().find(|(at, _)| *at == root) {
+                crate::commands::dispatch(ui.ctx(), typing, table, app);
+            }
         }
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
         let mut walk = Walk {

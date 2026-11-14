@@ -195,6 +195,11 @@ pub(crate) struct PlacedRoot {
 }
 
 impl PlacedRoot {
+    pub(crate) fn is_modal(&self) -> bool {
+        self.overlay()
+            .is_some_and(|overlay| matches!(overlay.form, Form::Modal(_)))
+    }
+
     pub(crate) fn overlay(&self) -> Option<&PlacedOverlay> {
         match &self.kind {
             PlacedRootKind::Overlay(overlay) => Some(overlay),
