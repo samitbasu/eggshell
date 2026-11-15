@@ -243,6 +243,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         &self.st.kept
     }
 
+    /// The state of the layout being built, for requests made while it is.
+    pub fn shell(&self) -> crate::Shell {
+        crate::Shell::new(self.frame.ctx, &self.st.kept)
+    }
+
     /// The egui context the frame is built with, for reading the local state
     /// that draw closures keep in egui's memory under ids from
     /// [`id_of`](Self::id_of).

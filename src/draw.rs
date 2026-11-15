@@ -1676,6 +1676,7 @@ impl<A> Placed<A> {
             }
         }
         scroll_keys::hold_arrows(ui.ctx(), &nodes);
+        let _drawing = crate::shell::Drawing::enter(ui.ctx(), &kept);
         let mut walk = Walk {
             app,
             ui,
@@ -1712,8 +1713,8 @@ impl<A> Placed<A> {
             then(app);
         }
         scroll_keys::note_press(&ctx, &nodes);
-        scroll_keys::apply_keys(&ctx, &nodes);
-        scroll_keys::follow_focus(&ctx, &shared.subtrees);
+        scroll_keys::apply_keys(&ctx, &kept, &nodes);
+        scroll_keys::follow_focus(&ctx, &kept, &shared.subtrees);
         if let Some(frame) = shared.recording.take() {
             let laid_out = nodes
                 .iter()

@@ -13,7 +13,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::scroll::{self, Axis, EdgeFade};
+use eggshell_ui::scroll::{Axis, EdgeFade};
 use eggshell_ui::{Builder, Opacity, Tw, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Rect, vec2};
@@ -263,27 +263,29 @@ fn jumps(b: &mut B<'_, '_>) {
         row = Some(s.id_of(Part::Row(SHOWN_ROW)))
     });
     let row = row.expect("scope ran");
+    let shell = b.shell();
+    let (to_top, to_row, down) = (shell.clone(), shell.clone(), shell);
     b.div(tw().flex().gap(2.0).items_center(), |b| {
         b.text(tw().text(t.muted_foreground), "Vertical pane:");
         b.button(Part::Top, "Top")
             .on_response(move |_, response| {
                 if response.clicked() {
                     let top = Rect::from_min_size(egui::Pos2::ZERO, vec2(1.0, 1.0));
-                    scroll::scroll_to_rect(&response.ctx, pane, top, Some(Align::Min));
+                    to_top.scroll_to_rect(pane, top, Some(Align::Min));
                 }
             })
             .add();
         b.button(Part::Jump, format!("Show row {SHOWN_ROW}"))
             .on_response(move |_, response| {
                 if response.clicked() {
-                    scroll::scroll_into_view(&response.ctx, row, Some(Align::Center));
+                    to_row.scroll_into_view(row, Some(Align::Center));
                 }
             })
             .add();
         b.button(Part::Down, "Down 200")
             .on_response(move |_, response| {
                 if response.clicked() {
-                    scroll::scroll_by(&response.ctx, pane, vec2(0.0, 200.0));
+                    down.scroll_by(pane, vec2(0.0, 200.0));
                 }
             })
             .add();

@@ -328,7 +328,9 @@ pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) {
             .find(|node| node.path().ends_with(&name))
             .and_then(|panel| panel.id())
         {
-            eggshell_ui::scroll::scroll_into_view(&ctx, id, Some(egui::Align::Center));
+            placed
+                .shell()
+                .scroll_into_view(id, Some(egui::Align::Center));
         } else {
             app.reveal = Some(key);
         }

@@ -352,7 +352,9 @@ impl Hand<'_> {
             return;
         };
         let offset = |hand: &Self| {
-            eggshell_ui::scroll::viewport(&hand.harness.ctx, page.id).map(|v| v.offset())
+            crate::support::shell(&hand.harness)
+                .viewport(page.id)
+                .map(|v| v.offset())
         };
         let mut still = 0;
         for _ in 0..SCROLL_SETTLE_LIMIT {
@@ -455,11 +457,8 @@ impl Hand<'_> {
             }
             DragAction::ScrollBy(points) => {
                 if let Some(page) = support::last_drawn(&self.harness.ctx, "/\"page\"") {
-                    eggshell_ui::scroll::scroll_by(
-                        &self.harness.ctx,
-                        page.id,
-                        vec2(0.0, points as f32),
-                    );
+                    crate::support::shell(&self.harness)
+                        .scroll_by(page.id, vec2(0.0, points as f32));
                 }
                 self.harness.step();
             }
@@ -625,7 +624,8 @@ fn the_fuzzer_finds_a_planted_bug_and_shrinks_it() {
 fn the_drag_fuzzer_scrolls_when_the_session_says_so() {
     let offset = |hand: &Hand<'_>| {
         let page = support::last_drawn(&hand.harness.ctx, "/\"page\"").expect("drawn");
-        eggshell_ui::scroll::viewport(&hand.harness.ctx, page.id)
+        crate::support::shell(&hand.harness)
+            .viewport(page.id)
             .expect("laid out")
             .offset()
             .y
@@ -671,7 +671,8 @@ fn the_drag_fuzzer_scrolls_with_the_keys_when_the_session_says_so() {
     );
     hand.act(&DragAction::ScrollKey(5, false), &mut session);
     hand.settle_scrolling();
-    let offset = eggshell_ui::scroll::viewport(&hand.harness.ctx, page.id)
+    let offset = crate::support::shell(&hand.harness)
+        .viewport(page.id)
         .expect("laid out")
         .offset()
         .y;

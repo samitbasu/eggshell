@@ -206,7 +206,9 @@ fn id(h: &H, path: &str) -> Id {
 }
 
 fn viewport(h: &H, path: &str) -> scroll::Viewport {
-    scroll::viewport(&h.ctx, id(h, path)).expect("laid out")
+    crate::support::shell(&h)
+        .viewport(id(h, path))
+        .expect("laid out")
 }
 
 fn offset(h: &H, path: &str) -> Vec2 {

@@ -11,7 +11,6 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::vlist;
 use eggshell_ui::{Builder, Tw, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::Align;
@@ -163,6 +162,7 @@ fn row(s: &mut B<'_, '_>, t: &Tokens, state: &State, row: Row) {
 fn jumps(b: &mut B<'_, '_>, state: &State) {
     let t = common::tokens(b.ctx());
     let list = b.id_of(Part::List);
+    let shell = b.shell();
     let rows = &state.rows;
     b.div(tw().flex().gap(2.0).items_center(), |b| {
         b.text(
@@ -174,10 +174,11 @@ fn jumps(b: &mut B<'_, '_>, state: &State) {
             (Part::Middle, "Middle", rows[rows.len() / 2]),
             (Part::Last, "Last", rows[rows.len() - 1]),
         ] {
+            let shell = shell.clone();
             b.button(part, label)
                 .on_response(move |_, response| {
                     if response.clicked() {
-                        vlist::scroll_to(&response.ctx, list, row, Some(Align::Min));
+                        shell.scroll_to_row(list, row, Some(Align::Min));
                     }
                 })
                 .add();
