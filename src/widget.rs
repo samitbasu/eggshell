@@ -74,6 +74,16 @@ pub enum Lines {
     },
 }
 
+/// What Enter does in a one-line field.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Enter {
+    /// TODO(prose): submits and gives up focus.
+    #[default]
+    Submit,
+    /// TODO(prose): submits and keeps focus.
+    KeepFocus,
+}
+
 /// Whether a text edit draws its frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Framing {
@@ -100,6 +110,7 @@ pub struct TextEdit {
     masking: Masking,
     framing: Framing,
     name: Option<String>,
+    enter: Enter,
 }
 
 impl TextEdit {
@@ -117,6 +128,7 @@ impl TextEdit {
             masking: Masking::Shown,
             framing: Framing::Framed,
             name: None,
+            enter: Enter::Submit,
         }
     }
 
@@ -129,6 +141,7 @@ impl TextEdit {
             masking: Masking::Shown,
             framing: Framing::Framed,
             name: None,
+            enter: Enter::Submit,
         }
     }
 
@@ -148,6 +161,19 @@ impl TextEdit {
             };
         }
         self
+    }
+
+    /// TODO(prose): what Enter does in a one-line field.
+    pub fn on_enter(mut self, enter: Enter) -> Self {
+        self.enter = enter;
+        self
+    }
+
+    pub(crate) fn enter(&self) -> Enter {
+        match self.lines {
+            Lines::Single => self.enter,
+            Lines::Multi { .. } => Enter::Submit,
+        }
     }
 
     /// The accessible name, the equivalent of `aria-label`.
@@ -223,6 +249,9 @@ impl TextEdit {
             (Framing::Framed, _) => {
                 edit = edit.margin(Margin::from(Sizer::for_ui(ui).contract.input.padding));
             }
+        }
+        if self.enter() == Enter::KeepFocus {
+            edit = edit.return_key(None);
         }
         if self.lines == Lines::Single {
             edit = edit

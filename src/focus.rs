@@ -47,13 +47,39 @@ pub(crate) enum Autofocus {
     #[default]
     Never,
     OnAppear,
+    OnChange(Token),
+}
+
+/// What an application hands a field to ask for its focus: hashed, so a field
+/// holds one without holding the application's type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Token(u64);
+
+impl Token {
+    pub(crate) fn of(token: &impl std::hash::Hash) -> Self {
+        use std::hash::Hasher as _;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        token.hash(&mut hasher);
+        Self(hasher.finish())
+    }
 }
 
 impl Autofocus {
     /// Requests focus for `response`'s widget if this is the first frame it
     /// is drawn after a frame in which it was not, or ever.
     pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) {
-        if self == Self::Never {
+        let token = match self {
+            Self::Never => return,
+            Self::OnAppear => None,
+            Self::OnChange(token) => Some(token),
+        };
+        if let Some(token) = token {
+            let slot = response.id.with("eggshell-token");
+            let last = ctx.data_mut(|data| data.get_temp::<Token>(slot));
+            ctx.data_mut(|data| data.insert_temp(slot, token));
+            if last.is_some_and(|last| last != token) {
+                response.request_focus();
+            }
             return;
         }
         let seen = response.id.with("eggshell-seen");
