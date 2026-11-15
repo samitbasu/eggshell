@@ -280,6 +280,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         let keys = command
             .chord()
             .map(|chord| self.b.ctx().format_shortcut(&chord));
+        let shell = self.b.shell();
         let mut item = self.item(id, command.title());
         if let Some(keys) = keys {
             item = item.shortcut(keys);
@@ -289,8 +290,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         } else {
             item.enablement(Enablement::Disabled)
         };
-        let run = command.runner();
-        item.on_click(run);
+        item.on_click(move |app| command.activate(app, &shell));
     }
 
     /// An item with a check mark where `current` is on, for a setting that

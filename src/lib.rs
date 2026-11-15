@@ -210,6 +210,7 @@
 
 mod actions;
 mod builder;
+mod clipboard;
 mod collapse;
 mod commands;
 mod continuity;
@@ -248,6 +249,7 @@ pub mod vlist;
 pub mod widget;
 
 pub use builder::{Builder, NodeHandle, Scope};
+pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
 pub use commands::{Command, Commands, InText};
 pub use contract::Style;

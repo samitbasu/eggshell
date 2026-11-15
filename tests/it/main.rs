@@ -15,6 +15,7 @@ mod ch;
 mod chat_shell_demo;
 mod children;
 mod choices;
+mod clipboard;
 mod collapsible;
 mod commands;
 mod compile_fail;

@@ -19,8 +19,10 @@
 
 use egui::{Context, Event, Id, Key as EguiKey, KeyboardShortcut, Modifiers};
 
+use crate::clipboard::{ClipboardError, Paste};
 use crate::key::{Key, child_id};
 use crate::overlay_input::Typing;
+use crate::shell::Shell;
 
 /// What a command does when a text field has the keyboard.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,11 +41,30 @@ pub enum InText {
 /// overrides that for one command.
 pub struct Command<A> {
     title: &'static str,
-    run: fn(&mut A),
+    run: Run<A>,
     enabled: fn(&A) -> bool,
     shortcut: Option<KeyboardShortcut>,
     in_text: Option<InText>,
 }
+
+/// What a command does.
+enum Run<A> {
+    Plain(fn(&mut A)),
+    /// Takes what the clipboard holds, from the chord's event or, for a
+    /// click, a read; `on_error` hears a read that failed.
+    Paste {
+        run: fn(&mut A, Paste),
+        on_error: Option<fn(&mut A, ClipboardError)>,
+    },
+}
+
+impl<A> Clone for Run<A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> Copy for Run<A> {}
 
 impl<A> Clone for Command<A> {
     fn clone(&self) -> Self {
@@ -59,11 +80,40 @@ impl<A> Command<A> {
     pub fn new(title: &'static str, run: fn(&mut A)) -> Self {
         Self {
             title,
-            run,
+            run: Run::Plain(run),
             enabled: |_| true,
             shortcut: None,
             in_text: None,
         }
+    }
+
+    /// A command that pastes: `run` gets what the clipboard holds. From the
+    /// chord that is what the paste event carried; from a menu item or a
+    /// button it is a read of the clipboard. Both are collapsed the same way,
+    /// to one [`Paste`]: the text if there is any, else the image. A read that
+    /// fails does not run the command: [`on_error`](Self::on_error) hears it.
+    pub fn paste(title: &'static str, run: fn(&mut A, Paste)) -> Self {
+        Self {
+            run: Run::Paste {
+                run,
+                on_error: None,
+            },
+            ..Self::new(title, |_| {})
+        }
+    }
+
+    /// What happens when a click's read of the clipboard fails. Only a
+    /// [`paste`](Self::paste) command reads; debug builds panic for any other.
+    #[track_caller]
+    pub fn on_error(mut self, hear: fn(&mut A, ClipboardError)) -> Self {
+        match &mut self.run {
+            Run::Paste { on_error, .. } => *on_error = Some(hear),
+            Run::Plain(_) => {
+                #[cfg(debug_assertions)]
+                panic!("`on_error` is for a command made with `Command::paste`");
+            }
+        }
+        self
     }
 
     /// The chord that runs the command. Use [`egui::Modifiers::COMMAND`] for
@@ -103,8 +153,19 @@ impl<A> Command<A> {
         (self.enabled)(app)
     }
 
-    pub(crate) fn runner(&self) -> fn(&mut A) {
-        self.run
+    /// Runs the command as a click does, with nothing from an event.
+    pub(crate) fn activate(&self, app: &mut A, shell: &Shell) {
+        self.fire(app, None, shell);
+    }
+
+    fn fire(&self, app: &mut A, pasted: Option<Paste>, shell: &Shell) {
+        match self.run {
+            Run::Plain(run) => run(app),
+            Run::Paste { run, on_error } => {
+                let _ = (shell, &pasted, on_error);
+                run(app, pasted.unwrap_or(Paste::Nothing));
+            }
+        }
     }
 
     fn fires_while_typing(&self, shortcut: KeyboardShortcut) -> bool {
@@ -272,7 +333,13 @@ pub(crate) fn live_roots(
 /// table order, taking the key from the frame's input. A chord is left alone
 /// for a command that is disabled, or that yields to a text field that has
 /// the keyboard.
-pub(crate) fn dispatch<A>(ctx: &Context, typing: Typing, table: &Commands<A>, app: &mut A) {
+pub(crate) fn dispatch<A>(
+    ctx: &Context,
+    shell: &Shell,
+    typing: Typing,
+    table: &Commands<A>,
+    app: &mut A,
+) {
     for Entry { command, .. } in &table.entries {
         let Some(shortcut) = command.shortcut else {
             continue;
@@ -284,7 +351,7 @@ pub(crate) fn dispatch<A>(ctx: &Context, typing: Typing, table: &Commands<A>, ap
             continue;
         }
         if consume(ctx, shortcut) {
-            (command.run)(app);
+            command.fire(app, None, shell);
             ctx.request_repaint();
         }
     }

@@ -14,9 +14,17 @@ nohash-hasher = "0.2"
 web-time = "1.1"
 
 [features]
+default = ["clipboard"]
+# The system clipboard, read on demand through `Shell::read_clipboard`.
+# Without it, or on wasm, a read answers `ClipboardError::Unavailable`.
+clipboard = ["dep:arboard"]
 # Golden-image tests: kittest renders them with wgpu, so they need a Vulkan
 # driver. `cargo xtask snapshots` selects a software one.
 snapshots = ["egui_kittest/snapshot", "egui_kittest/wgpu"]
+
+# The version egui-winit asks for, so the tree has the one arboard.
+[target.'cfg(not(any(target_arch = "wasm32", target_os = "android", target_os = "ios")))'.dependencies]
+arboard = { version = "3.6", optional = true, default-features = false, features = ["image-data", "wayland-data-control"] }
 
 [dev-dependencies]
 egui = { version = "0.37", features = ["default_fonts"] }
