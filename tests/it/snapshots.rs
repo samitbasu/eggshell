@@ -44,6 +44,10 @@ mod dialog;
 mod menu;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/swatch_picker.rs"]
+mod swatch_picker;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/chat_shell/main.rs"]
 mod chat_shell;
 
@@ -2296,4 +2300,63 @@ fn slider_thumb_halo_vega() {
 #[test]
 fn slider_thumb_halo_lyra() {
     slider_thumb_halo(ShadcnStyle::Lyra, "slider_thumb_halo_lyra");
+}
+
+/// Whether the swatch picker is drawn with its popover open.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Picker {
+    Closed,
+    Open,
+}
+
+/// The swatch picker example with Blue chosen, its popover opened from the
+/// keyboard so focus is on the current colour.
+fn swatch_picker_in(name: &str, theme: egui::Theme, picker: Picker) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(320.0, 200.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        swatch_picker::State::with(swatch_picker::Choice::Colour(8)),
+        swatch_picker::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    if picker == Picker::Open {
+        harness.key_press(egui::Key::Tab);
+        harness.run_steps(3);
+        harness.key_press(egui::Key::Enter);
+        harness.run_steps(20);
+    }
+    harness.snapshot(name);
+}
+
+#[test]
+fn swatch_picker_closed_light() {
+    swatch_picker_in(
+        "swatch_picker_closed_light",
+        egui::Theme::Light,
+        Picker::Closed,
+    );
+}
+
+#[test]
+fn swatch_picker_open_light() {
+    swatch_picker_in("swatch_picker_open_light", egui::Theme::Light, Picker::Open);
+}
+
+#[test]
+fn swatch_picker_closed_dark() {
+    swatch_picker_in(
+        "swatch_picker_closed_dark",
+        egui::Theme::Dark,
+        Picker::Closed,
+    );
+}
+
+#[test]
+fn swatch_picker_open_dark() {
+    swatch_picker_in("swatch_picker_open_dark", egui::Theme::Dark, Picker::Open);
 }
