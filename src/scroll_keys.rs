@@ -6,15 +6,16 @@
 //! under the pointer. They are read after the frame's widgets have been
 //! drawn, so a widget that uses a key (a slider, a stepper, a list) has
 //! consumed it already; a text field keeps all of them. The scroll goes
-//! through [`scroll_by`], so the layout and egui agree on the offset.
+//! through [`Shell::scroll_by`], so the layout and egui agree on the offset.
 //!
 //! A key never chains: at the edge of the container the key is spent.
 
 use egui::{Context, EventFilter, Id, Key, Vec2};
 
 use crate::focus;
+use crate::kept::Handle;
 use crate::pipeline::PlacedNode;
-use crate::scroll::{scroll_by, scroll_into_view};
+use crate::shell::Shell;
 
 /// The container's page keys leave this many lines of the last page in view.
 const PAGE_OVERLAP_LINES: f32 = 1.0;
@@ -259,7 +260,7 @@ fn take(ctx: &Context, key: Key, chord: Chord) -> usize {
 }
 
 /// Scrolls the container the keys pressed this frame act on.
-pub(crate) fn apply_keys(ctx: &Context, nodes: &[PlacedNode]) {
+pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
     if ctx.text_edit_focused() {
         return;
     }
@@ -310,7 +311,7 @@ pub(crate) fn apply_keys(ctx: &Context, nodes: &[PlacedNode]) {
         by += vector(axis, amount * presses as f32);
     }
     if by != Vec2::ZERO {
-        scroll_by(ctx, target.id, by);
+        Shell::new(ctx, kept).scroll_by(target.id, by);
     }
 }
 
@@ -325,7 +326,7 @@ fn followed_key() -> Id {
 /// did: a widget under the pointer is where it is wanted. `subtrees` has the
 /// focusable widgets of each identified node of the frame, the innermost
 /// first.
-pub(crate) fn follow_focus(ctx: &Context, subtrees: &[(Id, Box<[Id]>)]) {
+pub(crate) fn follow_focus(ctx: &Context, kept: &Handle, subtrees: &[(Id, Box<[Id]>)]) {
     let now = ctx.memory(|memory| memory.focused());
     let before = ctx.data_mut(|data| {
         std::mem::replace(
@@ -341,6 +342,6 @@ pub(crate) fn follow_focus(ctx: &Context, subtrees: &[(Id, Box<[Id]>)]) {
         .iter()
         .find(|(node, widgets)| *node == focused || widgets.contains(&focused));
     if let Some((node, _)) = holder {
-        scroll_into_view(ctx, *node, None);
+        Shell::new(ctx, kept).scroll_into_view(*node, None);
     }
 }

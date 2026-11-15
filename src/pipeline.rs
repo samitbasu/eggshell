@@ -29,6 +29,7 @@ use crate::roots::{
     modal_style, root_of,
 };
 use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
+use crate::shell::Shell;
 use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
 use crate::tw::{
@@ -383,6 +384,11 @@ impl LayoutState {
         &self.st.kept
     }
 
+    /// This state, reached from where only `ctx` is at hand.
+    pub fn shell(&self, ctx: &egui::Context) -> crate::Shell {
+        crate::Shell::new(ctx, &self.st.kept)
+    }
+
     /// An empty state.
     ///
     /// Node ids derive from a root shared by every unnamed state, so two
@@ -553,7 +559,7 @@ impl<'f, A> Built<'f, A> {
         let mut nodes = Vec::new();
         let mut prims = Vec::new();
         let outlines = Debug::of(ctx) == Debug::Outlines;
-        let mut settle = Settle::new(ctx);
+        let mut settle = Settle::new(Shell::new(ctx, &st.kept));
         collect(
             &mut st.tree,
             root,
@@ -1522,6 +1528,11 @@ pub struct Placed<A> {
 }
 
 impl<A> Placed<A> {
+    /// The state of the layout this was placed by.
+    pub fn shell(&self) -> Shell {
+        Shell::new(&self.ctx, &self.kept)
+    }
+
     /// The rect of an identified node.
     pub fn rect(&self, id: Id) -> Option<Rect> {
         Some(self.nodes[*self.by_id.get(&id)?].rect)

@@ -6,7 +6,7 @@
     reason = "each test crate that includes this module uses a subset of it"
 )]
 
-use eggshell_ui::{Builder, LayoutState, TextStyle};
+use eggshell_ui::{Builder, LayoutState, Shell, TextStyle};
 use egui::epaint::{RectShape, Shape, StrokeKind};
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
 use egui_kittest::Harness;
@@ -29,6 +29,28 @@ pub enum Companion {
 pub struct Bar {
     layout: LayoutState,
     pub last_stop: Option<egui::Id>,
+}
+
+/// A rig that lays a view out with a [`LayoutState`] of its own.
+pub trait Shelled {
+    fn layout_state(&self) -> &LayoutState;
+}
+
+impl<A> Shelled for Rig<A> {
+    fn layout_state(&self) -> &LayoutState {
+        &self.layout
+    }
+}
+
+impl<A> Shelled for FrameRig<A> {
+    fn layout_state(&self) -> &LayoutState {
+        &self.layout
+    }
+}
+
+/// The state of the view under test, for requests and reads made of it.
+pub fn shell<S: Shelled>(harness: &Harness<'_, S>) -> Shell {
+    harness.state().layout_state().shell(&harness.ctx)
 }
 
 /// A rig that carries a [`Bar`].

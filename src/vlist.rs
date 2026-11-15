@@ -41,6 +41,7 @@ use crate::kept::Handle;
 use crate::key::Key;
 use crate::pipeline::Node;
 use crate::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain, ScrollStyle, TabRule};
+use crate::shell::Shell;
 use crate::tw::{Tw, tw};
 
 /// How a list sizes its rows, and how far past its viewport it builds them.
@@ -253,32 +254,31 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
     }
 }
 
-/// Scrolls the virtual list `list` (the id of its key, from
-/// [`Builder::id_of`](crate::Builder::id_of)) to show the row `row`. With an
-/// `align`, the row is aligned that way in the viewport; without, the list
-/// moves the least that shows it.
-///
-/// The next layout of the list builds the row and the rows around it where
-/// its running offsets put it, and corrects once the row is measured. A
-/// request for a row the list does not have is dropped.
-// Kept in the context under the list's id, as `scroll::scroll_by` keeps its
-// requests; #156 is to give these ctx-only scroll requests a route to the
-// layout's own state, and this one moves with them.
-pub fn scroll_to(ctx: &Context, list: Id, row: impl Key, align: Option<Align>) {
-    ctx.data_mut(|data| {
-        data.insert_temp(
-            request_key(list),
-            ScrollTo {
-                row: row_key(&row),
-                align,
-            },
-        );
-    });
-    ctx.request_repaint();
+impl Shell {
+    /// Scrolls the virtual list `list` (the id of its key, from
+    /// [`Builder::id_of`](crate::Builder::id_of)) to show the row `row`. With
+    /// an `align`, the row is aligned that way in the viewport; without, the
+    /// list moves the least that shows it.
+    ///
+    /// The next layout of the list builds the row and the rows around it
+    /// where its running offsets put it, and corrects once the row is
+    /// measured. A request for a row the list does not have is dropped.
+    pub fn scroll_to_row(&self, list: Id, row: impl Key, align: Option<Align>) {
+        self.kept.with(|kept| {
+            kept.scrolls.rows.insert(
+                list,
+                ScrollTo {
+                    row: row_key(&row),
+                    align,
+                },
+            );
+        });
+        self.ctx.request_repaint();
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
-struct ScrollTo {
+pub(crate) struct ScrollTo {
     /// The row's key in the list's height cache.
     row: IdSalt,
     align: Option<Align>,
@@ -288,10 +288,6 @@ struct ScrollTo {
 /// rows are all of one type.
 fn row_key(row: &impl Key) -> IdSalt {
     IdSalt::new(row)
-}
-
-fn request_key(list: Id) -> Id {
-    list.with("eggshell-vlist-scroll-to")
 }
 
 /// The key of the leaf a list's rows are built into.
@@ -552,7 +548,7 @@ pub(crate) struct View {
     viewport: Vec2,
     /// The content's height.
     content: f32,
-    /// The row a [`scroll_to`] asked for this frame, which the list keeps in
+    /// The row a [`Shell::scroll_to_row`] asked for this frame, which the list keeps in
     /// place while it measures the rows around it.
     target: Option<Anchor>,
 }
@@ -601,7 +597,7 @@ impl<'f, A> ListRun<'f, A> {
     /// Where the viewport of the laid-out container is over the rows, which
     /// `leaf` holds, `width` wide. Forgets the heights if the width changed,
     /// keeps the first visible row in place, and takes up a
-    /// [`scroll_to`] request.
+    /// [`Shell::scroll_to_row`] request.
     pub(crate) fn view(
         &mut self,
         ctx: &Context,
@@ -627,7 +623,8 @@ impl<'f, A> ListRun<'f, A> {
             content: node.size.y,
             target: None,
         };
-        let requested = scroll::requested_by(ctx, list).y;
+        let shell = Shell::new(ctx, &self.plan.kept);
+        let requested = shell.requested_by(list).y;
         let moved = match self.forget_if_resized(width) {
             Some(Hold::End { offset }) if view.offset >= offset - AT_END => {
                 let gap = view.limit() - view.offset;
@@ -642,14 +639,10 @@ impl<'f, A> ListRun<'f, A> {
             .with_state(|state| std::mem::take(&mut state.owed));
         if moved.abs() > SAME {
             view.offset += moved;
-            scroll::scroll_by(ctx, list, vec2(0.0, moved));
+            shell.scroll_by(list, vec2(0.0, moved));
         }
         view.offset = (view.offset + requested).clamp(0.0, view.limit());
-        let request = ctx.data_mut(|data| {
-            let request = data.get_temp::<ScrollTo>(request_key(list));
-            data.remove::<ScrollTo>(request_key(list));
-            request
-        });
+        let request = self.plan.kept.with(|kept| kept.scrolls.rows.remove(&list));
         if let Some(request) = request
             && let Some(at) = self.find(request.row, 0)
         {
@@ -659,7 +652,7 @@ impl<'f, A> ListRun<'f, A> {
             let reveal = scroll::reveal(shown, row, request.align);
             view.offset = (view.offset + reveal).clamp(0.0, view.limit());
             let rect = Rect::from_min_max(pos2(0.0, row.0), pos2(view.viewport.x, row.1));
-            scroll::scroll_to_rect(ctx, list, rect, request.align);
+            shell.scroll_to_rect(list, rect, request.align);
             let own = match request.align {
                 Some(align) => align.to_factor(),
                 None if reveal > 0.0 => 1.0,
@@ -902,7 +895,7 @@ impl Laid {
             container.tab = TabRule::Never;
         }
         if moved.abs() > SAME {
-            scroll::scroll_by(ctx, plan.list, vec2(0.0, moved));
+            Shell::new(ctx, &plan.kept).scroll_by(plan.list, vec2(0.0, moved));
         }
         if changed {
             ctx.request_repaint();

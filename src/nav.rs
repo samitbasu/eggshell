@@ -14,7 +14,7 @@ use egui::{Align, Context, EventFilter, Id, Key, Modifiers, Rect, Vec2};
 use crate::focus::focus_within;
 use crate::kept::Handle;
 use crate::overlay::{Nav, Wrap};
-use crate::scroll::scroll_into_view;
+use crate::shell::Shell;
 
 /// An open overlay with a keyboard pattern.
 pub(crate) struct Menu {
@@ -293,7 +293,7 @@ fn listbox(ctx: &Context, kept: &Handle, menu: &Menu, home_end: HomeEnd) {
         .and_then(|to| to.target(&menu.items, current, menu.wrap))
     {
         active.set(menu.id, to, menu.anchor);
-        scroll_into_view(ctx, to, None);
+        Shell::new(ctx, kept).scroll_into_view(to, None);
         ctx.request_repaint();
     } else if let Some(to) = pointed_at(ctx, &menu.items).filter(|&to| Some(to) != current) {
         active.set(menu.id, to, menu.anchor);
@@ -351,7 +351,7 @@ pub(crate) fn highlight_initially(ctx: &Context, kept: &Handle, listbox: Id, ite
     }
     active.set(listbox, item, Some(anchor));
     active.store(kept);
-    scroll_into_view(ctx, item, Some(Align::Center));
+    Shell::new(ctx, kept).scroll_into_view(item, Some(Align::Center));
 }
 
 /// The items listboxes highlight now.
