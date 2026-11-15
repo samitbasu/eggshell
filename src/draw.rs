@@ -1256,7 +1256,7 @@ impl<A> Walk<'_, A> {
                     ui.spacing_mut().scroll.kinetic.rubber_band = false;
                 }
                 plan.bars.paint_in(ui.visuals_mut());
-                area.show_viewport(ui, |ui, _| {
+                let shown = area.show_viewport(ui, |ui, _| {
                     // The bar's colours are for the bar, not for the content.
                     ui.set_style(outer);
                     ui.allocate_space(plan.content);
@@ -1275,6 +1275,7 @@ impl<A> Walk<'_, A> {
                     }
                     .visit(index + 1, content);
                 });
+                scroll::note_bar_hold(ui.ctx(), id, shown.id);
             },
         );
     }
