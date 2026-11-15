@@ -465,6 +465,7 @@ impl Shell {
 pub(crate) struct Scrolls {
     pending: Vec<Request>,
     viewports: HashMap<Id, Viewport>,
+    bar_holds: HashMap<Id, bool>,
     /// The `vlist::Shell::scroll_to_row` of each list, until its layout takes it up.
     pub(crate) rows: HashMap<Id, crate::vlist::ScrollTo>,
 }
@@ -502,6 +503,22 @@ impl Request {
             applied: Applied::No,
         }
     }
+}
+
+/// Records whether the pointer's button is down on a bar of the container
+/// `scroll`, whose `ScrollArea` is `area`. egui sets the offset from the
+/// pointer's place on a held bar in every frame, so the offset a layout
+/// would move to by other means is undone in the frame it is drawn.
+pub(crate) fn note_bar_hold(shell: &Shell, scroll: Id, area: Id) {
+    let held = (0..2).any(|axis| {
+        shell
+            .ctx
+            .read_response(area.with(axis))
+            .is_some_and(|bar| bar.is_pointer_button_down_on())
+    });
+    shell
+        .kept
+        .with(|kept| kept.scrolls.bar_holds.insert(scroll, held));
 }
 
 /// The salt of the `ScrollArea`'s id.
@@ -868,6 +885,14 @@ impl Settle {
                     );
                 }
             }
+        }
+        if self
+            .shell
+            .kept
+            .with(|kept| kept.scrolls.bar_holds.get(&id).copied())
+            == Some(true)
+        {
+            want = start;
         }
         if want != start {
             want = masked(want, plan.axis).clamp(Vec2::ZERO, max);

@@ -374,7 +374,7 @@ impl Shadcn {
         };
         style.segmented = {
             let mut segmented = style.segmented;
-            segmented.track_fill = t.muted;
+            segmented.track_fill = t.input;
             segmented.track_radius = t.radius;
             segmented.track_padding = t.list_padding;
             segmented.height = t.control_height;
@@ -398,7 +398,7 @@ impl Shadcn {
             slider.track_height = t.slider_track;
             slider.thumb_size = t.slider_thumb;
             slider.radius = t.slider_radius;
-            slider.track = States::still(flat(t.muted, t.foreground), t.background);
+            slider.track = States::still(flat(t.input, t.foreground), t.background);
             slider.range = States::still(flat(t.primary, t.primary_foreground), t.background);
             slider.thumb = shadowed(
                 BoxLook::new(States::still(thumb_colors, t.background)).bordered(1.0),

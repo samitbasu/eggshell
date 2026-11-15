@@ -738,3 +738,69 @@ fn a_row_whose_size_is_in_flight_counts_at_its_target_and_stays_built() {
     );
     assert_eq!(viewport(&harness).content.height(), rest + 200.0);
 }
+
+mod query {
+    use eggshell_ui::testing::Headless;
+
+    use super::*;
+
+    fn placed() -> eggshell_ui::testing::Placed<Vec<Row>> {
+        let rows: Vec<Row> = (0..50).map(Row).collect();
+        Headless::new(vec2(200.0, 100.0)).layout(&rows, |b, rows| {
+            b.virtual_list("list", tw().w_px(200.0).h_px(100.0), rows)
+                .fixed_px(20.0)
+                .items(|s, _| {
+                    s.div_id("cell", tw().w_full().h_px(20.0), |_| {});
+                });
+        })
+    }
+
+    #[test]
+    fn a_row_is_addressed_as_the_app_wrote_it() {
+        let placed = placed();
+        let list = placed.at("list");
+        let row = list.at(Row(2));
+        assert_eq!(row.at("cell").rect().height(), 20.0);
+        assert!(
+            row.rect().min.y > list.at(Row(1)).rect().min.y,
+            "the rows follow one another"
+        );
+        assert!(list.try_at(Row(49)).is_none(), "a row that is not built");
+    }
+
+    #[test]
+    fn a_row_node_keyed_by_the_row_is_addressed_by_it() {
+        let rows: Vec<Row> = (0..50).map(Row).collect();
+        let placed = Headless::new(vec2(200.0, 100.0)).layout(&rows, |b, rows| {
+            b.virtual_list("list", tw().w_px(200.0).h_px(100.0), rows)
+                .fixed_px(20.0)
+                .items(|s, row| {
+                    s.div_id(row, tw().w_full().h_px(20.0), |_| {});
+                });
+        });
+        let row = placed.at("list").at(Row(2));
+        assert_eq!(row.rect().height(), 20.0);
+    }
+
+    #[test]
+    fn measured_rows_are_addressed_too() {
+        let rows: Vec<Row> = (0..300).map(Row).collect();
+        let placed = Headless::new(vec2(200.0, 100.0)).layout(&rows, |b, rows| {
+            b.div_id("panel", tw().w_px(200.0).h_px(100.0), |b| {
+                b.virtual_list("list", tw().w_px(200.0).h_px(100.0), rows)
+                    .estimate_px(20.0)
+                    .items(|s, row| {
+                        s.div_id(row, tw().w_full().h_px(20.0), |_| {});
+                    });
+            });
+        });
+        let row = placed.at("panel").at("list").at(Row(2));
+        assert_eq!(row.rect().height(), 20.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "a virtual list builds only the rows in and near its viewport")]
+    fn a_row_that_is_not_built_says_why() {
+        placed().at("list").at(Row(49));
+    }
+}

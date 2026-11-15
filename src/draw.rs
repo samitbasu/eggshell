@@ -1256,7 +1256,7 @@ impl<A> Walk<'_, A> {
                     ui.spacing_mut().scroll.kinetic.rubber_band = false;
                 }
                 plan.bars.paint_in(ui.visuals_mut());
-                area.show_viewport(ui, |ui, _| {
+                let shown = area.show_viewport(ui, |ui, _| {
                     // The bar's colours are for the bar, not for the content.
                     ui.set_style(outer);
                     ui.allocate_space(plan.content);
@@ -1275,6 +1275,7 @@ impl<A> Walk<'_, A> {
                     }
                     .visit(index + 1, content);
                 });
+                scroll::note_bar_hold(&crate::shell::ShellExt::shell(&*ui), id, shown.id);
             },
         );
     }
@@ -1639,7 +1640,7 @@ impl<A> Placed<A> {
             app,
         );
         let selection = Style::of(ui.ctx()).selection;
-        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, nodes[0].rect())
+        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, &nodes)
             .starting(StartsSlides::unless_size_in_flight(size_in_flight));
         if nodes.iter().any(|node| node.scroll.is_some()) {
             animation.anticipate(&nodes);
