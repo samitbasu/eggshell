@@ -27,6 +27,7 @@ use taffy::Size;
 
 use crate::shell::ShellExt as _;
 use crate::sizing::Sizer;
+use crate::text::{Numerals, TextAlign};
 use crate::{Measure, Style, TextStyle, Width};
 
 /// A stock widget the builder can size.
@@ -211,6 +212,13 @@ impl TextEdit {
         let width = Width::new(rect.width());
         let before = self.fit(&Sizer::for_ui(ui), text, Some(width));
         let before_text = text.clone();
+        let node_text = crate::draw::node_text(ui);
+        let wraps = self.lines != Lines::Single;
+        let mut tabular = |ui: &Ui, buffer: &dyn egui::TextBuffer, wrap_width: f32| {
+            let leaf = crate::measure::TextLeaf::plain(ui.ctx(), buffer.as_str(), &node_text);
+            ui.ctx()
+                .fonts_mut(|fonts| leaf.editing_galley(fonts, wraps.then_some(wrap_width)))
+        };
         let mut edit = match self.lines {
             Lines::Single => egui::TextEdit::singleline(text),
             Lines::Multi { .. } => egui::TextEdit::multiline(text).desired_rows(self.rows()),
@@ -226,8 +234,15 @@ impl TextEdit {
         }
         if self.lines == Lines::Single {
             edit = edit
-                .align(egui::Align2::LEFT_CENTER)
+                .align(match node_text.align {
+                    TextAlign::Left => egui::Align2::LEFT_CENTER,
+                    TextAlign::Center => egui::Align2::CENTER_CENTER,
+                    TextAlign::Right => egui::Align2::RIGHT_CENTER,
+                })
                 .min_size(vec2(0.0, rect.height()));
+        }
+        if node_text.numerals == Numerals::Tabular {
+            edit = edit.layouter(&mut tabular);
         }
         if let Some(hint) = &self.hint {
             edit = edit.hint_text(hint.as_str());

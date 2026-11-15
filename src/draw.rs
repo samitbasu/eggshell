@@ -1179,6 +1179,7 @@ impl<A> Walk<'_, A> {
                 ui.data_mut(|data| {
                     data.insert_temp(scope, NodeIdTag(id));
                     data.insert_temp(scope, BlurTag(blur));
+                    data.insert_temp(scope, TextTag(text.clone()));
                     if let Some(response) = bubbled {
                         data.insert_temp(scope, BubbledTag(response.clone()));
                     } else {
@@ -1812,6 +1813,9 @@ struct NodeIdTag(egui::Id);
 #[derive(Clone, Copy)]
 struct BlurTag(Blur);
 
+#[derive(Clone)]
+struct TextTag(TextStyle);
+
 /// The node's response with what its subtree's boxes won merged in, for
 /// [`NodeUi::node_response`].
 #[derive(Clone)]
@@ -1897,6 +1901,14 @@ fn nearest_clicker(nodes: &[PlacedNode], index: usize) -> Option<usize> {
 
 /// Why a field in the draw closure's `Ui` that lost focus in this pass did,
 /// as its layout's `claim_keys` decided.
+/// The text style of the node whose draw closure is running, or the egui
+/// style's for a `Ui` that is not a draw closure's.
+pub(crate) fn node_text(ui: &Ui) -> TextStyle {
+    let scope = ui.unique_id();
+    ui.data(|data| data.get_temp::<TextTag>(scope))
+        .map_or_else(|| TextStyle::from_egui(ui.ctx()), |tag| tag.0)
+}
+
 pub(crate) fn blur_cause(ui: &Ui) -> Blur {
     let scope = ui.unique_id();
     ui.data(|data| data.get_temp::<BlurTag>(scope))

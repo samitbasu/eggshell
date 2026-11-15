@@ -213,6 +213,18 @@ impl<'a> TextLeaf<'a> {
         fonts.layout_job(job)
     }
 
+    /// The galley a text edit shows for its text: the job measurement and
+    /// painting share, wrapped at `wrap_width`, or unwrapped for a one-line
+    /// edit.
+    pub(crate) fn editing_galley(
+        &self,
+        fonts: &mut FontsView<'_>,
+        wrap_width: Option<f32>,
+    ) -> std::sync::Arc<egui::Galley> {
+        let job = self.job(fonts);
+        self.galley(fonts, job, wrap_width.map_or(Wrap::Off, Wrap::At))
+    }
+
     fn clamp_rows(&self, job: &mut LayoutJob) {
         if let WhiteSpace::Clamp(rows) = self.style.white_space {
             job.wrap.max_rows = rows as usize;
