@@ -70,10 +70,12 @@ use std::sync::Arc;
 use egui::{Context, DragAndDrop, DroppedFileHandle, Event, Id, Pos2, Rect, Vec2, vec2};
 
 use crate::draw::{Lift, children_of};
+use crate::kept::Handle;
 use crate::key::root_id;
 use crate::overlay_input::Drag;
 use crate::pipeline::{Flow, PlacedNode};
 use crate::roots::{PlacedRoot, root_at, root_of, stacked_top_down};
+use crate::shell::Shell;
 use crate::tw::Sensing;
 
 type Erased = Arc<dyn Any + Send + Sync>;
@@ -284,7 +286,7 @@ impl From<ScrollSpeed> for f32 {
 /// How a drag near the edge of a viewport asks it to scroll. A container
 /// (a [`scroll`](crate::scroll) container) applies the velocity; this
 /// is the drag's side of it: the policy of band and speed, for in-app drags
-/// and outside ones alike. See [`drag_pointer`].
+/// and outside ones alike. See [`Shell::drag_pointer`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EdgeScroll {
     /// The depth of the band along each edge.
@@ -373,13 +375,16 @@ pub(crate) fn lifted_by(nodes: &[PlacedNode], index: usize) -> Option<usize> {
 /// Shows the pointer what a press would do: `Grab` over what starts a drag
 /// while none is live, `Grabbing` for the whole of a live one.
 pub(crate) fn show_grab(
-    ctx: &Context,
+    shell: &Shell,
     nodes: &[PlacedNode],
     index: usize,
     response: &egui::Response,
 ) {
-    if response.hovered() && live_gesture(ctx).is_none() && lifted_by(nodes, index).is_some() {
-        ctx.set_cursor_icon(egui::CursorIcon::Grab);
+    if response.hovered()
+        && live_gesture(&shell.ctx, &shell.kept).is_none()
+        && lifted_by(nodes, index).is_some()
+    {
+        shell.ctx.set_cursor_icon(egui::CursorIcon::Grab);
     }
 }
 
@@ -504,10 +509,9 @@ struct Landing {
 /// library wants; the payload itself is in the [`Gesture`].
 struct Lifted;
 
-/// An in-app drag, kept in the egui context.
+/// An in-app drag, kept in the layout whose source was lifted.
 #[derive(Clone)]
-struct Gesture {
-    scope: Id,
+pub(crate) struct Gesture {
     source: Id,
     payload: Erased,
     /// The pointer's offset from the source's top-left when it was lifted.
@@ -515,15 +519,22 @@ struct Gesture {
     /// Where the pointer last was, for the frames in which it is not
     /// reported (it has left the window with the button held).
     last: Pos2,
-    /// The last pass the gesture's scope drew.
+    /// The last pass the layout drew.
     touched: u64,
 }
 
 /// What the last draw found the drag over.
 #[derive(Clone, Copy)]
-struct Hovering {
+pub(crate) struct Hovering {
     pass: u64,
     over: Option<Over>,
+}
+
+/// What a layout remembers of the drags it takes part in.
+#[derive(Default)]
+pub(crate) struct Drags {
+    gesture: Option<Gesture>,
+    hovering: Option<Hovering>,
 }
 
 /// Whether an outside drag has a position, as of a pass.
@@ -597,15 +608,15 @@ fn focus_lost(events: &[Event]) -> bool {
 
 /// The in-app drag in progress this pass: its payload is held and this pass
 /// is not its last.
-fn live_gesture(ctx: &Context) -> Option<Gesture> {
-    let gesture = ctx.data(|data| data.get_temp::<Gesture>(key("gesture")))?;
+fn live_gesture(ctx: &Context, kept: &Handle) -> Option<Gesture> {
+    let gesture = kept.with(|kept| kept.drags.gesture.clone())?;
     let (released, lost) = ctx.input(|i| (i.pointer.any_released(), focus_lost(&i.events)));
     (DragAndDrop::has_payload_of_type::<Lifted>(ctx) && !released && !lost).then_some(gesture)
 }
 
 /// Whether an in-app drag is live this pass.
-pub(crate) fn drag_state(ctx: &Context) -> Drag {
-    if live_gesture(ctx).is_some() {
+pub(crate) fn drag_state(ctx: &Context, kept: &Handle) -> Drag {
+    if live_gesture(ctx, kept).is_some() {
         Drag::Live
     } else {
         Drag::Idle
@@ -617,13 +628,13 @@ fn fresh(ctx: &Context, pass: u64) -> bool {
 }
 
 /// What the build reads: see [`Builder::dragging`](crate::Builder::dragging).
-pub(crate) fn dragging<T: Any + Send + Sync>(ctx: &Context) -> Option<Dragging<T>> {
-    let (payload, source): (Erased, Option<Id>) = match live_gesture(ctx) {
+pub(crate) fn dragging<T: Any + Send + Sync>(ctx: &Context, kept: &Handle) -> Option<Dragging<T>> {
+    let (payload, source): (Erased, Option<Id>) = match live_gesture(ctx, kept) {
         Some(gesture) => (gesture.payload, Some(gesture.source)),
         None => (Arc::new(Input::read(ctx).hovered?), None),
     };
-    let over = ctx
-        .data(|data| data.get_temp::<Hovering>(key("hovering")))
+    let over = kept
+        .with(|kept| kept.drags.hovering)
         .filter(|hovering| fresh(ctx, hovering.pass))
         .and_then(|hovering| hovering.over);
     Some(Dragging {
@@ -634,8 +645,8 @@ pub(crate) fn dragging<T: Any + Send + Sync>(ctx: &Context) -> Option<Dragging<T
 }
 
 /// The source of the in-app drag in progress, as the build sees it.
-pub(crate) fn lifted_source(ctx: &Context) -> Option<Id> {
-    live_gesture(ctx).map(|gesture| gesture.source)
+pub(crate) fn lifted_source(ctx: &Context, kept: &Handle) -> Option<Id> {
+    live_gesture(ctx, kept).map(|gesture| gesture.source)
 }
 
 /// The id of the node a source's [`drag_preview`](crate::NodeHandle::drag_preview)
@@ -644,27 +655,31 @@ pub(crate) fn preview_id(source: Id) -> Id {
     source.with("eggshell-drag-preview")
 }
 
-/// How far into the source the pointer was when it was lifted, from the
-/// source's top-left; zero when nothing is lifted. A
-/// [`drag_preview`](crate::NodeHandle::drag_preview) is anchored so that its
-/// top-left is this far behind the pointer, as the live image is: a preview
-/// that should sit at the pointer itself offsets its content by it.
-pub fn drag_grab(ctx: &Context) -> Vec2 {
-    live_gesture(ctx).map_or(Vec2::ZERO, |gesture| gesture.grab)
-}
-
-/// Where the pointer is while a drag is live and its position is known: an
-/// in-app drag, or an outside one that has had pointer events. The input of
-/// [`EdgeScroll::velocity`], after the frame is drawn.
-pub fn drag_pointer(ctx: &Context) -> Option<Pos2> {
-    if live_gesture(ctx).is_some() {
-        return ctx.input(|i| i.pointer.interact_pos());
+impl Shell {
+    /// How far into the source the pointer was when it was lifted, from the
+    /// source's top-left; zero when nothing is lifted. A
+    /// [`drag_preview`](crate::NodeHandle::drag_preview) is anchored so that
+    /// its top-left is this far behind the pointer, as the live image is: a
+    /// preview that should sit at the pointer itself offsets its content by
+    /// it.
+    pub fn drag_grab(&self) -> Vec2 {
+        live_gesture(&self.ctx, &self.kept).map_or(Vec2::ZERO, |gesture| gesture.grab)
     }
-    let positioned = ctx.data(|data| data.get_temp::<Positioned>(key("positioned")))?;
-    if fresh(ctx, positioned.pass) && positioned.dragging && positioned.known {
-        ctx.input(|i| i.pointer.latest_pos())
-    } else {
-        None
+
+    /// Where the pointer is while a drag is live and its position is known:
+    /// an in-app drag, or an outside one that has had pointer events. The
+    /// input of [`EdgeScroll::velocity`], after the frame is drawn.
+    pub fn drag_pointer(&self) -> Option<Pos2> {
+        let ctx = &self.ctx;
+        if live_gesture(ctx, &self.kept).is_some() {
+            return ctx.input(|i| i.pointer.interact_pos());
+        }
+        let positioned = ctx.data(|data| data.get_temp::<Positioned>(key("positioned")))?;
+        if fresh(ctx, positioned.pass) && positioned.dragging && positioned.known {
+            ctx.input(|i| i.pointer.latest_pos())
+        } else {
+            None
+        }
     }
 }
 
@@ -857,7 +872,7 @@ pub(crate) struct Tree<'a> {
 /// cancelled, and resolves what the drag is over.
 pub(crate) fn begin<A>(
     ctx: &Context,
-    scope: Id,
+    kept: &Handle,
     tree: Tree<'_>,
     clip: Rect,
     decls: &mut Decls<A>,
@@ -871,24 +886,14 @@ pub(crate) fn begin<A>(
     let pass = ctx.cumulative_pass_nr();
     let input = Input::read(ctx);
     let positioned = outside_position_known(ctx, pass, &input);
-    let mut gesture = ctx.data(|data| data.get_temp::<Gesture>(key("gesture")));
+    let mut gesture = kept.with(|kept| kept.drags.gesture.clone());
     let outside = input.dropped.is_some() || input.hovered.is_some();
     if gesture.is_none() && decls.is_empty() && !outside {
         return Finish::nothing();
     }
-    if gesture
-        .as_ref()
-        .is_some_and(|g| g.scope != scope && g.touched + 1 < pass)
-    {
-        // Its scope is no longer drawn, so nothing will ever end it, and
-        // nothing of this scope can deliver the end.
-        clear_gesture(ctx);
-        gesture = None;
-    }
     if gesture.is_none() {
-        gesture = lift(ctx, scope, nodes, by_id, &input, pass);
+        gesture = lift(ctx, nodes, by_id, &input, pass);
     }
-    let mut gesture = gesture.filter(|gesture| gesture.scope == scope);
     if let Some(held) = &gesture {
         let source_here = by_id
             .get(&held.source)
@@ -904,14 +909,14 @@ pub(crate) fn begin<A>(
         };
         if let Some(cause) = cause {
             ctx.stop_dragging();
-            end_gesture(ctx, held, DragEnd::Cancelled(cause), decls, app);
+            end_gesture(ctx, kept, held, DragEnd::Cancelled(cause), decls, app);
             gesture = None;
         }
     }
     if let Some(held) = &mut gesture {
         held.touched = pass;
         held.last = input.interact.unwrap_or(held.last);
-        ctx.data_mut(|data| data.insert_temp(key("gesture"), held.clone()));
+        kept.with(|kept| kept.drags.gesture = Some(held.clone()));
     }
 
     let (payload, pointer, leaving): (Erased, Option<Pos2>, Option<Id>) =
@@ -931,7 +936,7 @@ pub(crate) fn begin<A>(
     let releasing = gesture.is_some() && input.released;
     let dropping = gesture.is_none() && input.dropped.is_some();
     if releasing || dropping {
-        ctx.data_mut(|data| data.remove::<Hovering>(key("hovering")));
+        kept.with(|kept| kept.drags.hovering = None);
         let ending = match gesture {
             Some(gesture) => Ending::Released {
                 gesture,
@@ -953,7 +958,7 @@ pub(crate) fn begin<A>(
     // Several trees resolve outside files in one pass; only one with a target
     // that takes them may say where they would land.
     if gesture.is_some() || !found.accepting.is_empty() {
-        ctx.data_mut(|data| data.insert_temp(key("hovering"), Hovering { pass, over }));
+        kept.with(|kept| kept.drags.hovering = Some(Hovering { pass, over }));
     }
 
     let mut draw = Draw::idle();
@@ -1027,7 +1032,6 @@ fn landing_of(
 /// Begins the gesture of the source the pointer has just started dragging.
 fn lift(
     ctx: &Context,
-    scope: Id,
     nodes: &[PlacedNode],
     by_id: &HashMap<Id, usize>,
     input: &Input,
@@ -1054,7 +1058,6 @@ fn lift(
     DragAndDrop::set_payload(ctx, Lifted);
     ctx.data_mut(|data| data.insert_temp(lifted_by_press, press.to_bits()));
     Some(Gesture {
-        scope,
         source: node.id()?,
         payload,
         grab: at - node.rect().min,
@@ -1063,22 +1066,20 @@ fn lift(
     })
 }
 
-fn clear_gesture(ctx: &Context) {
-    ctx.data_mut(|data| {
-        data.remove::<Gesture>(key("gesture"));
-        data.remove::<Hovering>(key("hovering"));
-    });
+fn clear_gesture(ctx: &Context, kept: &Handle) {
+    kept.with(|kept| kept.drags = Drags::default());
     DragAndDrop::clear_payload(ctx);
 }
 
 fn end_gesture<A>(
     ctx: &Context,
+    kept: &Handle,
     gesture: &Gesture,
     end: DragEnd,
     decls: &mut Decls<A>,
     app: &mut A,
 ) {
-    clear_gesture(ctx);
+    clear_gesture(ctx, kept);
     decls.end(app, &gesture.payload, end);
 }
 
@@ -1096,11 +1097,12 @@ impl Finish {
     pub(crate) fn finish<A>(
         self,
         ctx: &Context,
+        kept: &Handle,
         nodes: &[PlacedNode],
         decls: &mut Decls<A>,
         app: &mut A,
     ) {
-        if live_gesture(ctx).is_some() {
+        if live_gesture(ctx, kept).is_some() {
             ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
         }
         match self.ending {
@@ -1117,7 +1119,7 @@ impl Finish {
                     }
                     None => DragEnd::Cancelled(Cause::Outside),
                 };
-                end_gesture(ctx, &gesture, end, decls, app);
+                end_gesture(ctx, kept, &gesture, end, decls, app);
             }
             Ending::Dropped { files, landing } => {
                 if let Some((index, landing)) = landing {

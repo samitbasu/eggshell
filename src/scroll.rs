@@ -132,7 +132,7 @@
 //!
 //! # Drags
 //!
-//! While a drag is live ([`drag_pointer`]) and the
+//! While a drag is live ([`Shell::drag_pointer`]) and the
 //! pointer is near the edge of a container, the container scrolls by
 //! [`EdgeScroll`]'s velocity and the frame is repainted, without any code of
 //! the application. [`ScrollChain::edge_scroll`] changes the band and the
@@ -154,7 +154,7 @@ use egui::{Align, Context, Id, Pos2, Rect, Role, Vec2, Vec2b};
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
 use crate::contract::Style;
 pub use crate::contract::{EdgeFade, ScrollStyle};
-use crate::dnd::{EdgeScroll, drag_pointer};
+use crate::dnd::EdgeScroll;
 use crate::key::Key;
 use crate::pipeline::{Node, PlacedNode, takes_tab};
 use crate::shell::Shell;
@@ -878,7 +878,7 @@ impl Settle {
             .collect();
         Self {
             pending,
-            pointer: drag_pointer(ctx),
+            pointer: shell.drag_pointer(),
             dt: ctx.input(|input| input.stable_dt).min(0.1),
             edge: Taken::Free,
             shell,

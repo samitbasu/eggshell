@@ -252,7 +252,7 @@ fn lift_row(h: &mut H<'_>, row: u32) {
     h.hover_at(from + vec2(0.0, 12.0));
     h.run_steps(2);
     assert!(
-        eggshell_ui::drag_pointer(&h.ctx).is_some(),
+        crate::support::shell(h).drag_pointer().is_some(),
         "precondition: row {row} is lifted"
     );
 }
@@ -588,7 +588,7 @@ fn the_wheel_scrolls_while_another_widget_is_dragged() {
     h.run_steps(SMOOTHING);
     assert!(offset(&h).y > 20.0, "the wheel scrolled: {:?}", offset(&h));
     assert!(
-        eggshell_ui::drag_pointer(&h.ctx).is_some(),
+        crate::support::shell(&h).drag_pointer().is_some(),
         "and the drag goes on"
     );
 }
@@ -778,7 +778,7 @@ fn a_drag_near_the_edge_scrolls_the_container_by_itself() {
     h.run_steps(60);
     assert!(offset(&h).y < 5.0, "and back up: {:?}", offset(&h));
     assert!(
-        eggshell_ui::drag_pointer(&h.ctx).is_some(),
+        crate::support::shell(&h).drag_pointer().is_some(),
         "the drag is still live"
     );
 }
