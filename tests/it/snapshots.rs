@@ -46,6 +46,7 @@ mod menu;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/clipboard.rs"]
 mod clipboard_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/swatch_picker.rs"]
 mod swatch_picker;
 

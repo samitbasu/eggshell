@@ -9,6 +9,7 @@ use egui_kittest::Harness;
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/clipboard.rs"]
 mod example;
 
