@@ -1400,10 +1400,7 @@ impl Style {
             widget.expansion = 0.0;
         }
         v.selection.bg_fill = self.selection.fill;
-        v.selection.stroke = egui::Stroke::new(
-            width.max(1.0),
-            self.selection.text.unwrap_or(states.focused.border),
-        );
+        v.selection.stroke = egui::Stroke::new(width.max(1.0), states.focused.border);
         egui.spacing.interact_size.y = input.height;
         egui.spacing.button_padding = input.padding;
     }

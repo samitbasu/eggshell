@@ -140,3 +140,27 @@ fn the_ring_is_the_neutral_ring_under_every_theme_colour() {
         }
     }
 }
+
+#[test]
+fn slider_and_segmented_tracks_read_on_a_muted_panel() {
+    for theme in [Theme::Light, Theme::Dark] {
+        for style in [ShadcnStyle::Vega, ShadcnStyle::Lyra] {
+            let tokens = Tokens::for_theme(theme).in_style(style);
+            let s = style_of(theme, style);
+            assert_ne!(
+                tokens.input, tokens.muted,
+                "{theme:?} {style:?}: precondition"
+            );
+            assert_eq!(
+                s.slider.track.rest.fill, tokens.input,
+                "{theme:?} {style:?}"
+            );
+            assert_eq!(s.segmented.track_fill, tokens.input, "{theme:?} {style:?}");
+            assert_ne!(
+                s.slider.track.rest.fill, tokens.muted,
+                "{theme:?} {style:?}"
+            );
+            assert_ne!(s.segmented.track_fill, tokens.muted, "{theme:?} {style:?}");
+        }
+    }
+}

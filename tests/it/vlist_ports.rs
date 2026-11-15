@@ -3,7 +3,7 @@
 //! stargazers. Each builds only the rows in and near its viewport, and the
 //! rows it shows are the ones its data puts there.
 
-use eggshell_ui::{TextStyle, scroll, vlist};
+use eggshell_ui::{TextStyle, scroll};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Rect, Theme, vec2};
 use egui_kittest::Harness;
@@ -65,7 +65,9 @@ fn rows<A>(harness: &Harness<'_, Rig<A>>, list: &str) -> Vec<(String, Rect)> {
 }
 
 fn viewport<A>(harness: &Harness<'_, Rig<A>>, list: &str) -> scroll::Viewport {
-    scroll::viewport(&harness.ctx, support::id_of(harness, list)).expect("the list was laid out")
+    crate::support::shell(harness)
+        .viewport(support::id_of(harness, list))
+        .expect("the list was laid out")
 }
 
 /// The rows of `list` that can be seen: inside its viewport, give or take a
@@ -114,7 +116,7 @@ mod grid {
     fn a_row_far_down_is_shown_where_its_index_puts_it() {
         let mut harness = harness(State::default(), layout);
         let list = support::id_of(&harness, "/Grid");
-        vlist::scroll_to(&harness.ctx, list, Row(60_001), Some(Align::Min));
+        crate::support::shell(&harness).scroll_to_row(list, Row(60_001), Some(Align::Min));
         harness.run_steps(3);
         let seen = seen(&harness, "/Grid");
         assert_eq!(seen.first().map(String::as_str), Some("Row(60001)"));
@@ -150,7 +152,7 @@ mod items {
         let mut harness = harness(State::default(), layout);
         let list = support::id_of(&harness, "/List");
         let last = Item(ITEMS - 1);
-        vlist::scroll_to(&harness.ctx, list, last, Some(Align::Max));
+        crate::support::shell(&harness).scroll_to_row(list, last, Some(Align::Max));
         harness.run_steps(4);
         let seen = seen(&harness, "/List");
         assert!(
@@ -191,7 +193,7 @@ mod stable_ids {
             "the label names the button's id: {before:?}"
         );
         let list = support::id_of(&harness, "/List");
-        vlist::scroll_to(&harness.ctx, list, Row(99), Some(Align::Max));
+        crate::support::shell(&harness).scroll_to_row(list, Row(99), Some(Align::Max));
         harness.run_steps(4);
         assert!(
             !rows(&harness, "/List")
@@ -199,7 +201,7 @@ mod stable_ids {
                 .any(|(row, _)| row == "Row(3)"),
             "precondition: row 3 is no longer built"
         );
-        vlist::scroll_to(&harness.ctx, list, Row(0), Some(Align::Min));
+        crate::support::shell(&harness).scroll_to_row(list, Row(0), Some(Align::Min));
         harness.run_steps(4);
         assert!(seen(&harness, "/List").contains(&"Row(3)".to_owned()));
         assert_eq!(hello(&harness, 3), before);

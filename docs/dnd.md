@@ -95,7 +95,7 @@ Built the minimum: egui's `ScrollArea::vertical()` hosting the eggshell build/la
 - **Drag image above the clip:** yes, the lifted node paints on the drag layer, unclipped by the scroll area (see *The drag image*).
 - **Outside drop onto a scrolled-away part:** works through auto-scroll for a file hover provided the pointer position is known during the OS drag, which is not guaranteed (below).
 
-**M5 provides** (built; see `eggshell_ui::scroll`): (1) `scroll::viewport`, (2) `scroll_by` / `scroll_to_rect` / `scroll_into_view`, edge auto-scroll with repaint, (3) the wheel is egui's and ignores drags, (4) the content is solved in the frame it is built, (5) the viewport clips hit testing, (6) the content root moves, nothing is re-laid out. The requirements it was built to:
+**M5 provides** (built; see `eggshell_ui::scroll`): (1) `Shell::viewport`, (2) `Shell::scroll_by` / `scroll_to_rect` / `scroll_into_view`, edge auto-scroll with repaint, (3) the wheel is egui's and ignores drags, (4) the content is solved in the frame it is built, (5) the viewport clips hit testing, (6) the content root moves, nothing is re-laid out. The requirements it was built to:
 
 **M5 must provide:** (1) viewport rect and content origin readable by the app and by the draw closures; (2) programmatic scroll (`scroll_by`, `scroll_to_rect`, and a way to request repaint); (3) wheel handled while another widget drags; (4) layout told the viewport size so a node can be `h_full` and content height is right on the first frame (here: one frame late); (5) the clip applied to hit-testing as well as painting; (6) the content origin stable for `animate_layout`.
 

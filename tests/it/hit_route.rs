@@ -3,7 +3,6 @@
 //! handler; egui-native content gets presses only where no box covers it.
 
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::scroll;
 use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Sense, vec2};
 use egui_kittest::Harness;
@@ -202,7 +201,8 @@ fn touch_screen(h: &mut H) {
 }
 
 fn scrolled(h: &H) -> f32 {
-    scroll::viewport(&h.ctx, support::id_of(h, "/\"list\""))
+    crate::support::shell(h)
+        .viewport(support::id_of(h, "/\"list\""))
         .expect("laid out")
         .offset()
         .y

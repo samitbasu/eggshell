@@ -6,7 +6,6 @@ use std::cell::Cell;
 use std::collections::HashMap;
 
 use eggshell_ui::overlay::{Anchor, Shown};
-use eggshell_ui::vlist;
 use eggshell_ui::{Builder, TextStyle, scroll, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Id, Key, Rect, Theme, vec2};
@@ -179,7 +178,9 @@ fn list_id(harness: &Harness<'_, Rig<App>>) -> Id {
 }
 
 fn viewport(harness: &Harness<'_, Rig<App>>) -> scroll::Viewport {
-    scroll::viewport(&harness.ctx, list_id(harness)).expect("the list was laid out")
+    crate::support::shell(harness)
+        .viewport(list_id(harness))
+        .expect("the list was laid out")
 }
 
 /// The rows built in the last frame, in order.
@@ -216,7 +217,7 @@ fn step_counting(harness: &mut Harness<'_, Rig<App>>) -> usize {
 }
 
 fn scroll_by(harness: &mut Harness<'_, Rig<App>>, y: f32) {
-    scroll::scroll_by(&harness.ctx, list_id(harness), vec2(0.0, y));
+    crate::support::shell(harness).scroll_by(list_id(harness), vec2(0.0, y));
     harness.run_steps(3);
 }
 
@@ -468,7 +469,7 @@ fn scroll_to_lands_the_row_in_view_after_one_correction() {
         !built_rows(&harness).contains(&500),
         "precondition: row 500 is far away"
     );
-    vlist::scroll_to(&harness.ctx, list_id(&harness), Row(500), Some(Align::Min));
+    crate::support::shell(&harness).scroll_to_row(list_id(&harness), Row(500), Some(Align::Min));
     harness.step();
     let view = viewport(&harness).rect;
     assert!(
@@ -608,7 +609,7 @@ fn a_scroll_by_shows_rows_in_the_frame_it_is_applied() {
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(20.0),
     ));
-    scroll::scroll_by(&harness.ctx, list_id(&harness), vec2(0.0, 2000.0));
+    crate::support::shell(&harness).scroll_by(list_id(&harness), vec2(0.0, 2000.0));
     harness.step();
     let view = viewport(&harness);
     assert_eq!(
@@ -696,7 +697,7 @@ fn scroll_to_the_bottom_of_the_viewport_lands_there_as_rows_are_measured() {
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(40.0),
     ));
-    vlist::scroll_to(&harness.ctx, list_id(&harness), Row(500), Some(Align::Max));
+    crate::support::shell(&harness).scroll_to_row(list_id(&harness), Row(500), Some(Align::Max));
     harness.run_steps(4);
     let view = viewport(&harness).rect;
     let row = row_rect(&harness, 500);
@@ -736,4 +737,70 @@ fn a_row_whose_size_is_in_flight_counts_at_its_target_and_stays_built() {
         "and is let go once it has landed"
     );
     assert_eq!(viewport(&harness).content.height(), rest + 200.0);
+}
+
+mod query {
+    use eggshell_ui::testing::Headless;
+
+    use super::*;
+
+    fn placed() -> eggshell_ui::testing::Placed<Vec<Row>> {
+        let rows: Vec<Row> = (0..50).map(Row).collect();
+        Headless::new(vec2(200.0, 100.0)).layout(&rows, |b, rows| {
+            b.virtual_list("list", tw().w_px(200.0).h_px(100.0), rows)
+                .fixed_px(20.0)
+                .items(|s, _| {
+                    s.div_id("cell", tw().w_full().h_px(20.0), |_| {});
+                });
+        })
+    }
+
+    #[test]
+    fn a_row_is_addressed_as_the_app_wrote_it() {
+        let placed = placed();
+        let list = placed.at("list");
+        let row = list.at(Row(2));
+        assert_eq!(row.at("cell").rect().height(), 20.0);
+        assert!(
+            row.rect().min.y > list.at(Row(1)).rect().min.y,
+            "the rows follow one another"
+        );
+        assert!(list.try_at(Row(49)).is_none(), "a row that is not built");
+    }
+
+    #[test]
+    fn a_row_node_keyed_by_the_row_is_addressed_by_it() {
+        let rows: Vec<Row> = (0..50).map(Row).collect();
+        let placed = Headless::new(vec2(200.0, 100.0)).layout(&rows, |b, rows| {
+            b.virtual_list("list", tw().w_px(200.0).h_px(100.0), rows)
+                .fixed_px(20.0)
+                .items(|s, row| {
+                    s.div_id(row, tw().w_full().h_px(20.0), |_| {});
+                });
+        });
+        let row = placed.at("list").at(Row(2));
+        assert_eq!(row.rect().height(), 20.0);
+    }
+
+    #[test]
+    fn measured_rows_are_addressed_too() {
+        let rows: Vec<Row> = (0..300).map(Row).collect();
+        let placed = Headless::new(vec2(200.0, 100.0)).layout(&rows, |b, rows| {
+            b.div_id("panel", tw().w_px(200.0).h_px(100.0), |b| {
+                b.virtual_list("list", tw().w_px(200.0).h_px(100.0), rows)
+                    .estimate_px(20.0)
+                    .items(|s, row| {
+                        s.div_id(row, tw().w_full().h_px(20.0), |_| {});
+                    });
+            });
+        });
+        let row = placed.at("panel").at("list").at(Row(2));
+        assert_eq!(row.rect().height(), 20.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "a virtual list builds only the rows in and near its viewport")]
+    fn a_row_that_is_not_built_says_why() {
+        placed().at("list").at(Row(49));
+    }
 }

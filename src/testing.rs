@@ -33,6 +33,23 @@
 //! let changes = placed.diff(&wider);
 //! assert!(changes.iter().any(|change| change.path() == "/Card"));
 //! ```
+//!
+//! # Virtual lists
+//!
+//! The rows of a [`virtual_list`](crate::Builder::virtual_list) are addressed
+//! by the keys the application gave them, as if the list held them directly:
+//! `placed.at("list").at(Row(2))`. A row outside the viewport and its overscan
+//! is not built, so [`try_at`](Query::try_at) is `None` for it.
+//!
+//! Each row sits under its item key, and the nodes the row builder makes sit
+//! under that: `placed.at(Region).at(Part::List).at(item_key).at(Part::Row(item_key))`.
+//!
+//! # Driving a harness
+//!
+//! Under `egui_kittest` the default step is 0.25 s, so a double click sent as a
+//! press and release one step apart falls outside egui's 0.3 s window and never
+//! registers. A test of a double click builds its harness with
+//! `with_step_dt(1.0 / 60.0)`.
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -305,8 +322,9 @@ impl<'p> Query<'p> {
     pub fn at<K: Key>(&self, key: K) -> Query<'p> {
         self.child(&key).unwrap_or_else(|| {
             panic!(
-                "no node {}/{key:?}; below {} there are: {}",
+                "no node {}/{key:?}{}; below {} there are: {}",
                 self.path,
+                self.not_built_hint(),
                 self.display_path(),
                 list(
                     self.children()
@@ -315,6 +333,17 @@ impl<'p> Query<'p> {
                 ),
             )
         })
+    }
+
+    /// What to add to the message for a missing node when this one is a
+    /// virtual list, which builds only the rows in and near its viewport.
+    fn not_built_hint(&self) -> &'static str {
+        let rows = format!("{}/<rows>", self.path);
+        if self.layout.nodes.iter().any(|node| node.path() == rows) {
+            " (a virtual list builds only the rows in and near its viewport: scroll to the row, or use try_at)"
+        } else {
+            ""
+        }
     }
 
     /// [`at`](Self::at), or `None` when nothing is there.

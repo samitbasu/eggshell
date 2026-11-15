@@ -235,6 +235,7 @@ mod roots;
 pub mod scroll;
 mod scroll_keys;
 mod shadow_corners;
+mod shell;
 mod sizing;
 mod stack;
 mod symbols;
@@ -264,6 +265,7 @@ pub use overlay_input::Blur;
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
 pub use prim::Icon;
 pub use roots::OverlayRef;
+pub use shell::{Shell, ShellExt};
 pub use sizing::Width;
 pub use text::{
     Face, Faces, FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle,

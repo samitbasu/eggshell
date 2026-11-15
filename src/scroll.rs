@@ -87,11 +87,13 @@
 //!
 //! # Programmatic scrolling
 //!
-//! [`scroll_by`], [`scroll_to_rect`] and [`scroll_into_view`] ask for a
-//! scroll. The request is applied by the next layout, to that frame's rects,
+//! [`Shell::scroll_by`], [`Shell::scroll_to_rect`] and
+//! [`Shell::scroll_into_view`] ask for a scroll. The request is applied by the next layout, to that frame's rects,
 //! so a node added in the same frame can be scrolled to. They move at once,
-//! without egui's animation. [`viewport`] reads where the viewport and the
+//! without egui's animation. [`Shell::viewport`] reads where the viewport and the
 //! content are.
+
+use std::collections::HashMap;
 
 use egui::{Align, Context, Id, Pos2, Rect, Role, Vec2, Vec2b};
 
@@ -101,6 +103,7 @@ pub use crate::contract::{EdgeFade, ScrollStyle};
 use crate::dnd::{EdgeScroll, drag_pointer};
 use crate::key::Key;
 use crate::pipeline::{Node, PlacedNode, takes_tab};
+use crate::shell::Shell;
 use crate::tw::{Focusability, Tw};
 
 /// Along which axes a scroll container scrolls.
@@ -388,54 +391,83 @@ impl Viewport {
     }
 }
 
-/// The viewport of the scroll container `scroll`, as the last layout put it,
-/// or `None` if none was laid out. A draw closure sees its own frame's; a
-/// build sees the previous frame's.
-pub fn viewport(ctx: &Context, scroll: Id) -> Option<Viewport> {
-    ctx.data(|data| data.get_temp(viewport_key(scroll)))
-}
+impl Shell {
+    /// The viewport of the scroll container `scroll`, as the last layout of
+    /// this state put it, or `None` if none was laid out. A draw closure sees
+    /// its own frame's; a build sees the previous frame's.
+    pub fn viewport(&self, scroll: Id) -> Option<Viewport> {
+        self.kept
+            .with(|kept| kept.scrolls.viewports.get(&scroll).copied())
+    }
 
-/// Scrolls the container `scroll` by `delta`: positive y shows what is
-/// further down, positive x what is further right. The offset stays within
-/// the content.
-pub fn scroll_by(ctx: &Context, scroll: Id, delta: Vec2) {
-    submit(
-        ctx,
-        Request {
+    /// Scrolls the container `scroll` by `delta`: positive y shows what is
+    /// further down, positive x what is further right. The offset stays
+    /// within the content.
+    pub fn scroll_by(&self, scroll: Id, delta: Vec2) {
+        self.submit(Request {
             container: Some(scroll),
             wish: Wish::By(delta),
-            ..Request::new(ctx)
-        },
-    );
-}
+            ..Request::new(&self.ctx)
+        });
+    }
 
-/// Scrolls the container `scroll` to show `rect`, a rect in the content's
-/// coordinates ([`Viewport::to_content`]). With an `align`, the rect is
-/// aligned in the viewport that way; without, the content moves the least
-/// that shows it, and a rect larger than the viewport shows its start.
-pub fn scroll_to_rect(ctx: &Context, scroll: Id, rect: Rect, align: Option<Align>) {
-    submit(
-        ctx,
-        Request {
+    /// Scrolls the container `scroll` to show `rect`, a rect in the
+    /// content's coordinates ([`Viewport::to_content`]). With an `align`, the
+    /// rect is aligned in the viewport that way; without, the content moves
+    /// the least that shows it, and a rect larger than the viewport shows its
+    /// start.
+    pub fn scroll_to_rect(&self, scroll: Id, rect: Rect, align: Option<Align>) {
+        self.submit(Request {
             container: Some(scroll),
             wish: Wish::Rect { rect, align },
-            ..Request::new(ctx)
-        },
-    );
-}
+            ..Request::new(&self.ctx)
+        });
+    }
 
-/// Scrolls every scroll container that holds the node `node` to show it,
-/// the innermost first: the focused control of a nested list is shown in
-/// each of its ancestors. `align` as in [`scroll_to_rect`].
-pub fn scroll_into_view(ctx: &Context, node: Id, align: Option<Align>) {
-    submit(
-        ctx,
-        Request {
+    /// Scrolls every scroll container that holds the node `node` to show it,
+    /// the innermost first: the focused control of a nested list is shown in
+    /// each of its ancestors. `align` as in [`scroll_to_rect`](Self::scroll_to_rect).
+    pub fn scroll_into_view(&self, node: Id, align: Option<Align>) {
+        self.submit(Request {
             container: None,
             wish: Wish::Node { node, align },
-            ..Request::new(ctx)
-        },
-    );
+            ..Request::new(&self.ctx)
+        });
+    }
+
+    /// The scrolling by a delta asked of the container `scroll` that the next
+    /// layout will apply, in total.
+    pub(crate) fn requested_by(&self, scroll: Id) -> Vec2 {
+        let pass = self.ctx.cumulative_pass_nr();
+        self.kept.with(|kept| {
+            kept.scrolls
+                .pending
+                .iter()
+                .filter(|request| {
+                    request.container == Some(scroll) && pass <= request.pass + REQUEST_LIFE
+                })
+                .filter_map(|request| match request.wish {
+                    Wish::By(delta) => Some(delta),
+                    _ => None,
+                })
+                .fold(Vec2::ZERO, |total, delta| total + delta)
+        })
+    }
+
+    fn submit(&self, request: Request) {
+        self.kept.with(|kept| kept.scrolls.pending.push(request));
+        self.ctx.request_repaint();
+    }
+}
+
+/// What a state's scroll containers published and were asked.
+#[derive(Default)]
+pub(crate) struct Scrolls {
+    pending: Vec<Request>,
+    viewports: HashMap<Id, Viewport>,
+    bar_holds: HashMap<Id, bool>,
+    /// The `vlist::Shell::scroll_to_row` of each list, until its layout takes it up.
+    pub(crate) rows: HashMap<Id, crate::vlist::ScrollTo>,
 }
 
 /// A request is kept this many passes for a layout to apply it.
@@ -473,46 +505,20 @@ impl Request {
     }
 }
 
-#[derive(Clone, Default)]
-struct Pending(Vec<Request>);
-
-fn pending_key() -> Id {
-    crate::key::root_id().with("scroll-requests")
-}
-
-fn viewport_key(scroll: Id) -> Id {
-    scroll.with("eggshell-scroll-viewport")
-}
-
-/// The scrolling by a delta asked of the container `scroll` that the next
-/// layout will apply, in total.
-pub(crate) fn requested_by(ctx: &Context, scroll: Id) -> Vec2 {
-    let pass = ctx.cumulative_pass_nr();
-    ctx.data(|data| {
-        data.get_temp::<Pending>(pending_key())
-            .map_or(Vec2::ZERO, |pending| {
-                pending
-                    .0
-                    .iter()
-                    .filter(|request| {
-                        request.container == Some(scroll) && pass <= request.pass + REQUEST_LIFE
-                    })
-                    .filter_map(|request| match request.wish {
-                        Wish::By(delta) => Some(delta),
-                        _ => None,
-                    })
-                    .fold(Vec2::ZERO, |total, delta| total + delta)
-            })
-    })
-}
-
-fn submit(ctx: &Context, request: Request) {
-    ctx.data_mut(|data| {
-        data.get_temp_mut_or_default::<Pending>(pending_key())
-            .0
-            .push(request);
+/// Records whether the pointer's button is down on a bar of the container
+/// `scroll`, whose `ScrollArea` is `area`. egui sets the offset from the
+/// pointer's place on a held bar in every frame, so the offset a layout
+/// would move to by other means is undone in the frame it is drawn.
+pub(crate) fn note_bar_hold(shell: &Shell, scroll: Id, area: Id) {
+    let held = (0..2).any(|axis| {
+        shell
+            .ctx
+            .read_response(area.with(axis))
+            .is_some_and(|bar| bar.is_pointer_button_down_on())
     });
-    ctx.request_repaint();
+    shell
+        .kept
+        .with(|kept| kept.scrolls.bar_holds.insert(scroll, held));
 }
 
 /// The salt of the `ScrollArea`'s id.
@@ -799,7 +805,7 @@ enum Taken {
 /// The scrolling one layout does: the requests made since the last, and the
 /// drag's pull at the edges.
 pub(crate) struct Settle {
-    ctx: Context,
+    shell: Shell,
     pending: Vec<Request>,
     pointer: Option<Pos2>,
     dt: f32,
@@ -807,26 +813,26 @@ pub(crate) struct Settle {
 }
 
 impl Settle {
-    pub(crate) fn new(ctx: &Context) -> Self {
+    pub(crate) fn new(shell: Shell) -> Self {
+        let ctx = &shell.ctx;
         let pass = ctx.cumulative_pass_nr();
-        let pending = ctx
-            .data_mut(|data| {
-                std::mem::take(&mut data.get_temp_mut_or_default::<Pending>(pending_key()).0)
-            })
+        let pending = shell
+            .kept
+            .with(|kept| std::mem::take(&mut kept.scrolls.pending))
             .into_iter()
             .filter(|request| pass <= request.pass + REQUEST_LIFE)
             .collect();
         Self {
-            ctx: ctx.clone(),
             pending,
             pointer: drag_pointer(ctx),
             dt: ctx.input(|input| input.stable_dt).min(0.1),
             edge: Taken::Free,
+            shell,
         }
     }
 
     pub(crate) fn offset(&self, node: Id, axis: Axis, content: Vec2, viewport: Vec2) -> Vec2 {
-        stored_offset(&self.ctx, node, axis, content, viewport)
+        stored_offset(&self.shell.ctx, node, axis, content, viewport)
     }
 
     /// Applies what is wanted of the container at `nodes[at]` to its content,
@@ -880,6 +886,14 @@ impl Settle {
                 }
             }
         }
+        if self
+            .shell
+            .kept
+            .with(|kept| kept.scrolls.bar_holds.get(&id).copied())
+            == Some(true)
+        {
+            want = start;
+        }
         if want != start {
             want = masked(want, plan.axis).clamp(Vec2::ZERO, max);
         }
@@ -891,7 +905,7 @@ impl Settle {
             if next != want {
                 want = next;
                 self.edge = Taken::Scrolled;
-                self.ctx.request_repaint();
+                self.shell.ctx.request_repaint();
             }
         }
 
@@ -907,8 +921,9 @@ impl Settle {
             rect: viewport,
             content: content[0].rect(),
         };
-        self.ctx
-            .data_mut(|data| data.insert_temp(viewport_key(id), published));
+        self.shell
+            .kept
+            .with(|kept| kept.scrolls.viewports.insert(id, published));
     }
 
     /// Keeps the requests no container has applied yet, for the next layout.
@@ -918,9 +933,8 @@ impl Settle {
             .into_iter()
             .filter(|request| request.applied == Applied::No)
             .collect();
-        self.ctx.data_mut(|data| {
-            let pending = data.get_temp_mut_or_default::<Pending>(pending_key());
-            pending.0.splice(0..0, kept);
+        self.shell.kept.with(|state| {
+            state.scrolls.pending.splice(0..0, kept);
         });
     }
 }

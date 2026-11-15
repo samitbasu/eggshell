@@ -67,7 +67,9 @@ fn at_the_end(harness: &Harness<'_, Rig<State>>) -> bool {
 
 fn list_viewport(harness: &Harness<'_, Rig<State>>) -> eggshell_ui::scroll::Viewport {
     let list = support::id_of(harness, "/List");
-    eggshell_ui::scroll::viewport(&harness.ctx, list).expect("the list was laid out")
+    crate::support::shell(harness)
+        .viewport(list)
+        .expect("the list was laid out")
 }
 
 #[test]
@@ -107,7 +109,7 @@ fn one_scroll_past_the_end_lands_on_the_last_row_without_further_input() {
         !at_the_end(&harness),
         "precondition: the list starts at the top"
     );
-    eggshell_ui::scroll::scroll_by(&harness.ctx, list, vec2(0.0, 1_000_000.0));
+    crate::support::shell(&harness).scroll_by(list, vec2(0.0, 1_000_000.0));
     let mut frames = 0;
     while !at_the_end(&harness) && frames < 10 {
         harness.step();
