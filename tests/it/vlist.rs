@@ -178,7 +178,7 @@ fn list_id(harness: &Harness<'_, Rig<App>>) -> Id {
 }
 
 fn viewport(harness: &Harness<'_, Rig<App>>) -> scroll::Viewport {
-    crate::support::shell(&harness)
+    crate::support::shell(harness)
         .viewport(list_id(harness))
         .expect("the list was laid out")
 }
@@ -217,7 +217,7 @@ fn step_counting(harness: &mut Harness<'_, Rig<App>>) -> usize {
 }
 
 fn scroll_by(harness: &mut Harness<'_, Rig<App>>, y: f32) {
-    crate::support::shell(&harness).scroll_by(list_id(harness), vec2(0.0, y));
+    crate::support::shell(harness).scroll_by(list_id(harness), vec2(0.0, y));
     harness.run_steps(3);
 }
 

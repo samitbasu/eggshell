@@ -65,7 +65,7 @@ fn rows<A>(harness: &Harness<'_, Rig<A>>, list: &str) -> Vec<(String, Rect)> {
 }
 
 fn viewport<A>(harness: &Harness<'_, Rig<A>>, list: &str) -> scroll::Viewport {
-    crate::support::shell(&harness)
+    crate::support::shell(harness)
         .viewport(support::id_of(harness, list))
         .expect("the list was laid out")
 }

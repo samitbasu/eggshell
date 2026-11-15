@@ -200,7 +200,7 @@ fn touch_screen(h: &mut H) {
 }
 
 fn scrolled(h: &H) -> f32 {
-    crate::support::shell(&h)
+    crate::support::shell(h)
         .viewport(support::id_of(h, "/\"list\""))
         .expect("laid out")
         .offset()

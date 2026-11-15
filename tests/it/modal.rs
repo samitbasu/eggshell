@@ -482,7 +482,7 @@ mod example {
 
     fn page_offset(harness: &Harness<'_, Rig<State>>) -> f32 {
         let scroll = id_of(harness, "/Page");
-        crate::support::shell(&harness)
+        crate::support::shell(harness)
             .viewport(scroll)
             .expect("the page was laid out")
             .offset()

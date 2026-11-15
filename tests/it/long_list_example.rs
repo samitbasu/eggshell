@@ -67,7 +67,7 @@ fn at_the_end(harness: &Harness<'_, Rig<State>>) -> bool {
 
 fn list_viewport(harness: &Harness<'_, Rig<State>>) -> eggshell_ui::scroll::Viewport {
     let list = support::id_of(harness, "/List");
-    crate::support::shell(&harness)
+    crate::support::shell(harness)
         .viewport(list)
         .expect("the list was laid out")
 }

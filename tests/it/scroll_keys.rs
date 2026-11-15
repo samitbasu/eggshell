@@ -206,7 +206,7 @@ fn id(h: &H, path: &str) -> Id {
 }
 
 fn viewport(h: &H, path: &str) -> scroll::Viewport {
-    crate::support::shell(&h)
+    crate::support::shell(h)
         .viewport(id(h, path))
         .expect("laid out")
 }

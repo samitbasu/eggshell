@@ -196,7 +196,7 @@ fn list_id(h: &H<'_>) -> Id {
 }
 
 fn viewport(h: &H<'_>) -> scroll::Viewport {
-    crate::support::shell(&h)
+    crate::support::shell(h)
         .viewport(list_id(h))
         .expect("the list was laid out")
 }
@@ -936,7 +936,7 @@ mod nested {
 
     fn offset_of(h: &P<'_>, path: &str) -> Vec2 {
         let id = support::id_of(h, path);
-        crate::support::shell(&h)
+        crate::support::shell(h)
             .viewport(id)
             .expect("laid out")
             .offset()
@@ -1071,7 +1071,7 @@ mod nested {
         for inner in [Inner::Vertical, Inner::Horizontal] {
             for tab_stops in [TabStops::No, TabStops::Yes] {
                 exact_end(inner, tab_stops, |h| {
-                    crate::support::shell(&h)
+                    crate::support::shell(h)
                         .scroll_by(support::id_of(h, INNER), vec2(5000.0, 5000.0));
                     h.step();
                 });
@@ -1357,7 +1357,7 @@ mod clipping {
 
     fn viewport(h: &G<'_>) -> Rect {
         let id = support::id_of(h, LIST);
-        crate::support::shell(&h)
+        crate::support::shell(h)
             .viewport(id)
             .expect("laid out")
             .rect
