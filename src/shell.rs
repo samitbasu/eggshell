@@ -81,32 +81,35 @@ pub trait ShellExt {
 
 impl ShellExt for Ui {
     fn shell(&self) -> Shell {
+        let key = drawing_key(self.ctx());
         let kept = self
             .ctx()
-            .data(|data| data.get_temp::<Handle>(drawing_key()))
+            .data(|data| data.get_temp::<Handle>(key))
             .expect("`Ui::shell` is for the draw closures of a `Placed`");
         Shell::new(self.ctx(), &kept)
     }
 }
 
-fn drawing_key() -> Id {
-    crate::key::root_id().with("drawing-shell")
+fn drawing_key(ctx: &Context) -> Id {
+    crate::key::viewport_id(ctx, "drawing-shell")
 }
 
 /// Names the layout being drawn for the draw closures it runs, which receive
 /// only a `Ui`. Drawing is sequential, so the name is the context's for as
 /// long as the guard lives and no longer.
-pub(crate) struct Drawing(Context);
+pub(crate) struct Drawing(Context, Id);
 
 impl Drawing {
     pub(crate) fn enter(ctx: &Context, kept: &Handle) -> Self {
-        ctx.data_mut(|data| data.insert_temp(drawing_key(), kept.clone()));
-        Self(ctx.clone())
+        let key = drawing_key(ctx);
+        ctx.data_mut(|data| data.insert_temp(key, kept.clone()));
+        Self(ctx.clone(), key)
     }
 }
 
 impl Drop for Drawing {
     fn drop(&mut self) {
-        self.0.data_mut(|data| data.remove::<Handle>(drawing_key()));
+        let key = self.1;
+        self.0.data_mut(|data| data.remove::<Handle>(key));
     }
 }

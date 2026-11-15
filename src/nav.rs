@@ -255,7 +255,9 @@ fn focus_item(ctx: &Context, kept: &Handle, to: Id, before: Option<Id>) {
     if before.is_some() {
         ctx.memory_mut(|memory| memory.request_focus(to));
     } else {
-        kept.with(|kept| kept.navigation.deferred = Some(to));
+        kept.viewport(ctx.viewport_id(), |here| {
+            here.navigation.deferred = Some(to)
+        });
         ctx.request_repaint();
     }
 }
@@ -271,7 +273,8 @@ pub(crate) struct Navigation {
 /// Gives focus to the item a navigation key chose last frame, if nothing
 /// has taken it since. Run before the frame's widgets.
 pub(crate) fn apply_deferred(ctx: &Context, kept: &Handle) {
-    let Some(item) = kept.with(|kept| kept.navigation.deferred.take()) else {
+    let Some(item) = kept.viewport(ctx.viewport_id(), |here| here.navigation.deferred.take())
+    else {
         return;
     };
     if ctx.memory(|memory| memory.focused()).is_none() {
@@ -418,7 +421,9 @@ struct Pending {
 impl Pending {
     fn set(ctx: &Context, kept: &Handle, item: Id) {
         let pass = ctx.cumulative_pass_nr();
-        kept.with(|kept| kept.navigation.activation = Some(Self { item, pass }));
+        kept.viewport(ctx.viewport_id(), |here| {
+            here.navigation.activation = Some(Self { item, pass })
+        });
     }
 }
 
@@ -434,12 +439,12 @@ pub(crate) fn request_activation(ctx: &Context, kept: &Handle, item: Id) {
 pub(crate) fn take_activation(ui: &egui::Ui, item: Id) -> bool {
     use crate::shell::ShellExt as _;
     let (ctx, kept) = (ui.ctx(), ui.shell().kept);
-    let Some(pending) = kept.with(|state| state.navigation.activation) else {
+    let Some(pending) = kept.viewport(ctx.viewport_id(), |here| here.navigation.activation) else {
         return false;
     };
     let fresh = ctx.cumulative_pass_nr().saturating_sub(pending.pass) <= 1;
     if pending.item == item {
-        kept.with(|state| state.navigation.activation = None);
+        kept.viewport(ctx.viewport_id(), |here| here.navigation.activation = None);
         return fresh;
     }
     false

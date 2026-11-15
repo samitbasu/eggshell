@@ -71,7 +71,6 @@ use egui::{Context, DragAndDrop, DroppedFileHandle, Event, Id, Pos2, Rect, Vec2,
 
 use crate::draw::{Lift, children_of};
 use crate::kept::Handle;
-use crate::key::root_id;
 use crate::overlay_input::Drag;
 use crate::pipeline::{Flow, PlacedNode};
 use crate::roots::{PlacedRoot, root_at, root_of, stacked_top_down};
@@ -545,8 +544,8 @@ struct Positioned {
     known: bool,
 }
 
-fn key(name: &str) -> Id {
-    root_id().with(("dnd", name))
+fn key(ctx: &Context, name: &str) -> Id {
+    crate::key::viewport_id(ctx, ("dnd", name))
 }
 
 /// What the pointer and window did this pass.
@@ -609,7 +608,7 @@ fn focus_lost(events: &[Event]) -> bool {
 /// The in-app drag in progress this pass: its payload is held and this pass
 /// is not its last.
 fn live_gesture(ctx: &Context, kept: &Handle) -> Option<Gesture> {
-    let gesture = kept.with(|kept| kept.drags.gesture.clone())?;
+    let gesture = kept.viewport(ctx.viewport_id(), |here| here.drags.gesture.clone())?;
     let (released, lost) = ctx.input(|i| (i.pointer.any_released(), focus_lost(&i.events)));
     (DragAndDrop::has_payload_of_type::<Lifted>(ctx) && !released && !lost).then_some(gesture)
 }
@@ -634,7 +633,7 @@ pub(crate) fn dragging<T: Any + Send + Sync>(ctx: &Context, kept: &Handle) -> Op
         None => (Arc::new(Input::read(ctx).hovered?), None),
     };
     let over = kept
-        .with(|kept| kept.drags.hovering)
+        .viewport(ctx.viewport_id(), |here| here.drags.hovering)
         .filter(|hovering| fresh(ctx, hovering.pass))
         .and_then(|hovering| hovering.over);
     Some(Dragging {
@@ -674,7 +673,8 @@ impl Shell {
         if live_gesture(ctx, &self.kept).is_some() {
             return ctx.input(|i| i.pointer.interact_pos());
         }
-        let positioned = ctx.data(|data| data.get_temp::<Positioned>(key("positioned")))?;
+        let key = key(ctx, "positioned");
+        let positioned = ctx.data(|data| data.get_temp::<Positioned>(key))?;
         if fresh(ctx, positioned.pass) && positioned.dragging && positioned.known {
             ctx.input(|i| i.pointer.latest_pos())
         } else {
@@ -687,7 +687,7 @@ impl Shell {
 /// events have arrived since the files appeared, or in the pass they drop;
 /// a pointer position from before the drag entered is not one.
 fn outside_position_known(ctx: &Context, pass: u64, input: &Input) -> bool {
-    let key = key("positioned");
+    let key = key(ctx, "positioned");
     let dragging = input.hovered.is_some() || input.dropped.is_some();
     let previous = ctx.data(|data| data.get_temp::<Positioned>(key));
     if let Some(done) = previous.filter(|previous| previous.pass == pass) {
@@ -886,7 +886,7 @@ pub(crate) fn begin<A>(
     let pass = ctx.cumulative_pass_nr();
     let input = Input::read(ctx);
     let positioned = outside_position_known(ctx, pass, &input);
-    let mut gesture = kept.with(|kept| kept.drags.gesture.clone());
+    let mut gesture = kept.viewport(ctx.viewport_id(), |here| here.drags.gesture.clone());
     let outside = input.dropped.is_some() || input.hovered.is_some();
     if gesture.is_none() && decls.is_empty() && !outside {
         return Finish::nothing();
@@ -916,7 +916,9 @@ pub(crate) fn begin<A>(
     if let Some(held) = &mut gesture {
         held.touched = pass;
         held.last = input.interact.unwrap_or(held.last);
-        kept.with(|kept| kept.drags.gesture = Some(held.clone()));
+        kept.viewport(ctx.viewport_id(), |here| {
+            here.drags.gesture = Some(held.clone())
+        });
     }
 
     let (payload, pointer, leaving): (Erased, Option<Pos2>, Option<Id>) =
@@ -936,7 +938,7 @@ pub(crate) fn begin<A>(
     let releasing = gesture.is_some() && input.released;
     let dropping = gesture.is_none() && input.dropped.is_some();
     if releasing || dropping {
-        kept.with(|kept| kept.drags.hovering = None);
+        kept.viewport(ctx.viewport_id(), |here| here.drags.hovering = None);
         let ending = match gesture {
             Some(gesture) => Ending::Released {
                 gesture,
@@ -958,7 +960,9 @@ pub(crate) fn begin<A>(
     // Several trees resolve outside files in one pass; only one with a target
     // that takes them may say where they would land.
     if gesture.is_some() || !found.accepting.is_empty() {
-        kept.with(|kept| kept.drags.hovering = Some(Hovering { pass, over }));
+        kept.viewport(ctx.viewport_id(), |here| {
+            here.drags.hovering = Some(Hovering { pass, over })
+        });
     }
 
     let mut draw = Draw::idle();
@@ -1046,7 +1050,7 @@ fn lift(
             .then(|| i.pointer.press_start_time())
             .flatten()
     })?;
-    let lifted_by_press = key("lifted press");
+    let lifted_by_press = key(ctx, "lifted press");
     if ctx.data(|data| data.get_temp::<u64>(lifted_by_press)) == Some(press.to_bits()) {
         return None;
     }
@@ -1067,7 +1071,7 @@ fn lift(
 }
 
 fn clear_gesture(ctx: &Context, kept: &Handle) {
-    kept.with(|kept| kept.drags = Drags::default());
+    kept.viewport(ctx.viewport_id(), |here| here.drags = Drags::default());
     DragAndDrop::clear_payload(ctx);
 }
 

@@ -62,7 +62,7 @@ fn target<'a>(ctx: &Context, kept: &Handle, nodes: &'a [PlacedNode]) -> Option<T
         let shell = Shell::new(ctx, kept);
         return scrollers().rfind(|target| shell.focus_within(target.id));
     }
-    let pressed = kept.with(|kept| kept.scroll_keys.pressed)?;
+    let pressed = kept.viewport(ctx.viewport_id(), |here| here.scroll_keys.pressed)?;
     scrollers().find(|target| target.id == pressed)
 }
 
@@ -91,7 +91,7 @@ pub(crate) fn note_press(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
         .filter(|node| node.scroll_viewport().is_some_and(|view| view.contains(at)))
         .filter_map(PlacedNode::id)
         .next_back();
-    kept.with(|kept| kept.scroll_keys.pressed = hit);
+    kept.viewport(ctx.viewport_id(), |here| here.scroll_keys.pressed = hit);
 }
 
 /// Keeps the focused widget's arrow keys from moving the focus when they
@@ -304,7 +304,9 @@ struct Followed(Option<Id>);
 /// first.
 pub(crate) fn follow_focus(ctx: &Context, kept: &Handle, subtrees: &[(Id, Box<[Id]>)]) {
     let now = ctx.memory(|memory| memory.focused());
-    let before = kept.with(|kept| std::mem::replace(&mut kept.scroll_keys.followed, Followed(now)));
+    let before = kept.viewport(ctx.viewport_id(), |here| {
+        std::mem::replace(&mut here.scroll_keys.followed, Followed(now))
+    });
     let pressing = ctx.input(|input| input.pointer.any_pressed());
     let Some(focused) = now.filter(|&now| before.0 != Some(now) && !pressing) else {
         return;
