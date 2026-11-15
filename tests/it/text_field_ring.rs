@@ -1,7 +1,7 @@
 //! A focused text field shows shadcn's focus: `border-ring` and the ring
 //! around the box, as the owned controls do.
 
-use eggshell_ui::{Builder, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::Shadcn;
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Theme, vec2};
@@ -29,6 +29,7 @@ fn harness(theme: Theme) -> H {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     );

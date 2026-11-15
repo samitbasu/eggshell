@@ -5,7 +5,7 @@
 
 use eggshell_ui::contract::{Disabled, Paint, Size, Variant};
 use eggshell_ui::owned::{Choice, Enablement};
-use eggshell_ui::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::TextureId;
 use egui::epaint::Shape;
@@ -46,6 +46,7 @@ fn spec(size: f32) -> TextSpec {
         size,
         line_height: (size * 1.25).round(),
         family: FontFamily::Proportional,
+        weight: Weight::Normal,
     }
 }
 

@@ -1,7 +1,7 @@
 //! The Esc that unfocuses a text field belongs to the field: a custom node
 //! that reads the keys sees no Escape for it, and still sees every other.
 
-use eggshell_ui::{Builder, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, vec2};
 use egui_kittest::Harness;
 
@@ -21,6 +21,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

@@ -1,7 +1,7 @@
 //! `line_clamp(n)`: wrapped text limited to n lines, ending in an ellipsis.
 
 use eggshell_ui::testing::Headless;
-use eggshell_ui::{Builder, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, vec2};
 
@@ -17,6 +17,7 @@ fn body() -> TextStyle {
             size: 14.0,
             line_height: LINE,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

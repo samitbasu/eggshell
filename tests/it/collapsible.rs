@@ -6,7 +6,7 @@ use core::time::Duration;
 
 use eggshell_ui::overlay::Shown;
 use eggshell_ui::testing::{Points, Timeline, record};
-use eggshell_ui::{Builder, CollapseAxis, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, CollapseAxis, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui::{Easing, Progress};
 use egui::{Color32, FontFamily, pos2, vec2};
 use egui_kittest::Harness;
@@ -36,6 +36,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

@@ -8,7 +8,7 @@ use eggshell_ui::owned::Cell;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::testing::Headless;
 use eggshell_ui::widget::{Stock, TextEdit};
-use eggshell_ui::{Builder, TextSpec, TextStyle, Width, tw};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, Width, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
 use egui::{Color32, Event, FontFamily, Id, Key, Theme, vec2};
@@ -25,6 +25,7 @@ fn base_text() -> TextStyle {
             size: 16.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::WHITE,
     )

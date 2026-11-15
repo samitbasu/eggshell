@@ -34,6 +34,7 @@ mod edits;
 mod escape_field;
 mod focus;
 mod focus_on_appear;
+mod font_weights;
 mod form_demo;
 mod fractions;
 mod fuzz;

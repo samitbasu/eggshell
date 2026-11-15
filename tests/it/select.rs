@@ -3,7 +3,7 @@
 
 use eggshell_ui::overlay::Modal;
 use eggshell_ui::owned::{Choice, Enablement};
-use eggshell_ui::{Builder, Style, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Role, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -42,6 +42,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

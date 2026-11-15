@@ -134,7 +134,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 s.select("pick", app.pick, (0..6).map(|n| (n, format!("Option {n}"))))
                     .named("Pick")
                     .tooltip("Pick an option")
-                    .classes(tw().w_px(110.0))
+                    .classes(tw().w_px(100.0))
                     .on_change(|app: &mut App, value| app.pick = value);
                 s.button("popover", "Popover")
                     .tooltip("Opens a popover")

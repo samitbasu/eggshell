@@ -8,7 +8,7 @@ use std::cell::Cell;
 
 use eggshell_ui::overlay::{Entrance, Modal, Shown, Side};
 use eggshell_ui::testing::{Motion, Timeline, record};
-use eggshell_ui::{Builder, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Pos2, pos2, vec2};
 use egui_kittest::Harness;
 
@@ -63,6 +63,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

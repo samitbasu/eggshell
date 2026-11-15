@@ -3,7 +3,7 @@
 //! leaf's rect, and pointer and keyboard events reach it.
 
 use eggshell_ui::widget::{Stock, TextEdit};
-use eggshell_ui::{Builder, TextSpec, TextStyle, Width, tw};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, Width, tw};
 use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
 
@@ -17,6 +17,7 @@ fn base_text() -> TextStyle {
             size: 16.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::WHITE,
     )

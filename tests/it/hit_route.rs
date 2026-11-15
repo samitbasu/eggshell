@@ -3,7 +3,7 @@
 //! handler; egui-native content gets presses only where no box covers it.
 
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Sense, vec2};
 use egui_kittest::Harness;
 
@@ -15,6 +15,7 @@ fn base() -> TextStyle {
             size: 14.0,
             line_height: 18.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::WHITE,
     )

@@ -6,15 +6,31 @@ use egui::{Context, FontData, FontFamily, FontInsert, FontPriority, InsertFontFa
 
 const NAME: &str = "eggshell-symbols";
 
-/// Adds the symbol face behind the proportional family's own faces.
-/// Cheap once it is there, and puts it back if the host replaced the fonts.
+/// Adds the symbol face behind the faces of the proportional family and of
+/// every family the installed style draws a weight with. Cheap once it is
+/// there, and puts it back if the host replaced the fonts.
+///
+/// egui adds a font only under a name it does not have yet, so each family
+/// gets the face under its own name; the bytes are shared.
 pub(crate) fn install(ctx: &Context) {
-    ctx.add_font(FontInsert::new(
-        NAME,
-        FontData::from_static(include_bytes!("fonts/DejaVuSans-symbols.ttf")),
-        vec![InsertFontFamily {
-            family: FontFamily::Proportional,
-            priority: FontPriority::Lowest,
-        }],
-    ));
+    let font = FontData::from_static(include_bytes!("fonts/DejaVuSans-symbols.ttf"));
+    let weighted = crate::Style::of(ctx)
+        .faces
+        .iter()
+        .map(|face| face.face.clone())
+        .collect::<Vec<_>>();
+    for family in std::iter::once(FontFamily::Proportional).chain(weighted) {
+        let name = match &family {
+            FontFamily::Proportional => NAME.to_owned(),
+            other => format!("{NAME}/{other}"),
+        };
+        ctx.add_font(FontInsert::new(
+            &name,
+            font.clone(),
+            vec![InsertFontFamily {
+                family,
+                priority: FontPriority::Lowest,
+            }],
+        ));
+    }
 }

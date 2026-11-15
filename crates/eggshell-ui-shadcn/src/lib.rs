@@ -22,8 +22,28 @@
 //!
 //! What eggshell cannot draw exactly and the preset therefore approximates is
 //! documented on [`eggshell_ui::contract::InputStyle`] for the wrapped text edit;
-//! the owned widgets are exact except for font weights (`font-medium` needs a
-//! registered family) and the negative spread of `shadow-md`.
+//! the owned widgets are exact except for the negative spread of `shadow-md`.
+//!
+//! # Fonts
+//!
+//! With the default `fonts` feature the preset bundles Geist, shadcn's
+//! `--font-sans`, as one variable font (165 KiB, SIL Open Font License 1.1,
+//! `fonts/OFL.txt`) and [`Shadcn::apply`] registers it at every [`Weight`]:
+//! Normal as the first font of [`FontFamily::Proportional`], the others as
+//! named families its [`Faces`] declare. [`Shadcn::with_fonts`] swaps in
+//! another [`FontSet`], or `None` for egui's fonts as the application set
+//! them. Without the feature nothing is embedded and the preset starts with
+//! no font, so its medium controls are drawn in the regular face, with a
+//! debug warning.
+//!
+//! egui's `default_fonts` feature embeds its own Ubuntu-Light, which Geist
+//! makes a fallback only. An application that does not need it can depend on
+//! egui with `default-features = false` (and the features it does use) to
+//! drop it from the binary.
+//!
+//! [`Weight`]: eggshell_ui::Weight
+//! [`Faces`]: eggshell_ui::Faces
+//! [`FontFamily::Proportional`]: egui::FontFamily::Proportional
 //!
 //! # Hovered and selected
 //!
@@ -43,12 +63,14 @@
 
 mod drag_chip;
 mod egui_map;
+mod fonts;
 mod preset;
 mod styles;
 mod theme_color;
 mod tokens;
 
 pub use drag_chip::{DragChip, drag_chip};
+pub use fonts::FontSet;
 pub use preset::{Shadcn, tokens};
 pub use styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, ShadcnStyle};
 pub use theme_color::ThemeColor;

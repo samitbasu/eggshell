@@ -5,7 +5,7 @@ use egui::{Color32, FontFamily};
 use super::Tw;
 use crate::text::{
     FontStyle, Numerals, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, Tracking,
-    UserSelect, WhiteSpace,
+    UserSelect, Weight, WhiteSpace,
 };
 
 macro_rules! text_flags {
@@ -23,13 +23,19 @@ impl Tw {
         self
     }
 
-    /// The text role: size, line height and family.
+    /// The text role: size, line height, family and weight.
     pub fn role(self, spec: TextSpec) -> Self {
         self.texted(|t| {
             t.size = Some(spec.size);
             t.line_height = Some(spec.line_height);
             t.family = Some(spec.family);
+            t.weight = Some(spec.weight);
         })
+    }
+
+    /// `font-normal`, `font-medium`, `font-semibold` or `font-bold`.
+    pub fn font_weight(self, weight: Weight) -> Self {
+        self.texted(|t| t.weight = Some(weight))
     }
 
     /// `text-<color>`.
@@ -48,6 +54,10 @@ impl Tw {
     }
 
     text_flags! {
+        font_normal, "`font-normal`.", |t| t.weight = Some(Weight::Normal);
+        font_medium, "`font-medium`.", |t| t.weight = Some(Weight::Medium);
+        font_semibold, "`font-semibold`.", |t| t.weight = Some(Weight::SemiBold);
+        font_bold, "`font-bold`.", |t| t.weight = Some(Weight::Bold);
         italic, "`italic`.", |t| t.font_style = Some(FontStyle::Italic);
         not_italic, "`not-italic`.", |t| t.font_style = Some(FontStyle::Normal);
         underline, "`underline`.", |t| t.decoration = Some(TextDecoration::Underline);
@@ -93,6 +103,7 @@ mod tests {
                 size: 14.0,
                 line_height: 18.0,
                 family: FontFamily::Proportional,
+                weight: Weight::Normal,
             },
             Color32::BLACK,
         )
@@ -108,6 +119,7 @@ mod tests {
             size: 48.0,
             line_height: 60.0,
             family: FontFamily::Monospace,
+            weight: Weight::Normal,
         };
         assert_eq!(resolved(tw().role(spec.clone())).spec, spec);
     }
@@ -125,6 +137,7 @@ mod tests {
             size: 20.0,
             line_height: 24.0,
             family: FontFamily::Monospace,
+            weight: Weight::Normal,
         };
         let name = FontFamily::Name("Bold".into());
         assert_eq!(
@@ -137,6 +150,35 @@ mod tests {
             resolved(tw().font(name).role(role.clone())).spec.family,
             role.family
         );
+    }
+
+    #[test]
+    fn weight_classes_set_only_the_weight_and_a_role_resets_it() {
+        let got = resolved(tw().font_semibold());
+        assert_eq!(got.spec.weight, Weight::SemiBold);
+        assert_eq!(got.spec.family, base().spec.family);
+        for (class, weight) in [
+            (tw().font_normal(), Weight::Normal),
+            (tw().font_medium(), Weight::Medium),
+            (tw().font_bold(), Weight::Bold),
+            (tw().font_weight(Weight::SemiBold), Weight::SemiBold),
+        ] {
+            assert_eq!(resolved(class).spec.weight, weight);
+        }
+        let role = TextSpec {
+            weight: Weight::Medium,
+            ..base().spec
+        };
+        assert_eq!(
+            resolved(tw().font_bold().role(role)).spec.weight,
+            Weight::Medium
+        );
+    }
+
+    #[test]
+    fn a_weight_is_inherited() {
+        let parent = resolved(tw().font_medium());
+        assert_eq!(tw().italic().text.over(&parent).spec.weight, Weight::Medium);
     }
 
     #[test]

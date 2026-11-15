@@ -9,7 +9,7 @@
     reason = "each crate that includes this file uses a subset of it"
 )]
 
-use eggshell_ui::{Builder, TextSpec, Tw, tw};
+use eggshell_ui::{Builder, TextSpec, Tw, Weight, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Color32, FontFamily, ImageSource};
 
@@ -20,6 +20,7 @@ pub const BODY: TextSpec = TextSpec {
     size: 16.0,
     line_height: 20.0,
     family: FontFamily::Proportional,
+    weight: Weight::Normal,
 };
 
 /// The greys of the README's layouts, as the theme's surfaces. The colours
@@ -59,6 +60,7 @@ pub fn sized(size: f32) -> TextSpec {
         size,
         line_height: size * 1.25,
         family: FontFamily::Proportional,
+        weight: Weight::Normal,
     }
 }
 
@@ -68,6 +70,7 @@ pub fn mono(size: f32) -> TextSpec {
         size,
         line_height: size * 1.25,
         family: FontFamily::Monospace,
+        weight: Weight::Normal,
     }
 }
 

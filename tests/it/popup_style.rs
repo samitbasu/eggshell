@@ -3,7 +3,7 @@
 //! context's global style. The owned select therefore paints its list from
 //! `style.select` alone, which the second test pins.
 
-use eggshell_ui::{LayoutState, NodeUi as _, TextSpec, TextStyle, tw};
+use eggshell_ui::{LayoutState, NodeUi as _, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor};
 use egui::{Color32, FontFamily, Popup, SetOpenCommand, Vec2, vec2};
 use egui_kittest::Harness;
@@ -30,6 +30,7 @@ fn a_popup_opened_in_a_node_takes_the_global_style_not_the_nodes() {
                         size: 14.0,
                         line_height: 20.0,
                         family: FontFamily::Proportional,
+                        weight: Weight::Normal,
                     },
                     Color32::BLACK,
                 );
@@ -110,6 +111,7 @@ fn open_select_shapes(restyle_global: bool) -> Vec<String> {
                         size: 12.0,
                         line_height: 16.0,
                         family: FontFamily::Proportional,
+                        weight: Weight::Normal,
                     },
                     Color32::BLACK,
                 );

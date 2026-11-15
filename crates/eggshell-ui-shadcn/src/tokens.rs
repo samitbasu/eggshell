@@ -1,6 +1,7 @@
-use eggshell_ui::{Opacity, TextSpec};
+use eggshell_ui::{Opacity, TextSpec, Weight};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
+use crate::FontSet;
 use crate::styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, ShadcnStyle};
 use crate::theme_color::{Hues, ThemeColor};
 
@@ -137,6 +138,14 @@ pub struct Tokens {
     pub shadow_sm: Shadow,
     /// `shadow-md`, without its negative spread.
     pub shadow_md: Shadow,
+    /// `--font-sans`: the font [`Shadcn::apply`](crate::Shadcn::apply)
+    /// registers, or `None` to leave egui's fonts alone.
+    pub font: Option<FontSet>,
+    /// The weight of buttons, toggles, tabs and key chips (`font-medium`).
+    pub control_weight: Weight,
+    /// The weight of a label (`.cn-label`): beside a checkbox, radio button
+    /// or switch, and over a group of menu items.
+    pub label_weight: Weight,
 }
 
 impl Tokens {
@@ -306,6 +315,9 @@ impl Tokens {
                 spread: 0,
                 color: Color32::from_black_alpha(26),
             },
+            font: FontSet::bundled(),
+            control_weight: Weight::Normal,
+            label_weight: Weight::Normal,
         };
         ShadcnStyle::Vega.shape(&mut tokens);
         tokens
@@ -408,12 +420,22 @@ impl Tokens {
             .unwrap_or(Shadow::NONE)
     }
 
+    /// The text role of controls: the token's size on its line height, at
+    /// `weight`.
+    pub fn text_role_at(&self, weight: Weight) -> TextSpec {
+        TextSpec {
+            weight,
+            ..self.text_role()
+        }
+    }
+
     /// The text role of controls: the token's size on its line height.
     pub fn text_role(&self) -> TextSpec {
         TextSpec {
             size: self.text_size,
             line_height: self.text_line_height,
             family: egui::FontFamily::Proportional,
+            weight: Weight::Normal,
         }
     }
 
