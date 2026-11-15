@@ -358,6 +358,7 @@ mod scroll_keys;
 mod shadow_corners;
 mod shell;
 mod sizing;
+mod spans;
 mod stack;
 mod symbols;
 pub mod testing;
@@ -388,6 +389,7 @@ pub use prim::Icon;
 pub use roots::OverlayRef;
 pub use shell::{Shell, ShellExt};
 pub use sizing::Width;
+pub use spans::{Span, Spans};
 pub use text::{
     Face, Faces, FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle,
     Tracking, Weight, WhiteSpace,

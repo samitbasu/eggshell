@@ -36,6 +36,7 @@ use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
 use crate::shell::ShellExt;
+use crate::spans;
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::tooltip;
@@ -1342,15 +1343,11 @@ impl<A> Walk<'_, A> {
         inherited: Inherited,
     ) {
         let content = boxes.content;
+        if let Some(leaf) = TextLeaf::of(self.ui.ctx(), &prim, text) {
+            self.paint_text(&leaf, index, node, boxes, inherited);
+            return;
+        }
         match prim {
-            Prim::Text(string) => {
-                let leaf = TextLeaf::plain(self.ui.ctx(), &string, text);
-                self.paint_text(&leaf, index, node, boxes, inherited);
-            }
-            Prim::Rich(rich) => {
-                let leaf = TextLeaf::rich(self.ui.ctx(), &rich, text);
-                self.paint_text(&leaf, index, node, boxes, inherited);
-            }
             Prim::Icon(icon) => self.paint_image(image_for(icon, text.color), content, inherited),
             Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
             Prim::Paint(paint) => paint(
@@ -1358,6 +1355,7 @@ impl<A> Walk<'_, A> {
                 content,
                 text.color,
             ),
+            Prim::Text(_) | Prim::Rich(_) | Prim::Spans(_) => {}
         }
     }
 
@@ -1383,13 +1381,40 @@ impl<A> Walk<'_, A> {
             TextAlign::Center => content.center_top(),
             TextAlign::Right => content.right_top(),
         } + vec2(0.0, top);
-        if text.select.selects(inherited.interactive) {
-            let id = self.selection_id(index, node);
-            self.select_text(id, galley, anchor, content, text, inherited);
+        let marks = leaf.marks.as_deref();
+        let runs = marks.map_or_else(Vec::new, |marks| spans::runs(&galley, marks));
+        if let Some(marks) = marks {
+            let rich = &Style::of(self.ui.ctx()).rich;
+            let painter = self.painter(inherited.clip, inherited.opacity);
+            for tint in spans::code_tints(&runs, marks, rich, anchor) {
+                painter.rect_filled(tint, rich.code.radius, rich.code.fill);
+            }
+        }
+        let id = self.selection_id(index, node);
+        let links = marks.filter(|marks| spans::has_links(marks));
+        let response = if text.select.selects(inherited.interactive) {
+            Some(self.select_text(id, galley, anchor, content, text, inherited))
         } else {
             self.painter(inherited.clip, inherited.opacity)
                 .galley(anchor, galley, text.color);
+            links.map(|_| self.sense_links(id, content, inherited))
+        };
+        if let (Some(marks), Some(response)) = (links, response) {
+            let node = node.id().expect("text with links is identified");
+            spans::follow(&response, &runs, marks, anchor, node);
         }
+    }
+
+    fn sense_links(&mut self, id: Id, content: Rect, inherited: Inherited) -> Response {
+        let mut response = None;
+        node_ui(
+            self.ui,
+            UiBuilder::new().max_rect(content),
+            inherited,
+            None,
+            |ui| response = Some(ui.interact(content, id, Sense::click() - Sense::FOCUSABLE)),
+        );
+        response.expect("node_ui runs its contents")
     }
 
     /// Paints `galley` through egui's label selection, which draws the
@@ -1405,8 +1430,9 @@ impl<A> Walk<'_, A> {
         content: Rect,
         text: &TextStyle,
         inherited: Inherited,
-    ) {
+    ) -> Response {
         let selection = self.selection;
+        let mut sensed = None;
         node_ui(
             self.ui,
             UiBuilder::new().max_rect(content),
@@ -1429,8 +1455,10 @@ impl<A> Walk<'_, A> {
                     text.color,
                     Stroke::NONE,
                 );
+                sensed = Some(response);
             },
         );
+        sensed.expect("node_ui runs its contents")
     }
 
     /// A stable id for the node's selectable text: its key path, and the
