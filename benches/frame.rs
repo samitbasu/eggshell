@@ -13,7 +13,7 @@ use std::hint::black_box;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
-use eggshell_ui::{Builder, LayoutState, scroll, tw};
+use eggshell_ui::{Builder, LayoutState, tw};
 use egui::{Context, Id, RawInput, Rect, pos2, vec2};
 
 /// Counts allocations, for the allocations-per-frame figures.
@@ -253,12 +253,18 @@ impl Fixture {
         };
         fixture.frame();
         let list = fixture.table.list.get().expect("the list was built");
-        let middle = scroll::viewport(&fixture.ctx, list)
+        let middle = fixture
+            .state
+            .shell(&fixture.ctx)
+            .viewport(list)
             .expect("the list was laid out")
             .content
             .height()
             / 2.0;
-        scroll::scroll_by(&fixture.ctx, list, vec2(0.0, middle));
+        fixture
+            .state
+            .shell(&fixture.ctx)
+            .scroll_by(list, vec2(0.0, middle));
         for _ in 0..8 {
             fixture.frame();
         }

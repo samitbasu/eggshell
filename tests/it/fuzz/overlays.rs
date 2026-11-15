@@ -370,6 +370,12 @@ fn rects_agree(a: Rect, b: Rect) -> bool {
     (a.min - b.min).abs().max_elem() < 0.5 && (a.max - b.max).abs().max_elem() < 0.5
 }
 
+impl crate::support::Shelled for Rig {
+    fn layout_state(&self) -> &LayoutState {
+        &self.layout
+    }
+}
+
 struct Rig {
     app: App,
     layout: LayoutState,
@@ -832,7 +838,7 @@ impl Desk {
             Action::Enter => self.key(Modifiers::NONE, Key::Enter),
             Action::ScrollAnchorContainer(delta) => {
                 if let Some((id, _)) = self.seen().node("\"scroller\"") {
-                    eggshell_ui::scroll::scroll_by(&self.harness.ctx, id, vec2(0.0, delta as f32));
+                    crate::support::shell(&self.harness).scroll_by(id, vec2(0.0, delta as f32));
                 }
                 self.step()
             }

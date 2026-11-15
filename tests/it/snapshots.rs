@@ -1353,7 +1353,6 @@ fn scroll_scrolled_light() {
 }
 
 fn scroll_in(name: &str, theme: egui::Theme, scrolled: bool) {
-    use eggshell_ui::scroll::scroll_by;
     report_renderer();
     let mut harness = support::harness_prepared(
         Vec2::new(1360.0, 640.0),
@@ -1368,7 +1367,8 @@ fn scroll_in(name: &str, theme: egui::Theme, scrolled: bool) {
     harness.run_steps(3);
     if scrolled {
         let id = |path: &str| support::id_of(&harness, path);
-        let by = |path: &str, x, y| scroll_by(&harness.ctx, id(path), Vec2::new(x, y));
+        let by =
+            |path: &str, x, y| crate::support::shell(&harness).scroll_by(id(path), Vec2::new(x, y));
         by("/Vertical", 0.0, 330.0);
         by("/Horizontal", 260.0, 0.0);
         by("/Both", 150.0, 120.0);
@@ -1383,7 +1383,6 @@ fn scroll_in(name: &str, theme: egui::Theme, scrolled: bool) {
 /// The long list: date headers and notes whose tags wrap, at the top and
 /// scrolled a long way down, where every row above is still an estimate.
 fn long_list_in(name: &str, theme: egui::Theme, scrolled: bool) {
-    use eggshell_ui::scroll::scroll_by;
     report_renderer();
     let mut harness = support::harness_prepared(
         Vec2::new(560.0, 640.0),
@@ -1397,11 +1396,8 @@ fn long_list_in(name: &str, theme: egui::Theme, scrolled: bool) {
     harness.ctx.set_theme(theme);
     harness.run_steps(3);
     if scrolled {
-        scroll_by(
-            &harness.ctx,
-            support::id_of(&harness, "/List"),
-            Vec2::new(0.0, 200_000.0),
-        );
+        support::shell(&harness)
+            .scroll_by(support::id_of(&harness, "/List"), Vec2::new(0.0, 200_000.0));
         harness.run_steps(4);
     }
     harness.snapshot(name);

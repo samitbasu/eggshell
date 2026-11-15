@@ -954,7 +954,8 @@ mod scrolling {
 
     fn offset(harness: &Harness<'_, Rig<App>>, part: Part) -> Vec2 {
         let id = support::id_of(harness, at(part));
-        eggshell_ui::scroll::viewport(&harness.ctx, id)
+        crate::support::shell(harness)
+            .viewport(id)
             .expect("laid out")
             .offset()
     }
@@ -1169,7 +1170,8 @@ mod long_conversation {
 
     fn viewport(harness: &Harness<'_, Rig<App>>) -> egui::Rect {
         let id = support::id_of(harness, "/Frame/Centre/Conversation");
-        eggshell_ui::scroll::viewport(&harness.ctx, id)
+        crate::support::shell(harness)
+            .viewport(id)
             .expect("the conversation was laid out")
             .rect
     }

@@ -6,7 +6,6 @@ use std::cell::Cell;
 use std::collections::HashMap;
 
 use eggshell_ui::overlay::{Anchor, Shown};
-use eggshell_ui::vlist;
 use eggshell_ui::{Builder, TextStyle, scroll, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Id, Key, Rect, Theme, vec2};
@@ -179,7 +178,9 @@ fn list_id(harness: &Harness<'_, Rig<App>>) -> Id {
 }
 
 fn viewport(harness: &Harness<'_, Rig<App>>) -> scroll::Viewport {
-    scroll::viewport(&harness.ctx, list_id(harness)).expect("the list was laid out")
+    crate::support::shell(harness)
+        .viewport(list_id(harness))
+        .expect("the list was laid out")
 }
 
 /// The rows built in the last frame, in order.
@@ -216,7 +217,7 @@ fn step_counting(harness: &mut Harness<'_, Rig<App>>) -> usize {
 }
 
 fn scroll_by(harness: &mut Harness<'_, Rig<App>>, y: f32) {
-    scroll::scroll_by(&harness.ctx, list_id(harness), vec2(0.0, y));
+    crate::support::shell(harness).scroll_by(list_id(harness), vec2(0.0, y));
     harness.run_steps(3);
 }
 
@@ -468,7 +469,7 @@ fn scroll_to_lands_the_row_in_view_after_one_correction() {
         !built_rows(&harness).contains(&500),
         "precondition: row 500 is far away"
     );
-    vlist::scroll_to(&harness.ctx, list_id(&harness), Row(500), Some(Align::Min));
+    crate::support::shell(&harness).scroll_to_row(list_id(&harness), Row(500), Some(Align::Min));
     harness.step();
     let view = viewport(&harness).rect;
     assert!(
@@ -608,7 +609,7 @@ fn a_scroll_by_shows_rows_in_the_frame_it_is_applied() {
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(20.0),
     ));
-    scroll::scroll_by(&harness.ctx, list_id(&harness), vec2(0.0, 2000.0));
+    crate::support::shell(&harness).scroll_by(list_id(&harness), vec2(0.0, 2000.0));
     harness.step();
     let view = viewport(&harness);
     assert_eq!(
@@ -696,7 +697,7 @@ fn scroll_to_the_bottom_of_the_viewport_lands_there_as_rows_are_measured() {
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(40.0),
     ));
-    vlist::scroll_to(&harness.ctx, list_id(&harness), Row(500), Some(Align::Max));
+    crate::support::shell(&harness).scroll_to_row(list_id(&harness), Row(500), Some(Align::Max));
     harness.run_steps(4);
     let view = viewport(&harness).rect;
     let row = row_rect(&harness, 500);
