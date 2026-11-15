@@ -706,7 +706,7 @@ impl<'f, A> ListRun<'f, A> {
         if built.is_empty() {
             return Vec::new();
         }
-        let stack = crate::stack::Stack::load(b.kept());
+        let stack = crate::stack::Stack::load(b.kept(), b.viewport());
         let anchors: Vec<Id> = b.anchored_to().collect();
         let mut pinned: Vec<usize> = built
             .iter()

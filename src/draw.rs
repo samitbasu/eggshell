@@ -16,20 +16,22 @@ use egui::{
 };
 use taffy::Overflow;
 
+use crate::commands::Commands;
 use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
-use crate::dnd::{self, Stakes};
+use crate::dnd::{self, Decls, Stakes};
 use crate::focus;
+use crate::kept::Handle;
 use crate::measure::TextLeaf;
 use crate::nav;
 use crate::overlay::{Anchored, Nav};
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
-use crate::pipeline::{ColorSource, DrawFn, Flow, NodeKind, Placed, PlacedNode};
+use crate::pipeline::{ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedNode};
 use crate::presence::Staged;
 use crate::prim::{Icon, Prim};
-use crate::roots::{Form, PlacedRoot, covers_screen, root_of, stacked_top_down};
+use crate::roots::{Form, PlacedRoot, covers_screen, root_at, root_of, stacked_top_down};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
@@ -526,21 +528,26 @@ fn scaled_about_centre(rect: Rect, scale: f32) -> Rect {
 struct Shared<A> {
     prims: Vec<Option<Prim>>,
     draws: Vec<Option<DrawFn<A>>>,
-    subtrees: Vec<(Id, Box<[Id]>)>,
-    animation: LayoutAnimation,
     recording: Option<Vec<NodeFrame>>,
     /// While recording, the identified nodes left out as culled.
     culled: Vec<Id>,
     /// The id of each node's box widget.
     box_ids: Vec<Id>,
+    /// The nodes of overlays that are entering or leaving, by index.
+    stages: HashMap<usize, Stage>,
+}
+
+/// What one pass of a frame keeps while it draws: what belongs to the input
+/// of the viewport it draws in.
+struct Pass {
+    subtrees: Vec<(Id, Box<[Id]>)>,
+    animation: LayoutAnimation,
     /// The boxes the pointer is on or pressing, from the last pass.
     hot: Vec<Hot>,
     /// The items listboxes highlight, which look hovered.
     highlighted: Vec<Id>,
     /// Why a field losing focus in this pass does, told to its hooks.
     blur: Blur,
-    /// The nodes of overlays that are entering or leaving, by index.
-    stages: HashMap<usize, Stage>,
 }
 
 /// How an entering or leaving overlay is painted at one of its nodes.
@@ -563,6 +570,7 @@ struct Walk<'a, A> {
     /// while culled.
     registrants: &'a [u32],
     shared: &'a mut Shared<A>,
+    pass: &'a mut Pass,
     grid: PixelGrid,
     selection: Selection,
     lift: Option<Lift>,
@@ -580,6 +588,7 @@ impl<A> Walk<'_, A> {
             ordinals: self.ordinals,
             registrants: self.registrants,
             shared: &mut *self.shared,
+            pass: &mut *self.pass,
             grid: self.grid,
             selection: self.selection,
             lift: self.lift,
@@ -652,7 +661,7 @@ impl<A> Walk<'_, A> {
         let node = &self.nodes[index];
         let mut merged = Merged::Own;
         for hot in self
-            .shared
+            .pass
             .hot
             .iter()
             .filter(|hot| index < hot.index && hot.index < node.end)
@@ -773,7 +782,7 @@ impl<A> Walk<'_, A> {
         let node = &self.nodes[index];
         let descendants = &self.nodes[index + 1..node.end];
         let highlighted = node.id().is_some_and(|id| {
-            self.shared.highlighted.contains(&id) || (node.is_item() && focus::holds_focus(ctx, id))
+            self.pass.highlighted.contains(&id) || (node.is_item() && focus::holds_focus(ctx, id))
         });
         let pointed = own.hovered()
             || descendants
@@ -872,7 +881,7 @@ impl<A> Walk<'_, A> {
         visit(self);
         if let Some((id, from)) = before {
             let widgets = focus::focusable_since(self.ui.ctx(), layer, from);
-            self.shared.subtrees.push((id, widgets));
+            self.pass.subtrees.push((id, widgets));
         }
     }
 
@@ -925,7 +934,7 @@ impl<A> Walk<'_, A> {
         node.flow != Flow::Hidden
             && !node
                 .reach
-                .intersects(clip.expand(self.shared.animation.slide_reach()))
+                .intersects(clip.expand(self.pass.animation.slide_reach()))
             && !self.drag.involves(&within)
             && !(ctx.memory(|memory| memory.focused()).is_some()
                 && self.nodes[within]
@@ -1028,7 +1037,7 @@ impl<A> Walk<'_, A> {
         let own_opacity = opacity * scrim;
         let lifted = self.lift.filter(|lift| lift.index == index);
         let slide = match (interaction.variants.animate_layout, node.id(), lifted) {
-            (Some(duration), Some(id), None) => self.shared.animation.offset(
+            (Some(duration), Some(id), None) => self.pass.animation.offset(
                 id,
                 node.rect().min - parent.origin,
                 duration,
@@ -1067,7 +1076,7 @@ impl<A> Walk<'_, A> {
                     _ => Motion::Snaps,
                 },
                 slide: self
-                    .shared
+                    .pass
                     .animation
                     .slide(id, interaction.variants.easing, translate),
             });
@@ -1173,7 +1182,7 @@ impl<A> Walk<'_, A> {
                 .max_rect(boxes.content)
                 .scope_id(id.with(DRAW_SCOPE));
             let app = &mut *self.app;
-            let blur = self.shared.blur;
+            let blur = self.pass.blur;
             node_ui(self.ui, builder, inherited, Some(text), |ui| {
                 let scope = ui.unique_id();
                 ui.data_mut(|data| {
@@ -1220,6 +1229,7 @@ impl<A> Walk<'_, A> {
             ordinals,
             registrants,
             shared,
+            pass,
             grid,
             selection,
             lift,
@@ -1266,6 +1276,7 @@ impl<A> Walk<'_, A> {
                         ordinals,
                         registrants,
                         shared: &mut **shared,
+                        pass,
                         grid: *grid,
                         selection: *selection,
                         lift: *lift,
@@ -1594,16 +1605,6 @@ impl<A> Placed<A> {
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
-        let interruption = tooltip::interruption(ui.ctx(), dnd::drag_state(ui.ctx(), &self.kept));
-        tooltip::begin(&self.kept);
-        focus::release_press_on_blur(ui.ctx());
-        let _anchor_focus = focus::AnchorFocusHeld::new(
-            ui.ctx(),
-            overlay_input::pointer_on(ui.ctx(), &self.nodes, &self.roots),
-        );
-        let pressed = press_origin(ui.ctx())
-            .map(|at| self.root_at(at))
-            .and_then(|root| Some(self.roots[root].overlay()?.id));
         let Self {
             ctx: _,
             scope,
@@ -1612,8 +1613,8 @@ impl<A> Placed<A> {
             prims,
             draws,
             by_id,
-            mut drag,
-            mut dismiss,
+            drag,
+            dismiss,
             roots,
             exited,
             commands,
@@ -1622,130 +1623,191 @@ impl<A> Placed<A> {
         } = self;
         let overflow = (Debug::of(ui.ctx()) == Debug::Outlines)
             .then(|| debug::overflow(ui.ctx(), &nodes, &prims));
-        let grid = PixelGrid {
-            pixels_per_point: ui.ctx().pixels_per_point(),
+        let mut painting = Painting {
+            ordinals: text_ordinals(&nodes, &prims),
+            registrants: registrant_counts(&nodes),
+            shared: Shared {
+                prims,
+                draws,
+                recording: continuity::recording(ui.ctx()).then(Vec::new),
+                culled: Vec::new(),
+                box_ids: box_ids(scope, &nodes),
+                stages: HashMap::new(),
+            },
+            kept,
+            nodes,
+            by_id,
+            drag,
+            dismiss,
+            roots,
+            commands,
+            size_in_flight,
         };
-        let root = Inherited::root(ui.clip_rect(), nodes[0].rect().min);
-        let live = dnd::drag_state(ui.ctx(), &kept);
+        painting.pass(app, ui, 0);
+        for then in exited {
+            then(app);
+        }
+        painting.record(ui.ctx());
+        drop(timer);
+        if let Some(overflow) = overflow {
+            debug::paint(ui.ctx(), &painting.nodes, &overflow);
+        }
+    }
+}
+
+/// A frame being drawn: what the passes that draw it share. Each egui
+/// viewport the frame is drawn in has a pass of its own, with that viewport's
+/// input.
+struct Painting<A> {
+    kept: Handle,
+    nodes: Vec<PlacedNode>,
+    by_id: HashMap<Id, usize>,
+    drag: Decls<A>,
+    dismiss: HashMap<Id, DismissFn<A>>,
+    roots: Vec<PlacedRoot>,
+    commands: Vec<(usize, Commands<A>)>,
+    size_in_flight: bool,
+    /// For each node, how many text nodes of the same path come before it.
+    ordinals: Vec<u32>,
+    /// `registrants[i]` counts the nodes before `i` that register widgets
+    /// while culled.
+    registrants: Vec<u32>,
+    shared: Shared<A>,
+}
+
+impl<A> Painting<A> {
+    /// Draws the root at `root`, and the overlays over it, into `ui`, and
+    /// judges the input of `ui`'s viewport against them.
+    fn pass(&mut self, app: &mut A, ui: &mut Ui, root: usize) {
+        let ctx = ui.ctx().clone();
+        let Self {
+            kept,
+            nodes,
+            by_id,
+            drag,
+            dismiss,
+            roots,
+            commands,
+            size_in_flight,
+            ordinals,
+            registrants,
+            shared,
+        } = self;
+        let interruption = tooltip::interruption(&ctx, dnd::drag_state(&ctx, kept));
+        tooltip::begin(&ctx, kept);
+        focus::release_press_on_blur(&ctx);
+        let _anchor_focus =
+            focus::AnchorFocusHeld::new(&ctx, overlay_input::pointer_on(&ctx, nodes, roots));
+        let pressed = press_origin(&ctx)
+            .map(|at| root_at(roots, nodes, at))
+            .and_then(|root| Some(roots[root].overlay()?.id));
+        let grid = PixelGrid {
+            pixels_per_point: ctx.pixels_per_point(),
+        };
+        let inherited = Inherited::root(ui.clip_rect(), nodes[root].rect().min);
+        let live = dnd::drag_state(&ctx, kept);
         let (dragging, finish) = dnd::begin(
-            ui.ctx(),
-            &kept,
+            &ctx,
+            kept,
             dnd::Tree {
-                nodes: &nodes,
-                by_id: &by_id,
-                roots: &roots,
+                nodes,
+                by_id,
+                roots,
             },
             ui.clip_rect(),
-            &mut drag,
+            drag,
             app,
         );
-        let selection = Style::of(ui.ctx()).selection;
-        let mut animation = LayoutAnimation::begin(ui.ctx(), &kept, &nodes)
-            .starting(StartsSlides::unless_size_in_flight(size_in_flight));
+        let selection = Style::of(&ctx).selection;
+        let mut animation = LayoutAnimation::begin(&ctx, kept, nodes)
+            .starting(StartsSlides::unless_size_in_flight(*size_in_flight));
         if nodes.iter().any(|node| node.scroll.is_some()) {
-            animation.anticipate(&nodes);
+            animation.anticipate(nodes);
         }
-        let recording = continuity::recording(ui.ctx()).then(Vec::new);
-        let ordinals = text_ordinals(&nodes, &prims);
-        let registrants = registrant_counts(&nodes);
-        let box_ids = box_ids(scope, &nodes);
-        let mut shared = Shared {
-            prims,
-            draws,
+        let mut pass = Pass {
             subtrees: Vec::new(),
             animation,
-            recording,
-            culled: Vec::new(),
-            hot: hot_boxes(ui.ctx(), &nodes, &box_ids),
-            box_ids,
-            highlighted: nav::highlighted(&kept),
+            hot: hot_boxes(&ctx, nodes, &shared.box_ids),
+            highlighted: nav::highlighted(kept),
             blur: Blur::Elsewhere,
-            stages: HashMap::new(),
         };
-        nav::activate_highlighted(ui.ctx(), &kept);
-        nav::apply_deferred(ui.ctx(), &kept);
-        let keys = overlay_input::claim_keys(ui.ctx(), &kept, &nodes, &roots, live);
-        shared.blur = keys.blur;
-        let typing = kept.with(|kept| kept.typing);
+        nav::activate_highlighted(&ctx, kept);
+        nav::apply_deferred(&ctx, kept);
+        let keys = overlay_input::claim_keys(&ctx, kept, nodes, roots, live);
+        pass.blur = keys.blur;
+        let typing = kept.viewport(ctx.viewport_id(), |here| here.typing);
         for root in crate::commands::live_roots(
-            overlay_input::topmost_root(&roots),
+            overlay_input::topmost_root(roots),
             |root| roots[root].parent,
             |root| roots[root].is_modal(),
         ) {
             if let Some((_, table)) = commands.iter().find(|(at, _)| *at == root) {
-                crate::commands::dispatch(
-                    ui.ctx(),
-                    &crate::Shell::new(ui.ctx(), &kept),
-                    typing,
-                    table,
-                    app,
-                );
+                crate::commands::dispatch(&ctx, &crate::Shell::new(&ctx, kept), typing, table, app);
             }
         }
-        scroll_keys::hold_arrows(ui.ctx(), &kept, &nodes);
-        let _drawing = crate::shell::Drawing::enter(ui.ctx(), &kept);
+        scroll_keys::hold_arrows(&ctx, kept, nodes);
+        let _drawing = crate::shell::Drawing::enter(&ctx, kept);
         let mut walk = Walk {
             app,
             ui,
-            nodes: &nodes,
-            ordinals: &ordinals,
-            registrants: &registrants,
-            shared: &mut shared,
+            nodes,
+            ordinals,
+            registrants,
+            shared,
+            pass: &mut pass,
             grid,
             selection,
             lift: dragging.lift,
             drag: &dragging,
-            roots: &roots,
+            roots,
         };
-        walk.visit(0, root);
-        let ctx = walk.ui.ctx().clone();
+        walk.visit(root, inherited);
         let shown = walk.overlays();
         stack::repair(&ctx, &shown, pressed);
         overlay_input::judge(
             overlay_input::Frame {
                 ctx: &ctx,
-                kept: &kept,
-                nodes: &nodes,
-                roots: &roots,
-                subtrees: &shared.subtrees,
+                kept,
+                nodes,
+                roots,
+                subtrees: &pass.subtrees,
                 drag: live,
                 keys,
             },
-            &mut dismiss,
+            dismiss,
             app,
         );
-        finish.finish(&ctx, &kept, &nodes, &mut drag, app);
-        tooltip::end(&ctx, &kept, interruption);
-        for then in exited {
-            then(app);
-        }
-        scroll_keys::note_press(&ctx, &kept, &nodes);
-        scroll_keys::apply_keys(&ctx, &kept, &nodes);
-        scroll_keys::follow_focus(&ctx, &kept, &shared.subtrees);
-        if let Some(frame) = shared.recording.take() {
-            let laid_out = nodes
-                .iter()
-                .filter(|node| node.id().is_some())
-                .map(|node| (node.path().to_owned(), node.rect()))
-                .collect();
-            continuity::store(
-                &ctx,
-                RecordedPass {
-                    pass: ctx.cumulative_pass_nr(),
-                    nodes: frame,
-                    laid_out,
-                    culled: std::mem::take(&mut shared.culled),
-                    overlays: placed_overlays(&nodes, &roots),
-                },
-            );
-        }
-        overlay_input::Typing::note(&ctx, &kept, &shared.subtrees);
-        focus::store(&ctx, &kept, shared.subtrees);
-        shared.animation.finish();
-        drop(timer);
-        if let Some(overflow) = overflow {
-            debug::paint(&ctx, &nodes, &overflow);
-        }
+        finish.finish(&ctx, kept, nodes, drag, app);
+        tooltip::end(&ctx, kept, interruption);
+        scroll_keys::note_press(&ctx, kept, nodes);
+        scroll_keys::apply_keys(&ctx, kept, nodes);
+        scroll_keys::follow_focus(&ctx, kept, &pass.subtrees);
+        overlay_input::Typing::note(&ctx, kept, &pass.subtrees);
+        focus::store(&ctx, kept, pass.subtrees);
+        pass.animation.finish();
+    }
+
+    /// Hands the continuity recorder what the frame drew, if it is recording.
+    fn record(&mut self, ctx: &egui::Context) {
+        let Some(frame) = self.shared.recording.take() else {
+            return;
+        };
+        let laid_out = self
+            .nodes
+            .iter()
+            .filter(|node| node.id().is_some())
+            .map(|node| (node.path().to_owned(), node.rect()))
+            .collect();
+        continuity::store(
+            ctx,
+            RecordedPass {
+                pass: ctx.cumulative_pass_nr(),
+                nodes: frame,
+                laid_out,
+                culled: std::mem::take(&mut self.shared.culled),
+                overlays: placed_overlays(&self.nodes, &self.roots),
+            },
+        );
     }
 }
 

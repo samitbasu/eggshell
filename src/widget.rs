@@ -277,7 +277,7 @@ impl TextEdit {
         };
         announce(&response, self.name.as_deref());
         if self.lines != Lines::Single && response.has_focus() {
-            crate::actions::note_multiline_focus(&ui.shell().kept, response.id);
+            crate::actions::note_multiline_focus(ui.ctx(), &ui.shell().kept, response.id);
         }
         if response.changed() && *text != before_text {
             let after = self.fit(&Sizer::for_ui(ui), text, Some(width));

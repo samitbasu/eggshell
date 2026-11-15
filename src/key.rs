@@ -57,6 +57,12 @@ pub(crate) fn root_id() -> Id {
     Id::NULL.with("eggshell")
 }
 
+/// The id of the state `name` of the viewport `ctx` is running a pass of:
+/// each viewport has its own input.
+pub(crate) fn viewport_id(ctx: &egui::Context, name: impl egui::AsIdSalt) -> Id {
+    root_id().with((name, ctx.viewport_id()))
+}
+
 /// The root of a layout's key paths: [`root_id`], salted by the layout's name
 /// if it has one. The salt is a hash of the name, so ids (and the state egui
 /// keeps under them) are stable across runs.

@@ -8,7 +8,7 @@
 
 use std::collections::HashSet;
 
-use egui::{Context, Id, LayerId, Pos2};
+use egui::{Context, Id, LayerId, Pos2, ViewportId};
 
 use crate::dismiss::{FocusAt, Opening};
 use crate::kept::Handle;
@@ -50,12 +50,12 @@ pub(crate) struct Stack {
 }
 
 impl Stack {
-    pub(crate) fn load(kept: &Handle) -> Self {
-        kept.with(|kept| kept.stack.clone())
+    pub(crate) fn load(kept: &Handle, viewport: ViewportId) -> Self {
+        kept.viewport(viewport, |here| here.stack.clone())
     }
 
-    pub(crate) fn store(self, kept: &Handle) {
-        kept.with(|kept| kept.stack = self);
+    pub(crate) fn store(self, kept: &Handle, viewport: ViewportId) {
+        kept.viewport(viewport, |here| here.stack = self);
     }
 
     /// The entry of the overlay `id`, appended at the top if it was not open.

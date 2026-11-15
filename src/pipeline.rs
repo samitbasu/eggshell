@@ -358,12 +358,12 @@ pub(crate) enum Room {
 /// agrees with the clamp the layout applies.
 pub(crate) fn room_for(
     ctx: &egui::Context,
-    kept: &Handle,
+    (kept, viewport): (&Handle, egui::ViewportId),
     anchor: Id,
     placement: &Placement,
     natural: Vec2,
 ) -> Room {
-    let area = kept.with(|kept| kept.area);
+    let area = kept.viewport(viewport, |here| here.area);
     let rect = |id| ctx.read_response(id).map(|response| response.rect);
     let placement = match placement.boundary_node() {
         Some(node) => rect(node).map(|rect| placement.with_node_rect(rect)),
@@ -596,8 +596,9 @@ impl<'f, A> Built<'f, A> {
         }];
         let scope = st.scope;
         let root = st.root;
-        st.kept.with(|kept| kept.area = Some(area));
-        let mut stack = Stack::load(&st.kept);
+        st.kept
+            .viewport(ctx.viewport_id(), |here| here.area = Some(area));
+        let mut stack = Stack::load(&st.kept, ctx.viewport_id());
         let mut present = HashSet::new();
         // Regions may declare overlays, which come after those declared in
         // the build.
@@ -793,7 +794,7 @@ impl<'f, A> Built<'f, A> {
                     .expect("an open overlay is in the stack");
             }
         }
-        stack.store(&st.kept);
+        stack.store(&st.kept, ctx.viewport_id());
         st.kept.with(|kept| {
             kept.presences.sweep();
             kept.lists.sweep(ctx.cumulative_pass_nr());

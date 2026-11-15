@@ -73,12 +73,13 @@ struct Open<'a> {
 /// drawn earlier in the pass (a header, or an app's own) would act on it
 /// before this one's keys are claimed. Every layout sets it; the plugin reads
 /// and clears it at the start of the next pass.
-fn tab_held_id() -> Id {
-    crate::key::root_id().with("tab-held")
+fn tab_held_id(ctx: &Context) -> Id {
+    crate::key::viewport_id(ctx, "tab-held")
 }
 
 fn note_tab_held(ctx: &Context) {
-    ctx.data_mut(|data| data.insert_temp(tab_held_id(), true));
+    let key = tab_held_id(ctx);
+    ctx.data_mut(|data| data.insert_temp(key, true));
 }
 
 /// Cancels Tab at the start of the pass while a menu is open: egui has set
@@ -93,8 +94,9 @@ impl egui::Plugin for HoldTab {
 
     fn on_begin_pass(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx();
+        let key = tab_held_id(ctx);
         let held = ctx
-            .data_mut(|data| data.remove_temp::<bool>(tab_held_id()))
+            .data_mut(|data| data.remove_temp::<bool>(key))
             .unwrap_or(false);
         if !held {
             return;
@@ -329,13 +331,13 @@ impl Typing {
         } else {
             Self::No
         };
-        kept.with(|kept| kept.typing = now);
+        kept.viewport(ctx.viewport_id(), |here| here.typing = now);
     }
 
     /// Whether the Esc of this pass was the one that took a text input's
     /// focus: it had focus at the end of the last pass and nothing has now.
     fn escape_blurred(ctx: &Context, kept: &Handle) -> bool {
-        let before = kept.with(|kept| kept.typing);
+        let before = kept.viewport(ctx.viewport_id(), |here| here.typing);
         before == Self::Yes && ctx.memory(|memory| memory.focused()).is_none()
     }
 }
@@ -410,7 +412,7 @@ pub(crate) fn claim_keys(
     } else {
         Pressed::No
     };
-    let typing_before = kept.with(|kept| kept.typing) == Typing::Yes;
+    let typing_before = kept.viewport(ctx.viewport_id(), |here| here.typing) == Typing::Yes;
     let escaped = escape == Pressed::Yes && Typing::escape_blurred(ctx, kept);
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
     let default = if pressed(Key::Enter) {
@@ -470,7 +472,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     );
     let source = Source::last(ctx);
     let shell = Shell::new(ctx, kept);
-    let mut stack = Stack::load(kept);
+    let mut stack = Stack::load(kept, ctx.viewport_id());
     let layers = layers_of(ctx, &open, nodes, roots, |open| {
         let before = stack
             .get_mut(open.overlay.id)
@@ -550,7 +552,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             }
         }
     }
-    stack.store(kept);
+    stack.store(kept, ctx.viewport_id());
 
     let menus: Vec<Menu> = open
         .iter()
@@ -586,8 +588,8 @@ enum Source {
 }
 
 impl Source {
-    fn key() -> Id {
-        crate::key::root_id().with("input-source")
+    fn key(ctx: &Context) -> Id {
+        crate::key::viewport_id(ctx, "input-source")
     }
 
     /// Notes the source of this frame's input, if it has any.
@@ -600,7 +602,8 @@ impl Source {
             })
         });
         if let Some(latest) = latest {
-            ctx.data_mut(|data| data.insert_temp(Self::key(), latest));
+            let key = Self::key(ctx);
+            ctx.data_mut(|data| data.insert_temp(key, latest));
         }
     }
 
@@ -612,7 +615,8 @@ impl Source {
     /// Where the last input came from; with none (an overlay opened by the
     /// application), the keyboard.
     fn last(ctx: &Context) -> Self {
-        ctx.data(|data| data.get_temp(Self::key()))
+        let key = Self::key(ctx);
+        ctx.data(|data| data.get_temp(key))
             .unwrap_or(Self::Keyboard)
     }
 }
