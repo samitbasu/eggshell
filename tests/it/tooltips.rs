@@ -884,3 +884,75 @@ fn the_arrow_is_painted_between_the_box_and_its_trigger() {
         "a {size} pt square turned 45°"
     );
 }
+
+/// ```html
+/// <div class="flex flex-col items-start gap-4 p-4 pt-10">
+///   <canvas title="Tip for a custom" class="w-[60px] h-[30px]"></canvas>  <!-- senses hover -->
+///   <canvas class="w-[60px] h-[30px]"></canvas>  <!-- senses hover -->  <!-- tooltip: Zoom <kbd>Z</kbd> -->
+///   <button aria-pressed="false">Pin</button>  <!-- tooltip: Pin it <kbd>Ctrl+P</kbd> -->
+/// </div>
+/// ```
+fn chain_view(b: &mut Builder<'_, '_, App>, _: &App) {
+    b.div(
+        tw().flex()
+            .flex_col()
+            .items_start()
+            .gap(4.0)
+            .p(4.0)
+            .pt(10.0),
+        |b| {
+            b.custom("plot", tw().sense_hover().w_px(60.0).h_px(30.0))
+                .tooltip("Tip for a custom")
+                .ui(|_, _| {});
+            b.custom("zoom", tw().sense_hover().w_px(60.0).h_px(30.0))
+                .tooltip_with(|s| {
+                    s.text(tw(), "Zoom");
+                    s.kbd("Z");
+                })
+                .ui(|_, _| {});
+            b.toggle("pin", "Pin", false)
+                .tooltip_with(|s| {
+                    s.text(tw(), "Pin it");
+                    s.kbd("Ctrl+P");
+                })
+                .on_change(|_, _| {});
+        },
+    );
+}
+
+/// Hovers `path` in [`chain_view`]: no tooltip before the delay, and after it
+/// each of `texts` is painted inside the tooltip's box.
+fn chain_hover_shows(path: &str, texts: &[&str]) {
+    let mut harness = harness_of(chain_view);
+    assert!(!is_shown(&harness), "precondition: nothing is shown yet");
+    hover_node(&mut harness, path);
+    harness.run_steps(1);
+    assert!(!is_shown(&harness), "{path}: not before the delay");
+    wait(&mut harness, DELAY + GRACE);
+    let tip = tip_box(&harness).unwrap_or_else(|| panic!("hovering {path} opens a tooltip"));
+    for text in texts {
+        let at = support::shapes(&harness)
+            .into_iter()
+            .find_map(|shape| match shape {
+                Shape::Text(shape) if shape.galley.text() == *text => Some(shape.pos),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{path}: {text:?} is painted"));
+        assert!(tip.contains(at), "{path}: {text:?} at {at:?} is in {tip:?}");
+    }
+}
+
+#[test]
+fn a_custom_node_shows_its_text_tooltip() {
+    chain_hover_shows("/\"plot\"", &["Tip for a custom"]);
+}
+
+#[test]
+fn a_custom_node_shows_its_built_tooltip() {
+    chain_hover_shows("/\"zoom\"", &["Zoom", "Z"]);
+}
+
+#[test]
+fn a_toggle_shows_its_built_tooltip() {
+    chain_hover_shows("/\"pin\"", &["Pin it", "Ctrl+P"]);
+}
