@@ -1,7 +1,7 @@
 //! What a build reads at build time: egui's local state through
 //! `Builder::ctx`, and the base text, which follows egui unless overridden.
 
-use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Context, FontFamily, Rect, Theme, pos2, vec2};
 use egui_kittest::Harness;
 
@@ -36,6 +36,7 @@ fn override_style() -> TextStyle {
             size: 30.0,
             line_height: 36.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::RED,
     )

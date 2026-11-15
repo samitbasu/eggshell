@@ -274,9 +274,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// Whether the node declared with `key` in this scope, or a widget
-    /// inside it, has keyboard focus. See [`focus_within`](crate::focus_within).
+    /// inside it, has keyboard focus. See [`Shell::focus_within`](crate::Shell::focus_within).
     pub fn has_focus_within<K: Key>(&self, key: K) -> bool {
-        crate::focus::focus_within(self.frame.ctx, self.id_of(key))
+        self.shell().focus_within(self.id_of(key))
     }
 
     /// An anonymous container. Its text classes are inherited by `body`.
@@ -1196,7 +1196,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// The node's layout style, its widths in `ch` measured in its resolved font.
     fn resolved_style(&self, tw: Tw, node: &Node) -> taffy::Style {
         let mut style = tw.style;
-        let font = node.text.spec.font_id();
+        let font = node.text.spec.font_id(self.frame.ctx);
         tw.ch.resolve(&mut style, || {
             self.frame.ctx.fonts_mut(|fonts| {
                 fonts
@@ -1335,7 +1335,7 @@ impl<A: 'static> Builder<'_, '_, A> {
     /// drag starts in: a lift is seen from the next build on. Files dragged
     /// in from outside are a drag of [`Files`](crate::Files).
     pub fn dragging<T: Any + Send + Sync>(&self) -> Option<Dragging<T>> {
-        crate::dnd::dragging(self.frame.ctx)
+        crate::dnd::dragging(self.frame.ctx, &self.st.kept)
     }
 
     /// Calls `handler` once when a drag of a `T` ends, with the payload and
@@ -1556,7 +1556,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     /// the build after the lift. The subtree goes under a node the library
     /// makes: out of flow, so it changes neither the layout of the siblings
     /// nor the source's `index_hint` items. Its shapes are painted on the
-    /// drag layer, unclipped, with its top-left a [`drag_grab`](crate::drag_grab)
+    /// drag layer, unclipped, with its top-left a [`Shell::drag_grab`](crate::Shell::drag_grab)
     /// behind the pointer: the live image's anchor, resolved against this
     /// frame's layout. The node is a sibling of the source, under an id
     /// derived from the source's.
@@ -1566,8 +1566,8 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
             (context.id, context.path.clone())
         };
         self.edit(|context| context.drag().previewed = true);
-        if let Some(source) =
-            source.filter(|&id| crate::dnd::lifted_source(self.b.frame.ctx) == Some(id))
+        if let Some(source) = source
+            .filter(|&id| crate::dnd::lifted_source(self.b.frame.ctx, &self.b.st.kept) == Some(id))
         {
             let label = format!("drag preview of {path}");
             self.b.div_id_with(
@@ -1749,7 +1749,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
         self.draw(move |app, ui| {
-            if ui.node_response().clicked() || crate::nav::take_activation(ui.ctx(), ui.node_id()) {
+            if ui.node_response().clicked() || crate::nav::take_activation(ui, ui.node_id()) {
                 act(app);
             }
         })

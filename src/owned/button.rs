@@ -172,7 +172,9 @@ impl ButtonOptions {
     }
 
     /// Classes merged over the styled ones, such as the button's width or how
-    /// it grows; the later class wins ([`Tw::merge`]).
+    /// it grows; the later class wins ([`Tw::merge`]). The style's hover and
+    /// pressed looks still apply over them in their states: see
+    /// [the module docs](crate::owned#classes-and-the-styles-state-looks).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.classes = self.classes.merge(classes);
         self
@@ -292,7 +294,9 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     }
 
     /// Classes merged over the styled ones, such as the button's width or how
-    /// it grows; the later class wins ([`Tw::merge`]).
+    /// it grows; the later class wins ([`Tw::merge`]). The style's hover and
+    /// pressed looks still apply over them in their states: see
+    /// [the module docs](crate::owned#classes-and-the-styles-state-looks).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.opts = self.opts.classes(classes);
         self
@@ -502,7 +506,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         };
         node.draw(move |app, ui| {
             let response = described(ui, role, selected, &name, &tooltip);
-            if response.clicked() || crate::nav::take_activation(ui.ctx(), response.id) {
+            if response.clicked() || crate::nav::take_activation(ui, response.id) {
                 on_click(app, ui.ctx());
             }
             on_response.run(app, &response);

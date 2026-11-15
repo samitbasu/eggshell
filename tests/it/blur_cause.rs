@@ -1,6 +1,6 @@
 //! `when_blurred` is told why the field lost focus, the frame it reports it.
 
-use eggshell_ui::{Blur, Builder, TextSpec, TextStyle, tw};
+use eggshell_ui::{Blur, Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, vec2};
 use egui_kittest::Harness;
 
@@ -26,6 +26,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

@@ -50,8 +50,9 @@ impl Shown {
 /// How an overlay arrives and leaves.
 ///
 /// Only the scrim of a modal fades. The box and its contents are never faded:
-/// without group opacity (#40) a per-shape fade lets the page show through the
-/// box mid-motion. The entrances move the box instead.
+/// without group opacity (see the crate docs' *Differences from CSS*) a
+/// per-shape fade lets the page show through the box mid-motion. The
+/// entrances move the box instead.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Entrance {
     /// No motion of the box; the scrim of a modal fades.

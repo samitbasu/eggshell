@@ -16,7 +16,7 @@ use eggshell_ui::overlay::{
 use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::testing::{Points, leaves_bounds};
-use eggshell_ui::{Builder, LayoutState, Placed, Scope, TextStyle, focus_within, tw};
+use eggshell_ui::{Builder, LayoutState, Placed, Scope, TextStyle, tw};
 use egui::{Color32, Event, Id, Key, LayerId, Modifiers, PointerButton, Pos2, Rect, Role, vec2};
 use egui_kittest::Harness;
 use proptest::prelude::*;
@@ -134,7 +134,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 s.select("pick", app.pick, (0..6).map(|n| (n, format!("Option {n}"))))
                     .named("Pick")
                     .tooltip("Pick an option")
-                    .classes(tw().w_px(110.0))
+                    .classes(tw().w_px(100.0))
                     .on_change(|app: &mut App, value| app.pick = value);
                 s.button("popover", "Popover")
                     .tooltip("Opens a popover")
@@ -947,17 +947,17 @@ impl Desk {
         let Some(focused) = self.focused() else {
             return Ok(());
         };
-        let ctx = &self.harness.ctx;
-        let inside = focus_within(ctx, top.id)
+        let shell = crate::support::shell(&self.harness);
+        let inside = shell.focus_within(top.id)
             || top
                 .anchor_ids
                 .iter()
-                .any(|anchor| focus_within(ctx, *anchor))
+                .any(|anchor| shell.focus_within(*anchor))
             || self
                 .seen()
                 .open()
                 .filter(|overlay| overlay.stack_index > top.stack_index)
-                .any(|above| focus_within(ctx, above.id));
+                .any(|above| shell.focus_within(above.id));
         ensure(inside, || {
             let path = self
                 .seen()

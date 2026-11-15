@@ -3,7 +3,7 @@
 //! judgement of the frame's input after the draw.
 
 use eggshell_ui::overlay::{Anchor, DismissOn, Focus, Nav, Outside, Placement};
-use eggshell_ui::{Builder, Scope, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Scope, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, Pos2, Role, pos2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -16,6 +16,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

@@ -311,7 +311,7 @@ mod tests {
 
     use super::*;
     use crate::pipeline::NodeKind;
-    use crate::text::{TextSpec, TextStyle};
+    use crate::text::{TextSpec, TextStyle, Weight};
 
     fn node(flight: Option<Flight>) -> Node {
         let text = TextStyle::new(
@@ -319,6 +319,7 @@ mod tests {
                 size: 14.0,
                 line_height: 20.0,
                 family: FontFamily::Proportional,
+                weight: Weight::Normal,
             },
             Color32::BLACK,
         );

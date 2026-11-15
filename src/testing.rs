@@ -1,9 +1,21 @@
-//! Headless layout for unit tests: build and lay a view out without a window,
-//! a GPU or a draw, then ask where its nodes are.
+//! Testing an eggshell UI: headless layout, a harness that drives the real
+//! path, continuity recording, and the roles to query controls by.
 //!
 //! This is ordinary code, not `cfg(test)`, so the tests of a crate that uses
 //! eggshell can use it. It needs nothing beyond egui, so it is not behind a
 //! feature.
+//!
+//! There are two ways in:
+//!
+//! - [`Headless`] builds and lays a view out without a window, a GPU or a
+//!   draw, and answers where its nodes are. Use it for layout: sizes,
+//!   positions, what a change of state moves ([`Placed::diff`],
+//!   [`Change::moved`]). Nothing is drawn, so no input is handled.
+//! - An [`egui_kittest`](https://docs.rs/egui_kittest) `Harness` runs whole
+//!   frames: build, layout, draw, and the input of each frame. Use it for
+//!   behaviour: clicks, keys, focus, overlays, motion.
+//!
+//! # Headless
 //!
 //! ```
 //! use eggshell_ui::testing::Headless;
@@ -34,22 +46,128 @@
 //! assert!(changes.iter().any(|change| change.path() == "/Card"));
 //! ```
 //!
+//! # A harness
+//!
+//! A harness frame builds, lays out and draws a [`LayoutState`] as an app
+//! does. Set the context up in `with_context_setup`: kittest draws a first
+//! frame inside `build_ui_state`, so a style installed after it is missing
+//! from that frame, and recording started after it misses it.
+//!
+//! ```
+//! use eggshell_ui::{Builder, LayoutState, Style, tw};
+//! use egui_kittest::Harness;
+//! use egui_kittest::kittest::Queryable as _;
+//!
+//! #[derive(Default)]
+//! struct App { clicks: u32 }
+//!
+//! fn view(b: &mut Builder<'_, '_, App>, _: &App) {
+//!     b.div(tw().p(4.0), |b| {
+//!         b.button("save", "Save").on_click(|app: &mut App| app.clicks += 1);
+//!     });
+//! }
+//!
+//! let mut harness = Harness::builder()
+//!     .with_size(egui::vec2(300.0, 200.0))
+//!     .with_context_setup(|ctx| {
+//!         Style::default().install(ctx);
+//!         eggshell_ui::testing::record(ctx);
+//!     })
+//!     .build_ui_state(
+//!         |ui, (layout, app): &mut (LayoutState, App)| {
+//!             let placed = layout.build(ui.ctx(), |b| view(b, app)).layout(ui.max_rect());
+//!             placed.draw(app, ui);
+//!         },
+//!         (LayoutState::new(), App::default()),
+//!     );
+//!
+//! harness.get_by_role_and_label(egui::Role::Button, "Save").click();
+//! harness.run();
+//! assert_eq!(harness.state().1.clicks, 1);
+//! ```
+//!
+//! Three things about kittest's defaults:
+//!
+//! - **Motion.** kittest sets egui's `animation_time` to zero, and eggshell
+//!   takes a zero as reduced motion: transitions, slides and overlay motion
+//!   jump to their end. A test of motion sets it back in the context setup
+//!   (`ctx.global_style_mut(|style| style.animation_time = 1.0 / 12.0)`).
+//! - **Settling.** `harness.run()` steps until nothing asks for a repaint, at
+//!   most `max_steps` times, 4 by default, and panics past that. With motion
+//!   on, a transition takes several frames to settle, so raise it
+//!   (`.with_max_steps(..)`) or step a known number of frames with
+//!   `run_steps`.
+//! - **The step.** The default step is 0.25 s, so a double click sent as a
+//!   press and release one step apart falls outside egui's 0.3 s window and
+//!   never registers. A test of a double click builds its harness with
+//!   `with_step_dt(1.0 / 60.0)`.
+//!
+//! # Querying by role
+//!
+//! Query a control by its accessibility role and label
+//! (`get_by_role_and_label`): a label alone is ambiguous when a heading
+//! repeats a button's name. Each builder method names its control's role:
+//!
+//! | Control | Role |
+//! |---|---|
+//! | [`button`](crate::Builder::button), [`toggle`](crate::Builder::toggle), a menu's trigger | `Button` |
+//! | [`toggle_item`](crate::Builder::toggle_item), each option of [`radio_group`](crate::Builder::radio_group) and [`segmented`](crate::Builder::segmented) | `RadioButton` |
+//! | [`checkbox`](crate::Builder::checkbox) | `CheckBox` |
+//! | [`switch`](crate::Builder::switch) | `Switch` |
+//! | [`slider`](crate::Builder::slider) | `Slider` |
+//! | [`select`](crate::Builder::select): trigger, list, option | `ComboBox`, `ListBox`, `ListBoxOption` |
+//! | [`dropdown_menu`](crate::Builder::dropdown_menu): menu, items | `Menu`, `MenuItem`, `MenuItemCheckBox`, `MenuItemRadio` |
+//! | [`stepper`](crate::Builder::stepper): field, buttons | `SpinButton`, `Button` ("Increase …", "Decrease …") |
+//! | [`progress`](crate::Builder::progress) | `ProgressIndicator` |
+//! | [`text_field`](crate::Builder::text_field) | `TextInput` |
+//!
+//! A node of your own gets a role and a name with
+//! [`NodeHandle::role`](crate::NodeHandle::role) and
+//! [`named`](crate::NodeHandle::named).
+//!
+//! # Continuity
+//!
+//! [`record`] collects every node each frame draws, and [`Timeline`] checks
+//! the frames for what a user would see as a glitch: a node that jumps
+//! instead of sliding, a gap of a frame, a double paint, a layout still
+//! moving at the end of the run, an overlay off screen. Start recording in
+//! the context setup, as above, so the first frame is in it; drive the
+//! harness; then check:
+//!
+//! ```
+//! # use eggshell_ui::{Builder, LayoutState, Style, tw};
+//! # use egui_kittest::Harness;
+//! # let mut harness = Harness::builder()
+//! #     .with_context_setup(|ctx| {
+//! #         Style::default().install(ctx);
+//! #         eggshell_ui::testing::record(ctx);
+//! #     })
+//! #     .build_ui_state(
+//! #         |ui, layout: &mut LayoutState| {
+//! #             let view = |b: &mut Builder<'_, '_, ()>| { b.div_id("card", tw().w_px(80.0).h_px(40.0), |_| {}); };
+//! #             layout.build(ui.ctx(), view).layout(ui.max_rect()).draw(&mut (), ui);
+//! #         },
+//! #         LayoutState::new(),
+//! #     );
+//! harness.run_steps(10);
+//! eggshell_ui::testing::Timeline::recorded(&harness.ctx).assert_continuous();
+//! ```
+//!
+//! The tolerances ([`Timeline::max_step`], [`Timeline::settle_window`], …)
+//! and the exceptions ([`Timeline::allow_jump`]) are set on the timeline
+//! before it is checked.
+//!
 //! # Virtual lists
 //!
 //! The rows of a [`virtual_list`](crate::Builder::virtual_list) are addressed
 //! by the keys the application gave them, as if the list held them directly:
 //! `placed.at("list").at(Row(2))`. A row outside the viewport and its overscan
-//! is not built, so [`try_at`](Query::try_at) is `None` for it.
+//! is not built, so [`try_at`](Query::try_at) is `None` for it: a missing row
+//! is one scrolled out of reach, not a wrong key, until the list is scrolled
+//! to it.
 //!
 //! Each row sits under its item key, and the nodes the row builder makes sit
 //! under that: `placed.at(Region).at(Part::List).at(item_key).at(Part::Row(item_key))`.
-//!
-//! # Driving a harness
-//!
-//! Under `egui_kittest` the default step is 0.25 s, so a double click sent as a
-//! press and release one step apart falls outside egui's 0.3 s window and never
-//! registers. A test of a double click builds its harness with
-//! `with_step_dt(1.0 / 60.0)`.
 
 use std::collections::HashMap;
 use std::fmt::Write as _;

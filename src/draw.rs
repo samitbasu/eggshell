@@ -33,6 +33,7 @@ use crate::roots::{Form, PlacedRoot, covers_screen, root_of, stacked_top_down};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
+use crate::shell::ShellExt;
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::tooltip;
@@ -463,7 +464,7 @@ fn divider(prev: Rect, next: Rect, axis: Axis, width: f32, grid: PixelGrid) -> O
 
 fn text_overrides(ui: &mut Ui, text: &TextStyle) {
     ui.visuals_mut().override_text_color = Some(text.color);
-    ui.style_mut().override_font_id = Some(text.spec.font_id());
+    ui.style_mut().override_font_id = Some(text.spec.font_id(ui.ctx()));
 }
 
 /// Runs `add_contents` in a child `Ui` that is not allocated in `parent`.
@@ -813,9 +814,7 @@ impl<A> Walk<'_, A> {
                 }
                 State::Hover => hovering == Some(Hovering::Over),
                 State::Focus => response.is_some_and(Response::has_focus),
-                State::FocusWithin => node
-                    .id()
-                    .is_some_and(|id| focus::focus_within(self.ui.ctx(), id)),
+                State::FocusWithin => node.id().is_some_and(|id| self.ui.shell().focus_within(id)),
                 State::Active => {
                     response.is_some_and(|r| r.hovered() && r.is_pointer_button_down_on())
                 }
@@ -932,7 +931,7 @@ impl<A> Walk<'_, A> {
                 && self.nodes[within]
                     .iter()
                     .filter_map(PlacedNode::id)
-                    .any(|id| focus::focus_within(ctx, id)))
+                    .any(|id| self.ui.shell().focus_within(id)))
     }
 
     fn visit_node(&mut self, index: usize, parent: Inherited) {
@@ -972,7 +971,7 @@ impl<A> Walk<'_, A> {
             None => (None, Merged::Own),
         };
         if let Some(response) = &response {
-            dnd::show_grab(self.ui.ctx(), nodes, index, response);
+            dnd::show_grab(&self.ui.shell(), nodes, index, response);
         }
         let needs_hovering = interaction.grouping == Grouping::Group
             || interaction.variants.get(State::Hover).is_some();
@@ -1275,7 +1274,7 @@ impl<A> Walk<'_, A> {
                     }
                     .visit(index + 1, content);
                 });
-                scroll::note_bar_hold(&crate::shell::ShellExt::shell(&*ui), id, shown.id);
+                scroll::note_bar_hold(&ui.shell(), id, shown.id);
             },
         );
     }
@@ -1333,7 +1332,7 @@ impl<A> Walk<'_, A> {
         let content = boxes.content;
         match prim {
             Prim::Text(string) => {
-                let leaf = TextLeaf::plain(&string, text);
+                let leaf = TextLeaf::plain(self.ui.ctx(), &string, text);
                 self.paint_text(&leaf, index, node, boxes, inherited);
             }
             Prim::Rich(rich) => {
@@ -1595,8 +1594,8 @@ impl<A> Placed<A> {
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
-        let interruption = tooltip::interruption(ui.ctx(), dnd::drag_state(ui.ctx()));
-        tooltip::begin(ui.ctx());
+        let interruption = tooltip::interruption(ui.ctx(), dnd::drag_state(ui.ctx(), &self.kept));
+        tooltip::begin(&self.kept);
         focus::release_press_on_blur(ui.ctx());
         let _anchor_focus = focus::AnchorFocusHeld::new(
             ui.ctx(),
@@ -1627,10 +1626,10 @@ impl<A> Placed<A> {
             pixels_per_point: ui.ctx().pixels_per_point(),
         };
         let root = Inherited::root(ui.clip_rect(), nodes[0].rect().min);
-        let live = dnd::drag_state(ui.ctx());
+        let live = dnd::drag_state(ui.ctx(), &kept);
         let (dragging, finish) = dnd::begin(
             ui.ctx(),
-            scope,
+            &kept,
             dnd::Tree {
                 nodes: &nodes,
                 by_id: &by_id,
@@ -1664,7 +1663,7 @@ impl<A> Placed<A> {
             stages: HashMap::new(),
         };
         nav::activate_highlighted(ui.ctx(), &kept);
-        nav::apply_deferred(ui.ctx());
+        nav::apply_deferred(ui.ctx(), &kept);
         let keys = overlay_input::claim_keys(ui.ctx(), &kept, &nodes, &roots, live);
         shared.blur = keys.blur;
         let typing = kept.with(|kept| kept.typing);
@@ -1683,7 +1682,7 @@ impl<A> Placed<A> {
                 );
             }
         }
-        scroll_keys::hold_arrows(ui.ctx(), &nodes);
+        scroll_keys::hold_arrows(ui.ctx(), &kept, &nodes);
         let _drawing = crate::shell::Drawing::enter(ui.ctx(), &kept);
         let mut walk = Walk {
             app,
@@ -1715,12 +1714,12 @@ impl<A> Placed<A> {
             &mut dismiss,
             app,
         );
-        finish.finish(&ctx, &nodes, &mut drag, app);
+        finish.finish(&ctx, &kept, &nodes, &mut drag, app);
         tooltip::end(&ctx, &kept, interruption);
         for then in exited {
             then(app);
         }
-        scroll_keys::note_press(&ctx, &nodes);
+        scroll_keys::note_press(&ctx, &kept, &nodes);
         scroll_keys::apply_keys(&ctx, &kept, &nodes);
         scroll_keys::follow_focus(&ctx, &kept, &shared.subtrees);
         if let Some(frame) = shared.recording.take() {
@@ -1741,7 +1740,7 @@ impl<A> Placed<A> {
             );
         }
         overlay_input::Typing::note(&ctx, &kept, &shared.subtrees);
-        focus::store(&ctx, shared.subtrees);
+        focus::store(&ctx, &kept, shared.subtrees);
         shared.animation.finish();
         drop(timer);
         if let Some(overflow) = overflow {
@@ -1922,7 +1921,7 @@ pub trait NodeUi {
     fn node_id(&self) -> egui::Id;
 
     /// Whether the node, or a widget inside it, has keyboard focus. See
-    /// [`focus_within`](crate::focus_within).
+    /// [`Shell::focus_within`](crate::Shell::focus_within).
     fn has_focus_within(&self) -> bool;
 
     /// Declares the node the visible label `text` of the control with id
@@ -1944,7 +1943,7 @@ impl NodeUi for Ui {
     }
 
     fn has_focus_within(&self) -> bool {
-        focus::focus_within(self.ctx(), self.node_id())
+        self.shell().focus_within(self.node_id())
     }
 
     fn label_for(&self, control: egui::Id, text: &str) -> bool {

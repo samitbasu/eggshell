@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use egui::epaint::FontsView;
 use egui::epaint::text::{ByteIndex, LayoutJob, LayoutSection};
-use egui::{Align, Color32, FontSelection, Stroke, TextFormat, WidgetText};
+use egui::{Align, Color32, FontId, FontSelection, Stroke, TextFormat, WidgetText};
 use taffy::{AvailableSpace, Baselines, LayoutInput, LayoutOutput, Size};
 
 use crate::prim::Prim;
@@ -59,7 +59,7 @@ impl<'a> Measure<'a> {
 
     /// The size of `text` in the leaf's text style, wrapped as the query asks.
     pub fn text_size(&self, text: &str) -> Size<f32> {
-        let leaf = TextLeaf::plain(text, self.text);
+        let leaf = TextLeaf::plain(self.ctx, text, self.text);
         self.ctx
             .fonts_mut(|fonts| measure_text(fonts, &leaf, self.input))
             .size
@@ -75,6 +75,7 @@ pub fn fill(_: &Measure<'_>) -> Size<f32> {
 pub(crate) struct TextLeaf<'a> {
     pub text: Shown<'a>,
     pub style: &'a TextStyle,
+    font: FontId,
 }
 
 /// The text a leaf shows.
@@ -92,19 +93,21 @@ enum Wrap {
 
 impl<'a> TextLeaf<'a> {
     /// A leaf showing `text` in `style`.
-    pub(crate) fn plain(text: &'a str, style: &'a TextStyle) -> Self {
+    pub(crate) fn plain(ctx: &egui::Context, text: &'a str, style: &'a TextStyle) -> Self {
         Self {
             text: Shown::Plain(text),
             style,
+            font: style.spec.font_id(ctx),
         }
     }
 
     /// A leaf showing `text` with egui's formatting, in `style`'s font and
     /// colour where `text` does not set its own.
     pub(crate) fn rich(ctx: &egui::Context, text: &WidgetText, style: &'a TextStyle) -> Self {
+        let font = style.spec.font_id(ctx);
         let job = text.clone().into_layout_job(
             &ink_style(ctx, style.color),
-            FontSelection::FontId(style.spec.font_id()),
+            FontSelection::FontId(font.clone()),
             Align::Min,
         );
         let mut job = Arc::unwrap_or_clone(job);
@@ -117,6 +120,7 @@ impl<'a> TextLeaf<'a> {
         Self {
             text: Shown::Rich(job),
             style,
+            font,
         }
     }
 
@@ -136,7 +140,7 @@ impl<'a> TextLeaf<'a> {
             TextDecoration::None => Stroke::NONE,
             TextDecoration::Underline => Stroke::new(1.0, Color32::PLACEHOLDER),
         };
-        let font_id = self.style.spec.font_id();
+        let font_id = self.font.clone();
         let format = TextFormat {
             font_id: font_id.clone(),
             extra_letter_spacing: self.style.tracking.into(),
@@ -355,7 +359,7 @@ pub(crate) fn measure_content(
 ) -> LayoutOutput {
     match content {
         Content::Prim(Prim::Text(string)) => {
-            let leaf = TextLeaf::plain(string, text);
+            let leaf = TextLeaf::plain(ctx, string, text);
             ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, input))
         }
         Content::Prim(Prim::Rich(rich)) => {
@@ -398,11 +402,13 @@ pub(crate) mod testing {
     }
 
     pub fn body_style() -> TextStyle {
+        use crate::Weight;
         TextStyle::new(
             TextSpec {
                 size: 14.0,
                 line_height: 18.0,
                 family: FontFamily::Proportional,
+                weight: Weight::Normal,
             },
             Color32::BLACK,
         )
@@ -423,7 +429,7 @@ pub(crate) mod testing {
         available: Size<AvailableSpace>,
     ) -> LayoutOutput {
         let style = body_style();
-        let leaf = TextLeaf::plain(text, &style);
+        let leaf = TextLeaf::plain(ctx, text, &style);
         ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, &input(known, available)))
     }
 }

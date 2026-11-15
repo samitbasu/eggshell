@@ -374,6 +374,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             .px(menu.item_padding.x / 4.0)
             .h_px(menu.row_height(text_role))
             .text(menu.heading)
+            .font_weight(menu.heading_weight)
             .select_none()
             .whitespace_nowrap();
         let text = text.into();
@@ -511,7 +512,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                 if pointer_moved && response.hovered() {
                     shared.change_if(|menus| menus.hover(root, depth, id, owns));
                 }
-                let activated = response.clicked() || nav::take_activation(ui.ctx(), id);
+                let activated = response.clicked() || nav::take_activation(ui, id);
                 match reaction {
                     Reaction::Run(act) => {
                         if activated {

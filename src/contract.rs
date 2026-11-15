@@ -22,7 +22,7 @@ use std::time::Duration;
 use egui::{Color32, Context, FontFamily, Id, Shadow, Theme, Vec2, vec2};
 
 pub use crate::presence::{Entry, KindMotion, MotionStyle};
-use crate::{Opacity, Progress, TextSpec, Tracking};
+use crate::{Faces, Opacity, Progress, TextSpec, Tracking, Weight};
 
 /// A button variant, named by the style that defines it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -376,7 +376,7 @@ pub struct Metrics {
 ///   alpha. It needs no knowledge of the surface, so it is the form for a
 ///   translucent one, which no opaque colour can stand in for.
 ///
-/// **Faded is not CSS group opacity** (issue #40). CSS draws the element into
+/// **Faded is not CSS group opacity.** CSS draws the element into
 /// a group, composites its shapes there, and fades the group over the page
 /// once. This library fades each shape separately, so where one shape lies on
 /// another, such as text on its own fill, the lower one shows through the
@@ -623,6 +623,8 @@ pub struct MenuStyle {
     pub separator_margin: f32,
     /// The colour of a group heading.
     pub heading: Color32,
+    /// The weight of a group heading, over the items' text role.
+    pub heading_weight: Weight,
     /// The text role of items and headings, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
     /// The colour of a shortcut.
@@ -850,6 +852,8 @@ impl ScrollStyle {
 pub struct Style {
     /// The text role of controls.
     pub text: TextSpec,
+    /// The registered family that draws each weight of a family.
+    pub faces: Faces,
     /// The default focus indicator.
     pub focus: Focus,
     /// How disabled controls are drawn.
@@ -1011,6 +1015,7 @@ impl Style {
             size: font.size,
             line_height: (font.size * 1.25).round(),
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         };
         let metrics = Metrics {
             height: s.interact_size.y,
@@ -1058,6 +1063,7 @@ impl Style {
         let track = vec2(2.0 * s.icon_width, s.icon_width);
         Self {
             text,
+            faces: Faces::default(),
             focus: Focus {
                 width: 2.0,
                 color: v.selection.bg_fill,
@@ -1259,6 +1265,7 @@ impl Style {
                 separator_margin: s.item_spacing.y,
                 offset: Distance::new(4.0),
                 heading: v.weak_text_color(),
+                heading_weight: Weight::Normal,
                 text: None,
                 shortcut: v.weak_text_color(),
                 shortcut_text: {
@@ -1271,6 +1278,7 @@ impl Style {
                         size: small.size,
                         line_height: (small.size * 1.25).round(),
                         family: FontFamily::Proportional,
+                        weight: Weight::Normal,
                     }
                 },
                 shortcut_tracking: Tracking::ZERO,

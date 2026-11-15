@@ -1,6 +1,6 @@
 # UI Layout Framework: taffy + egui with explicit identity
 
-Status: design draft, revision 4 (2026-11-06). Written for an implementing agent.
+Status: the design brief the library was built from (revision 4, 2026-11-06). It is history: the rustdoc is the reference for what exists, and `docs/overlays.md` and `docs/dnd.md` record where the build departs from it.
 Targets: **taffy 0.15.x**, **egui ≥ 0.33** (needs `UiBuilder::id`).
 API names marked ⚠ have not been checked against the pinned crate versions. Check them before relying on them.
 Code in this document is design sketch. Shapes marked *(compiled)* were compiled and run on rustc 1.97 against stand-in types (not real taffy/egui).
@@ -381,7 +381,7 @@ State whose meaning spans several nodes (an open popup closed from its rows, the
 | Text (inherited) | `role(spec)`, `text(c)`, `italic`, `truncate`, `text_center`, `tracking(x)`, `uppercase` | `TextStyle` | measure (size, family) and draw (color) |
 | Stacking and behaviour | `z(n)`, `overflow_hidden`, `inert` | node flags | library draw |
 
-All colors are `impl Into<Color32>`. `role` takes a `TextSpec { size, line_height, family: egui::FontFamily }`. Font weight is expressed by the family, because egui does not synthesize weights. The application resolves weights to registered families.
+All colors are `impl Into<Color32>`. `role` takes a `TextSpec { size, line_height, family: egui::FontFamily, weight: Weight }`. egui does not synthesise weights, so a weight is drawn by a registered face: the installed `Style`'s `faces` (`Faces`) name the family that draws each weight of a family, and `TextSpec::font_id(ctx)` resolves it, the one place a `TextSpec` becomes a `FontId`. The classes `font_normal()`, `font_medium()`, `font_semibold()` and `font_bold()` (and `font_weight(Weight)`) set the weight alone. A weight with no registered face is drawn by the nearest lighter one that has a face, never by a heavier or faked one; debug builds print one console warning per context, family and weight when the style declares no face for it. A face that is declared but not yet registered (egui adds fonts from the next pass) falls back silently. Unregistered named families are never handed to egui, which panics on them.
 
 ```rust
 #[derive(Clone)]

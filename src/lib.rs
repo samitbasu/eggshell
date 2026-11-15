@@ -1,16 +1,95 @@
 #![deny(missing_docs)]
 //! Eggshell: taffy lays out, egui draws and interacts.
 //!
-//! This crate is under construction. Each frame is planned as three phases:
+//! The application owns its state; every frame rebuilds the interface from
+//! it in three phases:
 //!
-//! 1. **Build**: walk application state with a nested builder and emit a
-//!    taffy tree whose identified nodes carry key paths, measures and draw
-//!    closures.
-//! 2. **Layout**: taffy solves every root to absolute rectangles.
-//! 3. **Draw**: a pre-order walk paints boxes and content, then opens a child
-//!    [`egui::Ui`] per identified node and runs its draw closure.
+//! 1. **Build**: [`LayoutState::build`] walks the state with a nested
+//!    [`Builder`] (`b.div(tw().flex().gap(2.0), |b| …)`, classes in Tailwind's
+//!    vocabulary) and emits a taffy tree. An identified node carries a key
+//!    path, which is its egui id, and the measure and draw closures declared
+//!    where it is created.
+//! 2. **Layout**: [`Built::layout`] has taffy solve every root (the page,
+//!    scroll contents, overlays) to absolute rectangles.
+//! 3. **Draw**: [`Placed::draw`] paints boxes and content, then opens a child
+//!    [`egui::Ui`] per identified node and runs its draw closure with
+//!    `&mut` the application.
 //!
-//! The design brief lives in `docs/design.md`.
+//! ```
+//! use eggshell_ui::{Builder, LayoutState, tw};
+//!
+//! struct App { count: u32 }
+//!
+//! fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+//!     b.div(tw().flex().items_center().gap(2.0).p(4.0), |b| {
+//!         b.button("add", "Add").on_click(|app: &mut App| app.count += 1);
+//!         b.text(tw(), format!("{} clicks", app.count));
+//!     });
+//! }
+//!
+//! // Kept across frames: what eggshell remembers between them.
+//! let mut layout = LayoutState::new();
+//! let mut app = App { count: 0 };
+//! let ctx = egui::Context::default();
+//! ctx.run_ui(Default::default(), |ui| {
+//!     layout.build(ui.ctx(), |b| view(b, &app)).layout(ui.max_rect()).draw(&mut app, ui);
+//! })
+//! .drop_without_applying_deltas();
+//! ```
+//!
+//! In an eframe app the frame's body is that one line, inside a
+//! `CentralPanel`; the examples (`cargo xtask example`) all run this way.
+//!
+//! # What's in v0.1
+//!
+//! - **Layout** in Tailwind's vocabulary ([`Tw`], [`tw`]): flexbox and grid
+//!   ([`Track`]), sizing, spacing, text ([`TextStyle`], line clamping,
+//!   white space), and [`Builder::max_content_width`] for a size that
+//!   depends on content. Keys ([`Key`]) give nodes stable identities.
+//! - **Paint**: backgrounds, borders, corner radii, rings, shadows, opacity;
+//!   `hover`, `active`, `focus`, `disabled` and `group-hover` variants
+//!   ([`Tw::hover`], [`Tw::group_hover`]); colour transitions
+//!   ([`Tw::transition`]) and layout slides ([`Tw::animate_layout`]).
+//! - **Controls** ([`owned`]): button, toggle and toggle group, checkbox,
+//!   switch, radio group, segmented control, slider, select, stepper,
+//!   progress bar, text field, dropdown and context menus, and tooltips.
+//!   [`Builder::widget`] and [`Builder::custom`] host egui widgets
+//!   and custom egui content.
+//! - **Scroll containers** ([`scroll`], [`Builder::scroll`]): keyboard
+//!   scrolling, a reserved gutter, edge fades, scroll requests.
+//! - **Virtual lists** ([`vlist`], [`Builder::virtual_list`]): only the rows
+//!   in and near the viewport are built, with measured or fixed row heights,
+//!   scroll anchoring and `start_at_end`.
+//! - **Regions** ([`Builder::region`]): content built after the layout
+//!   around it, at the size it was given.
+//! - **Collapsibles** ([`Builder::collapsible`]): content that opens and
+//!   closes, its height (an accordion) or width (a sidebar) animated.
+//! - **Overlays** ([`overlay`], [`Builder::overlay`]): popovers, menus and
+//!   submenus, selects, tooltips, modal dialogs and sheets, placed against an
+//!   anchor and kept on screen, with dismissal, focus entry and return, and
+//!   arrow-key navigation ([`overlay::Nav`]: menu, listbox, grid).
+//! - **Drag and drop** ([`NodeHandle::drag_source`],
+//!   [`NodeHandle::drop_target`]), with drag previews, edge scrolling and
+//!   files dragged in from outside the app.
+//! - **Commands** ([`Commands`]): actions with titles, shortcuts and
+//!   enablement, run from keys or menus.
+//! - **Styles** ([`Style`], [`contract`]): what every control is drawn from.
+//!   The `eggshell-ui-shadcn` crate fills it with shadcn/ui's styles and
+//!   theme colours, light and dark.
+//! - **Per-layout state** ([`Shell`]): scroll offsets, requests and the
+//!   like of one [`LayoutState`], reached from a context or a draw closure.
+//! - **Testing** ([`testing`]): headless layout queries, and continuity
+//!   checks of recorded frames.
+//! - **The debug overlay** ([`Debug`](enum@Debug)): node outlines and frame timing.
+//! - **The web**: the library and the examples build for
+//!   `wasm32-unknown-unknown`.
+//!
+//! Text is drawn in egui's fonts, with a bundled fallback face for the
+//! modifier-key symbols (⌘, ⇧, ⌥) that egui's faces lack.
+//!
+//! The design brief the library was built from is `docs/design.md`; the
+//! overlay and drag-and-drop designs, with what was built, are
+//! `docs/overlays.md` and `docs/dnd.md`.
 //!
 //! # Styling: named styles and merge
 //!
@@ -208,6 +287,10 @@
 //!   ([`Colors::faded_over`](contract::Colors::faded_over)) and are never
 //!   translucent.
 
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
+
 mod actions;
 mod builder;
 mod clipboard;
@@ -256,10 +339,9 @@ pub use contract::Style;
 pub use debug::Debug;
 pub use dnd::{
     Cause, DragEnd, DragImage, Dragging, Drop, EdgeBand, EdgeScroll, File, Files, Over,
-    ScrollSpeed, drag_grab, drag_pointer, insertion_index,
+    ScrollSpeed, insertion_index,
 };
 pub use draw::NodeUi;
-pub use focus::focus_within;
 pub use key::Key;
 pub use measure::{Measure, fill};
 pub use overlay::{Boundary, Distance, InsetBoundary};
@@ -270,8 +352,8 @@ pub use roots::OverlayRef;
 pub use shell::{Shell, ShellExt};
 pub use sizing::Width;
 pub use text::{
-    FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle, Tracking,
-    WhiteSpace,
+    Face, Faces, FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle,
+    Tracking, Weight, WhiteSpace,
 };
 #[doc(hidden)]
 pub use transition::tracked_layout_nodes;

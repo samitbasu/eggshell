@@ -20,6 +20,13 @@ use crate::kept::Handle;
 /// [`Placed::shell`](crate::Placed::shell) or, in a draw closure,
 /// [`ShellExt::shell`] on the `Ui`. Cloning is cheap and it outlives the
 /// borrow of the layout it came from.
+///
+/// It reaches a scroll container's viewport and asks it to scroll
+/// ([`viewport`](Self::viewport), [`scroll_by`](Self::scroll_by),
+/// [`scroll_to_rect`](Self::scroll_to_rect),
+/// [`scroll_into_view`](Self::scroll_into_view)), brings a virtual list's row
+/// into view ([`scroll_to_row`](Self::scroll_to_row)), and reads a live drag
+/// ([`drag_pointer`](Self::drag_pointer), [`drag_grab`](Self::drag_grab)).
 #[derive(Clone)]
 pub struct Shell {
     pub(crate) ctx: Context,
@@ -27,6 +34,12 @@ pub struct Shell {
 }
 
 impl Shell {
+    /// The egui context the layout is laid out in, for a handler that holds a
+    /// `Shell` and needs the context too.
+    pub fn ctx(&self) -> &Context {
+        &self.ctx
+    }
+
     pub(crate) fn new(ctx: &Context, kept: &Handle) -> Self {
         Self {
             ctx: ctx.clone(),

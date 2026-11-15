@@ -5,7 +5,7 @@
 use eggshell_ui::overlay::{Anchor, Anchored, Band, Boundary, Flip, MatchWidth, Placement, Side};
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::testing::Headless;
-use eggshell_ui::{Builder, LayoutState, Placed, Scope, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, LayoutState, Placed, Scope, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui::{Distance, Sides};
 use egui::{
     Area, Color32, Event, FontFamily, Id, LayerId, Modifiers, Order, PointerButton, Pos2, Rect,
@@ -27,6 +27,7 @@ fn body() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

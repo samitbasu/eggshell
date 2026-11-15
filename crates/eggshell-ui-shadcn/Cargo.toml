@@ -7,6 +7,11 @@ license = "MIT"
 description = "The shadcn/ui design system as a eggshell style"
 repository = "https://github.com/samitbasu/eggshell"
 
+[features]
+default = ["fonts"]
+# Bundles Geist (SIL OFL 1.1, fonts/OFL.txt), 165 KiB, as the preset's font.
+fonts = []
+
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }
 egui = "0.37"

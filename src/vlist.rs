@@ -700,7 +700,6 @@ impl<'f, A> ListRun<'f, A> {
     /// focus inside, an open overlay declared inside, or a node inside that an
     /// overlay is anchored to.
     fn pinned(&self, b: &Builder<'_, 'f, A>, range: &Range<usize>) -> Vec<usize> {
-        let ctx = b.ctx();
         let built = self
             .plan
             .with_state(|state| std::mem::take(&mut state.built));
@@ -713,7 +712,7 @@ impl<'f, A> ListRun<'f, A> {
             .iter()
             .filter(|row| {
                 row.moving == Moving::Yes
-                    || crate::focus::focus_within(ctx, row.id)
+                    || b.shell().focus_within(row.id)
                     || row
                         .overlays
                         .iter()

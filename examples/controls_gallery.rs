@@ -66,7 +66,10 @@ impl State {
 const STAGE_INSET: f32 = 5.0;
 
 /// Wide enough for the Section control with a border on every cell.
-const PANEL_WIDTH: f32 = 248.0;
+const PANEL_WIDTH: f32 = 256.0;
+
+/// The rows' name column, `w-34`: wide enough for "destructive, disabled".
+pub const NAME_COLUMN: f32 = 34.0;
 
 impl From<CellWidth> for f32 {
     fn from(width: CellWidth) -> f32 {
@@ -596,7 +599,7 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
 /// The controls that vary what the cells are given.
 ///
 /// ```html
-/// <aside class="flex flex-col gap-3 p-3 w-[248px]">
+/// <aside class="flex flex-col gap-3 p-3 w-64">
 ///   the section choice, then for the cells section a range input,
 ///   four rows of choices and the legend
 /// </aside>
@@ -720,7 +723,7 @@ fn named(name: &str, enablement: owned::Enablement) -> String {
 fn row<'f>(b: &mut B<'_, 'f>, name: &str, control: impl FnOnce(&mut B<'_, 'f>)) {
     b.div(tw().flex().items_center().gap(4.0), |b| {
         b.div(
-            tw().w_px(130.0)
+            tw().w(NAME_COLUMN)
                 .shrink_0()
                 .text(common::tokens(b.ctx()).muted_foreground),
             |b| {
@@ -735,7 +738,7 @@ fn row<'f>(b: &mut B<'_, 'f>, name: &str, control: impl FnOnce(&mut B<'_, 'f>)) 
 ///
 /// ```html
 /// <div class="flex flex-col gap-3 p-3">
-///   <div class="flex gap-4"><span class="w-[130px]">name</span> control</div>
+///   <div class="flex gap-4"><span class="w-34">name</span> control</div>
 ///   …
 /// </div>
 /// ```

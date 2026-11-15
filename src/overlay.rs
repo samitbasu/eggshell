@@ -1,11 +1,77 @@
-//! Overlays: where a floating layer goes, and which layer it is on.
+//! Overlays: floating layers placed against an anchor, and modals.
 //!
-//! This module holds the declaration types ([`Anchor`], [`Placement`],
-//! [`Band`], [`MatchWidth`]) and the pure placement function [`place`]. It
+//! [`Builder::overlay`](crate::Builder::overlay) declares one. Whether it is
+//! open is the application's state: declare it in every frame it is open,
+//! and close it in [`on_dismiss`](crate::overlay_chain::OverlayChain::on_dismiss),
+//! which the library calls on a press outside, Esc, focus leaving or the
+//! anchor going away ([`DismissOn`]). Overlays declared in an overlay's
+//! content are nested in it.
+//!
+//! ```html
+//! <button>Popover</button>
+//! <div role="dialog" class="w-40 rounded-md border p-3">…</div>  <!-- 4 px below the button -->
+//! ```
+//!
+//! ```
+//! use eggshell_ui::overlay::{Anchor, Distance, Placement};
+//! use eggshell_ui::{Builder, tw};
+//! use egui::Role;
+//!
+//! struct App { open: bool }
+//!
+//! fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+//!     b.button("trigger", "Popover").on_click(|app: &mut App| app.open = !app.open);
+//!     if app.open {
+//!         let anchor = b.id_of("trigger");
+//!         b.overlay("popover")
+//!             .anchor(Anchor::Node(anchor))
+//!             .placement(Placement::below().gap(Distance::new(4.0)))
+//!             .role(Role::Dialog)
+//!             .named("Details")
+//!             .on_dismiss(|app: &mut App| app.open = false)
+//!             .children(|s| {
+//!                 s.div(tw().w_px(160.0).p(3.0).rounded_md().border(1.0), |s| {
+//!                     s.text(tw(), "A popover.");
+//!                 });
+//!             });
+//!     }
+//! }
+//! ```
+//!
+//! [`modal`](crate::overlay_chain::OverlayChain::modal) instead of `anchor`
+//! makes a dialog or a sheet ([`Modal`]), which traps focus and covers the
+//! page with a scrim. The stock overlays build on the same declaration:
+//! [`select`](crate::Builder::select),
+//! [`dropdown_menu`](crate::Builder::dropdown_menu),
+//! [`context_menu`](crate::NodeHandle::context_menu) and
+//! [`tooltip`](crate::NodeHandle::tooltip).
+//!
+//! # Focus and the keyboard
+//!
+//! [`Focus`] says where focus goes as the overlay opens: into it (its first
+//! focusable, or the node marked
+//! [`focus_on_open`](crate::NodeHandle::focus_on_open)), nowhere, or it stays
+//! on the trigger. Focus comes back to the widget that had it when the
+//! overlay closes. [`Nav`] gives the overlay's items a keyboard pattern:
+//!
+//! | [`Nav`] | Items | Keys |
+//! |---|---|---|
+//! | `Menu`, `Submenu` | `MenuItem`, `MenuItemCheckBox`, `MenuItemRadio` | Up and Down in paint order, Home, End; Left closes a submenu |
+//! | `Listbox` | `ListBoxOption` | The same, moving a highlight while focus stays on the trigger |
+//! | `Grid` | `GridCell` | Each arrow to the nearest item in its direction, as laid out; stops at the edges |
+//!
+//! An item is a node given an item role ([`NodeHandle::role`](crate::NodeHandle::role));
+//! Enter and Space activate it. `examples/swatch_picker.rs` is a grid.
+//!
+//! # Placement
+//!
+//! This module also holds the declaration types ([`Anchor`], [`Placement`],
+//! [`Band`], [`MatchWidth`]) and the pure placement function [`place`], which
 //! draws nothing and reads no egui state: the caller resolves the anchor to a
-//! rect and measures the overlay, and `place` says where the overlay goes.
+//! rect and measures the overlay, and `place` says where the overlay goes,
+//! flipping to the side with room and keeping it on screen.
 //!
-//! The design is in `docs/overlays.md`.
+//! The design, with what was built, is in `docs/overlays.md`.
 
 use crate::tw::Sides;
 use egui::{Id, Order, Pos2, Rect, Vec2, pos2, vec2};

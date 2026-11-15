@@ -3,7 +3,7 @@
 //! handler; egui-native content gets presses only where no box covers it.
 
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Sense, vec2};
 use egui_kittest::Harness;
 
@@ -15,6 +15,7 @@ fn base() -> TextStyle {
             size: 14.0,
             line_height: 18.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::WHITE,
     )
@@ -309,7 +310,7 @@ fn a_custom_node_sees_the_payload_of_an_eggshell_drag_over_it() {
     h.hover_at(to);
     h.run_steps(3);
     assert!(
-        eggshell_ui::drag_pointer(&h.ctx).is_some(),
+        crate::support::shell(&h).drag_pointer().is_some(),
         "precondition: the source is lifted"
     );
     assert!(h.state().app.sees_payload);

@@ -1,7 +1,7 @@
 //! `eggshell_ui::testing`: layout queries without a window, a GPU or a draw.
 
 use eggshell_ui::testing::Headless;
-use eggshell_ui::{Builder, Placed, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, Placed, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, FontFamily, TextStyle as EguiTextStyle, Theme, vec2};
 
@@ -32,6 +32,7 @@ fn body() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

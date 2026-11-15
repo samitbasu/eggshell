@@ -5,7 +5,7 @@
 
 use core::ops::Index;
 
-use eggshell_ui::{TextSpec, TextStyle};
+use eggshell_ui::{TextSpec, TextStyle, Weight};
 use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, Context, FontFamily};
 
@@ -115,6 +115,7 @@ impl Role {
             size,
             line_height,
             family,
+            weight: Weight::Normal,
         }
     }
 }

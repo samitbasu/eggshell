@@ -12,7 +12,6 @@
 
 use egui::{Context, EventFilter, Id, Key, Vec2};
 
-use crate::focus;
 use crate::kept::Handle;
 use crate::pipeline::PlacedNode;
 use crate::shell::Shell;
@@ -47,7 +46,7 @@ impl Target<'_> {
 
 /// The container the keys act on: the innermost holding the focus, else, if
 /// nothing has it, the one last pressed in.
-fn target<'a>(ctx: &Context, nodes: &'a [PlacedNode]) -> Option<Target<'a>> {
+fn target<'a>(ctx: &Context, kept: &Handle, nodes: &'a [PlacedNode]) -> Option<Target<'a>> {
     let scrollers = || {
         nodes
             .iter()
@@ -60,30 +59,24 @@ fn target<'a>(ctx: &Context, nodes: &'a [PlacedNode]) -> Option<Target<'a>> {
             })
     };
     if ctx.memory(|memory| memory.focused()).is_some() {
-        return scrollers().rfind(|target| focus::focus_within(ctx, target.id));
+        let shell = Shell::new(ctx, kept);
+        return scrollers().rfind(|target| shell.focus_within(target.id));
     }
-    let pressed = pressed_in(ctx)?;
+    let pressed = kept.with(|kept| kept.scroll_keys.pressed)?;
     scrollers().find(|target| target.id == pressed)
 }
 
-#[derive(Clone, Copy, Default)]
-struct Pressed {
-    pass: u64,
-    scroller: Option<Id>,
-}
-
-fn pressed_key() -> Id {
-    crate::key::root_id().with("scroll-pressed-in")
-}
-
-fn pressed_in(ctx: &Context) -> Option<Id> {
-    ctx.data(|data| data.get_temp::<Pressed>(pressed_key()))?
-        .scroller
+/// What a layout remembers of the keys that scroll.
+#[derive(Default)]
+pub(crate) struct Keys {
+    /// The container the last press landed in, if it landed in one.
+    pressed: Option<Id>,
+    followed: Followed,
 }
 
 /// Remembers the container a press landed in, the innermost whose viewport
 /// holds it, or that it landed in none.
-pub(crate) fn note_press(ctx: &Context, nodes: &[PlacedNode]) {
+pub(crate) fn note_press(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
     let Some(at) = ctx.input(|input| {
         input
             .pointer
@@ -93,38 +86,25 @@ pub(crate) fn note_press(ctx: &Context, nodes: &[PlacedNode]) {
     }) else {
         return;
     };
-    let pass = ctx.cumulative_pass_nr();
     let hit = nodes
         .iter()
         .filter(|node| node.scroll_viewport().is_some_and(|view| view.contains(at)))
         .filter_map(PlacedNode::id)
         .next_back();
-    ctx.data_mut(|data| {
-        let kept = data.get_temp::<Pressed>(pressed_key()).unwrap_or_default();
-        // Several trees may be drawn in a pass: one that holds the press wins.
-        if hit.is_some() || kept.pass != pass || kept.scroller.is_none() {
-            data.insert_temp(
-                pressed_key(),
-                Pressed {
-                    pass,
-                    scroller: hit,
-                },
-            );
-        }
-    });
+    kept.with(|kept| kept.scroll_keys.pressed = hit);
 }
 
 /// Keeps the focused widget's arrow keys from moving the focus when they
 /// scroll the container around it. Run before the widgets are drawn: one that
 /// holds the arrows itself sets its own filter after.
-pub(crate) fn hold_arrows(ctx: &Context, nodes: &[PlacedNode]) {
+pub(crate) fn hold_arrows(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
     let Some(focused) = ctx.memory(|memory| memory.focused()) else {
         return;
     };
     if ctx.text_edit_focused() {
         return;
     }
-    let Some(target) = target(ctx, nodes) else {
+    let Some(target) = target(ctx, kept, nodes) else {
         return;
     };
     let enabled = target.node.scroll.as_ref().map(|plan| plan.axis.enabled());
@@ -264,7 +244,7 @@ pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
     if ctx.text_edit_focused() {
         return;
     }
-    let Some(target) = target(ctx, nodes) else {
+    let Some(target) = target(ctx, kept, nodes) else {
         return;
     };
     let Some(plan) = target.node.scroll.as_ref() else {
@@ -318,22 +298,13 @@ pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
 #[derive(Clone, Copy, Default)]
 struct Followed(Option<Id>);
 
-fn followed_key() -> Id {
-    crate::key::root_id().with("scroll-followed-focus")
-}
-
 /// Scrolls the node that took the keyboard focus into view, unless a press
 /// did: a widget under the pointer is where it is wanted. `subtrees` has the
 /// focusable widgets of each identified node of the frame, the innermost
 /// first.
 pub(crate) fn follow_focus(ctx: &Context, kept: &Handle, subtrees: &[(Id, Box<[Id]>)]) {
     let now = ctx.memory(|memory| memory.focused());
-    let before = ctx.data_mut(|data| {
-        std::mem::replace(
-            data.get_temp_mut_or_default::<Followed>(followed_key()),
-            Followed(now),
-        )
-    });
+    let before = kept.with(|kept| std::mem::replace(&mut kept.scroll_keys.followed, Followed(now)));
     let pressing = ctx.input(|input| input.pointer.any_pressed());
     let Some(focused) = now.filter(|&now| before.0 != Some(now) && !pressing) else {
         return;

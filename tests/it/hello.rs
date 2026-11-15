@@ -112,7 +112,18 @@ mod demos {
     fn grow_factors_share_the_free_space_in_proportion() {
         let harness = demos(State::default());
         let widths: Vec<f32> = (0..4)
-            .map(|factor| rect(&harness, Part::Growing(factor)).width())
+            .map(|factor| {
+                let font = common::base_text(egui::Theme::Light)
+                    .spec
+                    .font_id(&harness.ctx);
+                let digit = harness.ctx.fonts_mut(|fonts| {
+                    fonts
+                        .layout_no_wrap(factor.to_string(), font, egui::Color32::WHITE)
+                        .size()
+                        .x
+                });
+                rect(&harness, Part::Growing(factor)).width() - digit
+            })
             .collect();
         let unit = widths[1] - widths[0];
         assert!(unit > 5.0, "precondition: free space to share: {widths:?}");

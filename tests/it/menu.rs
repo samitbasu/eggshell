@@ -3,7 +3,7 @@
 
 use eggshell_ui::overlay::{Anchor, Nav, Placement};
 use eggshell_ui::owned::{Enablement, Mark};
-use eggshell_ui::{Builder, NodeUi as _, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, NodeUi as _, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::{HasPopup, Toggled};
 use egui::{Color32, Event, FontFamily, Key, Modifiers, PointerButton, Role, vec2};
 use egui_kittest::Harness;
@@ -35,6 +35,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )
@@ -482,6 +483,28 @@ fn a_menu_opens_on_the_item_marked_focus_on_open() {
     assert_eq!(
         focused_path(&harness),
         Some(r#"/"Page"/("file", Menu)/Box/("size", 2)"#.to_owned())
+    );
+}
+
+/// Down in the frame right after the menu gave its first item focus moves
+/// once, as in a grid (#226).
+#[test]
+fn down_in_the_frame_after_the_first_item_gets_focus_moves_once() {
+    let mut harness = harness();
+    tab_to(&mut harness, FILE);
+    harness.key_press(Key::Enter);
+    let first = item(MENU, r#""copy""#);
+    let mut frames = 0;
+    while focused_path(&harness).as_deref() != Some(first.as_str()) {
+        harness.step();
+        frames += 1;
+        assert!(frames < 10, "precondition: Enter focuses the first item");
+    }
+    press(&mut harness, Key::ArrowDown);
+    assert_eq!(
+        focused_path(&harness),
+        Some(item(MENU, r#""grid""#)),
+        "past the disabled Paste to Show grid, and no further"
     );
 }
 

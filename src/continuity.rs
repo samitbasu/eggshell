@@ -4,16 +4,8 @@
 //! Recording is switched on per context with [`record`]. Once on, the draw
 //! pass appends one [`NodeFrame`] per identified node it paints to the
 //! context's history; [`Timeline::recorded`] reads the history back and its
-//! `assert_*` methods check the invariants.
-//!
-//! ```no_run
-//! use eggshell_ui::testing::{Timeline, record};
-//!
-//! let ctx = egui::Context::default();
-//! record(&ctx);
-//! // ... run frames that draw eggshell views ...
-//! Timeline::recorded(&ctx).assert_continuous();
-//! ```
+//! `assert_*` methods check the invariants. The testing guide
+//! ([`crate::testing`], *Continuity*) shows it under a kittest harness.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Write as _};

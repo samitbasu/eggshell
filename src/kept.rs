@@ -29,6 +29,10 @@ pub(crate) struct Kept {
     pub(crate) tooltips: Tooltips,
     pub(crate) lists: crate::vlist::Lists,
     pub(crate) scrolls: crate::scroll::Scrolls,
+    pub(crate) drags: crate::dnd::Drags,
+    pub(crate) focus: crate::focus::Focus,
+    pub(crate) navigation: crate::nav::Navigation,
+    pub(crate) scroll_keys: crate::scroll_keys::Keys,
     /// The area the last layout placed things in.
     pub(crate) area: Option<Rect>,
     /// Where clipboard reads and writes go; the system's when unset.

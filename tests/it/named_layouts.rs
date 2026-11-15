@@ -4,7 +4,7 @@
 
 use std::panic::{self, AssertUnwindSafe};
 
-use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Context, FontFamily, Id, Rect, pos2, vec2};
 
 use crate::support;
@@ -15,6 +15,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )

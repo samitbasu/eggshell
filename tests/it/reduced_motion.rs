@@ -5,7 +5,7 @@
 use core::time::Duration;
 
 use eggshell_ui::overlay::{Entrance, Modal, Shown, Side};
-use eggshell_ui::{Builder, TextSpec, TextStyle, tw};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
 
@@ -30,6 +30,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )
