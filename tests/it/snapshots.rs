@@ -612,19 +612,20 @@ fn debug_overlay_todo() {
     harness.run_steps(2);
     harness.hover_at(egui::pos2(200.0, 88.0));
     harness.run_steps(12);
+    fn readout(shape: &egui::Shape) -> Option<egui::Rect> {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(readout),
+            egui::Shape::Text(text) if text.galley.text().contains("fps") => {
+                Some(text.galley.rect.translate(text.pos.to_vec2()))
+            }
+            _ => None,
+        }
+    }
     let readout = harness
         .output()
         .shapes
         .iter()
-        .find_map(|clipped| match &clipped.shape {
-            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| match shape {
-                egui::Shape::Text(text) if text.galley.text().contains("fps") => {
-                    Some(text.galley.rect.translate(text.pos.to_vec2()))
-                }
-                _ => None,
-            }),
-            _ => None,
-        })
+        .find_map(|clipped| readout(&clipped.shape))
         .expect("the overlay draws the readout");
     harness.mask(readout.expand2(egui::vec2(4.0, 2.0)));
     harness.snapshot("debug_overlay_todo");

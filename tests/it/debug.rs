@@ -482,3 +482,156 @@ mod scrolling {
         assert!(viewport_outlines(&h).is_empty());
     }
 }
+
+/// Where the readout and the hover label land: kept inside the window, the
+/// label above the readout, the readout away from the pointer (#232).
+mod placement {
+    use super::*;
+
+    /// One node the size of the window, so the pointer is always over one.
+    fn page(size: Vec2) -> Harness<'static, Rig<()>> {
+        fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
+            let size = b.ctx().content_rect().size();
+            b.div_id("page", tw().w_px(size.x).h_px(size.y), |_| {});
+        }
+        let mut harness = support::harness(size, base(), (), view);
+        harness.state_mut().companion = support::Companion::Alone;
+        run(&mut harness, Debug::Outlines);
+        harness
+    }
+
+    /// Every shape of the last frame, flattened, in paint order.
+    fn flat(harness: &Harness<'_, Rig<()>>) -> Vec<Shape> {
+        fn into(shape: &Shape, all: &mut Vec<Shape>) {
+            match shape {
+                Shape::Vec(shapes) => shapes.iter().for_each(|shape| into(shape, all)),
+                other => all.push(other.clone()),
+            }
+        }
+        let mut all = Vec::new();
+        for clipped in &harness.output().shapes {
+            into(&clipped.shape, &mut all);
+        }
+        all
+    }
+
+    /// The paint position and box of the text containing `needle`, with the
+    /// background drawn just before it.
+    fn boxed(harness: &Harness<'_, Rig<()>>, needle: &str) -> Option<(usize, Rect)> {
+        let all = flat(harness);
+        let at = all.iter().position(
+            |shape| matches!(shape, Shape::Text(text) if text.galley.text().contains(needle)),
+        )?;
+        match &all[at.checked_sub(1)?] {
+            Shape::Rect(background) => Some((at, background.rect)),
+            other => panic!("the text {needle:?} has no background: {other:?}"),
+        }
+    }
+
+    fn readout(harness: &Harness<'_, Rig<()>>) -> (usize, Rect) {
+        boxed(harness, "fps").expect("the readout is drawn")
+    }
+
+    fn screen(harness: &Harness<'_, Rig<()>>) -> Rect {
+        harness.ctx.content_rect()
+    }
+
+    #[test]
+    fn in_a_narrow_window_the_readout_stays_inside_it() {
+        let harness = page(Vec2::new(240.0, 300.0));
+        let (_, rect) = readout(&harness);
+        let screen = screen(&harness);
+        assert!(
+            screen.width() < 300.0,
+            "precondition: narrower than the readout's longest line"
+        );
+        assert!(screen.contains_rect(rect), "{rect:?} in {screen:?}");
+    }
+
+    #[test]
+    fn near_the_top_right_the_label_is_drawn_above_the_readout() {
+        let mut harness = page(SIZE);
+        let page = support::rect_of(&harness, "/\"page\"");
+        let at = page.right_top() + Vec2::new(-6.0, 6.0);
+        assert!(
+            (at - screen(&harness).right_top()).length() < 30.0,
+            "precondition: the pointer is near the top right"
+        );
+        support::hover_over(&mut harness, at);
+        let (readout_at, _) = readout(&harness);
+        let (label_at, label) = boxed(&harness, "\"page\"").expect("the page is labelled");
+        assert!(screen(&harness).contains_rect(label), "{label:?}");
+        let all = flat(&harness);
+        assert!(
+            label_at > readout_at,
+            "the label is painted after the readout"
+        );
+        assert!(
+            all[label_at + 1..]
+                .iter()
+                .all(|shape| !matches!(shape, Shape::Rect(_))),
+            "nothing is painted over the label"
+        );
+    }
+
+    #[test]
+    fn the_readout_takes_the_corner_farthest_from_the_pointer() {
+        let mut harness = page(SIZE);
+        let screen = screen(&harness);
+        let inset = Vec2::splat(20.0);
+        let quadrants = [
+            (screen.left_top() + inset, screen.right_bottom()),
+            (
+                screen.right_top() + Vec2::new(-20.0, 20.0),
+                screen.left_bottom(),
+            ),
+            (
+                screen.left_bottom() + Vec2::new(20.0, -20.0),
+                screen.right_top(),
+            ),
+            (screen.right_bottom() - inset, screen.left_top()),
+        ];
+        for (pointer, corner) in quadrants {
+            support::hover_over(&mut harness, pointer);
+            let (_, rect) = readout(&harness);
+            let nearest = [
+                rect.left_top(),
+                rect.right_top(),
+                rect.left_bottom(),
+                rect.right_bottom(),
+            ]
+            .into_iter()
+            .map(|point| point.distance(corner))
+            .fold(f32::INFINITY, f32::min);
+            assert!(
+                nearest <= 8.0,
+                "pointer at {pointer:?}: the readout {rect:?} is in the corner at {corner:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn without_a_pointer_the_readout_stays_where_it_was() {
+        let mut harness = page(SIZE);
+        let screen = screen(&harness);
+        let (_, untouched) = readout(&harness);
+        assert!(
+            (untouched.right_top() - screen.right_top()).length() <= 8.0,
+            "the readout starts in the top right: {untouched:?}"
+        );
+        support::hover_over(&mut harness, screen.right_top() + Vec2::new(-20.0, 20.0));
+        let (_, moved) = readout(&harness);
+        assert!(
+            (moved.left_bottom() - screen.left_bottom()).length() <= 8.0,
+            "precondition: the pointer moved it to the bottom left: {moved:?}"
+        );
+        harness.event(egui::Event::PointerGone);
+        harness.run_steps(3);
+        assert!(
+            harness.ctx.pointer_hover_pos().is_none(),
+            "precondition: no pointer"
+        );
+        let (_, gone) = readout(&harness);
+        assert!(support::same(gone, moved), "{gone:?} stayed at {moved:?}");
+    }
+}
