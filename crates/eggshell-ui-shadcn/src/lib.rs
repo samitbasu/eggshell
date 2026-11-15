@@ -50,6 +50,12 @@
 //! no font, so its medium controls are drawn in the regular face, with a
 //! debug warning.
 //!
+//! The application's own text picks a weight with eggshell's classes
+//! (`tw().font_medium()`, `font_semibold`, `font_bold`). A [`FontSet`] of
+//! static faces that leaves a weight out draws it in the nearest lighter
+//! face it has. eggshell's symbol face (⌘, ⇧, ⌥) sits last in every weight's
+//! family, behind Geist, so key chips and menu shortcuts draw in any weight.
+//!
 //! egui's `default_fonts` feature embeds its own Ubuntu-Light, which Geist
 //! makes a fallback only. An application that does not need it can depend on
 //! egui with `default-features = false` (and the features it does use) to

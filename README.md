@@ -53,6 +53,11 @@ fn main() -> eframe::Result {
 - A style contract (`eggshell_ui::Style`), filled by the
   `eggshell-ui-shadcn` crate with shadcn/ui's styles and theme colours,
   light and dark.
+- Font weights as classes (`font_medium`, `font_semibold`, `font_bold`),
+  each drawn by the face the style names for it, or the nearest lighter
+  one. The shadcn preset bundles Geist at every weight behind its default
+  `fonts` feature; eggshell itself bundles only a symbol face for ⌘, ⇧
+  and ⌥, last in every weight.
 - Testing support: headless layout queries, and continuity checks over
   recorded frames (`eggshell_ui::testing`).
 - The library and every example also build for the browser (wasm32).
@@ -114,3 +119,5 @@ so lavapipe is needed there too.
 MIT
 
 The symbol fallback face (`src/fonts/DejaVuSans-symbols.ttf`) is a subset of DejaVu Sans, under the licence in `src/fonts/DejaVuSans-LICENSE.txt` (Bitstream Vera with public-domain changes). `src/fonts/README.md` says how it was made.
+
+The `eggshell-ui-shadcn` crate's `fonts` feature bundles Geist (`crates/eggshell-ui-shadcn/fonts/Geist-Variable.ttf`), under the SIL Open Font License 1.1 in `crates/eggshell-ui-shadcn/fonts/OFL.txt`.

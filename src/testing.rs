@@ -644,3 +644,70 @@ impl Change {
         matches!((self.before, self.after), (Some(before), Some(after)) if before.min != after.min)
     }
 }
+
+/// A clipboard for tests, where there is no display: install it with
+/// [`LayoutState::with_clipboard`](crate::LayoutState::with_clipboard). Clones
+/// share one state, so a test keeps a clone to set what is on the clipboard
+/// and to read back what was written.
+#[derive(Clone, Default)]
+pub struct FakeClipboard(std::sync::Arc<std::sync::Mutex<FakeState>>);
+
+#[derive(Default)]
+struct FakeState {
+    held: crate::Clipboard,
+    written: Vec<egui::ColorImage>,
+    refusal: Option<crate::ClipboardError>,
+}
+
+impl FakeClipboard {
+    fn state(&self) -> std::sync::MutexGuard<'_, FakeState> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Puts `text` on the clipboard, leaving an image there as it is.
+    pub fn set_text(&self, text: impl Into<String>) {
+        self.state().held.text = Some(text.into());
+    }
+
+    /// Puts `image` on the clipboard, leaving text there as it is.
+    pub fn set_image(&self, image: egui::ColorImage) {
+        self.state().held.image = Some(image);
+    }
+
+    /// Empties the clipboard.
+    pub fn clear(&self) {
+        self.state().held = crate::Clipboard::default();
+    }
+
+    /// Makes every read and write fail with `error`, or with `None` stops.
+    pub fn refuse(&self, error: Option<crate::ClipboardError>) {
+        self.state().refusal = error;
+    }
+
+    /// The images written, oldest first.
+    pub fn written(&self) -> Vec<egui::ColorImage> {
+        self.state().written.clone()
+    }
+}
+
+impl crate::ClipboardSource for FakeClipboard {
+    fn read(&self) -> Result<crate::Clipboard, crate::ClipboardError> {
+        let state = self.state();
+        match &state.refusal {
+            Some(error) => Err(error.clone()),
+            None => Ok(state.held.clone()),
+        }
+    }
+
+    fn write_image(&self, image: &egui::ColorImage) -> Result<(), crate::ClipboardError> {
+        let mut state = self.state();
+        if let Some(error) = &state.refusal {
+            return Err(error.clone());
+        }
+        state.held.image = Some(image.clone());
+        state.written.push(image.clone());
+        Ok(())
+    }
+}

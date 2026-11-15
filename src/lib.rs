@@ -83,13 +83,50 @@
 //! - **The debug overlay** ([`Debug`](enum@Debug)): node outlines and frame timing.
 //! - **The web**: the library and the examples build for
 //!   `wasm32-unknown-unknown`.
-//!
-//! Text is drawn in egui's fonts, with a bundled fallback face for the
-//! modifier-key symbols (⌘, ⇧, ⌥) that egui's faces lack.
+//! - **Fonts and weights** ([`Weight`], [`Faces`]): the `font_*` weight
+//!   classes and which face draws each, below.
 //!
 //! The design brief the library was built from is `docs/design.md`; the
 //! overlay and drag-and-drop designs, with what was built, are
 //! `docs/overlays.md` and `docs/dnd.md`.
+//!
+//! # Fonts and weights
+//!
+//! Text is drawn in the fonts registered with egui; eggshell bundles only a
+//! symbol face. A weight is a class, as in Tailwind: [`Tw::font_normal`],
+//! [`Tw::font_medium`], [`Tw::font_semibold`], [`Tw::font_bold`], or
+//! [`Tw::font_weight`] with a [`Weight`]. It is inherited like the other
+//! text classes.
+//!
+//! egui has no weights, so the installed [`Style`]'s [`Faces`] name the
+//! registered family that draws each weight of a family; a family is its own
+//! normal face. A weight with no registered face is drawn by the nearest
+//! lighter one that has one, never by a heavier or synthesised face, and a
+//! debug build warns once when the style declares no face for it at all.
+//!
+//! ```
+//! use eggshell_ui::{Faces, Weight, tw};
+//! use egui::FontFamily;
+//!
+//! // Medium text drawn by a family the application registered as
+//! // "inter-medium"; semibold and bold fall back to it.
+//! let faces = Faces::default().with(
+//!     FontFamily::Proportional,
+//!     Weight::Medium,
+//!     FontFamily::Name("inter-medium".into()),
+//! );
+//! # let _ = faces;
+//! let heading = tw().font_semibold();
+//! # let _ = heading;
+//! ```
+//!
+//! The symbol face, a subset of DejaVu Sans with the modifier and editing
+//! key glyphs (⌘, ⇧, ⌥) that egui's faces lack, is added last, at the
+//! lowest priority, to the proportional family and to every family the
+//! style's faces name, so those glyphs draw in every weight.
+//!
+//! The `eggshell-ui-shadcn` preset fills the faces itself: with its default
+//! `fonts` feature it bundles Geist and registers it at every weight.
 //!
 //! # Styling: named styles and merge
 //!
@@ -293,6 +330,7 @@ struct ReadmeDoctests;
 
 mod actions;
 mod builder;
+mod clipboard;
 mod collapse;
 mod commands;
 mod continuity;
@@ -331,6 +369,7 @@ pub mod vlist;
 pub mod widget;
 
 pub use builder::{Builder, NodeHandle, Scope};
+pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
 pub use commands::{Command, Commands, InText};
 pub use contract::Style;
