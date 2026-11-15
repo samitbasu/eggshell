@@ -287,19 +287,11 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     assert_eq!(v.selection.bg_fill, c(77));
     assert_eq!(
         v.selection.stroke,
-        egui::Stroke::new(3.0, c(88)),
-        "the focus border takes the colour of selected text"
+        egui::Stroke::new(3.0, c(23)),
+        "the focus border is the focused one, whatever the selected text's colour"
     );
     assert_eq!(egui_style.spacing.button_padding, vec2(9.0, 5.0));
     assert_eq!(egui_style.spacing.interact_size.y, 41.0);
-
-    style.selection.text = None;
-    style.map_input(&mut egui_style);
-    assert_eq!(
-        egui_style.visuals.selection.stroke.color,
-        c(23),
-        "without selected-text colour the focus border is the focused one"
-    );
 }
 
 #[test]

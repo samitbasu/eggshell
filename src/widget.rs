@@ -169,6 +169,10 @@ impl TextEdit {
         self
     }
 
+    pub(crate) fn is_bare(&self) -> bool {
+        self.framing == Framing::Bare
+    }
+
     /// Greyed text shown while the field is empty.
     pub fn hint(mut self, hint: impl Into<String>) -> Self {
         self.hint = Some(hint.into());
