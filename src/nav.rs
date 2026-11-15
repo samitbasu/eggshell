@@ -1,14 +1,15 @@
 //! Arrow-key navigation of an overlay's items: the keyboard patterns of
 //! [`Nav`].
 //!
-//! A menu moves real focus between its items. A listbox leaves focus on its
+//! A menu moves real focus between its items, in paint order. A grid moves
+//! it too, to the nearest item in the arrow's direction as laid out. A listbox leaves focus on its
 //! trigger and moves a virtual highlight, which the draw shows with the
 //! item's `hover` look, and which Enter and Space activate: the item's
 //! `on_click` runs in the next frame, as if it had been clicked.
 
 use std::collections::HashMap;
 
-use egui::{Align, Context, EventFilter, Id, Key, Modifiers, Vec2};
+use egui::{Align, Context, EventFilter, Id, Key, Modifiers, Rect, Vec2};
 
 use crate::focus::focus_within;
 use crate::kept::Handle;
@@ -20,8 +21,8 @@ pub(crate) struct Menu {
     pub(crate) id: Id,
     pub(crate) nav: Nav,
     pub(crate) wrap: Wrap,
-    /// The items that take input, in paint order.
-    pub(crate) items: Vec<Id>,
+    /// The items that take input, in paint order, where they were laid out.
+    pub(crate) items: Vec<(Id, Rect)>,
     /// The focusable widgets the overlay registered.
     pub(crate) own: Vec<Id>,
     /// The node the overlay is anchored to.
@@ -37,21 +38,133 @@ enum Step {
     Last,
 }
 
-impl Step {
-    fn of_key(ctx: &Context, home_end: HomeEnd) -> Option<Self> {
+/// A direction on the screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+/// What a navigation key asks for: a step along the items in paint order,
+/// or the nearest item toward a direction on the screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Move {
+    Line(Step),
+    Toward(Direction),
+}
+
+impl Move {
+    /// The move of the frame's key for an overlay that navigates as `nav`,
+    /// taking the key.
+    fn of_key(ctx: &Context, nav: Nav, home_end: HomeEnd) -> Option<Self> {
         let pressed = |key| ctx.input_mut(|input| input.consume_key(Modifiers::NONE, key));
-        if pressed(Key::ArrowDown) {
-            Some(Self::Next)
-        } else if pressed(Key::ArrowUp) {
-            Some(Self::Previous)
-        } else if home_end == HomeEnd::Ours && pressed(Key::Home) {
-            Some(Self::First)
-        } else if home_end == HomeEnd::Ours && pressed(Key::End) {
-            Some(Self::Last)
+        let arrows: &[(Key, Self)] = if nav == Nav::Grid {
+            &[
+                (Key::ArrowDown, Self::Toward(Direction::Down)),
+                (Key::ArrowUp, Self::Toward(Direction::Up)),
+                (Key::ArrowLeft, Self::Toward(Direction::Left)),
+                (Key::ArrowRight, Self::Toward(Direction::Right)),
+            ]
         } else {
-            None
+            &[
+                (Key::ArrowDown, Self::Line(Step::Next)),
+                (Key::ArrowUp, Self::Line(Step::Previous)),
+            ]
+        };
+        let ends: &[(Key, Self)] = match home_end {
+            HomeEnd::Ours => &[
+                (Key::Home, Self::Line(Step::First)),
+                (Key::End, Self::Line(Step::Last)),
+            ],
+            HomeEnd::Theirs => &[],
+        };
+        arrows
+            .iter()
+            .chain(ends)
+            .find(|(key, _)| pressed(*key))
+            .map(|(_, to)| *to)
+    }
+
+    /// The item the move goes to from `current`.
+    fn target(self, items: &[(Id, Rect)], current: Option<Id>, wrap: Wrap) -> Option<Id> {
+        let ids: Vec<Id> = items.iter().map(|(id, _)| *id).collect();
+        match self {
+            Self::Line(step) => target(&ids, current, step, wrap),
+            Self::Toward(direction) => {
+                let from = current.and_then(|current| items.iter().find(|(id, _)| *id == current));
+                match from {
+                    Some((id, rect)) => Some(nearest(*rect, items, direction).unwrap_or(*id)),
+                    None => {
+                        let step = match direction {
+                            Direction::Right | Direction::Down => Step::Next,
+                            Direction::Left | Direction::Up => Step::Previous,
+                        };
+                        target(&ids, None, step, wrap)
+                    }
+                }
+            }
         }
     }
+}
+
+/// How far a candidate may reach back over the item it is reached from and
+/// still lie in the direction: sub-pixel layout.
+const SLACK: f32 = 0.5;
+
+/// How much more a step across the direction counts than one along it.
+const CROSS_WEIGHT: f32 = 2.0;
+
+/// The item nearest to `from` in `direction`, among `items` in paint order.
+///
+/// A candidate counts only if it lies wholly past `from` in the direction
+/// (within [`SLACK`]). The lowest of this triple wins:
+///
+/// 1. the gap from `from` to the candidate along the direction, plus
+///    [`CROSS_WEIGHT`] times the offset between their centres across it,
+///    counted as zero when their spans across it overlap: the same row or
+///    column beats a diagonal, even one nearer along;
+/// 2. the offset between their centres across the direction;
+/// 3. the candidate's paint order.
+///
+/// Off the row or column, the nearest by that score is still reached: Left
+/// from any row of a grid reaches a lone cell beside its first row.
+///
+/// None when nothing lies in the direction: the grid's edge.
+fn nearest(from: Rect, items: &[(Id, Rect)], direction: Direction) -> Option<Id> {
+    let (along, across) = match direction {
+        Direction::Left | Direction::Right => (0, 1),
+        Direction::Up | Direction::Down => (1, 0),
+    };
+    let forward = matches!(direction, Direction::Right | Direction::Down);
+    let gap_along = |to: Rect| {
+        if forward {
+            to.min[along] - from.max[along]
+        } else {
+            from.min[along] - to.max[along]
+        }
+    };
+    let overlaps =
+        |to: Rect| to.min[across] < from.max[across] && from.min[across] < to.max[across];
+    let score = |to: Rect| {
+        let offset = (to.center()[across] - from.center()[across]).abs();
+        let off_line = if overlaps(to) { 0.0 } else { offset };
+        (gap_along(to).max(0.0) + CROSS_WEIGHT * off_line, offset)
+    };
+    items
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, to))| *to != from && gap_along(*to) >= -SLACK)
+        .min_by(|(a_at, (_, a)), (b_at, (_, b))| {
+            let (a_score, b_score) = (score(*a), score(*b));
+            a_score
+                .0
+                .total_cmp(&b_score.0)
+                .then(a_score.1.total_cmp(&b_score.1))
+                .then(a_at.cmp(b_at))
+        })
+        .map(|(_, (id, _))| *id)
 }
 
 /// Whether Home and End are the overlay's keys, or a text field's.
@@ -113,7 +226,7 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
     let mut dismiss = Vec::new();
     match menu.nav {
         Nav::None => {}
-        Nav::Menu | Nav::Submenu => {
+        Nav::Menu | Nav::Submenu | Nav::Grid => {
             if menu.nav == Nav::Submenu
                 && ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::ArrowLeft))
             {
@@ -121,8 +234,8 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
                 if let Some(anchor) = menu.anchor {
                     focus_item(ctx, anchor, focused);
                 }
-            } else if let Some(step) = Step::of_key(ctx, home_end)
-                && let Some(to) = target(&menu.items, focused, step, menu.wrap)
+            } else if let Some(to) = Move::of_key(ctx, menu.nav, home_end)
+                .and_then(|to| to.target(&menu.items, focused, menu.wrap))
             {
                 focus_item(ctx, to, focused);
             }
@@ -173,9 +286,11 @@ fn hold_arrows(ctx: &Context, focused: Id) {
 
 fn listbox(ctx: &Context, kept: &Handle, menu: &Menu, home_end: HomeEnd) {
     let mut active = Active::load(kept);
-    let current = active.of(menu.id).filter(|item| menu.items.contains(item));
-    if let Some(step) = Step::of_key(ctx, home_end)
-        && let Some(to) = target(&menu.items, current, step, menu.wrap)
+    let current = active
+        .of(menu.id)
+        .filter(|item| menu.items.iter().any(|(id, _)| id == item));
+    if let Some(to) = Move::of_key(ctx, menu.nav, home_end)
+        .and_then(|to| to.target(&menu.items, current, menu.wrap))
     {
         active.set(menu.id, to, menu.anchor);
         Shell::new(ctx, kept).scroll_into_view(to, None);
@@ -189,13 +304,13 @@ fn listbox(ctx: &Context, kept: &Handle, menu: &Menu, home_end: HomeEnd) {
 
 /// The item under a pointer that moved: the highlight follows it, so that
 /// the pointer and the keys never leave two items looking highlighted.
-fn pointed_at(ctx: &Context, items: &[Id]) -> Option<Id> {
+fn pointed_at(ctx: &Context, items: &[(Id, Rect)]) -> Option<Id> {
     if ctx.input(|input| input.pointer.delta()) == Vec2::ZERO {
         return None;
     }
     items
         .iter()
-        .copied()
+        .map(|(id, _)| *id)
         .find(|&item| ctx.read_response(item).is_some_and(|r| r.hovered()))
 }
 
@@ -369,6 +484,160 @@ mod tests {
         assert_eq!(go(None, Step::Next), Some(id("a")));
         assert_eq!(go(Some("x"), Step::Next), Some(id("a")));
         assert_eq!(go(None, Step::Previous), Some(id("c")));
+    }
+
+    /// A cell 20 points square at column `col` and row `row` of a grid
+    /// starting at `left`, with 4 points between cells.
+    fn cell(left: f32, col: u32, row: u32) -> Rect {
+        let min = egui::pos2(left + col as f32 * 24.0, row as f32 * 24.0);
+        Rect::from_min_size(min, egui::vec2(20.0, 20.0))
+    }
+
+    /// The issue's picker: a lone cell, a rule, then 4 columns of 3 rows.
+    fn picker() -> Vec<(Id, Rect)> {
+        let mut items = vec![(id("lone"), cell(0.0, 0, 0))];
+        for row in 0..3 {
+            for col in 0..4 {
+                items.push((id(&format!("{col},{row}")), cell(40.0, col, row)));
+            }
+        }
+        items
+    }
+
+    fn rect_of(items: &[(Id, Rect)], name: &str) -> Rect {
+        items
+            .iter()
+            .find(|(at, _)| *at == id(name))
+            .expect("an item")
+            .1
+    }
+
+    fn from(items: &[(Id, Rect)], name: &str, direction: Direction) -> Option<Id> {
+        nearest(rect_of(items, name), items, direction)
+    }
+
+    #[test]
+    fn arrows_move_along_rows_and_columns() {
+        let items = picker();
+        assert_eq!(from(&items, "1,1", Direction::Right), Some(id("2,1")));
+        assert_eq!(from(&items, "1,1", Direction::Left), Some(id("0,1")));
+        assert_eq!(from(&items, "1,1", Direction::Down), Some(id("1,2")));
+        assert_eq!(from(&items, "1,1", Direction::Up), Some(id("1,0")));
+    }
+
+    #[test]
+    fn left_from_the_first_column_crosses_to_the_lone_cell() {
+        let items = picker();
+        for row in 0..3 {
+            assert_eq!(
+                from(&items, &format!("0,{row}"), Direction::Left),
+                Some(id("lone"))
+            );
+        }
+        assert_eq!(from(&items, "lone", Direction::Right), Some(id("0,0")));
+    }
+
+    #[test]
+    fn the_edges_stop() {
+        let items = picker();
+        assert_eq!(from(&items, "2,0", Direction::Up), None);
+        assert_eq!(from(&items, "3,1", Direction::Right), None);
+        assert_eq!(from(&items, "1,2", Direction::Down), None);
+        assert_eq!(from(&items, "lone", Direction::Left), None);
+        assert_eq!(from(&items, "lone", Direction::Up), None);
+    }
+
+    #[test]
+    fn off_the_line_the_nearest_is_still_reached() {
+        let items = picker();
+        assert_eq!(from(&items, "lone", Direction::Down), Some(id("0,1")));
+    }
+
+    #[test]
+    fn a_ragged_last_row_is_reached_at_its_nearest_cell() {
+        let mut items: Vec<(Id, Rect)> = (0..2)
+            .flat_map(|row| (0..4).map(move |col| (col, row)))
+            .map(|(col, row)| (id(&format!("{col},{row}")), cell(0.0, col, row)))
+            .collect();
+        items.extend((0..2).map(|col| (id(&format!("{col},2")), cell(0.0, col, 2))));
+        assert_eq!(from(&items, "3,1", Direction::Down), Some(id("1,2")));
+        assert_eq!(from(&items, "1,2", Direction::Up), Some(id("1,1")));
+        assert_eq!(
+            from(&items, "1,2", Direction::Right),
+            Some(id("2,1")),
+            "off the row"
+        );
+    }
+
+    #[test]
+    fn a_lone_cell_goes_nowhere() {
+        let items = vec![(id("only"), cell(0.0, 0, 0))];
+        for direction in [
+            Direction::Left,
+            Direction::Right,
+            Direction::Up,
+            Direction::Down,
+        ] {
+            assert_eq!(from(&items, "only", direction), None);
+        }
+    }
+
+    #[test]
+    fn the_same_column_beats_a_nearer_diagonal() {
+        let items = vec![
+            (id("from"), cell(0.0, 0, 0)),
+            (id("diagonal"), cell(0.0, 1, 1)),
+            (id("in line"), cell(0.0, 0, 2)),
+        ];
+        assert_eq!(from(&items, "from", Direction::Down), Some(id("in line")));
+    }
+
+    #[test]
+    fn ties_go_to_the_nearer_centre_then_to_paint_order() {
+        let wide = Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(44.0, 20.0));
+        let left = cell(0.0, 0, 1);
+        let right = cell(0.0, 1, 1);
+        let items = vec![(id("wide"), wide), (id("left"), left), (id("right"), right)];
+        assert_eq!(
+            from(&items, "wide", Direction::Down),
+            Some(id("left")),
+            "equal: paint order"
+        );
+        let off_centre = Rect::from_min_size(egui::pos2(10.0, 0.0), egui::vec2(34.0, 20.0));
+        let items = vec![
+            (id("wide"), off_centre),
+            (id("left"), left),
+            (id("right"), right),
+        ];
+        assert_eq!(
+            from(&items, "wide", Direction::Down),
+            Some(id("right")),
+            "nearer centre"
+        );
+    }
+
+    #[test]
+    fn cells_of_other_sizes_and_sub_pixel_overlap_still_count() {
+        let from_rect = cell(0.0, 0, 0);
+        let tall = Rect::from_min_max(egui::pos2(19.7, -10.0), egui::pos2(40.0, 40.0));
+        let items = vec![(id("from"), from_rect), (id("tall"), tall)];
+        assert_eq!(from(&items, "from", Direction::Right), Some(id("tall")));
+        assert_eq!(from(&items, "tall", Direction::Left), Some(id("from")));
+        let overlapping = Rect::from_min_size(egui::pos2(15.0, 0.0), egui::vec2(20.0, 20.0));
+        let items = vec![(id("from"), from_rect), (id("overlapping"), overlapping)];
+        assert_eq!(from(&items, "from", Direction::Right), None);
+    }
+
+    #[test]
+    fn a_grid_move_from_no_item_goes_to_an_end() {
+        let items = picker();
+        let toward = |direction| Move::Toward(direction).target(&items, None, Wrap::Stop);
+        assert_eq!(toward(Direction::Right), Some(id("lone")));
+        assert_eq!(toward(Direction::Down), Some(id("lone")));
+        assert_eq!(toward(Direction::Left), Some(id("3,2")));
+        assert_eq!(toward(Direction::Up), Some(id("3,2")));
+        let at_edge = Move::Toward(Direction::Up).target(&items, Some(id("2,0")), Wrap::Stop);
+        assert_eq!(at_edge, Some(id("2,0")), "the edge keeps the item");
     }
 
     #[test]

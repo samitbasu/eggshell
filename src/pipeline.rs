@@ -76,6 +76,16 @@ pub enum NodeKind {
     RegionContent,
 }
 
+/// Whether focus goes to a node as the overlay it is in opens.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum OpenFocus {
+    /// To the overlay's first focusable, unless another node is chosen.
+    #[default]
+    Elsewhere,
+    /// To this node: the current colour of a swatch picker.
+    Here,
+}
+
 /// taffy's per-node context.
 pub(crate) struct Node {
     pub id: Option<Id>,
@@ -100,6 +110,7 @@ pub(crate) struct Node {
     pub collapse: Option<Collapse>,
     pub description: Option<Box<Description>>,
     pub action: Option<Action>,
+    pub open_focus: OpenFocus,
 }
 
 impl Node {
@@ -126,6 +137,7 @@ impl Node {
             collapse: None,
             description: None,
             action: None,
+            open_focus: OpenFocus::Elsewhere,
         }
     }
 }
@@ -1201,6 +1213,7 @@ fn collect(
         scroll: None,
         description: node.description.take(),
         action: node.action,
+        open_focus: node.open_focus,
         measured,
     });
     for child in tree.children(id).expect("node exists") {
@@ -1300,6 +1313,7 @@ pub struct PlacedNode {
     pub(crate) scroll: Option<ScrollPlan>,
     description: Option<Box<Description>>,
     action: Option<Action>,
+    open_focus: OpenFocus,
     /// What the content of an application-measured leaf wants at its final
     /// width; recorded only while [`Debug::Outlines`] is set. The library's
     /// own leaves are measured when asked ([`Placed::overflowing`]).
@@ -1444,8 +1458,13 @@ impl PlacedNode {
         self.action
     }
 
-    /// Whether the node is an item of a menu or a listbox: it has an item
-    /// role.
+    /// Whether the overlay the node is in gives it focus as it opens.
+    pub(crate) fn focuses_on_open(&self) -> bool {
+        self.open_focus == OpenFocus::Here
+    }
+
+    /// Whether the node is an item of a menu, a listbox or a grid: it has an
+    /// item role.
     pub(crate) fn is_item(&self) -> bool {
         self.description()
             .and_then(|description| description.role)
@@ -1456,6 +1475,7 @@ impl PlacedNode {
                         | Role::MenuItemCheckBox
                         | Role::MenuItemRadio
                         | Role::ListBoxOption
+                        | Role::GridCell
                 )
             })
     }
