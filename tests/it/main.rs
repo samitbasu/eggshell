@@ -53,6 +53,7 @@ mod long_list_example;
 mod menu;
 mod menu_offset;
 mod modal;
+mod layout_scroll;
 mod named_layouts;
 mod overlay;
 mod overlay_input;
