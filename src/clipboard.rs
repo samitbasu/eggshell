@@ -39,8 +39,23 @@ pub enum ClipboardError {
 impl std::fmt::Display for ClipboardError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unavailable => f.write_str("the clipboard is not available"),
+            Self::Unavailable => write!(f, "the clipboard is {}", self.detail()),
             Self::Failed(why) => write!(f, "the clipboard failed: {why}"),
+        }
+    }
+}
+
+impl ClipboardError {
+    /// TODO(prose): the failure without the clipboard named, for a caller's own sentence.
+    ///
+    /// ```
+    /// use eggshell_ui::ClipboardError;
+    /// assert_eq!(ClipboardError::Failed("no owner".into()).detail(), "no owner");
+    /// ```
+    pub fn detail(&self) -> &str {
+        match self {
+            Self::Unavailable => "not available",
+            Self::Failed(why) => why,
         }
     }
 }
@@ -77,6 +92,23 @@ pub enum Via {
     /// A read of the clipboard: a menu item, a button, or a chord that is
     /// not a paste event.
     Read,
+}
+
+impl Paste {
+    /// TODO(prose): what a paste event of the chord carries, else `None`.
+    ///
+    /// ```
+    /// use eggshell_ui::Paste;
+    /// let event = egui::Event::Paste("text".into());
+    /// assert_eq!(Paste::from_event(&event), Some(Paste::Text("text".into())));
+    /// ```
+    pub fn from_event(event: &egui::Event) -> Option<Self> {
+        match event {
+            egui::Event::Paste(text) => Some(Self::Text(text.clone())),
+            egui::Event::PasteImage(image) => Some(Self::Image((**image).clone())),
+            _ => None,
+        }
+    }
 }
 
 impl From<Clipboard> for Paste {
