@@ -551,9 +551,15 @@ fn choice_label<A: 'static, K: crate::Key>(
 /// A control starts from the builder and ends in a terminating call that adds
 /// it and says what the user's input changes in the application's state:
 ///
-/// ```text
-/// b.button(Part::Save, "Save").variant(PRIMARY).on_click(|s| s.saves += 1);
+/// ```
+/// # use eggshell_ui::Builder;
+/// # #[derive(Hash, Debug)]
+/// # enum Part { Save, Terms }
+/// # struct App { saves: u32, terms: bool }
+/// # fn view(b: &mut Builder<'_, '_, App>, s: &App) {
+/// b.button(Part::Save, "Save").on_click(|s: &mut App| s.saves += 1);
 /// b.checkbox(Part::Terms, "I agree", s.terms).on_change(|s, agreed| s.terms = agreed);
+/// # }
 /// ```
 ///
 /// Configuration and hooks (`on_response`, and `when_submitted` and
@@ -718,7 +724,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
 
     /// A stepper at `value` within `range`. Assistive technology sees its
     /// field as a `Role::SpinButton`, and its buttons as `Role::Button`s named
-    /// "Increase <name>" and "Decrease <name>".
+    /// `"Increase <name>"` and `"Decrease <name>"`.
     pub fn stepper<K: crate::Key>(
         &mut self,
         key: K,
