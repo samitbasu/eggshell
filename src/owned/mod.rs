@@ -81,7 +81,7 @@ pub use switch::SwitchChain;
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
 
-use crate::contract::{Colors, Disabled, Look, Paint, States, Style};
+use crate::contract::{Colors, Disabled, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};
 use crate::{Builder, NodeUi as _, TextSpec, Tw, tw};
 
@@ -459,9 +459,9 @@ fn field_classes(look: &Look, style: &Style, radius: u8, enablement: Enablement)
 /// The classes of a framed text field's leaf: the focus ring around the box the
 /// field's own frame draws. The frame's border is egui's, set by
 /// [`Style::map_input`].
-pub(crate) fn text_field_classes(style: &Style) -> Tw {
+pub(crate) fn text_field_classes(style: &Style, size: Size) -> Tw {
     let ring = field_ring(&style.input.look, style);
-    tw().rounded_px(f32::from(style.input.radius))
+    tw().rounded_px(f32::from(style.input.sizes.get(size).radius))
         .focus_within(|p| p.ring(ring.width, ring.color))
 }
 
@@ -509,8 +509,7 @@ fn paint_chevron(chevron: Chevron) -> impl Fn(&Painter, Rect, Color32) + 'static
 
 /// The classes of the row that holds a checkbox, radio button or switch and
 /// its label.
-fn choice_row(style: &Style, text: &Option<TextSpec>, enablement: Enablement, gap: f32) -> Tw {
-    let text = style.role(text);
+fn choice_row(style: &Style, text: &TextSpec, enablement: Enablement, gap: f32) -> Tw {
     let row = tw()
         .flex()
         .items_center()

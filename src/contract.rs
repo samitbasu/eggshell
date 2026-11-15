@@ -115,6 +115,11 @@ impl<K: Ord + Copy + Debug, T> Keyed<K, T> {
         }
     }
 
+    /// TODO(prose): the default entry, to change.
+    pub fn default_entry_mut(&mut self) -> &mut T {
+        &mut self.default
+    }
+
     /// The keys the style defines.
     pub fn keys(&self) -> impl Iterator<Item = K> + '_ {
         std::iter::once(self.default_key).chain(self.others.keys().copied())
@@ -343,6 +348,16 @@ impl Look {
     }
 }
 
+/// A text size and line height, laid over a section's text role at one
+/// control size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextSize {
+    /// Font size in points.
+    pub size: f32,
+    /// Height of one line in points.
+    pub line_height: f32,
+}
+
 /// Sizes of a button, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Metrics {
@@ -359,6 +374,9 @@ pub struct Metrics {
     /// Side of an icon in the control: the icon of an icon button, with or
     /// without a label.
     pub glyph: f32,
+    /// The text size of the control's label at this size, or `None` for the
+    /// text role's own.
+    pub text: Option<TextSize>,
 }
 
 /// How a disabled control is drawn.
@@ -421,10 +439,9 @@ pub struct ButtonStyle {
     pub transition: Duration,
 }
 
-/// Checkboxes.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct CheckboxStyle {
+/// A checkbox's box at one size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CheckboxMetrics {
     /// Side of the box.
     pub size: f32,
     /// Corner radius of the box.
@@ -433,6 +450,16 @@ pub struct CheckboxStyle {
     pub glyph: f32,
     /// Gap between the box and its label.
     pub gap: f32,
+    /// The label's text size, or `None` for the text role's own.
+    pub text: Option<TextSize>,
+}
+
+/// Checkboxes.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct CheckboxStyle {
+    /// The box and its label's gap and text per size.
+    pub sizes: Keyed<Size, CheckboxMetrics>,
     /// Border width of the box, ticked or not.
     pub border_width: f32,
     /// The text role of the label, or `None` for [`Style::text`].
@@ -445,16 +472,25 @@ pub struct CheckboxStyle {
     pub transition: Duration,
 }
 
-/// Radio buttons.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct RadioStyle {
+/// A radio button's circle at one size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RadioMetrics {
     /// Diameter of the circle.
     pub size: f32,
     /// Diameter of the dot in the chosen one.
     pub dot: f32,
     /// Gap between the circle and its label.
     pub gap: f32,
+    /// The label's text size, or `None` for the text role's own.
+    pub text: Option<TextSize>,
+}
+
+/// Radio buttons.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RadioStyle {
+    /// The circle and its label's gap and text per size.
+    pub sizes: Keyed<Size, RadioMetrics>,
     /// Border width of the circle, chosen or not.
     pub border_width: f32,
     /// The text role of the label, or `None` for [`Style::text`].
@@ -476,6 +512,8 @@ pub struct SwitchMetrics {
     pub thumb_off: f32,
     /// Thumb diameter while on.
     pub thumb_on: f32,
+    /// The label's text size, or `None` for the text role's own.
+    pub text: Option<TextSize>,
 }
 
 /// Switches. The thumb takes the `text` colour of the track's look.
@@ -500,12 +538,9 @@ pub struct SwitchStyle {
     pub transition: Duration,
 }
 
-/// Segmented controls: a track of cells, one of them selected.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct SegmentedStyle {
-    /// The track's background.
-    pub track_fill: Color32,
+/// A segmented control's dimensions at one size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SegmentedMetrics {
     /// The track's corner radius.
     pub track_radius: u8,
     /// Padding between the track and its cells.
@@ -520,11 +555,22 @@ pub struct SegmentedStyle {
     pub column_gap: f32,
     /// Gap between the rows of a wrapping track.
     pub row_gap: f32,
-    /// Side of the icon in a cell that has one. The icon takes the cell's
-    /// `text` colour.
+    /// Side of the icon in a cell that has one.
     pub icon_size: f32,
     /// Gap between a cell's icon and its label.
     pub icon_gap: f32,
+    /// The cells' text size, or `None` for the text role's own.
+    pub text: Option<TextSize>,
+}
+
+/// Segmented controls: a track of cells, one of them selected.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct SegmentedStyle {
+    /// The track's background.
+    pub track_fill: Color32,
+    /// Track and cell dimensions per size.
+    pub sizes: Keyed<Size, SegmentedMetrics>,
     /// The text role of the cells, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
     /// Border width of a cell, chosen or not.
@@ -537,10 +583,9 @@ pub struct SegmentedStyle {
     pub transition: Duration,
 }
 
-/// Sliders. A track holds a range that ends under a thumb.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct SliderStyle {
+/// A slider's dimensions at one size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SliderMetrics {
     /// Thickness of the track.
     pub track_height: f32,
     /// Diameter of the thumb, which is also the slider's height.
@@ -548,6 +593,14 @@ pub struct SliderStyle {
     /// Corner radius of the track, its range and the thumb; `u8::MAX` makes
     /// them round.
     pub radius: u8,
+}
+
+/// Sliders. A track holds a range that ends under a thumb.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct SliderStyle {
+    /// Track and thumb dimensions per size.
+    pub sizes: Keyed<Size, SliderMetrics>,
     /// The track's fill; only `rest` and `disabled` apply.
     pub track: States,
     /// The range's fill; only `rest` and `disabled` apply.
@@ -578,9 +631,9 @@ pub struct ProgressStyle {
 pub struct SelectStyle {
     /// The trigger, an input-like box.
     pub trigger: Look,
-    /// Size of the trigger: height, padding, gap between value and chevron,
-    /// and corner radius.
-    pub metrics: Metrics,
+    /// Size of the trigger per size: height, padding, gap between value and
+    /// chevron, and corner radius.
+    pub sizes: Keyed<Size, Metrics>,
     /// The text role of the trigger, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
     /// Side of the chevron glyph.
@@ -695,6 +748,24 @@ pub struct KbdStyle {
     pub text: Option<TextSpec>,
 }
 
+/// A stepper's dimensions at one size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StepperMetrics {
+    /// Height of the group.
+    pub height: f32,
+    /// Left and right padding of the text.
+    pub padding_x: f32,
+    /// Corner radius of the group; the buttons round their outer corners to
+    /// fit inside its border.
+    pub radius: u8,
+    /// Width of the buttons.
+    pub button_width: f32,
+    /// Side of the chevron glyph.
+    pub glyph: f32,
+    /// The text's size, or `None` for the text role's own.
+    pub text: Option<TextSize>,
+}
+
 /// Steppers: a number field and two buttons, one above the other, in a single
 /// bordered group.
 #[derive(Clone, Debug, PartialEq)]
@@ -703,23 +774,27 @@ pub struct StepperStyle {
     /// The group's box. Its focus ring and border show while the text has
     /// focus.
     pub group: Look,
-    /// Height of the group.
-    pub height: f32,
-    /// Left and right padding of the text.
-    pub padding_x: f32,
-    /// Corner radius of the group; the buttons round their outer corners to
-    /// fit inside its border.
-    pub radius: u8,
+    /// The group's dimensions per size.
+    pub sizes: Keyed<Size, StepperMetrics>,
     /// The two buttons, which have no border of their own.
     pub button: Look,
-    /// Width of the buttons.
-    pub button_width: f32,
     /// The hairlines between the text and the buttons, and between the buttons.
     pub divider: Color32,
-    /// Side of the chevron glyph.
-    pub glyph: f32,
     /// How long state changes animate.
     pub transition: Duration,
+}
+
+/// A text field's dimensions at one size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InputMetrics {
+    /// Corner radius.
+    pub radius: u8,
+    /// Space between the border and the text.
+    pub padding: Vec2,
+    /// Height of a one-line field; a taller field's text sets its height.
+    pub height: f32,
+    /// The text's size, or `None` for the text role's own.
+    pub text: Option<TextSize>,
 }
 
 /// Text fields, which are egui's `TextEdit` wrapped: egui paints them from
@@ -735,7 +810,7 @@ pub struct StepperStyle {
 /// | `look` hover `fill`, `pressed`, disabled colours | not drawn: egui has one fill and one text colour |
 /// | `look` focused `border` | approximated: egui draws the focus border in the colour of selected text, so [`Selection::text`] wins when set |
 /// | `look` shadow and focus ring | not drawn: egui's frame has no shadow and its ring is the 1 pt border |
-/// | `radius`, `padding`, `height` | exact |
+/// | `sizes`: radius, padding, height | exact |
 /// | `hint` | exact when set; otherwise egui's own grey-out of the text colour |
 /// | [`Style::selection`] fill | exact |
 ///
@@ -745,12 +820,8 @@ pub struct StepperStyle {
 pub struct InputStyle {
     /// Colours per state and the border width.
     pub look: Look,
-    /// Corner radius.
-    pub radius: u8,
-    /// Space between the border and the text.
-    pub padding: Vec2,
-    /// Height of a one-line field; a taller field's text sets its height.
-    pub height: f32,
+    /// Radius, padding and height per size.
+    pub sizes: Keyed<Size, InputMetrics>,
     /// The colour of hint text, or `None` for egui's grey-out of the text.
     pub hint: Option<Color32>,
 }
@@ -909,6 +980,19 @@ fn style_id(theme: Theme) -> Id {
 }
 
 impl Style {
+    /// [`role`](Self::role) with a control size's text size laid over it.
+    pub fn role_sized(&self, section: &Option<TextSpec>, size: Option<TextSize>) -> TextSpec {
+        let role = self.role(section).clone();
+        match size {
+            Some(TextSize { size, line_height }) => TextSpec {
+                size,
+                line_height,
+                ..role
+            },
+            None => role,
+        }
+    }
+
     /// The text role of a widget section: its own, or [`Style::text`].
     pub fn role<'a>(&'a self, section: &'a Option<TextSpec>) -> &'a TextSpec {
         section.as_ref().unwrap_or(&self.text)
@@ -1024,6 +1108,7 @@ impl Style {
             gap: s.item_spacing.x,
             radius,
             glyph: text.size,
+            text: None,
         };
         let clear = Color32::TRANSPARENT;
         let selected = Colors {
@@ -1099,10 +1184,16 @@ impl Style {
                 transition,
             },
             checkbox: CheckboxStyle {
-                size: s.icon_width,
-                radius: 2,
-                glyph: s.icon_width_inner,
-                gap: s.icon_spacing,
+                sizes: Keyed::new(
+                    Size::DEFAULT,
+                    CheckboxMetrics {
+                        size: s.icon_width,
+                        radius: 2,
+                        glyph: s.icon_width_inner,
+                        gap: s.icon_spacing,
+                        text: None,
+                    },
+                ),
                 border_width: choice_border,
                 text: None,
                 off: choice_off,
@@ -1110,9 +1201,15 @@ impl Style {
                 transition,
             },
             radio: RadioStyle {
-                size: s.icon_width,
-                dot: s.icon_width_inner,
-                gap: s.icon_spacing,
+                sizes: Keyed::new(
+                    Size::DEFAULT,
+                    RadioMetrics {
+                        size: s.icon_width,
+                        dot: s.icon_width_inner,
+                        gap: s.icon_spacing,
+                        text: None,
+                    },
+                ),
                 border_width: choice_border,
                 text: None,
                 off: choice_off,
@@ -1126,6 +1223,7 @@ impl Style {
                         track,
                         thumb_off: track.y * 0.75,
                         thumb_on: track.y * 0.75,
+                        text: None,
                     },
                 ),
                 gap: s.icon_spacing,
@@ -1138,15 +1236,21 @@ impl Style {
             },
             segmented: SegmentedStyle {
                 track_fill: v.faint_bg_color,
-                track_radius: radius,
-                track_padding: 2.0,
-                height: s.interact_size.y,
-                cell_radius: radius,
-                cell_padding: vec2(s.button_padding.x, s.button_padding.y),
-                column_gap: 0.0,
-                row_gap: 2.0,
-                icon_size: metrics.glyph,
-                icon_gap: s.icon_spacing,
+                sizes: Keyed::new(
+                    Size::DEFAULT,
+                    SegmentedMetrics {
+                        track_radius: radius,
+                        track_padding: 2.0,
+                        height: s.interact_size.y,
+                        cell_radius: radius,
+                        cell_padding: vec2(s.button_padding.x, s.button_padding.y),
+                        column_gap: 0.0,
+                        row_gap: 2.0,
+                        icon_size: metrics.glyph,
+                        icon_gap: s.icon_spacing,
+                        text: None,
+                    },
+                ),
                 text: None,
                 cell_border_width: 0.0,
                 selected: Paint::new(States::still(
@@ -1183,9 +1287,14 @@ impl Style {
                 },
             },
             slider: SliderStyle {
-                track_height: s.slider_rail_height,
-                thumb_size: s.icon_width,
-                radius: u8::MAX,
+                sizes: Keyed::new(
+                    Size::DEFAULT,
+                    SliderMetrics {
+                        track_height: s.slider_rail_height,
+                        thumb_size: s.icon_width,
+                        radius: u8::MAX,
+                    },
+                ),
                 track: States::still(
                     Colors {
                         fill: w.inactive.bg_fill,
@@ -1216,7 +1325,7 @@ impl Style {
             },
             select: SelectStyle {
                 trigger: Look::new(button_states).bordered(border_width.max(1.0)),
-                metrics,
+                sizes: Keyed::new(Size::DEFAULT, metrics),
                 text: None,
                 chevron: s.icon_width,
                 chevron_opacity: Opacity::new(0.5),
@@ -1324,13 +1433,19 @@ impl Style {
             },
             stepper: StepperStyle {
                 group: choice_off.bordered(choice_border),
-                height: s.interact_size.y,
-                padding_x: s.button_padding.x,
-                radius,
+                sizes: Keyed::new(
+                    Size::DEFAULT,
+                    StepperMetrics {
+                        height: s.interact_size.y,
+                        padding_x: s.button_padding.x,
+                        radius,
+                        button_width: s.icon_width * 1.5,
+                        glyph: s.icon_width_inner,
+                        text: None,
+                    },
+                ),
                 button: Look::new(button_states),
-                button_width: s.icon_width * 1.5,
                 divider: choice_off.states.rest.border,
-                glyph: s.icon_width_inner,
                 transition,
             },
             input: InputStyle {
@@ -1363,9 +1478,15 @@ impl Style {
                     .faded_over(faded, surface),
                 })
                 .bordered(border_width),
-                radius,
-                padding: s.button_padding,
-                height: s.interact_size.y,
+                sizes: Keyed::new(
+                    Size::DEFAULT,
+                    InputMetrics {
+                        radius,
+                        padding: s.button_padding,
+                        height: s.interact_size.y,
+                        text: None,
+                    },
+                ),
                 hint: None,
             },
             selection: Selection {
@@ -1380,15 +1501,17 @@ impl Style {
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
     /// style of the `Ui` a text field is drawn in, so that egui's `TextEdit`
-    /// draws as the style says. See [`InputStyle`] for what is approximated.
-    pub fn map_input(&self, egui: &mut egui::Style) {
+    /// draws as the style says, at `size`. See [`InputStyle`] for what is
+    /// approximated.
+    pub fn map_input(&self, egui: &mut egui::Style, size: Size) {
         let input = &self.input;
+        let metrics = input.sizes.get(size);
         let states = &input.look.paint.states;
         let width = input.look.border_width;
         let v = &mut egui.visuals;
         v.text_edit_bg_color = Some(states.rest.fill);
         v.weak_text_color = input.hint;
-        let radius = egui::CornerRadius::same(input.radius);
+        let radius = egui::CornerRadius::same(metrics.radius);
         for (widget, border) in [
             (&mut v.widgets.inactive, states.rest.border),
             (&mut v.widgets.hovered, states.hover.border),
@@ -1401,8 +1524,8 @@ impl Style {
         }
         v.selection.bg_fill = self.selection.fill;
         v.selection.stroke = egui::Stroke::new(width.max(1.0), states.focused.border);
-        egui.spacing.interact_size.y = input.height;
-        egui.spacing.button_padding = input.padding;
+        egui.spacing.interact_size.y = metrics.height;
+        egui.spacing.button_padding = metrics.padding;
     }
 }
 

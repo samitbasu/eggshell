@@ -374,15 +374,18 @@ fn segmented_track_and_cells_are_the_styles() {
         let harness = harness(theme);
         let seg = style(theme).segmented;
         let track = rect_of(&harness, "/\"seg\"");
-        assert_eq!(track.height(), seg.height);
+        assert_eq!(track.height(), seg.sizes.get(Size::DEFAULT).height);
         assert_eq!(box_at(&harness, track).fill, seg.track_fill);
         let metric = rect_of(&harness, &cell_path(Unit::Metric));
-        assert_eq!(metric.top() - track.top(), seg.track_padding);
+        assert_eq!(
+            metric.top() - track.top(),
+            seg.sizes.get(Size::DEFAULT).track_padding
+        );
         let selected = box_at(&harness, metric);
         assert_eq!(selected.fill, seg.selected.states.rest.fill, "{theme:?}");
         assert_eq!(
             selected.corner_radius,
-            egui::CornerRadius::same(seg.cell_radius)
+            egui::CornerRadius::same(seg.sizes.get(Size::DEFAULT).cell_radius)
         );
         assert_eq!(selected.stroke.width, seg.cell_border_width);
         let imperial = rect_of(&harness, &cell_path(Unit::Imperial));
@@ -438,7 +441,7 @@ fn installing_a_modified_style_changes_every_owned_widget() {
     let red = egui::Color32::from_rgb(200, 30, 30);
     style.switch.on.states.rest.fill = red;
     style.switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
-    style.radio.size = 24.0;
+    style.radio.sizes.default_entry_mut().size = 24.0;
     style.segmented.track_fill = red;
     let mut harness = harness(Theme::Light);
     style.install(&harness.ctx);

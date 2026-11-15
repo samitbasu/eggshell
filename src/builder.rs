@@ -10,7 +10,7 @@ use taffy::{NodeId, Size};
 
 use crate::collapse::{Collapse, CollapseAxis, CollapsibleChain, Declared};
 use crate::commands::{Command, Commands, live_roots};
-use crate::contract::Style;
+use crate::contract::{Size as ControlSize, Style};
 use crate::dnd::{Activator, DragEnd, DragImage, Dragging, Drop, NodeDrag, Source};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
@@ -142,12 +142,14 @@ pub(crate) struct RowsLeaf {
 pub(crate) struct Ambient {
     pub(crate) enablement: Enablement,
     pub(crate) surface: Surface,
+    pub(crate) size: Option<ControlSize>,
 }
 
 impl Ambient {
     pub(crate) const PAGE: Self = Self {
         enablement: Enablement::Enabled,
         surface: Surface::Page,
+        size: None,
     };
 }
 
@@ -181,6 +183,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// controls inside it.
     pub(crate) fn enablement_of(&self, own: Enablement) -> Enablement {
         self.ambient.enablement.and(own)
+    }
+
+    /// The size a control draws at: its own, else the one its subtree
+    /// inherits from [`control_size`](Tw::control_size), else the style's
+    /// default.
+    pub(crate) fn size_of(&self, own: Option<ControlSize>) -> ControlSize {
+        own.or(self.ambient.size).unwrap_or(ControlSize::DEFAULT)
     }
 
     /// Builds `body` with a key pushed onto the path. No node is created;
@@ -1221,13 +1230,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// What the controls inside a node with `classes` inherit.
     fn ambient_in(&self, classes: &Tw) -> Ambient {
-        if classes.inert {
-            Ambient {
-                enablement: Enablement::Disabled,
-                ..self.ambient
-            }
-        } else {
-            self.ambient
+        Ambient {
+            enablement: if classes.inert {
+                Enablement::Disabled
+            } else {
+                self.ambient.enablement
+            },
+            size: classes.control_size.or(self.ambient.size),
+            ..self.ambient
         }
     }
 

@@ -25,6 +25,7 @@
 use egui::{Context, Frame, Margin, NumExt as _, Response, RichText, TextWrapMode, Ui, Vec2, vec2};
 use taffy::Size;
 
+use crate::contract::Size as ControlSize;
 use crate::shell::ShellExt as _;
 use crate::sizing::Sizer;
 use crate::{Measure, Style, TextStyle, Width};
@@ -100,6 +101,7 @@ pub struct TextEdit {
     masking: Masking,
     framing: Framing,
     name: Option<String>,
+    size: ControlSize,
 }
 
 impl TextEdit {
@@ -117,6 +119,7 @@ impl TextEdit {
             masking: Masking::Shown,
             framing: Framing::Framed,
             name: None,
+            size: ControlSize::DEFAULT,
         }
     }
 
@@ -129,6 +132,7 @@ impl TextEdit {
             masking: Masking::Shown,
             framing: Framing::Framed,
             name: None,
+            size: ControlSize::DEFAULT,
         }
     }
 
@@ -147,6 +151,12 @@ impl TextEdit {
                 max: Some(max.at_least(min)),
             };
         }
+        self
+    }
+
+    /// TODO(prose): the style's size the field is drawn and measured at.
+    pub fn sized(mut self, size: ControlSize) -> Self {
+        self.size = size;
         self
     }
 
@@ -200,7 +210,7 @@ impl TextEdit {
     /// pass, so the frame that is painted is laid out for the new text
     /// instead of showing one row too many or too few for a frame.
     pub fn show(&self, ui: &mut Ui, text: &mut String) -> Response {
-        Style::of(ui.ctx()).map_input(ui.style_mut());
+        Style::of(ui.ctx()).map_input(ui.style_mut(), self.size);
         if self.framing == Framing::Bare {
             // egui floors a single-line field at interact_size.y, which
             // map_input set to input.height; a bare field is its leaf's height.
@@ -221,7 +231,14 @@ impl TextEdit {
         match (self.framing, self.lines) {
             (Framing::Bare, _) => edit = edit.frame(Frame::NONE),
             (Framing::Framed, _) => {
-                edit = edit.margin(Margin::from(Sizer::for_ui(ui).contract.input.padding));
+                edit = edit.margin(Margin::from(
+                    Sizer::for_ui(ui)
+                        .contract
+                        .input
+                        .sizes
+                        .get(self.size)
+                        .padding,
+                ));
             }
         }
         if self.lines == Lines::Single {
@@ -263,7 +280,7 @@ impl TextEdit {
     /// would be if the cap did not stop it.
     fn fit(&self, sizer: &Sizer<'_>, text: &str, width: Option<Width>) -> Fit {
         let spacing = &sizer.style.spacing;
-        let input = &sizer.contract.input;
+        let input = sizer.contract.input.sizes.get(self.size);
         let (frame, floor) = match self.framing {
             Framing::Framed => (
                 Frame::new().inner_margin(Margin::from(input.padding)),

@@ -1,6 +1,7 @@
 //! The owned slider, select and stepper, through kittest's real pointer and
 //! key events and the accessibility check the support harness switches on.
 
+use eggshell_ui::contract::Size;
 use eggshell_ui::owned::{Enablement, Step};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens};
@@ -145,9 +146,13 @@ fn slider_track_range_and_thumb_are_the_styles() {
         let harness = harness(theme);
         let slider = style(theme).slider;
         let track = rect_of(&harness, TRACK);
-        assert_eq!(track.height(), slider.thumb_size);
+        assert_eq!(track.height(), slider.sizes.get(Size::DEFAULT).thumb_size);
         let bar = bar(&harness, "volume");
-        assert_eq!(bar.height(), slider.track_height, "h-1.5");
+        assert_eq!(
+            bar.height(),
+            slider.sizes.get(Size::DEFAULT).track_height,
+            "h-1.5"
+        );
         assert_eq!(bar.width(), track.width());
         let bar_shape = box_at(&harness, bar);
         assert_eq!(bar_shape.fill, slider.track.rest.fill, "{theme:?}");
@@ -425,10 +430,13 @@ fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
         assert_eq!(shape.stroke.width, 1.0);
         assert_eq!(
             shape.corner_radius,
-            egui::CornerRadius::same(select.metrics.radius)
+            egui::CornerRadius::same(select.sizes.get(Size::DEFAULT).radius)
         );
         let text = rect_of(&harness, "/\"region\"/<text>");
-        assert_eq!(text.left() - trigger.left(), 1.0 + select.metrics.padding_x);
+        assert_eq!(
+            text.left() - trigger.left(),
+            1.0 + select.sizes.get(Size::DEFAULT).padding_x
+        );
         assert_eq!(
             support::text_color(&harness, trigger, "Europe"),
             look.paint.states.rest.text
@@ -437,7 +445,7 @@ fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
         assert_eq!(glyph.size(), vec2(16.0, 16.0), "size-4");
         assert_eq!(
             trigger.right() - glyph.right(),
-            1.0 + select.metrics.padding_x
+            1.0 + select.sizes.get(Size::DEFAULT).padding_x
         );
         let chevron = chevron_in(&harness, glyph).expect("a chevron");
         assert_eq!(
@@ -591,7 +599,7 @@ fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
         let harness = harness(theme);
         let stepper = style(theme).stepper;
         let group = rect_of(&harness, "/\"count\"/Box");
-        assert_eq!(group.height(), stepper.height);
+        assert_eq!(group.height(), stepper.sizes.get(Size::DEFAULT).height);
         let shape = box_at(&harness, group);
         assert_eq!(
             shape.fill, stepper.group.paint.states.rest.fill,
@@ -600,11 +608,11 @@ fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
         assert_eq!(shape.stroke.color, stepper.group.paint.states.rest.border);
         assert_eq!(
             shape.corner_radius,
-            egui::CornerRadius::same(stepper.radius)
+            egui::CornerRadius::same(stepper.sizes.get(Size::DEFAULT).radius)
         );
         let (up, down) = (rect_of(&harness, UP), rect_of(&harness, DOWN));
-        assert_eq!(up.width(), stepper.button_width);
-        assert_eq!(down.width(), stepper.button_width);
+        assert_eq!(up.width(), stepper.sizes.get(Size::DEFAULT).button_width);
+        assert_eq!(down.width(), stepper.sizes.get(Size::DEFAULT).button_width);
         assert_eq!(down.top() - up.bottom(), 1.0, "a divider between");
         let border = stepper.group.border_width;
         assert_eq!(up.top() - group.top(), border, "inside the border");
@@ -616,7 +624,7 @@ fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
             box_at(&harness, up).fill,
             stepper.button.paint.states.rest.fill
         );
-        let inner = f32::from(stepper.radius) - border;
+        let inner = f32::from(stepper.sizes.get(Size::DEFAULT).radius) - border;
         let (up_corners, down_corners) = (
             box_at(&harness, up).corner_radius,
             box_at(&harness, down).corner_radius,
@@ -813,12 +821,12 @@ fn installing_a_modified_style_changes_the_new_widgets_with_no_code_change() {
     let mut style = style(Theme::Light);
     let red = egui::Color32::from_rgb(200, 30, 30);
     style.slider.range.rest.fill = red;
-    style.slider.track_height = 10.0;
-    style.slider.thumb_size = 24.0;
+    style.slider.sizes.default_entry_mut().track_height = 10.0;
+    style.slider.sizes.default_entry_mut().thumb_size = 24.0;
     style.select.trigger.paint.states.rest.fill = red;
-    style.select.metrics.height = 44.0;
+    style.select.sizes.default_entry_mut().height = 44.0;
     style.stepper.group.paint.states.rest.fill = red;
-    style.stepper.button_width = 40.0;
+    style.stepper.sizes.default_entry_mut().button_width = 40.0;
     let mut harness = harness(Theme::Light);
     style.install(&harness.ctx);
     harness.run_steps(6);

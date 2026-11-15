@@ -178,7 +178,14 @@ fn vega_values_are_shadcns() {
         8,
         "rounded-md is radius - 2px"
     );
-    assert_eq!(light.checkbox.radius, 4);
+    assert_eq!(
+        light
+            .checkbox
+            .sizes
+            .get(eggshell_ui::contract::Size::DEFAULT)
+            .radius,
+        4
+    );
     let dark = style(Theme::Dark);
     let outline = dark.button.variants.get(variant::OUTLINE);
     assert_eq!(

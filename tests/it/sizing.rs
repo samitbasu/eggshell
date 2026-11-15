@@ -122,7 +122,8 @@ fn drawn(
 /// Draws the field in the style the library gives its text edits: the input
 /// section of the contract, mapped onto the `Ui`.
 fn input_padded(ui: &mut Ui) {
-    eggshell_ui::Style::of(ui.ctx()).map_input(ui.style_mut());
+    eggshell_ui::Style::of(ui.ctx())
+        .map_input(ui.style_mut(), eggshell_ui::contract::Size::DEFAULT);
 }
 
 /// A context with the tweak applied and its fonts loaded, which sizes mean

@@ -23,6 +23,7 @@ mod compile_fail;
 mod continuity;
 mod contract;
 mod contract_gaps;
+mod control_size;
 mod controls;
 mod debug;
 mod dnd_gallery;

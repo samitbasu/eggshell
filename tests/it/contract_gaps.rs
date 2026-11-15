@@ -283,9 +283,9 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
             theme,
             shadcn,
             |style| {
-                style.segmented.icon_size = 18.0;
-                style.segmented.icon_gap = 7.0;
-                style.segmented.column_gap = 3.0;
+                style.segmented.sizes.default_entry_mut().icon_size = 18.0;
+                style.segmented.sizes.default_entry_mut().icon_gap = 7.0;
+                style.segmented.sizes.default_entry_mut().column_gap = 3.0;
             },
             icon_cells,
         );
@@ -386,7 +386,11 @@ fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
         let seg = harness.state().app.style.segmented.clone();
         let track = rect_of(&harness, "/\"seg\"");
         assert_eq!(track.width(), 400.0, "w_full replaced w_fit");
-        assert_eq!(track.height(), seg.height, "the styled height stays");
+        assert_eq!(
+            track.height(),
+            seg.sizes.get(Size::DEFAULT).height,
+            "the styled height stays"
+        );
         let cells = MODES.map(|(mode, _)| rect_of(&harness, &cell_path(mode)));
         let widths: Vec<_> = cells.iter().map(|cell| cell.width()).collect();
         assert!(
@@ -464,9 +468,18 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
             height("/\"button\""),
             style.button.sizes.get(Size::DEFAULT).height
         );
-        assert_eq!(height("/\"select\""), style.select.metrics.height);
-        assert_eq!(height("/\"stepper\"/Box"), style.stepper.height);
-        assert_eq!(height("/\"segmented\""), style.segmented.height);
+        assert_eq!(
+            height("/\"select\""),
+            style.select.sizes.get(Size::DEFAULT).height
+        );
+        assert_eq!(
+            height("/\"stepper\"/Box"),
+            style.stepper.sizes.get(Size::DEFAULT).height
+        );
+        assert_eq!(
+            height("/\"segmented\""),
+            style.segmented.sizes.get(Size::DEFAULT).height
+        );
     }
 }
 
@@ -553,7 +566,7 @@ fn installing_an_unchanged_style_keeps_the_installed_one() {
         "same style"
     );
     let mut changed = style.clone();
-    changed.segmented.icon_gap += 1.0;
+    changed.segmented.sizes.default_entry_mut().icon_gap += 1.0;
     changed.clone().install(&ctx);
     let second = Style::of(&ctx);
     assert!(!std::sync::Arc::ptr_eq(&first, &second));
@@ -866,7 +879,11 @@ fn the_steppers_number_field_fits_inside_the_group_border() {
         let inside = group.shrink(style.stepper.group.border_width);
         let field_box = rect_of(&harness, "/\"stepper\"/Box/<div>");
         let field = rect_of(&harness, "/\"stepper\"/Box/Field");
-        assert_eq!(group.height(), style.stepper.height, "precondition");
+        assert_eq!(
+            group.height(),
+            style.stepper.sizes.get(Size::DEFAULT).height,
+            "precondition"
+        );
         assert!(
             field_box.height() <= inside.height() + 0.01,
             "{theme:?} {shadcn:?}: the box is inside the border"
