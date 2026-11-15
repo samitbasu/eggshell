@@ -1285,6 +1285,23 @@ fn shift_tab_after_stacked_popovers_stays_in_the_topmost_overlay() {
     .expect("holds");
 }
 
+/// Enter on the widget Tab reached while a press is held on the scroll
+/// popover's trigger keeps focus in the popover that the press opened.
+/// Filed as #219.
+#[test]
+fn enter_with_a_press_held_on_the_anchor_keeps_focus_in_its_popover() {
+    run(
+        &[
+            Action::PressAt(4, 31),
+            Action::Tab,
+            Action::OpenMenu,
+            Action::Enter,
+        ],
+        Scroll::Guarded,
+    )
+    .expect("holds");
+}
+
 /// Outside the overlays: with a pointer button held, End on a focused button
 /// in a scroll container scrolls it for the frame of the key press and puts
 /// it back in the frame of the release, which hides the button's tooltip (a
