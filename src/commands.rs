@@ -158,12 +158,23 @@ impl<A> Command<A> {
         self.fire(app, None, shell);
     }
 
+    /// `pasted` is what the chord's event carried, if it was one.
     fn fire(&self, app: &mut A, pasted: Option<Paste>, shell: &Shell) {
         match self.run {
             Run::Plain(run) => run(app),
             Run::Paste { run, on_error } => {
-                let _ = (shell, &pasted, on_error);
-                run(app, pasted.unwrap_or(Paste::Nothing));
+                let paste = pasted.map_or_else(
+                    || shell.read_clipboard().map(Paste::from),
+                    Ok::<Paste, ClipboardError>,
+                );
+                match paste {
+                    Ok(paste) => run(app, paste),
+                    Err(error) => {
+                        if let Some(hear) = on_error {
+                            hear(app, error);
+                        }
+                    }
+                }
             }
         }
     }
@@ -350,9 +361,26 @@ pub(crate) fn dispatch<A>(
         if !(command.enabled)(app) {
             continue;
         }
-        if consume(ctx, shortcut) {
-            command.fire(app, None, shell);
+        if let Some(press) = consume(ctx, shortcut) {
+            command.fire(app, press.pasted(), shell);
             ctx.request_repaint();
+        }
+    }
+}
+
+/// How a chord arrived.
+enum Press {
+    /// As a key press, or a cut or copy event: nothing came with it.
+    Key,
+    /// As a paste event, with what the backend read from the clipboard.
+    Paste(Paste),
+}
+
+impl Press {
+    fn pasted(self) -> Option<Paste> {
+        match self {
+            Self::Key => None,
+            Self::Paste(paste) => Some(paste),
         }
     }
 }
@@ -360,30 +388,39 @@ pub(crate) fn dispatch<A>(
 /// Takes the presses of `shortcut` from the frame, matching its modifiers
 /// exactly. Cut, copy and paste are presses of `Cmd+X`, `Cmd+C` and `Cmd+V`
 /// here, since egui's backends send those chords as events of their own and
-/// no key press.
-fn consume(ctx: &Context, shortcut: KeyboardShortcut) -> bool {
+/// no key press. A paste carries what the backend read: the first of them, if
+/// there are several.
+fn consume(ctx: &Context, shortcut: KeyboardShortcut) -> Option<Press> {
     let KeyboardShortcut {
         modifiers,
         logical_key,
     } = shortcut;
     let clipboard = |key| logical_key == key && Modifiers::COMMAND.matches_exact(modifiers);
     ctx.input_mut(|input| {
-        let mut pressed = false;
+        let mut pressed = None;
         input.events.retain(|event| {
-            let matches = match event {
+            let press = match event {
                 Event::Key {
                     key,
                     modifiers: held,
                     pressed: true,
                     ..
-                } => *key == logical_key && held.matches_exact(modifiers),
-                Event::Cut => clipboard(EguiKey::X),
-                Event::Copy => clipboard(EguiKey::C),
-                Event::Paste(_) => clipboard(EguiKey::V),
-                _ => false,
+                } => (*key == logical_key && held.matches_exact(modifiers)).then_some(Press::Key),
+                Event::Cut => clipboard(EguiKey::X).then_some(Press::Key),
+                Event::Copy => clipboard(EguiKey::C).then_some(Press::Key),
+                Event::Paste(text) => {
+                    clipboard(EguiKey::V).then(|| Press::Paste(Paste::Text(text.clone())))
+                }
+                Event::PasteImage(image) => {
+                    clipboard(EguiKey::V).then(|| Press::Paste(Paste::Image((**image).clone())))
+                }
+                _ => None,
             };
-            pressed |= matches;
-            !matches
+            let taken = press.is_some();
+            if pressed.is_none() {
+                pressed = press;
+            }
+            !taken
         });
         pressed
     })

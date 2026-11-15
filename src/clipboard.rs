@@ -11,6 +11,8 @@
 //! the chord (the event's contents) and from a menu click (a read), collapsed
 //! the same way.
 
+use std::sync::Arc;
+
 use egui::ColorImage;
 
 use crate::shell::Shell;
@@ -87,13 +89,101 @@ impl From<Clipboard> for Paste {
 impl Shell {
     /// What the clipboard holds now, from this layout's source.
     pub fn read_clipboard(&self) -> Result<Clipboard, ClipboardError> {
-        Err(ClipboardError::Unavailable)
+        self.source().read()
     }
 
     /// Puts `image` on the clipboard. Unlike `Context::copy_image`, it
     /// reports a failure.
     pub fn write_clipboard_image(&self, image: &ColorImage) -> Result<(), ClipboardError> {
-        let _ = image;
+        self.source().write_image(image)
+    }
+
+    fn source(&self) -> Arc<dyn ClipboardSource> {
+        self.kept
+            .with(|kept| kept.clipboard.clone())
+            .unwrap_or_else(|| Arc::new(System))
+    }
+}
+
+/// The system's clipboard.
+struct System;
+
+#[cfg(all(
+    feature = "clipboard",
+    not(any(target_arch = "wasm32", target_os = "android", target_os = "ios"))
+))]
+mod system {
+    use std::sync::{Mutex, OnceLock, PoisonError};
+
+    use egui::{Color32, ColorImage};
+
+    use super::{Clipboard, ClipboardError, ClipboardSource, System};
+
+    /// One handle for the process, as the clipboard is one for the system:
+    /// on X11 the writer must outlive its write to serve the data.
+    fn handle() -> &'static Mutex<Option<arboard::Clipboard>> {
+        static HANDLE: OnceLock<Mutex<Option<arboard::Clipboard>>> = OnceLock::new();
+        HANDLE.get_or_init(|| Mutex::new(arboard::Clipboard::new().ok()))
+    }
+
+    fn with<R>(
+        f: impl FnOnce(&mut arboard::Clipboard) -> Result<R, arboard::Error>,
+    ) -> Result<R, ClipboardError> {
+        let mut guard = handle().lock().unwrap_or_else(PoisonError::into_inner);
+        let clipboard = guard.as_mut().ok_or(ClipboardError::Unavailable)?;
+        f(clipboard).map_err(|error| match error {
+            arboard::Error::ClipboardNotSupported => ClipboardError::Unavailable,
+            other => ClipboardError::Failed(other.to_string()),
+        })
+    }
+
+    /// What nothing there to read is, as against a clipboard that refused.
+    fn absent<T>(read: Result<T, arboard::Error>) -> Result<Option<T>, arboard::Error> {
+        match read {
+            Ok(content) => Ok(Some(content)),
+            Err(arboard::Error::ContentNotAvailable) => Ok(None),
+            Err(other) => Err(other),
+        }
+    }
+
+    impl ClipboardSource for System {
+        fn read(&self) -> Result<Clipboard, ClipboardError> {
+            with(|clipboard| {
+                let text = absent(clipboard.get_text())?;
+                let image = absent(clipboard.get_image())?.map(|image| {
+                    ColorImage::from_rgba_unmultiplied([image.width, image.height], &image.bytes)
+                });
+                Ok(Clipboard { text, image })
+            })
+        }
+
+        fn write_image(&self, image: &ColorImage) -> Result<(), ClipboardError> {
+            let bytes: Vec<u8> = image
+                .pixels
+                .iter()
+                .flat_map(|pixel: &Color32| pixel.to_srgba_unmultiplied())
+                .collect();
+            with(|clipboard| {
+                clipboard.set_image(arboard::ImageData {
+                    width: image.width(),
+                    height: image.height(),
+                    bytes: bytes.into(),
+                })
+            })
+        }
+    }
+}
+
+#[cfg(not(all(
+    feature = "clipboard",
+    not(any(target_arch = "wasm32", target_os = "android", target_os = "ios"))
+)))]
+impl ClipboardSource for System {
+    fn read(&self) -> Result<Clipboard, ClipboardError> {
+        Err(ClipboardError::Unavailable)
+    }
+
+    fn write_image(&self, _image: &ColorImage) -> Result<(), ClipboardError> {
         Err(ClipboardError::Unavailable)
     }
 }
