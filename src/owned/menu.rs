@@ -18,6 +18,7 @@ use crate::contract::{MenuStyle, Style, Variant};
 use crate::kept::Handle;
 use crate::overlay::{Anchor, Distance, Nav, Outside, Placement, Shown};
 use crate::overlay_chain::OverlayChain;
+use crate::pipeline::OpenFocus;
 use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
 
 /// The parts of a menu.
@@ -238,6 +239,7 @@ struct Row<A> {
     trail: Trail,
     tone: Tone,
     enablement: Enablement,
+    open_focus: OpenFocus,
     reaction: Reaction<A>,
 }
 
@@ -345,6 +347,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             shortcut: None,
             tone: Tone::Plain,
             enablement: Enablement::Enabled,
+            open_focus: OpenFocus::Elsewhere,
             kind,
         }
     }
@@ -400,6 +403,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             trail: Trail::Chevron,
             tone: Tone::Plain,
             enablement: Enablement::Enabled,
+            open_focus: OpenFocus::Elsewhere,
             reaction: Reaction::OpenSubmenu,
         });
         let (root, depth) = (self.shared.root, self.depth);
@@ -433,6 +437,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             trail,
             tone,
             enablement,
+            open_focus,
             reaction,
         } = row;
         let enablement = self.b.enablement_of(enablement);
@@ -488,6 +493,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             })
             .role(role)
             .named(label.clone())
+            .open_focus(open_focus)
             .draw(move |app, ui| {
                 let response = ui.node_response();
                 describe(&response, ui.is_enabled(), role, mark, &label);
@@ -568,6 +574,7 @@ pub struct ItemChain<'m, 'f, A, Kind> {
     shortcut: Option<String>,
     tone: Tone,
     enablement: Enablement,
+    open_focus: OpenFocus,
     kind: Kind,
 }
 
@@ -599,6 +606,13 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
         self
     }
 
+    /// Gives the item focus as the menu opens from the keyboard, instead of
+    /// the first item: the current choice.
+    pub fn focus_on_open(mut self) -> Self {
+        self.open_focus = OpenFocus::Here;
+        self
+    }
+
     #[track_caller]
     fn finish(self, handler: impl FnOnce(&mut A) + 'static) {
         let Self {
@@ -612,6 +626,7 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             shortcut,
             tone,
             enablement,
+            open_focus,
             kind: _,
         } = self;
         Menu { b, shared, depth }.add_row(Row {
@@ -622,6 +637,7 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             trail: shortcut.map_or(Trail::Nothing, Trail::Shortcut),
             tone,
             enablement,
+            open_focus,
             reaction: Reaction::Run(Box::new(handler)),
         });
     }

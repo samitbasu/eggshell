@@ -443,6 +443,48 @@ fn enter_space_and_down_on_the_trigger_open_the_menu_and_focus_its_first_item() 
     }
 }
 
+/// A menu opened from the keyboard focuses the item marked
+/// `focus_on_open`, not its first: the current choice.
+#[test]
+fn a_menu_opens_on_the_item_marked_focus_on_open() {
+    fn marked(b: &mut Builder<'_, '_, App>, app: &App) {
+        let size = app.size;
+        b.div_id("Page", tw().p(2.0), |s| {
+            s.dropdown_menu("file", "File").items(|m| {
+                for each in 0..3u8 {
+                    let item = m.radio_item(
+                        ("size", each),
+                        format!("Size {each}"),
+                        Mark::from(each == size),
+                    );
+                    let item = if each == size {
+                        item.focus_on_open()
+                    } else {
+                        item
+                    };
+                    item.on_click(move |app: &mut App| app.size = each);
+                }
+            });
+        });
+    }
+    let mut harness = support::harness(
+        SCREEN,
+        base_text(),
+        App {
+            size: 2,
+            ..App::default()
+        },
+        marked,
+    );
+    harness.run_steps(4);
+    tab_to(&mut harness, r#"/"Page"/"file""#);
+    press(&mut harness, Key::Enter);
+    assert_eq!(
+        focused_path(&harness),
+        Some(r#"/"Page"/("file", Menu)/Box/("size", 2)"#.to_owned())
+    );
+}
+
 #[test]
 fn escape_closes_the_menu_and_gives_the_focus_back_to_the_trigger() {
     let mut harness = harness();

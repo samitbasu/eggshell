@@ -84,6 +84,7 @@ mod state_stable;
 mod style;
 mod style_switch;
 mod support;
+mod swatch_picker;
 mod sweep;
 mod tabular_nums;
 mod text_field_ring;
