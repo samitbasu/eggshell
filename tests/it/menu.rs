@@ -486,6 +486,28 @@ fn a_menu_opens_on_the_item_marked_focus_on_open() {
     );
 }
 
+/// Down in the frame right after the menu gave its first item focus moves
+/// once, as in a grid (#226).
+#[test]
+fn down_in_the_frame_after_the_first_item_gets_focus_moves_once() {
+    let mut harness = harness();
+    tab_to(&mut harness, FILE);
+    harness.key_press(Key::Enter);
+    let first = item(MENU, r#""copy""#);
+    let mut frames = 0;
+    while focused_path(&harness).as_deref() != Some(first.as_str()) {
+        harness.step();
+        frames += 1;
+        assert!(frames < 10, "precondition: Enter focuses the first item");
+    }
+    press(&mut harness, Key::ArrowDown);
+    assert_eq!(
+        focused_path(&harness),
+        Some(item(MENU, r#""grid""#)),
+        "past the disabled Paste to Show grid, and no further"
+    );
+}
+
 #[test]
 fn escape_closes_the_menu_and_gives_the_focus_back_to_the_trigger() {
     let mut harness = harness();

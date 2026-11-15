@@ -7,6 +7,7 @@ use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Key, Role, Theme, vec2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable as _;
 
 use crate::support::{self, Rig, click_node, focused_path};
 
@@ -185,4 +186,30 @@ fn a_grid_told_to_stop_builds() {
 #[should_panic(expected = "are marked `focus_on_open`")]
 fn two_nodes_marked_focus_on_open_in_one_overlay_panic() {
     plain_harness(|b, _| grid_overlay(b, None, &[0, 2]));
+}
+
+/// An arrow in the frame right after a click opened the picker and gave its
+/// cell focus moves once. egui holds the arrows for a widget only from the
+/// frame after it gained focus, so in that one frame egui would also move
+/// focus itself. Filed as #226.
+#[test]
+fn an_arrow_in_the_frame_after_focus_arrives_moves_once() {
+    for (key, to) in [
+        (Key::ArrowRight, Choice::Colour(0)),
+        (Key::ArrowDown, Choice::Colour(4)),
+    ] {
+        let mut harness = harness(Choice::NoColour);
+        harness
+            .get_by_role_and_label(Role::Button, "Colour")
+            .click();
+        let mut frames = 0;
+        while focused(&harness) != Some(Choice::NoColour) {
+            harness.step();
+            frames += 1;
+            assert!(frames < 10, "precondition: the click gives the cell focus");
+        }
+        harness.key_press(key);
+        harness.run_steps(5);
+        assert_eq!(focused(&harness), Some(to), "{key:?}");
+    }
 }
