@@ -583,7 +583,11 @@ fn a_bare_field_draws_its_widget_in_its_leaf_not_at_the_input_height() {
         |ctx, _| Shadcn::apply_both(ctx),
     );
     let leaf = rect_of(&harness, "/\"box\"/\"bare\"");
-    let input_height = eggshell_ui::Style::of(&harness.ctx).input.height;
+    let input_height = eggshell_ui::Style::of(&harness.ctx)
+        .input
+        .sizes
+        .get(eggshell_ui::contract::Size::DEFAULT)
+        .height;
     assert!(
         leaf.height() < input_height,
         "precondition: the leaf ({}) is shorter than input.height ({input_height})",

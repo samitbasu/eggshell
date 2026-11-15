@@ -8,6 +8,7 @@ use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{Enablement, OnResponse, Tooltip, choice_label, choice_row, described, number};
 use crate::builder::Slot;
+use crate::contract::Size;
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -32,6 +33,7 @@ pub struct RadioGroupChain<'a, 'f, A, T> {
     options: Vec<Choice<T>>,
     classes: Tw,
     enablement: Enablement,
+    size: Option<Size>,
     on_response: OnResponse<A>,
 }
 
@@ -50,6 +52,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             options: choice::collect(options),
             classes: tw(),
             enablement: Enablement::Enabled,
+            size: None,
             on_response: OnResponse::default(),
         }
     }
@@ -65,6 +68,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
     /// builder does not offer, such as hover.
     pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
         self.on_response.set(then);
+        self
+    }
+
+    /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = Some(size);
         self
     }
 
@@ -86,11 +95,13 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             options,
             classes,
             enablement,
+            size,
             on_response,
         } = self;
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let radio = &style.radio;
+        let metrics = *radio.sizes.get(b.size_of(size));
         let values: Vec<T> = options.iter().map(|option| option.value).collect();
         let enabled: Vec<bool> = options
             .iter()
@@ -126,7 +137,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                         u8::MAX,
                         enablement,
                         radio.transition,
-                        radio.size,
+                        metrics.size,
                     );
                     let circle = if index == tab_stop {
                         circle
@@ -142,10 +153,15 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                             .map(|at| (values[at], ids[at]))
                     };
                     let (previous, next) = (around(count - 1), around(1));
-                    let dot = radio.dot;
+                    let dot = metrics.dot;
                     let control = ids[index];
                     b.div(
-                        choice_row(&style, &radio.text, enablement, radio.gap),
+                        choice_row(
+                            &style,
+                            &style.role_sized(&radio.text, metrics.text),
+                            enablement,
+                            metrics.gap,
+                        ),
                         |b| {
                             b.div_id(Part::Circle(index), circle, |b| {
                                 if chosen {

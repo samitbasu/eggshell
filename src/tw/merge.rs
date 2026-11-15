@@ -339,6 +339,7 @@ impl Tw {
         self.text = self.text.merge(other.text);
         self.z = other.z.or(self.z);
         self.inert |= other.inert;
+        self.control_size = other.control_size.or(self.control_size);
         self.pointer_events = self.pointer_events.merge(other.pointer_events);
         self.sensing = self.sensing.or(other.sensing);
         self.focusability = self.focusability.merge(other.focusability);

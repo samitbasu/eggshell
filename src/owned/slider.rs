@@ -11,7 +11,7 @@ use egui::{Key, Rect, Ui, WidgetInfo};
 use super::number::{self, Edit, Edits, Step};
 use super::{Content, Enablement, OnResponse, TipContent, painted, tip, tipped};
 use crate::builder::Slot;
-use crate::contract::Colors;
+use crate::contract::{Colors, Size};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -47,6 +47,7 @@ pub struct SliderChain<'a, 'f, A> {
     tooltip: TipContent,
     classes: Tw,
     enablement: Enablement,
+    size: Option<Size>,
     on_response: OnResponse<A>,
     edits: Edits<A>,
 }
@@ -134,6 +135,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
+            size: None,
             on_response: OnResponse::default(),
             edits: Edits::default(),
         }
@@ -195,6 +197,12 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = Some(size);
+        self
+    }
+
     /// Whether the slider takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -216,6 +224,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             tooltip,
             classes: caller,
             enablement,
+            size,
             on_response,
             edits,
         } = self;
@@ -223,13 +232,14 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let slider = &style.slider;
+        let metrics = *slider.sizes.get(b.size_of(size));
         let (low, high) = (*range.start(), *range.end());
         let fraction = if high > low {
             ((value - low) / (high - low)).clamp(0.0, 1.0) as f32
         } else {
             0.0
         };
-        let thumb = slider.thumb_size;
+        let thumb = metrics.thumb_size;
         let hit = tw()
             .relative()
             .flex()
@@ -240,7 +250,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             .focusable_none();
         let hit = enablement.apply(hit, &style).merge(caller);
         let (bar, filled) = track_and_range(
-            (slider.track_height, slider.radius),
+            (metrics.track_height, metrics.radius),
             (
                 enablement.colors(slider.track, &style),
                 enablement.colors(slider.range, &style),
@@ -250,7 +260,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         let travel = tw().absolute().left_px(0.0).right_px(thumb).inset_y(0.0);
         let knob = slider
             .thumb
-            .classes(&style, slider.radius, enablement, slider.transition)
+            .classes(&style, metrics.radius, enablement, slider.transition)
             .absolute()
             .top_px(0.0)
             .left_frac(fraction, 1.0)

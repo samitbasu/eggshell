@@ -13,10 +13,11 @@ use super::{
     paint_chevron, tip, tipped,
 };
 use crate::builder::Slot;
+use crate::contract::{Size, TextSize};
 use crate::focus::Autofocus;
 use crate::overlay_input::Blur;
 use crate::prim::text_field::{self, Field};
-use crate::{Builder, Style, Tw, tw};
+use crate::{Builder, Style, TextSpec, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -56,6 +57,7 @@ pub struct StepperChain<'a, 'f, A> {
     tooltip: TipContent,
     classes: Tw,
     enablement: Enablement,
+    size: Option<Size>,
     hooks: FieldHooks<A>,
     edits: Edits<A>,
     autofocus: Autofocus,
@@ -79,6 +81,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
+            size: None,
             hooks: FieldHooks::default(),
             edits: Edits::default(),
             autofocus: Autofocus::Never,
@@ -162,6 +165,12 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = Some(size);
+        self
+    }
+
     /// Whether the stepper takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -182,6 +191,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             tooltip,
             classes,
             enablement,
+            size,
             hooks,
             edits,
             autofocus,
@@ -190,6 +200,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let stepper = &style.stepper;
+        let metrics = *stepper.sizes.get(b.size_of(size));
         let (low, high) = (*range.start(), *range.end());
         let spec = Spec {
             value,
@@ -203,11 +214,11 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         };
         let group = enablement
             .fade(
-                field_classes(&stepper.group, &style, stepper.radius, enablement)
+                field_classes(&stepper.group, &style, metrics.radius, enablement)
                     .flex()
                     .items_stretch()
                     .gap(1.0 / 4.0)
-                    .h_px(stepper.height)
+                    .h_px(metrics.height)
                     .w_px(112.0),
                 &style,
             )
@@ -217,12 +228,19 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             Enablement::Disabled => enablement.colors(stepper.group.paint.states, &style).border,
         };
         let group = group.divide_x(1.0, divider);
-        let field_box = centered(tw())
-            .justify_start()
-            .grow()
-            .min_w_0()
-            .px(stepper.padding_x / 4.0);
-        let inner_radius = f32::from(stepper.radius) - stepper.group.border_width;
+        let field_box = centered(match metrics.text {
+            Some(TextSize { size, line_height }) => tw().role(TextSpec {
+                size,
+                line_height,
+                ..b.text_style().spec.clone()
+            }),
+            None => tw(),
+        })
+        .justify_start()
+        .grow()
+        .min_w_0()
+        .px(metrics.padding_x / 4.0);
+        let inner_radius = f32::from(metrics.radius) - stepper.group.border_width;
         let button = |at_end: bool, corner: fn(Tw, f32) -> Tw| {
             let enablement = if at_end {
                 Enablement::Disabled
@@ -243,7 +261,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             button(value >= high, Tw::rounded_tr_px),
             button(value <= low, Tw::rounded_br_px),
         );
-        let glyph = stepper.glyph;
+        let glyph = metrics.glyph;
         let field = Field::singleline("").bare();
         let measured = field.clone();
         b.claim(&slot);
@@ -263,7 +281,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                     .flex_col()
                     .gap(1.0 / 4.0)
                     .divide_y(1.0, divider)
-                    .w_px(stepper.button_width)
+                    .w_px(metrics.button_width)
                     .shrink_0();
                 b.div_id(Part::Buttons, buttons, |b| {
                     for (part, classes, chevron, steps, label) in [

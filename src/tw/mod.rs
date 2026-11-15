@@ -22,6 +22,7 @@ mod variants;
 
 use taffy::{Display, Style};
 
+use crate::contract::Size;
 use crate::text::TextClasses;
 
 pub(crate) use ch::ChWidths;
@@ -47,6 +48,7 @@ pub struct Tw {
     pub(crate) text: TextClasses,
     pub(crate) z: Option<i16>,
     pub(crate) inert: bool,
+    pub(crate) control_size: Option<Size>,
     pub(crate) pointer_events: PointerEvents,
     pub(crate) sensing: Sensing,
     pub(crate) focusability: Focusability,
@@ -67,6 +69,7 @@ pub fn tw() -> Tw {
         text: TextClasses::default(),
         z: None,
         inert: false,
+        control_size: None,
         pointer_events: PointerEvents::Auto,
         sensing: Sensing::None,
         focusability: Focusability::Tab,
@@ -112,6 +115,18 @@ impl Tw {
     /// ```
     pub fn inert(mut self) -> Self {
         self.inert = true;
+        self
+    }
+
+    /// TODO(prose): the size the owned controls inside take unless they set their own.
+    ///
+    /// ```
+    /// use eggshell_ui::contract::Size;
+    /// use eggshell_ui::tw;
+    /// let dense = tw().control_size(Size("sm"));
+    /// ```
+    pub fn control_size(mut self, size: Size) -> Self {
+        self.control_size = Some(size);
         self
     }
 
