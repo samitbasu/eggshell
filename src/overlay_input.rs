@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use egui::{Context, Event, Id, Key, Modifiers, Pos2};
+use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect};
 
 use crate::actions::{self, Action};
 use crate::dismiss::{
@@ -534,7 +534,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         if entry.entered == Entered::Not && layer.lookup == AnchorLookup::Found {
             entry.entered = Entered::Yet;
             if enters_focus(open.overlay.behavior, source)
-                && let Some(first) = first_focusable(subtrees, open.overlay.id)
+                && let Some(first) = opening_focus(nodes, roots[open.root].first, subtrees, open)
             {
                 ctx.memory_mut(|memory| memory.request_focus(first));
             } else if open.holds_tab()
@@ -558,7 +558,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         .map(|open| Menu {
             id: open.overlay.id,
             nav: open.overlay.behavior.nav,
-            wrap: open.overlay.behavior.wrap,
+            wrap: open.overlay.behavior.wrap(),
             items: items(ctx, nodes, roots[open.root].first),
             own: subtrees
                 .iter()
@@ -623,21 +623,42 @@ fn enters_focus(behavior: Behavior, source: Source) -> bool {
     behavior.focus == Focus::Enter && !(menu && source == Source::Pointer)
 }
 
-fn first_focusable(subtrees: &[(Id, Box<[Id]>)], id: Id) -> Option<Id> {
-    subtrees
+/// Where focus goes as the overlay whose root is `nodes[first]` opens: the
+/// node marked with [`focus_on_open`](crate::NodeHandle::focus_on_open) if it
+/// takes focus, else the overlay's first focusable.
+fn opening_focus(
+    nodes: &[PlacedNode],
+    first: usize,
+    subtrees: &[(Id, Box<[Id]>)],
+    open: &Open<'_>,
+) -> Option<Id> {
+    let focusable = subtrees
         .iter()
-        .find(|(node, _)| *node == id)
-        .and_then(|(_, focusable)| focusable.first().copied())
+        .find(|(node, _)| *node == open.overlay.id)
+        .map(|(_, focusable)| &**focusable)?;
+    let mut marked = nodes[first..nodes[first].end]
+        .iter()
+        .filter(|node| node.focuses_on_open())
+        .filter_map(PlacedNode::id);
+    let chosen = marked.next();
+    debug_assert!(
+        marked.next().is_none(),
+        "two nodes of the overlay {} are marked `focus_on_open`",
+        nodes[first].path()
+    );
+    chosen
+        .filter(|chosen| focusable.contains(chosen))
+        .or_else(|| focusable.first().copied())
 }
 
 /// The items of the overlay whose root is `nodes[first]`, in paint order,
-/// that take input.
-fn items(ctx: &Context, nodes: &[PlacedNode], first: usize) -> Vec<Id> {
+/// that take input, where they were laid out.
+fn items(ctx: &Context, nodes: &[PlacedNode], first: usize) -> Vec<(Id, Rect)> {
     nodes[first..nodes[first].end]
         .iter()
         .filter(|node| node.is_item())
-        .filter_map(PlacedNode::id)
-        .filter(|&id| {
+        .filter_map(|node| Some((node.id()?, node.rect())))
+        .filter(|&(id, _)| {
             ctx.read_response(id)
                 .is_some_and(|response| response.enabled())
         })

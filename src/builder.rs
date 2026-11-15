@@ -1175,6 +1175,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             collapse: parts.collapse,
             description: None,
             action: None,
+            open_focus: crate::pipeline::OpenFocus::Elsewhere,
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
@@ -1661,11 +1662,25 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
 
     /// Announces the node to assistive technology as a `role`. A node
     /// with an item role (`MenuItem`, `MenuItemCheckBox`, `MenuItemRadio`,
-    /// `ListBoxOption`) is an item of the menu or listbox it is in, for
-    /// [`Nav`](crate::overlay::Nav). The node must sense; give it a name with
+    /// `ListBoxOption`, `GridCell`) is an item of the menu, listbox or grid
+    /// it is in, for [`Nav`](crate::overlay::Nav). The node must sense; give it a name with
     /// [`named`](Self::named).
     pub fn role(mut self, role: egui::Role) -> Self {
         self.edit(|context| context.description.get_or_insert_default().role = Some(role));
+        self
+    }
+
+    /// Gives the node focus as the overlay it is in opens, instead of the
+    /// overlay's first focusable: the current colour of a swatch picker. For
+    /// an overlay that takes focus in ([`Focus::Enter`](crate::overlay::Focus));
+    /// the node must take focus. Debug builds panic if two nodes of one
+    /// overlay are marked.
+    pub fn focus_on_open(self) -> Self {
+        self.open_focus(crate::pipeline::OpenFocus::Here)
+    }
+
+    pub(crate) fn open_focus(mut self, open_focus: crate::pipeline::OpenFocus) -> Self {
+        self.edit(|context| context.open_focus = open_focus);
         self
     }
 

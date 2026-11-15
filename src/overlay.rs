@@ -211,7 +211,7 @@ impl Outside {
     pub(crate) fn of(nav: Nav) -> Self {
         match nav {
             Nav::Menu | Nav::Submenu => Self::Swallow,
-            Nav::Listbox | Nav::None => Self::PassThrough,
+            Nav::Listbox | Nav::Grid | Nav::None => Self::PassThrough,
         }
     }
 }
@@ -249,16 +249,31 @@ pub enum Nav {
     /// The same keys, but focus stays where it is and the highlight is
     /// virtual: Enter and Space activate the highlighted item.
     Listbox,
+    /// Each arrow moves focus to the nearest item in its direction, as the
+    /// items are laid out, and stops at the edges; Home and End go to the
+    /// first and last. The items are real focus targets, so the app declares
+    /// no rows or columns: a colour-swatch picker.
+    Grid,
 }
 
 /// What an arrow key does at the first or last item of a [`Nav`] overlay.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Wrap {
     /// Goes on to the other end: menus, and a listbox unless told otherwise.
-    #[default]
     Around,
-    /// Stays on the item: a select's list, as Radix's.
+    /// Stays on the item: a select's list, as Radix's, and a grid, always.
     Stop,
+}
+
+impl Wrap {
+    /// What an overlay that navigates as `nav` does unless told otherwise: a
+    /// grid stops, everything else goes round.
+    pub(crate) fn of(nav: Nav) -> Self {
+        match nav {
+            Nav::Grid => Self::Stop,
+            Nav::Menu | Nav::Submenu | Nav::Listbox | Nav::None => Self::Around,
+        }
+    }
 }
 
 /// What an overlay does with input, as its chain declared it.
@@ -268,13 +283,18 @@ pub(crate) struct Behavior {
     pub(crate) outside: Option<Outside>,
     pub(crate) focus: Focus,
     pub(crate) nav: Nav,
-    pub(crate) wrap: Wrap,
+    pub(crate) wrap: Option<Wrap>,
 }
 
 impl Behavior {
     /// What a press outside the overlay does to the press.
     pub(crate) fn outside(self) -> Outside {
         self.outside.unwrap_or_else(|| Outside::of(self.nav))
+    }
+
+    /// What the arrow keys do at the ends of the overlay's items.
+    pub(crate) fn wrap(self) -> Wrap {
+        self.wrap.unwrap_or_else(|| Wrap::of(self.nav))
     }
 }
 

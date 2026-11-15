@@ -206,9 +206,11 @@ impl<A, State> OverlayChain<'_, '_, A, State> {
     }
 
     /// What the arrow keys do at the first and last item of the overlay's
-    /// [`Nav`]. [`Wrap::Around`] unless set.
+    /// [`Nav`]. [`Wrap::Around`] unless set, and [`Wrap::Stop`] for a
+    /// [`Nav::Grid`], which only stops: debug builds panic if a grid is told
+    /// to go round.
     pub fn wrap(mut self, wrap: Wrap) -> Self {
-        self.behavior.wrap = wrap;
+        self.behavior.wrap = Some(wrap);
         self
     }
 
@@ -321,6 +323,10 @@ impl<'f, A, State> OverlayChain<'_, 'f, A, State> {
             declared_at,
             state: _,
         } = self;
+        debug_assert!(
+            !(behavior.nav == Nav::Grid && behavior.wrap == Some(Wrap::Around)),
+            "a grid overlay stops at its edges and cannot wrap around (declared at {declared_at})"
+        );
         let motion = presence.resolve(b.ctx(), &presentation, (band, behavior.nav), declared_at);
         let decl = OverlayDecl {
             id: slot.id,
