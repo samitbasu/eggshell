@@ -564,6 +564,10 @@ impl Tw {
     /// ```html
     /// <button class="bg-primary hover:bg-primary/90 transition duration-150"></button>
     /// ```
+    ///
+    /// Under `egui_kittest` motion is off unless a test turns it on, and a
+    /// motion takes several frames to settle: see [the testing
+    /// guide](crate::testing#a-harness) on `max_steps`.
     pub fn transition(mut self, duration: Duration) -> Self {
         self.variants.transition = Some(duration);
         self
@@ -579,6 +583,10 @@ impl Tw {
     /// seen for the first time, and every node on a frame where the window
     /// was resized, is placed at once, unlike CSS view transitions. Moves
     /// only: a change of size is not animated. Needs an identified node.
+    ///
+    /// Under `egui_kittest` motion is off unless a test turns it on, and a
+    /// motion takes several frames to settle: see [the testing
+    /// guide](crate::testing#a-harness) on `max_steps`.
     pub fn animate_layout(mut self, duration: Duration) -> Self {
         self.variants.animate_layout = Some(duration);
         self

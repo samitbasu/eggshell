@@ -284,7 +284,7 @@ impl From<ScrollSpeed> for f32 {
 }
 
 /// How a drag near the edge of a viewport asks it to scroll. A container
-/// (egui's `ScrollArea` today, a native one in M5) applies the velocity; this
+/// (a [`scroll`](crate::scroll) container) applies the velocity; this
 /// is the drag's side of it: the policy of band and speed, for in-app drags
 /// and outside ones alike. See [`Shell::drag_pointer`].
 #[derive(Clone, Copy, Debug, PartialEq)]

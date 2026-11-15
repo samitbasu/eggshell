@@ -20,6 +20,20 @@
 //! the egui widgets an application draws outside eggshell. It also remembers
 //! the tokens in the context, for [`tokens`] and [`Shadcn::of`].
 //!
+//! ```
+//! use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor};
+//!
+//! let ctx = egui::Context::default();
+//! // Once at startup: shadcn's default preset, light and dark.
+//! Shadcn::apply_both(&ctx);
+//! // Or every frame, to switch style or colour at run time; a no-op while
+//! // nothing changes.
+//! Shadcn::apply_both_with(&ctx, ShadcnStyle::Lyra, ThemeColor::Blue);
+//! // The tokens, for the application's own colours.
+//! let background = Shadcn::of(&ctx).tokens.background;
+//! # let _ = background;
+//! ```
+//!
 //! What eggshell cannot draw exactly and the preset therefore approximates is
 //! documented on [`eggshell_ui::contract::InputStyle`] for the wrapped text edit;
 //! the owned widgets are exact except for the negative spread of `shadow-md`.

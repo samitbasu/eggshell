@@ -193,7 +193,10 @@ impl Tw {
         self.shaped(|p| *p.radius_sw() = points.round().clamp(0.0, 255.0) as u8)
     }
 
-    /// `ring-<width>`: a ring outside the border box.
+    /// `ring-<width>`: a ring outside the border box. It takes no space, like
+    /// CSS's `outline`, so a container that clips (a scroll container,
+    /// `overflow_hidden`) cuts off the ring of a child flush with its edge:
+    /// leave at least the ring's width as padding inside one.
     pub fn ring(self, width: f32, color: impl Into<Color32>) -> Self {
         let color = color.into();
         self.painted(|p| p.ring = Some(Ring { width, color }))

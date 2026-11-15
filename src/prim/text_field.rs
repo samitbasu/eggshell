@@ -32,6 +32,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     /// An identified leaf that edits `text`, the string of the application's
     /// state as it is when the frame is built. The field edits a copy, which
     /// [`on_change`](TextFieldChain::on_change) hands back when it differs.
+    /// Assistive technology sees a `Role::TextInput`, named by
+    /// [`named`](TextFieldChain::named).
     pub fn text_field<K: Key>(
         &mut self,
         key: K,
