@@ -41,6 +41,9 @@
 //! `placed.at("list").at(Row(2))`. A row outside the viewport and its overscan
 //! is not built, so [`try_at`](Query::try_at) is `None` for it.
 //!
+//! Each row sits under its item key, and the nodes the row builder makes sit
+//! under that: `placed.at(Region).at(Part::List).at(item_key).at(Part::Row(item_key))`.
+//!
 //! # Driving a harness
 //!
 //! Under `egui_kittest` the default step is 0.25 s, so a double click sent as a

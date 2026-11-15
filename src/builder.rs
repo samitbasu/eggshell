@@ -335,7 +335,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// in and near its viewport. See [`vlist`](crate::vlist).
     ///
     /// Each row is built under its own key (the row itself), so a row's egui
-    /// state stays with it while it is scrolled away and back. `rows` and the
+    /// state stays with it while it is scrolled away and back. The nodes a row
+    /// builds sit under that key, so a test finds one with
+    /// `placed.at(Part::List).at(item_key).at(Part::Row(item_key))`. `rows` and the
     /// rows' builder borrow application data for the frame (`'f`), so a
     /// function that declares a list names `'f`, as one that declares a
     /// [`region`](Self::region) does.
