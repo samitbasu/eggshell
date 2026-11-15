@@ -1596,6 +1596,7 @@ impl<A> Placed<A> {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
         let interruption = tooltip::interruption(ui.ctx(), dnd::drag_state(ui.ctx(), &self.kept));
         tooltip::begin(&self.kept);
+        focus::release_press_on_blur(ui.ctx());
         let _anchor_focus = focus::AnchorFocusHeld::new(
             ui.ctx(),
             overlay_input::pointer_on(ui.ctx(), &self.nodes, &self.roots),

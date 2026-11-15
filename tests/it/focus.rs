@@ -255,6 +255,46 @@ fn focus_within_follows_a_text_edit_inside_a_node() {
     assert_eq!(support::fill_of(&harness, "/\"two\""), Some(WITHIN));
 }
 
+/// A press held on a text field does not take focus back once Tab has moved
+/// it on, however long it is held: egui's field claims focus in every pass
+/// it is dragged. Found through #219.
+#[test]
+fn tab_away_from_a_held_text_field_keeps_focus_where_tab_put_it() {
+    let mut harness = harness(two_fields);
+    harness.run_steps(3);
+    let at = rect_of(&harness, "/\"one\"").center();
+    hover_over(&mut harness, at);
+    harness.event(egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    });
+    harness.run_steps(2);
+    assert_eq!(
+        support::fill_of(&harness, "/\"one\""),
+        Some(WITHIN),
+        "precondition: the press focused the field"
+    );
+    let pressed_at = harness.ctx.input(|input| input.time);
+    harness.key_press(Key::Tab);
+    harness.run_steps(60);
+    let held = harness.ctx.input(|input| input.time) - pressed_at;
+    let click = harness
+        .ctx
+        .options(|options| options.input_options.max_click_duration);
+    assert!(
+        held > click,
+        "precondition: held {held} s, past a click's {click} s, so egui drags"
+    );
+    assert!(
+        harness.ctx.input(|input| input.pointer.primary_down()),
+        "precondition: still held"
+    );
+    assert_eq!(support::fill_of(&harness, "/\"one\""), Some(PLAIN));
+    assert_eq!(support::fill_of(&harness, "/\"two\""), Some(WITHIN));
+}
+
 /// ```html
 /// <div class="w-[100px] h-[20px]"></div>
 /// <div class="w-[200px]"> <!-- when the field has focus --> </div>

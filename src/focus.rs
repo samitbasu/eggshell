@@ -139,6 +139,46 @@ pub(crate) fn store(
     });
 }
 
+/// The widget that had focus as a pass began.
+#[derive(Clone, Copy, Default)]
+struct FocusedAtStart {
+    pass: u64,
+    focused: Option<Id>,
+}
+
+fn focused_at_start_id() -> Id {
+    crate::key::root_id().with("focused-at-start")
+}
+
+/// A widget held by the pointer that lost focus to another widget lets go of
+/// the press: egui's text field takes focus back in every pass it is
+/// dragged, which would undo a Tab, or pull focus out of the overlay that the
+/// keyboard opened. Run once a pass, before the widgets are drawn.
+pub(crate) fn release_press_on_blur(ctx: &Context) {
+    let pass = ctx.cumulative_pass_nr();
+    let focused = ctx.memory(|memory| memory.focused());
+    let last = ctx.data_mut(|data| {
+        let last = data
+            .get_temp::<FocusedAtStart>(focused_at_start_id())
+            .unwrap_or_default();
+        if last.pass != pass {
+            data.insert_temp(focused_at_start_id(), FocusedAtStart { pass, focused });
+        }
+        last
+    });
+    if last.pass == pass || !ctx.input(|input| input.pointer.any_down()) {
+        return;
+    }
+    if let Some(left) = last.focused
+        && focused.is_some_and(|now| now != left)
+        && ctx
+            .read_response(left)
+            .is_some_and(|response| response.is_pointer_button_down_on())
+    {
+        ctx.stop_dragging();
+    }
+}
+
 /// Where the pointer is, as far as the focus of the widget under an overlay
 /// is concerned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
