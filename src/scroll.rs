@@ -65,6 +65,60 @@
 //! without the gutter. `overflow-y-auto` and `overflow-y-scroll` mean this and
 //! nothing else, and a container's own overflow classes are replaced by it.
 //!
+//! The gutter is paid whether or not the content overflows, which is where
+//! this differs from a web page: there `overflow-y-auto` costs nothing while
+//! the content fits. A panel that only *might* overflow is still a scroll
+//! container and still narrower by the gutter. So wrap only the content that
+//! is meant to scroll. On a page of a short section and a long list, scroll
+//! the list, not one body around both.
+//!
+//! ```html
+//! <!-- Before: the short section pays the gutter too. -->
+//! <div class="h-[300px] overflow-y-auto"> <section>Profile</section> <ul>…</ul> </div>
+//! <!-- After: only the list scrolls. -->
+//! <div class="flex h-[300px] flex-col"> <section>Profile</section> <ul class="min-h-0 grow overflow-y-auto">…</ul> </div>
+//! ```
+//!
+//! ```
+//! use eggshell_ui::testing::Headless;
+//! use eggshell_ui::{Builder, tw};
+//! use egui::vec2;
+//!
+//! fn section(b: &mut Builder<'_, '_, ()>) {
+//!     b.div_id("profile", tw().w_full().h_px(40.0), |_| {});
+//! }
+//!
+//! fn list(b: &mut Builder<'_, '_, ()>) {
+//!     for row in 0..50 {
+//!         b.div_id(("row", row), tw().w_full().h_px(24.0), |_| {});
+//!     }
+//! }
+//!
+//! let before = Headless::new(vec2(240.0, 300.0)).layout(&(), |b, _| {
+//!     b.scroll("body", tw().w_px(240.0).h_px(300.0)).children(|s| {
+//!         section(s);
+//!         list(s);
+//!     });
+//! });
+//! let after = Headless::new(vec2(240.0, 300.0)).layout(&(), |b, _| {
+//!     b.div(tw().flex().flex_col().w_px(240.0).h_px(300.0), |b| {
+//!         section(b);
+//!         b.scroll("list", tw().w_full().min_h_0().grow()).children(|s| list(s));
+//!     });
+//! });
+//!
+//! let body = before.at("body");
+//! let gutter = body.rect().width() - body.at("profile").rect().width();
+//! assert!(gutter > 0.0, "the gutter is reserved though the section fits");
+//! assert_eq!(after.at("profile").rect().width(), 240.0, "outside the container: no gutter");
+//! ```
+//!
+//! A focus ring is drawn outside its node ([`Tw::ring`](crate::Tw::ring),
+//! like CSS's `outline`), and a container clips to its viewport. A focusable
+//! flush with the viewport's edge loses the ring's outer strip on that side,
+//! as under CSS's `overflow: auto`. Inside a scroll container, leave at least
+//! the ring's width as padding, as shadcn's and Radix's lists do with `p-1`.
+//!
 //! The bar is egui's, which handles its drag, painted with the colours of
 //! [`ScrollStyle`] ([`Style::scroll`](crate::contract::Style::scroll); the
 //! shadcn preset gives shadcn's `ScrollArea`). [`ScrollChain::scrollbar_style`]

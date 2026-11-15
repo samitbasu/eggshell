@@ -1,6 +1,6 @@
 # UI Layout Framework: taffy + egui with explicit identity
 
-Status: design draft, revision 4 (2026-11-06). Written for an implementing agent.
+Status: the design brief the library was built from (revision 4, 2026-11-06). It is history: the rustdoc is the reference for what exists, and `docs/overlays.md` and `docs/dnd.md` record where the build departs from it.
 Targets: **taffy 0.15.x**, **egui ≥ 0.33** (needs `UiBuilder::id`).
 API names marked ⚠ have not been checked against the pinned crate versions. Check them before relying on them.
 Code in this document is design sketch. Shapes marked *(compiled)* were compiled and run on rustc 1.97 against stand-in types (not real taffy/egui).

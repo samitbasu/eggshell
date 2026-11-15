@@ -126,6 +126,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
 
     /// Classes merged over the styled ones of the trigger, such as its width,
     /// which is `w-fit` until then; the later class wins ([`Tw::merge`]).
+    /// The style's state looks still apply over them in their states: see
+    /// [the module docs](crate::owned#classes-and-the-styles-state-looks).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.classes = classes;
         self

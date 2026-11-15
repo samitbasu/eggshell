@@ -376,7 +376,7 @@ pub struct Metrics {
 ///   alpha. It needs no knowledge of the surface, so it is the form for a
 ///   translucent one, which no opaque colour can stand in for.
 ///
-/// **Faded is not CSS group opacity** (issue #40). CSS draws the element into
+/// **Faded is not CSS group opacity.** CSS draws the element into
 /// a group, composites its shapes there, and fades the group over the page
 /// once. This library fades each shape separately, so where one shape lies on
 /// another, such as text on its own fill, the lower one shows through the

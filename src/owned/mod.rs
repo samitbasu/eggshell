@@ -1,12 +1,43 @@
-//! Controls built from eggshell nodes instead of wrapped egui widgets
-//! (issue #19). A control is an identified node with a sense, `hover`,
-//! `active` and `focus` variants and text or paint children, styled from
-//! [`Style`] and measured by taffy, so there is no size
-//! estimate to drift.
+//! Controls built from eggshell nodes instead of wrapped egui widgets. A
+//! control is an identified node with a sense, `hover`, `active` and `focus`
+//! variants and text or paint children, styled from [`Style`] and measured
+//! by taffy, so there is no size estimate to drift.
 //!
 //! Every control sets its accessibility role, label and state, is a Tab stop
 //! (Space and Enter activate it), and is drawn in the style's explicit
-//! disabled colours when disabled.
+//! disabled colours when disabled. Each builder method names the role a test
+//! queries the control by; [`testing`](crate::testing) has the table.
+//!
+//! # Classes and the style's state looks
+//!
+//! A control's `classes(..)` merge over the style's **base** classes, the
+//! later winning ([`Tw::merge`]). The style's looks for a state (hover,
+//! pressed, focus) are variants: they apply on top of the base, and so on
+//! top of the caller's classes, while the control is in that state. A
+//! caller's `border_color` therefore holds at rest but gives way to a hover
+//! look that sets a border, as in CSS, where shadcn's
+//! `cn(buttonVariants(..), "border-red-500")` keeps the variant's
+//! `hover:border-transparent`. To hold a colour in a state, say it for that
+//! state as well:
+//!
+//! ```html
+//! <button class="border border-red-500 hover:border-red-500">Card</button>
+//! ```
+//!
+//! ```
+//! use eggshell_ui::{Builder, tw};
+//! use egui::Color32;
+//!
+//! fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
+//!     let edge = Color32::from_rgb(0xef, 0x44, 0x44);
+//!     b.button("card", "Card")
+//!         .classes(tw().border(1.0).border_color(edge).hover(|p| p.border_color(edge)))
+//!         .on_click(|_| {});
+//! }
+//! ```
+//!
+//! When the colour follows only whether the control is chosen, carry it in
+//! the style variant's on and off looks instead.
 
 mod button;
 mod checkbox;
@@ -533,6 +564,7 @@ fn choice_label<A: 'static, K: crate::Key>(
 /// the user chose, and the control shows the value it was built with.
 impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     /// A button showing `face`: a label, or an [`Icon`](crate::Icon) alone.
+    /// Assistive technology sees a `Role::Button`.
     pub fn button<K: crate::Key>(
         &mut self,
         key: K,
@@ -542,7 +574,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 
     /// A toggle button showing `face` and `current`: a `bool`, or with
-    /// [`values`](ToggleChain::values) any two-valued type.
+    /// [`values`](ToggleChain::values) any two-valued type. Assistive
+    /// technology sees a `Role::Button`, toggled on or off.
     pub fn toggle<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
@@ -554,7 +587,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
 
     /// A member of `group` that is on when the group's current value is
     /// `value`, showing `face`. Members may sit anywhere below the builder
-    /// that places them, with other nodes between them.
+    /// that places them, with other nodes between them. Assistive technology
+    /// sees each member as a `Role::RadioButton`.
     pub fn toggle_item<T: Copy + PartialEq + Hash + Debug + 'static>(
         &mut self,
         group: &ToggleGroup<A, T>,
@@ -571,7 +605,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 
     /// A checkbox labelled `label` that shows `current`: a `bool`, or with
-    /// [`values`](CheckboxChain::values) any two-valued type.
+    /// [`values`](CheckboxChain::values) any two-valued type. Assistive
+    /// technology sees a `Role::CheckBox`.
     pub fn checkbox<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
@@ -591,7 +626,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 
     /// A switch labelled `label` that shows `current`: a `bool`, or with
-    /// [`values`](SwitchChain::values) any two-valued type.
+    /// [`values`](SwitchChain::values) any two-valued type. Assistive
+    /// technology sees a `Role::Switch`.
     pub fn switch<K: crate::Key, T: Copy + PartialEq + 'static>(
         &mut self,
         key: K,
@@ -611,7 +647,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 
     /// Radio buttons for `options` (anything [`IntoChoice`]), of which
-    /// `current` is chosen. Values must be distinct.
+    /// `current` is chosen. Values must be distinct. Assistive technology
+    /// sees each option as a `Role::RadioButton`.
     pub fn radio_group<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &mut self,
         key: K,
@@ -622,7 +659,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 
     /// A segmented control over `options` (anything [`IntoChoice`]), of which
-    /// `current` is selected. Values must be distinct.
+    /// `current` is selected. Values must be distinct. Assistive technology
+    /// sees each cell as a `Role::RadioButton`.
     pub fn segmented<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &mut self,
         key: K,
@@ -632,7 +670,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         SegmentedChain::new(self.reborrow(), key, current, options)
     }
 
-    /// A slider at `value` within `range`.
+    /// A slider at `value` within `range`. Assistive technology sees a
+    /// `Role::Slider`.
     pub fn slider<K: crate::Key>(
         &mut self,
         key: K,
@@ -643,7 +682,9 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 
     /// A select over `options` (anything [`IntoChoice`]), of which `current`
-    /// is chosen; the trigger shows the label of the chosen one.
+    /// is chosen; the trigger shows the label of the chosen one. Assistive
+    /// technology sees the trigger as a `Role::ComboBox`, the open list as a
+    /// `Role::ListBox` and each option as a `Role::ListBoxOption`.
     pub fn select<K: crate::Key, T: Copy + PartialEq + 'static, O: IntoChoice<T>>(
         &mut self,
         key: K,
@@ -654,6 +695,9 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 
     /// A button that opens a menu under it, which the chain's `items` fills.
+    /// Assistive technology sees the trigger as a `Role::Button`, the menu as a
+    /// `Role::Menu` and its items as `Role::MenuItem`, `MenuItemCheckBox` or
+    /// `MenuItemRadio`.
     pub fn dropdown_menu<K: crate::Key + Clone>(
         &mut self,
         key: K,
@@ -663,6 +707,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     }
 
     /// A progress bar filled to `progress`, drawn like a slider's track.
+    /// Assistive technology sees a `Role::ProgressIndicator`.
     pub fn progress<K: crate::Key>(
         &mut self,
         key: K,
@@ -671,7 +716,9 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         ProgressChain::new(self.reborrow(), key, progress)
     }
 
-    /// A stepper at `value` within `range`.
+    /// A stepper at `value` within `range`. Assistive technology sees its
+    /// field as a `Role::SpinButton`, and its buttons as `Role::Button`s named
+    /// "Increase <name>" and "Decrease <name>".
     pub fn stepper<K: crate::Key>(
         &mut self,
         key: K,
