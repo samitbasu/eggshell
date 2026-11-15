@@ -50,6 +50,9 @@ mod clipboard_example;
 #[path = "../../examples/control_sizes.rs"]
 mod control_sizes_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/icons.rs"]
+mod icons_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/swatch_picker.rs"]
 mod swatch_picker;
 
@@ -2426,4 +2429,31 @@ fn control_sizes_light() {
 #[test]
 fn control_sizes_dark() {
     control_sizes_in("control_sizes_dark", egui::Theme::Dark);
+}
+
+/// The standard vector icons in both stroke weights and in three controls.
+fn icons_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(620.0, 460.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        (),
+        icons_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    harness.snapshot(name);
+}
+
+#[test]
+fn icons_light() {
+    icons_in("icons_light", egui::Theme::Light);
+}
+
+#[test]
+fn icons_dark() {
+    icons_in("icons_dark", egui::Theme::Dark);
 }

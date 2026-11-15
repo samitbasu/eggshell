@@ -49,6 +49,7 @@ mod handlers;
 mod headless;
 mod hello;
 mod hit_route;
+mod icons;
 mod inert_look;
 mod interaction;
 mod kaolin_sidebar;

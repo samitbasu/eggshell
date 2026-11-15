@@ -63,7 +63,7 @@ use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::time::Duration;
 
-use egui::{Color32, Id, Painter, Pos2, Rect, Response, Role, Shape, Stroke, Ui, WidgetInfo, pos2};
+use egui::{Color32, Id, Painter, Rect, Response, Role, Ui, WidgetInfo};
 
 pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
@@ -84,7 +84,7 @@ pub use toggle_group::{Member, ToggleGroup};
 
 use crate::contract::{Colors, Disabled, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};
-use crate::{Builder, NodeUi as _, TextSpec, Tw, tw};
+use crate::{Builder, NodeUi as _, TextSpec, Tw, icons, tw};
 
 /// Whether a checkbox is ticked, a radio button chosen or a selectable
 /// button selected.
@@ -496,27 +496,8 @@ pub(crate) fn text_field_classes(style: &Style, size: Size) -> Tw {
         .focus_within(|p| p.ring(ring.width, ring.color))
 }
 
-/// lucide's `check`, on its 24 point grid.
-const CHECK: [(f32, f32); 3] = [(4.0, 12.0), (9.0, 17.0), (20.0, 6.0)];
-
-/// lucide's `chevron-down`, on its 24 point grid.
-const CHEVRON_DOWN: [(f32, f32); 3] = [(6.0, 9.0), (12.0, 15.0), (18.0, 9.0)];
-
-/// A 2-point stroke of `points` on a 24 point grid fitted to `rect`, with
-/// round joins, as lucide draws its icons.
-fn paint_strokes(painter: &Painter, rect: Rect, color: Color32, points: [(f32, f32); 3]) {
-    let scale = rect.width() / 24.0;
-    let at = |(x, y): (f32, f32)| -> Pos2 { rect.min + pos2(x, y).to_vec2() * scale };
-    let width = 2.0 * scale;
-    let points = points.map(at);
-    painter.add(Shape::line(points.to_vec(), Stroke::new(width, color)));
-    for point in points {
-        painter.circle_filled(point, width / 2.0, color);
-    }
-}
-
 fn paint_check(painter: &Painter, rect: Rect, color: Color32) {
-    paint_strokes(painter, rect, color, CHECK);
+    icons::CHECK.paint(painter, rect, color);
 }
 
 /// Which way a chevron points.
@@ -529,12 +510,12 @@ enum Chevron {
 
 fn paint_chevron(chevron: Chevron) -> impl Fn(&Painter, Rect, Color32) + 'static {
     move |painter, rect, color| {
-        let points = match chevron {
-            Chevron::Down => CHEVRON_DOWN,
-            Chevron::Up => CHEVRON_DOWN.map(|(x, y)| (x, 24.0 - y)),
-            Chevron::Right => CHEVRON_DOWN.map(|(x, y)| (y, x)),
-        };
-        paint_strokes(painter, rect, color, points);
+        match chevron {
+            Chevron::Down => &icons::CHEVRON_DOWN,
+            Chevron::Up => &icons::CHEVRON_UP,
+            Chevron::Right => &icons::CHEVRON_RIGHT,
+        }
+        .paint(painter, rect, color);
     }
 }
 
