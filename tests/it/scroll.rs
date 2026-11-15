@@ -1291,6 +1291,51 @@ mod bars {
         );
     }
 
+    /// A track shorter than the style's shortest thumb: the thumb is the
+    /// track, and a press on the bar scrolls instead of panicking in egui's
+    /// clamp, which a window shrunk under a scroll container reached (#243).
+    #[test]
+    fn a_press_on_a_track_shorter_than_the_shortest_thumb_scrolls() {
+        fn styled(b: &mut Builder<'_, '_, App>, app: &App) {
+            let list = b.scroll("list", tw().w_px(200.0).h_px(100.0).focusable_none());
+            let list = match app.style {
+                Some(style) => list.scrollbar_style(style),
+                None => list,
+            };
+            list.children(|s| {
+                for i in 0..40u32 {
+                    s.div_id(i, tw().h_px(ROW).w_full(), |_| {});
+                }
+            });
+        }
+        let mut h = support::harness(SIZE, base(), App::default(), styled);
+        h.step();
+        let mut style = eggshell_ui::Style::of(&h.ctx).scroll;
+        style.min_thumb_length = 150.0;
+        h.state_mut().app.style = Some(style);
+        h.run_steps(4);
+        let list = rect_of(&h, LIST);
+        assert!(
+            list.height() < style.min_thumb_length,
+            "precondition: the track is shorter than the shortest thumb"
+        );
+        let bar = list.max.x - style.width / 2.0;
+        support::press_and_release(&mut h, Pos2::new(bar, list.max.y - 2.0));
+        h.run_steps(4);
+        let bottom = offset(&h).y;
+        support::press_and_release(&mut h, Pos2::new(bar, list.min.y + 2.0));
+        h.run_steps(4);
+        let top = offset(&h).y;
+        assert!(
+            bottom > 0.0,
+            "a press near the bottom scrolls down: {bottom}"
+        );
+        assert!(
+            top < bottom,
+            "a press near the top scrolls up: {top} after {bottom}"
+        );
+    }
+
     fn bar_shapes_with(h: &H<'_>, gutter: f32, color: Color32) -> usize {
         let list = rect_of(h, LIST);
         support::shapes(h)

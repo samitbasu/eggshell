@@ -1275,6 +1275,13 @@ fn end_with_a_button_held_scrolls_and_stays() {
     .expect("holds");
 }
 
+/// A click on a scroll bar after the window shrank the container under the
+/// bar's shortest thumb panicked in egui's clamp (#243).
+#[test]
+fn a_click_on_a_bar_squeezed_by_a_shrunk_window_holds() {
+    run(&[Action::ResizeWindow(281, 220), Action::ClickAt(82, 71)]).expect("holds");
+}
+
 fn tooltips_open(desk: &Desk) -> usize {
     desk.seen()
         .overlays

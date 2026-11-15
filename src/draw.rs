@@ -1246,7 +1246,7 @@ impl<A> Walk<'_, A> {
             None,
             |ui| {
                 let outer = ui.style().clone();
-                ui.spacing_mut().scroll = plan.bars.egui(&outer.spacing.scroll);
+                ui.spacing_mut().scroll = plan.bars.egui(&outer.spacing.scroll, viewport.size());
                 // egui bounds the offset by the last frame's content, and
                 // springs one past them back, carrying the spring's velocity
                 // into the next frames: an offset set at the end of content
