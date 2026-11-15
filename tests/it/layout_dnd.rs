@@ -92,3 +92,17 @@ fn a_drag_is_seen_only_by_the_layout_it_was_lifted_in() {
     assert_eq!(h.state().app.carried, Some(Item(1)), "the drag is live");
     assert_eq!(h.state().app.watched, None, "another layout's drag");
 }
+
+#[test]
+fn the_pointer_of_a_drag_is_read_through_the_layout_that_holds_it() {
+    let mut h = harness();
+    lift(&mut h);
+    let ctx = h.ctx.clone();
+    let App { watcher, .. } = &h.state().app;
+    assert!(
+        h.state().layout.shell(&ctx).drag_pointer().is_some(),
+        "the lifting layout reads the pointer"
+    );
+    assert_eq!(watcher.shell(&ctx).drag_pointer(), None);
+    assert_eq!(watcher.shell(&ctx).drag_grab(), vec2(0.0, 0.0));
+}

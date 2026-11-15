@@ -162,7 +162,7 @@ fn after_the_last(h: &H) -> Pos2 {
 }
 
 fn carried(h: &H) -> bool {
-    eggshell_ui::drag_pointer(&h.ctx).is_some()
+    crate::support::shell(&h).drag_pointer().is_some()
 }
 
 fn press_and_move(h: &mut H, from: Pos2, to: Pos2) {

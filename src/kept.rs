@@ -29,6 +29,7 @@ pub(crate) struct Kept {
     pub(crate) tooltips: Tooltips,
     pub(crate) lists: crate::vlist::Lists,
     pub(crate) scrolls: crate::scroll::Scrolls,
+    pub(crate) drags: crate::dnd::Drags,
     /// The area the last layout placed things in.
     pub(crate) area: Option<Rect>,
 }
