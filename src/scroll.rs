@@ -718,14 +718,19 @@ impl Bars {
         Self { style, gutter }
     }
 
-    /// egui's scroll style for these bars: solid, and `style`'s size.
-    pub(crate) fn egui(&self, base: &egui::style::ScrollStyle) -> egui::style::ScrollStyle {
+    /// egui's scroll style for these bars beside a viewport of `viewport`:
+    /// solid, and `style`'s size.
+    pub(crate) fn egui(
+        &self,
+        base: &egui::style::ScrollStyle,
+        viewport: Vec2,
+    ) -> egui::style::ScrollStyle {
         egui::style::ScrollStyle {
             floating: false,
             bar_width: self.style.gutter(),
             bar_inner_margin: 0.0,
             bar_outer_margin: 0.0,
-            handle_min_length: self.style.min_thumb_length,
+            handle_min_length: self.shortest_thumb(viewport),
             foreground_color: false,
             fade: egui::style::ScrollFadeStyle {
                 strength: self.style.fade.strength.into(),
@@ -733,6 +738,23 @@ impl Bars {
             },
             ..*base
         }
+    }
+
+    /// The style's shortest thumb, but at most half of the shortest track
+    /// beside `viewport`: a thumb longer than its track has nowhere to move,
+    /// and egui's bar panics on a press beside it.
+    fn shortest_thumb(&self, viewport: Vec2) -> f32 {
+        let tracks = [
+            (self.gutter.x > 0.0).then_some(viewport.y),
+            (self.gutter.y > 0.0).then_some(viewport.x),
+        ];
+        tracks
+            .into_iter()
+            .flatten()
+            .fold(self.style.min_thumb_length, |shortest, track| {
+                shortest.min(track / 2.0)
+            })
+            .max(0.0)
     }
 
     /// Paints the bar with `style`'s colours: egui paints it from the
