@@ -1,14 +1,14 @@
 //! The layout debug overlay: a hairline around every node, in red where the
 //! node's content did not fit, the viewport (green) and reserved gutter
 //! (tint) of every scroll container, a label for the node under the pointer, and a
-//! frame-timing readout in the top-right corner.
+//! frame-timing readout in the corner farthest from the pointer.
 
 use core::time::Duration;
 
 use egui::epaint::StrokeKind;
 use egui::{
-    Align2, Color32, Context, FontId, Id, Key, LayerId, Order, Painter, Pos2, Rect, Shape, Stroke,
-    vec2,
+    Align, Align2, Color32, Context, FontId, Id, Key, LayerId, Order, Painter, Pos2, Rect, Shape,
+    Stroke, Vec2, vec2,
 };
 use taffy::Overflow;
 
@@ -31,8 +31,11 @@ use crate::prim::Prim;
 /// other in [`Debug::OUTLINE`]. The innermost node under the pointer is
 /// labelled with its readable path and rect.
 ///
-/// [`Outlines`](Self::Outlines) also draws a readout in the top-right corner,
-/// once per frame however many trees are drawn:
+/// [`Outlines`](Self::Outlines) also draws a readout, once per frame however
+/// many trees are drawn, in the corner of the window farthest from the
+/// pointer; while there is no pointer it stays where it was (the top right
+/// until the pointer is first seen). It wraps to fit a narrow window, and the
+/// node label is drawn over it:
 ///
 /// - `frame`: egui's `unstable_dt`, the measured time since the last pass, and
 ///   the frames per second averaged over the last 30 passes;
@@ -168,8 +171,12 @@ fn frames_id() -> Id {
     Id::NULL.with("eggshell-debug-frames")
 }
 
-fn readout_id() -> Id {
-    Id::NULL.with("eggshell-debug-readout")
+fn topmost_id() -> Id {
+    Id::NULL.with("eggshell-debug-topmost")
+}
+
+fn corner_id() -> Id {
+    Id::NULL.with("eggshell-debug-corner")
 }
 
 /// The frames averaged into the fps.
@@ -241,29 +248,80 @@ fn readout_text(ctx: &Context) -> String {
     )
 }
 
-/// Paints the readout, replacing the one an earlier tree of this pass painted
-/// so that it shows the draw time so far.
-fn paint_readout(ctx: &Context, painter: &Painter) {
-    let galley = painter.layout_no_wrap(readout_text(ctx), FontId::monospace(11.0), Color32::WHITE);
-    let margin = vec2(4.0, 2.0);
-    let size = galley.size() + margin * 2.0;
-    let screen = ctx.content_rect();
-    let rect = Align2::RIGHT_TOP.align_size_within_rect(size, screen.shrink(4.0));
-    let shape = Shape::Vec(vec![
-        Shape::rect_filled(rect, 2.0, Color32::from_black_alpha(220)),
-        Shape::galley(rect.min + margin, galley, Color32::WHITE),
-    ]);
+/// The readout and the hover label of a pass: one shape kept last on the
+/// overlay's layer, so that no tree's outlines cover it and the label is
+/// above the readout.
+#[derive(Clone)]
+struct Topmost {
+    pass: u64,
+    index: egui::layers::ShapeIdx,
+    label: Option<Shape>,
+}
+
+/// Paints the readout and `label` (or the label an earlier tree of this pass
+/// painted) after everything painted so far, replacing what an earlier tree
+/// painted, so that the readout shows the draw time so far.
+fn paint_topmost(ctx: &Context, painter: &Painter, label: Option<Shape>) {
     let pass = ctx.cumulative_pass_nr();
     let earlier = ctx
-        .data(|data| data.get_temp::<(u64, egui::layers::ShapeIdx)>(readout_id()))
-        .filter(|&(earlier, _)| earlier == pass);
-    match earlier {
-        Some((_, index)) => painter.set(index, shape),
-        None => {
-            let index = painter.add(shape);
-            ctx.data_mut(|data| data.insert_temp(readout_id(), (pass, index)));
-        }
+        .data(|data| data.get_temp::<Topmost>(topmost_id()))
+        .filter(|earlier| earlier.pass == pass);
+    if let Some(earlier) = &earlier {
+        painter.set(earlier.index, Shape::Noop);
     }
+    let label = label.or_else(|| earlier.and_then(|earlier| earlier.label));
+    let shape = Shape::Vec(
+        std::iter::once(readout(ctx, painter))
+            .chain(label.clone())
+            .collect(),
+    );
+    let index = painter.add(shape);
+    ctx.data_mut(|data| data.insert_temp(topmost_id(), Topmost { pass, index, label }));
+}
+
+/// The readout, wrapped to the content rect and kept inside it, in the
+/// corner [`readout_corner`] picks.
+fn readout(ctx: &Context, painter: &Painter) -> Shape {
+    let screen = ctx.content_rect().shrink(4.0);
+    let margin = vec2(4.0, 2.0);
+    let galley = painter.layout(
+        readout_text(ctx),
+        FontId::monospace(11.0),
+        Color32::WHITE,
+        (screen.width() - margin.x * 2.0).max(0.0),
+    );
+    let size = galley.size() + margin * 2.0;
+    let aligned = readout_corner(ctx, screen).align_size_within_rect(size, screen);
+    let rect = aligned.translate((screen.min - aligned.min).max(Vec2::ZERO));
+    Shape::Vec(vec![
+        Shape::rect_filled(rect, 2.0, Color32::from_black_alpha(220)),
+        Shape::galley(rect.min + margin, galley, Color32::WHITE),
+    ])
+}
+
+/// The corner of `screen` farthest from the pointer, or the last one picked
+/// while there is no pointer: the top right until the pointer is seen.
+fn readout_corner(ctx: &Context, screen: Rect) -> Align2 {
+    let away = |pointer: f32, centre: f32| {
+        if pointer < centre {
+            Align::Max
+        } else {
+            Align::Min
+        }
+    };
+    let farthest = ctx.pointer_hover_pos().map(|pointer| {
+        Align2([
+            away(pointer.x, screen.center().x),
+            away(pointer.y, screen.center().y),
+        ])
+    });
+    ctx.data_mut(|data| {
+        let kept = data.get_temp_mut_or(corner_id(), Align2::RIGHT_TOP);
+        if let Some(farthest) = farthest {
+            *kept = farthest;
+        }
+        *kept
+    })
 }
 
 /// What a leaf's content may exceed its box by before it counts as not
@@ -374,21 +432,20 @@ pub(crate) fn paint(ctx: &Context, nodes: &[PlacedNode], overflows: &[bool]) {
             StrokeKind::Inside,
         ));
     }
-    if let Some(pointer) = ctx.pointer_hover_pos()
-        && let Some(index) = shown(nodes)
+    let label = ctx.pointer_hover_pos().and_then(|pointer| {
+        let index = shown(nodes)
             .filter(|&i| nodes[i].rect().contains(pointer))
-            .last()
-    {
-        label(
+            .last()?;
+        Some(label(
             &painter,
             ctx.content_rect(),
             pointer,
             nodes,
             index,
             overflows[index],
-        );
-    }
-    paint_readout(ctx, &painter);
+        ))
+    });
+    paint_topmost(ctx, &painter, label);
 }
 
 fn label(
@@ -398,7 +455,7 @@ fn label(
     nodes: &[PlacedNode],
     index: usize,
     overflows: bool,
-) {
+) -> Shape {
     let node = &nodes[index];
     let Rect { min, max } = node.rect();
     let mut text = format!(
@@ -429,10 +486,12 @@ fn label(
     let mut origin = pointer + vec2(12.0, 12.0);
     origin.x = origin.x.min(screen.max.x - size.x).max(screen.min.x);
     origin.y = origin.y.min(screen.max.y - size.y).max(screen.min.y);
-    painter.rect_filled(
-        Rect::from_min_size(origin, size),
-        2.0,
-        Color32::from_black_alpha(220),
-    );
-    painter.galley(origin + margin, galley, Color32::WHITE);
+    Shape::Vec(vec![
+        Shape::rect_filled(
+            Rect::from_min_size(origin, size),
+            2.0,
+            Color32::from_black_alpha(220),
+        ),
+        Shape::galley(origin + margin, galley, Color32::WHITE),
+    ])
 }
