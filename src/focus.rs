@@ -20,18 +20,18 @@ use crate::stack::Open;
 
 type Subtrees = HashMap<Id, Box<[Id]>>;
 
-/// What a layout remembers of the focusable widgets of its nodes.
-#[derive(Default)]
-pub(crate) struct Focus {
-    records: Records,
-}
-
 /// What a layout remembers of the focus of one viewport.
 #[derive(Default)]
 pub(crate) struct Held {
+    /// The focusable widgets each identified node drawn in the viewport
+    /// registered.
+    records: Records,
     returning: Returning,
     /// The multi-line text field that has focus, whose Return is its own.
     pub(crate) multiline: Option<Id>,
+    /// The overlays of this viewport that closed since its last pass, when
+    /// it is not the one layout runs in: their focus goes back in its pass.
+    pub(crate) closed: Vec<Open>,
 }
 
 #[derive(Default)]
@@ -109,8 +109,8 @@ impl Shell {
         if holds_focus(ctx, node) {
             return true;
         }
-        let ids = self.kept.with(|kept| {
-            let records = &kept.focus.records;
+        let ids = self.kept.viewport(ctx.viewport_id(), |here| {
+            let records = &here.focus.records;
             let known = if records.pass == ctx.cumulative_pass_nr() {
                 &*records.previous
             } else {
@@ -158,8 +158,8 @@ pub(crate) fn store(
     subtrees: impl IntoIterator<Item = (Id, Box<[Id]>)>,
 ) {
     let pass = ctx.cumulative_pass_nr();
-    kept.with(|kept| {
-        let records = &mut kept.focus.records;
+    kept.viewport(ctx.viewport_id(), |here| {
+        let records = &mut here.focus.records;
         if records.pass != pass {
             records.previous = Arc::new(std::mem::take(&mut records.current));
             records.pass = pass;

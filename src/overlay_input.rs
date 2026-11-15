@@ -21,7 +21,7 @@ use crate::kept::Handle;
 use crate::nav::{self, Menu};
 use crate::overlay::{Anchor, AnchorLookup, Band, Behavior, DismissOn, Focus, Nav, Outside};
 use crate::pipeline::{DismissFn, PlacedNode};
-use crate::roots::{Form, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
+use crate::roots::{Form, Here, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
 use crate::shell::Shell;
 use crate::stack::{Entered, Stack};
 
@@ -44,11 +44,16 @@ pub(crate) fn press_origin(ctx: &Context) -> Option<Pos2> {
 }
 
 /// Whether the pointer is on an overlay that leaves focus on its anchor.
-pub(crate) fn pointer_on(ctx: &Context, nodes: &[PlacedNode], roots: &[PlacedRoot]) -> PointerOn {
+pub(crate) fn pointer_on(
+    ctx: &Context,
+    nodes: &[PlacedNode],
+    roots: &[PlacedRoot],
+    here: Here,
+) -> PointerOn {
     let Some(at) = ctx.input(|input| input.pointer.interact_pos()) else {
         return PointerOn::Elsewhere;
     };
-    let root = root_at(roots, nodes, at);
+    let root = root_at(roots, nodes, at, here);
     let on_it = roots[root].overlay().is_some_and(|overlay| {
         overlay.behavior.focus == Focus::Stay && nodes[roots[root].first].rect().contains(at)
     });
@@ -177,8 +182,8 @@ fn is_nested_in(roots: &[PlacedRoot], root: usize, ancestor: usize) -> bool {
 
 /// The attached overlays, the one on the bottom first. An overlay that is
 /// leaving is not among them: it takes no key and is not judged again.
-fn open_overlays(roots: &[PlacedRoot]) -> Vec<Open<'_>> {
-    let order: Vec<usize> = stacked_top_down(roots)
+fn open_overlays(roots: &[PlacedRoot], here: Here) -> Vec<Open<'_>> {
+    let order: Vec<usize> = stacked_top_down(roots, here)
         .into_iter()
         .rev()
         .filter(|&root| {
@@ -204,8 +209,10 @@ fn open_overlays(roots: &[PlacedRoot]) -> Vec<Open<'_>> {
 }
 
 /// The root of the topmost open overlay, or the page's.
-pub(crate) fn topmost_root(roots: &[PlacedRoot]) -> usize {
-    open_overlays(roots).last().map_or(0, |open| open.root)
+pub(crate) fn topmost_root(roots: &[PlacedRoot], here: Here) -> usize {
+    open_overlays(roots, here)
+        .last()
+        .map_or(here.root, |open| open.root)
 }
 
 /// The box of the overlay at `root`: the root's rect, or for a modal, whose
@@ -380,12 +387,12 @@ pub(crate) fn claim_keys(
     ctx: &Context,
     kept: &Handle,
     nodes: &[PlacedNode],
-    roots: &[PlacedRoot],
+    (roots, here): (&[PlacedRoot], Here),
     drag: Drag,
 ) -> Keys {
     Source::note(ctx);
     register_hold_tab(ctx);
-    let open = open_overlays(roots);
+    let open = open_overlays(roots, here);
     let pressed = |key| ctx.input(|input| input.key_pressed(key));
     let escape = if pressed(Key::Escape) {
         Pressed::Yes
@@ -416,7 +423,7 @@ pub(crate) fn claim_keys(
     let escaped = escape == Pressed::Yes && Typing::escape_blurred(ctx, kept);
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
     let default = if pressed(Key::Enter) {
-        actions::return_button(ctx, kept, nodes, roots, &top_down)
+        actions::return_button(ctx, kept, nodes, (roots, here), &top_down)
     } else {
         None
     };
@@ -444,6 +451,7 @@ pub(crate) struct Frame<'a> {
     pub(crate) kept: &'a Handle,
     pub(crate) nodes: &'a [PlacedNode],
     pub(crate) roots: &'a [PlacedRoot],
+    pub(crate) here: Here,
     pub(crate) subtrees: &'a [(Id, Box<[Id]>)],
     pub(crate) drag: Drag,
     pub(crate) keys: Keys,
@@ -458,11 +466,12 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         kept,
         nodes,
         roots,
+        here,
         subtrees,
         drag,
         keys,
     } = frame;
-    let open = open_overlays(roots);
+    let open = open_overlays(roots, here);
     if open.iter().any(Open::holds_tab) {
         note_tab_held(ctx);
     }

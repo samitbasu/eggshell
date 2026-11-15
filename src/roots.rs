@@ -30,6 +30,8 @@ pub(crate) enum RootKind {
     Base,
     /// A floating layer placed against an anchor.
     Overlay(OverlayDecl),
+    /// A popped-out subtree, in a window of its own.
+    Window(crate::window::WindowDecl),
 }
 
 /// How an overlay is put on screen: next to an anchor, or as a modal.
@@ -78,6 +80,16 @@ impl<A> RootDecl<'_, A> {
         Self {
             kind: RootKind::Base,
             parent: None,
+            node: None,
+            scrolls: Vec::new(),
+            regions: Vec::new(),
+        }
+    }
+
+    pub(crate) fn window(decl: crate::window::WindowDecl, parent: usize) -> Self {
+        Self {
+            kind: RootKind::Window(decl),
+            parent: Some(parent),
             node: None,
             scrolls: Vec::new(),
             regions: Vec::new(),
@@ -180,6 +192,16 @@ pub(crate) struct PlacedOverlay {
 pub(crate) enum PlacedRootKind {
     Base,
     Overlay(PlacedOverlay),
+    Window(crate::window::PlacedWindow),
+}
+
+/// Where a root is drawn: in the viewport the frame is drawn in, or in the
+/// native window of the pop-out at this root index. A pop-out's window
+/// embedded in the viewport (egui's `embed_viewports`) is on the page.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Home {
+    Page,
+    Window(usize),
 }
 
 impl PlacedOverlay {
@@ -196,6 +218,7 @@ pub(crate) struct PlacedRoot {
     /// The index of the root's node; its subtree is the nodes up to its `end`.
     pub(crate) first: usize,
     pub(crate) parent: Option<usize>,
+    pub(crate) home: Home,
     pub(crate) kind: PlacedRootKind,
 }
 
@@ -208,7 +231,14 @@ impl PlacedRoot {
     pub(crate) fn overlay(&self) -> Option<&PlacedOverlay> {
         match &self.kind {
             PlacedRootKind::Overlay(overlay) => Some(overlay),
-            PlacedRootKind::Base => None,
+            PlacedRootKind::Base | PlacedRootKind::Window(_) => None,
+        }
+    }
+
+    pub(crate) fn window(&self) -> Option<&crate::window::PlacedWindow> {
+        match &self.kind {
+            PlacedRootKind::Window(window) => Some(window),
+            PlacedRootKind::Base | PlacedRootKind::Overlay(_) => None,
         }
     }
 }
@@ -235,34 +265,68 @@ pub(crate) fn root_of(roots: &[PlacedRoot], index: usize) -> usize {
         .expect("the base root comes first")
 }
 
-/// The root that takes the pointer at `p`: the topmost attached overlay
-/// whose box blocks it, or the base (root 0) when none does. An overlay that
-/// swallows presses blocks the whole screen.
+/// The roots one pass draws, with one viewport's input: those at `home`,
+/// over `root`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Here {
+    pub(crate) home: Home,
+    pub(crate) root: usize,
+}
+
+impl Here {
+    /// The page: the base root and what is drawn over it.
+    pub(crate) const PAGE: Self = Self {
+        home: Home::Page,
+        root: 0,
+    };
+
+    /// The pass of the root at `root`.
+    pub(crate) fn of(roots: &[PlacedRoot], root: usize) -> Self {
+        Self {
+            home: roots[root].home,
+            root,
+        }
+    }
+}
+
+/// The root that takes the pointer at `p` in the pass `here`: the topmost
+/// attached overlay whose box blocks it, else the last declared embedded
+/// pop-out window it is over, else `here`'s root. An overlay that swallows
+/// presses blocks the whole screen.
 ///
 /// This is the one answer to "what is on top here": drop targets and the
 /// press that raises a layer ask it, so they cannot disagree with what the
 /// pointer reaches. Whether a press dismisses an overlay is another question,
 /// which `dismissals` answers.
-pub(crate) fn root_at(roots: &[PlacedRoot], nodes: &[PlacedNode], p: Pos2) -> usize {
-    stacked_top_down(roots)
-        .into_iter()
-        .find(|&index| {
-            let root = &roots[index];
-            let node = &nodes[root.first];
-            root.overlay()
-                .is_some_and(|overlay| overlay.anchored == Anchored::Attached)
-                && node.blocks_pointer()
-                && (node.rect().contains(p) || covers_screen(roots, nodes, index))
+pub(crate) fn root_at(roots: &[PlacedRoot], nodes: &[PlacedNode], p: Pos2, here: Here) -> usize {
+    let overlay = stacked_top_down(roots, here).into_iter().find(|&index| {
+        let root = &roots[index];
+        let node = &nodes[root.first];
+        root.overlay()
+            .is_some_and(|overlay| overlay.anchored == Anchored::Attached)
+            && node.blocks_pointer()
+            && (node.rect().contains(p) || covers_screen(roots, nodes, index))
+    });
+    let window = || {
+        roots.iter().rposition(|root| {
+            root.home == here.home
+                && root.window().is_some_and(|window| {
+                    window.presentation == crate::window::Presentation::Embedded
+                        && window.content.contains(p)
+                })
         })
-        .unwrap_or(0)
+    };
+    overlay.or_else(window).unwrap_or(here.root)
 }
 
-/// The indices of the overlay roots, topmost first: higher bands over
-/// lower, and inside a band the later opened over the earlier.
-pub(crate) fn stacked_top_down(roots: &[PlacedRoot]) -> Vec<usize> {
+/// The indices of the overlay roots of the pass `here`, topmost first:
+/// higher bands over lower, and inside a band the later opened over the
+/// earlier.
+pub(crate) fn stacked_top_down(roots: &[PlacedRoot], here: Here) -> Vec<usize> {
     let mut found: Vec<(egui::Order, usize, usize)> = roots
         .iter()
         .enumerate()
+        .filter(|(_, root)| root.home == here.home)
         .filter_map(|(index, root)| {
             let overlay = root.overlay()?;
             Some((overlay.band.into(), overlay.stack_index, index))
@@ -478,10 +542,13 @@ mod tests {
     fn the_page_is_where_no_overlay_is() {
         let placed = placed(&[Band::Popup]);
         assert_eq!(
-            root_at(&placed.roots, &placed.nodes, pos2(50.0, 50.0)),
+            root_at(&placed.roots, &placed.nodes, pos2(50.0, 50.0), Here::PAGE),
             root_of_overlay(&placed, 0_usize)
         );
-        assert_eq!(root_at(&placed.roots, &placed.nodes, pos2(300.0, 250.0)), 0);
+        assert_eq!(
+            root_at(&placed.roots, &placed.nodes, pos2(300.0, 250.0), Here::PAGE),
+            0
+        );
     }
 
     #[test]
@@ -494,11 +561,11 @@ mod tests {
             "precondition: both contain the point"
         );
         assert_eq!(
-            root_at(&placed.roots, &placed.nodes, overlap),
+            root_at(&placed.roots, &placed.nodes, overlap, Here::PAGE),
             root_of_overlay(&placed, 1_usize)
         );
         assert_eq!(
-            root_at(&placed.roots, &placed.nodes, pos2(25.0, 25.0)),
+            root_at(&placed.roots, &placed.nodes, pos2(25.0, 25.0), Here::PAGE),
             root_of_overlay(&placed, 0_usize)
         );
     }
@@ -508,7 +575,7 @@ mod tests {
         let placed = placed(&[Band::Popup, Band::Floating]);
         assert!(placed.overlay(1_usize).stack_index() > placed.overlay(0_usize).stack_index());
         assert_eq!(
-            root_at(&placed.roots, &placed.nodes, pos2(75.0, 75.0)),
+            root_at(&placed.roots, &placed.nodes, pos2(75.0, 75.0), Here::PAGE),
             root_of_overlay(&placed, 0_usize)
         );
     }
@@ -523,11 +590,11 @@ mod tests {
             "precondition: both contain the point"
         );
         assert_eq!(
-            root_at(&placed.roots, &placed.nodes, both),
+            root_at(&placed.roots, &placed.nodes, both, Here::PAGE),
             root_of_overlay(&placed, 0_usize)
         );
         assert_eq!(
-            root_at(&placed.roots, &placed.nodes, pos2(140.0, 140.0)),
+            root_at(&placed.roots, &placed.nodes, pos2(140.0, 140.0), Here::PAGE),
             0,
             "only the tooltip is there"
         );

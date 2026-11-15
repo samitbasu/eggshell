@@ -454,7 +454,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .iter()
             .filter_map(|root| match &root.kind {
                 RootKind::Overlay(overlay) => Some(overlay.id),
-                RootKind::Base => None,
+                RootKind::Base | RootKind::Window(_) => None,
             })
     }
 
@@ -468,7 +468,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 } => Some(id),
                 _ => None,
             },
-            RootKind::Base => None,
+            RootKind::Base | RootKind::Window(_) => None,
         })
     }
 
@@ -793,6 +793,72 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub fn overlay<K: Key>(&mut self, key: K) -> OverlayChain<'_, 'f, A, Unplaced> {
         let slot = self.slot(&key);
         OverlayChain::new(self.reborrow(), slot)
+    }
+
+    /// TODO(prose): a subtree shown inline or, while popped out, in a window
+    /// of its own. See [`crate::window`].
+    pub fn pop_out<K: Key>(&mut self, key: K) -> crate::window::PopOutChain<'_, 'f, A>
+    where
+        A: 'static,
+    {
+        let slot = self.slot(&key);
+        crate::window::PopOutChain::new(self.reborrow(), slot)
+    }
+
+    /// Notes the pop-out `id`, whatever it shows this frame.
+    pub(crate) fn note_pop_out(&mut self, id: Id) {
+        self.frame.pop_outs.push(id);
+    }
+
+    /// Declares the window `decl` of a popped-out subtree and builds `body`
+    /// as its content, a root of its own, at the path the subtree has
+    /// inline.
+    #[track_caller]
+    pub(crate) fn window_with(
+        mut self,
+        slot: &Slot,
+        decl: crate::window::WindowDecl,
+        hooks: crate::window::Hooks<A>,
+        classes: Tw,
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) {
+        self.frame.windows.insert(slot.id, hooks);
+        let path = self.identify(slot.id, &slot.label);
+        let parent = self.frame.current;
+        self.frame.roots.push(RootDecl::window(decl, parent));
+        let at = self.frame.roots.len() - 1;
+        self.frame.current = at;
+        let ambient = self.ambient_in(&classes);
+        let node = self.node(
+            &classes,
+            Parts {
+                id: Some(slot.id),
+                ..Parts::anonymous(NodeKind::Window, path)
+            },
+        );
+        let style = self.resolved_style(classes, &node);
+        let text = node.text.clone();
+        let mark = self.st.names.push(&slot.label);
+        let mut kids = Vec::new();
+        body(&mut Scope(Builder::new(
+            self.st,
+            self.frame,
+            slot.id,
+            &mut kids,
+            (&text, ambient),
+        )));
+        self.st.names.pop_to(mark);
+        self.frame.current = parent;
+        let root = self
+            .st
+            .tree
+            .new_with_children(style, &kids)
+            .expect("children were created in this tree");
+        self.st
+            .tree
+            .set_node_context(root, Some(node))
+            .expect("node was just created");
+        self.frame.roots[at].node = Some(root);
     }
 
     /// Declares the overlay `decl` and builds `body` as its content, a root

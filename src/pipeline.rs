@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use egui::{Id, Rect, Role, Vec2, vec2};
+use egui::{Id, Rect, Role, Vec2, ViewportId, vec2};
 use taffy::{
     AvailableSpace, Baselines, Dimension, Display, LayoutInput, LayoutOutput, LengthPercentageAuto,
     NodeId, Overflow, Point, Position, ResolveOrZero, Size, Style, TaffyTree, compute_leaf_layout,
@@ -25,7 +25,7 @@ use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placemen
 use crate::prim::Prim;
 use crate::region::{self, RegionDecl};
 use crate::roots::{
-    ById, Form, PlacedOverlay, PlacedRoot, PlacedRootKind, Presentation, RootDecl, RootKind,
+    ById, Form, Home, PlacedOverlay, PlacedRoot, PlacedRootKind, Presentation, RootDecl, RootKind,
     modal_style, root_of,
 };
 use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
@@ -69,6 +69,8 @@ pub enum NodeKind {
     /// The root of an overlay, laid out on its own and placed against its
     /// anchor.
     Overlay,
+    /// TODO(prose): the root of a popped-out subtree, laid out in its window.
+    Window,
     /// An identified region: a leaf that only layout sizes, with the root of
     /// its content built after the layout around it.
     Region,
@@ -267,6 +269,10 @@ pub(crate) struct Frame<'f, A> {
     pub roots: Vec<RootDecl<'f, A>>,
     /// What to run when an overlay is dismissed, by the overlay's id.
     pub dismiss: HashMap<Id, DismissFn<A>>,
+    /// What to run when a pop-out's window is closed or moved, by its id.
+    pub windows: HashMap<Id, crate::window::Hooks<A>>,
+    /// Every pop-out declared, inline or popped out.
+    pub pop_outs: Vec<Id>,
     /// What to run for the overlays that finished leaving this frame.
     pub exited: Vec<DismissFn<A>>,
     /// The root whose body is being built.
@@ -295,6 +301,8 @@ impl<'f, A> Frame<'f, A> {
             drag: Decls::default(),
             roots: vec![RootDecl::base()],
             dismiss: HashMap::new(),
+            windows: HashMap::new(),
+            pop_outs: Vec::new(),
             exited: Vec::new(),
             current: 0,
             build_built: None,
@@ -592,14 +600,14 @@ impl<'f, A> Built<'f, A> {
         let mut roots = vec![PlacedRoot {
             first: 0,
             parent: None,
+            home: Home::Page,
             kind: PlacedRootKind::Base,
         }];
         let scope = st.scope;
         let root = st.root;
-        st.kept
-            .viewport(ctx.viewport_id(), |here| here.area = Some(area));
-        let mut stack = Stack::load(&st.kept, ctx.viewport_id());
-        let mut present = HashSet::new();
+        let page = ctx.viewport_id();
+        st.kept.viewport(page, |here| here.area = Some(area));
+        let mut stacks: HashMap<ViewportId, (Stack, HashSet<Id>)> = HashMap::new();
         // Regions may declare overlays, which come after those declared in
         // the build.
         let mut at = 1;
@@ -612,12 +620,60 @@ impl<'f, A> Built<'f, A> {
                 regions,
             } = frame.take_decl(at);
             let node = node.expect("a root's body was built");
+            let parent = parent.expect("a root other than the base is declared in a root");
             let overlay = match kind {
                 RootKind::Base => unreachable!("only the first root is the base"),
+                RootKind::Window(decl) => {
+                    let window = place_window(ctx, st, &frame.measures, node, decl, area);
+                    let home = match window.presentation {
+                        crate::window::Presentation::Native => Home::Window(roots.len()),
+                        crate::window::Presentation::Embedded => roots[parent].home,
+                    };
+                    settle_below(ctx, st, &mut frame, at, scrolls, regions);
+                    let first = nodes.len();
+                    collect(
+                        &mut st.tree,
+                        node,
+                        window.content.min,
+                        0,
+                        outlines
+                            .then_some(Probe {
+                                ctx,
+                                measures: &frame.measures,
+                            })
+                            .as_ref(),
+                        &mut settle,
+                        &mut nodes,
+                        &mut prims,
+                    );
+                    index_ids(&nodes, first, &mut by_id);
+                    roots.push(PlacedRoot {
+                        first,
+                        parent: Some(parent),
+                        home,
+                        kind: PlacedRootKind::Window(window),
+                    });
+                    at += 1;
+                    continue;
+                }
                 RootKind::Overlay(overlay) => overlay,
             };
+            let home = roots[parent].home;
+            let (viewport, area) = match home {
+                Home::Page => (page, area),
+                Home::Window(window) => {
+                    let window = roots[window].window().expect("a window's root");
+                    (window.viewport(), window.content)
+                }
+            };
+            let (stack, present) = stacks
+                .entry(viewport)
+                .or_insert_with(|| (Stack::load(&st.kept, viewport), HashSet::new()));
             let (open, opening) = stack.enter(overlay.id, overlay.band);
-            if opening == Opening::Opened && overlay.behavior.focus != Focus::None {
+            if opening == Opening::Opened
+                && overlay.behavior.focus != Focus::None
+                && home == Home::Page
+            {
                 open.restore = ctx.memory(|memory| memory.focused());
             }
             let (anchor_decl, anchor, anchored, lookup, rect, form, bounds, natural) = match overlay
@@ -631,7 +687,7 @@ impl<'f, A> Built<'f, A> {
                     let (anchor, anchored, lookup) =
                         resolve_anchor(anchor_decl, area, &nodes, &by_id, &roots, || {
                             *open.pointer.get_or_insert_with(|| {
-                                ctx.input(|input| input.pointer.latest_pos())
+                                ctx.input_for(viewport, |input| input.pointer.latest_pos())
                                     .unwrap_or(area.min)
                             })
                         });
@@ -714,7 +770,10 @@ impl<'f, A> Built<'f, A> {
                     )
                 }
                 Presentation::Modal(modal) => {
-                    let screen = ctx.content_rect();
+                    let screen = match home {
+                        Home::Page => ctx.content_rect(),
+                        Home::Window(_) => area,
+                    };
                     st.tree
                         .set_style(node, modal_style(modal, screen))
                         .expect("node exists");
@@ -759,13 +818,13 @@ impl<'f, A> Built<'f, A> {
                 &mut prims,
             );
             index_ids(&nodes, first, &mut by_id);
-            let parent = parent.expect("an overlay is declared in a root");
             let declared_in = roots[parent]
                 .overlay()
                 .map_or(Anchored::Attached, |parent| parent.anchored);
             roots.push(PlacedRoot {
                 first,
                 parent: Some(parent),
+                home,
                 kind: PlacedRootKind::Overlay(PlacedOverlay {
                     id: overlay.id,
                     band: overlay.band,
@@ -786,15 +845,42 @@ impl<'f, A> Built<'f, A> {
             at += 1;
         }
         settle.finish();
-        focus::restore(ctx, &st.kept, &stack.keep_only(&present));
-        for root in &mut roots {
-            if let PlacedRootKind::Overlay(overlay) = &mut root.kind {
-                overlay.stack_index = stack
+        stacks
+            .entry(page)
+            .or_insert_with(|| (Stack::load(&st.kept, page), HashSet::new()));
+        let viewport_of = |roots: &[PlacedRoot], home| match home {
+            Home::Page => page,
+            Home::Window(window) => roots[window].window().expect("a window's root").viewport(),
+        };
+        for (&viewport, (stack, present)) in &mut stacks {
+            let closed = stack.keep_only(present);
+            if viewport == page {
+                focus::restore(ctx, &st.kept, &closed);
+            } else {
+                st.kept
+                    .viewport(viewport, |here| here.focus.closed.extend(closed));
+            }
+        }
+        for index in 0..roots.len() {
+            let viewport = viewport_of(&roots, roots[index].home);
+            if let PlacedRootKind::Overlay(overlay) = &mut roots[index].kind {
+                overlay.stack_index = stacks[&viewport]
+                    .0
                     .index_of(overlay.id)
                     .expect("an open overlay is in the stack");
             }
         }
-        stack.store(&st.kept, ctx.viewport_id());
+        for (viewport, (stack, _)) in stacks {
+            stack.store(&st.kept, viewport);
+        }
+        st.kept.with(|kept| {
+            kept.windows.retain(|id, _| {
+                roots
+                    .iter()
+                    .any(|root| root.window().is_some_and(|window| window.id == *id))
+            });
+            kept.carried.retain(|id, _| frame.pop_outs.contains(id));
+        });
         st.kept.with(|kept| {
             kept.presences.sweep();
             kept.lists.sweep(ctx.cumulative_pass_nr());
@@ -804,6 +890,8 @@ impl<'f, A> Built<'f, A> {
             draws,
             drag,
             dismiss,
+            windows,
+            pop_outs,
             exited,
             commands,
             size_in_flight,
@@ -822,11 +910,83 @@ impl<'f, A> Built<'f, A> {
             draws,
             drag,
             dismiss,
+            windows,
+            pop_outs,
             exited,
             roots,
             commands,
             size_in_flight,
         }
+    }
+}
+
+/// Lays out the root `node` of a popped-out subtree at the size its window
+/// had when it was last drawn, or, when it opens, at the size the
+/// application's frame gives it or else its max-content size; never below
+/// its minimum. `area` is where an embedded window opens on the page.
+fn place_window(
+    ctx: &egui::Context,
+    st: &mut BuildState,
+    measures: &[MeasureFn<'_>],
+    node: NodeId,
+    decl: crate::window::WindowDecl,
+    area: Rect,
+) -> crate::window::PlacedWindow {
+    use crate::window::{MinSize, Presentation};
+    let presentation = if ctx.embed_viewports() {
+        Presentation::Embedded
+    } else {
+        Presentation::Native
+    };
+    let mut style = st.tree.style(node).expect("node exists").clone();
+    let mut sized = |size: Option<Vec2>, available: AvailableSpace| {
+        style.size = Size {
+            width: size.map_or(Dimension::auto(), |size| Dimension::length(size.x)),
+            height: size.map_or(Dimension::auto(), |size| Dimension::length(size.y)),
+        };
+        st.tree.set_style(node, style.clone()).expect("node exists");
+        let available = Size {
+            width: size.map_or(available, |size| AvailableSpace::Definite(size.x)),
+            height: size.map_or(available, |size| AvailableSpace::Definite(size.y)),
+        };
+        solve(ctx, measures, &mut st.tree, node, available);
+        laid_size(&st.tree, node)
+    };
+    let min = match decl.window.min_size {
+        MinSize::Content => sized(None, AvailableSpace::MinContent),
+        MinSize::Points(size) => size,
+    };
+    let (seen, chrome) = st.kept.with(|kept| {
+        (
+            kept.windows.get(&decl.id).and_then(|seen| seen.content),
+            kept.chrome,
+        )
+    });
+    let size = seen
+        .map(|content| content.size())
+        .or_else(|| decl.window.frame.map(|frame| frame.size))
+        .unwrap_or_else(|| sized(None, AvailableSpace::MaxContent))
+        .max(min);
+    let origin = match presentation {
+        Presentation::Native => egui::Pos2::ZERO,
+        Presentation::Embedded => seen.map_or_else(
+            || {
+                let offset = chrome.map_or(Vec2::ZERO, |chrome| chrome.offset);
+                decl.window
+                    .frame
+                    .map_or(area.center() - size / 2.0, |frame| frame.position + offset)
+            },
+            |content| content.min,
+        ),
+    };
+    sized(Some(size), AvailableSpace::MaxContent);
+    crate::window::PlacedWindow {
+        id: decl.id,
+        viewport: decl.viewport(),
+        window: decl.window,
+        presentation,
+        content: Rect::from_min_size(origin, size),
+        min,
     }
 }
 
@@ -1380,7 +1540,7 @@ impl PlacedNode {
     /// [`Placed::root_at`] asks it of the roots.
     pub(crate) fn blocks_pointer(&self) -> bool {
         self.pointer_events == PointerEvents::Auto
-            && (self.kind == NodeKind::Overlay || self.paints_box())
+            && (matches!(self.kind, NodeKind::Overlay | NodeKind::Window) || self.paints_box())
     }
 
     /// For a scroll container, its viewport: the padding box minus the
@@ -1531,6 +1691,10 @@ pub struct Placed<A> {
     pub(crate) draws: Vec<Option<DrawFn<A>>>,
     pub(crate) drag: Decls<A>,
     pub(crate) dismiss: HashMap<Id, DismissFn<A>>,
+    /// What to run when a pop-out's window is closed or moved, by its id.
+    pub(crate) windows: HashMap<Id, crate::window::Hooks<A>>,
+    /// Every pop-out declared, inline or popped out.
+    pub(crate) pop_outs: Vec<Id>,
     pub(crate) exited: Vec<DismissFn<A>>,
     /// The base root, then the overlays in the order they were declared.
     pub(crate) roots: Vec<PlacedRoot>,

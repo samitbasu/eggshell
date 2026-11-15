@@ -28,7 +28,13 @@ pub(crate) struct Kept {
     pub(crate) presences: Presences,
     pub(crate) lists: crate::vlist::Lists,
     pub(crate) scrolls: crate::scroll::Scrolls,
-    pub(crate) focus: crate::focus::Focus,
+    /// The pop-outs' windows, by the pop-out's id.
+    pub(crate) windows: HashMap<egui::Id, crate::window::Seen>,
+    /// Where each pop-out's subtree was last drawn, and its focus there.
+    pub(crate) carried: HashMap<egui::Id, crate::window::Carried>,
+    /// What an embedded pop-out window draws around its content, once one
+    /// has been drawn.
+    pub(crate) chrome: Option<crate::window::Chrome>,
     viewports: HashMap<ViewportId, Viewport>,
     /// Where clipboard reads and writes go; the system's when unset.
     pub(crate) clipboard: Option<std::sync::Arc<dyn crate::ClipboardSource>>,

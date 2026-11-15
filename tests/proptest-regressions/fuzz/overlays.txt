@@ -21,3 +21,4 @@ cc d4d48cfc4675bf330925996b37f5810800dd8219aae3bef05e77a23737424d3f # shrinks to
 cc 627d3be75f18447c641439f7310f9fc3056486997c1a847e69d30aa83582c92f # shrinks to actions = [OpenAnchorPopover, ArrowUp, ClickAt(4, 52)]
 cc 390607e3ac9f402f0a6221cbd14abe560222e00408328c1004904b2cc703c985 # shrinks to actions = [PressAt(4, 31), Tab, OpenMenu, Enter]
 cc 20ccb39aac25f462290d41fdd4c6361f742dfa57a7e7abda500a2838a0f09a51 # shrinks to session = [ResizeWindow(281, 220), ClickAt(82, 71)]
+cc abf1f56e9cdfef77aa23d403f5513743081bbf01c991bae4911e683f24199db9 # shrinks to actions = [OpenContextMenu(82, 0), ResizeWindow(302, 248), ClickItem(0)]
