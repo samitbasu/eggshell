@@ -129,7 +129,7 @@ fn move_past(h: &mut H<'_>, key: u32) {
 }
 
 fn carried(h: &H<'_>) -> bool {
-    crate::support::shell(&h).drag_pointer().is_some()
+    crate::support::shell(h).drag_pointer().is_some()
 }
 
 #[derive(Debug)]

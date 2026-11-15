@@ -59,7 +59,7 @@ fn order(h: &H<'_>) -> Vec<u32> {
 }
 
 fn carried(h: &H<'_>) -> bool {
-    crate::support::shell(&h).drag_pointer().is_some()
+    crate::support::shell(h).drag_pointer().is_some()
 }
 
 /// Presses on row `n` and moves just far enough to start a drag.

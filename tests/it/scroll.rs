@@ -252,7 +252,7 @@ fn lift_row(h: &mut H<'_>, row: u32) {
     h.hover_at(from + vec2(0.0, 12.0));
     h.run_steps(2);
     assert!(
-        crate::support::shell(&h).drag_pointer().is_some(),
+        crate::support::shell(h).drag_pointer().is_some(),
         "precondition: row {row} is lifted"
     );
 }
