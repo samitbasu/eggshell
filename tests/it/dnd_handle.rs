@@ -264,6 +264,31 @@ fn a_button_in_the_panel_still_clicks() {
 }
 
 #[test]
+fn a_click_on_a_button_in_a_whole_panel_source_lifts_nothing() {
+    let mut h = harness(Lifts::FromAnywhere);
+    let at = part(&h, 0, Part::Button).center();
+    assert!(
+        pane(&h, 0).contains(at),
+        "precondition: the button is in the pane"
+    );
+    h.hover_at(at);
+    h.run_steps(3);
+    for pressed in [true, false] {
+        h.event(Event::PointerButton {
+            pos: at,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        });
+        h.step();
+        assert!(!carried(&h), "nothing is lifted (pressed: {pressed})");
+    }
+    h.run_steps(3);
+    assert_eq!(h.state().app.clicks, 1);
+    assert!(h.state().app.ends.is_empty(), "{:?}", h.state().app.ends);
+}
+
+#[test]
 fn a_custom_node_in_the_panel_gets_its_own_drag() {
     let mut h = harness(Lifts::FromGrip);
     let plot = part(&h, 0, Part::Plot);
