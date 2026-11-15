@@ -180,6 +180,10 @@ impl TextEdit {
         self
     }
 
+    pub(crate) fn is_single_line(&self) -> bool {
+        self.lines == Lines::Single
+    }
+
     pub(crate) fn enter(&self) -> Enter {
         match self.lines {
             Lines::Single => self.enter,
