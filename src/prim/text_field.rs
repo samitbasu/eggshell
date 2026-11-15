@@ -156,6 +156,11 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             autofocus,
         } = self;
         let measured = field.clone();
+        let classes = if field.is_bare() {
+            classes
+        } else {
+            crate::owned::text_field_classes(&crate::Style::of(b.ctx())).merge(classes)
+        };
         b.leaf_with(slot.id, &slot.label, classes, move |m| {
             measure(m, &measured)
         })

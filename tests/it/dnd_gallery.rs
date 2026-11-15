@@ -1003,3 +1003,49 @@ fn h_switches_to_grip_mode_where_only_the_grip_lifts_a_panel() {
     h.run_steps(3);
     assert_eq!(h.state().app.lift, Lift::Anywhere, "H switches back");
 }
+
+/// A resize that moves the held panel's insertion point reorders the
+/// neighbours on the resize frame; they slide, as any reorder does (#86).
+#[test]
+fn a_resize_that_reorders_under_a_held_panel_is_continuous() {
+    for cols in 3..=5 {
+        let mut h = harness(cols);
+        lift(&mut h, 2);
+        assert!(carried(&h), "cols {cols}: precondition: lifted");
+        let order = layout_order(&h);
+        let mut width = SIZE.x;
+        while width < 857.0 {
+            width = (width + 12.0).min(857.0);
+            h.set_size(vec2(width, SIZE.y));
+            h.step();
+            assert!(carried(&h), "cols {cols}: still dragging at {width}");
+        }
+        h.run_steps(20);
+        assert_ne!(
+            layout_order(&h)[..6],
+            order[..6],
+            "cols {cols}: precondition: the resize reorders the preview"
+        );
+        Timeline::recorded(&h.ctx).assert_continuous();
+    }
+}
+
+/// A resize that reorders nothing still places the nodes at once: a slide on
+/// it would lag the window's edge.
+#[test]
+fn a_plain_resize_places_the_panels_at_once() {
+    let mut h = harness(3);
+    let mut width = SIZE.x;
+    while width > 400.0 {
+        width -= 12.0;
+        h.set_size(vec2(width, SIZE.y));
+        h.step();
+        for key in 0..6 {
+            assert_eq!(
+                painted(&h, key),
+                face_layout(&h, key),
+                "panel {key} at width {width}"
+            );
+        }
+    }
+}

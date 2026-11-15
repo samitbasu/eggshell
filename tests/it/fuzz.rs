@@ -251,10 +251,7 @@ enum DragAction {
     Escape,
     ReleaseInside,
     ReleaseOutside,
-    /// Changes the window's width. Not while a panel is held: a reorder the
-    /// resize itself causes coincides with a resize frame, where nodes are
-    /// placed at once (#80), so the checker rightly finds a snap. The held
-    /// case is `a_resize_under_a_held_panel_keeps_the_drag`.
+    /// Changes the window's width. Also while a panel is held.
     Resize(u32),
     SetCols(u32),
     /// Swaps the live image for the chip, or back. Not while a panel is held:
@@ -412,7 +409,7 @@ impl Hand<'_> {
                 self.harness.step();
                 self.down = false;
             }
-            DragAction::Resize(target) if !self.down => {
+            DragAction::Resize(target) => {
                 let target = target as f32;
                 while self.width != target {
                     self.width += (target - self.width).clamp(-EDGE_STEP, EDGE_STEP);

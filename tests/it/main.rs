@@ -83,6 +83,7 @@ mod style_switch;
 mod support;
 mod sweep;
 mod tabular_nums;
+mod text_field_ring;
 mod theme_toggle;
 mod todo_demo;
 mod toggle_group;

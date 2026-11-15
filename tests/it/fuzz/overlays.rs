@@ -518,20 +518,11 @@ struct Desk {
     /// The widget that had focus when each overlay opened, as the library
     /// stores it to give it back.
     openers: Vec<(Id, Option<Id>)>,
-    strictness: Scroll,
     session: Session,
 }
 
-/// Whether the session presses the arrows, Home and End while a pointer
-/// button is held. `Raw` does, and meets #184.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Scroll {
-    Guarded,
-    Raw,
-}
-
 impl Desk {
-    fn new(strictness: Scroll) -> Self {
+    fn new() -> Self {
         let mut harness = rig_harness();
         harness.run_steps(4);
         let session = Session::start(&harness.ctx);
@@ -541,7 +532,6 @@ impl Desk {
             down: false,
             size: WINDOW,
             openers: Vec::new(),
-            strictness,
             session,
         };
         desk.harness.step();
@@ -771,11 +761,6 @@ impl Desk {
 
     fn perform(&mut self, action: &Action) -> Result<(), TestCaseError> {
         match *action {
-            Action::ArrowDown | Action::ArrowUp | Action::Home | Action::End
-                if self.strictness == Scroll::Guarded && self.down =>
-            {
-                Ok(())
-            }
             Action::OpenMenu => self.click_node("\"menu\""),
             Action::OpenSelect => self.click_node("\"pick\""),
             Action::OpenPopover => self.click_node("\"popover\""),
@@ -982,8 +967,8 @@ impl Desk {
     }
 }
 
-fn run(actions: &[Action], strictness: Scroll) -> Result<(), TestCaseError> {
-    let mut desk = Desk::new(strictness);
+fn run(actions: &[Action]) -> Result<(), TestCaseError> {
+    let mut desk = Desk::new();
     for action in actions {
         desk.act(action)
             .map_err(|error| TestCaseError::fail(format!("after {action:?}: {error}")))?;
@@ -1008,7 +993,7 @@ proptest! {
 
     #[test]
     fn overlays_hold_their_invariants_under_any_session(actions in overlay_session()) {
-        run(&actions, Scroll::Guarded)?;
+        run(&actions)?;
     }
 }
 
@@ -1017,7 +1002,7 @@ proptest! {
 /// not.
 #[test]
 fn tab_is_swallowed_while_a_menu_is_open() {
-    let mut desk = Desk::new(Scroll::Guarded);
+    let mut desk = Desk::new();
     desk.act(&Action::OpenMenu).expect("holds");
     assert!(desk.seen().open().any(Open::is_menu), "precondition: open");
     let focus = desk.focused();
@@ -1043,14 +1028,11 @@ fn tab_is_swallowed_while_a_menu_is_open() {
 /// opens: menus are exclusive, seen or not.
 #[test]
 fn a_menu_hidden_by_a_smaller_window_makes_way_for_the_next() {
-    run(
-        &[
-            Action::OpenContextMenu(0, 7),
-            Action::ResizeWindow(240, 220),
-            Action::OpenMenu,
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::OpenContextMenu(0, 7),
+        Action::ResizeWindow(240, 220),
+        Action::OpenMenu,
+    ])
     .expect("holds");
 }
 
@@ -1058,14 +1040,11 @@ fn a_menu_hidden_by_a_smaller_window_makes_way_for_the_next() {
 /// tooltip that opened after it: its area was seeded as interactable.
 #[test]
 fn a_press_under_a_leaving_tooltip_does_not_raise_it() {
-    run(
-        &[
-            Action::HoverTrigger(1),
-            Action::ResizeWindow(240, 220),
-            Action::OpenModal,
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::HoverTrigger(1),
+        Action::ResizeWindow(240, 220),
+        Action::OpenModal,
+    ])
     .expect("holds");
 }
 
@@ -1074,15 +1053,12 @@ fn a_press_under_a_leaving_tooltip_does_not_raise_it() {
 /// frame, and the stack repair did not know.
 #[test]
 fn a_popover_that_comes_back_does_not_rise_over_a_later_dialog() {
-    run(
-        &[
-            Action::OpenAnchorPopover,
-            Action::ResizeWindow(240, 220),
-            Action::OpenModal,
-            Action::ResizeWindow(240, 308),
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::OpenAnchorPopover,
+        Action::ResizeWindow(240, 220),
+        Action::OpenModal,
+        Action::ResizeWindow(240, 308),
+    ])
     .expect("holds");
 }
 
@@ -1090,14 +1066,11 @@ fn a_popover_that_comes_back_does_not_rise_over_a_later_dialog() {
 /// moves the box at once, which is not a jump of its entrance motion.
 #[test]
 fn a_tooltip_follows_a_trigger_that_a_resize_reflows() {
-    run(
-        &[
-            Action::OpenContextMenu(0, 0),
-            Action::OpenPopover,
-            Action::ResizeWindow(240, 220),
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::OpenContextMenu(0, 0),
+        Action::OpenPopover,
+        Action::ResizeWindow(240, 220),
+    ])
     .expect("holds");
 }
 
@@ -1105,11 +1078,7 @@ fn a_tooltip_follows_a_trigger_that_a_resize_reflows() {
 /// the button that opened it once the exit has run.
 #[test]
 fn escape_on_a_confirmation_returns_focus_to_its_opener() {
-    run(
-        &[Action::OpenModal, Action::Tab, Action::Enter, Action::Esc],
-        Scroll::Guarded,
-    )
-    .expect("holds");
+    run(&[Action::OpenModal, Action::Tab, Action::Enter, Action::Esc]).expect("holds");
 }
 
 fn open_paths(desk: &Desk) -> Vec<String> {
@@ -1126,7 +1095,7 @@ fn open_paths(desk: &Desk) -> Vec<String> {
 #[test]
 fn the_overlay_fuzzer_reaches_every_kind_of_overlay() {
     let reaches = |actions: &[Action], expected: &str| {
-        let mut desk = Desk::new(Scroll::Raw);
+        let mut desk = Desk::new();
         for action in actions {
             desk.act(action).expect("holds");
         }
@@ -1151,7 +1120,7 @@ fn the_overlay_fuzzer_reaches_every_kind_of_overlay() {
 /// under a modal, planted by counting a click on the dialog's scrim.
 #[test]
 fn a_press_on_the_page_is_counted_only_when_no_modal_covers_it() {
-    let mut desk = Desk::new(Scroll::Raw);
+    let mut desk = Desk::new();
     let pad = desk.seen().node("\"pad\"").expect("drawn").1.center();
     desk.act(&Action::ClickAt(
         (pad.x / desk.size.x * 100.0) as u32,
@@ -1172,16 +1141,13 @@ fn a_press_on_the_page_is_counted_only_when_no_modal_covers_it() {
 /// back to the page under the menu that opens.
 #[test]
 fn a_menu_opened_over_a_closing_popover_does_not_leave_focus_on_the_page() {
-    run(
-        &[
-            Action::OpenPopover,
-            Action::ShiftTab,
-            Action::ShiftTab,
-            Action::OpenAnchorPopover,
-            Action::OpenMenu,
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::OpenPopover,
+        Action::ShiftTab,
+        Action::ShiftTab,
+        Action::OpenAnchorPopover,
+        Action::OpenMenu,
+    ])
     .expect("holds");
 }
 
@@ -1190,15 +1156,12 @@ fn a_menu_opened_over_a_closing_popover_does_not_leave_focus_on_the_page() {
 /// leave the first one open. Filed as #199.
 #[test]
 fn a_press_on_a_trigger_with_its_tooltip_up_closes_the_popover_below() {
-    run(
-        &[
-            Action::OpenPopover,
-            Action::HoverTrigger(1),
-            Action::OpenAnchorPopover,
-            Action::ArrowDown,
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::OpenPopover,
+        Action::HoverTrigger(1),
+        Action::OpenAnchorPopover,
+        Action::ArrowDown,
+    ])
     .expect("holds");
 }
 
@@ -1206,14 +1169,11 @@ fn a_press_on_a_trigger_with_its_tooltip_up_closes_the_popover_below() {
 /// focus inside the context menu. Filed as #203.
 #[test]
 fn arrow_left_in_a_context_submenu_keeps_focus_in_the_menu() {
-    run(
-        &[
-            Action::OpenContextMenu(82, 0),
-            Action::OpenSubmenu,
-            Action::ArrowLeft,
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::OpenContextMenu(82, 0),
+        Action::OpenSubmenu,
+        Action::ArrowLeft,
+    ])
     .expect("holds");
 }
 
@@ -1221,14 +1181,11 @@ fn arrow_left_in_a_context_submenu_keeps_focus_in_the_menu() {
 /// frame when a press lands on the page.
 #[test]
 fn a_scroll_popover_does_not_blink_when_the_page_is_pressed() {
-    run(
-        &[
-            Action::OpenAnchorPopover,
-            Action::ArrowUp,
-            Action::ClickAt(4, 52),
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::OpenAnchorPopover,
+        Action::ArrowUp,
+        Action::ClickAt(4, 52),
+    ])
     .expect("holds");
 }
 
@@ -1243,7 +1200,7 @@ fn a_press_between_triggers_dismisses_as_the_click_goes() {
         .interaction
         .interact_radius;
     for (offset, closer) in [(3.5, "popover"), (4.5, "dialog")] {
-        let mut desk = Desk::new(Scroll::Raw);
+        let mut desk = Desk::new();
         desk.act(&Action::OpenPopover).expect("holds");
         let popover = desk.seen().node("\"popover\"").expect("drawn").1;
         let dialog = desk.seen().node("\"dialog\"").expect("drawn").1;
@@ -1271,17 +1228,14 @@ fn a_press_between_triggers_dismisses_as_the_click_goes() {
 /// focus in the topmost overlay.
 #[test]
 fn shift_tab_after_stacked_popovers_stays_in_the_topmost_overlay() {
-    run(
-        &[
-            Action::OpenMenu,
-            Action::OpenMenu,
-            Action::HoverTrigger(1),
-            Action::OpenAnchorPopover,
-            Action::OpenPopover,
-            Action::ShiftTab,
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::OpenMenu,
+        Action::OpenMenu,
+        Action::HoverTrigger(1),
+        Action::OpenAnchorPopover,
+        Action::OpenPopover,
+        Action::ShiftTab,
+    ])
     .expect("holds");
 }
 
@@ -1290,35 +1244,28 @@ fn shift_tab_after_stacked_popovers_stays_in_the_topmost_overlay() {
 /// Filed as #219.
 #[test]
 fn enter_with_a_press_held_on_the_anchor_keeps_focus_in_its_popover() {
-    run(
-        &[
-            Action::PressAt(4, 31),
-            Action::Tab,
-            Action::OpenMenu,
-            Action::Enter,
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::PressAt(4, 31),
+        Action::Tab,
+        Action::OpenMenu,
+        Action::Enter,
+    ])
     .expect("holds");
 }
 
-/// Outside the overlays: with a pointer button held, End on a focused button
-/// in a scroll container scrolls it for the frame of the key press and puts
-/// it back in the frame of the release, which hides the button's tooltip (a
-/// gap) for that frame. The session does not press the arrows, Home or End
-/// while a button is held (`Scroll::Guarded`). Filed as #184.
+/// Outside the overlays: with the pointer's button held on a scroll bar, End
+/// on a focused button in the container put the offset where egui's bar, which
+/// sets it from the pointer in every frame, undid it in the same frame, so
+/// the layout and the draw disagreed for a frame and the button's tooltip
+/// left a gap. The bar owns the offset while it is held (#184).
 #[test]
-#[ignore = "#184: End with a button held scrolls for one frame and snaps back"]
 fn end_with_a_button_held_scrolls_and_stays() {
-    run(
-        &[
-            Action::ShiftTab,
-            Action::PressAt(58, 44),
-            Action::ShiftTab,
-            Action::End,
-        ],
-        Scroll::Raw,
-    )
+    run(&[
+        Action::ShiftTab,
+        Action::PressAt(58, 44),
+        Action::ShiftTab,
+        Action::End,
+    ])
     .expect("holds");
 }
 
@@ -1336,7 +1283,7 @@ fn tooltips_open(desk: &Desk) -> usize {
 /// trigger and returns.
 #[test]
 fn escape_keeps_the_tooltip_closed_when_focus_is_restored_to_its_trigger() {
-    let mut desk = Desk::new(Scroll::Guarded);
+    let mut desk = Desk::new();
     for action in [
         Action::Tab,
         Action::ArrowDown,
@@ -1366,15 +1313,12 @@ fn escape_keeps_the_tooltip_closed_when_focus_is_restored_to_its_trigger() {
 /// The same, as the session that found it.
 #[test]
 fn escape_does_not_blink_the_tooltip_of_the_trigger_it_restores_focus_to() {
-    run(
-        &[
-            Action::Tab,
-            Action::ArrowDown,
-            Action::Tab,
-            Action::ArrowDown,
-            Action::Esc,
-        ],
-        Scroll::Guarded,
-    )
+    run(&[
+        Action::Tab,
+        Action::ArrowDown,
+        Action::Tab,
+        Action::ArrowDown,
+        Action::Esc,
+    ])
     .expect("holds");
 }
