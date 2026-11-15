@@ -139,12 +139,34 @@ struct Tracked {
     progress: Transition,
     /// The slide this one interrupted, where the retarget found it.
     interrupted: Option<Interrupted>,
+    /// Its place among the animated children of its parent.
+    rank: usize,
 }
 
 impl Tracked {
     fn offset(&self, now: f64, easing: Easing) -> Vec2 {
         self.start * (1.0 - f32::from(self.progress.value(now, easing)))
     }
+}
+
+/// The place of each animated node among the animated children of its
+/// parent.
+fn ranks(nodes: &[PlacedNode]) -> HashMap<Id, usize> {
+    let mut ranks = HashMap::new();
+    let mut parents: Vec<(usize, usize)> = Vec::new();
+    for (index, node) in nodes.iter().enumerate() {
+        while parents.last().is_some_and(|&(end, _)| end <= index) {
+            parents.pop();
+        }
+        if let (Some(_), Some(id)) = (node.interaction.variants.animate_layout, node.id())
+            && let Some((_, children)) = parents.last_mut()
+        {
+            ranks.insert(id, *children);
+            *children += 1;
+        }
+        parents.push((node.end, 0));
+    }
+    ranks
 }
 
 /// The animated nodes of the last frame drawn into one `Ui`, and the area
@@ -178,6 +200,7 @@ pub(crate) struct LayoutAnimation {
     now: f64,
     previous: HashMap<Id, Tracked>,
     current: HashMap<Id, Tracked>,
+    ranks: HashMap<Id, usize>,
     area: Rect,
     reach: f32,
     /// Whether a layout move starts a slide.
@@ -200,17 +223,23 @@ impl StartsSlides {
 }
 
 impl LayoutAnimation {
-    /// Starts a frame laid out in `area`. When `area` is not the previous
-    /// frame's size, the window was resized (an area that only moves, as a
-    /// scrolled one does, is not a resize): no move starts a slide, but the slides
-    /// in flight in the previous frame go on, retargeted from where they are painted like any
-    /// interrupted move.
-    pub(crate) fn begin(ctx: &Context, kept: &Handle, area: Rect) -> Self {
+    /// Starts a frame laid out in the area of `nodes`. When that is not the
+    /// previous frame's size, the window was resized (an area that only moves,
+    /// as a scrolled one does, is not a resize): a move starts a slide only for
+    /// a node whose place among its siblings changed, and the slides in flight
+    /// in the previous frame go on, retargeted from where they are painted like
+    /// any interrupted move.
+    pub(crate) fn begin(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) -> Self {
+        let area = nodes[0].rect();
+        let ranks = ranks(nodes);
         let before = kept.with(|kept| kept.animation.clone());
         let now = ctx.input(|input| input.time);
         let mut previous = before.nodes;
         if before.area.size() != area.size() {
-            previous.retain(|_, tracked| tracked.progress.elapsed(before.time) < Progress::END);
+            previous.retain(|id, tracked| {
+                tracked.progress.elapsed(before.time) < Progress::END
+                    || ranks.get(id).is_some_and(|&rank| rank != tracked.rank)
+            });
         }
         Self {
             ctx: ctx.clone(),
@@ -218,6 +247,7 @@ impl LayoutAnimation {
             now,
             previous,
             current: HashMap::new(),
+            ranks,
             area,
             reach: 0.0,
             starts_slides: StartsSlides::Yes,
@@ -271,17 +301,20 @@ impl LayoutAnimation {
     ) -> Vec2 {
         let now = self.now;
         let duration = allowed(&self.ctx, duration);
+        let rank = self.ranks.get(&id).copied().unwrap_or_default();
         let tracked = match self.previous.get(&id) {
             Some(previous)
                 if previous.relative == relative || self.starts_slides == StartsSlides::No =>
             {
                 Tracked {
                     relative,
+                    rank,
                     ..*previous
                 }
             }
             Some(previous) => Tracked {
                 relative,
+                rank,
                 start: previous.relative + previous.offset(now, easing) - relative,
                 progress: Transition::from_start(now, duration),
                 interrupted: Some(Interrupted {
@@ -291,6 +324,7 @@ impl LayoutAnimation {
             },
             None => Tracked {
                 relative,
+                rank,
                 start: Vec2::ZERO,
                 progress: Transition::settled(Progress::END, now),
                 interrupted: None,
