@@ -1,0 +1,69 @@
+//! Sliders with a label and a readout above the track, at the default, `sm`
+//! and `xs` sizes; the readout of the first is edited as text.
+
+#[path = "common/mod.rs"]
+mod common;
+
+use eggshell_ui::owned::Step;
+use eggshell_ui::{Builder, tw};
+use eggshell_ui_shadcn::size;
+
+pub struct Levels {
+    pub volume: f64,
+    pub brightness: f64,
+    pub bass: f64,
+}
+
+impl Default for Levels {
+    fn default() -> Self {
+        Self {
+            volume: 40.0,
+            brightness: 75.0,
+            bass: 20.0,
+        }
+    }
+}
+
+/// ```html
+/// <div class="flex flex-col gap-6 p-4 w-[320px]">
+///   <div class="grid gap-2">
+///     <div class="flex justify-between"><label>Volume</label><output>40%</output></div>
+///     <input type="range">
+///   </div>
+/// </div>
+/// ```
+pub fn layout<'f>(b: &mut Builder<'_, 'f, Levels>, levels: &'f Levels) {
+    b.div_id(
+        "Page",
+        tw().flex()
+            .flex_col()
+            .items_stretch()
+            .gap(6.0)
+            .p(4.0)
+            .w_px(320.0),
+        |s| {
+            s.slider("volume", levels.volume, 0.0..=100.0)
+                .step(Step::new(5.0))
+                .label("Volume")
+                .readout(|v| format!("{v:.0}%"))
+                .editable(|text| text.trim().trim_end_matches('%').parse().ok())
+                .on_change(|app: &mut Levels, v| app.volume = v);
+            s.div_id("sm", tw().control_size(size::SM), |s| {
+                s.slider("brightness", levels.brightness, 0.0..=100.0)
+                    .label("Brightness")
+                    .readout(|v| format!("{v:.0}"))
+                    .on_change(|app: &mut Levels, v| app.brightness = v);
+            });
+            s.div_id("xs", tw().control_size(size::XS), |s| {
+                s.slider("bass", levels.bass, 0.0..=100.0)
+                    .label("Bass")
+                    .readout(|v| format!("{v:.0}"))
+                    .on_change(|app: &mut Levels, v| app.bass = v);
+            });
+        },
+    );
+}
+
+fn main() -> eframe::Result {
+    common::run_app("slider_header", Levels::default(), layout)
+}

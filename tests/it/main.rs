@@ -84,6 +84,7 @@ mod select;
 mod selection;
 mod shadow_pixels;
 mod sizing;
+mod slider_header;
 #[cfg(feature = "snapshots")]
 mod snapshots;
 mod state;

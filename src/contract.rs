@@ -598,6 +598,11 @@ pub struct SliderMetrics {
     /// Corner radius of the track, its range and the thumb; `u8::MAX` makes
     /// them round.
     pub radius: u8,
+    /// The text of the label and the readout above the track, over the
+    /// role the subtree inherits.
+    pub text: Option<TextSize>,
+    /// The space between the label row and the track.
+    pub header_gap: f32,
 }
 
 /// Sliders. A track holds a range that ends under a thumb.
@@ -612,6 +617,10 @@ pub struct SliderStyle {
     pub range: States,
     /// The thumb. Its focus ring is the keyboard focus indicator.
     pub thumb: Look,
+    /// The label above the track; only `text` of `rest` and `disabled` applies.
+    pub label: States,
+    /// The readout above the track; only `text` of `rest` and `disabled` applies.
+    pub readout: States,
     /// How long state changes animate.
     pub transition: Duration,
 }
@@ -1299,6 +1308,8 @@ impl Style {
                         track_height: s.slider_rail_height,
                         thumb_size: s.icon_width,
                         radius: u8::MAX,
+                        text: None,
+                        header_gap: 8.0,
                     },
                 ),
                 track: States::still(
@@ -1327,6 +1338,22 @@ impl Style {
                     active,
                 ))
                 .bordered(border_width.max(1.0)),
+                label: States::still(
+                    Colors {
+                        fill: clear,
+                        border: clear,
+                        text: v.text_color(),
+                    },
+                    surface,
+                ),
+                readout: States::still(
+                    Colors {
+                        fill: clear,
+                        border: clear,
+                        text: v.weak_text_color(),
+                    },
+                    surface,
+                ),
                 transition,
             },
             select: SelectStyle {

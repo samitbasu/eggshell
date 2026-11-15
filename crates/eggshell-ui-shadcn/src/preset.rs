@@ -471,20 +471,30 @@ impl Shadcn {
         };
         style.slider = {
             let mut slider = style.slider;
-            let slider_at = |track_height: f32, thumb_size: f32| SliderMetrics {
+            let slider_at = |track_height: f32,
+                             thumb_size: f32,
+                             text: Option<TextSize>,
+                             header_gap: f32| SliderMetrics {
                 track_height,
                 thumb_size,
                 radius: t.slider_radius,
+                text,
+                header_gap,
             };
-            slider.sizes = Keyed::new(Size::DEFAULT, slider_at(t.slider_track, t.slider_thumb))
-                .with(
-                    size::SM,
-                    slider_at(t.slider_track.min(4.0), t.slider_thumb - 2.0),
-                )
-                .with(
-                    size::XS,
-                    slider_at(t.slider_track.min(3.0), t.slider_thumb - 4.0),
-                );
+            slider.sizes = Keyed::new(
+                Size::DEFAULT,
+                slider_at(t.slider_track, t.slider_thumb, None, 8.0),
+            )
+            .with(
+                size::SM,
+                slider_at(t.slider_track.min(4.0), t.slider_thumb - 2.0, None, 6.0),
+            )
+            .with(
+                size::XS,
+                slider_at(t.slider_track.min(3.0), t.slider_thumb - 4.0, xs_text, 4.0),
+            );
+            slider.label = States::still(flat(clear, t.foreground), t.background);
+            slider.readout = States::still(flat(clear, t.muted_foreground), t.background);
             slider.track = States::still(flat(t.input, t.foreground), t.background);
             slider.range = States::still(flat(t.primary, t.primary_foreground), t.background);
             slider.thumb = shadowed(
