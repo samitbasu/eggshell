@@ -20,10 +20,15 @@ use crate::stack::Open;
 
 type Subtrees = HashMap<Id, Box<[Id]>>;
 
-/// What a layout remembers of focus.
+/// What a layout remembers of the focusable widgets of its nodes.
 #[derive(Default)]
 pub(crate) struct Focus {
     records: Records,
+}
+
+/// What a layout remembers of the focus of one viewport.
+#[derive(Default)]
+pub(crate) struct Held {
     returning: Returning,
     /// The multi-line text field that has focus, whose Return is its own.
     pub(crate) multiline: Option<Id>,
@@ -47,13 +52,39 @@ pub(crate) enum Autofocus {
     #[default]
     Never,
     OnAppear,
+    OnChange(Token),
+}
+
+/// What an application hands a field to ask for its focus: hashed, so a field
+/// holds one without holding the application's type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Token(u64);
+
+impl Token {
+    pub(crate) fn of(token: &impl std::hash::Hash) -> Self {
+        use std::hash::Hasher as _;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        token.hash(&mut hasher);
+        Self(hasher.finish())
+    }
 }
 
 impl Autofocus {
     /// Requests focus for `response`'s widget if this is the first frame it
     /// is drawn after a frame in which it was not, or ever.
     pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) {
-        if self == Self::Never {
+        let token = match self {
+            Self::Never => return,
+            Self::OnAppear => None,
+            Self::OnChange(token) => Some(token),
+        };
+        if let Some(token) = token {
+            let slot = response.id.with("eggshell-token");
+            let last = ctx.data_mut(|data| data.get_temp::<Token>(slot));
+            ctx.data_mut(|data| data.insert_temp(slot, token));
+            if last.is_some_and(|last| last != token) {
+                response.request_focus();
+            }
             return;
         }
         let seen = response.id.with("eggshell-seen");
@@ -146,8 +177,8 @@ struct FocusedAtStart {
     focused: Option<Id>,
 }
 
-fn focused_at_start_id() -> Id {
-    crate::key::root_id().with("focused-at-start")
+fn focused_at_start_id(ctx: &Context) -> Id {
+    crate::key::viewport_id(ctx, "focused-at-start")
 }
 
 /// A widget held by the pointer that lost focus to another widget lets go of
@@ -157,12 +188,11 @@ fn focused_at_start_id() -> Id {
 pub(crate) fn release_press_on_blur(ctx: &Context) {
     let pass = ctx.cumulative_pass_nr();
     let focused = ctx.memory(|memory| memory.focused());
+    let key = focused_at_start_id(ctx);
     let last = ctx.data_mut(|data| {
-        let last = data
-            .get_temp::<FocusedAtStart>(focused_at_start_id())
-            .unwrap_or_default();
+        let last = data.get_temp::<FocusedAtStart>(key).unwrap_or_default();
         if last.pass != pass {
-            data.insert_temp(focused_at_start_id(), FocusedAtStart { pass, focused });
+            data.insert_temp(key, FocusedAtStart { pass, focused });
         }
         last
     });
@@ -242,7 +272,9 @@ struct Returning(Vec<Id>);
 /// undo it. It is then given back if it is nowhere.
 pub(crate) fn restore(ctx: &Context, kept: &Handle, closed: &[Open]) {
     let shell = Shell::new(ctx, kept);
-    let mut returning = kept.with(|kept| std::mem::take(&mut kept.focus.returning));
+    let mut returning = kept.viewport(ctx.viewport_id(), |here| {
+        std::mem::take(&mut here.focus.returning)
+    });
     let stranded = !closed.is_empty()
         && (ctx.memory(|memory| memory.focused()).is_none()
             || closed.iter().any(|open| shell.focus_within(open.id)));
@@ -263,13 +295,15 @@ pub(crate) fn restore(ctx: &Context, kept: &Handle, closed: &[Open]) {
             };
             if ctx.memory(|memory| memory.is_above_modal_layer(response.layer_id)) {
                 ctx.memory_mut(|memory| memory.request_focus(target));
-                kept.with(|kept| kept.tooltips.focus_restored(target));
+                kept.viewport(ctx.viewport_id(), |here| {
+                    here.tooltips.focus_restored(target)
+                });
             } else {
                 returning.0.push(target);
             }
         }
     }
-    kept.with(|kept| kept.focus.returning = returning);
+    kept.viewport(ctx.viewport_id(), |here| here.focus.returning = returning);
 }
 
 /// Where focus is relative to the overlay `id`: in it, in the overlays

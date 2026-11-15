@@ -849,6 +849,53 @@ fn a_button_with_neither_label_nor_name_is_a_bug_in_a_debug_build() {
     let _ = harness(Theme::Light, unnamed);
 }
 
+/// ```html
+/// <button aria-pressed="false"><img> Pin</button>
+/// ```
+fn icon_toggle(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.toggle("toggle", "Pin", app.on)
+        .icon(app.icon())
+        .on_change(|app: &mut App, on| app.on = on);
+}
+
+#[test]
+fn a_toggle_paints_its_icon_before_its_label_in_its_on_and_off_looks() {
+    for (theme, shadcn) in COMBINATIONS {
+        let mut harness = harness_with(theme, shadcn, |_| {}, icon_toggle);
+        let style = harness.state().app.style.clone();
+        let toggle = rect_of(&harness, "/\"toggle\"");
+        let default = style.button.sizes.get(Size::DEFAULT);
+        let (tint, glyph) = icon_in(&harness, toggle);
+        assert_eq!(glyph.size(), vec2(default.glyph, default.glyph));
+        let text = text_box(&harness, toggle, "Pin");
+        assert!(
+            (text.min.x - glyph.max.x - default.gap).abs() < 0.75,
+            "{theme:?} {shadcn:?}: icon, then the control gap, then the label"
+        );
+        let off = style.button.toggle_off.get(Variant::DEFAULT).states.rest;
+        assert_eq!(tint, off.text, "{theme:?} {shadcn:?}: tinted off");
+
+        click_node(&mut harness, "/\"toggle\"");
+        support::hover_over(&mut harness, egui::pos2(510.0, 390.0));
+        harness.run_steps(14);
+        assert!(harness.state().app.on, "the click toggled it");
+        let on = style.button.toggle_on.get(Variant::DEFAULT).states.rest;
+        assert_eq!(
+            box_at(&harness, toggle).fill,
+            on.fill,
+            "drawn in the on look"
+        );
+        let (tint, _) = icon_in(&harness, toggle);
+        assert_eq!(tint, on.text, "{theme:?} {shadcn:?}: tinted on");
+        assert_eq!(
+            harness
+                .get_by_role_and_label(Role::Button, "Pin")
+                .accesskit_node()
+                .toggled(),
+            Some(egui::accesskit::Toggled::True)
+        );
+    }
+}
 // ----- #44: the stepper's number text fits its box -----
 
 fn stepper(b: &mut Builder<'_, '_, App>, _: &App) {
@@ -876,4 +923,68 @@ fn the_steppers_number_field_fits_inside_the_group_border() {
             "{theme:?} {shadcn:?}: the field {field:?} is inside its box {field_box:?}"
         );
     }
+}
+
+fn family_of(harness: &Harn, text: &str) -> egui::FontFamily {
+    shapes(harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Text(shape) if shape.galley.text() == text => {
+                Some(shape.galley.job.sections[0].format.font_id.family.clone())
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("{text:?} was painted"))
+}
+
+fn geist(weight: Weight) -> FontFamily {
+    FontFamily::Name(format!("Geist/{}", weight.number()).into())
+}
+
+fn plain_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.segmented("seg", app.mode, MODES)
+        .on_change(|app: &mut App, mode| app.mode = mode);
+}
+
+#[test]
+fn the_selected_cell_draws_its_own_weight_and_the_others_keep_the_base() {
+    let family = |selected_weight| {
+        let harness = harness_with(
+            Theme::Light,
+            ShadcnStyle::default(),
+            |style| {
+                let text = style.role(&style.segmented.text).clone();
+                style.segmented.text = Some(TextSpec {
+                    weight: Weight::Medium,
+                    ..text
+                });
+                style.segmented.selected_weight = selected_weight;
+            },
+            plain_segmented,
+        );
+        (
+            family_of(&harness, "Light"),
+            family_of(&harness, "Dark"),
+            family_of(&harness, "System"),
+        )
+    };
+    let base = family(None);
+    assert_eq!(
+        base,
+        (
+            geist(Weight::Medium),
+            geist(Weight::Medium),
+            geist(Weight::Medium)
+        ),
+        "precondition: with no selected weight every cell draws the base"
+    );
+    assert_eq!(
+        family(Some(Weight::SemiBold)),
+        (
+            geist(Weight::SemiBold),
+            geist(Weight::Medium),
+            geist(Weight::Medium)
+        ),
+        "Light is the selected cell"
+    );
 }

@@ -411,12 +411,9 @@ fn consume(ctx: &Context, shortcut: KeyboardShortcut) -> Option<Press> {
                 } => (*key == logical_key && held.matches_exact(modifiers)).then_some(Press::Key),
                 Event::Cut => clipboard(EguiKey::X).then_some(Press::Key),
                 Event::Copy => clipboard(EguiKey::C).then_some(Press::Key),
-                Event::Paste(text) => {
-                    clipboard(EguiKey::V).then(|| Press::Paste(Paste::Text(text.clone())))
-                }
-                Event::PasteImage(image) => {
-                    clipboard(EguiKey::V).then(|| Press::Paste(Paste::Image((**image).clone())))
-                }
+                Event::Paste(_) | Event::PasteImage(_) => clipboard(EguiKey::V)
+                    .then(|| Paste::from_event(event).map(Press::Paste))
+                    .flatten(),
                 _ => None,
             };
             let taken = press.is_some();

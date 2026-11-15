@@ -180,3 +180,27 @@ fn an_image_written_through_the_shell_reaches_the_source_and_a_refusal_is_report
         Err(ClipboardError::Unavailable)
     );
 }
+
+#[test]
+fn a_paste_event_carries_its_payload_and_other_events_none() {
+    assert_eq!(
+        Paste::from_event(&Event::Paste("typed".into())),
+        Some(Paste::Text("typed".into()))
+    );
+    assert_eq!(
+        Paste::from_event(&Event::PasteImage(Arc::new(pixel()))),
+        Some(Paste::Image(pixel()))
+    );
+    for event in [Event::Copy, Event::Cut, Event::Text("v".into())] {
+        assert_eq!(Paste::from_event(&event), None, "{event:?}");
+    }
+}
+
+#[test]
+fn a_detail_reads_without_naming_the_clipboard() {
+    assert_eq!(
+        ClipboardError::Failed("no owner".into()).detail(),
+        "no owner"
+    );
+    assert_eq!(ClipboardError::Unavailable.detail(), "not available");
+}

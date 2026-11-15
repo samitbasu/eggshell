@@ -316,8 +316,8 @@ impl Tooltips {
 }
 
 /// Starts the frame's collection of triggers.
-pub(crate) fn begin(kept: &Handle) {
-    kept.with(|kept| kept.tooltips.requests.clear());
+pub(crate) fn begin(ctx: &Context, kept: &Handle) {
+    kept.viewport(ctx.viewport_id(), |here| here.tooltips.requests.clear());
 }
 
 /// Says that the node of the draw closure `ui` is a trigger for `tip`.
@@ -331,9 +331,9 @@ pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
             content: tip.content.clone(),
             cause,
         };
-        ui.shell()
-            .kept
-            .with(|kept| kept.tooltips.requests.push(trigger));
+        ui.shell().kept.viewport(ui.ctx().viewport_id(), |here| {
+            here.tooltips.requests.push(trigger)
+        });
     };
     if response.has_focus() && crate::overlay_input::keyboard_was_last(ui.ctx()) {
         wants(Cause::Focus);
@@ -376,7 +376,9 @@ pub(crate) fn interruption(ctx: &Context, drag: Drag) -> Option<Interruption> {
 
 /// Ends the frame's collection: moves the state to this frame.
 pub(crate) fn end(ctx: &Context, kept: &Handle, interruption: Option<Interruption>) {
-    let triggers = kept.with(|kept| std::mem::take(&mut kept.tooltips.requests));
+    let triggers = kept.viewport(ctx.viewport_id(), |here| {
+        std::mem::take(&mut here.tooltips.requests)
+    });
     let style = crate::Style::of(ctx);
     let timing = Timing {
         delay: style.tooltip.delay,
@@ -384,12 +386,12 @@ pub(crate) fn end(ctx: &Context, kept: &Handle, interruption: Option<Interruptio
     };
     let now = Duration::from_secs_f64(ctx.input(|input| input.time).max(0.0));
     let wanted = wanted(triggers);
-    let (wait, changed) = kept.with(|kept| {
-        let before = kept.tooltips.open_triggers();
-        let wait = kept
+    let (wait, changed) = kept.viewport(ctx.viewport_id(), |here| {
+        let before = here.tooltips.open_triggers();
+        let wait = here
             .tooltips
             .tick(now, timing, wanted.as_ref(), interruption);
-        (wait, kept.tooltips.open_triggers() != before)
+        (wait, here.tooltips.open_triggers() != before)
     });
     if let Some(wait) = wait {
         ctx.request_repaint_after(wait);
@@ -414,14 +416,18 @@ impl std::fmt::Debug for Tip {
 /// Declares the overlay of every tooltip that is open or still leaving.
 pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
     let style = crate::Style::of(b.ctx());
-    let present = b.kept().with(|kept| kept.tooltips.present.clone());
+    let present = b
+        .kept()
+        .viewport(b.viewport(), |here| here.tooltips.present.clone());
     for tip in present {
         let slot = b.slot(&Tip(tip.trigger));
         let shows = tip.content.shows_in(b);
+        let viewport = b.viewport();
         let kept = b.kept().with(|kept| {
             let leaving = kept.presences.contains(slot.id);
             if !shows || (!tip.open && !leaving) {
-                kept.tooltips
+                kept.viewport(viewport)
+                    .tooltips
                     .present
                     .retain(|present| present.trigger != tip.trigger);
             }
