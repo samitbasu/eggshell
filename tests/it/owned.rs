@@ -713,3 +713,100 @@ fn a_style_without_press_shift_does_not_move_buttons() {
     harness.run_steps(12);
     box_at(&harness, rect);
 }
+
+mod toggle_chain {
+    use super::*;
+
+    #[derive(Default)]
+    struct App {
+        on: bool,
+        off_on: bool,
+        hovered: bool,
+        clicks_seen: u32,
+    }
+
+    /// ```html
+    /// <div class="flex flex-col items-start gap-4 p-4">
+    ///   <button aria-pressed="false">Live</button>
+    ///   <button aria-pressed="false" disabled>Off</button>
+    /// </div>
+    /// ```
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
+            b.toggle("live", "Live", app.on)
+                .on_response(|app: &mut App, response| {
+                    app.hovered = response.hovered();
+                    app.clicks_seen += u32::from(response.clicked());
+                })
+                .on_change(|app: &mut App, on| app.on = on);
+            b.toggle("off", "Off", app.off_on)
+                .enablement(Enablement::Disabled)
+                .on_change(|app: &mut App, on| app.off_on = on);
+        });
+    }
+
+    fn harness() -> Harness<'static, Rig<App>> {
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut harness = support::harness(
+            vec2(300.0, 200.0),
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            App::default(),
+            view,
+        );
+        harness.run_steps(4);
+        harness
+    }
+
+    fn disabled(harness: &Harness<'_, Rig<App>>, label: &str) -> bool {
+        harness
+            .get_by_role_and_label(Role::Button, label)
+            .accesskit_node()
+            .is_disabled()
+    }
+
+    #[test]
+    fn a_disabled_toggle_ignores_clicks_and_keys_and_is_announced_disabled() {
+        let mut harness = harness();
+        assert!(!disabled(&harness, "Live"), "precondition: Live is enabled");
+        click_node(&mut harness, "/\"live\"");
+        assert!(harness.state().app.on, "precondition: a click toggles Live");
+
+        assert!(disabled(&harness, "Off"));
+        click_node(&mut harness, "/\"off\"");
+        harness.run_steps(2);
+        assert!(!harness.state().app.off_on, "the click did not toggle it");
+
+        let mut live_focused = false;
+        for _ in 0..4 {
+            harness.key_press(Key::Tab);
+            harness.run_steps(2);
+            let focused = focused_path(&harness);
+            live_focused |= focused.as_deref() == Some("/\"live\"");
+            assert_ne!(
+                focused.as_deref(),
+                Some("/\"off\""),
+                "a disabled toggle takes no focus"
+            );
+        }
+        assert!(live_focused, "precondition: Tab moves focus");
+    }
+
+    #[test]
+    fn on_response_sees_the_toggles_hover_and_click() {
+        let mut harness = harness();
+        assert!(!harness.state().app.hovered, "precondition: not hovered");
+        hover_node(&mut harness, "/\"live\"");
+        harness.run_steps(2);
+        assert!(harness.state().app.hovered);
+        assert_eq!(harness.state().app.clicks_seen, 0);
+
+        click_node(&mut harness, "/\"live\"");
+        harness.run_steps(2);
+        assert_eq!(harness.state().app.clicks_seen, 1, "the click is seen once");
+        assert!(harness.state().app.on, "and still toggles");
+
+        support::hover_over(&mut harness, egui::pos2(290.0, 190.0));
+        harness.run_steps(2);
+        assert!(!harness.state().app.hovered);
+    }
+}
