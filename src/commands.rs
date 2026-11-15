@@ -19,7 +19,7 @@
 
 use egui::{Context, Event, Id, Key as EguiKey, KeyboardShortcut, Modifiers};
 
-use crate::clipboard::{ClipboardError, Paste};
+use crate::clipboard::{ClipboardError, Paste, Via};
 use crate::key::{Key, child_id};
 use crate::overlay_input::Typing;
 use crate::shell::Shell;
@@ -53,7 +53,7 @@ enum Run<A> {
     /// Takes what the clipboard holds, from the chord's event or, for a
     /// click, a read; `on_error` hears a read that failed.
     Paste {
-        run: fn(&mut A, Paste),
+        run: fn(&mut A, Paste, Via),
         on_error: Option<fn(&mut A, ClipboardError)>,
     },
 }
@@ -90,9 +90,10 @@ impl<A> Command<A> {
     /// A command that pastes: `run` gets what the clipboard holds. From the
     /// chord that is what the paste event carried; from a menu item or a
     /// button it is a read of the clipboard. Both are collapsed the same way,
-    /// to one [`Paste`]: the text if there is any, else the image. A read that
+    /// to one [`Paste`]: the text if there is any, else the image; the [`Via`]
+    /// says which it was. A read that
     /// fails does not run the command: [`on_error`](Self::on_error) hears it.
-    pub fn paste(title: &'static str, run: fn(&mut A, Paste)) -> Self {
+    pub fn paste(title: &'static str, run: fn(&mut A, Paste, Via)) -> Self {
         Self {
             run: Run::Paste {
                 run,
@@ -163,12 +164,14 @@ impl<A> Command<A> {
         match self.run {
             Run::Plain(run) => run(app),
             Run::Paste { run, on_error } => {
-                let paste = pasted.map_or_else(
-                    || shell.read_clipboard().map(Paste::from),
-                    Ok::<Paste, ClipboardError>,
-                );
+                let paste = match pasted {
+                    Some(paste) => Ok((paste, Via::Event)),
+                    None => shell
+                        .read_clipboard()
+                        .map(|held| (Paste::from(held), Via::Read)),
+                };
                 match paste {
-                    Ok(paste) => run(app, paste),
+                    Ok((paste, via)) => run(app, paste, via),
                     Err(error) => {
                         if let Some(hear) = on_error {
                             hear(app, error);

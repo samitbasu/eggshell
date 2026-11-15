@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use eggshell_ui::testing::FakeClipboard;
 use eggshell_ui::{
-    Builder, ClipboardError, Command, Commands, LayoutState, Paste, TextSpec, TextStyle, tw,
+    Builder, ClipboardError, Command, Commands, LayoutState, Paste, TextSpec, TextStyle, Via, tw,
 };
 use egui::{Color32, ColorImage, Event, FontFamily, Key, KeyboardShortcut, Modifiers, vec2};
 use egui_kittest::Harness;
@@ -24,15 +24,19 @@ enum Cmd {
 #[derive(Default)]
 struct App {
     pasted: Vec<Paste>,
+    via: Vec<Via>,
     errors: Vec<ClipboardError>,
 }
 
 fn commands() -> Commands<App> {
     Commands::new().add(
         Cmd::Paste,
-        Command::paste("Paste", |app: &mut App, paste| app.pasted.push(paste))
-            .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::V))
-            .on_error(|app, error| app.errors.push(error)),
+        Command::paste("Paste", |app: &mut App, paste, via| {
+            app.pasted.push(paste);
+            app.via.push(via);
+        })
+        .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::V))
+        .on_error(|app, error| app.errors.push(error)),
     )
 }
 
@@ -92,6 +96,7 @@ fn a_menu_click_and_the_chord_paste_the_same_text() {
         harness.state().app.pasted,
         [Paste::Text("hello".into()), Paste::Text("hello".into())]
     );
+    assert_eq!(harness.state().app.via, [Via::Read, Via::Event]);
 }
 
 #[test]

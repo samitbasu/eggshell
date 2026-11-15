@@ -44,6 +44,8 @@ mod dialog;
 mod menu;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/clipboard.rs"]
+mod clipboard_example;
 #[path = "../../examples/swatch_picker.rs"]
 mod swatch_picker;
 
@@ -2311,4 +2313,37 @@ fn swatch_picker_closed_dark() {
 #[test]
 fn swatch_picker_open_dark() {
     swatch_picker_in("swatch_picker_open_dark", egui::Theme::Dark, Picker::Open);
+}
+
+/// The clipboard example before anything is pasted, on a fake clipboard.
+fn clipboard_example_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(360.0, 140.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        clipboard_example::State::default(),
+        clipboard_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness
+        .state()
+        .layout
+        .set_clipboard(Some(std::sync::Arc::new(
+            eggshell_ui::testing::FakeClipboard::default(),
+        )));
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    harness.snapshot(name);
+}
+
+#[test]
+fn clipboard_example_light() {
+    clipboard_example_in("clipboard_example_light", egui::Theme::Light);
+}
+
+#[test]
+fn clipboard_example_dark() {
+    clipboard_example_in("clipboard_example_dark", egui::Theme::Dark);
 }

@@ -69,6 +69,16 @@ pub enum Paste {
     Nothing,
 }
 
+/// What delivered a [`Paste`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Via {
+    /// The paste event of the chord, which carried what the backend read.
+    Event,
+    /// A read of the clipboard: a menu item, a button, or a chord that is
+    /// not a paste event.
+    Read,
+}
+
 impl From<Clipboard> for Paste {
     fn from(clipboard: Clipboard) -> Self {
         match clipboard {

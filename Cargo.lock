@@ -1135,6 +1135,7 @@ dependencies = [
 name = "eggshell-ui"
 version = "0.1.0"
 dependencies = [
+ "arboard",
  "criterion",
  "eframe",
  "eggshell-ui-shadcn",
