@@ -10,13 +10,13 @@ use taffy::Size;
 
 use crate::builder::Slot;
 use crate::contract::{Size as ControlSize, TextSize};
-use crate::focus::Autofocus;
+use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
 use crate::widget::Stock as _;
 use crate::{Builder, Key, Measure, TextSpec, Tw, tw};
 
-pub use crate::widget::{Lines, TextEdit as Field};
+pub use crate::widget::{Enter, Lines, TextEdit as Field};
 
 /// A leaf's measure for `field`: its width from the leaf, its height from
 /// its text at that width.
@@ -120,6 +120,44 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
+    /// TODO(prose): what Enter does in this one-line field.
+    ///
+    /// ```
+    /// use eggshell_ui::Builder;
+    /// use eggshell_ui::prim::text_field::Enter;
+    ///
+    /// struct App { name: String }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.text_field("name", &app.name)
+    ///         .on_enter(Enter::KeepFocus)
+    ///         .when_submitted(|app| println!("wrote {}", app.name))
+    ///         .on_change(|app, name| app.name = name);
+    /// }
+    /// ```
+    pub fn on_enter(mut self, enter: Enter) -> Self {
+        self.field = self.field.on_enter(enter);
+        self
+    }
+
+    /// TODO(prose): takes focus once each time `token` differs from the last frame's.
+    ///
+    /// ```
+    /// use eggshell_ui::Builder;
+    ///
+    /// struct App { name: String, focus_name: u32 }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.text_field("name", &app.name)
+    ///         .focus_on_change(app.focus_name)
+    ///         .on_change(|app, name| app.name = name);
+    /// }
+    /// ```
+    pub fn focus_on_change(mut self, token: impl std::hash::Hash) -> Self {
+        self.autofocus = Autofocus::OnChange(Token::of(&token));
+        self
+    }
+
     /// The accessible name, the equivalent of `aria-label`.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.field = self.field.named(name);
@@ -195,7 +233,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             if response.changed() {
                 on_change(app, edited);
             }
-            hooks.run(app, ui, &response);
+            hooks.run(app, ui, &response, field.enter());
         });
     }
 }

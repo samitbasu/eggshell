@@ -75,6 +75,16 @@ pub enum Lines {
     },
 }
 
+/// What Enter does in a one-line field.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Enter {
+    /// TODO(prose): submits and gives up focus.
+    #[default]
+    Submit,
+    /// TODO(prose): submits and keeps focus.
+    KeepFocus,
+}
+
 /// Whether a text edit draws its frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Framing {
@@ -102,6 +112,7 @@ pub struct TextEdit {
     framing: Framing,
     name: Option<String>,
     size: ControlSize,
+    enter: Enter,
 }
 
 impl TextEdit {
@@ -120,6 +131,7 @@ impl TextEdit {
             framing: Framing::Framed,
             name: None,
             size: ControlSize::DEFAULT,
+            enter: Enter::Submit,
         }
     }
 
@@ -133,6 +145,7 @@ impl TextEdit {
             framing: Framing::Framed,
             name: None,
             size: ControlSize::DEFAULT,
+            enter: Enter::Submit,
         }
     }
 
@@ -158,6 +171,19 @@ impl TextEdit {
     pub fn sized(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
+    }
+
+    /// TODO(prose): what Enter does in a one-line field.
+    pub fn on_enter(mut self, enter: Enter) -> Self {
+        self.enter = enter;
+        self
+    }
+
+    pub(crate) fn enter(&self) -> Enter {
+        match self.lines {
+            Lines::Single => self.enter,
+            Lines::Multi { .. } => Enter::Submit,
+        }
     }
 
     /// The accessible name, the equivalent of `aria-label`.
@@ -241,6 +267,9 @@ impl TextEdit {
                 ));
             }
         }
+        if self.enter() == Enter::KeepFocus {
+            edit = edit.return_key(None);
+        }
         if self.lines == Lines::Single {
             edit = edit
                 .align(egui::Align2::LEFT_CENTER)
@@ -265,7 +294,7 @@ impl TextEdit {
         };
         announce(&response, self.name.as_deref());
         if self.lines != Lines::Single && response.has_focus() {
-            crate::actions::note_multiline_focus(&ui.shell().kept, response.id);
+            crate::actions::note_multiline_focus(ui.ctx(), &ui.shell().kept, response.id);
         }
         if response.changed() && *text != before_text {
             let after = self.fit(&Sizer::for_ui(ui), text, Some(width));

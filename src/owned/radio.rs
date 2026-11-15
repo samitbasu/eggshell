@@ -229,7 +229,8 @@ fn navigate<A, T: Copy>(
     };
     let Some((value, id)) = target else { return };
     select(app, value);
-    ui.data_mut(|data| data.insert_temp(focus_request(), id));
+    let key = focus_request(ui.ctx());
+    ui.data_mut(|data| data.insert_temp(key, id));
     ui.ctx().request_repaint();
 }
 
@@ -238,15 +239,16 @@ fn navigate<A, T: Copy>(
 /// group's Tab stop only once the choice has moved to it.
 const FOCUS_REQUEST: &str = "eggshell-radio-focus";
 
-fn focus_request() -> Id {
-    crate::key::root_id().with(FOCUS_REQUEST)
+fn focus_request(ctx: &egui::Context) -> Id {
+    crate::key::viewport_id(ctx, FOCUS_REQUEST)
 }
 
 fn take_focus_if_asked(ui: &Ui, circle: Id) {
+    let key = focus_request(ui.ctx());
     let asked = ui.data_mut(|data| {
-        let asked = data.get_temp::<Id>(focus_request()) == Some(circle);
+        let asked = data.get_temp::<Id>(key) == Some(circle);
         if asked {
-            data.remove::<Id>(focus_request());
+            data.remove::<Id>(key);
         }
         asked
     });

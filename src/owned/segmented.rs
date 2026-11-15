@@ -254,6 +254,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
                 Cell::Pressed => &seg.selected,
                 Cell::Released => &seg.unselected,
             };
+            let mut role = style.role_sized(&seg.text, metrics.text);
+            if let (Cell::Pressed, Some(weight)) = (cell, seg.selected_weight) {
+                role.weight = weight;
+            }
             let classes = centered(look.classes(
                 seg.cell_border_width,
                 &style,
@@ -266,7 +270,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             .px(metrics.cell_padding.x / 4.0)
             .py(metrics.cell_padding.y / 4.0)
             .gap(metrics.icon_gap / 4.0)
-            .role(style.role(&seg.text).clone());
+            .role(role);
             let classes = match rows {
                 Rows::One => classes.h_full(),
                 Rows::Wrapping => classes.h_auto(),

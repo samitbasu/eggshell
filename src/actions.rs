@@ -49,14 +49,14 @@ pub(crate) fn press(ctx: &Context, kept: &Handle, button: Id) {
 }
 
 /// Notes that the multi-line text field `id` has focus: Return is its own.
-pub(crate) fn note_multiline_focus(kept: &Handle, id: Id) {
-    kept.with(|kept| kept.focus.multiline = Some(id));
+pub(crate) fn note_multiline_focus(ctx: &Context, kept: &Handle, id: Id) {
+    kept.viewport(ctx.viewport_id(), |here| here.focus.multiline = Some(id));
 }
 
 /// Whether the focused widget `focused` takes Return itself: a button or
 /// other control that Return activates, or a multi-line text field.
-fn takes_return(kept: &Handle, nodes: &[PlacedNode], focused: Id) -> bool {
-    kept.with(|kept| kept.focus.multiline) == Some(focused)
+fn takes_return(ctx: &Context, kept: &Handle, nodes: &[PlacedNode], focused: Id) -> bool {
+    kept.viewport(ctx.viewport_id(), |here| here.focus.multiline) == Some(focused)
         || nodes
             .iter()
             .any(|node| node.id() == Some(focused) && node.senses())
@@ -88,7 +88,7 @@ pub(crate) fn return_button(
     open: &[usize],
 ) -> Option<Id> {
     if let Some(focused) = ctx.memory(|memory| memory.focused())
-        && takes_return(kept, nodes, focused)
+        && takes_return(ctx, kept, nodes, focused)
     {
         return None;
     }

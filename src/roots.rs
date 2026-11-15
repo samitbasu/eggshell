@@ -238,6 +238,11 @@ pub(crate) fn root_of(roots: &[PlacedRoot], index: usize) -> usize {
 /// The root that takes the pointer at `p`: the topmost attached overlay
 /// whose box blocks it, or the base (root 0) when none does. An overlay that
 /// swallows presses blocks the whole screen.
+///
+/// This is the one answer to "what is on top here": drop targets and the
+/// press that raises a layer ask it, so they cannot disagree with what the
+/// pointer reaches. Whether a press dismisses an overlay is another question,
+/// which `dismissals` answers.
 pub(crate) fn root_at(roots: &[PlacedRoot], nodes: &[PlacedNode], p: Pos2) -> usize {
     stacked_top_down(roots)
         .into_iter()
@@ -268,17 +273,6 @@ pub(crate) fn stacked_top_down(roots: &[PlacedRoot]) -> Vec<usize> {
 }
 
 impl<A> Placed<A> {
-    /// The root that takes the pointer at `p`: the index in the frame's
-    /// roots of the topmost attached overlay that blocks it, or 0, the base.
-    ///
-    /// This is the one answer to "what is on top here": drop targets and the
-    /// press that raises a layer ask it, so they cannot disagree with what
-    /// the pointer reaches. Whether a press dismisses an overlay is another
-    /// question, which `dismissals` answers.
-    pub(crate) fn root_at(&self, p: Pos2) -> usize {
-        root_at(&self.roots, &self.nodes, p)
-    }
-
     /// The open overlays, the one opened first at the bottom.
     pub fn overlays(&self) -> Vec<OverlayRef<'_>> {
         let mut found: Vec<OverlayRef<'_>> = self
@@ -484,10 +478,10 @@ mod tests {
     fn the_page_is_where_no_overlay_is() {
         let placed = placed(&[Band::Popup]);
         assert_eq!(
-            placed.root_at(pos2(50.0, 50.0)),
+            root_at(&placed.roots, &placed.nodes, pos2(50.0, 50.0)),
             root_of_overlay(&placed, 0_usize)
         );
-        assert_eq!(placed.root_at(pos2(300.0, 250.0)), 0);
+        assert_eq!(root_at(&placed.roots, &placed.nodes, pos2(300.0, 250.0)), 0);
     }
 
     #[test]
@@ -499,9 +493,12 @@ mod tests {
                 && placed.overlay(1_usize).rect().contains(overlap),
             "precondition: both contain the point"
         );
-        assert_eq!(placed.root_at(overlap), root_of_overlay(&placed, 1_usize));
         assert_eq!(
-            placed.root_at(pos2(25.0, 25.0)),
+            root_at(&placed.roots, &placed.nodes, overlap),
+            root_of_overlay(&placed, 1_usize)
+        );
+        assert_eq!(
+            root_at(&placed.roots, &placed.nodes, pos2(25.0, 25.0)),
             root_of_overlay(&placed, 0_usize)
         );
     }
@@ -511,7 +508,7 @@ mod tests {
         let placed = placed(&[Band::Popup, Band::Floating]);
         assert!(placed.overlay(1_usize).stack_index() > placed.overlay(0_usize).stack_index());
         assert_eq!(
-            placed.root_at(pos2(75.0, 75.0)),
+            root_at(&placed.roots, &placed.nodes, pos2(75.0, 75.0)),
             root_of_overlay(&placed, 0_usize)
         );
     }
@@ -525,9 +522,12 @@ mod tests {
                 && placed.overlay(1_usize).rect().contains(both),
             "precondition: both contain the point"
         );
-        assert_eq!(placed.root_at(both), root_of_overlay(&placed, 0_usize));
         assert_eq!(
-            placed.root_at(pos2(140.0, 140.0)),
+            root_at(&placed.roots, &placed.nodes, both),
+            root_of_overlay(&placed, 0_usize)
+        );
+        assert_eq!(
+            root_at(&placed.roots, &placed.nodes, pos2(140.0, 140.0)),
             0,
             "only the tooltip is there"
         );

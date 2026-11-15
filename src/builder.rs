@@ -245,7 +245,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         placement: &crate::overlay::Placement,
         natural: egui::Vec2,
     ) -> crate::pipeline::Room {
-        crate::pipeline::room_for(self.frame.ctx, &self.st.kept, anchor, placement, natural)
+        crate::pipeline::room_for(
+            self.frame.ctx,
+            (&self.st.kept, self.viewport()),
+            anchor,
+            placement,
+            natural,
+        )
     }
 
     pub(crate) fn kept(&self) -> &crate::kept::Handle {
@@ -262,6 +268,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// [`id_of`](Self::id_of).
     pub fn ctx(&self) -> &egui::Context {
         self.frame.ctx
+    }
+
+    /// The egui viewport the node being built is drawn in.
+    pub(crate) fn viewport(&self) -> egui::ViewportId {
+        self.frame.ctx.viewport_id()
     }
 
     /// The id a node declared with `key` has in this scope.

@@ -903,6 +903,42 @@ fn on_response_sees_hover() {
 }
 
 #[test]
+fn a_custom_nodes_on_response_sees_its_hover_and_click_before_its_ui_runs() {
+    let mut harness = harness(Handled::default(), |b, _| {
+        b.custom("plot", tw().sense_click().w_px(100.0).h_px(40.0))
+            .on_response(|app: &mut Handled, response| {
+                app.hovered = response.hovered();
+                app.clicks += u32::from(response.clicked());
+                app.order.push("response");
+            })
+            .ui(|app: &mut Handled, _| app.order.push("ui"));
+    });
+    harness.run_steps(2);
+    let order = &harness.state().app.order;
+    assert!(!order.is_empty(), "precondition: frames were drawn");
+    assert!(
+        order.chunks(2).all(|frame| frame == ["response", "ui"]),
+        "{order:?}"
+    );
+    assert!(!harness.state().app.hovered);
+
+    hover(&mut harness, 10.0, 10.0);
+    assert!(harness.state().app.hovered);
+    assert_eq!(harness.state().app.clicks, 0);
+
+    click(&mut harness, 10.0, 10.0);
+    assert_eq!(harness.state().app.clicks, 1);
+
+    click(&mut harness, 300.0, 200.0);
+    assert_eq!(
+        harness.state().app.clicks,
+        1,
+        "a click elsewhere is not its"
+    );
+    assert!(!harness.state().app.hovered);
+}
+
+#[test]
 fn draw_gets_the_nodes_own_ui_limited_to_its_content_rect() {
     let mut harness = harness(Handled::default(), |b, _| {
         b.div_id("box", tw().p(2.0).w_px(100.0).h_px(40.0), |_| {})
