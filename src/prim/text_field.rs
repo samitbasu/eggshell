@@ -9,11 +9,12 @@ use egui::{Response, Ui};
 use taffy::Size;
 
 use crate::builder::Slot;
+use crate::contract::{Size as ControlSize, TextSize};
 use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
 use crate::widget::Stock as _;
-use crate::{Builder, Key, Measure, Tw, tw};
+use crate::{Builder, Key, Measure, TextSpec, Tw, tw};
 
 pub use crate::widget::{Enter, Lines, TextEdit as Field};
 
@@ -53,6 +54,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
             classes: tw(),
             hooks: FieldHooks::default(),
             autofocus: Autofocus::Never,
+            size: None,
         }
     }
 }
@@ -68,6 +70,7 @@ pub struct TextFieldChain<'a, 'f, A> {
     classes: Tw,
     hooks: FieldHooks<A>,
     autofocus: Autofocus,
+    size: Option<ControlSize>,
 }
 
 impl<A: 'static> TextFieldChain<'_, '_, A> {
@@ -108,6 +111,12 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// has.
     pub fn focus_on_appear(mut self) -> Self {
         self.autofocus = Autofocus::OnAppear;
+        self
+    }
+
+    /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
+    pub fn size(mut self, size: ControlSize) -> Self {
+        self.size = Some(size);
         self
     }
 
@@ -194,12 +203,25 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             classes,
             hooks,
             autofocus,
+            size,
         } = self;
+        let size = b.size_of(size);
+        let field = field.sized(size);
         let measured = field.clone();
+        let style = crate::Style::of(b.ctx());
+        let classes = match style.input.sizes.get(size).text {
+            Some(TextSize { size, line_height }) => tw().role(TextSpec {
+                size,
+                line_height,
+                ..b.text_style().spec.clone()
+            }),
+            None => tw(),
+        }
+        .merge(classes);
         let classes = if field.is_bare() {
             classes
         } else {
-            crate::owned::text_field_classes(&crate::Style::of(b.ctx())).merge(classes)
+            crate::owned::text_field_classes(&style, size).merge(classes)
         };
         b.leaf_with(slot.id, &slot.label, classes, move |m| {
             measure(m, &measured)

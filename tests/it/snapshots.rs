@@ -47,6 +47,9 @@ mod menu;
 #[path = "../../examples/clipboard.rs"]
 mod clipboard_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/control_sizes.rs"]
+mod control_sizes_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/swatch_picker.rs"]
 mod swatch_picker;
 
@@ -2396,4 +2399,31 @@ fn clipboard_example_light() {
 #[test]
 fn clipboard_example_dark() {
     clipboard_example_in("clipboard_example_dark", egui::Theme::Dark);
+}
+
+/// Every owned control at the default, sm and xs sizes.
+fn control_sizes_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(640.0, 520.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        (),
+        control_sizes_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    harness.snapshot(name);
+}
+
+#[test]
+fn control_sizes_light() {
+    control_sizes_in("control_sizes_light", egui::Theme::Light);
+}
+
+#[test]
+fn control_sizes_dark() {
+    control_sizes_in("control_sizes_dark", egui::Theme::Dark);
 }

@@ -263,9 +263,15 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
         },
     })
     .bordered(3.0);
-    input.radius = 7;
-    input.padding = vec2(9.0, 5.0);
-    input.height = 41.0;
+    input.sizes = eggshell_ui::contract::Keyed::new(
+        eggshell_ui::contract::Size::DEFAULT,
+        eggshell_ui::contract::InputMetrics {
+            radius: 7,
+            padding: vec2(9.0, 5.0),
+            height: 41.0,
+            text: None,
+        },
+    );
     input.hint = Some(c(99));
     style.input = input;
     style.selection.fill = c(77);
@@ -273,7 +279,7 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     let _: &InputStyle = &style.input;
 
     let mut egui_style = egui::Style::default();
-    style.map_input(&mut egui_style);
+    style.map_input(&mut egui_style, eggshell_ui::contract::Size::DEFAULT);
     let v = &egui_style.visuals;
     assert_eq!(v.text_edit_bg_color, Some(c(10)));
     assert_eq!(v.widgets.inactive.bg_stroke, egui::Stroke::new(3.0, c(20)));
@@ -299,7 +305,7 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
 fn the_neutral_input_maps_to_egui_s_own_text_edit_style() {
     let mut egui_style = egui::Style::default();
     let original = egui_style.clone();
-    Style::from_egui(&original).map_input(&mut egui_style);
+    Style::from_egui(&original).map_input(&mut egui_style, eggshell_ui::contract::Size::DEFAULT);
     let (a, b) = (&original.visuals, &egui_style.visuals);
     assert_eq!(a.text_edit_bg_color(), b.text_edit_bg_color());
     assert_eq!(a.widgets.inactive.bg_stroke, b.widgets.inactive.bg_stroke);

@@ -1,8 +1,9 @@
 use std::time::Duration;
 
 use eggshell_ui::contract::{
-    self, Arrow, Colors, Entry, Focus, Keyed, KindMotion, Look as BoxLook, Metrics, Paint, Size,
-    States, SwitchMetrics, Variant,
+    self, Arrow, CheckboxMetrics, Colors, Entry, Focus, InputMetrics, Keyed, KindMotion,
+    Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size, SliderMetrics, States,
+    StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
@@ -215,6 +216,35 @@ impl Shadcn {
             gap: t.control_gap,
             radius: t.radius_md(),
             glyph: t.icon_size,
+            text: None,
+        };
+        let xs_text = Some(TextSize {
+            size: 12.0,
+            line_height: 16.0,
+        });
+        let small = |m: Metrics| Metrics {
+            height: m.height - 4.0,
+            min_width: if m.min_width == 0.0 {
+                0.0
+            } else {
+                m.height - 4.0
+            },
+            padding_x: (m.padding_x - 4.0).max(0.0),
+            gap: m.gap.min(6.0),
+            ..m
+        };
+        let tiny = |m: Metrics| Metrics {
+            height: m.height - 12.0,
+            min_width: if m.min_width == 0.0 {
+                0.0
+            } else {
+                m.height - 12.0
+            },
+            padding_x: (m.padding_x - 8.0).max(0.0),
+            gap: m.gap.min(4.0),
+            glyph: 12.0,
+            text: xs_text,
+            ..m
         };
         let toggle = Metrics {
             min_width: t.control_height,
@@ -225,6 +255,14 @@ impl Shadcn {
             min_width: t.control_height,
             padding_x: 0.0,
             ..metrics
+        };
+        let sized = |metrics: Metrics| {
+            Keyed::new(Size::DEFAULT, metrics)
+                .with(size::ICON, square(metrics))
+                .with(size::SM, small(metrics))
+                .with(size::XS, tiny(metrics))
+                .with(size::ICON_SM, square(small(metrics)))
+                .with(size::ICON_XS, square(tiny(metrics)))
         };
         let accented = flat(t.accent, t.accent_foreground);
         let transition = Duration::from_millis(150);
@@ -318,9 +356,8 @@ impl Shadcn {
             let mut button = style.button;
             button.text = Some(t.text_role_at(t.control_weight));
             button.variants = variants;
-            button.sizes = Keyed::new(Size::DEFAULT, control).with(size::ICON, square(control));
-            button.toggle_sizes =
-                Keyed::new(Size::DEFAULT, toggle).with(size::ICON, square(toggle));
+            button.sizes = sized(control);
+            button.toggle_sizes = sized(toggle);
             button.toggle_border_width = 0.0;
             button.toggle_off = Keyed::new(
                 Variant::DEFAULT,
@@ -337,10 +374,16 @@ impl Shadcn {
         style.checkbox = {
             let mut checkbox = style.checkbox;
             checkbox.text = Some(t.text_role_at(t.label_weight));
-            checkbox.size = 16.0;
-            checkbox.radius = t.checkbox_radius;
-            checkbox.glyph = 14.0;
-            checkbox.gap = 8.0;
+            let box_at = |size: f32, glyph: f32, gap: f32, text| CheckboxMetrics {
+                size,
+                radius: t.checkbox_radius,
+                glyph,
+                gap,
+                text,
+            };
+            checkbox.sizes = Keyed::new(Size::DEFAULT, box_at(16.0, 14.0, 8.0, None))
+                .with(size::SM, box_at(14.0, 12.0, 6.0, None))
+                .with(size::XS, box_at(12.0, 10.0, 6.0, xs_text));
             checkbox.border_width = 1.0;
             checkbox.off = boxed(box_rest);
             checkbox.on = boxed(box_on);
@@ -350,9 +393,15 @@ impl Shadcn {
         style.radio = {
             let mut radio = style.radio;
             radio.text = Some(t.text_role_at(t.label_weight));
-            radio.size = 16.0;
-            radio.dot = 8.0;
-            radio.gap = 8.0;
+            let circle = |size: f32, dot: f32, gap: f32, text| RadioMetrics {
+                size,
+                dot,
+                gap,
+                text,
+            };
+            radio.sizes = Keyed::new(Size::DEFAULT, circle(16.0, 8.0, 8.0, None))
+                .with(size::SM, circle(14.0, 7.0, 6.0, None))
+                .with(size::XS, circle(12.0, 6.0, 6.0, xs_text));
             radio.border_width = 1.0;
             radio.off = boxed(radio_colors);
             radio.on = boxed(radio_colors);
@@ -362,14 +411,15 @@ impl Shadcn {
         style.switch = {
             let mut switch = style.switch;
             switch.text = Some(t.text_role_at(t.label_weight));
-            switch.sizes = Keyed::new(
-                Size::DEFAULT,
-                SwitchMetrics {
-                    track: t.switch_track,
-                    thumb_off: thumb,
-                    thumb_on: thumb,
-                },
-            );
+            let switch_at = |scale: f32, text| SwitchMetrics {
+                track: t.switch_track * scale,
+                thumb_off: thumb * scale,
+                thumb_on: thumb * scale,
+                text,
+            };
+            switch.sizes = Keyed::new(Size::DEFAULT, switch_at(1.0, None))
+                .with(size::SM, switch_at(0.75, None))
+                .with(size::XS, switch_at(0.625, xs_text));
             switch.gap = 8.0;
             switch.border_width = 0.0;
             switch.off = switch_paint(t.switch_track_off, t.switch_thumb_off);
@@ -381,15 +431,35 @@ impl Shadcn {
             let mut segmented = style.segmented;
             segmented.text = Some(t.text_role_at(t.control_weight));
             segmented.track_fill = t.input;
-            segmented.track_radius = t.radius;
-            segmented.track_padding = t.list_padding;
-            segmented.height = t.control_height;
-            segmented.cell_radius = t.radius_md();
-            segmented.cell_padding = t.cell_padding;
-            segmented.column_gap = 0.0;
-            segmented.row_gap = 2.0;
-            segmented.icon_size = t.icon_size;
-            segmented.icon_gap = 6.0;
+            let track_at = |height: f32, padding_x: f32, icon: f32, text| SegmentedMetrics {
+                track_radius: t.radius,
+                track_padding: t.list_padding,
+                height,
+                cell_radius: t.radius_md(),
+                cell_padding: vec2(padding_x, t.cell_padding.y),
+                column_gap: 0.0,
+                row_gap: 2.0,
+                icon_size: icon,
+                icon_gap: 6.0,
+                text,
+            };
+            segmented.sizes = Keyed::new(
+                Size::DEFAULT,
+                track_at(t.control_height, t.cell_padding.x, t.icon_size, None),
+            )
+            .with(
+                size::SM,
+                track_at(t.control_height - 4.0, t.cell_padding.x, t.icon_size, None),
+            )
+            .with(
+                size::XS,
+                track_at(
+                    t.control_height - 12.0,
+                    (t.cell_padding.x - 4.0).max(0.0),
+                    12.0,
+                    xs_text,
+                ),
+            );
             segmented.cell_border_width = 1.0;
             segmented.selected = raised(
                 Paint::new(States::still(selected_cell, t.muted)),
@@ -401,9 +471,20 @@ impl Shadcn {
         };
         style.slider = {
             let mut slider = style.slider;
-            slider.track_height = t.slider_track;
-            slider.thumb_size = t.slider_thumb;
-            slider.radius = t.slider_radius;
+            let slider_at = |track_height: f32, thumb_size: f32| SliderMetrics {
+                track_height,
+                thumb_size,
+                radius: t.slider_radius,
+            };
+            slider.sizes = Keyed::new(Size::DEFAULT, slider_at(t.slider_track, t.slider_thumb))
+                .with(
+                    size::SM,
+                    slider_at(t.slider_track.min(4.0), t.slider_thumb - 2.0),
+                )
+                .with(
+                    size::XS,
+                    slider_at(t.slider_track.min(3.0), t.slider_thumb - 4.0),
+                );
             slider.track = States::still(flat(t.input, t.foreground), t.background);
             slider.range = States::still(flat(t.primary, t.primary_foreground), t.background);
             slider.thumb = shadowed(
@@ -428,7 +509,9 @@ impl Shadcn {
         style.select = {
             let mut select = style.select;
             select.trigger = input_box;
-            select.metrics = control;
+            select.sizes = Keyed::new(Size::DEFAULT, control)
+                .with(size::SM, small(control))
+                .with(size::XS, tiny(control));
             select.chevron = 16.0;
             select.chevron_opacity = Opacity::new(0.5);
             select.transition = transition;
@@ -528,22 +611,53 @@ impl Shadcn {
         style.stepper = {
             let mut stepper = style.stepper;
             stepper.group = input_box;
-            stepper.height = t.control_height;
-            stepper.padding_x = t.input_padding.x;
-            stepper.radius = t.radius_md();
+            let group_at = |height: f32, button_width: f32, glyph: f32, text| StepperMetrics {
+                height,
+                padding_x: t.input_padding.x,
+                radius: t.radius_md(),
+                button_width,
+                glyph,
+                text,
+            };
+            stepper.sizes = Keyed::new(Size::DEFAULT, group_at(t.control_height, 24.0, 12.0, None))
+                .with(size::SM, group_at(t.control_height - 4.0, 20.0, 12.0, None))
+                .with(
+                    size::XS,
+                    group_at(t.control_height - 12.0, 16.0, 10.0, xs_text),
+                );
             stepper.button = ghost_button;
-            stepper.button_width = 24.0;
             stepper.divider = t.input;
-            stepper.glyph = 12.0;
             stepper.transition = transition;
             stepper
         };
         style.input = {
             let mut input = style.input;
             input.look = field_look;
-            input.radius = t.radius_md();
-            input.padding = t.input_padding;
-            input.height = t.control_height;
+            let field_at = |height: f32, padding: egui::Vec2, text| InputMetrics {
+                radius: t.radius_md(),
+                padding,
+                height,
+                text,
+            };
+            input.sizes = Keyed::new(
+                Size::DEFAULT,
+                field_at(t.control_height, t.input_padding, None),
+            )
+            .with(
+                size::SM,
+                field_at(t.control_height - 4.0, t.input_padding, None),
+            )
+            .with(
+                size::XS,
+                field_at(
+                    t.control_height - 12.0,
+                    vec2(
+                        (t.input_padding.x - 4.0).max(0.0),
+                        t.input_padding.y.min(2.0),
+                    ),
+                    xs_text,
+                ),
+            );
             input.hint = None;
             input
         };

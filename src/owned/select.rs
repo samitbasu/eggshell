@@ -16,6 +16,7 @@ use super::{
     paint_chevron, tip, tipped,
 };
 use crate::builder::Slot;
+use crate::contract::Size;
 use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::pipeline::Room;
@@ -85,6 +86,7 @@ pub struct SelectChain<'a, 'f, A, T> {
     tooltip: TipContent,
     classes: Tw,
     enablement: Enablement,
+    size: Option<Size>,
     on_response: OnResponse<A>,
 }
 
@@ -107,6 +109,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             tooltip: None,
             classes: tw(),
             enablement: Enablement::Enabled,
+            size: None,
             on_response: OnResponse::default(),
         }
     }
@@ -162,6 +165,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         self
     }
 
+    /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = Some(size);
+        self
+    }
+
     /// Whether the select takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -189,6 +198,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             tooltip,
             classes: caller,
             enablement,
+            size,
             on_response,
         } = self;
         let tooltip = tip(&mut b, slot.id, tooltip);
@@ -201,7 +211,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         let style = Style::of(&ctx);
         let offset = offset.unwrap_or(style.menu.offset);
         let select = &style.select;
-        let metrics = select.metrics;
+        let metrics = *select.sizes.get(b.size_of(size));
         let classes = select
             .trigger
             .classes(&style, metrics.radius, enablement, select.transition)
@@ -211,7 +221,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             .h_px(metrics.height)
             .px(metrics.padding_x / 4.0)
             .gap(metrics.gap / 4.0)
-            .role(style.role(&select.text).clone())
+            .role(style.role_sized(&select.text, metrics.text))
             .whitespace_nowrap()
             .w_fit();
         let classes = enablement.fade(classes, &style).merge(caller);

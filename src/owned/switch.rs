@@ -42,7 +42,7 @@ pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
     tooltip: TipContent,
     current: T,
     values: V,
-    size: Size,
+    size: Option<Size>,
     track: Option<Vec2>,
     classes: Tw,
     enablement: Enablement,
@@ -64,7 +64,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             tooltip: None,
             current,
             values: Unset,
-            size: Size::DEFAULT,
+            size: None,
             track: None,
             classes: tw(),
             enablement: Enablement::Enabled,
@@ -100,7 +100,7 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
 
     /// Draws the switch at the style's size `size`.
     pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
+        self.size = Some(size);
         self
     }
 
@@ -187,7 +187,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = Style::of(b.ctx());
         let switch = &style.switch;
-        let metrics = *switch.sizes.get(size);
+        let metrics = *switch.sizes.get(b.size_of(size));
         let track = track.unwrap_or(metrics.track);
         let on = mark == Mark::On;
         let slide = switch.slide;
@@ -223,7 +223,13 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 .shrink_0()
                 .w_px(track.x)
                 .h_px(track.y);
-            let row = choice_row(&style, &switch.text, enablement, switch.gap).merge(caller);
+            let row = choice_row(
+                &style,
+                &style.role_sized(&switch.text, metrics.text),
+                enablement,
+                switch.gap,
+            )
+            .merge(caller);
             let on_press = on_toggle.clone();
             b.div(row, |b| {
                 b.div_id(Part::Track, classes, |b| {

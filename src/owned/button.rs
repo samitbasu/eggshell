@@ -443,7 +443,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             action,
         } = self;
         let tooltip = tip(&mut b, slot.id, tooltip);
-        let size = size.unwrap_or(Size::DEFAULT);
+        let size = b.size_of(size);
         let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
         let press = press.unwrap_or(Press::Shifts);
         debug_assert!(

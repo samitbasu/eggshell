@@ -37,11 +37,14 @@ fn lyra_values_are_style_lyra_css() {
         assert_eq!((button.height, button.radius, button.gap), (32.0, 0, 6.0));
         assert_eq!(style.focus.width, 1.0);
         assert_eq!(style.text.size, 12.0);
-        assert_eq!(style.checkbox.radius, 0);
-        assert_eq!(style.slider.radius, 0);
-        assert_eq!(style.input.height, 32.0);
-        assert_eq!(style.input.radius, 0);
-        assert_eq!(style.input.padding, vec2(10.0, 4.0));
+        assert_eq!(style.checkbox.sizes.get(Size::DEFAULT).radius, 0);
+        assert_eq!(style.slider.sizes.get(Size::DEFAULT).radius, 0);
+        assert_eq!(style.input.sizes.get(Size::DEFAULT).height, 32.0);
+        assert_eq!(style.input.sizes.get(Size::DEFAULT).radius, 0);
+        assert_eq!(
+            style.input.sizes.get(Size::DEFAULT).padding,
+            vec2(10.0, 4.0)
+        );
         assert!(
             style
                 .button
@@ -98,7 +101,7 @@ fn style_light_dark_and_theme_colour_vary_independently() {
             let s = preset.style();
             (
                 *s.button.sizes.get(Size::DEFAULT),
-                s.input.height,
+                s.input.sizes.get(Size::DEFAULT).height,
                 s.focus.width,
             )
         };

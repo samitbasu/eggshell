@@ -11,6 +11,7 @@ use super::{
     Content, Enablement, OnResponse, Tip, TipContent, Tooltip, centered, described, tip, tipped,
 };
 use crate::builder::Slot;
+use crate::contract::Size;
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 type Handler<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
@@ -69,6 +70,7 @@ pub struct SegmentedChain<'a, 'f, A, T> {
     options: Vec<Choice<T>>,
     rows: Rows,
     enablement: Enablement,
+    size: Option<Size>,
     tooltip: TipContent,
     track: Tw,
     cells: Tw,
@@ -98,6 +100,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             options: choice::collect(options),
             rows: Rows::One,
             enablement: Enablement::Enabled,
+            size: None,
             tooltip: None,
             track: tw(),
             cells: tw(),
@@ -172,6 +175,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
         self
     }
 
+    /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = Some(size);
+        self
+    }
+
     /// Whether the control takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -196,6 +205,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             options,
             rows,
             enablement,
+            size,
             tooltip,
             track,
             cells: caller,
@@ -224,16 +234,19 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
         }
         let style = Style::of(b.ctx());
         let seg = &style.segmented;
+        let metrics = *seg.sizes.get(b.size_of(size));
         let container = tw()
             .flex()
             .items_center()
             .w_fit()
-            .p(seg.track_padding / 4.0)
-            .rounded_px(f32::from(seg.track_radius))
+            .p(metrics.track_padding / 4.0)
+            .rounded_px(f32::from(metrics.track_radius))
             .bg(seg.track_fill);
         let container = match rows {
-            Rows::One => container.h_px(seg.height).gap_x(seg.column_gap / 4.0),
-            Rows::Wrapping => container.flex_wrap().h_auto().gap(seg.row_gap / 4.0),
+            Rows::One => container
+                .h_px(metrics.height)
+                .gap_x(metrics.column_gap / 4.0),
+            Rows::Wrapping => container.flex_wrap().h_auto().gap(metrics.row_gap / 4.0),
         };
         let container = enablement.fade(container, &style).merge(track);
         let cell = |cell, enablement| {
@@ -241,22 +254,22 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
                 Cell::Pressed => &seg.selected,
                 Cell::Released => &seg.unselected,
             };
-            let mut role = style.role(&seg.text).clone();
+            let mut role = style.role_sized(&seg.text, metrics.text);
             if let (Cell::Pressed, Some(weight)) = (cell, seg.selected_weight) {
                 role.weight = weight;
             }
             let classes = centered(look.classes(
                 seg.cell_border_width,
                 &style,
-                seg.cell_radius,
+                metrics.cell_radius,
                 enablement,
                 seg.transition,
             ))
             .grow()
             .text_center()
-            .px(seg.cell_padding.x / 4.0)
-            .py(seg.cell_padding.y / 4.0)
-            .gap(seg.icon_gap / 4.0)
+            .px(metrics.cell_padding.x / 4.0)
+            .py(metrics.cell_padding.y / 4.0)
+            .gap(metrics.icon_gap / 4.0)
             .role(role);
             let classes = match rows {
                 Rows::One => classes.h_full(),
@@ -264,7 +277,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             };
             classes.merge(caller.clone())
         };
-        let icon = tw().size_px(seg.icon_size);
+        let icon = tw().size_px(metrics.icon_size);
         cells_in(
             b,
             slot,

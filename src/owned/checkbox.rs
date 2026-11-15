@@ -13,6 +13,7 @@ use super::{
     paint_check, tip,
 };
 use crate::builder::Slot;
+use crate::contract::Size;
 use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -53,6 +54,7 @@ pub struct CheckboxChain<'a, 'f, A, T, V = Unset> {
     values: V,
     classes: Tw,
     enablement: Enablement,
+    size: Option<Size>,
     on_response: OnResponse<A>,
 }
 
@@ -73,6 +75,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             values: Unset,
             classes: tw(),
             enablement: Enablement::Enabled,
+            size: None,
             on_response: OnResponse::default(),
         }
     }
@@ -90,6 +93,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             values: [off, on],
             classes: self.classes,
             enablement: self.enablement,
+            size: self.size,
             on_response: self.on_response,
         }
     }
@@ -131,6 +135,12 @@ impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
         self
     }
 
+    /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = Some(size);
+        self
+    }
+
     /// Whether the checkbox takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -169,6 +179,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             values: [off, on],
             classes: caller,
             enablement,
+            size,
             on_response,
         } = self;
         let tooltip = tip(&mut b, slot.id, tooltip);
@@ -177,6 +188,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = Style::of(b.ctx());
         let checkbox = &style.checkbox;
+        let metrics = *checkbox.sizes.get(b.size_of(size));
         let look = match mark {
             Mark::Off => &checkbox.off,
             Mark::On => &checkbox.on,
@@ -184,17 +196,23 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let box_classes = look.indicator(
             checkbox.border_width,
             &style,
-            checkbox.radius,
+            metrics.radius,
             enablement,
             checkbox.transition,
-            checkbox.size,
+            metrics.size,
         );
-        let glyph = checkbox.glyph;
+        let glyph = metrics.glyph;
         let name = name.unwrap_or_default();
         b.claim(&slot);
         b.scope_with(slot.id, &slot.label, |b| {
             let control = b.id_of(Part::Box);
-            let row = choice_row(&style, &checkbox.text, enablement, checkbox.gap).merge(caller);
+            let row = choice_row(
+                &style,
+                &style.role_sized(&checkbox.text, metrics.text),
+                enablement,
+                metrics.gap,
+            )
+            .merge(caller);
             let on_press = on_toggle.clone();
             b.div(row, |b| {
                 b.div_id(Part::Box, box_classes, |b| {

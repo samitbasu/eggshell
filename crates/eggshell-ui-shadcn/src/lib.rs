@@ -103,6 +103,18 @@ pub mod size {
     /// `icon`: a square the height of a control, for a button that is only an
     /// icon.
     pub const ICON: Size = Size("icon");
+
+    /// TODO(prose): `sm`, a control four points shorter.
+    pub const SM: Size = Size("sm");
+
+    /// TODO(prose): `xs`, a control twelve points shorter, in 12 pt text.
+    pub const XS: Size = Size("xs");
+
+    /// `icon-sm`: [`ICON`] at [`SM`].
+    pub const ICON_SM: Size = Size("icon-sm");
+
+    /// `icon-xs`: [`ICON`] at [`XS`].
+    pub const ICON_XS: Size = Size("icon-xs");
 }
 
 /// The names of shadcn's button variants, the keys of the contract's
