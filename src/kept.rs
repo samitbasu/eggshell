@@ -35,6 +35,8 @@ pub(crate) struct Kept {
     pub(crate) scroll_keys: crate::scroll_keys::Keys,
     /// The area the last layout placed things in.
     pub(crate) area: Option<Rect>,
+    /// Where clipboard reads and writes go; the system's when unset.
+    pub(crate) clipboard: Option<std::sync::Arc<dyn crate::ClipboardSource>>,
 }
 
 /// Shared by a `LayoutState` and the frames it builds, which outlive a borrow

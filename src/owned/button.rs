@@ -381,6 +381,28 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         self
     }
 
+    /// Adds the button as the command `id` names in the
+    /// [`Commands`](crate::Commands) declared on the builder: it is disabled
+    /// while the command is, and clicking it runs the command, as a menu item
+    /// for it does (see [`Menu::command`](crate::owned::Menu::command)). The
+    /// label is the button's own.
+    ///
+    /// Debug builds panic if no table declares `id`.
+    #[track_caller]
+    pub fn command<K: crate::Key>(mut self, id: K) {
+        let Some((command, enabled)) = self.b.command(&id) else {
+            #[cfg(debug_assertions)]
+            panic!("button for {id:?}: no command of that key is declared");
+            #[cfg(not(debug_assertions))]
+            return;
+        };
+        if !enabled {
+            self.opts.enablement = Some(Enablement::Disabled);
+        }
+        let shell = self.b.shell();
+        self.on_click(move |app| command.activate(app, &shell));
+    }
+
     /// Adds a button that does nothing when it is clicked: a placeholder, or
     /// one that is disabled.
     #[track_caller]

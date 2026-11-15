@@ -441,6 +441,18 @@ impl LayoutState {
         self
     }
 
+    /// Uses `source` for the clipboard reads and writes of this layout, in
+    /// place of the system's: a test's [`FakeClipboard`](crate::testing::FakeClipboard).
+    pub fn with_clipboard(self, source: std::sync::Arc<dyn crate::ClipboardSource>) -> Self {
+        self.set_clipboard(Some(source));
+        self
+    }
+
+    /// Sets, or with `None` clears, the clipboard source of this layout.
+    pub fn set_clipboard(&self, source: Option<std::sync::Arc<dyn crate::ClipboardSource>>) {
+        self.st.kept.with(|kept| kept.clipboard = source);
+    }
+
     /// Sets, or with `None` clears, the root text style of the builds that
     /// follow. Without one each build follows egui's style.
     pub fn set_base_text(&mut self, base: Option<TextStyle>) {

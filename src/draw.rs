@@ -1673,7 +1673,13 @@ impl<A> Placed<A> {
             |root| roots[root].is_modal(),
         ) {
             if let Some((_, table)) = commands.iter().find(|(at, _)| *at == root) {
-                crate::commands::dispatch(ui.ctx(), typing, table, app);
+                crate::commands::dispatch(
+                    ui.ctx(),
+                    &crate::Shell::new(ui.ctx(), &kept),
+                    typing,
+                    table,
+                    app,
+                );
             }
         }
         scroll_keys::hold_arrows(ui.ctx(), &kept, &nodes);
