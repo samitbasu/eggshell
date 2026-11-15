@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use egui::{Align, Context, EventFilter, Id, Key, Modifiers, Rect, Vec2};
+use egui::{Align, Context, EventFilter, FocusDirection, Id, Key, Modifiers, Rect, Vec2};
 
 use crate::focus::focus_within;
 use crate::kept::Handle;
@@ -57,7 +57,9 @@ enum Move {
 
 impl Move {
     /// The move of the frame's key for an overlay that navigates as `nav`,
-    /// taking the key.
+    /// taking the key. An arrow is taken from egui too: egui holds the arrows
+    /// of a widget only from the frame after it gained focus, and in that
+    /// frame it would also move focus itself, after the overlay has.
     fn of_key(ctx: &Context, nav: Nav, home_end: HomeEnd) -> Option<Self> {
         let pressed = |key| ctx.input_mut(|input| input.consume_key(Modifiers::NONE, key));
         let arrows: &[(Key, Self)] = if nav == Nav::Grid {
@@ -80,9 +82,11 @@ impl Move {
             ],
             HomeEnd::Theirs => &[],
         };
-        arrows
-            .iter()
-            .chain(ends)
+        if let Some((_, to)) = arrows.iter().find(|(key, _)| pressed(*key)) {
+            ctx.memory_mut(|memory| memory.move_focus(FocusDirection::None));
+            return Some(*to);
+        }
+        ends.iter()
             .find(|(key, _)| pressed(*key))
             .map(|(_, to)| *to)
     }
