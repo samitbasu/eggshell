@@ -657,13 +657,13 @@ fn the_drag_fuzzer_scrolls_with_the_keys_when_the_session_says_so() {
     let (mut hand, mut session) = gallery_hand();
     let page = support::last_drawn(&hand.harness.ctx, "/\"page\"").expect("drawn");
     for _ in 0..20 {
-        if eggshell_ui::focus_within(&hand.harness.ctx, page.id) {
+        if crate::support::shell(&hand.harness).focus_within(page.id) {
             break;
         }
         hand.act(&DragAction::Tab(false), &mut session);
     }
     assert!(
-        eggshell_ui::focus_within(&hand.harness.ctx, page.id),
+        crate::support::shell(&hand.harness).focus_within(page.id),
         "precondition: the focus reached the page"
     );
     hand.act(&DragAction::ScrollKey(5, false), &mut session);

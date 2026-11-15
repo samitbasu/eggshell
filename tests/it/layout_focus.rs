@@ -45,7 +45,7 @@ fn pass(layout: &mut LayoutState, ctx: &Context, with_y: bool, watch: Option<Id>
             x,
             y,
             y_focused: ctx.memory(|memory| watch.is_some_and(|w| memory.has_focus(w))),
-            within: eggshell_ui::focus_within(ctx, x),
+            within: layout.shell(ctx).focus_within(x),
         });
     })
     .drop_without_applying_deltas();

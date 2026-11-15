@@ -20,6 +20,7 @@ use crate::overlay::{Anchor, Band, DismissOn, Distance, Focus, Placement};
 use crate::overlay_chain::OverlayChain;
 use crate::overlay_input::Drag;
 use crate::presence::Shown;
+use crate::shell::ShellExt as _;
 use crate::tw::tw;
 
 /// What a tooltip shows.
@@ -177,6 +178,8 @@ const RESTORE_TICKS: u8 = 3;
 
 #[derive(Default)]
 pub(crate) struct Tooltips {
+    /// The triggers this frame's draw has registered so far.
+    requests: Vec<Trigger>,
     present: Vec<Present>,
     waiting: Option<Waiting>,
     latched: Option<Id>,
@@ -312,13 +315,9 @@ impl Tooltips {
     }
 }
 
-fn requests_id() -> Id {
-    crate::key::root_id().with("tooltip-triggers")
-}
-
 /// Starts the frame's collection of triggers.
-pub(crate) fn begin(ctx: &Context) {
-    ctx.data_mut(|data| data.insert_temp(requests_id(), Vec::<Trigger>::new()));
+pub(crate) fn begin(kept: &Handle) {
+    kept.with(|kept| kept.tooltips.requests.clear());
 }
 
 /// Says that the node of the draw closure `ui` is a trigger for `tip`.
@@ -332,10 +331,9 @@ pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
             content: tip.content.clone(),
             cause,
         };
-        ui.data_mut(|data| {
-            data.get_temp_mut_or_default::<Vec<Trigger>>(requests_id())
-                .push(trigger);
-        });
+        ui.shell()
+            .kept
+            .with(|kept| kept.tooltips.requests.push(trigger));
     };
     if response.has_focus() && crate::overlay_input::keyboard_was_last(ui.ctx()) {
         wants(Cause::Focus);
@@ -378,9 +376,7 @@ pub(crate) fn interruption(ctx: &Context, drag: Drag) -> Option<Interruption> {
 
 /// Ends the frame's collection: moves the state to this frame.
 pub(crate) fn end(ctx: &Context, kept: &Handle, interruption: Option<Interruption>) {
-    let triggers = ctx
-        .data_mut(|data| data.remove_temp::<Vec<Trigger>>(requests_id()))
-        .unwrap_or_default();
+    let triggers = kept.with(|kept| std::mem::take(&mut kept.tooltips.requests));
     let style = crate::Style::of(ctx);
     let timing = Timing {
         delay: style.tooltip.delay,

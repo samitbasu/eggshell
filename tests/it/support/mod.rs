@@ -363,11 +363,12 @@ pub fn click_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
 /// The deepest node that has keyboard focus or holds a widget that does: the
 /// leaf a `text_field` or `select` sits in, or a node that is itself focused.
 pub fn focused_node<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
+    let shell = shell(harness);
     harness
         .state()
         .ids
         .iter()
-        .rfind(|(_, id)| eggshell_ui::focus_within(&harness.ctx, *id))
+        .rfind(|(_, id)| shell.focus_within(*id))
         .map(|(path, _)| path.clone())
 }
 

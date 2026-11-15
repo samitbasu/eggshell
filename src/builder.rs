@@ -274,9 +274,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// Whether the node declared with `key` in this scope, or a widget
-    /// inside it, has keyboard focus. See [`focus_within`](crate::focus_within).
+    /// inside it, has keyboard focus. See [`Shell::focus_within`](crate::Shell::focus_within).
     pub fn has_focus_within<K: Key>(&self, key: K) -> bool {
-        crate::focus::focus_within(self.frame.ctx, self.id_of(key))
+        self.shell().focus_within(self.id_of(key))
     }
 
     /// An anonymous container. Its text classes are inherited by `body`.
@@ -1734,7 +1734,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
         self.draw(move |app, ui| {
-            if ui.node_response().clicked() || crate::nav::take_activation(ui.ctx(), ui.node_id()) {
+            if ui.node_response().clicked() || crate::nav::take_activation(ui, ui.node_id()) {
                 act(app);
             }
         })

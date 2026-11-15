@@ -480,7 +480,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         };
         node.draw(move |app, ui| {
             let response = described(ui, role, selected, &name, &tooltip);
-            if response.clicked() || crate::nav::take_activation(ui.ctx(), response.id) {
+            if response.clicked() || crate::nav::take_activation(ui, response.id) {
                 on_click(app, ui.ctx());
             }
             on_response.run(app, &response);

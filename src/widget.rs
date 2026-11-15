@@ -25,6 +25,7 @@
 use egui::{Context, Frame, Margin, NumExt as _, Response, RichText, TextWrapMode, Ui, Vec2, vec2};
 use taffy::Size;
 
+use crate::shell::ShellExt as _;
 use crate::sizing::Sizer;
 use crate::{Measure, Style, TextStyle, Width};
 
@@ -247,7 +248,7 @@ impl TextEdit {
         };
         announce(&response, self.name.as_deref());
         if self.lines != Lines::Single && response.has_focus() {
-            crate::actions::note_multiline_focus(ui.ctx(), response.id);
+            crate::actions::note_multiline_focus(&ui.shell().kept, response.id);
         }
         if response.changed() && *text != before_text {
             let after = self.fit(&Sizer::for_ui(ui), text, Some(width));

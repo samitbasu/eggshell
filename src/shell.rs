@@ -27,6 +27,12 @@ pub struct Shell {
 }
 
 impl Shell {
+    /// The egui context the layout is laid out in, for a handler that holds a
+    /// `Shell` and needs the context too.
+    pub fn ctx(&self) -> &Context {
+        &self.ctx
+    }
+
     pub(crate) fn new(ctx: &Context, kept: &Handle) -> Self {
         Self {
             ctx: ctx.clone(),

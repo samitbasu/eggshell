@@ -10,7 +10,6 @@ use std::collections::HashMap;
 
 use egui::{Align, Context, EventFilter, Id, Key, Modifiers, Vec2};
 
-use crate::focus::focus_within;
 use crate::kept::Handle;
 use crate::overlay::{Nav, Wrap};
 use crate::shell::Shell;
@@ -81,7 +80,7 @@ fn target(items: &[Id], current: Option<Id>, step: Step, wrap: Wrap) -> Option<I
 /// The overlay the keys act on: the topmost that holds the focus in its own
 /// widgets, else the topmost anchored to the focused widget, else, with
 /// nothing focused, the topmost.
-fn keyed<'a>(ctx: &Context, menus: &'a [Menu], focused: Option<Id>) -> Option<&'a Menu> {
+fn keyed<'a>(shell: &Shell, menus: &'a [Menu], focused: Option<Id>) -> Option<&'a Menu> {
     let Some(focused) = focused else {
         return menus.last();
     };
@@ -91,7 +90,7 @@ fn keyed<'a>(ctx: &Context, menus: &'a [Menu], focused: Option<Id>) -> Option<&'
         .or_else(|| {
             menus
                 .iter()
-                .rfind(|menu| menu.anchor.is_some_and(|anchor| focus_within(ctx, anchor)))
+                .rfind(|menu| menu.anchor.is_some_and(|anchor| shell.focus_within(anchor)))
         })
 }
 
@@ -99,7 +98,7 @@ fn keyed<'a>(ctx: &Context, menus: &'a [Menu], focused: Option<Id>) -> Option<&'
 /// `menus` are the open overlays with a pattern, the one on the bottom first.
 pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> {
     let focused = ctx.memory(|memory| memory.focused());
-    let Some(menu) = keyed(ctx, menus, focused) else {
+    let Some(menu) = keyed(&Shell::new(ctx, kept), menus, focused) else {
         return Vec::new();
     };
     let home_end = if ctx.text_edit_focused() {
@@ -119,12 +118,12 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
             {
                 dismiss.push(menu.id);
                 if let Some(anchor) = menu.anchor {
-                    focus_item(ctx, anchor, focused);
+                    focus_item(ctx, kept, anchor, focused);
                 }
             } else if let Some(step) = Step::of_key(ctx, home_end)
                 && let Some(to) = target(&menu.items, focused, step, menu.wrap)
             {
-                focus_item(ctx, to, focused);
+                focus_item(ctx, kept, to, focused);
             }
         }
         Nav::Listbox => listbox(ctx, kept, menu, home_end),
@@ -135,26 +134,29 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
 /// Gives `to` the focus. With nothing focused before, egui has already read
 /// the arrow as a move of focus this pass and would move it again from `to`,
 /// so the focus is given at the start of the next frame instead.
-fn focus_item(ctx: &Context, to: Id, before: Option<Id>) {
+fn focus_item(ctx: &Context, kept: &Handle, to: Id, before: Option<Id>) {
     if before.is_some() {
         ctx.memory_mut(|memory| memory.request_focus(to));
     } else {
-        ctx.data_mut(|data| data.insert_temp(deferred_key(), to));
+        kept.with(|kept| kept.navigation.deferred = Some(to));
         ctx.request_repaint();
     }
 }
 
-fn deferred_key() -> Id {
-    crate::key::root_id().with("deferred-item-focus")
+/// What a layout remembers of keyboard navigation.
+#[derive(Default)]
+pub(crate) struct Navigation {
+    /// The item a navigation key chose with nothing focused.
+    deferred: Option<Id>,
+    activation: Option<Pending>,
 }
 
 /// Gives focus to the item a navigation key chose last frame, if nothing
 /// has taken it since. Run before the frame's widgets.
-pub(crate) fn apply_deferred(ctx: &Context) {
-    let Some(item) = ctx.data(|data| data.get_temp::<Id>(deferred_key())) else {
+pub(crate) fn apply_deferred(ctx: &Context, kept: &Handle) {
+    let Some(item) = kept.with(|kept| kept.navigation.deferred.take()) else {
         return;
     };
-    ctx.data_mut(|data| data.remove::<Id>(deferred_key()));
     if ctx.memory(|memory| memory.focused()).is_none() {
         ctx.memory_mut(|memory| memory.request_focus(item));
     }
@@ -267,6 +269,7 @@ pub(crate) fn activate_highlighted(ctx: &Context, kept: &Handle) {
     if active.0.is_empty() {
         return;
     }
+    let shell = Shell::new(ctx, kept);
     let nothing_focused = ctx.memory(|memory| memory.focused()).is_none();
     let keyed = active
         .0
@@ -274,7 +277,7 @@ pub(crate) fn activate_highlighted(ctx: &Context, kept: &Handle) {
         .find(|highlight| {
             highlight
                 .anchor
-                .is_some_and(|anchor| focus_within(ctx, anchor))
+                .is_some_and(|anchor| shell.focus_within(anchor))
         })
         .or_else(|| active.0.values().next().filter(|_| nothing_focused));
     let Some(highlight) = keyed else {
@@ -283,7 +286,7 @@ pub(crate) fn activate_highlighted(ctx: &Context, kept: &Handle) {
     let space = !ctx.text_edit_focused();
     let pressed = |key| ctx.input_mut(|input| input.consume_key(Modifiers::NONE, key));
     if pressed(Key::Enter) || (space && pressed(Key::Space)) {
-        Pending::set(ctx, highlight.item);
+        Pending::set(ctx, kept, highlight.item);
     }
 }
 
@@ -293,33 +296,31 @@ struct Pending {
     pass: u64,
 }
 
-fn pending_key() -> Id {
-    crate::key::root_id().with("listbox-activation")
-}
-
 impl Pending {
-    fn set(ctx: &Context, item: Id) {
+    fn set(ctx: &Context, kept: &Handle, item: Id) {
         let pass = ctx.cumulative_pass_nr();
-        ctx.data_mut(|data| data.insert_temp(pending_key(), Self { item, pass }));
+        kept.with(|kept| kept.navigation.activation = Some(Self { item, pass }));
     }
 }
 
 /// Activates `item` as a click on the next frame: a default or cancel button
 /// answering its key.
-pub(crate) fn request_activation(ctx: &Context, item: Id) {
-    Pending::set(ctx, item);
+pub(crate) fn request_activation(ctx: &Context, kept: &Handle, item: Id) {
+    Pending::set(ctx, kept, item);
     ctx.request_repaint();
 }
 
 /// Whether Enter or Space activated the highlighted item `item` since it was
 /// last asked: a click it did not get from the pointer. Asking takes it.
-pub(crate) fn take_activation(ctx: &Context, item: Id) -> bool {
-    let Some(pending) = ctx.data(|data| data.get_temp::<Pending>(pending_key())) else {
+pub(crate) fn take_activation(ui: &egui::Ui, item: Id) -> bool {
+    use crate::shell::ShellExt as _;
+    let (ctx, kept) = (ui.ctx(), ui.shell().kept);
+    let Some(pending) = kept.with(|state| state.navigation.activation) else {
         return false;
     };
     let fresh = ctx.cumulative_pass_nr().saturating_sub(pending.pass) <= 1;
     if pending.item == item {
-        ctx.data_mut(|data| data.remove::<Pending>(pending_key()));
+        kept.with(|state| state.navigation.activation = None);
         return fresh;
     }
     false
