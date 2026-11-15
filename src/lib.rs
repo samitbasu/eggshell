@@ -257,7 +257,6 @@ pub use dnd::{
     ScrollSpeed, insertion_index,
 };
 pub use draw::NodeUi;
-pub use focus::focus_within;
 pub use key::Key;
 pub use measure::{Measure, fill};
 pub use overlay::{Boundary, Distance, InsetBoundary};

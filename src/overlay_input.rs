@@ -22,6 +22,7 @@ use crate::nav::{self, Menu};
 use crate::overlay::{Anchor, AnchorLookup, Band, Behavior, DismissOn, Focus, Nav, Outside};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::roots::{Form, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
+use crate::shell::Shell;
 use crate::stack::{Entered, Stack};
 
 /// Whether an in-app drag is live.
@@ -413,7 +414,7 @@ pub(crate) fn claim_keys(
     let escaped = escape == Pressed::Yes && Typing::escape_blurred(ctx, kept);
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
     let default = if pressed(Key::Enter) {
-        actions::return_button(ctx, nodes, roots, &top_down)
+        actions::return_button(ctx, kept, nodes, roots, &top_down)
     } else {
         None
     };
@@ -468,6 +469,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         &open.iter().map(|open| open.overlay.id).collect::<Vec<_>>(),
     );
     let source = Source::last(ctx);
+    let shell = Shell::new(ctx, kept);
     let mut stack = Stack::load(kept);
     let layers = layers_of(ctx, &open, nodes, roots, |open| {
         let before = stack
@@ -476,7 +478,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             .unwrap_or_default();
         (
             before,
-            focus::at(ctx, open.overlay.id, &open.nested, open.anchor_node()),
+            focus::at(&shell, open.overlay.id, &open.nested, open.anchor_node()),
         )
     });
     let input = Input {
@@ -501,7 +503,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     let mut dismissed = Vec::new();
     for found in &found {
         match (found.cause, layers[found.layer].cancel) {
-            (Cause::Cancel, Some(button)) => actions::press(ctx, button),
+            (Cause::Cancel, Some(button)) => actions::press(ctx, kept, button),
             _ => {
                 let id = open[found.layer].overlay.id;
                 dismissed.push(id);
@@ -517,10 +519,10 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         }
     }
     if let EscapeGoes::Window(button) = escape_goes(&layers, nodes, &input) {
-        actions::press(ctx, button);
+        actions::press(ctx, kept, button);
     }
     if let Some(button) = keys.default {
-        actions::press(ctx, button);
+        actions::press(ctx, kept, button);
     }
     if open.is_empty() {
         return;

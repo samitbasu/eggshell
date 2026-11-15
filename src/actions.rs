@@ -13,7 +13,9 @@
 
 use egui::{Context, Id};
 
-use crate::focus;
+use crate::kept::Handle;
+use crate::shell::Shell;
+
 use crate::nav;
 use crate::pipeline::PlacedNode;
 use crate::roots::PlacedRoot;
@@ -37,28 +39,24 @@ pub(crate) fn button_in(nodes: &[PlacedNode], first: usize, action: Action) -> O
 }
 
 /// Presses `button` on the next frame, unless it is disabled.
-pub(crate) fn press(ctx: &Context, button: Id) {
+pub(crate) fn press(ctx: &Context, kept: &Handle, button: Id) {
     if ctx
         .read_response(button)
         .is_some_and(|response| response.enabled())
     {
-        nav::request_activation(ctx, button);
+        nav::request_activation(ctx, kept, button);
     }
 }
 
-fn multiline_key() -> Id {
-    crate::key::root_id().with("multiline-focus")
-}
-
 /// Notes that the multi-line text field `id` has focus: Return is its own.
-pub(crate) fn note_multiline_focus(ctx: &Context, id: Id) {
-    ctx.data_mut(|data| data.insert_temp(multiline_key(), id));
+pub(crate) fn note_multiline_focus(kept: &Handle, id: Id) {
+    kept.with(|kept| kept.focus.multiline = Some(id));
 }
 
 /// Whether the focused widget `focused` takes Return itself: a button or
 /// other control that Return activates, or a multi-line text field.
-fn takes_return(ctx: &Context, nodes: &[PlacedNode], focused: Id) -> bool {
-    ctx.data(|data| data.get_temp::<Id>(multiline_key())) == Some(focused)
+fn takes_return(kept: &Handle, nodes: &[PlacedNode], focused: Id) -> bool {
+    kept.with(|kept| kept.focus.multiline) == Some(focused)
         || nodes
             .iter()
             .any(|node| node.id() == Some(focused) && node.senses())
@@ -67,13 +65,13 @@ fn takes_return(ctx: &Context, nodes: &[PlacedNode], focused: Id) -> bool {
 /// The root Return goes to: the overlay (or the page) that holds the focus,
 /// else the topmost open overlay, else the page. `open` are the roots of the
 /// attached overlays, the topmost first.
-fn return_root(ctx: &Context, roots: &[PlacedRoot], nodes: &[PlacedNode], open: &[usize]) -> usize {
+fn return_root(shell: &Shell, roots: &[PlacedRoot], nodes: &[PlacedNode], open: &[usize]) -> usize {
     let holder = open.iter().copied().find(|&root| {
         nodes[roots[root].first]
             .id()
-            .is_some_and(|id| focus::focus_within(ctx, id))
+            .is_some_and(|id| shell.focus_within(id))
     });
-    match (holder, ctx.memory(|memory| memory.focused())) {
+    match (holder, shell.ctx.memory(|memory| memory.focused())) {
         (Some(root), _) => root,
         (None, Some(_)) => 0,
         (None, None) => open.first().copied().unwrap_or(0),
@@ -84,15 +82,16 @@ fn return_root(ctx: &Context, roots: &[PlacedRoot], nodes: &[PlacedNode], open: 
 /// itself. `open` are the roots of the attached overlays, topmost first.
 pub(crate) fn return_button(
     ctx: &Context,
+    kept: &Handle,
     nodes: &[PlacedNode],
     roots: &[PlacedRoot],
     open: &[usize],
 ) -> Option<Id> {
     if let Some(focused) = ctx.memory(|memory| memory.focused())
-        && takes_return(ctx, nodes, focused)
+        && takes_return(kept, nodes, focused)
     {
         return None;
     }
-    let root = return_root(ctx, roots, nodes, open);
+    let root = return_root(&Shell::new(ctx, kept), roots, nodes, open);
     button_in(nodes, roots[root].first, Action::Default)
 }

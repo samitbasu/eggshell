@@ -14,19 +14,26 @@ use std::sync::Arc;
 use egui::{Context, Id, LayerId, SurrenderFocusOn};
 
 use crate::dismiss::FocusAt;
+use crate::kept::Handle;
+use crate::shell::Shell;
 use crate::stack::Open;
 
 type Subtrees = HashMap<Id, Box<[Id]>>;
 
-#[derive(Clone, Default)]
+/// What a layout remembers of focus.
+#[derive(Default)]
+pub(crate) struct Focus {
+    records: Records,
+    returning: Returning,
+    /// The multi-line text field that has focus, whose Return is its own.
+    pub(crate) multiline: Option<Id>,
+}
+
+#[derive(Default)]
 struct Records {
     pass: u64,
     previous: Arc<Subtrees>,
     current: Subtrees,
-}
-
-fn records_id() -> Id {
-    crate::key::root_id().with("focus-records")
 }
 
 /// Whether `id` has keyboard focus, as [`egui::Response::has_focus`] decides.
@@ -59,27 +66,29 @@ impl Autofocus {
     }
 }
 
-/// Whether `node`, or a focusable widget registered inside it, has keyboard
-/// focus.
-///
-/// Which widgets are inside `node` is what its subtree registered in the
-/// previous frame. Works at build time, where the node does not exist yet,
-/// and at draw time.
-pub fn focus_within(ctx: &Context, node: Id) -> bool {
-    if holds_focus(ctx, node) {
-        return true;
+impl Shell {
+    /// Whether `node`, or a focusable widget registered inside it, has
+    /// keyboard focus.
+    ///
+    /// Which widgets are inside `node` is what this layout's subtree
+    /// registered in the previous frame. Works at build time, where the node
+    /// does not exist yet, and at draw time.
+    pub fn focus_within(&self, node: Id) -> bool {
+        let ctx = &self.ctx;
+        if holds_focus(ctx, node) {
+            return true;
+        }
+        let ids = self.kept.with(|kept| {
+            let records = &kept.focus.records;
+            let known = if records.pass == ctx.cumulative_pass_nr() {
+                &*records.previous
+            } else {
+                &records.current
+            };
+            known.get(&node).cloned()
+        });
+        ids.is_some_and(|ids| ids.iter().any(|&id| holds_focus(ctx, id)))
     }
-    let records: Records = ctx
-        .data(|data| data.get_temp(records_id()))
-        .unwrap_or_default();
-    let known = if records.pass == ctx.cumulative_pass_nr() {
-        &*records.previous
-    } else {
-        &records.current
-    };
-    known
-        .get(&node)
-        .is_some_and(|ids| ids.iter().any(|&id| holds_focus(ctx, id)))
 }
 
 /// How many widgets `layer` has registered so far this pass.
@@ -111,11 +120,15 @@ pub(crate) fn focusable_since(ctx: &Context, layer: LayerId, from: usize) -> Box
     })
 }
 
-/// Adds this pass's subtrees to the context's record.
-pub(crate) fn store(ctx: &Context, subtrees: impl IntoIterator<Item = (Id, Box<[Id]>)>) {
+/// Adds this pass's subtrees to the layout's record.
+pub(crate) fn store(
+    ctx: &Context,
+    kept: &Handle,
+    subtrees: impl IntoIterator<Item = (Id, Box<[Id]>)>,
+) {
     let pass = ctx.cumulative_pass_nr();
-    ctx.data_mut(|data| {
-        let records = data.get_temp_mut_or_default::<Records>(records_id());
+    kept.with(|kept| {
+        let records = &mut kept.focus.records;
         if records.pass != pass {
             records.previous = Arc::new(std::mem::take(&mut records.current));
             records.pass = pass;
@@ -208,12 +221,8 @@ impl Drop for AnchorFocusHeld {
 }
 
 /// The widgets to give focus back to once the pointer is idle.
-#[derive(Clone, Default)]
+#[derive(Default)]
 struct Returning(Vec<Id>);
-
-fn returning_id() -> Id {
-    crate::key::root_id().with("focus-returning")
-}
 
 /// Gives focus back to the widgets the `closed` overlays took it from, if
 /// focus was in one of them or nowhere: Esc has already taken it away
@@ -231,13 +240,12 @@ fn returning_id() -> Id {
 /// While a pointer button is down, or was released this frame, focus waits:
 /// egui drops the focus of a widget when a click lands elsewhere, which would
 /// undo it. It is then given back if it is nowhere.
-pub(crate) fn restore(ctx: &Context, kept: &crate::kept::Handle, closed: &[Open]) {
-    let mut returning = ctx
-        .data(|data| data.get_temp::<Returning>(returning_id()))
-        .unwrap_or_default();
+pub(crate) fn restore(ctx: &Context, kept: &Handle, closed: &[Open]) {
+    let shell = Shell::new(ctx, kept);
+    let mut returning = kept.with(|kept| std::mem::take(&mut kept.focus.returning));
     let stranded = !closed.is_empty()
         && (ctx.memory(|memory| memory.focused()).is_none()
-            || closed.iter().any(|open| focus_within(ctx, open.id)));
+            || closed.iter().any(|open| shell.focus_within(open.id)));
     if stranded {
         returning.0 = closed
             .iter()
@@ -261,14 +269,15 @@ pub(crate) fn restore(ctx: &Context, kept: &crate::kept::Handle, closed: &[Open]
             }
         }
     }
-    ctx.data_mut(|data| data.insert_temp(returning_id(), returning));
+    kept.with(|kept| kept.focus.returning = returning);
 }
 
 /// Where focus is relative to the overlay `id`: in it, in the overlays
 /// nested in it (`nested`), or on its `anchor`. Focus on a widget that was
 /// not drawn this pass, such as one of an overlay that just closed, is
 /// nowhere: egui lets go of it a pass later.
-pub(crate) fn at(ctx: &Context, id: Id, nested: &[Id], anchor: Option<Id>) -> FocusAt {
+pub(crate) fn at(shell: &Shell, id: Id, nested: &[Id], anchor: Option<Id>) -> FocusAt {
+    let ctx = &shell.ctx;
     let Some(focused) = ctx.memory(|memory| memory.focused()) else {
         return FocusAt::Nowhere;
     };
@@ -279,7 +288,7 @@ pub(crate) fn at(ctx: &Context, id: Id, nested: &[Id], anchor: Option<Id>) -> Fo
     let inside = std::iter::once(id)
         .chain(nested.iter().copied())
         .chain(anchor)
-        .any(|node| focus_within(ctx, node));
+        .any(|node| shell.focus_within(node));
     if inside {
         FocusAt::Inside
     } else {
