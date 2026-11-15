@@ -10,15 +10,6 @@ use crate::{Angle, Mirror};
 /// The side of the grid icons are drawn on, as lucide's are.
 const GRID: f32 = 24.0;
 
-/// How thick the strokes of an icon are.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum StrokeWeight {
-    /// 2 grid units, scaled with the icon.
-    Scaled,
-    /// This many points at any size.
-    Fixed(f32),
-}
-
 /// One subpath of an icon: its points on the grid, the corners to round, and
 /// whether it closes.
 #[derive(Clone, Debug, PartialEq)]
@@ -51,22 +42,15 @@ impl Strokes {
 
     /// TODO(prose): the icon stroked in `color` in `rect`.
     pub fn paint(&self, painter: &Painter, rect: Rect, color: Color32) {
-        self.paint_with(
-            painter,
-            rect,
-            color,
-            StrokeWeight::Scaled,
-            (Angle::ZERO, Mirror::None),
-        );
+        self.paint_with(painter, rect, color, (Angle::ZERO, Mirror::None));
     }
 
-    /// TODO(prose): [`paint`](Self::paint) with a stroke weight, turned and mirrored.
+    /// TODO(prose): [`paint`](Self::paint) turned and mirrored.
     pub fn paint_with(
         &self,
         painter: &Painter,
         rect: Rect,
         color: Color32,
-        weight: StrokeWeight,
         (rotate, mirror): (Angle, Mirror),
     ) {
         let side = rect.width().min(rect.height());
@@ -89,10 +73,7 @@ impl Strokes {
             );
             origin + egui::vec2(x, y) * scale
         };
-        let width = match weight {
-            StrokeWeight::Scaled => 2.0 * scale,
-            StrokeWeight::Fixed(points) => points,
-        };
+        let width = 2.0 * scale;
         let stroke = Stroke::new(width, color);
         for path in self.subpaths() {
             let points: Vec<Pos2> = path.points.iter().copied().map(place).collect();

@@ -121,3 +121,54 @@ fn a_vector_icon_draws_in_a_button_and_a_segmented_cell() {
         assert!(strokes > 0, "{path} draws a stroked icon");
     }
 }
+
+fn menu(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id("Page", tw().p(4.0), |s| {
+        s.dropdown_menu("file", "File").items(|m| {
+            m.item("open", "Open")
+                .icon(Icon::vector(&icons::SEARCH))
+                .on_click(|_| {});
+            m.item("save", "Save").on_click(|_| {});
+        });
+    });
+}
+
+#[test]
+fn a_menu_item_with_an_icon_draws_it_before_its_label() {
+    let mut harness = support::harness(vec2(300.0, 200.0), base_text(), (), menu);
+    harness.run_steps(4);
+    support::click_node(&mut harness, r#"/"Page"/"file""#);
+    harness.run_steps(8);
+    let item = |name: &str| {
+        harness
+            .state()
+            .nodes
+            .iter()
+            .find(|(path, _)| path.ends_with(&format!(r#"/"{name}""#)))
+            .unwrap_or_else(|| panic!("no item {name}: {:?}", harness.state().nodes))
+            .1
+    };
+    let (open, save) = (item("open"), item("save"));
+    let inside = |rect: egui::Rect| {
+        shapes(&harness)
+            .into_iter()
+            .filter(|shape| {
+                matches!(shape, Shape::Path(p) if p.points.iter().all(|point| rect.contains(*point)))
+            })
+            .count()
+    };
+    assert!(inside(open) > 0, "the icon is stroked in its item");
+    assert_eq!(inside(save), 0, "an item without one draws none");
+    let label_x = |rect: egui::Rect, text: &str| {
+        shapes(&harness)
+            .into_iter()
+            .find_map(|shape| match shape {
+                Shape::Text(t) if t.galley.text() == text && rect.expand(1.0).contains(t.pos) => {
+                    Some(t.pos.x - rect.left())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no label {text}"))
+    };
+    assert!(label_x(open, "Open") > label_x(save, "Save") + 8.0);
+}

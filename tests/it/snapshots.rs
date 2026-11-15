@@ -2431,11 +2431,11 @@ fn control_sizes_dark() {
     control_sizes_in("control_sizes_dark", egui::Theme::Dark);
 }
 
-/// The standard vector icons in both stroke weights and in three controls.
-fn icons_in(name: &str, theme: egui::Theme) {
+/// The standard vector icons and three controls, the menu open or shut.
+fn icons_in(name: &str, theme: egui::Theme, open_menu: bool) {
     report_renderer();
     let mut harness = support::harness_prepared(
-        Vec2::new(620.0, 460.0),
+        Vec2::new(620.0, 360.0),
         TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         (),
         icons_example::layout,
@@ -2445,15 +2445,29 @@ fn icons_in(name: &str, theme: egui::Theme) {
     harness.state_mut().companion = support::Companion::Alone;
     harness.ctx.set_theme(theme);
     harness.run_steps(3);
+    if open_menu {
+        support::click_node(&mut harness, r#"/"Page"/"context"/"menu""#);
+        harness.run_steps(8);
+    }
     harness.snapshot(name);
 }
 
 #[test]
 fn icons_light() {
-    icons_in("icons_light", egui::Theme::Light);
+    icons_in("icons_light", egui::Theme::Light, false);
 }
 
 #[test]
 fn icons_dark() {
-    icons_in("icons_dark", egui::Theme::Dark);
+    icons_in("icons_dark", egui::Theme::Dark, false);
+}
+
+#[test]
+fn icons_menu_light() {
+    icons_in("icons_menu_light", egui::Theme::Light, true);
+}
+
+#[test]
+fn icons_menu_dark() {
+    icons_in("icons_menu_dark", egui::Theme::Dark, true);
 }

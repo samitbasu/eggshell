@@ -23,7 +23,6 @@ use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
 use crate::dnd::{self, Decls, Stakes};
 use crate::focus;
-use crate::icons::StrokeWeight;
 use crate::kept::Handle;
 use crate::measure::TextLeaf;
 use crate::nav;
@@ -1369,7 +1368,6 @@ impl<A> Walk<'_, A> {
                 &self.painter(inherited.clip, inherited.opacity),
                 content,
                 text.color,
-                StrokeWeight::Scaled,
                 (rotate, mirror),
             ),
             Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
