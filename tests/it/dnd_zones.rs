@@ -133,7 +133,7 @@ fn a_card_lights_the_canvas_and_fills_it_over_the_canvas() {
     let from = card_at(&h);
     lift_at(&mut h, from);
     assert!(
-        eggshell_ui::drag_pointer(&h.ctx).is_some(),
+        crate::support::shell(&h).drag_pointer().is_some(),
         "the card is lifted"
     );
     assert_eq!(
@@ -173,7 +173,7 @@ fn an_incompatible_payload_shows_nothing_and_is_not_delivered() {
     let looks = looks(&h);
     let from = tag_at(&h);
     lift_at(&mut h, from);
-    assert!(eggshell_ui::drag_pointer(&h.ctx).is_some());
+    assert!(crate::support::shell(&h).drag_pointer().is_some());
     let at = zone_rect(&h, Zone::Canvas).center();
     h.hover_at(at);
     h.run_steps(3);

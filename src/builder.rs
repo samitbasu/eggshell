@@ -1335,7 +1335,7 @@ impl<A: 'static> Builder<'_, '_, A> {
     /// drag starts in: a lift is seen from the next build on. Files dragged
     /// in from outside are a drag of [`Files`](crate::Files).
     pub fn dragging<T: Any + Send + Sync>(&self) -> Option<Dragging<T>> {
-        crate::dnd::dragging(self.frame.ctx)
+        crate::dnd::dragging(self.frame.ctx, &self.st.kept)
     }
 
     /// Calls `handler` once when a drag of a `T` ends, with the payload and
@@ -1556,7 +1556,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     /// the build after the lift. The subtree goes under a node the library
     /// makes: out of flow, so it changes neither the layout of the siblings
     /// nor the source's `index_hint` items. Its shapes are painted on the
-    /// drag layer, unclipped, with its top-left a [`drag_grab`](crate::drag_grab)
+    /// drag layer, unclipped, with its top-left a [`Shell::drag_grab`](crate::Shell::drag_grab)
     /// behind the pointer: the live image's anchor, resolved against this
     /// frame's layout. The node is a sibling of the source, under an id
     /// derived from the source's.
@@ -1566,8 +1566,8 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
             (context.id, context.path.clone())
         };
         self.edit(|context| context.drag().previewed = true);
-        if let Some(source) =
-            source.filter(|&id| crate::dnd::lifted_source(self.b.frame.ctx) == Some(id))
+        if let Some(source) = source
+            .filter(|&id| crate::dnd::lifted_source(self.b.frame.ctx, &self.b.st.kept) == Some(id))
         {
             let label = format!("drag preview of {path}");
             self.b.div_id_with(
