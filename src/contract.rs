@@ -527,6 +527,11 @@ pub struct SegmentedStyle {
     pub icon_gap: f32,
     /// The text role of the cells, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
+    /// The weight of the chosen cell's text, or `None` for the text role's
+    /// own. A face of another weight has other widths, so when this differs
+    /// from the cells' weight, choosing a cell resizes it and shifts the
+    /// cells after it, and a fit-width track with them.
+    pub selected_weight: Option<Weight>,
     /// Border width of a cell, chosen or not.
     pub cell_border_width: f32,
     /// The chosen cell.
@@ -1148,6 +1153,7 @@ impl Style {
                 icon_size: metrics.glyph,
                 icon_gap: s.icon_spacing,
                 text: None,
+                selected_weight: None,
                 cell_border_width: 0.0,
                 selected: Paint::new(States::still(
                     Colors {
