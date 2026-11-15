@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use eggshell_ui::testing::FakeClipboard;
 use eggshell_ui::{
-    Builder, ClipboardError, Command, Commands, LayoutState, Paste, TextSpec, TextStyle, Via, tw,
+    Builder, ClipboardError, Command, Commands, LayoutState, Paste, TextSpec, TextStyle, Via,
+    Weight, tw,
 };
 use egui::{Color32, ColorImage, Event, FontFamily, Key, KeyboardShortcut, Modifiers, vec2};
 use egui_kittest::Harness;
@@ -46,6 +47,7 @@ fn base_text() -> TextStyle {
             size: 14.0,
             line_height: 20.0,
             family: FontFamily::Proportional,
+            weight: Weight::Normal,
         },
         Color32::BLACK,
     )
