@@ -383,6 +383,6 @@ impl<A> Spec<A> {
                 ui.data_mut(|data| data.remove::<()>(session));
             }
         }
-        self.hooks.run(app, ui, &response);
+        self.hooks.run(app, ui, &response, field.enter());
     }
 }

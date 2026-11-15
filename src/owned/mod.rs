@@ -56,6 +56,7 @@ mod toggle;
 mod toggle_group;
 
 use crate::overlay_input::Blur;
+use crate::widget::Enter;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
@@ -241,11 +242,10 @@ impl<A> FieldHooks<A> {
     /// Runs the hooks for the frame in which `response`, the field's, was
     /// shown. On Enter `submitted` runs before `blurred`. egui reports a lost focus for two frames, so a blur is the
     /// frame in which the focus the field had last frame is gone.
-    pub(crate) fn run(&self, app: &mut A, ui: &Ui, response: &Response) {
+    pub(crate) fn run(&self, app: &mut A, ui: &Ui, response: &Response, enter: Enter) {
         self.response.run(app, response);
         if let Some(then) = &self.submitted
-            && response.lost_focus()
-            && ui.input(|input| input.key_pressed(egui::Key::Enter))
+            && entered(ui, response, enter)
         {
             then(app);
         }
@@ -261,6 +261,37 @@ impl<A> FieldHooks<A> {
             then(app, crate::draw::blur_cause(ui));
         }
     }
+}
+
+/// Whether the frame's Enter submitted `response`'s field. Under
+/// `KeepFocus` the field still has focus, and an Enter that comes in the frame
+/// of IME input or the one after belongs to the IME: some platforms send the
+/// Enter that confirms a composition after its commit.
+fn entered(ui: &Ui, response: &Response, enter: Enter) -> bool {
+    let settled = match enter {
+        Enter::Submit => response.lost_focus(),
+        Enter::KeepFocus => response.has_focus(),
+    };
+    let ime = enter == Enter::KeepFocus && after_ime(ui, response);
+    let pressed = ui.input(|input| input.key_pressed(egui::Key::Enter));
+    settled && pressed && !ime
+}
+
+/// Whether IME input came in this frame or the last, noting this frame's.
+fn after_ime(ui: &Ui, response: &Response) -> bool {
+    let now = ui.ctx().cumulative_frame_nr();
+    let slot = response.id.with("eggshell-ime");
+    let last = ui.data(|data| data.get_temp::<u64>(slot));
+    if ui.input(|input| {
+        input
+            .events
+            .iter()
+            .any(|event| matches!(event, egui::Event::Ime(_)))
+    }) {
+        ui.data_mut(|data| data.insert_temp(slot, now));
+        return true;
+    }
+    last.is_some_and(|last| now <= last + 1)
 }
 
 /// What a control's tooltip shows, if it has one, until the control is
