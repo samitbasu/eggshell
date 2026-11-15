@@ -69,7 +69,7 @@ pub fn layout(b: &mut Builder<'_, '_, ()>, _: &()) {
                     m.item("search", "Search")
                         .icon(Icon::vector(&icons::SEARCH))
                         .on_click(|_| {});
-                    m.item("help", "Help").on_click(|_| {});
+                    m.item("help", "Help").inset().on_click(|_| {});
                 });
         });
     });

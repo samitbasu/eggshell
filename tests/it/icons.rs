@@ -129,6 +129,7 @@ fn menu(b: &mut Builder<'_, '_, ()>, _: &()) {
                 .icon(Icon::vector(&icons::SEARCH))
                 .on_click(|_| {});
             m.item("save", "Save").on_click(|_| {});
+            m.item("help", "Help").inset().on_click(|_| {});
         });
     });
 }
@@ -171,4 +172,37 @@ fn a_menu_item_with_an_icon_draws_it_before_its_label() {
             .unwrap_or_else(|| panic!("no label {text}"))
     };
     assert!(label_x(open, "Open") > label_x(save, "Save") + 8.0);
+}
+
+#[test]
+fn an_inset_item_lines_its_label_up_with_an_item_that_has_an_icon() {
+    let mut harness = support::harness(vec2(300.0, 200.0), base_text(), (), menu);
+    harness.run_steps(4);
+    support::click_node(&mut harness, r#"/"Page"/"file""#);
+    harness.run_steps(8);
+    let label_x = |name: &str, text: &str| {
+        let rect = harness
+            .state()
+            .nodes
+            .iter()
+            .find(|(path, _)| path.ends_with(&format!(r#"/"{name}""#)))
+            .unwrap_or_else(|| panic!("no item {name}"))
+            .1;
+        shapes(&harness)
+            .into_iter()
+            .find_map(|shape| match shape {
+                Shape::Text(t) if t.galley.text() == text && rect.expand(1.0).contains(t.pos) => {
+                    Some(t.pos.x)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no label {text}"))
+    };
+    let (open, help, save) = (
+        label_x("open", "Open"),
+        label_x("help", "Help"),
+        label_x("save", "Save"),
+    );
+    assert!(open > save + 8.0, "precondition: an icon pushes the label");
+    assert!((open - help).abs() < 0.6, "{open} vs {help}");
 }
