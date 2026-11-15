@@ -877,3 +877,67 @@ fn the_steppers_number_field_fits_inside_the_group_border() {
         );
     }
 }
+
+fn family_of(harness: &Harn, text: &str) -> egui::FontFamily {
+    shapes(harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Text(shape) if shape.galley.text() == text => {
+                Some(shape.galley.job.sections[0].format.font_id.family.clone())
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("{text:?} was painted"))
+}
+
+fn geist(weight: Weight) -> FontFamily {
+    FontFamily::Name(format!("Geist/{}", weight.number()).into())
+}
+
+fn plain_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.segmented("seg", app.mode, MODES)
+        .on_change(|app: &mut App, mode| app.mode = mode);
+}
+
+#[test]
+fn the_selected_cell_draws_its_own_weight_and_the_others_keep_the_base() {
+    let family = |selected_weight| {
+        let harness = harness_with(
+            Theme::Light,
+            ShadcnStyle::default(),
+            |style| {
+                let text = style.role(&style.segmented.text).clone();
+                style.segmented.text = Some(TextSpec {
+                    weight: Weight::Medium,
+                    ..text
+                });
+                style.segmented.selected_weight = selected_weight;
+            },
+            plain_segmented,
+        );
+        (
+            family_of(&harness, "Light"),
+            family_of(&harness, "Dark"),
+            family_of(&harness, "System"),
+        )
+    };
+    let base = family(None);
+    assert_eq!(
+        base,
+        (
+            geist(Weight::Medium),
+            geist(Weight::Medium),
+            geist(Weight::Medium)
+        ),
+        "precondition: with no selected weight every cell draws the base"
+    );
+    assert_eq!(
+        family(Some(Weight::SemiBold)),
+        (
+            geist(Weight::SemiBold),
+            geist(Weight::Medium),
+            geist(Weight::Medium)
+        ),
+        "Light is the selected cell"
+    );
+}
