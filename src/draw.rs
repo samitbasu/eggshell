@@ -28,6 +28,7 @@ use crate::nav;
 use crate::overlay::{Anchored, Nav};
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
+use crate::owned::Side;
 use crate::pipeline::{ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedNode};
 use crate::presence::Staged;
 use crate::prim::{Icon, Prim};
@@ -1183,10 +1184,14 @@ impl<A> Walk<'_, A> {
                 .scope_id(id.with(DRAW_SCOPE));
             let app = &mut *self.app;
             let blur = self.pass.blur;
+            let pane = node
+                .pane
+                .and_then(|side| neighbour(self.nodes, index, side));
             node_ui(self.ui, builder, inherited, Some(text), |ui| {
                 let scope = ui.unique_id();
                 ui.data_mut(|data| {
                     data.insert_temp(scope, NodeIdTag(id));
+                    data.insert_temp(scope, PaneTag(pane));
                     data.insert_temp(scope, BlurTag(blur));
                     data.insert_temp(scope, TextTag(text.clone()));
                     if let Some(response) = bubbled {
@@ -1871,6 +1876,32 @@ const DRAW_SCOPE: &str = "eggshell-draw";
 
 #[derive(Clone, Copy)]
 struct NodeIdTag(egui::Id);
+
+/// The border box of the pane a splitter sizes, as laid out.
+#[derive(Clone, Copy)]
+struct PaneTag(Option<Rect>);
+
+/// The rect of the sibling on `side` of the node at `index`.
+fn neighbour(nodes: &[PlacedNode], index: usize, side: Side) -> Option<Rect> {
+    let depth = nodes[index].depth();
+    let at = match side {
+        Side::Before => (0..index)
+            .rev()
+            .take_while(|&at| nodes[at].depth() >= depth)
+            .find(|&at| nodes[at].depth() == depth)?,
+        Side::After => Some(nodes[index].end)
+            .filter(|&at| nodes.get(at).is_some_and(|next| next.depth() == depth))?,
+    };
+    Some(nodes[at].rect())
+}
+
+/// The laid-out border box of the pane the splitter whose draw closure is
+/// running sizes.
+pub(crate) fn pane_rect(ui: &Ui) -> Option<Rect> {
+    let scope = ui.unique_id();
+    ui.data(|data| data.get_temp::<PaneTag>(scope))
+        .and_then(|tag| tag.0)
+}
 
 #[derive(Clone, Copy)]
 struct BlurTag(Blur);

@@ -86,6 +86,7 @@ mod shadow_pixels;
 mod sizing;
 #[cfg(feature = "snapshots")]
 mod snapshots;
+mod splitter;
 mod state;
 mod state_stable;
 mod style;

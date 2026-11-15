@@ -1,10 +1,7 @@
 //! The three-pane frame and the splitters between the panes.
 
 use super::common;
-use core::time::Duration;
-use eggshell_ui::{Builder, tw};
-
-use egui::CursorIcon;
+use eggshell_ui::{Builder, Style, tw};
 
 use super::centre::{centre, centre_style};
 use super::details::{details, details_style};
@@ -42,62 +39,30 @@ pub enum Part {
     Row(&'static str),
 }
 
-/// A thin node between two panes: a drag handle with a one-point line that
-/// fades to the accent under the pointer. The line is keyed: a transition
-/// needs a node of its own to keep its progress under.
-///
-/// ```html
-/// <div class="group flex justify-center w-1.5 shrink-0 cursor-col-resize">
-///   <div class="w-px h-full bg-border group-hover:bg-primary transition-colors duration-150"></div>
-/// </div>
-/// ```
-fn splitter(b: &mut B<'_, '_>, pane: Pane) {
-    let k = &Theme::of(b.ctx());
-    b.div_id(
-        Part::Splitter(pane),
-        tw().flex()
-            .justify_center()
-            .w_px(6.0)
-            .shrink_0()
-            .bg(k[Tok::Ground])
-            .sense_drag()
-            .focusable_none()
-            .group(),
-        |b| {
-            b.div_id(
-                "line",
-                tw().w_px(1.0)
-                    .h_full()
-                    .bg(k[Tok::Line])
-                    .group_hover(|p| p.bg(k[Tok::Accent]))
-                    .transition(Duration::from_millis(150)),
-                |_| {},
-            );
-        },
-    )
-    .on_response(move |app: &mut App, response| {
-        if response.hovered() || response.dragged() {
-            response.ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
-        }
-        let Some(pointer) = response.interact_pointer_pos() else {
-            return;
-        };
-        if response.drag_started() {
-            app.begin_drag(pane, pointer.x);
-        }
-        if response.dragged() {
-            app.drag_to(pointer.x);
-        }
-        if response.drag_stopped() {
-            app.end_drag();
-        }
-    });
+/// The splitter that sizes `pane`, the one before it or after it.
+fn splitter(b: &mut B<'_, '_>, app: &App, pane: Pane) {
+    let width = app.width(pane);
+    let start = b.splitter(Part::Splitter(pane));
+    let (chain, name) = match pane {
+        Pane::Sidebar => (start.before(width), "Sidebar"),
+        Pane::Details => (start.after(width), "Details"),
+    };
+    chain
+        .named(name)
+        .range(pane.limits())
+        .reset_to(pane.default_width())
+        .on_resize(move |app: &mut App, size| app.set_width(pane, size));
 }
 
 /// Gives egui's stock widgets, which the select and the composer's field are,
 /// the preset's look.
 pub fn prepare(ctx: &egui::Context, app: &App) {
     common::use_theme_color(ctx, app.theme_color);
+    let k = Theme::of(ctx);
+    let mut style = (*Style::of(ctx)).clone();
+    style.splitter.rest.line = k[Tok::Line];
+    style.splitter.hot.line = k[Tok::Accent];
+    style.install_for(ctx, ctx.theme());
 }
 
 /// The three panes as far as the window leaves room for them: the region
@@ -125,11 +90,11 @@ fn frame<'f>(b: &mut B<'_, 'f>, app: &'f App, panes: Panes) {
         |b| {
             if panes.shows(Pane::Sidebar) {
                 b.div_id(Part::Sidebar, sidebar_style(k, app), |s| sidebar(s, app));
-                splitter(b, Pane::Sidebar);
+                splitter(b, app, Pane::Sidebar);
             }
             b.div_id(Part::Centre, centre_style(k), |s| centre(s, app));
             if panes.shows(Pane::Details) {
-                splitter(b, Pane::Details);
+                splitter(b, app, Pane::Details);
                 b.div_id(Part::Details, details_style(k, app), |s| details(s, app));
             }
         },

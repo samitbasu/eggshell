@@ -1,0 +1,493 @@
+//! The splitter: a handle between two panes of a flex container that sizes
+//! one of them, which the pointer drags and the keyboard steps.
+
+use std::ops::{Bound, RangeBounds};
+use std::rc::Rc;
+
+use egui::{CursorIcon, Key, Modifiers, Pos2, Rect, Role, Stroke, Ui, Vec2, pos2};
+use taffy::FlexDirection;
+
+use super::number;
+use crate::builder::Slot;
+use crate::contract::SplitterStyle;
+use crate::draw::pane_rect;
+use crate::{Builder, Easing, NodeUi as _, Progress, Style, transition, tw};
+
+/// TODO(prose): a pane's size along its container's axis, in points; never
+/// negative or NaN.
+#[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd)]
+pub struct PaneSize(f32);
+
+impl PaneSize {
+    /// TODO(prose): `points`, at least zero; NaN is zero.
+    pub fn new(points: f32) -> Self {
+        Self(if points.is_nan() {
+            0.0
+        } else {
+            points.max(0.0)
+        })
+    }
+}
+
+impl From<f32> for PaneSize {
+    fn from(points: f32) -> Self {
+        Self::new(points)
+    }
+}
+
+impl From<PaneSize> for f32 {
+    fn from(size: PaneSize) -> f32 {
+        size.0
+    }
+}
+
+/// Which neighbour of the splitter it sizes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Side {
+    Before,
+    After,
+}
+
+/// The sizes a pane may take.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Limits {
+    min: PaneSize,
+    max: Option<PaneSize>,
+}
+
+impl Limits {
+    const ANY: Self = Self {
+        min: PaneSize(0.0),
+        max: None,
+    };
+
+    #[track_caller]
+    fn of(range: impl RangeBounds<f32>) -> Self {
+        let end = |bound: Bound<&f32>| match bound {
+            Bound::Included(&points) | Bound::Excluded(&points) => Some(PaneSize::new(points)),
+            Bound::Unbounded => None,
+        };
+        let limits = Self {
+            min: end(range.start_bound()).unwrap_or_default(),
+            max: end(range.end_bound()),
+        };
+        debug_assert!(
+            limits.max.is_none_or(|max| limits.min <= max),
+            "a splitter's range must not end before it starts: {:?}..{:?}",
+            limits.min,
+            limits.max,
+        );
+        limits
+    }
+
+    fn clamp(self, points: f32) -> PaneSize {
+        let at_least = PaneSize::new(points).max(self.min);
+        self.max.map_or(at_least, |max| at_least.min(max))
+    }
+}
+
+impl PaneSize {
+    fn max(self, other: Self) -> Self {
+        if other > self { other } else { self }
+    }
+
+    fn min(self, other: Self) -> Self {
+        if other < self { other } else { self }
+    }
+}
+
+/// The axis a splitter moves along, and which way along it grows its pane.
+#[derive(Clone, Copy, Debug)]
+struct Travel {
+    axis: Axis,
+    grows: Grows,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Axis {
+    X,
+    Y,
+}
+
+/// Whether moving the handle towards the end of the axis grows the pane.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Grows {
+    TowardsEnd,
+    TowardsStart,
+}
+
+impl Axis {
+    fn along(self, v: Vec2) -> f32 {
+        match self {
+            Self::X => v.x,
+            Self::Y => v.y,
+        }
+    }
+
+    fn keys(self) -> (Key, Key) {
+        match self {
+            Self::X => (Key::ArrowLeft, Key::ArrowRight),
+            Self::Y => (Key::ArrowUp, Key::ArrowDown),
+        }
+    }
+
+    fn cursor(self) -> CursorIcon {
+        match self {
+            Self::X => CursorIcon::ResizeColumn,
+            Self::Y => CursorIcon::ResizeRow,
+        }
+    }
+}
+
+impl Travel {
+    fn of(direction: FlexDirection, side: Side) -> Self {
+        let (horizontal, reversed) = match direction {
+            FlexDirection::Row => (Axis::X, false),
+            FlexDirection::RowReverse => (Axis::X, true),
+            FlexDirection::Column => (Axis::Y, false),
+            FlexDirection::ColumnReverse => (Axis::Y, true),
+        };
+        let grows = if (side == Side::Before) != reversed {
+            Grows::TowardsEnd
+        } else {
+            Grows::TowardsStart
+        };
+        Self {
+            axis: horizontal,
+            grows,
+        }
+    }
+
+    /// How much the pane grows when the handle moves `by` along the axis.
+    fn growth(self, by: f32) -> f32 {
+        match self.grows {
+            Grows::TowardsEnd => by,
+            Grows::TowardsStart => -by,
+        }
+    }
+}
+
+/// Where a press on the handle started, and the pane's size then.
+#[derive(Clone, Copy, Debug)]
+struct Press {
+    pointer: f32,
+    size: f32,
+}
+
+/// The arrow keys' steps, in points.
+const STEP: f32 = 10.0;
+const SHIFT_STEP: f32 = 50.0;
+
+/// TODO(prose): a splitter that does not yet know which pane it sizes. Start
+/// one with [`Builder::splitter`].
+///
+/// ```compile_fail
+/// # use eggshell_ui::Builder;
+/// # fn view(b: &mut Builder<'_, '_, f32>) {
+/// b.splitter("left").on_resize(|_: &mut f32, _| {});
+/// # }
+/// ```
+///
+/// ```compile_fail
+/// # use eggshell_ui::Builder;
+/// # use eggshell_ui::owned::PaneSize;
+/// # fn view(b: &mut Builder<'_, '_, f32>) {
+/// b.splitter("left")
+///     .before(PaneSize::new(240.0))
+///     .after(PaneSize::new(240.0))
+///     .on_resize(|_: &mut f32, _| {});
+/// # }
+/// ```
+///
+/// ```compile_fail
+/// #![deny(unused_must_use)]
+/// # use eggshell_ui::Builder;
+/// # use eggshell_ui::owned::PaneSize;
+/// # fn view(b: &mut Builder<'_, '_, f32>) {
+/// b.splitter("left").before(PaneSize::new(240.0)).range(160.0..=480.0);
+/// # }
+/// ```
+#[must_use = "a splitter is not added until you call `.before(..)` or `.after(..)`, then `.on_resize(..)`"]
+pub struct SplitterStart<'a, 'f, A> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
+}
+
+impl<'a, 'f, A: 'static> SplitterStart<'a, 'f, A> {
+    pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K) -> Self {
+        Self {
+            slot: b.slot(&key),
+            b,
+        }
+    }
+
+    /// TODO(prose): sizes the sibling before the splitter, now `size`.
+    pub fn before(self, size: PaneSize) -> SplitterChain<'a, 'f, A> {
+        SplitterChain::new(self, Side::Before, size)
+    }
+
+    /// TODO(prose): sizes the sibling after the splitter, now `size`.
+    pub fn after(self, size: PaneSize) -> SplitterChain<'a, 'f, A> {
+        SplitterChain::new(self, Side::After, size)
+    }
+}
+
+/// TODO(prose): a splitter sizing one of its neighbours. Finish it with
+/// [`on_resize`](Self::on_resize).
+///
+/// ```
+/// use eggshell_ui::owned::PaneSize;
+/// use eggshell_ui::{Builder, tw};
+///
+/// struct App {
+///     sidebar: PaneSize,
+/// }
+///
+/// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+///     b.div(tw().flex().size_full(), |b| {
+///         b.div(tw().w_px(app.sidebar.into()).shrink_0(), |_| {});
+///         b.splitter("left")
+///             .before(app.sidebar)
+///             .range(160.0..=480.0)
+///             .reset_to(240.0)
+///             .named("Sidebar")
+///             .on_resize(|app: &mut App, size| app.sidebar = size);
+///         b.div(tw().flex_1(), |_| {});
+///     });
+/// }
+/// ```
+#[must_use = "a splitter is not added until you call `.on_resize(..)`"]
+pub struct SplitterChain<'a, 'f, A> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
+    side: Side,
+    size: PaneSize,
+    limits: Limits,
+    reset: Option<PaneSize>,
+    name: Option<String>,
+}
+
+impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
+    fn new(start: SplitterStart<'a, 'f, A>, side: Side, size: PaneSize) -> Self {
+        Self {
+            b: start.b,
+            slot: start.slot,
+            side,
+            size,
+            limits: Limits::ANY,
+            reset: None,
+            name: None,
+        }
+    }
+
+    /// TODO(prose): the sizes the pane may take, in points: `a..=b`, `a..`
+    /// or `..=b`.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, if the range ends before it starts.
+    #[track_caller]
+    pub fn range(mut self, range: impl RangeBounds<f32>) -> Self {
+        self.limits = Limits::of(range);
+        self
+    }
+
+    /// TODO(prose): the size a double-click puts the pane back to.
+    pub fn reset_to(mut self, size: impl Into<PaneSize>) -> Self {
+        self.reset = Some(size.into());
+        self
+    }
+
+    /// The accessible name, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// TODO(prose): adds the splitter; `set` runs with the pane's new size.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, if the splitter is not built directly in a flex
+    /// container.
+    #[track_caller]
+    pub fn on_resize(self, set: impl Fn(&mut A, PaneSize) + 'static) {
+        let Self {
+            mut b,
+            slot,
+            side,
+            size,
+            limits,
+            reset,
+            name,
+        } = self;
+        let direction = b.flex();
+        debug_assert!(
+            direction.is_some(),
+            "{:?}: a splitter must be built directly in a flex container",
+            slot.label,
+        );
+        let travel = Travel::of(direction.unwrap_or(FlexDirection::Row), side);
+        let style = Style::of(b.ctx()).splitter;
+        let thickness = style.thickness.max(0.0);
+        let classes = match travel.axis {
+            Axis::X => tw().w_px(thickness).self_stretch(),
+            Axis::Y => tw().h_px(thickness).self_stretch(),
+        }
+        .shrink_0()
+        .sense_click_drag();
+        let set = Rc::new(set);
+        let handle = Handle {
+            travel,
+            size,
+            limits,
+            reset,
+            style,
+        };
+        if b.ctx().is_being_dragged(slot.id) {
+            b.size_in_flight();
+        }
+        let node = b
+            .div_id_with(slot.id, &slot.label, classes, |_| {})
+            .role(Role::Splitter)
+            .sizes_pane(side);
+        let node = match name {
+            Some(name) => node.named(name),
+            None => node,
+        };
+        node.draw(move |app, ui| handle.draw(ui, |size| set(app, size)));
+    }
+}
+
+/// What a splitter's draw closure needs.
+struct Handle {
+    travel: Travel,
+    size: PaneSize,
+    limits: Limits,
+    reset: Option<PaneSize>,
+    style: SplitterStyle,
+}
+
+impl Handle {
+    fn draw(&self, ui: &Ui, set: impl FnOnce(PaneSize)) {
+        let response = ui.node_response();
+        let axis = self.travel.axis;
+        let laid = pane_rect(ui).map_or(f32::from(self.size), |pane| axis.along(pane.size()));
+        if response.hovered() || response.dragged() {
+            ui.ctx().set_cursor_icon(axis.cursor());
+        }
+        let wanted = self
+            .dragged_to(ui, &response, laid)
+            .or_else(|| {
+                response
+                    .double_clicked()
+                    .then_some(self.reset)
+                    .flatten()
+                    .map(f32::from)
+            })
+            .or_else(|| {
+                response
+                    .has_focus()
+                    .then(|| self.keyed_to(ui, laid))
+                    .flatten()
+            });
+        if let Some(size) = wanted.map(|points| self.limits.clamp(points))
+            && size != self.size
+        {
+            set(size);
+        }
+        let hot = response.hovered() || response.dragged() || response.has_focus();
+        self.paint(ui, response.rect, hot);
+        let (min, max) = (self.limits.min, self.limits.max);
+        ui.ctx().accesskit_node_builder(response.id, |node| {
+            node.set_numeric_value(f64::from(f32::from(self.size)));
+            node.set_min_numeric_value(f64::from(f32::from(min)));
+            if let Some(max) = max {
+                node.set_max_numeric_value(f64::from(f32::from(max)));
+            }
+            node.set_orientation(match axis {
+                Axis::X => egui::accesskit::Orientation::Vertical,
+                Axis::Y => egui::accesskit::Orientation::Horizontal,
+            });
+        });
+    }
+
+    /// Where a drag puts the pane: its size at the press plus the pointer's
+    /// travel since, so that clamping never accumulates drift.
+    fn dragged_to(&self, ui: &Ui, response: &egui::Response, laid: f32) -> Option<f32> {
+        let id = response.id.with("press");
+        let along = |at: Pos2| self.travel.axis.along(at.to_vec2());
+        if response.drag_started() {
+            let origin = ui.input(|input| input.pointer.press_origin());
+            if let Some(origin) = origin.or(response.interact_pointer_pos()) {
+                let press = Press {
+                    pointer: along(origin),
+                    size: laid,
+                };
+                ui.data_mut(|data| data.insert_temp(id, press));
+            }
+        }
+        let press = ui.data(|data| data.get_temp::<Press>(id));
+        if response.drag_stopped() {
+            ui.data_mut(|data| data.remove::<Press>(id));
+        }
+        let (press, at) = press.zip(response.interact_pointer_pos())?;
+        response
+            .dragged()
+            .then(|| press.size + self.travel.growth(along(at) - press.pointer))
+    }
+
+    /// Where the keys pressed this frame put the pane.
+    fn keyed_to(&self, ui: &Ui, laid: f32) -> Option<f32> {
+        number::hold_arrows(ui);
+        let (start, end) = self.travel.axis.keys();
+        let consume = |modifiers, key| ui.input_mut(|input| input.consume_key(modifiers, key));
+        let stepped = [(Modifiers::SHIFT, SHIFT_STEP), (Modifiers::NONE, STEP)]
+            .into_iter()
+            .find_map(|(modifiers, step)| {
+                let by = if consume(modifiers, end) {
+                    step
+                } else if consume(modifiers, start) {
+                    -step
+                } else {
+                    return None;
+                };
+                Some(laid + self.travel.growth(by))
+            });
+        let home = number::pressed(ui, Key::Home).then_some(f32::from(self.limits.min));
+        let end = number::pressed(ui, Key::End)
+            .then_some(self.limits.max)
+            .flatten()
+            .map(f32::from);
+        stepped.or(home).or(end)
+    }
+
+    fn paint(&self, ui: &Ui, rect: Rect, hot: bool) {
+        let style = &self.style;
+        let target = if hot { Progress::END } else { Progress::START };
+        let progress = transition::animate(
+            ui.ctx(),
+            ui.node_id().with("hot"),
+            target,
+            style.transition,
+            Easing::Default,
+        );
+        let colors = style.rest.towards(style.hot, progress);
+        let painter = ui.painter();
+        painter.rect_filled(rect, 0.0, colors.band);
+        let centre = rect.center();
+        let (from, to) = match self.travel.axis {
+            Axis::X => (pos2(centre.x, rect.top()), pos2(centre.x, rect.bottom())),
+            Axis::Y => (pos2(rect.left(), centre.y), pos2(rect.right(), centre.y)),
+        };
+        painter.line_segment([from, to], Stroke::new(style.line_width, colors.line));
+        if let Some(grip) = style.grip {
+            let size = match self.travel.axis {
+                Axis::X => Vec2::new(grip.thickness, grip.length),
+                Axis::Y => Vec2::new(grip.length, grip.thickness),
+            };
+            let pill = Rect::from_center_size(centre, size);
+            painter.rect_filled(pill, grip.thickness / 2.0, colors.grip);
+        }
+    }
+}

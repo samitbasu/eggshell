@@ -143,6 +143,9 @@ pub(crate) struct Ambient {
     pub(crate) enablement: Enablement,
     pub(crate) surface: Surface,
     pub(crate) size: Option<ControlSize>,
+    /// The direction of the flex container the nodes are built in, if it is
+    /// one.
+    pub(crate) flex: Option<taffy::FlexDirection>,
 }
 
 impl Ambient {
@@ -150,6 +153,7 @@ impl Ambient {
         enablement: Enablement::Enabled,
         surface: Surface::Page,
         size: None,
+        flex: None,
     };
 }
 
@@ -1203,6 +1207,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             description: None,
             action: None,
             open_focus: crate::pipeline::OpenFocus::Elsewhere,
+            pane: None,
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
@@ -1248,8 +1253,20 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 self.ambient.enablement
             },
             size: classes.control_size.or(self.ambient.size),
+            flex: (classes.style.display == taffy::Display::Flex)
+                .then_some(classes.style.flex_direction),
             ..self.ambient
         }
+    }
+
+    pub(crate) fn flex(&self) -> Option<taffy::FlexDirection> {
+        self.ambient.flex
+    }
+
+    /// Declares that a size changes this frame by a gesture that moves it
+    /// smoothly, so layout moves start no slides.
+    pub(crate) fn size_in_flight(&mut self) {
+        self.frame.size_in_flight = true;
     }
 
     /// Builds `body` in place, its nodes drawn on `surface`.
@@ -1709,6 +1726,11 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
 
     pub(crate) fn open_focus(mut self, open_focus: crate::pipeline::OpenFocus) -> Self {
         self.edit(|context| context.open_focus = open_focus);
+        self
+    }
+
+    pub(crate) fn sizes_pane(mut self, side: crate::owned::Side) -> Self {
+        self.edit(|context| context.pane = Some(side));
         self
     }
 
