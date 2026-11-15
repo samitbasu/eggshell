@@ -310,7 +310,7 @@ fn a_custom_node_sees_the_payload_of_an_eggshell_drag_over_it() {
     h.hover_at(to);
     h.run_steps(3);
     assert!(
-        eggshell_ui::drag_pointer(&h.ctx).is_some(),
+        crate::support::shell(&h).drag_pointer().is_some(),
         "precondition: the source is lifted"
     );
     assert!(h.state().app.sees_payload);

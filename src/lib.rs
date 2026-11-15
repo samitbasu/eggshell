@@ -254,7 +254,7 @@ pub use contract::Style;
 pub use debug::Debug;
 pub use dnd::{
     Cause, DragEnd, DragImage, Dragging, Drop, EdgeBand, EdgeScroll, File, Files, Over,
-    ScrollSpeed, drag_grab, drag_pointer, insertion_index,
+    ScrollSpeed, insertion_index,
 };
 pub use draw::NodeUi;
 pub use focus::focus_within;

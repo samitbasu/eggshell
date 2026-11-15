@@ -33,6 +33,7 @@ use crate::roots::{Form, PlacedRoot, covers_screen, root_of, stacked_top_down};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
+use crate::shell::ShellExt;
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::tooltip;
@@ -972,7 +973,7 @@ impl<A> Walk<'_, A> {
             None => (None, Merged::Own),
         };
         if let Some(response) = &response {
-            dnd::show_grab(self.ui.ctx(), nodes, index, response);
+            dnd::show_grab(&self.ui.shell(), nodes, index, response);
         }
         let needs_hovering = interaction.grouping == Grouping::Group
             || interaction.variants.get(State::Hover).is_some();
@@ -1275,7 +1276,7 @@ impl<A> Walk<'_, A> {
                     }
                     .visit(index + 1, content);
                 });
-                scroll::note_bar_hold(&crate::shell::ShellExt::shell(&*ui), id, shown.id);
+                scroll::note_bar_hold(&ui.shell(), id, shown.id);
             },
         );
     }
@@ -1595,7 +1596,7 @@ impl<A> Placed<A> {
     /// Rects are rounded to physical pixels here; layout itself is exact.
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
-        let interruption = tooltip::interruption(ui.ctx(), dnd::drag_state(ui.ctx()));
+        let interruption = tooltip::interruption(ui.ctx(), dnd::drag_state(ui.ctx(), &self.kept));
         tooltip::begin(ui.ctx());
         focus::release_press_on_blur(ui.ctx());
         let _anchor_focus = focus::AnchorFocusHeld::new(
@@ -1627,10 +1628,10 @@ impl<A> Placed<A> {
             pixels_per_point: ui.ctx().pixels_per_point(),
         };
         let root = Inherited::root(ui.clip_rect(), nodes[0].rect().min);
-        let live = dnd::drag_state(ui.ctx());
+        let live = dnd::drag_state(ui.ctx(), &kept);
         let (dragging, finish) = dnd::begin(
             ui.ctx(),
-            scope,
+            &kept,
             dnd::Tree {
                 nodes: &nodes,
                 by_id: &by_id,
@@ -1709,7 +1710,7 @@ impl<A> Placed<A> {
             &mut dismiss,
             app,
         );
-        finish.finish(&ctx, &nodes, &mut drag, app);
+        finish.finish(&ctx, &kept, &nodes, &mut drag, app);
         tooltip::end(&ctx, &kept, interruption);
         for then in exited {
             then(app);
