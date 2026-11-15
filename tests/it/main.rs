@@ -36,6 +36,7 @@ mod edits;
 mod escape_field;
 mod field_focus;
 mod field_focus_example;
+mod field_text;
 mod focus;
 mod focus_on_appear;
 mod font_weights;
