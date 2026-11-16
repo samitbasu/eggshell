@@ -1305,6 +1305,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 grouping: tw.grouping,
                 variants: tw.variants,
                 color_source,
+                hover_by: crate::pipeline::HoverBy::Hit,
             },
         }
     }
@@ -1791,6 +1792,13 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     /// [`named`](Self::named).
     pub fn role(mut self, role: egui::Role) -> Self {
         self.edit(|context| context.description.get_or_insert_default().role = Some(role));
+        self
+    }
+
+    /// Hovers the node whenever the pointer is over its rect, also where a
+    /// sibling drawn over it takes the pointer.
+    pub(crate) fn hover_by_rect(mut self) -> Self {
+        self.edit(|context| context.interaction.hover_by = crate::pipeline::HoverBy::Rect);
         self
     }
 

@@ -788,7 +788,10 @@ impl<A> Walk<'_, A> {
         let highlighted = node.id().is_some_and(|id| {
             self.pass.highlighted.contains(&id) || (node.is_item() && focus::holds_focus(ctx, id))
         });
+        let by_rect = node.interaction.hover_by == crate::pipeline::HoverBy::Rect
+            && ctx.rect_contains_pointer(self.ui.layer_id(), own.interact_rect);
         let pointed = own.hovered()
+            || by_rect
             || descendants
                 .iter()
                 .filter(|descendant| descendant.senses())

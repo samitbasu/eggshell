@@ -31,7 +31,8 @@ egui = { version = "0.37", features = ["default_fonts"] }
 eframe = "0.37"
 egui_kittest = "0.37"
 trybuild = "1"
-eggshell-ui-shadcn = { path = "crates/eggshell-ui-shadcn" }
+eggshell-ui-shadcn = { path = "crates/eggshell-ui-shadcn", features = ["extras"] }
+eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = ["markdown"] }
 
 # proptest's rng wants a getrandom backend that the browser build does not
 # select, and the fuzzers only run natively.
@@ -47,7 +48,7 @@ harness = false
 wasm-bindgen-futures = "0.4"
 
 [workspace]
-members = ["crates/eggshell-ui-shadcn", "xtask"]
+members = ["crates/eggshell-ui-shadcn", "crates/eggshell-ui-extras", "xtask"]
 
 # `cargo xtask fuzz`: the sessions run about six times faster than in dev, and
 # the workspace rebuilds in seconds where release takes minutes.
