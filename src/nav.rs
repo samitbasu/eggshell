@@ -437,8 +437,10 @@ pub(crate) fn request_activation(ctx: &Context, kept: &Handle, item: Id) {
 /// Whether Enter or Space activated the highlighted item `item` since it was
 /// last asked: a click it did not get from the pointer. Asking takes it.
 pub(crate) fn take_activation(ui: &egui::Ui, item: Id) -> bool {
-    use crate::shell::ShellExt as _;
-    let (ctx, kept) = (ui.ctx(), ui.shell().kept);
+    let Some(shell) = crate::shell::shell_or_warn(ui, "keyboard activation (Enter/Space)") else {
+        return false;
+    };
+    let (ctx, kept) = (ui.ctx(), shell.kept);
     let Some(pending) = kept.viewport(ctx.viewport_id(), |here| here.navigation.activation) else {
         return false;
     };

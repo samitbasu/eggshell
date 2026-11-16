@@ -20,7 +20,6 @@ use crate::overlay::{Anchor, Band, DismissOn, Distance, Focus, Placement};
 use crate::overlay_chain::OverlayChain;
 use crate::overlay_input::Drag;
 use crate::presence::Shown;
-use crate::shell::ShellExt as _;
 use crate::tw::tw;
 
 /// What a tooltip shows.
@@ -331,9 +330,11 @@ pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
             content: tip.content.clone(),
             cause,
         };
-        ui.shell().kept.viewport(ui.ctx().viewport_id(), |here| {
-            here.tooltips.requests.push(trigger)
-        });
+        if let Some(shell) = crate::shell::shell_or_warn(ui, "a tooltip") {
+            shell.kept.viewport(ui.ctx().viewport_id(), |here| {
+                here.tooltips.requests.push(trigger)
+            });
+        }
     };
     if response.has_focus() && crate::overlay_input::keyboard_was_last(ui.ctx()) {
         wants(Cause::Focus);
