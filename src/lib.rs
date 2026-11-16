@@ -359,6 +359,7 @@ mod scroll_keys;
 mod shadow_corners;
 mod shell;
 mod sizing;
+mod spans;
 mod stack;
 mod symbols;
 pub mod testing;
@@ -369,7 +370,7 @@ mod tw;
 pub mod vlist;
 pub mod widget;
 
-pub use builder::{Builder, NodeHandle, Scope};
+pub use builder::{Builder, NodeHandle, Scope, SpansHandle};
 pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
 pub use commands::{Command, Commands, InText};
@@ -389,6 +390,7 @@ pub use prim::Icon;
 pub use roots::OverlayRef;
 pub use shell::{Shell, ShellExt};
 pub use sizing::Width;
+pub use spans::{Span, Spans};
 pub use text::{
     Face, Faces, FontStyle, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, TextStyle,
     Tracking, Weight, WhiteSpace,

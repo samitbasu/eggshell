@@ -35,6 +35,12 @@ mod button_children;
 #[path = "../../examples/toggle_group.rs"]
 mod toggle_group;
 
+#[path = "../../examples/rich_text.rs"]
+mod rich_text;
+
+#[path = "../../examples/markdown.rs"]
+mod markdown;
+
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/dialog.rs"]
 mod dialog;
@@ -55,6 +61,9 @@ mod field_icons_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/icons.rs"]
 mod icons_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/list_nav.rs"]
+mod list_nav_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/slider_header.rs"]
 mod slider_header_example;
@@ -528,6 +537,58 @@ fn snapshot_themed_in<A>(
         harness.run_steps(12);
     }
     harness.snapshot(name);
+}
+
+/// Paragraphs of spans: weights, italics, links, and inline code whose tint
+/// follows it across a wrap.
+#[test]
+fn rich_text_light() {
+    rich_text_in("rich_text_light", egui::Theme::Light);
+}
+
+#[test]
+fn rich_text_dark() {
+    rich_text_in("rich_text_dark", egui::Theme::Dark);
+}
+
+fn rich_text_in(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
+        Vec2::new(460.0, 280.0),
+        (
+            rich_text::State::default(),
+            rich_text::layout,
+            common::base_text(theme),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
+}
+
+/// The Markdown test page: every construct the widget shows, and the ones
+/// it shows as their source.
+#[test]
+fn markdown_light() {
+    markdown_in("markdown_light", egui::Theme::Light);
+}
+
+#[test]
+fn markdown_dark() {
+    markdown_in("markdown_dark", egui::Theme::Dark);
+}
+
+fn markdown_in(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
+        Vec2::new(720.0, 1540.0),
+        (
+            markdown::State::default(),
+            markdown::layout,
+            common::base_text(theme),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
 }
 
 /// Icon toggles whose active one shows a `.children(..)` accent bar.
@@ -2544,4 +2605,38 @@ fn slider_header_light() {
 #[test]
 fn slider_header_dark() {
     slider_header_in("slider_header_dark", egui::Theme::Dark);
+}
+
+/// A virtual listbox with the highlight on its fourth row.
+fn list_nav_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(300.0, 320.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        list_nav_example::State::default(),
+        list_nav_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    support::past_bar(&mut harness);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(4);
+    for _ in 0..4 {
+        harness.key_press(egui::Key::ArrowDown);
+        harness.run_steps(4);
+    }
+    harness.snapshot(name);
+}
+
+#[test]
+fn list_nav_light() {
+    list_nav_in("list_nav_light", egui::Theme::Light);
+}
+
+#[test]
+fn list_nav_dark() {
+    list_nav_in("list_nav_dark", egui::Theme::Dark);
 }

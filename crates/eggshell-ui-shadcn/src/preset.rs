@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use eggshell_ui::contract::{
-    self, Arrow, CheckboxMetrics, Colors, Entry, Focus, InputMetrics, Keyed, KindMotion,
+    self, Arrow, CheckboxMetrics, Colors, Em, Entry, Focus, InputMetrics, Keyed, KindMotion,
     Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size, SliderMetrics, States,
     StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
@@ -618,6 +618,19 @@ impl Shadcn {
             });
             kbd
         };
+        // shadcn's typography: a link is `font-medium text-primary underline`,
+        // inline code `rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm`.
+        style.rich = {
+            let mut rich = style.rich;
+            rich.link = t.primary;
+            rich.link_weight = Weight::Medium;
+            rich.code.fill = t.muted;
+            rich.code.radius = t.radius_sm();
+            rich.code.padding_x = 4.8;
+            rich.code.padding_y = 3.2;
+            rich.code.size = Em::new(0.875);
+            rich
+        };
         style.stepper = {
             let mut stepper = style.stepper;
             stepper.group = input_box;
@@ -693,6 +706,22 @@ impl Shadcn {
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
         // Radix's ScrollArea keeps its thumb at least 18 px long.
         style.scroll.min_thumb_length = 18.0;
+        // shadcn's Table: `h-10 px-2 font-medium` head cells, `p-2` cells,
+        // `border-b` rows (none under the last), `hover:bg-muted/50`,
+        // `data-[state=selected]:bg-muted`, a `bg-muted/50 font-medium` footer
+        // and `transition-colors`.
+        style.table.header_fill = clear;
+        style.table.header_weight = Weight::Medium;
+        style.table.header_height = 40.0;
+        style.table.cell_padding = 8.0;
+        style.table.rule = t.border;
+        style.table.rule_width = 1.0;
+        style.table.stripe = clear;
+        style.table.hover = t.muted.gamma_multiply(0.5);
+        style.table.selected = t.muted;
+        style.table.footer_fill = t.muted.gamma_multiply(0.5);
+        style.table.footer_weight = Weight::Medium;
+        style.table.transition = Duration::from_millis(150);
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);
@@ -751,7 +780,26 @@ impl Shadcn {
         let tokens = self.tokens.clone();
         ctx.style_mut_of(self.theme, |style| tokens.set_style(self.theme, style));
         ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
-        self.style().install_for(ctx, self.theme);
+        let style = self.style();
+        #[cfg(feature = "extras")]
+        self.markdown(&style).install_for(ctx, self.theme);
+        style.install_for(ctx, self.theme);
+    }
+
+    /// The Markdown widget's look, after shadcn/ui's typography.
+    #[cfg(feature = "extras")]
+    pub fn markdown(&self, style: &contract::Style) -> eggshell_ui_extras::markdown::MarkdownStyle {
+        let t = &self.tokens;
+        let mut markdown = eggshell_ui_extras::markdown::MarkdownStyle::from_style(style);
+        markdown.rule = t.border;
+        markdown.list.marker = t.muted_foreground;
+        markdown.quote.border = t.border;
+        markdown.quote.text = t.foreground;
+        markdown.code.fill = t.muted;
+        markdown.code.border = t.border;
+        markdown.unsupported.border = t.border;
+        markdown.unsupported.label = t.muted_foreground;
+        markdown
     }
 }
 
