@@ -336,7 +336,11 @@ pub(crate) fn code_tints(
     anchor: Pos2,
 ) -> Vec<Rect> {
     runs.iter()
-        .filter(|run| marks[run.span].font == SpanFont::Code)
+        .filter(|run| {
+            marks
+                .get(run.span)
+                .is_some_and(|mark| mark.font == SpanFont::Code)
+        })
         .map(|run| {
             run.ink
                 .expand2(egui::vec2(rich.code.padding_x, rich.code.padding_y))
@@ -355,7 +359,7 @@ pub(crate) fn link_at<'m>(
     let local = pos2(pointer.x - anchor.x, pointer.y - anchor.y);
     runs.iter()
         .find(|run| run.row.contains(local))
-        .and_then(|run| marks[run.span].link.as_deref())
+        .and_then(|run| marks.get(run.span)?.link.as_deref())
 }
 
 /// Shows the pointing hand over a link, and follows the link `response`'s

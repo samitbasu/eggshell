@@ -471,13 +471,13 @@ fn text_overrides(ui: &mut Ui, text: &TextStyle) {
 }
 
 /// Runs `add_contents` in a child `Ui` that is not allocated in `parent`.
-fn node_ui(
+fn node_ui<R>(
     parent: &mut Ui,
     builder: UiBuilder,
     inherited: Inherited,
     text: Option<&TextStyle>,
-    add_contents: impl FnOnce(&mut Ui),
-) {
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> R {
     let stack_info =
         UiStackInfo::new(UiKind::GenericArea).with_frame(Frame::NONE.fill(inherited.backdrop));
     let mut child = parent.new_child(
@@ -494,7 +494,7 @@ fn node_ui(
     if let Some(text) = text {
         text_overrides(&mut child, text);
     }
-    add_contents(&mut child);
+    add_contents(&mut child)
 }
 
 fn image_for(icon: Icon, tint: Color32) -> Image<'static> {
@@ -1399,22 +1399,20 @@ impl<A> Walk<'_, A> {
                 .galley(anchor, galley, text.color);
             links.map(|_| self.sense_links(id, content, inherited))
         };
-        if let (Some(marks), Some(response)) = (links, response) {
-            let node = node.id().expect("text with links is identified");
+        // TODO(#279): report text with links that has no id, which `spans` never adds.
+        if let (Some(marks), Some(response), Some(node)) = (links, response, node.id()) {
             spans::follow(&response, &runs, marks, anchor, node);
         }
     }
 
     fn sense_links(&mut self, id: Id, content: Rect, inherited: Inherited) -> Response {
-        let mut response = None;
         node_ui(
             self.ui,
             UiBuilder::new().max_rect(content),
             inherited,
             None,
-            |ui| response = Some(ui.interact(content, id, Sense::click() - Sense::FOCUSABLE)),
-        );
-        response.expect("node_ui runs its contents")
+            |ui| ui.interact(content, id, Sense::click() - Sense::FOCUSABLE),
+        )
     }
 
     /// Paints `galley` through egui's label selection, which draws the
@@ -1432,7 +1430,6 @@ impl<A> Walk<'_, A> {
         inherited: Inherited,
     ) -> Response {
         let selection = self.selection;
-        let mut sensed = None;
         node_ui(
             self.ui,
             UiBuilder::new().max_rect(content),
@@ -1455,10 +1452,9 @@ impl<A> Walk<'_, A> {
                     text.color,
                     Stroke::NONE,
                 );
-                sensed = Some(response);
+                response
             },
-        );
-        sensed.expect("node_ui runs its contents")
+        )
     }
 
     /// A stable id for the node's selectable text: its key path, and the
