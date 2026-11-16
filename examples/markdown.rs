@@ -13,7 +13,7 @@ use egui::{Color32, ColorImage, Context};
 
 pub const SAMPLE: &str = r#"# Markdown in eggshell
 
-A paragraph with **strong**, *emphasis*, ***both***, `inline code`, an [internal link](#lists) and an [external link](https://github.com/samitbasu/eggshell).
+A paragraph with **strong**, *emphasis*, ***both***, `inline code` and links: [internal](#directives), [relative](guide.md) and [external](https://github.com/samitbasu/eggshell).
 A soft break joins lines; a hard break\
 starts a new one.
 

@@ -87,7 +87,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> Markdown<'s, 'b, 'f, A, K> {
         let blocks = parsed(&ctx, self.source);
         let context = build::Context {
             style: MarkdownStyle::of(&ctx),
-            on_link: self.on_link,
+            links: Rc::new(build::Links::new(self.on_link, self.b.shell())),
             directives: self.directives,
             ctx,
         };

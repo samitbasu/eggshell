@@ -1,19 +1,58 @@
 //! Parsed blocks into eggshell nodes.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 
-use eggshell_ui::{Builder, Key, Scope, Spans, Tw, tw};
+use eggshell_ui::{Builder, Key, Scope, Shell, Spans, Tw, tw};
 use egui::load::{SizeHint, TexturePoll};
-use egui::{ImageSource, TextureOptions};
+use egui::{Align, Id, ImageSource, TextureOptions};
 
 use super::parse::{Block, Construct, Item, List, Task};
 use super::{Directive, Directives, MarkdownStyle, OnLink};
 
 pub(super) struct Context<'s, A> {
     pub style: Arc<MarkdownStyle>,
-    pub on_link: Option<OnLink<A>>,
+    pub links: Rc<Links<A>>,
     pub directives: Option<&'s Directives<A>>,
     pub ctx: egui::Context,
+}
+
+/// Where a document's links go: an anchor naming one of its headings
+/// scrolls to that heading, as in a browser, and any other link goes to
+/// `on_link`.
+pub(super) struct Links<A> {
+    on_link: Option<OnLink<A>>,
+    shell: Shell,
+    /// Filled as the document is built; read when a link is followed, which
+    /// is after, so a link may name a heading below it.
+    headings: RefCell<HashMap<String, Id>>,
+}
+
+impl<A> Links<A> {
+    pub fn new(on_link: Option<OnLink<A>>, shell: Shell) -> Self {
+        Self {
+            on_link,
+            shell,
+            headings: RefCell::default(),
+        }
+    }
+
+    fn heading(&self, anchor: &str, id: Id) {
+        self.headings.borrow_mut().insert(anchor.to_owned(), id);
+    }
+
+    fn follow(&self, app: &mut A, href: &str) {
+        let heading = href
+            .strip_prefix('#')
+            .and_then(|anchor| self.headings.borrow().get(anchor).copied());
+        match (heading, &self.on_link) {
+            (Some(id), _) => self.shell.scroll_into_view(id, Some(Align::Min)),
+            (None, Some(on_link)) => on_link(app, href),
+            (None, None) => {}
+        }
+    }
 }
 
 /// The keys of a document's nodes. A heading is keyed by its anchor, so that
@@ -81,13 +120,9 @@ fn emit<A: 'static>(
                         at.pb(padding).border_b(1.0).border_color(style.rule)
                     }
                 };
-                paragraph(
-                    s,
-                    Part::Heading(heading.anchor.clone()),
-                    at,
-                    &heading.spans,
-                    context,
-                );
+                let key = Part::Heading(heading.anchor.clone());
+                context.links.heading(&heading.anchor, s.id_of(key.clone()));
+                paragraph(s, key, at, &heading.spans, context);
             }
             Block::List(list_) => list(s, key, at, list_, context, depth),
             Block::Quote(inner) => {
@@ -127,9 +162,9 @@ fn paragraph<A: 'static>(
     context: &Context<'_, A>,
 ) {
     let node = s.spans(key, at, spans.clone());
-    if let Some(on_link) = &context.on_link {
-        let on_link = on_link.clone();
-        node.on_link(move |app, href| on_link(app, href));
+    if spans.iter().any(|span| span.href().is_some()) {
+        let links = context.links.clone();
+        node.on_link(move |app, href| links.follow(app, href));
     }
 }
 

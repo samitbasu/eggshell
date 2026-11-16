@@ -15,12 +15,16 @@ mod common;
 #[path = "../../examples/markdown.rs"]
 mod page;
 
-const PARAGRAPH: &str = "A paragraph with strong, emphasis, both, inline code, an internal link and an external link. A soft break joins lines; a hard break\nstarts a new one.";
+const PARAGRAPH: &str = "A paragraph with strong, emphasis, both, inline code and links: internal, relative and external. A soft break joins lines; a hard break\nstarts a new one.";
 const CODE: &str = "fn main() {\n    println!(\"plain for now\");\n}";
 
 fn harness() -> Harness<'static, Rig<page::State>> {
+    harness_sized(vec2(720.0, 1600.0))
+}
+
+fn harness_sized(size: egui::Vec2) -> Harness<'static, Rig<page::State>> {
     let mut harness = support::harness(
-        vec2(720.0, 1600.0),
+        size,
         common::base_text(Theme::Light),
         page::State::default(),
         page::layout,
@@ -192,18 +196,42 @@ fn an_image_takes_its_texture_size() {
 }
 
 #[test]
-fn clicking_an_internal_link_calls_on_link() {
+fn clicking_an_internal_link_scrolls_to_its_heading() {
+    let mut harness = harness_sized(vec2(720.0, 360.0));
+    let heading = || doc("/Heading(\"directives\")");
+    let page = rect_of(&harness, "/Page");
+    assert!(
+        rect_of(&harness, &heading()).min.y > page.max.y,
+        "precondition: the heading starts out of view"
+    );
+    let link = support::part_rect(&harness, PARAGRAPH, "internal");
+    press_and_release(&mut harness, link.center());
+    harness.run_steps(4);
+    let top = rect_of(&harness, &heading()).min.y;
+    assert!(
+        (page.min.y..page.min.y + 1.0).contains(&top),
+        "the heading is scrolled to the page's top, at {top}"
+    );
+    assert!(
+        harness.state().app.followed.is_empty(),
+        "an anchor the document holds is not passed on"
+    );
+}
+
+#[test]
+fn clicking_a_relative_link_calls_on_link() {
     let mut harness = harness();
-    let link = support::part_rect(&harness, PARAGRAPH, "internal link");
+    let link = support::part_rect(&harness, PARAGRAPH, "relative");
     press_and_release(&mut harness, link.center());
     harness.run_steps(2);
-    assert_eq!(harness.state().app.followed, ["#lists"]);
+    assert_eq!(harness.state().app.followed, ["guide.md"]);
+    support::galley_of(&harness, "Followed: guide.md; counted 0");
 }
 
 #[test]
 fn clicking_an_external_link_opens_it() {
     let mut harness = harness();
-    let link = support::part_rect(&harness, PARAGRAPH, "external link");
+    let link = support::part_rect(&harness, PARAGRAPH, "external");
     support::hover_over(&mut harness, link.center());
     let mut opened = Vec::new();
     for pressed in [true, false] {
