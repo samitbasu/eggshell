@@ -1,6 +1,6 @@
 //! `eggshell_ui::testing`: layout queries without a window, a GPU or a draw.
 
-use eggshell_ui::testing::Headless;
+use eggshell_ui::testing::{Headless, PixelsPerPoint};
 use eggshell_ui::{Builder, Placed, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, FontFamily, TextStyle as EguiTextStyle, Theme, vec2};
@@ -398,4 +398,147 @@ fn a_view_may_lend_the_app_to_its_nodes_for_the_frame() {
         placed.at("sized").rect().width() > 0.0,
         "the measure closure borrowed the label and sized the node from it"
     );
+}
+
+/// A card as an application writes one: a semi-bold title over a paragraph
+/// that wraps, in the shadcn preset's body text.
+///
+/// ```html
+/// <div class="flex flex-col items-start gap-1 p-3 w-[260px]">
+///   <span class="font-semibold">Telemetry export</span>
+///   <span>…a paragraph that wraps…</span>
+/// </div>
+/// ```
+fn wrapping_card(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.scope(Region::Viewport, |b| {
+        b.div_id(
+            Part::Card,
+            tw().flex()
+                .flex_col()
+                .items_start()
+                .gap(4.0)
+                .p(12.0)
+                .w_px(260.0),
+            |b| {
+                b.span("title", tw().font_weight(Weight::SemiBold), CARD_TITLE);
+                b.span("body", tw(), CARD_BODY);
+            },
+        );
+    });
+}
+
+const CARD_TITLE: &str = "Telemetry export";
+const CARD_BODY: &str = "Every sample the probes recorded since the last sweep, \
+    written as one file per channel with the calibration it was taken under.";
+
+fn shadcn_body() -> TextStyle {
+    let tokens = eggshell_ui_shadcn::Tokens::for_theme(Theme::Light);
+    TextStyle::new(tokens.text_role(), tokens.foreground)
+}
+
+/// Every text leaf of the card, laid out headless at `scale`, lands where
+/// a frame drawn at that scale lays it out.
+fn text_agrees_at(scale: PixelsPerPoint) {
+    let mut harness = support::harness_scaled(
+        SIZE,
+        scale.into(),
+        shadcn_body(),
+        (),
+        wrapping_card,
+        |_, _| {},
+    );
+    harness.run_steps(2);
+    let placed = Headless::new(SIZE)
+        .pixels_per_point(scale)
+        .base_text(shadcn_body())
+        .prepare(Shadcn::apply_both)
+        .theme(Theme::Light)
+        .layout(&(), wrapping_card);
+    let card = placed.at(Region::Viewport).at(Part::Card);
+    let shift = rect_of(&harness, card.path()).min - card.rect().min;
+    let (title, body) = (card.text(CARD_TITLE), card.text(CARD_BODY));
+    assert!(
+        body.rect().height() > title.rect().height() * 2.0,
+        "precondition: the body wraps to several lines"
+    );
+    assert!(
+        body.rect().width() < card.rect().width(),
+        "precondition: the body is as wide as its lines, not stretched to the card"
+    );
+    for text in [title, body] {
+        let laid = text.rect().translate(shift);
+        let drawn = rect_of(&harness, text.path());
+        assert!(
+            (laid.min - drawn.min).length() <= 0.5 && (laid.max - drawn.max).length() <= 0.5,
+            "at {scale:?}, {}: headless {laid:?}, drawn {drawn:?}",
+            text.path()
+        );
+    }
+}
+
+#[test]
+fn headless_text_wraps_as_the_drawn_frame_does() {
+    for scale in [1.0, 1.5, 2.0] {
+        text_agrees_at(PixelsPerPoint::new(scale));
+    }
+}
+
+/// A text role unlike egui's Body in every measure, so that a layout in it
+/// cannot be mistaken for one in Body.
+fn large_role() -> TextSpec {
+    TextSpec {
+        size: 19.0,
+        line_height: 30.0,
+        family: FontFamily::Proportional,
+        weight: Weight::Normal,
+    }
+}
+
+fn install_large_text(ctx: &egui::Context) {
+    let mut style = (*eggshell_ui::Style::of(ctx)).clone();
+    style.text = large_role();
+    style.install(ctx);
+}
+
+fn card_text_rects(headless: Headless) -> Vec<egui::Rect> {
+    let placed = headless.theme(Theme::Light).layout(&(), wrapping_card);
+    let card = placed.at(Region::Viewport).at(Part::Card);
+    [CARD_TITLE, CARD_BODY]
+        .map(|text| card.text(text).rect())
+        .to_vec()
+}
+
+#[test]
+fn without_a_base_text_a_layout_reads_the_installed_style() {
+    let given = card_text_rects(
+        Headless::new(SIZE)
+            .prepare(install_large_text)
+            .base_text(TextStyle::new(large_role(), Color32::BLACK)),
+    );
+    let defaulted = card_text_rects(Headless::new(SIZE).prepare(install_large_text));
+    let body = card_text_rects(Headless::new(SIZE));
+    assert_ne!(
+        given, body,
+        "precondition: the installed text lays out unlike egui's Body"
+    );
+    assert_eq!(defaulted, given);
+}
+
+#[test]
+fn without_a_base_text_or_a_style_a_layout_reads_egui_body() {
+    let defaulted = card_text_rects(Headless::new(SIZE));
+    let mut probe = Headless::new(SIZE);
+    probe.layout(&(), |_, _| {});
+    let body = TextStyle::from_egui(probe.ctx());
+    assert_eq!(
+        defaulted,
+        card_text_rects(Headless::new(SIZE).base_text(body))
+    );
+}
+
+#[test]
+fn a_scale_that_is_not_finite_and_positive_falls_back_to_one() {
+    for scale in [f32::NAN, f32::INFINITY, 0.0, -2.0] {
+        assert_eq!(f32::from(PixelsPerPoint::new(scale)), 1.0, "{scale}");
+    }
 }

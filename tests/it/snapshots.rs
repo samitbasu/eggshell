@@ -38,6 +38,9 @@ mod toggle_group;
 #[path = "../../examples/rich_text.rs"]
 mod rich_text;
 
+#[path = "../../examples/markdown.rs"]
+mod markdown;
+
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/dialog.rs"]
 mod dialog;
@@ -546,6 +549,32 @@ fn rich_text_in(name: &str, theme: egui::Theme) {
         (
             rich_text::State::default(),
             rich_text::layout,
+            common::base_text(theme),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
+}
+
+/// The Markdown test page: every construct the widget shows, and the ones
+/// it shows as their source.
+#[test]
+fn markdown_light() {
+    markdown_in("markdown_light", egui::Theme::Light);
+}
+
+#[test]
+fn markdown_dark() {
+    markdown_in("markdown_dark", egui::Theme::Dark);
+}
+
+fn markdown_in(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
+        Vec2::new(720.0, 1540.0),
+        (
+            markdown::State::default(),
+            markdown::layout,
             common::base_text(theme),
         ),
         None,

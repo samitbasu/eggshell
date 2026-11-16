@@ -120,6 +120,7 @@
 //! | [`stepper`](crate::Builder::stepper): field, buttons | `SpinButton`, `Button` ("Increase …", "Decrease …") |
 //! | [`progress`](crate::Builder::progress) | `ProgressIndicator` |
 //! | [`text_field`](crate::Builder::text_field) | `TextInput` |
+//! | [`table`](crate::Builder::table): table, rows, header cells, cells | `Table`, `Row`, `ColumnHeader`, `Cell` |
 //!
 //! A node of your own gets a role and a name with
 //! [`NodeHandle::role`](crate::NodeHandle::role) and
@@ -206,13 +207,14 @@ type Prepare = Box<dyn FnOnce(&egui::Context)>;
 /// It owns its [`egui::Context`]. The first [`layout`](Self::layout) runs the
 /// [`prepare`](Self::prepare) closures, then one warm-up pass so that fonts
 /// exist; each `layout` then runs one pass that builds and lays out at the
-/// given size and [theme](Self::theme).
+/// given size, [theme](Self::theme) and [scale](Self::pixels_per_point).
 pub struct Headless {
     ctx: egui::Context,
     size: Vec2,
     base_text: Option<TextStyle>,
     state: LayoutState,
     theme: Option<Theme>,
+    pixels_per_point: PixelsPerPoint,
     pending: Vec<Prepare>,
     warm: bool,
 }
@@ -226,6 +228,7 @@ impl Headless {
             base_text: None,
             state: LayoutState::new(),
             theme: None,
+            pixels_per_point: PixelsPerPoint::default(),
             pending: Vec::new(),
             warm: false,
         }
@@ -254,6 +257,12 @@ impl Headless {
     /// Lays views out under this theme.
     pub fn theme(mut self, theme: Theme) -> Self {
         self.theme = Some(theme);
+        self
+    }
+
+    /// TODO(prose): measures text as a display of `scale` draws it.
+    pub fn pixels_per_point(mut self, scale: PixelsPerPoint) -> Self {
+        self.pixels_per_point = scale;
         self
     }
 
@@ -293,9 +302,10 @@ impl Headless {
             base_text,
             state,
             theme,
+            pixels_per_point,
             ..
         } = self;
-        run_pass(ctx, *size, *theme, |ctx| {
+        run_pass(ctx, *size, *theme, *pixels_per_point, |ctx| {
             let view = view.take().expect("a layout runs one pass");
             state.set_base_text(base_text.clone());
             placed = Some(state.build(ctx, |b| view(b, app)).layout(area));
@@ -313,7 +323,13 @@ impl Headless {
         for setup in std::mem::take(&mut self.pending) {
             setup(&self.ctx);
         }
-        run_pass(&self.ctx, self.size, self.theme, |_| {});
+        run_pass(
+            &self.ctx,
+            self.size,
+            self.theme,
+            self.pixels_per_point,
+            |_| {},
+        );
     }
 }
 
@@ -383,16 +399,58 @@ fn run_pass(
     ctx: &egui::Context,
     size: Vec2,
     theme: Option<Theme>,
+    pixels_per_point: PixelsPerPoint,
     run: impl FnMut(&egui::Context),
 ) {
     if let Some(theme) = theme {
         ctx.set_theme(theme);
     }
-    let input = egui::RawInput {
+    let mut input = egui::RawInput {
         screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size)),
         ..egui::RawInput::default()
     };
+    input
+        .viewports
+        .entry(egui::ViewportId::ROOT)
+        .or_default()
+        .native_pixels_per_point = Some(pixels_per_point.into());
     ctx.run_pass(input, run).drop_without_applying_deltas();
+}
+
+/// TODO(prose): the physical pixels a point spans on a display: finite and positive.
+///
+/// ```
+/// use eggshell_ui::testing::PixelsPerPoint;
+///
+/// assert_eq!(f32::from(PixelsPerPoint::new(2.0)), 2.0);
+/// assert_eq!(f32::from(PixelsPerPoint::default()), 1.0);
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct PixelsPerPoint(f32);
+
+impl PixelsPerPoint {
+    /// TODO(prose): a display where a point spans `scale` pixels, or one pixel
+    /// if `scale` is not finite and positive.
+    pub fn new(scale: f32) -> Self {
+        if scale.is_finite() && scale > 0.0 {
+            Self(scale)
+        } else {
+            // TODO(#279): report a scale that is not finite and positive.
+            Self::default()
+        }
+    }
+}
+
+impl Default for PixelsPerPoint {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
+impl From<PixelsPerPoint> for f32 {
+    fn from(scale: PixelsPerPoint) -> f32 {
+        scale.0
+    }
 }
 
 #[derive(Clone, Copy)]

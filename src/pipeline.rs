@@ -184,6 +184,16 @@ pub(crate) enum ColorSource {
     Inherited,
 }
 
+/// Whether a node is hovered by the hit test, or whenever the pointer is
+/// over its rect: a table row stays hovered under a button in one of its
+/// cells, which lies over it as a sibling, not inside it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum HoverBy {
+    #[default]
+    Hit,
+    Rect,
+}
+
 /// What a node does when the pointer meets it.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct Interaction {
@@ -192,6 +202,7 @@ pub(crate) struct Interaction {
     pub grouping: Grouping,
     pub variants: Variants,
     pub color_source: ColorSource,
+    pub hover_by: HoverBy,
 }
 
 pub(crate) type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
@@ -312,8 +323,9 @@ impl<'f, A> Frame<'f, A> {
 
 /// Owns the state a frame is built in; reuse one across frames.
 ///
-/// The root's text style defaults to [`TextStyle::from_egui`], recomputed on
-/// every build so theme changes apply. [`with_base_text`](Self::with_base_text)
+/// The root's text style defaults to the installed [`Style`](crate::Style)'s
+/// text, else [`TextStyle::from_egui`], recomputed on every build so theme
+/// changes apply. [`with_base_text`](Self::with_base_text)
 /// replaces it, and [`set_base_text`](Self::set_base_text) changes or clears
 /// that between builds. Any subtree can still override fields with text classes on a
 /// div.
@@ -461,7 +473,8 @@ impl LayoutState {
     /// Builds one frame. This is the only way to obtain a [`Builder`].
     ///
     /// The root inherits the override from
-    /// [`with_base_text`](Self::with_base_text) if set, else
+    /// [`with_base_text`](Self::with_base_text) if set, else the text of the
+    /// [`Style`](crate::Style) installed in `ctx`, else
     /// [`TextStyle::from_egui`] of `ctx`. `ctx` is also used by
     /// [`Built::layout`] to measure text. `'f` covers this borrow, `ctx`, and
     /// the application data that the frame's measure closures capture.
@@ -476,7 +489,7 @@ impl LayoutState {
         let base = self
             .base_text
             .clone()
-            .unwrap_or_else(|| TextStyle::from_egui(ctx));
+            .unwrap_or_else(|| TextStyle::default_for(ctx));
         let st = &mut self.st;
         st.built_at = std::panic::Location::caller();
         #[cfg(debug_assertions)]
