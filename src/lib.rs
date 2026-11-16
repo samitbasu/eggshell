@@ -368,6 +368,7 @@ mod transition;
 mod tw;
 pub mod vlist;
 pub mod widget;
+pub mod window;
 
 pub use builder::{Builder, NodeHandle, Scope, SpansHandle};
 pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};

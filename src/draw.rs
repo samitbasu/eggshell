@@ -28,10 +28,13 @@ use crate::nav;
 use crate::overlay::{Anchored, Nav};
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
+use crate::owned::Side;
 use crate::pipeline::{ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedNode};
 use crate::presence::Staged;
 use crate::prim::{Icon, Prim};
-use crate::roots::{Form, PlacedRoot, covers_screen, root_at, root_of, stacked_top_down};
+use crate::roots::{
+    Form, Here, Home, PlacedRoot, covers_screen, root_and_node, root_at, root_of, stacked_top_down,
+};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
@@ -45,6 +48,7 @@ use crate::tw::{
     BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,
     Sides, State,
 };
+use crate::window;
 
 /// Rounds coordinates to whole physical pixels.
 #[derive(Clone, Copy)]
@@ -685,14 +689,14 @@ impl<A> Walk<'_, A> {
     /// the nearest sensing ancestor's (see [`Hot`]). Egui's hit test is the
     /// only one: a box registered after a widget covers it, as in CSS.
     ///
-    /// The root of an overlay gets a blocker that also takes drags, since
-    /// what lies beneath it is another layer.
+    /// The root of an overlay or a pop-out's window gets a blocker that also
+    /// takes drags, since what lies beneath it is another layer.
     fn cover(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
         let node = &self.nodes[index];
         if inherited.pointer_events != PointerEvents::Auto {
             return;
         }
-        if node.kind() == NodeKind::Overlay {
+        if matches!(node.kind(), NodeKind::Overlay | NodeKind::Window) {
             self.block(index, boxes, inherited);
         } else if node.paints_box() && !node.senses() && inherited.inertness == Inertness::Live {
             // Not `node_ui`: a child `Ui` gets an accessibility node.
@@ -1189,10 +1193,14 @@ impl<A> Walk<'_, A> {
                 .scope_id(id.with(DRAW_SCOPE));
             let app = &mut *self.app;
             let blur = self.pass.blur;
+            let pane = node
+                .pane
+                .and_then(|side| neighbour(self.nodes, index, side));
             node_ui(self.ui, builder, inherited, Some(text), |ui| {
                 let scope = ui.unique_id();
                 ui.data_mut(|data| {
                     data.insert_temp(scope, NodeIdTag(id));
+                    data.insert_temp(scope, PaneTag(pane));
                     data.insert_temp(scope, BlurTag(blur));
                     data.insert_temp(scope, TextTag(text.clone()));
                     if let Some(response) = bubbled {
@@ -1522,14 +1530,57 @@ impl<A> Walk<'_, A> {
         }
     }
 
-    /// Draws every attached overlay, in the order they were declared, each in
-    /// a layer of its own, and returns the ones drawn in the order they were
-    /// opened. Walks `self` from the page's `Ui`.
-    fn overlays(&mut self) -> Vec<Drawn> {
+    /// Draws each pop-out window of `here` that is embedded in its viewport,
+    /// in an `egui::Window`, and returns what became of them.
+    fn embedded_windows(
+        &mut self,
+        here: Here,
+        chrome: Option<window::Chrome>,
+    ) -> Vec<window::Shown> {
+        let ctx = self.ui.ctx().clone();
+        let mut shown = Vec::new();
+        for (index, root) in self.roots.iter().enumerate() {
+            let Some(window) = root.window() else {
+                continue;
+            };
+            if root.home != here.home || window.presentation != window::Presentation::Embedded {
+                continue;
+            }
+            let mut open = true;
+            let drawn = window::embedded(window, chrome, &mut open).show(&ctx, |ui| {
+                let inherited = Inherited::root(ui.clip_rect(), window.content.min);
+                let content = ui.max_rect();
+                self.in_layer(ui).visit(root.first, inherited);
+                ui.allocate_rect(content, Sense::hover());
+                content
+            });
+            if let Some(drawn) = drawn {
+                shown.push(window::Shown {
+                    root: index,
+                    closed: if open {
+                        window::Closed::No
+                    } else {
+                        window::Closed::Asked
+                    },
+                    content: drawn.inner.unwrap_or(window.content),
+                    outer: Some(drawn.response.rect),
+                });
+            }
+        }
+        shown
+    }
+
+    /// Draws every attached overlay of `here`, in the order they were
+    /// declared, each in a layer of its own, and returns the ones drawn in
+    /// the order they were opened. Walks `self` from the page's `Ui`.
+    fn overlays(&mut self, here: Here) -> Vec<Drawn> {
         let ctx = self.ui.ctx().clone();
         let screen = ctx.content_rect();
         let mut shown = Vec::new();
         for (index, root) in self.roots.iter().enumerate() {
+            if root.home != here.home {
+                continue;
+            }
             let Some(overlay) = root.overlay() else {
                 continue;
             };
@@ -1584,7 +1635,7 @@ impl<A> Walk<'_, A> {
                 },
             ));
         }
-        if let Some(top) = stacked_top_down(self.roots)
+        if let Some(top) = stacked_top_down(self.roots, here)
             .into_iter()
             .filter_map(|index| self.roots[index].overlay())
             .find(|overlay| {
@@ -1645,6 +1696,8 @@ impl<A> Placed<A> {
             by_id,
             drag,
             dismiss,
+            windows,
+            pop_outs,
             roots,
             exited,
             commands,
@@ -1669,11 +1722,15 @@ impl<A> Placed<A> {
             by_id,
             drag,
             dismiss,
+            windows,
+            pop_outs,
             roots,
             commands,
             size_in_flight,
+            page: ui.ctx().viewport_id(),
         };
-        painting.pass(app, ui, 0);
+        painting.pass(app, ui, Here::PAGE);
+        painting.native_windows(app, ui.ctx());
         for then in exited {
             then(app);
         }
@@ -1694,9 +1751,13 @@ struct Painting<A> {
     by_id: HashMap<Id, usize>,
     drag: Decls<A>,
     dismiss: HashMap<Id, DismissFn<A>>,
+    windows: HashMap<Id, window::Hooks<A>>,
+    pop_outs: Vec<Id>,
     roots: Vec<PlacedRoot>,
     commands: Vec<(usize, Commands<A>)>,
     size_in_flight: bool,
+    /// The viewport the page is drawn in.
+    page: egui::ViewportId,
     /// For each node, how many text nodes of the same path come before it.
     ordinals: Vec<u32>,
     /// `registrants[i]` counts the nodes before `i` that register widgets
@@ -1706,35 +1767,48 @@ struct Painting<A> {
 }
 
 impl<A> Painting<A> {
-    /// Draws the root at `root`, and the overlays over it, into `ui`, and
-    /// judges the input of `ui`'s viewport against them.
-    fn pass(&mut self, app: &mut A, ui: &mut Ui, root: usize) {
+    /// Draws the roots of `here` into `ui`: its root, the embedded pop-out
+    /// windows over it and its overlays, and judges the input of `ui`'s
+    /// viewport against them.
+    fn pass(&mut self, app: &mut A, ui: &mut Ui, here: Here) {
         let ctx = ui.ctx().clone();
+        let Some((first, origin)) = root_and_node(&self.roots, &self.nodes, here.root)
+            .map(|(root, node)| (root.first, node.rect().min))
+        else {
+            return;
+        };
         let Self {
             kept,
             nodes,
             by_id,
             drag,
             dismiss,
+            windows,
+            pop_outs,
             roots,
             commands,
             size_in_flight,
+            page,
             ordinals,
             registrants,
             shared,
         } = self;
+        if here.home != Home::Page {
+            window::enter_pass(&ctx, kept, roots, here);
+        }
+        window::carry_focus_in(&ctx, kept, (pop_outs, roots), here);
         let interruption = tooltip::interruption(&ctx, dnd::drag_state(&ctx, kept));
         tooltip::begin(&ctx, kept);
         focus::release_press_on_blur(&ctx);
         let _anchor_focus =
-            focus::AnchorFocusHeld::new(&ctx, overlay_input::pointer_on(&ctx, nodes, roots));
+            focus::AnchorFocusHeld::new(&ctx, overlay_input::pointer_on(&ctx, nodes, roots, here));
         let pressed = press_origin(&ctx)
-            .map(|at| root_at(roots, nodes, at))
+            .map(|at| root_at(roots, nodes, at, here))
             .and_then(|root| Some(roots[root].overlay()?.id));
         let grid = PixelGrid {
             pixels_per_point: ctx.pixels_per_point(),
         };
-        let inherited = Inherited::root(ui.clip_rect(), nodes[root].rect().min);
+        let inherited = Inherited::root(ui.clip_rect(), origin);
         let live = dnd::drag_state(&ctx, kept);
         let (dragging, finish) = dnd::begin(
             &ctx,
@@ -1743,6 +1817,7 @@ impl<A> Painting<A> {
                 nodes,
                 by_id,
                 roots,
+                here,
             },
             ui.clip_rect(),
             drag,
@@ -1763,11 +1838,11 @@ impl<A> Painting<A> {
         };
         nav::activate_highlighted(&ctx, kept);
         nav::apply_deferred(&ctx, kept);
-        let keys = overlay_input::claim_keys(&ctx, kept, nodes, roots, live);
+        let keys = overlay_input::claim_keys(&ctx, kept, nodes, (roots, here), live);
         pass.blur = keys.blur;
         let typing = kept.viewport(ctx.viewport_id(), |here| here.typing);
         for root in crate::commands::live_roots(
-            overlay_input::topmost_root(roots),
+            overlay_input::topmost_root(roots, here),
             |root| roots[root].parent,
             |root| roots[root].is_modal(),
         ) {
@@ -1791,8 +1866,9 @@ impl<A> Painting<A> {
             drag: &dragging,
             roots,
         };
-        walk.visit(root, inherited);
-        let shown = walk.overlays();
+        walk.visit(first, inherited);
+        let embedded = walk.embedded_windows(here, kept.with(|kept| kept.chrome));
+        let shown = walk.overlays(here);
         stack::repair(&ctx, &shown, pressed);
         overlay_input::judge(
             overlay_input::Frame {
@@ -1800,6 +1876,7 @@ impl<A> Painting<A> {
                 kept,
                 nodes,
                 roots,
+                here,
                 subtrees: &pass.subtrees,
                 drag: live,
                 keys,
@@ -1814,7 +1891,47 @@ impl<A> Painting<A> {
         scroll_keys::follow_focus(&ctx, kept, &pass.subtrees);
         overlay_input::Typing::note(&ctx, kept, &pass.subtrees);
         focus::store(&ctx, kept, pass.subtrees);
+        window::note_focus(&ctx, kept, (pop_outs, roots), here);
         pass.animation.finish();
+        for shown in embedded {
+            if let Some(window) = roots.get(shown.root).and_then(PlacedRoot::window) {
+                window::report(&ctx, (kept, *page), window, shown, windows, app);
+            }
+        }
+    }
+
+    /// Shows each pop-out's native window, and draws its roots in a pass of
+    /// its own, with the window's input.
+    fn native_windows(&mut self, app: &mut A, ctx: &egui::Context) {
+        let natives: Vec<(usize, window::PlacedWindow)> = self
+            .roots
+            .iter()
+            .enumerate()
+            .filter(|(index, root)| root.home == Home::Window(*index))
+            .filter_map(|(index, root)| Some((index, root.window()?.clone())))
+            .collect();
+        for (index, window) in natives {
+            let builder = window::builder(&self.kept, &window);
+            ctx.show_viewport_immediate(window.viewport(), builder, |ui, _| {
+                let here = Here::of(&self.roots, index);
+                let content = egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(ui, |ui| {
+                        self.pass(app, ui, here);
+                        ui.max_rect()
+                    })
+                    .inner;
+                let shown = window::Shown::native(ui.ctx(), index, content);
+                window::report(
+                    ui.ctx(),
+                    (&self.kept, self.page),
+                    &window,
+                    shown,
+                    &mut self.windows,
+                    app,
+                );
+            });
+        }
     }
 
     /// Hands the continuity recorder what the frame drew, if it is recording.
@@ -1900,6 +2017,34 @@ const DRAW_SCOPE: &str = "eggshell-draw";
 
 #[derive(Clone, Copy)]
 struct NodeIdTag(egui::Id);
+
+/// The border box of the pane a splitter sizes, as laid out.
+#[derive(Clone, Copy)]
+struct PaneTag(Option<Rect>);
+
+/// The rect of the sibling on `side` of the node at `index`.
+fn neighbour(nodes: &[PlacedNode], index: usize, side: Side) -> Option<Rect> {
+    let node = nodes.get(index)?;
+    let depth = node.depth();
+    let sibling = match side {
+        Side::Before => nodes
+            .get(..index)?
+            .iter()
+            .rev()
+            .take_while(|before| before.depth() >= depth)
+            .find(|before| before.depth() == depth)?,
+        Side::After => nodes.get(node.end).filter(|next| next.depth() == depth)?,
+    };
+    Some(sibling.rect())
+}
+
+/// The laid-out border box of the pane the splitter whose draw closure is
+/// running sizes.
+pub(crate) fn pane_rect(ui: &Ui) -> Option<Rect> {
+    let scope = ui.unique_id();
+    ui.data(|data| data.get_temp::<PaneTag>(scope))
+        .and_then(|tag| tag.0)
+}
 
 #[derive(Clone, Copy)]
 struct BlurTag(Blur);
