@@ -37,8 +37,11 @@ use taffy::{NodeId, TaffyTree};
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
 use crate::collapse::CollapseAxis;
 use crate::dnd::EdgeScroll;
+use crate::draw::NodeUi as _;
 use crate::kept::Handle;
-use crate::key::Key;
+use crate::key::{Key, child_id};
+use crate::nav::ListMove;
+use crate::overlay::Nav;
 use crate::pipeline::Node;
 use crate::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain, ScrollStyle, TabRule};
 use crate::shell::Shell;
@@ -50,6 +53,8 @@ pub(crate) struct VList {
     pub(crate) rows: RowHeights,
     pub(crate) overscan: f32,
     pub(crate) start: Start,
+    /// Whether the list navigates as a listbox.
+    pub(crate) listbox: bool,
 }
 
 /// Where a list opens the first time it is laid out.
@@ -125,7 +130,13 @@ pub struct ListChain<'a, 'f, A, R> {
     heights: Option<RowHeights>,
     overscan: f32,
     start: Start,
+    listbox: bool,
+    row_classes: Tw,
+    on_activate: Option<Activate<A, R>>,
+    row_name: Option<std::rc::Rc<dyn Fn(R) -> String>>,
 }
+
+type Activate<A, R> = std::rc::Rc<dyn Fn(&mut A, R)>;
 
 impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
     pub(crate) fn new(b: Builder<'a, 'f, A>, slot: Slot, classes: Tw, rows: &'f [R]) -> Self {
@@ -135,7 +146,44 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             heights: None,
             overscan: OVERSCAN,
             start: Start::Top,
+            listbox: false,
+            row_classes: tw(),
+            on_activate: None,
+            row_name: None,
         }
+    }
+
+    /// TODO(prose): `Nav::Listbox` makes the list one Tab stop with a virtual highlight moved by the arrow, Home, End and Page keys; `Nav::None` is the default.
+    #[track_caller]
+    pub fn nav(mut self, nav: Nav) -> Self {
+        if !matches!(nav, Nav::None | Nav::Listbox) {
+            crate::report::report(
+                self.scroll.builder().ctx(),
+                crate::Problem::UnsupportedNav,
+                Some(self.scroll.id()),
+                || format!("a virtual list navigates as a listbox or not at all, not {nav:?}"),
+            );
+        }
+        self.listbox = nav == Nav::Listbox;
+        self
+    }
+
+    /// TODO(prose): runs `then` with the row Enter, Space or a click activates; only for a listbox.
+    pub fn on_activate(mut self, then: impl Fn(&mut A, R) + 'static) -> Self {
+        self.on_activate = Some(std::rc::Rc::new(then));
+        self
+    }
+
+    /// TODO(prose): the accessible name `name` gives each row of a listbox.
+    pub fn row_name(mut self, name: impl Fn(R) -> String + 'static) -> Self {
+        self.row_name = Some(std::rc::Rc::new(name));
+        self
+    }
+
+    /// TODO(prose): classes of each row's wrapper, such as a `hover` look the highlighted row takes.
+    pub fn row_classes(mut self, classes: Tw) -> Self {
+        self.row_classes = classes;
+        self
     }
 
     /// Opens the list at its end the first time it is laid out, as a chat
@@ -224,7 +272,16 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             heights,
             overscan,
             start,
+            listbox,
+            row_classes,
+            on_activate,
+            row_name,
         } = self;
+        let scroll = if listbox {
+            scroll.focusable(Focusable::Always).role(Role::ListBox)
+        } else {
+            scroll
+        };
         let list = scroll.id();
         let kept = scroll.builder().kept().clone();
         let pass = scroll.builder().ctx().cumulative_pass_nr();
@@ -240,6 +297,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
                     rows: heights,
                     overscan,
                     start,
+                    listbox,
                 },
                 rows,
             );
@@ -249,7 +307,17 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
         let scroll = handle.node();
         let mut b = handle.into_builder();
         let (plan, leaf) = planned.expect("the content was built");
-        b.list_region(leaf, list, plan.run(scroll, Items::new(rows, item)));
+        let behavior = listbox.then(|| Listbox {
+            list,
+            kept: kept.clone(),
+            on_activate,
+            row_name,
+        });
+        b.list_region(
+            leaf,
+            list,
+            plan.run(scroll, Items::new(rows, item, row_classes, behavior)),
+        );
         b.into_handle(scroll)
     }
 }
@@ -311,6 +379,8 @@ pub(crate) struct ListState {
     built: Vec<BuiltRow>,
     /// What the last frame held still for the next.
     hold: Option<Hold>,
+    /// The key of the highlighted row of a listbox.
+    active: Option<IdSalt>,
     /// The part of the last frame's correction its content was too short to
     /// take: the content grows once the rows it measured count.
     owed: f32,
@@ -356,9 +426,18 @@ enum Hold {
 pub(crate) struct Lists(HashMap<Id, ListState>);
 
 impl Lists {
-    /// Forgets the lists not laid out in the pass `pass`.
-    pub(crate) fn sweep(&mut self, pass: u64) {
-        self.0.retain(|_, list| list.pass == pass);
+    /// Forgets the lists not laid out in the pass `pass`, and returns them.
+    pub(crate) fn sweep(&mut self, pass: u64) -> Vec<Id> {
+        let gone: Vec<Id> = self
+            .0
+            .iter()
+            .filter(|(_, list)| list.pass != pass)
+            .map(|(&id, _)| id)
+            .collect();
+        for id in &gone {
+            self.0.remove(id);
+        }
+        gone
     }
 }
 
@@ -405,23 +484,42 @@ pub(crate) trait Rows<'f, A> {
     fn len(&self) -> usize;
     /// The key of row `at` in the height cache.
     fn key(&self, at: usize) -> IdSalt;
+    /// The id row `at` has when built under `base`.
+    fn id(&self, base: Id, at: usize) -> Id;
     /// Builds row `at` under its own key with `classes`, returning its id
     /// and node.
     fn build(&mut self, b: &mut Builder<'_, 'f, A>, at: usize, classes: Tw) -> (Id, NodeId);
 }
 
-pub(crate) struct Items<'f, R, F> {
-    rows: &'f [R],
-    item: F,
+/// What a listbox's row wrappers do.
+pub(crate) struct Listbox<A, R> {
+    list: Id,
+    kept: Handle,
+    on_activate: Option<Activate<A, R>>,
+    row_name: Option<std::rc::Rc<dyn Fn(R) -> String>>,
 }
 
-impl<'f, R, F> Items<'f, R, F> {
-    pub(crate) fn new(rows: &'f [R], item: F) -> Self {
-        Self { rows, item }
+pub(crate) struct Items<'f, A, R, F> {
+    rows: &'f [R],
+    item: F,
+    classes: Tw,
+    listbox: Option<Listbox<A, R>>,
+}
+
+impl<'f, A, R, F> Items<'f, A, R, F> {
+    pub(crate) fn new(rows: &'f [R], item: F, classes: Tw, listbox: Option<Listbox<A, R>>) -> Self {
+        Self {
+            rows,
+            item,
+            classes,
+            listbox,
+        }
     }
 }
 
-impl<'f, A, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f, A> for Items<'f, R, F> {
+impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f, A>
+    for Items<'f, A, R, F>
+{
     fn len(&self) -> usize {
         self.rows.len()
     }
@@ -430,10 +528,52 @@ impl<'f, A, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f, A> for I
         row_key(&self.rows[at])
     }
 
+    fn id(&self, base: Id, at: usize) -> Id {
+        child_id(base, &self.rows[at])
+    }
+
     fn build(&mut self, b: &mut Builder<'_, 'f, A>, at: usize, classes: Tw) -> (Id, NodeId) {
         let row = self.rows[at];
         let item = &mut self.item;
-        let handle = b.div_id(row, classes, |s| item(s, row));
+        let classes = classes.merge(self.classes.clone());
+        let Some(listbox) = &self.listbox else {
+            let handle = b.div_id(row, classes, |s| item(s, row));
+            return (handle.id(), handle.node());
+        };
+        let (list, kept) = (listbox.list, listbox.kept.clone());
+        let on_activate = listbox.on_activate.clone();
+        let handle = b
+            .div_id(row, classes.sense_click().group().focusable_none(), |s| {
+                item(s, row)
+            })
+            .role(Role::ListBoxOption);
+        let handle = match &listbox.row_name {
+            Some(name) => handle.named(name(row)),
+            None => handle,
+        };
+        let handle = handle.draw(move |app, ui| {
+            let response = ui.node_response();
+            let id = response.id;
+            let moved = ui.input(|input| input.pointer.delta()) != Vec2::ZERO;
+            if response.hovered() && moved && !crate::nav::is_highlighted(&kept, id) {
+                select(&kept, list, row_key(&row), id);
+                ui.ctx().request_repaint();
+            }
+            if response.clicked() {
+                select(&kept, list, row_key(&row), id);
+                ui.ctx().memory_mut(|memory| memory.request_focus(list));
+            }
+            if (response.clicked() || crate::nav::take_activation(ui, id))
+                && let Some(on_activate) = &on_activate
+            {
+                on_activate(app, row);
+            }
+            if crate::nav::is_highlighted(&kept, id) {
+                ui.ctx().accesskit_node_builder(list, |node| {
+                    node.set_active_descendant(id.accesskit_id());
+                });
+            }
+        });
         (handle.id(), handle.node())
     }
 }
@@ -447,6 +587,18 @@ pub(crate) struct Plan {
     overscan: f32,
     tops: Tops,
     keys: Vec<IdSalt>,
+    /// Whether the list navigates as a listbox.
+    listbox: bool,
+}
+
+/// Highlights the row `key`, built as `id`, of the listbox `list`.
+fn select(kept: &Handle, list: Id, key: IdSalt, id: Id) {
+    crate::nav::highlight_row(kept, list, id);
+    kept.with(|kept| {
+        if let Some(state) = kept.lists.0.get_mut(&list) {
+            state.active = Some(key);
+        }
+    });
 }
 
 impl Plan {
@@ -462,6 +614,7 @@ impl Plan {
             rows: heights,
             overscan,
             start,
+            listbox,
         } = settings;
         let (tops, keys) = kept.with(|kept| {
             let state = kept.lists.0.entry(list).or_insert_with(|| ListState {
@@ -513,6 +666,7 @@ impl Plan {
             overscan,
             tops,
             keys,
+            listbox,
         }
     }
 
@@ -624,6 +778,7 @@ impl<'f, A> ListRun<'f, A> {
             target: None,
         };
         let shell = Shell::new(ctx, &self.plan.kept);
+        self.navigate(ctx, &view);
         let requested = shell.requested_by(list).y;
         let moved = match self.forget_if_resized(width) {
             Some(Hold::End { offset }) if view.offset >= offset - AT_END => {
@@ -661,6 +816,42 @@ impl<'f, A> ListRun<'f, A> {
             view.target = Some(Anchor { at, own });
         }
         view
+    }
+
+    /// Moves a listbox's highlight with the frame's keys and pointer, and
+    /// asks for the row to be scrolled into view.
+    fn navigate(&self, ctx: &Context, view: &View) {
+        let list = self.plan.list;
+        if !self.plan.listbox {
+            return;
+        }
+        let kept = &self.plan.kept;
+        let len = self.rows.len();
+        let current = self
+            .plan
+            .with_state(|state| state.active)
+            .and_then(|key| self.find(key, 0));
+        let visible = self.plan.tops.visible(view.span(0.0));
+        let to = if crate::focus::holds_focus(ctx, list) {
+            crate::nav::hold_arrows(ctx, list);
+            ListMove::of_key(ctx)
+                .and_then(|key| key.target(current, len, visible.len().max(1), visible))
+        } else {
+            None
+        };
+        if let Some(at) = to {
+            select(kept, list, self.rows.key(at), self.rows.id(list, at));
+            kept.with(|kept| {
+                kept.scrolls.rows.insert(
+                    list,
+                    ScrollTo {
+                        row: self.rows.key(at),
+                        align: None,
+                    },
+                );
+            });
+            ctx.request_repaint();
+        }
     }
 
     /// Forgets the kept heights if the list is no longer `width` wide, and
@@ -722,6 +913,15 @@ impl<'f, A> ListRun<'f, A> {
             .filter_map(|row| self.find(row.key, row.at))
             .filter(|at| !range.contains(at))
             .collect();
+        if self.plan.listbox
+            && let Some(at) = self
+                .plan
+                .with_state(|state| state.active)
+                .and_then(|key| self.find(key, 0))
+            && !range.contains(&at)
+        {
+            pinned.push(at);
+        }
         pinned.sort_unstable();
         pinned.dedup();
         pinned

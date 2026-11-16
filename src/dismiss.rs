@@ -62,7 +62,15 @@ impl Trigger {
     }
 }
 
-/// An open, attached overlay as dismissal sees it.
+/// Whether an open overlay is drawn, or hidden because its anchor left the
+/// window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Seen {
+    Drawn,
+    Hidden,
+}
+
+/// An open overlay as dismissal sees it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Layer {
     /// The overlay this one is declared in, as an index in the slice.
@@ -83,6 +91,8 @@ pub(crate) struct Layer {
     pub(crate) focus_now: FocusAt,
     /// A missing anchor makes the overlay take no part in the other rules.
     pub(crate) lookup: AnchorLookup,
+    /// A hidden overlay takes no press, Esc or window blur.
+    pub(crate) seen: Seen,
 }
 
 /// What the frame's input did.
@@ -133,9 +143,9 @@ impl Found {
     }
 }
 
-/// The overlays `input` dismisses, topmost first. `layers` are the attached
-/// overlays, the one opened first at the bottom, each after the overlay it is
-/// declared in.
+/// The overlays `input` dismisses, topmost first. `layers` are the open
+/// overlays, drawn or hidden, the one opened first at the bottom, each after
+/// the overlay it is declared in.
 ///
 /// 1. Press, Esc and focus are not judged while a drag is live.
 /// 2. A press dismisses, top-down, each overlay that does not contain it,
@@ -150,24 +160,37 @@ impl Found {
 ///    Esc, or that has a cancel button. The cancel button answers it, and the
 ///    overlay is not otherwise dismissed.
 /// 4. Focus moving from inside an overlay to a widget outside it dismisses
-///    it; focus becoming none does not.
-/// 5. The window losing focus dismisses every overlay that dismisses on focus
-///    leaving.
+///    it; focus becoming none does not. A hidden overlay is dismissed by
+///    focus arriving at a widget elsewhere from nowhere as well, since no
+///    press reaches it to do so.
+/// 5. The window losing focus dismisses every drawn overlay that dismisses
+///    on focus leaving.
 /// 6. An overlay opening while a swallowing overlay is open, that is not
-///    nested in it, dismisses the swallowing one: menus are exclusive.
-///    Tooltips do not count.
+///    nested in it, dismisses the swallowing one, drawn or hidden: menus are
+///    exclusive. Tooltips and hidden overlays do not count as opening.
+///
+/// Presses and Esc pass hidden overlays by: only focus and exclusivity reach
+/// them, so scrolling an anchor out of view and back never closes one.
 pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
     let top_down = || {
         (0..layers.len())
             .rev()
             .filter(|&at| layers[at].lookup == AnchorLookup::Found)
     };
+    let drawn = |at: &usize| {
+        layers
+            .get(*at)
+            .is_some_and(|layer| layer.seen == Seen::Drawn)
+    };
     let mut found = Found::default();
     for at in (0..layers.len()).filter(|&at| layers[at].lookup == AnchorLookup::Missing) {
         found.add(at, Cause::AnchorGone);
     }
     if input.window_blurred {
-        for at in top_down().filter(|&at| dismisses_on_focus_loss(&layers[at])) {
+        for at in top_down()
+            .filter(drawn)
+            .filter(|&at| layers.get(at).is_some_and(dismisses_on_focus_loss))
+        {
             found.add(at, Cause::WindowBlur);
         }
     }
@@ -198,10 +221,13 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
 /// The overlay Esc goes to: the topmost that dismisses on Esc or has a
 /// cancel button. With none, Esc is the page's.
 pub(crate) fn esc_target(layers: &[Layer]) -> Option<usize> {
-    (0..layers.len())
+    layers
+        .iter()
+        .enumerate()
         .rev()
-        .filter(|&at| layers[at].lookup == AnchorLookup::Found)
-        .find(|&at| layers[at].dismiss_on.esc() || layers[at].cancel.is_some())
+        .filter(|(_, layer)| layer.lookup == AnchorLookup::Found && layer.seen == Seen::Drawn)
+        .find(|(_, layer)| layer.dismiss_on.esc() || layer.cancel.is_some())
+        .map(|(at, _)| at)
 }
 
 /// A modal traps focus, so focus leaving it, or the window losing focus, is
@@ -213,14 +239,14 @@ fn dismisses_on_focus_loss(layer: &Layer) -> bool {
 /// Focus left the overlay: it went to a widget elsewhere. A Tab is leaving
 /// too when it started from nowhere (a click on the overlay's own padding
 /// dropped the focus), or took focus off the last widget on its way round to
-/// the first, which is nowhere for a pass.
+/// the first, which is nowhere for a pass. So is any arrival from nowhere at
+/// a hidden overlay, which the press that focused the widget passed by.
 fn leaving(layer: &Layer, input: &Input) -> bool {
     dismisses_on_focus_loss(layer)
         && match (layer.focus_before, layer.focus_now) {
             (FocusAt::Inside, FocusAt::Elsewhere) => true,
-            (FocusAt::Inside, FocusAt::Nowhere) | (FocusAt::Nowhere, FocusAt::Elsewhere) => {
-                input.tab
-            }
+            (FocusAt::Nowhere, FocusAt::Elsewhere) => input.tab || layer.seen == Seen::Hidden,
+            (FocusAt::Inside, FocusAt::Nowhere) => input.tab,
             _ => false,
         }
 }
@@ -241,8 +267,11 @@ fn contains(layers: &[Layer], at: usize, press: Pos2) -> bool {
 
 fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
     let mut swallowed_by = None;
-    for at in (0..layers.len()).rev() {
-        if layers[at].lookup == AnchorLookup::Missing || !layers[at].band.senses_input() {
+    for (at, layer) in layers.iter().enumerate().rev() {
+        if layer.lookup == AnchorLookup::Missing
+            || layer.seen == Seen::Hidden
+            || !layer.band.senses_input()
+        {
             continue;
         }
         if swallowed_by.is_some_and(|by| !nested_in(layers, by, at)) {
@@ -251,7 +280,6 @@ fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
         if contains(layers, at, press) {
             break;
         }
-        let layer = &layers[at];
         if layer.boundary == Boundary::Scrim {
             if layer.dismiss_on.outside() {
                 found.add(at, Cause::Outside);
@@ -268,13 +296,14 @@ fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
 }
 
 fn exclusive(layers: &[Layer], found: &mut Found) {
-    for opened in (0..layers.len()).filter(|&at| {
-        layers[at].opening == Opening::Opened
-            && layers[at].band != Band::Tooltip
-            && layers[at].lookup == AnchorLookup::Found
-    }) {
-        for below in 0..opened {
-            let layer = &layers[below];
+    let opening = layers.iter().enumerate().filter(|(_, layer)| {
+        layer.opening == Opening::Opened
+            && layer.band != Band::Tooltip
+            && layer.lookup == AnchorLookup::Found
+            && layer.seen == Seen::Drawn
+    });
+    for (opened, _) in opening {
+        for (below, layer) in layers.iter().enumerate().take(opened) {
             if layer.lookup == AnchorLookup::Found
                 && layer.outside == Outside::Swallow
                 && layer.dismiss_on == DismissOn::Default
@@ -315,6 +344,14 @@ mod tests {
             focus_before: FocusAt::Nowhere,
             focus_now: FocusAt::Nowhere,
             lookup: AnchorLookup::Found,
+            seen: Seen::Drawn,
+        }
+    }
+
+    fn hidden(layer: Layer) -> Layer {
+        Layer {
+            seen: Seen::Hidden,
+            ..layer
         }
     }
 
@@ -541,6 +578,83 @@ mod tests {
             ..moved(FocusAt::Inside, FocusAt::Elsewhere)
         };
         assert_eq!(closed(&[esc_only], &idle), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn focus_arriving_elsewhere_from_nowhere_dismisses_a_hidden_overlay() {
+        let moved = |before, now| Layer {
+            focus_before: before,
+            focus_now: now,
+            ..hidden(menu(0.0))
+        };
+        let idle = Input::default();
+        for (before, now) in [
+            (FocusAt::Inside, FocusAt::Elsewhere),
+            (FocusAt::Nowhere, FocusAt::Elsewhere),
+        ] {
+            assert_eq!(
+                closed(&[moved(before, now)], &idle),
+                vec![0],
+                "{before:?} to {now:?}"
+            );
+        }
+        for (before, now) in [
+            (FocusAt::Inside, FocusAt::Nowhere),
+            (FocusAt::Elsewhere, FocusAt::Elsewhere),
+            (FocusAt::Nowhere, FocusAt::Nowhere),
+        ] {
+            assert_eq!(
+                closed(&[moved(before, now)], &idle),
+                Vec::<usize>::new(),
+                "{before:?} to {now:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_hidden_overlay_takes_no_press_esc_or_window_blur() {
+        let blur = Input {
+            window_blurred: true,
+            ..Input::default()
+        };
+        for layer in [hidden(popover(0.0)), hidden(menu(0.0))] {
+            assert_eq!(closed(&[layer], &press(PAGE)), Vec::<usize>::new());
+            assert_eq!(closed(&[layer], &ESC), Vec::<usize>::new());
+            assert_eq!(closed(&[layer], &blur), Vec::<usize>::new());
+        }
+        let below = [popover(0.0), hidden(menu(150.0))];
+        assert_eq!(
+            closed(&below, &press(PAGE)),
+            vec![0],
+            "the hidden menu swallows nothing"
+        );
+        assert_eq!(
+            closed(&below, &ESC),
+            vec![0],
+            "Esc passes the hidden menu by"
+        );
+    }
+
+    #[test]
+    fn a_hidden_menu_makes_way_for_an_overlay_that_opens_but_a_hidden_one_opening_does_not() {
+        let opened = |layer: Layer| Layer {
+            opening: Opening::Opened,
+            ..layer
+        };
+        assert_eq!(
+            closed(
+                &[hidden(menu(0.0)), opened(popover(150.0))],
+                &Input::default()
+            ),
+            vec![0]
+        );
+        assert_eq!(
+            closed(
+                &[menu(0.0), opened(hidden(popover(150.0)))],
+                &Input::default()
+            ),
+            Vec::<usize>::new()
+        );
     }
 
     #[test]

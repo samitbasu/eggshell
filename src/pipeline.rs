@@ -642,7 +642,16 @@ impl<'f, A> Built<'f, A> {
                         Some(Err(_)) => (placement, AnchorLookup::Missing),
                         None => (placement, lookup),
                     };
-                    if lookup == AnchorLookup::Missing && opening == Opening::Opened {
+                    if lookup == AnchorLookup::Missing
+                        && overlay.band == crate::overlay::Band::Tooltip
+                    {
+                        // A tooltip opens a frame after its trigger asked,
+                        // and the trigger may be gone by then.
+                        if let Anchor::Node(trigger) = anchor_decl {
+                            st.kept
+                                .viewport(ctx.viewport_id(), |here| here.tooltips.forget(trigger));
+                        }
+                    } else if lookup == AnchorLookup::Missing && opening == Opening::Opened {
                         #[cfg(debug_assertions)]
                         {
                             let path = st
@@ -796,7 +805,8 @@ impl<'f, A> Built<'f, A> {
         stack.store(&st.kept, ctx.viewport_id());
         st.kept.with(|kept| {
             kept.presences.sweep();
-            kept.lists.sweep(ctx.cumulative_pass_nr());
+            let gone = kept.lists.sweep(ctx.cumulative_pass_nr());
+            crate::nav::forget_lists(kept, &gone);
         });
         let Frame {
             measures,
@@ -1490,6 +1500,12 @@ impl PlacedNode {
                         | Role::GridCell
                 )
             })
+    }
+
+    /// Whether the node is an option of a listbox, which may be a row of a
+    /// virtual list rather than an item of an overlay.
+    pub(crate) fn is_listbox_option(&self) -> bool {
+        self.description().and_then(|description| description.role) == Some(Role::ListBoxOption)
     }
 
     /// Whether the node must register its widgets while it is scrolled out

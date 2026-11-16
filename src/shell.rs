@@ -52,9 +52,20 @@ impl Shell {
 pub trait ShellExt {
     /// The shell of the layout whose draw closure this `Ui` belongs to.
     ///
+    /// Layouts may nest: a draw closure of one layout may build and draw
+    /// another (an egui `Popup` or `Area` with eggshell content, say). While
+    /// the inner [`Placed::draw`](crate::Placed::draw) runs, its closures see
+    /// the inner layout; once it returns, the outer layout's closures see the
+    /// outer one again.
+    ///
     /// # Panics
     ///
-    /// Outside a draw closure of [`Placed::draw`](crate::Placed::draw).
+    /// Outside every draw closure of a [`Placed::draw`](crate::Placed::draw):
+    /// with no layout being drawn there is no shell to name. Use
+    /// [`try_shell`](Self::try_shell) where a `Ui` may come from plain egui
+    /// code. The library's own widgets never panic here: they use
+    /// `try_shell`, print a warning once per context, and skip the step that
+    /// needed the shell.
     ///
     /// # Example
     ///
@@ -77,17 +88,42 @@ pub trait ShellExt {
     /// .drop_without_applying_deltas();
     /// ```
     fn shell(&self) -> Shell;
+
+    /// The shell of the layout being drawn, or `None` outside every draw
+    /// closure of a [`Placed::draw`](crate::Placed::draw).
+    fn try_shell(&self) -> Option<Shell>;
 }
 
 impl ShellExt for Ui {
     fn shell(&self) -> Shell {
-        let key = drawing_key(self.ctx());
-        let kept = self
-            .ctx()
-            .data(|data| data.get_temp::<Handle>(key))
-            .expect("`Ui::shell` is for the draw closures of a `Placed`");
-        Shell::new(self.ctx(), &kept)
+        self.try_shell().expect(
+            "`Ui::shell` is for the draw closures of a `Placed`; use `try_shell` outside them",
+        )
     }
+
+    fn try_shell(&self) -> Option<Shell> {
+        let key = drawing_key(self.ctx());
+        let kept = self.ctx().data(|data| data.get_temp::<Handle>(key))?;
+        Some(Shell::new(self.ctx(), &kept))
+    }
+}
+
+/// The shell for a library widget that has only a `Ui`, or `None`, reported
+/// as [`ShellOutsideDraw`](crate::Problem::ShellOutsideDraw), with the step
+/// `what` skipped. A library widget drawn outside every `Placed::draw` loses
+/// that step instead of panicking.
+#[track_caller]
+pub(crate) fn shell_or_report(ui: &Ui, what: &'static str) -> Option<Shell> {
+    let shell = ui.try_shell();
+    if shell.is_none() {
+        crate::report::report(ui.ctx(), crate::Problem::ShellOutsideDraw, None, || {
+            format!(
+                "{what} needs the layout being drawn, and this `Ui` is outside every \
+                 `Placed::draw`; skipped"
+            )
+        });
+    }
+    shell
 }
 
 fn drawing_key(ctx: &Context) -> Id {
@@ -97,19 +133,66 @@ fn drawing_key(ctx: &Context) -> Id {
 /// Names the layout being drawn for the draw closures it runs, which receive
 /// only a `Ui`. Drawing is sequential, so the name is the context's for as
 /// long as the guard lives and no longer.
-pub(crate) struct Drawing(Context, Id);
+///
+/// Guards nest: a layout drawn from a draw closure of another enters its own
+/// guard, and dropping it puts back the name it replaced, so the outer
+/// layout's remaining closures see the outer layout again.
+pub(crate) struct Drawing {
+    ctx: Context,
+    key: Id,
+    outer: Option<Handle>,
+}
 
 impl Drawing {
     pub(crate) fn enter(ctx: &Context, kept: &Handle) -> Self {
         let key = drawing_key(ctx);
-        ctx.data_mut(|data| data.insert_temp(key, kept.clone()));
-        Self(ctx.clone(), key)
+        let outer = ctx.data_mut(|data| {
+            let outer = data.get_temp::<Handle>(key);
+            data.insert_temp(key, kept.clone());
+            outer
+        });
+        Self {
+            ctx: ctx.clone(),
+            key,
+            outer,
+        }
     }
 }
 
 impl Drop for Drawing {
     fn drop(&mut self) {
-        let key = self.1;
-        self.0.data_mut(|data| data.remove::<Handle>(key));
+        let key = self.key;
+        let outer = self.outer.take();
+        self.ctx.data_mut(|data| match outer {
+            Some(outer) => {
+                data.insert_temp(key, outer);
+            }
+            None => {
+                data.remove::<Handle>(key);
+            }
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_widget_step_outside_every_draw_is_reported_and_skipped() {
+        let ctx = Context::default();
+        let mut shells = Vec::new();
+        for _ in 0..2 {
+            ctx.run_ui(egui::RawInput::default(), |ui| {
+                shells.push(shell_or_report(ui, "a test step").is_some());
+            })
+            .drop_without_applying_deltas();
+        }
+        assert_eq!(shells, [false, false]);
+        let reports = crate::report::reports(&ctx);
+        assert_eq!(reports.len(), 1, "{reports:?}");
+        assert_eq!(reports[0].problem, crate::Problem::ShellOutsideDraw);
+        assert_eq!(reports[0].count, 2);
+        assert!(reports[0].message.contains("a test step"), "{reports:?}");
     }
 }

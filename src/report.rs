@@ -38,6 +38,8 @@ pub enum Problem {
     MissingStyleEntry,
     /// TODO(prose): two nodes of an overlay marked to take focus on open.
     FocusOnOpenTwice,
+    /// TODO(prose): a navigation the widget does not support.
+    UnsupportedNav,
     /// TODO(prose): a call that needs an identified node, on an anonymous one.
     NeedsIdentity,
     /// TODO(prose): a group variant with no group around it.

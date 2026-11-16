@@ -75,6 +75,8 @@ pub fn fill(_: &Measure<'_>) -> Size<f32> {
 pub(crate) struct TextLeaf<'a> {
     pub text: Shown<'a>,
     pub style: &'a TextStyle,
+    /// What each span marks, for a leaf of spans.
+    pub marks: Option<Vec<crate::spans::Mark>>,
     font: FontId,
 }
 
@@ -97,7 +99,26 @@ impl<'a> TextLeaf<'a> {
         Self {
             text: Shown::Plain(text),
             style,
+            marks: None,
             font: style.spec.font_id(ctx),
+        }
+    }
+
+    /// The leaf `prim` shows in `style`, if `prim` is text.
+    pub(crate) fn of(ctx: &egui::Context, prim: &'a Prim, style: &'a TextStyle) -> Option<Self> {
+        match prim {
+            Prim::Text(text) => Some(Self::plain(ctx, text, style)),
+            Prim::Rich(rich) => Some(Self::rich(ctx, rich, style)),
+            Prim::Spans(spans) => {
+                let (job, marks) = spans.laid_out(ctx, style);
+                Some(Self {
+                    text: Shown::Rich(job),
+                    style,
+                    marks: Some(marks),
+                    font: style.spec.font_id(ctx),
+                })
+            }
+            Prim::Icon(_) | Prim::Image(_) | Prim::Paint(_) => None,
         }
     }
 
@@ -120,6 +141,7 @@ impl<'a> TextLeaf<'a> {
         Self {
             text: Shown::Rich(job),
             style,
+            marks: None,
             font,
         }
     }
@@ -136,20 +158,8 @@ impl<'a> TextLeaf<'a> {
     /// the gap between it and the widest digit, so that every digit advances
     /// alike.
     fn plain_job(&self, fonts: &mut FontsView<'_>, text: &str) -> LayoutJob {
-        let underline = match self.style.decoration {
-            TextDecoration::None => Stroke::NONE,
-            TextDecoration::Underline => Stroke::new(1.0, Color32::PLACEHOLDER),
-        };
         let font_id = self.font.clone();
-        let format = TextFormat {
-            font_id: font_id.clone(),
-            extra_letter_spacing: self.style.tracking.into(),
-            line_height: Some(self.style.spec.line_height),
-            italics: self.style.font_style == FontStyle::Italic,
-            color: Color32::PLACEHOLDER,
-            underline,
-            ..TextFormat::default()
-        };
+        let format = text_format(self.style, font_id.clone());
         if self.style.numerals == Numerals::Proportional {
             return LayoutJob::single_section(text.to_owned(), format);
         }
@@ -265,6 +275,24 @@ impl<'a> TextLeaf<'a> {
     }
 }
 
+/// The format of text in `style` drawn with `font_id`, coloured
+/// [`Color32::PLACEHOLDER`] for the painter to resolve.
+pub(crate) fn text_format(style: &TextStyle, font_id: FontId) -> TextFormat {
+    let underline = match style.decoration {
+        TextDecoration::None => Stroke::NONE,
+        TextDecoration::Underline => Stroke::new(1.0, Color32::PLACEHOLDER),
+    };
+    TextFormat {
+        font_id,
+        extra_letter_spacing: style.tracking.into(),
+        line_height: Some(style.spec.line_height),
+        italics: style.font_style == FontStyle::Italic,
+        color: Color32::PLACEHOLDER,
+        underline,
+        ..TextFormat::default()
+    }
+}
+
 /// An egui style in which egui's own text colours are `ink`: rich text's
 /// `strong` and `weak` would otherwise take egui's visuals, which a box with
 /// colours of its own (an inverted tooltip) does not follow.
@@ -349,6 +377,23 @@ fn known_or(input: &LayoutInput, size: Size<f32>) -> LayoutOutput {
     })
 }
 
+/// The size of display content that is not text.
+fn display_size(prim: &Prim, text: &TextStyle) -> Size<f32> {
+    match prim {
+        Prim::Icon(_) => Size {
+            width: text.spec.size,
+            height: text.spec.size,
+        },
+        Prim::Image(egui::ImageSource::Texture(texture)) => Size {
+            width: texture.size.x,
+            height: texture.size.y,
+        },
+        Prim::Text(_) | Prim::Rich(_) | Prim::Spans(_) | Prim::Image(_) | Prim::Paint(_) => {
+            Size::ZERO
+        }
+    }
+}
+
 /// A node's content as measured by the library or the application.
 pub(crate) enum Content<'a> {
     /// Display content measured by the library.
@@ -370,31 +415,11 @@ pub(crate) fn measure_content(
     input: &LayoutInput,
 ) -> LayoutOutput {
     match content {
-        Content::Prim(Prim::Text(string)) => {
-            let leaf = TextLeaf::plain(ctx, string, text);
-            ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, input))
-        }
-        Content::Prim(Prim::Rich(rich)) => {
-            let leaf = TextLeaf::rich(ctx, rich, text);
-            ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, input))
-        }
-        Content::Prim(Prim::Icon(_)) => known_or(
-            input,
-            Size {
-                width: text.spec.size,
-                height: text.spec.size,
-            },
-        ),
-        Content::Prim(Prim::Image(egui::ImageSource::Texture(texture))) => known_or(
-            input,
-            Size {
-                width: texture.size.x,
-                height: texture.size.y,
-            },
-        ),
-        Content::Prim(Prim::Image(_) | Prim::Paint(_)) | Content::Empty => {
-            known_or(input, Size::ZERO)
-        }
+        Content::Prim(prim) => match TextLeaf::of(ctx, prim, text) {
+            Some(leaf) => ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, input)),
+            None => known_or(input, display_size(prim, text)),
+        },
+        Content::Empty => known_or(input, Size::ZERO),
         Content::Leaf(measure) => known_or(input, measure(&Measure::new(ctx, input, text))),
     }
 }
