@@ -1120,7 +1120,7 @@ impl Style {
     /// Cheap to call: the installed style is shared, and the derived one is
     /// kept until the context's egui style changes.
     pub fn of(ctx: &Context) -> Arc<Self> {
-        if let Some(style) = ctx.data(|data| data.get_temp::<Arc<Self>>(style_id(ctx.theme()))) {
+        if let Some(style) = Self::installed(ctx) {
             return style;
         }
         let source = ctx.global_style();
@@ -1141,6 +1141,11 @@ impl Style {
                 derived
             }
         }
+    }
+
+    /// The style installed in `ctx` for its theme, if one is.
+    pub(crate) fn installed(ctx: &Context) -> Option<Arc<Self>> {
+        ctx.data(|data| data.get_temp::<Arc<Self>>(style_id(ctx.theme())))
     }
 
     /// Makes `self` the style of every eggshell widget in `ctx`, in both
