@@ -1,6 +1,9 @@
 //! What the application keeps between frames.
 
+use std::ops::RangeInclusive;
+
 use eggshell_ui::Progress;
+use eggshell_ui::owned::PaneSize;
 use eggshell_ui_shadcn::ThemeColor;
 use egui::Vec2;
 
@@ -12,23 +15,18 @@ pub enum Pane {
 }
 
 impl Pane {
-    const fn limits(self) -> (f32, f32) {
+    pub const fn limits(self) -> RangeInclusive<f32> {
         match self {
-            Self::Sidebar => (180.0, 420.0),
-            Self::Details => (220.0, 480.0),
+            Self::Sidebar => 180.0..=420.0,
+            Self::Details => 220.0..=480.0,
         }
     }
 
-    const fn default_width(self) -> f32 {
+    pub const fn default_width(self) -> f32 {
         match self {
             Self::Sidebar => 260.0,
             Self::Details => 288.0,
         }
-    }
-
-    /// Which way a pointer moving right moves the pane's inner edge.
-    const fn grows_rightward(self) -> bool {
-        matches!(self, Self::Sidebar)
     }
 }
 
@@ -64,36 +62,6 @@ impl Panes {
             Pane::Details => self == Self::All,
         }
     }
-}
-
-/// A pane's width in points, always within its pane's limits.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PaneWidth(f32);
-
-impl PaneWidth {
-    /// `points` clamped to the limits of `pane`; NaN gives its default.
-    pub fn new(pane: Pane, points: f32) -> Self {
-        let (min, max) = pane.limits();
-        if points.is_nan() {
-            Self(pane.default_width())
-        } else {
-            Self(points.clamp(min, max))
-        }
-    }
-}
-
-impl From<PaneWidth> for f32 {
-    fn from(width: PaneWidth) -> f32 {
-        width.0
-    }
-}
-
-/// A splitter drag in progress.
-#[derive(Clone, Copy, Debug)]
-struct Drag {
-    pane: Pane,
-    width_at_press: PaneWidth,
-    pointer_x_at_press: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -210,9 +178,8 @@ pub struct App {
     /// An index into [`MODELS`].
     pub model: usize,
     pub mode: Mode,
-    sidebar: PaneWidth,
-    details: PaneWidth,
-    drag: Option<Drag>,
+    sidebar: PaneSize,
+    details: PaneSize,
     /// The titles of the details sections that are folded.
     folded: Vec<&'static str>,
 }
@@ -317,9 +284,8 @@ impl Default for App {
             draft: String::new(),
             model: 0,
             mode: Mode::Standard,
-            sidebar: PaneWidth::new(Pane::Sidebar, Pane::Sidebar.default_width()),
-            details: PaneWidth::new(Pane::Details, Pane::Details.default_width()),
-            drag: None,
+            sidebar: PaneSize::new(Pane::Sidebar.default_width()),
+            details: PaneSize::new(Pane::Details.default_width()),
             folded: Vec::new(),
         }
     }
@@ -338,17 +304,17 @@ impl App {
         }
     }
 
-    pub fn width(&self, pane: Pane) -> PaneWidth {
+    pub fn width(&self, pane: Pane) -> PaneSize {
         match pane {
             Pane::Sidebar => self.sidebar,
             Pane::Details => self.details,
         }
     }
 
-    fn width_mut(&mut self, pane: Pane) -> &mut PaneWidth {
+    pub fn set_width(&mut self, pane: Pane, size: PaneSize) {
         match pane {
-            Pane::Sidebar => &mut self.sidebar,
-            Pane::Details => &mut self.details,
+            Pane::Sidebar => self.sidebar = size,
+            Pane::Details => self.details = size,
         }
     }
 
@@ -361,37 +327,5 @@ impl App {
         }
         self.conversation.push(Message::User(text.to_owned()));
         self.draft.clear();
-    }
-
-    pub fn begin_drag(&mut self, pane: Pane, pointer_x: f32) {
-        self.drag = Some(Drag {
-            pane,
-            width_at_press: self.width(pane),
-            pointer_x_at_press: pointer_x,
-        });
-    }
-
-    /// Resizes the dragged pane so its edge follows the pointer, measured from
-    /// where the drag started so that clamping does not accumulate drift.
-    pub fn drag_to(&mut self, pointer_x: f32) {
-        let Some(Drag {
-            pane,
-            width_at_press,
-            pointer_x_at_press,
-        }) = self.drag
-        else {
-            return;
-        };
-        let moved = pointer_x - pointer_x_at_press;
-        let signed = if pane.grows_rightward() {
-            moved
-        } else {
-            -moved
-        };
-        *self.width_mut(pane) = PaneWidth::new(pane, f32::from(width_at_press) + signed);
-    }
-
-    pub fn end_drag(&mut self) {
-        self.drag = None;
     }
 }

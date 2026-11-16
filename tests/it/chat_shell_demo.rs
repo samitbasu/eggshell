@@ -136,10 +136,8 @@ fn the_details_splitter_grows_its_pane_leftwards() {
 #[test]
 fn pane_widths_clamp_and_do_not_drift() {
     let mut harness = harness();
-    let (min, max) = (
-        f32::from(chat_shell::state::PaneWidth::new(Pane::Sidebar, 0.0)),
-        f32::from(chat_shell::state::PaneWidth::new(Pane::Sidebar, 1e9)),
-    );
+    let limits = Pane::Sidebar.limits();
+    let (min, max) = (*limits.start(), *limits.end());
     assert!(min < width(&harness, Pane::Sidebar) && width(&harness, Pane::Sidebar) < max);
 
     drag_splitter(&mut harness, Pane::Sidebar, 2000.0);
@@ -156,10 +154,9 @@ fn pane_widths_clamp_and_do_not_drift() {
 #[test]
 fn the_splitter_shows_a_resize_cursor_and_lights_its_line_under_the_pointer() {
     let mut harness = harness();
-    let line = "/Frame/Splitter(Sidebar)/\"line\"";
     let splitter = rect(&harness, Part::Splitter(Pane::Sidebar));
     assert_ne!(
-        fill_of(&harness, line),
+        splitter_glow::line_color(&harness),
         Some(color(&harness, Tok::Accent)),
         "precondition: the line starts unlit"
     );
@@ -167,11 +164,11 @@ fn the_splitter_shows_a_resize_cursor_and_lights_its_line_under_the_pointer() {
     hover_over(&mut harness, splitter.center());
     assert_eq!(
         harness.output().platform_output.cursor_icon,
-        CursorIcon::ResizeHorizontal
+        CursorIcon::ResizeColumn
     );
     harness.run_steps(6);
     assert_eq!(
-        fill_of(&harness, line),
+        splitter_glow::line_color(&harness),
         Some(color(&harness, Tok::Accent)),
         "lit once its transition has run"
     );
@@ -179,9 +176,12 @@ fn the_splitter_shows_a_resize_cursor_and_lights_its_line_under_the_pointer() {
     hover_node(&mut harness, &path(Part::Centre));
     assert_ne!(
         harness.output().platform_output.cursor_icon,
-        CursorIcon::ResizeHorizontal
+        CursorIcon::ResizeColumn
     );
-    assert_ne!(fill_of(&harness, line), Some(color(&harness, Tok::Accent)));
+    assert_ne!(
+        splitter_glow::line_color(&harness),
+        Some(color(&harness, Tok::Accent))
+    );
 }
 
 #[test]
@@ -330,7 +330,7 @@ fn send_is_inert_while_the_draft_is_empty() {
 }
 
 #[test]
-fn tab_walks_the_sidebar_in_order_and_skips_the_splitters() {
+fn tab_walks_the_sidebar_in_order_then_its_splitter() {
     let mut harness = harness();
     let mut order = Vec::new();
     support::past_bar(&mut harness);
@@ -362,8 +362,13 @@ fn tab_walks_the_sidebar_in_order_and_skips_the_splitters() {
         Some(sessions[0].as_str()),
         "the sidebar paints before the centre: {order:?}"
     );
-    assert!(
-        order.iter().all(|path| !path.contains("Splitter")),
+    let after_sidebar = order
+        .iter()
+        .position(|path| path == sessions[sessions.len() - 1])
+        .map(|at| at + 1);
+    assert_eq!(
+        after_sidebar.and_then(|at| order.get(at)),
+        Some(&path(Part::Splitter(Pane::Sidebar))),
         "{order:?}"
     );
 }
@@ -1254,7 +1259,19 @@ mod folding {
 mod splitter_glow {
     use super::*;
 
-    const LINE: &str = "/Frame/Splitter(Sidebar)/\"line\"";
+    /// The colour of the line painted down the middle of the sidebar's
+    /// splitter.
+    pub(super) fn line_color(harness: &Harness<'_, Rig<App>>) -> Option<egui::Color32> {
+        let x = rect(harness, Part::Splitter(Pane::Sidebar)).center().x;
+        support::shapes(harness)
+            .into_iter()
+            .find_map(|shape| match shape {
+                egui::Shape::LineSegment { points, stroke } if points[0].x == x => {
+                    Some(stroke.color)
+                }
+                _ => None,
+            })
+    }
 
     #[test]
     fn hovering_a_splitter_fades_its_line_to_the_accent() {
@@ -1262,9 +1279,9 @@ mod splitter_glow {
         support::full_motion(&harness.ctx);
         harness.run_steps(4);
         let (line, accent) = (color(&harness, Tok::Line), color(&harness, Tok::Accent));
-        assert_eq!(fill_of(&harness, LINE), Some(line), "precondition: at rest");
+        assert_eq!(line_color(&harness), Some(line), "precondition: at rest");
         hover_node(&mut harness, &path(Part::Splitter(Pane::Sidebar)));
-        let mid = fill_of(&harness, LINE).expect("the line is painted");
+        let mid = line_color(&harness).expect("the line is painted");
         let between = |channel: fn(egui::Color32) -> u8| {
             let (from, to, now) = (channel(line), channel(accent), channel(mid));
             from.min(to) < now && now < from.max(to)
@@ -1274,6 +1291,6 @@ mod splitter_glow {
             "mid-transition {mid:?} is between {line:?} and {accent:?}"
         );
         harness.run_steps(6);
-        assert_eq!(fill_of(&harness, LINE), Some(accent));
+        assert_eq!(line_color(&harness), Some(accent));
     }
 }

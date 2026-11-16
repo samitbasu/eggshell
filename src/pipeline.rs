@@ -22,6 +22,7 @@ use crate::kept::Handle;
 use crate::key::{ReadablePath, Seen, layout_root, root_id};
 use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
+use crate::owned::Side;
 use crate::prim::Prim;
 use crate::region::{self, RegionDecl};
 use crate::roots::{
@@ -111,6 +112,8 @@ pub(crate) struct Node {
     pub description: Option<Box<Description>>,
     pub action: Option<Action>,
     pub open_focus: OpenFocus,
+    /// For a splitter, the neighbour it sizes.
+    pub pane: Option<Side>,
 }
 
 impl Node {
@@ -138,6 +141,7 @@ impl Node {
             description: None,
             action: None,
             open_focus: OpenFocus::Elsewhere,
+            pane: None,
         }
     }
 }
@@ -1250,6 +1254,7 @@ fn collect(
         description: node.description.take(),
         action: node.action,
         open_focus: node.open_focus,
+        pane: node.pane,
         measured,
     });
     for child in tree.children(id).expect("node exists") {
@@ -1350,6 +1355,7 @@ pub struct PlacedNode {
     description: Option<Box<Description>>,
     action: Option<Action>,
     open_focus: OpenFocus,
+    pub(crate) pane: Option<Side>,
     /// What the content of an application-measured leaf wants at its final
     /// width; recorded only while [`Debug::Outlines`] is set. The library's
     /// own leaves are measured when asked ([`Placed::overflowing`]).
