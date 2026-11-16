@@ -172,9 +172,25 @@ struct Waiting {
     since: Duration,
 }
 
-/// Ticks in which focus restored to a trigger may show up in the frame's
-/// triggers: egui applies a requested focus a pass later.
+/// Ticks in which focus restored to a trigger may land on it: egui applies a
+/// requested focus a pass later.
 const RESTORE_TICKS: u8 = 3;
+
+/// A trigger that an overlay's dismissal gave focus back to. Until the focus
+/// leaves it, its focus wants no tooltip: focus given back is focus staying
+/// put, not arriving.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Restored {
+    trigger: Id,
+    landing: Landing,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Landing {
+    /// Requested, and given up after this many more ticks without landing.
+    Pending(u8),
+    Landed,
+}
 
 #[derive(Default)]
 pub(crate) struct Tooltips {
@@ -183,18 +199,51 @@ pub(crate) struct Tooltips {
     present: Vec<Present>,
     waiting: Option<Waiting>,
     latched: Option<Id>,
-    /// A trigger that focus was just restored to, and how many ticks to wait
-    /// for the frame's triggers to show it.
-    restoring: Option<(Id, u8)>,
+    restored: Option<Restored>,
     closed_at: Option<Duration>,
 }
 
 impl Tooltips {
-    /// Focus was given back to `target` by an overlay closing. That is focus
-    /// staying put, not arriving: a tooltip that Esc closed stays closed
-    /// until the trigger is left and returned to.
+    /// Focus was given back to `target` by an overlay closing, whatever closed
+    /// it.
     pub(crate) fn focus_restored(&mut self, target: Id) {
-        self.restoring = Some((target, RESTORE_TICKS));
+        self.restored = Some(Restored {
+            trigger: target,
+            landing: Landing::Pending(RESTORE_TICKS),
+        });
+    }
+
+    /// Follows the focus given back to a trigger: it lands, then the
+    /// trigger's focus is an arrival again once the focus leaves it.
+    pub(crate) fn follow_focus(&mut self, focused: Option<Id>) {
+        let Some(restored) = self.restored else {
+            return;
+        };
+        let here = focused == Some(restored.trigger);
+        self.restored = match (restored.landing, here) {
+            (_, true) => Some(Restored {
+                landing: Landing::Landed,
+                ..restored
+            }),
+            (Landing::Pending(left), false) if left > 1 => Some(Restored {
+                landing: Landing::Pending(left - 1),
+                ..restored
+            }),
+            _ => None,
+        };
+    }
+
+    /// Whether `trigger` wants its tooltip for a reason that opens one.
+    fn arrives(&self, trigger: &Trigger) -> bool {
+        trigger.cause == Cause::Pointer
+            || self
+                .restored
+                .is_none_or(|restored| restored.trigger != trigger.id)
+    }
+
+    /// Drops the tooltip of `trigger`, which is gone, at once.
+    pub(crate) fn forget(&mut self, trigger: Id) {
+        self.present.retain(|present| present.trigger != trigger);
     }
 
     /// The triggers whose tooltip is open, in order.
@@ -262,16 +311,7 @@ impl Tooltips {
             self.close_all(now);
             return None;
         }
-        if let Some((target, left)) = self.restoring {
-            match wanted.map(|trigger| trigger.id) {
-                Some(id) if id == target => {
-                    self.latched = Some(target);
-                    self.restoring = None;
-                }
-                None if left > 1 => self.restoring = Some((target, left - 1)),
-                _ => self.restoring = None,
-            }
-        }
+        let wanted = wanted.filter(|trigger| self.arrives(trigger));
         if self.latched != wanted.map(|trigger| trigger.id) {
             self.latched = None;
         }
@@ -386,8 +426,10 @@ pub(crate) fn end(ctx: &Context, kept: &Handle, interruption: Option<Interruptio
     };
     let now = Duration::from_secs_f64(ctx.input(|input| input.time).max(0.0));
     let wanted = wanted(triggers);
+    let focused = ctx.memory(|memory| memory.focused());
     let (wait, changed) = kept.viewport(ctx.viewport_id(), |here| {
         let before = here.tooltips.open_triggers();
+        here.tooltips.follow_focus(focused);
         let wait = here
             .tooltips
             .tick(now, timing, wanted.as_ref(), interruption);
@@ -600,13 +642,40 @@ mod tests {
         tooltips.tick(ms(0), TIMING, Some(&a), None);
         tooltips.tick(ms(50), TIMING, None, Some(Interruption::Escape));
         tooltips.focus_restored(a.id);
-        for at in [100, 150, 200] {
+        tooltips.follow_focus(None);
+        tooltips.tick(ms(100), TIMING, None, None);
+        for at in [150, 200, 5000] {
+            tooltips.follow_focus(Some(a.id));
             tooltips.tick(ms(at), TIMING, Some(&a), None);
             assert!(open_ids(&tooltips).is_empty(), "open at {at}");
         }
-        tooltips.tick(ms(250), TIMING, None, None);
-        tooltips.tick(ms(300), TIMING, Some(&a), None);
-        assert_eq!(open_ids(&tooltips), [a.id], "a fresh arrival opens it");
+        let pointer = trigger("a", Cause::Pointer);
+        tooltips.tick(ms(5100), TIMING, Some(&pointer), None);
+        tooltips.tick(ms(5600), TIMING, Some(&pointer), None);
+        assert_eq!(open_ids(&tooltips), [a.id], "the pointer arriving opens it");
+        tooltips.tick(ms(5700), TIMING, None, Some(Interruption::Press));
+        tooltips.follow_focus(None);
+        tooltips.tick(ms(5800), TIMING, None, None);
+        tooltips.follow_focus(Some(a.id));
+        tooltips.tick(ms(5900), TIMING, Some(&a), None);
+        assert_eq!(
+            open_ids(&tooltips),
+            [a.id],
+            "focus that left and came back arrives"
+        );
+    }
+
+    #[test]
+    fn focus_restored_that_never_lands_is_forgotten() {
+        let mut tooltips = Tooltips::default();
+        let a = trigger("a", Cause::Focus);
+        tooltips.focus_restored(a.id);
+        for _ in 0..RESTORE_TICKS {
+            tooltips.follow_focus(None);
+        }
+        tooltips.follow_focus(Some(a.id));
+        tooltips.tick(ms(0), TIMING, Some(&a), None);
+        assert_eq!(open_ids(&tooltips), [a.id], "a later arrival is an arrival");
     }
 
     #[test]
