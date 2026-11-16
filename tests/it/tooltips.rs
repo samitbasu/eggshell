@@ -956,3 +956,263 @@ fn a_custom_node_shows_its_built_tooltip() {
 fn a_toggle_shows_its_built_tooltip() {
     chain_hover_shows("/\"pin\"", &["Pin it", "Ctrl+P"]);
 }
+
+/// A trigger with a tooltip that opens a popover or a dialog, inside a
+/// container the app can stop building, beside a button that does so (#272).
+mod dismissed {
+    use eggshell_ui::overlay::{Anchor, Focus, Modal, Placement};
+
+    use super::*;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(super) enum Opens {
+        Popover,
+        Dialog,
+    }
+
+    pub(super) struct Host {
+        opens: Opens,
+        open: bool,
+        gone: bool,
+    }
+
+    #[derive(Clone, Copy, Debug, Hash)]
+    enum Part {
+        Bar,
+        Trigger,
+        Remove,
+        Overlay,
+        Box,
+        Inside,
+    }
+
+    const TIP: &str = "Show the panel";
+    const TRIGGER: &str = "/Bar/Trigger";
+
+    fn view(b: &mut Builder<'_, '_, Host>, host: &Host) {
+        b.div(tw().flex().gap(4.0).p(4.0).pt(10.0), |b| {
+            if !host.gone {
+                b.div_id(Part::Bar, tw().flex(), |s| {
+                    s.button(Part::Trigger, "Panel")
+                        .tooltip(TIP)
+                        .on_click(|host: &mut Host| host.open = !host.open);
+                    if host.open {
+                        overlay(s, host.opens);
+                    }
+                });
+            }
+            b.button(Part::Remove, "Remove")
+                .on_click(|host: &mut Host| host.gone = true);
+        });
+    }
+
+    fn overlay(s: &mut eggshell_ui::Scope<'_, '_, Host>, opens: Opens) {
+        let trigger = s.id_of(Part::Trigger);
+        let dismissed = |host: &mut Host| host.open = false;
+        let inside = |s: &mut eggshell_ui::Scope<'_, '_, Host>| {
+            s.div_id(Part::Box, tw().p(2.0).w_px(120.0), |s| {
+                s.button(Part::Inside, "Inside").add();
+            });
+        };
+        match opens {
+            Opens::Popover => s
+                .overlay(Part::Overlay)
+                .anchor(Anchor::Node(trigger))
+                .placement(Placement::below())
+                .focus(Focus::Enter)
+                .on_dismiss(dismissed)
+                .children(inside),
+            Opens::Dialog => s
+                .overlay(Part::Overlay)
+                .modal(Modal::Center)
+                .on_dismiss(dismissed)
+                .children(inside),
+        }
+    }
+
+    fn prepare(ctx: &egui::Context, _: &Host) {
+        super::prepare(ctx, &App::default());
+    }
+
+    pub(super) fn harness(opens: Opens) -> Harness<'static, Rig<Host>> {
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut harness = support::harness_scaled_stepped(
+            vec2(400.0, 400.0),
+            STEP,
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            Host {
+                opens,
+                open: false,
+                gone: false,
+            },
+            view,
+            prepare,
+        );
+        harness.run_steps(12);
+        harness
+    }
+
+    fn tip_painted(harness: &Harness<'_, Rig<Host>>) -> bool {
+        support::shapes(harness).iter().any(|shape| match shape {
+            Shape::Text(shape) => shape.galley.text() == TIP,
+            _ => false,
+        })
+    }
+
+    fn settle(harness: &mut Harness<'_, Rig<Host>>) {
+        harness.run_steps(frames(DELAY + GRACE));
+    }
+
+    /// Tabs to the trigger, whose tooltip shows on that arrival, and opens
+    /// the overlay from the keyboard, so that focus enters it.
+    fn open_from_the_keyboard(harness: &mut Harness<'_, Rig<Host>>) {
+        support::past_bar(harness);
+        harness.key_press(Key::Tab);
+        harness.run_steps(2);
+        assert_eq!(
+            support::focused_node(harness).as_deref(),
+            Some(TRIGGER),
+            "precondition"
+        );
+        assert!(
+            tip_painted(harness),
+            "precondition: a keyboard arrival shows the tooltip"
+        );
+        harness.key_press(Key::Enter);
+        settle(harness);
+        assert!(harness.state().app.open, "precondition: open");
+    }
+
+    fn assert_focus_back_without_its_tooltip(harness: &mut Harness<'_, Rig<Host>>) {
+        settle(harness);
+        assert!(!harness.state().app.open, "precondition: dismissed");
+        assert_eq!(
+            support::focused_node(harness).as_deref(),
+            Some(TRIGGER),
+            "precondition: focus came back"
+        );
+        assert!(!tip_painted(harness), "focus given back is not an arrival");
+    }
+
+    #[test]
+    fn escape_from_a_popover_gives_focus_back_without_the_tooltip() {
+        let mut harness = harness(Opens::Popover);
+        open_from_the_keyboard(&mut harness);
+        harness.key_press(Key::Escape);
+        assert_focus_back_without_its_tooltip(&mut harness);
+    }
+
+    #[test]
+    fn escape_from_a_dialog_gives_focus_back_without_the_tooltip() {
+        let mut harness = harness(Opens::Dialog);
+        open_from_the_keyboard(&mut harness);
+        harness.key_press(Key::Escape);
+        assert_focus_back_without_its_tooltip(&mut harness);
+    }
+
+    #[test]
+    fn a_key_after_a_press_dismissed_the_popover_does_not_show_the_tooltip() {
+        let mut harness = harness(Opens::Popover);
+        open_from_the_keyboard(&mut harness);
+        let outside = pos2(390.0, 390.0);
+        support::hover_over(&mut harness, outside);
+        support::press_and_release(&mut harness, outside);
+        settle(&mut harness);
+        harness.key_press(Key::ArrowDown);
+        assert_focus_back_without_its_tooltip(&mut harness);
+    }
+
+    #[test]
+    fn leaving_and_coming_back_is_an_arrival_again() {
+        let mut harness = harness(Opens::Popover);
+        open_from_the_keyboard(&mut harness);
+        harness.key_press(Key::Escape);
+        assert_focus_back_without_its_tooltip(&mut harness);
+        harness.key_press(Key::Tab);
+        settle(&mut harness);
+        harness.key_press_modifiers(egui::Modifiers::SHIFT, Key::Tab);
+        harness.run_steps(2);
+        assert_eq!(
+            support::focused_node(&harness).as_deref(),
+            Some(TRIGGER),
+            "precondition"
+        );
+        assert!(tip_painted(&harness), "Tabbing back to it shows it");
+    }
+
+    #[test]
+    fn a_tooltip_whose_trigger_goes_is_dropped_quietly() {
+        let mut harness = harness(Opens::Popover);
+        support::past_bar(&mut harness);
+        harness.key_press(Key::Tab);
+        harness.run_steps(2);
+        assert!(
+            tip_painted(&harness),
+            "precondition: open on the trigger's focus"
+        );
+        support::click_node(&mut harness, "/Remove");
+        settle(&mut harness);
+        assert!(
+            harness.state().app.gone,
+            "precondition: the trigger is gone"
+        );
+        assert!(!tip_painted(&harness));
+        assert!(!is_shown_in(&harness));
+    }
+
+    #[test]
+    fn a_tooltip_shown_on_restored_focus_whose_trigger_goes_is_dropped_quietly() {
+        let mut harness = harness(Opens::Popover);
+        open_from_the_keyboard(&mut harness);
+        harness.key_press(Key::Escape);
+        harness.run_steps(4);
+        support::click_node(&mut harness, "/Remove");
+        settle(&mut harness);
+        assert!(
+            harness.state().app.gone,
+            "precondition: the trigger is gone"
+        );
+        assert!(!tip_painted(&harness));
+        assert!(!is_shown_in(&harness));
+    }
+
+    /// Removes the trigger after each of the first frames after Tab gives it
+    /// focus, so that one removal lands in the build that first declares its
+    /// tooltip open.
+    #[test]
+    fn a_tooltip_that_opens_as_its_trigger_goes_is_dropped_quietly() {
+        let mut opened_in_time = false;
+        for frames in 0..6 {
+            let mut harness = harness(Opens::Popover);
+            support::past_bar(&mut harness);
+            harness.event(egui::Event::Key {
+                key: Key::Tab,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            });
+            harness.step();
+            for _ in 0..frames {
+                harness.step();
+            }
+            opened_in_time |= !is_shown_in(&harness);
+            harness.state_mut().app.gone = true;
+            settle(&mut harness);
+            assert!(!tip_painted(&harness), "after {frames} frames");
+            assert!(!is_shown_in(&harness), "after {frames} frames");
+        }
+        assert!(
+            opened_in_time,
+            "precondition: some removal came before the tooltip was declared"
+        );
+    }
+
+    fn is_shown_in(harness: &Harness<'_, Rig<Host>>) -> bool {
+        harness
+            .state()
+            .nodes
+            .iter()
+            .any(|(path, _)| path.contains("Tooltip("))
+    }
+}

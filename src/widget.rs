@@ -26,7 +26,6 @@ use egui::{Context, Frame, Margin, NumExt as _, Response, RichText, TextWrapMode
 use taffy::Size;
 
 use crate::contract::Size as ControlSize;
-use crate::shell::ShellExt as _;
 use crate::sizing::Sizer;
 use crate::text::{Numerals, TextAlign};
 use crate::{Measure, Style, TextStyle, Width};
@@ -308,8 +307,11 @@ impl TextEdit {
             _ => place(ui, edit),
         };
         announce(&response, self.name.as_deref());
-        if self.lines != Lines::Single && response.has_focus() {
-            crate::actions::note_multiline_focus(ui.ctx(), &ui.shell().kept, response.id);
+        if self.lines != Lines::Single
+            && response.has_focus()
+            && let Some(shell) = crate::shell::shell_or_warn(ui, "multiline text-field focus")
+        {
+            crate::actions::note_multiline_focus(ui.ctx(), &shell.kept, response.id);
         }
         if response.changed() && *text != before_text {
             let after = self.fit(&Sizer::for_ui(ui), text, Some(width));

@@ -38,6 +38,7 @@ use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
 use crate::shell::ShellExt;
+use crate::spans;
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::tooltip;
@@ -473,13 +474,13 @@ fn text_overrides(ui: &mut Ui, text: &TextStyle) {
 }
 
 /// Runs `add_contents` in a child `Ui` that is not allocated in `parent`.
-fn node_ui(
+fn node_ui<R>(
     parent: &mut Ui,
     builder: UiBuilder,
     inherited: Inherited,
     text: Option<&TextStyle>,
-    add_contents: impl FnOnce(&mut Ui),
-) {
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> R {
     let stack_info =
         UiStackInfo::new(UiKind::GenericArea).with_frame(Frame::NONE.fill(inherited.backdrop));
     let mut child = parent.new_child(
@@ -496,7 +497,7 @@ fn node_ui(
     if let Some(text) = text {
         text_overrides(&mut child, text);
     }
-    add_contents(&mut child);
+    add_contents(&mut child)
 }
 
 fn image_for(icon: Icon, tint: Color32) -> Image<'static> {
@@ -796,7 +797,9 @@ impl<A> Walk<'_, A> {
         let in_listbox = node.is_item()
             && self.roots[root_of(self.roots, index)]
                 .overlay()
-                .is_some_and(|overlay| overlay.behavior.nav == Nav::Listbox);
+                .map_or(node.is_listbox_option(), |overlay| {
+                    overlay.behavior.nav == Nav::Listbox
+                });
         Hovering::of(highlighted || (pointed && !in_listbox))
     }
 
@@ -1345,15 +1348,11 @@ impl<A> Walk<'_, A> {
         inherited: Inherited,
     ) {
         let content = boxes.content;
+        if let Some(leaf) = TextLeaf::of(self.ui.ctx(), &prim, text) {
+            self.paint_text(&leaf, index, node, boxes, inherited);
+            return;
+        }
         match prim {
-            Prim::Text(string) => {
-                let leaf = TextLeaf::plain(self.ui.ctx(), &string, text);
-                self.paint_text(&leaf, index, node, boxes, inherited);
-            }
-            Prim::Rich(rich) => {
-                let leaf = TextLeaf::rich(self.ui.ctx(), &rich, text);
-                self.paint_text(&leaf, index, node, boxes, inherited);
-            }
             Prim::Icon(icon) => self.paint_image(image_for(icon, text.color), content, inherited),
             Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
             Prim::Paint(paint) => paint(
@@ -1361,6 +1360,7 @@ impl<A> Walk<'_, A> {
                 content,
                 text.color,
             ),
+            Prim::Text(_) | Prim::Rich(_) | Prim::Spans(_) => {}
         }
     }
 
@@ -1386,13 +1386,38 @@ impl<A> Walk<'_, A> {
             TextAlign::Center => content.center_top(),
             TextAlign::Right => content.right_top(),
         } + vec2(0.0, top);
-        if text.select.selects(inherited.interactive) {
-            let id = self.selection_id(index, node);
-            self.select_text(id, galley, anchor, content, text, inherited);
+        let marks = leaf.marks.as_deref();
+        let runs = marks.map_or_else(Vec::new, |marks| spans::runs(&galley, marks));
+        if let Some(marks) = marks {
+            let rich = &Style::of(self.ui.ctx()).rich;
+            let painter = self.painter(inherited.clip, inherited.opacity);
+            for tint in spans::code_tints(&runs, marks, rich, anchor) {
+                painter.rect_filled(tint, rich.code.radius, rich.code.fill);
+            }
+        }
+        let id = self.selection_id(index, node);
+        let links = marks.filter(|marks| spans::has_links(marks));
+        let response = if text.select.selects(inherited.interactive) {
+            Some(self.select_text(id, galley, anchor, content, text, inherited))
         } else {
             self.painter(inherited.clip, inherited.opacity)
                 .galley(anchor, galley, text.color);
+            links.map(|_| self.sense_links(id, content, inherited))
+        };
+        // TODO(#279): report text with links that has no id, which `spans` never adds.
+        if let (Some(marks), Some(response), Some(node)) = (links, response, node.id()) {
+            spans::follow(&response, &runs, marks, anchor, node);
         }
+    }
+
+    fn sense_links(&mut self, id: Id, content: Rect, inherited: Inherited) -> Response {
+        node_ui(
+            self.ui,
+            UiBuilder::new().max_rect(content),
+            inherited,
+            None,
+            |ui| ui.interact(content, id, Sense::click() - Sense::FOCUSABLE),
+        )
     }
 
     /// Paints `galley` through egui's label selection, which draws the
@@ -1408,7 +1433,7 @@ impl<A> Walk<'_, A> {
         content: Rect,
         text: &TextStyle,
         inherited: Inherited,
-    ) {
+    ) -> Response {
         let selection = self.selection;
         node_ui(
             self.ui,
@@ -1432,8 +1457,9 @@ impl<A> Walk<'_, A> {
                     text.color,
                     Stroke::NONE,
                 );
+                response
             },
-        );
+        )
     }
 
     /// A stable id for the node's selectable text: its key path, and the
