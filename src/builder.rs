@@ -858,16 +858,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
-        let root = self
-            .st
-            .tree
-            .new_with_children(style, &kids)
-            .expect("children were created in this tree");
-        self.st
-            .tree
-            .set_node_context(root, Some(node))
-            .expect("node was just created");
-        self.frame.roots[at].node = Some(root);
+        let Ok(root) = self.st.tree.new_with_children(style, &kids) else {
+            return;
+        };
+        if self.st.tree.set_node_context(root, Some(node)).is_ok()
+            && let Some(decl) = self.frame.roots.get_mut(at)
+        {
+            decl.node = Some(root);
+        }
     }
 
     /// Declares the overlay `decl` and builds `body` as its content, a root

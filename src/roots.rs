@@ -204,6 +204,32 @@ pub(crate) enum Home {
     Window(usize),
 }
 
+impl Home {
+    /// The home of the root at `root`; the page, if there is no such root.
+    pub(crate) fn of(roots: &[PlacedRoot], root: usize) -> Self {
+        roots.get(root).map_or(Self::Page, |root| root.home)
+    }
+
+    /// The pop-out window this home is the native window of; none for the
+    /// page, or for an index that names no window's root.
+    pub(crate) fn window(self, roots: &[PlacedRoot]) -> Option<&crate::window::PlacedWindow> {
+        match self {
+            Self::Page => None,
+            Self::Window(root) => roots.get(root)?.window(),
+        }
+    }
+}
+
+/// The root at `index` and its root node.
+pub(crate) fn root_and_node<'a>(
+    roots: &'a [PlacedRoot],
+    nodes: &'a [PlacedNode],
+    index: usize,
+) -> Option<(&'a PlacedRoot, &'a PlacedNode)> {
+    let root = roots.get(index)?;
+    Some((root, nodes.get(root.first)?))
+}
+
 impl PlacedOverlay {
     /// Whether the overlay takes the press that dismisses it. `root` is the
     /// overlay's root node.
@@ -283,7 +309,7 @@ impl Here {
     /// The pass of the root at `root`.
     pub(crate) fn of(roots: &[PlacedRoot], root: usize) -> Self {
         Self {
-            home: roots[root].home,
+            home: Home::of(roots, root),
             root,
         }
     }
@@ -300,12 +326,12 @@ impl Here {
 /// which `dismissals` answers.
 pub(crate) fn root_at(roots: &[PlacedRoot], nodes: &[PlacedNode], p: Pos2, here: Here) -> usize {
     let overlay = stacked_top_down(roots, here).into_iter().find(|&index| {
-        let root = &roots[index];
-        let node = &nodes[root.first];
-        root.overlay()
-            .is_some_and(|overlay| overlay.anchored == Anchored::Attached)
-            && node.blocks_pointer()
-            && (node.rect().contains(p) || covers_screen(roots, nodes, index))
+        root_and_node(roots, nodes, index).is_some_and(|(root, node)| {
+            root.overlay()
+                .is_some_and(|overlay| overlay.anchored == Anchored::Attached)
+                && node.blocks_pointer()
+                && (node.rect().contains(p) || covers_screen(roots, nodes, index))
+        })
     });
     let window = || {
         roots.iter().rposition(|root| {

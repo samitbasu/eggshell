@@ -32,7 +32,7 @@ use crate::pipeline::{ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, Pl
 use crate::presence::Staged;
 use crate::prim::{Icon, Prim};
 use crate::roots::{
-    Form, Here, Home, PlacedRoot, covers_screen, root_at, root_of, stacked_top_down,
+    Form, Here, Home, PlacedRoot, covers_screen, root_and_node, root_at, root_of, stacked_top_down,
 };
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
@@ -1738,7 +1738,11 @@ impl<A> Painting<A> {
     /// viewport against them.
     fn pass(&mut self, app: &mut A, ui: &mut Ui, here: Here) {
         let ctx = ui.ctx().clone();
-        let first = self.roots[here.root].first;
+        let Some((first, origin)) = root_and_node(&self.roots, &self.nodes, here.root)
+            .map(|(root, node)| (root.first, node.rect().min))
+        else {
+            return;
+        };
         let Self {
             kept,
             nodes,
@@ -1770,7 +1774,7 @@ impl<A> Painting<A> {
         let grid = PixelGrid {
             pixels_per_point: ctx.pixels_per_point(),
         };
-        let inherited = Inherited::root(ui.clip_rect(), nodes[first].rect().min);
+        let inherited = Inherited::root(ui.clip_rect(), origin);
         let live = dnd::drag_state(&ctx, kept);
         let (dragging, finish) = dnd::begin(
             &ctx,
@@ -1856,19 +1860,23 @@ impl<A> Painting<A> {
         window::note_focus(&ctx, kept, (pop_outs, roots), here);
         pass.animation.finish();
         for shown in embedded {
-            let window = roots[shown.root].window().expect("a window's root");
-            window::report(&ctx, (kept, *page), window, shown, windows, app);
+            if let Some(window) = roots.get(shown.root).and_then(PlacedRoot::window) {
+                window::report(&ctx, (kept, *page), window, shown, windows, app);
+            }
         }
     }
 
     /// Shows each pop-out's native window, and draws its roots in a pass of
     /// its own, with the window's input.
     fn native_windows(&mut self, app: &mut A, ctx: &egui::Context) {
-        let natives: Vec<usize> = (0..self.roots.len())
-            .filter(|&index| self.roots[index].home == Home::Window(index))
+        let natives: Vec<(usize, window::PlacedWindow)> = self
+            .roots
+            .iter()
+            .enumerate()
+            .filter(|(index, root)| root.home == Home::Window(*index))
+            .filter_map(|(index, root)| Some((index, root.window()?.clone())))
             .collect();
-        for index in natives {
-            let window = self.roots[index].window().expect("a window's root").clone();
+        for (index, window) in natives {
             let builder = window::builder(&self.kept, &window);
             ctx.show_viewport_immediate(window.viewport(), builder, |ui, _| {
                 let here = Here::of(&self.roots, index);

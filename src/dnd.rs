@@ -740,7 +740,9 @@ fn targets(
         }
     }
     let mut found = Vec::new();
-    walk(nodes, roots[here.root].first, clip, &mut found);
+    if let Some(root) = roots.get(here.root) {
+        walk(nodes, root.first, clip, &mut found);
+    }
     for root in roots
         .iter()
         .filter(|root| root.home == here.home && root.window().is_some())

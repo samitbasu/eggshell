@@ -620,14 +620,17 @@ impl<'f, A> Built<'f, A> {
                 regions,
             } = frame.take_decl(at);
             let node = node.expect("a root's body was built");
-            let parent = parent.expect("a root other than the base is declared in a root");
+            let Some(parent) = parent else {
+                at += 1;
+                continue;
+            };
             let overlay = match kind {
                 RootKind::Base => unreachable!("only the first root is the base"),
                 RootKind::Window(decl) => {
                     let window = place_window(ctx, st, &frame.measures, node, decl, area);
                     let home = match window.presentation {
                         crate::window::Presentation::Native => Home::Window(roots.len()),
-                        crate::window::Presentation::Embedded => roots[parent].home,
+                        crate::window::Presentation::Embedded => Home::of(&roots, parent),
                     };
                     settle_below(ctx, st, &mut frame, at, scrolls, regions);
                     let first = nodes.len();
@@ -658,14 +661,10 @@ impl<'f, A> Built<'f, A> {
                 }
                 RootKind::Overlay(overlay) => overlay,
             };
-            let home = roots[parent].home;
-            let (viewport, area) = match home {
-                Home::Page => (page, area),
-                Home::Window(window) => {
-                    let window = roots[window].window().expect("a window's root");
-                    (window.viewport(), window.content)
-                }
-            };
+            let home = Home::of(&roots, parent);
+            let (viewport, area) = home
+                .window(&roots)
+                .map_or((page, area), |window| (window.viewport(), window.content));
             let (stack, present) = stacks
                 .entry(viewport)
                 .or_insert_with(|| (Stack::load(&st.kept, viewport), HashSet::new()));
@@ -848,9 +847,9 @@ impl<'f, A> Built<'f, A> {
         stacks
             .entry(page)
             .or_insert_with(|| (Stack::load(&st.kept, page), HashSet::new()));
-        let viewport_of = |roots: &[PlacedRoot], home| match home {
-            Home::Page => page,
-            Home::Window(window) => roots[window].window().expect("a window's root").viewport(),
+        let viewport_of = |roots: &[PlacedRoot], home: Home| {
+            home.window(roots)
+                .map_or(page, crate::window::PlacedWindow::viewport)
         };
         for (&viewport, (stack, present)) in &mut stacks {
             let closed = stack.keep_only(present);
@@ -861,9 +860,12 @@ impl<'f, A> Built<'f, A> {
                     .viewport(viewport, |here| here.focus.closed.extend(closed));
             }
         }
-        for index in 0..roots.len() {
-            let viewport = viewport_of(&roots, roots[index].home);
-            if let PlacedRootKind::Overlay(overlay) = &mut roots[index].kind {
+        let viewports: Vec<ViewportId> = roots
+            .iter()
+            .map(|root| viewport_of(&roots, root.home))
+            .collect();
+        for (root, viewport) in roots.iter_mut().zip(viewports) {
+            if let PlacedRootKind::Overlay(overlay) = &mut root.kind {
                 overlay.stack_index = stacks[&viewport]
                     .0
                     .index_of(overlay.id)
@@ -885,8 +887,9 @@ impl<'f, A> Built<'f, A> {
                 let popped = roots
                     .iter()
                     .any(|root| root.window().is_some_and(|window| window.id == *id));
-                if let (false, Some(&index)) = (popped, by_id.get(id)) {
-                    kept.inline.insert(*id, nodes[index].rect().size());
+                let inline = by_id.get(id).and_then(|&index| nodes.get(index));
+                if let (false, Some(node)) = (popped, inline) {
+                    kept.inline.insert(*id, node.rect().size());
                 }
             }
         });
@@ -951,18 +954,19 @@ fn place_window(
     } else {
         Presentation::Native
     };
-    let mut style = st.tree.style(node).expect("node exists").clone();
+    let mut style = st.tree.style(node).cloned().unwrap_or_default();
     let mut sized = |size: Option<Vec2>, available: AvailableSpace| {
         style.size = Size {
             width: size.map_or(Dimension::auto(), |size| Dimension::length(size.x)),
             height: size.map_or(Dimension::auto(), |size| Dimension::length(size.y)),
         };
-        st.tree.set_style(node, style.clone()).expect("node exists");
-        let available = Size {
-            width: size.map_or(available, |size| AvailableSpace::Definite(size.x)),
-            height: size.map_or(available, |size| AvailableSpace::Definite(size.y)),
-        };
-        solve(ctx, measures, &mut st.tree, node, available);
+        if st.tree.set_style(node, style.clone()).is_ok() {
+            let available = Size {
+                width: size.map_or(available, |size| AvailableSpace::Definite(size.x)),
+                height: size.map_or(available, |size| AvailableSpace::Definite(size.y)),
+            };
+            solve(ctx, measures, &mut st.tree, node, available);
+        }
         laid_size(&st.tree, node)
     };
     let min = match decl.window.min_size {
