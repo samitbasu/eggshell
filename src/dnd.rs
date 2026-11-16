@@ -73,7 +73,7 @@ use crate::draw::{Lift, children_of};
 use crate::kept::Handle;
 use crate::overlay_input::Drag;
 use crate::pipeline::{Flow, PlacedNode};
-use crate::roots::{PlacedRoot, root_at, root_of, stacked_top_down};
+use crate::roots::{Here, PlacedRoot, root_at, root_of, stacked_top_down};
 use crate::shell::Shell;
 use crate::tw::Sensing;
 
@@ -710,11 +710,16 @@ fn outside_position_known(ctx: &Context, pass: u64, input: &Input) -> bool {
     known
 }
 
-/// The targets of a frame in stacking order, with the part of each the
-/// pointer can reach: its final layout rect, cut by the clips above it. The
-/// page's come first, then each overlay's from the bottom of the stack up, so
-/// that the last to contain the pointer is the topmost.
-fn targets(nodes: &[PlacedNode], roots: &[PlacedRoot], clip: Rect) -> Vec<(usize, Rect)> {
+/// The targets of the pass `here` in stacking order, with the part of each
+/// the pointer can reach: its final layout rect, cut by the clips above it.
+/// The pass's root's come first, then each embedded pop-out window's, then
+/// each overlay's from the bottom of the stack up, so that the last to
+/// contain the pointer is the topmost.
+fn targets(
+    nodes: &[PlacedNode],
+    (roots, here): (&[PlacedRoot], Here),
+    clip: Rect,
+) -> Vec<(usize, Rect)> {
     fn walk(nodes: &[PlacedNode], index: usize, clip: Rect, found: &mut Vec<(usize, Rect)>) {
         let node = &nodes[index];
         if node.flow == Flow::Hidden || node.is_inert() {
@@ -735,8 +740,16 @@ fn targets(nodes: &[PlacedNode], roots: &[PlacedRoot], clip: Rect) -> Vec<(usize
         }
     }
     let mut found = Vec::new();
-    walk(nodes, 0, clip, &mut found);
-    for root in stacked_top_down(roots).into_iter().rev() {
+    if let Some(root) = roots.get(here.root) {
+        walk(nodes, root.first, clip, &mut found);
+    }
+    for root in roots
+        .iter()
+        .filter(|root| root.home == here.home && root.window().is_some())
+    {
+        walk(nodes, root.first, clip, &mut found);
+    }
+    for root in stacked_top_down(roots, here).into_iter().rev() {
         walk(nodes, roots[root].first, clip, &mut found);
     }
     found
@@ -773,19 +786,19 @@ struct Hit {
 
 fn resolve<A>(
     nodes: &[PlacedNode],
-    roots: &[PlacedRoot],
+    (roots, here): (&[PlacedRoot], Here),
     decls: &Decls<A>,
     payload: &Erased,
     pointer: Option<Pos2>,
     leaving: Option<Id>,
     clip: Rect,
 ) -> Resolved {
-    let accepting: Vec<(usize, Rect)> = targets(nodes, roots, clip)
+    let accepting: Vec<(usize, Rect)> = targets(nodes, (roots, here), clip)
         .into_iter()
         .filter(|&(index, _)| decls.accepts(&nodes[index], payload))
         .collect();
     let over = pointer.and_then(|pos| {
-        let under = root_at(roots, nodes, pos);
+        let under = root_at(roots, nodes, pos, here);
         let (index, _) = accepting
             .iter()
             .rfind(|&&(index, reach)| root_of(roots, index) == under && reach.contains(pos))?;
@@ -866,6 +879,7 @@ pub(crate) struct Tree<'a> {
     pub(crate) nodes: &'a [PlacedNode],
     pub(crate) by_id: &'a HashMap<Id, usize>,
     pub(crate) roots: &'a [PlacedRoot],
+    pub(crate) here: Here,
 }
 
 /// Starts a draw: begins a gesture a source started, ends one that was
@@ -882,6 +896,7 @@ pub(crate) fn begin<A>(
         nodes,
         by_id,
         roots,
+        here,
     } = tree;
     let pass = ctx.cumulative_pass_nr();
     let input = Input::read(ctx);
@@ -933,7 +948,15 @@ pub(crate) fn begin<A>(
             // its to change. A record nobody refreshes goes stale after a pass.
             _ => return Finish::nothing(),
         };
-    let found = resolve(nodes, roots, decls, &payload, pointer, leaving, clip);
+    let found = resolve(
+        nodes,
+        (roots, here),
+        decls,
+        &payload,
+        pointer,
+        leaving,
+        clip,
+    );
 
     let releasing = gesture.is_some() && input.released;
     let dropping = gesture.is_none() && input.dropped.is_some();
@@ -1257,7 +1280,7 @@ mod tests {
         ) -> Option<(String, Option<usize>)> {
             let found = resolve(
                 &placed.nodes,
-                &placed.roots,
+                (&placed.roots, Here::PAGE),
                 &placed.drag,
                 &erased(payload),
                 Some(at),
