@@ -793,7 +793,9 @@ impl<A> Walk<'_, A> {
         let in_listbox = node.is_item()
             && self.roots[root_of(self.roots, index)]
                 .overlay()
-                .is_some_and(|overlay| overlay.behavior.nav == Nav::Listbox);
+                .map_or(node.is_listbox_option(), |overlay| {
+                    overlay.behavior.nav == Nav::Listbox
+                });
         Hovering::of(highlighted || (pointed && !in_listbox))
     }
 

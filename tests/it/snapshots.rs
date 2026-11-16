@@ -50,6 +50,9 @@ mod clipboard_example;
 #[path = "../../examples/control_sizes.rs"]
 mod control_sizes_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/list_nav.rs"]
+mod list_nav_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/swatch_picker.rs"]
 mod swatch_picker;
 
@@ -2426,4 +2429,38 @@ fn control_sizes_light() {
 #[test]
 fn control_sizes_dark() {
     control_sizes_in("control_sizes_dark", egui::Theme::Dark);
+}
+
+/// A virtual listbox with the highlight on its fourth row.
+fn list_nav_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(300.0, 320.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        list_nav_example::State::default(),
+        list_nav_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    support::past_bar(&mut harness);
+    harness.key_press(egui::Key::Tab);
+    harness.run_steps(4);
+    for _ in 0..4 {
+        harness.key_press(egui::Key::ArrowDown);
+        harness.run_steps(4);
+    }
+    harness.snapshot(name);
+}
+
+#[test]
+fn list_nav_light() {
+    list_nav_in("list_nav_light", egui::Theme::Light);
+}
+
+#[test]
+fn list_nav_dark() {
+    list_nav_in("list_nav_dark", egui::Theme::Dark);
 }

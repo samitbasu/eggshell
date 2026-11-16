@@ -1840,6 +1840,13 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
 /// ```
 pub struct Scope<'b, 'f, A>(Builder<'b, 'f, A>);
 
+impl<A> Scope<'_, '_, A> {
+    /// TODO(prose): whether this scope is the highlighted item of a listbox.
+    pub fn is_active(&self) -> bool {
+        crate::nav::is_highlighted(self.0.kept(), self.0.path)
+    }
+}
+
 impl<'b, 'f, A> Deref for Scope<'b, 'f, A> {
     type Target = Builder<'b, 'f, A>;
 
