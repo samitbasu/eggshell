@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use eggshell_ui::{Builder, FontStyle, Span, Spans, Style, Weight, tw};
 use egui::epaint::Shape;
-use egui::text::CCursor;
 use egui::{
     Color32, CursorIcon, Event, FontFamily, Galley, OutputCommand, Pos2, Rect, Theme, pos2, vec2,
 };
@@ -96,58 +95,13 @@ fn harness(select: Select) -> Harness<'static, Rig<App>> {
     harness
 }
 
-/// The galley painted with `text`, and where it was painted.
-fn galley_of(harness: &Harness<'_, Rig<App>>, text: &str) -> (Arc<Galley>, Pos2) {
-    support::shapes(harness)
-        .into_iter()
-        .find_map(|shape| match shape {
-            Shape::Text(shape) if shape.galley.text() == text => {
-                Some((shape.galley.clone(), shape.pos))
-            }
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("{text:?} was painted as one galley"))
-}
-
 /// The screen rect of `part` within the paragraph, which must sit on one row.
 fn rect_of_part(harness: &Harness<'_, Rig<App>>, part: &str) -> Rect {
-    let text = sample_text();
-    let (galley, at) = galley_of(harness, &text);
-    let start = text[..text.find(part).expect("part of the sample")]
-        .chars()
-        .count();
-    let end = start + part.chars().count();
-    let first = galley.pos_from_cursor(CCursor::new(start));
-    let last = galley.pos_from_cursor(CCursor::new(end));
-    assert!(
-        (first.center().y - last.center().y).abs() < 0.5,
-        "precondition: {part:?} is on one row"
-    );
-    Rect::from_min_max(first.min, pos2(last.max.x, first.max.y)).translate(at.to_vec2())
+    support::part_rect(harness, &sample_text(), part)
 }
 
-fn section_of<'g>(galley: &'g Galley, part: &str) -> &'g egui::TextFormat {
-    let start = galley.job.text.find(part).expect("part of the text");
-    &galley
-        .job
-        .sections
-        .iter()
-        .find(|section| (section.byte_range.start.0..section.byte_range.end.0).contains(&start))
-        .expect("a section covers the part")
-        .format
-}
-
-fn opened_urls(harness: &Harness<'_, Rig<App>>) -> Vec<String> {
-    harness
-        .output()
-        .platform_output
-        .commands
-        .iter()
-        .filter_map(|command| match command {
-            OutputCommand::OpenUrl(open) => Some(open.url.clone()),
-            _ => None,
-        })
-        .collect()
+fn galley_of(harness: &Harness<'_, Rig<App>>, text: &str) -> (Arc<Galley>, Pos2) {
+    support::galley_of(harness, text)
 }
 
 #[test]
@@ -166,12 +120,12 @@ fn a_span_weight_draws_the_face_of_its_weight() {
         "precondition: the preset registered Geist Bold"
     );
     let (galley, _) = galley_of(&harness, &sample_text());
-    assert_eq!(section_of(&galley, BOLD).font_id.family, bold);
+    assert_eq!(support::section_of(&galley, BOLD).font_id.family, bold);
     assert_eq!(
-        section_of(&galley, "Read").font_id.family,
+        support::section_of(&galley, "Read").font_id.family,
         FontFamily::Proportional
     );
-    assert!(section_of(&galley, "slanted").italics);
+    assert!(support::section_of(&galley, "slanted").italics);
 }
 
 #[test]
@@ -179,8 +133,8 @@ fn a_link_takes_the_style_link_colour() {
     let harness = harness(Select::Auto);
     let (galley, _) = galley_of(&harness, &sample_text());
     let link = Style::of(&harness.ctx).rich.link;
-    assert_eq!(section_of(&galley, LINK).color, link);
-    assert_ne!(section_of(&galley, "Read").color, link);
+    assert_eq!(support::section_of(&galley, LINK).color, link);
+    assert_ne!(support::section_of(&galley, "Read").color, link);
 }
 
 /// The code tint painted over `glyphs`.
@@ -202,7 +156,7 @@ fn inline_code_is_monospace_on_a_rounded_tint_behind_its_glyphs() {
     let harness = harness(Select::Auto);
     let (galley, _) = galley_of(&harness, &sample_text());
     assert_eq!(
-        section_of(&galley, CODE).font_id.family,
+        support::section_of(&galley, CODE).font_id.family,
         FontFamily::Monospace
     );
     let glyphs = rect_of_part(&harness, CODE);
@@ -275,7 +229,7 @@ fn clicking_an_internal_link_calls_on_link_with_its_href() {
     harness.run_steps(2);
     assert_eq!(harness.state().app.followed, vec![HREF.to_owned()]);
     assert!(
-        opened_urls(&harness).is_empty(),
+        support::opened_urls(&harness).is_empty(),
         "an internal link opens nothing"
     );
 }
@@ -294,7 +248,7 @@ fn clicking_an_external_link_opens_the_url_and_not_on_link() {
             modifiers: egui::Modifiers::NONE,
         });
         harness.step();
-        opened.extend(opened_urls(&harness));
+        opened.extend(support::opened_urls(&harness));
     }
     harness.run_steps(2);
     assert_eq!(opened, vec![URL.to_owned()]);

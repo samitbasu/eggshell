@@ -1,0 +1,20 @@
+[package]
+name = "eggshell-ui-extras"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+license = "MIT"
+description = "Reusable composites and third-party adapters for eggshell"
+repository = "https://github.com/samitbasu/eggshell"
+
+[features]
+# Each widget is opt-in.
+markdown = ["dep:pulldown-cmark"]
+
+[dependencies]
+eggshell-ui = { path = "../..", version = "0.1.0" }
+egui = "0.37"
+pulldown-cmark = { version = "0.13.6", default-features = false, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true

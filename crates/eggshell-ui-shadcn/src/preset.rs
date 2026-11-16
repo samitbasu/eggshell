@@ -747,7 +747,26 @@ impl Shadcn {
         let tokens = self.tokens.clone();
         ctx.style_mut_of(self.theme, |style| tokens.set_style(self.theme, style));
         ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
-        self.style().install_for(ctx, self.theme);
+        let style = self.style();
+        #[cfg(feature = "extras")]
+        self.markdown(&style).install_for(ctx, self.theme);
+        style.install_for(ctx, self.theme);
+    }
+
+    /// The Markdown widget's look, after shadcn/ui's typography.
+    #[cfg(feature = "extras")]
+    pub fn markdown(&self, style: &contract::Style) -> eggshell_ui_extras::markdown::MarkdownStyle {
+        let t = &self.tokens;
+        let mut markdown = eggshell_ui_extras::markdown::MarkdownStyle::from_style(style);
+        markdown.rule = t.border;
+        markdown.list.marker = t.muted_foreground;
+        markdown.quote.border = t.border;
+        markdown.quote.text = t.foreground;
+        markdown.code.fill = t.muted;
+        markdown.code.border = t.border;
+        markdown.unsupported.border = t.border;
+        markdown.unsupported.label = t.muted_foreground;
+        markdown
     }
 }
 
