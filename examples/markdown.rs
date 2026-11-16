@@ -6,10 +6,10 @@ mod common;
 
 use std::sync::Arc;
 
-use eggshell_ui::{Builder, Scope, tw};
-use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt};
+use eggshell_ui::{Builder, Scope, Shell, Span, tw};
+use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt, heading_id};
 use egui::load::{ImageLoadResult, ImageLoader, ImagePoll, LoadError, SizeHint};
-use egui::{Color32, ColorImage, Context};
+use egui::{Align, Color32, ColorImage, Context, Id, Rect};
 
 pub const SAMPLE: &str = r#"# Markdown in eggshell
 
@@ -70,8 +70,82 @@ fn main() {
 <div>raw HTML</div>
 "#;
 
+/// A sibling page, shown in place of the sample when a link names it.
+pub const GUIDE: &str = r#"# A guide
+
+A sibling page, shown by the demo when a relative link names it. From here:
+
+- [the table page](table.md)
+- [its alignments](table.md#alignments)
+- [the sample's tables](index.md#tables)
+- [a page that is not there](missing.md)
+
+## Routing
+
+The widget passes a relative link to `on_link`; the demo looks the page up, shows it from its top, and keeps the trail that Back retraces.
+"#;
+
+/// A sibling page with a heading far enough down to land on.
+pub const TABLE_PAGE: &str = r#"# Table page
+
+A table's columns take their alignment from the delimiter row.
+
+## Columns
+
+Each column is as wide as its widest cell, and a cell's text wraps when the table would be wider than the page.
+
+## Rows
+
+A row with fewer cells than the header is padded with empty ones; a row with more is cut.
+
+## Alignments
+
+| Left | Centred | Right |
+|:-----|:-------:|------:|
+| `:---` | `:---:` | `---:` |
+
+A colon on the left of the delimiter aligns its column left, on the right aligns it right, and on both centres it; without one, the column takes the default, left.
+
+## Where next
+
+Back on [the guide](guide.md), or on [the sample's tables](index.md#tables).
+
+The demo keeps no history beyond its trail: a reload starts on the sample again.
+"#;
+
+/// The pages the demo can show, named as relative links name them.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Page {
+    #[default]
+    Sample,
+    Guide,
+    Table,
+}
+
+impl Page {
+    fn named(name: &str) -> Option<Self> {
+        match name {
+            "index.md" => Some(Self::Sample),
+            "guide.md" => Some(Self::Guide),
+            "table.md" => Some(Self::Table),
+            _ => None,
+        }
+    }
+
+    fn source(self) -> &'static str {
+        match self {
+            Self::Sample => SAMPLE,
+            Self::Guide => GUIDE,
+            Self::Table => TABLE_PAGE,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct State {
+    pub page: Page,
+    /// The pages Back returns to, the latest last.
+    pub trail: Vec<Page>,
     pub followed: Vec<String>,
     pub count: u32,
 }
@@ -79,8 +153,51 @@ pub struct State {
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
     Page,
+    Back,
     Doc,
     Followed,
+}
+
+/// Where a link to another page lands: on the heading its anchor names, or
+/// at the page's top.
+#[derive(Clone)]
+struct Landing {
+    shell: Shell,
+    page: Id,
+    doc: Id,
+}
+
+impl Landing {
+    fn on(&self, anchor: Option<&str>) {
+        match anchor {
+            Some(anchor) => self
+                .shell
+                .scroll_into_view(heading_id(self.doc, anchor), Some(Align::Min)),
+            None => self
+                .shell
+                .scroll_to_rect(self.page, Rect::ZERO, Some(Align::Min)),
+        }
+    }
+
+    /// Shows the page `href` names, if the demo has it.
+    fn follow(&self, state: &mut State, href: &str) {
+        state.followed.push(href.to_owned());
+        let (name, anchor) = match href.split_once('#') {
+            Some((name, anchor)) => (name, Some(anchor)),
+            None => (href, None),
+        };
+        if let Some(page) = Page::named(name) {
+            state.trail.push(std::mem::replace(&mut state.page, page));
+            self.on(anchor);
+        }
+    }
+
+    fn back(&self, state: &mut State) {
+        if let Some(page) = state.trail.pop() {
+            state.page = page;
+            self.on(None);
+        }
+    }
 }
 
 /// The directives of the page: `eggshell-example counter` mounts a counter.
@@ -109,16 +226,29 @@ fn example(s: &mut Scope<'_, '_, State>, directive: &Directive<'_>) {
 }
 
 /// ```html
-/// <main class="overflow-y-auto size-full p-6"><article class="max-w-[640px]">…</article></main>
+/// <main class="overflow-y-auto size-full p-6"><article class="max-w-[640px]">
+///   <a href="…">Back</a> …
+/// </article></main>
 /// ```
 pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
     install_swatches(b.ctx());
     let directives = directives();
     let muted = common::tokens(b.ctx()).muted_foreground;
+    let page = b.id_of(Part::Page);
     b.scroll(Part::Page, tw().size_full().p(6.0)).children(|s| {
+        let landing = Landing {
+            shell: s.shell(),
+            page,
+            doc: s.id_of(Part::Doc),
+        };
         s.div(tw().flex().flex_col().gap(6.0).max_w_px(640.0), |b| {
-            b.markdown(Part::Doc, SAMPLE)
-                .on_link(|state: &mut State, href| state.followed.push(href.to_owned()))
+            if !state.trail.is_empty() {
+                let back = landing.clone();
+                b.spans(Part::Back, tw(), Span::new("Back").link("back"))
+                    .on_link(move |state: &mut State, _| back.back(state));
+            }
+            b.markdown(Part::Doc, state.page.source())
+                .on_link(move |state: &mut State, href| landing.follow(state, href))
                 .directives(&directives)
                 .add();
             let followed = state.followed.last().map_or("nothing yet", String::as_str);

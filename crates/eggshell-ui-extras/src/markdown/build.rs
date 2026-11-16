@@ -1,12 +1,12 @@
 //! Parsed blocks into eggshell nodes.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use eggshell_ui::owned::{Cells, Column};
-use eggshell_ui::{Builder, Key, Scope, Shell, Spans, Track, Tw, tw};
+use eggshell_ui::{Builder, Key, Scope, Shell, Spans, Track, Tw, child_id, tw};
 use egui::load::{SizeHint, TexturePoll};
 use egui::{Align, Id, ImageSource, TextureOptions};
 
@@ -26,34 +26,45 @@ pub(super) struct Context<'s, A> {
 pub(super) struct Links<A> {
     on_link: Option<OnLink<A>>,
     shell: Shell,
+    doc: Id,
     /// Filled as the document is built; read when a link is followed, which
     /// is after, so a link may name a heading below it.
-    headings: RefCell<HashMap<String, Id>>,
+    anchors: RefCell<HashSet<String>>,
 }
 
 impl<A> Links<A> {
-    pub fn new(on_link: Option<OnLink<A>>, shell: Shell) -> Self {
+    pub fn new(on_link: Option<OnLink<A>>, shell: Shell, doc: Id) -> Self {
         Self {
             on_link,
             shell,
-            headings: RefCell::default(),
+            doc,
+            anchors: RefCell::default(),
         }
     }
 
-    fn heading(&self, anchor: &str, id: Id) {
-        self.headings.borrow_mut().insert(anchor.to_owned(), id);
+    fn heading(&self, anchor: &str) {
+        self.anchors.borrow_mut().insert(anchor.to_owned());
     }
 
     fn follow(&self, app: &mut A, href: &str) {
         let heading = href
             .strip_prefix('#')
-            .and_then(|anchor| self.headings.borrow().get(anchor).copied());
+            .filter(|anchor| self.anchors.borrow().contains(*anchor));
         match (heading, &self.on_link) {
-            (Some(id), _) => self.shell.scroll_into_view(id, Some(Align::Min)),
+            (Some(anchor), _) => self
+                .shell
+                .scroll_into_view(heading_id(self.doc, anchor), Some(Align::Min)),
             (None, Some(on_link)) => on_link(app, href),
             (None, None) => {}
         }
     }
+}
+
+/// The id of the heading with `anchor` in the document `doc`: headings are
+/// keyed under the document, however deep they sit, so that this needs no
+/// layout.
+pub(super) fn heading_id(doc: Id, anchor: &str) -> Id {
+    child_id(doc, &Part::Heading(anchor.to_owned()))
 }
 
 /// The keys of a document's nodes. A heading is keyed by its anchor, so that
@@ -123,9 +134,11 @@ fn emit<A: 'static>(
                         at.pb(padding).border_b(1.0).border_color(style.rule)
                     }
                 };
-                let key = Part::Heading(heading.anchor.clone());
-                context.links.heading(&heading.anchor, s.id_of(key.clone()));
-                paragraph(s, key, at, &heading.spans, context);
+                context.links.heading(&heading.anchor);
+                s.keyed_under(context.links.doc, |s| {
+                    let key = Part::Heading(heading.anchor.clone());
+                    paragraph(s, key, at, &heading.spans, context);
+                });
             }
             Block::List(list_) => list(s, key, at, list_, context, depth),
             Block::Quote(inner) => {

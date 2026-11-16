@@ -205,6 +205,32 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.scope_with(child_id(self.path, &key), &key, body);
     }
 
+    /// TODO(prose)
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, child_id, tw};
+    /// fn page(b: &mut Builder<'_, '_, ()>) {
+    ///     let doc = b.id_of("doc");
+    ///     b.div_id("doc", tw(), |s| {
+    ///         s.div_id("section", tw(), |s| {
+    ///             s.keyed_under(doc, |s| {
+    ///                 s.span("title", tw(), "Found from the doc");
+    ///             });
+    ///         });
+    ///     });
+    ///     let _title = child_id(doc, &"title");
+    /// }
+    /// ```
+    pub fn keyed_under(&mut self, parent: Id, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
+        body(&mut Scope(Builder::new(
+            self.st,
+            self.frame,
+            parent,
+            self.kids,
+            (self.inherited, self.ambient),
+        )));
+    }
+
     pub(crate) fn scope_with(
         &mut self,
         id: Id,

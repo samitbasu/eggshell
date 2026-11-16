@@ -3,7 +3,7 @@
 
 use eggshell_ui::Style;
 use eggshell_ui::testing::Headless;
-use eggshell_ui_extras::markdown::{Level, MarkdownStyle, headings};
+use eggshell_ui_extras::markdown::{Level, MarkdownExt, MarkdownStyle, heading_id, headings};
 use egui::epaint::Shape;
 use egui::{Rect, Theme, vec2};
 use egui_kittest::Harness;
@@ -387,4 +387,129 @@ fn headless_places_the_table_where_the_frame_draws_it() {
             .unwrap_or_else(|| panic!("headless lacks {path}"));
         assert_eq!(node.rect().translate(shift), *rect, "{path}");
     }
+}
+
+const GUIDE: &str = "A sibling page, shown by the demo when a relative link names it. From here:";
+const BACK: &str = "Back";
+
+fn painted(harness: &Harness<'_, Rig<page::State>>, text: &str) -> bool {
+    support::shapes(harness)
+        .into_iter()
+        .any(|shape| matches!(shape, Shape::Text(shown) if shown.galley.text() == text))
+}
+
+fn follow(harness: &mut Harness<'_, Rig<page::State>>, text: &str, part: &str) {
+    let link = support::part_rect(harness, text, part);
+    press_and_release(harness, link.center());
+    harness.run_steps(4);
+}
+
+#[test]
+fn a_relative_link_to_a_sibling_page_shows_it_from_its_top() {
+    let mut harness = harness_sized(vec2(720.0, 360.0));
+    support::shell(&harness).scroll_into_view(
+        support::id_of(&harness, &cell("Row(0)", 1)),
+        Some(egui::Align::Max),
+    );
+    harness.run_steps(4);
+    let page = rect_of(&harness, "/Page");
+    assert!(
+        rect_of(&harness, "/Page/Doc").min.y < page.min.y - 600.0,
+        "precondition: the sample is scrolled far down: {:?}",
+        rect_of(&harness, "/Page/Doc")
+    );
+    follow(&mut harness, "a relative link", "relative");
+    assert!(painted(&harness, "Table page"), "table.md is shown");
+    assert!(!painted(&harness, PARAGRAPH), "the sample is not");
+    let back = rect_of(&harness, "/Page/Back");
+    assert!(
+        (back.min.y - (page.min.y + 24.0)).abs() < 1.0,
+        "the new page starts at the top: {back:?} in {page:?}"
+    );
+}
+
+#[test]
+fn back_retraces_the_pages_followed() {
+    let mut harness = harness();
+    assert!(
+        !painted(&harness, BACK),
+        "the sample has nowhere to go back to"
+    );
+    follow(&mut harness, PARAGRAPH, "relative");
+    assert!(painted(&harness, GUIDE));
+    follow(&mut harness, "the table page", "the table page");
+    assert!(painted(&harness, "Table page"));
+    follow(&mut harness, BACK, BACK);
+    assert!(painted(&harness, GUIDE), "back to guide.md");
+    follow(&mut harness, BACK, BACK);
+    assert!(painted(&harness, PARAGRAPH), "back to the sample");
+    assert!(!painted(&harness, BACK));
+}
+
+#[test]
+fn a_link_to_a_page_the_demo_lacks_stays_on_the_page() {
+    let mut harness = harness();
+    follow(&mut harness, PARAGRAPH, "relative");
+    follow(
+        &mut harness,
+        "a page that is not there",
+        "a page that is not there",
+    );
+    assert!(painted(&harness, GUIDE));
+    assert_eq!(
+        harness.state().app.followed.last().map(String::as_str),
+        Some("missing.md")
+    );
+}
+
+const NESTED: &str = "# Top\n\n> ## Quoted\n\n- ### Listed\n";
+
+fn nested(b: &mut eggshell_ui::Builder<'_, '_, ()>, _: &()) {
+    b.markdown("doc", NESTED).add();
+}
+
+#[test]
+fn heading_id_names_every_heading_however_deep() {
+    let harness = support::harness(
+        vec2(400.0, 300.0),
+        common::base_text(Theme::Light),
+        (),
+        nested,
+    );
+    let doc = support::id_of(&harness, "/\"doc\"");
+    for anchor in ["top", "quoted", "listed"] {
+        let heading = format!("Heading({anchor:?})");
+        let (path, _) = harness
+            .state()
+            .nodes
+            .iter()
+            .find(|(path, _)| path.ends_with(&heading))
+            .unwrap_or_else(|| panic!("precondition: {anchor} is drawn"));
+        assert_eq!(
+            support::id_of(&harness, path),
+            heading_id(doc, anchor),
+            "{path}"
+        );
+    }
+    assert!(
+        harness
+            .state()
+            .nodes
+            .iter()
+            .any(|(path, _)| path.contains("Item(0)") && path.ends_with("Heading(\"listed\")")),
+        "precondition: a heading sits in a list item"
+    );
+}
+
+#[test]
+fn a_link_to_a_heading_on_a_sibling_page_lands_on_it() {
+    let mut harness = harness_sized(vec2(720.0, 360.0));
+    follow(&mut harness, PARAGRAPH, "relative");
+    follow(&mut harness, "its alignments", "its alignments");
+    let page = rect_of(&harness, "/Page");
+    let heading = rect_of(&harness, "/Page/Doc/Heading(\"alignments\")");
+    assert!(
+        (page.min.y..page.min.y + 1.0).contains(&heading.min.y),
+        "the heading is at the page's top: {heading:?} in {page:?}"
+    );
 }

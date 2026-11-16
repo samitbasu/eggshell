@@ -36,11 +36,19 @@ pub use style::{
 /// TODO(prose)
 pub trait MarkdownExt<'b, 'f, A> {
     /// TODO(prose)
-    fn markdown<'s, K: Key>(&'s mut self, key: K, source: &'s str) -> Markdown<'s, 'b, 'f, A, K>;
+    fn markdown<'s, K: Key + Clone>(
+        &'s mut self,
+        key: K,
+        source: &'s str,
+    ) -> Markdown<'s, 'b, 'f, A, K>;
 }
 
 impl<'b, 'f, A: 'static> MarkdownExt<'b, 'f, A> for Builder<'b, 'f, A> {
-    fn markdown<'s, K: Key>(&'s mut self, key: K, source: &'s str) -> Markdown<'s, 'b, 'f, A, K> {
+    fn markdown<'s, K: Key + Clone>(
+        &'s mut self,
+        key: K,
+        source: &'s str,
+    ) -> Markdown<'s, 'b, 'f, A, K> {
         Markdown {
             b: self,
             key,
@@ -63,7 +71,7 @@ pub struct Markdown<'s, 'b, 'f, A, K> {
 
 type OnLink<A> = Rc<dyn Fn(&mut A, &str)>;
 
-impl<'s, 'b, 'f, A: 'static, K: Key> Markdown<'s, 'b, 'f, A, K> {
+impl<'s, 'b, 'f, A: 'static, K: Key + Clone> Markdown<'s, 'b, 'f, A, K> {
     /// TODO(prose)
     pub fn on_link(self, on_link: impl Fn(&mut A, &str) + 'static) -> Self {
         Self {
@@ -87,7 +95,11 @@ impl<'s, 'b, 'f, A: 'static, K: Key> Markdown<'s, 'b, 'f, A, K> {
         let blocks = parsed(&ctx, self.source);
         let context = build::Context {
             style: MarkdownStyle::of(&ctx),
-            links: Rc::new(build::Links::new(self.on_link, self.b.shell())),
+            links: Rc::new(build::Links::new(
+                self.on_link,
+                self.b.shell(),
+                self.b.id_of(self.key.clone()),
+            )),
             directives: self.directives,
             ctx,
         };
@@ -143,6 +155,23 @@ impl<A> Directives<A> {
     fn mount(&self, name: &str) -> Option<&Mount<A>> {
         self.mounts.get(name)
     }
+}
+
+/// TODO(prose)
+///
+/// ```
+/// # use eggshell_ui::{Builder, Shell};
+/// # use eggshell_ui_extras::markdown::{MarkdownExt, heading_id};
+/// fn page(b: &mut Builder<'_, '_, ()>, land_on: Option<&str>) {
+///     let shell: Shell = b.shell();
+///     if let Some(anchor) = land_on {
+///         shell.scroll_into_view(heading_id(b.id_of("doc"), anchor), Some(egui::Align::Min));
+///     }
+///     b.markdown("doc", "# Install").add();
+/// }
+/// ```
+pub fn heading_id(doc: egui::Id, anchor: &str) -> egui::Id {
+    build::heading_id(doc, anchor)
 }
 
 /// TODO(prose)
