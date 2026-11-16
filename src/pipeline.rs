@@ -643,7 +643,16 @@ impl<'f, A> Built<'f, A> {
                         Some(Err(_)) => (placement, AnchorLookup::Missing),
                         None => (placement, lookup),
                     };
-                    if lookup == AnchorLookup::Missing && opening == Opening::Opened {
+                    if lookup == AnchorLookup::Missing
+                        && overlay.band == crate::overlay::Band::Tooltip
+                    {
+                        // A tooltip opens a frame after its trigger asked,
+                        // and the trigger may be gone by then.
+                        if let Anchor::Node(trigger) = anchor_decl {
+                            st.kept
+                                .viewport(ctx.viewport_id(), |here| here.tooltips.forget(trigger));
+                        }
+                    } else if lookup == AnchorLookup::Missing && opening == Opening::Opened {
                         #[cfg(debug_assertions)]
                         {
                             let path = st
