@@ -5,6 +5,7 @@
 use eggshell_ui::owned::{Align, Column};
 use eggshell_ui::{Builder, Style, TextStyle, Track, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
+use egui::accesskit::Action;
 use egui::epaint::Shape;
 use egui::{Color32, Key, Modifiers, Rect, Role, Theme, Vec2, vec2};
 use egui_kittest::Harness;
@@ -378,27 +379,12 @@ mod selection {
     }
 
     #[test]
-    fn tab_reaches_the_first_row_when_none_is_selected() {
-        let mut harness = harness(Selection::On);
-        tab_in(&mut harness);
-        assert_eq!(
-            focused_path(&harness).as_deref(),
-            Some(band("Row(7)").as_str())
-        );
-    }
-
-    #[test]
-    fn tab_reaches_the_selected_row_and_no_other() {
+    fn tab_skips_the_rows_and_reaches_the_controls_in_their_cells() {
         let mut harness = harness(Selection::On);
         harness.state_mut().app.selected = Some(1024);
         harness.run_steps(2);
         let archive = |row: &str| format!("{TABLE}/({row}, 1)/Archive");
-        let stops = [
-            archive("Row(7)"),
-            band("Row(1024)"),
-            archive("Row(1024)"),
-            archive("Row(31)"),
-        ];
+        let stops = [archive("Row(7)"), archive("Row(1024)"), archive("Row(31)")];
         tab_in(&mut harness);
         for (index, stop) in stops.iter().enumerate() {
             if index > 0 {
@@ -409,70 +395,28 @@ mod selection {
     }
 
     #[test]
-    fn arrows_move_focus_and_selection_between_rows() {
+    fn a_clicked_row_takes_no_focus_and_draws_no_ring() {
         let mut harness = harness(Selection::On);
-        tab_in(&mut harness);
-        press(&mut harness, Key::ArrowDown);
-        assert_eq!(harness.state().app.selected, Some(1024));
-        assert_eq!(
-            focused_path(&harness).as_deref(),
-            Some(band("Row(1024)").as_str())
-        );
-        press(&mut harness, Key::ArrowDown);
-        press(&mut harness, Key::ArrowDown);
-        assert_eq!(
-            harness.state().app.selected,
-            Some(31),
-            "Down stops at the last row"
-        );
-        press(&mut harness, Key::ArrowUp);
-        assert_eq!(harness.state().app.selected, Some(1024));
-        press(&mut harness, Key::Home);
-        assert_eq!(harness.state().app.selected, Some(7));
-        press(&mut harness, Key::End);
-        assert_eq!(harness.state().app.selected, Some(31));
-        assert_eq!(
-            focused_path(&harness).as_deref(),
-            Some(band("Row(31)").as_str())
-        );
-    }
-
-    #[test]
-    fn space_selects_the_focused_row() {
-        let mut harness = harness(Selection::On);
-        tab_in(&mut harness);
-        press(&mut harness, Key::Space);
-        assert_eq!(harness.state().app.selected, Some(7));
-    }
-
-    #[test]
-    fn a_focused_row_shows_the_focus_ring() {
-        let mut harness = harness(Selection::On);
-        tab_in(&mut harness);
+        support::click_node(&mut harness, &cell("Row(1024)", 0));
         settle(&mut harness);
-        let row = rect_of(&harness, &band("Row(7)"));
-        let ring = Style::of(&harness.ctx).focus;
-        let drawn = support::shapes(&harness)
+        assert_eq!(harness.state().app.selected, Some(1024));
+        assert_eq!(focused_path(&harness), None);
+        let row = rect_of(&harness, &band("Row(1024)"));
+        let ringed = support::shapes(&harness)
             .into_iter()
-            .any(|shape| match shape {
-                Shape::Rect(r) => {
-                    support::same(r.rect, row)
-                        && r.stroke.width == ring.width
-                        && r.stroke.color == ring.color
-                }
-                _ => false,
-            });
-        assert!(drawn, "the ring is drawn on the row");
+            .any(|shape| matches!(shape, Shape::Rect(r) if support::same(r.rect, row) && r.stroke.width > 0.0));
+        assert!(!ringed, "no ring is drawn on the row");
     }
 
     #[test]
-    fn rows_without_selection_are_not_tab_stops() {
-        let mut harness = harness(Selection::Off);
-        tab_in(&mut harness);
-        assert_eq!(
-            focused_path(&harness).as_deref(),
-            Some(format!("{TABLE}/(Row(7), 1)/Archive").as_str())
-        );
+    fn keys_do_not_move_the_selection() {
+        let mut harness = harness(Selection::On);
+        support::click_node(&mut harness, &cell("Row(7)", 0));
+        settle(&mut harness);
+        for key in [Key::ArrowDown, Key::End, Key::Space] {
+            press(&mut harness, key);
+        }
+        assert_eq!(harness.state().app.selections, vec![7]);
     }
 }
 
@@ -531,6 +475,16 @@ mod access {
             .collect();
         assert_eq!(selected, [None, Some(false), Some(true), Some(false), None]);
     }
+
+    #[test]
+    fn a_selectable_row_is_not_focusable() {
+        let harness = harness(Selection::On);
+        let focusable: Vec<_> = harness
+            .get_all_by_role(Role::Row)
+            .map(|row| row.accesskit_node().data().supports_action(Action::Focus))
+            .collect();
+        assert_eq!(focusable, [false; 5]);
+    }
 }
 
 mod misuse {
@@ -582,27 +536,64 @@ mod preset {
 mod example {
     use super::*;
 
-    #[test]
-    fn the_example_selects_a_row_by_click_and_by_keys() {
+    type Example = Harness<'static, Rig<table_example::Invoices>>;
+
+    fn example() -> Example {
         let tokens = Tokens::for_theme(Theme::Light);
         let mut harness = support::harness(
-            vec2(720.0, 520.0),
+            vec2(760.0, 520.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             table_example::Invoices::default(),
             table_example::layout,
         );
         harness.run_steps(3);
-        let row = harness
+        harness
+    }
+
+    fn path_ending(harness: &Example, end: &str) -> String {
+        harness
             .state()
             .nodes
             .iter()
-            .find(|(path, _)| path.ends_with("/Row(\"INV-003\")"))
+            .find(|(path, _)| path.ends_with(end))
             .map(|(path, _)| path.clone())
-            .expect("the example shows INV-003");
+            .unwrap_or_else(|| panic!("the example has a node ending {end}"))
+    }
+
+    #[test]
+    fn a_click_on_a_row_selects_it() {
+        let mut harness = example();
+        let row = path_ending(&harness, "/Row(\"INV-003\")");
         support::click_node(&mut harness, &row);
         harness.run_steps(3);
         assert_eq!(harness.state().app.selected, Some("INV-003"));
-        press(&mut harness, Key::ArrowDown);
+    }
+
+    #[test]
+    fn the_checkbox_selects_its_row_by_click_and_by_keys() {
+        let mut harness = example();
+        let pick = path_ending(&harness, "(Row(\"INV-004\"), 0)/Pick/Box");
+        support::click_node(&mut harness, &pick);
+        harness.run_steps(3);
         assert_eq!(harness.state().app.selected, Some("INV-004"));
+        support::click_node(&mut harness, &pick);
+        harness.run_steps(3);
+        assert_eq!(harness.state().app.selected, None);
+        tab_in(&mut harness);
+        assert_eq!(
+            focused_path(&harness),
+            Some(path_ending(&harness, "(Row(\"INV-001\"), 0)/Pick/Box"))
+        );
+        press(&mut harness, Key::Space);
+        assert_eq!(harness.state().app.selected, Some("INV-001"));
+    }
+
+    #[test]
+    fn the_menu_button_does_not_select_its_row() {
+        let mut harness = example();
+        let menu = path_ending(&harness, "(Row(\"INV-002\"), 5)/Menu");
+        support::click_node(&mut harness, &menu);
+        harness.run_steps(3);
+        assert_eq!(harness.state().app.selected, None);
     }
 }

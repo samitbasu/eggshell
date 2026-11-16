@@ -1,5 +1,6 @@
-//! TODO(prose): an invoices table with a status badge, a right-aligned
-//! amount, a footer total, selectable rows and a menu on each row.
+//! TODO(prose): an invoices table with a checkbox column that selects a row,
+//! a status badge, a right-aligned amount, a footer total and a menu on each
+//! row.
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
@@ -70,6 +71,7 @@ impl Default for Invoices {
 pub enum Part {
     Page,
     Invoices,
+    Pick,
     Menu,
     Copy,
     Void,
@@ -87,7 +89,7 @@ fn dollars(cents: u64) -> String {
 
 /// ```html
 /// <div class="p-6 flex flex-col gap-4">
-///   <table> <thead>…</thead> <tbody> <tr>INV-001 <span class="badge">Paid</span> … $250.00 ⋯</tr> … </tbody> <tfoot>Total $2,250.00</tfoot> </table>
+///   <table> <thead>…</thead> <tbody> <tr><input type="checkbox"> INV-001 <span class="badge">Paid</span> … $250.00 ⋯</tr> … </tbody> <tfoot>Total $2,250.00</tfoot> </table>
 ///   <p class="text-muted-foreground">Selected: INV-003</p>
 /// </div>
 /// ```
@@ -109,16 +111,18 @@ pub fn layout(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
                 .columns([
                     Column::new(Track::auto()),
                     Column::new(Track::auto()),
+                    Column::new(Track::auto()),
                     Column::new(Track::fr(1.0)),
                     Column::new(Track::auto()).align(Align::End),
                     Column::new(Track::auto()).align(Align::Center),
                 ])
                 .header(|h| {
-                    for heading in ["Invoice", "Status", "Method", "Amount", ""] {
+                    for heading in ["", "Invoice", "Status", "Method", "Amount", ""] {
                         h.cell_text(heading);
                     }
                 })
                 .footer(|f| {
+                    f.cell_text("");
                     f.cell_text("Total");
                     f.cell_text("");
                     f.cell_text("");
@@ -132,6 +136,13 @@ pub fn layout(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
                     |invoice| invoice.id,
                     |row, invoice| {
                         let id = invoice.id;
+                        row.cell(|b| {
+                            b.checkbox_unlabelled(Part::Pick, app.selected == Some(id))
+                                .named(format!("Select {id}"))
+                                .on_change(move |app: &mut Invoices, on| {
+                                    app.selected = on.then_some(id);
+                                });
+                        });
                         row.cell(|b| b.text(tw().font_medium(), id));
                         row.cell(|b| {
                             let badge = tw()

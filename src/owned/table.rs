@@ -1,14 +1,13 @@
 //! The owned table: one grid holds every cell, so content-sized columns line
 //! up across rows, and each row has a band spanning the grid behind its cells
-//! for its rule, its fills and its focus.
+//! for its rule and its fills.
 
 use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use egui::{Id, Key, Role, Sense, Ui, UiBuilder, WidgetInfo};
+use egui::{Id, Role, Sense, Ui, UiBuilder, WidgetInfo};
 
-use super::number::{hold_arrows, pressed};
 use crate::builder::Slot;
 use crate::contract::TableStyle;
 use crate::{Builder, NodeUi as _, Style, Track, Tw, tw};
@@ -287,15 +286,6 @@ impl Stripe {
     }
 }
 
-/// A body row's key and band id, in order, for the keys that move between
-/// rows.
-struct Order<K> {
-    keys: Vec<K>,
-    ids: Vec<Id>,
-    /// Holds the band the keys moved to until it takes the focus.
-    moved: Id,
-}
-
 impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
     TableChain<'a, 'f, A, Option<Selectable<A, K>>>
 {
@@ -324,19 +314,6 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
         let table = slot.readable().to_owned();
         let classes = tw().grid().grid_cols_tracks(&tracks).w_full().sense_hover();
         let handle = b.div_id_with(slot.id, &slot.label, classes, |b| {
-            let order = Rc::new(Order {
-                keys: rows.iter().map(|(_, key)| key.clone()).collect(),
-                ids: rows
-                    .iter()
-                    .map(|(_, key)| b.id_of(Band::Row(key.clone())))
-                    .collect(),
-                moved: slot.id.with("moved"),
-            });
-            let stop = selection
-                .as_ref()
-                .and_then(|selection| selection.current.as_ref())
-                .and_then(|current| order.keys.iter().position(|key| key == current))
-                .unwrap_or(0);
             let mut rower = Rower {
                 table: &table,
                 style: &style,
@@ -350,10 +327,8 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
             let last = rows.len().saturating_sub(1);
             for (position, (item, key)) in rows.iter().enumerate() {
                 let picking = selection.as_ref().map(|selection| Picking {
-                    position,
-                    stop,
+                    key: key.clone(),
                     selected: selection.current.as_ref() == Some(key),
-                    order: order.clone(),
                     select: selection.select.clone(),
                 });
                 let last = if position == last {
@@ -386,50 +361,9 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
 
 /// How a body row of a selectable table takes part in the selection.
 struct Picking<A, K> {
-    position: usize,
-    stop: usize,
+    key: K,
     selected: bool,
-    order: Rc<Order<K>>,
     select: Select<A, K>,
-}
-
-impl<A, K: Clone> Picking<A, K> {
-    /// Selects the row the keys of this frame move to from this one.
-    fn keys(&self, app: &mut A, ui: &Ui) {
-        let last = self.order.keys.len().saturating_sub(1);
-        let here = self.position;
-        let to = if pressed(ui, Key::ArrowDown) {
-            (here + 1).min(last)
-        } else if pressed(ui, Key::ArrowUp) {
-            here.saturating_sub(1)
-        } else if pressed(ui, Key::Home) {
-            0
-        } else if pressed(ui, Key::End) {
-            last
-        } else {
-            here
-        };
-        if to != here {
-            self.pick(app, ui, to);
-        }
-    }
-
-    /// Selects the row at `position`, which takes the focus once it is the
-    /// selected one.
-    fn pick(&self, app: &mut A, ui: &Ui, position: usize) {
-        let target = self.order.ids[position];
-        ui.data_mut(|data| data.insert_temp(self.order.moved, target));
-        (self.select)(app, self.order.keys[position].clone());
-    }
-}
-
-/// Takes the focus for the row `id` if the keys moved to it: a row takes no
-/// focus until it is selected, and so the Tab stop.
-fn take_moved_focus(ui: &Ui, moved: Id, id: Id) {
-    if ui.data(|data| data.get_temp::<Id>(moved)) == Some(id) {
-        ui.data_mut(|data| data.remove::<Id>(moved));
-        ui.memory_mut(|memory| memory.request_focus(id));
-    }
 }
 
 /// Adds the rows of one table in order: a band, then its cells.
@@ -469,7 +403,7 @@ impl Rower<'_> {
             Band::Row(key) => format!("row {key:?}"),
             Band::Footer => "the footer".to_owned(),
         };
-        let classes = band_classes(table, self.style, (part, last, stripe), picking.as_ref())
+        let classes = band_classes(table, (part, last, stripe), picking.as_ref())
             .col_span_full()
             .row_start(line);
         let selectable = picking.as_ref().map(|picking| picking.selected);
@@ -486,14 +420,10 @@ impl Rower<'_> {
                     node.set_selected(selected);
                 }
             });
-            let Some(picking) = picking else { return };
-            take_moved_focus(ui, picking.order.moved, response.id);
-            if response.clicked() || crate::nav::take_activation(ui, response.id) {
-                picking.pick(app, ui, picking.position);
-            }
-            if response.has_focus() {
-                hold_arrows(ui);
-                picking.keys(app, ui);
+            if let Some(picking) = picking
+                && response.clicked()
+            {
+                (picking.select)(app, picking.key);
             }
         });
         let mut row = Cells {
@@ -519,10 +449,9 @@ impl Rower<'_> {
 }
 
 /// The classes of a row's band: its rule, its fills and, in a selectable
-/// table, its focus.
+/// table, the clicks that select it, which take no focus.
 fn band_classes<A, K>(
     table: &TableStyle,
-    style: &Style,
     (part, last, stripe): (Part, Last, Stripe),
     picking: Option<&Picking<A, K>>,
 ) -> Tw {
@@ -554,18 +483,7 @@ fn band_classes<A, K>(
             let classes = classes.transition(table.transition);
             match picking {
                 None => classes,
-                Some(picking) => {
-                    let ring = style.focus;
-                    let classes = classes
-                        .sense_click()
-                        .ring_inset()
-                        .focus(|p| p.ring(ring.width, ring.color));
-                    if picking.position == picking.stop {
-                        classes
-                    } else {
-                        classes.focusable_none()
-                    }
-                }
+                Some(_) => classes.sense_click().focusable_none(),
             }
         }
     }
