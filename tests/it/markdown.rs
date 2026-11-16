@@ -462,14 +462,14 @@ fn a_link_to_a_page_the_demo_lacks_stays_on_the_page() {
     );
 }
 
-const NESTED: &str = "# Top\n\n> ## Quoted\n\n- ### Listed\n";
+const NESTED: &str = "# Top\n\n> ## Quoted\n\n- ### Listed\n\n## Top 1\n\n> ## Top\n";
 
 fn nested(b: &mut eggshell_ui::Builder<'_, '_, ()>, _: &()) {
     b.markdown("doc", NESTED).add();
 }
 
 #[test]
-fn heading_id_names_every_heading_however_deep() {
+fn heading_id_names_every_heading_however_deep_and_repeated() {
     let harness = support::harness(
         vec2(400.0, 300.0),
         common::base_text(Theme::Light),
@@ -477,7 +477,7 @@ fn heading_id_names_every_heading_however_deep() {
         nested,
     );
     let doc = support::id_of(&harness, "/\"doc\"");
-    for anchor in ["top", "quoted", "listed"] {
+    for anchor in ["top", "quoted", "listed", "top-1", "top-2"] {
         let heading = format!("Heading({anchor:?})");
         let (path, _) = harness
             .state()

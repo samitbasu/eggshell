@@ -1,6 +1,6 @@
 //! Markdown source into a tree of blocks whose text is eggshell spans.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 use eggshell_ui::owned::Align;
@@ -191,7 +191,15 @@ struct Walk {
     /// Text of one style, not yet a span.
     run: (Marks, String),
     spans: Spans,
-    anchors: HashMap<String, usize>,
+    anchors: Anchors,
+}
+
+/// The anchors given so far: each one issued, and for each wanted anchor
+/// the next suffix to try.
+#[derive(Default)]
+struct Anchors {
+    issued: HashSet<String>,
+    next: HashMap<String, usize>,
 }
 
 impl Default for Walk {
@@ -203,7 +211,7 @@ impl Default for Walk {
             marks: Marks::default(),
             run: (Marks::default(), String::new()),
             spans: Spans::new(),
-            anchors: HashMap::new(),
+            anchors: Anchors::default(),
         }
     }
 }
@@ -373,14 +381,19 @@ impl Walk {
         }
     }
 
-    /// `wanted`, or `wanted-1`, `wanted-2`… when an earlier heading has it.
+    /// `wanted`, or `wanted-1`, `wanted-2`… when an earlier heading has it:
+    /// the first that no earlier heading has, so that every anchor, and the
+    /// key it gives the heading, is unique in the document.
     fn anchor(&mut self, wanted: String) -> String {
-        let seen = self.anchors.entry(wanted.clone()).or_insert(0);
-        let anchor = match *seen {
-            0 => wanted,
-            n => format!("{wanted}-{n}"),
-        };
-        *seen += 1;
+        let Anchors { issued, next } = &mut self.anchors;
+        let mut suffix = next.get(&wanted).copied().unwrap_or(0);
+        let mut anchor = suffixed(&wanted, suffix);
+        while issued.contains(&anchor) {
+            suffix = suffix.saturating_add(1);
+            anchor = suffixed(&wanted, suffix);
+        }
+        next.insert(wanted, suffix.saturating_add(1));
+        issued.insert(anchor.clone());
         anchor
     }
 
@@ -472,6 +485,13 @@ fn column_align(align: Alignment) -> Align {
     }
 }
 
+fn suffixed(wanted: &str, suffix: usize) -> String {
+    match suffix {
+        0 => wanted.to_owned(),
+        n => format!("{wanted}-{n}"),
+    }
+}
+
 /// A GitHub-style anchor: lower case, spaces as hyphens, and only letters,
 /// digits, hyphens and underscores kept.
 pub(crate) fn slug(text: &str) -> String {
@@ -552,6 +572,30 @@ mod tests {
             parse("soft\nbreak and hard  \nbreak"),
             vec![text("soft break and hard\nbreak")],
             "text of one style is one span"
+        );
+    }
+
+    #[test]
+    fn repeated_headings_take_anchors_no_other_heading_has() {
+        let anchors: Vec<String> = parse(
+            "# Notes\n\n## Notes\n\n## Notes 1\n\n## Twice {#notes-2}\n\n## Notes\n\n## Again {#notes}",
+        )
+        .into_iter()
+        .filter_map(|block| match block {
+            Block::Heading(heading) => Some(heading.anchor),
+            _ => None,
+        })
+        .collect();
+        assert_eq!(
+            anchors,
+            [
+                "notes",
+                "notes-1",
+                "notes-1-1",
+                "notes-2",
+                "notes-3",
+                "notes-4"
+            ]
         );
     }
 

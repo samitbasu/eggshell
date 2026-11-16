@@ -205,22 +205,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.scope_with(child_id(self.path, &key), &key, body);
     }
 
-    /// TODO(prose)
-    ///
-    /// ```
-    /// # use eggshell_ui::{Builder, child_id, tw};
-    /// fn page(b: &mut Builder<'_, '_, ()>) {
-    ///     let doc = b.id_of("doc");
-    ///     b.div_id("doc", tw(), |s| {
-    ///         s.div_id("section", tw(), |s| {
-    ///             s.keyed_under(doc, |s| {
-    ///                 s.span("title", tw(), "Found from the doc");
-    ///             });
-    ///         });
-    ///     });
-    ///     let _title = child_id(doc, &"title");
-    /// }
-    /// ```
+    /// Not a stable API: it exists for `eggshell-ui-extras`. Builds `body`
+    /// with its nodes keyed under the node `parent` instead of this scope, so
+    /// that their ids can be found from `parent` alone, wherever they sit in
+    /// the tree.
+    #[doc(hidden)]
     pub fn keyed_under(&mut self, parent: Id, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         body(&mut Scope(Builder::new(
             self.st,
