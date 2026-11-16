@@ -43,6 +43,7 @@ mod button;
 mod checkbox;
 mod choice;
 mod custom;
+mod field_box;
 mod menu;
 mod number;
 mod progress;
@@ -69,6 +70,7 @@ pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
+pub use field_box::FieldBoxChain;
 pub use menu::{Action, Checkbox, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use number::{Edit, Step};
@@ -484,6 +486,35 @@ fn field_classes(look: &Look, style: &Style, radius: u8, enablement: Enablement)
     match shadow {
         Some(shadow) => classes.shadow(shadow),
         None => classes,
+    }
+}
+
+/// A box in `look` of `radius` and `height` that holds a row: the frame of a
+/// field and of what sits beside it.
+pub(crate) fn field_box_classes(
+    look: &Look,
+    style: &Style,
+    radius: u8,
+    height: f32,
+    enablement: Enablement,
+) -> Tw {
+    enablement.fade(
+        field_classes(look, style, radius, enablement)
+            .flex()
+            .h_px(height),
+        style,
+    )
+}
+
+/// `size`'s text laid over the role the subtree inherits.
+pub(crate) fn text_sized<A>(b: &Builder<'_, '_, A>, size: Option<crate::contract::TextSize>) -> Tw {
+    match size {
+        Some(crate::contract::TextSize { size, line_height }) => tw().role(TextSpec {
+            size,
+            line_height,
+            ..b.text_style().spec.clone()
+        }),
+        None => tw(),
     }
 }
 

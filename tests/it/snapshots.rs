@@ -50,6 +50,9 @@ mod clipboard_example;
 #[path = "../../examples/control_sizes.rs"]
 mod control_sizes_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/field_icons.rs"]
+mod field_icons_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/icons.rs"]
 mod icons_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
@@ -2470,4 +2473,45 @@ fn icons_menu_light() {
 #[test]
 fn icons_menu_dark() {
     icons_in("icons_menu_dark", egui::Theme::Dark, true);
+}
+
+/// Text fields with icons at three sizes, the search field focused or not.
+fn field_icons_in(name: &str, theme: egui::Theme, focused: bool) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(320.0, 240.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        field_icons_example::State::default(),
+        field_icons_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    if focused {
+        support::click_node(&mut harness, r#"/"Page"/"default"/"search"/Field"#);
+        harness.run_steps(6);
+    }
+    harness.snapshot(name);
+}
+
+#[test]
+fn field_icons_light() {
+    field_icons_in("field_icons_light", egui::Theme::Light, false);
+}
+
+#[test]
+fn field_icons_dark() {
+    field_icons_in("field_icons_dark", egui::Theme::Dark, false);
+}
+
+#[test]
+fn field_icons_focused_light() {
+    field_icons_in("field_icons_focused_light", egui::Theme::Light, true);
+}
+
+#[test]
+fn field_icons_focused_dark() {
+    field_icons_in("field_icons_focused_dark", egui::Theme::Dark, true);
 }
