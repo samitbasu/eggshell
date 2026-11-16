@@ -36,8 +36,8 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             b.div_id("sm", tw().control_size(size::SM), |b| {
                 b.slider("small", 30.0, 0.0..=100.0)
                     .label("Small")
-                    .readout(|v| format!("{v:.0}"))
-                    .editable(|text| text.trim().parse().ok())
+                    .readout(|v| format!("{v:.0} dB"))
+                    .editable(|text| text.trim().trim_end_matches("dB").trim().parse().ok())
                     .on_change(|_: &mut App, _| {});
             });
             b.div_id("xs", tw().control_size(size::XS), |b| {
@@ -79,6 +79,7 @@ const BOX: &str = "/\"volume\"/Box";
 const TRACK: &str = "/\"volume\"/Box/Track";
 const LABEL: &str = "/\"volume\"/Box/Header/Label";
 const READOUT: &str = "/\"volume\"/Box/Header/Readout";
+const SMALL: &str = "/\"sm\"/\"small\"/Box/Header/Readout";
 
 fn type_text(harness: &mut Harness<'_, Rig<App>>, text: &str) {
     harness.event(Event::Text(text.to_owned()));
@@ -181,11 +182,60 @@ fn the_readout_being_edited_is_drawn_in_the_inputs_box_with_its_ring() {
     );
 }
 
+/// What the field of the readout at `readout` shows once `typed` is typed
+/// into it.
+fn typed_into(harness: &mut Harness<'_, Rig<App>>, readout: &str, typed: &str) -> String {
+    assert_eq!(
+        focused_node(harness),
+        Some(format!("{readout}/Field")),
+        "precondition: the field has focus"
+    );
+    type_text(harness, typed);
+    let field = rect_of(harness, readout);
+    support::shapes(harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            egui::Shape::Text(text) if field.contains(text.pos) => {
+                Some(text.galley.text().to_owned())
+            }
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
 #[test]
-fn opening_the_readout_selects_its_value_so_typing_replaces_it() {
+fn a_click_puts_the_caret_where_it_lands_and_selects_nothing() {
     let mut harness = harness();
-    open(&mut harness);
-    type_text(&mut harness, "45");
+    let zero = support::part_rect(&harness, "40%", "0");
+    support::press_and_release(&mut harness, egui::pos2(zero.min.x + 1.0, zero.center().y));
+    harness.run_steps(6);
+    assert_eq!(typed_into(&mut harness, READOUT, "5"), "450%");
+}
+
+#[test]
+fn a_double_click_selects_the_whole_value() {
+    let mut harness = harness();
+    let number = support::part_rect(&harness, "30 dB", "30");
+    for _ in 0..2 {
+        support::press_and_release(&mut harness, number.center());
+        harness.run_steps(2);
+    }
+    harness.run_steps(6);
+    assert_eq!(typed_into(&mut harness, SMALL, "7"), "7");
+}
+
+#[test]
+fn opening_the_readout_from_the_keyboard_selects_its_value() {
+    let mut harness = harness();
+    support::past_bar(&mut harness);
+    press(&mut harness, Key::Tab);
+    assert_eq!(
+        focused_node(&harness).as_deref(),
+        Some(READOUT),
+        "precondition: Tab reaches the readout"
+    );
+    press(&mut harness, Key::Enter);
+    assert_eq!(typed_into(&mut harness, READOUT, "45"), "45");
     press(&mut harness, Key::Enter);
     assert_eq!(harness.state().app.volume, 45.0);
 }

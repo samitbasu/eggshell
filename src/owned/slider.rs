@@ -444,6 +444,37 @@ struct Row {
     size: Size,
 }
 
+/// How the readout's field opens: a click puts the caret where it landed;
+/// the keyboard selects the whole value, as tabbing into a field does. (A
+/// double click's second click lands in the field, which selects it all.)
+#[derive(Clone, Copy)]
+enum Opening {
+    All,
+    Caret(egui::text::CCursor),
+}
+
+impl Opening {
+    fn of(ui: &Ui, response: &egui::Response, shown: &str) -> Self {
+        let at = response
+            .interact_pointer_pos()
+            .filter(|_| response.clicked_by(egui::PointerButton::Primary));
+        let Some(at) = at else {
+            return Self::All;
+        };
+        let style = crate::draw::node_text(ui);
+        let leaf = crate::measure::TextLeaf::plain(ui.ctx(), shown, &style);
+        let galley = ui.ctx().fonts_mut(|fonts| leaf.editing_galley(fonts, None));
+        Self::Caret(galley.cursor_from_pos(at - response.rect.min))
+    }
+
+    fn range(self, text: &str) -> egui::text::CCursorRange {
+        match self {
+            Self::All => text_field::all(text),
+            Self::Caret(caret) => egui::text::CCursorRange::one(caret),
+        }
+    }
+}
+
 impl Row {
     fn show<A: 'static>(self, b: &mut Builder<'_, '_, A>, set: Set<A>, edits: Edits<A>) {
         let Self {
@@ -500,9 +531,11 @@ impl Row {
                             let response = described(ui, Role::Button, None, label.trim(), &None);
                             if response.clicked() {
                                 let width = response.rect.width();
+                                let opening = Opening::of(ui, &response, &current);
                                 ui.data_mut(|data| {
                                     data.insert_temp(editing, current.clone());
                                     data.insert_temp(editing.with("width"), width);
+                                    data.insert_temp(editing.with("opening"), opening);
                                 });
                             }
                         });
@@ -531,7 +564,12 @@ impl Row {
                                     .unwrap_or_default();
                                 let response = text_field::show(ui, &mut text, &field);
                                 Autofocus::OnAppear.apply(ui.ctx(), &response);
-                                text_field::select_on_focus(ui, &response, &text);
+                                if response.gained_focus() {
+                                    let opening = ui
+                                        .data(|data| data.get_temp(editing.with("opening")))
+                                        .unwrap_or(Opening::All);
+                                    text_field::select(ui, &response, opening.range(&text));
+                                }
                                 if response.changed() {
                                     ui.data_mut(|data| data.insert_temp(editing, text.clone()));
                                 }

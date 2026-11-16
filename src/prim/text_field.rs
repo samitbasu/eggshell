@@ -34,15 +34,23 @@ pub fn show(ui: &mut Ui, text: &mut String, field: &Field) -> Response {
 /// Selects all of `text` in the field `response` is of, in the frame it gains
 /// focus, so typing replaces it.
 pub(crate) fn select_on_focus(ui: &Ui, response: &Response, text: &str) {
-    if !response.gained_focus() {
-        return;
+    if response.gained_focus() {
+        select(ui, response, all(text));
     }
-    let mut state = egui::TextEdit::load_state(ui.ctx(), response.id).unwrap_or_default();
-    let all = egui::text::CCursorRange::two(
+}
+
+/// The whole of `text`, as a selection.
+pub(crate) fn all(text: &str) -> egui::text::CCursorRange {
+    egui::text::CCursorRange::two(
         egui::text::CCursor::new(0),
         egui::text::CCursor::new(text.chars().count()),
-    );
-    state.cursor.set_char_range(Some(all));
+    )
+}
+
+/// Sets the selection of the field `response` is of to `range`.
+pub(crate) fn select(ui: &Ui, response: &Response, range: egui::text::CCursorRange) {
+    let mut state = egui::TextEdit::load_state(ui.ctx(), response.id).unwrap_or_default();
+    state.cursor.set_char_range(Some(range));
     state.store(ui.ctx(), response.id);
 }
 
