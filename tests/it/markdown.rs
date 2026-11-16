@@ -341,3 +341,51 @@ fn on_a_touch_screen_a_tap_on_a_link_still_follows_it() {
     harness.run_steps(2);
     assert_eq!(harness.state().app.followed, ["guide.md"]);
 }
+
+fn copied(harness: &mut Harness<'_, Rig<page::State>>) -> Option<String> {
+    harness.event(egui::Event::Copy);
+    harness.step();
+    harness
+        .output()
+        .platform_output
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            egui::OutputCommand::CopyText(text) => Some(text.clone()),
+            _ => None,
+        })
+}
+
+/// The same drag on the first paragraph, upward from its last row, with a
+/// mouse or on a touch screen: what it copied and how far it scrolled.
+fn drag_on_the_paragraph(touch: bool) -> (Option<String>, f32) {
+    let mut harness = harness_sized(vec2(720.0, 400.0));
+    if touch {
+        touch_screen(&mut harness);
+    }
+    let (galley, at) = support::galley_of(&harness, PARAGRAPH);
+    let paragraph = galley.rect.translate(at.to_vec2());
+    let from = egui::pos2(paragraph.max.x - 4.0, paragraph.max.y - 4.0);
+    support::drag(&mut harness, from, from - vec2(0.0, 60.0));
+    let scrolled = page_offset(&harness);
+    (copied(&mut harness), scrolled)
+}
+
+#[test]
+fn with_a_mouse_a_drag_on_a_paragraph_selects_its_text_and_scrolls_nothing() {
+    let (copied, scrolled) = drag_on_the_paragraph(false);
+    assert!(
+        copied
+            .as_deref()
+            .is_some_and(|text| text.len() > 10 && PARAGRAPH.contains(text.trim())),
+        "copied {copied:?}"
+    );
+    assert_eq!(scrolled, 0.0);
+}
+
+#[test]
+fn on_a_touch_screen_the_same_drag_scrolls_and_selects_nothing() {
+    let (copied, scrolled) = drag_on_the_paragraph(true);
+    assert!(scrolled > 20.0, "scrolled {scrolled}");
+    assert_eq!(copied, None);
+}
