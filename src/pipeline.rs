@@ -880,6 +880,15 @@ impl<'f, A> Built<'f, A> {
                     .any(|root| root.window().is_some_and(|window| window.id == *id))
             });
             kept.carried.retain(|id, _| frame.pop_outs.contains(id));
+            kept.inline.retain(|id, _| frame.pop_outs.contains(id));
+            for id in &frame.pop_outs {
+                let popped = roots
+                    .iter()
+                    .any(|root| root.window().is_some_and(|window| window.id == *id));
+                if let (false, Some(&index)) = (popped, by_id.get(id)) {
+                    kept.inline.insert(*id, nodes[index].rect().size());
+                }
+            }
         });
         st.kept.with(|kept| {
             kept.presences.sweep();
@@ -920,9 +929,13 @@ impl<'f, A> Built<'f, A> {
     }
 }
 
+/// The most of the page a window that was never laid out inline opens at.
+const FIRST_OPEN_SHARE: f32 = 0.75;
+
 /// Lays out the root `node` of a popped-out subtree at the size its window
 /// had when it was last drawn, or, when it opens, at the size the
-/// application's frame gives it or else its max-content size; never below
+/// application's frame gives it, else the size the subtree had inline, else
+/// its max-content size within [`FIRST_OPEN_SHARE`] of the page; never below
 /// its minimum. `area` is where an embedded window opens on the page.
 fn place_window(
     ctx: &egui::Context,
@@ -956,16 +969,20 @@ fn place_window(
         MinSize::Content => sized(None, AvailableSpace::MinContent),
         MinSize::Points(size) => size,
     };
-    let (seen, chrome) = st.kept.with(|kept| {
+    let (seen, inline, chrome) = st.kept.with(|kept| {
         (
             kept.windows.get(&decl.id).and_then(|seen| seen.content),
+            kept.inline.get(&decl.id).copied(),
             kept.chrome,
         )
     });
     let size = seen
         .map(|content| content.size())
         .or_else(|| decl.window.frame.map(|frame| frame.size))
-        .unwrap_or_else(|| sized(None, AvailableSpace::MaxContent))
+        .or(inline)
+        .unwrap_or_else(|| {
+            sized(None, AvailableSpace::MaxContent).min(area.size() * FIRST_OPEN_SHARE)
+        })
         .max(min);
     let origin = match presentation {
         Presentation::Native => egui::Pos2::ZERO,

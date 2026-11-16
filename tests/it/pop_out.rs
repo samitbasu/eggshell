@@ -258,6 +258,43 @@ fn min_size_content_is_the_subtrees_min_content_size() {
     );
 }
 
+const INLINE: Vec2 = vec2(200.0, 150.0);
+
+#[test]
+fn without_a_frame_the_window_opens_at_the_subtrees_inline_size() {
+    let mut h = harness(App {
+        frame: None,
+        ..App::default()
+    });
+    assert_eq!(rect_of(&h, PANE).size(), INLINE, "precondition: inline");
+    h.state_mut().app.popped = Popped::Out;
+    h.run_steps(4);
+    assert_eq!(rect_of(&h, PANE).size(), INLINE);
+}
+
+#[test]
+fn a_given_frame_wins_over_the_inline_size() {
+    let mut h = harness(App::default());
+    assert_ne!(OPENS_AT.size, INLINE, "precondition: they differ");
+    h.state_mut().app.popped = Popped::Out;
+    h.run_steps(4);
+    assert_eq!(rect_of(&h, PANE).size(), OPENS_AT.size);
+}
+
+#[test]
+fn popped_out_from_the_start_the_window_opens_at_the_max_content_size() {
+    let h = harness(App {
+        popped: Popped::Out,
+        frame: None,
+        ..App::default()
+    });
+    assert_eq!(
+        rect_of(&h, PANE).size(),
+        vec2(150.0, 120.0),
+        "the header's width and the header and list's height"
+    );
+}
+
 /// The native path: kittest's context with `embed_viewports` off and an
 /// immediate-viewport renderer that runs each window's pass as eframe does,
 /// with the window's size, position, close request and events scripted.
@@ -426,6 +463,24 @@ mod native {
         let opened = &builders[0];
         assert_eq!(opened.inner_size, Some(OPENS_AT.size));
         assert_eq!(opened.position, Some(OPENS_AT.position));
+    }
+
+    #[test]
+    fn without_a_frame_the_window_opens_at_the_subtrees_inline_size() {
+        install();
+        let mut h = super::harness(App {
+            frame: None,
+            ..App::default()
+        });
+        h.ctx.set_embed_viewports(false);
+        h.run_steps(2);
+        assert_eq!(rect_of(&h, PANE).size(), INLINE, "precondition: inline");
+        CHILD.with_borrow_mut(|child| child.inner = INLINE);
+        h.state_mut().app.popped = Popped::Out;
+        h.run_steps(4);
+        let opened = CHILD.with_borrow(|child| child.builders.first().cloned());
+        assert_eq!(opened.expect("shown").inner_size, Some(INLINE));
+        assert_eq!(rect_of(&h, PANE), Rect::from_min_size(Pos2::ZERO, INLINE));
     }
 
     #[test]
@@ -627,5 +682,25 @@ mod example_cards {
         h.run_steps(4);
         assert_eq!(h.state().app.popped[0], Popped::In);
         assert!(h.query_by_label("Revenue is in its own window").is_none());
+    }
+
+    #[test]
+    fn a_card_with_a_scroll_body_opens_at_its_inline_size() {
+        const CARD: &str = "/Grid/Card(0)";
+        let tokens = eggshell_ui_shadcn::Tokens::for_theme(egui::Theme::Light);
+        let mut h = support::harness(
+            vec2(800.0, 700.0),
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            example::State::default(),
+            example::layout,
+        );
+        h.state_mut().companion = support::Companion::Alone;
+        h.run_steps(4);
+        let inline = rect_of(&h, CARD).size();
+        assert_eq!(inline.y, 220.0, "precondition: the card's inline height");
+        h.state_mut().app.popped[0] = Popped::Out;
+        h.run_steps(4);
+        assert!(h.query_by_label("Revenue is in its own window").is_some());
+        assert_eq!(rect_of(&h, CARD).size(), inline);
     }
 }

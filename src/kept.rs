@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use std::collections::HashMap;
 
-use egui::{Rect, ViewportId};
+use egui::{Rect, Vec2, ViewportId};
 
 use crate::nav::Active;
 use crate::overlay_input::Typing;
@@ -30,6 +30,9 @@ pub(crate) struct Kept {
     pub(crate) scrolls: crate::scroll::Scrolls,
     /// The pop-outs' windows, by the pop-out's id.
     pub(crate) windows: HashMap<egui::Id, crate::window::Seen>,
+    /// The size each pop-out's subtree was last laid out at inline: the size
+    /// its window opens at when the application gives no frame.
+    pub(crate) inline: HashMap<egui::Id, Vec2>,
     /// Where each pop-out's subtree was last drawn, and its focus there.
     pub(crate) carried: HashMap<egui::Id, crate::window::Carried>,
     /// What an embedded pop-out window draws around its content, once one
