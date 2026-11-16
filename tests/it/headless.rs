@@ -535,3 +535,10 @@ fn without_a_base_text_or_a_style_a_layout_reads_egui_body() {
         card_text_rects(Headless::new(SIZE).base_text(body))
     );
 }
+
+#[test]
+fn a_scale_that_is_not_finite_and_positive_falls_back_to_one() {
+    for scale in [f32::NAN, f32::INFINITY, 0.0, -2.0] {
+        assert_eq!(f32::from(PixelsPerPoint::new(scale)), 1.0, "{scale}");
+    }
+}

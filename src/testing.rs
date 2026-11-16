@@ -354,18 +354,15 @@ fn run_pass(
 pub struct PixelsPerPoint(f32);
 
 impl PixelsPerPoint {
-    /// TODO(prose): a display where a point spans `scale` pixels.
-    ///
-    /// # Panics
-    ///
-    /// If `scale` is not finite and positive.
-    #[track_caller]
+    /// TODO(prose): a display where a point spans `scale` pixels, or one pixel
+    /// if `scale` is not finite and positive.
     pub fn new(scale: f32) -> Self {
-        assert!(
-            scale.is_finite() && scale > 0.0,
-            "pixels per point must be finite and positive, not {scale}"
-        );
-        Self(scale)
+        if scale.is_finite() && scale > 0.0 {
+            Self(scale)
+        } else {
+            // TODO(#279): report a scale that is not finite and positive.
+            Self::default()
+        }
     }
 }
 
