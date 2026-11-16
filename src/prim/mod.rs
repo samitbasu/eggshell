@@ -56,6 +56,7 @@ pub(crate) enum Prim {
     Text(String),
     /// Text with egui's formatting; never a [`WidgetText::Text`].
     Rich(WidgetText),
+    Spans(crate::spans::Spans),
     Icon(Icon),
     Image(ImageSource<'static>),
     Paint(PaintFn),
@@ -63,10 +64,11 @@ pub(crate) enum Prim {
 
 impl Prim {
     /// The text this shows, if it is text.
-    pub(crate) fn text(&self) -> Option<&str> {
+    pub(crate) fn text(&self) -> Option<std::borrow::Cow<'_, str>> {
         match self {
-            Self::Text(text) => Some(text),
-            Self::Rich(text) => Some(text.text()),
+            Self::Text(text) => Some(text.as_str().into()),
+            Self::Rich(text) => Some(text.text().into()),
+            Self::Spans(spans) => Some(spans.text().into()),
             Self::Icon(_) | Self::Image(_) | Self::Paint(_) => None,
         }
     }

@@ -593,3 +593,62 @@ pub fn flatten_all_of(shape: &Shape) -> Vec<&Shape> {
     flatten(shape, &mut all);
     all
 }
+
+/// The galley painted with `text`, and where it was painted.
+pub fn galley_of<A>(
+    harness: &Harness<'_, Rig<A>>,
+    text: &str,
+) -> (std::sync::Arc<egui::Galley>, Pos2) {
+    shapes(harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Text(shape) if shape.galley.text() == text => {
+                Some((shape.galley.clone(), shape.pos))
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("{text:?} was painted as one galley"))
+}
+
+/// The screen rect of `part` within the galley painted with `text`; `part`
+/// must sit on one row.
+pub fn part_rect<A>(harness: &Harness<'_, Rig<A>>, text: &str, part: &str) -> Rect {
+    let (galley, at) = galley_of(harness, text);
+    let start = text[..text.find(part).expect("part of the text")]
+        .chars()
+        .count();
+    let end = start + part.chars().count();
+    let first = galley.pos_from_cursor(egui::text::CCursor::new(start));
+    let last = galley.pos_from_cursor(egui::text::CCursor::new(end));
+    assert!(
+        (first.center().y - last.center().y).abs() < 0.5,
+        "precondition: {part:?} is on one row"
+    );
+    Rect::from_min_max(first.min, egui::pos2(last.max.x, first.max.y)).translate(at.to_vec2())
+}
+
+/// The format of the section of `galley` that `part` starts in.
+pub fn section_of<'g>(galley: &'g egui::Galley, part: &str) -> &'g egui::TextFormat {
+    let start = galley.job.text.find(part).expect("part of the text");
+    &galley
+        .job
+        .sections
+        .iter()
+        .find(|section| (section.byte_range.start.0..section.byte_range.end.0).contains(&start))
+        .expect("a section covers the part")
+        .format
+}
+
+/// The URLs the last frame asked the platform to open.
+pub fn opened_urls<A>(harness: &Harness<'_, Rig<A>>) -> Vec<String> {
+    harness
+        .output()
+        .platform_output
+        .commands
+        .iter()
+        .filter_map(|command| match command {
+            egui::OutputCommand::OpenUrl(open) => Some(open.url.clone()),
+            _ => None,
+        })
+        .collect()
+}

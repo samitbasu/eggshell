@@ -184,6 +184,16 @@ pub(crate) enum ColorSource {
     Inherited,
 }
 
+/// Whether a node is hovered by the hit test, or whenever the pointer is
+/// over its rect: a table row stays hovered under a button in one of its
+/// cells, which lies over it as a sibling, not inside it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum HoverBy {
+    #[default]
+    Hit,
+    Rect,
+}
+
 /// What a node does when the pointer meets it.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct Interaction {
@@ -192,6 +202,7 @@ pub(crate) struct Interaction {
     pub grouping: Grouping,
     pub variants: Variants,
     pub color_source: ColorSource,
+    pub hover_by: HoverBy,
 }
 
 pub(crate) type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
@@ -312,8 +323,9 @@ impl<'f, A> Frame<'f, A> {
 
 /// Owns the state a frame is built in; reuse one across frames.
 ///
-/// The root's text style defaults to [`TextStyle::from_egui`], recomputed on
-/// every build so theme changes apply. [`with_base_text`](Self::with_base_text)
+/// The root's text style defaults to the installed [`Style`](crate::Style)'s
+/// text, else [`TextStyle::from_egui`], recomputed on every build so theme
+/// changes apply. [`with_base_text`](Self::with_base_text)
 /// replaces it, and [`set_base_text`](Self::set_base_text) changes or clears
 /// that between builds. Any subtree can still override fields with text classes on a
 /// div.
@@ -462,7 +474,8 @@ impl LayoutState {
     /// Builds one frame. This is the only way to obtain a [`Builder`].
     ///
     /// The root inherits the override from
-    /// [`with_base_text`](Self::with_base_text) if set, else
+    /// [`with_base_text`](Self::with_base_text) if set, else the text of the
+    /// [`Style`](crate::Style) installed in `ctx`, else
     /// [`TextStyle::from_egui`] of `ctx`. `ctx` is also used by
     /// [`Built::layout`] to measure text. `'f` covers this borrow, `ctx`, and
     /// the application data that the frame's measure closures capture.
@@ -478,7 +491,7 @@ impl LayoutState {
         let base = self
             .base_text
             .clone()
-            .unwrap_or_else(|| TextStyle::from_egui(ctx));
+            .unwrap_or_else(|| TextStyle::default_for(ctx));
         let st = &mut self.st;
         st.built_at = std::panic::Location::caller();
         #[cfg(debug_assertions)]
@@ -644,7 +657,16 @@ impl<'f, A> Built<'f, A> {
                         Some(Err(_)) => (placement, AnchorLookup::Missing),
                         None => (placement, lookup),
                     };
-                    if lookup == AnchorLookup::Missing && opening == Opening::Opened {
+                    if lookup == AnchorLookup::Missing
+                        && overlay.band == crate::overlay::Band::Tooltip
+                    {
+                        // A tooltip opens a frame after its trigger asked,
+                        // and the trigger may be gone by then.
+                        if let Anchor::Node(trigger) = anchor_decl {
+                            st.kept
+                                .viewport(ctx.viewport_id(), |here| here.tooltips.forget(trigger));
+                        }
+                    } else if lookup == AnchorLookup::Missing && opening == Opening::Opened {
                         #[cfg(debug_assertions)]
                         {
                             let path = st
@@ -798,7 +820,8 @@ impl<'f, A> Built<'f, A> {
         stack.store(&st.kept, ctx.viewport_id());
         st.kept.with(|kept| {
             kept.presences.sweep();
-            kept.lists.sweep(ctx.cumulative_pass_nr());
+            let gone = kept.lists.sweep(ctx.cumulative_pass_nr());
+            crate::nav::forget_lists(kept, &gone);
         });
         let Frame {
             measures,
@@ -1493,6 +1516,12 @@ impl PlacedNode {
                         | Role::GridCell
                 )
             })
+    }
+
+    /// Whether the node is an option of a listbox, which may be a row of a
+    /// virtual list rather than an item of an overlay.
+    pub(crate) fn is_listbox_option(&self) -> bool {
+        self.description().and_then(|description| description.role) == Some(Role::ListBoxOption)
     }
 
     /// Whether the node must register its widgets while it is scrolled out

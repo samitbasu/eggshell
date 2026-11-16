@@ -435,12 +435,21 @@ impl TextStyle {
         }
     }
 
+    /// The root text of a layout given none: the installed [`Style`](crate::Style)'s
+    /// text in egui's text colour, else egui's Body.
+    pub(crate) fn default_for(ctx: &egui::Context) -> Self {
+        match crate::Style::installed(ctx) {
+            Some(style) => Self::new(style.text.clone(), ctx.global_style().visuals.text_color()),
+            None => Self::from_egui(ctx),
+        }
+    }
+
     /// The style egui itself would give body text: [`egui::TextStyle::Body`]'s
     /// font, the visuals' text colour, and egui's row height for that font as
     /// the line height.
     ///
-    /// This is the default base of every [`LayoutState`](crate::LayoutState)
-    /// build. It reads the context's current style, so a theme change is
+    /// This is the default base of a [`LayoutState`](crate::LayoutState)
+    /// build in a context with no [`Style`](crate::Style) installed. It reads the context's current style, so a theme change is
     /// reflected on the next call. Fonts must be available: run at least one
     /// egui pass on `ctx` first.
     pub fn from_egui(ctx: &egui::Context) -> Self {

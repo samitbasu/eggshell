@@ -1042,6 +1042,78 @@ fn a_menu_hidden_by_a_smaller_window_makes_way_for_the_next() {
     .expect("holds");
 }
 
+/// Tab while a context menu is hidden by a smaller window must not leave
+/// focus on the page for the menu to come back over. Filed as #277.
+#[test]
+fn tab_while_a_menu_is_hidden_keeps_focus_out_of_the_page_it_comes_back_over() {
+    let mut desk = Desk::new();
+    for action in [
+        Action::OpenContextMenu(0, 0),
+        Action::ResizeWindow(240, 220),
+    ] {
+        desk.act(&action).expect("holds");
+    }
+    assert_eq!(
+        context_menus_open(&desk),
+        [Anchored::Detached],
+        "precondition: the menu is open and hidden"
+    );
+    run(&[
+        Action::OpenContextMenu(0, 0),
+        Action::ResizeWindow(240, 220),
+        Action::Tab,
+        Action::ResizeWindow(240, 262),
+    ])
+    .expect("holds");
+}
+
+fn context_menus_open(desk: &Desk) -> Vec<Anchored> {
+    desk.seen()
+        .open()
+        .filter(|overlay| overlay.path.contains("ContextMenu("))
+        .map(|overlay| overlay.anchored)
+        .collect()
+}
+
+/// A context menu hidden by a smaller window is dismissed when a click
+/// focuses a widget on the page, so it does not come back over the page with
+/// focus outside it. The press passes the hidden menu by, as it would a
+/// scroll bar's: focus arriving elsewhere is what dismisses it. Filed as
+/// #277.
+#[test]
+fn focusing_the_page_while_a_menu_is_hidden_dismisses_it() {
+    let mut desk = Desk::new();
+    for action in [
+        Action::OpenContextMenu(0, 0),
+        Action::ResizeWindow(240, 220),
+    ] {
+        desk.act(&action).expect("holds");
+    }
+    assert_eq!(
+        context_menus_open(&desk),
+        [Anchored::Detached],
+        "precondition: the menu is open and hidden"
+    );
+    let (name, field) = desk.seen().node("\"name\"").expect("drawn");
+    desk.act(&Action::ClickAt(
+        (field.center().x / desk.size.x * 100.0) as u32,
+        (field.center().y / desk.size.y * 100.0) as u32,
+    ))
+    .expect("holds");
+    let shell = crate::support::shell(&desk.harness);
+    assert!(
+        shell.focus_within(name),
+        "precondition: the click focused the field"
+    );
+    assert_eq!(
+        context_menus_open(&desk),
+        [],
+        "the hidden menu is dismissed"
+    );
+    desk.act(&Action::ResizeWindow(240, 262)).expect("holds");
+    assert_eq!(context_menus_open(&desk), [], "it does not come back");
+}
+
 /// A tooltip over the button that is pressed was raised by egui over the
 /// tooltip that opened after it: its area was seeded as interactable.
 #[test]

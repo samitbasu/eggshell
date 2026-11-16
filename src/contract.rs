@@ -753,6 +753,60 @@ pub struct KbdStyle {
     pub text: Option<TextSpec>,
 }
 
+/// TODO(prose)
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RichTextStyle {
+    /// Link text and underline.
+    pub link: Color32,
+    /// The least weight of link text.
+    pub link_weight: Weight,
+    /// Inline code.
+    pub code: InlineCode,
+}
+
+/// TODO(prose)
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct InlineCode {
+    /// The tint behind the code.
+    pub fill: Color32,
+    /// Corner radius of the tint.
+    pub radius: u8,
+    /// Left-right padding of the tint, taken as layout space.
+    pub padding_x: f32,
+    /// Top-bottom padding of the tint around the font's box; not layout space.
+    pub padding_y: f32,
+    /// The monospace size, relative to the text around it.
+    pub size: Em,
+}
+
+/// A size relative to the surrounding text's, as CSS `em`: positive and
+/// finite.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Em(f32);
+
+impl Em {
+    /// The surrounding text's size.
+    pub const ONE: Self = Self(1.0);
+
+    /// `em` times the surrounding size; one where `em` is not positive and
+    /// finite.
+    pub fn new(em: f32) -> Self {
+        if em.is_finite() && em > 0.0 {
+            Self(em)
+        } else {
+            Self::ONE
+        }
+    }
+}
+
+impl From<Em> for f32 {
+    fn from(em: Em) -> f32 {
+        em.0
+    }
+}
+
 /// A stepper's dimensions at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StepperMetrics {
@@ -928,6 +982,59 @@ impl ScrollStyle {
     }
 }
 
+/// Tables: the header, the rule between rows, and a row's fills.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct TableStyle {
+    /// Behind the header row.
+    pub header_fill: Color32,
+    /// The weight of the header's text.
+    pub header_weight: Weight,
+    /// The height of the header row.
+    pub header_height: f32,
+    /// Padding around a body or footer cell's content, and beside a header
+    /// cell's.
+    pub cell_padding: f32,
+    /// The line under each row but the last body row, and over the footer.
+    pub rule: Color32,
+    /// The rule's width.
+    pub rule_width: f32,
+    /// Behind every second body row, starting with the second.
+    pub stripe: Color32,
+    /// Behind a hovered body row.
+    pub hover: Color32,
+    /// Behind the selected row.
+    pub selected: Color32,
+    /// Behind the footer row.
+    pub footer_fill: Color32,
+    /// The weight of the footer's text.
+    pub footer_weight: Weight,
+    /// How long a row's fill takes to change.
+    pub transition: Duration,
+}
+
+impl TableStyle {
+    /// Rows ruled in egui's separator colour, hovered and selected in its
+    /// widget and selection fills.
+    pub fn from_egui(egui: &egui::Style) -> Self {
+        let (v, s) = (&egui.visuals, &egui.spacing);
+        Self {
+            header_fill: Color32::TRANSPARENT,
+            header_weight: Weight::Normal,
+            header_height: s.interact_size.y + 2.0 * s.button_padding.y,
+            cell_padding: s.button_padding.x,
+            rule: v.widgets.noninteractive.bg_stroke.color,
+            rule_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
+            stripe: Color32::TRANSPARENT,
+            hover: v.widgets.hovered.weak_bg_fill,
+            selected: v.selection.bg_fill,
+            footer_fill: v.faint_bg_color,
+            footer_weight: Weight::Normal,
+            transition: Duration::from_millis(100),
+        }
+    }
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -965,6 +1072,8 @@ pub struct Style {
     pub tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
+    /// Rich text: links and inline code.
+    pub rich: RichTextStyle,
     /// Steppers.
     pub stepper: StepperStyle,
     /// Text fields.
@@ -973,6 +1082,8 @@ pub struct Style {
     pub selection: Selection,
     /// Scroll containers.
     pub scroll: ScrollStyle,
+    /// Tables.
+    pub table: TableStyle,
     /// What a modal overlay paints over the screen behind its box. Usually
     /// translucent.
     pub scrim: Color32,
@@ -1015,7 +1126,7 @@ impl Style {
     /// Cheap to call: the installed style is shared, and the derived one is
     /// kept until the context's egui style changes.
     pub fn of(ctx: &Context) -> Arc<Self> {
-        if let Some(style) = ctx.data(|data| data.get_temp::<Arc<Self>>(style_id(ctx.theme()))) {
+        if let Some(style) = Self::installed(ctx) {
             return style;
         }
         let source = ctx.global_style();
@@ -1036,6 +1147,11 @@ impl Style {
                 derived
             }
         }
+    }
+
+    /// The style installed in `ctx` for its theme, if one is.
+    pub(crate) fn installed(ctx: &Context) -> Option<Arc<Self>> {
+        ctx.data(|data| data.get_temp::<Arc<Self>>(style_id(ctx.theme())))
     }
 
     /// Makes `self` the style of every eggshell widget in `ctx`, in both
@@ -1443,6 +1559,17 @@ impl Style {
                 height: s.interact_size.y.min(20.0),
                 text: None,
             },
+            rich: RichTextStyle {
+                link: v.hyperlink_color,
+                link_weight: Weight::Normal,
+                code: InlineCode {
+                    fill: v.code_bg_color,
+                    radius,
+                    padding_x: 2.0,
+                    padding_y: 1.0,
+                    size: Em::ONE,
+                },
+            },
             stepper: StepperStyle {
                 group: choice_off.bordered(choice_border),
                 sizes: Keyed::new(
@@ -1509,6 +1636,7 @@ impl Style {
                 text: Some(v.selection.stroke.color),
             },
             scroll: ScrollStyle::from_egui(egui),
+            table: TableStyle::from_egui(egui),
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
         }
