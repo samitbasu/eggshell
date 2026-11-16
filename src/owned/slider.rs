@@ -488,7 +488,7 @@ impl Row {
             };
             let accept = move |text: &str| {
                 parse(text)
-                    .map(|number| step.snap(number.clamp(*range.start(), *range.end()), &range))
+                    .map(|number| step.snap(number.max(*range.start()).min(*range.end()), &range))
             };
             match typed {
                 None => {
