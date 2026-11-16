@@ -335,6 +335,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                 enablement.colors(slider.readout, &style),
             ),
             text: text_sized(&b, metrics.text),
+            size: b.size_of(size),
         };
         let boxed = caller.map(|caller| {
             enablement
@@ -440,6 +441,7 @@ struct Row {
     enablement: Enablement,
     colors: (Colors, Colors),
     text: Tw,
+    size: Size,
 }
 
 impl Row {
@@ -453,8 +455,15 @@ impl Row {
             enablement,
             colors: (label, readout),
             text,
+            size,
         } = self;
+        let input = *Style::of(b.ctx()).input.sizes.get(size);
         let row = tw().flex().items_center().justify_between().w_full();
+        let row = if header.parse.is_some() {
+            row.min_h_px(input.height)
+        } else {
+            row
+        };
         let shown = header.readout.as_ref().map_or_else(
             || format!("{value:.*}", step.decimals()),
             |format| format(value),
@@ -472,7 +481,7 @@ impl Row {
             if header.readout.is_none() && header.parse.is_none() {
                 return;
             }
-            let classes = painted(text.clone(), readout).shrink_0();
+            let classes = painted(text.clone(), readout).tabular_nums().shrink_0();
             let Some(parse) = header.parse else {
                 b.div_id(Part::Readout, classes, |b| b.text(tw(), shown));
                 return;
@@ -501,8 +510,7 @@ impl Row {
                 Some(_) => {
                     let field = Field::singleline("").bare();
                     let measured = field.clone();
-                    let style = Style::of(b.ctx());
-                    let padding = style.input.sizes.get(b.size_of(None)).padding.x;
+                    let padding = input.padding.x;
                     let slot = b.slot(&Part::Readout);
                     let shown_width = b
                         .ctx()
@@ -510,7 +518,8 @@ impl Row {
                         .unwrap_or(0.0);
                     let width = shown_width.max(MIN_READOUT) + 2.0 * (padding + 1.0);
                     FieldBoxChain::new(b.reborrow(), slot)
-                        .classes(tw().w_px(width).shrink_0())
+                        .size(size)
+                        .classes(tw().w_px(width).shrink_0().tabular_nums())
                         .children(|s| {
                             let leaf = tw().w_full().h_full().text_right();
                             s.leaf(Part::Field, leaf, move |m| {

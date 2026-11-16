@@ -52,12 +52,14 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, Levels>, levels: &'f Levels) {
                 s.slider("brightness", levels.brightness, 0.0..=100.0)
                     .label("Brightness")
                     .readout(|v| format!("{v:.0}"))
+                    .editable(|text| text.trim().parse().ok())
                     .on_change(|app: &mut Levels, v| app.brightness = v);
             });
             s.div_id("xs", tw().control_size(size::XS), |s| {
                 s.slider("bass", levels.bass, 0.0..=100.0)
                     .label("Bass")
                     .readout(|v| format!("{v:.0}"))
+                    .editable(|text| text.trim().parse().ok())
                     .on_change(|app: &mut Levels, v| app.bass = v);
             });
         },

@@ -4,7 +4,7 @@
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::Step;
 use eggshell_ui::{Builder, Style, TextStyle, tw};
-use eggshell_ui_shadcn::{Shadcn, Tokens};
+use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Event, Key, Theme, vec2};
 use egui_kittest::Harness;
 
@@ -33,6 +33,20 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                     app.volume = value;
                     app.changes.push(value);
                 });
+            b.div_id("sm", tw().control_size(size::SM), |b| {
+                b.slider("small", 30.0, 0.0..=100.0)
+                    .label("Small")
+                    .readout(|v| format!("{v:.0}"))
+                    .editable(|text| text.trim().parse().ok())
+                    .on_change(|_: &mut App, _| {});
+            });
+            b.div_id("xs", tw().control_size(size::XS), |b| {
+                b.slider("tiny", 30.0, 0.0..=100.0)
+                    .label("Tiny")
+                    .readout(|v| format!("{v:.0}"))
+                    .editable(|text| text.trim().parse().ok())
+                    .on_change(|_: &mut App, _| {});
+            });
             b.slider("plain", 10.0, 0.0..=100.0)
                 .label("Plain")
                 .on_change(|_: &mut App, _| {});
@@ -48,7 +62,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 fn harness() -> Harness<'static, Rig<App>> {
     let tokens = Tokens::for_theme(Theme::Light);
     let mut harness = support::harness(
-        vec2(400.0, 400.0),
+        vec2(400.0, 600.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App {
             volume: 40.0,
@@ -255,4 +269,55 @@ fn dragging_the_thumb_of_a_slider_with_a_header_moves_the_value() {
     support::drag(&mut harness, start, end);
     let value = harness.state().app.volume;
     assert!(value > 80.0, "{value}");
+}
+
+#[test]
+fn the_readout_opens_for_editing_at_every_size() {
+    for (path, size) in [
+        (READOUT, Size::DEFAULT),
+        ("/\"sm\"/\"small\"/Box/Header/Readout", size::SM),
+        ("/\"xs\"/\"tiny\"/Box/Header/Readout", size::XS),
+    ] {
+        let mut harness = harness();
+        click_node(&mut harness, path);
+        harness.run_steps(6);
+        assert_eq!(
+            focused_node(&harness).as_deref(),
+            Some(format!("{path}/Field").as_str()),
+            "{size:?}"
+        );
+    }
+}
+
+#[test]
+fn starting_and_ending_an_edit_moves_nothing() {
+    for track in [
+        TRACK,
+        "/\"sm\"/\"small\"/Box/Track",
+        "/\"xs\"/\"tiny\"/Box/Track",
+    ] {
+        let mut harness = harness();
+        let readout = track.replace("Track", "Header/Readout");
+        let before = rect_of(&harness, track);
+        click_node(&mut harness, &readout);
+        harness.run_steps(6);
+        assert_eq!(rect_of(&harness, track), before, "during {track}");
+        press(&mut harness, Key::Escape);
+        assert_eq!(rect_of(&harness, track), before, "after {track}");
+    }
+}
+
+#[test]
+fn the_readouts_digits_are_as_wide_as_each_other() {
+    let mut harness = harness();
+    let mut widths = vec![];
+    for value in [80.0, 10.0, 45.0, 11.0] {
+        harness.state_mut().app.volume = value;
+        harness.run_steps(4);
+        widths.push(rect_of(&harness, READOUT).width());
+    }
+    assert!(
+        widths.windows(2).all(|w| (w[0] - w[1]).abs() < 0.25),
+        "{widths:?}"
+    );
 }
