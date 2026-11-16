@@ -676,6 +676,22 @@ impl Shadcn {
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
         // Radix's ScrollArea keeps its thumb at least 18 px long.
         style.scroll.min_thumb_length = 18.0;
+        // shadcn's Table: `h-10 px-2 font-medium` head cells, `p-2` cells,
+        // `border-b` rows (none under the last), `hover:bg-muted/50`,
+        // `data-[state=selected]:bg-muted`, a `bg-muted/50 font-medium` footer
+        // and `transition-colors`.
+        style.table.header_fill = clear;
+        style.table.header_weight = Weight::Medium;
+        style.table.header_height = 40.0;
+        style.table.cell_padding = 8.0;
+        style.table.rule = t.border;
+        style.table.rule_width = 1.0;
+        style.table.stripe = clear;
+        style.table.hover = t.muted.gamma_multiply(0.5);
+        style.table.selected = t.muted;
+        style.table.footer_fill = t.muted.gamma_multiply(0.5);
+        style.table.footer_weight = Weight::Medium;
+        style.table.transition = Duration::from_millis(150);
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);

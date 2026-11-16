@@ -184,6 +184,16 @@ pub(crate) enum ColorSource {
     Inherited,
 }
 
+/// Whether a node is hovered by the hit test, or whenever the pointer is
+/// over its rect: a table row stays hovered under a button in one of its
+/// cells, which lies over it as a sibling, not inside it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum HoverBy {
+    #[default]
+    Hit,
+    Rect,
+}
+
 /// What a node does when the pointer meets it.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct Interaction {
@@ -192,6 +202,7 @@ pub(crate) struct Interaction {
     pub grouping: Grouping,
     pub variants: Variants,
     pub color_source: ColorSource,
+    pub hover_by: HoverBy,
 }
 
 pub(crate) type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;

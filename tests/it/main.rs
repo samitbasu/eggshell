@@ -93,6 +93,7 @@ mod style_switch;
 mod support;
 mod swatch_picker;
 mod sweep;
+mod table;
 mod tabular_nums;
 mod text_field_ring;
 mod theme_toggle;
