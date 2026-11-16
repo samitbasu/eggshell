@@ -170,6 +170,68 @@ fn nearest(from: Rect, items: &[(Id, Rect)], direction: Direction) -> Option<Id>
         .map(|(_, (id, _))| *id)
 }
 
+/// A key's move through the rows of a virtual list, which has no wrap.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ListMove {
+    Next,
+    Previous,
+    First,
+    Last,
+    PageDown,
+    PageUp,
+}
+
+impl ListMove {
+    /// The move of the frame's key, taking it. An arrow is taken from egui
+    /// too, as for an overlay's listbox.
+    pub(crate) fn of_key(ctx: &Context) -> Option<Self> {
+        let pressed = |key| ctx.input_mut(|input| input.consume_key(Modifiers::NONE, key));
+        const KEYS: [(Key, ListMove); 6] = [
+            (Key::ArrowDown, ListMove::Next),
+            (Key::ArrowUp, ListMove::Previous),
+            (Key::Home, ListMove::First),
+            (Key::End, ListMove::Last),
+            (Key::PageDown, ListMove::PageDown),
+            (Key::PageUp, ListMove::PageUp),
+        ];
+        let to = KEYS
+            .iter()
+            .find(|(key, _)| pressed(*key))
+            .map(|(_, to)| *to)?;
+        ctx.memory_mut(|memory| memory.move_focus(FocusDirection::None));
+        Some(to)
+    }
+
+    /// The row this move goes to among `len` rows, from `current`. With no
+    /// current row, a step and a page start from the rows shown, `visible`.
+    /// A page is `page` rows.
+    pub(crate) fn target(
+        self,
+        current: Option<usize>,
+        len: usize,
+        page: usize,
+        visible: std::ops::Range<usize>,
+    ) -> Option<usize> {
+        let last = len.checked_sub(1)?;
+        let from = |forward: bool| {
+            current.unwrap_or(if forward {
+                visible.start
+            } else {
+                visible.end.saturating_sub(1)
+            })
+        };
+        let to = match self {
+            Self::First => 0,
+            Self::Last => last,
+            Self::Next => current.map_or(visible.start, |at| at + 1),
+            Self::Previous => current.map_or(from(false), |at| at.saturating_sub(1)),
+            Self::PageDown => current.map_or(from(true), |at| at + page),
+            Self::PageUp => current.map_or(from(false), |at| at.saturating_sub(page)),
+        };
+        Some(to.min(last))
+    }
+}
+
 /// Whether Home and End are the overlay's keys, or a text field's.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum HomeEnd {
@@ -284,7 +346,7 @@ pub(crate) fn apply_deferred(ctx: &Context, kept: &Handle) {
 
 /// Keeps the focused widget's arrow keys from moving the focus: the overlay
 /// moves it, or the highlight, itself.
-fn hold_arrows(ctx: &Context, focused: Id) {
+pub(crate) fn hold_arrows(ctx: &Context, focused: Id) {
     let filter = EventFilter {
         horizontal_arrows: true,
         vertical_arrows: true,
@@ -331,6 +393,8 @@ pub(crate) struct Active(HashMap<Id, Highlight>);
 struct Highlight {
     item: Id,
     anchor: Option<Id>,
+    /// Whether the listbox is a virtual list, which is no overlay.
+    list: bool,
 }
 
 impl Active {
@@ -347,7 +411,40 @@ impl Active {
     }
 
     fn set(&mut self, listbox: Id, item: Id, anchor: Option<Id>) {
-        self.0.insert(listbox, Highlight { item, anchor });
+        self.0.insert(
+            listbox,
+            Highlight {
+                item,
+                anchor,
+                list: false,
+            },
+        );
+    }
+}
+
+/// Highlights the row `item` of the virtual list `list`.
+pub(crate) fn highlight_row(kept: &Handle, list: Id, item: Id) {
+    kept.with(|kept| {
+        kept.listbox.0.insert(
+            list,
+            Highlight {
+                item,
+                anchor: Some(list),
+                list: true,
+            },
+        );
+    });
+}
+
+/// Whether `item` is the highlighted item of a listbox.
+pub(crate) fn is_highlighted(kept: &Handle, item: Id) -> bool {
+    kept.with(|kept| kept.listbox.0.values().any(|h| h.item == item))
+}
+
+/// Forgets the highlight of the virtual lists `gone`.
+pub(crate) fn forget_lists(kept: &mut crate::kept::Kept, gone: &[Id]) {
+    for list in gone {
+        kept.listbox.0.remove(list);
     }
 }
 
@@ -376,7 +473,9 @@ pub(crate) fn highlighted(kept: &Handle) -> Vec<Id> {
 pub(crate) fn forget_closed(kept: &Handle, open: &[Id]) {
     let mut active = Active::load(kept);
     let before = active.0.len();
-    active.0.retain(|listbox, _| open.contains(listbox));
+    active
+        .0
+        .retain(|listbox, highlight| highlight.list || open.contains(listbox));
     if active.0.len() != before {
         active.store(kept);
     }
@@ -397,11 +496,21 @@ pub(crate) fn activate_highlighted(ctx: &Context, kept: &Handle) {
         .0
         .values()
         .find(|highlight| {
-            highlight
-                .anchor
-                .is_some_and(|anchor| shell.focus_within(anchor))
+            highlight.anchor.is_some_and(|anchor| {
+                if highlight.list {
+                    crate::focus::holds_focus(ctx, anchor)
+                } else {
+                    shell.focus_within(anchor)
+                }
+            })
         })
-        .or_else(|| active.0.values().next().filter(|_| nothing_focused));
+        .or_else(|| {
+            active
+                .0
+                .values()
+                .find(|highlight| !highlight.list)
+                .filter(|_| nothing_focused)
+        });
     let Some(highlight) = keyed else {
         return;
     };
@@ -453,6 +562,48 @@ pub(crate) fn take_activation(ui: &egui::Ui, item: Id) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn row(to: ListMove, current: Option<usize>) -> Option<usize> {
+        to.target(current, 100, 10, 40..52)
+    }
+
+    #[test]
+    fn steps_stop_at_the_ends_of_the_rows() {
+        assert_eq!(row(ListMove::Next, Some(5)), Some(6));
+        assert_eq!(row(ListMove::Next, Some(99)), Some(99));
+        assert_eq!(row(ListMove::Previous, Some(5)), Some(4));
+        assert_eq!(row(ListMove::Previous, Some(0)), Some(0));
+    }
+
+    #[test]
+    fn home_and_end_go_to_the_first_and_last_row() {
+        assert_eq!(row(ListMove::First, Some(50)), Some(0));
+        assert_eq!(row(ListMove::Last, Some(50)), Some(99));
+        assert_eq!(row(ListMove::First, None), Some(0));
+        assert_eq!(row(ListMove::Last, None), Some(99));
+    }
+
+    #[test]
+    fn a_page_moves_by_its_rows_and_stops_at_the_ends() {
+        assert_eq!(row(ListMove::PageDown, Some(50)), Some(60));
+        assert_eq!(row(ListMove::PageDown, Some(95)), Some(99));
+        assert_eq!(row(ListMove::PageUp, Some(50)), Some(40));
+        assert_eq!(row(ListMove::PageUp, Some(3)), Some(0));
+    }
+
+    #[test]
+    fn with_no_current_row_a_step_starts_from_the_rows_shown() {
+        assert_eq!(row(ListMove::Next, None), Some(40));
+        assert_eq!(row(ListMove::PageDown, None), Some(40));
+        assert_eq!(row(ListMove::Previous, None), Some(51));
+        assert_eq!(row(ListMove::PageUp, None), Some(51));
+    }
+
+    #[test]
+    fn no_rows_has_no_target() {
+        assert_eq!(ListMove::Next.target(None, 0, 10, 0..0), None);
+        assert_eq!(ListMove::Last.target(Some(0), 0, 10, 0..0), None);
+    }
 
     fn id(name: &str) -> Id {
         Id::NULL.with(name)

@@ -797,7 +797,8 @@ impl<'f, A> Built<'f, A> {
         stack.store(&st.kept, ctx.viewport_id());
         st.kept.with(|kept| {
             kept.presences.sweep();
-            kept.lists.sweep(ctx.cumulative_pass_nr());
+            let gone = kept.lists.sweep(ctx.cumulative_pass_nr());
+            crate::nav::forget_lists(kept, &gone);
         });
         let Frame {
             measures,
@@ -1491,6 +1492,12 @@ impl PlacedNode {
                         | Role::GridCell
                 )
             })
+    }
+
+    /// Whether the node is an option of a listbox, which may be a row of a
+    /// virtual list rather than an item of an overlay.
+    pub(crate) fn is_listbox_option(&self) -> bool {
+        self.description().and_then(|description| description.role) == Some(Role::ListBoxOption)
     }
 
     /// Whether the node must register its widgets while it is scrolled out
