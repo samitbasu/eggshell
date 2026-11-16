@@ -1043,8 +1043,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         key: K,
         tw: Tw,
         spans: impl Into<crate::Spans>,
-    ) -> NodeHandle<'_, 'f, A> {
-        self.identified_leaf(key, tw, NodeKind::Span, Prim::Spans(spans.into()))
+    ) -> SpansHandle<'_, 'f, A> {
+        SpansHandle(self.identified_leaf(key, tw, NodeKind::Span, Prim::Spans(spans.into())))
     }
 
     #[track_caller]
@@ -1798,23 +1798,6 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
         self
     }
 
-    /// TODO(prose)
-    ///
-    /// # Panics
-    ///
-    /// In a debug build, when the node is not [`spans`](Builder::spans).
-    pub fn on_link(mut self, on_link: impl FnOnce(&mut A, &str) + 'static) -> Self {
-        debug_assert!(
-            self.edit(|context| matches!(context.prim, Some(Prim::Spans(_)))),
-            "on_link is for a node made by `spans`"
-        );
-        self.draw(move |app, ui| {
-            if let Some(href) = crate::spans::take_followed(ui.ctx(), ui.node_id()) {
-                on_link(app, &href);
-            }
-        })
-    }
-
     /// Runs `act` when the node is clicked. The node must sense clicks.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
@@ -1823,6 +1806,25 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
                 act(app);
             }
         })
+    }
+}
+
+/// TODO(prose): the node [`spans`](Builder::spans) adds.
+pub struct SpansHandle<'b, 'f, A>(NodeHandle<'b, 'f, A>);
+
+impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
+    /// TODO(prose)
+    pub fn on_link(self, on_link: impl FnOnce(&mut A, &str) + 'static) -> NodeHandle<'b, 'f, A> {
+        self.0.draw(move |app, ui| {
+            if let Some(href) = crate::spans::take_followed(ui.ctx(), ui.node_id()) {
+                on_link(app, &href);
+            }
+        })
+    }
+
+    /// TODO(prose)
+    pub fn node(self) -> NodeHandle<'b, 'f, A> {
+        self.0
     }
 }
 
