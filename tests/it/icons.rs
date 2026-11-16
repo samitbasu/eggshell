@@ -259,3 +259,64 @@ fn an_inset_item_lines_its_label_up_with_an_item_that_has_an_icon() {
     assert!(open > save + 8.0, "precondition: an icon pushes the label");
     assert!((open - help).abs() < 0.6, "{open} vs {help}");
 }
+
+#[path = "../../examples/icons.rs"]
+#[allow(dead_code, reason = "the example's own `main` is unused here")]
+mod demo;
+
+/// Every icon painted, as its quad's bounds: a brushed rect for an untinted
+/// image, a mesh for a tinted one.
+fn painted_icons(harness: &Harness<'_, Rig<()>>) -> Vec<egui::Rect> {
+    textured(harness)
+        .into_iter()
+        .map(Mesh::calc_bounds)
+        .collect()
+}
+
+#[test]
+fn icons_keep_their_aspect_in_a_narrow_portrait_window() {
+    let mut harness = support::harness(vec2(390.0, 844.0), base_text(), (), demo::layout);
+    harness.run_steps(4);
+    let row = support::rect_of(&harness, r#"/"Page"/24"#);
+    assert!(
+        row.width() < 16.0 * 24.0 + 15.0 * 12.0,
+        "precondition: the 24 pt row is narrower than its icons want"
+    );
+    let icons = painted_icons(&harness);
+    assert!(
+        icons.len() >= 64,
+        "precondition: the rows' icons are painted"
+    );
+    for icon in icons {
+        assert!(
+            (icon.width() - icon.height()).abs() < 0.5,
+            "{icon:?} is square"
+        );
+    }
+}
+
+fn squashed(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id("Page", tw().flex().p(4.0), |s| {
+        s.div_id("wide", tw(), |s| {
+            s.glyph(tw().w_px(40.0).h_px(20.0), Icon::new(icons::GEAR));
+        });
+    });
+}
+
+#[test]
+fn an_icon_in_a_box_of_another_shape_meets_it_centred() {
+    let mut harness = support::harness(vec2(300.0, 100.0), base_text(), (), squashed);
+    harness.run_steps(4);
+    let node = support::rect_of(&harness, r#"/"Page"/"wide""#);
+    let icon = icon_in(&harness, r#"/"Page"/"wide""#).calc_bounds();
+    assert_eq!(
+        node.size(),
+        vec2(40.0, 20.0),
+        "precondition: the box is wide"
+    );
+    assert!((icon.size() - vec2(20.0, 20.0)).length() < 0.5, "{icon:?}");
+    assert!(
+        (icon.center() - node.center()).length() < 0.5,
+        "{icon:?} in {node:?}"
+    );
+}
