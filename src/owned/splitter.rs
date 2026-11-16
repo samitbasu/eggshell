@@ -4,12 +4,12 @@
 use std::ops::{Bound, RangeBounds};
 use std::rc::Rc;
 
-use egui::{CursorIcon, Key, Modifiers, Pos2, Rect, Role, Stroke, Ui, Vec2, pos2};
+use egui::{CursorIcon, Key, Modifiers, Pos2, Rect, Role, Stroke, StrokeKind, Ui, Vec2, pos2};
 use taffy::FlexDirection;
 
 use super::number;
 use crate::builder::Slot;
-use crate::contract::SplitterStyle;
+use crate::contract::{Focus, SplitterStyle};
 use crate::draw::pane_rect;
 use crate::{Builder, Easing, NodeUi as _, Progress, Style, transition, tw};
 
@@ -328,7 +328,10 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
             slot.label,
         );
         let travel = Travel::of(direction.unwrap_or(FlexDirection::Row), side);
-        let style = Style::of(b.ctx()).splitter;
+        let (style, ring) = {
+            let style = Style::of(b.ctx());
+            (style.splitter, style.focus)
+        };
         let thickness = style.thickness.max(0.0);
         let classes = match travel.axis {
             Axis::X => tw().w_px(thickness).self_stretch(),
@@ -343,6 +346,7 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
             limits,
             reset,
             style,
+            ring,
         };
         if b.ctx().is_being_dragged(slot.id) {
             b.size_in_flight();
@@ -366,6 +370,7 @@ struct Handle {
     limits: Limits,
     reset: Option<PaneSize>,
     style: SplitterStyle,
+    ring: Focus,
 }
 
 impl Handle {
@@ -398,6 +403,14 @@ impl Handle {
         }
         let hot = response.hovered() || response.dragged() || response.has_focus();
         self.paint(ui, response.rect, hot);
+        if response.has_focus() {
+            ui.painter().rect_stroke(
+                response.rect,
+                0.0,
+                Stroke::new(self.ring.width, self.ring.color),
+                StrokeKind::Inside,
+            );
+        }
         let (min, max) = (self.limits.min, self.limits.max);
         ui.ctx().accesskit_node_builder(response.id, |node| {
             node.set_numeric_value(f64::from(f32::from(self.size)));

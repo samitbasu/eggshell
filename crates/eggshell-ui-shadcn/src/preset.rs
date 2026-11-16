@@ -676,7 +676,8 @@ impl Shadcn {
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
         // Radix's ScrollArea keeps its thumb at least 18 px long.
         style.scroll.min_thumb_length = 18.0;
-        // shadcn's ResizableHandle: a `w-px bg-border` line in a wider hit area.
+        // shadcn's ResizableHandle: a `w-px bg-border` line in a wider hit area,
+        // which a faint band fills while hot.
         style.splitter.thickness = 6.0;
         style.splitter.line_width = 1.0;
         style.splitter.rest = SplitterColors {
@@ -685,7 +686,7 @@ impl Shadcn {
             grip: clear,
         };
         style.splitter.hot = SplitterColors {
-            band: clear,
+            band: t.primary.gamma_multiply(0.15),
             line: t.primary,
             grip: clear,
         };

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use eggshell_ui::owned::PaneSize;
 use eggshell_ui::{Builder, TextStyle, tw};
-use eggshell_ui_shadcn::Tokens;
+use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
 use egui::{Color32, CursorIcon, Key, Modifiers, Pos2, Role, Theme, Vec2, vec2};
 use egui_kittest::Harness;
@@ -288,6 +288,44 @@ mod keys {
         for path in [LEFT, BOTTOM, RIGHT] {
             tab_to(&mut harness, path);
         }
+    }
+
+    #[test]
+    fn a_focused_splitter_shows_the_focus_ring_and_lights_its_band() {
+        let mut harness = harness();
+        let rect = rect_of(&harness, LEFT);
+        let ring_at = |harness: &Harness<'_, Rig<App>>| {
+            support::shapes(harness)
+                .into_iter()
+                .find_map(|shape| match shape {
+                    Shape::Rect(ring)
+                        if support::same(ring.rect, rect)
+                            && ring.stroke.width > 0.0
+                            && ring.stroke_kind == egui::StrokeKind::Inside =>
+                    {
+                        Some(ring.clone())
+                    }
+                    _ => None,
+                })
+        };
+        assert!(ring_at(&harness).is_none(), "precondition: no ring at rest");
+        tab_to(&mut harness, LEFT);
+        harness.run_steps(12);
+        let ring = ring_at(&harness).expect("a ring inside the hit area");
+        let focus = Shadcn::for_theme(Theme::Light).style().focus;
+        assert_eq!(
+            (ring.stroke.width, ring.stroke.color),
+            (focus.width, focus.color)
+        );
+        let hot = Shadcn::for_theme(Theme::Light).style().splitter.hot.band;
+        assert_ne!(hot, Color32::TRANSPARENT, "precondition: a band when hot");
+        assert!(
+            support::shapes(&harness).into_iter().any(|shape| matches!(
+                shape,
+                Shape::Rect(band) if band.rect == rect && band.fill == hot
+            )),
+            "the band fills the hit area"
+        );
     }
 
     #[test]

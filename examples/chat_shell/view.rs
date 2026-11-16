@@ -62,6 +62,7 @@ pub fn prepare(ctx: &egui::Context, app: &App) {
     let mut style = (*Style::of(ctx)).clone();
     style.splitter.rest.line = k[Tok::Line];
     style.splitter.hot.line = k[Tok::Accent];
+    style.splitter.hot.band = k[Tok::Accent].gamma_multiply(0.15);
     style.install_for(ctx, ctx.theme());
 }
 
