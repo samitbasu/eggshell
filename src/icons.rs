@@ -120,6 +120,9 @@ fn parse(d: &str) -> Vec<Subpath> {
             'Z' => {
                 if let Some(path) = paths.last_mut() {
                     path.closed = true;
+                    if path.points.len() > 1 && path.points.last() == path.points.first() {
+                        path.points.pop();
+                    }
                 }
                 at = start;
             }
@@ -374,6 +377,20 @@ mod tests {
             .iter()
             .map(|path| path.points.iter().map(|p| (p.x, p.y)).collect())
             .collect()
+    }
+
+    #[test]
+    fn a_closed_subpath_does_not_repeat_its_first_point_at_the_end() {
+        for d in [
+            "M15 3h3a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
+            "M4 4h6v6H4z",
+        ] {
+            for path in parse(d) {
+                assert!(path.closed);
+                let (first, last) = (path.points[0], path.points[path.points.len() - 1]);
+                assert!((first - last).length() > 1e-3, "{d}: {first:?} {last:?}");
+            }
+        }
     }
 
     #[test]
