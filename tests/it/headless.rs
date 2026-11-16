@@ -482,3 +482,56 @@ fn headless_text_wraps_as_the_drawn_frame_does() {
         text_agrees_at(PixelsPerPoint::new(scale));
     }
 }
+
+/// A text role unlike egui's Body in every measure, so that a layout in it
+/// cannot be mistaken for one in Body.
+fn large_role() -> TextSpec {
+    TextSpec {
+        size: 19.0,
+        line_height: 30.0,
+        family: FontFamily::Proportional,
+        weight: Weight::Normal,
+    }
+}
+
+fn install_large_text(ctx: &egui::Context) {
+    let mut style = (*eggshell_ui::Style::of(ctx)).clone();
+    style.text = large_role();
+    style.install(ctx);
+}
+
+fn card_text_rects(headless: Headless) -> Vec<egui::Rect> {
+    let placed = headless.theme(Theme::Light).layout(&(), wrapping_card);
+    let card = placed.at(Region::Viewport).at(Part::Card);
+    [CARD_TITLE, CARD_BODY]
+        .map(|text| card.text(text).rect())
+        .to_vec()
+}
+
+#[test]
+fn without_a_base_text_a_layout_reads_the_installed_style() {
+    let given = card_text_rects(
+        Headless::new(SIZE)
+            .prepare(install_large_text)
+            .base_text(TextStyle::new(large_role(), Color32::BLACK)),
+    );
+    let defaulted = card_text_rects(Headless::new(SIZE).prepare(install_large_text));
+    let body = card_text_rects(Headless::new(SIZE));
+    assert_ne!(
+        given, body,
+        "precondition: the installed text lays out unlike egui's Body"
+    );
+    assert_eq!(defaulted, given);
+}
+
+#[test]
+fn without_a_base_text_or_a_style_a_layout_reads_egui_body() {
+    let defaulted = card_text_rects(Headless::new(SIZE));
+    let mut probe = Headless::new(SIZE);
+    probe.layout(&(), |_, _| {});
+    let body = TextStyle::from_egui(probe.ctx());
+    assert_eq!(
+        defaulted,
+        card_text_rects(Headless::new(SIZE).base_text(body))
+    );
+}
