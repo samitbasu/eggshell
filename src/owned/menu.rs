@@ -211,9 +211,11 @@ impl MenuStyle {
 }
 
 /// What an item shows before its label.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum Lead {
     Nothing,
+    Inset,
+    Icon(Icon),
     Check(Mark),
     Dot(Mark),
 }
@@ -454,15 +456,18 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             Reaction::Run(_) => Owns::Nothing,
             Reaction::OpenSubmenu => Owns::Submenu,
         };
-        let mark = match lead {
-            Lead::Nothing => None,
-            Lead::Check(mark) | Lead::Dot(mark) => Some(mark),
+        let mark = match &lead {
+            Lead::Nothing | Lead::Inset | Lead::Icon(_) => None,
+            Lead::Check(mark) | Lead::Dot(mark) => Some(*mark),
         };
         let expanded = shared.kept.with(|kept| kept.menus.submenu(root, depth)) == Some(id);
         self.b
             .div_id_with(id, &slot.label, classes, |b| {
                 match lead {
                     Lead::Nothing => {}
+                    Lead::Icon(icon) => {
+                        b.icon("icon", tw().size_px(indicator).shrink_0(), icon);
+                    }
                     Lead::Check(Mark::On) => {
                         b.paint(tw().size_px(indicator).shrink_0(), paint_check);
                     }
@@ -472,7 +477,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                             painter.circle_filled(rect.center(), dot / 2.0, color);
                         },
                     ),
-                    Lead::Check(Mark::Off) | Lead::Dot(Mark::Off) => {
+                    Lead::Inset | Lead::Check(Mark::Off) | Lead::Dot(Mark::Off) => {
                         b.div(tw().size_px(indicator).shrink_0(), |_| {});
                     }
                 }
@@ -585,6 +590,20 @@ pub struct Action;
 pub struct Checkbox(Mark);
 /// The kind of an item with a dot.
 pub struct Radio;
+
+impl<A: 'static> ItemChain<'_, '_, A, Action> {
+    /// TODO(prose): leaves the width of an icon before the label, to line up with items that have one.
+    pub fn inset(mut self) -> Self {
+        self.lead = Lead::Inset;
+        self
+    }
+
+    /// TODO(prose): `icon` before the label, in the item's text colour.
+    pub fn icon(mut self, icon: Icon) -> Self {
+        self.lead = Lead::Icon(icon);
+        self
+    }
+}
 
 impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
     /// The keys that do the same thing, shown after the label. Display only:

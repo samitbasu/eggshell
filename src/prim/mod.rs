@@ -10,15 +10,25 @@ pub mod text_field;
 
 use egui::{Color32, ImageSource, Painter, Rect, WidgetText};
 
+use crate::icons::Strokes;
 use crate::{Angle, Mirror};
+
+/// What an [`Icon`] draws.
+#[derive(Clone, Debug)]
+pub enum IconSource {
+    /// TODO(prose): an image tinted with the text colour.
+    Image(ImageSource<'static>),
+    /// TODO(prose): strokes drawn in the text colour.
+    Vector(&'static Strokes),
+}
 
 /// An icon: an image source tinted with the inherited text colour.
 ///
 /// Applications define their icon set as functions returning `Icon`.
 #[derive(Clone, Debug)]
 pub struct Icon {
-    /// The image to draw.
-    pub src: ImageSource<'static>,
+    /// What to draw.
+    pub src: IconSource,
     /// Rotation about the centre.
     pub rotate: Angle,
     /// Mirroring, applied before the rotation.
@@ -29,7 +39,21 @@ impl Icon {
     /// An unrotated, unmirrored icon.
     pub fn new(src: ImageSource<'static>) -> Self {
         Self {
-            src,
+            src: IconSource::Image(src),
+            rotate: Angle::ZERO,
+            mirror: Mirror::None,
+        }
+    }
+
+    /// TODO(prose): an unrotated, unmirrored icon of `strokes`.
+    ///
+    /// ```
+    /// use eggshell_ui::{Icon, icons};
+    /// let close = Icon::vector(&icons::CLOSE);
+    /// ```
+    pub fn vector(strokes: &'static Strokes) -> Self {
+        Self {
+            src: IconSource::Vector(strokes),
             rotate: Angle::ZERO,
             mirror: Mirror::None,
         }

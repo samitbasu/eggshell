@@ -1,5 +1,5 @@
 //! Sliders with a label and a readout above the track, at the default, `sm`
-//! and `xs` sizes; the readout of the first is edited as text.
+//! and `xs` sizes; each readout is edited as text.
 
 #[path = "common/mod.rs"]
 mod common;

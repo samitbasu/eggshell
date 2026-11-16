@@ -8,7 +8,7 @@ use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Event, Key, Theme, vec2};
 use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node, focused_node, rect_of, text_color};
+use crate::support::{self, Rig, box_at, click_node, focused_node, rect_of, ring_at, text_color};
 
 struct App {
     volume: f64,
@@ -142,9 +142,38 @@ fn a_click_on_the_editable_readout_opens_a_field_that_has_focus() {
     open(&mut harness);
     assert_eq!(
         focused_node(&harness).as_deref(),
-        Some("/\"volume\"/Box/Header/Readout"),
+        Some("/\"volume\"/Box/Header/Readout/Field"),
         "the field has focus"
     );
+}
+
+#[test]
+fn the_readout_being_edited_is_drawn_in_the_inputs_box_with_its_ring() {
+    let mut harness = harness();
+    let before = rect_of(&harness, READOUT);
+    assert!(ring_at(&harness, before).is_none());
+    open(&mut harness);
+    let rect = rect_of(&harness, READOUT);
+    let input = Style::of(&harness.ctx).input.clone();
+    let height = input.sizes.get(Size::DEFAULT).height;
+    assert!((rect.height() - height).abs() < 0.6, "{rect:?} {height}");
+    assert_eq!(
+        box_at(&harness, rect).fill,
+        input.look.paint.states.rest.fill
+    );
+    assert!(
+        ring_at(&harness, rect).is_some(),
+        "ringed while it has focus"
+    );
+}
+
+#[test]
+fn opening_the_readout_selects_its_value_so_typing_replaces_it() {
+    let mut harness = harness();
+    open(&mut harness);
+    type_text(&mut harness, "45");
+    press(&mut harness, Key::Enter);
+    assert_eq!(harness.state().app.volume, 45.0);
 }
 
 #[test]
@@ -207,4 +236,23 @@ fn a_readout_that_is_not_editable_takes_no_focus() {
     click_node(&mut harness, "/\"plain\"/Box/Header/Label");
     harness.run_steps(4);
     assert!(focused_node(&harness).is_none());
+}
+
+#[test]
+fn dragging_the_thumb_of_a_slider_with_a_header_moves_the_value() {
+    let mut harness = harness();
+    let track = rect_of(&harness, TRACK);
+    let thumb = Style::of(&harness.ctx)
+        .slider
+        .sizes
+        .get(Size::DEFAULT)
+        .thumb_size;
+    let start = egui::pos2(
+        track.left() + thumb / 2.0 + 0.4 * (track.width() - thumb),
+        track.center().y,
+    );
+    let end = egui::pos2(track.right() - thumb / 2.0 - 10.0, track.center().y);
+    support::drag(&mut harness, start, end);
+    let value = harness.state().app.volume;
+    assert!(value > 80.0, "{value}");
 }

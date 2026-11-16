@@ -643,19 +643,24 @@ impl Shadcn {
         style.input = {
             let mut input = style.input;
             input.look = field_look;
-            let field_at = |height: f32, padding: egui::Vec2, text| InputMetrics {
-                radius: t.radius_md(),
-                padding,
-                height,
-                text,
-            };
+            let field_at =
+                |height: f32, padding: egui::Vec2, text, (icon_size, icon_gap): (f32, f32)| {
+                    InputMetrics {
+                        radius: t.radius_md(),
+                        padding,
+                        height,
+                        text,
+                        icon_size,
+                        icon_gap,
+                    }
+                };
             input.sizes = Keyed::new(
                 Size::DEFAULT,
-                field_at(t.control_height, t.input_padding, None),
+                field_at(t.control_height, t.input_padding, None, (16.0, 8.0)),
             )
             .with(
                 size::SM,
-                field_at(t.control_height - 4.0, t.input_padding, None),
+                field_at(t.control_height - 4.0, t.input_padding, None, (14.0, 6.0)),
             )
             .with(
                 size::XS,
@@ -666,9 +671,11 @@ impl Shadcn {
                         t.input_padding.y.min(2.0),
                     ),
                     xs_text,
+                    (12.0, 6.0),
                 ),
             );
             input.hint = None;
+            input.icon = t.muted_foreground;
             input
         };
         style.selection = {

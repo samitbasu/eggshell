@@ -9,12 +9,15 @@ use std::rc::Rc;
 use egui::{Key, Rect, Role, Ui, WidgetInfo};
 
 use super::number::{self, Edit, Edits, Step};
-use super::{Content, Enablement, OnResponse, TipContent, described, painted, tip, tipped};
+use super::{
+    Content, Enablement, FieldBoxChain, OnResponse, TipContent, described, painted, text_sized,
+    tip, tipped,
+};
 use crate::builder::Slot;
-use crate::contract::{Colors, Size, TextSize};
+use crate::contract::{Colors, Size};
 use crate::focus::Autofocus;
 use crate::prim::text_field::{self, Field};
-use crate::{Builder, NodeUi as _, Style, TextSpec, Tw, tw};
+use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -22,6 +25,7 @@ enum Part {
     Header,
     Label,
     Readout,
+    Field,
     Track,
     Thumb,
 }
@@ -330,7 +334,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                 enablement.colors(slider.label, &style),
                 enablement.colors(slider.readout, &style),
             ),
-            text: text_of(&b, metrics.text),
+            text: text_sized(&b, metrics.text),
         };
         let boxed = caller.map(|caller| {
             enablement
@@ -345,13 +349,13 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         });
         b.claim(&slot);
         b.scope_with(slot.id, &slot.label, |b| {
-            let track = b.id_of(Part::Track);
             let on_track = scale.clone();
             let on_thumb = set.clone();
             let thumb_edits = edits.clone();
             let set_readout = set.clone();
             let readout_edits = edits.clone();
             let track_node = |b: &mut Builder<'_, '_, A>| {
+                let track = b.id_of(Part::Track);
                 b.div_id(Part::Track, hit, |b| {
                     b.div(bar, |b| b.div(filled, |_| {}));
                     b.div(travel, |b| {
@@ -424,17 +428,7 @@ impl Header {
     }
 }
 
-/// `spec` laid over the text the subtree inherits, at the size the style gives.
-fn text_of<A>(b: &Builder<'_, '_, A>, size: Option<TextSize>) -> Tw {
-    match size {
-        Some(TextSize { size, line_height }) => tw().role(TextSpec {
-            size,
-            line_height,
-            ..b.text_style().spec.clone()
-        }),
-        None => tw(),
-    }
-}
+const MIN_READOUT: f32 = 48.0;
 
 /// The row above the track.
 struct Row {
@@ -496,38 +490,51 @@ impl Row {
                         .draw(move |_, ui| {
                             let response = described(ui, Role::Button, None, label.trim(), &None);
                             if response.clicked() {
-                                ui.data_mut(|data| data.insert_temp(editing, current.clone()));
+                                let width = response.rect.width();
+                                ui.data_mut(|data| {
+                                    data.insert_temp(editing, current.clone());
+                                    data.insert_temp(editing.with("width"), width);
+                                });
                             }
                         });
                 }
                 Some(_) => {
                     let field = Field::singleline("").bare();
                     let measured = field.clone();
-                    let width = b
+                    let style = Style::of(b.ctx());
+                    let padding = style.input.sizes.get(b.size_of(None)).padding.x;
+                    let slot = b.slot(&Part::Readout);
+                    let shown_width = b
                         .ctx()
-                        .read_response(b.id_of(Part::Readout))
-                        .map_or(48.0, |r| r.rect.width().max(48.0));
-                    let leaf = classes.w_px(width).text_right();
-                    b.leaf(Part::Readout, leaf, move |m| {
-                        text_field::measure(m, &measured)
-                    })
-                    .draw_widgets(move |app, ui| {
-                        let mut text = ui
-                            .data(|data| data.get_temp::<String>(editing))
-                            .unwrap_or_default();
-                        let response = text_field::show(ui, &mut text, &field);
-                        Autofocus::OnAppear.apply(ui.ctx(), &response);
-                        if response.changed() {
-                            ui.data_mut(|data| data.insert_temp(editing, text.clone()));
-                        }
-                        if response.lost_focus() {
-                            let entered = ui.input(|input| input.key_pressed(Key::Enter));
-                            ui.data_mut(|data| data.remove::<String>(editing));
-                            if let Some(value) = accept(&text).filter(|_| entered) {
-                                edits.once(app, |app| set(app, value));
-                            }
-                        }
-                    });
+                        .data(|data| data.get_temp::<f32>(editing.with("width")))
+                        .unwrap_or(0.0);
+                    let width = shown_width.max(MIN_READOUT) + 2.0 * (padding + 1.0);
+                    FieldBoxChain::new(b.reborrow(), slot)
+                        .classes(tw().w_px(width).shrink_0())
+                        .children(|s| {
+                            let leaf = tw().w_full().h_full().text_right();
+                            s.leaf(Part::Field, leaf, move |m| {
+                                text_field::measure(m, &measured)
+                            })
+                            .draw_widgets(move |app, ui| {
+                                let mut text = ui
+                                    .data(|data| data.get_temp::<String>(editing))
+                                    .unwrap_or_default();
+                                let response = text_field::show(ui, &mut text, &field);
+                                Autofocus::OnAppear.apply(ui.ctx(), &response);
+                                text_field::select_on_focus(ui, &response, &text);
+                                if response.changed() {
+                                    ui.data_mut(|data| data.insert_temp(editing, text.clone()));
+                                }
+                                if response.lost_focus() {
+                                    let entered = ui.input(|input| input.key_pressed(Key::Enter));
+                                    ui.data_mut(|data| data.remove::<String>(editing));
+                                    if let Some(value) = accept(&text).filter(|_| entered) {
+                                        edits.once(app, |app| set(app, value));
+                                    }
+                                }
+                            });
+                        });
                 }
             }
         });
