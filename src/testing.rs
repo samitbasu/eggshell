@@ -120,6 +120,7 @@
 //! | [`stepper`](crate::Builder::stepper): field, buttons | `SpinButton`, `Button` ("Increase …", "Decrease …") |
 //! | [`progress`](crate::Builder::progress) | `ProgressIndicator` |
 //! | [`text_field`](crate::Builder::text_field) | `TextInput` |
+//! | [`table`](crate::Builder::table): table, rows, header cells, cells | `Table`, `Row`, `ColumnHeader`, `Cell` |
 //!
 //! A node of your own gets a role and a name with
 //! [`NodeHandle::role`](crate::NodeHandle::role) and
