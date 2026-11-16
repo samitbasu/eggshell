@@ -5,11 +5,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use eggshell_ui::{Builder, Key, Scope, Shell, Spans, Tw, tw};
+use eggshell_ui::owned::{Cells, Column};
+use eggshell_ui::{Builder, Key, Scope, Shell, Spans, Track, Tw, tw};
 use egui::load::{SizeHint, TexturePoll};
 use egui::{Align, Id, ImageSource, TextureOptions};
 
-use super::parse::{Block, Construct, Item, List, Task};
+use super::parse::{Block, Construct, Item, List, Table, Task};
 use super::{Directive, Directives, MarkdownStyle, OnLink};
 
 pub(super) struct Context<'s, A> {
@@ -65,6 +66,8 @@ enum Part {
     Marker,
     Content,
     Source,
+    Table,
+    Cell,
 }
 
 #[track_caller]
@@ -143,9 +146,9 @@ fn emit<A: 'static>(
             Block::Code { info, text } => code(s, key, at, info, text, context),
             Block::Image { uri, alt } => image(s, key, at, uri, alt, context),
             Block::Rule => s.div(at.h_px(1.0).bg(style.rule), |_| {}),
+            Block::Table(table_) => table(s, key, at, table_, context),
             Block::Unsupported { construct, source } => {
                 let name = match construct {
-                    Construct::Table => "table",
                     Construct::Html => "HTML",
                 };
                 unsupported(s, key, at, &format!("Not shown: {name}"), source, context);
@@ -155,7 +158,7 @@ fn emit<A: 'static>(
 }
 
 fn paragraph<A: 'static>(
-    s: &mut Scope<'_, '_, A>,
+    s: &mut Builder<'_, '_, A>,
     key: impl Key,
     at: Tw,
     spans: &Spans,
@@ -166,6 +169,43 @@ fn paragraph<A: 'static>(
         let links = context.links.clone();
         node.on_link(move |app, href| links.follow(app, href));
     }
+}
+
+/// A GFM table through `b.table`: a content-sized column per alignment, and
+/// every row padded or cut to that many cells, whose text wraps.
+fn table<A: 'static>(
+    s: &mut Scope<'_, '_, A>,
+    key: Part,
+    at: Tw,
+    table: &Table,
+    context: &Context<'_, A>,
+) {
+    let width = table.align.len();
+    let columns = table
+        .align
+        .iter()
+        .map(|align| Column::new(Track::auto()).align(*align));
+    let row = |cells: &mut Cells<'_, '_, A>, row: &[Spans]| {
+        for column in 0..width {
+            let spans = row.get(column);
+            cells.cell(|b| {
+                if let Some(spans) = spans {
+                    paragraph(b, Part::Cell, tw().whitespace_normal(), spans, context);
+                }
+            });
+        }
+    };
+    let rows: Vec<(usize, &Vec<Spans>)> = table.rows.iter().enumerate().collect();
+    s.div_id(key, at, |s| {
+        s.table(Part::Table)
+            .columns(columns)
+            .header(|cells| row(cells, &table.header))
+            .rows(
+                &rows,
+                |(index, _)| *index,
+                |cells, (_, cells_of)| row(cells, cells_of),
+            );
+    });
 }
 
 fn list<A: 'static>(

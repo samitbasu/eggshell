@@ -571,7 +571,7 @@ fn markdown_dark() {
 fn markdown_in(name: &str, theme: egui::Theme) {
     snapshot_themed(
         name,
-        Vec2::new(720.0, 1540.0),
+        Vec2::new(720.0, 1640.0),
         (
             markdown::State::default(),
             markdown::layout,

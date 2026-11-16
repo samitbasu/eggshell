@@ -2,6 +2,7 @@
 //! laid out and drawn by the rig, clicked as a user would.
 
 use eggshell_ui::Style;
+use eggshell_ui::testing::Headless;
 use eggshell_ui_extras::markdown::{Level, MarkdownStyle, headings};
 use egui::epaint::Shape;
 use egui::{Rect, Theme, vec2};
@@ -19,7 +20,7 @@ const PARAGRAPH: &str = "A paragraph with strong, emphasis, both, inline code an
 const CODE: &str = "fn main() {\n    println!(\"plain for now\");\n}";
 
 fn harness() -> Harness<'static, Rig<page::State>> {
-    harness_sized(vec2(720.0, 1600.0))
+    harness_sized(vec2(720.0, 1700.0))
 }
 
 fn harness_sized(size: egui::Vec2) -> Harness<'static, Rig<page::State>> {
@@ -56,7 +57,7 @@ fn filled(harness: &Harness<'_, Rig<page::State>>, color: egui::Color32) -> Vec<
 fn the_page_shows_every_text_block() {
     let harness = harness();
     assert!(
-        rect_of(&harness, "/Page/Followed").max.y < 1600.0,
+        rect_of(&harness, "/Page/Followed").max.y < 1700.0,
         "precondition: the whole page is in view"
     );
     for text in [
@@ -65,7 +66,6 @@ fn the_page_shows_every_text_block() {
         "nested twice",
         "A block quote holds blocks.",
         CODE,
-        "Not shown: table",
         "Not shown: HTML",
         "Image not shown: A missing swatch",
         "No example named \"nonexistent\"",
@@ -109,6 +109,7 @@ fn headings_list_the_page_outline() {
             "quotes-and-code",
             "images",
             "directives",
+            "tables",
             "what-degrades"
         ]
     );
@@ -265,4 +266,125 @@ fn the_shadcn_preset_fills_the_markdown_style() {
     assert_eq!(*installed, preset.markdown(&Style::of(&harness.ctx)));
     assert_eq!(installed.rule, tokens.border);
     assert_eq!(installed.code.fill, tokens.muted);
+}
+
+const TABLE: &str = "/Page/Doc/Block(16)/Table";
+
+fn cell(row: &str, column: usize) -> String {
+    format!("{TABLE}/({row}, {column})")
+}
+
+#[test]
+fn a_gfm_table_is_a_table_not_a_degrade_box() {
+    let harness = harness();
+    rect_of(&harness, TABLE);
+    for heading in ["Left", "Centred", "Right"] {
+        support::galley_of(&harness, heading);
+    }
+    let degraded = support::shapes(&harness).into_iter().any(
+        |shape| matches!(shape, Shape::Text(text) if text.galley.text().starts_with("Not shown: table")),
+    );
+    assert!(!degraded);
+}
+
+#[test]
+fn a_cell_keeps_its_inline_styles() {
+    let harness = harness();
+    let (galley, _) = support::galley_of(&harness, "emphasis and code");
+    let families: Vec<_> = galley
+        .job
+        .sections
+        .iter()
+        .map(|section| section.format.font_id.family.clone())
+        .collect();
+    assert!(
+        families.contains(&egui::FontFamily::Monospace),
+        "{families:?}"
+    );
+    assert!(
+        galley
+            .job
+            .sections
+            .iter()
+            .any(|section| section.format.italics)
+    );
+}
+
+#[test]
+fn a_link_in_a_cell_calls_on_link() {
+    let mut harness = harness();
+    let link = support::part_rect(&harness, "a relative link", "relative");
+    press_and_release(&mut harness, link.center());
+    harness.run_steps(2);
+    assert_eq!(harness.state().app.followed, ["table.md"]);
+}
+
+#[test]
+fn every_row_lines_up_with_the_header_and_its_alignment() {
+    let harness = harness();
+    for column in 0..3 {
+        let header = rect_of(&harness, &cell("Header", column));
+        for row in ["Row(0)", "Row(1)", "Row(2)"] {
+            let at = rect_of(&harness, &cell(row, column));
+            assert_eq!(at.x_range(), header.x_range(), "{row} column {column}");
+        }
+    }
+    let content = |row: &str, column| rect_of(&harness, &format!("{}/Cell", cell(row, column)));
+    let (left, centred, right) = (
+        rect_of(&harness, &cell("Row(0)", 0)),
+        rect_of(&harness, &cell("Row(0)", 1)),
+        rect_of(&harness, &cell("Row(0)", 2)),
+    );
+    let inset = content("Row(0)", 0).left() - left.left();
+    assert!(inset > 0.0, "precondition: cells are padded");
+    assert!((content("Row(1)", 1).center().x - centred.center().x).abs() < 0.6);
+    assert!((right.right() - content("Row(0)", 2).right() - inset).abs() < 0.6);
+}
+
+#[test]
+fn a_wide_cell_wraps_and_the_table_fits_the_page() {
+    let harness = harness();
+    let table = rect_of(&harness, TABLE);
+    let article = rect_of(&harness, "/Page/Doc");
+    assert!(
+        table.width() <= article.width() + 0.5,
+        "{table:?} in {article:?}"
+    );
+    let one_line = rect_of(&harness, &format!("{}/Cell", cell("Row(0)", 0))).height();
+    let wide = rect_of(&harness, &format!("{}/Cell", cell("Row(1)", 0))).height();
+    assert!(
+        wide >= 2.0 * one_line,
+        "the long cell wraps: {wide} vs {one_line}"
+    );
+}
+
+#[test]
+fn headless_places_the_table_where_the_frame_draws_it() {
+    let harness = harness();
+    let placed = Headless::new(vec2(720.0, 1700.0) - vec2(16.0, 16.0))
+        .base_text(common::base_text(Theme::Light))
+        .prepare(common::use_preset)
+        .layout(&page::State::default(), page::layout);
+    let drawn: Vec<_> = harness
+        .state()
+        .nodes
+        .iter()
+        .filter(|(path, _)| path.starts_with(TABLE))
+        .collect();
+    assert!(
+        drawn.len() > 12,
+        "precondition: the table's cells are drawn"
+    );
+    let table = placed
+        .nodes()
+        .find(|node| node.path() == TABLE)
+        .expect("headless has the table");
+    let shift = rect_of(&harness, TABLE).min - table.rect().min;
+    for (path, rect) in drawn {
+        let node = placed
+            .nodes()
+            .find(|node| node.path() == path)
+            .unwrap_or_else(|| panic!("headless lacks {path}"));
+        assert_eq!(node.rect().translate(shift), *rect, "{path}");
+    }
 }

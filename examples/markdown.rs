@@ -57,11 +57,15 @@ fn main() {
 ```eggshell-example nonexistent
 ```
 
-###### What degrades
+###### Tables
 
-| tables | wait for #20 |
-|--------|--------------|
-| a      | b            |
+| Left | Centred | Right |
+|:-----|:-------:|------:|
+| *emphasis* and `code` | [a relative link](table.md) | 1 |
+| a longer cell, whose text wraps when the table is wider than the page, as a paragraph's does | two | 22 |
+| a ragged row |
+
+###### What degrades
 
 <div>raw HTML</div>
 "#;
