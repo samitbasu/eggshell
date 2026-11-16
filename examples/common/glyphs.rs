@@ -15,6 +15,7 @@ pub enum Glyph {
     Check,
     GripVertical,
     GripHorizontal,
+    Ellipsis,
 }
 
 const SIDE: usize = 64;
@@ -72,6 +73,7 @@ fn coverage(glyph: Glyph, p: Vec2) -> f32 {
         }
         Glyph::GripVertical => dots(p, [9.0, 15.0], [5.0, 12.0, 19.0]),
         Glyph::GripHorizontal => dots(p, [5.0, 12.0, 19.0], [9.0, 15.0]),
+        Glyph::Ellipsis => dots(p, [5.0, 12.0, 19.0], [12.0]),
     };
     (sdf * SIDE as f32 + 0.5).clamp(0.0, 1.0)
 }

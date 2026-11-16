@@ -53,6 +53,7 @@ mod slider;
 mod splitter;
 mod stepper;
 mod switch;
+mod table;
 mod toggle;
 mod toggle_group;
 
@@ -82,6 +83,7 @@ pub(crate) use splitter::Side;
 pub use splitter::{PaneSize, SplitterChain, SplitterStart};
 pub use stepper::StepperChain;
 pub use switch::SwitchChain;
+pub use table::{Align, Cells, Column, Selectable, Selected, TableChain, Unselectable};
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
 
@@ -759,6 +761,13 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     /// built in.
     pub fn splitter<K: crate::Key>(&mut self, key: K) -> SplitterStart<'_, 'f, A> {
         SplitterStart::new(self.reborrow(), key)
+    }
+
+    /// TODO(prose): a table, one grid whose columns line up across its rows.
+    /// Assistive technology sees a `Role::Table` of `Role::Row`s, each of
+    /// `Role::ColumnHeader`s or `Role::Cell`s.
+    pub fn table<K: crate::Key>(&mut self, key: K) -> TableChain<'_, 'f, A> {
+        TableChain::new(self.reborrow(), key)
     }
 
     /// A stepper at `value` within `range`. Assistive technology sees its
