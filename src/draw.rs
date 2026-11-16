@@ -11,12 +11,11 @@ use std::sync::Arc;
 use egui::response::Flags;
 use egui::text_selection::LabelSelectionState;
 use egui::{
-    Align, Color32, Frame, Galley, Id, Image, ImageSource, Layout, Painter, Pos2, Rect, Response,
-    Role, Sense, Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, WidgetInfo, pos2, vec2,
+    Align, Color32, Frame, Galley, Id, Image, Layout, Painter, Pos2, Rect, Response, Role, Sense,
+    Stroke, Ui, UiBuilder, UiKind, UiStackInfo, Vec2, WidgetInfo, pos2, vec2,
 };
 use taffy::Overflow;
 
-use crate::Angle;
 use crate::commands::Commands;
 use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
@@ -31,7 +30,7 @@ use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::pipeline::{ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedNode};
 use crate::presence::Staged;
-use crate::prim::{Icon, IconSource, Prim};
+use crate::prim::{Icon, Prim};
 use crate::roots::{Form, PlacedRoot, covers_screen, root_at, root_of, stacked_top_down};
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
@@ -497,11 +496,12 @@ fn node_ui(
     add_contents(&mut child);
 }
 
-fn image_for(
-    src: ImageSource<'static>,
-    (rotate, mirror): (Angle, Mirror),
-    tint: Color32,
-) -> Image<'static> {
+fn image_for(icon: Icon, tint: Color32) -> Image<'static> {
+    let Icon {
+        src,
+        rotate,
+        mirror,
+    } = icon;
     let (u, v) = match mirror {
         Mirror::None => ((0.0, 1.0), (0.0, 1.0)),
         Mirror::Horizontal => ((1.0, 0.0), (0.0, 1.0)),
@@ -1351,25 +1351,7 @@ impl<A> Walk<'_, A> {
                 let leaf = TextLeaf::rich(self.ui.ctx(), &rich, text);
                 self.paint_text(&leaf, index, node, boxes, inherited);
             }
-            Prim::Icon(Icon {
-                src: IconSource::Image(src),
-                rotate,
-                mirror,
-            }) => self.paint_image(
-                image_for(src, (rotate, mirror), text.color),
-                content,
-                inherited,
-            ),
-            Prim::Icon(Icon {
-                src: IconSource::Vector(strokes),
-                rotate,
-                mirror,
-            }) => strokes.paint_with(
-                &self.painter(inherited.clip, inherited.opacity),
-                content,
-                text.color,
-                (rotate, mirror),
-            ),
+            Prim::Icon(icon) => self.paint_image(image_for(icon, text.color), content, inherited),
             Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
             Prim::Paint(paint) => paint(
                 &self.painter(inherited.clip, inherited.opacity),

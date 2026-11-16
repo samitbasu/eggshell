@@ -32,13 +32,13 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                     s.text_field("search", state.query.clone())
                         .named("Search")
                         .hint("Search")
-                        .leading(Icon::vector(&icons::SEARCH))
+                        .leading(Icon::new(icons::SEARCH))
                         .on_change(|state: &mut State, query| state.query = query);
                 });
             }
             s.text_field("clearable", "lucide")
                 .named("Clearable")
-                .trailing(Icon::vector(&icons::CLOSE))
+                .trailing(Icon::new(icons::CLOSE))
                 .on_change(|_: &mut State, _| {});
         },
     );
