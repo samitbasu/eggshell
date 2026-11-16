@@ -12,7 +12,7 @@ use egui::accesskit::HasPopup;
 use egui::{Color32, Context, EventFilter, Id, Key as EguiKey, Painter, Pos2, Rect, Role, Vec2};
 
 use super::button::{ButtonChain, ButtonOptions, Face};
-use super::{Chevron, Enablement, Mark, OnResponse, describe, paint_check, paint_chevron, painted};
+use super::{Chevron, Enablement, Mark, OnResponse, check, describe, painted};
 use crate::builder::{Scope, Slot};
 use crate::contract::{MenuStyle, Style, Variant};
 use crate::kept::Handle;
@@ -469,7 +469,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                         b.icon("icon", tw().size_px(indicator).shrink_0(), icon);
                     }
                     Lead::Check(Mark::On) => {
-                        b.paint(tw().size_px(indicator).shrink_0(), paint_check);
+                        b.glyph(tw().size_px(indicator).shrink_0(), check());
                     }
                     Lead::Dot(Mark::On) => b.paint(
                         tw().size_px(indicator).shrink_0(),
@@ -491,9 +491,9 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                             .tracking(tracking),
                         keys,
                     ),
-                    Trail::Chevron => b.paint(
+                    Trail::Chevron => b.glyph(
                         tw().size_px(indicator).shrink_0().ml_auto(),
-                        paint_chevron(Chevron::Right),
+                        Chevron::Right.icon(),
                     ),
                 }
             })

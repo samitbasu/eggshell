@@ -3,11 +3,10 @@
 use eggshell_ui::contract::Size;
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, icons, tw};
 use eggshell_ui_shadcn::{Shadcn, size};
-use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Theme, vec2};
 use egui_kittest::Harness;
 
-use crate::support::{self, Rig, box_at, click_node, rect_of, ring_at, shapes};
+use crate::support::{self, Rig, box_at, click_node, rect_of, ring_at};
 
 struct App {
     text: String,
@@ -29,16 +28,16 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 s.text_field("search", app.text.clone())
                     .named("Search")
                     .hint("Search")
-                    .leading(Icon::vector(&icons::SEARCH))
+                    .leading(Icon::new(icons::SEARCH))
                     .on_change(|app: &mut App, text| app.text = text);
                 s.text_field("clear", "x")
                     .named("Clear")
-                    .trailing(Icon::vector(&icons::CLOSE))
+                    .trailing(Icon::new(icons::CLOSE))
                     .on_change(|_: &mut App, _| {});
                 s.text_field("both", "")
                     .named("Both")
-                    .leading(Icon::vector(&icons::SEARCH))
-                    .trailing(Icon::vector(&icons::HELP))
+                    .leading(Icon::new(icons::SEARCH))
+                    .trailing(Icon::new(icons::HELP))
                     .on_change(|_: &mut App, _| {});
                 s.text_field("plain", "plain")
                     .named("Plain")
@@ -199,16 +198,15 @@ fn a_field_may_have_both_icons() {
 }
 
 #[test]
-fn the_icons_are_stroked_in_the_styles_icon_colour() {
+fn the_icons_are_drawn_in_the_styles_icon_colour() {
     let harness = harness(Size::DEFAULT);
     let boxed = rect_of(&harness, SEARCH);
     let icon = input().icon;
-    let stroked = shapes(&harness).into_iter().any(|shape| {
-        matches!(shape, Shape::Path(p)
-            if p.stroke.color == egui::epaint::ColorMode::Solid(icon)
-                && p.points.iter().all(|point| boxed.contains(*point)))
+    let tinted = support::textured(&harness).into_iter().any(|mesh| {
+        boxed.contains_rect(mesh.calc_bounds())
+            && mesh.vertices.iter().all(|vertex| vertex.color == icon)
     });
-    assert!(stroked, "a stroke in {icon:?} inside {boxed:?}");
+    assert!(tinted, "an icon in {icon:?} inside {boxed:?}");
     assert_ne!(icon, Color32::TRANSPARENT);
 }
 
@@ -239,8 +237,7 @@ fn a_field_without_icons_keeps_its_leaf() {
 }
 
 #[test]
-#[should_panic(expected = "one-line")]
-fn an_icon_on_a_multiline_field_is_refused() {
+fn a_multiline_field_shows_no_icon_and_does_not_panic() {
     let tokens = Shadcn::for_theme(Theme::Light).tokens;
     let mut harness = support::harness(
         vec2(300.0, 200.0),
@@ -258,9 +255,11 @@ fn an_icon_on_a_multiline_field_is_refused() {
             b.text_field("notes", "")
                 .named("Notes")
                 .multiline(3)
-                .leading(Icon::vector(&icons::SEARCH))
+                .leading(Icon::new(icons::SEARCH))
                 .on_change(|_, _| {});
         },
     );
     harness.run_steps(2);
+    rect_of(&harness, r#"/"notes""#);
+    assert!(support::textured(&harness).is_empty(), "no icon is drawn");
 }

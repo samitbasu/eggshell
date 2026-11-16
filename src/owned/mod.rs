@@ -64,7 +64,7 @@ use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::time::Duration;
 
-use egui::{Color32, Id, Painter, Rect, Response, Role, Ui, WidgetInfo};
+use egui::{Id, Response, Role, Ui, WidgetInfo};
 
 pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
@@ -86,7 +86,7 @@ pub use toggle_group::{Member, ToggleGroup};
 
 use crate::contract::{Colors, Disabled, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};
-use crate::{Builder, NodeUi as _, TextSpec, Tw, icons, tw};
+use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, icons, tw};
 
 /// Whether a checkbox is ticked, a radio button chosen or a selectable
 /// button selected.
@@ -527,8 +527,8 @@ pub(crate) fn text_field_classes(style: &Style, size: Size) -> Tw {
         .focus_within(|p| p.ring(ring.width, ring.color))
 }
 
-fn paint_check(painter: &Painter, rect: Rect, color: Color32) {
-    icons::CHECK.paint(painter, rect, color);
+fn check() -> Icon {
+    Icon::new(icons::CHECK)
 }
 
 /// Which way a chevron points.
@@ -539,14 +539,13 @@ enum Chevron {
     Right,
 }
 
-fn paint_chevron(chevron: Chevron) -> impl Fn(&Painter, Rect, Color32) + 'static {
-    move |painter, rect, color| {
-        match chevron {
-            Chevron::Down => &icons::CHEVRON_DOWN,
-            Chevron::Up => &icons::CHEVRON_UP,
-            Chevron::Right => &icons::CHEVRON_RIGHT,
-        }
-        .paint(painter, rect, color);
+impl Chevron {
+    fn icon(self) -> Icon {
+        Icon::new(match self {
+            Self::Down => icons::CHEVRON_DOWN,
+            Self::Up => icons::CHEVRON_UP,
+            Self::Right => icons::CHEVRON_RIGHT,
+        })
     }
 }
 

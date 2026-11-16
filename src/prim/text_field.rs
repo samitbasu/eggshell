@@ -186,13 +186,13 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
-    /// TODO(prose): `icon` before the text, inside the field's box. Display only; one-line fields only.
+    /// TODO(prose): `icon` before the text, inside the field's box. Display only; a multi-line field shows none.
     pub fn leading(mut self, icon: Icon) -> Self {
         self.leading = Some(icon);
         self
     }
 
-    /// TODO(prose): `icon` after the text, inside the field's box. Display only; one-line fields only.
+    /// TODO(prose): `icon` after the text, inside the field's box. Display only; a multi-line field shows none.
     pub fn trailing(mut self, icon: Icon) -> Self {
         self.trailing = Some(icon);
         self
@@ -251,11 +251,8 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         let field = field.sized(size);
         let measured = field.clone();
         let style = crate::Style::of(b.ctx());
-        if leading.is_some() || trailing.is_some() {
-            assert!(
-                field.is_single_line(),
-                "a leading or trailing icon needs a one-line field"
-            );
+        // TODO(#279): report icons given to a multi-line field, which shows none.
+        if field.is_single_line() && (leading.is_some() || trailing.is_some()) {
             let metrics = *style.input.sizes.get(size);
             let (side, tint) = (metrics.icon_size, style.input.icon);
             let put = |s: &mut Scope<'_, '_, A>, part, icon| {

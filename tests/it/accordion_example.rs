@@ -3,8 +3,7 @@
 
 use eggshell_ui::testing::{Timeline, record};
 use egui::accesskit::Role as AccessRole;
-use egui::epaint::Shape;
-use egui::{Key, Pos2, vec2};
+use egui::{Key, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use crate::support::{self, rect_of};
@@ -77,25 +76,15 @@ fn head(index: usize) -> String {
 }
 
 /// The turn of the chevron painted in header `index`, in degrees from
-/// pointing down, read off the two segments it is drawn with.
+/// pointing down, read off the icon's quad.
 fn chevron_degrees(harness: &egui_kittest::Harness<'_, support::Rig<State>>, index: usize) -> f32 {
     let header = rect_of(harness, &head(index));
-    let segments: Vec<[Pos2; 2]> = support::shapes(harness)
+    let icons: Vec<_> = support::textured(harness)
         .into_iter()
-        .filter_map(|shape| match shape {
-            Shape::LineSegment { points, .. } if header.contains(points[0]) => Some(*points),
-            _ => None,
-        })
+        .filter(|mesh| header.contains(mesh.calc_bounds().center()))
         .collect();
-    assert_eq!(
-        segments.len(),
-        2,
-        "the chevron is two segments: {segments:?}"
-    );
-    let vertex = segments[0][1];
-    let ends = segments[0][0].lerp(segments[1][1], 0.5);
-    let v = vertex - ends;
-    (-v.x).atan2(v.y).to_degrees().rem_euclid(360.0)
+    assert_eq!(icons.len(), 1, "the header draws one chevron");
+    support::turn(icons[0])
 }
 
 #[test]

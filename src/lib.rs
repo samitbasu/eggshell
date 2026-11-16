@@ -385,7 +385,7 @@ pub use measure::{Measure, fill};
 pub use overlay::{Boundary, Distance, InsetBoundary};
 pub use overlay_input::Blur;
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};
-pub use prim::{Icon, IconSource};
+pub use prim::Icon;
 pub use roots::OverlayRef;
 pub use shell::{Shell, ShellExt};
 pub use sizing::Width;

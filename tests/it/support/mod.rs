@@ -401,6 +401,25 @@ pub fn shapes<'a, A>(harness: &'a Harness<'_, Rig<A>>) -> Vec<&'a Shape> {
     all
 }
 
+/// The meshes painted with a texture of their own, not the font atlas: the
+/// images and icons.
+pub fn textured<'a, A>(harness: &'a Harness<'_, Rig<A>>) -> Vec<&'a egui::epaint::Mesh> {
+    shapes(harness)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default() => Some(&**mesh),
+            _ => None,
+        })
+        .collect()
+}
+
+/// How far `mesh`, an image's quad, is turned, in degrees clockwise: the
+/// direction of its top edge, from its first corner to its second.
+pub fn turn(mesh: &egui::epaint::Mesh) -> f32 {
+    let edge = mesh.vertices[1].pos - mesh.vertices[0].pos;
+    edge.y.atan2(edge.x).to_degrees().rem_euclid(360.0)
+}
+
 pub fn same(a: Rect, b: Rect) -> bool {
     (a.min - b.min).length() < 0.6 && (a.max - b.max).length() < 0.6
 }
