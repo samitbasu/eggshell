@@ -215,8 +215,12 @@ fn list<A: 'static>(
 fn marker(list: &List, index: usize, item: &Item, depth: Depth) -> Marker {
     match (item.task, list.start) {
         (Some(task), _) => Marker::Shape(Shape::Task(task)),
-        (None, Some(start)) => Marker::Number(start + index as u64),
-        (None, None) => Marker::Shape([Shape::Disc, Shape::Circle, Shape::Square][depth.0 % 3]),
+        (None, Some(start)) => Marker::Number(start.saturating_add(index as u64)),
+        (None, None) => Marker::Shape(match depth.0 % 3 {
+            0 => Shape::Disc,
+            1 => Shape::Circle,
+            _ => Shape::Square,
+        }),
     }
 }
 

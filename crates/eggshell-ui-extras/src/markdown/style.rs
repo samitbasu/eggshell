@@ -190,7 +190,15 @@ impl MarkdownStyle {
 
     /// The style of `level`'s headings.
     pub fn heading(&self, level: Level) -> &HeadingStyle {
-        &self.headings[level as usize]
+        let [h1, h2, h3, h4, h5, h6] = &self.headings;
+        match level {
+            Level::H1 => h1,
+            Level::H2 => h2,
+            Level::H3 => h3,
+            Level::H4 => h4,
+            Level::H5 => h5,
+            Level::H6 => h6,
+        }
     }
 
     /// TODO(prose)

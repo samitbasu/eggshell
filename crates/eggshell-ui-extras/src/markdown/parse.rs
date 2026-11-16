@@ -103,11 +103,11 @@ pub(crate) fn parse(source: &str) -> Vec<Block> {
         match event {
             Event::Start(Tag::Table(_)) => {
                 skip_to(&mut events, TagEnd::Table);
-                walk.unsupported(Construct::Table, &source[range]);
+                walk.unsupported(Construct::Table, source.get(range).unwrap_or_default());
             }
             Event::Start(Tag::HtmlBlock) => {
                 skip_to(&mut events, TagEnd::HtmlBlock);
-                walk.unsupported(Construct::Html, &source[range]);
+                walk.unsupported(Construct::Html, source.get(range).unwrap_or_default());
             }
             event => walk.event(event),
         }
@@ -125,7 +125,6 @@ fn skip_to<'a>(events: &mut impl Iterator<Item = (Event<'a>, Range<usize>)>, end
 
 /// A block that holds blocks, open while its events arrive.
 enum Container {
-    Root(Vec<Block>),
     Quote(Vec<Block>),
     List(List),
     Item(Item),
@@ -175,6 +174,8 @@ impl Marks {
 }
 
 struct Walk {
+    blocks: Vec<Block>,
+    /// The containers open around the next block, innermost last.
     containers: Vec<Container>,
     leaf: Option<Leaf>,
     marks: Marks,
@@ -187,7 +188,8 @@ struct Walk {
 impl Default for Walk {
     fn default() -> Self {
         Self {
-            containers: vec![Container::Root(Vec::new())],
+            blocks: Vec::new(),
+            containers: Vec::new(),
             leaf: None,
             marks: Marks::default(),
             run: (Marks::default(), String::new()),
@@ -246,8 +248,8 @@ impl Walk {
                 items: Vec::new(),
             })),
             Tag::Item => self.contain(Container::Item(Item::default())),
-            Tag::Emphasis => self.marks.emphasis += 1,
-            Tag::Strong => self.marks.strong += 1,
+            Tag::Emphasis => self.marks.emphasis = self.marks.emphasis.saturating_add(1),
+            Tag::Strong => self.marks.strong = self.marks.strong.saturating_add(1),
             Tag::Link { dest_url, .. } => self.marks.links.push(dest_url.to_string()),
             _ => {}
         }
@@ -258,8 +260,8 @@ impl Walk {
             TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::CodeBlock => self.close_leaf(),
             TagEnd::Image => self.open(Leaf::Paragraph),
             TagEnd::BlockQuote(_) | TagEnd::List(_) | TagEnd::Item => self.uncontain(),
-            TagEnd::Emphasis => self.marks.emphasis -= 1,
-            TagEnd::Strong => self.marks.strong -= 1,
+            TagEnd::Emphasis => self.marks.emphasis = self.marks.emphasis.saturating_sub(1),
+            TagEnd::Strong => self.marks.strong = self.marks.strong.saturating_sub(1),
             TagEnd::Link => {
                 self.marks.links.pop();
             }
@@ -343,14 +345,11 @@ impl Walk {
 
     fn block(&mut self, block: Block) {
         self.close_leaf();
-        match self
-            .containers
-            .last_mut()
-            .expect("the root is never closed")
-        {
-            Container::Root(blocks) | Container::Quote(blocks) => blocks.push(block),
-            Container::Item(item) => item.blocks.push(block),
-            Container::List(list) => list.items.push(Item {
+        match self.containers.last_mut() {
+            None => self.blocks.push(block),
+            Some(Container::Quote(blocks)) => blocks.push(block),
+            Some(Container::Item(item)) => item.blocks.push(block),
+            Some(Container::List(list)) => list.items.push(Item {
                 task: None,
                 blocks: vec![block],
             }),
@@ -369,26 +368,29 @@ impl Walk {
         self.containers.push(container);
     }
 
+    /// Closes the innermost container. pulldown-cmark balances what it
+    /// opens; should it not, an item outside a list keeps its blocks and a
+    /// close with nothing open is ignored.
     fn uncontain(&mut self) {
         self.close_leaf();
-        let closed = self.containers.pop().expect("an open container");
-        match closed {
-            Container::Item(item) => match self.containers.last_mut() {
+        // TODO(#279): report a close with nothing open, or an item outside a list.
+        match self.containers.pop() {
+            None => {}
+            Some(Container::Item(item)) => match self.containers.last_mut() {
                 Some(Container::List(list)) => list.items.push(item),
-                _ => unreachable!("pulldown-cmark nests items in lists"),
+                _ => item.blocks.into_iter().for_each(|block| self.block(block)),
             },
-            Container::Quote(blocks) => self.block(Block::Quote(blocks)),
-            Container::List(list) => self.block(Block::List(list)),
-            Container::Root(_) => unreachable!("the root is never closed"),
+            Some(Container::Quote(blocks)) => self.block(Block::Quote(blocks)),
+            Some(Container::List(list)) => self.block(Block::List(list)),
         }
     }
 
     fn finish(mut self) -> Vec<Block> {
-        self.close_leaf();
-        match self.containers.pop() {
-            Some(Container::Root(blocks)) if self.containers.is_empty() => blocks,
-            _ => unreachable!("pulldown-cmark closes what it opens"),
+        while !self.containers.is_empty() {
+            self.uncontain();
         }
+        self.close_leaf();
+        self.blocks
     }
 }
 
@@ -661,6 +663,29 @@ mod tests {
         assert_eq!(
             parse("~~struck~~ and $x$"),
             vec![text("~~struck~~ and $x$")]
+        );
+    }
+
+    #[test]
+    fn unbalanced_events_keep_their_text_and_do_not_panic() {
+        let mut walk = Walk::default();
+        for event in [
+            Event::End(TagEnd::Item),
+            Event::End(TagEnd::Emphasis),
+            Event::Start(Tag::Item),
+            Event::Text("kept".into()),
+            Event::End(TagEnd::Item),
+            Event::Start(Tag::BlockQuote(None)),
+            Event::Text("open".into()),
+        ] {
+            walk.event(event);
+        }
+        assert_eq!(
+            walk.finish(),
+            [
+                Block::Paragraph(Span::new("kept").into()),
+                Block::Quote(vec![Block::Paragraph(Span::new("open").into())]),
+            ]
         );
     }
 }
