@@ -474,6 +474,7 @@ impl LayoutState {
     ) -> Built<'f, A> {
         let _timer = Timer::start(ctx, Phase::Build);
         crate::symbols::install(ctx);
+        crate::icons::install(ctx);
         let base = self
             .base_text
             .clone()
@@ -1100,15 +1101,16 @@ impl Probe<'_, '_> {
 }
 
 /// The size a leaf's content wants in a content box `content` wide, or `None`
-/// for a leaf with no content. Truncated text is cut to the box by design, so
-/// it never wants more than the box's width.
+/// for a leaf with no content or an icon, which is rasterised to whatever box
+/// it is given. Truncated text is cut to the box by design, so it never wants
+/// more than the box's width.
 pub(crate) fn wanted(
     ctx: &egui::Context,
     content_of: Content<'_>,
     text: &TextStyle,
     content: Size<f32>,
 ) -> Option<egui::Vec2> {
-    if matches!(content_of, Content::Empty) {
+    if matches!(content_of, Content::Empty | Content::Prim(Prim::Icon(_))) {
         return None;
     }
     let input = LayoutInput {

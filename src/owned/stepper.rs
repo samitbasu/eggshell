@@ -10,7 +10,7 @@ use egui::{Key, Role, WidgetInfo};
 use super::number::{Edit, Edits, Step, pressed};
 use super::{
     Chevron, Content, Enablement, FieldHooks, Tip, TipContent, centered, described, field_classes,
-    paint_chevron, tip, tipped,
+    tip, tipped,
 };
 use crate::builder::Slot;
 use crate::contract::{Size, TextSize};
@@ -292,7 +292,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                         let set = set.clone();
                         let name = format!("{label} {}", spec.name);
                         b.div_id(part, classes, |b| {
-                            b.paint(tw().size_px(glyph), paint_chevron(chevron))
+                            b.glyph(tw().size_px(glyph), chevron.icon())
                         })
                         .draw(move |app, ui| {
                             if described(ui, Role::Button, None, name.trim(), &spec.tooltip)
