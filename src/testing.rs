@@ -496,7 +496,7 @@ impl<'p> Query<'p> {
     /// the candidates.
     #[track_caller]
     pub fn text(&self, text: &str) -> Query<'p> {
-        let texts: Vec<(usize, &str)> = self
+        let texts: Vec<(usize, std::borrow::Cow<'_, str>)> = self
             .descendants()
             .filter_map(|index| match &self.layout.prims[index] {
                 Some(prim) => prim.text().map(|shown| (index, shown)),
@@ -505,8 +505,8 @@ impl<'p> Query<'p> {
             .collect();
         let matching: Vec<usize> = texts
             .iter()
-            .filter(|(_, shown)| *shown == text)
-            .map(|&(index, _)| index)
+            .filter(|(_, shown)| shown == text)
+            .map(|(index, _)| *index)
             .collect();
         let [index] = matching[..] else {
             let describe = |indices: &mut dyn Iterator<Item = (usize, &str)>| {
@@ -518,14 +518,19 @@ impl<'p> Query<'p> {
                 panic!(
                     "no text {text:?} below {}; text below it: {}",
                     self.display_path(),
-                    describe(&mut texts.iter().copied()),
+                    describe(&mut texts.iter().map(|(index, shown)| (*index, shown.as_ref()))),
                 )
             }
             panic!(
                 "{} nodes show {text:?} below {}: {}",
                 matching.len(),
                 self.display_path(),
-                describe(&mut texts.iter().copied().filter(|(_, shown)| *shown == text)),
+                describe(
+                    &mut texts
+                        .iter()
+                        .map(|(index, shown)| (*index, shown.as_ref()))
+                        .filter(|(_, shown)| *shown == text)
+                ),
             )
         };
         Query {

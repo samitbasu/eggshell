@@ -13,13 +13,13 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect};
 
 use crate::actions::{self, Action};
 use crate::dismiss::{
-    Boundary, Cause, FocusAt, Input, Layer, Opening, Trigger, dismissals, esc_target,
+    Boundary, Cause, FocusAt, Input, Layer, Seen, Trigger, dismissals, esc_target,
 };
 use crate::draw::children_of;
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
 use crate::nav::{self, Menu};
-use crate::overlay::{Anchor, AnchorLookup, Band, Behavior, DismissOn, Focus, Nav, Outside};
+use crate::overlay::{Anchor, AnchorLookup, Anchored, Behavior, Focus, Nav, Outside};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::roots::{Form, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
 use crate::shell::Shell;
@@ -134,43 +134,6 @@ impl Open<'_> {
     }
 }
 
-/// The menus that are open but hidden, because their anchor left the window,
-/// that an overlay opened this frame makes way for: menus are exclusive, seen
-/// or not, or the hidden one would come back over the one opened beside it.
-/// Hidden overlays take no part in the other rules, so `dismissals` does not
-/// see them.
-fn hidden_menus_made_way_for(roots: &[PlacedRoot], open: &[Open<'_>], layers: &[Layer]) -> Vec<Id> {
-    let opened: Vec<&Open<'_>> = open
-        .iter()
-        .zip(layers)
-        .filter(|(_, layer)| {
-            layer.opening == Opening::Opened
-                && layer.band != Band::Tooltip
-                && layer.lookup == AnchorLookup::Found
-        })
-        .map(|(open, _)| open)
-        .collect();
-    roots
-        .iter()
-        .enumerate()
-        .filter_map(|(root, placed)| Some((root, placed.overlay()?)))
-        .filter(|(_, hidden)| {
-            hidden.anchored == crate::overlay::Anchored::Detached
-                && !hidden.staged.is_exiting()
-                && hidden.lookup == AnchorLookup::Found
-                && hidden.behavior.outside() == Outside::Swallow
-                && hidden.behavior.dismiss_on == DismissOn::Default
-        })
-        .filter(|(root, hidden)| {
-            opened.iter().any(|opened| {
-                opened.overlay.stack_index > hidden.stack_index
-                    && !is_nested_in(roots, opened.root, *root)
-            })
-        })
-        .map(|(_, hidden)| hidden.id)
-        .collect()
-}
-
 fn is_nested_in(roots: &[PlacedRoot], root: usize, ancestor: usize) -> bool {
     std::iter::successors(roots[root].parent, |&at| roots[at].parent).any(|at| at == ancestor)
 }
@@ -178,15 +141,26 @@ fn is_nested_in(roots: &[PlacedRoot], root: usize, ancestor: usize) -> bool {
 /// The attached overlays, the one on the bottom first. An overlay that is
 /// leaving is not among them: it takes no key and is not judged again.
 fn open_overlays(roots: &[PlacedRoot]) -> Vec<Open<'_>> {
+    overlays_where(roots, |overlay| {
+        overlay.anchored == Anchored::Attached || overlay.lookup == AnchorLookup::Missing
+    })
+}
+
+/// The overlays dismissal judges: the attached ones, and those hidden because
+/// their anchor left the window, the one on the bottom first.
+fn judged_overlays(roots: &[PlacedRoot]) -> Vec<Open<'_>> {
+    overlays_where(roots, |_| true)
+}
+
+fn overlays_where(roots: &[PlacedRoot], keep: impl Fn(&PlacedOverlay) -> bool) -> Vec<Open<'_>> {
     let order: Vec<usize> = stacked_top_down(roots)
         .into_iter()
         .rev()
         .filter(|&root| {
-            roots[root].overlay().is_some_and(|overlay| {
-                !overlay.staged.is_exiting()
-                    && (overlay.anchored == crate::overlay::Anchored::Attached
-                        || overlay.lookup == AnchorLookup::Missing)
-            })
+            roots
+                .get(root)
+                .and_then(PlacedRoot::overlay)
+                .is_some_and(|overlay| !overlay.staged.is_exiting() && keep(overlay))
         })
         .collect();
     order
@@ -222,8 +196,8 @@ fn box_of(nodes: &[PlacedNode], roots: &[PlacedRoot], root: usize) -> egui::Rect
     }
 }
 
-/// The layers dismissal judges, from the attached overlays; `focus` says
-/// where focus was and is relative to each.
+/// The layers dismissal judges; `focus` says where focus was and is relative
+/// to each.
 fn layers_of(
     ctx: &Context,
     open: &[Open<'_>],
@@ -252,6 +226,10 @@ fn layers_of(
                 focus_before,
                 lookup: overlay.lookup,
                 focus_now,
+                seen: match overlay.anchored {
+                    Anchored::Attached => Seen::Drawn,
+                    Anchored::Detached => Seen::Hidden,
+                },
             }
         })
         .collect()
@@ -397,7 +375,7 @@ pub(crate) fn claim_keys(
         drag_live: drag == Drag::Live,
         ..Input::default()
     };
-    let layers = layers_of(ctx, &open, nodes, roots, |_| {
+    let layers = layers_of(ctx, &judged_overlays(roots), nodes, roots, |_| {
         (FocusAt::Nowhere, FocusAt::Nowhere)
     });
     let belongs_to_the_library = match escape_goes(&layers, nodes, &input) {
@@ -473,7 +451,8 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     let source = Source::last(ctx);
     let shell = Shell::new(ctx, kept);
     let mut stack = Stack::load(kept, ctx.viewport_id());
-    let layers = layers_of(ctx, &open, nodes, roots, |open| {
+    let judged = judged_overlays(roots);
+    let layers = layers_of(ctx, &judged, nodes, roots, |open| {
         let before = stack
             .get_mut(open.overlay.id)
             .map(|entry| entry.focus)
@@ -504,20 +483,18 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     let found = dismissals(&layers, &input);
     let mut dismissed = Vec::new();
     for found in &found {
-        match (found.cause, layers[found.layer].cancel) {
+        let (Some(layer), Some(open)) = (layers.get(found.layer), judged.get(found.layer)) else {
+            continue;
+        };
+        match (found.cause, layer.cancel) {
             (Cause::Cancel, Some(button)) => actions::press(ctx, kept, button),
             _ => {
-                let id = open[found.layer].overlay.id;
+                let id = open.overlay.id;
                 dismissed.push(id);
                 if let Some(then) = dismiss.remove(&id) {
                     then(app);
                 }
             }
-        }
-    }
-    for id in hidden_menus_made_way_for(roots, &open, &layers) {
-        if let Some(then) = dismiss.remove(&id) {
-            then(app);
         }
     }
     if let EscapeGoes::Window(button) = escape_goes(&layers, nodes, &input) {
@@ -530,12 +507,15 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         return;
     }
 
-    for (open, layer) in open.iter().zip(&layers) {
+    for (open, layer) in judged.iter().zip(&layers) {
         let Some(entry) = stack.get_mut(open.overlay.id) else {
             continue;
         };
         entry.focus = layer.focus_now;
-        if entry.entered == Entered::Not && layer.lookup == AnchorLookup::Found {
+        if entry.entered == Entered::Not
+            && layer.lookup == AnchorLookup::Found
+            && layer.seen == Seen::Drawn
+        {
             entry.entered = Entered::Yet;
             if enters_focus(open.overlay.behavior, source)
                 && let Some(first) = opening_focus(nodes, roots[open.root].first, subtrees, open)

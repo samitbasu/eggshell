@@ -1020,11 +1020,50 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         tw: Tw,
         text: impl Into<String>,
     ) -> NodeHandle<'_, 'f, A> {
+        self.identified_leaf(key, tw, NodeKind::Span, Prim::Text(text.into()))
+    }
+
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, Span, Weight, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, Vec<String>>) {
+    ///     b.spans("intro", tw(), vec![
+    ///         Span::new("Read "),
+    ///         Span::new("the guide").link("#guide"),
+    ///         Span::new(" or "),
+    ///         Span::new("the source").link("https://github.com/samitbasu/eggshell"),
+    ///         Span::new(", it is "),
+    ///         Span::new("short").weight(Weight::Bold),
+    ///         Span::new("."),
+    ///     ])
+    ///     .on_link(|followed, href| followed.push(href.to_owned()));
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn spans<K: Key>(
+        &mut self,
+        key: K,
+        tw: Tw,
+        spans: impl Into<crate::Spans>,
+    ) -> SpansHandle<'_, 'f, A> {
+        SpansHandle(self.identified_leaf(key, tw, NodeKind::Span, Prim::Spans(spans.into())))
+    }
+
+    #[track_caller]
+    fn identified_leaf<K: Key>(
+        &mut self,
+        key: K,
+        tw: Tw,
+        kind: NodeKind,
+        prim: Prim,
+    ) -> NodeHandle<'_, 'f, A> {
         let id = child_id(self.path, &key);
         let path = self.identify(id, &key);
         let parts = Parts {
             id: Some(id),
-            ..Parts::anonymous(NodeKind::Span, path).with_prim(Prim::Text(text.into()))
+            ..Parts::anonymous(kind, path).with_prim(prim)
         };
         self.leaf_node(tw, parts);
         self.handle()
@@ -1033,14 +1072,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// An identified icon, measured and painted by the library.
     #[track_caller]
     pub fn icon<K: Key>(&mut self, key: K, tw: Tw, icon: Icon) -> NodeHandle<'_, 'f, A> {
-        let id = child_id(self.path, &key);
-        let path = self.identify(id, &key);
-        let parts = Parts {
-            id: Some(id),
-            ..Parts::anonymous(NodeKind::Icon, path).with_prim(Prim::Icon(icon))
-        };
-        self.leaf_node(tw, parts);
-        self.handle()
+        self.identified_leaf(key, tw, NodeKind::Icon, Prim::Icon(icon))
     }
 
     /// Anonymous text.
@@ -1324,7 +1356,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 .get_node_context(node)
                 .and_then(|node| node.prim.as_ref()?.text())
             {
-                pieces.push(text.to_owned());
+                pieces.push(text.into_owned());
             }
             stack.extend(tree.children(node).into_iter().flatten().rev());
         }
@@ -1799,6 +1831,25 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     }
 }
 
+/// TODO(prose): the node [`spans`](Builder::spans) adds.
+pub struct SpansHandle<'b, 'f, A>(NodeHandle<'b, 'f, A>);
+
+impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
+    /// TODO(prose)
+    pub fn on_link(self, on_link: impl FnOnce(&mut A, &str) + 'static) -> NodeHandle<'b, 'f, A> {
+        self.0.draw(move |app, ui| {
+            if let Some(href) = crate::spans::take_followed(ui.ctx(), ui.node_id()) {
+                on_link(app, &href);
+            }
+        })
+    }
+
+    /// TODO(prose)
+    pub fn node(self) -> NodeHandle<'b, 'f, A> {
+        self.0
+    }
+}
+
 /// A [`Builder`] inside a keyed scope: what [`Builder::scope`] and
 /// [`Builder::div_id`] hand to their bodies.
 ///
@@ -1861,6 +1912,13 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
 /// }
 /// ```
 pub struct Scope<'b, 'f, A>(Builder<'b, 'f, A>);
+
+impl<A> Scope<'_, '_, A> {
+    /// TODO(prose): whether this scope is the highlighted item of a listbox.
+    pub fn is_active(&self) -> bool {
+        crate::nav::is_highlighted(self.0.kept(), self.0.path)
+    }
+}
 
 impl<'b, 'f, A> Deref for Scope<'b, 'f, A> {
     type Target = Builder<'b, 'f, A>;

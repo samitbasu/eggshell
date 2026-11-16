@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use eggshell_ui::contract::{
-    self, Arrow, CheckboxMetrics, Colors, Entry, Focus, InputMetrics, Keyed, KindMotion,
+    self, Arrow, CheckboxMetrics, Colors, Em, Entry, Focus, InputMetrics, Keyed, KindMotion,
     Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size, SliderMetrics,
     SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
@@ -607,6 +607,19 @@ impl Shadcn {
                 weight: t.control_weight,
             });
             kbd
+        };
+        // shadcn's typography: a link is `font-medium text-primary underline`,
+        // inline code `rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm`.
+        style.rich = {
+            let mut rich = style.rich;
+            rich.link = t.primary;
+            rich.link_weight = Weight::Medium;
+            rich.code.fill = t.muted;
+            rich.code.radius = t.radius_sm();
+            rich.code.padding_x = 4.8;
+            rich.code.padding_y = 3.2;
+            rich.code.size = Em::new(0.875);
+            rich
         };
         style.stepper = {
             let mut stepper = style.stepper;
