@@ -1,10 +1,9 @@
 //! A `LayoutState::named` salts the ids of its nodes, so layouts that share
 //! an egui context cannot collide on a top-level key; in debug builds the
-//! collisions that remain panic, naming both builds.
+//! collisions that remain are reported, naming both builds.
 
-use std::panic::{self, AssertUnwindSafe};
-
-use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::testing::{assert_no_reports, assert_reported};
+use eggshell_ui::{Builder, LayoutState, Problem, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Context, FontFamily, Id, Rect, pos2, vec2};
 
 use crate::support;
@@ -45,16 +44,6 @@ fn top_id(layout: &mut LayoutState, ctx: &Context, key: &'static str) -> Id {
         .expect("an identified node")
 }
 
-#[cfg(debug_assertions)]
-fn panic_message(run: impl FnOnce()) -> String {
-    let payload = panic::catch_unwind(AssertUnwindSafe(run)).expect_err("expected a panic");
-    payload
-        .downcast_ref::<String>()
-        .cloned()
-        .or_else(|| payload.downcast_ref::<&str>().map(ToString::to_string))
-        .expect("a string payload")
-}
-
 #[test]
 fn a_named_layout_has_different_ids_from_an_unnamed_one() {
     let unnamed = top_id(&mut LayoutState::new(), &context(), "title");
@@ -83,16 +72,15 @@ fn a_name_gives_the_same_ids_in_every_layout_state() {
 
 #[cfg(debug_assertions)]
 #[test]
-fn two_unnamed_layouts_sharing_a_top_level_key_panic_naming_both_builds() {
+fn two_unnamed_layouts_sharing_a_top_level_key_are_reported_naming_both_builds() {
     let ctx = context();
     let (mut a, mut b) = (LayoutState::new(), LayoutState::new());
     let first = line!() + 1;
     top_id(&mut a, &ctx, "title");
-    let mut second = 0;
-    let message = panic_message(|| {
-        second = line!() + 1;
-        top_id(&mut b, &ctx, "title");
-    });
+    let second = line!() + 1;
+    top_id(&mut b, &ctx, "title");
+    let report = assert_reported(&ctx, Problem::TopLevelKeyClash);
+    let message = &report.message;
     assert!(message.contains("\"title\""), "{message}");
     for line in [first, second] {
         assert!(
@@ -100,16 +88,23 @@ fn two_unnamed_layouts_sharing_a_top_level_key_panic_naming_both_builds() {
             "expected line {line} in: {message}"
         );
     }
+    assert_eq!(report.at.line(), second, "reported at the second build");
 }
 
 #[cfg(debug_assertions)]
 #[test]
-fn layouts_with_different_names_or_keys_do_not_panic() {
+fn layouts_with_different_names_or_keys_report_nothing() {
     let ctx = context();
-    top_id(&mut LayoutState::new(), &ctx, "title");
-    top_id(&mut LayoutState::named("bar"), &ctx, "title");
-    top_id(&mut LayoutState::named("page"), &ctx, "title");
-    top_id(&mut LayoutState::new(), &ctx, "other");
+    let mut layouts = [
+        LayoutState::new(),
+        LayoutState::named("bar"),
+        LayoutState::named("page"),
+        LayoutState::new(),
+    ];
+    for (layout, key) in layouts.iter_mut().zip(["title", "title", "title", "other"]) {
+        top_id(layout, &ctx, key);
+    }
+    assert_no_reports(&ctx);
 }
 
 #[cfg(debug_assertions)]
@@ -119,20 +114,19 @@ fn one_layout_may_build_twice_in_a_pass() {
     let mut layout = LayoutState::new();
     top_id(&mut layout, &ctx, "title");
     top_id(&mut layout, &ctx, "title");
+    assert_no_reports(&ctx);
 }
 
 #[cfg(debug_assertions)]
 #[test]
-fn the_same_name_twice_in_a_context_panics() {
+fn the_same_name_twice_in_a_context_is_reported() {
     let ctx = context();
     let (mut a, mut b) = (LayoutState::named("bar"), LayoutState::named("bar"));
     let first = line!() + 1;
     top_id(&mut a, &ctx, "one");
-    let mut second = 0;
-    let message = panic_message(|| {
-        second = line!() + 1;
-        top_id(&mut b, &ctx, "two");
-    });
+    let second = line!() + 1;
+    top_id(&mut b, &ctx, "two");
+    let message = assert_reported(&ctx, Problem::LayoutNameClash).message;
     assert!(message.contains("named the same"), "{message}");
     for line in [first, second] {
         assert!(
@@ -156,6 +150,7 @@ fn claims_start_over_each_pass() {
         top_id(&mut b, &ctx, "title");
     })
     .drop_without_applying_deltas();
+    assert_no_reports(&ctx);
 }
 
 /// The rig's bar has a node keyed `"bar-button"`; a view that uses the same
@@ -186,4 +181,5 @@ fn a_dropped_layout_claims_nothing() {
     let ctx = context();
     top_id(&mut LayoutState::new(), &ctx, "title");
     top_id(&mut LayoutState::new(), &ctx, "title");
+    assert_no_reports(&ctx);
 }

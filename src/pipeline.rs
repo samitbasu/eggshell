@@ -406,10 +406,9 @@ impl LayoutState {
     /// of the name, so the ids, and the state egui persists under them, are
     /// the same on every run.
     ///
-    /// # Panics
-    ///
-    /// In debug builds, if another state of the context is built with the
-    /// same name in the same pass.
+    /// In debug builds, another state of the context built with the same
+    /// name in the same pass is reported as
+    /// [`Problem::LayoutNameClash`](crate::Problem::LayoutNameClash).
     pub fn named(name: &'static str) -> Self {
         Self::with_name(Some(name))
     }

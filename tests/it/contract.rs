@@ -1,10 +1,11 @@
 //! `eggshell_ui::Style`: the neutral default, installing and caching, and open
-//! keys that never panic a release build.
+//! keys that fall back to the default entry and are reported.
 
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Keyed, Size, Variant};
-use eggshell_ui::{LayoutState, Style, TextSpec, TextStyle, Weight};
+use eggshell_ui::testing::{Headless, assert_no_reports, assert_reported};
+use eggshell_ui::{Builder, LayoutState, Problem, Style, TextSpec, TextStyle, Weight};
 use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, Context, FontFamily, Theme, vec2};
 use egui_kittest::Harness;
@@ -20,12 +21,36 @@ fn unknown_keys_fall_back_to_the_default_entry() {
         [Variant("plain"), Variant("loud")]
     );
 
-    let unknown = std::panic::catch_unwind(|| *keyed.get(Variant("missing")));
-    if cfg!(debug_assertions) {
-        assert!(unknown.is_err(), "a debug build flags the unknown key");
-    } else {
-        assert_eq!(unknown.ok(), Some(1), "a release build falls back");
-    }
+    assert_eq!(*keyed.get(Variant("missing")), 1);
+}
+
+#[test]
+fn a_widget_drawn_at_a_size_the_style_lacks_is_reported_and_uses_the_default() {
+    let mut headless = Headless::new(vec2(200.0, 100.0));
+    let placed_at = |headless: &mut Headless, size: Size| {
+        headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
+            b.checkbox("check", "Agree", false)
+                .size(size)
+                .on_change(|_, _| {});
+        })
+    };
+    let default = placed_at(&mut headless, Size::DEFAULT);
+    assert_no_reports(headless.ctx());
+    let missing = placed_at(&mut headless, Size("huge"));
+    let report = assert_reported(headless.ctx(), Problem::MissingStyleEntry);
+    assert!(
+        report.message.contains("Size(\"huge\")"),
+        "{}",
+        report.message
+    );
+    assert!(
+        default.nodes().count() > 1,
+        "precondition: the checkbox has nodes"
+    );
+    assert!(
+        missing.diff(&default).is_empty(),
+        "laid out with the default entry"
+    );
 }
 
 #[test]

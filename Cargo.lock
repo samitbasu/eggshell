@@ -1141,6 +1141,7 @@ dependencies = [
  "eggshell-ui-shadcn",
  "egui",
  "egui_kittest",
+ "log",
  "nohash-hasher",
  "proptest",
  "taffy",

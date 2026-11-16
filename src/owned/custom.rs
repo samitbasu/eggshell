@@ -117,7 +117,7 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
         } = self;
         let tooltip = tip(&mut b, slot.id, tooltip);
         let measure: MeasureFn<'f> = measure.unwrap_or_else(|| Box::new(fill));
-        let mut node = b.leaf_with(slot.id, &slot.label, classes, measure);
+        let mut node = b.leaf_with(&slot, classes, measure);
         if role != Role::Unknown {
             node = node.role(role);
             if let Some(name) = &name {

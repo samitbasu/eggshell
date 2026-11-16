@@ -188,7 +188,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = Style::of(b.ctx());
         let checkbox = &style.checkbox;
-        let metrics = *checkbox.sizes.get(b.size_of(size));
+        let metrics = *checkbox.sizes.lookup(b.ctx(), b.size_of(size));
         let look = match mark {
             Mark::Off => &checkbox.off,
             Mark::On => &checkbox.on,
@@ -204,7 +204,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let glyph = metrics.glyph;
         let name = name.unwrap_or_default();
         b.claim(&slot);
-        b.scope_with(slot.id, &slot.label, |b| {
+        b.scope_with(&slot, |b| {
             let control = b.id_of(Part::Box);
             let row = choice_row(
                 &style,

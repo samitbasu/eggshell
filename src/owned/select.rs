@@ -211,7 +211,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         let style = Style::of(&ctx);
         let offset = offset.unwrap_or(style.menu.offset);
         let select = &style.select;
-        let metrics = *select.sizes.get(b.size_of(size));
+        let metrics = *select.sizes.lookup(b.ctx(), b.size_of(size));
         let classes = select
             .trigger
             .classes(&style, metrics.radius, enablement, select.transition)
@@ -231,7 +231,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let value = shown.clone();
         let label = name.clone();
-        b.div_id_with(trigger, &slot.label, classes, |b| {
+        b.div_id_with(&slot, classes, |b| {
             b.text(tw(), shown);
             b.paint(
                 tw().size_px(chevron).shrink_0().opacity(opacity),

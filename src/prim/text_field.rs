@@ -209,7 +209,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         let field = field.sized(size);
         let measured = field.clone();
         let style = crate::Style::of(b.ctx());
-        let classes = match style.input.sizes.get(size).text {
+        let classes = match style.input.sizes.lookup(b.ctx(), size).text {
             Some(TextSize { size, line_height }) => tw().role(TextSpec {
                 size,
                 line_height,
@@ -223,17 +223,15 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         } else {
             crate::owned::text_field_classes(&style, size).merge(classes)
         };
-        b.leaf_with(slot.id, &slot.label, classes, move |m| {
-            measure(m, &measured)
-        })
-        .draw_widgets(move |app, ui| {
-            let mut edited = text;
-            let response = show(ui, &mut edited, &field);
-            autofocus.apply(ui.ctx(), &response);
-            if response.changed() {
-                on_change(app, edited);
-            }
-            hooks.run(app, ui, &response, field.enter());
-        });
+        b.leaf_with(&slot, classes, move |m| measure(m, &measured))
+            .draw_widgets(move |app, ui| {
+                let mut edited = text;
+                let response = show(ui, &mut edited, &field);
+                autofocus.apply(ui.ctx(), &response);
+                if response.changed() {
+                    on_change(app, edited);
+                }
+                hooks.run(app, ui, &response, field.enter());
+            });
     }
 }

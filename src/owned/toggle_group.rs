@@ -30,8 +30,8 @@ type OnChange<A, T> = Rc<dyn Fn(&mut A, T)>;
 /// `on_change`.
 ///
 /// A member's key is the group's key with the member's value, so two members
-/// with the same value in one scope are a duplicate path, a bug that panics
-/// in a debug build. This is why `T` must be `Hash` here although `segmented`
+/// with the same value in one scope are a duplicate path, a bug that a debug
+/// build reports as [`Problem::DuplicateKey`](crate::Problem::DuplicateKey). This is why `T` must be `Hash` here although `segmented`
 /// does not need it: a segmented control places all its cells in one call, so
 /// a cell's position is a stable identity, whereas members of a group are
 /// placed one at a time and may be shown conditionally, and keying them by

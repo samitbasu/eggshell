@@ -232,7 +232,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let slider = &style.slider;
-        let metrics = *slider.sizes.get(b.size_of(size));
+        let metrics = *slider.sizes.lookup(b.ctx(), b.size_of(size));
         let (low, high) = (*range.start(), *range.end());
         let fraction = if high > low {
             ((value - low) / (high - low)).clamp(0.0, 1.0) as f32
@@ -275,7 +275,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         let name = name.unwrap_or_default();
         let (track_tip, thumb_tip) = (tooltip.clone(), tooltip);
         b.claim(&slot);
-        b.scope_with(slot.id, &slot.label, |b| {
+        b.scope_with(&slot, |b| {
             let track = b.id_of(Part::Track);
             let on_track = scale.clone();
             let on_thumb = set.clone();
