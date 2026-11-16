@@ -15,6 +15,9 @@ use crate::support::{self, Rig, drag, hover_over, press_and_release, rect_of};
 #[path = "../../examples/common/mod.rs"]
 mod common;
 
+#[path = "../../examples/rich_text.rs"]
+mod rich_text;
+
 const HREF: &str = "#docs";
 const LINK: &str = "the docs";
 const URL: &str = "https://example.com/source";
@@ -331,4 +334,35 @@ fn a_single_span_wraps_exactly_as_plain_text() {
     let line = common::base_text(Theme::Light).spec.line_height;
     assert!(spans.height() > 2.0 * line, "precondition: the text wraps");
     assert_eq!(spans.size(), plain.size());
+}
+
+#[test]
+fn the_example_width_slider_reflows_its_paragraphs() {
+    let mut harness = support::harness(
+        vec2(720.0, 600.0),
+        common::base_text(Theme::Light),
+        rich_text::State::default(),
+        rich_text::layout,
+    );
+    harness.run_steps(4);
+    let paragraph =
+        |harness: &Harness<'_, Rig<rich_text::State>>| rect_of(harness, "/Article/Wrapping");
+    let before = paragraph(&harness);
+    let slider = rect_of(&harness, "/Width/Track");
+    press_and_release(&mut harness, pos2(slider.min.x + 1.0, slider.center().y));
+    harness.run_steps(3);
+    let width = harness.state().app.width;
+    assert!(
+        width < before.width() / 2.0,
+        "pressing the track's start narrows the article, to {width}"
+    );
+    let after = paragraph(&harness);
+    assert!(
+        (after.width() - width).abs() < 0.5,
+        "{after:?} is {width} wide"
+    );
+    assert!(
+        after.height() > before.height(),
+        "the narrower paragraph wraps onto more rows"
+    );
 }

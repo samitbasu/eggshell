@@ -542,7 +542,7 @@ fn rich_text_dark() {
 fn rich_text_in(name: &str, theme: egui::Theme) {
     snapshot_themed(
         name,
-        Vec2::new(460.0, 260.0),
+        Vec2::new(460.0, 280.0),
         (
             rich_text::State::default(),
             rich_text::layout,
