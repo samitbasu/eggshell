@@ -51,6 +51,7 @@ mod radio;
 mod segmented;
 mod select;
 mod slider;
+mod splitter;
 mod stepper;
 mod switch;
 mod table;
@@ -80,6 +81,8 @@ pub use radio::RadioGroupChain;
 pub use segmented::{Cell, SegmentedChain};
 pub use select::SelectChain;
 pub use slider::SliderChain;
+pub(crate) use splitter::Side;
+pub use splitter::{PaneSize, SplitterChain, SplitterStart};
 pub use stepper::StepperChain;
 pub use switch::SwitchChain;
 pub use table::{Align, Cells, Column, Selectable, Selected, TableChain, Unselectable};
@@ -763,6 +766,12 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         progress: crate::Progress,
     ) -> ProgressChain<'_, 'f, A> {
         ProgressChain::new(self.reborrow(), key, progress)
+    }
+
+    /// TODO(prose): a splitter between two panes of the flex container it is
+    /// built in.
+    pub fn splitter<K: crate::Key>(&mut self, key: K) -> SplitterStart<'_, 'f, A> {
+        SplitterStart::new(self.reborrow(), key)
     }
 
     /// TODO(prose): a table, one grid whose columns line up across its rows.

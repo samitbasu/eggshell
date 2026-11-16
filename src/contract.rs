@@ -991,6 +991,81 @@ impl ScrollStyle {
     }
 }
 
+/// TODO(prose): the colours of a splitter at rest or hot.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SplitterColors {
+    /// TODO(prose): the hit area's fill.
+    pub band: Color32,
+    /// TODO(prose): the line along the middle.
+    pub line: Color32,
+    /// TODO(prose): the grip, where there is one.
+    pub grip: Color32,
+}
+
+impl SplitterColors {
+    /// These colours `progress` of the way to `other`.
+    #[must_use]
+    pub fn towards(self, other: Self, progress: Progress) -> Self {
+        let t = progress.into();
+        Self {
+            band: self.band.lerp_to_gamma(other.band, t),
+            line: self.line.lerp_to_gamma(other.line, t),
+            grip: self.grip.lerp_to_gamma(other.grip, t),
+        }
+    }
+}
+
+/// TODO(prose): a pill at the middle of a splitter's line.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Grip {
+    /// TODO(prose): along the line.
+    pub length: f32,
+    /// TODO(prose): across the line.
+    pub thickness: f32,
+}
+
+/// TODO(prose): splitters.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct SplitterStyle {
+    /// TODO(prose): the hit area across the axis.
+    pub thickness: f32,
+    /// TODO(prose): the line's width.
+    pub line_width: f32,
+    /// TODO(prose): at rest.
+    pub rest: SplitterColors,
+    /// TODO(prose): hovered, dragged or focused.
+    pub hot: SplitterColors,
+    /// TODO(prose): the grip, if any.
+    pub grip: Option<Grip>,
+    /// TODO(prose): how long the change to and from hot takes.
+    pub transition: Duration,
+}
+
+impl SplitterStyle {
+    /// TODO(prose): a splitter in egui's colours.
+    pub fn from_egui(egui: &egui::Style) -> Self {
+        let v = &egui.visuals;
+        let clear = Color32::TRANSPARENT;
+        Self {
+            thickness: 6.0,
+            line_width: 1.0,
+            rest: SplitterColors {
+                band: clear,
+                line: v.widgets.noninteractive.bg_stroke.color,
+                grip: clear,
+            },
+            hot: SplitterColors {
+                band: clear,
+                line: v.selection.bg_fill,
+                grip: clear,
+            },
+            grip: None,
+            transition: Duration::ZERO,
+        }
+    }
+}
+
 /// Tables: the header, the rule between rows, and a row's fills.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -1091,6 +1166,8 @@ pub struct Style {
     pub selection: Selection,
     /// Scroll containers.
     pub scroll: ScrollStyle,
+    /// TODO(prose): splitters.
+    pub splitter: SplitterStyle,
     /// Tables.
     pub table: TableStyle,
     /// What a modal overlay paints over the screen behind its box. Usually
@@ -1663,6 +1740,7 @@ impl Style {
                 text: Some(v.selection.stroke.color),
             },
             scroll: ScrollStyle::from_egui(egui),
+            splitter: SplitterStyle::from_egui(egui),
             table: TableStyle::from_egui(egui),
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
