@@ -60,6 +60,7 @@ mod layout_focus;
 mod layout_scroll;
 mod line_clamp;
 mod long_list_example;
+mod markdown;
 mod menu;
 mod menu_offset;
 mod modal;
