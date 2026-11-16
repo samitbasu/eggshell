@@ -266,3 +266,78 @@ fn the_shadcn_preset_fills_the_markdown_style() {
     assert_eq!(installed.rule, tokens.border);
     assert_eq!(installed.code.fill, tokens.muted);
 }
+
+/// egui's scroll areas drag to scroll only once a touch has been seen.
+fn touch_screen(harness: &mut Harness<'_, Rig<page::State>>) {
+    harness.event(egui::Event::Touch {
+        device_id: egui::TouchDeviceId(0),
+        id: egui::TouchId(0),
+        phase: egui::TouchPhase::Cancel,
+        pos: egui::Pos2::ZERO,
+        force: None,
+    });
+    harness.step();
+}
+
+fn page_offset(harness: &Harness<'_, Rig<page::State>>) -> f32 {
+    support::shell(harness)
+        .viewport(support::id_of(harness, "/Page"))
+        .expect("laid out")
+        .offset()
+        .y
+}
+
+#[test]
+fn a_touch_drag_that_starts_on_any_block_scrolls_the_page() {
+    let mut harness = harness_sized(vec2(720.0, 400.0));
+    touch_screen(&mut harness);
+    let blocks: Vec<String> = harness
+        .state()
+        .nodes
+        .iter()
+        .map(|(path, _)| path.clone())
+        .filter(|path| {
+            path.strip_prefix("/Page/Doc/")
+                .is_some_and(|rest| !rest.contains('/') && !rest.starts_with('<'))
+        })
+        .collect();
+    assert!(
+        blocks.len() > 10,
+        "precondition: the blocks are drawn: {blocks:?}"
+    );
+    let mut stuck = Vec::new();
+    let mut swept = 0;
+    for block in &blocks {
+        support::shell(&harness)
+            .scroll_into_view(support::id_of(&harness, block), Some(egui::Align::Center));
+        harness.run_steps(4);
+        let page = rect_of(&harness, "/Page");
+        let rect = rect_of(&harness, block).intersect(page.shrink(24.0));
+        if !rect.is_positive() {
+            continue;
+        }
+        swept += 1;
+        let before = page_offset(&harness);
+        let up = if before > 100.0 { 60.0 } else { -60.0 };
+        support::drag(&mut harness, rect.center(), rect.center() + vec2(0.0, up));
+        let moved = (page_offset(&harness) - before).abs();
+        if moved < 20.0 {
+            stuck.push(format!("{block}: moved {moved}"));
+        }
+    }
+    assert_eq!(swept, blocks.len(), "precondition: every block was reached");
+    assert!(
+        stuck.is_empty(),
+        "a touch drag did not scroll from {stuck:#?}"
+    );
+}
+
+#[test]
+fn on_a_touch_screen_a_tap_on_a_link_still_follows_it() {
+    let mut harness = harness();
+    touch_screen(&mut harness);
+    let link = support::part_rect(&harness, PARAGRAPH, "relative");
+    press_and_release(&mut harness, link.center());
+    harness.run_steps(2);
+    assert_eq!(harness.state().app.followed, ["guide.md"]);
+}
