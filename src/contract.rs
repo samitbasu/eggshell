@@ -753,6 +753,60 @@ pub struct KbdStyle {
     pub text: Option<TextSpec>,
 }
 
+/// TODO(prose)
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RichTextStyle {
+    /// Link text and underline.
+    pub link: Color32,
+    /// The least weight of link text.
+    pub link_weight: Weight,
+    /// Inline code.
+    pub code: InlineCode,
+}
+
+/// TODO(prose)
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct InlineCode {
+    /// The tint behind the code.
+    pub fill: Color32,
+    /// Corner radius of the tint.
+    pub radius: u8,
+    /// Left-right padding of the tint, taken as layout space.
+    pub padding_x: f32,
+    /// Top-bottom padding of the tint around the font's box; not layout space.
+    pub padding_y: f32,
+    /// The monospace size, relative to the text around it.
+    pub size: Em,
+}
+
+/// A size relative to the surrounding text's, as CSS `em`: positive and
+/// finite.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Em(f32);
+
+impl Em {
+    /// The surrounding text's size.
+    pub const ONE: Self = Self(1.0);
+
+    /// `em` times the surrounding size; one where `em` is not positive and
+    /// finite.
+    pub fn new(em: f32) -> Self {
+        if em.is_finite() && em > 0.0 {
+            Self(em)
+        } else {
+            Self::ONE
+        }
+    }
+}
+
+impl From<Em> for f32 {
+    fn from(em: Em) -> f32 {
+        em.0
+    }
+}
+
 /// A stepper's dimensions at one size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StepperMetrics {
@@ -959,6 +1013,8 @@ pub struct Style {
     pub tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
+    /// Rich text: links and inline code.
+    pub rich: RichTextStyle,
     /// Steppers.
     pub stepper: StepperStyle,
     /// Text fields.
@@ -1436,6 +1492,17 @@ impl Style {
                 padding_x: 4.0,
                 height: s.interact_size.y.min(20.0),
                 text: None,
+            },
+            rich: RichTextStyle {
+                link: v.hyperlink_color,
+                link_weight: Weight::Normal,
+                code: InlineCode {
+                    fill: v.code_bg_color,
+                    radius,
+                    padding_x: 2.0,
+                    padding_y: 1.0,
+                    size: Em::ONE,
+                },
             },
             stepper: StepperStyle {
                 group: choice_off.bordered(choice_border),

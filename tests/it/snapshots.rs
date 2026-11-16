@@ -35,6 +35,9 @@ mod button_children;
 #[path = "../../examples/toggle_group.rs"]
 mod toggle_group;
 
+#[path = "../../examples/rich_text.rs"]
+mod rich_text;
+
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/dialog.rs"]
 mod dialog;
@@ -522,6 +525,32 @@ fn snapshot_themed_in<A>(
         harness.run_steps(12);
     }
     harness.snapshot(name);
+}
+
+/// Paragraphs of spans: weights, italics, links, and inline code whose tint
+/// follows it across a wrap.
+#[test]
+fn rich_text_light() {
+    rich_text_in("rich_text_light", egui::Theme::Light);
+}
+
+#[test]
+fn rich_text_dark() {
+    rich_text_in("rich_text_dark", egui::Theme::Dark);
+}
+
+fn rich_text_in(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
+        Vec2::new(460.0, 280.0),
+        (
+            rich_text::State::default(),
+            rich_text::layout,
+            common::base_text(theme),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
 }
 
 /// Icon toggles whose active one shows a `.children(..)` accent bar.
