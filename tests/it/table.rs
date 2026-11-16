@@ -490,27 +490,56 @@ mod access {
 mod misuse {
     use super::*;
 
-    fn short(b: &mut Builder<'_, '_, App>, app: &App) {
-        b.table(Part::Invoices).columns(columns()).rows(
-            &app.invoices,
-            |invoice| invoice.id,
-            |row, invoice| {
-                row.cell_text(format!("INV-{}", invoice.id));
-            },
-        );
+    /// INV-7 has one cell and INV-1024 four, in a table of three columns.
+    fn ragged(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div_id(Part::Page, tw().p(4.0).w_full(), |b| {
+            b.table(Part::Invoices).columns(columns()).rows(
+                &app.invoices,
+                |invoice| invoice.id,
+                |row, invoice| {
+                    let cells = match invoice.id {
+                        7 => 1,
+                        1024 => 4,
+                        _ => 3,
+                    };
+                    for column in 0..cells {
+                        row.cell_text(format!("{}.{column}", invoice.id));
+                    }
+                },
+            );
+        });
     }
 
     #[test]
-    #[should_panic(expected = "row 7 has 1 cell, the table has 3 columns")]
-    fn a_row_with_the_wrong_number_of_cells_panics() {
+    fn a_row_drops_cells_past_the_columns_and_leaves_missing_ones_blank() {
         let tokens = Tokens::for_theme(Theme::Light);
         let mut harness = support::harness(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             App::new(Selection::Off),
-            short,
+            ragged,
         );
-        harness.run_steps(1);
+        harness.run_steps(3);
+        let nodes = &harness.state().nodes;
+        let has =
+            |band: &str, column: usize| nodes.iter().any(|(path, _)| *path == cell(band, column));
+        assert!(has("Row(1024)", 2), "precondition: the long row is drawn");
+        assert!(!has("Row(1024)", 3), "the fourth cell is dropped");
+        assert!(
+            (1..3).all(|column| !has("Row(7)", column)),
+            "the short row has one cell"
+        );
+        let table = rect_of(&harness, TABLE);
+        for name in ["Row(7)", "Row(1024)", "Row(31)"] {
+            let band = rect_of(&harness, &band(name));
+            assert_eq!(
+                (band.left(), band.right()),
+                (table.left(), table.right()),
+                "{name}"
+            );
+        }
+        let last = rect_of(&harness, &cell("Row(1024)", 2));
+        assert_eq!(last.right(), rect_of(&harness, &cell("Row(31)", 2)).right());
     }
 }
 
