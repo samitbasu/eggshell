@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use eggshell_ui::contract::{
     self, Arrow, CheckboxMetrics, Colors, Em, Entry, Focus, InputMetrics, Keyed, KindMotion,
-    Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size, SliderMetrics, States,
-    StepperMetrics, SwitchMetrics, TextSize, Variant,
+    Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size, SliderMetrics,
+    SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
@@ -696,6 +696,22 @@ impl Shadcn {
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
         // Radix's ScrollArea keeps its thumb at least 18 px long.
         style.scroll.min_thumb_length = 18.0;
+        // shadcn's ResizableHandle: a `w-px bg-border` line in a wider hit area,
+        // which a faint band fills while hot.
+        style.splitter.thickness = 6.0;
+        style.splitter.line_width = 1.0;
+        style.splitter.rest = SplitterColors {
+            band: clear,
+            line: t.border,
+            grip: clear,
+        };
+        style.splitter.hot = SplitterColors {
+            band: t.primary.gamma_multiply(0.15),
+            line: t.primary,
+            grip: clear,
+        };
+        style.splitter.grip = None;
+        style.splitter.transition = Duration::from_millis(150);
         // shadcn's Table: `h-10 px-2 font-medium` head cells, `p-2` cells,
         // `border-b` rows (none under the last), `hover:bg-muted/50`,
         // `data-[state=selected]:bg-muted`, a `bg-muted/50 font-medium` footer

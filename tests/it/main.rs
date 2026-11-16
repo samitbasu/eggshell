@@ -73,6 +73,7 @@ mod overlay_input;
 mod owned;
 mod owned_choice;
 mod owned_number;
+mod pop_out;
 mod popup_style;
 mod ports;
 mod presence;
@@ -91,6 +92,7 @@ mod sizing;
 #[cfg(feature = "snapshots")]
 mod snapshots;
 mod spans;
+mod splitter;
 mod state;
 mod state_stable;
 mod style;
