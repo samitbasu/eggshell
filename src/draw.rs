@@ -1883,16 +1883,18 @@ struct PaneTag(Option<Rect>);
 
 /// The rect of the sibling on `side` of the node at `index`.
 fn neighbour(nodes: &[PlacedNode], index: usize, side: Side) -> Option<Rect> {
-    let depth = nodes[index].depth();
-    let at = match side {
-        Side::Before => (0..index)
+    let node = nodes.get(index)?;
+    let depth = node.depth();
+    let sibling = match side {
+        Side::Before => nodes
+            .get(..index)?
+            .iter()
             .rev()
-            .take_while(|&at| nodes[at].depth() >= depth)
-            .find(|&at| nodes[at].depth() == depth)?,
-        Side::After => Some(nodes[index].end)
-            .filter(|&at| nodes.get(at).is_some_and(|next| next.depth() == depth))?,
+            .take_while(|before| before.depth() >= depth)
+            .find(|before| before.depth() == depth)?,
+        Side::After => nodes.get(node.end).filter(|next| next.depth() == depth)?,
     };
-    Some(nodes[at].rect())
+    Some(sibling.rect())
 }
 
 /// The laid-out border box of the pane the splitter whose draw closure is

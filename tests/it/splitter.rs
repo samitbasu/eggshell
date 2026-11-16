@@ -439,13 +439,13 @@ mod misuse {
         b.div(tw().size_full(), |b| {
             b.splitter("loose")
                 .before(app.sidebar)
+                .named("Sidebar")
                 .on_resize(|app: &mut App, size| app.sidebar = size);
         });
     }
 
     #[test]
-    #[should_panic(expected = "\"loose\": a splitter must be built directly in a flex container")]
-    fn a_splitter_outside_a_flex_container_panics() {
+    fn a_splitter_outside_a_flex_container_is_still_drawn() {
         let tokens = Tokens::for_theme(Theme::Light);
         let mut harness = support::harness(
             WINDOW,
@@ -453,21 +453,22 @@ mod misuse {
             App::default(),
             outside_flex,
         );
-        harness.run_steps(1);
+        harness.run_steps(2);
+        assert_eq!(harness.query_all_by_role(Role::Splitter).count(), 1);
     }
 
     fn backwards(b: &mut Builder<'_, '_, App>, app: &App) {
         b.div(tw().flex().size_full(), |b| {
             b.splitter("backwards")
                 .before(app.sidebar)
+                .named("Sidebar")
                 .range(300.0..=100.0)
                 .on_resize(|app: &mut App, size| app.sidebar = size);
         });
     }
 
     #[test]
-    #[should_panic(expected = "a splitter's range must not end before it starts")]
-    fn a_range_that_ends_before_it_starts_panics() {
+    fn a_range_that_ends_before_it_starts_ends_at_its_start() {
         let tokens = Tokens::for_theme(Theme::Light);
         let mut harness = support::harness(
             WINDOW,
@@ -475,7 +476,13 @@ mod misuse {
             App::default(),
             backwards,
         );
-        harness.run_steps(1);
+        harness.run_steps(2);
+        let node = harness.get_by_role(Role::Splitter);
+        let node = node.accesskit_node();
+        assert_eq!(
+            (node.min_numeric_value(), node.max_numeric_value()),
+            (Some(300.0), Some(300.0))
+        );
     }
 }
 

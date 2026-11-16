@@ -67,17 +67,10 @@ impl Limits {
             Bound::Included(&points) | Bound::Excluded(&points) => Some(PaneSize::new(points)),
             Bound::Unbounded => None,
         };
-        let limits = Self {
-            min: end(range.start_bound()).unwrap_or_default(),
-            max: end(range.end_bound()),
-        };
-        debug_assert!(
-            limits.max.is_none_or(|max| limits.min <= max),
-            "a splitter's range must not end before it starts: {:?}..{:?}",
-            limits.min,
-            limits.max,
-        );
-        limits
+        let min = end(range.start_bound()).unwrap_or_default();
+        // TODO(#279): report a range that ends before it starts; it ends at its start.
+        let max = end(range.end_bound()).map(|max| max.max(min));
+        Self { min, max }
     }
 
     fn clamp(self, points: f32) -> PaneSize {
@@ -282,11 +275,6 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
 
     /// TODO(prose): the sizes the pane may take, in points: `a..=b`, `a..`
     /// or `..=b`.
-    ///
-    /// # Panics
-    ///
-    /// In debug builds, if the range ends before it starts.
-    #[track_caller]
     pub fn range(mut self, range: impl RangeBounds<f32>) -> Self {
         self.limits = Limits::of(range);
         self
@@ -305,11 +293,6 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
     }
 
     /// TODO(prose): adds the splitter; `set` runs with the pane's new size.
-    ///
-    /// # Panics
-    ///
-    /// In debug builds, if the splitter is not built directly in a flex
-    /// container.
     #[track_caller]
     pub fn on_resize(self, set: impl Fn(&mut A, PaneSize) + 'static) {
         let Self {
@@ -322,11 +305,7 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
             name,
         } = self;
         let direction = b.flex();
-        debug_assert!(
-            direction.is_some(),
-            "{:?}: a splitter must be built directly in a flex container",
-            slot.label,
-        );
+        // TODO(#279): report a splitter outside a flex container; it travels as in a row.
         let travel = Travel::of(direction.unwrap_or(FlexDirection::Row), side);
         let (style, ring) = {
             let style = Style::of(b.ctx());
