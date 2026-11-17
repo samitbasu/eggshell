@@ -2,7 +2,8 @@
 //! laid out and drawn by the rig, clicked as a user would.
 
 use eggshell_ui::Style;
-use eggshell_ui_extras::markdown::{Level, MarkdownStyle, headings};
+use eggshell_ui::testing::Headless;
+use eggshell_ui_extras::markdown::{Level, MarkdownExt, MarkdownStyle, heading_id, headings};
 use egui::epaint::Shape;
 use egui::{Rect, Theme, vec2};
 use egui_kittest::Harness;
@@ -19,7 +20,7 @@ const PARAGRAPH: &str = "A paragraph with strong, emphasis, both, inline code an
 const CODE: &str = "fn main() {\n    println!(\"plain for now\");\n}";
 
 fn harness() -> Harness<'static, Rig<page::State>> {
-    harness_sized(vec2(720.0, 1600.0))
+    harness_sized(vec2(720.0, 1700.0))
 }
 
 fn harness_sized(size: egui::Vec2) -> Harness<'static, Rig<page::State>> {
@@ -56,7 +57,7 @@ fn filled(harness: &Harness<'_, Rig<page::State>>, color: egui::Color32) -> Vec<
 fn the_page_shows_every_text_block() {
     let harness = harness();
     assert!(
-        rect_of(&harness, "/Page/Followed").max.y < 1600.0,
+        rect_of(&harness, "/Page/Followed").max.y < 1700.0,
         "precondition: the whole page is in view"
     );
     for text in [
@@ -65,7 +66,6 @@ fn the_page_shows_every_text_block() {
         "nested twice",
         "A block quote holds blocks.",
         CODE,
-        "Not shown: table",
         "Not shown: HTML",
         "Image not shown: A missing swatch",
         "No example named \"nonexistent\"",
@@ -109,6 +109,7 @@ fn headings_list_the_page_outline() {
             "quotes-and-code",
             "images",
             "directives",
+            "tables",
             "what-degrades"
         ]
     );
@@ -265,4 +266,250 @@ fn the_shadcn_preset_fills_the_markdown_style() {
     assert_eq!(*installed, preset.markdown(&Style::of(&harness.ctx)));
     assert_eq!(installed.rule, tokens.border);
     assert_eq!(installed.code.fill, tokens.muted);
+}
+
+const TABLE: &str = "/Page/Doc/Block(16)/Table";
+
+fn cell(row: &str, column: usize) -> String {
+    format!("{TABLE}/({row}, {column})")
+}
+
+#[test]
+fn a_gfm_table_is_a_table_not_a_degrade_box() {
+    let harness = harness();
+    rect_of(&harness, TABLE);
+    for heading in ["Left", "Centred", "Right"] {
+        support::galley_of(&harness, heading);
+    }
+    let degraded = support::shapes(&harness).into_iter().any(
+        |shape| matches!(shape, Shape::Text(text) if text.galley.text().starts_with("Not shown: table")),
+    );
+    assert!(!degraded);
+}
+
+#[test]
+fn a_cell_keeps_its_inline_styles() {
+    let harness = harness();
+    let (galley, _) = support::galley_of(&harness, "emphasis and code");
+    let families: Vec<_> = galley
+        .job
+        .sections
+        .iter()
+        .map(|section| section.format.font_id.family.clone())
+        .collect();
+    assert!(
+        families.contains(&egui::FontFamily::Monospace),
+        "{families:?}"
+    );
+    assert!(
+        galley
+            .job
+            .sections
+            .iter()
+            .any(|section| section.format.italics)
+    );
+}
+
+#[test]
+fn a_link_in_a_cell_calls_on_link() {
+    let mut harness = harness();
+    let link = support::part_rect(&harness, "a relative link", "relative");
+    press_and_release(&mut harness, link.center());
+    harness.run_steps(2);
+    assert_eq!(harness.state().app.followed, ["table.md"]);
+}
+
+#[test]
+fn every_row_lines_up_with_the_header_and_its_alignment() {
+    let harness = harness();
+    for column in 0..3 {
+        let header = rect_of(&harness, &cell("Header", column));
+        for row in ["Row(0)", "Row(1)", "Row(2)"] {
+            let at = rect_of(&harness, &cell(row, column));
+            assert_eq!(at.x_range(), header.x_range(), "{row} column {column}");
+        }
+    }
+    let content = |row: &str, column| rect_of(&harness, &format!("{}/Cell", cell(row, column)));
+    let (left, centred, right) = (
+        rect_of(&harness, &cell("Row(0)", 0)),
+        rect_of(&harness, &cell("Row(0)", 1)),
+        rect_of(&harness, &cell("Row(0)", 2)),
+    );
+    let inset = content("Row(0)", 0).left() - left.left();
+    assert!(inset > 0.0, "precondition: cells are padded");
+    assert!((content("Row(1)", 1).center().x - centred.center().x).abs() < 0.6);
+    assert!((right.right() - content("Row(0)", 2).right() - inset).abs() < 0.6);
+}
+
+#[test]
+fn a_wide_cell_wraps_and_the_table_fits_the_page() {
+    let harness = harness();
+    let table = rect_of(&harness, TABLE);
+    let article = rect_of(&harness, "/Page/Doc");
+    assert!(
+        table.width() <= article.width() + 0.5,
+        "{table:?} in {article:?}"
+    );
+    let one_line = rect_of(&harness, &format!("{}/Cell", cell("Row(0)", 0))).height();
+    let wide = rect_of(&harness, &format!("{}/Cell", cell("Row(1)", 0))).height();
+    assert!(
+        wide >= 2.0 * one_line,
+        "the long cell wraps: {wide} vs {one_line}"
+    );
+}
+
+#[test]
+fn headless_places_the_table_where_the_frame_draws_it() {
+    let harness = harness();
+    let placed = Headless::new(vec2(720.0, 1700.0) - vec2(16.0, 16.0))
+        .base_text(common::base_text(Theme::Light))
+        .prepare(common::use_preset)
+        .layout(&page::State::default(), page::layout);
+    let drawn: Vec<_> = harness
+        .state()
+        .nodes
+        .iter()
+        .filter(|(path, _)| path.starts_with(TABLE))
+        .collect();
+    assert!(
+        drawn.len() > 12,
+        "precondition: the table's cells are drawn"
+    );
+    let table = placed
+        .nodes()
+        .find(|node| node.path() == TABLE)
+        .expect("headless has the table");
+    let shift = rect_of(&harness, TABLE).min - table.rect().min;
+    for (path, rect) in drawn {
+        let node = placed
+            .nodes()
+            .find(|node| node.path() == path)
+            .unwrap_or_else(|| panic!("headless lacks {path}"));
+        assert_eq!(node.rect().translate(shift), *rect, "{path}");
+    }
+}
+
+const GUIDE: &str = "A sibling page, shown by the demo when a relative link names it. From here:";
+const BACK: &str = "Back";
+
+fn painted(harness: &Harness<'_, Rig<page::State>>, text: &str) -> bool {
+    support::shapes(harness)
+        .into_iter()
+        .any(|shape| matches!(shape, Shape::Text(shown) if shown.galley.text() == text))
+}
+
+fn follow(harness: &mut Harness<'_, Rig<page::State>>, text: &str, part: &str) {
+    let link = support::part_rect(harness, text, part);
+    press_and_release(harness, link.center());
+    harness.run_steps(4);
+}
+
+#[test]
+fn a_relative_link_to_a_sibling_page_shows_it_from_its_top() {
+    let mut harness = harness_sized(vec2(720.0, 360.0));
+    support::shell(&harness).scroll_into_view(
+        support::id_of(&harness, &cell("Row(0)", 1)),
+        Some(egui::Align::Max),
+    );
+    harness.run_steps(4);
+    let page = rect_of(&harness, "/Page");
+    assert!(
+        rect_of(&harness, "/Page/Doc").min.y < page.min.y - 600.0,
+        "precondition: the sample is scrolled far down: {:?}",
+        rect_of(&harness, "/Page/Doc")
+    );
+    follow(&mut harness, "a relative link", "relative");
+    assert!(painted(&harness, "Table page"), "table.md is shown");
+    assert!(!painted(&harness, PARAGRAPH), "the sample is not");
+    let back = rect_of(&harness, "/Page/Back");
+    assert!(
+        (back.min.y - (page.min.y + 24.0)).abs() < 1.0,
+        "the new page starts at the top: {back:?} in {page:?}"
+    );
+}
+
+#[test]
+fn back_retraces_the_pages_followed() {
+    let mut harness = harness();
+    assert!(
+        !painted(&harness, BACK),
+        "the sample has nowhere to go back to"
+    );
+    follow(&mut harness, PARAGRAPH, "relative");
+    assert!(painted(&harness, GUIDE));
+    follow(&mut harness, "the table page", "the table page");
+    assert!(painted(&harness, "Table page"));
+    follow(&mut harness, BACK, BACK);
+    assert!(painted(&harness, GUIDE), "back to guide.md");
+    follow(&mut harness, BACK, BACK);
+    assert!(painted(&harness, PARAGRAPH), "back to the sample");
+    assert!(!painted(&harness, BACK));
+}
+
+#[test]
+fn a_link_to_a_page_the_demo_lacks_stays_on_the_page() {
+    let mut harness = harness();
+    follow(&mut harness, PARAGRAPH, "relative");
+    follow(
+        &mut harness,
+        "a page that is not there",
+        "a page that is not there",
+    );
+    assert!(painted(&harness, GUIDE));
+    assert_eq!(
+        harness.state().app.followed.last().map(String::as_str),
+        Some("missing.md")
+    );
+}
+
+const NESTED: &str = "# Top\n\n> ## Quoted\n\n- ### Listed\n\n## Top 1\n\n> ## Top\n";
+
+fn nested(b: &mut eggshell_ui::Builder<'_, '_, ()>, _: &()) {
+    b.markdown("doc", NESTED).add();
+}
+
+#[test]
+fn heading_id_names_every_heading_however_deep_and_repeated() {
+    let harness = support::harness(
+        vec2(400.0, 300.0),
+        common::base_text(Theme::Light),
+        (),
+        nested,
+    );
+    let doc = support::id_of(&harness, "/\"doc\"");
+    for anchor in ["top", "quoted", "listed", "top-1", "top-2"] {
+        let heading = format!("Heading({anchor:?})");
+        let (path, _) = harness
+            .state()
+            .nodes
+            .iter()
+            .find(|(path, _)| path.ends_with(&heading))
+            .unwrap_or_else(|| panic!("precondition: {anchor} is drawn"));
+        assert_eq!(
+            support::id_of(&harness, path),
+            heading_id(doc, anchor),
+            "{path}"
+        );
+    }
+    assert!(
+        harness
+            .state()
+            .nodes
+            .iter()
+            .any(|(path, _)| path.contains("Item(0)") && path.ends_with("Heading(\"listed\")")),
+        "precondition: a heading sits in a list item"
+    );
+}
+
+#[test]
+fn a_link_to_a_heading_on_a_sibling_page_lands_on_it() {
+    let mut harness = harness_sized(vec2(720.0, 360.0));
+    follow(&mut harness, PARAGRAPH, "relative");
+    follow(&mut harness, "its alignments", "its alignments");
+    let page = rect_of(&harness, "/Page");
+    let heading = rect_of(&harness, "/Page/Doc/Heading(\"alignments\")");
+    assert!(
+        (page.min.y..page.min.y + 1.0).contains(&heading.min.y),
+        "the heading is at the page's top: {heading:?} in {page:?}"
+    );
 }
