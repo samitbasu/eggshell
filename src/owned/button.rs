@@ -252,7 +252,8 @@ impl ButtonOptions {
     }
 
     /// Whether the button takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = Some(enablement);
         self
     }
@@ -396,7 +397,8 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     }
 
     /// Whether the button takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.opts = self.opts.enablement(enablement);
         self
     }

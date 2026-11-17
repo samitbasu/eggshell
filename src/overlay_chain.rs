@@ -290,8 +290,8 @@ impl<'b, 'f, A, State> OverlayChain<'b, 'f, A, State, Static> {
     /// exits it is built as usual, takes no input, still blocks the page, and
     /// is not dismissed again. Reopening mid-exit reverses from where the
     /// box is.
-    pub fn shown(mut self, shown: Shown) -> OverlayChain<'b, 'f, A, State, Animated> {
-        self.presence.shown = Some(shown);
+    pub fn shown(mut self, shown: impl Into<Shown>) -> OverlayChain<'b, 'f, A, State, Animated> {
+        self.presence.shown = Some(shown.into());
         self.with(|state, Static| (state, Animated))
     }
 }

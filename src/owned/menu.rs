@@ -514,7 +514,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             .open_focus(open_focus)
             .draw(move |app, ui| {
                 let response = ui.node_response();
-                describe(&response, ui.is_enabled(), role, mark, &label);
+                describe(&response, ui.is_enabled().into(), role, mark, &label);
                 if owns == Owns::Submenu {
                     ui.ctx().accesskit_node_builder(response.id, |node| {
                         node.set_has_popup(HasPopup::Menu);
@@ -633,7 +633,8 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
 
     /// Whether the item takes input. A disabled item is skipped by the arrow
     /// keys.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }
@@ -795,7 +796,8 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
 
     /// Whether the trigger takes input. A trigger that becomes disabled
     /// closes its menu.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }

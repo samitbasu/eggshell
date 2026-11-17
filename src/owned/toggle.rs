@@ -136,7 +136,8 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
     }
 
     /// Whether the toggle takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.button = self.button.enablement(enablement);
         self
     }
