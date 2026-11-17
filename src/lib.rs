@@ -330,6 +330,7 @@ struct ReadmeDoctests;
 
 mod actions;
 mod builder;
+mod clicks;
 mod clipboard;
 mod collapse;
 mod commands;
@@ -341,6 +342,7 @@ mod dnd;
 mod draw;
 mod focus;
 pub mod icons;
+mod input_trace;
 mod kept;
 mod key;
 mod measure;
@@ -372,6 +374,7 @@ pub mod widget;
 pub mod window;
 
 pub use builder::{Builder, NodeHandle, Scope, SpansHandle};
+pub use clicks::DOUBLE_CLICK;
 pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
 pub use commands::{Command, Commands, InText};

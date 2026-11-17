@@ -366,6 +366,7 @@ impl<A> Spec<A> {
         let response = text_field::show(ui, &mut text, field);
         let response = tipped(ui, response, &self.tooltip);
         self.autofocus.apply(ui.ctx(), &response);
+        text_field::select_on_focus(ui, &response, &text);
         response.widget_info(|| WidgetInfo {
             label: Some(self.name.clone()),
             ..WidgetInfo::drag_value(ui.is_enabled(), value)

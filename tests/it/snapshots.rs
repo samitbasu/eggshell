@@ -65,6 +65,9 @@ mod icons_example;
 #[path = "../../examples/list_nav.rs"]
 mod list_nav_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/slider_header.rs"]
+mod slider_header_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/swatch_picker.rs"]
 mod swatch_picker;
 
@@ -2575,6 +2578,33 @@ fn field_icons_focused_light() {
 #[test]
 fn field_icons_focused_dark() {
     field_icons_in("field_icons_focused_dark", egui::Theme::Dark, true);
+}
+
+/// A slider's label and readout above the track, at three sizes.
+fn slider_header_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(360.0, 260.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        slider_header_example::Levels::default(),
+        slider_header_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    harness.snapshot(name);
+}
+
+#[test]
+fn slider_header_light() {
+    slider_header_in("slider_header_light", egui::Theme::Light);
+}
+
+#[test]
+fn slider_header_dark() {
+    slider_header_in("slider_header_dark", egui::Theme::Dark);
 }
 
 /// A virtual listbox with the highlight on its fourth row.
