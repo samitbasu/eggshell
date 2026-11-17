@@ -56,6 +56,7 @@ macro_rules! layout_properties {
             Opacity,
         }
 
+        #[expect(clippy::disallowed_macros, reason = "a const assertion fails the build, not a run")]
         const _: () = assert!((Property::Opacity as u32) < 64);
 
         impl Layout<'_> {

@@ -360,14 +360,14 @@ impl Tooltips {
             Cause::Pointer if self.skips_delay(trigger, now, timing.grace) => Duration::ZERO,
             Cause::Pointer => timing.delay,
         };
-        let waited = now.saturating_sub(since);
-        if waited >= delay {
+        let remaining = delay.saturating_sub(now.saturating_sub(since));
+        if remaining.is_zero() {
             self.open(trigger, now);
             self.waiting = None;
             None
         } else {
             self.close_all(now);
-            Some(delay - waited)
+            Some(remaining)
         }
     }
 }

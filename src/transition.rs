@@ -9,6 +9,7 @@ use core::time::Duration;
 use std::collections::HashMap;
 
 use crate::kept::Handle;
+use crate::nodes::Nodes;
 use egui::{Context, Id, Pos2, Rect, Vec2};
 
 use crate::continuity::{Interrupted, Slide, SlideId};
@@ -151,7 +152,7 @@ impl Tracked {
 
 /// The place of each animated node among the animated children of its
 /// parent.
-fn ranks(nodes: &[PlacedNode]) -> HashMap<Id, usize> {
+fn ranks(nodes: &Nodes) -> HashMap<Id, usize> {
     let mut ranks = HashMap::new();
     let mut parents: Vec<(usize, usize)> = Vec::new();
     for (index, node) in nodes.iter().enumerate() {
@@ -229,8 +230,8 @@ impl LayoutAnimation {
     /// a node whose place among its siblings changed, and the slides in flight
     /// in the previous frame go on, retargeted from where they are painted like
     /// any interrupted move.
-    pub(crate) fn begin(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) -> Self {
-        let area = nodes[0].rect();
+    pub(crate) fn begin(ctx: &Context, kept: &Handle, nodes: &Nodes) -> Self {
+        let area = nodes.get(0).map_or(Rect::NOTHING, PlacedNode::rect);
         let ranks = ranks(nodes);
         let before = kept.with(|kept| kept.animation.clone());
         let now = ctx.input(|input| input.time);
@@ -264,7 +265,7 @@ impl LayoutAnimation {
     /// `nodes` painted: from where the previous frame painted it. A node
     /// whose layout is outside a clip by more than the farthest of them
     /// cannot be painted inside it.
-    pub(crate) fn anticipate(&mut self, nodes: &[PlacedNode]) {
+    pub(crate) fn anticipate(&mut self, nodes: &Nodes) {
         let mut parents: Vec<(usize, Pos2)> = Vec::new();
         let mut reach: f32 = 0.0;
         for (index, node) in nodes.iter().enumerate() {

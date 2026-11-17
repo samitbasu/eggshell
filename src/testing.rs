@@ -179,6 +179,7 @@ pub use crate::continuity::{
     Violation, ViolationKind, laid_out_rect, leaves_bounds, record,
 };
 use crate::key::{Key, child_id};
+use crate::nodes::Nodes;
 pub use crate::pipeline::Placed;
 use crate::pipeline::{LayoutState, PlacedNode};
 use crate::prim::Prim;
@@ -457,7 +458,7 @@ impl From<PixelsPerPoint> for f32 {
 
 #[derive(Clone, Copy)]
 struct Layout<'p> {
-    nodes: &'p [PlacedNode],
+    nodes: &'p Nodes,
     prims: &'p [Option<Prim>],
     by_id: &'p HashMap<Id, usize>,
 }
@@ -553,7 +554,7 @@ impl<A> Placed<A> {
             Id(Id),
             Anonymous(&'p str, usize),
         }
-        fn identities(nodes: &[PlacedNode]) -> Vec<(Identity<'_>, &PlacedNode)> {
+        fn identities(nodes: &Nodes) -> Vec<(Identity<'_>, &PlacedNode)> {
             let mut seen: HashMap<&str, usize> = HashMap::new();
             nodes
                 .iter()
@@ -827,9 +828,7 @@ struct FakeState {
 
 impl FakeClipboard {
     fn state(&self) -> std::sync::MutexGuard<'_, FakeState> {
-        self.0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        crate::sync::lock(&self.0)
     }
 
     /// Puts `text` on the clipboard, leaving an image there as it is.

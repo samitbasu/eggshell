@@ -225,7 +225,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             .w_fit();
         let classes = enablement.fade(classes, &style).merge(caller);
         let current = options.iter().position(|option| option.value == chosen);
-        let shown = current.map_or_else(String::new, |at| options[at].label.clone());
+        let shown = current
+            .and_then(|at| options.get(at))
+            .map_or_else(String::new, |option| option.label.clone());
         let name = name.unwrap_or_default();
         let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let value = shown.clone();
@@ -349,7 +351,11 @@ impl<T: Copy + 'static> List<T> {
     }
 
     fn rows<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
-        let enabled = |at: usize| self.options[at].enablement == Enablement::Enabled;
+        let enabled = |at: usize| {
+            self.options
+                .get(at)
+                .is_some_and(|option| option.enablement == Enablement::Enabled)
+        };
         let start = self
             .current
             .filter(|&at| enabled(at))
@@ -360,7 +366,7 @@ impl<T: Copy + 'static> List<T> {
         }
         let ctx = s.ctx().clone();
         for (index, option) in self.options.iter().enumerate() {
-            let enablement = self.options[index].enablement;
+            let enablement = option.enablement;
             let marked = Some(index) == self.current;
             let (label, value) = (option.label.clone(), option.value);
             let side = self.style.select.chevron;

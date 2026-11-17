@@ -69,9 +69,10 @@ use std::sync::Arc;
 
 use egui::{Context, DragAndDrop, DroppedFileHandle, Event, Id, Pos2, Rect, Vec2, vec2};
 
-use crate::draw::{Lift, children_of};
+use crate::draw::Lift;
 use crate::finite::clamp;
 use crate::kept::Handle;
+use crate::nodes::Nodes;
 use crate::overlay_input::Drag;
 use crate::pipeline::{Flow, PlacedNode};
 use crate::roots::{Here, PlacedRoot, root_at, root_of, stacked_top_down};
@@ -357,29 +358,23 @@ pub(crate) enum Activator {
 
 /// The source a drag starting on the node at `index` lifts: the node itself
 /// if it is a source with no handle, or the source whose handle it is.
-pub(crate) fn lifted_by(nodes: &[PlacedNode], index: usize) -> Option<usize> {
+pub(crate) fn lifted_by(nodes: &Nodes, index: usize) -> Option<usize> {
     let activator = |at: usize| {
-        let source = nodes[at].drag.as_ref()?.source.as_ref()?;
+        let source = nodes.node(at)?.drag()?.source.as_ref()?;
         Some(source.activator)
     };
     if activator(index) == Some(Activator::Itself) {
         return Some(index);
     }
-    let handle = Activator::Handle(nodes[index].id()?);
-    (0..index)
-        .rev()
-        .filter(|&above| nodes[above].end > index)
+    let handle = Activator::Handle(nodes.node(index)?.id()?);
+    nodes
+        .ancestors(index)
         .find(|&above| activator(above) == Some(handle))
 }
 
 /// Shows the pointer what a press would do: `Grab` over what starts a drag
 /// while none is live, `Grabbing` for the whole of a live one.
-pub(crate) fn show_grab(
-    shell: &Shell,
-    nodes: &[PlacedNode],
-    index: usize,
-    response: &egui::Response,
-) {
+pub(crate) fn show_grab(shell: &Shell, nodes: &Nodes, index: usize, response: &egui::Response) {
     if response.hovered()
         && live_gesture(&shell.ctx, &shell.kept).is_none()
         && lifted_by(nodes, index).is_some()
@@ -410,6 +405,7 @@ impl<A: 'static> Decls<A> {
         accept: impl Fn(&T) -> bool + 'static,
         handler: impl FnOnce(&mut A, Drop<T>) + 'static,
     ) -> usize {
+        let index = self.drops.len();
         self.drops.push(Some(DropDecl {
             accepts: Box::new(move |payload| payload.downcast_ref::<T>().is_some_and(&accept)),
             deliver: Box::new(move |app, payload, landing| {
@@ -425,7 +421,7 @@ impl<A: 'static> Decls<A> {
                 }
             }),
         }));
-        self.drops.len() - 1
+        index
     }
 
     pub(crate) fn add_end<T: Any + Send + Sync>(
@@ -449,23 +445,28 @@ impl<A> Decls<A> {
     }
 
     fn accepts(&self, node: &PlacedNode, payload: &Erased) -> bool {
-        node.drag.as_ref().is_some_and(|drag| {
+        node.drag().is_some_and(|drag| {
             drag.drops.iter().any(|&decl| {
-                self.drops[decl]
-                    .as_ref()
+                self.drops
+                    .get(decl)
+                    .and_then(Option::as_ref)
                     .is_some_and(|decl| (decl.accepts)(&**payload))
             })
         })
     }
 
     fn drop_on(&mut self, node: &PlacedNode, payload: &Erased, app: &mut A, landing: Landing) {
-        let Some(drag) = &node.drag else { return };
+        let Some(drag) = node.drag() else { return };
         let taking = drag.drops.iter().copied().find(|&decl| {
-            self.drops[decl]
-                .as_ref()
+            self.drops
+                .get(decl)
+                .and_then(Option::as_ref)
                 .is_some_and(|decl| (decl.accepts)(&**payload))
         });
-        if let Some(decl) = taking.and_then(|decl| self.drops[decl].take()) {
+        if let Some(decl) = taking
+            .and_then(|decl| self.drops.get_mut(decl))
+            .and_then(Option::take)
+        {
             (decl.deliver)(app, payload.clone(), landing);
         }
     }
@@ -716,27 +717,19 @@ fn outside_position_known(ctx: &Context, pass: u64, input: &Input) -> bool {
 /// The pass's root's come first, then each embedded pop-out window's, then
 /// each overlay's from the bottom of the stack up, so that the last to
 /// contain the pointer is the topmost.
-fn targets(
-    nodes: &[PlacedNode],
-    (roots, here): (&[PlacedRoot], Here),
-    clip: Rect,
-) -> Vec<(usize, Rect)> {
-    fn walk(nodes: &[PlacedNode], index: usize, clip: Rect, found: &mut Vec<(usize, Rect)>) {
-        let node = &nodes[index];
+fn targets(nodes: &Nodes, (roots, here): (&[PlacedRoot], Here), clip: Rect) -> Vec<(usize, Rect)> {
+    fn walk(nodes: &Nodes, index: usize, clip: Rect, found: &mut Vec<(usize, Rect)>) {
+        let Some(node) = nodes.node(index) else {
+            return;
+        };
         if node.flow == Flow::Hidden || node.is_inert() {
             return;
         }
-        if node
-            .drag
-            .as_ref()
-            .is_some_and(|drag| !drag.drops.is_empty())
-        {
+        if node.drag().is_some_and(|drag| !drag.drops.is_empty()) {
             found.push((index, node.rect().intersect(clip)));
         }
         let inner = node.clip_for_children(clip);
-        let mut children = children_of(nodes, index);
-        children.sort_by_key(|&child| nodes[child].z());
-        for child in children {
+        for child in nodes.in_paint_order(index) {
             walk(nodes, child, inner, found);
         }
     }
@@ -750,8 +743,12 @@ fn targets(
     {
         walk(nodes, root.first, clip, &mut found);
     }
-    for root in stacked_top_down(roots, here).into_iter().rev() {
-        walk(nodes, roots[root].first, clip, &mut found);
+    for root in stacked_top_down(roots, here)
+        .into_iter()
+        .rev()
+        .filter_map(|root| roots.get(root))
+    {
+        walk(nodes, root.first, clip, &mut found);
     }
     found
 }
@@ -759,16 +756,17 @@ fn targets(
 /// Where the payload would land among the items of the target at `index`: its
 /// direct children that are drag sources or hold one, the one that holds the
 /// dragged source left out.
-fn item_hint(nodes: &[PlacedNode], index: usize, leaving: Option<Id>, pos: Pos2) -> Option<usize> {
+fn item_hint(nodes: &Nodes, index: usize, leaving: Option<Id>, pos: Pos2) -> Option<usize> {
     let holds = |child: usize, wanted: &dyn Fn(&PlacedNode) -> bool| {
-        nodes[child..nodes[child].end].iter().any(wanted)
+        nodes.subtree(child).iter().any(wanted)
     };
-    let rects: Vec<Rect> = children_of(nodes, index)
-        .into_iter()
-        .filter(|&child| nodes[child].flow != Flow::Hidden)
-        .filter(|&child| holds(child, &PlacedNode::is_drag_source))
-        .filter(|&child| leaving.is_none_or(|id| !holds(child, &|node| node.id() == Some(id))))
-        .map(|child| nodes[child].rect())
+    let rects: Vec<Rect> = nodes
+        .children(index)
+        .filter_map(|child| Some((child, nodes.node(child)?)))
+        .filter(|(_, node)| node.flow != Flow::Hidden)
+        .filter(|&(child, _)| holds(child, &PlacedNode::is_drag_source))
+        .filter(|&(child, _)| leaving.is_none_or(|id| !holds(child, &|node| node.id() == Some(id))))
+        .map(|(_, node)| node.rect())
         .collect();
     (!rects.is_empty()).then(|| insertion_index(&rects, pos))
 }
@@ -781,12 +779,13 @@ struct Resolved {
 
 struct Hit {
     index: usize,
+    target: Id,
     position: Vec2,
     index_hint: Option<usize>,
 }
 
 fn resolve<A>(
-    nodes: &[PlacedNode],
+    nodes: &Nodes,
     (roots, here): (&[PlacedRoot], Here),
     decls: &Decls<A>,
     payload: &Erased,
@@ -796,16 +795,22 @@ fn resolve<A>(
 ) -> Resolved {
     let accepting: Vec<(usize, Rect)> = targets(nodes, (roots, here), clip)
         .into_iter()
-        .filter(|&(index, _)| decls.accepts(&nodes[index], payload))
+        .filter(|&(index, _)| {
+            nodes
+                .node(index)
+                .is_some_and(|node| decls.accepts(node, payload))
+        })
         .collect();
     let over = pointer.and_then(|pos| {
         let under = root_at(roots, nodes, pos, here);
-        let (index, _) = accepting
-            .iter()
-            .rfind(|&&(index, reach)| root_of(roots, index) == under && reach.contains(pos))?;
+        let (index, _) = accepting.iter().rfind(|&&(index, reach)| {
+            root_of(roots, index) == Some(under) && reach.contains(pos)
+        })?;
+        let node = nodes.node(*index)?;
         Some(Hit {
             index: *index,
-            position: pos - nodes[*index].rect().min,
+            target: node.id()?,
+            position: pos - node.rect().min,
             index_hint: item_hint(nodes, *index, leaving, pos),
         })
     });
@@ -877,7 +882,7 @@ impl Draw {
 /// The laid-out frame a drag is resolved against.
 #[derive(Clone, Copy)]
 pub(crate) struct Tree<'a> {
-    pub(crate) nodes: &'a [PlacedNode],
+    pub(crate) nodes: &'a Nodes,
     pub(crate) by_id: &'a HashMap<Id, usize>,
     pub(crate) roots: &'a [PlacedRoot],
     pub(crate) here: Here,
@@ -913,12 +918,13 @@ pub(crate) fn begin<A>(
     if let Some(held) = &gesture {
         let source_here = by_id
             .get(&held.source)
-            .is_some_and(|&at| nodes[at].is_drag_source());
+            .and_then(|&at| nodes.node(at))
+            .is_some_and(PlacedNode::is_drag_source);
         let cause = if input.focus_lost {
             Some(Cause::FocusLost)
         } else if !DragAndDrop::has_payload_of_type::<Lifted>(ctx) && !input.released {
             Some(Cause::Esc)
-        } else if !source_here || held.touched + 1 < pass {
+        } else if !source_here || held.touched.saturating_add(1) < pass {
             Some(Cause::SourceGone)
         } else {
             None
@@ -977,7 +983,7 @@ pub(crate) fn begin<A>(
     }
 
     let over = found.over.as_ref().map(|hit| Over {
-        target: nodes[hit.index].id().expect("a target is identified"),
+        target: hit.target,
         position: hit.position,
         index_hint: hit.index_hint,
     });
@@ -992,7 +998,9 @@ pub(crate) fn begin<A>(
     let mut draw = Draw::idle();
     draw.accepting = vec![false; nodes.len()];
     for &(index, _) in &found.accepting {
-        draw.accepting[index] = true;
+        if let Some(accepting) = draw.accepting.get_mut(index) {
+            *accepting = true;
+        }
     }
     draw.over = found.over.as_ref().map(|hit| hit.index);
     draw.lifted = gesture
@@ -1002,9 +1010,9 @@ pub(crate) fn begin<A>(
         && let Some(&at) = by_id.get(&held.source)
     {
         let pointer = pointer.unwrap_or(held.last);
-        let image = nodes[at]
-            .drag
-            .as_ref()
+        let image = nodes
+            .node(at)
+            .and_then(|node| node.drag())
             .map(|drag| (&drag.image, drag.previewed));
         let carried = match image {
             Some((_, true)) => by_id.get(&preview_id(held.source)).copied(),
@@ -1027,11 +1035,7 @@ pub(crate) fn begin<A>(
 /// The target a drop from outside lands on, and where: under the pointer if
 /// the platform gave one, else the topmost accepting target that declared
 /// itself the fallback.
-fn landing_of(
-    nodes: &[PlacedNode],
-    found: &Resolved,
-    positioned: bool,
-) -> Option<(usize, Landing)> {
+fn landing_of(nodes: &Nodes, found: &Resolved, positioned: bool) -> Option<(usize, Landing)> {
     if positioned {
         let hit = found.over.as_ref()?;
         return Some((
@@ -1043,9 +1047,9 @@ fn landing_of(
         ));
     }
     let (index, _) = found.accepting.iter().rfind(|(index, _)| {
-        nodes[*index]
-            .drag
-            .as_ref()
+        nodes
+            .node(*index)
+            .and_then(|node| node.drag())
             .is_some_and(|drag| drag.fallback)
     })?;
     Some((
@@ -1060,7 +1064,7 @@ fn landing_of(
 /// Begins the gesture of the source the pointer has just started dragging.
 fn lift(
     ctx: &Context,
-    nodes: &[PlacedNode],
+    nodes: &Nodes,
     by_id: &HashMap<Id, usize>,
     input: &Input,
     pass: u64,
@@ -1080,8 +1084,8 @@ fn lift(
     }
     let started = ctx.dragged_id()?;
     let at_source = lifted_by(nodes, *by_id.get(&started)?)?;
-    let node = &nodes[at_source];
-    let payload = node.drag.as_ref()?.source.as_ref()?.payload.clone();
+    let node = nodes.node(at_source)?;
+    let payload = node.drag()?.source.as_ref()?.payload.clone();
     let at = input.press_origin.or(input.interact)?;
     DragAndDrop::set_payload(ctx, Lifted);
     ctx.data_mut(|data| data.insert_temp(lifted_by_press, press.to_bits()));
@@ -1126,7 +1130,7 @@ impl Finish {
         self,
         ctx: &Context,
         kept: &Handle,
-        nodes: &[PlacedNode],
+        nodes: &Nodes,
         decls: &mut Decls<A>,
         app: &mut A,
     ) {
@@ -1142,7 +1146,9 @@ impl Finish {
                             position: Some(hit.position),
                             index_hint: hit.index_hint,
                         };
-                        decls.drop_on(&nodes[hit.index], &gesture.payload, app, landing);
+                        if let Some(node) = nodes.node(hit.index) {
+                            decls.drop_on(node, &gesture.payload, app, landing);
+                        }
                         DragEnd::Dropped
                     }
                     None => DragEnd::Cancelled(Cause::Outside),
@@ -1150,8 +1156,10 @@ impl Finish {
                 end_gesture(ctx, kept, &gesture, end, decls, app);
             }
             Ending::Dropped { files, landing } => {
-                if let Some((index, landing)) = landing {
-                    decls.drop_on(&nodes[index], &files, app, landing);
+                if let Some((index, landing)) = landing
+                    && let Some(node) = nodes.node(index)
+                {
+                    decls.drop_on(node, &files, app, landing);
                 }
             }
         }
@@ -1289,7 +1297,10 @@ mod tests {
                 Rect::EVERYTHING,
             );
             let hit = found.over?;
-            Some((placed.nodes[hit.index].path().to_owned(), hit.index_hint))
+            Some((
+                placed.nodes.node(hit.index)?.path().to_owned(),
+                hit.index_hint,
+            ))
         }
 
         fn nested(b: &mut Builder<'_, '_, ()>, outer_takes_tags: bool) {

@@ -14,11 +14,12 @@
 use egui::{Context, Id};
 
 use crate::kept::Handle;
+use crate::nodes::Nodes;
 use crate::shell::Shell;
 
 use crate::nav;
 use crate::pipeline::PlacedNode;
-use crate::roots::{Here, PlacedRoot};
+use crate::roots::{Here, PlacedRoot, root_and_node};
 
 /// The key a button answers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,8 +32,9 @@ pub(crate) enum Action {
 
 /// The first button of `action` declared in the root whose node is
 /// `nodes[first]`.
-pub(crate) fn button_in(nodes: &[PlacedNode], first: usize, action: Action) -> Option<Id> {
-    nodes[first..nodes[first].end]
+pub(crate) fn button_in(nodes: &Nodes, first: usize, action: Action) -> Option<Id> {
+    nodes
+        .subtree(first)
         .iter()
         .find(|node| node.action() == Some(action))
         .and_then(PlacedNode::id)
@@ -55,7 +57,7 @@ pub(crate) fn note_multiline_focus(ctx: &Context, kept: &Handle, id: Id) {
 
 /// Whether the focused widget `focused` takes Return itself: a button or
 /// other control that Return activates, or a multi-line text field.
-fn takes_return(ctx: &Context, kept: &Handle, nodes: &[PlacedNode], focused: Id) -> bool {
+fn takes_return(ctx: &Context, kept: &Handle, nodes: &Nodes, focused: Id) -> bool {
     kept.viewport(ctx.viewport_id(), |here| here.focus.multiline) == Some(focused)
         || nodes
             .iter()
@@ -68,12 +70,12 @@ fn takes_return(ctx: &Context, kept: &Handle, nodes: &[PlacedNode], focused: Id)
 fn return_root(
     shell: &Shell,
     (roots, here): (&[PlacedRoot], Here),
-    nodes: &[PlacedNode],
+    nodes: &Nodes,
     open: &[usize],
 ) -> usize {
     let holder = open.iter().copied().find(|&root| {
-        nodes[roots[root].first]
-            .id()
+        root_and_node(roots, nodes, root)
+            .and_then(|(_, node)| node.id())
             .is_some_and(|id| shell.focus_within(id))
     });
     match (holder, shell.ctx.memory(|memory| memory.focused())) {
@@ -88,7 +90,7 @@ fn return_root(
 pub(crate) fn return_button(
     ctx: &Context,
     kept: &Handle,
-    nodes: &[PlacedNode],
+    nodes: &Nodes,
     (roots, here): (&[PlacedRoot], Here),
     open: &[usize],
 ) -> Option<Id> {
@@ -98,5 +100,5 @@ pub(crate) fn return_button(
         return None;
     }
     let root = return_root(&Shell::new(ctx, kept), (roots, here), nodes, open);
-    button_in(nodes, roots[root].first, Action::Default)
+    button_in(nodes, roots.get(root)?.first, Action::Default)
 }
