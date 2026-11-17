@@ -4,7 +4,7 @@
 //! key input goes through kittest's real events.
 
 use eggshell_ui::contract::{Disabled, Paint, Size, Variant};
-use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::owned::{Choice, Enablement, Face};
 use eggshell_ui::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::TextureId;
@@ -850,6 +850,42 @@ fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
     }
 }
 
+/// The name assistive technology reads for the button drawn at `path`.
+fn read_name(harness: &Harn, path: &str) -> String {
+    let centre = rect_of(harness, path).center();
+    let mut found = harness
+        .query_all_by_role(Role::Button)
+        .filter(|node| node.rect().contains(centre));
+    let node = found.next();
+    assert!(node.is_some(), "an accessible button at {path}");
+    assert!(found.next().is_none(), "one accessible button at {path}");
+    node.and_then(|node| node.accesskit_node().label())
+        .unwrap_or_default()
+}
+
+#[test]
+fn an_icon_faces_name_is_what_assistive_technology_reads() {
+    let harness = harness(Theme::Light, icon_buttons);
+    assert_eq!(read_name(&harness, "/\"icon\""), "Search", "an icon button");
+    assert_eq!(read_name(&harness, "/\"toggle\""), "Pin", "an icon toggle");
+    assert_eq!(read_name(&harness, "/\"labelled\""), "Add", "a text face");
+}
+
+fn icon_dropdown(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.dropdown_menu("more", (app.icon(), "More"))
+        .items(|m| m.item("copy", "Copy").on_click(|app: &mut App| app.clicks += 1));
+}
+
+#[test]
+fn an_icon_dropdowns_name_names_its_trigger_and_its_menu() {
+    let mut harness = harness(Theme::Light, icon_dropdown);
+    assert_eq!(read_name(&harness, "/\"more\""), "More", "the trigger");
+    click_node(&mut harness, "/\"more\"");
+    harness.run_steps(4);
+    let menu = harness.get_by_role(Role::Menu);
+    assert_eq!(menu.accesskit_node().label().as_deref(), Some("More"), "the menu");
+}
+
 #[test]
 fn a_button_with_neither_label_nor_name_is_reported() {
     let mut headless = eggshell_ui::testing::Headless::new(vec2(200.0, 100.0));
@@ -868,7 +904,7 @@ fn a_button_with_neither_label_nor_name_is_reported() {
 #[test]
 fn a_button_with_an_empty_label_and_a_name_is_not_reported() {
     let harness = harness(Theme::Light, |b, _| {
-        b.button("named", "").named("Named").add()
+        b.button("named", Face::Empty("Named".into())).add()
     });
     eggshell_ui::testing::assert_no_reports(&harness.ctx);
 }

@@ -63,7 +63,6 @@ fn verb() -> ButtonOptions {
         .variant(variant::OUTLINE)
         .size(size::ICON)
         .classes(tw().w_px(120.0))
-        .named("Do it")
         .tooltip("Does it")
 }
 
@@ -71,7 +70,6 @@ fn toggle_verb() -> ButtonOptions {
     ButtonOptions::new()
         .size(size::ICON)
         .classes(tw().w_px(120.0))
-        .named("Do it")
         .tooltip("Does it")
 }
 
@@ -95,7 +93,6 @@ fn shared_options_equal_the_same_settings_inline() {
                 .variant(variant::OUTLINE)
                 .size(size::ICON)
                 .classes(tw().w_px(120.0))
-                .named("Do it")
                 .tooltip("Does it")
                 .add();
         }
@@ -195,7 +192,6 @@ fn a_toggle_takes_options_too() {
         b.toggle("t", "Bold", false)
             .size(size::ICON)
             .classes(tw().w_px(120.0))
-            .named("Do it")
             .tooltip("Does it")
             .on_change(|_, _| {});
     });
@@ -206,7 +202,6 @@ fn a_toggle_takes_options_too() {
 fn labelled<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
     s.button(key, "Go")
         .size(Size::DEFAULT)
-        .named("Go now")
         .tooltip("Goes")
 }
 

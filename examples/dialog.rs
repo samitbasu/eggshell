@@ -217,7 +217,6 @@ fn dialog(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
                         .variant(variant::OUTLINE)
                         .opens_popup()
                         .classes(tw().justify_between().w_full())
-                        .named("Role")
                         .on_click(|state: &mut State| state.picker = !state.picker);
                     if state.picker {
                         role_menu(s, state);
