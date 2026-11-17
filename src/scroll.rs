@@ -240,7 +240,7 @@ pub(crate) fn holds_tab_stop(tree: &LayoutTree, nodes: &[taffy::NodeId]) -> bool
         let hidden = tree.style(id).display == taffy::Display::None;
         match tree.node(id) {
             Some(node) if node.inert || hidden => false,
-            Some(node) if node.scroll.is_some() => true,
+            Some(node) if node.identity.scroll().is_some() => true,
             Some(node) if takes_tab(&node.interaction, node.draw_kind) => true,
             _ => holds_tab_stop(tree, &tree.children(id)),
         }
@@ -388,6 +388,15 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
     /// handle attaches behaviour to the container's node.
     #[track_caller]
     pub fn children(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) -> NodeHandle<'a, 'f, A> {
+        self.children_with(body).0
+    }
+
+    /// [`children`](Self::children), answering what `body` returns too.
+    #[track_caller]
+    pub(crate) fn children_with<R>(
+        self,
+        body: impl FnOnce(&mut Scope<'_, 'f, A>) -> R,
+    ) -> (NodeHandle<'a, 'f, A>, R) {
         let Self {
             b,
             slot,
@@ -499,7 +508,8 @@ impl Shell {
                 .pending
                 .iter()
                 .filter(|request| {
-                    request.container == Some(scroll) && pass <= request.pass.saturating_add(REQUEST_LIFE)
+                    request.container == Some(scroll)
+                        && pass <= request.pass.saturating_add(REQUEST_LIFE)
                 })
                 .filter_map(|request| match request.wish {
                     Wish::By(delta) => Some(delta),

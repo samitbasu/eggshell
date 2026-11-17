@@ -343,8 +343,7 @@ impl fmt::Display for Violation {
             ViolationKind::Gap => write!(
                 f,
                 "gap: {path} is painted in frames {} and {} but not in frame {frame}",
-                previous,
-                next
+                previous, next
             ),
             ViolationKind::OpacityBlip {
                 before,
@@ -353,8 +352,7 @@ impl fmt::Display for Violation {
             } => write!(
                 f,
                 "blip: {path} has opacity {before} in frame {}, {during} in frame {frame} and {after} in frame {}",
-                previous,
-                next
+                previous, next
             ),
             ViolationKind::OffPath { expected, actual } => write!(
                 f,

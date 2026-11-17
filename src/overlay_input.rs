@@ -11,7 +11,6 @@ use std::collections::HashMap;
 
 use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect};
 
-use crate::nodes::Nodes;
 use crate::actions::{self, Action};
 use crate::dismiss::{
     Boundary, Cause, FocusAt, Input, Layer, Seen, Trigger, dismissals, esc_target,
@@ -19,6 +18,7 @@ use crate::dismiss::{
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
 use crate::nav::{self, Menu};
+use crate::nodes::Nodes;
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Behavior, Focus, Nav, Outside};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::roots::{

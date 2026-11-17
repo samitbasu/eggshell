@@ -13,9 +13,9 @@ use egui::{
 };
 use taffy::Overflow;
 
-use crate::nodes::Nodes;
 use crate::draw::{PixelGrid, add, inset};
 use crate::measure::Content;
+use crate::nodes::Nodes;
 use crate::pipeline::{Flow, PlacedNode};
 use crate::prim::Prim;
 
@@ -442,7 +442,7 @@ pub(crate) fn paint(ctx: &Context, nodes: &Nodes, overflows: &[bool]) {
         ));
     }
     for (_, node) in shown(nodes) {
-        let (Some(viewport), Some(plan)) = (node.scroll_viewport(), node.scroll.as_ref()) else {
+        let (Some(viewport), Some(plan)) = (node.scroll_viewport(), node.scroll()) else {
             continue;
         };
         for region in crate::scroll::gutters(
@@ -491,7 +491,7 @@ fn label(
         max.x - min.x,
         max.y - min.y
     );
-    if let (Some(viewport), Some(plan)) = (node.scroll_viewport(), node.scroll.as_ref()) {
+    if let (Some(viewport), Some(plan)) = (node.scroll_viewport(), node.scroll()) {
         text.push_str(&format!(
             "\nscroll viewport {:.1} x {:.1}, gutter {:.1} x {:.1}",
             viewport.width(),

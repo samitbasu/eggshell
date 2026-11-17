@@ -12,7 +12,7 @@ use egui::Context;
 use taffy::{AvailableSpace, Layout, LayoutInput, LayoutOutput, NodeId, Size, Style, TaffyTree};
 
 use crate::Problem;
-use crate::pipeline::Node;
+use crate::pipeline::{Node, ScrollNode};
 
 const DEFAULT_STYLE: &Style = &Style::DEFAULT;
 
@@ -73,6 +73,30 @@ impl LayoutTree {
         })
     }
 
+    /// Makes `kids` the children of `id`, in place of any it had.
+    #[track_caller]
+    pub(crate) fn set_children(&mut self, id: NodeId, kids: &[NodeId]) {
+        let at = Location::caller();
+        if !self.has(id) {
+            self.missing(at, id);
+            return;
+        }
+        let kept: Vec<NodeId> = kids
+            .iter()
+            .copied()
+            .filter(|&kid| {
+                let has = self.has(kid);
+                if !has {
+                    self.missing(at, kid);
+                }
+                has
+            })
+            .collect();
+        if let Err(error) = self.taffy.set_children(id, &kept) {
+            self.failed(at, &error);
+        }
+    }
+
     #[track_caller]
     pub(crate) fn node(&self, id: NodeId) -> Option<&Node> {
         let node = self.taffy.get_node_context(id);
@@ -88,6 +112,32 @@ impl LayoutTree {
             self.missing(Location::caller(), id);
         }
         self.taffy.get_node_context_mut(id)
+    }
+
+    /// The scroll container's leaf `id` carries until layout.
+    #[track_caller]
+    pub(crate) fn scroll(&self, id: NodeId) -> Option<&ScrollNode> {
+        let at = Location::caller();
+        let scroll = self.node(id).and_then(|node| node.identity.scroll());
+        if scroll.is_none() {
+            self.not_a_scroll(at, id);
+        }
+        scroll
+    }
+
+    #[track_caller]
+    pub(crate) fn scroll_mut(&mut self, id: NodeId) -> Option<&mut ScrollNode> {
+        let at = Location::caller();
+        if self
+            .node(id)
+            .and_then(|node| node.identity.scroll())
+            .is_none()
+        {
+            self.not_a_scroll(at, id);
+        }
+        self.taffy
+            .get_node_context_mut(id)
+            .and_then(|node| node.identity.scroll_mut())
     }
 
     /// The node's layout from the last solve; zero if it is missing.
@@ -166,6 +216,18 @@ impl LayoutTree {
                 None,
                 at,
                 || format!("taffy: node {id:?} is not in the layout tree; it is skipped"),
+            );
+        }
+    }
+
+    fn not_a_scroll(&self, at: &'static Location<'static>, id: NodeId) {
+        if let Some(ctx) = &self.ctx {
+            crate::report::report_at(
+                ctx,
+                Problem::Internal("taffy: not a scroll container"),
+                None,
+                at,
+                || format!("taffy: node {id:?} is not a scroll container's leaf; it is skipped"),
             );
         }
     }

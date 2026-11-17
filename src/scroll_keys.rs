@@ -12,8 +12,8 @@
 
 use egui::{Context, EventFilter, Id, Key, Vec2};
 
-use crate::nodes::Nodes;
 use crate::kept::Handle;
+use crate::nodes::Nodes;
 use crate::pipeline::PlacedNode;
 use crate::shell::Shell;
 
@@ -51,7 +51,7 @@ fn target<'a>(ctx: &Context, kept: &Handle, nodes: &'a Nodes) -> Option<Target<'
     let scrollers = || {
         nodes
             .iter()
-            .filter(|node| node.scroll.is_some())
+            .filter(|node| node.scroll().is_some())
             .filter_map(|node| {
                 Some(Target {
                     node,
@@ -108,7 +108,7 @@ pub(crate) fn hold_arrows(ctx: &Context, kept: &Handle, nodes: &Nodes) {
     let Some(target) = target(ctx, kept, nodes) else {
         return;
     };
-    let enabled = target.node.scroll.as_ref().map(|plan| plan.axis.enabled());
+    let enabled = target.node.scroll().map(|plan| plan.axis.enabled());
     if let Some(enabled) = enabled {
         let filter = EventFilter {
             horizontal_arrows: enabled.x,
@@ -248,7 +248,7 @@ pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &Nodes) {
     let Some(target) = target(ctx, kept, nodes) else {
         return;
     };
-    let Some(plan) = target.node.scroll.as_ref() else {
+    let Some(plan) = target.node.scroll() else {
         return;
     };
     let enabled = plan.axis.enabled();

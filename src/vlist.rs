@@ -290,8 +290,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
         let list = scroll.id();
         let kept = scroll.builder().kept().clone();
         let pass = scroll.builder().ctx().cumulative_pass_nr();
-        let mut planned = None;
-        let handle = scroll.children(|s| {
+        let (handle, (plan, leaf)) = scroll.children_with(|s| {
             let heights =
                 heights.unwrap_or_else(|| RowHeights::measured(s.text_style().spec.line_height));
             let plan = Plan::new(
@@ -307,11 +306,10 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
                 rows,
             );
             let leaf = s.rows_leaf(plan.total());
-            planned = Some((plan, leaf));
+            (plan, leaf)
         });
         let scroll = handle.node();
         let mut b = handle.into_builder();
-        let (plan, leaf) = planned.expect("the content was built");
         let behavior = listbox.then(|| Listbox {
             list,
             kept: kept.clone(),
@@ -323,7 +321,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             list,
             plan.run(scroll, Items::new(rows, item, row_classes, behavior)),
         );
-        b.into_handle(scroll)
+        b.into_handle(scroll, list)
     }
 }
 
@@ -464,7 +462,9 @@ impl Tops {
     fn top(&self, at: usize) -> f32 {
         match self {
             Self::Fixed { height, .. } => at as f32 * height,
-            Self::Measured { offsets } => offsets.get(at).or(offsets.last()).copied().unwrap_or(0.0),
+            Self::Measured { offsets } => {
+                offsets.get(at).or(offsets.last()).copied().unwrap_or(0.0)
+            }
         }
     }
 
@@ -704,7 +704,7 @@ pub(crate) struct ListRun<'f, A> {
 }
 
 /// Where a list's viewport is over its rows this frame.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct View {
     /// The rows' top in the content.
     top: f32,
@@ -772,10 +772,9 @@ impl<'f, A> ListRun<'f, A> {
     ) -> View {
         let list = self.plan.list;
         let own = tree.layout(self.scroll);
-        let node = tree
-            .node(self.scroll)
-            .and_then(|node| node.scroll.as_ref())
-            .expect("a list's container is a scroll container");
+        let Some(node) = tree.scroll(self.scroll) else {
+            return View::default();
+        };
         let viewport = vec2(
             own.size.width - own.border.left - own.border.right - node.bars.gutter.x,
             own.size.height - own.border.top - own.border.bottom - node.bars.gutter.y,
@@ -1101,7 +1100,7 @@ impl Laid {
         }
         let nodes: Vec<NodeId> = built.iter().map(|row| row.node).collect();
         let holds_stop = scroll::holds_tab_stop(tree, &nodes);
-        if let Some(container) = tree.node_mut(scroll).and_then(|node| node.scroll.as_mut())
+        if let Some(container) = tree.scroll_mut(scroll)
             && container.tab == TabRule::WhenScrollable
             && holds_stop
         {
@@ -1143,7 +1142,7 @@ fn identified_in(tree: &LayoutTree, node: NodeId) -> Vec<Id> {
     let mut found = Vec::new();
     let mut stack = vec![node];
     while let Some(node) = stack.pop() {
-        if let Some(id) = tree.node(node).and_then(|node| node.id) {
+        if let Some(id) = tree.node(node).and_then(|node| node.identity.id()) {
             found.push(id);
         }
         stack.extend(tree.children(node));

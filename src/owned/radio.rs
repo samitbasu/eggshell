@@ -153,8 +153,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                         let id = *ids.get(at)?;
                         enabled.get(at)?.then_some((value, id))
                     };
-                    let previous =
-                        (1..count).find_map(|step| stop((index + count - step) % count));
+                    let previous = (1..count).find_map(|step| stop((index + count - step) % count));
                     let next = (1..count).find_map(|step| stop((index + step) % count));
                     let dot = metrics.dot;
                     b.div(

@@ -16,7 +16,6 @@ use egui::{
 };
 use taffy::Overflow;
 
-use crate::nodes::Nodes;
 use crate::commands::Commands;
 use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
@@ -26,6 +25,7 @@ use crate::focus;
 use crate::kept::Handle;
 use crate::measure::TextLeaf;
 use crate::nav;
+use crate::nodes::Nodes;
 use crate::overlay::Anchored;
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
@@ -642,7 +642,7 @@ impl<A> Walk<'_, A> {
             None,
             |ui| {
                 let own = ui.interact(boxes.border, id, sense);
-                if let Some(plan) = node.scroll.as_ref().filter(|_| !node.senses()) {
+                if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
                     let role = plan.description.role.unwrap_or(Role::ScrollView);
                     let name = plan.description.name.as_deref().unwrap_or_default();
                     crate::owned::describe(&own, ui.is_enabled(), role, None, name);
@@ -771,7 +771,7 @@ impl<A> Walk<'_, A> {
         } else if self.scroller_takes_focus(index) {
             Sense::focusable_noninteractive()
         } else {
-            let plan = node.scroll.as_ref()?;
+            let plan = node.scroll()?;
             plan.description.is_set().then(Sense::hover)?
         };
         Some(HitTest { id, sense })
@@ -785,8 +785,7 @@ impl<A> Walk<'_, A> {
         let Some(viewport) = node.scroll_viewport() else {
             return false;
         };
-        node.scroll
-            .as_ref()
+        node.scroll()
             .is_some_and(|plan| plan.is_tab_stop(viewport.size()))
             && !node.is_inert()
     }
@@ -1146,7 +1145,7 @@ impl<A> Walk<'_, A> {
             inertness,
             pointer_events,
             drags: if interaction.sensing.drags()
-                || (node.scroll.is_some() && scroll::drag_scrolls(self.ui.ctx()))
+                || (node.scroll().is_some() && scroll::drag_scrolls(self.ui.ctx()))
             {
                 Drags::PassThrough
             } else {
@@ -1216,12 +1215,10 @@ impl<A> Walk<'_, A> {
         let Some(node) = self.nodes.node(index) else {
             return;
         };
-        if let Some(draw) = node
-            .draw
-            .and_then(|slot| self.shared.draws.get_mut(slot))
-            .and_then(Option::take)
-        {
-            let id = node.id().expect("a node with a draw closure is identified");
+        let Some((id, slot)) = node.draw_with_id() else {
+            return;
+        };
+        if let Some(draw) = self.shared.draws.get_mut(slot).and_then(Option::take) {
             let builder = UiBuilder::new()
                 .max_rect(boxes.content)
                 .scope_id(id.with(DRAW_SCOPE));
@@ -1870,7 +1867,7 @@ impl<A> Painting<A> {
         let selection = Style::of(&ctx).selection;
         let mut animation = LayoutAnimation::begin(&ctx, kept, nodes)
             .starting(StartsSlides::unless_size_in_flight(*size_in_flight));
-        if nodes.iter().any(|node| node.scroll.is_some()) {
+        if nodes.iter().any(|node| node.scroll().is_some()) {
             animation.anticipate(nodes);
         }
         let mut pass = Pass {

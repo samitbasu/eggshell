@@ -178,8 +178,8 @@ pub use crate::continuity::{
     Interrupted, Motion, NodeFrame, NodeRef, OverlayFrame, Points, Slide, SlideId, Timeline,
     Violation, ViolationKind, laid_out_rect, leaves_bounds, record,
 };
-use crate::nodes::Nodes;
 use crate::key::{Key, child_id};
+use crate::nodes::Nodes;
 pub use crate::pipeline::Placed;
 use crate::pipeline::{LayoutState, PlacedNode};
 use crate::prim::Prim;

@@ -29,8 +29,8 @@ use crate::owned::Side;
 use crate::prim::Prim;
 use crate::region::{self, RegionDecl};
 use crate::roots::{
-    ById, Form, Home, PlacedOverlay, PlacedRoot, PlacedRootKind, Presentation, RootDecl, RootKind,
-    modal_style, root_of,
+    ById, Form, Home, Layer, LayerKind, PlacedOverlay, PlacedRoot, PlacedRootKind, Presentation,
+    RootDecl, modal_style, root_of,
 };
 use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
 use crate::shell::Shell;
@@ -94,7 +94,7 @@ pub(crate) enum OpenFocus {
 
 /// taffy's per-node context.
 pub(crate) struct Node {
-    pub id: Option<Id>,
+    pub identity: Identity<ScrollNode>,
     pub path: String,
     pub kind: NodeKind,
     pub paint: BoxPaint,
@@ -102,14 +102,11 @@ pub(crate) struct Node {
     pub text_valign: VAlign,
     pub prim: Option<Prim>,
     pub measure: Option<usize>,
-    pub draw: Option<usize>,
     pub draw_kind: DrawKind,
     pub z: i16,
     pub inert: bool,
     pub pointer_events: PointerEvents,
     pub interaction: Interaction,
-    pub drag: Option<Box<NodeDrag>>,
-    pub scroll: Option<ScrollNode>,
     /// For a region's leaf, the root of its content, once built.
     pub region: Option<NodeId>,
     /// For a collapsible's wrapper that is opening or closing.
@@ -125,7 +122,7 @@ impl Node {
     /// A node with no identity, paint or behaviour.
     pub(crate) fn bare(kind: NodeKind, path: String, text: TextStyle) -> Self {
         Self {
-            id: None,
+            identity: Identity::Anonymous,
             path,
             kind,
             paint: BoxPaint::default(),
@@ -133,14 +130,11 @@ impl Node {
             text_valign: VAlign::Top,
             prim: None,
             measure: None,
-            draw: None,
             draw_kind: DrawKind::Paint,
             z: 0,
             inert: false,
             pointer_events: PointerEvents::Auto,
             interaction: Interaction::default(),
-            drag: None,
-            scroll: None,
             region: None,
             collapse: None,
             description: None,
@@ -148,6 +142,72 @@ impl Node {
             open_focus: OpenFocus::Elsewhere,
             pane: None,
         }
+    }
+}
+
+/// Whether a node is identified, and what only an identified node carries.
+/// `S` is what it carries as a scroll container: its leaf's [`ScrollNode`]
+/// until layout, its [`ScrollPlan`] after.
+#[derive(Debug)]
+pub(crate) enum Identity<S> {
+    Anonymous,
+    Identified(Identified<S>),
+}
+
+#[derive(Debug)]
+pub(crate) struct Identified<S> {
+    pub(crate) id: Id,
+    /// The index of its draw closure.
+    pub(crate) draw: Option<usize>,
+    pub(crate) drag: Option<Box<NodeDrag>>,
+    pub(crate) scroll: Option<S>,
+}
+
+impl<S> Identity<S> {
+    pub(crate) fn of(id: Option<Id>) -> Self {
+        match id {
+            Some(id) => Self::Identified(Identified {
+                id,
+                draw: None,
+                drag: None,
+                scroll: None,
+            }),
+            None => Self::Anonymous,
+        }
+    }
+
+    pub(crate) fn id(&self) -> Option<Id> {
+        self.identified().map(|identified| identified.id)
+    }
+
+    pub(crate) fn identified(&self) -> Option<&Identified<S>> {
+        match self {
+            Self::Identified(identified) => Some(identified),
+            Self::Anonymous => None,
+        }
+    }
+
+    pub(crate) fn identified_mut(&mut self) -> Option<&mut Identified<S>> {
+        match self {
+            Self::Identified(identified) => Some(identified),
+            Self::Anonymous => None,
+        }
+    }
+
+    pub(crate) fn draw(&self) -> Option<usize> {
+        self.identified()?.draw
+    }
+
+    pub(crate) fn drag(&self) -> Option<&NodeDrag> {
+        self.identified()?.drag.as_deref()
+    }
+
+    pub(crate) fn scroll(&self) -> Option<&S> {
+        self.identified()?.scroll.as_ref()
+    }
+
+    pub(crate) fn scroll_mut(&mut self) -> Option<&mut S> {
+        self.identified_mut()?.scroll.as_mut()
     }
 }
 
@@ -306,7 +366,15 @@ impl<'f, A> Frame<'f, A> {
     /// Takes the declaration of root `at` for layout, leaving an empty one
     /// that the closures of its regions declare into.
     pub(crate) fn take_decl(&mut self, at: usize) -> RootDecl<'f, A> {
-        std::mem::replace(&mut self.roots[at], RootDecl::base())
+        self.roots
+            .get_mut(at)
+            .map(std::mem::take)
+            .unwrap_or_default()
+    }
+
+    /// The declaration of the root whose body is being built.
+    pub(crate) fn current_mut(&mut self) -> Option<&mut RootDecl<'f, A>> {
+        self.roots.get_mut(self.current)
     }
 
     pub(crate) fn new(ctx: &'f egui::Context) -> Self {
@@ -315,7 +383,7 @@ impl<'f, A> Frame<'f, A> {
             measures: Vec::new(),
             draws: Vec::new(),
             drag: Decls::default(),
-            roots: vec![RootDecl::base()],
+            roots: vec![RootDecl::default()],
             dismiss: HashMap::new(),
             windows: HashMap::new(),
             pop_outs: Vec::new(),
@@ -330,7 +398,9 @@ impl<'f, A> Frame<'f, A> {
 
     /// Records `leaf` as a scroll container of the root being built.
     pub(crate) fn add_scroll(&mut self, leaf: NodeId) {
-        self.roots[self.current].scrolls.push(leaf);
+        if let Some(root) = self.current_mut() {
+            root.scrolls.push(leaf);
+        }
     }
 }
 
@@ -527,7 +597,6 @@ impl LayoutState {
             &kids,
             Node::bare(NodeKind::Root, "<root>".to_owned(), base),
         );
-        frame.roots[0].node = Some(root);
         Built {
             st,
             ctx,
@@ -621,20 +690,16 @@ impl<'f, A> Built<'f, A> {
         let mut at = 1;
         while at < frame.roots.len() {
             let RootDecl {
-                kind,
-                parent,
-                node,
+                layer,
                 scrolls,
                 regions,
             } = frame.take_decl(at);
-            let node = node.expect("a root's body was built");
-            let Some(parent) = parent else {
+            let Some(Layer { kind, parent, node }) = layer else {
                 at += 1;
                 continue;
             };
             let overlay = match kind {
-                RootKind::Base => unreachable!("only the first root is the base"),
-                RootKind::Window(decl) => {
+                LayerKind::Window(decl) => {
                     let window = place_window(ctx, st, &frame.measures, node, decl, area);
                     let home = match window.presentation {
                         crate::window::Presentation::Native => Home::Window(roots.len()),
@@ -667,7 +732,7 @@ impl<'f, A> Built<'f, A> {
                     at += 1;
                     continue;
                 }
-                RootKind::Overlay(overlay) => overlay,
+                LayerKind::Overlay(overlay) => overlay,
             };
             let home = Home::of(&roots, parent);
             let (viewport, area) = home
@@ -704,15 +769,13 @@ impl<'f, A> Built<'f, A> {
                                 None => latest(),
                             }
                         });
-                    let boundary = placement
-                        .boundary_node()
-                        .map(|id| {
-                            by_id
-                                .get(&id)
-                                .and_then(|&index| nodes.node(index))
-                                .map(PlacedNode::rect)
-                                .ok_or(id)
-                        });
+                    let boundary = placement.boundary_node().map(|id| {
+                        by_id
+                            .get(&id)
+                            .and_then(|&index| nodes.node(index))
+                            .map(PlacedNode::rect)
+                            .ok_or(id)
+                    });
                     let (placement, lookup) = match boundary {
                         Some(Ok(rect)) => (placement.with_node_rect(rect), lookup),
                         Some(Err(_)) => (placement, AnchorLookup::Missing),
@@ -1192,12 +1255,11 @@ fn solve_content(
     solve: &impl Fn(&mut LayoutTree, NodeId, Size<AvailableSpace>),
 ) {
     let own = tree.layout(leaf);
-    let (axis, root, gutter) = {
-        let scroll = tree
-            .node(leaf)
-            .and_then(|node| node.scroll.as_ref())
-            .expect("a scroll leaf has a scroll node");
-        (scroll.axis, scroll.content, scroll.bars.gutter)
+    let Some((axis, root, gutter)) = tree
+        .scroll(leaf)
+        .map(|scroll| (scroll.axis, scroll.content, scroll.bars.gutter))
+    else {
+        return;
     };
     let viewport = Size {
         width: (own.size.width - own.border.left - own.border.right - gutter.x).max(0.0),
@@ -1240,10 +1302,9 @@ fn solve_content(
             height: fit.height.or(short.height.then_some(viewport.height)),
         };
     }
-    tree.node_mut(leaf)
-        .and_then(|node| node.scroll.as_mut())
-        .expect("a scroll leaf has a scroll node")
-        .size = egui::vec2(size.width, size.height);
+    if let Some(scroll) = tree.scroll_mut(leaf) {
+        scroll.size = egui::vec2(size.width, size.height);
+    }
 }
 
 /// A leaf's layout: taffy's own, which adds padding and border around what
@@ -1434,10 +1495,38 @@ fn collect(
             )
         });
     prims.push(node.prim.take());
-    let scroll = node.scroll.take();
+    let mut content = None;
+    let identity = match node.identity.identified_mut() {
+        None => Identity::Anonymous,
+        Some(identified) => {
+            let id = identified.id;
+            let scroll = identified.scroll.take().map(|scroll| {
+                let padding_box = crate::draw::inset(rect, border);
+                let viewport = crate::scroll::viewport_in(padding_box, scroll.bars.gutter);
+                let offset = settle.offset(id, scroll.axis, scroll.size, viewport.size());
+                content = Some((scroll.content, viewport.min - offset));
+                ScrollPlan {
+                    axis: scroll.axis,
+                    edge: scroll.edge,
+                    bars: scroll.bars,
+                    tab: scroll.tab,
+                    description: scroll.description,
+                    content: scroll.size,
+                    offset,
+                    moved: Moved::No,
+                }
+            });
+            Identity::Identified(Identified {
+                id,
+                draw: identified.draw,
+                drag: identified.drag.take(),
+                scroll,
+            })
+        }
+    };
     let region = node.region.take();
     let index = nodes.push(PlacedNode {
-        id: node.id,
+        identity,
         path: std::mem::take(&mut node.path),
         kind: node.kind,
         depth,
@@ -1457,10 +1546,7 @@ fn collect(
         flight: node.collapse.and_then(|collapse| collapse.flight),
         pointer_events: node.pointer_events,
         interaction: node.interaction,
-        drag: node.drag.take(),
-        draw: node.draw,
         draw_kind: node.draw_kind,
-        scroll: None,
         description: node.description.take(),
         action: node.action,
         open_focus: node.open_focus,
@@ -1487,29 +1573,11 @@ fn collect(
         );
         widen_reach(nodes, index, at);
     }
-    if let Some(scroll) = scroll {
-        let padding_box = crate::draw::inset(rect, border);
-        let viewport = crate::scroll::viewport_in(padding_box, scroll.bars.gutter);
-        let offset = settle.offset(
-            nodes.node(index).and_then(PlacedNode::id).expect("a scroll container is identified"),
-            scroll.axis,
-            scroll.size,
-            viewport.size(),
-        );
-        nodes.node_mut(index).expect("x").scroll = Some(ScrollPlan {
-            axis: scroll.axis,
-            edge: scroll.edge,
-            bars: scroll.bars,
-            tab: scroll.tab,
-            description: scroll.description,
-            content: scroll.size,
-            offset,
-            moved: Moved::No,
-        });
+    if let Some((content, origin)) = content {
         collect(
             tree,
-            scroll.content,
-            viewport.min - offset,
+            content,
+            origin,
             depth + 1,
             probe,
             settle,
@@ -1559,7 +1627,7 @@ pub(crate) struct ScrollMut<'a> {
 /// One node of a laid-out frame.
 #[derive(Debug)]
 pub struct PlacedNode {
-    id: Option<Id>,
+    identity: Identity<ScrollPlan>,
     path: String,
     kind: NodeKind,
     depth: usize,
@@ -1582,10 +1650,7 @@ pub struct PlacedNode {
     flight: Option<Flight>,
     pointer_events: PointerEvents,
     pub(crate) interaction: Interaction,
-    pub(crate) drag: Option<Box<NodeDrag>>,
-    pub(crate) draw: Option<usize>,
     draw_kind: DrawKind,
-    pub(crate) scroll: Option<ScrollPlan>,
     description: Option<Box<Description>>,
     action: Option<Action>,
     open_focus: OpenFocus,
@@ -1601,7 +1666,7 @@ impl PlacedNode {
     #[cfg(test)]
     pub(crate) fn stub(depth: usize) -> Self {
         Self {
-            id: None,
+            identity: Identity::Anonymous,
             path: String::new(),
             kind: NodeKind::Div,
             depth,
@@ -1624,10 +1689,7 @@ impl PlacedNode {
             flight: None,
             pointer_events: PointerEvents::Auto,
             interaction: Interaction::default(),
-            drag: None,
-            draw: None,
             draw_kind: DrawKind::Paint,
-            scroll: None,
             description: None,
             action: None,
             open_focus: OpenFocus::Elsewhere,
@@ -1687,37 +1749,63 @@ impl PlacedNode {
 
     /// The node as a scroll container, if it is one.
     pub(crate) fn as_scroll(&self) -> Option<ScrollRef<'_>> {
-        let viewport = self.scroll_viewport()?;
+        let identified = self.identity.identified()?;
+        let plan = identified.scroll.as_ref()?;
         Some(ScrollRef {
-            id: self.id?,
-            plan: self.scroll.as_ref()?,
-            viewport,
+            id: identified.id,
+            plan,
+            viewport: self.viewport_of(plan),
         })
     }
 
     pub(crate) fn as_scroll_mut(&mut self) -> Option<ScrollMut<'_>> {
-        let viewport = self.scroll_viewport()?;
+        let (rect, border) = (self.rect, self.border);
+        let identified = self.identity.identified_mut()?;
+        let plan = identified.scroll.as_mut()?;
         Some(ScrollMut {
-            id: self.id?,
-            plan: self.scroll.as_mut()?,
-            viewport,
+            id: identified.id,
+            viewport: crate::scroll::viewport_in(
+                crate::draw::inset(rect, border),
+                plan.bars.gutter,
+            ),
+            plan,
         })
+    }
+
+    /// The scroll plan, if the node is a scroll container.
+    pub(crate) fn scroll(&self) -> Option<&ScrollPlan> {
+        self.identity.scroll()
+    }
+
+    /// The index of the node's draw closure, if it has one.
+    pub(crate) fn draw(&self) -> Option<usize> {
+        self.identity.draw()
+    }
+
+    /// For a node with a draw closure, its id and the closure's index.
+    pub(crate) fn draw_with_id(&self) -> Option<(Id, usize)> {
+        let identified = self.identity.identified()?;
+        Some((identified.id, identified.draw?))
+    }
+
+    pub(crate) fn drag(&self) -> Option<&NodeDrag> {
+        self.identity.drag()
+    }
+
+    fn viewport_of(&self, plan: &ScrollPlan) -> Rect {
+        crate::scroll::viewport_in(crate::draw::inset(self.rect, self.border), plan.bars.gutter)
     }
 
     /// For a scroll container, its viewport: the padding box minus the
     /// gutter its bars reserve. The content is laid out in it and clipped to
     /// it; the gutter is where the bars draw.
     pub(crate) fn scroll_viewport(&self) -> Option<Rect> {
-        let plan = self.scroll.as_ref()?;
-        Some(crate::scroll::viewport_in(
-            crate::draw::inset(self.rect, self.border),
-            plan.bars.gutter,
-        ))
+        Some(self.viewport_of(self.scroll()?))
     }
 
     /// The egui id, for identified nodes.
     pub fn id(&self) -> Option<Id> {
-        self.id
+        self.identity.id()
     }
 
     /// The readable key path. Anonymous nodes end in their kind, as in `/"props"/<text>`.
@@ -1761,7 +1849,7 @@ impl PlacedNode {
     }
 
     pub(crate) fn is_drag_source(&self) -> bool {
-        self.drag.as_ref().is_some_and(|drag| drag.source.is_some())
+        self.drag().is_some_and(|drag| drag.source.is_some())
     }
 
     /// For a collapsible's wrapper that is opening or closing, where it is
@@ -1824,7 +1912,7 @@ impl PlacedNode {
     /// of view: Tab can reach it and assistive technology can read it. A
     /// scroll container does, if it turns out to be focusable.
     pub(crate) fn registers(&self) -> bool {
-        self.takes_tab() || self.scroll.is_some() || (self.senses() && self.draw.is_some())
+        self.takes_tab() || self.scroll().is_some() || (self.senses() && self.draw().is_some())
     }
 
     /// Whether the node is a Tab stop by what its classes declare, or its
@@ -1836,12 +1924,12 @@ impl PlacedNode {
     /// Whether the node's draw closure adds widgets: it runs while the node
     /// is culled.
     pub(crate) fn draws_widgets(&self) -> bool {
-        self.draw.is_some() && self.registers()
+        self.draw().is_some() && self.registers()
     }
 
     /// Whether the node carries a draw closure.
     pub fn has_draw(&self) -> bool {
-        self.draw.is_some()
+        self.draw().is_some()
     }
 }
 

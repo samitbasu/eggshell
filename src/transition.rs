@@ -8,8 +8,8 @@ use core::time::Duration;
 
 use std::collections::HashMap;
 
-use crate::nodes::Nodes;
 use crate::kept::Handle;
+use crate::nodes::Nodes;
 use egui::{Context, Id, Pos2, Rect, Vec2};
 
 use crate::continuity::{Interrupted, Slide, SlideId};

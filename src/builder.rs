@@ -21,13 +21,13 @@ use crate::overlay::Band;
 use crate::overlay_chain::{OverlayChain, Unplaced};
 use crate::owned::Enablement;
 use crate::pipeline::{
-    BuildState, ColorSource, DismissFn, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind,
-    Pass, ScrollNode, solve,
+    BuildState, ColorSource, DismissFn, DrawKind, Frame, Identified, Identity, Interaction,
+    MeasureFn, Node, NodeKind, Pass, ScrollNode, solve,
 };
 use crate::presence::{self, Entrance, Motion, Phase as Presence, Shown, Step};
 use crate::prim::{Icon, Prim};
 use crate::region::{RegionBody, RegionDecl};
-use crate::roots::{OverlayDecl, Presentation, RootDecl, RootKind, overlay_style};
+use crate::roots::{Layer, LayerKind, OverlayDecl, Presentation, RootDecl, overlay_style};
 use crate::scroll::TabRule;
 use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
@@ -47,8 +47,10 @@ struct Parts {
 }
 
 impl Node {
-    fn drag(&mut self) -> &mut NodeDrag {
-        self.drag.get_or_insert_with(Default::default)
+    /// The node's drag declarations; none for an anonymous node.
+    fn drag(&mut self) -> Option<&mut NodeDrag> {
+        let identified = self.identity.identified_mut()?;
+        Some(identified.drag.get_or_insert_with(Default::default))
     }
 }
 
@@ -373,7 +375,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let mark = self.st.names.push(&slot.label);
         let node = self.container(tw, parts, slot.id, |b| body(&mut Scope(b)));
         self.st.names.pop_to(mark);
-        self.handle(node)
+        self.handle(node, slot.id)
     }
 
     /// A scroll container: see [`scroll`](crate::scroll). Its children are
@@ -434,23 +436,22 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         list: Id,
         run: crate::vlist::ListRun<'f, A>,
     ) {
-        self.frame.roots[self.frame.current]
-            .regions
-            .push(RegionDecl {
-                leaf,
-                id: list,
-                readable,
-                text,
-                ambient,
-                body: RegionBody::List(run),
-            });
+        self.declare_region(RegionDecl {
+            leaf,
+            id: list,
+            readable,
+            text,
+            ambient,
+            body: RegionBody::List(run),
+        });
     }
 
     /// A handle to `node`, a node this builder added.
-    pub(crate) fn into_handle(self, node: NodeId) -> NodeHandle<'b, 'f, A> {
+    pub(crate) fn into_handle(self, node: NodeId, id: Id) -> NodeHandle<'b, 'f, A> {
         NodeHandle {
             b: self,
             node,
+            id,
             kind: PhantomData,
         }
     }
@@ -491,26 +492,32 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// The overlays declared from the root at `from` on.
     pub(crate) fn overlays_from(&self, from: usize) -> impl Iterator<Item = Id> + '_ {
-        self.frame.roots[from..]
+        self.frame
+            .roots
             .iter()
-            .filter_map(|root| match &root.kind {
-                RootKind::Overlay(overlay) => Some(overlay.id),
-                RootKind::Base | RootKind::Window(_) => None,
-            })
+            .skip(from)
+            .filter_map(|root| Some(root.overlay()?.id))
     }
 
     /// The nodes the overlays declared so far are anchored to.
     pub(crate) fn anchored_to(&self) -> impl Iterator<Item = Id> + '_ {
-        self.frame.roots.iter().filter_map(|root| match &root.kind {
-            RootKind::Overlay(overlay) => match overlay.presentation {
+        self.frame
+            .roots
+            .iter()
+            .filter_map(|root| match root.overlay()?.presentation {
                 Presentation::Floating {
                     anchor: crate::overlay::Anchor::Node(id),
                     ..
                 } => Some(id),
-                _ => None,
-            },
-            RootKind::Base | RootKind::Window(_) => None,
-        })
+                Presentation::Floating { .. } | Presentation::Modal(_) => None,
+            })
+    }
+
+    /// Declares `region` in the root whose body is being built.
+    fn declare_region(&mut self, region: RegionDecl<'f, A>) {
+        if let Some(root) = self.frame.current_mut() {
+            root.regions.push(region);
+        }
     }
 
     /// A region: a leaf that only layout sizes, whose content `body` builds
@@ -567,16 +574,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         };
         let leaf = self.leaf_node(tw, parts);
         let text = self.leaf_text(leaf);
-        self.frame.roots[self.frame.current]
-            .regions
-            .push(RegionDecl {
-                leaf,
-                id,
-                readable,
-                text,
-                ambient,
-                body: RegionBody::Closure(Box::new(body)),
-            });
+        self.declare_region(RegionDecl {
+            leaf,
+            id,
+            readable,
+            text,
+            ambient,
+            body: RegionBody::Closure(Box::new(body)),
+        });
     }
 
     /// Declares the commands of the root being built: the page, or the
@@ -639,8 +644,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let roots = &self.frame.roots;
         let live = live_roots(
             self.frame.current,
-            |root| roots[root].parent,
-            |root| roots[root].is_modal(),
+            |root| roots.get(root).and_then(RootDecl::parent),
+            |root| roots.get(root).is_some_and(RootDecl::is_modal),
         );
         let command = live
             .into_iter()
@@ -822,6 +827,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         NodeHandle {
             b: self,
             node,
+            id: slot.id,
             kind: PhantomData,
         }
     }
@@ -864,9 +870,6 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.frame.windows.insert(slot.id, hooks);
         let path = self.identify(slot);
         let parent = self.frame.current;
-        self.frame.roots.push(RootDecl::window(decl, parent));
-        let at = self.frame.roots.len() - 1;
-        self.frame.current = at;
         let ambient = self.ambient_in(&classes);
         let node = self.node(
             &classes,
@@ -877,6 +880,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         );
         let style = self.resolved_style(classes, &node);
         let text = node.text.clone();
+        let root = self.st.tree.new_node(style, &[], node);
+        let at = self.frame.roots.len();
+        self.frame.roots.push(RootDecl::layer(Layer {
+            kind: LayerKind::Window(decl),
+            parent,
+            node: root,
+        }));
+        self.frame.current = at;
         let mark = self.st.names.push(&slot.label);
         let mut kids = Vec::new();
         body(&mut Scope(Builder::new(
@@ -888,10 +899,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
-        let root = self.st.tree.new_node(style, &kids, node);
-        if let Some(decl) = self.frame.roots.get_mut(at) {
-            decl.node = Some(root);
-        }
+        self.st.tree.set_children(root, &kids);
     }
 
     /// Declares the overlay `decl` and builds `body` as its content, a root
@@ -933,9 +941,6 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
         let path = self.identify(slot);
         let parent = self.frame.current;
-        self.frame.roots.push(RootDecl::overlay(decl, parent));
-        let at = self.frame.roots.len() - 1;
-        self.frame.current = at;
         let mut node = self.node(
             &classes,
             Parts {
@@ -947,6 +952,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             node.pointer_events = PointerEvents::None;
         }
         let text = node.text.clone();
+        let root = self.st.tree.new_node(overlay_style(), &[], node);
+        let at = self.frame.roots.len();
+        self.frame.roots.push(RootDecl::layer(Layer {
+            kind: LayerKind::Overlay(decl),
+            parent,
+            node: root,
+        }));
+        self.frame.current = at;
         let mark = self.st.names.push(&slot.label);
         let mut kids = Vec::new();
         body(&mut Scope(Builder::new(
@@ -958,19 +971,18 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
-        let root = self.st.tree.new_node(overlay_style(), &kids, node);
-        self.frame.roots[at].node = Some(root);
+        self.st.tree.set_children(root, &kids);
     }
 
     /// Adds a scroll container's leaf to the current parent, with the root of
     /// its content, built from `body`, a tree of its own.
-    pub(crate) fn scroll_with(
+    pub(crate) fn scroll_with<R>(
         mut self,
         slot: &Slot,
         classes: Tw,
         options: ScrollOptions,
-        body: impl FnOnce(&mut Scope<'_, 'f, A>),
-    ) -> NodeHandle<'b, 'f, A> {
+        body: impl FnOnce(&mut Scope<'_, 'f, A>) -> R,
+    ) -> (NodeHandle<'b, 'f, A>, R) {
         use taffy::{Overflow, Point};
         let ScrollOptions {
             axis,
@@ -989,7 +1001,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let content_path = self.anonymous_path(NodeKind::ScrollContent);
         let mut kids = Vec::new();
         let ambient = self.ambient_in(&classes);
-        body(&mut Scope(Builder::new(
+        let built = body(&mut Scope(Builder::new(
             self.st,
             self.frame,
             slot.id,
@@ -1006,14 +1018,19 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let content_style = crate::scroll::take_content_layout(&mut style);
         let content = self.st.tree.new_node(content_style, &kids, content_node);
         let tab = TabRule::of(focusable, &classes, &self.st.tree, &kids);
-        leaf.scroll = Some(ScrollNode {
-            axis,
-            edge,
-            bars,
-            tab,
-            description,
-            content,
-            size: egui::Vec2::ZERO,
+        leaf.identity = Identity::Identified(Identified {
+            id: slot.id,
+            draw: None,
+            drag: None,
+            scroll: Some(ScrollNode {
+                axis,
+                edge,
+                bars,
+                tab,
+                description,
+                content,
+                size: egui::Vec2::ZERO,
+            }),
         });
         style.overflow = Point {
             x: Overflow::Scroll,
@@ -1022,11 +1039,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let id = self.st.tree.new_node(style, &[], leaf);
         self.kids.push(id);
         self.frame.add_scroll(id);
-        NodeHandle {
+        let handle = NodeHandle {
             b: self,
             node: id,
+            id: slot.id,
             kind: PhantomData,
-        }
+        };
+        (handle, built)
     }
 
     /// An identified leaf whose size comes from `measure`.
@@ -1060,7 +1079,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             ..Parts::anonymous(NodeKind::Leaf, path)
         };
         let node = self.leaf_node(tw, parts);
-        self.handle(node)
+        self.handle(node, slot.id)
     }
 
     /// An identified leaf holding a stock egui widget, sized by the library
@@ -1136,7 +1155,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             ..Parts::anonymous(kind, path).with_prim(prim)
         };
         let node = self.leaf_node(tw, parts);
-        self.handle(node)
+        self.handle(node, slot.id)
     }
 
     /// An identified icon, measured and painted by the library.
@@ -1279,10 +1298,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         path
     }
 
-    fn handle(&mut self, node: NodeId) -> NodeHandle<'_, 'f, A> {
+    fn handle(&mut self, node: NodeId, id: Id) -> NodeHandle<'_, 'f, A> {
         NodeHandle {
             b: self.reborrow(),
             node,
+            id,
             kind: PhantomData,
         }
     }
@@ -1339,7 +1359,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             ColorSource::Inherited
         };
         Node {
-            id: parts.id,
+            identity: Identity::of(parts.id),
             path: parts.path,
             kind: parts.kind,
             paint: tw.paint,
@@ -1347,13 +1367,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             text_valign: VAlign::of(&tw.style),
             prim: parts.prim,
             measure: parts.measure,
-            draw: None,
             draw_kind: DrawKind::Paint,
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
             pointer_events: tw.pointer_events,
-            drag: None,
-            scroll: None,
             region: None,
             collapse: parts.collapse,
             description: None,
@@ -1550,17 +1567,31 @@ impl<A: 'static> Builder<'_, '_, A> {
         let Some(context) = self.st.tree.node_mut(node) else {
             return;
         };
+        let Some(identified) = context.identity.identified_mut() else {
+            crate::report::report(
+                self.frame.ctx,
+                crate::Problem::Internal("draw on an anonymous node"),
+                None,
+                || {
+                    format!(
+                        "{}: a draw closure on an anonymous node is dropped",
+                        context.path
+                    )
+                },
+            );
+            return;
+        };
         let draws = &mut self.frame.draws;
-        match context.draw {
-            Some(slot) => {
-                let first = std::mem::replace(&mut draws[slot], Box::new(|_, _| {}));
-                draws[slot] = Box::new(move |app, ui| {
+        match identified.draw.and_then(|slot| draws.get_mut(slot)) {
+            Some(existing) => {
+                let first = std::mem::replace(existing, Box::new(|_, _| {}));
+                *existing = Box::new(move |app, ui| {
                     first(app, ui);
                     draw(app, ui);
                 });
             }
             None => {
-                context.draw = Some(draws.len());
+                identified.draw = Some(draws.len());
                 draws.push(Box::new(draw));
             }
         }
@@ -1585,6 +1616,7 @@ impl<A: 'static> Builder<'_, '_, A> {
 pub struct NodeHandle<'b, 'f, A, Kind = AnyNode> {
     b: Builder<'b, 'f, A>,
     node: NodeId,
+    id: Id,
     kind: PhantomData<Kind>,
 }
 
@@ -1639,14 +1671,8 @@ impl<'b, 'f, A, K> NodeHandle<'b, 'f, A, K> {
         self.b
     }
 
-    /// The node's id; it is identified.
     pub(crate) fn id(&self) -> Id {
-        self.b
-            .st
-            .tree
-            .node(self.node)
-            .and_then(|node| node.id)
-            .expect("the node is identified")
+        self.id
     }
 }
 
@@ -1682,16 +1708,24 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self.edit(|context| {
             let declared = context.interaction.sensing;
             context.interaction.sensing = declared.or(Sensing::Drag);
-            context.drag().source = Some(Source {
-                payload: Arc::new(payload),
-                activator: Activator::Itself,
-                declared,
-            });
+            if let Some(drag) = context.drag() {
+                drag.source = Some(Source {
+                    payload: Arc::new(payload),
+                    activator: Activator::Itself,
+                    declared,
+                });
+            }
         });
-        let Self { b, node, kind: _ } = self;
+        let Self {
+            b,
+            node,
+            id,
+            kind: _,
+        } = self;
         NodeHandle {
             b,
             node,
+            id,
             kind: PhantomData,
         }
     }
@@ -1699,7 +1733,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// How the node looks while it is dragged. [`DragImage::Live`] unless
     /// set.
     pub fn drag_image(mut self, image: DragImage) -> Self {
-        self.edit(|context| context.drag().image = image);
+        self.edit_drag(|drag| drag.image = image);
         self
     }
 
@@ -1718,11 +1752,9 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// frame's layout. The node is a sibling of the source, under an id
     /// derived from the source's.
     pub fn drag_preview(mut self, build: impl FnOnce(&mut Scope<'_, 'f, A>)) -> Self {
-        let (source, path) = self.id_and_path();
-        self.edit(|context| context.drag().previewed = true);
-        if let Some(source) = source
-            .filter(|&id| crate::dnd::lifted_source(self.b.frame.ctx, &self.b.st.kept) == Some(id))
-        {
+        let (source, path) = (self.id, self.path());
+        self.edit_drag(|drag| drag.previewed = true);
+        if crate::dnd::lifted_source(self.b.frame.ctx, &self.b.st.kept) == Some(source) {
             let slot = self.b.slot_of(
                 crate::dnd::preview_id(source),
                 format!("drag preview of {path}"),
@@ -1751,7 +1783,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         handler: impl FnOnce(&mut A, Drop<T>) + 'static,
     ) -> Self {
         let decl = self.b.frame.drag.add_drop(accept, handler);
-        self.edit(|context| context.drag().drops.push(decl));
+        self.edit_drag(|drag| drag.drops.push(decl));
         self
     }
 
@@ -1760,15 +1792,20 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// no pointer position. Of several nodes, the topmost wins. Without one,
     /// such a drop is refused.
     pub fn drop_fallback(mut self) -> Self {
-        self.edit(|context| context.drag().fallback = true);
+        self.edit_drag(|drag| drag.fallback = true);
         self
     }
 
-    /// The node's id and path; none and empty if it is missing.
+    /// The node's path; empty if it is missing.
     #[track_caller]
-    fn id_and_path(&mut self) -> (Option<Id>, String) {
-        self.edit(|context| (context.id, context.path.clone()))
+    fn path(&mut self) -> String {
+        self.edit(|context| context.path.clone())
             .unwrap_or_default()
+    }
+
+    #[track_caller]
+    fn edit_drag(&mut self, edit: impl FnOnce(&mut NodeDrag)) {
+        self.edit(|context| context.drag().map(edit));
     }
 
     #[track_caller]
@@ -1860,8 +1897,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         mut self,
         items: impl for<'m> FnOnce(&mut crate::owned::Menu<'m, 'f, A>),
     ) -> Self {
-        let (owner, path) = self.id_and_path();
-        let owner = owner.expect("a context menu needs an identified node");
+        let (owner, path) = (self.id, self.path());
         self.edit(|context| {
             let interaction = &mut context.interaction;
             if interaction.sensing == Sensing::None || interaction.sensing == Sensing::Hover {
@@ -1935,17 +1971,8 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A, DragSource> {
     /// source lifts.
     #[track_caller]
     pub fn drag_handle<K: Key>(mut self, key: K) -> Self {
-        let (source, path) = self.id_and_path();
+        let (source, path) = (self.id, self.path());
         let ctx = self.b.frame.ctx;
-        let Some(source) = source else {
-            crate::report::report(
-                ctx,
-                crate::Problem::Internal("anonymous drag source"),
-                None,
-                || format!("{path}: a drag source has no id; drag_handle({key:?}) is ignored"),
-            );
-            return self;
-        };
         let handle = child_id(source, &key);
         let at = std::panic::Location::caller();
         let refused = |why: &str| {
@@ -1962,16 +1989,20 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A, DragSource> {
             .st
             .tree
             .node(found)
-            .and_then(|node| node.drag.as_ref())
+            .and_then(|node| node.identity.drag())
             .is_some_and(|drag| drag.source.is_some());
         if handle_is_source {
             refused("names a drag source; a handle is not one");
             return self;
         }
         self.edit(|context| {
-            if let Some(source) = context.drag.as_mut().and_then(|drag| drag.source.as_mut()) {
+            let declared = context.drag().and_then(|drag| {
+                let source = drag.source.as_mut()?;
                 source.activator = Activator::Handle(handle);
-                context.interaction.sensing = source.declared;
+                Some(source.declared)
+            });
+            if let Some(declared) = declared {
+                context.interaction.sensing = declared;
             }
         });
         if let Some(handle_node) = self.b.st.tree.node_mut(found) {
@@ -1985,7 +2016,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A, DragSource> {
         let tree = &self.b.st.tree;
         let mut pending = tree.children(self.node);
         while let Some(node) = pending.pop() {
-            if tree.node(node).and_then(|context| context.id) == Some(id) {
+            if tree.node(node).and_then(|context| context.identity.id()) == Some(id) {
                 return Some(node);
             }
             pending.extend(tree.children(node));
