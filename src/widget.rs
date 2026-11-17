@@ -237,7 +237,8 @@ impl TextEdit {
     }
 
     /// Adds the field to `ui`, filling its rect, editing `text`. Focus and
-    /// the cursor follow the leaf's identity.
+    /// the cursor follow the leaf's identity. The field gives up its focus
+    /// when the window loses it.
     ///
     /// The leaf was sized from the text as it was when the frame was built.
     /// A keystroke that changes the field's height asks egui for another
@@ -252,6 +253,9 @@ impl TextEdit {
         }
         let rect = ui.max_rect();
         let id = Self::id_in(ui);
+        if ui.input(|input| crate::window::blurred(&input.events)) {
+            ui.memory_mut(|memory| memory.surrender_focus(id));
+        }
         let width = Width::new(rect.width());
         let before = self.fit(&Sizer::for_ui(ui), text, Some(width));
         let before_text = text.clone();
