@@ -16,6 +16,7 @@ use egui::{
 };
 use taffy::Overflow;
 
+use crate::nodes::Nodes;
 use crate::commands::Commands;
 use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
@@ -29,7 +30,9 @@ use crate::overlay::Anchored;
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::owned::Side;
-use crate::pipeline::{ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedNode};
+use crate::pipeline::{
+    ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedNode, ScrollRef,
+};
 use crate::presence::Staged;
 use crate::prim::{Icon, Prim};
 use crate::roots::{
@@ -183,16 +186,11 @@ impl Inherited {
     }
 }
 
-/// The indices of the children of the node at `index`, in layout order.
-pub(crate) fn children_of(nodes: &[PlacedNode], index: usize) -> Vec<usize> {
-    let end = nodes[index].end;
-    let mut children = Vec::new();
-    let mut next = index + 1;
-    while next < end {
-        children.push(next);
-        next = nodes[next].end;
-    }
-    children
+/// A node's one hit test: its id and what it senses.
+#[derive(Clone, Copy)]
+struct HitTest {
+    id: Id,
+    sense: Sense,
 }
 
 /// The node painted lifted, at a screen point.
@@ -576,7 +574,7 @@ enum Stage {
 struct Walk<'a, A> {
     app: &'a mut A,
     ui: &'a mut Ui,
-    nodes: &'a [PlacedNode],
+    nodes: &'a Nodes,
     /// For each node, how many text nodes of the same path come before it.
     ordinals: &'a [u32],
     /// `registrants[i]` counts the nodes before `i` that register widgets
@@ -626,20 +624,18 @@ impl<A> Walk<'_, A> {
     fn interact(
         &mut self,
         index: usize,
-        sense: Sense,
+        node: &PlacedNode,
+        HitTest { id, sense }: HitTest,
         boxes: &Boxes,
         inherited: Inherited,
     ) -> (Response, Merged) {
-        let node = &self.nodes[index];
-        let id = node.id().expect("a sensing node is identified");
         let sense = if node.senses() && !sense.interactive() {
             sense | Sense::CLICK
         } else {
             sense
         };
         let had_focus = self.ui.ctx().memory(|memory| memory.has_focus(id));
-        let mut response = None;
-        node_ui(
+        let mut response = node_ui(
             self.ui,
             UiBuilder::new().max_rect(boxes.border),
             inherited,
@@ -655,10 +651,9 @@ impl<A> Walk<'_, A> {
                     let name = description.name.as_deref().unwrap_or_default();
                     crate::owned::describe(&own, ui.is_enabled(), role, None, name);
                 }
-                response = Some(own);
+                own
             },
         );
-        let mut response = response.expect("node_ui runs its contents");
         let merged = self.merge_hot(index, &mut response);
         let lost_focus = had_focus && !self.ui.ctx().memory(|memory| memory.has_focus(id));
         if lost_focus && merged == Merged::Bubbled && response.flags.intersects(Hot::PRESS) {
@@ -673,13 +668,13 @@ impl<A> Walk<'_, A> {
     /// its subtree won: they cover the node's own widget, so a press on one
     /// is the node's unless a nearer node would take it.
     fn merge_hot(&self, index: usize, response: &mut Response) -> Merged {
-        let node = &self.nodes[index];
+        let subtree = self.nodes.span(index);
         let mut merged = Merged::Own;
         for hot in self
             .pass
             .hot
             .iter()
-            .filter(|hot| index < hot.index && hot.index < node.end)
+            .filter(|hot| index < hot.index && subtree.contains(&hot.index))
         {
             response.flags |= hot.flags & Hot::HOVER;
             if nearest_clicker(self.nodes, hot.index) == Some(index) {
@@ -702,7 +697,9 @@ impl<A> Walk<'_, A> {
     /// The root of an overlay or a pop-out's window gets a blocker that also
     /// takes drags, since what lies beneath it is another layer.
     fn cover(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
-        let node = &self.nodes[index];
+        let Some(node) = self.nodes.node(index) else {
+            return;
+        };
         if inherited.pointer_events != PointerEvents::Auto {
             return;
         }
@@ -710,7 +707,9 @@ impl<A> Walk<'_, A> {
             self.block(index, boxes, inherited);
         } else if node.paints_box() && !node.senses() && inherited.inertness == Inertness::Live {
             // Not `node_ui`: a child `Ui` gets an accessibility node.
-            let id = self.shared.box_ids[index];
+            let Some(&id) = self.shared.box_ids.get(index) else {
+                return;
+            };
             let clip = self.ui.clip_rect();
             self.ui.set_clip_rect(inherited.clip);
             self.ui.interact(boxes.border, id, inherited.drags.sense());
@@ -763,22 +762,26 @@ impl<A> Walk<'_, A> {
     /// What the node's one hit test senses, if it gets one: what its classes
     /// declare, or, for a scroll container with nothing focusable inside, a
     /// place in the Tab order.
-    fn sense_of(&self, index: usize) -> Option<Sense> {
-        let node = &self.nodes[index];
-        if node.senses() {
+    fn sense_of(&self, index: usize) -> Option<HitTest> {
+        let node = self.nodes.node(index)?;
+        let id = node.id()?;
+        let sense = if node.senses() {
             let interaction = &node.interaction;
-            return Some(interaction.focusability.sense(interaction.sensing));
-        }
-        if self.scroller_takes_focus(index) {
-            return Some(Sense::focusable_noninteractive());
-        }
-        let plan = node.scroll.as_ref()?;
-        plan.description.is_set().then(Sense::hover)
+            interaction.focusability.sense(interaction.sensing)
+        } else if self.scroller_takes_focus(index) {
+            Sense::focusable_noninteractive()
+        } else {
+            let plan = node.scroll.as_ref()?;
+            plan.description.is_set().then(Sense::hover)?
+        };
+        Some(HitTest { id, sense })
     }
 
     /// Whether the scroll container at `index` is a Tab stop in this layout.
     fn scroller_takes_focus(&self, index: usize) -> bool {
-        let node = &self.nodes[index];
+        let Some(node) = self.nodes.node(index) else {
+            return false;
+        };
         let Some(viewport) = node.scroll_viewport() else {
             return false;
         };
@@ -792,10 +795,9 @@ impl<A> Walk<'_, A> {
     /// `:hover` does in CSS. An item of a listbox is hovered only by its
     /// highlight, which the pointer moves (see [`nav`]): the pointer and the
     /// keys never leave two items looking hovered.
-    fn hovering(&self, index: usize, own: &Response) -> Hovering {
+    fn hovering(&self, index: usize, node: &PlacedNode, own: &Response) -> Hovering {
         let ctx = self.ui.ctx();
-        let node = &self.nodes[index];
-        let descendants = &self.nodes[index + 1..node.end];
+        let descendants = self.nodes.descendants(index);
         let highlighted = node.id().is_some_and(|id| {
             self.pass.highlighted.contains(&id) || (node.is_item() && focus::holds_focus(ctx, id))
         });
@@ -809,8 +811,9 @@ impl<A> Walk<'_, A> {
                 .filter_map(PlacedNode::id)
                 .any(|id| ctx.read_response(id).is_some_and(|r| r.hovered()));
         let in_listbox = node.is_item()
-            && self.roots[root_of(self.roots, index)]
-                .overlay()
+            && root_of(self.roots, index)
+                .and_then(|root| self.roots.get(root))
+                .and_then(PlacedRoot::overlay)
                 .map_or(node.is_listbox_option(), |overlay| {
                     overlay.behavior.nav.is_listbox()
                 });
@@ -889,11 +892,7 @@ impl<A> Walk<'_, A> {
     fn visit(&mut self, index: usize, parent: Inherited) {
         if parent.culling == Culling::On && self.culled(index, parent.clip) {
             if self.shared.recording.is_some() {
-                let subtree = self
-                    .nodes
-                    .get(index)
-                    .and_then(|node| self.nodes.get(index..node.end))
-                    .unwrap_or_default();
+                let subtree = self.nodes.subtree(index);
                 self.shared
                     .culled
                     .extend(subtree.iter().filter_map(PlacedNode::id));
@@ -908,8 +907,10 @@ impl<A> Walk<'_, A> {
     /// node is identified.
     fn noting(&mut self, index: usize, visit: impl FnOnce(&mut Self)) {
         let layer = self.ui.layer_id();
-        let before = self.nodes[index]
-            .id()
+        let before = self
+            .nodes
+            .node(index)
+            .and_then(PlacedNode::id)
             .map(|id| (id, focus::registered(self.ui.ctx(), layer)));
         visit(self);
         if let Some((id, from)) = before {
@@ -926,8 +927,13 @@ impl<A> Walk<'_, A> {
     /// node), and, if it adds widgets, its draw closure with the opacity at
     /// zero, so that what it paints is dropped by egui's painter.
     fn register_culled(&mut self, index: usize, parent: Inherited) {
-        let node = &self.nodes[index];
-        if node.flow == Flow::Hidden || self.registrants[node.end] == self.registrants[index] {
+        let nodes = self.nodes;
+        let Some(node) = nodes.node(index) else {
+            return;
+        };
+        if node.flow == Flow::Hidden
+            || self.registrants.get(node.end) == self.registrants.get(index)
+        {
             return;
         }
         let inertness = parent.inertness.or(node.is_inert().into());
@@ -938,31 +944,26 @@ impl<A> Walk<'_, A> {
         };
         self.noting(index, |walk| {
             let boxes = Boxes::of(node, walk.grid);
-            if let Some(sense) = walk.sense_of(index) {
-                walk.interact(index, sense, &boxes, hidden);
+            if let Some(test) = walk.sense_of(index) {
+                walk.interact(index, node, test, &boxes, hidden);
             }
             if node.draws_widgets() {
                 walk.run_draw(index, &boxes, hidden, node.text(), None);
             }
-            for child in walk.in_paint_order(index) {
+            for child in nodes.in_paint_order(index) {
                 walk.register_culled(child, hidden);
             }
         });
-    }
-
-    /// The children of the node at `index`, bottom first.
-    fn in_paint_order(&self, index: usize) -> Vec<usize> {
-        let mut children = children_of(self.nodes, index);
-        children.sort_by_key(|&child| self.nodes[child].z());
-        children
     }
 
     /// Whether the node and its subtree can be left out: nothing of it
     /// reaches `clip`, no slide in flight can bring it there, and it holds
     /// neither the keyboard focus nor the drag.
     fn culled(&self, index: usize, clip: Rect) -> bool {
-        let node = &self.nodes[index];
-        let within = index..node.end;
+        let Some(node) = self.nodes.node(index) else {
+            return false;
+        };
+        let within = self.nodes.span(index);
         let ctx = self.ui.ctx();
         node.flow != Flow::Hidden
             && !node
@@ -970,7 +971,9 @@ impl<A> Walk<'_, A> {
                 .intersects(clip.expand(self.pass.animation.slide_reach()))
             && !self.drag.involves(&within)
             && !(ctx.memory(|memory| memory.focused()).is_some()
-                && self.nodes[within]
+                && self
+                    .nodes
+                    .subtree(index)
                     .iter()
                     .filter_map(PlacedNode::id)
                     .any(|id| self.shell.focus_within(id)))
@@ -978,7 +981,9 @@ impl<A> Walk<'_, A> {
 
     fn visit_node(&mut self, index: usize, parent: Inherited) {
         let nodes = self.nodes;
-        let node = &nodes[index];
+        let Some(node) = nodes.node(index) else {
+            return;
+        };
         if node.flow == Flow::Hidden {
             return;
         }
@@ -998,10 +1003,11 @@ impl<A> Walk<'_, A> {
         );
 
         let (response, merged) = match self.sense_of(index) {
-            Some(sense) => {
+            Some(test) => {
                 let (response, merged) = self.interact(
                     index,
-                    sense,
+                    node,
+                    test,
                     &boxes,
                     Inherited {
                         inertness,
@@ -1020,7 +1026,7 @@ impl<A> Walk<'_, A> {
         let hovering = response
             .as_ref()
             .filter(|_| needs_hovering)
-            .map(|own| self.hovering(index, own));
+            .map(|own| self.hovering(index, node, own));
         let presence = self.presence(
             node,
             response.as_ref(),
@@ -1163,20 +1169,19 @@ impl<A> Walk<'_, A> {
                 parent.interactive
             },
         };
-        if let Some(prim) = self.shared.prims[index].take() {
+        if let Some(prim) = self.shared.prims.get_mut(index).and_then(Option::take) {
             self.paint_prim(prim, index, node, &text, &boxes, inherited);
         }
         let bubbled = response.as_ref().filter(|_| merged == Merged::Bubbled);
         self.run_draw(index, &boxes, inherited, &text, bubbled);
 
-        if node.scroll.is_some() {
-            self.scroll_content(index, &boxes, inherited);
+        if let Some(scroll) = node.as_scroll() {
+            self.scroll_content(index, scroll, &boxes, inherited);
         } else {
-            let in_layout_order = children_of(self.nodes, index);
-            for child in self.in_paint_order(index) {
+            for child in nodes.in_paint_order(index) {
                 self.visit(child, inherited);
             }
-            self.paint_dividers(index, &in_layout_order, inherited);
+            self.paint_dividers(node, index, inherited);
         }
         if self.scroller_takes_focus(index)
             && !interaction.variants.has_focus()
@@ -1208,8 +1213,14 @@ impl<A> Walk<'_, A> {
         text: &TextStyle,
         bubbled: Option<&Response>,
     ) {
-        let node = &self.nodes[index];
-        if let Some(draw) = node.draw.and_then(|slot| self.shared.draws[slot].take()) {
+        let Some(node) = self.nodes.node(index) else {
+            return;
+        };
+        if let Some(draw) = node
+            .draw
+            .and_then(|slot| self.shared.draws.get_mut(slot))
+            .and_then(Option::take)
+        {
             let id = node.id().expect("a node with a draw closure is identified");
             let builder = UiBuilder::new()
                 .max_rect(boxes.content)
@@ -1241,11 +1252,14 @@ impl<A> Walk<'_, A> {
     /// `ScrollArea` over its viewport: egui owns the offset, the wheel and
     /// the bars, and the content, laid out at that offset, is walked inside
     /// it with the nodes outside the viewport left out.
-    fn scroll_content(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
+    fn scroll_content(
+        &mut self,
+        index: usize,
+        ScrollRef { id, plan, viewport }: ScrollRef<'_>,
+        boxes: &Boxes,
+        inherited: Inherited,
+    ) {
         let nodes = self.nodes;
-        let node = &nodes[index];
-        let plan = node.scroll.as_ref().expect("a scroll container has a plan");
-        let id = node.id().expect("a scroll container is identified");
         let area = egui::ScrollArea::new(plan.overflows(boxes.padding.size() - plan.bars.gutter))
             .id_salt(scroll::AREA_SALT)
             .auto_shrink(false)
@@ -1277,9 +1291,6 @@ impl<A> Walk<'_, A> {
             ..
         } = self;
         // The viewport clips the content, whatever egui reserves for its bars.
-        let viewport = node
-            .scroll_viewport()
-            .expect("a scroll container has a plan");
         let content = Inherited {
             clip: inherited.clip.intersect(grid.rect(viewport)),
             culling: Culling::On,
@@ -1323,7 +1334,7 @@ impl<A> Walk<'_, A> {
                         roots,
                         shell,
                     }
-                    .visit(index + 1, content);
+                    .visit(index.saturating_add(1), content);
                 });
                 scroll::note_bar_hold(shell, id, shown.id);
             },
@@ -1506,7 +1517,7 @@ impl<A> Walk<'_, A> {
         self.ui
             .scope_id()
             .with(("select", node.path()))
-            .with(self.ordinals[index])
+            .with(self.ordinals.get(index).copied().unwrap_or_default())
     }
 
     fn paint_image(&mut self, image: Image<'static>, content: Rect, inherited: Inherited) {
@@ -1519,19 +1530,20 @@ impl<A> Walk<'_, A> {
         );
     }
 
-    fn paint_dividers(&self, index: usize, children: &[usize], inherited: Inherited) {
-        let paint = self.nodes[index].paint();
+    fn paint_dividers(&self, node: &PlacedNode, index: usize, inherited: Inherited) {
+        let paint = node.paint();
         let painter = self.painter(inherited.clip, inherited.opacity);
-        let in_flow: Vec<Rect> = children
-            .iter()
-            .map(|&child| &self.nodes[child])
+        let in_flow: Vec<Rect> = self
+            .nodes
+            .children(index)
+            .filter_map(|child| self.nodes.node(child))
             .filter(|node| node.flow == Flow::Normal)
             .map(|node| self.grid.rect(node.rect()))
             .collect();
         for (divide, axis) in [(paint.divide_x, Axis::X), (paint.divide_y, Axis::Y)] {
             let Some(divide) = divide else { continue };
-            for pair in in_flow.windows(2) {
-                if let Some(line) = divider(pair[0], pair[1], axis, divide.width, self.grid) {
+            for (&before, &after) in in_flow.iter().zip(in_flow.iter().skip(1)) {
+                if let Some(line) = divider(before, after, axis, divide.width, self.grid) {
                     painter.rect_filled(line, 0.0, divide.color);
                 }
             }
@@ -1549,7 +1561,7 @@ impl<A> Walk<'_, A> {
                 self.shared
                     .stages
                     .insert(first, Stage::Scrim(staged.scrim()));
-                for child in children_of(self.nodes, first) {
+                for child in self.nodes.children(first) {
                     self.shared.stages.insert(child, boxed);
                 }
             }
@@ -1616,7 +1628,9 @@ impl<A> Walk<'_, A> {
             if overlay.anchored == Anchored::Detached {
                 continue;
             }
-            let root_rect = self.nodes[root.first].rect();
+            let Some(root_rect) = self.nodes.node(root.first).map(PlacedNode::rect) else {
+                continue;
+            };
             let swallows = covers_screen(self.roots, self.nodes, index);
             let rect = if swallows { screen } else { root_rect };
             let layer = overlay.band.layer(overlay.id);
@@ -1666,7 +1680,7 @@ impl<A> Walk<'_, A> {
         }
         if let Some(top) = stacked_top_down(self.roots, here)
             .into_iter()
-            .filter_map(|index| self.roots[index].overlay())
+            .filter_map(|index| self.roots.get(index)?.overlay())
             .find(|overlay| {
                 overlay.anchored == Anchored::Attached && matches!(overlay.form, Form::Modal(_))
             })
@@ -1776,7 +1790,7 @@ impl<A> Placed<A> {
 /// input.
 struct Painting<A> {
     kept: Handle,
-    nodes: Vec<PlacedNode>,
+    nodes: Nodes,
     by_id: HashMap<Id, usize>,
     drag: Decls<A>,
     dismiss: HashMap<Id, DismissFn<A>>,
@@ -1834,7 +1848,7 @@ impl<A> Painting<A> {
             focus::AnchorFocusHeld::new(&ctx, overlay_input::pointer_on(&ctx, nodes, roots, here));
         let pressed = press_origin(&ctx)
             .map(|at| root_at(roots, nodes, at, here))
-            .and_then(|root| Some(roots[root].overlay()?.id));
+            .and_then(|root| Some(roots.get(root)?.overlay()?.id));
         let grid = PixelGrid {
             pixels_per_point: ctx.pixels_per_point(),
         };
@@ -1874,8 +1888,8 @@ impl<A> Painting<A> {
         let typing = kept.viewport(ctx.viewport_id(), |here| here.typing);
         for root in crate::commands::live_roots(
             overlay_input::topmost_root(roots, here),
-            |root| roots[root].parent,
-            |root| roots[root].is_modal(),
+            |root| roots.get(root).and_then(|root| root.parent),
+            |root| roots.get(root).is_some_and(PlacedRoot::is_modal),
         ) {
             if let Some((_, table)) = commands.iter().find(|(at, _)| *at == root) {
                 crate::commands::dispatch(&ctx, &shell, typing, table, app);
@@ -1991,7 +2005,7 @@ impl<A> Painting<A> {
 }
 
 /// The overlays the frame draws, as the checks of placement judge them.
-fn placed_overlays(nodes: &[PlacedNode], roots: &[PlacedRoot]) -> Vec<OverlayFrame> {
+fn placed_overlays(nodes: &Nodes, roots: &[PlacedRoot]) -> Vec<OverlayFrame> {
     roots
         .iter()
         .filter_map(|root| {
@@ -2014,11 +2028,11 @@ fn placed_overlays(nodes: &[PlacedNode], roots: &[PlacedRoot]) -> Vec<OverlayFra
 
 /// For each node, and one past the last, how many nodes before it register
 /// widgets while culled.
-fn registrant_counts(nodes: &[PlacedNode]) -> Vec<u32> {
+fn registrant_counts(nodes: &Nodes) -> Vec<u32> {
     let mut counts = Vec::with_capacity(nodes.len() + 1);
     let mut count = 0;
     counts.push(count);
-    for node in nodes {
+    for node in nodes.iter() {
         count += u32::from(node.registers());
         counts.push(count);
     }
@@ -2027,7 +2041,7 @@ fn registrant_counts(nodes: &[PlacedNode]) -> Vec<u32> {
 
 /// For each node, how many text nodes with its path come before it: the
 /// order that tells apart the text nodes that share a path.
-fn text_ordinals(nodes: &[PlacedNode], prims: &[Option<Prim>]) -> Vec<u32> {
+fn text_ordinals(nodes: &Nodes, prims: &[Option<Prim>]) -> Vec<u32> {
     let mut seen: HashMap<&str, u32> = HashMap::new();
     nodes
         .iter()
@@ -2055,12 +2069,12 @@ struct NodeIdTag(egui::Id);
 struct PaneTag(Option<Rect>);
 
 /// The rect of the sibling on `side` of the node at `index`.
-fn neighbour(nodes: &[PlacedNode], index: usize, side: Side) -> Option<Rect> {
+fn neighbour(nodes: &Nodes, index: usize, side: Side) -> Option<Rect> {
     let node = nodes.get(index)?;
     let depth = node.depth();
     let sibling = match side {
         Side::Before => nodes
-            .get(..index)?
+            .before(index)
             .iter()
             .rev()
             .take_while(|before| before.depth() >= depth)
@@ -2122,7 +2136,7 @@ impl Hot {
 /// its response's. Identified nodes derive it from theirs; the others from
 /// their key path and how many nodes with the same path come before them, so
 /// that it holds while siblings elsewhere come and go, as a press is held.
-fn box_ids(scope: Id, nodes: &[PlacedNode]) -> Vec<Id> {
+fn box_ids(scope: Id, nodes: &Nodes) -> Vec<Id> {
     let mut seen: HashMap<&str, u32> = HashMap::new();
     nodes
         .iter()
@@ -2138,7 +2152,7 @@ fn box_ids(scope: Id, nodes: &[PlacedNode]) -> Vec<Id> {
 }
 
 /// The boxes the pointer is on or pressing, from egui's last hit test.
-fn hot_boxes(ctx: &egui::Context, nodes: &[PlacedNode], box_ids: &[Id]) -> Vec<Hot> {
+fn hot_boxes(ctx: &egui::Context, nodes: &Nodes, box_ids: &[Id]) -> Vec<Hot> {
     if ctx.input(|input| input.pointer.latest_pos().is_none()) {
         return Vec::new();
     }
@@ -2147,7 +2161,7 @@ fn hot_boxes(ctx: &egui::Context, nodes: &[PlacedNode], box_ids: &[Id]) -> Vec<H
         .enumerate()
         .filter(|(_, node)| node.paints_box() && !node.senses() && node.kind() != NodeKind::Overlay)
         .filter_map(|(index, _)| {
-            let response = ctx.read_response(box_ids[index])?;
+            let response = ctx.read_response(*box_ids.get(index)?)?;
             response
                 .flags
                 .intersects(Hot::HOVER | Hot::PRESS)
@@ -2161,10 +2175,12 @@ fn hot_boxes(ctx: &egui::Context, nodes: &[PlacedNode], box_ids: &[Id]) -> Vec<H
 }
 
 /// The nearest ancestor of the node at `index` that senses clicks.
-fn nearest_clicker(nodes: &[PlacedNode], index: usize) -> Option<usize> {
-    (0..index)
-        .rev()
-        .find(|&above| nodes[above].end > index && nodes[above].interaction.sensing.clicks())
+fn nearest_clicker(nodes: &Nodes, index: usize) -> Option<usize> {
+    nodes.ancestors(index).find(|&above| {
+        nodes
+            .get(above)
+            .is_some_and(|above| above.interaction.sensing.clicks())
+    })
 }
 
 /// Why a field in the draw closure's `Ui` that lost focus in this pass did,

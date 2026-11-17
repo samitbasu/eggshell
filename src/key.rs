@@ -213,14 +213,15 @@ impl ReadablePath {
     /// Pushes a key, returning the mark to [`Self::pop_to`] afterwards.
     pub(crate) fn push(&mut self, key: &dyn Debug) -> usize {
         let mark = self.0.len();
-        write!(self.0, "/{key:?}").expect("writing to a String cannot fail");
+        // Only the key's own `Debug` can fail; what it wrote is kept.
+        _ = write!(self.0, "/{key:?}");
         mark
     }
 
     /// Pushes a segment that is not a key, such as the kind of an anonymous node.
     pub(crate) fn push_label(&mut self, label: &str) -> usize {
         let mark = self.0.len();
-        write!(self.0, "/<{label}>").expect("writing to a String cannot fail");
+        _ = write!(self.0, "/<{label}>");
         mark
     }
 

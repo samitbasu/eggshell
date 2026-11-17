@@ -13,6 +13,7 @@ use egui::{
 };
 use taffy::Overflow;
 
+use crate::nodes::Nodes;
 use crate::draw::{PixelGrid, add, inset};
 use crate::measure::Content;
 use crate::pipeline::{Flow, PlacedNode};
@@ -189,7 +190,7 @@ const FPS_WINDOW: usize = 30;
 #[derive(Clone, Default)]
 struct Frames {
     pass: u64,
-    dts: Vec<f32>,
+    dts: std::collections::VecDeque<f32>,
 }
 
 impl Frames {
@@ -212,9 +213,9 @@ fn record_frame(ctx: &Context, dt: f32) -> f32 {
         if frames.pass != pass || frames.dts.is_empty() {
             frames.pass = pass;
             if frames.dts.len() == FPS_WINDOW {
-                frames.dts.remove(0);
+                frames.dts.pop_front();
             }
-            frames.dts.push(dt);
+            frames.dts.push_back(dt);
         }
         frames.fps()
     })
@@ -356,14 +357,16 @@ fn readout_corner(ctx: &Context, screen: Rect) -> Align2 {
 const TOLERANCE: f32 = 0.5;
 
 /// For each node, whether its content did not fit.
-pub(crate) fn overflow(ctx: &Context, nodes: &[PlacedNode], prims: &[Option<Prim>]) -> Vec<bool> {
+pub(crate) fn overflow(ctx: &Context, nodes: &Nodes, prims: &[Option<Prim>]) -> Vec<bool> {
     (0..nodes.len())
         .map(|index| overflows(ctx, nodes, prims, index))
         .collect()
 }
 
-fn overflows(ctx: &Context, nodes: &[PlacedNode], prims: &[Option<Prim>], index: usize) -> bool {
-    let node = &nodes[index];
+fn overflows(ctx: &Context, nodes: &Nodes, prims: &[Option<Prim>], index: usize) -> bool {
+    let Some(node) = nodes.node(index) else {
+        return false;
+    };
     if node.end == index + 1 {
         if node.flow == Flow::Hidden {
             return false;
@@ -384,10 +387,12 @@ fn overflows(ctx: &Context, nodes: &[PlacedNode], prims: &[Option<Prim>], index:
     let padding = inset(node.rect(), node.border);
     let clips = |overflow| overflow != Overflow::Visible;
     let (clips_x, clips_y) = (clips(node.overflow.x), clips(node.overflow.y));
-    children(nodes, index)
-        .filter(|&child| nodes[child].flow == Flow::Normal)
+    nodes
+        .children(index)
+        .filter_map(|child| nodes.node(child))
+        .filter(|child| child.flow == Flow::Normal)
         .any(|child| {
-            let rect = nodes[child].rect();
+            let rect = child.rect();
             (!clips_x
                 && (rect.min.x < padding.min.x - TOLERANCE
                     || rect.max.x > padding.max.x + TOLERANCE))
@@ -397,24 +402,18 @@ fn overflows(ctx: &Context, nodes: &[PlacedNode], prims: &[Option<Prim>], index:
         })
 }
 
-fn children(nodes: &[PlacedNode], index: usize) -> impl Iterator<Item = usize> {
-    let end = nodes[index].end;
-    std::iter::successors((index + 1 < end).then_some(index + 1), move |&child| {
-        Some(nodes[child].end).filter(|&next| next < end)
-    })
-}
-
-/// The indices of the nodes that are drawn: those not under a `display: none`.
-fn shown(nodes: &[PlacedNode]) -> impl Iterator<Item = usize> {
+/// The nodes that are drawn, with their indices: those not under a
+/// `display: none`.
+fn shown(nodes: &Nodes) -> impl Iterator<Item = (usize, &PlacedNode)> {
     let mut next = 0;
     std::iter::from_fn(move || {
-        while next < nodes.len() {
+        while let Some(node) = nodes.get(next) {
             let index = next;
-            if nodes[index].flow == Flow::Hidden {
-                next = nodes[index].end;
+            if node.flow == Flow::Hidden {
+                next = node.end.max(index + 1);
             } else {
-                next += 1;
-                return Some(index);
+                next = index + 1;
+                return Some((index, node));
             }
         }
         None
@@ -422,27 +421,27 @@ fn shown(nodes: &[PlacedNode]) -> impl Iterator<Item = usize> {
 }
 
 /// Paints the overlay for one placed tree.
-pub(crate) fn paint(ctx: &Context, nodes: &[PlacedNode], overflows: &[bool]) {
+pub(crate) fn paint(ctx: &Context, nodes: &Nodes, overflows: &[bool]) {
     let grid = PixelGrid {
         pixels_per_point: ctx.pixels_per_point(),
     };
     let painter = ctx.layer_painter(LayerId::new(Order::Debug, Id::NULL.with("eggshell-debug")));
     let width = grid.line_width(0.0);
-    for index in shown(nodes) {
-        let color = if overflows[index] {
+    let overflows_at = |index: usize| overflows.get(index).copied().unwrap_or(false);
+    for (index, node) in shown(nodes) {
+        let color = if overflows_at(index) {
             Debug::OVERFLOW
         } else {
             Debug::OUTLINE
         };
         painter.add(Shape::rect_stroke(
-            grid.rect(nodes[index].rect()),
+            grid.rect(node.rect()),
             0.0,
             Stroke::new(width, color),
             StrokeKind::Inside,
         ));
     }
-    for index in shown(nodes) {
-        let node = &nodes[index];
+    for (_, node) in shown(nodes) {
         let (Some(viewport), Some(plan)) = (node.scroll_viewport(), node.scroll.as_ref()) else {
             continue;
         };
@@ -460,16 +459,15 @@ pub(crate) fn paint(ctx: &Context, nodes: &[PlacedNode], overflows: &[bool]) {
         ));
     }
     let label = ctx.pointer_hover_pos().and_then(|pointer| {
-        let index = shown(nodes)
-            .filter(|&i| nodes[i].rect().contains(pointer))
+        let (index, node) = shown(nodes)
+            .filter(|(_, node)| node.rect().contains(pointer))
             .last()?;
         Some(label(
             &painter,
             ctx.content_rect(),
             pointer,
-            nodes,
-            index,
-            overflows[index],
+            node,
+            overflows_at(index),
         ))
     });
     paint_topmost(ctx, &painter, label);
@@ -479,11 +477,9 @@ fn label(
     painter: &Painter,
     screen: Rect,
     pointer: Pos2,
-    nodes: &[PlacedNode],
-    index: usize,
+    node: &PlacedNode,
     overflows: bool,
 ) -> Shape {
-    let node = &nodes[index];
     let Rect { min, max } = node.rect();
     let mut text = format!(
         "{}\n{:.1}, {:.1} .. {:.1}, {:.1}  ({:.1} x {:.1})",

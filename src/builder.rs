@@ -1052,10 +1052,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ) -> NodeHandle<'_, 'f, A> {
         let path = self.identify(slot);
         let measure: MeasureFn<'f> = Box::new(measure);
+        let at = self.frame.measures.len();
         self.frame.measures.push(measure);
         let parts = Parts {
             id: Some(slot.id),
-            measure: Some(self.frame.measures.len() - 1),
+            measure: Some(at),
             ..Parts::anonymous(NodeKind::Leaf, path)
         };
         let node = self.leaf_node(tw, parts);
@@ -2054,7 +2055,7 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 /// enum Part { Save }
 ///
 /// fn save<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
-///     s.button(key, "Save").tooltip("Saves")
+///     s.button(key, "Save").named("Save the form").tooltip("Saves")
 /// }
 ///
 /// # fn demo(b: &mut eggshell_ui::Builder<'_, '_, App>) {

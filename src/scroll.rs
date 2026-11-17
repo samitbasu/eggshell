@@ -158,7 +158,8 @@ use crate::dnd::EdgeScroll;
 use crate::finite::clamp_vec2;
 use crate::key::Key;
 use crate::layout_tree::LayoutTree;
-use crate::pipeline::{PlacedNode, takes_tab};
+use crate::nodes::Nodes;
+use crate::pipeline::{PlacedNode, ScrollMut, takes_tab};
 use crate::shell::Shell;
 use crate::tw::{Focusability, Tw};
 
@@ -498,7 +499,7 @@ impl Shell {
                 .pending
                 .iter()
                 .filter(|request| {
-                    request.container == Some(scroll) && pass <= request.pass + REQUEST_LIFE
+                    request.container == Some(scroll) && pass <= request.pass.saturating_add(REQUEST_LIFE)
                 })
                 .filter_map(|request| match request.wish {
                     Wish::By(delta) => Some(delta),
@@ -896,7 +897,7 @@ impl Settle {
             .kept
             .with(|kept| std::mem::take(&mut kept.scrolls.pending))
             .into_iter()
-            .filter(|request| pass <= request.pass + REQUEST_LIFE)
+            .filter(|request| pass <= request.pass.saturating_add(REQUEST_LIFE))
             .collect();
         Self {
             pending,
@@ -914,14 +915,13 @@ impl Settle {
     /// Applies what is wanted of the container at `nodes[at]` to its content,
     /// the nodes after it, which are laid out at the plan's offset: moves
     /// them if the offset changes, and publishes the viewport.
-    pub(crate) fn settle(&mut self, nodes: &mut [PlacedNode], at: usize) {
-        let (head, content) = nodes.split_at_mut(at + 1);
-        let node = &mut head[at];
-        let id = node.id().expect("a scroll container is identified");
-        let viewport = node
-            .scroll_viewport()
-            .expect("a scroll container has a plan");
-        let plan = node.scroll.as_mut().expect("a scroll container has a plan");
+    pub(crate) fn settle(&mut self, nodes: &mut Nodes, at: usize) {
+        let Some((node, content)) = nodes.split_after_mut(at) else {
+            return;
+        };
+        let Some(ScrollMut { id, viewport, plan }) = node.as_scroll_mut() else {
+            return;
+        };
         let start = plan.offset;
         let max = limit(plan.content, viewport.size());
         let enabled = plan.axis.enabled();
@@ -995,7 +995,7 @@ impl Settle {
         }
         let published = Viewport {
             rect: viewport,
-            content: content[0].rect(),
+            content: content.first().map_or(Rect::NOTHING, PlacedNode::rect),
         };
         self.shell
             .kept

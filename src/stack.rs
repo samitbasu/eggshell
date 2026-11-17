@@ -31,6 +31,19 @@ pub(crate) struct Open {
     pub(crate) focus: FocusAt,
 }
 
+impl Open {
+    fn new(id: Id, band: Band) -> Self {
+        Self {
+            id,
+            band,
+            pointer: None,
+            restore: None,
+            entered: Entered::Not,
+            focus: FocusAt::Nowhere,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Entered {
     Not,
@@ -58,26 +71,14 @@ impl Stack {
         kept.viewport(viewport, |here| here.stack = self);
     }
 
-    /// The entry of the overlay `id`, appended at the top if it was not open.
-    pub(crate) fn enter(&mut self, id: Id, band: Band) -> (&mut Open, Opening) {
-        let found = self.opens.iter().position(|open| open.id == id);
-        let opening = if found.is_some() {
+    /// Notes the overlay `id` as open, appended at the top if it was not.
+    pub(crate) fn enter(&mut self, id: Id, band: Band) -> Opening {
+        if self.opens.iter().any(|open| open.id == id) {
             Opening::Open
         } else {
+            self.opens.push(Open::new(id, band));
             Opening::Opened
-        };
-        let at = found.unwrap_or_else(|| {
-            self.opens.push(Open {
-                id,
-                band,
-                pointer: None,
-                restore: None,
-                entered: Entered::Not,
-                focus: FocusAt::Nowhere,
-            });
-            self.opens.len() - 1
-        });
-        (&mut self.opens[at], opening)
+        }
     }
 
     /// Forgets the overlays that were not declared this frame, and returns
@@ -103,8 +104,9 @@ impl Stack {
 /// whose ranks are in increasing order.
 fn intact_prefix(ranks: &[usize]) -> usize {
     ranks
-        .windows(2)
-        .position(|pair| pair[1] < pair[0])
+        .iter()
+        .zip(ranks.iter().skip(1))
+        .position(|(before, after)| after < before)
         .map_or(ranks.len(), |at| at + 1)
 }
 
@@ -158,7 +160,7 @@ pub(crate) fn repair(ctx: &Context, shown: &[Drawn], pressed: Option<Id>) {
         if let Some(pressed) = layers.iter().position(|(id, _)| Some(*id) == pressed) {
             intact = intact.min(pressed);
         }
-        for (_, layer) in &layers[intact..] {
+        for (_, layer) in layers.iter().skip(intact) {
             ctx.move_to_top(*layer);
         }
     }

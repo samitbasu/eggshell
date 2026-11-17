@@ -19,6 +19,7 @@ use crate::overlay::{
     Anchor, AnchorLookup, Anchored, Band, Behavior, Focus, MatchWidth, Modal, Outside, Placement,
     Side,
 };
+use crate::nodes::Nodes;
 use crate::pipeline::{Placed, PlacedNode};
 use crate::presence::Staged;
 use crate::region::RegionDecl;
@@ -223,7 +224,7 @@ impl Home {
 /// The root at `index` and its root node.
 pub(crate) fn root_and_node<'a>(
     roots: &'a [PlacedRoot],
-    nodes: &'a [PlacedNode],
+    nodes: &'a Nodes,
     index: usize,
 ) -> Option<(&'a PlacedRoot, &'a PlacedNode)> {
     let root = roots.get(index)?;
@@ -273,22 +274,25 @@ impl PlacedRoot {
 /// it swallows the press that dismisses it, and no overlay it is nested in
 /// does already. A submenu leaves the page to its menu's blocker, so that a
 /// press on the menu reaches the menu's items.
-pub(crate) fn covers_screen(roots: &[PlacedRoot], nodes: &[PlacedNode], root: usize) -> bool {
+pub(crate) fn covers_screen(roots: &[PlacedRoot], nodes: &Nodes, root: usize) -> bool {
     let swallows = |at: usize| {
-        roots[at]
-            .overlay()
-            .is_some_and(|overlay| overlay.swallows(&nodes[roots[at].first]))
+        root_and_node(roots, nodes, at).is_some_and(|(root, node)| {
+            root.overlay()
+                .is_some_and(|overlay| overlay.swallows(node))
+        })
     };
-    swallows(root)
-        && !std::iter::successors(roots[root].parent, |&at| roots[at].parent).any(swallows)
+    swallows(root) && !ancestors(roots, root).any(swallows)
 }
 
-/// The roots of a frame.
-pub(crate) fn root_of(roots: &[PlacedRoot], index: usize) -> usize {
-    roots
-        .iter()
-        .rposition(|root| root.first <= index)
-        .expect("the base root comes first")
+/// The roots the root at `root` was declared in, nearest first.
+pub(crate) fn ancestors(roots: &[PlacedRoot], root: usize) -> impl Iterator<Item = usize> + '_ {
+    let parent = |at: usize| roots.get(at).and_then(|root| root.parent);
+    std::iter::successors(parent(root), move |&at| parent(at))
+}
+
+/// The root the node at `index` is in.
+pub(crate) fn root_of(roots: &[PlacedRoot], index: usize) -> Option<usize> {
+    roots.iter().rposition(|root| root.first <= index)
 }
 
 /// The roots one pass draws, with one viewport's input: those at `home`,
@@ -324,7 +328,7 @@ impl Here {
 /// press that raises a layer ask it, so they cannot disagree with what the
 /// pointer reaches. Whether a press dismisses an overlay is another question,
 /// which `dismissals` answers.
-pub(crate) fn root_at(roots: &[PlacedRoot], nodes: &[PlacedNode], p: Pos2, here: Here) -> usize {
+pub(crate) fn root_at(roots: &[PlacedRoot], nodes: &Nodes, p: Pos2, here: Here) -> usize {
     let overlay = stacked_top_down(roots, here).into_iter().find(|&index| {
         root_and_node(roots, nodes, index).is_some_and(|(root, node)| {
             root.overlay()

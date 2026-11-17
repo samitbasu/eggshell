@@ -457,14 +457,14 @@ impl Tops {
     fn len(&self) -> usize {
         match self {
             Self::Fixed { rows, .. } => *rows,
-            Self::Measured { offsets } => offsets.len() - 1,
+            Self::Measured { offsets } => offsets.len().saturating_sub(1),
         }
     }
 
     fn top(&self, at: usize) -> f32 {
         match self {
             Self::Fixed { height, .. } => at as f32 * height,
-            Self::Measured { offsets } => offsets[at],
+            Self::Measured { offsets } => offsets.get(at).or(offsets.last()).copied().unwrap_or(0.0),
         }
     }
 
@@ -488,12 +488,13 @@ impl Tops {
 pub(crate) trait Rows<'f, A> {
     fn len(&self) -> usize;
     /// The key of row `at` in the height cache.
-    fn key(&self, at: usize) -> IdSalt;
+    fn key(&self, at: usize) -> Option<IdSalt>;
     /// The id row `at` has when built under `base`.
-    fn id(&self, base: Id, at: usize) -> Id;
+    fn id(&self, base: Id, at: usize) -> Option<Id>;
     /// Builds row `at` under its own key with `classes`, returning its id
     /// and node.
-    fn build(&mut self, b: &mut Builder<'_, 'f, A>, at: usize, classes: Tw) -> (Id, NodeId);
+    fn build(&mut self, b: &mut Builder<'_, 'f, A>, at: usize, classes: Tw)
+    -> Option<(Id, NodeId)>;
 }
 
 /// What a listbox's row wrappers do.
@@ -529,21 +530,26 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
         self.rows.len()
     }
 
-    fn key(&self, at: usize) -> IdSalt {
-        row_key(&self.rows[at])
+    fn key(&self, at: usize) -> Option<IdSalt> {
+        self.rows.get(at).map(row_key)
     }
 
-    fn id(&self, base: Id, at: usize) -> Id {
-        child_id(base, &self.rows[at])
+    fn id(&self, base: Id, at: usize) -> Option<Id> {
+        self.rows.get(at).map(|row| child_id(base, row))
     }
 
-    fn build(&mut self, b: &mut Builder<'_, 'f, A>, at: usize, classes: Tw) -> (Id, NodeId) {
-        let row = self.rows[at];
+    fn build(
+        &mut self,
+        b: &mut Builder<'_, 'f, A>,
+        at: usize,
+        classes: Tw,
+    ) -> Option<(Id, NodeId)> {
+        let row = *self.rows.get(at)?;
         let item = &mut self.item;
         let classes = classes.merge(self.classes.clone());
         let Some(listbox) = &self.listbox else {
             let handle = b.div_id(row, classes, |s| item(s, row));
-            return (handle.id(), handle.node());
+            return Some((handle.id(), handle.node()));
         };
         let (list, kept) = (listbox.list, listbox.kept.clone());
         let on_activate = listbox.on_activate.clone();
@@ -579,7 +585,7 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
                 });
             }
         });
-        (handle.id(), handle.node())
+        Some((handle.id(), handle.node()))
     }
 }
 
@@ -844,13 +850,15 @@ impl<'f, A> ListRun<'f, A> {
         } else {
             None
         };
-        if let Some(at) = to {
-            select(kept, list, self.rows.key(at), self.rows.id(list, at));
+        if let Some(at) = to
+            && let (Some(key), Some(id)) = (self.rows.key(at), self.rows.id(list, at))
+        {
+            select(kept, list, key, id);
             kept.with(|kept| {
                 kept.scrolls.rows.insert(
                     list,
                     ScrollTo {
-                        row: self.rows.key(at),
+                        row: key,
                         align: None,
                     },
                 );
@@ -874,7 +882,7 @@ impl<'f, A> ListRun<'f, A> {
             && let (RowHeights::Measured { estimate }, Tops::Measured { offsets }) =
                 (self.plan.rows, &mut self.plan.tops)
         {
-            let rows = offsets.len() - 1;
+            let rows = offsets.len().saturating_sub(1);
             running_offsets(std::iter::repeat_n(estimate, rows), offsets);
         }
         hold
@@ -883,13 +891,13 @@ impl<'f, A> ListRun<'f, A> {
     /// The row whose key is `key`, looked for at `hint` first.
     fn find(&self, key: IdSalt, hint: usize) -> Option<usize> {
         let key_at = |at: usize| match self.plan.keys.get(at) {
-            Some(&key) => key,
+            Some(&key) => Some(key),
             None => self.rows.key(at),
         };
-        if hint < self.rows.len() && key_at(hint) == key {
+        if hint < self.rows.len() && key_at(hint) == Some(key) {
             return Some(hint);
         }
-        (0..self.rows.len()).find(|&at| key_at(at) == key)
+        (0..self.rows.len()).find(|&at| key_at(at) == Some(key))
     }
 
     /// The rows built in the last frame that are kept built: one with the
@@ -951,10 +959,13 @@ impl<'f, A> ListRun<'f, A> {
                        at: usize,
                        flow: Flow| {
             let before = b.roots_declared();
-            let (id, node) = rows.build(b, at, classes.clone());
+            let (Some((id, node)), Some(key)) = (rows.build(b, at, classes.clone()), rows.key(at))
+            else {
+                return;
+            };
             built.push(Built {
                 at,
-                key: rows.key(at),
+                key,
                 id,
                 node,
                 flow,
@@ -1163,8 +1174,10 @@ pub(crate) fn running_offsets(heights: impl IntoIterator<Item = f32>, into: &mut
 /// The rows that reach into `span`, given the list's running offsets.
 pub(crate) fn visible(offsets: &[f32], span: Span) -> Range<usize> {
     let rows = offsets.len().saturating_sub(1);
-    let first = offsets[1..].partition_point(|&bottom| bottom <= span.start);
-    let end = offsets[..rows].partition_point(|&top| top < span.end);
+    let bottoms = offsets.get(1..).unwrap_or_default();
+    let tops = offsets.get(..rows).unwrap_or_default();
+    let first = bottoms.partition_point(|&bottom| bottom <= span.start);
+    let end = tops.partition_point(|&top| top < span.end);
     first..end.max(first)
 }
 

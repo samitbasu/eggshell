@@ -225,7 +225,7 @@ impl ListMove {
             Self::Last => last,
             Self::Next => current.map_or(visible.start, |at| at + 1),
             Self::Previous => current.map_or(from(false), |at| at.saturating_sub(1)),
-            Self::PageDown => current.map_or(from(true), |at| at + page),
+            Self::PageDown => current.map_or(from(true), |at| at.saturating_add(page)),
             Self::PageUp => current.map_or(from(false), |at| at.saturating_sub(page)),
         };
         Some(to.min(last))

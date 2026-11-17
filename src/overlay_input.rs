@@ -11,17 +11,19 @@ use std::collections::HashMap;
 
 use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect};
 
+use crate::nodes::Nodes;
 use crate::actions::{self, Action};
 use crate::dismiss::{
     Boundary, Cause, FocusAt, Input, Layer, Seen, Trigger, dismissals, esc_target,
 };
-use crate::draw::children_of;
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
 use crate::nav::{self, Menu};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Behavior, Focus, Nav, Outside};
 use crate::pipeline::{DismissFn, PlacedNode};
-use crate::roots::{Form, Here, PlacedOverlay, PlacedRoot, root_at, stacked_top_down};
+use crate::roots::{
+    Form, Here, PlacedOverlay, PlacedRoot, ancestors, root_and_node, root_at, stacked_top_down,
+};
 use crate::shell::Shell;
 use crate::stack::{Entered, Stack};
 
@@ -46,7 +48,7 @@ pub(crate) fn press_origin(ctx: &Context) -> Option<Pos2> {
 /// Whether the pointer is on an overlay that leaves focus on its anchor.
 pub(crate) fn pointer_on(
     ctx: &Context,
-    nodes: &[PlacedNode],
+    nodes: &Nodes,
     roots: &[PlacedRoot],
     here: Here,
 ) -> PointerOn {
@@ -54,8 +56,10 @@ pub(crate) fn pointer_on(
         return PointerOn::Elsewhere;
     };
     let root = root_at(roots, nodes, at, here);
-    let on_it = roots[root].overlay().is_some_and(|overlay| {
-        overlay.behavior.focus == Focus::Stay && nodes[roots[root].first].rect().contains(at)
+    let on_it = root_and_node(roots, nodes, root).is_some_and(|(root, node)| {
+        root.overlay().is_some_and(|overlay| {
+            overlay.behavior.focus == Focus::Stay && node.rect().contains(at)
+        })
     });
     if on_it {
         PointerOn::StayingOverlay
@@ -139,7 +143,7 @@ impl Open<'_> {
 }
 
 fn is_nested_in(roots: &[PlacedRoot], root: usize, ancestor: usize) -> bool {
-    std::iter::successors(roots[root].parent, |&at| roots[at].parent).any(|at| at == ancestor)
+    ancestors(roots, root).any(|at| at == ancestor)
 }
 
 /// The attached overlays, the one on the bottom first. An overlay that is
@@ -161,25 +165,21 @@ fn overlays_where(
     here: Here,
     keep: impl Fn(&PlacedOverlay) -> bool,
 ) -> Vec<Open<'_>> {
-    let order: Vec<usize> = stacked_top_down(roots, here)
+    let order: Vec<(usize, &PlacedOverlay)> = stacked_top_down(roots, here)
         .into_iter()
         .rev()
-        .filter(|&root| {
-            roots
-                .get(root)
-                .and_then(PlacedRoot::overlay)
-                .is_some_and(|overlay| !overlay.staged.is_exiting() && keep(overlay))
-        })
+        .filter_map(|root| Some((root, roots.get(root)?.overlay()?)))
+        .filter(|(_, overlay)| !overlay.staged.is_exiting() && keep(overlay))
         .collect();
     order
         .iter()
-        .map(|&root| Open {
+        .map(|&(root, overlay)| Open {
             root,
-            overlay: roots[root].overlay().expect("an overlay root"),
+            overlay,
             nested: order
                 .iter()
-                .filter(|&&other| is_nested_in(roots, other, root))
-                .filter_map(|&other| Some(roots[other].overlay()?.id))
+                .filter(|&&(other, _)| is_nested_in(roots, other, root))
+                .map(|(_, other)| other.id)
                 .collect(),
         })
         .collect()
@@ -194,15 +194,16 @@ pub(crate) fn topmost_root(roots: &[PlacedRoot], here: Here) -> usize {
 
 /// The box of the overlay at `root`: the root's rect, or for a modal, whose
 /// root is the scrim, what its content takes of it.
-fn box_of(nodes: &[PlacedNode], roots: &[PlacedRoot], root: usize) -> egui::Rect {
-    let first = roots[root].first;
-    match roots[root].overlay().map(|overlay| overlay.form) {
-        Some(Form::Modal(_)) => children_of(nodes, first)
-            .into_iter()
-            .fold(egui::Rect::NOTHING, |rect, child| {
-                rect.union(nodes[child].rect())
-            }),
-        _ => nodes[first].rect(),
+fn box_of(nodes: &Nodes, roots: &[PlacedRoot], root: usize) -> egui::Rect {
+    let Some((root, node)) = root_and_node(roots, nodes, root) else {
+        return egui::Rect::NOTHING;
+    };
+    match root.overlay().map(|overlay| overlay.form) {
+        Some(Form::Modal(_)) => nodes
+            .children(root.first)
+            .filter_map(|child| nodes.node(child))
+            .fold(egui::Rect::NOTHING, |rect, child| rect.union(child.rect())),
+        _ => node.rect(),
     }
 }
 
@@ -211,7 +212,7 @@ fn box_of(nodes: &[PlacedNode], roots: &[PlacedRoot], root: usize) -> egui::Rect
 fn layers_of(
     ctx: &Context,
     open: &[Open<'_>],
-    nodes: &[PlacedNode],
+    nodes: &Nodes,
     roots: &[PlacedRoot],
     mut focus: impl FnMut(&Open<'_>) -> (FocusAt, FocusAt),
 ) -> Vec<Layer> {
@@ -221,13 +222,18 @@ fn layers_of(
             let overlay = open.overlay;
             let (focus_before, focus_now) = focus(open);
             Layer {
-                parent: roots[open.root].parent.and_then(position),
+                parent: roots
+                    .get(open.root)
+                    .and_then(|root| root.parent)
+                    .and_then(position),
                 rect: box_of(nodes, roots, open.root),
                 boundary: match overlay.form {
                     Form::Modal(_) => Boundary::Scrim,
                     Form::Floating(_) => Boundary::Open,
                 },
-                cancel: actions::button_in(nodes, roots[open.root].first, Action::Cancel),
+                cancel: roots
+                    .get(open.root)
+                    .and_then(|root| actions::button_in(nodes, root.first, Action::Cancel)),
                 trigger: trigger_of(ctx, overlay),
                 band: overlay.band,
                 dismiss_on: overlay.behavior.dismiss_on,
@@ -281,7 +287,7 @@ enum EscapeGoes {
 /// The one place Esc's destination is decided: the topmost overlay that takes
 /// it (`dismissals` then dismisses it or presses its cancel button), else the
 /// window's cancel button.
-fn escape_goes(layers: &[Layer], nodes: &[PlacedNode], input: &Input) -> EscapeGoes {
+fn escape_goes(layers: &[Layer], nodes: &Nodes, input: &Input) -> EscapeGoes {
     if !input.escape || input.drag_live {
         return EscapeGoes::Nobody;
     }
@@ -367,7 +373,7 @@ pub(crate) struct Keys {
 pub(crate) fn claim_keys(
     ctx: &Context,
     kept: &Handle,
-    nodes: &[PlacedNode],
+    nodes: &Nodes,
     (roots, here): (&[PlacedRoot], Here),
     drag: Drag,
 ) -> Keys {
@@ -430,7 +436,7 @@ pub(crate) fn claim_keys(
 pub(crate) struct Frame<'a> {
     pub(crate) ctx: &'a Context,
     pub(crate) kept: &'a Handle,
-    pub(crate) nodes: &'a [PlacedNode],
+    pub(crate) nodes: &'a Nodes,
     pub(crate) roots: &'a [PlacedRoot],
     pub(crate) here: Here,
     pub(crate) subtrees: &'a [(Id, Box<[Id]>)],
@@ -530,8 +536,8 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         {
             entry.entered = Entered::Yet;
             if enters_focus(open.overlay.behavior, source)
-                && let Some(first) =
-                    opening_focus(ctx, nodes, roots[open.root].first, subtrees, open)
+                && let Some(root) = roots.get(open.root)
+                && let Some(first) = opening_focus(ctx, nodes, root.first, subtrees, open)
             {
                 ctx.memory_mut(|memory| memory.request_focus(first));
             } else if open.holds_tab()
@@ -556,7 +562,10 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             id: open.overlay.id,
             nav: open.overlay.behavior.nav,
             wrap: open.overlay.behavior.nav.wrap(),
-            items: items(ctx, nodes, roots[open.root].first),
+            items: roots
+                .get(open.root)
+                .map(|root| items(ctx, nodes, root.first))
+                .unwrap_or_default(),
             own: subtrees
                 .iter()
                 .find(|(node, _)| *node == open.overlay.id)
@@ -628,7 +637,7 @@ fn enters_focus(behavior: Behavior, source: Source) -> bool {
 /// first declared is the one.
 fn opening_focus(
     ctx: &Context,
-    nodes: &[PlacedNode],
+    nodes: &Nodes,
     first: usize,
     subtrees: &[(Id, Box<[Id]>)],
     open: &Open<'_>,
@@ -637,7 +646,8 @@ fn opening_focus(
         .iter()
         .find(|(node, _)| *node == open.overlay.id)
         .map(|(_, focusable)| &**focusable)?;
-    let mut marked = nodes[first..nodes[first].end]
+    let mut marked = nodes
+        .subtree(first)
         .iter()
         .filter(|node| node.focuses_on_open())
         .filter_map(PlacedNode::id);
@@ -650,7 +660,7 @@ fn opening_focus(
             || {
                 format!(
                     "two nodes of the overlay {} are marked `focus_on_open`; the first takes focus",
-                    nodes[first].path()
+                    nodes.node(first).map_or("", PlacedNode::path)
                 )
             },
         );
@@ -662,8 +672,9 @@ fn opening_focus(
 
 /// The items of the overlay whose root is `nodes[first]`, in paint order,
 /// that take input, where they were laid out.
-fn items(ctx: &Context, nodes: &[PlacedNode], first: usize) -> Vec<(Id, Rect)> {
-    nodes[first..nodes[first].end]
+fn items(ctx: &Context, nodes: &Nodes, first: usize) -> Vec<(Id, Rect)> {
+    nodes
+        .subtree(first)
         .iter()
         .filter(|node| node.is_item())
         .filter_map(|node| Some((node.id()?, node.rect())))

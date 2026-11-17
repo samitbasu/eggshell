@@ -12,6 +12,7 @@
 
 use egui::{Context, EventFilter, Id, Key, Vec2};
 
+use crate::nodes::Nodes;
 use crate::kept::Handle;
 use crate::pipeline::PlacedNode;
 use crate::shell::Shell;
@@ -46,7 +47,7 @@ impl Target<'_> {
 
 /// The container the keys act on: the innermost holding the focus, else, if
 /// nothing has it, the one last pressed in.
-fn target<'a>(ctx: &Context, kept: &Handle, nodes: &'a [PlacedNode]) -> Option<Target<'a>> {
+fn target<'a>(ctx: &Context, kept: &Handle, nodes: &'a Nodes) -> Option<Target<'a>> {
     let scrollers = || {
         nodes
             .iter()
@@ -76,7 +77,7 @@ pub(crate) struct Keys {
 
 /// Remembers the container a press landed in, the innermost whose viewport
 /// holds it, or that it landed in none.
-pub(crate) fn note_press(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
+pub(crate) fn note_press(ctx: &Context, kept: &Handle, nodes: &Nodes) {
     let Some(at) = ctx.input(|input| {
         input
             .pointer
@@ -97,7 +98,7 @@ pub(crate) fn note_press(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
 /// Keeps the focused widget's arrow keys from moving the focus when they
 /// scroll the container around it. Run before the widgets are drawn: one that
 /// holds the arrows itself sets its own filter after.
-pub(crate) fn hold_arrows(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
+pub(crate) fn hold_arrows(ctx: &Context, kept: &Handle, nodes: &Nodes) {
     let Some(focused) = ctx.memory(|memory| memory.focused()) else {
         return;
     };
@@ -240,7 +241,7 @@ fn take(ctx: &Context, key: Key, chord: Chord) -> usize {
 }
 
 /// Scrolls the container the keys pressed this frame act on.
-pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
+pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &Nodes) {
     if ctx.text_edit_focused() {
         return;
     }

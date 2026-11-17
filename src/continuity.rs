@@ -333,17 +333,18 @@ pub struct Violation {
 impl fmt::Display for Violation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self { path, frame, kind } = self;
+        let (previous, next) = (frame.saturating_sub(1), frame.saturating_add(1));
         match kind {
             ViolationKind::Teleport { before, after } => write!(
                 f,
                 "teleport: {path} was painted at {before:?} in frame {} and at {after:?} in frame {frame}",
-                frame - 1
+                previous
             ),
             ViolationKind::Gap => write!(
                 f,
                 "gap: {path} is painted in frames {} and {} but not in frame {frame}",
-                frame - 1,
-                frame + 1
+                previous,
+                next
             ),
             ViolationKind::OpacityBlip {
                 before,
@@ -352,19 +353,19 @@ impl fmt::Display for Violation {
             } => write!(
                 f,
                 "blip: {path} has opacity {before} in frame {}, {during} in frame {frame} and {after} in frame {}",
-                frame - 1,
-                frame + 1
+                previous,
+                next
             ),
             ViolationKind::OffPath { expected, actual } => write!(
                 f,
                 "off path: {path} slid from frame {} to frame {frame} so that its offset should move by {expected:?} but moved by {actual:?}",
-                frame - 1
+                previous
             ),
             ViolationKind::Regressed { before, after } => write!(
                 f,
                 "regressed: the slide of {path} went from progress {} in frame {} to {} in frame {frame}",
                 f32::from(*before),
-                frame - 1,
+                previous,
                 f32::from(*after)
             ),
             ViolationKind::DoublePaint { times } => {
@@ -380,7 +381,7 @@ impl fmt::Display for Violation {
             ViolationKind::Resized { before, after } => write!(
                 f,
                 "resized: {path} went from size {before:?} in frame {} to {after:?} in frame {frame}",
-                frame - 1
+                previous
             ),
             ViolationKind::OffScreen { rect, bounds } => write!(
                 f,
@@ -389,7 +390,7 @@ impl fmt::Display for Violation {
             ViolationKind::Reflip { before, after } => write!(
                 f,
                 "reflip: overlay {path} went from side {before:?} in frame {} to {after:?} in frame {frame}, though its anchor, natural size and bounds did not change",
-                frame - 1
+                previous
             ),
         }
     }
@@ -429,6 +430,15 @@ pub fn leaves_bounds(rect: Rect, bounds: Rect) -> bool {
         hi - lo <= max - min + BOUNDS_EPSILON
             && (lo < min - BOUNDS_EPSILON || hi > max + BOUNDS_EPSILON)
     })
+}
+
+/// Each item after the first, with its index and the item before it.
+fn pairs<T>(items: &[T]) -> impl Iterator<Item = (usize, &T, &T)> {
+    items
+        .iter()
+        .zip(items.iter().skip(1))
+        .enumerate()
+        .map(|(i, (before, after))| (i + 1, before, after))
 }
 
 fn moved(a: Rect, b: Rect) -> bool {
@@ -568,8 +578,7 @@ impl Timeline {
         let step = f32::from(self.max_step);
         let mut found = Vec::new();
         let frames = self.by_id();
-        for (k, pair) in frames.windows(2).enumerate().map(|(i, w)| (i + 1, w)) {
-            let (before, after) = (&pair[0], &pair[1]);
+        for (k, before, after) in pairs(&frames) {
             if self.allowed_frames.contains(&k) {
                 continue;
             }
@@ -584,10 +593,12 @@ impl Timeline {
                 let carried = carried_by_retarget(prev, now);
                 let moved_by_ancestors = now.ancestors - prev.ancestors;
                 let moved_by_scrolling = now.scrolled - prev.scrolled;
-                let corners = |rect: Rect| [rect.min, rect.max];
-                let jumps = (0..2).any(|c| {
-                    let p = corners(now.painted_rect)[c] - corners(prev.painted_rect)[c] - carried;
-                    let l = corners(now.layout_rect)[c] - corners(prev.layout_rect)[c];
+                let corners = |now: Rect, prev: Rect| [(now.min, prev.min), (now.max, prev.max)];
+                let painted = corners(now.painted_rect, prev.painted_rect);
+                let laid = corners(now.layout_rect, prev.layout_rect);
+                let jumps = painted.into_iter().zip(laid).any(|((pn, pp), (ln, lp))| {
+                    let p = pn - pp - carried;
+                    let l = ln - lp;
                     let own_offset_change: Vec2 = p - l - moved_by_ancestors;
                     let jumped = p.length() > step;
                     match now.motion {
@@ -622,8 +633,7 @@ impl Timeline {
         let step = f32::from(self.max_resize);
         let mut found = Vec::new();
         let frames = self.by_id();
-        for (k, pair) in frames.windows(2).enumerate().map(|(i, w)| (i + 1, w)) {
-            let (before, after) = (&pair[0], &pair[1]);
+        for (k, before, after) in pairs(&frames) {
             if self.allowed_frames.contains(&k) {
                 continue;
             }
@@ -668,8 +678,7 @@ impl Timeline {
         let tolerance = f32::from(self.slide_tolerance);
         let mut found = Vec::new();
         let frames = self.by_id();
-        for (k, pair) in frames.windows(2).enumerate().map(|(i, w)| (i + 1, w)) {
-            let (before, after) = (&pair[0], &pair[1]);
+        for (k, before, after) in pairs(&frames) {
             if self.allowed_frames.contains(&k) {
                 continue;
             }
@@ -716,12 +725,14 @@ impl Timeline {
         let step = f32::from(self.max_opacity_step);
         let by_id = self.by_id();
         let mut found = Vec::new();
-        for k in 1..self.frames.len().saturating_sub(1) {
-            let (prev, now, next) = (&by_id[k - 1], &by_id[k], &by_id[k + 1]);
+        let triples = pairs(&by_id).zip(by_id.iter().skip(2));
+        for ((k, prev, now), next) in triples.take(self.frames.len().saturating_sub(2)) {
             for (id, before) in prev {
                 let Some(after) = next.get(id) else { continue };
                 let kind = match now.get(id) {
-                    None if self.culled[k].contains(id) => continue,
+                    None if self.culled.get(k).is_some_and(|culled| culled.contains(id)) => {
+                        continue;
+                    }
                     None => ViolationKind::Gap,
                     Some(during) => {
                         let (a, d, z) = (
@@ -783,8 +794,8 @@ impl Timeline {
         }
         let mut found = Vec::new();
         let frames = self.by_id();
-        for k in (len - window + 1)..len {
-            let (before, after) = (&frames[k - 1], &frames[k]);
+        let first = len.saturating_sub(window).saturating_add(1);
+        for (k, before, after) in pairs(&frames).filter(|&(k, ..)| k >= first) {
             for (id, now) in after {
                 let Some(prev) = before.get(id) else { continue };
                 if moved(prev.layout_rect, now.layout_rect) {
@@ -819,7 +830,7 @@ impl Timeline {
                 continue;
             }
             for overlay in overlays {
-                let Some(node) = frames[k].get(&overlay.id) else {
+                let Some(node) = frames.get(k).and_then(|frame| frame.get(&overlay.id)) else {
                     continue;
                 };
                 if self.allowed_nodes.iter().any(|allowed| allowed.names(node)) {
@@ -850,17 +861,12 @@ impl Timeline {
     pub fn reflips(&self) -> Vec<Violation> {
         let mut found = Vec::new();
         let frames = self.by_id();
-        for (k, pair) in self
-            .overlays
-            .windows(2)
-            .enumerate()
-            .map(|(i, w)| (i + 1, w))
-        {
+        for (k, before, after) in pairs(&self.overlays) {
             if self.allowed_frames.contains(&k) {
                 continue;
             }
-            for now in &pair[1] {
-                let Some(prev) = pair[0].iter().find(|prev| prev.id == now.id) else {
+            for now in after {
+                let Some(prev) = before.iter().find(|prev| prev.id == now.id) else {
                     continue;
                 };
                 let (Some(before), Some(after)) = (prev.side, now.side) else {
@@ -873,8 +879,9 @@ impl Timeline {
                 {
                     continue;
                 }
-                if frames[k]
-                    .get(&now.id)
+                if frames
+                    .get(k)
+                    .and_then(|frame| frame.get(&now.id))
                     .is_some_and(|node| self.allowed_nodes.iter().any(|a| a.names(node)))
                 {
                     continue;

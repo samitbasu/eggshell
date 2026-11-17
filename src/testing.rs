@@ -178,6 +178,7 @@ pub use crate::continuity::{
     Interrupted, Motion, NodeFrame, NodeRef, OverlayFrame, Points, Slide, SlideId, Timeline,
     Violation, ViolationKind, laid_out_rect, leaves_bounds, record,
 };
+use crate::nodes::Nodes;
 use crate::key::{Key, child_id};
 pub use crate::pipeline::Placed;
 use crate::pipeline::{LayoutState, PlacedNode};
@@ -457,7 +458,7 @@ impl From<PixelsPerPoint> for f32 {
 
 #[derive(Clone, Copy)]
 struct Layout<'p> {
-    nodes: &'p [PlacedNode],
+    nodes: &'p Nodes,
     prims: &'p [Option<Prim>],
     by_id: &'p HashMap<Id, usize>,
 }
@@ -553,7 +554,7 @@ impl<A> Placed<A> {
             Id(Id),
             Anonymous(&'p str, usize),
         }
-        fn identities(nodes: &[PlacedNode]) -> Vec<(Identity<'_>, &PlacedNode)> {
+        fn identities(nodes: &Nodes) -> Vec<(Identity<'_>, &PlacedNode)> {
             let mut seen: HashMap<&str, usize> = HashMap::new();
             nodes
                 .iter()
