@@ -3,7 +3,7 @@
 //!
 //! [`Shadcn`] is a preset: a [`ShadcnStyle`] (which of shadcn's styles, such as
 //! [`Vega`](ShadcnStyle::Vega) or [`Lyra`](ShadcnStyle::Lyra)), a
-//! [`ThemeColor`] (shadcn's theme colour) and an egui theme (light or dark),
+//! [`Palette`] (shadcn's base and theme colours) and an egui theme (light or dark),
 //! chosen independently. Nothing here runs unless the application calls
 //! [`Shadcn::apply`]: the library never changes egui's style on its own.
 //!
@@ -21,14 +21,14 @@
 //! the tokens in the context, for [`tokens`] and [`Shadcn::of`].
 //!
 //! ```
-//! use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor};
+//! use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor};
 //!
 //! let ctx = egui::Context::default();
 //! // Once at startup: shadcn's default preset, light and dark.
 //! Shadcn::apply_both(&ctx);
 //! // Or every frame, to switch style or colour at run time; a no-op while
 //! // nothing changes.
-//! Shadcn::apply_both_with(&ctx, ShadcnStyle::Lyra, ThemeColor::Blue);
+//! Shadcn::apply_both_with(&ctx, ShadcnStyle::Lyra, Palette::new().theme(ThemeColor::Blue));
 //! // The tokens, for the application's own colours.
 //! let background = Shadcn::of(&ctx).tokens.background;
 //! # let _ = background;
@@ -81,16 +81,20 @@
 //! so a hover on a `muted` surface needs the half-strength variant of the
 //! selected colour, not a different token.
 
+mod contrast;
 mod drag_chip;
 mod egui_map;
 mod fonts;
+mod palette;
 mod preset;
 mod styles;
 mod theme_color;
 mod tokens;
 
+pub use contrast::{ContrastPair, ContrastRatio, REGISTRY_MISSES, RegistryMiss};
 pub use drag_chip::{DragChip, drag_chip};
 pub use fonts::FontSet;
+pub use palette::{BaseColor, Palette};
 pub use preset::{Shadcn, tokens};
 pub use styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, ShadcnStyle};
 pub use theme_color::ThemeColor;

@@ -2,7 +2,7 @@
 //! `style-lyra.css`, and both fill the same contract.
 
 use eggshell_ui::contract::{Size, Style, Variant};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
+use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
 use egui::{Color32, Theme, vec2};
 
 fn style_of(theme: Theme, style: ShadcnStyle) -> Style {
@@ -97,7 +97,7 @@ fn style_light_dark_and_theme_colour_vary_independently() {
         let sizes = |theme, color| {
             let preset = Shadcn::for_theme(theme)
                 .with_style(style)
-                .theme_color(color);
+                .with_palette(Palette::new().theme(color));
             let s = preset.style();
             (
                 *s.button.sizes.get(Size::DEFAULT),
@@ -105,7 +105,7 @@ fn style_light_dark_and_theme_colour_vary_independently() {
                 s.focus.width,
             )
         };
-        let reference = sizes(Theme::Light, ThemeColor::Neutral);
+        let reference = sizes(Theme::Light, ThemeColor::Base);
         for theme in [Theme::Light, Theme::Dark] {
             for color in ThemeColor::ALL {
                 assert_eq!(
@@ -131,9 +131,9 @@ fn vega_with_a_style_applied_is_the_plain_preset() {
 #[test]
 fn the_ring_is_the_neutral_ring_under_every_theme_colour() {
     for theme in [Theme::Light, Theme::Dark] {
-        let neutral = Shadcn::for_theme(theme).theme_color(ThemeColor::Neutral);
+        let neutral = Shadcn::for_theme(theme);
         for color in ThemeColor::ALL {
-            let preset = Shadcn::for_theme(theme).theme_color(color);
+            let preset = Shadcn::for_theme(theme).with_palette(Palette::new().theme(color));
             assert_eq!(
                 preset.tokens.ring, neutral.tokens.ring,
                 "{theme:?} {color:?}: the registry's coloured themes leave `ring` to the base colour"

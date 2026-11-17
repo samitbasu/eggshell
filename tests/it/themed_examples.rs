@@ -2,7 +2,7 @@
 //! their main surfaces carry that theme's tokens. Shapes only, no GPU.
 
 use eggshell_ui::{Builder, LayoutState, NodeKind, Placed, PlacedNode};
-use eggshell_ui_shadcn::{Shadcn, ThemeColor, Tokens};
+use eggshell_ui_shadcn::{Palette, Shadcn, ThemeColor, Tokens};
 use egui::{Color32, Context, ImageSource, Rect, Theme, pos2};
 
 #[path = "../../examples/common/mod.rs"]
@@ -237,7 +237,7 @@ fn controls_gallery_uses_the_example_accent() {
         assert_eq!(
             primary,
             Tokens::for_theme(theme)
-                .with_theme_color(ThemeColor::Blue, theme)
+                .with_palette(Palette::new().theme(ThemeColor::Blue), theme)
                 .primary,
             "{theme:?}"
         );

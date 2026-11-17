@@ -71,6 +71,8 @@ pub enum Problem {
     ShellOutsideDraw,
     /// TODO(prose): a node accessor of [`NodeUi`](crate::NodeUi) on a `Ui` no draw closure was given.
     NodeUiOutsideDraw,
+    /// TODO(prose): a text colour on a surface under WCAG 2's AA contrast.
+    LowContrast,
     /// TODO(prose): an invariant of the library that did not hold, by name.
     Internal(&'static str),
 }
