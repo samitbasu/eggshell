@@ -67,7 +67,7 @@ use std::time::Duration;
 
 use egui::{Id, Response, Role, Ui, WidgetInfo};
 
-pub use button::{ButtonChain, ButtonOptions, Face, TextFace};
+pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;

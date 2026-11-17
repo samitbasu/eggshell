@@ -35,16 +35,6 @@ pub type ToggleItemChain<'a, 'f, A, T> = ToggleChain<'a, 'f, A, T, Member<A, T>>
 ///         .on_change(|app, italic| app.italic = italic);
 /// }
 /// ```
-///
-/// TODO(prose)
-///
-/// ```compile_fail
-/// use eggshell_ui::Builder;
-///
-/// fn view(b: &mut Builder<'_, '_, ()>, on: bool) {
-///     b.toggle("bold", "B", on).named("Bold").on_change(|_, _| {});
-/// }
-/// ```
 #[must_use = "a toggle is not added until you call `.on_change(..)`"]
 pub struct ToggleChain<'a, 'f, A, T, V = Unset> {
     button: ButtonChain<'a, 'f, A>,
@@ -125,6 +115,13 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
     /// Shown while the pointer hovers the control, also when it is disabled.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.button = self.button.tooltip(text);
+        self
+    }
+
+    /// TODO(prose): the accessible name, in place of the face's, as
+    /// `aria-label` is.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.button = self.button.named(name);
         self
     }
 

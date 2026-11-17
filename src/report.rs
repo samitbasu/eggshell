@@ -46,7 +46,7 @@ pub enum Problem {
     GroupHoverWithoutGroup,
     /// TODO(prose): a group that senses nothing, so is never hovered.
     GroupSensesNothing,
-    /// TODO(prose): a control with no label and no name.
+    /// TODO(prose): a control with no label and no name. Debug builds only.
     Unnamed,
     /// TODO(prose): a drag handle where there is no drag source.
     DragHandle,

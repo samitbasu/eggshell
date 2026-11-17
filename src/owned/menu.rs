@@ -732,16 +732,6 @@ fn hold_vertical_arrows(ctx: &Context, trigger: Id) {
 ///   </DropdownMenuContent>
 /// </DropdownMenu>
 /// ```
-///
-/// TODO(prose)
-///
-/// ```compile_fail
-/// use eggshell_ui::Builder;
-///
-/// fn view(b: &mut Builder<'_, '_, ()>) {
-///     b.dropdown_menu("file", "File").named("File menu").items(|_| {});
-/// }
-/// ```
 #[must_use = "a dropdown menu is not added until you call `.items(..)`"]
 pub struct DropdownChain<'a, 'f, A, K> {
     b: Builder<'a, 'f, A>,
@@ -790,6 +780,13 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         self
     }
 
+    /// TODO(prose): the accessible name of the trigger and of its menu, in
+    /// place of the face's, as `aria-label` is.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.options = self.options.named(name);
+        self
+    }
+
     /// The gap between the trigger and its menu, in place of the style's
     /// [`MenuStyle::offset`](crate::contract::MenuStyle::offset).
     pub fn offset(mut self, offset: Distance) -> Self {
@@ -831,7 +828,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             shared.close();
         }
         let open = shared.kept.with(|kept| kept.menus.is_open(trigger));
-        let name = face.name().to_owned();
+        let name = options.name_or(&face).to_owned();
         let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)
             .opens_popup()
