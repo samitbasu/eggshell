@@ -62,3 +62,43 @@ fn outside_every_draw_there_is_no_shell() {
     })
     .drop_without_applying_deltas();
 }
+
+/// The walk of each layout uses its own shell: an inner layout's scroll
+/// container and `focus-within` nodes, and the outer layout's after it, draw
+/// without a report.
+#[test]
+fn walks_of_nested_layouts_draw_scroll_and_focus_within_without_reports() {
+    let ctx = egui::Context::default();
+    for _ in 0..2 {
+        ctx.run_ui(Default::default(), |ui| {
+            let mut outer = LayoutState::new();
+            let placed = outer
+                .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
+                    b.div_id(
+                        "host",
+                        tw().w_px(100.0).h_px(60.0).focus_within(|p| p),
+                        |_| {},
+                    )
+                    .draw(|app, ui| {
+                        let mut inner = LayoutState::new();
+                        let ctx = ui.ctx().clone();
+                        let placed = inner
+                            .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
+                                b.scroll("list", tw().w_px(80.0).h_px(40.0)).children(|s| {
+                                    s.div_id("rows", tw().h_px(200.0).focus_within(|p| p), |_| {});
+                                });
+                            })
+                            .layout(ui.max_rect());
+                        placed.draw(app, ui);
+                    });
+                    b.scroll("after", tw().w_px(80.0).h_px(40.0)).children(|s| {
+                        s.div_id("rows", tw().h_px(200.0).focus_within(|p| p), |_| {});
+                    });
+                })
+                .layout(ui.max_rect());
+            placed.draw(&mut (), ui);
+        })
+        .drop_without_applying_deltas();
+    }
+    eggshell_ui::testing::assert_no_reports(&ctx);
+}

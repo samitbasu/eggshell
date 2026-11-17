@@ -38,7 +38,6 @@ use crate::roots::{
 use crate::scroll::{self, Moved};
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
-use crate::shell::ShellExt;
 use crate::spans;
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
@@ -590,6 +589,7 @@ struct Walk<'a, A> {
     lift: Option<Lift>,
     drag: &'a dnd::Draw,
     roots: &'a [PlacedRoot],
+    shell: &'a crate::Shell,
 }
 
 impl<A> Walk<'_, A> {
@@ -608,6 +608,7 @@ impl<A> Walk<'_, A> {
             lift: self.lift,
             drag: self.drag,
             roots: self.roots,
+            shell: self.shell,
         }
     }
 
@@ -851,7 +852,7 @@ impl<A> Walk<'_, A> {
                 }
                 State::Hover => hovering == Some(Hovering::Over),
                 State::Focus => response.is_some_and(Response::has_focus),
-                State::FocusWithin => node.id().is_some_and(|id| self.ui.shell().focus_within(id)),
+                State::FocusWithin => node.id().is_some_and(|id| self.shell.focus_within(id)),
                 State::Active => {
                     response.is_some_and(|r| r.hovered() && r.is_pointer_button_down_on())
                 }
@@ -972,7 +973,7 @@ impl<A> Walk<'_, A> {
                 && self.nodes[within]
                     .iter()
                     .filter_map(PlacedNode::id)
-                    .any(|id| self.ui.shell().focus_within(id)))
+                    .any(|id| self.shell.focus_within(id)))
     }
 
     fn visit_node(&mut self, index: usize, parent: Inherited) {
@@ -1012,7 +1013,7 @@ impl<A> Walk<'_, A> {
             None => (None, Merged::Own),
         };
         if let Some(response) = &response {
-            dnd::show_grab(&self.ui.shell(), nodes, index, response);
+            dnd::show_grab(self.shell, nodes, index, response);
         }
         let needs_hovering = interaction.grouping == Grouping::Group
             || interaction.variants.get(State::Hover).is_some();
@@ -1272,6 +1273,7 @@ impl<A> Walk<'_, A> {
             lift,
             drag,
             roots,
+            shell,
             ..
         } = self;
         // The viewport clips the content, whatever egui reserves for its bars.
@@ -1319,10 +1321,11 @@ impl<A> Walk<'_, A> {
                         lift: *lift,
                         drag,
                         roots,
+                        shell,
                     }
                     .visit(index + 1, content);
                 });
-                scroll::note_bar_hold(&ui.shell(), id, shown.id);
+                scroll::note_bar_hold(shell, id, shown.id);
             },
         );
     }
@@ -1867,6 +1870,7 @@ impl<A> Painting<A> {
         nav::apply_deferred(&ctx, kept);
         let keys = overlay_input::claim_keys(&ctx, kept, nodes, (roots, here), live);
         pass.blur = keys.blur;
+        let shell = crate::Shell::new(&ctx, kept);
         let typing = kept.viewport(ctx.viewport_id(), |here| here.typing);
         for root in crate::commands::live_roots(
             overlay_input::topmost_root(roots, here),
@@ -1874,7 +1878,7 @@ impl<A> Painting<A> {
             |root| roots[root].is_modal(),
         ) {
             if let Some((_, table)) = commands.iter().find(|(at, _)| *at == root) {
-                crate::commands::dispatch(&ctx, &crate::Shell::new(&ctx, kept), typing, table, app);
+                crate::commands::dispatch(&ctx, &shell, typing, table, app);
             }
         }
         scroll_keys::hold_arrows(&ctx, kept, nodes);
@@ -1892,6 +1896,7 @@ impl<A> Painting<A> {
             lift: dragging.lift,
             drag: &dragging,
             roots,
+            shell: &shell,
         };
         walk.visit(first, inherited);
         let embedded = walk.embedded_windows(here, kept.with(|kept| kept.chrome));
@@ -2178,6 +2183,23 @@ pub(crate) fn blur_cause(ui: &Ui) -> Blur {
         .map_or(Blur::Elsewhere, |tag| tag.0)
 }
 
+/// The node of the draw closure `ui` is given, or `None`, reported as
+/// [`NodeUiOutsideDraw`](crate::Problem::NodeUiOutsideDraw), with the step
+/// `what` skipped.
+#[track_caller]
+pub(crate) fn node_id_or_report(ui: &Ui, what: &'static str) -> Option<egui::Id> {
+    let id = ui.node_id();
+    if id.is_none() {
+        crate::report::report(ui.ctx(), crate::Problem::NodeUiOutsideDraw, None, || {
+            format!(
+                "{what} needs the node of a draw closure, and this `Ui` is not the one a \
+                 draw closure is given; skipped"
+            )
+        });
+    }
+    id
+}
+
 /// Reads the response the library gave the node whose draw closure is
 /// running.
 pub trait NodeUi {
@@ -2188,15 +2210,31 @@ pub trait NodeUi {
     /// declares no sense gets a response that senses nothing. Call it on the
     /// [`Ui`] the draw closure is given, not on a nested one, and never
     /// interact with the node's own id yourself.
+    ///
+    /// TODO(prose): on any other `Ui`, reported as [`NodeUiOutsideDraw`](crate::Problem::NodeUiOutsideDraw), with the `Ui`'s own response.
+    #[track_caller]
     fn node_response(&self) -> Response;
 
     /// The node's egui id: its key path, the one `Builder::id_of` reports.
     /// The [`scope_id`](Ui::scope_id) of the draw closure's `Ui` is derived
     /// from it, so ids made with `make_persistent_id` are stable per node.
-    fn node_id(&self) -> egui::Id;
+    ///
+    /// TODO(prose): `None` on any `Ui` other than the one a draw closure is given.
+    ///
+    /// ```
+    /// use eggshell_ui::NodeUi as _;
+    ///
+    /// let ctx = egui::Context::default();
+    /// ctx.run_ui(Default::default(), |ui| assert_eq!(ui.node_id(), None))
+    ///     .drop_without_applying_deltas();
+    /// ```
+    fn node_id(&self) -> Option<egui::Id>;
 
     /// Whether the node, or a widget inside it, has keyboard focus. See
     /// [`Shell::focus_within`](crate::Shell::focus_within).
+    ///
+    /// TODO(prose): `false` on any other `Ui`, reported as [`NodeUiOutsideDraw`](crate::Problem::NodeUiOutsideDraw).
+    #[track_caller]
     fn has_focus_within(&self) -> bool;
 
     /// Declares the node the visible label `text` of the control with id
@@ -2206,21 +2244,27 @@ pub trait NodeUi {
     ///
     /// The node must sense clicks, and is best left out of the Tab order
     /// (`focusable_none`), as the control is the one to focus.
+    #[track_caller]
     fn label_for(&self, control: egui::Id, text: &str) -> bool;
 }
 
 impl NodeUi for Ui {
-    fn node_id(&self) -> egui::Id {
+    fn node_id(&self) -> Option<egui::Id> {
         let scope = self.unique_id();
         self.data(|data| data.get_temp::<NodeIdTag>(scope))
             .map(|tag| tag.0)
-            .expect("node_response and node_id are called on the Ui a draw closure is given")
     }
 
+    #[track_caller]
     fn has_focus_within(&self) -> bool {
-        self.shell().focus_within(self.node_id())
+        let Some(id) = node_id_or_report(self, "`has_focus_within`") else {
+            return false;
+        };
+        crate::shell::shell_or_report(self, "`has_focus_within`")
+            .is_some_and(|shell| shell.focus_within(id))
     }
 
+    #[track_caller]
     fn label_for(&self, control: egui::Id, text: &str) -> bool {
         let response = self.node_response();
         response.widget_info(|| WidgetInfo::labeled(Role::Label, self.is_enabled(), text));
@@ -2231,8 +2275,11 @@ impl NodeUi for Ui {
         response.clicked()
     }
 
+    #[track_caller]
     fn node_response(&self) -> Response {
-        let id = self.node_id();
+        let Some(id) = node_id_or_report(self, "`node_response`") else {
+            return self.response();
+        };
         if let Some(BubbledTag(response)) = self.data(|data| data.get_temp(self.unique_id())) {
             return response;
         }
