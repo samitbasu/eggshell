@@ -44,7 +44,8 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
     }
 
     /// Whether the box and what is inside it takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }

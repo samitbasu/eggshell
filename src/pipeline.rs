@@ -32,7 +32,7 @@ use crate::roots::{
     ById, Form, Home, Layer, LayerKind, PlacedOverlay, PlacedRoot, PlacedRootKind, Presentation,
     RootDecl, modal_style, root_of,
 };
-use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
+use crate::scroll::{Axis, Bars, Description, ScrollPlan, Settle};
 use crate::shell::Shell;
 use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
@@ -1516,7 +1516,7 @@ fn collect(
                     description: scroll.description,
                     content: scroll.size,
                     offset,
-                    moved: Moved::No,
+                    moved: false,
                 }
             });
             Identity::Identified(Identified {
