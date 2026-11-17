@@ -125,7 +125,8 @@ fn nest<'f>(b: &mut Builder<'_, 'f, Nest>, nest: &'f Nest) {
         &nest.inner,
         |nest: &mut Nest| &mut nest.inner,
         counter,
-    );
+    )
+    .add();
 }
 
 fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
@@ -138,49 +139,56 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
             &app.shared,
             |app: &mut App| &mut app.shared,
             counter,
-        );
+        )
+        .add();
         s.mount(
             Part::Right,
             tw(),
             &app.shared,
             |app: &mut App| &mut app.shared,
             counter,
-        );
+        )
+        .add();
         s.mount(
             Part::Other,
             tw(),
             &app.other,
             |app: &mut App| &mut app.other,
             counter,
-        );
+        )
+        .add();
         s.mount(
             Part::Fixed,
             tw().h_px(48.0),
             &app.other,
             |app: &mut App| &mut app.other,
             counter,
-        );
+        )
+        .add();
         s.mount(
             Part::Notes,
             tw(),
             &app.notes,
             |app: &mut App| &mut app.notes,
             notes,
-        );
+        )
+        .add();
         s.mount(
             Part::Rows,
             tw(),
             &app.rows,
             |app: &mut App| &mut app.rows,
             rows,
-        );
+        )
+        .add();
         s.mount(
             Part::Nest,
             tw(),
             &app.nest,
             |app: &mut App| &mut app.nest,
             nest,
-        );
+        )
+        .add();
         s.button(Part::After, "After").on_click(|_: &mut App| {});
     });
 }
@@ -222,7 +230,7 @@ fn press(harness: &mut Harness<'_, Rig<App>>, modifiers: Modifiers, key: Key) {
 #[test]
 fn a_mounted_control_changes_the_data_its_lens_reaches() {
     let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Other", "Add"]));
+    click_node(&mut harness, &path(&["Page", "Other", "Frame", "Add"]));
     harness.run_steps(2);
     let app = &harness.state().app;
     assert_eq!((app.other.count, app.shared.count), (1, 0));
@@ -231,8 +239,8 @@ fn a_mounted_control_changes_the_data_its_lens_reaches() {
 #[test]
 fn two_mounts_over_one_field_share_it() {
     let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Left", "Add"]));
-    click_node(&mut harness, &path(&["Page", "Right", "Add"]));
+    click_node(&mut harness, &path(&["Page", "Left", "Frame", "Add"]));
+    click_node(&mut harness, &path(&["Page", "Right", "Frame", "Add"]));
     harness.run_steps(2);
     assert_eq!(harness.state().app.shared.count, 2);
     assert_eq!(
@@ -246,7 +254,7 @@ fn two_mounts_over_one_field_share_it() {
 fn a_mount_is_as_tall_as_its_content_unless_its_classes_say() {
     let harness = harness();
     let mount = rect_of(&harness, &path(&["Page", "Other"]));
-    let add = rect_of(&harness, &path(&["Page", "Other", "Add"]));
+    let add = rect_of(&harness, &path(&["Page", "Other", "Frame", "Add"]));
     assert!(add.height() > 0.0, "precondition: the button is laid out");
     assert_eq!(mount.height(), add.height());
     assert_eq!(rect_of(&harness, &path(&["Page", "Fixed"])).height(), 48.0);
@@ -255,8 +263,8 @@ fn a_mount_is_as_tall_as_its_content_unless_its_classes_say() {
 #[test]
 fn a_mounted_menu_item_changes_the_mounted_data() {
     let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Other", "Add"]));
-    click_node(&mut harness, &path(&["Page", "Other", "More"]));
+    click_node(&mut harness, &path(&["Page", "Other", "Frame", "Add"]));
+    click_node(&mut harness, &path(&["Page", "Other", "Frame", "More"]));
     harness.run_steps(6);
     harness.get_by_label("Reset").click();
     harness.run_steps(6);
@@ -270,7 +278,7 @@ fn a_mounted_menu_item_changes_the_mounted_data() {
 #[test]
 fn escape_closes_a_mounted_menu() {
     let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Other", "More"]));
+    click_node(&mut harness, &path(&["Page", "Other", "Frame", "More"]));
     harness.run_steps(6);
     assert!(
         harness.query_by_label("Reset").is_some(),
@@ -317,7 +325,8 @@ mod in_a_list {
                         counter,
                         move |page: &mut Page| &mut page.counters[at],
                         super::counter,
-                    );
+                    )
+                    .add();
                 }
             });
     }
@@ -334,7 +343,7 @@ mod in_a_list {
             harness.query_all_by_label("Add").count() < 10,
             "precondition: only the rows near the viewport are built"
         );
-        click_node(&mut harness, "/List/<rows>/0/Row(0)/Add");
+        click_node(&mut harness, "/List/<rows>/0/Row(0)/Frame/Add");
         harness.run_steps(2);
         assert_eq!(harness.state().app.counters[0].count, 1);
         assert_eq!(harness.query_all_by_label("Count 1").count(), 1);
@@ -344,7 +353,10 @@ mod in_a_list {
 #[test]
 fn a_mount_inside_a_mount_reaches_its_data_through_both_lenses() {
     let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Nest", "Inner", "Add"]));
+    click_node(
+        &mut harness,
+        &path(&["Page", "Nest", "Frame", "Inner", "Frame", "Add"]),
+    );
     harness.run_steps(2);
     assert_eq!(harness.state().app.nest.inner.count, 1);
 }
@@ -352,7 +364,7 @@ fn a_mount_inside_a_mount_reaches_its_data_through_both_lenses() {
 #[test]
 fn typing_in_a_mounted_field_changes_the_mounted_data() {
     let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Notes", "Note"]));
+    click_node(&mut harness, &path(&["Page", "Notes", "Frame", "Note"]));
     harness.run_steps(4);
     harness.get_by_label("Note").type_text("hi");
     harness.run_steps(4);
@@ -363,7 +375,7 @@ mod commands {
     use super::*;
 
     fn focus_the_note(harness: &mut Harness<'_, Rig<App>>) {
-        click_node(harness, &path(&["Page", "Notes", "Note"]));
+        click_node(harness, &path(&["Page", "Notes", "Frame", "Note"]));
         harness.run_steps(6);
         assert_eq!(
             focused_path(harness).as_deref(),
@@ -417,9 +429,9 @@ fn tab_moves_into_a_mount_and_out_of_it() {
     }
     let at = |wanted: &str| seen.iter().position(|path| path == wanted);
     let before = at(&path(&["Page", "Before"])).expect("Tab reaches Before");
-    let add = at(&path(&["Page", "Left", "Add"])).expect("Tab reaches the mount");
-    let more = at(&path(&["Page", "Left", "More"])).expect("Tab moves on in the mount");
-    let next = at(&path(&["Page", "Right", "Add"])).expect("Tab leaves the mount");
+    let add = at(&path(&["Page", "Left", "Frame", "Add"])).expect("Tab reaches the mount");
+    let more = at(&path(&["Page", "Left", "Frame", "More"])).expect("Tab moves on in the mount");
+    let next = at(&path(&["Page", "Right", "Frame", "Add"])).expect("Tab leaves the mount");
     assert!(before < add && add < more && more < next, "{seen:?}");
 }
 
@@ -437,14 +449,16 @@ mod misuse {
     }
 
     fn twice<'f>(b: &mut Builder<'_, 'f, Two>, two: &'f Two) {
-        b.mount("m", tw(), &two.first, |two: &mut Two| &mut two.first, notes);
+        b.mount("m", tw(), &two.first, |two: &mut Two| &mut two.first, notes)
+            .add();
         b.mount(
             "m",
             tw(),
             &two.second,
             |two: &mut Two| &mut two.second,
             notes,
-        );
+        )
+        .add();
     }
 
     #[test]
@@ -481,10 +495,15 @@ mod misuse {
                 &page.inner,
                 |page: &mut Nest| &mut page.inner,
                 repeats,
-            );
+            )
+            .add();
         });
         let report = assert_reported(headless.ctx(), Problem::DuplicateKey);
-        assert!(report.message.contains(r#"/"m"/"x""#), "{}", report.message);
+        assert!(
+            report.message.contains(r#"/"m"/Frame/"x""#),
+            "{}",
+            report.message
+        );
     }
 
     fn notes_twice<'f>(b: &mut Builder<'_, 'f, Notes>, notes: &'f Notes) {
@@ -502,7 +521,8 @@ mod misuse {
     #[test]
     fn commands_declared_twice_in_a_mount_are_reported_and_the_first_runs() {
         fn view<'f>(b: &mut Builder<'_, 'f, Notes>, notes: &'f Notes) {
-            b.mount("m", tw(), notes, |notes: &mut Notes| notes, notes_twice);
+            b.mount("m", tw(), notes, |notes: &mut Notes| notes, notes_twice)
+                .add();
         }
         let mut harness = support::harness(vec2(400.0, 300.0), base_text(), Notes::default(), view);
         harness.run_steps(4);
@@ -563,7 +583,8 @@ mod paste {
             &page.clip,
             |page: &mut Page| &mut page.clip,
             clip,
-        );
+        )
+        .add();
     }
 
     fn harness() -> (Harness<'static, Rig<Page>>, FakeClipboard) {
@@ -578,9 +599,9 @@ mod paste {
     }
 
     fn click_paste(harness: &mut Harness<'_, Rig<Page>>) {
-        click_node(harness, r#"/"m"/"edit""#);
+        click_node(harness, r#"/"m"/Frame/"edit""#);
         harness.run_steps(5);
-        click_node(harness, r#"/"m"/("edit", Menu)/Box/"paste""#);
+        click_node(harness, r#"/"m"/Frame/("edit", Menu)/Box/"paste""#);
         harness.run_steps(5);
     }
 
@@ -594,7 +615,7 @@ mod paste {
         harness.run_steps(4);
         assert_eq!(
             focused_path(&harness).as_deref(),
-            Some(r#"/"m"/"edit""#),
+            Some(r#"/"m"/Frame/"edit""#),
             "precondition: focus is within the mount"
         );
         harness.event(Event::Paste("hello".into()));
@@ -616,5 +637,109 @@ mod paste {
         let clip = &harness.state().app.clip;
         assert!(clip.pasted.is_empty());
         assert_eq!(clip.errors, [ClipboardError::Failed("denied".into())]);
+    }
+}
+
+/// A caption sits above the mount, which is framed; a mount without one is
+/// not.
+mod caption {
+    use eggshell_ui::Style;
+
+    use super::*;
+
+    #[derive(Default)]
+    struct Page {
+        counter: Counter,
+    }
+
+    fn view<'f>(b: &mut Builder<'_, 'f, Page>, page: &'f Page) {
+        b.div_id(Part::Page, tw().flex().flex_col().gap(4.0).p(2.0), |b| {
+            b.mount(
+                Part::Left,
+                tw(),
+                &page.counter,
+                |page: &mut Page| &mut page.counter,
+                counter,
+            )
+            .with_caption("Example: counter")
+            .add();
+            b.mount(
+                Part::Right,
+                tw(),
+                &page.counter,
+                |page: &mut Page| &mut page.counter,
+                counter,
+            )
+            .add();
+        });
+    }
+
+    /// A frame and a gap that show: every measure apart from the others.
+    fn prepare(ctx: &egui::Context, _: &Page) {
+        let mut style = (*Style::of(ctx)).clone();
+        style.mount.gap = 6.0;
+        style.mount.padding = 10.0;
+        style.mount.border_width = 2.0;
+        style.mount.border = Color32::from_rgb(200, 20, 20);
+        style.install(ctx);
+    }
+
+    fn harness() -> Harness<'static, Rig<Page>> {
+        let mut harness = support::harness_prepared(
+            vec2(480.0, 400.0),
+            base_text(),
+            Page::default(),
+            view,
+            prepare,
+        );
+        harness.run_steps(4);
+        harness
+    }
+
+    #[test]
+    fn a_caption_sits_above_the_mount_framed_by_the_style() {
+        let harness = harness();
+        let look = Style::of(&harness.ctx).mount.clone();
+        let caption = rect_of(&harness, "/Page/Left/Caption");
+        let frame = rect_of(&harness, "/Page/Left/Frame");
+        let add = rect_of(&harness, "/Page/Left/Frame/Add");
+        assert!(
+            look.gap > 0.0 && look.padding > 0.0,
+            "precondition: a style that shows it"
+        );
+        assert!(harness.query_by_label("Example: counter").is_some());
+        assert_eq!(frame.min.y - caption.max.y, look.gap, "the gap between");
+        let inset = look.padding + look.border_width;
+        assert_eq!(
+            add.min - frame.min,
+            vec2(inset, inset),
+            "the view inside the frame"
+        );
+        assert!(
+            support::shapes(&harness).iter().any(|shape| matches!(
+                shape,
+                egui::Shape::Rect(rect)
+                    if rect.rect == frame && rect.stroke.width == look.border_width
+                        && rect.stroke.color == look.border
+            )),
+            "outlined in the style's border"
+        );
+    }
+
+    #[test]
+    fn a_mount_without_a_caption_has_no_frame() {
+        let harness = harness();
+        let mount = rect_of(&harness, "/Page/Right");
+        let frame = rect_of(&harness, "/Page/Right/Frame");
+        let add = rect_of(&harness, "/Page/Right/Frame/Add");
+        assert_eq!(frame, mount);
+        assert_eq!(add.min, frame.min, "the view is not inset");
+        assert!(
+            support::shapes(&harness).iter().all(|shape| !matches!(
+                shape,
+                egui::Shape::Rect(rect) if rect.rect == frame && rect.stroke.width > 0.0
+            )),
+            "no outline around it"
+        );
     }
 }

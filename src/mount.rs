@@ -13,11 +13,106 @@ use std::rc::Rc;
 
 use egui::Id;
 
+use crate::builder::{Builder, NodeHandle, Slot};
 use crate::commands::{Commands, Declared, Table, Within, look_up};
 use crate::pipeline::{DismissFn, DrawFn, FrameCore, Sink, Twice};
 use crate::region::RegionDecl;
 use crate::tooltip::BuildBuilt;
 use crate::window::Hooks;
+
+/// The parts of a mount the library adds around its view.
+#[derive(Clone, Copy, Debug, Hash)]
+enum Part {
+    Caption,
+    Frame,
+}
+
+/// TODO(prose): a mount being built: [`Builder::mount`].
+#[must_use = "a mount is not added until you call `.add()`"]
+pub struct MountChain<'a, 'f, A, S, L, V> {
+    b: Builder<'a, 'f, A>,
+    slot: Slot,
+    classes: crate::Tw,
+    data: &'f S,
+    lens: L,
+    view: V,
+    caption: Option<String>,
+}
+
+impl<'a, 'f, A, S, L, V> MountChain<'a, 'f, A, S, L, V>
+where
+    A: 'static,
+    S: 'static,
+    L: Fn(&mut A) -> &mut S + 'static,
+    V: FnOnce(&mut Builder<'_, 'f, S>, &'f S),
+{
+    pub(crate) fn new<K: crate::Key>(
+        b: Builder<'a, 'f, A>,
+        key: K,
+        classes: crate::Tw,
+        (data, lens, view): (&'f S, L, V),
+    ) -> Self {
+        Self {
+            slot: b.slot(&key),
+            b,
+            classes,
+            data,
+            lens,
+            view,
+            caption: None,
+        }
+    }
+
+    /// TODO(prose): shows `caption` above the mount, which is framed.
+    pub fn with_caption(mut self, caption: impl Into<String>) -> Self {
+        self.caption = Some(caption.into());
+        self
+    }
+
+    /// TODO(prose): adds the mount.
+    pub fn add(self) -> NodeHandle<'a, 'f, A> {
+        let Self {
+            mut b,
+            slot,
+            classes,
+            data,
+            lens,
+            view,
+            caption,
+        } = self;
+        let mount = Mount::new(Rc::new(lens), b.mount_within(&slot));
+        let style = crate::Style::of(b.ctx());
+        let look = &style.mount;
+        let frame = crate::tw().grow().min_h_0();
+        let frame = match caption {
+            None => frame,
+            Some(_) => frame
+                .border(look.border_width)
+                .border_color(look.border)
+                .rounded_px(f32::from(look.radius))
+                .p(look.padding / 4.0),
+        };
+        let caption_classes = crate::tw().text(look.caption);
+        let caption_classes = match look.caption_text.clone() {
+            Some(spec) => caption_classes.role(spec),
+            None => caption_classes,
+        };
+        let outer = crate::tw()
+            .flex()
+            .flex_col()
+            .gap(look.gap / 4.0)
+            .merge(classes);
+        let node = b
+            .div_id_with(&slot, outer, |s| {
+                if let Some(caption) = caption {
+                    s.span(Part::Caption, caption_classes, caption);
+                }
+                s.div_id(Part::Frame, frame, |s| s.within(&mount, |b| view(b, data)));
+            })
+            .node();
+        b.into_handle(node)
+    }
+}
 
 /// Reaches a mount's data `S` in the data `R` around it.
 pub(crate) type Lens<R, S> = Rc<dyn Fn(&mut R) -> &mut S>;

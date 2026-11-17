@@ -17,7 +17,7 @@ use crate::dnd::{Activator, DragEnd, DragImage, Dragging, Drop, NodeDrag, Source
 use crate::draw::NodeUi;
 use crate::key::{Key, Repeat, child_id};
 use crate::measure::Measure;
-use crate::mount::{Lensed, Mount};
+use crate::mount::{Lensed, Mount, MountChain};
 use crate::overlay::Band;
 use crate::overlay_chain::{OverlayChain, Unplaced};
 use crate::owned::Enablement;
@@ -378,26 +378,30 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// TODO(prose): a view of the part of the application data `lens`
-    /// reaches, built here from `data`.
-    #[track_caller]
-    pub fn mount<K: Key, S: 'static>(
+    /// reaches, built here from `data` once the chain is added.
+    pub fn mount<K: Key, S: 'static, L, V>(
         &mut self,
         key: K,
         tw: Tw,
         data: &'f S,
-        lens: impl Fn(&mut A) -> &mut S + 'static,
-        view: impl FnOnce(&mut Builder<'_, 'f, S>, &'f S),
-    ) -> NodeHandle<'_, 'f, A>
+        lens: L,
+        view: V,
+    ) -> MountChain<'_, 'f, A, S, L, V>
     where
         A: 'static,
+        L: Fn(&mut A) -> &mut S + 'static,
+        V: FnOnce(&mut Builder<'_, 'f, S>, &'f S),
     {
-        let slot = self.slot(&key);
-        let within = Within {
+        MountChain::new(self.reborrow(), key, tw, (data, lens, view))
+    }
+
+    /// Where a mount keyed `slot` and built here is: its id and how deeply
+    /// it is nested in other mounts.
+    pub(crate) fn mount_within(&self, slot: &Slot) -> Within {
+        Within {
             mount: slot.id,
             depth: self.frame.depth(),
-        };
-        let mount = Mount::new(std::rc::Rc::new(lens), within);
-        self.div_id_with(&slot, tw, |b| b.within(&mount, |b| view(b, data)))
+        }
     }
 
     /// Builds `body` here with a builder of `mount`'s data.

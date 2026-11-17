@@ -773,6 +773,26 @@ pub struct KbdStyle {
     pub text: Option<TextSpec>,
 }
 
+/// TODO(prose): how a mount with a caption is framed.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MountStyle {
+    /// TODO(prose)
+    pub caption: Color32,
+    /// TODO(prose)
+    pub caption_text: Option<TextSpec>,
+    /// TODO(prose)
+    pub gap: f32,
+    /// TODO(prose)
+    pub border: Color32,
+    /// TODO(prose)
+    pub border_width: f32,
+    /// TODO(prose)
+    pub radius: u8,
+    /// TODO(prose)
+    pub padding: f32,
+}
+
 /// TODO(prose)
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -1167,6 +1187,8 @@ pub struct Style {
     pub tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
+    /// TODO(prose)
+    pub mount: MountStyle,
     /// Rich text: links and inline code.
     pub rich: RichTextStyle,
     /// Steppers.
@@ -1679,6 +1701,15 @@ impl Style {
                 padding_x: 4.0,
                 height: s.interact_size.y.min(20.0),
                 text: None,
+            },
+            mount: MountStyle {
+                caption: v.weak_text_color(),
+                caption_text: None,
+                gap: s.item_spacing.y,
+                border: v.widgets.noninteractive.bg_stroke.color,
+                border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
+                radius,
+                padding: f32::from(s.window_margin.left),
             },
             rich: RichTextStyle {
                 link: v.hyperlink_color,
