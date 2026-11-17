@@ -605,7 +605,10 @@ fn describe_cell(
     (row, column): (usize, usize),
 ) {
     let rect = ui.max_rect();
-    let id = ui.node_id().with("cell");
+    let Some(node) = crate::draw::node_id_or_report(ui, "a table cell's description") else {
+        return;
+    };
+    let id = node.with("cell");
     let child = ui.new_child(UiBuilder::new().max_rect(rect).accessibility_parent(band));
     let response = child.interact(rect, id, Sense::hover());
     let name = name.unwrap_or_default();

@@ -1964,7 +1964,11 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
         self.draw(move |app, ui| {
-            if ui.node_response().clicked() || crate::nav::take_activation(ui, ui.node_id()) {
+            if ui.node_response().clicked()
+                || ui
+                    .node_id()
+                    .is_some_and(|id| crate::nav::take_activation(ui, id))
+            {
                 act(app);
             }
         })
@@ -2060,7 +2064,9 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
     /// TODO(prose)
     pub fn on_link(self, on_link: impl FnOnce(&mut A, &str) + 'static) -> NodeHandle<'b, 'f, A> {
         self.0.draw(move |app, ui| {
-            if let Some(href) = crate::spans::take_followed(ui.ctx(), ui.node_id()) {
+            if let Some(href) = crate::draw::node_id_or_report(ui, "following a link")
+                .and_then(|id| crate::spans::take_followed(ui.ctx(), id))
+            {
                 on_link(app, &href);
             }
         })
