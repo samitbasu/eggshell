@@ -48,7 +48,7 @@ pub trait DragChip {
     fn with_drag_chip(self, text: impl Into<String>) -> Self;
 }
 
-impl<'f, A: 'static> DragChip for NodeHandle<'_, 'f, A> {
+impl<'f, A: 'static, Kind> DragChip for NodeHandle<'_, 'f, A, Kind> {
     fn with_drag_chip(self, text: impl Into<String>) -> Self {
         let text = text.into();
         self.drag_preview(move |b| drag_chip(b, text))

@@ -63,8 +63,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 s.div_id("bar", bar(), |_| {});
             })
             .on_change(|app: &mut App, on| app.toggled = on);
-        b.button("card", Face::Empty)
-            .named("Card")
+        b.button("card", Face::Empty("Card".into()))
             .children(|s| {
                 s.div_id("box", tw().w_px(32.0).h_px(20.0).bg(BAR), |_| {});
             })
@@ -286,19 +285,4 @@ fn an_empty_face_with_children_and_a_name_draws_and_clicks() {
     assert!(card.contains_rect(content));
     click_node(&mut harness, "/\"card\"/\"box\"");
     assert_eq!(harness.state().app.clicks, ["card"]);
-}
-
-#[test]
-#[should_panic(expected = "no label and no name")]
-fn an_empty_face_without_a_name_is_a_bug_in_a_debug_build() {
-    fn unnamed(b: &mut Builder<'_, '_, App>, _: &App) {
-        b.button("x", Face::Empty).children(|_| {}).add();
-    }
-    let tokens = Tokens::for_theme(Theme::Light);
-    let _ = support::harness(
-        vec2(100.0, 100.0),
-        TextStyle::new(tokens.text_role(), tokens.foreground),
-        App::default(),
-        unnamed,
-    );
 }

@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use eggshell_ui::{Builder, Key, Scope};
+use eggshell_ui::{Builder, Key, Problem, Scope};
 use egui::cache::{ComputerMut, FrameCache};
 
 pub use parse::{Heading, Level};
@@ -92,18 +92,29 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone> Markdown<'s, 'b, 'f, A, K> {
     #[track_caller]
     pub fn add(self) {
         let ctx = self.b.ctx().clone();
-        let blocks = parsed(&ctx, self.source);
+        let parsed = parsed(&ctx, self.source);
+        let doc = self.b.id_of(self.key.clone());
+        report_malformed(&ctx, doc, &parsed.malformed);
         let context = build::Context {
             style: MarkdownStyle::of(&ctx),
-            links: Rc::new(build::Links::new(
-                self.on_link,
-                self.b.shell(),
-                self.b.id_of(self.key.clone()),
-            )),
+            links: Rc::new(build::Links::new(self.on_link, self.b.shell(), doc)),
             directives: self.directives,
             ctx,
         };
-        build::document(self.b, self.key, &blocks, &context);
+        build::document(self.b, self.key, &parsed.blocks, &context);
+    }
+}
+
+/// Reports what of the document `doc` the parser had to recover from.
+#[track_caller]
+fn report_malformed(ctx: &egui::Context, doc: egui::Id, malformed: &[parse::Malformed]) {
+    for &problem in malformed {
+        eggshell_ui::report(
+            ctx,
+            Problem::MalformedMarkdown,
+            Some(doc.with(problem.name())),
+            || format!("{}; {}", problem.name(), problem.recovery()),
+        );
     }
 }
 
@@ -176,14 +187,14 @@ pub fn heading_id(doc: egui::Id, anchor: &str) -> egui::Id {
 
 /// TODO(prose)
 pub fn headings(source: &str) -> Vec<Heading> {
-    parse::headings(&parse::parse(source))
+    parse::headings(&parse::parse(source).blocks)
 }
 
 #[derive(Default)]
 struct Parse;
 
-impl ComputerMut<&str, Arc<Vec<parse::Block>>> for Parse {
-    fn compute(&mut self, source: &str) -> Arc<Vec<parse::Block>> {
+impl ComputerMut<&str, Arc<parse::Parsed>> for Parse {
+    fn compute(&mut self, source: &str) -> Arc<parse::Parsed> {
         Arc::new(parse::parse(source))
     }
 }
@@ -193,12 +204,57 @@ impl ComputerMut<&str, Arc<Vec<parse::Block>>> for Parse {
 /// the blocks are a function of the source and nothing else. Link handling,
 /// directives and the style are applied when the blocks are built into
 /// nodes, never when they are parsed.
-fn parsed(ctx: &egui::Context, source: &str) -> Arc<Vec<parse::Block>> {
+fn parsed(ctx: &egui::Context, source: &str) -> Arc<parse::Parsed> {
     ctx.memory_mut(|memory| {
         memory
             .caches
-            .cache::<FrameCache<Arc<Vec<parse::Block>>, Parse>>()
+            .cache::<FrameCache<Arc<parse::Parsed>, Parse>>()
             .get(source)
             .clone()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use eggshell_ui::testing::{assert_no_reports, assert_reported};
+
+    use super::*;
+
+    #[test]
+    fn what_the_parser_recovered_from_is_reported_once_per_kind() {
+        let ctx = egui::Context::default();
+        let doc = egui::Id::NULL.with("doc");
+        let malformed = [
+            parse::Malformed::CellOutsideTable,
+            parse::Malformed::BlockInTable,
+            parse::Malformed::CellOutsideTable,
+        ];
+        report_malformed(&ctx, doc, &malformed);
+        let reports = eggshell_ui::testing::reports(&ctx);
+        assert_eq!(reports.len(), 2, "{reports:#?}");
+        assert!(
+            reports
+                .iter()
+                .all(|report| report.problem == Problem::MalformedMarkdown)
+        );
+        let cell = assert_reported(&ctx, Problem::MalformedMarkdown);
+        assert_eq!(cell.count, 2);
+        assert!(cell.message.contains("paragraph"), "{}", cell.message);
+        assert!(
+            reports[1].message.contains("inside a table"),
+            "{}",
+            reports[1].message
+        );
+    }
+
+    #[test]
+    fn a_well_formed_document_reports_nothing() {
+        let ctx = egui::Context::default();
+        report_malformed(
+            &ctx,
+            egui::Id::NULL.with("doc"),
+            &parse::parse("| a |\n|---|\n| b |").malformed,
+        );
+        assert_no_reports(&ctx);
+    }
 }

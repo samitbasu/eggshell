@@ -127,7 +127,7 @@ mod stale_offset {
         let timeline = timeline(&harness);
         let painted = (0..timeline.len())
             .filter_map(|k| {
-                let frame = timeline.frame(k);
+                let frame = timeline.frame(k)?;
                 Some(frame.iter().find(|n| n.path == CHASER)?.painted_rect.min.x)
             })
             .collect();
@@ -232,6 +232,7 @@ mod area_feedback {
         let sliding = (0..timeline.len()).any(|k| {
             timeline
                 .frame(k)
+                .expect("k is a recorded frame")
                 .iter()
                 .any(|n| n.path == "/2" && n.painted_rect != n.layout_rect)
         });
@@ -245,6 +246,7 @@ mod area_feedback {
         let sliding = (0..timeline.len()).any(|k| {
             timeline
                 .frame(k)
+                .expect("k is a recorded frame")
                 .iter()
                 .any(|n| n.path == "/2" && n.painted_rect != n.layout_rect)
         });
@@ -383,7 +385,7 @@ mod oscillation {
         let timeline = run(Flaw::Buggy);
         let widths: Vec<f32> = (0..timeline.len())
             .map(|k| {
-                let frame = timeline.frame(k);
+                let frame = timeline.frame(k).expect("k is a recorded frame");
                 frame
                     .iter()
                     .find(|n| n.path == BOX)
@@ -508,7 +510,7 @@ mod slide_path {
     fn painted_x(timeline: &Timeline) -> Vec<f32> {
         (0..timeline.len())
             .filter_map(|k| {
-                let frame = timeline.frame(k);
+                let frame = timeline.frame(k)?;
                 Some(frame.iter().find(|n| n.path == MOVER)?.painted_rect.min.x)
             })
             .collect()
@@ -616,6 +618,7 @@ mod long_grid_slide {
             .filter_map(|k| {
                 timeline
                     .frame(k)
+                    .expect("k is a recorded frame")
                     .iter()
                     .find(|n| n.path == r#"/"grid"/2"#)
                     .map(|n| n.painted_rect.min.x)
@@ -680,6 +683,7 @@ mod inside_a_slide {
         let at = |k: usize| {
             timeline
                 .frame(k)
+                .expect("k is a recorded frame")
                 .iter()
                 .find(|n| n.path == INSIDE)
                 .map(|n| n.painted_rect.min.x)

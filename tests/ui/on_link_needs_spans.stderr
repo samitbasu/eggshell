@@ -1,4 +1,4 @@
-error[E0599]: no method named `on_link` found for struct `NodeHandle<'b, 'f, A>` in the current scope
+error[E0599]: no method named `on_link` found for struct `NodeHandle<'b, 'f, A, Kind>` in the current scope
  --> tests/ui/on_link_needs_spans.rs:5:36
   |
 5 |     b.span("plain", tw(), "Plain").on_link(|_, _| {});

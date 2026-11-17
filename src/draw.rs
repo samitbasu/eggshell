@@ -25,7 +25,7 @@ use crate::focus;
 use crate::kept::Handle;
 use crate::measure::TextLeaf;
 use crate::nav;
-use crate::overlay::{Anchored, Nav};
+use crate::overlay::Anchored;
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::owned::Side;
@@ -811,7 +811,7 @@ impl<A> Walk<'_, A> {
             && self.roots[root_of(self.roots, index)]
                 .overlay()
                 .map_or(node.is_listbox_option(), |overlay| {
-                    overlay.behavior.nav == Nav::Listbox
+                    overlay.behavior.nav.is_listbox()
                 });
         Hovering::of(highlighted || (pointed && !in_listbox))
     }
@@ -833,11 +833,20 @@ impl<A> Walk<'_, A> {
             }
             let on = match state {
                 State::GroupHover => {
-                    debug_assert!(
-                        group.is_some(),
-                        "{}: group_hover needs an ancestor marked group()",
-                        node.path()
-                    );
+                    if group.is_none() {
+                        crate::report::report(
+                            self.ui.ctx(),
+                            crate::Problem::GroupHoverWithoutGroup,
+                            Some(node.id().unwrap_or_else(|| Id::NULL.with(node.path()))),
+                            || {
+                                format!(
+                                    "{}: group_hover needs an ancestor marked group(); it never \
+                                     shows",
+                                    node.path()
+                                )
+                            },
+                        );
+                    }
                     group == Some(Hovering::Over)
                 }
                 State::Hover => hovering == Some(Hovering::Over),
@@ -879,10 +888,14 @@ impl<A> Walk<'_, A> {
     fn visit(&mut self, index: usize, parent: Inherited) {
         if parent.culling == Culling::On && self.culled(index, parent.clip) {
             if self.shared.recording.is_some() {
-                let left_out = self.nodes[index..self.nodes[index].end]
-                    .iter()
-                    .filter_map(PlacedNode::id);
-                self.shared.culled.extend(left_out);
+                let subtree = self
+                    .nodes
+                    .get(index)
+                    .and_then(|node| self.nodes.get(index..node.end))
+                    .unwrap_or_default();
+                self.shared
+                    .culled
+                    .extend(subtree.iter().filter_map(PlacedNode::id));
             }
             self.register_culled(index, parent);
             return;
@@ -1988,7 +2001,7 @@ fn placed_overlays(nodes: &[PlacedNode], roots: &[PlacedRoot]) -> Vec<OverlayFra
         .iter()
         .filter_map(|root| {
             let overlay = root.overlay()?;
-            let node = &nodes[root.first];
+            let node = nodes.get(root.first)?;
             (overlay.anchored == Anchored::Attached).then(|| OverlayFrame {
                 id: overlay.id,
                 path: node.path().to_owned(),

@@ -1,5 +1,6 @@
 //! Constrained values used by style classes and display primitives.
 
+use crate::finite::clamp;
 use core::cmp::Ordering;
 use core::ops::Mul;
 
@@ -21,7 +22,7 @@ impl Opacity {
         if value.is_nan() {
             Self::TRANSPARENT
         } else {
-            Self(value.clamp(0.0, 1.0))
+            Self(clamp(value, 0.0, 1.0))
         }
     }
 }
@@ -78,7 +79,7 @@ impl Progress {
         if value.is_nan() {
             Self::START
         } else {
-            Self(value.clamp(0.0, 1.0))
+            Self(clamp(value, 0.0, 1.0))
         }
     }
 

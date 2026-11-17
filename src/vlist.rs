@@ -38,10 +38,11 @@ use crate::builder::{Builder, NodeHandle, Scope, Slot};
 use crate::collapse::CollapseAxis;
 use crate::dnd::EdgeScroll;
 use crate::draw::NodeUi as _;
+use crate::finite::clamp;
 use crate::kept::Handle;
 use crate::key::{Key, child_id};
 use crate::nav::ListMove;
-use crate::overlay::Nav;
+use crate::overlay::{Nav, Wrap};
 use crate::pipeline::Node;
 use crate::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain, ScrollStyle, TabRule};
 use crate::shell::Shell;
@@ -153,18 +154,22 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
         }
     }
 
-    /// TODO(prose): `Nav::Listbox` makes the list one Tab stop with a virtual highlight moved by the arrow, Home, End and Page keys; `Nav::None` is the default.
+    /// TODO(prose): `Nav::Listbox(Wrap::Stop)` makes the list one Tab stop with a virtual highlight moved by the arrow, Home, End and Page keys; `Nav::None` is the default. A virtual list stops at its ends: `Wrap::Around` is reported.
     #[track_caller]
     pub fn nav(mut self, nav: Nav) -> Self {
-        if !matches!(nav, Nav::None | Nav::Listbox) {
+        if !matches!(nav, Nav::None | Nav::Listbox(Wrap::Stop)) {
             crate::report::report(
                 self.scroll.builder().ctx(),
                 crate::Problem::UnsupportedNav,
                 Some(self.scroll.id()),
-                || format!("a virtual list navigates as a listbox or not at all, not {nav:?}"),
+                || {
+                    format!(
+                        "a virtual list navigates as a listbox that stops at its ends, or not at all, not {nav:?}"
+                    )
+                },
             );
         }
-        self.listbox = nav == Nav::Listbox;
+        self.listbox = nav.is_listbox();
         self
     }
 
@@ -836,7 +841,7 @@ impl<'f, A> ListRun<'f, A> {
             view.offset += moved;
             shell.scroll_by(list, vec2(0.0, moved));
         }
-        view.offset = (view.offset + requested).clamp(0.0, view.limit());
+        view.offset = clamp(view.offset + requested, 0.0, view.limit());
         let request = self.plan.kept.with(|kept| kept.scrolls.rows.remove(&list));
         if let Some(request) = request
             && let Some(at) = self.find(request.row, 0)
@@ -845,7 +850,7 @@ impl<'f, A> ListRun<'f, A> {
             let row = (view.top + tops.top(at), view.top + tops.top(at + 1));
             let shown = (view.offset, view.offset + view.viewport.y);
             let reveal = scroll::reveal(shown, row, request.align);
-            view.offset = (view.offset + reveal).clamp(0.0, view.limit());
+            view.offset = clamp(view.offset + reveal, 0.0, view.limit());
             let rect = Rect::from_min_max(pos2(0.0, row.0), pos2(view.viewport.x, row.1));
             shell.scroll_to_rect(list, rect, request.align);
             let own = match request.align {
@@ -1159,7 +1164,7 @@ impl Laid {
             state.built = rows_kept;
             state.hold = end.map(|offset| Hold::End { offset }).or(first);
             let intended = offset + moved;
-            state.owed = intended - intended.clamp(0.0, limit);
+            state.owed = intended - clamp(intended, 0.0, limit);
         });
     }
 }
@@ -1208,7 +1213,7 @@ pub(crate) fn visible(offsets: &[f32], span: Span) -> Range<usize> {
 /// The rows of a list of `rows` rows, each `height` tall, that reach into
 /// `span`. `height` is positive ([`ListChain::fixed_px`] makes it so).
 pub(crate) fn visible_fixed(rows: usize, height: f32, span: Span) -> Range<usize> {
-    let row = |at: f32| (at / height).clamp(0.0, rows as f32);
+    let row = |at: f32| clamp(at / height, 0.0, rows as f32);
     let first = row(span.start).floor() as usize;
     let end = row(span.end).ceil() as usize;
     first..end.max(first)

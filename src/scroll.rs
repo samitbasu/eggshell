@@ -155,6 +155,7 @@ use crate::builder::{Builder, NodeHandle, Scope, Slot};
 use crate::contract::Style;
 pub use crate::contract::{EdgeFade, ScrollStyle};
 use crate::dnd::EdgeScroll;
+use crate::finite::clamp_vec2;
 use crate::key::Key;
 use crate::pipeline::{Node, PlacedNode, takes_tab};
 use crate::shell::Shell;
@@ -839,7 +840,7 @@ pub(crate) fn stored_offset(
     };
     let offset = state.unclamped_offset();
     let offset = if state.overscroll() == Vec2::ZERO {
-        offset.clamp(Vec2::ZERO, limit(content, viewport))
+        clamp_vec2(offset, Vec2::ZERO, limit(content, viewport))
     } else {
         offset
     };
@@ -971,13 +972,13 @@ impl Settle {
             want = start;
         }
         if want != start {
-            want = masked(want, plan.axis).clamp(Vec2::ZERO, max);
+            want = clamp_vec2(masked(want, plan.axis), Vec2::ZERO, max);
         }
         if let (Some(edge), Some(pointer), Taken::Free) = (plan.edge, self.pointer, self.edge)
             && viewport.expand(f32::from(edge.band)).contains(pointer)
         {
             let step = masked(edge.velocity(viewport, pointer) * self.dt, plan.axis);
-            let next = (want + step).clamp(Vec2::ZERO, max);
+            let next = clamp_vec2(want + step, Vec2::ZERO, max);
             if next != want {
                 want = next;
                 self.edge = Taken::Scrolled;

@@ -17,6 +17,7 @@ use crate::commands::{Commands, Declared};
 use crate::debug::{Debug, Phase, Timer};
 use crate::dismiss::Opening;
 use crate::dnd::{Decls, EdgeScroll, NodeDrag};
+use crate::finite;
 use crate::focus;
 use crate::kept::Handle;
 use crate::key::{ReadablePath, Seen, layout_root, root_id};
@@ -871,23 +872,29 @@ impl<'f, A> Built<'f, A> {
                                 .viewport(ctx.viewport_id(), |here| here.tooltips.forget(trigger));
                         }
                     } else if lookup == AnchorLookup::Missing && opening == Opening::Opened {
-                        #[cfg(debug_assertions)]
-                        {
+                        let missing = match (anchor_decl, boundary) {
+                            (Anchor::Node(id), _) if !by_id.contains_key(&id) => {
+                                Some(("anchored to", id))
+                            }
+                            (_, Some(Err(id))) => Some(("bounded by", id)),
+                            _ => None,
+                        };
+                        if let Some((what, id)) = missing {
                             let path = st
                                 .tree
                                 .get_node_context(node)
                                 .map_or_else(String::new, |context| context.path.clone());
-                            let (what, id) = match (anchor_decl, boundary) {
-                                (Anchor::Node(id), _) if !by_id.contains_key(&id) => {
-                                    ("anchored to", id)
-                                }
-                                (_, Some(Err(id))) => ("bounded by", id),
-                                _ => unreachable!("only a node can be missing"),
-                            };
-                            panic!(
-                                "overlay {path} is {what} a node that doesn't exist in this frame \
-                                 ({id:?}) (declared at {})",
-                                overlay.declared_at
+                            crate::report::report_at(
+                                ctx,
+                                crate::Problem::MissingAnchor,
+                                Some(overlay.id),
+                                overlay.declared_at,
+                                || {
+                                    format!(
+                                        "overlay {path} is {what} a node that doesn't exist in \
+                                         this frame ({id:?}); it is hidden and dismissed"
+                                    )
+                                },
                             );
                         }
                     }
@@ -1512,8 +1519,14 @@ fn collect(
     prims: &mut Vec<Option<Prim>>,
 ) {
     let layout = *tree.layout(id).expect("node exists");
-    let min = parent_origin + vec2(layout.location.x, layout.location.y);
-    let rect = Rect::from_min_size(min, vec2(layout.size.width, layout.size.height));
+    let rect = finite::rect_or_empty(
+        Rect::from_min_size(
+            parent_origin + vec2(layout.location.x, layout.location.y),
+            vec2(layout.size.width, layout.size.height),
+        ),
+        parent_origin,
+    );
+    let min = rect.min;
     let style = tree.style(id).expect("node exists");
     let flow = match (style.display, style.position) {
         (Display::None, _) => Flow::Hidden,
@@ -1522,10 +1535,10 @@ fn collect(
     };
     let overflow = style.overflow;
     let edges = |rect: taffy::Rect<f32>| Sides {
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.bottom,
-        left: rect.left,
+        top: finite::length_or_zero(rect.top),
+        right: finite::length_or_zero(rect.right),
+        bottom: finite::length_or_zero(rect.bottom),
+        left: finite::length_or_zero(rect.left),
     };
     let (border, padding) = (edges(layout.border), edges(layout.padding));
     let is_leaf = tree.children(id).expect("node exists").is_empty();
@@ -1918,12 +1931,12 @@ impl<A> Placed<A> {
 
     /// The rect of an identified node.
     pub fn rect(&self, id: Id) -> Option<Rect> {
-        Some(self.nodes[*self.by_id.get(&id)?].rect)
+        self.node(id).map(|node| node.rect)
     }
 
     /// The identified node with this id.
     pub fn node(&self, id: Id) -> Option<&PlacedNode> {
-        Some(&self.nodes[*self.by_id.get(&id)?])
+        self.nodes.get(*self.by_id.get(&id)?)
     }
 
     /// Every node, anonymous ones included, in pre-order.
@@ -1943,9 +1956,11 @@ impl<A> Placed<A> {
     /// [`Debug::Outlines`] is set.
     pub fn overflowing(&self) -> Vec<&str> {
         let overflows = crate::debug::overflow(&self.ctx, &self.nodes, &self.prims);
-        (0..self.nodes.len())
-            .filter(|&index| overflows[index])
-            .map(|index| self.nodes[index].path())
+        self.nodes
+            .iter()
+            .zip(overflows)
+            .filter(|(_, overflows)| *overflows)
+            .map(|(node, _)| node.path())
             .collect()
     }
 
@@ -1961,13 +1976,11 @@ impl<A> Placed<A> {
 
     /// One line per node: indentation by depth, the readable path, the kind and the rect.
     pub fn dump(&self) -> String {
-        use std::fmt::Write as _;
         let mut out = String::new();
         for node in &self.nodes {
             let Rect { min, max } = node.rect;
-            writeln!(
-                out,
-                "{:indent$}{} {:?} [{:.1}, {:.1} .. {:.1}, {:.1}]",
+            out += &format!(
+                "{:indent$}{} {:?} [{:.1}, {:.1} .. {:.1}, {:.1}]\n",
                 "",
                 node.path,
                 node.kind,
@@ -1976,8 +1989,7 @@ impl<A> Placed<A> {
                 max.x,
                 max.y,
                 indent = node.depth * 2,
-            )
-            .expect("writing to a String cannot fail");
+            );
         }
         out
     }

@@ -225,6 +225,11 @@ impl Paint {
         self.text.is_some()
     }
 
+    fn is_finite(&self) -> bool {
+        let ring = self.ring.is_none_or(|ring| ring.width.is_finite());
+        ring && self.translate.is_none_or(Vec2::is_finite)
+    }
+
     /// This paint with the properties `other` sets on top.
     fn merge(self, other: Self) -> Self {
         Self {
@@ -442,6 +447,19 @@ impl Variants {
 }
 
 impl Tw {
+    /// Sets the variant `slot` selects to `style` applied to it, unless that
+    /// gives it a length that is not finite.
+    fn variant(
+        mut self,
+        slot: fn(&mut Variants) -> &mut Option<Paint>,
+        style: impl FnOnce(Paint) -> Paint,
+    ) -> Self {
+        let before = slot(&mut self.variants).unwrap_or_default();
+        let after = self.lengths.keep(before, style(before), Paint::is_finite);
+        *slot(&mut self.variants) = Some(after);
+        self
+    }
+
     /// `cursor-pointer`-like sense: the node reports clicks.
     pub fn sense_click(mut self) -> Self {
         self.sensing = self.sensing.or(Sensing::Click);
@@ -478,43 +496,41 @@ impl Tw {
     /// node above it, or over a sensing descendant, as `:hover` is in CSS.
     /// Implies [`sense_hover`](Self::sense_hover).
     /// `style` receives the paint set so far, so calls accumulate.
-    pub fn hover(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variants.hover = Some(style(self.variants.hover.unwrap_or_default()));
-        self.sensing = self.sensing.or(Sensing::Hover);
-        self
+    pub fn hover(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        let mut tw = self.variant(|variants| &mut variants.hover, style);
+        tw.sensing = tw.sensing.or(Sensing::Hover);
+        tw
     }
 
     /// `active:`. The primary button is held on the node. Implies at least
     /// [`sense_click`](Self::sense_click).
-    pub fn active(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variants.active = Some(style(self.variants.active.unwrap_or_default()));
-        self.sensing = self.sensing.pressable();
-        self
+    pub fn active(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        let mut tw = self.variant(|variants| &mut variants.active, style);
+        tw.sensing = tw.sensing.pressable();
+        tw
     }
 
     /// `group-hover:`. The nearest ancestor marked [`group`](Self::group) is
     /// hovered.
-    pub fn group_hover(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variants.group_hover = Some(style(self.variants.group_hover.unwrap_or_default()));
-        self
+    pub fn group_hover(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variant(|variants| &mut variants.group_hover, style)
     }
 
     /// `focus-visible:`. The node has keyboard focus. Implies at least
     /// [`sense_click`](Self::sense_click), which makes the node a Tab stop
     /// (see [`focusable_none`](Self::focusable_none)). egui does not give
     /// focus to a node on a click, so this is `focus-visible`, not `focus`.
-    pub fn focus(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variants.focus = Some(style(self.variants.focus.unwrap_or_default()));
-        self.sensing = self.sensing.pressable();
-        self
+    pub fn focus(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        let mut tw = self.variant(|variants| &mut variants.focus, style);
+        tw.sensing = tw.sensing.pressable();
+        tw
     }
 
     /// `focus-within:`. The node, or a widget its draw closure or a
     /// descendant's registered, has keyboard focus. Needs an identified node
     /// but no sense. Widgets that appear this frame count from the next one.
-    pub fn focus_within(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variants.focus_within = Some(style(self.variants.focus_within.unwrap_or_default()));
-        self
+    pub fn focus_within(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variant(|variants| &mut variants.focus_within, style)
     }
 
     /// A drag that the node's [`drop_target`](crate::NodeHandle::drop_target)s
@@ -522,9 +538,8 @@ impl Tw {
     /// a drag light up. Known for in-app drags and, for files dragged in from
     /// outside, from the moment they hover over the window. Needs an
     /// identified node.
-    pub fn drag_accepts(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variants.drag_accepts = Some(style(self.variants.drag_accepts.unwrap_or_default()));
-        self
+    pub fn drag_accepts(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variant(|variants| &mut variants.drag_accepts, style)
     }
 
     /// [`drag_accepts`](Self::drag_accepts), and the drag is over this
@@ -533,9 +548,8 @@ impl Tw {
     /// the platform gives no pointer position (winit 0.30): nothing is shown
     /// as targeted on a guess. Of nested targets, only the innermost one that
     /// takes the drag is over.
-    pub fn drag_over(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variants.drag_over = Some(style(self.variants.drag_over.unwrap_or_default()));
-        self
+    pub fn drag_over(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variant(|variants| &mut variants.drag_over, style)
     }
 
     /// The node is the source of the drag in progress. With
@@ -544,9 +558,8 @@ impl Tw {
     /// is the look of the node in its slot. The slot of a live image is not
     /// painted by the node, since the node has left it: style a node around
     /// it from [`Builder::dragging`](crate::Builder::dragging).
-    pub fn drag_lifted(mut self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variants.drag_lifted = Some(style(self.variants.drag_lifted.unwrap_or_default()));
-        self
+    pub fn drag_lifted(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        self.variant(|variants| &mut variants.drag_lifted, style)
     }
 
     /// Leaves a sensing node out of keyboard navigation, like a splitter
@@ -652,6 +665,20 @@ impl Tw {
             || self.variants.get(State::DragLifted).is_some()
             || self.variants.transition.is_some()
             || self.variants.animate_layout.is_some()
+    }
+
+    /// The classes without what [`needs_identity`](Self::needs_identity)
+    /// lists: what an anonymous node keeps of them.
+    pub(crate) fn without_identity(self) -> Self {
+        Self {
+            sensing: Sensing::None,
+            grouping: Grouping::Ungrouped,
+            variants: Variants {
+                group_hover: self.variants.group_hover,
+                ..Variants::default()
+            },
+            ..self
+        }
     }
 }
 

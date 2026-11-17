@@ -44,9 +44,184 @@ pub enum InText {
 pub struct Command<A> {
     title: &'static str,
     run: Run<A>,
+    binding: Binding<A>,
+}
+
+/// When a command runs: shared by plain and paste commands.
+struct Binding<A> {
     enabled: fn(&A) -> bool,
-    shortcut: Option<KeyboardShortcut>,
+    shortcut: Option<Chord>,
     in_text: Option<InText>,
+}
+
+impl<A> Clone for Binding<A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> Copy for Binding<A> {}
+
+impl<A> Default for Binding<A> {
+    fn default() -> Self {
+        Self {
+            enabled: |_| true,
+            shortcut: None,
+            in_text: None,
+        }
+    }
+}
+
+/// TODO(prose): a key and the modifiers held for it, which runs a command. A
+/// bare Esc or Enter is not a chord: the library keeps them for dismissal and
+/// the default button.
+///
+/// ```
+/// use eggshell_ui::Chord;
+/// use egui::{Key, Modifiers};
+///
+/// assert!(Chord::new(Modifiers::COMMAND, Key::S).is_some());
+/// assert!(Chord::new(Modifiers::COMMAND, Key::Enter).is_some());
+/// assert!(Chord::new(Modifiers::NONE, Key::Escape).is_none());
+/// ```
+///
+/// Made in a const, a chord the library keeps is a compile error:
+///
+/// ```compile_fail
+/// use eggshell_ui::Chord;
+/// use egui::{Key, Modifiers};
+///
+/// const CLOSE: Chord = Chord::new(Modifiers::NONE, Key::Escape).expect("reserved");
+/// ```
+///
+/// A command's shortcut is a `Chord`, so a bare `KeyboardShortcut` does not
+/// compile:
+///
+/// ```compile_fail
+/// use eggshell_ui::Command;
+/// use egui::{Key, KeyboardShortcut, Modifiers};
+///
+/// Command::new("Close", |_: &mut ()| {})
+///     .shortcut(KeyboardShortcut::new(Modifiers::NONE, Key::Escape));
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Chord(KeyboardShortcut);
+
+impl Chord {
+    /// TODO(prose): `key` with `modifiers` held, or `None` for a bare Esc or
+    /// Enter.
+    ///
+    /// ```
+    /// use eggshell_ui::Chord;
+    /// use egui::{Key, Modifiers};
+    ///
+    /// const SAVE: Chord = Chord::new(Modifiers::COMMAND, Key::S).expect("not reserved");
+    /// assert_eq!(Some(SAVE), Chord::new(Modifiers::COMMAND, Key::S));
+    /// assert!(Chord::new(Modifiers::NONE, Key::Enter).is_none());
+    /// ```
+    pub const fn new(modifiers: Modifiers, key: EguiKey) -> Option<Self> {
+        let Modifiers {
+            alt,
+            ctrl,
+            shift,
+            mac_cmd,
+            command,
+        } = modifiers;
+        let bare = !(alt || ctrl || shift || mac_cmd || command);
+        if bare && matches!(key, EguiKey::Escape | EguiKey::Enter) {
+            None
+        } else {
+            Some(Self(KeyboardShortcut::new(modifiers, key)))
+        }
+    }
+}
+
+impl From<Chord> for KeyboardShortcut {
+    fn from(chord: Chord) -> Self {
+        chord.0
+    }
+}
+
+/// TODO(prose): a command that pastes, made with [`Command::paste`]; only it
+/// has [`on_error`](Self::on_error). [`Commands::add`] takes it as a
+/// [`Command`].
+///
+/// ```
+/// use eggshell_ui::{Chord, Command, Commands, Paste};
+/// use egui::{Key, Modifiers};
+///
+/// #[derive(Hash, Debug)]
+/// enum Cmd { Paste }
+/// #[derive(Default)]
+/// struct App { text: String, failed: bool }
+///
+/// let table: Commands<App> = Commands::new().add(
+///     Cmd::Paste,
+///     Command::paste("Paste", |app: &mut App, paste, _| {
+///         if let Paste::Text(text) = paste {
+///             app.text.push_str(&text);
+///         }
+///     })
+///     .shortcut(const { Chord::new(Modifiers::COMMAND, Key::V).expect("not reserved") })
+///     .on_error(|app, _| app.failed = true),
+/// );
+/// ```
+///
+/// A plain command reads nothing, so it has no `on_error`:
+///
+/// ```compile_fail
+/// use eggshell_ui::Command;
+///
+/// Command::new("Save", |_: &mut ()| {}).on_error(|_, _| {});
+/// ```
+pub struct PasteCommand<A> {
+    title: &'static str,
+    run: fn(&mut A, Paste, Via),
+    on_error: Option<fn(&mut A, ClipboardError)>,
+    binding: Binding<A>,
+}
+
+impl<A> PasteCommand<A> {
+    /// What happens when a click's read of the clipboard fails.
+    pub fn on_error(mut self, hear: fn(&mut A, ClipboardError)) -> Self {
+        self.on_error = Some(hear);
+        self
+    }
+
+    /// The chord that runs the command, as [`Command::shortcut`].
+    pub fn shortcut(mut self, shortcut: Chord) -> Self {
+        self.binding.shortcut = Some(shortcut);
+        self
+    }
+
+    /// Whether the command can run now, as [`Command::enabled`].
+    pub fn enabled(mut self, enabled: fn(&A) -> bool) -> Self {
+        self.binding.enabled = enabled;
+        self
+    }
+
+    /// What the command does while a text field has the keyboard, as
+    /// [`Command::in_text`].
+    pub fn in_text(mut self, in_text: InText) -> Self {
+        self.binding.in_text = Some(in_text);
+        self
+    }
+}
+
+impl<A> From<PasteCommand<A>> for Command<A> {
+    fn from(paste: PasteCommand<A>) -> Self {
+        let PasteCommand {
+            title,
+            run,
+            on_error,
+            binding,
+        } = paste;
+        Self {
+            title,
+            run: Run::Paste { run, on_error },
+            binding,
+        }
+    }
 }
 
 /// What a command does.
@@ -83,9 +258,7 @@ impl<A> Command<A> {
         Self {
             title,
             run: Run::Plain(run),
-            enabled: |_| true,
-            shortcut: None,
-            in_text: None,
+            binding: Binding::default(),
         }
     }
 
@@ -94,37 +267,22 @@ impl<A> Command<A> {
     /// button it is a read of the clipboard. Both are collapsed the same way,
     /// to one [`Paste`]: the text if there is any, else the image; the [`Via`]
     /// says which it was. A read that
-    /// fails does not run the command: [`on_error`](Self::on_error) hears it.
-    pub fn paste(title: &'static str, run: fn(&mut A, Paste, Via)) -> Self {
-        Self {
-            run: Run::Paste {
-                run,
-                on_error: None,
-            },
-            ..Self::new(title, |_| {})
+    /// fails does not run the command: [`on_error`](PasteCommand::on_error) hears it.
+    pub fn paste(title: &'static str, run: fn(&mut A, Paste, Via)) -> PasteCommand<A> {
+        PasteCommand {
+            title,
+            run,
+            on_error: None,
+            binding: Binding::default(),
         }
-    }
-
-    /// What happens when a click's read of the clipboard fails. Only a
-    /// [`paste`](Self::paste) command reads; debug builds panic for any other.
-    #[track_caller]
-    pub fn on_error(mut self, hear: fn(&mut A, ClipboardError)) -> Self {
-        match &mut self.run {
-            Run::Paste { on_error, .. } => *on_error = Some(hear),
-            Run::Plain(_) => {
-                #[cfg(debug_assertions)]
-                panic!("`on_error` is for a command made with `Command::paste`");
-            }
-        }
-        self
     }
 
     /// The chord that runs the command. Use [`egui::Modifiers::COMMAND`] for
     /// the platform's command key: it is shown as `Cmd` on macOS and `Ctrl`
     /// elsewhere. `Cmd+X`, `Cmd+C` and `Cmd+V` are matched as the cut, copy and
     /// paste events egui's backends send for them.
-    pub fn shortcut(mut self, shortcut: KeyboardShortcut) -> Self {
-        self.shortcut = Some(shortcut);
+    pub fn shortcut(mut self, shortcut: Chord) -> Self {
+        self.binding.shortcut = Some(shortcut);
         self
     }
 
@@ -132,13 +290,13 @@ impl<A> Command<A> {
     /// disabled and its chord is left alone, so whatever is underneath it
     /// still gets the key.
     pub fn enabled(mut self, enabled: fn(&A) -> bool) -> Self {
-        self.enabled = enabled;
+        self.binding.enabled = enabled;
         self
     }
 
     /// Overrides what the command does while a text field has the keyboard.
     pub fn in_text(mut self, in_text: InText) -> Self {
-        self.in_text = Some(in_text);
+        self.binding.in_text = Some(in_text);
         self
     }
 
@@ -149,11 +307,11 @@ impl<A> Command<A> {
 
     /// The chord that runs the command.
     pub fn chord(&self) -> Option<KeyboardShortcut> {
-        self.shortcut
+        self.binding.shortcut.map(KeyboardShortcut::from)
     }
 
     pub(crate) fn is_enabled(&self, app: &A) -> bool {
-        (self.enabled)(app)
+        (self.binding.enabled)(app)
     }
 
     /// Runs the command as a click does, with nothing from an event.
@@ -185,7 +343,7 @@ impl<A> Command<A> {
     }
 
     fn fires_while_typing(&self, shortcut: KeyboardShortcut) -> bool {
-        match self.in_text {
+        match self.binding.in_text {
             Some(InText::Fire) => true,
             Some(InText::Yield) => false,
             None => !edits_text(shortcut),
@@ -255,11 +413,11 @@ impl<A> Commands<A> {
     }
 
     /// Adds `command` under `id`.
-    pub fn add<K: Key>(mut self, id: K, command: Command<A>) -> Self {
+    pub fn add<K: Key>(mut self, id: K, command: impl Into<Command<A>>) -> Self {
         self.entries.push(Entry {
             id: child_id(Id::NULL, &id),
             readable: format!("{id:?}"),
-            command,
+            command: command.into(),
         });
         self
     }
@@ -278,9 +436,8 @@ impl<A> Commands<A> {
     }
 
     /// Reports what makes a table ambiguous to dispatch: the same key
-    /// twice, the same chord twice, or a bare Esc or Enter, which the library
-    /// keeps for dismissal and the default button. The first entry of a key
-    /// or chord is the one that runs.
+    /// twice, or the same chord twice. The first entry of a key or chord is
+    /// the one that runs.
     #[track_caller]
     pub(crate) fn validate(&self, ctx: &Context) {
         for (at, entry) in self.entries.iter().enumerate() {
@@ -296,24 +453,13 @@ impl<A> Commands<A> {
                     )
                 });
             }
-            let Some(shortcut) = command.shortcut else {
+            let Some(shortcut) = command.chord() else {
                 continue;
             };
-            if shortcut.modifiers.is_none()
-                && matches!(shortcut.logical_key, EguiKey::Escape | EguiKey::Enter)
-            {
-                report(ctx, Problem::ReservedChord, Some(entry.id), || {
-                    format!(
-                        "command {readable} is bound to a bare {:?}, which the library keeps for \
-                         dismissal and the default button",
-                        shortcut.logical_key
-                    )
-                });
-            }
             if let Some(other) = earlier.iter().find(|other| {
                 other
                     .command
-                    .shortcut
+                    .chord()
                     .is_some_and(|other| same_chord(other, shortcut))
             }) {
                 report(ctx, Problem::DuplicateChord, Some(entry.id), || {
@@ -447,13 +593,13 @@ pub(crate) fn dispatch<A>(
     app: &mut A,
 ) {
     for Entry { command, .. } in &table.entries {
-        let Some(shortcut) = command.shortcut else {
+        let Some(shortcut) = command.chord() else {
             continue;
         };
         if typing == Typing::Yes && !command.fires_while_typing(shortcut) {
             continue;
         }
-        if !(command.enabled)(app) {
+        if !command.is_enabled(app) {
             continue;
         }
         if let Some(press) = consume(ctx, shortcut) {

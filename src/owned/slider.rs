@@ -3,18 +3,18 @@
 
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::ops::RangeInclusive;
 use std::rc::Rc;
 
 use egui::{Key, Rect, Role, Ui, WidgetInfo};
 
-use super::number::{self, Edit, Edits, Step};
+use super::number::{self, Edit, Edits, Step, ValueRange};
 use super::{
     Content, Enablement, FieldBoxChain, OnResponse, TipContent, described, painted, text_sized,
     tip, tipped,
 };
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
+use crate::finite::clamp;
 use crate::focus::Autofocus;
 use crate::input_trace::{self, Shown};
 use crate::prim::text_field::{self, Field};
@@ -52,7 +52,7 @@ pub struct SliderChain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     value: f64,
-    range: RangeInclusive<f64>,
+    range: ValueRange,
     step: Step,
     name: Option<String>,
     tooltip: TipContent,
@@ -80,7 +80,7 @@ struct Header {
 #[derive(Clone, Debug)]
 struct Scale {
     value: f64,
-    range: RangeInclusive<f64>,
+    range: ValueRange,
     step: Step,
     thumb: f32,
 }
@@ -89,22 +89,22 @@ impl Scale {
     /// The value under horizontal position `x` of a track occupying `track`;
     /// the thumb's centre travels the track less one thumb.
     fn at(&self, x: f32, track: Rect) -> f64 {
-        let (low, high) = (*self.range.start(), *self.range.end());
+        let (low, high) = (self.range.start(), self.range.end());
         let travel = track.width() - self.thumb;
         if travel <= 0.0 {
             return low;
         }
-        let along = ((x - track.left() - self.thumb / 2.0) / travel).clamp(0.0, 1.0);
+        let along = clamp((x - track.left() - self.thumb / 2.0) / travel, 0.0, 1.0);
         self.step
-            .snap(low + f64::from(along) * (high - low), &self.range)
+            .snap(low + f64::from(along) * (high - low), self.range)
     }
 
     /// The value after the keys pressed this frame, if any.
     fn after_keys(&self, ui: &Ui) -> Option<f64> {
         number::hold_arrows(ui);
         let ends = [
-            (Key::Home, *self.range.start()),
-            (Key::End, *self.range.end()),
+            (Key::Home, self.range.start()),
+            (Key::End, self.range.end()),
         ];
         let end = ends.into_iter().fold(None, |end, (key, value)| {
             number::pressed(ui, key).then_some(value).or(end)
@@ -113,7 +113,7 @@ impl Scale {
         match (end, steps) {
             (Some(value), _) => Some(value),
             (None, 0) => None,
-            (None, steps) => Some(self.step.moved(self.value, steps, &self.range)),
+            (None, steps) => Some(self.step.moved(self.value, steps, self.range)),
         }
     }
 }
@@ -147,7 +147,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         b: Builder<'a, 'f, A>,
         key: K,
         value: f64,
-        range: RangeInclusive<f64>,
+        range: ValueRange,
     ) -> Self {
         Self {
             slot: b.slot(&key),
@@ -272,14 +272,15 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             on_response,
             edits,
         } = self;
+        let value = range.checked(b.ctx(), slot.id, value);
         let tooltip = tip(&mut b, slot.id, tooltip);
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let slider = &style.slider;
         let metrics = *slider.sizes.lookup(b.ctx(), b.size_of(size));
-        let (low, high) = (*range.start(), *range.end());
+        let (low, high) = (range.start(), range.end());
         let fraction = if high > low {
-            ((value - low) / (high - low)).clamp(0.0, 1.0) as f32
+            clamp((value - low) / (high - low), 0.0, 1.0) as f32
         } else {
             0.0
         };
@@ -328,7 +329,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             header,
             value: scale.value,
             step,
-            range: scale.range.clone(),
+            range: scale.range,
             name: name.clone(),
             enablement,
             colors: (
@@ -390,7 +391,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                             response.widget_info(|| {
                                 WidgetInfo::slider(ui.is_enabled(), scale.value, &name)
                             });
-                            let (low, high) = (*scale.range.start(), *scale.range.end());
+                            let (low, high) = (scale.range.start(), scale.range.end());
                             ui.ctx().accesskit_node_builder(response.id, |node| {
                                 node.set_min_numeric_value(low);
                                 node.set_max_numeric_value(high);
@@ -437,7 +438,7 @@ struct Row {
     header: Header,
     value: f64,
     step: Step,
-    range: RangeInclusive<f64>,
+    range: ValueRange,
     name: String,
     enablement: Enablement,
     colors: (Colors, Colors),
@@ -517,10 +518,8 @@ impl Row {
                 b.div_id(Part::Readout, classes, |b| b.text(tw(), shown));
                 return;
             };
-            let accept = move |text: &str| {
-                parse(text)
-                    .map(|number| step.snap(number.max(*range.start()).min(*range.end()), &range))
-            };
+            let accept =
+                move |text: &str| parse(text).map(|number| step.snap(range.clamp(number), range));
             match typed {
                 None => {
                     let classes = enablement.apply(classes.sense_click(), &Style::of(b.ctx()));

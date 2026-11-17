@@ -4,8 +4,9 @@
 
 use core::time::Duration;
 
+use eggshell_ui::testing::assert_reported;
 use eggshell_ui::{
-    Builder, Easing, LayoutState, Opacity, Progress, TextSpec, TextStyle, Weight, tw,
+    Builder, Easing, LayoutState, Opacity, Problem, Progress, TextSpec, TextStyle, Weight, tw,
 };
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, pos2, vec2};
@@ -760,17 +761,34 @@ fn red_of<A>(harness: &Harness<'_, Rig<A>>, y: f32) -> f32 {
 
 // ---------------------------------------------------------------- build errors
 
-#[cfg(debug_assertions)]
+/// ```html
+/// <div class="w-[100px] h-[40px] bg-[#141414] hover:bg-[#dc1414]"></div>
+/// ```
+/// on a node with no key, which cannot carry a hover look.
+fn anonymous_hoverable(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div(
+        tw().w_px(100.0)
+            .h_px(40.0)
+            .bg(BASE)
+            .hover(|p| p.bg(LIT))
+            .sense_click()
+            .transition(Duration::from_millis(100)),
+        |_| {},
+    );
+}
+
 #[test]
-#[should_panic(expected = "only identified nodes")]
-fn variants_on_an_anonymous_node_are_a_build_error() {
-    let mut layout = LayoutState::new();
-    let ctx = egui::Context::default();
-    ctx.run_ui(egui::RawInput::default(), |_| {})
-        .drop_without_applying_deltas();
-    layout.build::<()>(&ctx, |b| {
-        b.div(tw().hover(|p| p.bg(Color32::RED)), |_| {});
-    });
+fn variants_on_an_anonymous_node_are_ignored_and_reported() {
+    let mut harness = harness((), anonymous_hoverable);
+    let report = assert_reported(&harness.ctx, Problem::NeedsIdentity);
+    assert!(
+        report.message.contains("only identified nodes"),
+        "{}",
+        report.message
+    );
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    hover(&mut harness, 10.0, 10.0);
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
 }
 
 /// ```html
@@ -807,45 +825,94 @@ fn an_anonymous_child_follows_its_groups_hover() {
     assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
 }
 
-#[cfg(debug_assertions)]
-#[test]
-#[should_panic(expected = "only identified nodes")]
-fn a_transition_on_an_anonymous_node_is_a_build_error() {
-    let mut layout = LayoutState::new();
-    let ctx = egui::Context::default();
-    ctx.run_ui(egui::RawInput::default(), |_| {})
-        .drop_without_applying_deltas();
-    layout.build::<()>(&ctx, |b| {
-        b.div(
-            tw().group_hover(|p| p.bg(Color32::RED))
-                .transition(Duration::from_millis(100)),
-            |_| {},
-        );
-    });
+/// An anonymous child that keeps its `group_hover` once its transition is
+/// dropped.
+fn anonymous_transition(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id(
+        "parent",
+        tw().w_px(100.0).h_px(40.0).bg(BASE).group().sense_hover(),
+        |b| {
+            b.div(
+                tw().w_px(10.0)
+                    .h_px(10.0)
+                    .bg(BASE)
+                    .group_hover(|p| p.bg(LIT))
+                    .transition(Duration::from_millis(100)),
+                |_| {},
+            );
+        },
+    );
 }
 
-#[cfg(debug_assertions)]
 #[test]
-#[should_panic(expected = "only identified nodes")]
-fn a_sense_on_anonymous_text_is_a_build_error() {
-    let mut layout = LayoutState::new();
-    let ctx = egui::Context::default();
-    ctx.run_ui(egui::RawInput::default(), |_| {})
-        .drop_without_applying_deltas();
-    layout.build::<()>(&ctx, |b| b.text(tw().sense_click(), "nope"));
+fn a_transition_on_an_anonymous_node_is_dropped_and_reported() {
+    let mut harness = harness((), anonymous_transition);
+    assert_reported(&harness.ctx, Problem::NeedsIdentity);
+    hover(&mut harness, 80.0, 30.0);
+    assert_eq!(
+        fill_at(&harness, 0.0, 0.0),
+        Some(LIT),
+        "the group_hover look is kept and shows at once"
+    );
 }
 
-#[cfg(debug_assertions)]
 #[test]
-#[should_panic(expected = "group must sense")]
-fn a_group_that_senses_nothing_is_a_build_error() {
-    let mut layout = LayoutState::new();
-    let ctx = egui::Context::default();
-    ctx.run_ui(egui::RawInput::default(), |_| {})
-        .drop_without_applying_deltas();
-    layout.build::<()>(&ctx, |b| {
-        b.div_id("g", tw().group(), |_| {});
-    });
+fn a_sense_on_anonymous_text_is_dropped_and_reported() {
+    let mut harness = harness((), |b, _| b.text(tw().sense_click(), "nope"));
+    assert_reported(&harness.ctx, Problem::NeedsIdentity);
+    hover(&mut harness, 5.0, 5.0);
+}
+
+/// ```html
+/// <div class="group w-[100px] h-[40px] bg-[#141414]">
+///   <div class="w-[10px] h-[10px] bg-[#141414] group-hover:bg-[#dc1414]"></div>
+/// </div>
+/// ```
+/// with a group that is not told to sense hover.
+fn unsensing_group(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id(
+        "parent",
+        tw().w_px(100.0).h_px(40.0).bg(BASE).group(),
+        |b| {
+            b.div_id(
+                "child",
+                tw().w_px(10.0)
+                    .h_px(10.0)
+                    .bg(BASE)
+                    .group_hover(|p| p.bg(LIT)),
+                |_| {},
+            );
+        },
+    );
+}
+
+#[test]
+fn a_group_that_senses_nothing_senses_hover_and_is_reported() {
+    let mut harness = harness((), unsensing_group);
+    assert_reported(&harness.ctx, Problem::GroupSensesNothing);
+    hover(&mut harness, 80.0, 30.0);
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT));
+}
+
+/// A `group_hover` with no group above it.
+fn orphan_group_hover(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id(
+        "orphan",
+        tw().w_px(100.0)
+            .h_px(40.0)
+            .bg(BASE)
+            .group_hover(|p| p.bg(LIT))
+            .sense_hover(),
+        |_| {},
+    );
+}
+
+#[test]
+fn a_group_hover_without_a_group_never_shows_and_is_reported() {
+    let mut harness = harness((), orphan_group_hover);
+    assert_reported(&harness.ctx, Problem::GroupHoverWithoutGroup);
+    hover(&mut harness, 10.0, 10.0);
+    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
 }
 
 // -------------------------------------------------------------- node handles

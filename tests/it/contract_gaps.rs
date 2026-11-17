@@ -785,16 +785,14 @@ fn the_colors_form_still_draws_the_styles_disabled_colours() {
 
 fn icon_buttons(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().gap(2.0).items_center(), |b| {
-        b.button("icon", app.icon())
-            .named("Search")
+        b.button("icon", (app.icon(), "Search"))
             .size(size::ICON)
             .variant(eggshell_ui_shadcn::variant::GHOST)
             .on_click(|app: &mut App| app.clicks += 1);
         b.button("labelled", "Add")
             .icon(app.icon())
             .on_click(|app: &mut App| app.clicks += 10);
-        b.toggle("toggle", app.icon(), app.on)
-            .named("Pin")
+        b.toggle("toggle", (app.icon(), "Pin"), app.on)
             .size(size::ICON)
             .on_change(|app: &mut App, on| app.on = on);
     });
@@ -852,14 +850,27 @@ fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
     }
 }
 
-fn unnamed(b: &mut Builder<'_, '_, App>, _: &App) {
-    b.button("nameless", "").add();
+#[test]
+fn a_button_with_neither_label_nor_name_is_reported() {
+    let mut headless = eggshell_ui::testing::Headless::new(vec2(200.0, 100.0));
+    headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _| {
+        b.button("nameless", "").add();
+    });
+    let report =
+        eggshell_ui::testing::assert_reported(headless.ctx(), eggshell_ui::Problem::Unnamed);
+    assert!(
+        report.message.contains("no label and no name"),
+        "{}",
+        report.message
+    );
 }
 
 #[test]
-#[should_panic(expected = "no label and no name")]
-fn a_button_with_neither_label_nor_name_is_a_bug_in_a_debug_build() {
-    let _ = harness(Theme::Light, unnamed);
+fn a_button_with_an_empty_label_and_a_name_is_not_reported() {
+    let harness = harness(Theme::Light, |b, _| {
+        b.button("named", "").named("Named").add()
+    });
+    eggshell_ui::testing::assert_no_reports(&harness.ctx);
 }
 
 /// ```html

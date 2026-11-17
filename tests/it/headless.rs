@@ -146,6 +146,14 @@ fn try_at_is_none_for_a_missing_node() {
 }
 
 #[test]
+fn node_and_rect_are_none_for_an_unknown_id() {
+    let placed = placed();
+    let unknown = egui::Id::NULL.with("not a node");
+    assert!(placed.node(unknown).is_none());
+    assert!(placed.rect(unknown).is_none());
+}
+
+#[test]
 fn text_finds_the_unique_node_with_that_text() {
     let placed = placed();
     let mono = placed.at(Region::Viewport).at(Part::Panel).at(Pick::Mono);

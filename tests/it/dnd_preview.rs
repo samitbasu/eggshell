@@ -163,6 +163,7 @@ fn preview_node(h: &H) -> bool {
     let timeline = Timeline::recorded(&h.ctx);
     timeline
         .frame(timeline.len() - 1)
+        .expect("a recorded frame")
         .iter()
         .any(|n| n.path.contains("drag preview"))
 }

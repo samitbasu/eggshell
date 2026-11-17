@@ -135,13 +135,11 @@ fn title_bar<A: 'static>(b: &mut B<'_, '_, A>, pane: &Pane, form: Form) {
                         .add();
                 }
                 Form::Compact | Form::Icons => {
-                    b.button("add", Face::Icon(add))
-                        .named("Add")
+                    b.button("add", Face::Icon(add, "Add".into()))
                         .variant(variant::GHOST)
                         .size(size::ICON)
                         .add();
-                    b.button("close", Face::Icon(close))
-                        .named("Close")
+                    b.button("close", Face::Icon(close, "Close".into()))
                         .variant(variant::GHOST)
                         .size(size::ICON)
                         .add();

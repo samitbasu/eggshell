@@ -70,6 +70,7 @@ use std::sync::Arc;
 use egui::{Context, DragAndDrop, DroppedFileHandle, Event, Id, Pos2, Rect, Vec2, vec2};
 
 use crate::draw::{Lift, children_of};
+use crate::finite::clamp;
 use crate::kept::Handle;
 use crate::mount::Lens;
 use crate::overlay_input::Drag;
@@ -314,8 +315,8 @@ impl EdgeScroll {
             if band == 0.0 {
                 return 0.0;
             }
-            let near_min = ((min + band - at) / band).clamp(0.0, 1.0);
-            let near_max = ((at - (max - band)) / band).clamp(0.0, 1.0);
+            let near_min = clamp((min + band - at) / band, 0.0, 1.0);
+            let near_max = clamp((at - (max - band)) / band, 0.0, 1.0);
             speed * (near_max - near_min)
         };
         vec2(
@@ -1411,7 +1412,7 @@ mod tests {
                     .expect("a node")
                     .rect()
                     .contains(ON_BOTH)
-                    && placed.overlay("pop").rect().contains(ON_BOTH),
+                    && placed.expect_overlay("pop").rect().contains(ON_BOTH),
                 "precondition: the popover covers part of the zone"
             );
             assert_eq!(path_over(&placed, ON_BOTH), None);
@@ -1422,7 +1423,7 @@ mod tests {
         fn a_target_inside_a_popover_is_reachable() {
             let placed =
                 popover_over_the_zone(crate::overlay::Nav::None, crate::overlay::Band::Popup);
-            let inner = placed.overlay("pop").rect().min + vec2(10.0, 10.0);
+            let inner = placed.expect_overlay("pop").rect().min + vec2(10.0, 10.0);
             assert!(
                 placed
                     .at("zone")
@@ -1440,10 +1441,12 @@ mod tests {
 
         #[test]
         fn a_swallowing_overlay_covers_every_page_target() {
-            let placed =
-                popover_over_the_zone(crate::overlay::Nav::Menu, crate::overlay::Band::Popup);
+            let placed = popover_over_the_zone(
+                crate::overlay::Nav::Menu(crate::overlay::Wrap::Around),
+                crate::overlay::Band::Popup,
+            );
             assert_eq!(path_over(&placed, ONLY_ZONE), None, "even outside its box");
-            let inner = placed.overlay("pop").rect().min + vec2(10.0, 10.0);
+            let inner = placed.expect_overlay("pop").rect().min + vec2(10.0, 10.0);
             assert!(path_over(&placed, inner).is_some(), "its own are reachable");
         }
 

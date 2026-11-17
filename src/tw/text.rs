@@ -19,7 +19,15 @@ macro_rules! text_flags {
 
 impl Tw {
     fn texted(mut self, set: impl FnOnce(&mut TextClasses)) -> Self {
-        set(&mut self.text);
+        let mut after = self.text.clone();
+        set(&mut after);
+        let before = std::mem::take(&mut self.text);
+        self.text = self.lengths.keep(before, after, |text| {
+            [text.size, text.line_height]
+                .into_iter()
+                .flatten()
+                .all(f32::is_finite)
+        });
         self
     }
 

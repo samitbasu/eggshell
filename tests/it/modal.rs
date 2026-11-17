@@ -554,14 +554,18 @@ mod example {
                 };
                 layout(b, &open);
             });
-        assert_eq!(placed.overlay(Part::Dialog).modal(), Some(Modal::Center));
-        assert_eq!(placed.overlay(Part::Dialog).side(), None);
         assert_eq!(
-            placed.overlay(Part::Sheet).modal(),
+            placed.expect_overlay(Part::Dialog).modal(),
+            Some(Modal::Center)
+        );
+        assert_eq!(placed.expect_overlay(Part::Dialog).side(), None);
+        assert_eq!(
+            placed.expect_overlay(Part::Sheet).modal(),
             Some(Modal::Edge(Side::Right))
         );
         assert!(
-            placed.overlay(Part::Sheet).stack_index() > placed.overlay(Part::Dialog).stack_index(),
+            placed.expect_overlay(Part::Sheet).stack_index()
+                > placed.expect_overlay(Part::Dialog).stack_index(),
             "opening order"
         );
     }
@@ -952,7 +956,7 @@ mod two_frames {
 /// A key that dismisses an overlay or presses a button belongs to it: a draw
 /// closure under it never sees the event (#146).
 mod keys_are_taken {
-    use eggshell_ui::overlay::{Anchor, Focus, Nav};
+    use eggshell_ui::overlay::{Anchor, Focus, Nav, Wrap};
 
     use super::*;
 
@@ -999,7 +1003,7 @@ mod keys_are_taken {
         if app.menu {
             b.overlay(P::Menu)
                 .anchor(Anchor::Point(pos2(100.0, 100.0)))
-                .nav(Nav::Menu)
+                .nav(Nav::Menu(Wrap::Around))
                 .focus(Focus::Enter)
                 .on_dismiss(|app: &mut App| {
                     app.menu = false;

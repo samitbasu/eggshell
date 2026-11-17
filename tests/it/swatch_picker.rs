@@ -2,7 +2,9 @@
 //! pointer, build, layout, draw and `Nav::Grid`'s judgement of the arrows by
 //! the swatches' placed rects.
 
-use eggshell_ui::overlay::{Anchor, Nav, Wrap};
+use eggshell_ui::Problem;
+use eggshell_ui::overlay::{Anchor, Nav};
+use eggshell_ui::testing::{assert_no_reports, assert_reported};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Key, Role, Theme, vec2};
@@ -130,31 +132,26 @@ fn space_picks_too() {
 #[derive(Default)]
 struct Plain;
 
-fn grid_overlay(b: &mut Builder<'_, '_, Plain>, wrap: Option<Wrap>, marked: &[u32]) {
+fn grid_overlay(b: &mut Builder<'_, '_, Plain>, marked: &[u32]) {
     let marked = marked.to_vec();
     b.div_id("anchor", tw().size_px(10.0), |_| {});
     let anchor = b.id_of("anchor");
-    let chain = b
-        .overlay("grid")
+    b.overlay("grid")
         .anchor(Anchor::Node(anchor))
         .nav(Nav::Grid)
         .role(Role::Grid)
-        .named("Grid");
-    let chain = match wrap {
-        Some(wrap) => chain.wrap(wrap),
-        None => chain,
-    };
-    chain.children(|s| {
-        for cell in 0..3u32 {
-            let node = s
-                .div_id(("cell", cell), tw().size_px(20.0).sense_click(), |_| {})
-                .role(Role::GridCell)
-                .named(format!("Cell {cell}"));
-            if marked.contains(&cell) {
-                node.focus_on_open();
+        .named("Grid")
+        .children(|s| {
+            for cell in 0..3u32 {
+                let node = s
+                    .div_id(("cell", cell), tw().size_px(20.0).sense_click(), |_| {})
+                    .role(Role::GridCell)
+                    .named(format!("Cell {cell}"));
+                if marked.contains(&cell) {
+                    node.focus_on_open();
+                }
             }
-        }
-    });
+        });
 }
 
 fn plain_harness(view: support::View<Plain>) -> Harness<'static, Rig<Plain>> {
@@ -169,23 +166,31 @@ fn plain_harness(view: support::View<Plain>) -> Harness<'static, Rig<Plain>> {
     harness
 }
 
-#[cfg(debug_assertions)]
-#[test]
-#[should_panic(expected = "a grid overlay stops at its edges and cannot wrap around")]
-fn a_grid_told_to_wrap_around_is_a_build_error() {
-    plain_harness(|b, _| grid_overlay(b, Some(Wrap::Around), &[]));
+/// The cell of the grid overlay that has focus.
+fn focused_cell(harness: &Harness<'_, Rig<Plain>>) -> Option<u32> {
+    let path = focused_path(harness)?;
+    (0..3).find(|cell| path.ends_with(&format!("(\"cell\", {cell})")))
 }
 
 #[test]
-fn a_grid_told_to_stop_builds() {
-    plain_harness(|b, _| grid_overlay(b, Some(Wrap::Stop), &[1]));
+fn a_grid_stops_at_its_last_cell() {
+    let mut harness = plain_harness(|b, _| grid_overlay(b, &[2]));
+    assert_eq!(
+        focused_cell(&harness),
+        Some(2),
+        "precondition: on the last cell"
+    );
+    harness.key_press(Key::ArrowRight);
+    harness.run_steps(5);
+    assert_eq!(focused_cell(&harness), Some(2));
+    assert_no_reports(&harness.ctx);
 }
 
-#[cfg(debug_assertions)]
 #[test]
-#[should_panic(expected = "are marked `focus_on_open`")]
-fn two_nodes_marked_focus_on_open_in_one_overlay_panic() {
-    plain_harness(|b, _| grid_overlay(b, None, &[0, 2]));
+fn of_two_nodes_marked_focus_on_open_the_first_takes_focus_and_it_is_reported() {
+    let harness = plain_harness(|b, _| grid_overlay(b, &[2, 1]));
+    assert_reported(&harness.ctx, Problem::FocusOnOpenTwice);
+    assert_eq!(focused_cell(&harness), Some(1));
 }
 
 /// An arrow in the frame right after a click opened the picker and gave its

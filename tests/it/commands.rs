@@ -4,8 +4,8 @@
 
 use eggshell_ui::overlay::{Anchor, Modal};
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, Command, Commands, InText, TextSpec, TextStyle, Weight, tw};
-use egui::{Color32, FontFamily, Key, KeyboardShortcut, Modifiers, Role, vec2};
+use eggshell_ui::{Builder, Chord, Command, Commands, InText, TextSpec, TextStyle, Weight, tw};
+use egui::{Color32, FontFamily, Key, Modifiers, Role, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -41,14 +41,15 @@ struct App {
     twice: bool,
     dialog_item: Option<Cmd>,
     popover: bool,
+    button: Option<Cmd>,
 }
 
-const fn chord(modifiers: Modifiers, key: Key) -> KeyboardShortcut {
-    KeyboardShortcut::new(modifiers, key)
+const fn chord(modifiers: Modifiers, key: Key) -> Chord {
+    Chord::new(modifiers, key).expect("not a chord the library keeps")
 }
 
-const SAVE: KeyboardShortcut = chord(Modifiers::COMMAND, Key::S);
-const SAVE_AS: KeyboardShortcut = chord(
+const SAVE: Chord = chord(Modifiers::COMMAND, Key::S);
+const SAVE_AS: Chord = chord(
     Modifiers {
         shift: true,
         ..Modifiers::COMMAND
@@ -152,6 +153,9 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
             m.command(Cmd::Save);
             m.command(Cmd::Copy);
         });
+        if let Some(command) = app.button {
+            s.button("run", "Run").command(command);
+        }
         s.div_id("canvas", tw().w_px(160.0).h_px(60.0), |_| {})
             .draw(|app: &mut App, ui| {
                 if ui.input(|input| input.key_pressed(Key::S)) {
@@ -351,10 +355,18 @@ mod modals {
     }
 
     #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "no command of that key is declared")]
     fn a_menu_in_a_dialog_does_not_offer_a_page_command_whose_chord_is_dead() {
-        open_dialog_menu(Cmd::Save);
+        let mut harness = open_dialog_menu(Cmd::Save);
+        let report = eggshell_ui::testing::assert_reported(
+            &harness.ctx,
+            eggshell_ui::Problem::UnknownCommand,
+        );
+        assert!(report.message.contains("Save"), "{}", report.message);
+        let item = harness.get_by_role_and_label(Role::MenuItem, "Save");
+        assert!(item.accesskit_node().data().is_disabled());
+        item.click();
+        harness.run_steps(6);
+        assert!(log(&harness).is_empty(), "{:?}", log(&harness));
     }
 
     #[test]
@@ -474,7 +486,7 @@ mod menus {
         let mut harness = harness();
         open_file(&mut harness);
         harness.get_by_role_and_label(Role::MenuItem, "Save");
-        let written = harness.ctx.format_shortcut(&SAVE);
+        let written = harness.ctx.format_shortcut(&SAVE.into());
         let menu = rect_of(&harness, MENU);
         let shown = support::shapes(&harness).into_iter().any(|shape| {
             matches!(shape, egui::Shape::Text(text)
@@ -488,7 +500,7 @@ mod menus {
         let mut harness = harness();
         harness.ctx.set_os(egui::os::OperatingSystem::Mac);
         open_file(&mut harness);
-        let written = harness.ctx.format_shortcut(&SAVE);
+        let written = harness.ctx.format_shortcut(&SAVE.into());
         assert!(
             written.contains('\u{2318}'),
             "{written:?} is not in symbols"
@@ -605,27 +617,13 @@ mod validation {
     }
 
     #[test]
-    fn a_bare_escape_is_reported() {
-        let harness = declared(|| {
-            Commands::new().add(
-                Cmd::Save,
-                Command::new("Save", noop).shortcut(chord(Modifiers::NONE, Key::Escape)),
-            )
-        });
-        let report = assert_reported(&harness.ctx, Problem::ReservedChord);
-        assert!(report.message.contains("bare Escape"), "{}", report.message);
-    }
-
-    #[test]
-    fn a_bare_enter_is_reported() {
-        let harness = declared(|| {
-            Commands::new().add(
-                Cmd::Save,
-                Command::new("Save", noop).shortcut(chord(Modifiers::NONE, Key::Enter)),
-            )
-        });
-        let report = assert_reported(&harness.ctx, Problem::ReservedChord);
-        assert!(report.message.contains("bare Enter"), "{}", report.message);
+    fn a_bare_escape_or_enter_is_no_chord() {
+        for key in [Key::Escape, Key::Enter] {
+            assert_eq!(Chord::new(Modifiers::NONE, key), None, "{key:?}");
+            assert!(Chord::new(Modifiers::COMMAND, key).is_some(), "{key:?}");
+            assert!(Chord::new(Modifiers::SHIFT, key).is_some(), "{key:?}");
+        }
+        assert!(Chord::new(Modifiers::NONE, Key::H).is_some());
     }
 
     #[test]
@@ -638,16 +636,34 @@ mod validation {
         assert_no_reports(&harness.ctx);
     }
 
-    #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "no command of that key is declared")]
-    fn a_menu_item_for_an_unknown_command_panics() {
+    fn a_menu_item_for_an_unknown_command_is_reported_and_disabled() {
         let mut harness = harness_of(App {
             table: Some(|| Commands::new().add(Cmd::Save, Command::new("Save", noop))),
             ..App::default()
         });
         click_node(&mut harness, FILE);
         harness.run_steps(5);
+        let report = assert_reported(&harness.ctx, Problem::UnknownCommand);
+        assert!(report.message.contains("Copy"), "{}", report.message);
+        let item = harness.get_by_role_and_label(Role::MenuItem, "Copy");
+        assert!(item.accesskit_node().data().is_disabled());
+    }
+
+    #[test]
+    fn a_button_for_an_unknown_command_is_reported_and_disabled() {
+        let mut harness = harness_of(App {
+            table: Some(|| Commands::new().add(Cmd::Save, Command::new("Save", noop))),
+            button: Some(Cmd::Copy),
+            ..App::default()
+        });
+        let report = assert_reported(&harness.ctx, Problem::UnknownCommand);
+        assert!(report.message.contains("Copy"), "{}", report.message);
+        let button = harness.get_by_role_and_label(Role::Button, "Run");
+        assert!(button.accesskit_node().data().is_disabled());
+        button.click();
+        harness.run_steps(5);
+        assert!(log(&harness).is_empty(), "{:?}", log(&harness));
     }
 
     #[test]

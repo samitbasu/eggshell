@@ -385,7 +385,12 @@ impl Rower<'_> {
         let index = self.index;
         self.index += 1;
         let Ok(line) = i16::try_from(index + 1) else {
-            // TODO(#279): report a table of more rows than a grid line can number.
+            crate::report::report(b.ctx(), crate::Problem::TableShape, None, || {
+                format!(
+                    "a table of more than {} rows; the rest are dropped",
+                    i16::MAX - 1
+                )
+            });
             return;
         };
         let part = Part::of(&band);
@@ -433,7 +438,21 @@ impl Rower<'_> {
             count: 0,
         };
         cells(&mut row);
-        // TODO(#279): report a row of fewer cells than columns; the rest stay blank.
+        if row.count < self.columns.len() {
+            crate::report::report(
+                row.b.ctx(),
+                crate::Problem::TableShape,
+                Some(band_id),
+                || {
+                    format!(
+                        "row {} has {} cells for {} columns; the rest stay blank",
+                        row.label,
+                        row.count,
+                        self.columns.len()
+                    )
+                },
+            );
+        }
     }
 }
 
@@ -523,7 +542,18 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
         let column = self.count;
         self.count += 1;
         let (Some(spec), Ok(start)) = (self.columns.get(column), i16::try_from(column + 1)) else {
-            // TODO(#279): report a cell past the table's columns; it is dropped.
+            crate::report::report(
+                self.b.ctx(),
+                crate::Problem::TableShape,
+                Some(self.band),
+                || {
+                    format!(
+                        "row {} has a cell past its {} columns; it is dropped",
+                        self.label,
+                        self.columns.len()
+                    )
+                },
+            );
             return;
         };
         let table = &self.style;

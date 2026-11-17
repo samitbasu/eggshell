@@ -62,7 +62,6 @@ use crate::overlay_input::Blur;
 use crate::widget::Enter;
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -75,7 +74,7 @@ pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
 pub use menu::{Action, Checkbox, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
-pub use number::{Edit, Step};
+pub use number::{Edit, Step, ValueRange};
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
 pub use segmented::{Cell, SegmentedChain};
@@ -728,9 +727,9 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         &mut self,
         key: K,
         value: f64,
-        range: RangeInclusive<f64>,
+        range: impl Into<ValueRange>,
     ) -> SliderChain<'_, 'f, A> {
-        SliderChain::new(self.reborrow(), key, value, range)
+        SliderChain::new(self.reborrow(), key, value, range.into())
     }
 
     /// A select over `options` (anything [`IntoChoice`]), of which `current`
@@ -788,8 +787,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         &mut self,
         key: K,
         value: f64,
-        range: RangeInclusive<f64>,
+        range: impl Into<ValueRange>,
     ) -> StepperChain<'_, 'f, A> {
-        StepperChain::new(self.reborrow(), key, value, range)
+        StepperChain::new(self.reborrow(), key, value, range.into())
     }
 }

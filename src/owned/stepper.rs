@@ -2,12 +2,11 @@
 
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::ops::RangeInclusive;
 use std::rc::Rc;
 
 use egui::{Key, Role, WidgetInfo};
 
-use super::number::{Edit, Edits, Step, pressed};
+use super::number::{Edit, Edits, Step, ValueRange, pressed};
 use super::{
     Chevron, Content, Enablement, FieldHooks, Tip, TipContent, centered, described,
     field_box_classes, text_sized, tip, tipped,
@@ -51,7 +50,7 @@ pub struct StepperChain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     value: f64,
-    range: RangeInclusive<f64>,
+    range: ValueRange,
     step: Step,
     name: Option<String>,
     tooltip: TipContent,
@@ -69,7 +68,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         b: Builder<'a, 'f, A>,
         key: K,
         value: f64,
-        range: RangeInclusive<f64>,
+        range: ValueRange,
     ) -> Self {
         Self {
             slot: b.slot(&key),
@@ -196,12 +195,13 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             edits,
             autofocus,
         } = self;
+        let value = range.checked(b.ctx(), slot.id, value);
         let tooltip = tip(&mut b, slot.id, tooltip);
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let stepper = &style.stepper;
         let metrics = *stepper.sizes.lookup(b.ctx(), b.size_of(size));
-        let (low, high) = (*range.start(), *range.end());
+        let (low, high) = (range.start(), range.end());
         let spec = Spec {
             value,
             range,
@@ -292,7 +292,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                                 .clicked()
                             {
                                 spec.edits.once(app, |app| {
-                                    set(app, spec.step.moved(spec.value, steps, &spec.range));
+                                    set(app, spec.step.moved(spec.value, steps, spec.range));
                                 });
                             }
                         });
@@ -306,7 +306,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
 /// What a stepper's field and buttons act on.
 struct Spec<A> {
     value: f64,
-    range: RangeInclusive<f64>,
+    range: ValueRange,
     step: Step,
     name: String,
     tooltip: Tip,
@@ -319,7 +319,7 @@ impl<A> Clone for Spec<A> {
     fn clone(&self) -> Self {
         Self {
             value: self.value,
-            range: self.range.clone(),
+            range: self.range,
             step: self.step,
             name: self.name.clone(),
             tooltip: self.tooltip.clone(),
@@ -343,7 +343,7 @@ impl<A> Spec<A> {
         set: impl Fn(&mut A, f64),
     ) {
         let parse = |text: &str| text.trim().parse::<f64>().ok();
-        let (low, high) = (*self.range.start(), *self.range.end());
+        let (low, high) = (self.range.start(), self.range.end());
         let mut value = self.value;
         let mut typed = ui.data(|data| data.get_temp::<String>(editing));
         let session = editing.with("session");
@@ -353,7 +353,7 @@ impl<A> Spec<A> {
             let steps =
                 i32::from(pressed(ui, Key::ArrowUp)) - i32::from(pressed(ui, Key::ArrowDown));
             if steps != 0 {
-                value = self.step.moved(current, steps, &self.range);
+                value = self.step.moved(current, steps, self.range);
                 typed = None;
                 if typing {
                     set(app, value);
@@ -376,7 +376,7 @@ impl<A> Spec<A> {
             node.set_max_numeric_value(high);
         });
         if response.changed() {
-            let number = parse(&text).map(|number| number.clamp(low, high));
+            let number = parse(&text).map(|number| self.range.clamp(number));
             if !typing {
                 self.edits.emit(app, Edit::Began);
                 ui.data_mut(|data| data.insert_temp(session, ()));
@@ -387,7 +387,7 @@ impl<A> Spec<A> {
             ui.data_mut(|data| data.insert_temp(editing, text));
         } else if response.lost_focus() {
             if let Some(number) = parse(&text) {
-                set(app, self.step.snap(number, &self.range));
+                set(app, self.step.snap(number, self.range));
             }
             ui.data_mut(|data| data.remove::<String>(editing));
             if typing {

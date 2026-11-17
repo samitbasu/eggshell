@@ -249,11 +249,19 @@ impl Shape<'_> {
 impl Tw {
     /// Writes layout with `set`, which records each property it writes.
     pub(super) fn write_layout(&mut self, set: impl FnOnce(&mut Layout<'_>)) {
+        let (style, ch) = (self.style.clone(), self.ch);
+        let mut written = Touched::default();
         set(&mut Layout {
             style: &mut self.style,
             ch: &mut self.ch,
-            touched: &mut self.touched,
+            touched: &mut written,
         });
+        if super::layout::is_finite(&self.style, self.ch) {
+            self.touched = self.touched | written;
+        } else {
+            (self.style, self.ch) = (style, ch);
+            self.lengths = super::Lengths::Rejected;
+        }
     }
 
     /// Writes the box paint that merging tracks with `set`.
@@ -346,6 +354,7 @@ impl Tw {
         self.grouping = self.grouping.merge(other.grouping);
         self.variants = self.variants.merge(other.variants);
         self.touched = self.touched | other.touched;
+        self.lengths = self.lengths.or(other.lengths);
         self
     }
 }

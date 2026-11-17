@@ -1198,6 +1198,12 @@ fn style_id(theme: Theme) -> Id {
     crate::key::root_id().with(("style", theme))
 }
 
+/// A time egui gives in seconds: none when negative or NaN, and the longest
+/// duration when it is longer.
+fn seconds(seconds: f32) -> Duration {
+    Duration::try_from_secs_f32(seconds.max(0.0)).unwrap_or(Duration::MAX)
+}
+
 impl Style {
     /// [`role`](Self::role) with a control size's text size laid over it.
     pub fn role_sized(&self, section: &Option<TextSpec>, size: Option<TextSize>) -> TextSpec {
@@ -1654,8 +1660,8 @@ impl Style {
                 max_width: s.tooltip_width,
                 arrow: None,
                 offset: Distance::new(4.0),
-                delay: Duration::from_secs_f32(egui.interaction.tooltip_delay.max(0.0)),
-                grace: Duration::from_secs_f32(egui.interaction.tooltip_grace_time.max(0.0)),
+                delay: seconds(egui.interaction.tooltip_delay),
+                grace: seconds(egui.interaction.tooltip_grace_time),
             },
             kbd: KbdStyle {
                 page: Colors {
