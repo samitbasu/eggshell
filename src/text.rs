@@ -663,7 +663,7 @@ mod weight_tests {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     pub(crate) fn base() -> TextStyle {

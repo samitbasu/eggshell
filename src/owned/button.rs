@@ -22,6 +22,8 @@ enum Press {
 ///
 /// A `&str` or `String` is a label and an [`Icon`] with a name is an
 /// icon-only face, which assistive technology reads by the name.
+/// TODO(prose): [`Face::text`] with [`TextFace::named`] shows a label that
+/// assistive technology reads by another name.
 /// [`Face::Empty`] shows nothing, for a button whose content is all
 /// [`children`](ButtonChain::children), and is named too.
 ///
@@ -32,6 +34,7 @@ enum Press {
 /// fn view(b: &mut Builder<'_, '_, ()>, close: Icon) {
 ///     b.button("save", "Save").add();
 ///     b.button("close", (close, "Close")).add();
+///     b.button("crumbs", Face::text("···").named("The levels between")).add();
 ///     b.button("card", Face::Empty("Open the card".into()))
 ///         .children(|_| {})
 ///         .add();
@@ -50,7 +53,7 @@ enum Press {
 #[derive(Clone, Debug)]
 pub enum Face {
     /// Text, with no icon unless [`icon`](ButtonChain::icon) adds one.
-    Label(String),
+    Label(TextFace),
     /// An icon and no text, and the accessible name.
     Icon(Icon, String),
     /// Nothing: the content is the button's [`children`](ButtonChain::children).
@@ -59,24 +62,80 @@ pub enum Face {
 }
 
 impl Face {
-    /// What assistive technology reads unless the button is
-    /// [`named`](ButtonChain::named) otherwise.
+    /// TODO(prose): a label, read by its text unless
+    /// [`named`](TextFace::named) otherwise.
+    pub fn text(text: impl Into<String>) -> TextFace {
+        TextFace {
+            text: text.into(),
+            name: None,
+        }
+    }
+
+    /// What assistive technology reads.
     pub(crate) fn name(&self) -> &str {
         match self {
-            Self::Label(name) | Self::Icon(_, name) | Self::Empty(name) => name,
+            Self::Label(label) => label.name(),
+            Self::Icon(_, name) | Self::Empty(name) => name,
         }
+    }
+}
+
+/// TODO(prose): the text of a [`Face::Label`], and the name assistive
+/// technology reads when it is not the text.
+///
+/// ```
+/// use eggshell_ui::Builder;
+/// use eggshell_ui::owned::Face;
+///
+/// fn view(b: &mut Builder<'_, '_, ()>) {
+///     b.dropdown_menu("crumbs", Face::text("···").named("The levels between"))
+///         .items(|_| {});
+/// }
+/// ```
+///
+/// An icon face is already named by its tuple:
+///
+/// ```compile_fail
+/// use eggshell_ui::owned::Face;
+/// use eggshell_ui::Icon;
+///
+/// fn face(close: Icon) -> Face {
+///     Face::from((close, "Close")).named("Shut")
+/// }
+/// ```
+#[derive(Clone, Debug)]
+pub struct TextFace {
+    text: String,
+    name: Option<String>,
+}
+
+impl TextFace {
+    /// TODO(prose): the name assistive technology reads in place of the text.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    fn name(&self) -> &str {
+        self.name.as_deref().unwrap_or(&self.text)
+    }
+}
+
+impl From<TextFace> for Face {
+    fn from(label: TextFace) -> Self {
+        Self::Label(label)
     }
 }
 
 impl From<&str> for Face {
     fn from(label: &str) -> Self {
-        Self::Label(label.to_owned())
+        Face::text(label).into()
     }
 }
 
 impl From<String> for Face {
     fn from(label: String) -> Self {
-        Self::Label(label)
+        Face::text(label).into()
     }
 }
 
@@ -92,14 +151,30 @@ impl<S: Into<String>> From<(Icon, S)> for Face {
 /// does nothing.
 ///
 /// A button without a visible label has nothing for assistive technology to
-/// read but its name: an icon-only or empty [`Face`] holds one. A label that
-/// is empty, with no [`named`](Self::named) name, is reported as
-/// [`Unnamed`](crate::Problem::Unnamed).
+/// read but its name: an icon-only or empty [`Face`] holds one. An empty
+/// label or name is reported as [`Unnamed`](crate::Problem::Unnamed).
+///
+/// TODO(prose)
+///
+/// ```compile_fail
+/// use eggshell_ui::Builder;
+///
+/// fn view(b: &mut Builder<'_, '_, ()>) {
+///     b.button("send", "Send").named("Send now").add();
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use eggshell_ui::owned::ButtonOptions;
+///
+/// let _ = ButtonOptions::new().named("Send now");
+/// ```
 #[must_use = "a button is not added until you call `.on_click(..)` or `.add()`"]
 pub struct ButtonChain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     label: String,
+    name: String,
     toggle: Option<Mark>,
     role: Role,
     opts: ButtonOptions,
@@ -129,7 +204,7 @@ type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
 ///
 /// fn view(b: &mut Builder<'_, '_, ()>) {
 ///     b.button("save", "Save").with_options(verb()).add();
-///     b.button("send", "Send").with_options(verb()).named("Send now").add();
+///     b.button("send", "Send").with_options(verb()).tooltip("Sends it now").add();
 /// }
 /// ```
 #[derive(Clone)]
@@ -137,7 +212,6 @@ pub struct ButtonOptions {
     icon: Option<Icon>,
     variant: Option<Variant>,
     size: Option<Size>,
-    name: Option<String>,
     tooltip: TipContent,
     enablement: Option<Enablement>,
     press: Option<Press>,
@@ -157,7 +231,6 @@ impl ButtonOptions {
             icon: None,
             variant: None,
             size: None,
-            name: None,
             tooltip: None,
             enablement: None,
             press: None,
@@ -172,7 +245,6 @@ impl ButtonOptions {
             icon: other.icon.or(self.icon),
             variant: other.variant.or(self.variant),
             size: other.size.or(self.size),
-            name: other.name.or(self.name),
             tooltip: other.tooltip.or(self.tooltip),
             enablement: other.enablement.or(self.enablement),
             press: other.press.or(self.press),
@@ -215,12 +287,6 @@ impl ButtonOptions {
         self
     }
 
-    /// The accessible name, when it is not the label.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
     /// Shown while the pointer hovers the control, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)): after the style's
     /// delay, at once when it has keyboard focus, and also when the control is
@@ -240,20 +306,21 @@ impl ButtonOptions {
 
 impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, face: Face) -> Self {
-        let (label, icon, name) = match face {
-            Face::Label(label) => (label, None, None),
-            Face::Icon(icon, name) => (String::new(), Some(icon), Some(name)),
-            Face::Empty(name) => (String::new(), None, Some(name)),
+        let name = face.name().to_owned();
+        let (label, icon) = match face {
+            Face::Label(label) => (label.text, None),
+            Face::Icon(icon, _) => (String::new(), Some(icon)),
+            Face::Empty(_) => (String::new(), None),
         };
         Self {
             slot: b.slot(&key),
             b,
             label,
+            name,
             toggle: None,
             role: Role::Button,
             opts: ButtonOptions {
                 icon,
-                name,
                 ..ButtonOptions::new()
             },
             on_response: OnResponse::default(),
@@ -335,12 +402,6 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// [the module docs](crate::owned#classes-and-the-styles-state-looks).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.opts = self.opts.classes(classes);
-        self
-    }
-
-    /// The accessible name, when it is not the label.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.opts = self.opts.named(name);
         self
     }
 
@@ -471,6 +532,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             mut b,
             slot,
             label,
+            name,
             toggle,
             role,
             opts:
@@ -478,7 +540,6 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                     icon,
                     variant,
                     size,
-                    name,
                     tooltip,
                     enablement,
                     press,
@@ -493,7 +554,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
         let press = press.unwrap_or(Press::Shifts);
         let ctx = b.ctx();
-        if label.is_empty() && name.as_deref().is_none_or(str::is_empty) {
+        if name.is_empty() {
             crate::report::report(ctx, crate::Problem::Unnamed, Some(slot.id), || {
                 format!(
                     "the button {} has no label and no name: assistive technology cannot read it",
@@ -539,7 +600,6 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             .role(style.role(&button.text).clone())
             .whitespace_nowrap();
         let classes = enablement.fade(classes, &style).merge(caller);
-        let name = name.unwrap_or_else(|| label.clone());
         let glyph = metrics.glyph;
         let node = b.div_id_with(&slot, classes, |b| {
             if let Some(icon) = icon {
