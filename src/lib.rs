@@ -340,6 +340,7 @@ mod debug;
 mod dismiss;
 mod dnd;
 mod draw;
+mod finite;
 mod focus;
 pub mod icons;
 mod input_trace;

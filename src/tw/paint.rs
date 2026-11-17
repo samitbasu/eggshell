@@ -1,5 +1,6 @@
 //! Box paint classes. Stored on the node; drawn by the library.
 
+use crate::finite::clamp;
 use egui::{Color32, CornerRadius, Shadow};
 
 use super::merge::Shape;
@@ -90,6 +91,18 @@ pub struct BoxPaint {
     pub divide_y: Option<Divide>,
 }
 
+impl BoxPaint {
+    fn is_finite(&self) -> bool {
+        let ring = self.ring.map(|ring| ring.width);
+        let dividers = [self.divide_x, self.divide_y].map(|divide| divide.map(|d| d.width));
+        [ring]
+            .into_iter()
+            .chain(dividers)
+            .flatten()
+            .all(f32::is_finite)
+    }
+}
+
 fn radius(points: u8) -> CornerRadius {
     CornerRadius::same(points)
 }
@@ -114,7 +127,9 @@ macro_rules! side_colors {
 
 impl Tw {
     fn painted(mut self, set: impl FnOnce(&mut BoxPaint)) -> Self {
-        set(&mut self.paint);
+        let mut after = self.paint;
+        set(&mut after);
+        self.paint = self.lengths.keep(self.paint, after, BoxPaint::is_finite);
         self
     }
 
@@ -166,31 +181,31 @@ impl Tw {
 
     /// `rounded-[<r>px]`: corner radius in points, rounded to whole points.
     pub fn rounded_px(self, points: f32) -> Self {
-        self.shaped(|p| p.set_radius(radius(points.round().clamp(0.0, 255.0) as u8)))
+        self.shaped(|p| p.set_radius(radius(clamp(points.round(), 0.0, 255.0) as u8)))
     }
 
     /// `rounded-tr-[<r>px]`: top-right corner radius in points, rounded to
     /// whole points; the other corners keep theirs.
     pub fn rounded_tr_px(self, points: f32) -> Self {
-        self.shaped(|p| *p.radius_ne() = points.round().clamp(0.0, 255.0) as u8)
+        self.shaped(|p| *p.radius_ne() = clamp(points.round(), 0.0, 255.0) as u8)
     }
 
     /// `rounded-br-[<r>px]`: bottom-right corner radius in points, rounded to
     /// whole points; the other corners keep theirs.
     pub fn rounded_br_px(self, points: f32) -> Self {
-        self.shaped(|p| *p.radius_se() = points.round().clamp(0.0, 255.0) as u8)
+        self.shaped(|p| *p.radius_se() = clamp(points.round(), 0.0, 255.0) as u8)
     }
 
     /// `rounded-tl-[<r>px]`: top-left corner radius in points, rounded to
     /// whole points; the other corners keep theirs.
     pub fn rounded_tl_px(self, points: f32) -> Self {
-        self.shaped(|p| *p.radius_nw() = points.round().clamp(0.0, 255.0) as u8)
+        self.shaped(|p| *p.radius_nw() = clamp(points.round(), 0.0, 255.0) as u8)
     }
 
     /// `rounded-bl-[<r>px]`: bottom-left corner radius in points, rounded to
     /// whole points; the other corners keep theirs.
     pub fn rounded_bl_px(self, points: f32) -> Self {
-        self.shaped(|p| *p.radius_sw() = points.round().clamp(0.0, 255.0) as u8)
+        self.shaped(|p| *p.radius_sw() = clamp(points.round(), 0.0, 255.0) as u8)
     }
 
     /// `ring-<width>`: a ring outside the border box. It takes no space, like

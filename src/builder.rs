@@ -1322,6 +1322,20 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             "{}: a group must sense something to be hovered",
             parts.path,
         );
+        if tw.lengths == crate::tw::Lengths::Rejected {
+            let subject = parts.id.unwrap_or_else(|| Id::NULL.with(&parts.path));
+            crate::report::report(
+                self.frame.ctx,
+                crate::Problem::NonFiniteLength,
+                Some(subject),
+                || {
+                    format!(
+                        "{}: a class given a length that is infinite or not a number was ignored",
+                        parts.path
+                    )
+                },
+            );
+        }
         let color_source = if tw.text.color.is_some() {
             ColorSource::Own
         } else {

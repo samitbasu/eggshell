@@ -1,12 +1,14 @@
 //! Layout classes: everything that writes a [`taffy::Style`].
 
+use taffy::Style;
 use taffy::style::{
-    AlignContent, AlignItems, BoxSizing, Dimension, Display, FlexDirection, FlexWrap,
-    LengthPercentage, LengthPercentageAuto, Overflow, Position,
+    AlignContent, AlignItems, BoxSizing, CompactLength, Dimension, Display, FlexDirection,
+    FlexWrap, GridTemplateComponent, LengthPercentage, LengthPercentageAuto, Overflow, Position,
+    TrackSizingFunction,
 };
 use taffy::style_helpers::{FromLength, FromPercent, TaffyAuto, TaffyZero as _};
 
-use super::{SPACE_UNIT, Tw};
+use super::{ChWidths, SPACE_UNIT, Tw};
 
 /// How far an inexact fraction is taken short: a millionth, under a
 /// thousandth of a point across any realistic container.
@@ -45,6 +47,41 @@ impl Len {
             Self::Auto => T::AUTO,
         }
     }
+}
+
+/// Whether every number `style` and `ch` hold is finite.
+pub(super) fn is_finite(style: &Style, ch: ChWidths) -> bool {
+    let finite = |length: CompactLength| length.value().is_finite();
+    let sides = |rect: taffy::Rect<CompactLength>| {
+        [rect.left, rect.right, rect.top, rect.bottom]
+            .into_iter()
+            .all(finite)
+    };
+    let both = |size: taffy::Size<CompactLength>| finite(size.width) && finite(size.height);
+    let track =
+        |track: &TrackSizingFunction| finite(track.min.into_raw()) && finite(track.max.into_raw());
+    let numbers = [style.flex_grow, style.flex_shrink]
+        .into_iter()
+        .chain(style.aspect_ratio)
+        .chain([ch.width, ch.min_width, ch.max_width].into_iter().flatten());
+    sides(style.inset.map(LengthPercentageAuto::into_raw))
+        && sides(style.margin.map(LengthPercentageAuto::into_raw))
+        && sides(style.padding.map(LengthPercentage::into_raw))
+        && sides(style.border.map(LengthPercentage::into_raw))
+        && both(style.size.map(Dimension::into_raw))
+        && both(style.min_size.map(LengthPercentageAuto::into_raw))
+        && both(style.max_size.map(LengthPercentageAuto::into_raw))
+        && both(style.gap.map(LengthPercentage::into_raw))
+        && finite(style.flex_basis.into_raw())
+        && numbers.into_iter().all(f32::is_finite)
+        && style
+            .grid_template_rows
+            .iter()
+            .chain(&style.grid_template_columns)
+            .all(|component| match component {
+                GridTemplateComponent::Single(single) => track(single),
+                GridTemplateComponent::Repeat(repeat) => repeat.tracks.iter().all(track),
+            })
 }
 
 fn space(units: f32) -> LengthPercentage {

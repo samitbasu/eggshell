@@ -15,6 +15,7 @@ use std::sync::Arc;
 use egui::{Context, Id, Key, Painter, Pos2, Rect, Shape, Ui, Vec2, WidgetText, pos2};
 
 use crate::builder::{Builder, Surface};
+use crate::finite::clamp;
 use crate::kept::Handle;
 use crate::overlay::{Anchor, Band, DismissOn, Distance, Focus, Placement};
 use crate::overlay_chain::OverlayChain;
@@ -425,7 +426,8 @@ pub(crate) fn end(ctx: &Context, kept: &Handle, interruption: Option<Interruptio
         delay: style.tooltip.delay,
         grace: style.tooltip.grace,
     };
-    let now = Duration::from_secs_f64(ctx.input(|input| input.time).max(0.0));
+    let now = Duration::try_from_secs_f64(ctx.input(|input| input.time).max(0.0))
+        .unwrap_or(Duration::MAX);
     let wanted = wanted(triggers);
     let focused = ctx.memory(|memory| memory.focused());
     let (wait, changed) = kept.viewport(ctx.viewport_id(), |here| {
@@ -559,7 +561,8 @@ fn paint_arrow(painter: &Painter, rect: Rect, trigger: Id, size: f32, fill: egui
     } else {
         (rect.min.y, -1.0)
     };
-    let x = anchor.center().x.clamp(
+    let x = clamp(
+        anchor.center().x,
         rect.min.x + reach,
         (rect.max.x - reach).max(rect.min.x + reach),
     );
