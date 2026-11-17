@@ -1216,3 +1216,156 @@ mod dismissed {
             .any(|(path, _)| path.contains("Tooltip("))
     }
 }
+
+/// A segmented control's tooltip is the control's: one, anchored to the
+/// control, staying put as the pointer crosses its cells. A cell whose
+/// choice has a tooltip of its own shows that one instead while hovered.
+mod segmented {
+    use super::*;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    enum Axis {
+        Position,
+        Velocity,
+        Current,
+    }
+
+    fn view(b: &mut Builder<'_, '_, App>, _: &App) {
+        b.div(tw().p(4.0).pt(20.0), |b| {
+            b.segmented(
+                "axis",
+                Axis::Position,
+                [
+                    Choice::new(Axis::Position, "Position"),
+                    Choice::new(Axis::Velocity, "Velocity"),
+                    Choice::new(Axis::Current, "Current").tooltip("Tip for current"),
+                ],
+            )
+            .tooltip("Tip for axis")
+            .on_change(|_, _| {});
+        });
+    }
+
+    #[test]
+    fn the_controls_tooltip_is_one_and_stays_put_across_its_cells() {
+        let mut harness = harness_of(view);
+        let first = rect_of(&harness, "/\"axis\"/0");
+        let second = rect_of(&harness, "/\"axis\"/1");
+        assert!(
+            first.max.x <= second.min.x,
+            "precondition: cells side by side"
+        );
+        stays_put(
+            &mut harness,
+            first.center(),
+            second.center(),
+            "Tip for axis",
+        );
+    }
+
+    #[test]
+    fn a_cell_with_its_own_tooltip_shows_only_that_one() {
+        let mut harness = harness_of(view);
+        hover_node(&mut harness, "/\"axis\"/2");
+        wait(&mut harness, DELAY + GRACE);
+        wait(&mut harness, Duration::from_millis(400));
+        assert!(painted(&harness, "Tip for current"));
+        assert!(!painted(&harness, "Tip for axis"));
+        assert_eq!(boxes(&harness).len(), 1);
+    }
+}
+
+/// The tooltip boxes shown.
+fn boxes(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
+    tooltip_nodes(harness)
+        .into_iter()
+        .filter(|(path, _)| path.ends_with("/\"Box\""))
+        .map(|(_, rect)| rect)
+        .collect()
+}
+
+/// Opens `tip` with the pointer at `from`, then moves it to `to` in steps:
+/// at each, the one tooltip shown is where it opened.
+fn stays_put(harness: &mut Harness<'_, Rig<App>>, from: egui::Pos2, to: egui::Pos2, tip: &str) {
+    harness.hover_at(from);
+    wait(harness, DELAY + GRACE);
+    assert!(painted(harness, tip), "precondition: {tip:?} opened");
+    let at = boxes(harness);
+    assert_eq!(at.len(), 1, "one tooltip");
+    for step in 0..=10 {
+        let pointer = from.lerp(to, step as f32 / 10.0);
+        harness.hover_at(pointer);
+        harness.run_steps(2);
+        assert_eq!(boxes(harness), at, "at {pointer:?}");
+    }
+}
+
+#[test]
+fn a_steppers_tooltip_stays_put_from_its_field_to_its_buttons() {
+    let mut harness = harness();
+    let field = rect_of(&harness, "/\"stepper\"/Box/Field").center();
+    let up = rect_of(&harness, "/\"stepper\"/Box/Buttons/Up").center();
+    let down = rect_of(&harness, "/\"stepper\"/Box/Buttons/Down").center();
+    stays_put(&mut harness, field, up, "Tip for stepper");
+    stays_put(&mut harness, up, down, "Tip for stepper");
+}
+
+#[test]
+fn a_sliders_tooltip_stays_put_from_its_track_to_its_thumb() {
+    let mut harness = harness();
+    let track = rect_of(&harness, "/\"slider\"/Track");
+    let thumb = rect_of(&harness, "/\"slider\"/Track/Thumb");
+    let start = pos2(track.min.x + 8.0, track.center().y);
+    assert!(
+        !thumb.contains(start),
+        "precondition: the track, off the thumb"
+    );
+    stays_put(&mut harness, start, thumb.center(), "Tip for slider");
+}
+
+#[test]
+fn keyboard_focus_on_a_part_shows_the_controls_tooltip_at_the_control() {
+    let mut harness = harness();
+    harness.state_mut().companion = support::Companion::Alone;
+    let cell = "/\"segmented\"/0";
+    for _ in 0..12 {
+        if support::focused_node(&harness).as_deref() == Some(cell) {
+            break;
+        }
+        harness.key_press(Key::Tab);
+        harness.run_steps(2);
+    }
+    assert_eq!(
+        support::focused_node(&harness).as_deref(),
+        Some(cell),
+        "precondition: Tab reached the cell"
+    );
+    assert!(painted(&harness, "Tip for segmented"), "no delay for focus");
+    let control = rect_of(&harness, "/\"segmented\"");
+    let shown = boxes(&harness);
+    assert_eq!(shown.len(), 1, "one tooltip");
+    assert!(
+        (shown[0].center().x - control.center().x).abs() < 1.0,
+        "anchored to the control: {shown:?} over {control:?}"
+    );
+}
+
+#[test]
+fn a_part_is_described_by_its_controls_tooltip() {
+    let harness = harness();
+    let described = |label: &str, tip: &str| {
+        harness
+            .query_all_by_label(label)
+            .any(|node| node.accesskit_node().description().as_deref() == Some(tip))
+    };
+    assert!(
+        described("Alpha", "Tip for segmented"),
+        "a cell of none of its own"
+    );
+    assert!(described("Beta", "Tip for cell"), "a cell of its own");
+    assert!(described("Level", "Tip for slider"), "the slider's thumb");
+    assert!(
+        described("Increase Count", "Tip for stepper"),
+        "the stepper's button"
+    );
+}

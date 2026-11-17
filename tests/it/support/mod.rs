@@ -353,6 +353,22 @@ pub fn hover_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
     hover_over(harness, at);
 }
 
+/// Leaves the pointer resting until a tooltip it opens has entered: the
+/// style's delay and entry motion as frame time, then a few frames for the
+/// overlay to be built and placed.
+pub fn rest_for_tooltip<A>(harness: &mut Harness<'_, Rig<A>>) {
+    let style = eggshell_ui::Style::of(&harness.ctx);
+    let wait = (style.tooltip.delay + style.motion.tooltip.enter).as_secs_f64();
+    let start = harness.ctx.input(|input| input.time);
+    for _ in 0..10_000 {
+        if harness.ctx.input(|input| input.time) - start >= wait {
+            break;
+        }
+        harness.step();
+    }
+    harness.run_steps(4);
+}
+
 /// Clicks the centre of the node `path`.
 pub fn click_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
     let at = rect_of(harness, path).center();

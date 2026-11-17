@@ -828,8 +828,12 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
             b.segmented(
                 "segmented",
                 state.unit,
-                [(Unit::Metric, "Metric"), (Unit::Imperial, "Imperial")],
+                [
+                    owned::Choice::new(Unit::Metric, "Metric"),
+                    owned::Choice::new(Unit::Imperial, "Imperial").tooltip("Feet and pounds"),
+                ],
             )
+            .tooltip("The units every reading is shown in")
             .on_change(|s: &mut State, unit| s.unit = unit);
         });
         row(b, "segmented, icons", |b| {
@@ -868,6 +872,7 @@ fn values_section(s: &mut S<'_, '_>, state: &State) {
             row(b, &named("slider", enablement), |b| {
                 b.slider(("slider", enablement), state.owned_slider, 0.0..=100.0)
                     .named("Volume")
+                    .tooltip("How loud the alerts are")
                     .enablement(enablement)
                     .on_change(|s: &mut State, value| s.owned_slider = value);
             });
@@ -891,6 +896,7 @@ fn values_section(s: &mut S<'_, '_>, state: &State) {
             row(b, &named("stepper", enablement), |b| {
                 b.stepper(("stepper", enablement), state.owned_stepper, 0.0..=10.0)
                     .named("Count")
+                    .tooltip("How many copies to print")
                     .enablement(enablement)
                     .on_change(|s: &mut State, value| s.owned_stepper = value);
             });

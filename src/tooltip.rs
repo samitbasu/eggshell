@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 use egui::{Context, Id, Key, Painter, Pos2, Rect, Shape, Ui, Vec2, WidgetText, pos2};
 
+use crate::NodeUi as _;
 use crate::builder::{Builder, Surface};
 use crate::finite::clamp;
 use crate::kept::Handle;
@@ -363,6 +364,35 @@ pub(crate) fn begin(ctx: &Context, kept: &Handle) {
 /// Says that the node of the draw closure `ui` is a trigger for `tip`.
 /// `response` is the one the node's hover and focus are read from.
 pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
+    let focus = response.has_focus().then_some(Cause::Focus);
+    let pointer = response.contains_pointer().then_some(Cause::Pointer);
+    request(ui, tip, [focus, pointer]);
+    describes(ui, response, tip);
+}
+
+/// Says that the node of the draw closure `ui` is the one trigger for `tip`
+/// of everything inside it: the pointer anywhere over it, or keyboard focus
+/// on any widget inside it, wants the tooltip, which is anchored to the node.
+pub(crate) fn register_whole(ui: &Ui, tip: &Tooltip) {
+    let response = ui.node_response();
+    let focus = ui.has_focus_within().then_some(Cause::Focus);
+    let pointer = response.contains_pointer().then_some(Cause::Pointer);
+    request(ui, tip, [focus, pointer]);
+    describes(ui, &response, tip);
+}
+
+/// Describes `response`'s widget to assistive technology by `tip`'s text,
+/// without making it a trigger.
+pub(crate) fn describes(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
+    if let Some(description) = &tip.description {
+        ui.ctx().accesskit_node_builder(response.id, |node| {
+            node.set_description(description.as_str());
+        });
+    }
+}
+
+/// Pushes a trigger for each of `causes`; focus counts only after a key.
+fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 2]) {
     let id = crate::draw::node_id_or_report(ui, "a tooltip");
     let wants = |cause| {
         let Some(id) = id else { return };
@@ -377,16 +407,11 @@ pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
             });
         }
     };
-    if response.has_focus() && crate::overlay_input::keyboard_was_last(ui.ctx()) {
-        wants(Cause::Focus);
-    }
-    if response.contains_pointer() {
-        wants(Cause::Pointer);
-    }
-    if let Some(description) = &tip.description {
-        ui.ctx().accesskit_node_builder(response.id, |node| {
-            node.set_description(description.as_str());
-        });
+    let keyboard = crate::overlay_input::keyboard_was_last(ui.ctx());
+    for cause in causes.into_iter().flatten() {
+        if cause == Cause::Pointer || keyboard {
+            wants(cause);
+        }
     }
 }
 
