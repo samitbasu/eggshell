@@ -804,3 +804,30 @@ mod query {
         placed().at("list").at(Row(49));
     }
 }
+
+#[test]
+fn a_navigation_other_than_a_listbox_is_reported() {
+    use eggshell_ui::Problem;
+    use eggshell_ui::overlay::Nav;
+    use eggshell_ui::testing::{Headless, assert_no_reports, assert_reported, take_reports};
+
+    fn build(headless: &mut Headless, nav: Nav) {
+        static ROWS: [Row; 2] = [Row(0), Row(1)];
+        headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
+            b.virtual_list("list", tw().h_px(100.0), &ROWS)
+                .fixed_px(20.0)
+                .nav(nav)
+                .items(|s, row| {
+                    s.span(row, tw(), "row");
+                });
+        });
+    }
+    let mut headless = Headless::new(vec2(200.0, 200.0));
+    build(&mut headless, Nav::Menu);
+    let report = assert_reported(headless.ctx(), Problem::UnsupportedNav);
+    assert!(report.message.contains("Menu"), "{}", report.message);
+    take_reports(headless.ctx());
+    build(&mut headless, Nav::Listbox);
+    build(&mut headless, Nav::None);
+    assert_no_reports(headless.ctx());
+}

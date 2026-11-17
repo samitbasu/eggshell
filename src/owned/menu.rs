@@ -462,7 +462,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         };
         let expanded = shared.kept.with(|kept| kept.menus.submenu(root, depth)) == Some(id);
         self.b
-            .div_id_with(id, &slot.label, classes, |b| {
+            .div_id_with(&slot, classes, |b| {
                 match lead {
                     Lead::Nothing => {}
                     Lead::Icon(icon) => {
@@ -874,10 +874,9 @@ pub(crate) fn context<'f, A: 'static>(
     let Some(at) = shared.kept.with(|kept| kept.menus.position(owner)) else {
         return;
     };
-    let slot = Slot::labelled(
-        b.slot(&(Part::Context, owner)).id,
-        format!("ContextMenu({owner_path})"),
-    );
+    let slot = b
+        .slot(&(Part::Context, owner))
+        .relabelled(format!("ContextMenu({owner_path})"));
     let close = shared.clone();
     OverlayChain::new(b.reborrow(), slot)
         .anchor(Anchor::Point(at))

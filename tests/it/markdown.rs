@@ -622,6 +622,7 @@ fn heading_id_names_every_heading_however_deep_and_repeated() {
             .any(|(path, _)| path.contains("Item(0)") && path.ends_with("Heading(\"listed\")")),
         "precondition: a heading sits in a list item"
     );
+    eggshell_ui::testing::assert_no_reports(&harness.ctx);
 }
 
 #[test]

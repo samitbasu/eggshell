@@ -20,7 +20,7 @@ use egui::Id;
 ///   so keys need only differ from siblings *of the same type*: a bare enum
 ///   variant, `1u32` and a `BlockKey(1)` newtype never collide.
 /// - **`Debug`** gives the readable path used in diagnostics, such as the
-///   duplicate-key panic and the accessibility tree.
+///   duplicate-key report and the accessibility tree.
 /// - **`'static`** makes keys owned values, so a key outlives the call that
 ///   made it.
 ///
@@ -134,11 +134,9 @@ pub(crate) mod claims {
         })
     }
 
-    /// Claims the name of a named layout for one pass.
-    ///
-    /// # Panics
-    ///
-    /// If another layout of the context claimed the same name this pass.
+    /// Claims the name of a named layout for one pass, reporting a
+    /// [`LayoutNameClash`](crate::Problem::LayoutNameClash) if another
+    /// layout of the context claimed it this pass.
     pub(crate) fn name(
         ctx: &egui::Context,
         root: Id,
@@ -158,19 +156,19 @@ pub(crate) mod claims {
             }
         });
         if let Some(first) = first {
-            panic!(
-                "two layouts in one egui context are named the same (built at {} and {at}); \
-                 a name salts one layout's ids, so it must be unique",
-                first.at
-            );
+            crate::report::report_at(ctx, crate::Problem::LayoutNameClash, Some(root), at, || {
+                format!(
+                    "two layouts in one egui context are named the same (built at {} and \
+                         {at}); a name salts one layout's ids, so it must be unique",
+                    first.at
+                )
+            });
         }
     }
 
-    /// Claims a top-level key (`id` is under `root`) for one pass.
-    ///
-    /// # Panics
-    ///
-    /// If another layout with the same root claimed `id` this pass.
+    /// Claims a top-level key (`id` is under `root`) for one pass, reporting
+    /// a [`TopLevelKeyClash`](crate::Problem::TopLevelKeyClash) if another
+    /// layout with the same root claimed it this pass.
     pub(crate) fn top_level(
         ctx: &egui::Context,
         id: Id,
@@ -191,12 +189,14 @@ pub(crate) mod claims {
             }
         });
         if let Some(first) = first {
-            panic!(
-                "top-level key {readable} is used by two layouts in one egui context (built at \
-                 {} and {at}); their ids and egui's state under them collide. Give one \
-                 `LayoutState::named(..)`",
-                first.at
-            );
+            crate::report::report_at(ctx, crate::Problem::TopLevelKeyClash, Some(id), at, || {
+                format!(
+                    "top-level key {readable} is used by two layouts in one egui context \
+                         (built at {} and {at}); their ids and egui's state under them collide. \
+                         Give one `LayoutState::named(..)`",
+                    first.at
+                )
+            });
         }
     }
 }
@@ -254,11 +254,31 @@ pub fn child_id<K: Key>(parent: Id, key: &K) -> Id {
     parent.with((std::any::type_name::<K>(), key))
 }
 
-/// Debug-build registry that no identified path occurs twice in a frame.
+/// Debug-build registry of the identified paths of a frame, which gives a
+/// repeated key an id of its own so egui's state under the two cannot mix.
 #[derive(Default)]
 pub(crate) struct Seen {
     #[cfg(debug_assertions)]
     paths: std::collections::HashMap<Id, String>,
+}
+
+/// How a registered path repeats an earlier one.
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(not(debug_assertions), expect(dead_code))]
+pub(crate) enum Repeat {
+    /// The same readable path.
+    Duplicate,
+    /// A different readable path, `first`, with the same id.
+    Collision { first: String },
+}
+
+impl Repeat {
+    pub(crate) fn problem(&self) -> crate::Problem {
+        match self {
+            Self::Duplicate => crate::Problem::DuplicateKey,
+            Self::Collision { .. } => crate::Problem::KeyCollision,
+        }
+    }
 }
 
 impl Seen {
@@ -267,24 +287,40 @@ impl Seen {
         self.paths.clear();
     }
 
-    /// Registers an identified path.
-    ///
-    /// # Panics
-    ///
-    /// In debug builds, if `id` was registered earlier in the frame. The
-    /// message names both readable paths, which differ when two distinct keys
-    /// hash alike (for example variants of different enums).
-    #[cfg_attr(not(debug_assertions), expect(unused_variables))]
-    #[track_caller]
-    pub(crate) fn register(&mut self, id: Id, readable: &str) {
+    /// The id a node keyed to `declared` gets: `declared` itself, unless a
+    /// path registered this frame has it, then the first of its occurrence
+    /// salts that none has.
+    pub(crate) fn vacant(&self, declared: Id) -> Id {
         #[cfg(debug_assertions)]
-        if let Some(first) = self.paths.insert(id, readable.to_owned()) {
-            let at = std::panic::Location::caller();
-            if first == readable {
-                panic!("duplicate key path {readable} (declared again at {at})");
-            }
-            panic!("key paths {first} and {readable} have the same id (declared again at {at})");
+        if self.paths.contains_key(&declared) {
+            return (2..=u32::MAX)
+                .map(|occurrence| declared.with(("eggshell-occurrence", occurrence)))
+                .find(|id| !self.paths.contains_key(id))
+                .unwrap_or(declared);
         }
+        declared
+    }
+
+    /// Registers `readable` under `id`, which [`Self::vacant`] gave for
+    /// `declared`, telling whether it repeats a path registered earlier in
+    /// the frame.
+    #[cfg(debug_assertions)]
+    pub(crate) fn register(&mut self, declared: Id, id: Id, readable: &str) -> Option<Repeat> {
+        let first = self.paths.get(&declared).cloned();
+        self.paths.insert(id, readable.to_owned());
+        first.map(|first| {
+            if first == readable {
+                Repeat::Duplicate
+            } else {
+                Repeat::Collision { first }
+            }
+        })
+    }
+
+    /// Release builds register nothing.
+    #[cfg(not(debug_assertions))]
+    pub(crate) fn register(&mut self, _: Id, _: Id, _: &str) -> Option<Repeat> {
+        None
     }
 }
 
@@ -365,21 +401,46 @@ mod tests {
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "duplicate key path /\"a\"")]
-    fn registering_a_path_twice_panics_with_the_readable_path() {
+    fn a_repeated_path_is_a_duplicate_with_an_id_of_its_own() {
         let mut seen = Seen::default();
-        let id = child_id(root_id(), &"a");
-        seen.register(id, "/\"a\"");
-        seen.register(id, "/\"a\"");
+        let declared = child_id(root_id(), &"a");
+        assert_eq!(seen.vacant(declared), declared);
+        assert_eq!(seen.register(declared, declared, "/\"a\""), None);
+        let second = seen.vacant(declared);
+        assert_ne!(second, declared);
+        assert_eq!(
+            seen.register(declared, second, "/\"a\""),
+            Some(Repeat::Duplicate)
+        );
+        let third = seen.vacant(declared);
+        assert!(third != declared && third != second);
+        assert_eq!(
+            seen.register(declared, third, "/\"a\""),
+            Some(Repeat::Duplicate)
+        );
     }
 
     #[cfg(debug_assertions)]
     #[test]
-    #[should_panic(expected = "/Light and /Basic have the same id")]
-    fn colliding_distinct_paths_name_both() {
+    fn colliding_distinct_paths_name_the_first() {
         let mut seen = Seen::default();
         let id = child_id(root_id(), &Appearance::Light);
-        seen.register(id, "/Light");
-        seen.register(id, "/Basic");
+        seen.register(id, id, "/Light");
+        assert_eq!(
+            seen.register(id, seen.vacant(id), "/Basic"),
+            Some(Repeat::Collision {
+                first: "/Light".to_owned()
+            })
+        );
+    }
+
+    #[test]
+    fn a_new_frame_forgets_the_paths() {
+        let mut seen = Seen::default();
+        let id = child_id(root_id(), &"a");
+        seen.register(id, id, "/\"a\"");
+        seen.clear();
+        assert_eq!(seen.vacant(id), id);
+        assert_eq!(seen.register(id, id, "/\"a\""), None);
     }
 }

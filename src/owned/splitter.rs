@@ -61,16 +61,21 @@ impl Limits {
         max: None,
     };
 
-    #[track_caller]
-    fn of(range: impl RangeBounds<f32>) -> Self {
+    /// The limits `range` sets, or `Err` with them ended at their start
+    /// when `range` ends before it starts.
+    fn of(range: impl RangeBounds<f32>) -> Result<Self, Self> {
         let end = |bound: Bound<&f32>| match bound {
             Bound::Included(&points) | Bound::Excluded(&points) => Some(PaneSize::new(points)),
             Bound::Unbounded => None,
         };
         let min = end(range.start_bound()).unwrap_or_default();
-        // TODO(#279): report a range that ends before it starts; it ends at its start.
-        let max = end(range.end_bound()).map(|max| max.max(min));
-        Self { min, max }
+        match end(range.end_bound()) {
+            Some(max) if max < min => Err(Self {
+                min,
+                max: Some(min),
+            }),
+            max => Ok(Self { min, max }),
+        }
     }
 
     fn clamp(self, points: f32) -> PaneSize {
@@ -275,8 +280,23 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
 
     /// TODO(prose): the sizes the pane may take, in points: `a..=b`, `a..`
     /// or `..=b`.
+    #[track_caller]
     pub fn range(mut self, range: impl RangeBounds<f32>) -> Self {
-        self.limits = Limits::of(range);
+        let bounds = (range.start_bound().cloned(), range.end_bound().cloned());
+        let limits = Limits::of(bounds).unwrap_or_else(|ended| {
+            crate::report::report(
+                self.b.ctx(),
+                crate::Problem::BadRange,
+                Some(self.slot.id),
+                || {
+                    format!(
+                        "the splitter range {bounds:?} ends before it starts; it ends at its start"
+                    )
+                },
+            );
+            ended
+        });
+        self.limits = limits;
         self
     }
 
@@ -305,7 +325,19 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
             name,
         } = self;
         let direction = b.flex();
-        // TODO(#279): report a splitter outside a flex container; it travels as in a row.
+        if direction.is_none() {
+            crate::report::report(
+                b.ctx(),
+                crate::Problem::MisplacedSplitter,
+                Some(slot.id),
+                || {
+                    format!(
+                        "the splitter {} is not in a flex container; it travels as in a row",
+                        slot.readable()
+                    )
+                },
+            );
+        }
         let travel = Travel::of(direction.unwrap_or(FlexDirection::Row), side);
         let (style, ring) = {
             let style = Style::of(b.ctx());
@@ -331,7 +363,7 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
             b.size_in_flight();
         }
         let node = b
-            .div_id_with(slot.id, &slot.label, classes, |_| {})
+            .div_id_with(&slot, classes, |_| {})
             .role(Role::Splitter)
             .sizes_pane(side);
         let node = match name {

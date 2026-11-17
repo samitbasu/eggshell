@@ -1,7 +1,6 @@
 //! Text styling, and how it is inherited down the tree.
 
 use std::borrow::Cow;
-use std::collections::HashSet;
 
 use egui::{Color32, Context, FontFamily, FontId, Id};
 
@@ -24,16 +23,16 @@ impl TextSpec {
     /// installed [`Style`](crate::Style)'s [`Faces`] give its weight.
     ///
     /// A weight with no registered face is drawn by the nearest lighter one
-    /// that has a face, never by a synthesised or heavier one. Debug builds
-    /// print a warning, once per context, family and weight, when the style
-    /// declares no face for the weight at all.
+    /// that has a face, never by a synthesised or heavier one. A weight the
+    /// style declares no face for at all is reported as
+    /// [`Problem::MissingFace`](crate::Problem::MissingFace).
     pub fn font_id(&self, ctx: &Context) -> FontId {
-        FontId::new(self.size, self.face(ctx).0)
+        FontId::new(self.size, self.face(ctx))
     }
 
-    fn face(&self, ctx: &Context) -> (FontFamily, Warned) {
+    fn face(&self, ctx: &Context) -> FontFamily {
         if self.weight == Weight::Normal {
-            return (self.family.clone(), Warned::No);
+            return self.family.clone();
         }
         let style = crate::Style::of(ctx);
         let registered = ctx.fonts(|fonts| fonts.families());
@@ -41,8 +40,11 @@ impl TextSpec {
             .faces
             .resolve(&self.family, self.weight, |face| registered.contains(face))
         {
-            Resolution::Face(face) | Resolution::Pending(face) => (face, Warned::No),
-            Resolution::Missing(face) => (face, warn_missing(ctx, &self.family, self.weight)),
+            Resolution::Face(face) | Resolution::Pending(face) => face,
+            Resolution::Missing(face) => {
+                report_missing(ctx, &self.family, self.weight);
+                face
+            }
         }
     }
 }
@@ -155,34 +157,19 @@ impl Faces {
     }
 }
 
-/// Whether resolving a weight printed the missing-face warning.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Warned {
-    Yes,
-    No,
-}
-
-#[derive(Clone, Default)]
-struct MissingFaces(HashSet<(FontFamily, Weight)>);
-
-fn warn_missing(ctx: &Context, family: &FontFamily, weight: Weight) -> Warned {
-    if !cfg!(debug_assertions) {
-        return Warned::No;
-    }
-    let first = ctx.data_mut(|data| {
-        data.get_temp_mut_or_default::<MissingFaces>(Id::NULL.with("eggshell-missing-faces"))
-            .0
-            .insert((family.clone(), weight))
-    });
-    if !first {
-        return Warned::No;
-    }
-    eprintln!(
-        "eggshell: no {weight:?} ({}) face of {family:?} is declared in the style's `faces`; \
-         drawing the nearest lighter weight that has one",
-        weight.number()
+fn report_missing(ctx: &Context, family: &FontFamily, weight: Weight) {
+    crate::report::report(
+        ctx,
+        crate::Problem::MissingFace,
+        Some(Id::NULL.with(("missing-face", family, weight))),
+        || {
+            format!(
+                "no {weight:?} ({}) face of {family:?} is declared in the style's `faces`; \
+                 drawing the nearest lighter weight that has one",
+                weight.number()
+            )
+        },
     );
-    Warned::Yes
 }
 
 /// Where a text node places its lines when its box is taller than they are.
@@ -646,21 +633,31 @@ mod weight_tests {
     }
 
     #[test]
-    #[cfg(debug_assertions)]
-    fn the_missing_face_warning_is_printed_once_per_family_and_weight() {
+    fn a_missing_face_is_reported_once_per_family_and_weight() {
         let ctx = context();
-        let warned = |weight| spec(weight).face(&ctx).1;
-        assert_eq!(warned(Weight::Bold), Warned::Yes);
-        assert_eq!(warned(Weight::Bold), Warned::No);
+        let missing = |weight| {
+            spec(weight).font_id(&ctx);
+            crate::report::reports(&ctx)
+                .iter()
+                .filter(|report| report.problem == crate::Problem::MissingFace)
+                .map(|report| (report.message.clone(), report.count))
+                .collect::<Vec<_>>()
+        };
+        let once = missing(Weight::Bold);
+        assert_eq!(once.len(), 1, "{once:?}");
+        assert!(once[0].0.contains("no Bold (700) face"), "{once:?}");
+        let twice = missing(Weight::Bold);
+        assert_eq!(twice.len(), 1, "a repeat is counted: {twice:?}");
+        assert_eq!(twice[0].1, 2);
         assert_eq!(
-            warned(Weight::SemiBold),
-            Warned::Yes,
-            "another weight warns too"
+            missing(Weight::SemiBold).len(),
+            2,
+            "another weight reports too"
         );
         assert_eq!(
-            warned(Weight::Medium),
-            Warned::No,
-            "a declared face never warns"
+            missing(Weight::Medium).len(),
+            2,
+            "a declared face never reports"
         );
     }
 }

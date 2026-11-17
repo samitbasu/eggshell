@@ -101,7 +101,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let radio = &style.radio;
-        let metrics = *radio.sizes.get(b.size_of(size));
+        let metrics = *radio.sizes.lookup(b.ctx(), b.size_of(size));
         let values: Vec<T> = options.iter().map(|option| option.value).collect();
         let enabled: Vec<bool> = options
             .iter()
@@ -113,7 +113,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             .or_else(|| (0..count).find(|&at| enabled[at]))
             .unwrap_or(0);
         b.claim(&slot);
-        b.scope_with(slot.id, &slot.label, |b| {
+        b.scope_with(&slot, |b| {
             let ids: Vec<_> = (0..count)
                 .map(|index| b.id_of(Part::Circle(index)))
                 .collect();

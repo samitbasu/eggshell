@@ -349,6 +349,41 @@ fn the_readout_is_drawn_only_while_the_overlay_is_on() {
     assert!(readouts(&harness).is_empty());
 }
 
+fn duplicated(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.div_id("twice", tw().w_px(10.0).h_px(10.0), |_| {});
+    b.div_id("twice", tw().w_px(10.0).h_px(10.0), |_| {});
+}
+
+#[test]
+fn the_readout_lists_reports_with_their_counts() {
+    let mut harness = rig(nested);
+    run(&mut harness, Debug::Outlines);
+    let quiet = readouts(&harness);
+    assert_eq!(quiet.len(), 1);
+    assert!(
+        !quiet[0].contains("reports"),
+        "no section without reports: {}",
+        quiet[0]
+    );
+
+    let mut harness = rig(duplicated);
+    run(&mut harness, Debug::Outlines);
+    let reports = eggshell_ui::testing::reports(&harness.ctx);
+    assert_eq!(reports.len(), 1, "{reports:?}");
+    let count = reports[0].count;
+    assert!(count > 1, "one report per frame is counted: {reports:?}");
+    let shown = readouts(&harness);
+    assert_eq!(shown.len(), 1);
+    assert!(shown[0].contains("reports"), "{}", shown[0]);
+    assert!(
+        shown[0].contains(&format!(
+            "{count}x DuplicateKey: duplicate key path /\"twice\""
+        )),
+        "{}",
+        shown[0]
+    );
+}
+
 #[test]
 fn the_smoothed_fps_follows_the_frame_time() {
     let dt = 0.05;

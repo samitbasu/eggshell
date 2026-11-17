@@ -312,7 +312,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
         let row_count = usize::from(header.is_some()) + rows.len() + usize::from(footer.is_some());
         let column_count = columns.len();
         let classes = tw().grid().grid_cols_tracks(&tracks).w_full().sense_hover();
-        let handle = b.div_id_with(slot.id, &slot.label, classes, |b| {
+        let handle = b.div_id_with(&slot, classes, |b| {
             let mut rower = Rower {
                 style: &style,
                 columns: &columns,
@@ -554,9 +554,12 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
             band: &self.label,
             column,
         };
+        let slot = self
+            .b
+            .slot_of(self.band.with(("cell", column)), format!("{key:?}"));
         let (band, index) = (self.band, self.index);
         self.b
-            .div_id_with(self.band.with(("cell", column)), &key, classes, |b| body(b))
+            .div_id_with(&slot, classes, |b| body(b))
             .draw(move |_, ui| describe_cell(ui, band, role, name, (index, column)));
     }
 }

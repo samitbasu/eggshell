@@ -451,13 +451,16 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             "the button {} has no label and no name: call `named`",
             slot.readable(),
         );
-        let style = Style::of(b.ctx());
+        let ctx = b.ctx();
+        let style = Style::of(ctx);
         let button = &style.button;
         let variant = |keyed_default: Variant| variant.unwrap_or(keyed_default);
         let (look, metrics, selected) = match toggle {
             None => (
-                *button.variants.get(variant(button.variants.default_key())),
-                *button.sizes.get(size),
+                *button
+                    .variants
+                    .lookup(ctx, variant(button.variants.default_key())),
+                *button.sizes.lookup(ctx, size),
                 None,
             ),
             Some(mark) => {
@@ -467,9 +470,9 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 };
                 (
                     looks
-                        .get(variant(looks.default_key()))
+                        .lookup(ctx, variant(looks.default_key()))
                         .bordered(button.toggle_border_width),
-                    *button.toggle_sizes.get(size),
+                    *button.toggle_sizes.lookup(ctx, size),
                     Some(mark),
                 )
             }
@@ -489,7 +492,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         let classes = enablement.fade(classes, &style).merge(caller);
         let name = name.unwrap_or_else(|| label.clone());
         let glyph = metrics.glyph;
-        let node = b.div_id_with(slot.id, &slot.label, classes, |b| {
+        let node = b.div_id_with(&slot, classes, |b| {
             if let Some(icon) = icon {
                 b.glyph(tw().size_px(glyph).shrink_0(), icon);
             }

@@ -54,9 +54,9 @@ impl std::fmt::Display for Size {
     }
 }
 
-/// Entries by key with one that stands in for any key the style lacks. In a
-/// debug build, asking for an unknown key is a bug and asserts; a release
-/// build quietly uses the default entry.
+/// Entries by key with one that stands in for any key the style lacks. A
+/// widget drawn with a key the style lacks uses the default entry and is
+/// reported as [`Problem::MissingStyleEntry`](crate::Problem::MissingStyleEntry).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Keyed<K, T> {
     default_key: K,
@@ -100,10 +100,21 @@ impl<K: Ord + Copy + Debug, T> Keyed<K, T> {
         if key == self.default_key {
             return &self.default;
         }
-        self.others.get(&key).unwrap_or_else(|| {
-            debug_assert!(false, "the style defines no {key:?}");
-            &self.default
-        })
+        self.others.get(&key).unwrap_or(&self.default)
+    }
+
+    /// [`Self::get`], reporting a key the style does not define.
+    #[track_caller]
+    pub(crate) fn lookup(&self, ctx: &Context, key: K) -> &T {
+        if key != self.default_key && !self.others.contains_key(&key) {
+            crate::report::report(
+                ctx,
+                crate::Problem::MissingStyleEntry,
+                Some(Id::NULL.with(("style-entry", format!("{key:?}")))),
+                || format!("the style defines no {key:?}; drawing its default entry"),
+            );
+        }
+        self.get(key)
     }
 
     /// The entry under `key`, if the style defines it.
@@ -598,6 +609,11 @@ pub struct SliderMetrics {
     /// Corner radius of the track, its range and the thumb; `u8::MAX` makes
     /// them round.
     pub radius: u8,
+    /// The text of the label and the readout above the track, over the
+    /// role the subtree inherits.
+    pub text: Option<TextSize>,
+    /// The space between the label row and the track.
+    pub header_gap: f32,
 }
 
 /// Sliders. A track holds a range that ends under a thumb.
@@ -612,6 +628,10 @@ pub struct SliderStyle {
     pub range: States,
     /// The thumb. Its focus ring is the keyboard focus indicator.
     pub thumb: Look,
+    /// The label above the track; only `text` of `rest` and `disabled` applies.
+    pub label: States,
+    /// The readout above the track; only `text` of `rest` and `disabled` applies.
+    pub readout: States,
     /// How long state changes animate.
     pub transition: Duration,
 }
@@ -1498,6 +1518,8 @@ impl Style {
                         track_height: s.slider_rail_height,
                         thumb_size: s.icon_width,
                         radius: u8::MAX,
+                        text: None,
+                        header_gap: 8.0,
                     },
                 ),
                 track: States::still(
@@ -1526,6 +1548,22 @@ impl Style {
                     active,
                 ))
                 .bordered(border_width.max(1.0)),
+                label: States::still(
+                    Colors {
+                        fill: clear,
+                        border: clear,
+                        text: v.text_color(),
+                    },
+                    surface,
+                ),
+                readout: States::still(
+                    Colors {
+                        fill: clear,
+                        border: clear,
+                        text: v.weak_text_color(),
+                    },
+                    surface,
+                ),
                 transition,
             },
             select: SelectStyle {

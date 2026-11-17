@@ -4,6 +4,7 @@
 //! frame-timing readout in the corner farthest from the pointer.
 
 use core::time::Duration;
+use std::fmt::Write as _;
 
 use egui::epaint::StrokeKind;
 use egui::{
@@ -45,7 +46,9 @@ use crate::prim::Prim;
 ///   [`Built::layout`](crate::Built::layout) and [`Placed::draw`](crate::Placed::draw),
 ///   summed over every tree of the pass (the readout sees the draws before it);
 /// - `repaint`: whether egui has been asked to repaint at once, as it is while
-///   an animation is in progress, or is idle.
+///   an animation is in progress, or is idle;
+/// - `reports`, once there are any: each [`Report`](crate::Report) of the
+///   context with its count.
 ///
 /// None of this is measured, stored or drawn while the mode is
 /// [`Off`](Self::Off).
@@ -228,7 +231,7 @@ fn readout_text(ctx: &Context) -> String {
         .unwrap_or_default();
     let ms = |seconds: f32| seconds * 1000.0;
     let ms_of = |duration: Duration| duration.as_secs_f32() * 1000.0;
-    format!(
+    let mut text = format!(
         "frame    {:6.1} ms  {:6.1} fps\n\
          dt       stable {:5.1}  predicted {:5.1} ms\n\
          eggshell build {:5.2}  layout {:5.2}  draw {:5.2} ms\n\
@@ -245,7 +248,31 @@ fn readout_text(ctx: &Context) -> String {
         } else {
             "idle"
         },
-    )
+    );
+    text.push_str(&reports_text(ctx));
+    text
+}
+
+/// The reports section of the readout: one line per report, or nothing
+/// while there are none.
+fn reports_text(ctx: &Context) -> String {
+    let reports = crate::report::reports(ctx);
+    let dropped = crate::report::dropped(ctx);
+    if reports.is_empty() && dropped == 0 {
+        return String::new();
+    }
+    let mut text = String::from("\nreports");
+    for report in reports {
+        let _ = write!(
+            text,
+            "\n  {:>4}x {:?}: {} (at {})",
+            report.count, report.problem, report.message, report.at
+        );
+    }
+    if dropped > 0 {
+        let _ = write!(text, "\n  and {dropped} more not kept");
+    }
+    text
 }
 
 /// The readout and the hover label of a pass: one shape kept last on the

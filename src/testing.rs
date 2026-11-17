@@ -183,7 +183,7 @@ use crate::key::{Key, child_id};
 pub use crate::pipeline::Placed;
 use crate::pipeline::{LayoutState, PlacedNode};
 use crate::prim::Prim;
-use crate::{Builder, TextStyle};
+use crate::{Builder, Problem, Report, TextStyle};
 
 type Prepare = Box<dyn FnOnce(&egui::Context)>;
 
@@ -271,6 +271,18 @@ impl Headless {
         &self.ctx
     }
 
+    /// TODO(prose): the reports of the context, as [`reports`].
+    ///
+    /// ```
+    /// use eggshell_ui::testing::Headless;
+    /// use egui::vec2;
+    ///
+    /// assert!(Headless::new(vec2(10.0, 10.0)).reports().is_empty());
+    /// ```
+    pub fn reports(&self) -> Vec<Report> {
+        reports(&self.ctx)
+    }
+
     /// Builds and lays out `view` of `app`; nothing is drawn.
     ///
     /// `view` gets `app` for the frame's lifetime `'f`, as an application's
@@ -319,6 +331,68 @@ impl Headless {
             |_| {},
         );
     }
+}
+
+/// TODO(prose): the reports kept in `ctx`, oldest first.
+///
+/// ```
+/// use eggshell_ui::testing::reports;
+///
+/// assert!(reports(&egui::Context::default()).is_empty());
+/// ```
+pub fn reports(ctx: &egui::Context) -> Vec<Report> {
+    crate::report::reports(ctx)
+}
+
+/// TODO(prose): the reports kept in `ctx`, leaving none.
+///
+/// ```
+/// use eggshell_ui::testing::{reports, take_reports};
+///
+/// let ctx = egui::Context::default();
+/// assert!(take_reports(&ctx).is_empty());
+/// assert!(reports(&ctx).is_empty());
+/// ```
+pub fn take_reports(ctx: &egui::Context) -> Vec<Report> {
+    crate::report::take(ctx)
+}
+
+/// TODO(prose): the first report of `problem` in `ctx`; panics if there is none.
+///
+/// ```
+/// use eggshell_ui::Problem;
+/// use eggshell_ui::testing::{Headless, assert_reported};
+/// use eggshell_ui::{Builder, tw};
+/// use egui::vec2;
+///
+/// let mut headless = Headless::new(vec2(100.0, 100.0));
+/// headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
+///     b.div_id("a", tw(), |_| {});
+///     b.div_id("a", tw(), |_| {});
+/// });
+/// let report = assert_reported(headless.ctx(), Problem::DuplicateKey);
+/// assert!(report.message.contains("/\"a\""));
+/// ```
+#[track_caller]
+pub fn assert_reported(ctx: &egui::Context, problem: Problem) -> Report {
+    let reports = reports(ctx);
+    match reports.iter().find(|report| report.problem == problem) {
+        Some(report) => report.clone(),
+        None => panic!("expected a {problem:?} report, got {reports:#?}"),
+    }
+}
+
+/// TODO(prose): panics if `ctx` keeps any report.
+///
+/// ```
+/// use eggshell_ui::testing::assert_no_reports;
+///
+/// assert_no_reports(&egui::Context::default());
+/// ```
+#[track_caller]
+pub fn assert_no_reports(ctx: &egui::Context) {
+    let reports = reports(ctx);
+    assert!(reports.is_empty(), "expected no reports, got {reports:#?}");
 }
 
 fn run_pass(

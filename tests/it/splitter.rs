@@ -433,6 +433,9 @@ mod access {
 }
 
 mod misuse {
+    use eggshell_ui::Problem;
+    use eggshell_ui::testing::{assert_no_reports, assert_reported};
+
     use super::*;
 
     fn outside_flex(b: &mut Builder<'_, '_, App>, app: &App) {
@@ -455,6 +458,8 @@ mod misuse {
         );
         harness.run_steps(2);
         assert_eq!(harness.query_all_by_role(Role::Splitter).count(), 1);
+        let report = assert_reported(&harness.ctx, Problem::MisplacedSplitter);
+        assert!(report.message.contains("\"loose\""), "{}", report.message);
     }
 
     fn backwards(b: &mut Builder<'_, '_, App>, app: &App) {
@@ -483,6 +488,19 @@ mod misuse {
             (node.min_numeric_value(), node.max_numeric_value()),
             (Some(300.0), Some(300.0))
         );
+        let report = assert_reported(&harness.ctx, Problem::BadRange);
+        assert!(
+            report.message.contains("ends before it starts"),
+            "{}",
+            report.message
+        );
+    }
+
+    #[test]
+    fn splitters_in_flex_containers_with_ranges_report_nothing() {
+        let mut harness = harness();
+        harness.run_steps(2);
+        assert_no_reports(&harness.ctx);
     }
 }
 

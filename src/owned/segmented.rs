@@ -234,7 +234,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
         }
         let style = Style::of(b.ctx());
         let seg = &style.segmented;
-        let metrics = *seg.sizes.get(b.size_of(size));
+        let metrics = *seg.sizes.lookup(b.ctx(), b.size_of(size));
         let container = tw()
             .flex()
             .items_center()
@@ -306,7 +306,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
         container
     };
     let control_tip = tooltip.clone();
-    let handle = b.div_id_with(slot.id, &slot.label, container, |b| {
+    let handle = b.div_id_with(&slot, container, |b| {
         for (
             index,
             Choice {

@@ -752,6 +752,16 @@ fn arrow_keys_in_the_field_step_the_value() {
 }
 
 #[test]
+fn focusing_the_stepper_field_selects_its_value_so_typing_replaces_it() {
+    let mut harness = harness(Theme::Light);
+    click_node(&mut harness, FIELD);
+    harness.run_steps(3);
+    harness.event(egui::Event::Text("7".into()));
+    harness.run_steps(3);
+    assert_eq!(harness.state().app.count, 7.0);
+}
+
+#[test]
 fn typing_sets_the_value_clamps_it_and_snaps_when_the_field_is_left() {
     let mut harness = harness(Theme::Light);
     click_node(&mut harness, FIELD);

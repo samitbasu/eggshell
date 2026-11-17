@@ -68,7 +68,7 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
         let size = b.size_of(size);
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
-        let metrics = *style.input.sizes.get(size);
+        let metrics = *style.input.sizes.lookup(b.ctx(), size);
         let classes = field_box_classes(
             &style.input.look,
             &style,
@@ -82,6 +82,6 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
         .control_size(size)
         .merge(text_sized(&b, metrics.text))
         .merge(classes);
-        b.div_id_with(slot.id, &slot.label, classes, body);
+        b.div_id_with(&slot, classes, body);
     }
 }

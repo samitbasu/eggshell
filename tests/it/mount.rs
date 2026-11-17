@@ -422,3 +422,100 @@ fn tab_moves_into_a_mount_and_out_of_it() {
     let next = at(&path(&["Page", "Right", "Add"])).expect("Tab leaves the mount");
     assert!(before < add && add < more && more < next, "{seen:?}");
 }
+
+/// Misuse inside and around a mount is reported, and the frame goes on.
+mod misuse {
+    use eggshell_ui::Problem;
+    use eggshell_ui::testing::{Headless, assert_reported, reports};
+
+    use super::*;
+
+    #[derive(Default)]
+    struct Two {
+        first: Notes,
+        second: Notes,
+    }
+
+    fn twice<'f>(b: &mut Builder<'_, 'f, Two>, two: &'f Two) {
+        b.mount("m", tw(), &two.first, |two: &mut Two| &mut two.first, notes);
+        b.mount(
+            "m",
+            tw(),
+            &two.second,
+            |two: &mut Two| &mut two.second,
+            notes,
+        );
+    }
+
+    #[test]
+    fn a_mount_key_used_twice_is_reported_and_each_mount_keeps_its_own_commands() {
+        let mut harness = support::harness(vec2(400.0, 300.0), base_text(), Two::default(), twice);
+        harness.run_steps(4);
+        assert_reported(&harness.ctx, Problem::DuplicateKey);
+        let fields: Vec<_> = harness.query_all_by_label("Note").collect();
+        assert_eq!(fields.len(), 2, "precondition: both mounts are built");
+        fields[1].click();
+        harness.run_steps(6);
+        harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
+        harness.run_steps(4);
+        let two = &harness.state().app;
+        assert_eq!(
+            (two.first.log.as_slice(), two.second.log.as_slice()),
+            (&[][..], &["notes k"][..])
+        );
+    }
+
+    fn repeats<'f>(b: &mut Builder<'_, 'f, Counter>, _: &'f Counter) {
+        b.div_id("x", tw(), |_| {});
+        b.div_id("x", tw(), |_| {});
+    }
+
+    #[test]
+    fn a_duplicate_key_inside_a_mount_is_reported_under_the_mount_key() {
+        let mut headless = Headless::new(vec2(200.0, 100.0));
+        let page = Nest::default();
+        headless.layout(&page, |b, page| {
+            b.mount(
+                "m",
+                tw(),
+                &page.inner,
+                |page: &mut Nest| &mut page.inner,
+                repeats,
+            );
+        });
+        let report = assert_reported(headless.ctx(), Problem::DuplicateKey);
+        assert!(report.message.contains(r#"/"m"/"x""#), "{}", report.message);
+    }
+
+    fn notes_twice<'f>(b: &mut Builder<'_, 'f, Notes>, notes: &'f Notes) {
+        let second = Commands::new().add(
+            "second k",
+            Command::new("Second K", |notes: &mut Notes| notes.log.push("second k"))
+                .shortcut(SHARED),
+        );
+        b.commands(&notes_commands(), notes);
+        b.commands(&second, notes);
+        b.text_field_with(Part::Note, Field::singleline(&notes.text).named("Note"))
+            .on_change(|notes: &mut Notes, text| notes.text = text);
+    }
+
+    #[test]
+    fn commands_declared_twice_in_a_mount_are_reported_and_the_first_runs() {
+        fn view<'f>(b: &mut Builder<'_, 'f, Notes>, notes: &'f Notes) {
+            b.mount("m", tw(), notes, |notes: &mut Notes| notes, notes_twice);
+        }
+        let mut harness = support::harness(vec2(400.0, 300.0), base_text(), Notes::default(), view);
+        harness.run_steps(4);
+        assert!(
+            reports(&harness.ctx)
+                .iter()
+                .any(|report| report.problem == Problem::CommandsTwice),
+            "reported"
+        );
+        harness.get_by_label("Note").click();
+        harness.run_steps(6);
+        harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
+        harness.run_steps(4);
+        assert_eq!(harness.state().app.log, ["notes k"]);
+    }
+}

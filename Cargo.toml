@@ -14,6 +14,7 @@ egui = "0.37"
 egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
 nohash-hasher = "0.2"
 web-time = "1.1"
+log = "0.4"
 
 [features]
 default = ["clipboard"]
