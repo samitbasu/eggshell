@@ -119,6 +119,17 @@ fn scan(output: &str) -> Findings {
     findings
 }
 
+/// How many tests passed across every `test result:` line of `output`.
+pub fn tests_passed(output: &str) -> u64 {
+    strip_ansi(output)
+        .lines()
+        .filter_map(|line| line.trim_start().strip_prefix("test result: "))
+        .filter_map(|rest| rest.split("; ").next())
+        .filter_map(|passed| passed.split_whitespace().rev().nth(1))
+        .filter_map(|count| count.parse::<u64>().ok())
+        .sum()
+}
+
 fn clip(line: &str) -> String {
     match line.char_indices().nth(MAX_LINE) {
         Some((end, _)) => format!("{}...", &line[..end]),
@@ -129,6 +140,19 @@ fn clip(line: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tests_passed_sums_every_binary() {
+        let output = "\
+running 3 tests
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1457 filtered out; finished in 1.08s
+   Doc-tests eggshell_ui
+\x1b[1mtest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out\x1b[0m
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+";
+        assert_eq!(tests_passed(output), 4);
+        assert_eq!(tests_passed("running 0 tests\n"), 0);
+    }
 
     const TEST_FAILURE: &str = "\
    Compiling eggshell v0.1.0 (/work/eggshell)

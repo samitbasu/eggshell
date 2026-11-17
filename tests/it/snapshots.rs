@@ -190,7 +190,12 @@ fn report_renderer() {
             egui_kittest::wgpu::default_wgpu_setup(),
             Default::default(),
         );
-        println!("snapshot renderer: {:?}", state.adapter.get_info());
+        let info = state.adapter.get_info();
+        println!("snapshot renderer: {info:?}");
+        assert!(
+            eggshell_ui::testing::screenshot::is_lavapipe(&info),
+            "the goldens are rendered on Mesa lavapipe; `cargo xtask snapshots` selects it"
+        );
     });
 }
 
