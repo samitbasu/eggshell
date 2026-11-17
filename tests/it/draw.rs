@@ -780,7 +780,7 @@ enum Host {
 }
 
 /// The node's id as built, and the node and scope ids its `Ui` reports when drawn from `host`.
-fn node_ui_ids(host: Host) -> (Id, Vec<(Id, Id)>) {
+fn node_ui_ids(host: Host) -> (Id, Vec<(Option<Id>, Id)>) {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let expected = Rc::new(Cell::new(Id::NULL));
     let mut layout = LayoutState::new().with_base_text(base());
@@ -829,7 +829,7 @@ fn a_node_ui_knows_the_nodes_id_and_has_a_stable_scope_under_any_parent_or_layer
         let [(node, scope)] = seen[..] else {
             panic!("{host:?}: one draw, saw {seen:?}")
         };
-        assert_eq!(node, id, "{host:?}");
+        assert_eq!(node, Some(id), "{host:?}");
         assert_ne!(scope, id, "{host:?}: the node's own id is its widget's");
         scopes.push(scope);
     }
@@ -837,6 +837,61 @@ fn a_node_ui_knows_the_nodes_id_and_has_a_stable_scope_under_any_parent_or_layer
         scopes.windows(2).all(|pair| pair[0] == pair[1]),
         "{scopes:?}"
     );
+}
+
+/// Outside every draw closure the node accessors answer `None`, `false` and
+/// the `Ui`'s own response; the two that cannot say so in their type report.
+#[test]
+fn node_accessors_outside_every_draw_answer_without_panicking() {
+    let ctx = egui::Context::default();
+    ctx.run_ui(RawInput::default(), |ui| {
+        assert_eq!(ui.node_id(), None);
+        assert!(!ui.has_focus_within());
+        assert!(!ui.node_response().clicked());
+    })
+    .drop_without_applying_deltas();
+    let reports = eggshell_ui::testing::reports(&ctx);
+    assert_eq!(reports.len(), 2, "{reports:#?}");
+    assert!(
+        reports
+            .iter()
+            .all(|report| report.problem == eggshell_ui::Problem::NodeUiOutsideDraw),
+        "{reports:#?}"
+    );
+}
+
+/// A `Ui` nested in a draw closure's is not the node's: the accessors answer
+/// for it as they do outside every draw.
+#[test]
+fn node_accessors_on_a_ui_nested_in_a_draw_closure_answer_without_panicking() {
+    let seen = Rc::new(RefCell::new(None));
+    let probe = Rc::clone(&seen);
+    let ctx = egui::Context::default();
+    ctx.run_ui(RawInput::default(), |ui| {
+        let probe = Rc::clone(&probe);
+        let mut layout = LayoutState::new().with_base_text(base());
+        layout
+            .build(ui.ctx(), |b| {
+                b.div_id("node", tw().w_px(10.0).h_px(10.0), |_| {})
+                    .draw(move |_: &mut (), ui| {
+                        let outer = ui.node_id();
+                        ui.scope(|inner| {
+                            *probe.borrow_mut() =
+                                Some((outer, inner.node_id(), inner.has_focus_within()));
+                        });
+                    });
+            })
+            .layout(SCREEN)
+            .draw(&mut (), ui);
+    })
+    .drop_without_applying_deltas();
+    let (outer, inner, within) = seen.take().expect("the draw closure ran");
+    assert!(
+        outer.is_some(),
+        "precondition: the closure's own `Ui` is the node's"
+    );
+    assert_eq!((inner, within), (None, false));
+    eggshell_ui::testing::assert_reported(&ctx, eggshell_ui::Problem::NodeUiOutsideDraw);
 }
 
 // ------------------------------------------------------------------ egui backdrop

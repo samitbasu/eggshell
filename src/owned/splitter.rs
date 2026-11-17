@@ -489,13 +489,16 @@ impl Handle {
     fn paint(&self, ui: &Ui, rect: Rect, hot: bool) {
         let style = &self.style;
         let target = if hot { Progress::END } else { Progress::START };
-        let progress = transition::animate(
-            ui.ctx(),
-            ui.node_id().with("hot"),
-            target,
-            style.transition,
-            Easing::Default,
-        );
+        let progress = match crate::draw::node_id_or_report(ui, "the splitter's hover transition") {
+            Some(id) => transition::animate(
+                ui.ctx(),
+                id.with("hot"),
+                target,
+                style.transition,
+                Easing::Default,
+            ),
+            None => target,
+        };
         let colors = style.rest.towards(style.hot, progress);
         let painter = ui.painter();
         painter.rect_filled(rect, 0.0, colors.band);

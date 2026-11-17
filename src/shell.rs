@@ -18,7 +18,7 @@ use crate::kept::Handle;
 /// From [`LayoutState::shell`](crate::LayoutState::shell),
 /// [`Builder::shell`](crate::Builder::shell),
 /// [`Placed::shell`](crate::Placed::shell) or, in a draw closure,
-/// [`ShellExt::shell`] on the `Ui`. Cloning is cheap and it outlives the
+/// [`ShellExt::try_shell`] on the `Ui`. Cloning is cheap and it outlives the
 /// borrow of the layout it came from.
 ///
 /// It reaches a scroll container's viewport and asks it to scroll
@@ -50,22 +50,14 @@ impl Shell {
 
 /// [`Shell`] for the `Ui` of a draw closure.
 pub trait ShellExt {
-    /// The shell of the layout whose draw closure this `Ui` belongs to.
+    /// The shell of the layout being drawn, or `None` outside every draw
+    /// closure of a [`Placed::draw`](crate::Placed::draw).
     ///
     /// Layouts may nest: a draw closure of one layout may build and draw
     /// another (an egui `Popup` or `Area` with eggshell content, say). While
     /// the inner [`Placed::draw`](crate::Placed::draw) runs, its closures see
     /// the inner layout; once it returns, the outer layout's closures see the
     /// outer one again.
-    ///
-    /// # Panics
-    ///
-    /// Outside every draw closure of a [`Placed::draw`](crate::Placed::draw):
-    /// with no layout being drawn there is no shell to name. Use
-    /// [`try_shell`](Self::try_shell) where a `Ui` may come from plain egui
-    /// code. The library's own widgets never panic here: they use
-    /// `try_shell`, print a warning once per context, and skip the step that
-    /// needed the shell.
     ///
     /// # Example
     ///
@@ -74,12 +66,15 @@ pub trait ShellExt {
     ///
     /// let ctx = egui::Context::default();
     /// ctx.run_ui(Default::default(), |ui| {
+    ///     assert!(ui.try_shell().is_none());
     ///     let mut layout = LayoutState::new();
     ///     let placed = layout
     ///         .build(&ctx, |b: &mut Builder<'_, '_, ()>| {
     ///             b.div_id("pad", tw(), |_| {}).draw(|_, ui| {
-    ///                 // Not egui's `Ui::layout`: a `Shell`, resolved through the trait.
-    ///                 let _: Shell = ui.shell();
+    ///                 let Some(shell): Option<Shell> = ui.try_shell() else {
+    ///                     return;
+    ///                 };
+    ///                 let _ = shell.ctx();
     ///             });
     ///         })
     ///         .layout(ui.max_rect());
@@ -87,20 +82,10 @@ pub trait ShellExt {
     /// })
     /// .drop_without_applying_deltas();
     /// ```
-    fn shell(&self) -> Shell;
-
-    /// The shell of the layout being drawn, or `None` outside every draw
-    /// closure of a [`Placed::draw`](crate::Placed::draw).
     fn try_shell(&self) -> Option<Shell>;
 }
 
 impl ShellExt for Ui {
-    fn shell(&self) -> Shell {
-        self.try_shell().expect(
-            "`Ui::shell` is for the draw closures of a `Placed`; use `try_shell` outside them",
-        )
-    }
-
     fn try_shell(&self) -> Option<Shell> {
         let key = drawing_key(self.ctx());
         let kept = self.ctx().data(|data| data.get_temp::<Handle>(key))?;
