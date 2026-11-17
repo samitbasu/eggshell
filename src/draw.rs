@@ -1444,6 +1444,8 @@ impl<A> Walk<'_, A> {
     /// galley and its position are the ones plain painting uses, so layout
     /// and pixels are the same without a selection. The whole content box
     /// takes the pointer, so a drag may end in the blank beside the text.
+    /// Where drags pass through, as to a scroll area on a touch screen, the
+    /// text takes clicks alone: a drag scrolls, as a browser's does.
     fn select_text(
         &mut self,
         id: Id,
@@ -1464,7 +1466,7 @@ impl<A> Walk<'_, A> {
                 if let Some(color) = selection.text {
                     ui.visuals_mut().selection.stroke.color = color;
                 }
-                let response = ui.interact(content, id, Sense::click_and_drag() - Sense::FOCUSABLE);
+                let response = ui.interact(content, id, inherited.drags.sense() - Sense::FOCUSABLE);
                 response.widget_info(|| {
                     WidgetInfo::labeled(Role::Label, ui.is_enabled(), galley.text())
                 });

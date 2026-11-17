@@ -268,6 +268,129 @@ fn the_shadcn_preset_fills_the_markdown_style() {
     assert_eq!(installed.code.fill, tokens.muted);
 }
 
+/// egui's scroll areas drag to scroll only once a touch has been seen.
+fn touch_screen(harness: &mut Harness<'_, Rig<page::State>>) {
+    harness.event(egui::Event::Touch {
+        device_id: egui::TouchDeviceId(0),
+        id: egui::TouchId(0),
+        phase: egui::TouchPhase::Cancel,
+        pos: egui::Pos2::ZERO,
+        force: None,
+    });
+    harness.step();
+}
+
+fn page_offset(harness: &Harness<'_, Rig<page::State>>) -> f32 {
+    support::shell(harness)
+        .viewport(support::id_of(harness, "/Page"))
+        .expect("laid out")
+        .offset()
+        .y
+}
+
+#[test]
+fn a_touch_drag_that_starts_on_any_block_scrolls_the_page() {
+    let mut harness = harness_sized(vec2(720.0, 400.0));
+    touch_screen(&mut harness);
+    let blocks: Vec<String> = harness
+        .state()
+        .nodes
+        .iter()
+        .map(|(path, _)| path.clone())
+        .filter(|path| {
+            path.strip_prefix("/Page/Doc/")
+                .is_some_and(|rest| !rest.contains('/') && !rest.starts_with('<'))
+        })
+        .collect();
+    assert!(
+        blocks.len() > 10,
+        "precondition: the blocks are drawn: {blocks:?}"
+    );
+    let mut stuck = Vec::new();
+    let mut swept = 0;
+    for block in &blocks {
+        support::shell(&harness)
+            .scroll_into_view(support::id_of(&harness, block), Some(egui::Align::Center));
+        harness.run_steps(4);
+        let page = rect_of(&harness, "/Page");
+        let rect = rect_of(&harness, block).intersect(page.shrink(24.0));
+        if !rect.is_positive() {
+            continue;
+        }
+        swept += 1;
+        let before = page_offset(&harness);
+        let up = if before > 100.0 { 60.0 } else { -60.0 };
+        support::drag(&mut harness, rect.center(), rect.center() + vec2(0.0, up));
+        let moved = (page_offset(&harness) - before).abs();
+        if moved < 20.0 {
+            stuck.push(format!("{block}: moved {moved}"));
+        }
+    }
+    assert_eq!(swept, blocks.len(), "precondition: every block was reached");
+    assert!(
+        stuck.is_empty(),
+        "a touch drag did not scroll from {stuck:#?}"
+    );
+}
+
+#[test]
+fn on_a_touch_screen_a_tap_on_a_link_still_follows_it() {
+    let mut harness = harness();
+    touch_screen(&mut harness);
+    let link = support::part_rect(&harness, PARAGRAPH, "relative");
+    press_and_release(&mut harness, link.center());
+    harness.run_steps(2);
+    assert_eq!(harness.state().app.followed, ["guide.md"]);
+}
+
+fn copied(harness: &mut Harness<'_, Rig<page::State>>) -> Option<String> {
+    harness.event(egui::Event::Copy);
+    harness.step();
+    harness
+        .output()
+        .platform_output
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            egui::OutputCommand::CopyText(text) => Some(text.clone()),
+            _ => None,
+        })
+}
+
+/// The same drag on the first paragraph, upward from its last row, with a
+/// mouse or on a touch screen: what it copied and how far it scrolled.
+fn drag_on_the_paragraph(touch: bool) -> (Option<String>, f32) {
+    let mut harness = harness_sized(vec2(720.0, 400.0));
+    if touch {
+        touch_screen(&mut harness);
+    }
+    let (galley, at) = support::galley_of(&harness, PARAGRAPH);
+    let paragraph = galley.rect.translate(at.to_vec2());
+    let from = egui::pos2(paragraph.max.x - 4.0, paragraph.max.y - 4.0);
+    support::drag(&mut harness, from, from - vec2(0.0, 60.0));
+    let scrolled = page_offset(&harness);
+    (copied(&mut harness), scrolled)
+}
+
+#[test]
+fn with_a_mouse_a_drag_on_a_paragraph_selects_its_text_and_scrolls_nothing() {
+    let (copied, scrolled) = drag_on_the_paragraph(false);
+    assert!(
+        copied
+            .as_deref()
+            .is_some_and(|text| text.len() > 10 && PARAGRAPH.contains(text.trim())),
+        "copied {copied:?}"
+    );
+    assert_eq!(scrolled, 0.0);
+}
+
+#[test]
+fn on_a_touch_screen_the_same_drag_scrolls_and_selects_nothing() {
+    let (copied, scrolled) = drag_on_the_paragraph(true);
+    assert!(scrolled > 20.0, "scrolled {scrolled}");
+    assert_eq!(copied, None);
+}
+
 const TABLE: &str = "/Page/Doc/Block(16)/Table";
 
 fn cell(row: &str, column: usize) -> String {
