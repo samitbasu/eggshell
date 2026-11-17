@@ -4,7 +4,7 @@
 //! containers (which hang off their leaves), one root per open overlay. Every
 //! root is a root of the same taffy tree and is collected into the same
 //! [`Placed`] node list, so ids, hit order, Tab order and drag and drop see one
-//! frame. [`RootKind`] is the one place a new kind of root (a pop-out window)
+//! frame. [`LayerKind`] is the one place a new kind of root (a pop-out window)
 //! has to be added. The content of a region is not a root of its own here: it
 //! hangs off the region's leaf, as a scroll container's does.
 
@@ -15,6 +15,7 @@ use taffy::{AlignContent, AlignItems, FlexDirection, NodeId, Size, Style, style_
 
 use crate::dismiss::Opening;
 use crate::key::{Key, child_id};
+use crate::nodes::Nodes;
 use crate::overlay::{
     Anchor, AnchorLookup, Anchored, Band, Behavior, Focus, MatchWidth, Modal, Outside, Placement,
     Side,
@@ -23,14 +24,22 @@ use crate::pipeline::{Placed, PlacedNode};
 use crate::presence::Staged;
 use crate::scroll::Description;
 
-/// What a root is, and what only that kind of root declares.
-pub(crate) enum RootKind {
-    /// The root the application's view builds.
-    Base,
+/// What a root over the base is, and what only that kind of root declares.
+pub(crate) enum LayerKind {
     /// A floating layer placed against an anchor.
     Overlay(OverlayDecl),
     /// A popped-out subtree, in a window of its own.
     Window(crate::window::WindowDecl),
+}
+
+/// A root over the base, as declared.
+pub(crate) struct Layer {
+    pub(crate) kind: LayerKind,
+    /// The root the declaration was made in.
+    pub(crate) parent: usize,
+    /// The root's node, made before its body is built so that it exists
+    /// from the declaration on; the body's nodes become its children.
+    pub(crate) node: NodeId,
 }
 
 /// How an overlay is put on screen: next to an anchor, or as a modal.
@@ -54,49 +63,41 @@ pub(crate) struct OverlayDecl {
     pub(crate) staged: Staged,
 }
 
-/// A root, from the moment its body starts to be built.
+/// A root, from the moment its body starts to be built: the slot is
+/// reserved before, so roots declared in the body come after it. Its regions
+/// are the frame's, which knows the application they build for.
+#[derive(Default)]
 pub(crate) struct RootDecl {
-    pub(crate) kind: RootKind,
-    /// The root the declaration was made in.
-    pub(crate) parent: Option<usize>,
-    /// Set when the body is built; the slot is reserved before, so roots
-    /// declared in the body come after it.
-    pub(crate) node: Option<NodeId>,
+    /// None for the base root, which the layout is given, and for a root
+    /// the layout has taken.
+    pub(crate) layer: Option<Layer>,
     /// The scroll containers' leaves in this root and in their contents, an
     /// enclosing container after those it encloses.
     pub(crate) scrolls: Vec<NodeId>,
 }
 
 impl RootDecl {
+    pub(crate) fn layer(layer: Layer) -> Self {
+        Self {
+            layer: Some(layer),
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn parent(&self) -> Option<usize> {
+        self.layer.as_ref().map(|layer| layer.parent)
+    }
+
+    pub(crate) fn overlay(&self) -> Option<&OverlayDecl> {
+        match &self.layer.as_ref()?.kind {
+            LayerKind::Overlay(overlay) => Some(overlay),
+            LayerKind::Window(_) => None,
+        }
+    }
+
     pub(crate) fn is_modal(&self) -> bool {
-        matches!(&self.kind, RootKind::Overlay(overlay) if matches!(overlay.presentation, Presentation::Modal(_)))
-    }
-
-    pub(crate) fn base() -> Self {
-        Self {
-            kind: RootKind::Base,
-            parent: None,
-            node: None,
-            scrolls: Vec::new(),
-        }
-    }
-
-    pub(crate) fn window(decl: crate::window::WindowDecl, parent: usize) -> Self {
-        Self {
-            kind: RootKind::Window(decl),
-            parent: Some(parent),
-            node: None,
-            scrolls: Vec::new(),
-        }
-    }
-
-    pub(crate) fn overlay(decl: OverlayDecl, parent: usize) -> Self {
-        Self {
-            kind: RootKind::Overlay(decl),
-            parent: Some(parent),
-            node: None,
-            scrolls: Vec::new(),
-        }
+        self.overlay()
+            .is_some_and(|overlay| matches!(overlay.presentation, Presentation::Modal(_)))
     }
 }
 
@@ -216,7 +217,7 @@ impl Home {
 /// The root at `index` and its root node.
 pub(crate) fn root_and_node<'a>(
     roots: &'a [PlacedRoot],
-    nodes: &'a [PlacedNode],
+    nodes: &'a Nodes,
     index: usize,
 ) -> Option<(&'a PlacedRoot, &'a PlacedNode)> {
     let root = roots.get(index)?;
@@ -266,22 +267,24 @@ impl PlacedRoot {
 /// it swallows the press that dismisses it, and no overlay it is nested in
 /// does already. A submenu leaves the page to its menu's blocker, so that a
 /// press on the menu reaches the menu's items.
-pub(crate) fn covers_screen(roots: &[PlacedRoot], nodes: &[PlacedNode], root: usize) -> bool {
+pub(crate) fn covers_screen(roots: &[PlacedRoot], nodes: &Nodes, root: usize) -> bool {
     let swallows = |at: usize| {
-        roots[at]
-            .overlay()
-            .is_some_and(|overlay| overlay.swallows(&nodes[roots[at].first]))
+        root_and_node(roots, nodes, at).is_some_and(|(root, node)| {
+            root.overlay().is_some_and(|overlay| overlay.swallows(node))
+        })
     };
-    swallows(root)
-        && !std::iter::successors(roots[root].parent, |&at| roots[at].parent).any(swallows)
+    swallows(root) && !ancestors(roots, root).any(swallows)
 }
 
-/// The roots of a frame.
-pub(crate) fn root_of(roots: &[PlacedRoot], index: usize) -> usize {
-    roots
-        .iter()
-        .rposition(|root| root.first <= index)
-        .expect("the base root comes first")
+/// The roots the root at `root` was declared in, nearest first.
+pub(crate) fn ancestors(roots: &[PlacedRoot], root: usize) -> impl Iterator<Item = usize> + '_ {
+    let parent = |at: usize| roots.get(at).and_then(|root| root.parent);
+    std::iter::successors(parent(root), move |&at| parent(at))
+}
+
+/// The root the node at `index` is in.
+pub(crate) fn root_of(roots: &[PlacedRoot], index: usize) -> Option<usize> {
+    roots.iter().rposition(|root| root.first <= index)
 }
 
 /// The roots one pass draws, with one viewport's input: those at `home`,
@@ -317,7 +320,7 @@ impl Here {
 /// press that raises a layer ask it, so they cannot disagree with what the
 /// pointer reaches. Whether a press dismisses an overlay is another question,
 /// which `dismissals` answers.
-pub(crate) fn root_at(roots: &[PlacedRoot], nodes: &[PlacedNode], p: Pos2, here: Here) -> usize {
+pub(crate) fn root_at(roots: &[PlacedRoot], nodes: &Nodes, p: Pos2, here: Here) -> usize {
     let overlay = stacked_top_down(roots, here).into_iter().find(|&index| {
         root_and_node(roots, nodes, index).is_some_and(|(root, node)| {
             root.overlay()

@@ -91,7 +91,7 @@ impl Autofocus {
         let now = ctx.cumulative_frame_nr();
         let last = ctx.data_mut(|data| data.get_temp::<u64>(seen));
         ctx.data_mut(|data| data.insert_temp(seen, now));
-        if last.is_none_or(|last| last + 1 < now) {
+        if last.is_none_or(|last| last.saturating_add(1) < now) {
             response.request_focus();
         }
     }

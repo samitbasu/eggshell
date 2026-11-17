@@ -110,7 +110,7 @@ where
                 s.div_id(Part::Frame, frame, |s| s.within(&mount, |b| view(b, data)));
             })
             .node();
-        b.into_handle(node)
+        b.into_handle(node, slot.id)
     }
 }
 

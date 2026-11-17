@@ -13,7 +13,9 @@
 use egui::{Context, EventFilter, Id, Key, Vec2};
 
 use crate::kept::Handle;
+use crate::nodes::Nodes;
 use crate::pipeline::PlacedNode;
+use crate::plane::Axis;
 use crate::shell::Shell;
 
 /// The container's page keys leave this many lines of the last page in view.
@@ -46,11 +48,11 @@ impl Target<'_> {
 
 /// The container the keys act on: the innermost holding the focus, else, if
 /// nothing has it, the one last pressed in.
-fn target<'a>(ctx: &Context, kept: &Handle, nodes: &'a [PlacedNode]) -> Option<Target<'a>> {
+fn target<'a>(ctx: &Context, kept: &Handle, nodes: &'a Nodes) -> Option<Target<'a>> {
     let scrollers = || {
         nodes
             .iter()
-            .filter(|node| node.scroll.is_some())
+            .filter(|node| node.scroll().is_some())
             .filter_map(|node| {
                 Some(Target {
                     node,
@@ -76,7 +78,7 @@ pub(crate) struct Keys {
 
 /// Remembers the container a press landed in, the innermost whose viewport
 /// holds it, or that it landed in none.
-pub(crate) fn note_press(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
+pub(crate) fn note_press(ctx: &Context, kept: &Handle, nodes: &Nodes) {
     let Some(at) = ctx.input(|input| {
         input
             .pointer
@@ -97,7 +99,7 @@ pub(crate) fn note_press(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
 /// Keeps the focused widget's arrow keys from moving the focus when they
 /// scroll the container around it. Run before the widgets are drawn: one that
 /// holds the arrows itself sets its own filter after.
-pub(crate) fn hold_arrows(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
+pub(crate) fn hold_arrows(ctx: &Context, kept: &Handle, nodes: &Nodes) {
     let Some(focused) = ctx.memory(|memory| memory.focused()) else {
         return;
     };
@@ -107,7 +109,7 @@ pub(crate) fn hold_arrows(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
     let Some(target) = target(ctx, kept, nodes) else {
         return;
     };
-    let enabled = target.node.scroll.as_ref().map(|plan| plan.axis.enabled());
+    let enabled = target.node.scroll().map(|plan| plan.axis.enabled());
     if let Some(enabled) = enabled {
         let filter = EventFilter {
             horizontal_arrows: enabled.x,
@@ -124,12 +126,6 @@ enum Move {
     Line(Axis, Sign),
     Page(Sign),
     Edge(Sign),
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum Axis {
-    X,
-    Y,
 }
 
 #[derive(Clone, Copy)]
@@ -240,14 +236,14 @@ fn take(ctx: &Context, key: Key, chord: Chord) -> usize {
 }
 
 /// Scrolls the container the keys pressed this frame act on.
-pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
+pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &Nodes) {
     if ctx.text_edit_focused() {
         return;
     }
     let Some(target) = target(ctx, kept, nodes) else {
         return;
     };
-    let Some(plan) = target.node.scroll.as_ref() else {
+    let Some(plan) = target.node.scroll() else {
         return;
     };
     let enabled = plan.axis.enabled();
@@ -255,24 +251,13 @@ pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
     let focused = ctx.memory(|memory| memory.focused());
     let uncontested = focused.is_none_or(|id| id == target.id);
     let view = target.view();
-    let along = |axis: Axis, vector: Vec2| match axis {
-        Axis::X => vector.x,
-        Axis::Y => vector.y,
-    };
-    let vector = |axis: Axis, amount: f32| match axis {
-        Axis::X => Vec2::new(amount, 0.0),
-        Axis::Y => Vec2::new(0.0, amount),
-    };
     let mut by = Vec2::ZERO;
     for (key, chord, claim, step) in BINDINGS {
         let axis = match step {
             Move::Line(axis, _) => axis,
             Move::Page(_) | Move::Edge(_) => primary,
         };
-        let scrolls = match axis {
-            Axis::X => enabled.x,
-            Axis::Y => enabled.y,
-        };
+        let scrolls = axis.of_both(enabled);
         if !scrolls || (claim == Claim::Contested && !uncontested) {
             continue;
         }
@@ -282,13 +267,13 @@ pub(crate) fn apply_keys(ctx: &Context, kept: &Handle, nodes: &[PlacedNode]) {
         }
         let amount = match step {
             Move::Line(_, sign) => sign.of(target.line()),
-            Move::Page(sign) => sign.of(target.page(along(axis, view))),
-            Move::Edge(Sign::Back) => -along(axis, plan.offset),
+            Move::Page(sign) => sign.of(target.page(axis.of(view))),
+            Move::Edge(Sign::Back) => -axis.of(plan.offset),
             Move::Edge(Sign::Forward) => {
-                along(axis, (plan.content - view).max(Vec2::ZERO) - plan.offset)
+                axis.of((plan.content - view).max(Vec2::ZERO) - plan.offset)
             }
         };
-        by += vector(axis, amount * presses as f32);
+        by += axis.vec(amount * presses as f32);
     }
     if by != Vec2::ZERO {
         Shell::new(ctx, kept).scroll_by(target.id, by);

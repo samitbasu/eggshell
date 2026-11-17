@@ -173,23 +173,24 @@ impl Found {
 /// them, so scrolling an anchor out of view and back never closes one.
 pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
     let top_down = || {
-        (0..layers.len())
-            .rev()
-            .filter(|&at| layers[at].lookup == AnchorLookup::Found)
-    };
-    let drawn = |at: &usize| {
         layers
-            .get(*at)
-            .is_some_and(|layer| layer.seen == Seen::Drawn)
+            .iter()
+            .enumerate()
+            .rev()
+            .filter(|(_, layer)| layer.lookup == AnchorLookup::Found)
     };
     let mut found = Found::default();
-    for at in (0..layers.len()).filter(|&at| layers[at].lookup == AnchorLookup::Missing) {
+    for (at, _) in layers
+        .iter()
+        .enumerate()
+        .filter(|(_, layer)| layer.lookup == AnchorLookup::Missing)
+    {
         found.add(at, Cause::AnchorGone);
     }
     if input.window_blurred {
-        for at in top_down()
-            .filter(drawn)
-            .filter(|&at| layers.get(at).is_some_and(dismisses_on_focus_loss))
+        for (at, _) in top_down()
+            .filter(|(_, layer)| layer.seen == Seen::Drawn)
+            .filter(|(_, layer)| dismisses_on_focus_loss(layer))
         {
             found.add(at, Cause::WindowBlur);
         }
@@ -201,14 +202,14 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
         if input.escape
             && let Some(at) = esc_target(layers)
         {
-            let cause = if layers[at].cancel.is_some() {
+            let cause = if layers.get(at).is_some_and(|layer| layer.cancel.is_some()) {
                 Cause::Cancel
             } else {
                 Cause::Esc
             };
             found.add(at, cause);
         }
-        for at in top_down().filter(|&at| leaving(&layers[at], input)) {
+        for (at, _) in top_down().filter(|(_, layer)| leaving(layer, input)) {
             found.add(at, Cause::FocusOut);
         }
     }
@@ -253,16 +254,21 @@ fn leaving(layer: &Layer, input: &Input) -> bool {
 
 /// Whether `ancestor` is one of the overlays `layer` is nested in.
 fn nested_in(layers: &[Layer], layer: usize, ancestor: usize) -> bool {
-    std::iter::successors(layers[layer].parent, |&at| layers[at].parent).any(|at| at == ancestor)
+    let parent = |at: usize| layers.get(at).and_then(|layer| layer.parent);
+    std::iter::successors(parent(layer), |&at| parent(at)).any(|at| at == ancestor)
 }
 
 fn contains(layers: &[Layer], at: usize, press: Pos2) -> bool {
-    let layer = &layers[at];
+    let Some(layer) = layers.get(at) else {
+        return false;
+    };
     layer.rect.contains(press)
         || (layer.outside == Outside::PassThrough
             && layer.trigger.is_some_and(|trigger| trigger.holds(press)))
-        || (0..layers.len())
-            .any(|other| nested_in(layers, other, at) && layers[other].rect.contains(press))
+        || layers
+            .iter()
+            .enumerate()
+            .any(|(other, layer)| nested_in(layers, other, at) && layer.rect.contains(press))
 }
 
 fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
