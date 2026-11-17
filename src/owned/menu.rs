@@ -732,13 +732,22 @@ fn hold_vertical_arrows(ctx: &Context, trigger: Id) {
 ///   </DropdownMenuContent>
 /// </DropdownMenu>
 /// ```
+///
+/// TODO(prose)
+///
+/// ```compile_fail
+/// use eggshell_ui::Builder;
+///
+/// fn view(b: &mut Builder<'_, '_, ()>) {
+///     b.dropdown_menu("file", "File").named("File menu").items(|_| {});
+/// }
+/// ```
 #[must_use = "a dropdown menu is not added until you call `.items(..)`"]
 pub struct DropdownChain<'a, 'f, A, K> {
     b: Builder<'a, 'f, A>,
     key: K,
     face: Face,
     options: ButtonOptions,
-    name: Option<String>,
     offset: Option<Distance>,
     enablement: Enablement,
     on_response: OnResponse<A>,
@@ -751,7 +760,6 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             key,
             face,
             options: ButtonOptions::new(),
-            name: None,
             offset: None,
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
@@ -779,13 +787,6 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
     /// Classes merged over the styled ones of the trigger ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.options = self.options.classes(classes);
-        self
-    }
-
-    /// The accessible name of the trigger and of its menu, when it is not
-    /// the label.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
         self
     }
 
@@ -818,7 +819,6 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             key,
             face,
             options,
-            name,
             offset,
             enablement,
             on_response,
@@ -831,12 +831,11 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             shared.close();
         }
         let open = shared.kept.with(|kept| kept.menus.is_open(trigger));
-        let name = name.unwrap_or_else(|| face.name().to_owned());
+        let name = face.name().to_owned();
         let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)
             .opens_popup()
-            .enablement(enablement)
-            .named(name.clone());
+            .enablement(enablement);
         let (on_key, on_click) = (shared.clone(), shared.clone());
         button
             .on_response(move |app, response| {

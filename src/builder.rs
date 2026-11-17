@@ -2086,7 +2086,7 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 /// enum Part { Save }
 ///
 /// fn save<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
-///     s.button(key, "Save").named("Save the form").tooltip("Saves")
+///     s.button(key, "Save").tooltip("Saves")
 /// }
 ///
 /// # fn demo(b: &mut eggshell_ui::Builder<'_, '_, App>) {
