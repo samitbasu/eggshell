@@ -566,7 +566,7 @@ pub fn last_drawn(ctx: &egui::Context, path: &str) -> Option<eggshell_ui::testin
     let timeline = eggshell_ui::testing::Timeline::recorded(ctx);
     let last = timeline.len().checked_sub(1)?;
     timeline
-        .frame(last)
+        .frame(last)?
         .iter()
         .find(|n| n.path == path)
         .cloned()

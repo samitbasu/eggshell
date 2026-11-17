@@ -496,6 +496,7 @@ fn the_continuity_checker_accepts_a_sheet_opening_and_closing() {
         .filter(|&frame| {
             timeline
                 .frame(frame)
+                .expect("a recorded frame")
                 .iter()
                 .any(|node| node.motion == Motion::Presents)
         })

@@ -554,14 +554,18 @@ mod example {
                 };
                 layout(b, &open);
             });
-        assert_eq!(placed.overlay(Part::Dialog).modal(), Some(Modal::Center));
-        assert_eq!(placed.overlay(Part::Dialog).side(), None);
         assert_eq!(
-            placed.overlay(Part::Sheet).modal(),
+            placed.expect_overlay(Part::Dialog).modal(),
+            Some(Modal::Center)
+        );
+        assert_eq!(placed.expect_overlay(Part::Dialog).side(), None);
+        assert_eq!(
+            placed.expect_overlay(Part::Sheet).modal(),
             Some(Modal::Edge(Side::Right))
         );
         assert!(
-            placed.overlay(Part::Sheet).stack_index() > placed.overlay(Part::Dialog).stack_index(),
+            placed.expect_overlay(Part::Sheet).stack_index()
+                > placed.expect_overlay(Part::Dialog).stack_index(),
             "opening order"
         );
     }

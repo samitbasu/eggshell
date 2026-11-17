@@ -879,10 +879,14 @@ impl<A> Walk<'_, A> {
     fn visit(&mut self, index: usize, parent: Inherited) {
         if parent.culling == Culling::On && self.culled(index, parent.clip) {
             if self.shared.recording.is_some() {
-                let left_out = self.nodes[index..self.nodes[index].end]
-                    .iter()
-                    .filter_map(PlacedNode::id);
-                self.shared.culled.extend(left_out);
+                let subtree = self
+                    .nodes
+                    .get(index)
+                    .and_then(|node| self.nodes.get(index..node.end))
+                    .unwrap_or_default();
+                self.shared
+                    .culled
+                    .extend(subtree.iter().filter_map(PlacedNode::id));
             }
             self.register_culled(index, parent);
             return;
@@ -1978,7 +1982,7 @@ fn placed_overlays(nodes: &[PlacedNode], roots: &[PlacedRoot]) -> Vec<OverlayFra
         .iter()
         .filter_map(|root| {
             let overlay = root.overlay()?;
-            let node = &nodes[root.first];
+            let node = nodes.get(root.first)?;
             (overlay.anchored == Anchored::Attached).then(|| OverlayFrame {
                 id: overlay.id,
                 path: node.path().to_owned(),

@@ -229,7 +229,7 @@ fn a_region_in_an_overlay_is_laid_out_at_the_overlays_size() {
     });
     assert_eq!(seen.get(), Some(vec2(140.0, 90.0)));
     assert_eq!(
-        placed.overlay("pop").rect().min,
+        placed.expect_overlay("pop").rect().min,
         pos2(20.0, 20.0),
         "precondition: the overlay is where it was asked to be"
     );
@@ -369,7 +369,7 @@ fn a_scratch_build_ignores_what_it_declares_besides_nodes() {
             });
         });
     });
-    assert!(placed.try_overlay(&"pop").is_none());
+    assert!(placed.overlay("pop").is_none());
     assert!(placed.overlays().is_empty());
     assert!(placed.try_at("anchor").is_none());
 }

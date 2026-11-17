@@ -370,7 +370,7 @@ impl<A> Placed<A> {
             .iter()
             .filter_map(|root| {
                 Some(OverlayRef {
-                    nodes: &self.nodes,
+                    node: self.nodes.get(root.first)?,
                     roots: &self.roots,
                     root,
                     overlay: root.overlay()?,
@@ -381,28 +381,24 @@ impl<A> Placed<A> {
         found
     }
 
-    /// The overlay declared with `key` at the top of the view.
+    /// TODO(prose): the overlay declared with `key` at the top of the view, or `None` when it is not open.
     ///
-    /// # Panics
+    /// ```
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::overlay::Anchor;
+    /// use eggshell_ui::{Builder, tw};
+    /// use egui::{pos2, vec2};
     ///
-    /// If there is none. The message lists the overlays that are open.
-    #[track_caller]
-    pub fn overlay<K: Key>(&self, key: K) -> OverlayRef<'_> {
-        self.try_overlay(&key).unwrap_or_else(|| {
-            panic!(
-                "no overlay {key:?}; the open overlays are: {}",
-                self.overlays()
-                    .iter()
-                    .map(|overlay| overlay.path())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            )
-        })
-    }
-
-    /// [`overlay`](Self::overlay), or `None` when nothing is there.
-    pub fn try_overlay<K: Key>(&self, key: &K) -> Option<OverlayRef<'_>> {
-        self.overlay_with(child_id(self.root, key))
+    /// let placed = Headless::new(vec2(200.0, 200.0)).layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
+    ///     b.overlay("menu").anchor(Anchor::Point(pos2(10.0, 10.0))).children(|s| {
+    ///         s.div_id("item", tw().w_px(40.0).h_px(20.0), |_| {});
+    ///     });
+    /// });
+    /// assert!(placed.overlay("menu").is_some());
+    /// assert!(placed.overlay("other").is_none());
+    /// ```
+    pub fn overlay<K: Key>(&self, key: K) -> Option<OverlayRef<'_>> {
+        self.overlay_with(child_id(self.root, &key))
     }
 
     /// The overlay whose root has this id: for a nested overlay, the id of
@@ -417,21 +413,17 @@ impl<A> Placed<A> {
 /// An open overlay of a laid-out frame, for tests.
 #[derive(Clone, Copy)]
 pub struct OverlayRef<'p> {
-    nodes: &'p [PlacedNode],
+    node: &'p PlacedNode,
     roots: &'p [PlacedRoot],
     root: &'p PlacedRoot,
     overlay: &'p PlacedOverlay,
 }
 
 impl<'p> OverlayRef<'p> {
-    fn node(&self) -> &'p PlacedNode {
-        &self.nodes[self.root.first]
-    }
-
     /// The overlay's box: where it was placed, after any flip, shift and
     /// clamp.
     pub fn rect(&self) -> Rect {
-        self.node().rect()
+        self.node.rect()
     }
 
     /// The side of its anchor a floating overlay ended on; a flip changes it.
@@ -502,7 +494,7 @@ impl<'p> OverlayRef<'p> {
 
     /// The overlay's readable key path.
     pub fn path(&self) -> &'p str {
-        self.node().path()
+        self.node.path()
     }
 
     /// The overlay's id.
@@ -517,7 +509,7 @@ impl<'p> OverlayRef<'p> {
 
     /// The id of the overlay this one is declared in, if it is nested.
     pub fn nested_in(&self) -> Option<Id> {
-        Some(self.roots[self.root.parent?].overlay()?.id)
+        Some(self.roots.get(self.root.parent?)?.overlay()?.id)
     }
 
     /// The size the overlay occupies.
@@ -556,12 +548,25 @@ mod tests {
     }
 
     fn root_of_overlay(placed: &Placed<()>, key: usize) -> usize {
-        let id = placed.overlay(key).id();
+        let id = placed.expect_overlay(key).id();
         placed
             .roots
             .iter()
             .position(|root| root.overlay().is_some_and(|overlay| overlay.id == id))
             .expect("the overlay is a root")
+    }
+
+    #[test]
+    fn an_overlay_that_is_not_open_is_none() {
+        let placed = placed(&[Band::Popup]);
+        assert!(placed.overlay(0_usize).is_some());
+        assert!(placed.overlay(1_usize).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "no overlay 1; the open overlays are: /0")]
+    fn expecting_an_overlay_that_is_not_open_names_the_open_ones() {
+        placed(&[Band::Popup]).expect_overlay(1_usize);
     }
 
     #[test]
@@ -582,8 +587,8 @@ mod tests {
         let placed = placed(&[Band::Popup, Band::Popup]);
         let overlap = pos2(75.0, 75.0);
         assert!(
-            placed.overlay(0_usize).rect().contains(overlap)
-                && placed.overlay(1_usize).rect().contains(overlap),
+            placed.expect_overlay(0_usize).rect().contains(overlap)
+                && placed.expect_overlay(1_usize).rect().contains(overlap),
             "precondition: both contain the point"
         );
         assert_eq!(
@@ -599,7 +604,10 @@ mod tests {
     #[test]
     fn a_higher_band_is_on_top_whatever_the_opening_order() {
         let placed = placed(&[Band::Popup, Band::Floating]);
-        assert!(placed.overlay(1_usize).stack_index() > placed.overlay(0_usize).stack_index());
+        assert!(
+            placed.expect_overlay(1_usize).stack_index()
+                > placed.expect_overlay(0_usize).stack_index()
+        );
         assert_eq!(
             root_at(&placed.roots, &placed.nodes, pos2(75.0, 75.0), Here::PAGE),
             root_of_overlay(&placed, 0_usize)
@@ -611,8 +619,8 @@ mod tests {
         let placed = placed(&[Band::Popup, Band::Tooltip]);
         let both = pos2(75.0, 75.0);
         assert!(
-            placed.overlay(0_usize).rect().contains(both)
-                && placed.overlay(1_usize).rect().contains(both),
+            placed.expect_overlay(0_usize).rect().contains(both)
+                && placed.expect_overlay(1_usize).rect().contains(both),
             "precondition: both contain the point"
         );
         assert_eq!(
