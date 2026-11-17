@@ -2,7 +2,8 @@
 //!
 //! Each `eggshell-example NAME` fence mounts a small app over a field of the
 //! page's state with `b.mount`. The two counters share one field. The bar at
-//! the top switches the frame drawn around every mount.
+//! the top switches the theme colour, which colours the selected example's
+//! ring, and the inset of the examples shown without a caption.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -11,8 +12,8 @@ use eggshell_ui::owned::Mark;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, Chord, Command, Commands, Scope, tw};
 use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt};
-use eggshell_ui_shadcn::ThemeColor;
-use egui::{Key, Modifiers};
+use eggshell_ui_shadcn::{Shadcn, ThemeColor};
+use egui::{Context, Key, Modifiers, Theme};
 
 const LOREM: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod \
 tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud \
@@ -46,6 +47,53 @@ const THEMES: [(ThemeColor, &str); 3] = [
     (ThemeColor::Blue, "Blue"),
     (ThemeColor::Violet, "Violet"),
 ];
+
+/// The candidate insets of an uncaptioned example: the least the focus ring
+/// tokens allow, or a fixed number of points.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Inset {
+    #[default]
+    Least,
+    Eight,
+    Twelve,
+}
+
+const INSETS: [(Inset, &str); 3] = [
+    (Inset::Least, "Least"),
+    (Inset::Eight, "8 pt"),
+    (Inset::Twelve, "12 pt"),
+];
+
+impl Inset {
+    fn points(self, least: f32) -> f32 {
+        match self {
+            Self::Least => least,
+            Self::Eight => 8.0,
+            Self::Twelve => 12.0,
+        }
+    }
+}
+
+/// The preset in `theme`, with the uncaptioned inset overridden by `inset`.
+fn use_look(ctx: &Context, theme: ThemeColor, inset: Inset) {
+    common::use_theme_color(ctx, theme);
+    let installed = eggshell_ui::Style::of(ctx);
+    let points = inset.points(installed.focus.clearance());
+    if installed.mount.bare_padding == points {
+        return;
+    }
+    for (preset, which) in [
+        (Shadcn::light(), Theme::Light),
+        (Shadcn::dark(), Theme::Dark),
+    ] {
+        let mut style = preset
+            .with_style(common::style_of(ctx))
+            .theme_color(theme)
+            .style();
+        style.mount.bare_padding = points;
+        style.install_for(ctx, which);
+    }
+}
 
 #[derive(Default)]
 pub struct Counter {
@@ -81,6 +129,7 @@ impl Default for List {
 #[derive(Default)]
 pub struct State {
     pub theme: ThemeColor,
+    pub inset: Inset,
     pub clicks: Counter,
     pub menu: Menu,
     pub form: Form,
@@ -94,6 +143,8 @@ pub enum Part {
     Bar,
     Theme,
     ThemeLabel,
+    Inset,
+    InsetLabel,
     Log,
     Doc,
     App,
@@ -292,12 +343,12 @@ fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption
 
 /// ```html
 /// <div class="flex flex-col size-full">
-///   <header class="flex gap-3 p-3 border-b">Frame: [None|Outline|…] · log</header>
+///   <header class="flex gap-3 p-3 border-b">Theme: [Neutral|Blue|Violet] Inset: [Least|8 pt|12 pt] · log</header>
 ///   <main class="overflow-y-auto grow p-6"><article class="max-w-[640px]">…</article></main>
 /// </div>
 /// ```
 pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
-    common::use_theme_color(b.ctx(), state.theme);
+    use_look(b.ctx(), state.theme, state.inset);
     b.commands(&page_commands(), state);
     let tokens = common::tokens(b.ctx());
     let directives = directives();
@@ -316,6 +367,9 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                 b.span(Part::ThemeLabel, tw(), "Theme");
                 b.segmented(Part::Theme, state.theme, THEMES)
                     .on_change(|state: &mut State, theme| state.theme = theme);
+                b.span(Part::InsetLabel, tw(), "Inset");
+                b.segmented(Part::Inset, state.inset, INSETS)
+                    .on_change(|state: &mut State, inset| state.inset = inset);
                 let last = state
                     .page_log
                     .last()

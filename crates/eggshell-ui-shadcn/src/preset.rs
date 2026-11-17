@@ -606,6 +606,7 @@ impl Shadcn {
             mount.border_width = 1.0;
             mount.radius = t.radius_md();
             mount.padding = 16.0;
+            mount.bare_padding = ring.clearance();
             mount.selected_ring = t.primary;
             mount
         };

@@ -100,7 +100,7 @@ where
             .min_h_0()
             .rounded_px(f32::from(look.radius));
         let frame = match caption {
-            None => frame,
+            None => frame.p(look.bare_padding / 4.0),
             Some(_) => frame
                 .border(look.border_width)
                 .border_color(look.border)

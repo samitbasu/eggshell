@@ -255,6 +255,13 @@ pub struct Focus {
     pub color: Color32,
 }
 
+impl Focus {
+    /// TODO(prose): the inset that keeps this ring a ring's width clear of the box's edge.
+    pub fn clearance(&self) -> f32 {
+        2.0 * self.width
+    }
+}
+
 /// How a box is painted: colours per state, shadow and focus ring. Nothing in
 /// it changes the box's size, so the two [`Paint`]s of an on/off widget can
 /// differ freely without moving anything.
@@ -791,6 +798,8 @@ pub struct MountStyle {
     pub radius: u8,
     /// TODO(prose)
     pub padding: f32,
+    /// TODO(prose): the inset of an uncaptioned mount, which keeps its controls' focus rings clear of the selected ring.
+    pub bare_padding: f32,
     /// TODO(prose): the ring around the selected mount, drawn as the focus ring is.
     pub selected_ring: Color32,
 }
@@ -1400,13 +1409,14 @@ impl Style {
             ..metrics
         };
         let track = vec2(2.0 * s.icon_width, s.icon_width);
+        let focus = Focus {
+            width: 2.0,
+            color: v.selection.bg_fill,
+        };
         Self {
             text,
             faces: Faces::default(),
-            focus: Focus {
-                width: 2.0,
-                color: v.selection.bg_fill,
-            },
+            focus,
             disabled: Disabled::Colors,
             label,
             button: ButtonStyle {
@@ -1712,6 +1722,7 @@ impl Style {
                 border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
                 radius,
                 padding: f32::from(s.window_margin.left),
+                bare_padding: focus.clearance(),
                 selected_ring: v.selection.stroke.color,
             },
             rich: RichTextStyle {

@@ -253,10 +253,11 @@ fn two_mounts_over_one_field_share_it() {
 #[test]
 fn a_mount_is_as_tall_as_its_content_unless_its_classes_say() {
     let harness = harness();
+    let inset = eggshell_ui::Style::of(&harness.ctx).mount.bare_padding;
     let mount = rect_of(&harness, &path(&["Page", "Other"]));
     let add = rect_of(&harness, &path(&["Page", "Other", "Frame", "Add"]));
     assert!(add.height() > 0.0, "precondition: the button is laid out");
-    assert_eq!(mount.height(), add.height());
+    assert_eq!(mount.height(), add.height() + 2.0 * inset);
     assert_eq!(rect_of(&harness, &path(&["Page", "Fixed"])).height(), 48.0);
 }
 
@@ -734,13 +735,15 @@ mod caption {
     }
 
     #[test]
-    fn a_mount_without_a_caption_has_no_frame() {
+    fn a_mount_without_a_caption_is_inset_by_its_bare_padding_and_not_outlined() {
         let harness = harness();
+        let inset = Style::of(&harness.ctx).mount.bare_padding;
+        assert!(inset > 0.0, "precondition: the style insets it");
         let mount = rect_of(&harness, "/Page/Right");
         let frame = rect_of(&harness, "/Page/Right/Frame");
         let add = rect_of(&harness, "/Page/Right/Frame/Add");
         assert_eq!(frame, mount);
-        assert_eq!(add.min, frame.min, "the view is not inset");
+        assert_eq!(add.min, frame.min + vec2(inset, inset));
         assert!(
             support::shapes(&harness).iter().all(|shape| !matches!(
                 shape,
@@ -1074,5 +1077,33 @@ mod selection {
         assert_eq!(page_offset(&harness), page, "the page did not");
         wheel(&mut harness, list.center(), 20);
         assert_eq!(page_offset(&harness), page, "nor past the list's end");
+    }
+
+    #[test]
+    fn an_uncaptioned_examples_inset_keeps_a_focused_controls_ring_off_the_selected_ring() {
+        let mut harness = harness();
+        let style = eggshell_ui::Style::of(&harness.ctx);
+        let before = rect_at(&harness, "/Notes/Frame/Note");
+        click_on(&mut harness, "/Notes/Frame/Note");
+        assert_eq!(selected(&harness), ["Example notes"]);
+        assert!(
+            support::focused_node(&harness).is_some_and(|path| path.ends_with("/Notes/Frame/Note")),
+            "precondition: the field has focus"
+        );
+        let frame = rect_at(&harness, "/Notes/Frame");
+        let field = rect_at(&harness, "/Notes/Frame/Note");
+        assert_eq!(field, before, "selecting moves nothing");
+        let content = frame.shrink(style.mount.bare_padding);
+        assert_eq!(
+            field.min, content.min,
+            "precondition: the field sits at the content's edge"
+        );
+        let focus_ring = field.expand(style.focus.width);
+        let selected_ring = frame.expand(style.focus.width);
+        assert!(
+            frame.contains_rect(focus_ring),
+            "the focus ring {focus_ring:?} stays clear of the selected ring's band, \
+             from {frame:?} out to {selected_ring:?}"
+        );
     }
 }
