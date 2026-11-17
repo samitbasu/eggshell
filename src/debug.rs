@@ -467,19 +467,24 @@ pub(crate) fn paint(ctx: &Context, nodes: &Nodes, overflows: &[bool]) {
             ctx.content_rect(),
             pointer,
             node,
-            overflows_at(index),
+            if overflows_at(index) {
+                Fit::Overflows
+            } else {
+                Fit::Fits
+            },
         ))
     });
     paint_topmost(ctx, &painter, label);
 }
 
-fn label(
-    painter: &Painter,
-    screen: Rect,
-    pointer: Pos2,
-    node: &PlacedNode,
-    overflows: bool,
-) -> Shape {
+/// Whether a node's content fits it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Fit {
+    Fits,
+    Overflows,
+}
+
+fn label(painter: &Painter, screen: Rect, pointer: Pos2, node: &PlacedNode, fit: Fit) -> Shape {
     let Rect { min, max } = node.rect();
     let mut text = format!(
         "{}\n{:.1}, {:.1} .. {:.1}, {:.1}  ({:.1} x {:.1})",
@@ -500,7 +505,7 @@ fn label(
             plan.bars.gutter.y
         ));
     }
-    if overflows {
+    if fit == Fit::Overflows {
         text.push_str("\ncontent does not fit");
     }
     let galley = painter.layout_no_wrap(text, FontId::monospace(11.0), Color32::WHITE);
