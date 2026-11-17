@@ -11,9 +11,10 @@
 //! closure always before the ones inside it.
 
 use egui::{Id, Vec2, vec2};
-use taffy::{AvailableSpace, Display, NodeId, Size, Style, TaffyTree, style_helpers::length};
+use taffy::{AvailableSpace, Display, NodeId, Size, Style, style_helpers::length};
 
 use crate::builder::{Ambient, Builder};
+use crate::layout_tree::LayoutTree;
 use crate::mount::Mount;
 use crate::pipeline::{BuildState, Frame, Node, NodeKind, solve};
 use crate::text::TextStyle;
@@ -66,8 +67,8 @@ pub(crate) struct RegionDecl<'f, A> {
 
 /// The distance from a laid-out leaf's border box to its content box, and the
 /// content box's size.
-pub(crate) fn content_box(tree: &TaffyTree<Node>, leaf: NodeId) -> (Vec2, Vec2) {
-    let layout = tree.layout(leaf).expect("node exists");
+pub(crate) fn content_box(tree: &LayoutTree, leaf: NodeId) -> (Vec2, Vec2) {
+    let layout = tree.layout(leaf);
     let inset = vec2(
         layout.border.left + layout.padding.left,
         layout.border.top + layout.padding.top,
@@ -130,24 +131,18 @@ pub(crate) fn run<'f, A>(
             ))
         }
     };
-    let content = st
-        .tree
-        .new_with_children(content_style(size), &kids)
-        .expect("children were created in this tree");
-    st.tree
-        .set_node_context(
-            content,
-            Some(Node::bare(
-                NodeKind::RegionContent,
-                format!("{readable}/<regioncontent>"),
-                text,
-            )),
-        )
-        .expect("node was just created");
-    st.tree
-        .get_node_context_mut(leaf)
-        .expect("a region leaf has a context")
-        .region = Some(content);
+    let content = st.tree.new_node(
+        content_style(size),
+        &kids,
+        Node::bare(
+            NodeKind::RegionContent,
+            format!("{readable}/<regioncontent>"),
+            text,
+        ),
+    );
+    if let Some(leaf) = st.tree.node_mut(leaf) {
+        leaf.region = Some(content);
+    }
     solve(
         ctx,
         &frame.measures,

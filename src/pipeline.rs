@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use egui::{Id, Rect, Role, Vec2, ViewportId, vec2};
 use taffy::{
     AvailableSpace, Baselines, Dimension, Display, LayoutInput, LayoutOutput, LengthPercentageAuto,
-    NodeId, Overflow, Point, Position, ResolveOrZero, Size, Style, TaffyTree, compute_leaf_layout,
+    NodeId, Overflow, Point, Position, ResolveOrZero, Size, Style, compute_leaf_layout,
     style_helpers::length,
 };
 
@@ -21,6 +21,7 @@ use crate::finite;
 use crate::focus;
 use crate::kept::Handle;
 use crate::key::{ReadablePath, Seen, layout_root, root_id};
+use crate::layout_tree::LayoutTree;
 use crate::measure::{Content, Measure, measure_content};
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Focus, MatchWidth, Placement, place};
 use crate::owned::Side;
@@ -228,7 +229,7 @@ pub(crate) struct BuildState {
     /// Where the pass being built was started.
     pub built_at: &'static std::panic::Location<'static>,
     pub kept: Handle,
-    pub tree: TaffyTree<Node>,
+    pub tree: LayoutTree,
     pub seen: Seen,
     pub names: ReadablePath,
     pub pass: Pass,
@@ -246,8 +247,6 @@ impl BuildState {
     /// A state to build a candidate in: its own tree, its own memory, and no
     /// claim on any key, so that building it leaves nothing behind.
     pub(crate) fn scratch(&self) -> Self {
-        let mut tree = TaffyTree::new();
-        tree.disable_rounding();
         Self {
             scope: self.scope,
             root: self.root,
@@ -255,7 +254,7 @@ impl BuildState {
             alive: self.alive.clone(),
             built_at: self.built_at,
             kept: Handle::default(),
-            tree,
+            tree: self.tree.scratch(),
             seen: Seen::default(),
             names: ReadablePath::default(),
             pass: Pass::Scratch,
@@ -584,8 +583,6 @@ impl LayoutState {
     }
 
     fn with_name(name: Option<&'static str>) -> Self {
-        let mut tree = TaffyTree::new();
-        tree.disable_rounding();
         Self {
             st: BuildState {
                 scope: fresh_scope(),
@@ -594,7 +591,7 @@ impl LayoutState {
                 alive: std::sync::Arc::default(),
                 built_at: std::panic::Location::caller(),
                 kept: Handle::default(),
-                tree,
+                tree: LayoutTree::new(),
                 seen: Seen::default(),
                 names: ReadablePath::default(),
                 pass: Pass::Live,
@@ -655,8 +652,7 @@ impl LayoutState {
         if st.name.is_some() {
             crate::key::claims::name(ctx, st.root, &st.claimant(), st.built_at);
         }
-        st.tree.clear();
-        st.tree.disable_rounding();
+        st.tree.reset(ctx);
         st.seen.clear();
         st.names.clear();
         let mut frame = Frame::new(ctx);
@@ -670,16 +666,11 @@ impl LayoutState {
         );
         f(&mut builder);
         crate::tooltip::declare(&mut builder);
-        let root = st
-            .tree
-            .new_with_children(Style::default(), &kids)
-            .expect("children were created in this tree");
-        st.tree
-            .set_node_context(
-                root,
-                Some(Node::bare(NodeKind::Root, "<root>".to_owned(), base)),
-            )
-            .expect("root was just created");
+        let root = st.tree.new_node(
+            Style::default(),
+            &kids,
+            Node::bare(NodeKind::Root, "<root>".to_owned(), base),
+        );
         frame.roots[0].node = Some(root);
         Built {
             st,
@@ -713,19 +704,17 @@ impl<'f, A> Built<'f, A> {
             root,
         } = self;
         let _timer = Timer::start(ctx, Phase::Layout);
-        st.tree
-            .set_style(
-                root,
-                Style {
-                    display: Display::Block,
-                    size: Size {
-                        width: length(area.width()),
-                        height: length(area.height()),
-                    },
-                    ..Style::default()
+        st.tree.set_style(
+            root,
+            Style {
+                display: Display::Block,
+                size: Size {
+                    width: length(area.width()),
+                    height: length(area.height()),
                 },
-            )
-            .expect("root exists");
+                ..Style::default()
+            },
+        );
         let base = frame.take_decl(0);
         solve(
             ctx,
@@ -882,7 +871,7 @@ impl<'f, A> Built<'f, A> {
                         if let Some((what, id)) = missing {
                             let path = st
                                 .tree
-                                .get_node_context(node)
+                                .node(node)
                                 .map_or_else(String::new, |context| context.path.clone());
                             crate::report::report_at(
                                 ctx,
@@ -898,12 +887,12 @@ impl<'f, A> Built<'f, A> {
                             );
                         }
                     }
-                    let mut style = st.tree.style(node).expect("node exists").clone();
+                    let mut style = st.tree.style(node).clone();
                     style.min_size.width = match match_width {
                         MatchWidth::Anchor => LengthPercentageAuto::length(anchor.width()),
                         MatchWidth::Content => LengthPercentageAuto::auto(),
                     };
-                    st.tree.set_style(node, style.clone()).expect("node exists");
+                    st.tree.set_style(node, style.clone());
                     let loose = Size {
                         width: AvailableSpace::MaxContent,
                         height: AvailableSpace::MaxContent,
@@ -920,7 +909,7 @@ impl<'f, A> Built<'f, A> {
                             width: room.width.map_or(Dimension::auto(), Dimension::length),
                             height: room.height.map_or(Dimension::auto(), Dimension::length),
                         };
-                        st.tree.set_style(node, style).expect("node exists");
+                        st.tree.set_style(node, style);
                         let definite = |room: Option<f32>| {
                             room.map_or(AvailableSpace::MaxContent, AvailableSpace::Definite)
                         };
@@ -952,9 +941,7 @@ impl<'f, A> Built<'f, A> {
                         Home::Page => ctx.content_rect(),
                         Home::Window(_) => area,
                     };
-                    st.tree
-                        .set_style(node, modal_style(modal, screen))
-                        .expect("node exists");
+                    st.tree.set_style(node, modal_style(modal, screen));
                     solve(
                         ctx,
                         &frame.measures,
@@ -1137,19 +1124,18 @@ fn place_window(
     } else {
         Presentation::Native
     };
-    let mut style = st.tree.style(node).cloned().unwrap_or_default();
+    let mut style = st.tree.style(node).clone();
     let mut sized = |size: Option<Vec2>, available: AvailableSpace| {
         style.size = Size {
             width: size.map_or(Dimension::auto(), |size| Dimension::length(size.x)),
             height: size.map_or(Dimension::auto(), |size| Dimension::length(size.y)),
         };
-        if st.tree.set_style(node, style.clone()).is_ok() {
-            let available = Size {
-                width: size.map_or(available, |size| AvailableSpace::Definite(size.x)),
-                height: size.map_or(available, |size| AvailableSpace::Definite(size.y)),
-            };
-            solve(ctx, measures, &mut st.tree, node, available);
-        }
+        st.tree.set_style(node, style.clone());
+        let available = Size {
+            width: size.map_or(available, |size| AvailableSpace::Definite(size.x)),
+            height: size.map_or(available, |size| AvailableSpace::Definite(size.y)),
+        };
+        solve(ctx, measures, &mut st.tree, node, available);
         laid_size(&st.tree, node)
     };
     let min = match decl.window.min_size {
@@ -1199,20 +1185,19 @@ fn place_window(
 pub(crate) fn solve(
     ctx: &egui::Context,
     measures: &[MeasureFn<'_>],
-    tree: &mut TaffyTree<Node>,
+    tree: &mut LayoutTree,
     root: NodeId,
     available: Size<AvailableSpace>,
 ) {
     crate::collapse::solve_in_motion(tree, root, |tree| {
-        tree.compute_layout_with_measure(root, available, |input, _, node, style| {
+        tree.compute(root, available, |input, _, node, style| {
             let Some(node) = node else {
                 return leaf_layout(input, style, |_| LayoutOutput::from_outer_size(Size::ZERO));
             };
             leaf_layout(input, style, |input| {
                 measure_content(ctx, node_content(node, measures), &node.text, &input)
             })
-        })
-        .expect("tree is well formed");
+        });
     });
 }
 
@@ -1239,8 +1224,8 @@ fn settle_below<'f, A>(
     }
 }
 
-fn laid_size(tree: &TaffyTree<Node>, node: NodeId) -> egui::Vec2 {
-    let size = tree.layout(node).expect("node exists").size;
+fn laid_size(tree: &LayoutTree, node: NodeId) -> egui::Vec2 {
+    let size = tree.layout(node).size;
     vec2(size.width, size.height)
 }
 
@@ -1322,14 +1307,14 @@ pub(crate) fn reachable(nodes: &[PlacedNode], root: usize, index: usize, clip: R
 /// the viewport is laid out again at the viewport's size, so that it can
 /// fill it.
 fn solve_content(
-    tree: &mut TaffyTree<Node>,
+    tree: &mut LayoutTree,
     leaf: NodeId,
-    solve: &impl Fn(&mut TaffyTree<Node>, NodeId, Size<AvailableSpace>),
+    solve: &impl Fn(&mut LayoutTree, NodeId, Size<AvailableSpace>),
 ) {
-    let own = *tree.layout(leaf).expect("node exists");
+    let own = tree.layout(leaf);
     let (axis, root, gutter) = {
         let scroll = tree
-            .get_node_context(leaf)
+            .node(leaf)
             .and_then(|node| node.scroll.as_ref())
             .expect("a scroll leaf has a scroll node");
         (scroll.axis, scroll.content, scroll.bars.gutter)
@@ -1345,12 +1330,12 @@ fn solve_content(
     };
     let mut size = Size::ZERO;
     for attempt in 0..2 {
-        let mut style = tree.style(root).expect("node exists").clone();
+        let mut style = tree.style(root).clone();
         style.size = Size {
             width: fit.width.map_or(Dimension::auto(), length),
             height: fit.height.map_or(Dimension::auto(), length),
         };
-        tree.set_style(root, style).expect("node exists");
+        tree.set_style(root, style);
         let available =
             |fit: Option<f32>| fit.map_or(AvailableSpace::MaxContent, AvailableSpace::Definite);
         solve(
@@ -1361,7 +1346,7 @@ fn solve_content(
                 height: available(fit.height),
             },
         );
-        let laid = tree.layout(root).expect("node exists").size;
+        let laid = tree.layout(root).size;
         size = laid;
         let short = Size {
             width: fit.width.is_none() && laid.width < viewport.width,
@@ -1375,7 +1360,7 @@ fn solve_content(
             height: fit.height.or(short.height.then_some(viewport.height)),
         };
     }
-    tree.get_node_context_mut(leaf)
+    tree.node_mut(leaf)
         .and_then(|node| node.scroll.as_mut())
         .expect("a scroll leaf has a scroll node")
         .size = egui::vec2(size.width, size.height);
@@ -1509,7 +1494,7 @@ fn paint_reach(paint: &BoxPaint) -> f32 {
 
 #[allow(clippy::too_many_arguments, reason = "the walk's state, passed down")]
 fn collect(
-    tree: &mut TaffyTree<Node>,
+    tree: &mut LayoutTree,
     id: NodeId,
     parent_origin: egui::Pos2,
     depth: usize,
@@ -1518,7 +1503,7 @@ fn collect(
     nodes: &mut Vec<PlacedNode>,
     prims: &mut Vec<Option<Prim>>,
 ) {
-    let layout = *tree.layout(id).expect("node exists");
+    let layout = tree.layout(id);
     let rect = finite::rect_or_empty(
         Rect::from_min_size(
             parent_origin + vec2(layout.location.x, layout.location.y),
@@ -1527,7 +1512,7 @@ fn collect(
         parent_origin,
     );
     let min = rect.min;
-    let style = tree.style(id).expect("node exists");
+    let style = tree.style(id);
     let flow = match (style.display, style.position) {
         (Display::None, _) => Flow::Hidden,
         (_, Position::Absolute) => Flow::Absolute,
@@ -1541,10 +1526,10 @@ fn collect(
         left: finite::length_or_zero(rect.left),
     };
     let (border, padding) = (edges(layout.border), edges(layout.padding));
-    let is_leaf = tree.children(id).expect("node exists").is_empty();
-    let node = tree
-        .get_node_context_mut(id)
-        .expect("every node has a context");
+    let is_leaf = tree.children(id).is_empty();
+    let Some(node) = tree.node_mut(id) else {
+        return;
+    };
     let measured = probe
         .filter(|_| is_leaf && flow != Flow::Hidden)
         .and_then(|probe| {
@@ -1601,11 +1586,10 @@ fn collect(
         pane: node.pane,
         measured,
     });
-    for child in tree.children(id).expect("node exists") {
+    for child in tree.children(id) {
         let at = nodes.len();
         collect(tree, child, min, depth + 1, probe, settle, nodes, prims);
-        let reach = nodes[index].reach.union(nodes[at].reach);
-        nodes[index].reach = reach;
+        widen_reach(nodes, index, at);
     }
     if let Some(content) = region {
         let (inset, _) = region::content_box(tree, id);
@@ -1620,8 +1604,7 @@ fn collect(
             nodes,
             prims,
         );
-        let reach = nodes[index].reach.union(nodes[at].reach);
-        nodes[index].reach = reach;
+        widen_reach(nodes, index, at);
     }
     if let Some(scroll) = scroll {
         let padding_box = crate::draw::inset(rect, border);
@@ -1655,6 +1638,14 @@ fn collect(
         settle.settle(nodes, index);
     }
     nodes[index].end = nodes.len();
+}
+
+/// Widens the reach of the node at `index` by that of its child at `child`,
+/// which a child missing from the tree did not add.
+fn widen_reach(nodes: &mut [PlacedNode], index: usize, child: usize) {
+    if let Some(reach) = nodes.get(child).map(|child| child.reach) {
+        nodes[index].reach = nodes[index].reach.union(reach);
+    }
 }
 
 /// How a node takes part in its parent's layout.

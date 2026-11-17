@@ -32,7 +32,7 @@ use std::ops::Range;
 
 use egui::{Align, Context, Id, IdSalt, Rect, Role, Vec2, pos2, vec2};
 use nohash_hasher::IntMap;
-use taffy::{NodeId, TaffyTree};
+use taffy::NodeId;
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
 use crate::collapse::CollapseAxis;
@@ -41,9 +41,9 @@ use crate::draw::NodeUi as _;
 use crate::finite::clamp;
 use crate::kept::Handle;
 use crate::key::{Key, child_id};
+use crate::layout_tree::LayoutTree;
 use crate::nav::ListMove;
 use crate::overlay::{Nav, Wrap};
-use crate::pipeline::Node;
 use crate::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain, ScrollStyle, TabRule};
 use crate::shell::Shell;
 use crate::tw::{Tw, tw};
@@ -800,14 +800,14 @@ impl<'f, A> ListRun<'f, A> {
     pub(crate) fn view(
         &mut self,
         ctx: &Context,
-        tree: &TaffyTree<Node>,
+        tree: &LayoutTree,
         leaf: NodeId,
         width: f32,
     ) -> View {
         let list = self.plan.list;
-        let own = tree.layout(self.scroll).expect("node exists");
+        let own = tree.layout(self.scroll);
         let node = tree
-            .get_node_context(self.scroll)
+            .node(self.scroll)
             .and_then(|node| node.scroll.as_ref())
             .expect("a list's container is a scroll container");
         let viewport = vec2(
@@ -816,7 +816,7 @@ impl<'f, A> ListRun<'f, A> {
         )
         .max(Vec2::ZERO);
         let mut view = View {
-            top: tree.layout(leaf).expect("node exists").location.y,
+            top: tree.layout(leaf).location.y,
             offset: scroll::stored_offset(ctx, list, Axis::Y, node.size, viewport).y,
             viewport,
             content: node.size.y,
@@ -1076,7 +1076,7 @@ impl Laid {
     /// the scroll offset by as much as the first visible row moved from where
     /// its running offset put it, and asks for another frame if a height
     /// changed.
-    pub(crate) fn settle(self, ctx: &Context, tree: &mut TaffyTree<Node>) {
+    pub(crate) fn settle(self, ctx: &Context, tree: &mut LayoutTree) {
         let Self {
             plan,
             scroll,
@@ -1094,7 +1094,7 @@ impl Laid {
         let mut rows_kept = Vec::with_capacity(built.len());
         let mut heights = Vec::with_capacity(built.len());
         for row in &built {
-            let height = tree.layout(row.node).expect("node exists").size.height;
+            let height = tree.layout(row.node).size.height;
             let used = plan.tops.height(row.at);
             changed |= (height - used).abs() > SAME;
             if row.flow == Flow::Column {
@@ -1130,9 +1130,7 @@ impl Laid {
         }
         let nodes: Vec<NodeId> = built.iter().map(|row| row.node).collect();
         let holds_stop = scroll::holds_tab_stop(tree, &nodes);
-        if let Some(container) = tree
-            .get_node_context_mut(scroll)
-            .and_then(|node| node.scroll.as_mut())
+        if let Some(container) = tree.node_mut(scroll).and_then(|node| node.scroll.as_mut())
             && container.tab == TabRule::WhenScrollable
             && holds_stop
         {
@@ -1170,14 +1168,14 @@ impl Laid {
 }
 
 /// The identified nodes in the subtree of `node`.
-fn identified_in(tree: &TaffyTree<Node>, node: NodeId) -> Vec<Id> {
+fn identified_in(tree: &LayoutTree, node: NodeId) -> Vec<Id> {
     let mut found = Vec::new();
     let mut stack = vec![node];
     while let Some(node) = stack.pop() {
-        if let Some(id) = tree.get_node_context(node).and_then(|node| node.id) {
+        if let Some(id) = tree.node(node).and_then(|node| node.id) {
             found.push(id);
         }
-        stack.extend(tree.children(node).unwrap_or_default());
+        stack.extend(tree.children(node));
     }
     found
 }
