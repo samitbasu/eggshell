@@ -8,6 +8,8 @@ use crate::support::{self, Rig, click_node, focused_path};
 
 const FIELD: &str = r#"/"Page"/"name""#;
 const CANVAS: &str = r#"/"Page"/"canvas""#;
+const STEPPER: &str = r#"/"Page"/"count"/Box/Field"#;
+const READOUT: &str = r#"/"Page"/"levels"/"level"/Box/Header/Readout"#;
 
 #[derive(Default)]
 struct App {
@@ -15,6 +17,10 @@ struct App {
     saved: String,
     other: String,
     causes: Vec<Blur>,
+    count: f64,
+    count_causes: Vec<Blur>,
+    level: f64,
+    levels: Vec<f64>,
     submitted: u32,
     escapes: u32,
     revert_on_escape: bool,
@@ -52,6 +58,20 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .named("Other")
             .classes(tw().w_px(160.0))
             .on_change(|app: &mut App, text| app.other = text);
+        s.stepper("count", app.count, 0.0..=100.0)
+            .named("Count")
+            .when_blurred(|app: &mut App, cause| app.count_causes.push(cause))
+            .on_change(|app: &mut App, count| app.count = count);
+        s.div_id("levels", tw().w_px(240.0), |s| {
+            s.slider("level", app.level, 0.0..=100.0)
+                .label("Level")
+                .readout(|level| format!("{level:.0}"))
+                .editable(|text| text.trim().parse().ok())
+                .on_change(|app: &mut App, level| {
+                    app.level = level;
+                    app.levels.push(level);
+                });
+        });
         s.div_id("canvas", tw().w_px(160.0).h_px(60.0), |_| {})
             .draw(|app: &mut App, ui| {
                 if ui.input(|input| input.key_pressed(Key::Escape)) {
@@ -75,6 +95,63 @@ fn typing() -> Harness<'static, Rig<App>> {
     harness.run_steps(4);
     assert_eq!(harness.state().app.draft, "abc", "precondition: typed");
     harness
+}
+
+fn blur_the_window(harness: &mut Harness<'static, Rig<App>>) {
+    harness.event(egui::Event::WindowFocused(false));
+    harness.run_steps(6);
+}
+
+#[test]
+fn the_window_losing_focus_blurs_a_text_field_as_elsewhere() {
+    let mut harness = typing();
+    blur_the_window(&mut harness);
+    assert_eq!(focused_path(&harness), None, "the field gave up its focus");
+    let app = &harness.state().app;
+    assert_eq!(app.causes, [Blur::Elsewhere]);
+    assert_eq!(app.draft, "abc", "what was typed stays");
+}
+
+#[test]
+fn the_window_losing_focus_blurs_a_steppers_field_as_elsewhere() {
+    let mut harness = support::harness(vec2(400.0, 300.0), base_text(), App::default(), view);
+    harness.run_steps(4);
+    click_node(&mut harness, STEPPER);
+    harness.run_steps(6);
+    assert_eq!(
+        focused_path(&harness).as_deref(),
+        Some("<widget>"),
+        "precondition: the stepper's field has focus"
+    );
+    harness.event(egui::Event::Text("7".into()));
+    harness.run_steps(4);
+    blur_the_window(&mut harness);
+    assert_eq!(focused_path(&harness), None, "the field gave up its focus");
+    let app = &harness.state().app;
+    assert_eq!(app.count_causes, [Blur::Elsewhere]);
+}
+
+#[test]
+fn the_window_losing_focus_closes_a_sliders_readout_and_writes_nothing() {
+    let mut harness = support::harness(vec2(400.0, 300.0), base_text(), App::default(), view);
+    harness.run_steps(4);
+    click_node(&mut harness, READOUT);
+    harness.run_steps(6);
+    let field = format!("{READOUT}/Field");
+    assert_eq!(
+        support::focused_node(&harness).as_deref(),
+        Some(field.as_str()),
+        "precondition: the readout opened into a field with focus"
+    );
+    harness.event(egui::Event::Text("9".into()));
+    harness.run_steps(4);
+    blur_the_window(&mut harness);
+    assert_eq!(focused_path(&harness), None, "the field gave up its focus");
+    assert!(
+        !harness.state().nodes.iter().any(|(path, _)| *path == field),
+        "the readout closed"
+    );
+    assert!(harness.state().app.levels.is_empty());
 }
 
 #[test]
