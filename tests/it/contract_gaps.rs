@@ -872,8 +872,10 @@ fn an_icon_faces_name_is_what_assistive_technology_reads() {
 }
 
 fn icon_dropdown(b: &mut Builder<'_, '_, App>, app: &App) {
-    b.dropdown_menu("more", (app.icon(), "More"))
-        .items(|m| m.item("copy", "Copy").on_click(|app: &mut App| app.clicks += 1));
+    b.dropdown_menu("more", (app.icon(), "More")).items(|m| {
+        m.item("copy", "Copy")
+            .on_click(|app: &mut App| app.clicks += 1)
+    });
 }
 
 #[test]
@@ -883,7 +885,56 @@ fn an_icon_dropdowns_name_names_its_trigger_and_its_menu() {
     click_node(&mut harness, "/\"more\"");
     harness.run_steps(4);
     let menu = harness.get_by_role(Role::Menu);
-    assert_eq!(menu.accesskit_node().label().as_deref(), Some("More"), "the menu");
+    assert_eq!(
+        menu.accesskit_node().label().as_deref(),
+        Some("More"),
+        "the menu"
+    );
+}
+
+fn renamed_faces(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.div(tw().flex().gap(2.0).items_center(), |b| {
+        b.button("role", Face::text("Viewer").named("Role")).add();
+        b.toggle("bold", Face::text("B").named("Bold"), app.on)
+            .on_change(|app: &mut App, on| app.on = on);
+        b.dropdown_menu("levels", Face::text("···").named("The levels between"))
+            .items(|m| {
+                m.item("docs", "Docs")
+                    .on_click(|app: &mut App| app.clicks += 1)
+            });
+    });
+}
+
+#[test]
+fn a_text_face_with_a_name_is_read_by_the_name_and_shows_the_text() {
+    let harness = harness(Theme::Light, renamed_faces);
+    for (path, text, name) in [
+        ("/\"role\"", "Viewer", "Role"),
+        ("/\"bold\"", "B", "Bold"),
+        ("/\"levels\"", "···", "The levels between"),
+    ] {
+        let rect = rect_of(&harness, path);
+        let _ = text_box(&harness, rect, text);
+        assert_eq!(read_name(&harness, path), name, "{path}");
+    }
+}
+
+#[test]
+fn a_renamed_dropdown_names_its_trigger_and_its_menu() {
+    let mut harness = harness(Theme::Light, renamed_faces);
+    click_node(&mut harness, "/\"levels\"");
+    harness.run_steps(4);
+    let menu = harness.get_by_role(Role::Menu);
+    assert_eq!(
+        menu.accesskit_node().label().as_deref(),
+        Some("The levels between"),
+        "the menu"
+    );
+    assert_eq!(
+        read_name(&harness, "/\"levels\""),
+        "The levels between",
+        "the trigger"
+    );
 }
 
 #[test]

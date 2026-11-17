@@ -22,6 +22,8 @@ enum Press {
 ///
 /// A `&str` or `String` is a label and an [`Icon`] with a name is an
 /// icon-only face, which assistive technology reads by the name.
+/// TODO(prose): [`Face::text`] with [`TextFace::named`] shows a label that
+/// assistive technology reads by another name.
 /// [`Face::Empty`] shows nothing, for a button whose content is all
 /// [`children`](ButtonChain::children), and is named too.
 ///
@@ -32,6 +34,7 @@ enum Press {
 /// fn view(b: &mut Builder<'_, '_, ()>, close: Icon) {
 ///     b.button("save", "Save").add();
 ///     b.button("close", (close, "Close")).add();
+///     b.button("crumbs", Face::text("···").named("The levels between")).add();
 ///     b.button("card", Face::Empty("Open the card".into()))
 ///         .children(|_| {})
 ///         .add();
@@ -50,7 +53,7 @@ enum Press {
 #[derive(Clone, Debug)]
 pub enum Face {
     /// Text, with no icon unless [`icon`](ButtonChain::icon) adds one.
-    Label(String),
+    Label(TextFace),
     /// An icon and no text, and the accessible name.
     Icon(Icon, String),
     /// Nothing: the content is the button's [`children`](ButtonChain::children).
@@ -59,23 +62,80 @@ pub enum Face {
 }
 
 impl Face {
+    /// TODO(prose): a label, read by its text unless
+    /// [`named`](TextFace::named) otherwise.
+    pub fn text(text: impl Into<String>) -> TextFace {
+        TextFace {
+            text: text.into(),
+            name: None,
+        }
+    }
+
     /// What assistive technology reads.
     pub(crate) fn name(&self) -> &str {
         match self {
-            Self::Label(name) | Self::Icon(_, name) | Self::Empty(name) => name,
+            Self::Label(label) => label.name(),
+            Self::Icon(_, name) | Self::Empty(name) => name,
         }
+    }
+}
+
+/// TODO(prose): the text of a [`Face::Label`], and the name assistive
+/// technology reads when it is not the text.
+///
+/// ```
+/// use eggshell_ui::Builder;
+/// use eggshell_ui::owned::Face;
+///
+/// fn view(b: &mut Builder<'_, '_, ()>) {
+///     b.dropdown_menu("crumbs", Face::text("···").named("The levels between"))
+///         .items(|_| {});
+/// }
+/// ```
+///
+/// An icon face is already named by its tuple:
+///
+/// ```compile_fail
+/// use eggshell_ui::owned::Face;
+/// use eggshell_ui::Icon;
+///
+/// fn face(close: Icon) -> Face {
+///     Face::from((close, "Close")).named("Shut")
+/// }
+/// ```
+#[derive(Clone, Debug)]
+pub struct TextFace {
+    text: String,
+    name: Option<String>,
+}
+
+impl TextFace {
+    /// TODO(prose): the name assistive technology reads in place of the text.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    fn name(&self) -> &str {
+        self.name.as_deref().unwrap_or(&self.text)
+    }
+}
+
+impl From<TextFace> for Face {
+    fn from(label: TextFace) -> Self {
+        Self::Label(label)
     }
 }
 
 impl From<&str> for Face {
     fn from(label: &str) -> Self {
-        Self::Label(label.to_owned())
+        Face::text(label).into()
     }
 }
 
 impl From<String> for Face {
     fn from(label: String) -> Self {
-        Self::Label(label)
+        Face::text(label).into()
     }
 }
 
@@ -248,7 +308,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, face: Face) -> Self {
         let name = face.name().to_owned();
         let (label, icon) = match face {
-            Face::Label(label) => (label, None),
+            Face::Label(label) => (label.text, None),
             Face::Icon(icon, _) => (String::new(), Some(icon)),
             Face::Empty(_) => (String::new(), None),
         };

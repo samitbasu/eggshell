@@ -200,9 +200,7 @@ fn a_toggle_takes_options_too() {
 }
 
 fn labelled<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
-    s.button(key, "Go")
-        .size(Size::DEFAULT)
-        .tooltip("Goes")
+    s.button(key, "Go").size(Size::DEFAULT).tooltip("Goes")
 }
 
 #[test]
