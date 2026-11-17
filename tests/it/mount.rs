@@ -4,8 +4,8 @@
 //! within it, ahead of the page's.
 
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, Command, Commands, TextSpec, TextStyle, Weight, tw};
-use egui::{Color32, FontFamily, Key, KeyboardShortcut, Modifiers, vec2};
+use eggshell_ui::{Builder, Chord, Command, Commands, TextSpec, TextStyle, Weight, tw};
+use egui::{Color32, FontFamily, Key, Modifiers, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
@@ -64,12 +64,12 @@ struct App {
     log: Vec<&'static str>,
 }
 
-const fn chord(modifiers: Modifiers, key: Key) -> KeyboardShortcut {
-    KeyboardShortcut::new(modifiers, key)
+const fn chord(modifiers: Modifiers, key: Key) -> Chord {
+    Chord::new(modifiers, key).expect("not a chord the library keeps")
 }
 
-const SHARED: KeyboardShortcut = chord(Modifiers::COMMAND, Key::K);
-const PAGE_ONLY: KeyboardShortcut = chord(Modifiers::COMMAND, Key::J);
+const SHARED: Chord = chord(Modifiers::COMMAND, Key::K);
+const PAGE_ONLY: Chord = chord(Modifiers::COMMAND, Key::J);
 
 fn page_commands() -> Commands<App> {
     Commands::new()
@@ -517,5 +517,104 @@ mod misuse {
         harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
         harness.run_steps(4);
         assert_eq!(harness.state().app.log, ["notes k"]);
+    }
+}
+
+/// A paste command in a mount gets what it pastes, and hears a failed read,
+/// through the lens.
+mod paste {
+    use std::sync::Arc;
+
+    use eggshell_ui::testing::FakeClipboard;
+    use eggshell_ui::{ClipboardError, Paste, Via};
+    use egui::Event;
+
+    use super::*;
+
+    #[derive(Default)]
+    struct Clip {
+        pasted: Vec<(Paste, Via)>,
+        errors: Vec<ClipboardError>,
+    }
+
+    #[derive(Default)]
+    struct Page {
+        clip: Clip,
+    }
+
+    fn clip<'f>(b: &mut Builder<'_, 'f, Clip>, clip: &'f Clip) {
+        let table = Commands::new().add(
+            "paste",
+            Command::paste("Paste", |clip: &mut Clip, paste, via| {
+                clip.pasted.push((paste, via));
+            })
+            .shortcut(chord(Modifiers::COMMAND, Key::V))
+            .on_error(|clip, error| clip.errors.push(error)),
+        );
+        b.commands(&table, clip);
+        b.dropdown_menu("edit", "Edit")
+            .items(|m| m.command("paste"));
+    }
+
+    fn view<'f>(b: &mut Builder<'_, 'f, Page>, page: &'f Page) {
+        b.mount(
+            "m",
+            tw(),
+            &page.clip,
+            |page: &mut Page| &mut page.clip,
+            clip,
+        );
+    }
+
+    fn harness() -> (Harness<'static, Rig<Page>>, FakeClipboard) {
+        let fake = FakeClipboard::default();
+        let mut harness = support::harness(vec2(300.0, 200.0), base_text(), Page::default(), view);
+        harness
+            .state()
+            .layout
+            .set_clipboard(Some(Arc::new(fake.clone())));
+        harness.run_steps(4);
+        (harness, fake)
+    }
+
+    fn click_paste(harness: &mut Harness<'_, Rig<Page>>) {
+        click_node(harness, r#"/"m"/"edit""#);
+        harness.run_steps(5);
+        click_node(harness, r#"/"m"/("edit", Menu)/Box/"paste""#);
+        harness.run_steps(5);
+    }
+
+    #[test]
+    fn a_mounted_paste_gets_the_click_and_the_chord_through_the_lens() {
+        let (mut harness, fake) = harness();
+        fake.set_text("hello");
+        click_paste(&mut harness);
+        support::past_bar(&mut harness);
+        harness.key_press(Key::Tab);
+        harness.run_steps(4);
+        assert_eq!(
+            focused_path(&harness).as_deref(),
+            Some(r#"/"m"/"edit""#),
+            "precondition: focus is within the mount"
+        );
+        harness.event(Event::Paste("hello".into()));
+        harness.run_steps(4);
+        assert_eq!(
+            harness.state().app.clip.pasted,
+            [
+                (Paste::Text("hello".into()), Via::Read),
+                (Paste::Text("hello".into()), Via::Event)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_mounted_paste_hears_a_failed_read_through_the_lens() {
+        let (mut harness, fake) = harness();
+        fake.refuse(Some(ClipboardError::Failed("denied".into())));
+        click_paste(&mut harness);
+        let clip = &harness.state().app.clip;
+        assert!(clip.pasted.is_empty());
+        assert_eq!(clip.errors, [ClipboardError::Failed("denied".into())]);
     }
 }

@@ -9,9 +9,9 @@ mod common;
 
 use eggshell_ui::owned::Mark;
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, Command, Commands, Scope, Tw, tw};
+use eggshell_ui::{Builder, Chord, Command, Commands, Scope, Tw, tw};
 use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt};
-use egui::{Key, KeyboardShortcut, Modifiers, Shadow};
+use egui::{Key, Modifiers, Shadow};
 
 const LOREM: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod \
 tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud \
@@ -124,8 +124,8 @@ pub enum Part {
     Picked,
 }
 
-const SAVE: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::S);
-const FIND: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::K);
+const SAVE: Chord = const { Chord::new(Modifiers::COMMAND, Key::S).expect("not reserved") };
+const FIND: Chord = const { Chord::new(Modifiers::COMMAND, Key::K).expect("not reserved") };
 
 fn page_commands() -> Commands<State> {
     Commands::new()
