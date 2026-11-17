@@ -53,6 +53,15 @@ wasm-bindgen-futures = "0.4"
 [workspace]
 members = ["crates/eggshell-ui-shadcn", "crates/eggshell-ui-extras", "xtask"]
 
+# clippy.toml's disallowed macros and methods are denied in library code by
+# each library's crate attributes; tests, examples and benches may use them.
+[workspace.lints.clippy]
+disallowed_macros = "allow"
+disallowed_methods = "allow"
+
+[lints]
+workspace = true
+
 # `cargo xtask fuzz`: the sessions run about six times faster than in dev, and
 # the workspace rebuilds in seconds where release takes minutes.
 [profile.fuzz]

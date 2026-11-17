@@ -1,0 +1,22 @@
+max-fn-params-bools = 1
+
+disallowed-macros = [
+    { path = "std::assert", reason = "a failed assertion panics: report misuse with `report`, or an invariant as `Problem::Internal`, and fall back" },
+    { path = "std::assert_eq", reason = "a failed assertion panics: report misuse with `report`, or an invariant as `Problem::Internal`, and fall back" },
+    { path = "std::assert_ne", reason = "a failed assertion panics: report misuse with `report`, or an invariant as `Problem::Internal`, and fall back" },
+    { path = "std::debug_assert", reason = "a failed assertion panics in debug builds: report misuse with `report`, or an invariant as `Problem::Internal`, and fall back" },
+    { path = "std::debug_assert_eq", reason = "a failed assertion panics in debug builds: report misuse with `report`, or an invariant as `Problem::Internal`, and fall back" },
+    { path = "std::debug_assert_ne", reason = "a failed assertion panics in debug builds: report misuse with `report`, or an invariant as `Problem::Internal`, and fall back" },
+]
+disallowed-methods = [
+    { path = "f32::clamp", reason = "panics on reversed or NaN bounds: use `finite::clamp`" },
+    { path = "f64::clamp", reason = "panics on reversed or NaN bounds: use `finite::clamp`" },
+    { path = "core::cmp::Ord::clamp", reason = "panics on reversed bounds: use `finite::clamp`" },
+    { path = "core::time::Duration::from_secs_f32", reason = "panics on a negative, NaN or overflowing value: use `Duration::try_from_secs_f32`" },
+    { path = "core::time::Duration::from_secs_f64", reason = "panics on a negative, NaN or overflowing value: use `Duration::try_from_secs_f64`" },
+    { path = "core::time::Duration::mul_f32", reason = "panics on a negative, NaN or overflowing result: use `Duration::try_from_secs_f32` on the product" },
+    { path = "core::time::Duration::mul_f64", reason = "panics on a negative, NaN or overflowing result: use `Duration::try_from_secs_f64` on the product" },
+    { path = "core::time::Duration::div_f32", reason = "panics on a negative, NaN or overflowing result: use `Duration::try_from_secs_f32` on the quotient" },
+    { path = "core::time::Duration::div_f64", reason = "panics on a negative, NaN or overflowing result: use `Duration::try_from_secs_f64` on the quotient" },
+    { path = "std::sync::Mutex::lock", reason = "use `sync::lock`, which takes the guard back from a poisoned lock" },
+]
