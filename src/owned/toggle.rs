@@ -35,6 +35,16 @@ pub type ToggleItemChain<'a, 'f, A, T> = ToggleChain<'a, 'f, A, T, Member<A, T>>
 ///         .on_change(|app, italic| app.italic = italic);
 /// }
 /// ```
+///
+/// TODO(prose)
+///
+/// ```compile_fail
+/// use eggshell_ui::Builder;
+///
+/// fn view(b: &mut Builder<'_, '_, ()>, on: bool) {
+///     b.toggle("bold", "B", on).named("Bold").on_change(|_, _| {});
+/// }
+/// ```
 #[must_use = "a toggle is not added until you call `.on_change(..)`"]
 pub struct ToggleChain<'a, 'f, A, T, V = Unset> {
     button: ButtonChain<'a, 'f, A>,
@@ -109,12 +119,6 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
     /// later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.button = self.button.classes(classes);
-        self
-    }
-
-    /// The accessible name, when it is not the label.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.button = self.button.named(name);
         self
     }
 
