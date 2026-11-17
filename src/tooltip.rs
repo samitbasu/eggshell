@@ -363,9 +363,9 @@ pub(crate) fn begin(ctx: &Context, kept: &Handle) {
 /// Says that the node of the draw closure `ui` is a trigger for `tip`.
 /// `response` is the one the node's hover and focus are read from.
 pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
-    use crate::draw::NodeUi as _;
-    let id = ui.node_id();
+    let id = crate::draw::node_id_or_report(ui, "a tooltip");
     let wants = |cause| {
+        let Some(id) = id else { return };
         let trigger = Trigger {
             id,
             content: tip.content.clone(),

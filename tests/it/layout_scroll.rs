@@ -82,7 +82,8 @@ fn a_draw_closure_scrolls_its_own_layout_through_the_ui() {
     let (list_a, list_b) = (
         draw_pass(&mut a, &ctx, |ui, list| {
             use eggshell_ui::ShellExt;
-            ui.shell().scroll_by(list, vec2(0.0, 15.0));
+            let Some(shell) = ui.try_shell() else { return };
+            shell.scroll_by(list, vec2(0.0, 15.0));
         }),
         draw_pass(&mut b, &ctx, |_, _| {}),
     );

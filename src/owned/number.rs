@@ -6,7 +6,6 @@ use std::rc::Rc;
 
 use egui::{Context, EventFilter, Id, Key, Modifiers, Ui};
 
-use crate::NodeUi as _;
 use crate::Problem;
 use crate::finite::clamp;
 use crate::report::report;
@@ -280,7 +279,9 @@ pub(super) fn hold_arrows(ui: &Ui) {
         vertical_arrows: true,
         ..EventFilter::default()
     };
-    let id = ui.node_id();
+    let Some(id) = crate::draw::node_id_or_report(ui, "holding the arrow keys") else {
+        return;
+    };
     ui.ctx()
         .memory_mut(|memory| memory.set_focus_lock_filter(id, filter));
 }

@@ -69,6 +69,8 @@ pub enum Problem {
     MissingFace,
     /// TODO(prose): the shell asked for outside a draw.
     ShellOutsideDraw,
+    /// TODO(prose): a node accessor of [`NodeUi`](crate::NodeUi) on a `Ui` no draw closure was given.
+    NodeUiOutsideDraw,
     /// TODO(prose): an invariant of the library that did not hold, by name.
     Internal(&'static str),
 }
