@@ -550,13 +550,7 @@ struct Request {
     pass: u64,
     container: Option<Id>,
     wish: Wish,
-    applied: Applied,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Applied {
-    No,
-    Yes,
+    applied: bool,
 }
 
 impl Request {
@@ -565,7 +559,7 @@ impl Request {
             pass: ctx.cumulative_pass_nr(),
             container: None,
             wish: Wish::By(Vec2::ZERO),
-            applied: Applied::No,
+            applied: false,
         }
     }
 }
@@ -801,7 +795,7 @@ pub(crate) struct ScrollPlan {
     pub(crate) offset: Vec2,
     /// Whether layout moved the offset away from egui's, which then has to
     /// be told.
-    pub(crate) moved: Moved,
+    pub(crate) moved: bool,
 }
 
 impl ScrollPlan {
@@ -823,12 +817,6 @@ impl ScrollPlan {
             TabRule::WhenScrollable => self.overflows(viewport).any(),
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Moved {
-    No,
-    Yes,
 }
 
 /// The farthest the content can be scrolled along each axis.
@@ -942,7 +930,7 @@ impl Settle {
             let item = match &request.wish {
                 Wish::By(delta) if request.container == Some(id) => {
                     want += *delta;
-                    request.applied = Applied::Yes;
+                    request.applied = true;
                     continue;
                 }
                 Wish::Rect { rect, align } if request.container == Some(id) => {
@@ -955,7 +943,7 @@ impl Settle {
                 _ => None,
             };
             if let Some((item, align)) = item {
-                request.applied = Applied::Yes;
+                request.applied = true;
                 if enabled.x {
                     want.x += reveal(
                         (viewport.min.x, viewport.max.x),
@@ -1001,7 +989,7 @@ impl Settle {
                 node.translate(by);
             }
             plan.offset = want;
-            plan.moved = Moved::Yes;
+            plan.moved = true;
         }
         let published = Viewport {
             rect: viewport,
@@ -1017,7 +1005,7 @@ impl Settle {
         let kept: Vec<Request> = self
             .pending
             .into_iter()
-            .filter(|request| request.applied == Applied::No)
+            .filter(|request| !request.applied)
             .collect();
         self.shell.kept.with(|state| {
             state.scrolls.pending.splice(0..0, kept);

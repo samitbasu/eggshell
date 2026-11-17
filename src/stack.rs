@@ -26,7 +26,7 @@ pub(crate) struct Open {
     /// when the overlay closes.
     pub(crate) restore: Option<Id>,
     /// Whether focus has been moved into the overlay yet.
-    pub(crate) entered: Entered,
+    pub(crate) entered: bool,
     /// Where focus was at the end of the last frame the overlay was drawn.
     pub(crate) focus: FocusAt,
 }
@@ -38,16 +38,10 @@ impl Open {
             band,
             pointer: None,
             restore: None,
-            entered: Entered::Not,
+            entered: false,
             focus: FocusAt::Nowhere,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Entered {
-    Not,
-    Yet,
 }
 
 /// The open overlays in the order they were opened, bottom first. Overlays
@@ -177,11 +171,7 @@ mod tests {
         assert_eq!(stack.enter(id, Band::Popup), Opening::Opened);
         assert_eq!(stack.enter(id, Band::Popup), Opening::Open);
         assert_eq!(stack.index_of(id), Some(0));
-        assert!(
-            stack
-                .get_mut(id)
-                .is_some_and(|open| open.entered == Entered::Not)
-        );
+        assert!(stack.get_mut(id).is_some_and(|open| !open.entered));
     }
 
     #[test]

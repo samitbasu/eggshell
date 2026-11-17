@@ -466,16 +466,11 @@ fn preferences(s: &mut S<'_, '_>, state: &State) {
 /// </div>
 /// ```
 fn save(s: &mut S<'_, '_>, state: &State) {
-    let enablement = if state.can_save() {
-        Enablement::Enabled
-    } else {
-        Enablement::Disabled
-    };
     let muted = common::tokens(s.ctx()).muted_foreground;
     s.div(tw().flex().items_center().gap(3.0), |b| {
         b.button(Footer::Save, "Save")
             .variant(variant::PRIMARY)
-            .enablement(enablement)
+            .enablement(state.can_save())
             .on_click(|state: &mut State| state.saves += 1);
         let note = match (state.saves, state.can_save()) {
             (_, false) => "Enter a name and an email address to save.".to_owned(),
