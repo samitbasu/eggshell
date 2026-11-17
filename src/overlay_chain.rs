@@ -33,6 +33,55 @@ pub struct Modally {
     modal: Modal,
 }
 
+/// TODO(prose): an overlay chain not given [`shown`](OverlayChain::shown): the
+/// overlay is open exactly in the frames that declare it, and has no motion.
+///
+/// ```
+/// use eggshell_ui::overlay::{Anchor, OverlayChain, Static, Unplaced};
+/// use eggshell_ui::Builder;
+///
+/// fn start<'b, 'f>(b: &'b mut Builder<'_, 'f, ()>) -> OverlayChain<'b, 'f, (), Unplaced, Static> {
+///     b.overlay("popover")
+/// }
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct Static;
+
+/// TODO(prose): an overlay chain given [`shown`](OverlayChain::shown), which
+/// alone takes the motion setters.
+///
+/// ```
+/// use core::time::Duration;
+/// use eggshell_ui::overlay::{Anchor, Shown};
+/// use eggshell_ui::Builder;
+///
+/// fn view(b: &mut Builder<'_, '_, ()>, open: bool) {
+///     b.overlay("popover")
+///         .anchor(Anchor::Screen)
+///         .shown(if open { Shown::Open } else { Shown::Closed })
+///         .transition(Duration::from_millis(150))
+///         .ease_out()
+///         .children(|_| {});
+/// }
+/// ```
+///
+/// Motion without `shown` does not compile:
+///
+/// ```compile_fail
+/// use core::time::Duration;
+/// use eggshell_ui::overlay::Anchor;
+/// use eggshell_ui::Builder;
+///
+/// fn view(b: &mut Builder<'_, '_, ()>) {
+///     b.overlay("popover")
+///         .anchor(Anchor::Screen)
+///         .transition(Duration::from_millis(150))
+///         .children(|_| {});
+/// }
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct Animated;
+
 /// An overlay being declared: [`Builder::overlay`] starts it, and
 /// [`children`](OverlayChain::children) builds its content and ends it.
 ///
@@ -59,9 +108,10 @@ pub struct Modally {
 /// [`Unplaced`] chain into a [`Floating`] one and `modal` into a [`Modally`]
 /// one. Those are the only kinds that can build their content, so an overlay
 /// without a place is a compile error, and one that is both modal and
-/// anchored cannot be written.
+/// anchored cannot be written. Likewise `shown` turns a [`Static`] chain into
+/// an [`Animated`] one, the only kind with motion setters.
 #[must_use = "an overlay is declared by `children`"]
-pub struct OverlayChain<'b, 'f, A, State> {
+pub struct OverlayChain<'b, 'f, A, State, Motion = Static> {
     b: Builder<'b, 'f, A>,
     slot: Slot,
     band: Band,
@@ -71,6 +121,7 @@ pub struct OverlayChain<'b, 'f, A, State> {
     presence: Presence<A>,
     declared_at: &'static std::panic::Location<'static>,
     state: State,
+    motion: Motion,
 }
 
 /// What the chain said of the overlay's presence; the style fills in the
@@ -110,11 +161,14 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
             on_dismiss: None,
             presence: Presence::default(),
             state: Unplaced,
+            motion: Static,
         }
     }
+}
 
+impl<'b, 'f, A, M> OverlayChain<'b, 'f, A, Unplaced, M> {
     /// What the overlay is placed against.
-    pub fn anchor(self, anchor: Anchor) -> OverlayChain<'b, 'f, A, Floating> {
+    pub fn anchor(self, anchor: Anchor) -> OverlayChain<'b, 'f, A, Floating, M> {
         self.with_state(Floating {
             anchor,
             placement: Placement::default(),
@@ -128,11 +182,20 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
     /// the box, [`Modal::Edge`] docks it to a side of the screen. Focus is
     /// trapped in the modal (and in what is above it) while it is open, and
     /// a press on the scrim or Esc dismisses it, as [`DismissOn`] says.
-    pub fn modal(self, modal: Modal) -> OverlayChain<'b, 'f, A, Modally> {
+    pub fn modal(self, modal: Modal) -> OverlayChain<'b, 'f, A, Modally, M> {
         self.with_state(Modally { modal })
     }
+}
 
-    fn with_state<State>(self, state: State) -> OverlayChain<'b, 'f, A, State> {
+impl<'b, 'f, A, State, M> OverlayChain<'b, 'f, A, State, M> {
+    fn with_state<To>(self, state: To) -> OverlayChain<'b, 'f, A, To, M> {
+        self.with(|_, motion| (state, motion))
+    }
+
+    fn with<To, N>(
+        self,
+        change: impl FnOnce(State, M) -> (To, N),
+    ) -> OverlayChain<'b, 'f, A, To, N> {
         let Self {
             b,
             slot,
@@ -142,8 +205,10 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
             on_dismiss,
             presence,
             declared_at,
-            state: Unplaced,
+            state,
+            motion,
         } = self;
+        let (state, motion) = change(state, motion);
         OverlayChain {
             b,
             slot,
@@ -154,11 +219,12 @@ impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced> {
             presence,
             declared_at,
             state,
+            motion,
         }
     }
 }
 
-impl<A, State> OverlayChain<'_, '_, A, State> {
+impl<A, State, M> OverlayChain<'_, '_, A, State, M> {
     /// The layer family: how the overlay stacks against other layers.
     /// [`Band::Popup`] unless set.
     pub fn band(mut self, band: Band) -> Self {
@@ -207,8 +273,8 @@ impl<A, State> OverlayChain<'_, '_, A, State> {
 
     /// What the arrow keys do at the first and last item of the overlay's
     /// [`Nav`]. [`Wrap::Around`] unless set, and [`Wrap::Stop`] for a
-    /// [`Nav::Grid`], which only stops: debug builds panic if a grid is told
-    /// to go round.
+    /// [`Nav::Grid`], which only stops: a grid told to go round stops, and is
+    /// reported as [`UnsupportedNav`](crate::Problem::UnsupportedNav).
     pub fn wrap(mut self, wrap: Wrap) -> Self {
         self.behavior.wrap = Some(wrap);
         self
@@ -221,38 +287,41 @@ impl<A, State> OverlayChain<'_, '_, A, State> {
         self.on_dismiss = Some(Box::new(then));
         self
     }
+}
 
+impl<'b, 'f, A, State> OverlayChain<'b, 'f, A, State, Static> {
     /// Declares the overlay every frame, whether it is shown or not, and
     /// lets the library keep it on screen while it leaves. Without
     /// `shown` the overlay is open exactly in the frames that declare it,
-    /// and has no motion.
+    /// and has no motion; the motion setters come after it.
     ///
     /// `children` is not called while the overlay is fully closed. While it
     /// exits it is built as usual, takes no input, still blocks the page, and
     /// is not dismissed again. Reopening mid-exit reverses from where the
     /// box is.
-    pub fn shown(mut self, shown: Shown) -> Self {
+    pub fn shown(mut self, shown: Shown) -> OverlayChain<'b, 'f, A, State, Animated> {
         self.presence.shown = Some(shown);
-        self
+        self.with(|state, Static| (state, Animated))
     }
+}
 
+impl<A, State> OverlayChain<'_, '_, A, State, Animated> {
     /// How long the overlay takes to enter and to leave. The style's
     /// [`motion`](crate::contract::Style::motion) for the kind of overlay
-    /// unless set. Needs [`shown`](Self::shown).
+    /// unless set.
     pub fn transition(mut self, duration: Duration) -> Self {
         self.presence.transition = Some(duration);
         self
     }
 
     /// How long the overlay takes to leave, if that is not how long it takes
-    /// to enter. Needs [`shown`](Self::shown).
+    /// to enter.
     pub fn exit_transition(mut self, duration: Duration) -> Self {
         self.presence.exit = Some(duration);
         self
     }
 
-    /// The timing function of the enter and the exit. Needs
-    /// [`shown`](Self::shown).
+    /// The timing function of the enter and the exit.
     pub fn easing(mut self, easing: Easing) -> Self {
         self.presence.easing = Some(easing);
         self
@@ -279,7 +348,7 @@ impl<A, State> OverlayChain<'_, '_, A, State> {
     }
 
     /// How the overlay arrives and leaves. The style's entry for the kind of
-    /// overlay unless set. Needs [`shown`](Self::shown).
+    /// overlay unless set.
     pub fn entrance(mut self, entrance: Entrance) -> Self {
         self.presence.entrance = Some(entrance);
         self
@@ -287,14 +356,13 @@ impl<A, State> OverlayChain<'_, '_, A, State> {
 
     /// Runs `then` once, in the frame the overlay has finished leaving and
     /// is no longer built: clear what the content needed during the exit.
-    /// Needs [`shown`](Self::shown).
     pub fn on_exited(mut self, then: impl FnOnce(&mut A) + 'static) -> Self {
         self.presence.on_exited = Some(Box::new(then));
         self
     }
 }
 
-impl<A> OverlayChain<'_, '_, A, Floating> {
+impl<A, M> OverlayChain<'_, '_, A, Floating, M> {
     /// Which side of the anchor the overlay goes on, and how it flips and
     /// shifts to stay on screen. [`Placement::below`] unless set.
     pub fn placement(mut self, placement: Placement) -> Self {
@@ -310,24 +378,36 @@ impl<A> OverlayChain<'_, '_, A, Floating> {
     }
 }
 
-impl<'f, A, State> OverlayChain<'_, 'f, A, State> {
+impl<'f, A, State, M> OverlayChain<'_, 'f, A, State, M> {
     fn declare(self, presentation: Presentation, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         let Self {
             b,
             slot,
             band,
             description,
-            behavior,
+            mut behavior,
             on_dismiss,
             presence,
             declared_at,
             state: _,
+            motion: _,
         } = self;
-        debug_assert!(
-            !(behavior.nav == Nav::Grid && behavior.wrap == Some(Wrap::Around)),
-            "a grid overlay stops at its edges and cannot wrap around (declared at {declared_at})"
-        );
-        let motion = presence.resolve(b.ctx(), &presentation, (band, behavior.nav), declared_at);
+        if behavior.nav == Nav::Grid && behavior.wrap == Some(Wrap::Around) {
+            crate::report::report_at(
+                b.ctx(),
+                crate::Problem::UnsupportedNav,
+                Some(slot.id),
+                declared_at,
+                || {
+                    format!(
+                        "{}: a grid overlay stops at its edges; it does not wrap around",
+                        slot.readable()
+                    )
+                },
+            );
+            behavior.wrap = Some(Wrap::Stop);
+        }
+        let motion = presence.resolve(b.ctx(), &presentation, (band, behavior.nav));
         let decl = OverlayDecl {
             id: slot.id,
             presentation,
@@ -341,7 +421,7 @@ impl<'f, A, State> OverlayChain<'_, 'f, A, State> {
     }
 }
 
-impl<'f, A> OverlayChain<'_, 'f, A, Floating> {
+impl<'f, A, M> OverlayChain<'_, 'f, A, Floating, M> {
     /// Builds the overlay's content: an ordinary builder body that takes the
     /// text style in effect here, like the content of a scroll container.
     /// Overlays declared in the body are nested in this one.
@@ -365,7 +445,7 @@ impl<'f, A> OverlayChain<'_, 'f, A, Floating> {
     }
 }
 
-impl<'f, A> OverlayChain<'_, 'f, A, Modally> {
+impl<'f, A, M> OverlayChain<'_, 'f, A, Modally, M> {
     /// Builds the modal's content: the dialog box or the sheet, a child of
     /// the screen-sized root. Size it with the box's own classes; nothing
     /// places it but the [`Modal`] the chain was given.
@@ -386,19 +466,8 @@ impl<A> Presence<A> {
         ctx: &egui::Context,
         presentation: &Presentation,
         (band, nav): (Band, Nav),
-        declared_at: &'static std::panic::Location<'static>,
     ) -> Option<Motion> {
-        let Some(shown) = self.shown else {
-            debug_assert!(
-                self.transition.is_none()
-                    && self.exit.is_none()
-                    && self.easing.is_none()
-                    && self.entrance.is_none()
-                    && self.on_exited.is_none(),
-                "an overlay declares motion without `shown` (declared at {declared_at})"
-            );
-            return None;
-        };
+        let shown = self.shown?;
         let motion = &crate::Style::of(ctx).motion;
         let (kind, edge) = match presentation {
             Presentation::Floating { .. } if band == Band::Tooltip => (motion.tooltip, None),

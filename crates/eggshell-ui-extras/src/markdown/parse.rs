@@ -7,6 +7,53 @@ use eggshell_ui::owned::Align;
 use eggshell_ui::{FontStyle, Span, Spans, Weight};
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
+/// A document's blocks, and what of its events did not nest as Markdown
+/// does.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Parsed {
+    pub blocks: Vec<Block>,
+    pub malformed: Vec<Malformed>,
+}
+
+/// Events out of the order pulldown-cmark promises, and how each was
+/// recovered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Malformed {
+    /// Its text became a paragraph.
+    CellOutsideTable,
+    /// It was ignored.
+    RowOutsideTable,
+    /// It was placed at the document's top level.
+    BlockInTable,
+    /// It was ignored.
+    CloseWithNothingOpen,
+    /// Its blocks were kept in the container around it.
+    ItemOutsideList,
+}
+
+impl Malformed {
+    /// The name the problem is reported under, one per kind.
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::CellOutsideTable => "markdown: a table cell outside a table",
+            Self::RowOutsideTable => "markdown: a table row outside a table",
+            Self::BlockInTable => "markdown: a block inside a table",
+            Self::CloseWithNothingOpen => "markdown: a close with nothing open",
+            Self::ItemOutsideList => "markdown: a list item outside a list",
+        }
+    }
+
+    /// How the parser recovered.
+    pub(crate) fn recovery(self) -> &'static str {
+        match self {
+            Self::CellOutsideTable => "its text is a paragraph",
+            Self::RowOutsideTable | Self::CloseWithNothingOpen => "it is ignored",
+            Self::BlockInTable => "it is shown at the document's top level",
+            Self::ItemOutsideList => "its blocks are kept",
+        }
+    }
+}
+
 /// A block of a Markdown document.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Block {
@@ -102,7 +149,7 @@ pub(crate) enum Construct {
 /// The blocks of `source`. HTML is recognised so that it can be shown as
 /// its source; other extensions are off, so their syntax reads
 /// as the text it is.
-pub(crate) fn parse(source: &str) -> Vec<Block> {
+pub(crate) fn parse(source: &str) -> Parsed {
     let options = Options::ENABLE_TABLES
         | Options::ENABLE_TASKLISTS
         | Options::ENABLE_HEADING_ATTRIBUTES
@@ -184,6 +231,7 @@ impl Marks {
 
 struct Walk {
     blocks: Vec<Block>,
+    malformed: Vec<Malformed>,
     /// The containers open around the next block, innermost last.
     containers: Vec<Container>,
     leaf: Option<Leaf>,
@@ -206,6 +254,7 @@ impl Default for Walk {
     fn default() -> Self {
         Self {
             blocks: Vec::new(),
+            malformed: Vec::new(),
             containers: Vec::new(),
             leaf: None,
             marks: Marks::default(),
@@ -360,9 +409,13 @@ impl Walk {
             Some(Leaf::Image { uri, alt }) => Block::Image { uri, alt },
             Some(Leaf::Cell) => match self.containers.last_mut() {
                 Some(Container::Table(_, row)) => return row.push(spans),
-                // TODO(#279): report a cell outside a table; its text is a paragraph.
-                _ if spans.is_empty() => return,
-                _ => Block::Paragraph(spans),
+                _ => {
+                    self.malformed.push(Malformed::CellOutsideTable);
+                    if spans.is_empty() {
+                        return;
+                    }
+                    Block::Paragraph(spans)
+                }
             },
         };
         self.block(block);
@@ -371,13 +424,14 @@ impl Walk {
     /// Ends the header or a body row of the open table, if one is open.
     fn end_row(&mut self, end: TagEnd) {
         self.close_leaf();
-        // TODO(#279): report a row ended outside a table; it is ignored.
-        if let Some(Container::Table(table, row)) = self.containers.last_mut() {
-            let row = std::mem::take(row);
-            match end {
-                TagEnd::TableHead => table.header = row,
-                _ => table.rows.push(row),
-            }
+        let Some(Container::Table(table, row)) = self.containers.last_mut() else {
+            self.malformed.push(Malformed::RowOutsideTable);
+            return;
+        };
+        let row = std::mem::take(row);
+        match end {
+            TagEnd::TableHead => table.header = row,
+            _ => table.rows.push(row),
         }
     }
 
@@ -403,8 +457,10 @@ impl Walk {
             None => self.blocks.push(block),
             Some(Container::Quote(blocks)) => blocks.push(block),
             Some(Container::Item(item)) => item.blocks.push(block),
-            // TODO(#279): report a block inside a table, which holds only cells.
-            Some(Container::Table(..)) => self.blocks.push(block),
+            Some(Container::Table(..)) => {
+                self.malformed.push(Malformed::BlockInTable);
+                self.blocks.push(block);
+            }
             Some(Container::List(list)) => list.items.push(Item {
                 task: None,
                 blocks: vec![block],
@@ -429,12 +485,14 @@ impl Walk {
     /// close with nothing open is ignored.
     fn uncontain(&mut self) {
         self.close_leaf();
-        // TODO(#279): report a close with nothing open, or an item outside a list.
         match self.containers.pop() {
-            None => {}
+            None => self.malformed.push(Malformed::CloseWithNothingOpen),
             Some(Container::Item(item)) => match self.containers.last_mut() {
                 Some(Container::List(list)) => list.items.push(item),
-                _ => item.blocks.into_iter().for_each(|block| self.block(block)),
+                _ => {
+                    self.malformed.push(Malformed::ItemOutsideList);
+                    item.blocks.into_iter().for_each(|block| self.block(block));
+                }
             },
             Some(Container::Quote(blocks)) => self.block(Block::Quote(blocks)),
             Some(Container::List(list)) => self.block(Block::List(list)),
@@ -442,12 +500,15 @@ impl Walk {
         }
     }
 
-    fn finish(mut self) -> Vec<Block> {
+    fn finish(mut self) -> Parsed {
         while !self.containers.is_empty() {
             self.uncontain();
         }
         self.close_leaf();
-        self.blocks
+        Parsed {
+            blocks: self.blocks,
+            malformed: self.malformed,
+        }
     }
 }
 
@@ -522,6 +583,21 @@ impl From<HeadingLevel> for Level {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The blocks of `source`, which pulldown-cmark nests well.
+    fn parse(source: &str) -> Vec<Block> {
+        let parsed = super::parse(source);
+        assert_eq!(parsed.malformed, [], "{source:?}");
+        parsed.blocks
+    }
+
+    fn walked<'a>(events: impl IntoIterator<Item = Event<'a>>) -> Parsed {
+        let mut walk = Walk::default();
+        for event in events {
+            walk.event(event);
+        }
+        walk.finish()
+    }
 
     fn paragraph(spans: Vec<Span>) -> Block {
         Block::Paragraph(Spans::from(spans))
@@ -799,19 +875,36 @@ mod tests {
     }
 
     #[test]
-    fn cell_events_outside_a_table_do_not_panic() {
-        let mut walk = Walk::default();
-        for event in [
+    fn cell_events_outside_a_table_are_recovered_and_collected() {
+        let parsed = walked([
             Event::Start(Tag::TableCell),
             Event::Text("loose".into()),
             Event::End(TagEnd::TableCell),
             Event::End(TagEnd::TableRow),
             Event::End(TagEnd::TableHead),
             Event::End(TagEnd::Table),
-        ] {
-            walk.event(event);
-        }
-        assert_eq!(walk.finish(), [text("loose")]);
+        ]);
+        assert_eq!(parsed.blocks, [text("loose")]);
+        assert_eq!(
+            parsed.malformed,
+            [
+                Malformed::CellOutsideTable,
+                Malformed::RowOutsideTable,
+                Malformed::RowOutsideTable,
+                Malformed::CloseWithNothingOpen,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_block_inside_a_table_is_kept_and_collected() {
+        let parsed = walked([
+            Event::Start(Tag::Table(vec![Alignment::None])),
+            Event::Rule,
+            Event::End(TagEnd::Table),
+        ]);
+        assert_eq!(parsed.blocks[0], Block::Rule);
+        assert_eq!(parsed.malformed, [Malformed::BlockInTable]);
     }
 
     #[test]
@@ -823,9 +916,8 @@ mod tests {
     }
 
     #[test]
-    fn unbalanced_events_keep_their_text_and_do_not_panic() {
-        let mut walk = Walk::default();
-        for event in [
+    fn unbalanced_events_keep_their_text_and_are_collected() {
+        let parsed = walked([
             Event::End(TagEnd::Item),
             Event::End(TagEnd::Emphasis),
             Event::Start(Tag::Item),
@@ -833,15 +925,17 @@ mod tests {
             Event::End(TagEnd::Item),
             Event::Start(Tag::BlockQuote(None)),
             Event::Text("open".into()),
-        ] {
-            walk.event(event);
-        }
+        ]);
         assert_eq!(
-            walk.finish(),
+            parsed.blocks,
             [
                 Block::Paragraph(Span::new("kept").into()),
                 Block::Quote(vec![Block::Paragraph(Span::new("open").into())]),
             ]
+        );
+        assert_eq!(
+            parsed.malformed,
+            [Malformed::CloseWithNothingOpen, Malformed::ItemOutsideList]
         );
     }
 }

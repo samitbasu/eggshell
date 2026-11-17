@@ -833,11 +833,20 @@ impl<A> Walk<'_, A> {
             }
             let on = match state {
                 State::GroupHover => {
-                    debug_assert!(
-                        group.is_some(),
-                        "{}: group_hover needs an ancestor marked group()",
-                        node.path()
-                    );
+                    if group.is_none() {
+                        crate::report::report(
+                            self.ui.ctx(),
+                            crate::Problem::GroupHoverWithoutGroup,
+                            Some(node.id().unwrap_or_else(|| Id::NULL.with(node.path()))),
+                            || {
+                                format!(
+                                    "{}: group_hover needs an ancestor marked group(); it never \
+                                     shows",
+                                    node.path()
+                                )
+                            },
+                        );
+                    }
                     group == Some(Hovering::Over)
                 }
                 State::Hover => hovering == Some(Hovering::Over),

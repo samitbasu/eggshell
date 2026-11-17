@@ -1,7 +1,9 @@
 //! The nested-closure builder.
 
 use std::any::Any;
+use std::borrow::Cow;
 use std::fmt::{self, Debug};
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
@@ -446,7 +448,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// A handle to `node`, a node this builder added.
     pub(crate) fn into_handle(self, node: NodeId) -> NodeHandle<'b, 'f, A> {
-        NodeHandle { b: self, node }
+        NodeHandle {
+            b: self,
+            node,
+            kind: PhantomData,
+        }
     }
 
     /// The text style in effect here.
@@ -601,8 +607,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// [`Problem`](crate::Problem)).
     ///
     /// ```
-    /// # use eggshell_ui::{Builder, Command, Commands};
-    /// # use egui::{Key, KeyboardShortcut, Modifiers};
+    /// # use eggshell_ui::{Builder, Chord, Command, Commands};
+    /// # use egui::{Key, Modifiers};
     /// #[derive(Hash, Debug)]
     /// enum Cmd { Save }
     /// #[derive(Default)]
@@ -612,7 +618,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ///     Commands::new().add(
     ///         Cmd::Save,
     ///         Command::new("Save", |app: &mut App| app.saved += 1)
-    ///             .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::S))
+    ///             .shortcut(const { Chord::new(Modifiers::COMMAND, Key::S).expect("not reserved") })
     ///             .enabled(|app| app.dirty),
     ///     )
     /// }
@@ -827,7 +833,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
         self.st.names.pop_to(mark);
         let node = *self.kids.last().expect("the wrapper was just added");
-        NodeHandle { b: self, node }
+        NodeHandle {
+            b: self,
+            node,
+            kind: PhantomData,
+        }
     }
 
     /// An overlay: a floating layer placed against an anchor. See
@@ -1050,7 +1060,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .expect("taffy accepts a new leaf");
         self.kids.push(id);
         self.frame.add_scroll(id);
-        NodeHandle { b: self, node: id }
+        NodeHandle {
+            b: self,
+            node: id,
+            kind: PhantomData,
+        }
     }
 
     /// An identified leaf whose size comes from `measure`.
@@ -1308,22 +1322,44 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         NodeHandle {
             b: self.reborrow(),
             node,
+            kind: PhantomData,
         }
     }
 
     fn node(&self, tw: &Tw, parts: Parts) -> Node {
-        debug_assert!(
-            parts.id.is_some() || !tw.needs_identity(),
-            "{}: only identified nodes (div_id, leaf, span, icon) may sense, group or have hover, active, transition or animate_layout variants",
-            parts.path,
-        );
-        debug_assert!(
-            tw.grouping != Grouping::Group || !tw.sensing.is_none(),
-            "{}: a group must sense something to be hovered",
-            parts.path,
-        );
+        let subject = parts.id.unwrap_or_else(|| Id::NULL.with(&parts.path));
+        let mut tw = Cow::Borrowed(tw);
+        if parts.id.is_none() && tw.needs_identity() {
+            crate::report::report(
+                self.frame.ctx,
+                crate::Problem::NeedsIdentity,
+                Some(subject),
+                || {
+                    format!(
+                        "{}: only identified nodes (div_id, leaf, span, icon) may sense, group or \
+                         have hover, active, focus, drag, transition or animate_layout variants; \
+                         they are ignored",
+                        parts.path
+                    )
+                },
+            );
+            tw = Cow::Owned(tw.into_owned().without_identity());
+        }
+        if tw.grouping == Grouping::Group && tw.sensing.is_none() {
+            crate::report::report(
+                self.frame.ctx,
+                crate::Problem::GroupSensesNothing,
+                Some(subject),
+                || {
+                    format!(
+                        "{}: a group must sense something to be hovered; it senses hover",
+                        parts.path
+                    )
+                },
+            );
+            tw = Cow::Owned(tw.into_owned().sense_hover());
+        }
         if tw.lengths == crate::tw::Lengths::Rejected {
-            let subject = parts.id.unwrap_or_else(|| Id::NULL.with(&parts.path));
             crate::report::report(
                 self.frame.ctx,
                 crate::Problem::NonFiniteLength,
@@ -1585,12 +1621,55 @@ impl<A: 'static> Builder<'_, '_, A> {
 /// Handlers compose: [`draw`](Self::draw), [`on_click`](Self::on_click) and
 /// [`on_response`](Self::on_response) may each be called any number of times
 /// and run in call order, in the node's own `Ui`.
-pub struct NodeHandle<'b, 'f, A> {
+pub struct NodeHandle<'b, 'f, A, Kind = AnyNode> {
     b: Builder<'b, 'f, A>,
     node: NodeId,
+    kind: PhantomData<Kind>,
 }
 
-impl<'b, 'f, A> NodeHandle<'b, 'f, A> {
+/// TODO(prose): a [`NodeHandle`] on any node.
+///
+/// ```
+/// use eggshell_ui::{AnyNode, Builder, NodeHandle, tw};
+///
+/// fn card<'b, 'f>(b: &'b mut Builder<'_, 'f, ()>) -> NodeHandle<'b, 'f, (), AnyNode> {
+///     b.div_id("card", tw(), |_| {})
+/// }
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct AnyNode;
+
+/// TODO(prose): a [`NodeHandle`] on a drag source, which alone takes
+/// [`drag_handle`](NodeHandle::drag_handle).
+///
+/// ```
+/// use eggshell_ui::{Builder, tw};
+///
+/// fn row(b: &mut Builder<'_, '_, ()>) {
+///     b.div_id("row", tw(), |b| {
+///         b.div_id("grip", tw().size_px(10.0), |_| {});
+///     })
+///     .drag_source(1_u32)
+///     .drag_handle("grip");
+/// }
+/// ```
+///
+/// A handle on a node that is not a drag source does not compile:
+///
+/// ```compile_fail
+/// use eggshell_ui::{Builder, tw};
+///
+/// fn row(b: &mut Builder<'_, '_, ()>) {
+///     b.div_id("row", tw(), |b| {
+///         b.div_id("grip", tw().size_px(10.0), |_| {});
+///     })
+///     .drag_handle("grip");
+/// }
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct DragSource;
+
+impl<'b, 'f, A, K> NodeHandle<'b, 'f, A, K> {
     pub(crate) fn node(&self) -> NodeId {
         self.node
     }
@@ -1610,7 +1689,7 @@ impl<'b, 'f, A> NodeHandle<'b, 'f, A> {
     }
 }
 
-impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
+impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// Runs `draw` at draw time in the node's own `Ui`, which is limited to
     /// the node's content rect. See [`NodeUi`](crate::NodeUi).
     pub fn draw(mut self, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) -> Self {
@@ -1635,7 +1714,10 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     /// dragged, so a reorder that moves it keeps the drag; if it leaves the
     /// tree the drag is cancelled
     /// ([`Cause::SourceGone`](crate::Cause::SourceGone)). See [`dnd`](crate).
-    pub fn drag_source<T: Any + Send + Sync>(mut self, payload: T) -> Self {
+    pub fn drag_source<T: Any + Send + Sync>(
+        mut self,
+        payload: T,
+    ) -> NodeHandle<'b, 'f, A, DragSource> {
         self.edit(|context| {
             let declared = context.interaction.sensing;
             context.interaction.sensing = declared.or(Sensing::Drag);
@@ -1645,92 +1727,12 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
                 declared,
             });
         });
-        self
-    }
-
-    /// Makes the node of this source's subtree declared with `key` its
-    /// handle: only a drag that starts on the handle lifts the source. The
-    /// rest of the source keeps its own pointer behaviour: its buttons click,
-    /// its text selects, and a node in it that senses drags gets them.
-    /// Everything else of the drag is the source's: its payload, its image,
-    /// its place among a target's items, and the grab offset, measured from
-    /// the source's top-left. The handle senses drags, is focusable, and shows
-    /// a grab cursor; give it a name ([`named`](Self::named)) that says what
-    /// it moves.
-    ///
-    /// `key` is resolved as [`id_of`](Builder::id_of) resolves it in the
-    /// source's body, so anonymous containers between the two do not count,
-    /// but a handle inside another identified container cannot be named.
-    ///
-    /// # Panics
-    ///
-    /// In debug builds, unless the node is a [`drag_source`](Self::drag_source)
-    /// and `key` names a node in its subtree that is not a source itself.
-    #[track_caller]
-    pub fn drag_handle<K: Key>(mut self, key: K) -> Self {
-        let (source, path) = {
-            let context = self.node_context();
-            (
-                context.id.expect("a node handle's node is identified"),
-                context.path.clone(),
-            )
-        };
-        let handle = child_id(source, &key);
-        let found = self.descendant(handle);
-        let Some(found) = found else {
-            debug_assert!(
-                false,
-                "{path}: drag_handle({key:?}) names no node in the source's subtree \
-                 (at {})",
-                std::panic::Location::caller()
-            );
-            return self;
-        };
-        let became = self.edit(|context| match &mut context.drag {
-            Some(drag) => match &mut drag.source {
-                Some(source) => {
-                    source.activator = Activator::Handle(handle);
-                    context.interaction.sensing = source.declared;
-                    true
-                }
-                None => false,
-            },
-            None => false,
-        });
-        debug_assert!(
-            became,
-            "{path}: drag_handle({key:?}) on a node that is not a drag_source \
-             (at {})",
-            std::panic::Location::caller()
-        );
-        let tree = &mut self.b.st.tree;
-        let handle_node = tree
-            .get_node_context_mut(found)
-            .expect("a descendant is in the tree");
-        debug_assert!(
-            handle_node
-                .drag
-                .as_ref()
-                .is_none_or(|drag| drag.source.is_none()),
-            "{path}: drag_handle({key:?}) names a drag source; a handle is not one \
-             (at {})",
-            std::panic::Location::caller()
-        );
-        handle_node.interaction.sensing = handle_node.interaction.sensing.or(Sensing::Drag);
-        self
-    }
-
-    /// The node with `id` in this node's subtree, not the node itself.
-    fn descendant(&self, id: Id) -> Option<NodeId> {
-        let tree = &self.b.st.tree;
-        let mut pending = tree.children(self.node).unwrap_or_default();
-        while let Some(node) = pending.pop() {
-            if tree.get_node_context(node).and_then(|context| context.id) == Some(id) {
-                return Some(node);
-            }
-            pending.extend(tree.children(node).unwrap_or_default());
+        let Self { b, node, kind: _ } = self;
+        NodeHandle {
+            b,
+            node,
+            kind: PhantomData,
         }
-        None
     }
 
     /// How the node looks while it is dragged. [`DragImage::Live`] unless
@@ -1880,8 +1882,9 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
     /// Gives the node focus as the overlay it is in opens, instead of the
     /// overlay's first focusable: the current colour of a swatch picker. For
     /// an overlay that takes focus in ([`Focus::Enter`](crate::overlay::Focus));
-    /// the node must take focus. Debug builds panic if two nodes of one
-    /// overlay are marked.
+    /// the node must take focus. If two nodes of one overlay are marked, the
+    /// first takes focus and it is reported as
+    /// [`FocusOnOpenTwice`](crate::Problem::FocusOnOpenTwice).
     pub fn focus_on_open(self) -> Self {
         self.open_focus(crate::pipeline::OpenFocus::Here)
     }
@@ -1958,6 +1961,88 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
                 act(app);
             }
         })
+    }
+}
+
+impl<'f, A: 'static> NodeHandle<'_, 'f, A, DragSource> {
+    /// Makes the node of this source's subtree declared with `key` its
+    /// handle: only a drag that starts on the handle lifts the source. The
+    /// rest of the source keeps its own pointer behaviour: its buttons click,
+    /// its text selects, and a node in it that senses drags gets them.
+    /// Everything else of the drag is the source's: its payload, its image,
+    /// its place among a target's items, and the grab offset, measured from
+    /// the source's top-left. The handle senses drags, is focusable, and shows
+    /// a grab cursor; give it a name ([`named`](Self::named)) that says what
+    /// it moves.
+    ///
+    /// `key` is resolved as [`id_of`](Builder::id_of) resolves it in the
+    /// source's body, so anonymous containers between the two do not count,
+    /// but a handle inside another identified container cannot be named.
+    ///
+    /// A `key` that names no node of the subtree, or names a drag source, is
+    /// reported as [`DragHandle`](crate::Problem::DragHandle), and the whole
+    /// source lifts.
+    #[track_caller]
+    pub fn drag_handle<K: Key>(mut self, key: K) -> Self {
+        let (source, path) = {
+            let context = self.node_context();
+            (context.id, context.path.clone())
+        };
+        let ctx = self.b.frame.ctx;
+        let Some(source) = source else {
+            crate::report::report(
+                ctx,
+                crate::Problem::Internal("anonymous drag source"),
+                None,
+                || format!("{path}: a drag source has no id; drag_handle({key:?}) is ignored"),
+            );
+            return self;
+        };
+        let handle = child_id(source, &key);
+        let at = std::panic::Location::caller();
+        let refused = |why: &str| {
+            crate::report::report_at(ctx, crate::Problem::DragHandle, Some(handle), at, || {
+                format!("{path}: drag_handle({key:?}) {why}; the whole source lifts")
+            });
+        };
+        let Some(found) = self.descendant(handle) else {
+            refused("names no node in the source's subtree");
+            return self;
+        };
+        let handle_is_source = self
+            .b
+            .st
+            .tree
+            .get_node_context(found)
+            .and_then(|node| node.drag.as_ref())
+            .is_some_and(|drag| drag.source.is_some());
+        if handle_is_source {
+            refused("names a drag source; a handle is not one");
+            return self;
+        }
+        self.edit(|context| {
+            if let Some(source) = context.drag.as_mut().and_then(|drag| drag.source.as_mut()) {
+                source.activator = Activator::Handle(handle);
+                context.interaction.sensing = source.declared;
+            }
+        });
+        if let Some(handle_node) = self.b.st.tree.get_node_context_mut(found) {
+            handle_node.interaction.sensing = handle_node.interaction.sensing.or(Sensing::Drag);
+        }
+        self
+    }
+
+    /// The node with `id` in this node's subtree, not the node itself.
+    fn descendant(&self, id: Id) -> Option<NodeId> {
+        let tree = &self.b.st.tree;
+        let mut pending = tree.children(self.node).unwrap_or_default();
+        while let Some(node) = pending.pop() {
+            if tree.get_node_context(node).and_then(|context| context.id) == Some(id) {
+                return Some(node);
+            }
+            pending.extend(tree.children(node).unwrap_or_default());
+        }
+        None
     }
 }
 

@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use eggshell_ui::testing::FakeClipboard;
 use eggshell_ui::{
-    Builder, ClipboardError, Command, Commands, LayoutState, Paste, TextSpec, TextStyle, Via,
-    Weight, tw,
+    Builder, Chord, ClipboardError, Command, Commands, LayoutState, Paste, TextSpec, TextStyle,
+    Via, Weight, tw,
 };
-use egui::{Color32, ColorImage, Event, FontFamily, Key, KeyboardShortcut, Modifiers, vec2};
+use egui::{Color32, ColorImage, Event, FontFamily, Key, Modifiers, vec2};
 use egui_kittest::Harness;
 
 use crate::support::{self, Rig, click_node};
@@ -36,7 +36,7 @@ fn commands() -> Commands<App> {
             app.pasted.push(paste);
             app.via.push(via);
         })
-        .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::V))
+        .shortcut(const { Chord::new(Modifiers::COMMAND, Key::V).expect("not reserved") })
         .on_error(|app, error| app.errors.push(error)),
     )
 }

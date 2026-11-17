@@ -76,7 +76,7 @@
 use crate::tw::Sides;
 use egui::{Id, Order, Pos2, Rect, Vec2, pos2, vec2};
 
-pub use crate::overlay_chain::{Floating, Modally, OverlayChain, Unplaced};
+pub use crate::overlay_chain::{Animated, Floating, Modally, OverlayChain, Static, Unplaced};
 pub use crate::presence::{Entrance, Shown};
 
 /// A signed length in points: a gap, a shift or a margin.

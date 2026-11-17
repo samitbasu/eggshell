@@ -2,7 +2,9 @@
 //! pointer, build, layout, draw and `Nav::Grid`'s judgement of the arrows by
 //! the swatches' placed rects.
 
+use eggshell_ui::Problem;
 use eggshell_ui::overlay::{Anchor, Nav, Wrap};
+use eggshell_ui::testing::{assert_no_reports, assert_reported};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Key, Role, Theme, vec2};
@@ -169,23 +171,38 @@ fn plain_harness(view: support::View<Plain>) -> Harness<'static, Rig<Plain>> {
     harness
 }
 
-#[cfg(debug_assertions)]
+/// The cell of the grid overlay that has focus.
+fn focused_cell(harness: &Harness<'_, Rig<Plain>>) -> Option<u32> {
+    let path = focused_path(harness)?;
+    (0..3).find(|cell| path.ends_with(&format!("(\"cell\", {cell})")))
+}
+
 #[test]
-#[should_panic(expected = "a grid overlay stops at its edges and cannot wrap around")]
-fn a_grid_told_to_wrap_around_is_a_build_error() {
-    plain_harness(|b, _| grid_overlay(b, Some(Wrap::Around), &[]));
+fn a_grid_told_to_wrap_around_stops_and_is_reported() {
+    let mut harness = plain_harness(|b, _| grid_overlay(b, Some(Wrap::Around), &[2]));
+    let report = assert_reported(&harness.ctx, Problem::UnsupportedNav);
+    assert!(report.message.contains("wrap around"), "{}", report.message);
+    assert_eq!(
+        focused_cell(&harness),
+        Some(2),
+        "precondition: on the last cell"
+    );
+    harness.key_press(Key::ArrowRight);
+    harness.run_steps(5);
+    assert_eq!(focused_cell(&harness), Some(2));
 }
 
 #[test]
 fn a_grid_told_to_stop_builds() {
-    plain_harness(|b, _| grid_overlay(b, Some(Wrap::Stop), &[1]));
+    let harness = plain_harness(|b, _| grid_overlay(b, Some(Wrap::Stop), &[1]));
+    assert_no_reports(&harness.ctx);
 }
 
-#[cfg(debug_assertions)]
 #[test]
-#[should_panic(expected = "are marked `focus_on_open`")]
-fn two_nodes_marked_focus_on_open_in_one_overlay_panic() {
-    plain_harness(|b, _| grid_overlay(b, None, &[0, 2]));
+fn of_two_nodes_marked_focus_on_open_the_first_takes_focus_and_it_is_reported() {
+    let harness = plain_harness(|b, _| grid_overlay(b, None, &[2, 1]));
+    assert_reported(&harness.ctx, Problem::FocusOnOpenTwice);
+    assert_eq!(focused_cell(&harness), Some(1));
 }
 
 /// An arrow in the frame right after a click opened the picker and gave its

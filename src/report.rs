@@ -26,8 +26,6 @@ pub enum Problem {
     TopLevelKeyClash,
     /// TODO(prose): a command table with a key twice.
     DuplicateCommand,
-    /// TODO(prose): a command bound to a bare Esc or Enter.
-    ReservedChord,
     /// TODO(prose): two commands of a table on one chord.
     DuplicateChord,
     /// TODO(prose): commands declared twice in one root.
@@ -44,10 +42,17 @@ pub enum Problem {
     NeedsIdentity,
     /// TODO(prose): a group variant with no group around it.
     GroupHoverWithoutGroup,
+    /// TODO(prose): a group that senses nothing, so is never hovered.
+    GroupSensesNothing,
+    /// TODO(prose): a control with no label and no name.
+    Unnamed,
     /// TODO(prose): a drag handle where there is no drag source.
     DragHandle,
     /// TODO(prose): an overlay whose anchor is not in the frame.
     MissingAnchor,
+    /// TODO(prose): a table row of more or fewer cells than columns, or a
+    /// table of more rows than it can number.
+    TableShape,
     /// TODO(prose): a splitter outside a flex container.
     MisplacedSplitter,
     /// TODO(prose): icons given to a text field that shows none.
@@ -161,8 +166,20 @@ fn with_store<R>(ctx: &Context, f: impl FnOnce(&mut Store) -> R) -> R {
 /// Reports `problem` at the caller, about `subject` if it concerns one
 /// identified thing. Repeats of a (problem, caller, subject) are counted, and
 /// only the first runs `message` and is logged.
+///
+/// TODO(prose): for a crate built on eggshell that finds a problem of its
+/// own, such as a widget's.
+///
+/// ```
+/// use eggshell_ui::testing::assert_reported;
+/// use eggshell_ui::{Problem, report};
+///
+/// let ctx = egui::Context::default();
+/// report(&ctx, Problem::Internal("widget"), None, || "what went wrong".to_owned());
+/// assert_eq!(assert_reported(&ctx, Problem::Internal("widget")).message, "what went wrong");
+/// ```
 #[track_caller]
-pub(crate) fn report(
+pub fn report(
     ctx: &Context,
     problem: Problem,
     subject: Option<Id>,

@@ -45,8 +45,7 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
         for (tool, glyph, name) in TOOLS {
             let icon = glyphs::icon(b.ctx(), glyph);
             let active = state.active == tool;
-            b.toggle(tool, icon, active)
-                .named(name)
+            b.toggle(tool, (icon, name), active)
                 .size(size::ICON)
                 .children(|s| {
                     if active {

@@ -2,10 +2,9 @@
 //! what moves, through the real path (kittest pointer events, egui's hit test,
 //! the gesture, the layout and the draw).
 
-use std::panic::{self, AssertUnwindSafe};
-
-use eggshell_ui::testing::Headless;
+use eggshell_ui::testing::{Headless, assert_reported};
 use eggshell_ui::{Builder, DragEnd, LayoutState, NodeUi as _, tw};
+use eggshell_ui::{Problem, Report};
 use egui::epaint::Shape;
 use egui::{Color32, CursorIcon, Event, Modifiers, PointerButton, Pos2, Rect, Ui, Vec2, vec2};
 use egui_kittest::Harness;
@@ -371,44 +370,45 @@ fn the_cursor_is_grabbing_for_the_whole_gesture() {
     release(&mut h, outside);
 }
 
-/// The message of the panic that `build` raises.
-fn panic_message(build: impl FnOnce(&mut Builder<'_, '_, ()>)) -> String {
+/// The report of a misplaced handle, which must be the only report.
+fn reported(build: impl FnOnce(&mut Builder<'_, '_, ()>)) -> Report {
     let mut build = Some(build);
-    let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        Headless::new(vec2(200.0, 100.0)).layout(&(), |b, _| (build.take().unwrap())(b));
-    }));
-    let payload = result.expect_err("debug builds panic on a misplaced handle");
-    payload
-        .downcast_ref::<String>()
-        .cloned()
-        .or_else(|| payload.downcast_ref::<&str>().map(ToString::to_string))
-        .expect("a string payload")
+    let mut headless = Headless::new(vec2(200.0, 100.0));
+    headless.layout(&(), |b, _| {
+        if let Some(build) = build.take() {
+            build(b);
+        }
+    });
+    let report = assert_reported(headless.ctx(), Problem::DragHandle);
+    assert_eq!(headless.reports().len(), 1, "{:#?}", headless.reports());
+    report
 }
 
-fn assert_says(message: &str, what: &str, line: u32) {
-    assert!(message.contains(what), "expected {what:?} in: {message}");
+fn assert_says(report: &Report, what: &str, line: u32) {
     assert!(
-        message.contains(&format!("dnd_handle.rs:{line}:")),
-        "expected line {line} in: {message}"
+        report.message.contains(what),
+        "expected {what:?} in: {}",
+        report.message
     );
+    assert_eq!((report.at.file(), report.at.line()), (file!(), line));
 }
 
 #[test]
-fn a_handle_outside_the_source_is_a_build_error_at_the_call() {
+fn a_handle_outside_the_source_is_reported_at_the_call() {
     let mut line = 0;
-    let message = panic_message(|b| {
+    let report = reported(|b| {
         b.div_id(Part::Grip, tw(), |_| {});
         let source = b.div_id(Pane(0), tw(), |_| {}).drag_source(Pane(0));
         line = line!() + 1;
         source.drag_handle(Part::Grip);
     });
-    assert_says(&message, "names no node in the source's subtree", line);
+    assert_says(&report, "names no node in the source's subtree", line);
 }
 
 #[test]
 fn a_handle_behind_another_identified_container_cannot_be_named() {
     let mut line = 0;
-    let message = panic_message(|b| {
+    let report = reported(|b| {
         let source = b
             .div_id(Pane(0), tw(), |b| {
                 b.div_id("header", tw(), |b| {
@@ -419,26 +419,13 @@ fn a_handle_behind_another_identified_container_cannot_be_named() {
         line = line!() + 1;
         source.drag_handle(Part::Grip);
     });
-    assert_says(&message, "names no node in the source's subtree", line);
+    assert_says(&report, "names no node in the source's subtree", line);
 }
 
 #[test]
-fn a_handle_on_a_node_that_is_not_a_source_is_a_build_error() {
+fn a_handle_that_is_itself_a_source_is_reported() {
     let mut line = 0;
-    let message = panic_message(|b| {
-        let panel = b.div_id(Pane(0), tw(), |b| {
-            b.div_id(Part::Grip, tw(), |_| {});
-        });
-        line = line!() + 1;
-        panel.drag_handle(Part::Grip);
-    });
-    assert_says(&message, "not a drag_source", line);
-}
-
-#[test]
-fn a_handle_that_is_itself_a_source_is_a_build_error() {
-    let mut line = 0;
-    let message = panic_message(|b| {
+    let report = reported(|b| {
         let source = b
             .div_id(Pane(0), tw(), |b| {
                 b.div_id(Part::Grip, tw(), |_| {}).drag_source(Pane(1));
@@ -447,5 +434,5 @@ fn a_handle_that_is_itself_a_source_is_a_build_error() {
         line = line!() + 1;
         source.drag_handle(Part::Grip);
     });
-    assert_says(&message, "names a drag source", line);
+    assert_says(&report, "names a drag source", line);
 }

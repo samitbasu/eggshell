@@ -2,9 +2,10 @@
 //! detached anchor, the order the slots are declared in, stacking, the
 //! blocker, and what a painted node does to the pointer (#102).
 
+use eggshell_ui::Problem;
 use eggshell_ui::overlay::{Anchor, Anchored, Band, Boundary, Flip, MatchWidth, Placement, Side};
 use eggshell_ui::scroll::Axis;
-use eggshell_ui::testing::Headless;
+use eggshell_ui::testing::{Headless, assert_reported};
 use eggshell_ui::{Builder, LayoutState, Placed, Scope, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui::{Distance, Sides};
 use egui::{
@@ -391,59 +392,49 @@ mod layout {
         assert_eq!(placed.expect_overlay("edge").rect().max.x, SCREEN.x);
     }
 
-    #[cfg(debug_assertions)]
     #[test]
-    fn an_anchor_that_is_not_in_the_frame_when_the_overlay_opens_panics_at_its_declaration() {
-        let line = line!() + 3;
-        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            headless().layout(&(), |b, _| {
-                b.overlay("pop")
-                    .anchor(Anchor::Node(Id::NULL.with("nobody")))
-                    .children(|s| panel(s, vec2(20.0, 20.0)));
-            });
-        }));
-        let payload = caught.expect_err("a missing anchor is a programming error");
-        let message = payload
-            .downcast_ref::<String>()
-            .expect("a formatted message");
+    fn an_anchor_that_is_not_in_the_frame_when_the_overlay_opens_is_reported_at_its_declaration() {
+        let mut headless = headless();
+        let line = line!() + 2;
+        let placed = headless.layout(&(), |b, _| {
+            b.overlay("pop")
+                .anchor(Anchor::Node(Id::NULL.with("nobody")))
+                .children(|s| panel(s, vec2(20.0, 20.0)));
+        });
+        let report = assert_reported(headless.ctx(), Problem::MissingAnchor);
         assert!(
-            message.contains("anchored to a node that doesn't exist")
-                && message.contains(r#"/"pop""#),
-            "{message}"
+            report
+                .message
+                .contains("anchored to a node that doesn't exist")
+                && report.message.contains(r#"/"pop""#),
+            "{}",
+            report.message
         );
-        assert!(
-            message.contains(&format!("{}:{line}:", file!())),
-            "names the declaration site {}:{line}: {message}",
-            file!()
-        );
+        assert_eq!((report.at.file(), report.at.line()), (file!(), line));
+        assert_eq!(placed.expect_overlay("pop").anchored(), Anchored::Detached);
     }
 
-    #[cfg(debug_assertions)]
     #[test]
-    fn a_boundary_that_is_not_in_the_frame_when_the_overlay_opens_panics_at_its_declaration() {
-        let line = line!() + 3;
-        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            headless().layout(&(), |b, _| {
-                b.overlay("pop")
-                    .anchor(Anchor::Point(pos2(20.0, 20.0)))
-                    .placement(Placement::below().boundary(Boundary::Node(Id::NULL.with("nobody"))))
-                    .children(|s| panel(s, vec2(20.0, 20.0)));
-            });
-        }));
-        let payload = caught.expect_err("a missing boundary is a programming error");
-        let message = payload
-            .downcast_ref::<String>()
-            .expect("a formatted message");
+    fn a_boundary_that_is_not_in_the_frame_when_the_overlay_opens_is_reported_at_its_declaration() {
+        let mut headless = headless();
+        let line = line!() + 2;
+        let placed = headless.layout(&(), |b, _| {
+            b.overlay("pop")
+                .anchor(Anchor::Point(pos2(20.0, 20.0)))
+                .placement(Placement::below().boundary(Boundary::Node(Id::NULL.with("nobody"))))
+                .children(|s| panel(s, vec2(20.0, 20.0)));
+        });
+        let report = assert_reported(headless.ctx(), Problem::MissingAnchor);
         assert!(
-            message.contains("bounded by a node that doesn't exist")
-                && message.contains(r#"/"pop""#),
-            "{message}"
+            report
+                .message
+                .contains("bounded by a node that doesn't exist")
+                && report.message.contains(r#"/"pop""#),
+            "{}",
+            report.message
         );
-        assert!(
-            message.contains(&format!("{}:{line}:", file!())),
-            "names the declaration site {}:{line}: {message}",
-            file!()
-        );
+        assert_eq!((report.at.file(), report.at.line()), (file!(), line));
+        assert!(placed.overlay("pop").is_some(), "precondition: declared");
     }
 }
 

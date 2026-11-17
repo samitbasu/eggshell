@@ -666,6 +666,20 @@ impl Tw {
             || self.variants.transition.is_some()
             || self.variants.animate_layout.is_some()
     }
+
+    /// The classes without what [`needs_identity`](Self::needs_identity)
+    /// lists: what an anonymous node keeps of them.
+    pub(crate) fn without_identity(self) -> Self {
+        Self {
+            sensing: Sensing::None,
+            grouping: Grouping::Ungrouped,
+            variants: Variants {
+                group_hover: self.variants.group_hover,
+                ..Variants::default()
+            },
+            ..self
+        }
+    }
 }
 
 #[cfg(test)]

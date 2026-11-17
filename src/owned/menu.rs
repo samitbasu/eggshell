@@ -270,13 +270,25 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
     /// command's shortcut as the platform writes it, it is disabled while the
     /// command is, and activating it runs the command, which closes the menu.
     ///
-    /// Debug builds panic if no table declares `id`.
+    /// If no live table declares `id`, the item is disabled, says `id`, and
+    /// is reported as [`UnknownCommand`](crate::Problem::UnknownCommand).
     #[track_caller]
     pub fn command<K: crate::Key>(&mut self, id: K) {
         let Some((command, enabled)) = self.b.command(&id) else {
-            #[cfg(debug_assertions)]
-            panic!("menu item for {id:?}: no command of that key is declared");
-            #[cfg(not(debug_assertions))]
+            let readable = format!("{id:?}");
+            let item = self.item(id, readable.clone());
+            crate::report::report(
+                item.b.ctx(),
+                crate::Problem::UnknownCommand,
+                Some(item.slot.id),
+                || {
+                    format!(
+                        "menu item for {readable}: no live command table declares it; it is \
+                         disabled"
+                    )
+                },
+            );
+            item.enablement(Enablement::Disabled).on_click(|_| {});
             return;
         };
         let keys = command
@@ -817,17 +829,12 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             shared.close();
         }
         let open = shared.kept.with(|kept| kept.menus.is_open(trigger));
-        let name = name.or(match &face {
-            Face::Label(label) => Some(label.clone()),
-            _ => None,
-        });
-        let mut button = ButtonChain::new(b.reborrow(), key, face)
+        let name = name.unwrap_or_else(|| face.name().to_owned());
+        let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)
             .opens_popup()
-            .enablement(enablement);
-        if let Some(name) = &name {
-            button = button.named(name.clone());
-        }
+            .enablement(enablement)
+            .named(name.clone());
         let (on_key, on_click) = (shared.clone(), shared.clone());
         button
             .on_response(move |app, response| {
@@ -856,7 +863,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             .shown(if open { Shown::Open } else { Shown::Closed })
             .nav(Nav::Menu)
             .role(Role::Menu)
-            .named(name.unwrap_or_default())
+            .named(name)
             .on_dismiss(move |_| close.close())
             .children(|s| menu_box(s, &shared, 0, items));
     }

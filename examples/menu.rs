@@ -18,8 +18,8 @@ mod common;
 use eggshell_ui::overlay::{Anchor, Distance, MatchWidth, Nav, Placement};
 use eggshell_ui::owned::Mark;
 use eggshell_ui::scroll::Axis;
-use eggshell_ui::{Builder, Command, Commands, tw};
-use egui::{Key, KeyboardShortcut, Modifiers, Role};
+use eggshell_ui::{Builder, Chord, Command, Commands, tw};
+use egui::{Key, Modifiers, Role};
 
 #[derive(Clone, Copy, Debug, Hash)]
 pub enum Part {
@@ -117,12 +117,12 @@ fn commands() -> Commands<State> {
             Command::new("Copy", |state: &mut State| {
                 state.chosen = Some("Copy".into());
             })
-            .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::C)),
+            .shortcut(const { Chord::new(Modifiers::COMMAND, Key::C).expect("not reserved") }),
         )
         .add(
             Part::Item(Item::Paste),
             Command::new("Paste", |_| {})
-                .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::V))
+                .shortcut(const { Chord::new(Modifiers::COMMAND, Key::V).expect("not reserved") })
                 .enabled(|_| false),
         )
 }

@@ -781,15 +781,13 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
             let plus = glyphs::icon(b.ctx(), Glyph::Plus);
             b.div(tw().flex().gap(2.0), |b| {
                 for (key, variant) in [("outline", variant::OUTLINE), ("ghost", variant::GHOST)] {
-                    b.button(("icon-only", key), plus.clone())
-                        .named("Add")
+                    b.button(("icon-only", key), (plus.clone(), "Add"))
                         .size(size::ICON)
                         .variant(variant)
                         .on_click(|s: &mut State| s.owned_clicks += 1);
                 }
                 let sun = glyphs::icon(b.ctx(), Glyph::Sun);
-                b.toggle("icon-toggle", sun, state.owned_toggled)
-                    .named("Bright")
+                b.toggle("icon-toggle", (sun, "Bright"), state.owned_toggled)
                     .size(size::ICON)
                     .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
             });
