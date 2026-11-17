@@ -41,8 +41,8 @@ enum Press {
 /// ```
 ///
 /// TODO(prose): an icon alone has no name, and a button showing one is
-/// reported as [`Unnamed`](crate::Problem::Unnamed) unless it is
-/// [`named`](ButtonChain::named).
+/// reported as [`Unnamed`](crate::Problem::Unnamed) in debug builds unless
+/// it is [`named`](ButtonChain::named).
 #[derive(Clone, Debug)]
 pub enum Face {
     /// Text, with no icon unless [`icon`](ButtonChain::icon) adds one.
@@ -95,8 +95,8 @@ impl<S: Into<String>> From<(Icon, S)> for Face {
 ///
 /// A button without a visible label has nothing for assistive technology to
 /// read but its name: an icon-only or empty [`Face`] holds one, and
-/// [`named`](Self::named) overrides it. A button whose name is empty is
-/// reported as [`Unnamed`](crate::Problem::Unnamed).
+/// [`named`](Self::named) overrides it. In debug builds, a button whose name
+/// is empty is reported as [`Unnamed`](crate::Problem::Unnamed).
 ///
 /// TODO(prose)
 ///
@@ -519,6 +519,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
         let press = press.unwrap_or(Press::Shifts);
         let ctx = b.ctx();
+        #[cfg(debug_assertions)]
         if name.is_empty() {
             crate::report::report(ctx, crate::Problem::Unnamed, Some(slot.id), || {
                 format!(

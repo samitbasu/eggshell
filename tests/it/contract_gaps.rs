@@ -1018,6 +1018,7 @@ fn named_icons(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn a_bare_icon_face_is_reported_unnamed() {
     let mut headless = eggshell_ui::testing::Headless::new(vec2(200.0, 100.0));
@@ -1036,6 +1037,7 @@ fn an_icon_named_by_its_tuple_or_by_named_is_not_reported() {
     assert_eq!(read_name(&harness, "/\"named\""), "Search");
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn a_button_with_neither_label_nor_name_is_reported() {
     let mut headless = eggshell_ui::testing::Headless::new(vec2(200.0, 100.0));
@@ -1049,6 +1051,17 @@ fn a_button_with_neither_label_nor_name_is_reported() {
         "{}",
         report.message
     );
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn an_unnamed_button_is_not_reported_in_release() {
+    let mut headless = eggshell_ui::testing::Headless::new(vec2(200.0, 100.0));
+    headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _| {
+        b.button("bare", texture_icon()).add();
+        b.button("nameless", "").add();
+    });
+    eggshell_ui::testing::assert_no_reports(headless.ctx());
 }
 
 #[test]
