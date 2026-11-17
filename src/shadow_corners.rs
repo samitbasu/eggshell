@@ -85,8 +85,10 @@ fn lerp_vertex(a: &Vertex, b: &Vertex, t: f32) -> Vertex {
 /// Keeps the part of the convex `polygon` on the non-negative side of `signed`.
 fn clip_half_plane(polygon: &[Vertex], signed: impl Fn(Pos2) -> f32) -> Vec<Vertex> {
     let mut out = Vec::with_capacity(polygon.len() + 1);
-    for (i, current) in polygon.iter().enumerate() {
-        let previous = &polygon[(i + polygon.len() - 1) % polygon.len()];
+    let Some(mut previous) = polygon.last() else {
+        return out;
+    };
+    for current in polygon {
         let (d_prev, d_cur) = (signed(previous.pos), signed(current.pos));
         if (d_prev >= 0.0) != (d_cur >= 0.0) {
             out.push(lerp_vertex(previous, current, d_prev / (d_prev - d_cur)));
@@ -94,6 +96,7 @@ fn clip_half_plane(polygon: &[Vertex], signed: impl Fn(Pos2) -> f32) -> Vec<Vert
         if d_cur >= 0.0 {
             out.push(*current);
         }
+        previous = current;
     }
     out
 }
@@ -106,15 +109,20 @@ pub(crate) fn clip_mesh_to_triangle(mesh: &Mesh, tri: [Pos2; 3]) -> Mesh {
     let winding = area.signum();
     let bounds = Rect::from_points(&tri);
     let mut out = Mesh::with_texture(mesh.texture_id);
+    let [a, b, c] = tri;
     for corners in mesh.indices.as_chunks::<3>().0 {
-        let corners = corners.map(|index| mesh.vertices[index as usize]);
+        let [Some(first), Some(second), Some(third)] =
+            corners.map(|index| mesh.vertices.get(index as usize).copied())
+        else {
+            continue;
+        };
+        let corners = [first, second, third];
         let triangle_bounds = Rect::from_points(&corners.map(|v| v.pos));
         if !bounds.intersects(triangle_bounds) {
             continue;
         }
         let mut polygon = corners.to_vec();
-        for edge in 0..3 {
-            let (from, to) = (tri[edge], tri[(edge + 1) % 3]);
+        for (from, to) in [(a, b), (b, c), (c, a)] {
             polygon = clip_half_plane(&polygon, |p| {
                 winding * ((to.x - from.x) * (p.y - from.y) - (to.y - from.y) * (p.x - from.x))
             });
@@ -127,7 +135,7 @@ pub(crate) fn clip_mesh_to_triangle(mesh: &Mesh, tri: [Pos2; 3]) -> Mesh {
         }
         let first = out.vertices.len() as u32;
         out.vertices.extend(polygon.iter());
-        for i in 1..polygon.len() as u32 - 1 {
+        for i in 1..(polygon.len() as u32).saturating_sub(1) {
             out.indices.extend([first, first + i, first + i + 1]);
         }
     }

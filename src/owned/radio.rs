@@ -108,9 +108,11 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             .map(|option| enablement.and(option.enablement) == Enablement::Enabled)
             .collect();
         let count = values.len();
-        let tab_stop = (0..count)
-            .find(|&at| enabled[at] && values[at] == current)
-            .or_else(|| (0..count).find(|&at| enabled[at]))
+        let tab_stop = values
+            .iter()
+            .zip(&enabled)
+            .position(|(&value, &enabled)| enabled && value == current)
+            .or_else(|| enabled.iter().position(|&enabled| enabled))
             .unwrap_or(0);
         b.claim(&slot);
         b.scope_with(&slot, |b| {
@@ -119,7 +121,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                 .collect();
             let group = tw().flex().flex_col().gap(3.0).merge(classes);
             b.div(group, |b| {
-                for (index, option) in options.into_iter().enumerate() {
+                for ((index, option), &control) in options.into_iter().enumerate().zip(&ids) {
                     let Choice {
                         value,
                         label,
@@ -146,15 +148,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                     };
                     let on_response = on_response.clone();
                     let (on_circle, on_label) = (select.clone(), select.clone());
-                    let around = |offset: usize| {
-                        (1..count)
-                            .map(|step| (index + step * offset) % count)
-                            .find(|&at| enabled[at])
-                            .map(|at| (values[at], ids[at]))
+                    let stop = |at: usize| {
+                        let value = *values.get(at)?;
+                        let id = *ids.get(at)?;
+                        enabled.get(at)?.then_some((value, id))
                     };
-                    let (previous, next) = (around(count - 1), around(1));
+                    let previous = (1..count).find_map(|step| stop((index + count - step) % count));
+                    let next = (1..count).find_map(|step| stop((index + step) % count));
                     let dot = metrics.dot;
-                    let control = ids[index];
                     b.div(
                         choice_row(
                             &style,

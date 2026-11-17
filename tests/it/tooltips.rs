@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::owned::{Choice, Enablement, Face};
+use eggshell_ui::owned::{Choice, Enablement};
 use eggshell_ui::testing::{Timeline, record};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
@@ -117,7 +117,8 @@ fn view(b: &mut Builder<'_, '_, App>, _: &App) {
             .pt(10.0)
             .w_px(300.0),
         |b| {
-            b.button("undo", Face::Empty("Undo".into()))
+            b.button("undo", "")
+                .named("Undo")
                 .tooltip("Undo (Ctrl+Z)")
                 .on_click(|app: &mut App| app.undone += 1);
             b.button("save", "Save")

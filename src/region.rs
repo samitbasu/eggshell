@@ -132,9 +132,14 @@ pub(crate) fn run<'f, A>(
     if let Some(laid) = laid {
         laid.settle(ctx, &mut st.tree);
     }
-    let declared = &mut frame.roots[at];
-    (
-        std::mem::take(&mut declared.scrolls),
-        std::mem::take(&mut declared.regions),
-    )
+    frame
+        .roots
+        .get_mut(at)
+        .map(|declared| {
+            (
+                std::mem::take(&mut declared.scrolls),
+                std::mem::take(&mut declared.regions),
+            )
+        })
+        .unwrap_or_default()
 }
