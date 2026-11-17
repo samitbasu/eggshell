@@ -268,8 +268,7 @@ impl<A> Commands<A> {
         self.entries.iter().map(|entry| &entry.command)
     }
 
-    pub(crate) fn find<K: Key>(&self, id: &K) -> Option<&Command<A>> {
-        let id = child_id(Id::NULL, id);
+    pub(crate) fn find(&self, id: Id) -> Option<&Command<A>> {
         self.entries
             .iter()
             .find(|entry| entry.id == id)
@@ -322,6 +321,91 @@ impl<A> Commands<A> {
 #[cfg(debug_assertions)]
 fn same_chord(a: KeyboardShortcut, b: KeyboardShortcut) -> bool {
     a.logical_key == b.logical_key && a.modifiers.matches_exact(b.modifiers)
+}
+
+/// What runs a table's chords on the application data.
+pub(crate) type Dispatch<A> = Box<dyn Fn(&Context, &Shell, Typing, &mut A)>;
+
+/// A command table as the draw runs it: the root it was declared in and, for
+/// a mount's, the mount that focus must be within.
+pub(crate) struct Declared<A> {
+    pub(crate) root: usize,
+    pub(crate) within: Option<Within>,
+    pub(crate) table: Table<A>,
+}
+
+/// A table of the application data's own type, or a mount's, which reaches
+/// its data through the mount's lens.
+pub(crate) enum Table<A> {
+    Own(Commands<A>),
+    Lifted(Dispatch<A>),
+}
+
+/// The mount a table was declared in, and how many mounts deep it is.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Within {
+    pub(crate) mount: Id,
+    pub(crate) depth: usize,
+}
+
+impl<A> Table<A> {
+    fn dispatch(&self, ctx: &Context, shell: &Shell, typing: Typing, app: &mut A) {
+        match self {
+            Self::Own(table) => dispatch(ctx, shell, typing, table, app),
+            Self::Lifted(dispatch) => dispatch(ctx, shell, typing, app),
+        }
+    }
+}
+
+/// Runs the tables of the live roots, topmost first, each root's mounts that
+/// hold focus before the root's own table, the innermost mount first: a
+/// chord goes to the innermost table that has it.
+pub(crate) fn dispatch_all<A>(
+    ctx: &Context,
+    shell: &Shell,
+    typing: Typing,
+    (declared, live): (&[Declared<A>], Vec<usize>),
+    app: &mut A,
+) {
+    for root in live {
+        let mut here: Vec<&Declared<A>> = declared
+            .iter()
+            .filter(|table| table.root == root)
+            .filter(|table| {
+                table
+                    .within
+                    .is_none_or(|within| shell.focus_within(within.mount))
+            })
+            .collect();
+        here.sort_by_key(|table| {
+            std::cmp::Reverse(table.within.map_or(0, |within| within.depth + 1))
+        });
+        for table in here {
+            table.table.dispatch(ctx, shell, typing, app);
+        }
+    }
+}
+
+/// The command `id` names in `tables`, from the tables whose chords are live
+/// in the root being built, and whether `app` enables it.
+pub(crate) fn look_up<A>(
+    core: &crate::pipeline::FrameCore<'_>,
+    tables: &[(usize, Commands<A>)],
+    app: &A,
+    id: Id,
+) -> Option<(Command<A>, bool)> {
+    let roots = &core.roots;
+    let live = live_roots(
+        core.current,
+        |root| roots.get(root).and_then(|root| root.parent),
+        |root| roots.get(root).is_some_and(|root| root.is_modal()),
+    );
+    let command = live
+        .into_iter()
+        .filter_map(|root| tables.iter().find(|(at, _)| *at == root))
+        .find_map(|(_, table)| table.find(id))
+        .copied()?;
+    Some((command, command.is_enabled(app)))
 }
 
 /// The roots whose commands are live from `start`: `start`, then the root

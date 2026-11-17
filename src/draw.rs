@@ -16,7 +16,7 @@ use egui::{
 };
 use taffy::Overflow;
 
-use crate::commands::Commands;
+use crate::commands::Declared;
 use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
@@ -541,7 +541,7 @@ fn scaled_about_centre(rect: Rect, scale: f32) -> Rect {
 /// What the walk of a frame accumulates, whichever `Ui` it is in.
 struct Shared<A> {
     prims: Vec<Option<Prim>>,
-    draws: Vec<Option<DrawFn<A>>>,
+    draws: Vec<Vec<DrawFn<A>>>,
     recording: Option<Vec<NodeFrame>>,
     /// While recording, the identified nodes left out as culled.
     culled: Vec<Id>,
@@ -1195,7 +1195,12 @@ impl<A> Walk<'_, A> {
         bubbled: Option<&Response>,
     ) {
         let node = &self.nodes[index];
-        if let Some(draw) = node.draw.and_then(|slot| self.shared.draws[slot].take()) {
+        let draws = node
+            .draw
+            .and_then(|slot| self.shared.draws.get_mut(slot))
+            .map(std::mem::take)
+            .filter(|draws| !draws.is_empty());
+        if let Some(draws) = draws {
             let id = node.id().expect("a node with a draw closure is identified");
             let builder = UiBuilder::new()
                 .max_rect(boxes.content)
@@ -1218,7 +1223,9 @@ impl<A> Walk<'_, A> {
                         data.remove::<BubbledTag>(scope);
                     }
                 });
-                draw(app, ui)
+                for draw in draws {
+                    draw(app, ui);
+                }
             });
         }
     }
@@ -1767,7 +1774,7 @@ struct Painting<A> {
     windows: HashMap<Id, window::Hooks<A>>,
     pop_outs: Vec<Id>,
     roots: Vec<PlacedRoot>,
-    commands: Vec<(usize, Commands<A>)>,
+    commands: Vec<Declared<A>>,
     size_in_flight: bool,
     /// The viewport the page is drawn in.
     page: egui::ViewportId,
@@ -1854,15 +1861,18 @@ impl<A> Painting<A> {
         let keys = overlay_input::claim_keys(&ctx, kept, nodes, (roots, here), live);
         pass.blur = keys.blur;
         let typing = kept.viewport(ctx.viewport_id(), |here| here.typing);
-        for root in crate::commands::live_roots(
+        let commanding = crate::commands::live_roots(
             overlay_input::topmost_root(roots, here),
             |root| roots[root].parent,
             |root| roots[root].is_modal(),
-        ) {
-            if let Some((_, table)) = commands.iter().find(|(at, _)| *at == root) {
-                crate::commands::dispatch(&ctx, &crate::Shell::new(&ctx, kept), typing, table, app);
-            }
-        }
+        );
+        crate::commands::dispatch_all(
+            &ctx,
+            &crate::Shell::new(&ctx, kept),
+            typing,
+            (commands, commanding),
+            app,
+        );
         scroll_keys::hold_arrows(&ctx, kept, nodes);
         let _drawing = crate::shell::Drawing::enter(&ctx, kept);
         let mut walk = Walk {

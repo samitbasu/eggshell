@@ -107,6 +107,21 @@ pub(crate) struct Hooks<A> {
     pub(crate) on_frame: Option<FrameFn<A>>,
 }
 
+impl<A: 'static> Hooks<A> {
+    /// The same hooks, for the application data `lens` reaches these in.
+    pub(crate) fn lift<R: 'static>(self, lens: crate::mount::Lens<R, A>) -> Hooks<R> {
+        let close = lens.clone();
+        Hooks {
+            on_close: self
+                .on_close
+                .map(|then| -> CloseFn<R> { Box::new(move |app| then(close(app))) }),
+            on_frame: self
+                .on_frame
+                .map(|then| -> FrameFn<R> { Box::new(move |app, frame| then(lens(app), frame)) }),
+        }
+    }
+}
+
 impl<A> Default for Hooks<A> {
     fn default() -> Self {
         Self {

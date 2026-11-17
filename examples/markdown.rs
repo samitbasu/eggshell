@@ -205,7 +205,7 @@ pub fn directives() -> Directives<State> {
     Directives::new().with("eggshell-example", example)
 }
 
-fn example(s: &mut Scope<'_, '_, State>, directive: &Directive<'_>) {
+fn example(s: &mut Scope<'_, '_, State>, _: &State, directive: &Directive<'_>) {
     match directive.arg {
         "counter" => {
             s.div(tw().flex().flex_row().items_center().gap(3.0), |b| {
@@ -230,7 +230,7 @@ fn example(s: &mut Scope<'_, '_, State>, directive: &Directive<'_>) {
 ///   <a href="…">Back</a> …
 /// </article></main>
 /// ```
-pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
+pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
     install_swatches(b.ctx());
     let directives = directives();
     let muted = common::tokens(b.ctx()).muted_foreground;
@@ -249,7 +249,7 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
             }
             b.markdown(Part::Doc, state.page.source())
                 .on_link(move |state: &mut State, href| landing.follow(state, href))
-                .directives(&directives)
+                .directives(&directives, state)
                 .add();
             let followed = state.followed.last().map_or("nothing yet", String::as_str);
             b.span(

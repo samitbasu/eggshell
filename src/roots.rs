@@ -21,7 +21,6 @@ use crate::overlay::{
 };
 use crate::pipeline::{Placed, PlacedNode};
 use crate::presence::Staged;
-use crate::region::RegionDecl;
 use crate::scroll::Description;
 
 /// What a root is, and what only that kind of root declares.
@@ -56,7 +55,7 @@ pub(crate) struct OverlayDecl {
 }
 
 /// A root, from the moment its body starts to be built.
-pub(crate) struct RootDecl<'f, A> {
+pub(crate) struct RootDecl {
     pub(crate) kind: RootKind,
     /// The root the declaration was made in.
     pub(crate) parent: Option<usize>,
@@ -66,12 +65,9 @@ pub(crate) struct RootDecl<'f, A> {
     /// The scroll containers' leaves in this root and in their contents, an
     /// enclosing container after those it encloses.
     pub(crate) scrolls: Vec<NodeId>,
-    /// The regions' leaves in this root and in its scroll containers' content,
-    /// in the order they were declared.
-    pub(crate) regions: Vec<RegionDecl<'f, A>>,
 }
 
-impl<A> RootDecl<'_, A> {
+impl RootDecl {
     pub(crate) fn is_modal(&self) -> bool {
         matches!(&self.kind, RootKind::Overlay(overlay) if matches!(overlay.presentation, Presentation::Modal(_)))
     }
@@ -82,7 +78,6 @@ impl<A> RootDecl<'_, A> {
             parent: None,
             node: None,
             scrolls: Vec::new(),
-            regions: Vec::new(),
         }
     }
 
@@ -92,7 +87,6 @@ impl<A> RootDecl<'_, A> {
             parent: Some(parent),
             node: None,
             scrolls: Vec::new(),
-            regions: Vec::new(),
         }
     }
 
@@ -102,7 +96,6 @@ impl<A> RootDecl<'_, A> {
             parent: Some(parent),
             node: None,
             scrolls: Vec::new(),
-            regions: Vec::new(),
         }
     }
 }

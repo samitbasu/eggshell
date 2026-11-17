@@ -9,18 +9,19 @@ use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
 use crate::collapse::{Collapse, CollapseAxis, CollapsibleChain, Declared};
-use crate::commands::{Command, Commands, live_roots};
+use crate::commands::{Command, Commands, Within};
 use crate::contract::{Size as ControlSize, Style};
 use crate::dnd::{Activator, DragEnd, DragImage, Dragging, Drop, NodeDrag, Source};
 use crate::draw::NodeUi;
 use crate::key::{Key, child_id};
 use crate::measure::Measure;
+use crate::mount::{Lensed, Mount};
 use crate::overlay::Band;
 use crate::overlay_chain::{OverlayChain, Unplaced};
 use crate::owned::Enablement;
 use crate::pipeline::{
     BuildState, ColorSource, DismissFn, DrawKind, Frame, Interaction, MeasureFn, Node, NodeKind,
-    Pass, ScrollNode, solve,
+    Pass, ScrollNode, Sink, solve,
 };
 use crate::presence::{self, Entrance, Motion, Phase as Presence, Shown, Step};
 use crate::prim::{Icon, Prim};
@@ -120,9 +121,9 @@ impl Slot {
 ///
 /// In debug builds, two identified nodes with the same path in one frame
 /// panic, naming the readable path.
-pub struct Builder<'b, 'f, A> {
+pub struct Builder<'b, 'f, A: 'f> {
     st: &'b mut BuildState,
-    frame: &'b mut Frame<'f, A>,
+    frame: &'b mut dyn Sink<'f, A>,
     path: Id,
     kids: &'b mut Vec<NodeId>,
     inherited: &'b TextStyle,
@@ -167,7 +168,7 @@ pub(crate) enum Surface {
 impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub(crate) fn new(
         st: &'b mut BuildState,
-        frame: &'b mut Frame<'f, A>,
+        frame: &'b mut dyn Sink<'f, A>,
         path: Id,
         kids: &'b mut Vec<NodeId>,
         (inherited, ambient): (&'b TextStyle, Ambient),
@@ -361,6 +362,48 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.handle()
     }
 
+    /// TODO(prose): a view of the part of the application data `lens`
+    /// reaches, built here from `data`.
+    #[track_caller]
+    pub fn mount<K: Key, S: 'static>(
+        &mut self,
+        key: K,
+        tw: Tw,
+        data: &'f S,
+        lens: impl Fn(&mut A) -> &mut S + 'static,
+        view: impl FnOnce(&mut Builder<'_, 'f, S>, &'f S),
+    ) -> NodeHandle<'_, 'f, A>
+    where
+        A: 'static,
+    {
+        let id = child_id(self.path, &key);
+        let within = Within {
+            mount: id,
+            depth: self.frame.depth(),
+        };
+        let mount = Mount::new(std::rc::Rc::new(lens), within);
+        self.div_id_with(id, &key, tw, |b| b.within(&mount, |b| view(b, data)))
+    }
+
+    /// Builds `body` here with a builder of `mount`'s data.
+    pub(crate) fn within<S: 'static, T>(
+        &mut self,
+        mount: &Mount<'f, A, S>,
+        body: impl FnOnce(&mut Builder<'_, 'f, S>) -> T,
+    ) -> T
+    where
+        A: 'static,
+    {
+        let mut lensed = Lensed::new(&mut *self.frame, mount.clone());
+        body(&mut Builder::new(
+            self.st,
+            &mut lensed,
+            self.path,
+            self.kids,
+            (self.inherited, self.ambient),
+        ))
+    }
+
     /// A scroll container: see [`scroll`](crate::scroll). Its children are
     /// scoped under `key`.
     pub fn scroll<K: Key>(&mut self, key: K, tw: Tw) -> ScrollChain<'_, 'f, A>
@@ -419,16 +462,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         list: Id,
         run: crate::vlist::ListRun<'f, A>,
     ) {
-        self.frame.roots[self.frame.current]
-            .regions
-            .push(RegionDecl {
-                leaf,
-                id: list,
-                readable,
-                text,
-                ambient,
-                body: RegionBody::List(run),
-            });
+        self.frame.add_region(RegionDecl {
+            leaf,
+            id: list,
+            readable,
+            text,
+            ambient,
+            body: RegionBody::List(run),
+        });
     }
 
     /// A handle to `node`, a node this builder added.
@@ -560,16 +601,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .expect("the leaf has a context")
             .text
             .clone();
-        self.frame.roots[self.frame.current]
-            .regions
-            .push(RegionDecl {
-                leaf,
-                id,
-                readable,
-                text,
-                ambient,
-                body: RegionBody::Closure(Box::new(body)),
-            });
+        self.frame.add_region(RegionDecl {
+            leaf,
+            id,
+            readable,
+            text,
+            ambient,
+            body: RegionBody::Closure(Box::new(body)),
+        });
     }
 
     /// Declares the commands of the root being built: the page, or the
@@ -608,39 +647,19 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     #[track_caller]
     pub fn commands(&mut self, table: &Commands<A>, app: &'f A) {
         #[cfg(debug_assertions)]
-        {
-            table.validate();
-            assert!(
-                self.frame
-                    .commands
-                    .iter()
-                    .all(|(root, _)| *root != self.frame.current),
+        table.validate();
+        if self.frame.declare_commands(table, app).is_err() {
+            #[cfg(debug_assertions)]
+            panic!(
                 "commands are declared twice in one root, the second at {}",
                 std::panic::Location::caller()
             );
         }
-        self.frame.app = Some(app);
-        self.frame
-            .commands
-            .push((self.frame.current, table.clone()));
     }
 
     /// The command `id` names, from the tables whose chords are live here.
     pub(crate) fn command<K: Key>(&self, id: &K) -> Option<(Command<A>, bool)> {
-        let app = self.frame.app?;
-        let tables = &self.frame.commands;
-        let roots = &self.frame.roots;
-        let live = live_roots(
-            self.frame.current,
-            |root| roots[root].parent,
-            |root| roots[root].is_modal(),
-        );
-        let command = live
-            .into_iter()
-            .filter_map(|root| tables.iter().find(|(at, _)| *at == root))
-            .find_map(|(_, table)| table.find(id))
-            .copied()?;
-        Some((command, command.is_enabled(app)))
+        self.frame.command(child_id(Id::NULL, id))
     }
 
     /// The width `candidate` has when it is laid out as wide as it wants: to
@@ -768,7 +787,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         match step {
             Step::Closed { exited } => {
                 if let Some(then) = on_collapsed.filter(|_| exited) {
-                    self.frame.exited.push(then);
+                    self.frame.on_exited(then);
                 }
                 let closed = match axis {
                     CollapseAxis::Height => wrapper.h_px(0.0),
@@ -850,7 +869,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         classes: Tw,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) {
-        self.frame.windows.insert(slot.id, hooks);
+        self.frame.window_hooks(slot.id, hooks);
         let path = self.identify(slot.id, &slot.label);
         let parent = self.frame.current;
         self.frame.roots.push(RootDecl::window(decl, parent));
@@ -909,7 +928,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             ) {
                 Step::Closed { exited } => {
                     if let Some(then) = on_exited.filter(|_| exited) {
-                        self.frame.exited.push(then);
+                        self.frame.on_exited(then);
                     }
                     return;
                 }
@@ -922,7 +941,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             Presentation::Floating { .. } => tw(),
         };
         if let Some(on_dismiss) = on_dismiss {
-            self.frame.dismiss.insert(slot.id, on_dismiss);
+            self.frame.on_dismiss(slot.id, on_dismiss);
         }
         let path = self.identify(slot.id, &slot.label);
         let parent = self.frame.current;
@@ -1406,11 +1425,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// they are drawn. Its nodes are built under `salt` and left out of the
     /// frame, so nothing is laid out or drawn.
     pub(crate) fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>> {
-        self.frame.build_built
+        self.frame.build_built()
     }
 
     pub(crate) fn set_build_built(&mut self, build: crate::tooltip::BuildBuilt<A>) {
-        self.frame.build_built = Some(build);
+        self.frame.set_build_built(build);
     }
 
     pub(crate) fn text_of(
@@ -1499,7 +1518,7 @@ impl<A: 'static> Builder<'_, '_, A> {
         &mut self,
         handler: impl FnOnce(&mut A, Arc<T>, DragEnd) + 'static,
     ) {
-        self.frame.drag.add_end(handler);
+        self.frame.add_end(crate::dnd::EndDecl::new(handler));
     }
 
     /// Runs `draw` after the node's existing draw closure, if it has one.
@@ -1509,20 +1528,7 @@ impl<A: 'static> Builder<'_, '_, A> {
             .tree
             .get_node_context_mut(node)
             .expect("the handle's node was added to this tree");
-        let draws = &mut self.frame.draws;
-        match context.draw {
-            Some(slot) => {
-                let first = std::mem::replace(&mut draws[slot], Box::new(|_, _| {}));
-                draws[slot] = Box::new(move |app, ui| {
-                    first(app, ui);
-                    draw(app, ui);
-                });
-            }
-            None => {
-                context.draw = Some(draws.len());
-                draws.push(Box::new(draw));
-            }
-        }
+        context.draw = Some(self.frame.attach_draw(context.draw, Box::new(draw)));
     }
 }
 
@@ -1747,7 +1753,10 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
         accept: impl Fn(&T) -> bool + 'static,
         handler: impl FnOnce(&mut A, Drop<T>) + 'static,
     ) -> Self {
-        let decl = self.b.frame.drag.add_drop(accept, handler);
+        let decl = self
+            .b
+            .frame
+            .add_drop(crate::dnd::DropDecl::new(accept, handler));
         self.edit(|context| context.drag().drops.push(decl));
         self
     }

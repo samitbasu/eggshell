@@ -71,6 +71,7 @@ use egui::{Context, DragAndDrop, DroppedFileHandle, Event, Id, Pos2, Rect, Vec2,
 
 use crate::draw::{Lift, children_of};
 use crate::kept::Handle;
+use crate::mount::Lens;
 use crate::overlay_input::Drag;
 use crate::pipeline::{Flow, PlacedNode};
 use crate::roots::{Here, PlacedRoot, root_at, root_of, stacked_top_down};
@@ -402,14 +403,12 @@ impl<A> Default for Decls<A> {
     }
 }
 
-impl<A: 'static> Decls<A> {
-    /// Declares a drop handler and returns its index.
-    pub(crate) fn add_drop<T: Any + Send + Sync>(
-        &mut self,
+impl<A: 'static> DropDecl<A> {
+    pub(crate) fn new<T: Any + Send + Sync>(
         accept: impl Fn(&T) -> bool + 'static,
         handler: impl FnOnce(&mut A, Drop<T>) + 'static,
-    ) -> usize {
-        self.drops.push(Some(DropDecl {
+    ) -> Self {
+        DropDecl {
             accepts: Box::new(move |payload| payload.downcast_ref::<T>().is_some_and(&accept)),
             deliver: Box::new(move |app, payload, landing| {
                 if let Ok(payload) = payload.downcast::<T>() {
@@ -423,22 +422,52 @@ impl<A: 'static> Decls<A> {
                     );
                 }
             }),
-        }));
-        self.drops.len() - 1
+        }
     }
 
-    pub(crate) fn add_end<T: Any + Send + Sync>(
-        &mut self,
+    /// The same handler, for the application data `lens` reaches it in.
+    pub(crate) fn lift<R: 'static>(self, lens: Lens<R, A>) -> DropDecl<R> {
+        let deliver = self.deliver;
+        DropDecl {
+            accepts: self.accepts,
+            deliver: Box::new(move |app, payload, landing| deliver(lens(app), payload, landing)),
+        }
+    }
+}
+
+impl<A: 'static> EndDecl<A> {
+    pub(crate) fn new<T: Any + Send + Sync>(
         handler: impl FnOnce(&mut A, Arc<T>, DragEnd) + 'static,
-    ) {
-        self.ends.push(Some(EndDecl {
+    ) -> Self {
+        EndDecl {
             matches: |payload| payload.is::<T>(),
             deliver: Box::new(move |app, payload, end| {
                 if let Ok(payload) = payload.downcast::<T>() {
                     handler(app, payload, end);
                 }
             }),
-        }));
+        }
+    }
+
+    /// The same handler, for the application data `lens` reaches it in.
+    pub(crate) fn lift<R: 'static>(self, lens: Lens<R, A>) -> EndDecl<R> {
+        let deliver = self.deliver;
+        EndDecl {
+            matches: self.matches,
+            deliver: Box::new(move |app, payload, end| deliver(lens(app), payload, end)),
+        }
+    }
+}
+
+impl<A> Decls<A> {
+    /// Declares a drop handler and returns its index.
+    pub(crate) fn push_drop(&mut self, decl: DropDecl<A>) -> usize {
+        self.drops.push(Some(decl));
+        self.drops.len() - 1
+    }
+
+    pub(crate) fn push_end(&mut self, decl: EndDecl<A>) {
+        self.ends.push(Some(decl));
     }
 }
 
@@ -485,14 +514,14 @@ type Delivery<A, Outcome> = Box<dyn FnOnce(&mut A, Erased, Outcome)>;
 
 type Accepts = Box<dyn Fn(&(dyn Any + Send + Sync)) -> bool>;
 
-struct DropDecl<A> {
+pub(crate) struct DropDecl<A> {
     accepts: Accepts,
     deliver: Delivery<A, Landing>,
 }
 
 type Matches = fn(&(dyn Any + Send + Sync)) -> bool;
 
-struct EndDecl<A> {
+pub(crate) struct EndDecl<A> {
     matches: Matches,
     deliver: Delivery<A, DragEnd>,
 }
