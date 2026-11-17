@@ -49,8 +49,14 @@ copying this file elsewhere.
   modes are one enum, not N `Option`/`bool` fields. A press-with-origin is
   `Option<Press { origin }>`, never `pointer_down: bool` + `origin:
   Option<_>` which can disagree.
-- **No naked `bool` arguments.** Use a two-variant enum or a typed wrapper
-  that names the meaning at the call site.
+- **No naked `bool` arguments where the call site can't say what they
+  mean.** A `bool` is fine as the *sole* argument of a method whose name
+  states the property it sets, so that `true` reads as "yes, that":
+  `.enabled(x)`, `.set_visible(open)`, `.when(cond, …)`. Anywhere else (a
+  function with more than one `bool`, or a `bool` whose meaning the name
+  doesn't carry, like `.sort(true)`), use a two-variant enum or a typed
+  wrapper. Clippy enforces the first half (`max-fn-params-bools = 1`); the
+  second is a review judgement.
 - **No naked `f32`/`f64` arguments.** A bare float in a signature carries no
   meaning. Wrap it in a newtype naming the semantic (`Zoom`, `Progress`,
   `WorldDistance`): constructor to wrap, `impl From<Newtype> for f32` so callees
