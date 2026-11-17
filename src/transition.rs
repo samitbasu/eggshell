@@ -205,22 +205,7 @@ pub(crate) struct LayoutAnimation {
     area: Rect,
     reach: f32,
     /// Whether a layout move starts a slide.
-    starts_slides: StartsSlides,
-}
-
-/// Whether a node whose layout moved slides from where it was. A frame with a
-/// size animation in flight moves nodes by layout itself, smoothly, so they
-/// follow it: a slide on top would lag the motion and start anew every frame.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StartsSlides {
-    Yes,
-    No,
-}
-
-impl StartsSlides {
-    pub(crate) fn unless_size_in_flight(in_flight: bool) -> Self {
-        if in_flight { Self::No } else { Self::Yes }
-    }
+    starts_slides: bool,
 }
 
 impl LayoutAnimation {
@@ -251,12 +236,15 @@ impl LayoutAnimation {
             ranks,
             area,
             reach: 0.0,
-            starts_slides: StartsSlides::Yes,
+            starts_slides: true,
         }
     }
 
-    /// Sets whether this frame's layout moves start slides.
-    pub(crate) fn starting(mut self, starts_slides: StartsSlides) -> Self {
+    /// Sets whether a node whose layout moved this frame slides from where it
+    /// was. A frame with a size animation in flight moves nodes by layout
+    /// itself, smoothly, so they follow it: a slide on top would lag the
+    /// motion and start anew every frame.
+    pub(crate) fn starts_slides(mut self, starts_slides: bool) -> Self {
         self.starts_slides = starts_slides;
         self
     }
@@ -304,15 +292,11 @@ impl LayoutAnimation {
         let duration = allowed(&self.ctx, duration);
         let rank = self.ranks.get(&id).copied().unwrap_or_default();
         let tracked = match self.previous.get(&id) {
-            Some(previous)
-                if previous.relative == relative || self.starts_slides == StartsSlides::No =>
-            {
-                Tracked {
-                    relative,
-                    rank,
-                    ..*previous
-                }
-            }
+            Some(previous) if previous.relative == relative || !self.starts_slides => Tracked {
+                relative,
+                rank,
+                ..*previous
+            },
             Some(previous) => Tracked {
                 relative,
                 rank,

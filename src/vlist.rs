@@ -405,13 +405,7 @@ struct BuiltRow {
     /// The overlays declared inside it.
     overlays: Vec<Id>,
     /// Whether a size inside it is still moving.
-    moving: Moving,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Moving {
-    No,
-    Yes,
+    moving: bool,
 }
 
 /// What a list keeps in place on the screen while the rows above it change.
@@ -959,7 +953,7 @@ impl<'f, A> ListRun<'f, A> {
         let mut pinned: Vec<usize> = built
             .iter()
             .filter(|row| {
-                row.moving == Moving::Yes
+                row.moving
                     || b.shell().focus_within(row.id)
                     || row
                         .overlays
@@ -1136,11 +1130,7 @@ impl Laid {
                 id: row.id,
                 inside: identified_in(tree, row.node),
                 overlays: row.overlays.clone(),
-                moving: if flight.abs() > SAME {
-                    Moving::Yes
-                } else {
-                    Moving::No
-                },
+                moving: flight.abs() > SAME,
             });
         }
         let nodes: Vec<NodeId> = built.iter().map(|row| row.node).collect();
