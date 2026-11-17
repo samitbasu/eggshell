@@ -205,6 +205,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.scope_with(child_id(self.path, &key), &key, body);
     }
 
+    /// Not a stable API: it exists for `eggshell-ui-extras`. Builds `body`
+    /// with its nodes keyed under the node `parent` instead of this scope, so
+    /// that their ids can be found from `parent` alone, wherever they sit in
+    /// the tree.
+    #[doc(hidden)]
+    pub fn keyed_under(&mut self, parent: Id, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
+        body(&mut Scope(Builder::new(
+            self.st,
+            self.frame,
+            parent,
+            self.kids,
+            (self.inherited, self.ambient),
+        )));
+    }
+
     pub(crate) fn scope_with(
         &mut self,
         id: Id,

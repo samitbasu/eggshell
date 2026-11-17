@@ -340,6 +340,7 @@ mod dismiss;
 mod dnd;
 mod draw;
 mod focus;
+pub mod icons;
 mod kept;
 mod key;
 mod measure;
@@ -381,7 +382,7 @@ pub use dnd::{
     ScrollSpeed, insertion_index,
 };
 pub use draw::NodeUi;
-pub use key::Key;
+pub use key::{Key, child_id};
 pub use measure::{Measure, fill};
 pub use overlay::{Boundary, Distance, InsetBoundary};
 pub use overlay_input::Blur;

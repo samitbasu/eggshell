@@ -854,6 +854,10 @@ pub struct InputMetrics {
     pub height: f32,
     /// The text's size, or `None` for the text role's own.
     pub text: Option<TextSize>,
+    /// Side of a leading or trailing icon.
+    pub icon_size: f32,
+    /// Space between an icon and the text.
+    pub icon_gap: f32,
 }
 
 /// Text fields, which are egui's `TextEdit` wrapped: egui paints them from
@@ -883,6 +887,8 @@ pub struct InputStyle {
     pub sizes: Keyed<Size, InputMetrics>,
     /// The colour of hint text, or `None` for egui's grey-out of the text.
     pub hint: Option<Color32>,
+    /// The colour of a leading or trailing icon.
+    pub icon: Color32,
 }
 
 /// Selected text.
@@ -1695,9 +1701,12 @@ impl Style {
                         padding: s.button_padding,
                         height: s.interact_size.y,
                         text: None,
+                        icon_size: 16.0,
+                        icon_gap: 8.0,
                     },
                 ),
                 hint: None,
+                icon: v.weak_text_color(),
             },
             selection: Selection {
                 fill: v.selection.bg_fill,

@@ -520,6 +520,15 @@ fn image_for(icon: Icon, tint: Color32) -> Image<'static> {
         .rotate(rotate.into(), Vec2::splat(0.5))
 }
 
+/// The square an icon is painted in within `content`: the largest that fits,
+/// centred, as an inline SVG's default `xMidYMid meet` does.
+fn meet(content: Rect) -> Rect {
+    Rect::from_center_size(
+        content.center(),
+        Vec2::splat(content.width().min(content.height())),
+    )
+}
+
 /// `rect` scaled by `scale` about its centre.
 fn scaled_about_centre(rect: Rect, scale: f32) -> Rect {
     if scale == 1.0 {
@@ -1361,7 +1370,9 @@ impl<A> Walk<'_, A> {
             return;
         }
         match prim {
-            Prim::Icon(icon) => self.paint_image(image_for(icon, text.color), content, inherited),
+            Prim::Icon(icon) => {
+                self.paint_image(image_for(icon, text.color), meet(content), inherited)
+            }
             Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
             Prim::Paint(paint) => paint(
                 &self.painter(inherited.clip, inherited.opacity),

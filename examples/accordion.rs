@@ -93,9 +93,9 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                                             .py(3.0),
                                         |s| {
                                             s.text(tw(), title);
-                                            s.paint(
-                                                tw().size_px(16.0).shrink_0(),
-                                                common::chevron(muted, 180.0 * f32::from(progress)),
+                                            s.glyph(
+                                                tw().size_px(16.0).shrink_0().text(muted),
+                                                common::chevron(progress),
                                             );
                                         },
                                     )
