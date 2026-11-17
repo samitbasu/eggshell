@@ -155,7 +155,7 @@ struct System;
     not(any(target_arch = "wasm32", target_os = "android", target_os = "ios"))
 ))]
 mod system {
-    use std::sync::{Mutex, OnceLock, PoisonError};
+    use std::sync::{Mutex, OnceLock};
 
     use egui::{Color32, ColorImage};
 
@@ -171,7 +171,7 @@ mod system {
     fn with<R>(
         f: impl FnOnce(&mut arboard::Clipboard) -> Result<R, arboard::Error>,
     ) -> Result<R, ClipboardError> {
-        let mut guard = handle().lock().unwrap_or_else(PoisonError::into_inner);
+        let mut guard = crate::sync::lock(handle());
         let clipboard = guard.as_mut().ok_or(ClipboardError::Unavailable)?;
         f(clipboard).map_err(|error| match error {
             arboard::Error::ClipboardNotSupported => ClipboardError::Unavailable,
