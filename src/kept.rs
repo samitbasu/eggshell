@@ -6,7 +6,7 @@
 //! own (focus, text-edit memory, the clock) in its context, and diagnostics
 //! (the debug overlay, the continuity recorder) are context-wide by design.
 
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex};
 
 use std::collections::HashMap;
 
@@ -73,7 +73,7 @@ pub(crate) struct Handle(Arc<Mutex<Kept>>);
 
 impl Handle {
     pub(crate) fn with<R>(&self, f: impl FnOnce(&mut Kept) -> R) -> R {
-        f(&mut self.0.lock().unwrap_or_else(PoisonError::into_inner))
+        f(&mut crate::sync::lock(&self.0))
     }
 
     /// [`with`](Self::with) what is kept for `viewport`.

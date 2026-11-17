@@ -1,4 +1,23 @@
 #![deny(missing_docs)]
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::panic,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        clippy::panic_in_result_fn,
+        clippy::unwrap_in_result,
+        clippy::get_unwrap,
+        clippy::string_slice,
+        clippy::indexing_slicing,
+        clippy::unchecked_time_subtraction,
+        clippy::disallowed_macros,
+        clippy::disallowed_methods
+    )
+)]
 //! Eggshell: taffy lays out, egui draws and interacts.
 //!
 //! The application owns its state; every frame rebuilds the interface from
@@ -369,6 +388,7 @@ mod sizing;
 mod spans;
 mod stack;
 mod symbols;
+mod sync;
 pub mod testing;
 mod text;
 mod tooltip;
