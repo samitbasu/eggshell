@@ -1106,4 +1106,25 @@ mod selection {
              from {frame:?} out to {selected_ring:?}"
         );
     }
+
+    #[test]
+    fn a_captioned_examples_selected_ring_stays_off_its_caption() {
+        let mut harness = harness();
+        let style = eggshell_ui::Style::of(&harness.ctx);
+        let before = rect_at(&harness, "/Left/Caption");
+        click_on(&mut harness, "/Left/Frame/Add");
+        assert_eq!(selected(&harness), ["Example A"]);
+        let caption = rect_at(&harness, "/Left/Caption");
+        let frame = rect_at(&harness, "/Left/Frame");
+        assert_eq!(caption, before, "selecting moves nothing");
+        assert!(
+            caption.max.y <= frame.min.y && caption.x_range().intersects(frame.x_range()),
+            "precondition: the caption {caption:?} sits above the frame {frame:?}"
+        );
+        let selected_ring = frame.expand(style.focus.width);
+        assert!(
+            !selected_ring.intersects(caption),
+            "the selected ring {selected_ring:?} stays clear of the caption {caption:?}"
+        );
+    }
 }

@@ -601,12 +601,12 @@ impl Shadcn {
             let mut mount = style.mount;
             mount.caption = t.muted_foreground;
             mount.caption_text = None;
-            mount.gap = 0.0;
+            mount.gap = 6.0;
             mount.border = t.border;
             mount.border_width = 1.0;
             mount.radius = t.radius_md();
             mount.padding = 16.0;
-            mount.bare_padding = ring.clearance();
+            mount.bare_padding = 8.0;
             mount.selected_ring = t.primary;
             mount
         };

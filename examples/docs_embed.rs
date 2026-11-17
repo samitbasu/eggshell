@@ -3,7 +3,7 @@
 //! Each `eggshell-example NAME` fence mounts a small app over a field of the
 //! page's state with `b.mount`. The two counters share one field. The bar at
 //! the top switches the theme colour, which colours the selected example's
-//! ring, and the inset of the examples shown without a caption.
+//! ring, and the gap between a caption and its example.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -48,38 +48,36 @@ const THEMES: [(ThemeColor, &str); 3] = [
     (ThemeColor::Violet, "Violet"),
 ];
 
-/// The candidate insets of an uncaptioned example: the least the focus ring
-/// tokens allow, or a fixed number of points.
+/// The candidate gaps between a caption and its example's frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum Inset {
+pub enum Gap {
+    Four,
     #[default]
-    Least,
+    Six,
     Eight,
-    Twelve,
 }
 
-const INSETS: [(Inset, &str); 3] = [
-    (Inset::Least, "Least"),
-    (Inset::Eight, "8 pt"),
-    (Inset::Twelve, "12 pt"),
+const GAPS: [(Gap, &str); 3] = [
+    (Gap::Four, "4 pt"),
+    (Gap::Six, "6 pt"),
+    (Gap::Eight, "8 pt"),
 ];
 
-impl Inset {
-    fn points(self, least: f32) -> f32 {
+impl Gap {
+    fn points(self) -> f32 {
         match self {
-            Self::Least => least,
+            Self::Four => 4.0,
+            Self::Six => 6.0,
             Self::Eight => 8.0,
-            Self::Twelve => 12.0,
         }
     }
 }
 
-/// The preset in `theme`, with the uncaptioned inset overridden by `inset`.
-fn use_look(ctx: &Context, theme: ThemeColor, inset: Inset) {
+/// The preset in `theme`, with the caption's gap overridden by `gap`.
+fn use_look(ctx: &Context, theme: ThemeColor, gap: Gap) {
     common::use_theme_color(ctx, theme);
-    let installed = eggshell_ui::Style::of(ctx);
-    let points = inset.points(installed.focus.clearance());
-    if installed.mount.bare_padding == points {
+    let points = gap.points();
+    if eggshell_ui::Style::of(ctx).mount.gap == points {
         return;
     }
     for (preset, which) in [
@@ -90,7 +88,7 @@ fn use_look(ctx: &Context, theme: ThemeColor, inset: Inset) {
             .with_style(common::style_of(ctx))
             .theme_color(theme)
             .style();
-        style.mount.bare_padding = points;
+        style.mount.gap = points;
         style.install_for(ctx, which);
     }
 }
@@ -129,7 +127,7 @@ impl Default for List {
 #[derive(Default)]
 pub struct State {
     pub theme: ThemeColor,
-    pub inset: Inset,
+    pub gap: Gap,
     pub clicks: Counter,
     pub menu: Menu,
     pub form: Form,
@@ -143,8 +141,8 @@ pub enum Part {
     Bar,
     Theme,
     ThemeLabel,
-    Inset,
-    InsetLabel,
+    Gap,
+    GapLabel,
     Log,
     Doc,
     App,
@@ -343,12 +341,12 @@ fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption
 
 /// ```html
 /// <div class="flex flex-col size-full">
-///   <header class="flex gap-3 p-3 border-b">Theme: [Neutral|Blue|Violet] Inset: [Least|8 pt|12 pt] · log</header>
+///   <header class="flex gap-3 p-3 border-b">Theme: [Neutral|Blue|Violet] Caption gap: [4 pt|6 pt|8 pt] · log</header>
 ///   <main class="overflow-y-auto grow p-6"><article class="max-w-[640px]">…</article></main>
 /// </div>
 /// ```
 pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
-    use_look(b.ctx(), state.theme, state.inset);
+    use_look(b.ctx(), state.theme, state.gap);
     b.commands(&page_commands(), state);
     let tokens = common::tokens(b.ctx());
     let directives = directives();
@@ -367,9 +365,9 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                 b.span(Part::ThemeLabel, tw(), "Theme");
                 b.segmented(Part::Theme, state.theme, THEMES)
                     .on_change(|state: &mut State, theme| state.theme = theme);
-                b.span(Part::InsetLabel, tw(), "Inset");
-                b.segmented(Part::Inset, state.inset, INSETS)
-                    .on_change(|state: &mut State, inset| state.inset = inset);
+                b.span(Part::GapLabel, tw(), "Caption gap");
+                b.segmented(Part::Gap, state.gap, GAPS)
+                    .on_change(|state: &mut State, gap| state.gap = gap);
                 let last = state
                     .page_log
                     .last()
