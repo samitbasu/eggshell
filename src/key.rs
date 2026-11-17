@@ -239,8 +239,18 @@ impl ReadablePath {
     }
 }
 
-/// The id a key has under `parent`.
-pub(crate) fn child_id<K: Key>(parent: Id, key: &K) -> Id {
+/// TODO(prose)
+///
+/// ```
+/// # use eggshell_ui::{Builder, child_id, tw};
+/// fn list(b: &mut Builder<'_, '_, ()>) {
+///     let list = b.id_of("list");
+///     b.div_id("list", tw(), |s| {
+///         assert_eq!(s.id_of("row"), child_id(list, &"row"));
+///     });
+/// }
+/// ```
+pub fn child_id<K: Key>(parent: Id, key: &K) -> Id {
     parent.with((std::any::type_name::<K>(), key))
 }
 
