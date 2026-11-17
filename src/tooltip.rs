@@ -8,7 +8,6 @@
 //! `Kept::tooltips`, so it is per `LayoutState`.
 
 use core::time::Duration;
-use std::any::Any;
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -27,31 +26,25 @@ use crate::tw::tw;
 #[derive(Clone)]
 pub(crate) enum Content {
     Text(WidgetText),
-    /// A [`Built`], typed by the application it is built for, which the
-    /// state it is kept in is not.
-    Built(Arc<dyn Any + Send + Sync>),
+    /// Built over `()`: the content takes no input, so it is built the same
+    /// for any application, on the page or in a mount.
+    Built(Arc<BuildFn>),
 }
 
-type BuildFn<A> = dyn Fn(&mut Builder<'_, '_, A>) + Send + Sync;
+pub(crate) type BuildFn = dyn Fn(&mut Builder<'_, '_, ()>) + Send + Sync;
 
-struct Built<A>(Box<BuildFn<A>>);
-
-/// Builds a [`Content::Built`] for the application `A`. Only a caller that
-/// knows `A: 'static` can make one, so a frame holds the one its triggers
+/// Builds a [`Content::Built`] with a builder of `A`. Only a caller that
+/// knows `A: 'static` can name one, so a frame holds the one its triggers
 /// left, and declaring the tooltips asks nothing of `A`.
-pub(crate) type BuildBuilt<A> = fn(&mut Builder<'_, '_, A>, &(dyn Any + Send + Sync));
+pub(crate) type BuildBuilt<A> = fn(&mut Builder<'_, '_, A>, &BuildFn);
 
-fn build_built<A: 'static>(b: &mut Builder<'_, '_, A>, built: &(dyn Any + Send + Sync)) {
-    if let Some(built) = built.downcast_ref::<Built<A>>() {
-        (built.0)(b);
-    }
+pub(crate) fn build_built<A: 'static>(b: &mut Builder<'_, '_, A>, build: &BuildFn) {
+    b.unit(|b| build(b));
 }
 
 impl Content {
-    pub(crate) fn built<A: 'static>(
-        build: impl Fn(&mut Builder<'_, '_, A>) + Send + Sync + 'static,
-    ) -> Self {
-        Self::Built(Arc::new(Built::<A>(Box::new(build))))
+    pub(crate) fn built(build: impl Fn(&mut Builder<'_, '_, ()>) + Send + Sync + 'static) -> Self {
+        Self::Built(Arc::new(build))
     }
 
     /// Whether `b` can build this. Built content cannot in a frame where no
@@ -65,8 +58,7 @@ impl Content {
     }
 
     /// Adds what this shows to `b`, drawn on a tooltip. Built content adds
-    /// nothing where it does not [show](Self::shows_in), and for an
-    /// application other than `b`'s.
+    /// nothing where it does not [show](Self::shows_in).
     fn build<A>(&self, b: &mut Builder<'_, '_, A>) {
         let build_built = b.build_built();
         b.on_surface(Surface::Tooltip, |b| match self {

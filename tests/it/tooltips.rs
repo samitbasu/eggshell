@@ -30,12 +30,21 @@ const PICKS: [(Pick, &str); 2] = [(Pick::A, "Alpha"), (Pick::B, "Beta")];
 #[derive(Default)]
 struct App {
     undone: u32,
-    inside: u32,
+    mounted: Mounted,
     /// The built-tooltip trigger is not built.
     gone: bool,
     /// A second built-tooltip trigger is built.
     second: bool,
 }
+
+/// The data a mount's view is built over, which is not the page's.
+#[derive(Default)]
+struct Mounted {
+    clicks: u32,
+}
+
+/// Clicks on the button inside a built tooltip's content.
+static INSIDE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 fn prepare(ctx: &egui::Context, _: &App) {
     let mut style = (*Style::of(ctx)).clone();
@@ -44,7 +53,7 @@ fn prepare(ctx: &egui::Context, _: &App) {
     style.install(ctx);
 }
 
-fn harness_of(view: fn(&mut Builder<'_, '_, App>, &App)) -> Harness<'static, Rig<App>> {
+fn harness_of(view: support::View<App>) -> Harness<'static, Rig<App>> {
     let tokens = Tokens::for_theme(Theme::Light);
     let mut harness = support::harness_scaled_stepped(
         vec2(400.0, 600.0),
@@ -514,8 +523,9 @@ fn rich_view(b: &mut Builder<'_, '_, App>, _: &App) {
                 .tooltip_with(|s| {
                     s.text(tw(), "Save");
                     s.kbd("Ctrl+S");
-                    s.button("inside", "Inside")
-                        .on_click(|app: &mut App| app.inside += 1);
+                    s.button("inside", "Inside").on_click(|_| {
+                        INSIDE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    });
                 })
                 .add();
             b.button("off", "Off")
@@ -633,6 +643,81 @@ fn a_disabled_trigger_shows_its_built_tooltip() {
     assert!(painted(&harness, "Cannot"));
 }
 
+/// Content shared by a control on the page and one in a mount.
+fn shortcut(s: &mut Builder<'_, '_, ()>) {
+    s.text(tw(), "Count");
+    s.kbd("C");
+}
+
+fn mounted_view<'f>(b: &mut Builder<'_, 'f, Mounted>, _: &'f Mounted) {
+    b.div(tw().flex().flex_col().items_start().gap(4.0), |b| {
+        b.button("built", "Built")
+            .tooltip_with(|s| s.text(tw(), "Mounted tip"))
+            .on_click(|mounted: &mut Mounted| mounted.clicks += 1);
+        b.button("shared", "Shared").tooltip_with(shortcut).add();
+        b.button("text", "Text").tooltip("Mounted text tip").add();
+    });
+}
+
+fn mount_view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
+    b.div(
+        tw().flex()
+            .flex_col()
+            .items_start()
+            .gap(4.0)
+            .p(4.0)
+            .pt(10.0),
+        |b| {
+            b.button("page", "Page").tooltip_with(shortcut).add();
+            b.mount(
+                "mount",
+                tw(),
+                &app.mounted,
+                |app: &mut App| &mut app.mounted,
+                mounted_view,
+            );
+        },
+    );
+}
+
+/// Only a mount: no trigger of the page's own has built content.
+fn mount_only_view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
+    b.div(tw().p(4.0).pt(10.0), |b| {
+        b.mount(
+            "mount",
+            tw(),
+            &app.mounted,
+            |app: &mut App| &mut app.mounted,
+            mounted_view,
+        );
+    });
+}
+
+fn mount_hover_shows(view: support::View<App>, path: &str, tip: &str) {
+    let mut harness = harness_of(view);
+    assert!(!is_shown(&harness), "precondition: nothing is shown yet");
+    hover_node(&mut harness, path);
+    wait(&mut harness, DELAY + GRACE);
+    assert!(is_shown(&harness), "hovering {path} opens a tooltip");
+    assert!(painted(&harness, tip), "hovering {path} shows {tip:?}");
+}
+
+#[test]
+fn a_mounted_controls_text_tooltip_shows() {
+    mount_hover_shows(mount_only_view, "/\"mount\"/\"text\"", "Mounted text tip");
+}
+
+#[test]
+fn a_mounted_controls_built_tooltip_shows() {
+    mount_hover_shows(mount_only_view, "/\"mount\"/\"built\"", "Mounted tip");
+}
+
+#[test]
+fn one_content_helper_builds_a_tooltip_on_the_page_and_in_a_mount() {
+    mount_hover_shows(mount_view, "/\"page\"", "Count");
+    mount_hover_shows(mount_view, "/\"mount\"/\"shared\"", "Count");
+}
+
 #[test]
 fn a_built_tooltip_never_takes_the_pointer() {
     let mut harness = rich_harness();
@@ -657,7 +742,8 @@ fn a_built_tooltip_never_takes_the_pointer() {
     support::hover_over(&mut harness, at);
     support::press_and_release(&mut harness, at);
     let app = &harness.state().app;
-    assert_eq!(app.inside, 0, "the content took nothing");
+    let inside = INSIDE.load(std::sync::atomic::Ordering::Relaxed);
+    assert_eq!(inside, 0, "the content took nothing");
     assert_eq!(app.undone, 1, "the click reached the button beneath");
 }
 

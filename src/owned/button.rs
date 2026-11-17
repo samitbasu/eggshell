@@ -360,7 +360,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// assistive technology.
     pub fn tooltip_with(
         mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
         self.opts.tooltip = Some(Content::built(build));
         self
