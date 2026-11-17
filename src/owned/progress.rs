@@ -151,7 +151,7 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
         let (radius, fill) = (f32::from(bar.radius), bar.range.fill);
         let percent = f64::from(f32::from(progress) * 100.0);
         let name = name.unwrap_or_default();
-        b.div_id_with(slot.id, &slot.label, track, |b| {
+        b.div_id_with(&slot, track, |b| {
             b.paint(tw().w_full().h_full(), move |painter, rect, _| {
                 paint_fill(painter, rect, radius, progress, fill)
             });

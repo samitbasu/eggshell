@@ -154,11 +154,16 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
     }
 
     /// TODO(prose): `Nav::Listbox` makes the list one Tab stop with a virtual highlight moved by the arrow, Home, End and Page keys; `Nav::None` is the default.
+    #[track_caller]
     pub fn nav(mut self, nav: Nav) -> Self {
-        debug_assert!(
-            matches!(nav, Nav::None | Nav::Listbox),
-            "a virtual list navigates as a listbox or not at all"
-        );
+        if !matches!(nav, Nav::None | Nav::Listbox) {
+            crate::report::report(
+                self.scroll.builder().ctx(),
+                crate::Problem::UnsupportedNav,
+                Some(self.scroll.id()),
+                || format!("a virtual list navigates as a listbox or not at all, not {nav:?}"),
+            );
+        }
         self.listbox = nav == Nav::Listbox;
         self
     }

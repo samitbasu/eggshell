@@ -326,7 +326,7 @@ impl TextEdit {
         announce(&response, self.name.as_deref());
         if self.lines != Lines::Single
             && response.has_focus()
-            && let Some(shell) = crate::shell::shell_or_warn(ui, "multiline text-field focus")
+            && let Some(shell) = crate::shell::shell_or_report(ui, "multiline text-field focus")
         {
             crate::actions::note_multiline_focus(ui.ctx(), &shell.kept, response.id);
         }

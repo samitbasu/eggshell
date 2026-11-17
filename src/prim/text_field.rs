@@ -259,7 +259,14 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         let field = field.sized(size);
         let measured = field.clone();
         let style = crate::Style::of(b.ctx());
-        // TODO(#279): report icons given to a multi-line field, which shows none.
+        if !field.is_single_line() && (leading.is_some() || trailing.is_some()) {
+            crate::report::report(b.ctx(), crate::Problem::IgnoredIcons, Some(slot.id), || {
+                format!(
+                    "the multi-line field {} shows no icons; the ones given are not drawn",
+                    slot.readable()
+                )
+            });
+        }
         if field.is_single_line() && (leading.is_some() || trailing.is_some()) {
             let metrics = *style.input.sizes.get(size);
             let (side, tint) = (metrics.icon_size, style.input.icon);
@@ -295,23 +302,21 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 });
             return;
         }
-        let classes = text_sized(&b, style.input.sizes.get(size).text).merge(classes);
+        let classes = text_sized(&b, style.input.sizes.lookup(b.ctx(), size).text).merge(classes);
         let classes = if field.is_bare() {
             classes
         } else {
             crate::owned::text_field_classes(&style, size).merge(classes)
         };
-        b.leaf_with(slot.id, &slot.label, classes, move |m| {
-            measure(m, &measured)
-        })
-        .draw_widgets(move |app, ui| {
-            let mut edited = text;
-            let response = show(ui, &mut edited, &field);
-            autofocus.apply(ui.ctx(), &response);
-            if response.changed() {
-                on_change(app, edited);
-            }
-            hooks.run(app, ui, &response, field.enter());
-        });
+        b.leaf_with(&slot, classes, move |m| measure(m, &measured))
+            .draw_widgets(move |app, ui| {
+                let mut edited = text;
+                let response = show(ui, &mut edited, &field);
+                autofocus.apply(ui.ctx(), &response);
+                if response.changed() {
+                    on_change(app, edited);
+                }
+                hooks.run(app, ui, &response, field.enter());
+            });
     }
 }

@@ -200,7 +200,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let stepper = &style.stepper;
-        let metrics = *stepper.sizes.get(b.size_of(size));
+        let metrics = *stepper.sizes.lookup(b.ctx(), b.size_of(size));
         let (low, high) = (*range.start(), *range.end());
         let spec = Spec {
             value,
@@ -258,7 +258,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         let field = Field::singleline("").bare();
         let measured = field.clone();
         b.claim(&slot);
-        b.scope_with(slot.id, &slot.label, |b| {
+        b.scope_with(&slot, |b| {
             let editing = b.id_of(Part::Field).with("editing");
             b.div_id(Part::Box, group, |b| {
                 b.div(field_box, |b| {

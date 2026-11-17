@@ -187,7 +187,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = Style::of(b.ctx());
         let switch = &style.switch;
-        let metrics = *switch.sizes.get(b.size_of(size));
+        let metrics = *switch.sizes.lookup(b.ctx(), b.size_of(size));
         let track = track.unwrap_or(metrics.track);
         let on = mark == Mark::On;
         let slide = switch.slide;
@@ -199,7 +199,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         );
         let name = name.unwrap_or_default();
         b.claim(&slot);
-        b.scope_with(slot.id, &slot.label, |b| {
+        b.scope_with(&slot, |b| {
             let control = b.id_of(Part::Track);
             let tint = transition::animate(
                 b.ctx(),

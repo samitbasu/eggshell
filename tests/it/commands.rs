@@ -563,61 +563,82 @@ mod menus {
     }
 }
 
-#[cfg(debug_assertions)]
 mod validation {
+    use eggshell_ui::Problem;
+    use eggshell_ui::testing::{assert_no_reports, assert_reported};
+
     use super::*;
 
-    fn declared(table: fn() -> Commands<App>) {
+    fn declared(table: fn() -> Commands<App>) -> Harness<'static, Rig<App>> {
         harness_of(App {
             table: Some(table),
             ..App::default()
-        });
+        })
     }
 
     fn noop(_: &mut App) {}
 
     #[test]
-    #[should_panic(expected = "bound to the same chord")]
-    fn two_commands_on_one_chord_panic() {
-        declared(|| {
+    fn two_commands_on_one_chord_are_reported() {
+        let harness = declared(|| {
             Commands::new()
                 .add(Cmd::Save, Command::new("Save", noop).shortcut(SAVE))
                 .add(Cmd::Copy, Command::new("Copy", noop).shortcut(SAVE))
         });
+        let report = assert_reported(&harness.ctx, Problem::DuplicateChord);
+        assert!(
+            report.message.contains("bound to the same chord"),
+            "{}",
+            report.message
+        );
     }
 
     #[test]
-    #[should_panic(expected = "added twice")]
-    fn a_key_added_twice_panics() {
-        declared(|| {
+    fn a_key_added_twice_is_reported() {
+        let harness = declared(|| {
             Commands::new()
                 .add(Cmd::Save, Command::new("Save", noop))
                 .add(Cmd::Save, Command::new("Save again", noop))
         });
+        let report = assert_reported(&harness.ctx, Problem::DuplicateCommand);
+        assert!(report.message.contains("added twice"), "{}", report.message);
     }
 
     #[test]
-    #[should_panic(expected = "bare Escape")]
-    fn a_bare_escape_panics() {
-        declared(|| {
+    fn a_bare_escape_is_reported() {
+        let harness = declared(|| {
             Commands::new().add(
                 Cmd::Save,
                 Command::new("Save", noop).shortcut(chord(Modifiers::NONE, Key::Escape)),
             )
         });
+        let report = assert_reported(&harness.ctx, Problem::ReservedChord);
+        assert!(report.message.contains("bare Escape"), "{}", report.message);
     }
 
     #[test]
-    #[should_panic(expected = "bare Enter")]
-    fn a_bare_enter_panics() {
-        declared(|| {
+    fn a_bare_enter_is_reported() {
+        let harness = declared(|| {
             Commands::new().add(
                 Cmd::Save,
                 Command::new("Save", noop).shortcut(chord(Modifiers::NONE, Key::Enter)),
             )
         });
+        let report = assert_reported(&harness.ctx, Problem::ReservedChord);
+        assert!(report.message.contains("bare Enter"), "{}", report.message);
     }
 
+    #[test]
+    fn a_valid_table_reports_nothing() {
+        let harness = declared(|| {
+            Commands::new()
+                .add(Cmd::Save, Command::new("Save", noop).shortcut(SAVE))
+                .add(Cmd::Copy, Command::new("Copy", noop))
+        });
+        assert_no_reports(&harness.ctx);
+    }
+
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "no command of that key is declared")]
     fn a_menu_item_for_an_unknown_command_panics() {
@@ -630,11 +651,16 @@ mod validation {
     }
 
     #[test]
-    #[should_panic(expected = "declared twice in one root")]
-    fn declaring_commands_twice_in_a_root_panics() {
-        harness_of(App {
+    fn declaring_commands_twice_in_a_root_is_reported() {
+        let harness = harness_of(App {
             twice: true,
             ..App::default()
         });
+        let report = assert_reported(&harness.ctx, Problem::CommandsTwice);
+        assert!(
+            report.message.contains("declared twice in one root"),
+            "{}",
+            report.message
+        );
     }
 }

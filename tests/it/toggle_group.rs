@@ -3,7 +3,7 @@
 
 use eggshell_ui::contract::{Keyed, Metrics, Size};
 use eggshell_ui::owned::{ButtonOptions, Face, ToggleGroup};
-use eggshell_ui::{Builder, TextStyle, tw};
+use eggshell_ui::{Builder, Problem, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Rect, Role, Theme, vec2};
 use egui_kittest::Harness;
@@ -279,14 +279,19 @@ fn a_card_member_has_its_check_only_while_chosen() {
 
 #[cfg(debug_assertions)]
 #[test]
-#[should_panic(expected = "duplicate key path /Tools=Pan")]
 fn two_members_with_one_value_in_a_group_are_a_duplicate_path() {
     fn twice(b: &mut Builder<'_, '_, App>, app: &App) {
         let tools = group(app);
         b.toggle_item(&tools, Tool::Pan, "Pan").add();
         b.toggle_item(&tools, Tool::Pan, "Pan again").add();
     }
-    let _ = harness_of(twice);
+    let harness = harness_of(twice);
+    let report = eggshell_ui::testing::assert_reported(&harness.ctx, Problem::DuplicateKey);
+    assert!(
+        report.message.contains("duplicate key path /Tools=Pan"),
+        "{}",
+        report.message
+    );
 }
 
 #[test]

@@ -19,9 +19,11 @@
 
 use egui::{Context, Event, Id, Key as EguiKey, KeyboardShortcut, Modifiers};
 
+use crate::Problem;
 use crate::clipboard::{ClipboardError, Paste, Via};
 use crate::key::{Key, child_id};
 use crate::overlay_input::Typing;
+use crate::report::report;
 use crate::shell::Shell;
 
 /// What a command does when a text field has the keyboard.
@@ -276,21 +278,24 @@ impl<A> Commands<A> {
             .map(|entry| &entry.command)
     }
 
-    /// Panics, in debug builds, on a table that cannot be dispatched: the same
-    /// key twice, the same chord twice, or a bare Esc or Enter, which the
-    /// library keeps for dismissal and the default button.
-    #[cfg(debug_assertions)]
-    pub(crate) fn validate(&self) {
+    /// Reports what makes a table ambiguous to dispatch: the same key
+    /// twice, the same chord twice, or a bare Esc or Enter, which the library
+    /// keeps for dismissal and the default button. The first entry of a key
+    /// or chord is the one that runs.
+    #[track_caller]
+    pub(crate) fn validate(&self, ctx: &Context) {
         for (at, entry) in self.entries.iter().enumerate() {
             let Entry {
                 readable, command, ..
             } = entry;
-            let earlier = &self.entries[..at];
+            let earlier = self.entries.get(..at).unwrap_or_default();
             if let Some(first) = earlier.iter().find(|other| other.id == entry.id) {
-                panic!(
-                    "command {readable} is added twice (first as {})",
-                    first.readable
-                );
+                report(ctx, Problem::DuplicateCommand, Some(entry.id), || {
+                    format!(
+                        "command {readable} is added twice (first as {}); the first runs",
+                        first.readable
+                    )
+                });
             }
             let Some(shortcut) = command.shortcut else {
                 continue;
@@ -298,11 +303,13 @@ impl<A> Commands<A> {
             if shortcut.modifiers.is_none()
                 && matches!(shortcut.logical_key, EguiKey::Escape | EguiKey::Enter)
             {
-                panic!(
-                    "command {readable} is bound to a bare {:?}, which the library keeps for \
-                     dismissal and the default button",
-                    shortcut.logical_key
-                );
+                report(ctx, Problem::ReservedChord, Some(entry.id), || {
+                    format!(
+                        "command {readable} is bound to a bare {:?}, which the library keeps for \
+                         dismissal and the default button",
+                        shortcut.logical_key
+                    )
+                });
             }
             if let Some(other) = earlier.iter().find(|other| {
                 other
@@ -310,16 +317,17 @@ impl<A> Commands<A> {
                     .shortcut
                     .is_some_and(|other| same_chord(other, shortcut))
             }) {
-                panic!(
-                    "commands {} and {readable} are bound to the same chord",
-                    other.readable
-                );
+                report(ctx, Problem::DuplicateChord, Some(entry.id), || {
+                    format!(
+                        "commands {} and {readable} are bound to the same chord; the first runs",
+                        other.readable
+                    )
+                });
             }
         }
     }
 }
 
-#[cfg(debug_assertions)]
 fn same_chord(a: KeyboardShortcut, b: KeyboardShortcut) -> bool {
     a.logical_key == b.logical_key && a.modifiers.matches_exact(b.modifiers)
 }

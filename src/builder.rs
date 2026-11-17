@@ -13,7 +13,7 @@ use crate::commands::{Command, Commands, live_roots};
 use crate::contract::{Size as ControlSize, Style};
 use crate::dnd::{Activator, DragEnd, DragImage, Dragging, Drop, NodeDrag, Source};
 use crate::draw::NodeUi;
-use crate::key::{Key, child_id};
+use crate::key::{Key, Repeat, child_id};
 use crate::measure::Measure;
 use crate::overlay::Band;
 use crate::overlay_chain::{OverlayChain, Unplaced};
@@ -73,7 +73,11 @@ impl Parts {
 /// A key resolved against the builder that started a chain: its id and
 /// readable name, fixed when the chain starts so the chain need not carry the
 /// key's type.
+///
+/// `id` is `declared` unless the key repeats a path of the frame, which
+/// debug builds give an id of its own.
 pub(crate) struct Slot {
+    pub(crate) declared: Id,
     pub(crate) id: Id,
     pub(crate) label: Label,
 }
@@ -88,11 +92,11 @@ impl Debug for Label {
 }
 
 impl Slot {
-    /// A slot with `id` that debugs as `readable`.
-    pub(crate) fn labelled(id: Id, readable: String) -> Self {
+    /// The slot, debugging as `readable`.
+    pub(crate) fn relabelled(self, readable: String) -> Self {
         Self {
-            id,
             label: Label(readable),
+            ..self
         }
     }
 
@@ -202,7 +206,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// `body` gets a [`Scope`], which components take: a component can only be
     /// placed where its caller named the instance.
     pub fn scope<K: Key>(&mut self, key: K, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
-        self.scope_with(child_id(self.path, &key), &key, body);
+        // A scope may reach into the subtree of a node already keyed `key`,
+        // so a repeat of the key keeps its id.
+        let declared = child_id(self.path, &key);
+        let path = Slot {
+            declared,
+            id: declared,
+            label: Label(format!("{key:?}")),
+        };
+        self.scope_with(&path, body);
     }
 
     /// Not a stable API: it exists for `eggshell-ui-extras`. Builds `body`
@@ -220,17 +232,12 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         )));
     }
 
-    pub(crate) fn scope_with(
-        &mut self,
-        id: Id,
-        key: &dyn Debug,
-        body: impl FnOnce(&mut Scope<'_, 'f, A>),
-    ) {
-        let mark = self.st.names.push(key);
+    pub(crate) fn scope_with(&mut self, slot: &Slot, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
+        let mark = self.st.names.push(&slot.label);
         body(&mut Scope(Builder::new(
             self.st,
             self.frame,
-            id,
+            slot.id,
             self.kids,
             (self.inherited, self.ambient),
         )));
@@ -250,9 +257,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// `key` resolved in this scope, for a chain that is finished later.
     pub(crate) fn slot<K: Key>(&self, key: &K) -> Slot {
+        self.slot_of(child_id(self.path, key), format!("{key:?}"))
+    }
+
+    /// The slot of a node whose id, `declared`, is not a key's.
+    pub(crate) fn slot_of(&self, declared: Id, readable: String) -> Slot {
         Slot {
-            id: child_id(self.path, key),
-            label: Label(format!("{key:?}")),
+            declared,
+            id: self.st.seen.vacant(declared),
+            label: Label(readable),
         }
     }
 
@@ -339,24 +352,24 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         tw: Tw,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) -> NodeHandle<'_, 'f, A> {
-        self.div_id_with(child_id(self.path, &key), &key, tw, body)
+        let slot = self.slot(&key);
+        self.div_id_with(&slot, tw, body)
     }
 
     #[track_caller]
     pub(crate) fn div_id_with(
         &mut self,
-        id: Id,
-        key: &dyn Debug,
+        slot: &Slot,
         tw: Tw,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) -> NodeHandle<'_, 'f, A> {
-        let path = self.identify(id, key);
+        let path = self.identify(slot);
         let parts = Parts {
-            id: Some(id),
+            id: Some(slot.id),
             ..Parts::anonymous(NodeKind::DivId, path)
         };
-        let mark = self.st.names.push(key);
-        self.container(tw, parts, id, |b| body(&mut Scope(b)));
+        let mark = self.st.names.push(&slot.label);
+        self.container(tw, parts, slot.id, |b| body(&mut Scope(b)));
         self.st.names.pop_to(mark);
         self.handle()
     }
@@ -444,8 +457,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// The leaf a virtual list's rows are built into once it is laid out:
     /// as wide as the content and `height` tall.
     pub(crate) fn rows_leaf(&mut self, height: f32) -> RowsLeaf {
-        let id = child_id(self.path, &crate::vlist::RowsKey);
-        let readable = self.identify(id, &crate::vlist::RowsKey);
+        let slot = self.slot(&crate::vlist::RowsKey);
+        let readable = self.identify(&slot);
+        let id = slot.id;
         let tw = tw().w_full().h_px(height);
         let ambient = self.ambient_in(&tw);
         self.leaf_node(
@@ -544,8 +558,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         tw: Tw,
         body: impl FnOnce(&mut Builder<'_, 'f, A>, egui::Vec2) + 'f,
     ) {
-        let id = child_id(self.path, &key);
-        let readable = self.identify(id, &key);
+        let slot = self.slot(&key);
+        let readable = self.identify(&slot);
+        let id = slot.id;
         let ambient = self.ambient_in(&tw);
         let parts = Parts {
             id: Some(id),
@@ -581,8 +596,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// disabled as it is built. Pass the `&'f A` the view was given.
     ///
     /// Under an open modal only the modal's own table runs; the page's is
-    /// silent. Debug builds panic on a table whose keys or chords repeat, on
-    /// a bare Esc or Enter, and on a root that declares its commands twice.
+    /// silent. A table whose keys or chords repeat, a bare Esc or Enter, and
+    /// a root that declares its commands twice are reported (see
+    /// [`Problem`](crate::Problem)).
     ///
     /// ```
     /// # use eggshell_ui::{Builder, Command, Commands};
@@ -607,17 +623,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// ```
     #[track_caller]
     pub fn commands(&mut self, table: &Commands<A>, app: &'f A) {
-        #[cfg(debug_assertions)]
+        table.validate(self.frame.ctx);
+        if self
+            .frame
+            .commands
+            .iter()
+            .any(|(root, _)| *root == self.frame.current)
         {
-            table.validate();
-            assert!(
-                self.frame
-                    .commands
-                    .iter()
-                    .all(|(root, _)| *root != self.frame.current),
-                "commands are declared twice in one root, the second at {}",
-                std::panic::Location::caller()
-            );
+            crate::report::report(self.frame.ctx, crate::Problem::CommandsTwice, None, || {
+                "commands are declared twice in one root; the first table runs".to_owned()
+            });
         }
         self.frame.app = Some(app);
         self.frame
@@ -758,7 +773,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             CollapseAxis::Height => classes.overflow_hidden().flex().flex_col(),
             CollapseAxis::Width => classes.overflow_hidden().flex().flex_row(),
         };
-        let path = self.identify(slot.id, &slot.label);
+        let path = self.identify(slot);
         let mark = self.st.names.push(&slot.label);
         let parts = |collapse| Parts {
             id: Some(slot.id),
@@ -851,7 +866,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
     ) {
         self.frame.windows.insert(slot.id, hooks);
-        let path = self.identify(slot.id, &slot.label);
+        let path = self.identify(slot);
         let parent = self.frame.current;
         self.frame.roots.push(RootDecl::window(decl, parent));
         let at = self.frame.roots.len() - 1;
@@ -924,7 +939,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         if let Some(on_dismiss) = on_dismiss {
             self.frame.dismiss.insert(slot.id, on_dismiss);
         }
-        let path = self.identify(slot.id, &slot.label);
+        let path = self.identify(slot);
         let parent = self.frame.current;
         self.frame.roots.push(RootDecl::overlay(decl, parent));
         let at = self.frame.roots.len() - 1;
@@ -967,8 +982,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// its content, built from `body`, a tree of its own.
     pub(crate) fn scroll_with(
         mut self,
-        id: Id,
-        key: &dyn Debug,
+        slot: &Slot,
         classes: Tw,
         options: ScrollOptions,
         body: impl FnOnce(&mut Scope<'_, 'f, A>),
@@ -981,20 +995,20 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             focusable,
             description,
         } = options;
-        let path = self.identify(id, key);
+        let path = self.identify(slot);
         let parts = Parts {
-            id: Some(id),
+            id: Some(slot.id),
             ..Parts::anonymous(NodeKind::Scroll, path)
         };
         let mut leaf = self.node(&classes, parts);
-        let mark = self.st.names.push(key);
+        let mark = self.st.names.push(&slot.label);
         let content_path = self.anonymous_path(NodeKind::ScrollContent);
         let mut kids = Vec::new();
         let ambient = self.ambient_in(&classes);
         body(&mut Scope(Builder::new(
             self.st,
             self.frame,
-            id,
+            slot.id,
             &mut kids,
             (&leaf.text, ambient),
         )));
@@ -1049,22 +1063,22 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         tw: Tw,
         measure: impl Fn(&Measure<'_>) -> Size<f32> + 'f,
     ) -> NodeHandle<'_, 'f, A> {
-        self.leaf_with(child_id(self.path, &key), &key, tw, measure)
+        let slot = self.slot(&key);
+        self.leaf_with(&slot, tw, measure)
     }
 
     #[track_caller]
     pub(crate) fn leaf_with(
         &mut self,
-        id: Id,
-        key: &dyn Debug,
+        slot: &Slot,
         tw: Tw,
         measure: impl Fn(&Measure<'_>) -> Size<f32> + 'f,
     ) -> NodeHandle<'_, 'f, A> {
-        let path = self.identify(id, key);
+        let path = self.identify(slot);
         let measure: MeasureFn<'f> = Box::new(measure);
         self.frame.measures.push(measure);
         let parts = Parts {
-            id: Some(id),
+            id: Some(slot.id),
             measure: Some(self.frame.measures.len() - 1),
             ..Parts::anonymous(NodeKind::Leaf, path)
         };
@@ -1138,10 +1152,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         kind: NodeKind,
         prim: Prim,
     ) -> NodeHandle<'_, 'f, A> {
-        let id = child_id(self.path, &key);
-        let path = self.identify(id, &key);
+        let slot = self.slot(&key);
+        let path = self.identify(&slot);
         let parts = Parts {
-            id: Some(id),
+            id: Some(slot.id),
             ..Parts::anonymous(kind, path).with_prim(prim)
         };
         self.leaf_node(tw, parts);
@@ -1233,27 +1247,43 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.leaf_node(tw, Parts::anonymous(kind, path).with_prim(prim));
     }
 
-    /// Registers an identified chain's own key, so that a duplicate panics at
-    /// the call that finishes the chain and not in a closure of the library.
+    /// Registers an identified chain's own key, so that a duplicate is
+    /// reported at the call that finishes the chain and not in a closure of
+    /// the library.
     #[track_caller]
     pub(crate) fn claim(&mut self, slot: &Slot) {
-        self.identify(slot.id, &slot.label);
+        self.identify(slot);
     }
 
     #[track_caller]
-    fn identify(&mut self, id: Id, key: &dyn Debug) -> String {
-        let mark = self.st.names.push(key);
+    fn identify(&mut self, slot: &Slot) -> String {
+        let mark = self.st.names.push(&slot.label);
         let path = self.st.names.as_str().to_owned();
         self.st.names.pop_to(mark);
         if self.st.pass == Pass::Scratch {
             return path;
         }
-        self.st.seen.register(id, &path);
+        if let Some(repeat) = self.st.seen.register(slot.declared, slot.id, &path) {
+            crate::report::report(
+                self.frame.ctx,
+                repeat.problem(),
+                Some(slot.declared),
+                || match &repeat {
+                    Repeat::Duplicate => {
+                        format!("duplicate key path {path}; this one is given an id of its own")
+                    }
+                    Repeat::Collision { first } => format!(
+                        "key paths {first} and {path} have the same id; the second is given an \
+                         id of its own"
+                    ),
+                },
+            );
+        }
         #[cfg(debug_assertions)]
         if self.path == self.st.root {
             crate::key::claims::top_level(
                 self.frame.ctx,
-                id,
+                slot.id,
                 &path,
                 &self.st.claimant(),
                 self.st.built_at,
@@ -1719,13 +1749,12 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
         if let Some(source) = source
             .filter(|&id| crate::dnd::lifted_source(self.b.frame.ctx, &self.b.st.kept) == Some(id))
         {
-            let label = format!("drag preview of {path}");
-            self.b.div_id_with(
+            let slot = self.b.slot_of(
                 crate::dnd::preview_id(source),
-                &label,
-                tw().absolute().pointer_events_none(),
-                build,
+                format!("drag preview of {path}"),
             );
+            self.b
+                .div_id_with(&slot, tw().absolute().pointer_events_none(), build);
         }
         self
     }

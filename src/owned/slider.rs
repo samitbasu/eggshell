@@ -276,7 +276,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         let enablement = b.enablement_of(enablement);
         let style = Style::of(b.ctx());
         let slider = &style.slider;
-        let metrics = *slider.sizes.get(b.size_of(size));
+        let metrics = *slider.sizes.lookup(b.ctx(), b.size_of(size));
         let (low, high) = (*range.start(), *range.end());
         let fraction = if high > low {
             ((value - low) / (high - low)).clamp(0.0, 1.0) as f32
@@ -350,7 +350,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                 .merge(caller)
         });
         b.claim(&slot);
-        b.scope_with(slot.id, &slot.label, |b| {
+        b.scope_with(&slot, |b| {
             let on_track = scale.clone();
             let on_thumb = set.clone();
             let thumb_edits = edits.clone();
@@ -488,7 +488,7 @@ impl Row {
             text,
             size,
         } = self;
-        let input = *Style::of(b.ctx()).input.sizes.get(size);
+        let input = *Style::of(b.ctx()).input.sizes.lookup(b.ctx(), size);
         let row = tw().flex().items_center().justify_between().w_full();
         let row = if header.parse.is_some() {
             row.min_h_px(input.height)

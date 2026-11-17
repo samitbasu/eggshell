@@ -108,27 +108,20 @@ impl ShellExt for Ui {
     }
 }
 
-/// The shell for a library widget that has only a `Ui`, or `None` with a
-/// warning, printed once per context and `what`, that the step `what` is
-/// skipped. A library widget drawn outside every `Placed::draw` loses that
-/// step instead of panicking.
-pub(crate) fn shell_or_warn(ui: &Ui, what: &'static str) -> Option<Shell> {
-    #[derive(Clone, Default)]
-    struct Warned(std::collections::HashSet<&'static str>);
-
+/// The shell for a library widget that has only a `Ui`, or `None`, reported
+/// as [`ShellOutsideDraw`](crate::Problem::ShellOutsideDraw), with the step
+/// `what` skipped. A library widget drawn outside every `Placed::draw` loses
+/// that step instead of panicking.
+#[track_caller]
+pub(crate) fn shell_or_report(ui: &Ui, what: &'static str) -> Option<Shell> {
     let shell = ui.try_shell();
     if shell.is_none() {
-        let first = ui.ctx().data_mut(|data| {
-            data.get_temp_mut_or_default::<Warned>(Id::NULL.with("eggshell-no-drawing-shell"))
-                .0
-                .insert(what)
+        crate::report::report(ui.ctx(), crate::Problem::ShellOutsideDraw, None, || {
+            format!(
+                "{what} needs the layout being drawn, and this `Ui` is outside every \
+                 `Placed::draw`; skipped"
+            )
         });
-        if first {
-            eprintln!(
-                "eggshell: {what} needs the layout being drawn, and this `Ui` is outside \
-                 every `Placed::draw`; skipped (warned once)"
-            );
-        }
     }
     shell
 }
@@ -178,5 +171,28 @@ impl Drop for Drawing {
                 data.remove::<Handle>(key);
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_widget_step_outside_every_draw_is_reported_and_skipped() {
+        let ctx = Context::default();
+        let mut shells = Vec::new();
+        for _ in 0..2 {
+            ctx.run_ui(egui::RawInput::default(), |ui| {
+                shells.push(shell_or_report(ui, "a test step").is_some());
+            })
+            .drop_without_applying_deltas();
+        }
+        assert_eq!(shells, [false, false]);
+        let reports = crate::report::reports(&ctx);
+        assert_eq!(reports.len(), 1, "{reports:?}");
+        assert_eq!(reports[0].problem, crate::Problem::ShellOutsideDraw);
+        assert_eq!(reports[0].count, 2);
+        assert!(reports[0].message.contains("a test step"), "{reports:?}");
     }
 }

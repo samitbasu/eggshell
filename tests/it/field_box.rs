@@ -263,3 +263,26 @@ fn a_multiline_field_shows_no_icon_and_does_not_panic() {
     rect_of(&harness, r#"/"notes""#);
     assert!(support::textured(&harness).is_empty(), "no icon is drawn");
 }
+
+#[test]
+fn icons_on_a_multi_line_field_are_reported() {
+    use eggshell_ui::Problem;
+    use eggshell_ui::testing::{Headless, assert_no_reports, assert_reported};
+
+    let build = |lines: Option<usize>| {
+        let mut headless = Headless::new(vec2(300.0, 200.0));
+        headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
+            let field = b.text_field("notes", "").leading(Icon::new(icons::SEARCH));
+            let field = match lines {
+                Some(rows) => field.multiline(rows),
+                None => field,
+            };
+            field.on_change(|_, _| {});
+        });
+        headless
+    };
+    assert_no_reports(build(None).ctx());
+    let multi = build(Some(3));
+    let report = assert_reported(multi.ctx(), Problem::IgnoredIcons);
+    assert!(report.message.contains("\"notes\""), "{}", report.message);
+}

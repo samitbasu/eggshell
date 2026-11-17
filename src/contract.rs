@@ -54,9 +54,9 @@ impl std::fmt::Display for Size {
     }
 }
 
-/// Entries by key with one that stands in for any key the style lacks. In a
-/// debug build, asking for an unknown key is a bug and asserts; a release
-/// build quietly uses the default entry.
+/// Entries by key with one that stands in for any key the style lacks. A
+/// widget drawn with a key the style lacks uses the default entry and is
+/// reported as [`Problem::MissingStyleEntry`](crate::Problem::MissingStyleEntry).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Keyed<K, T> {
     default_key: K,
@@ -100,10 +100,21 @@ impl<K: Ord + Copy + Debug, T> Keyed<K, T> {
         if key == self.default_key {
             return &self.default;
         }
-        self.others.get(&key).unwrap_or_else(|| {
-            debug_assert!(false, "the style defines no {key:?}");
-            &self.default
-        })
+        self.others.get(&key).unwrap_or(&self.default)
+    }
+
+    /// [`Self::get`], reporting a key the style does not define.
+    #[track_caller]
+    pub(crate) fn lookup(&self, ctx: &Context, key: K) -> &T {
+        if key != self.default_key && !self.others.contains_key(&key) {
+            crate::report::report(
+                ctx,
+                crate::Problem::MissingStyleEntry,
+                Some(Id::NULL.with(("style-entry", format!("{key:?}")))),
+                || format!("the style defines no {key:?}; drawing its default entry"),
+            );
+        }
+        self.get(key)
     }
 
     /// The entry under `key`, if the style defines it.

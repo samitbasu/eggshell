@@ -411,7 +411,7 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             focusable,
             description: Description { role, name },
         };
-        b.scroll_with(slot.id, &slot.label, classes, options, body)
+        b.scroll_with(&slot, classes, options, body)
     }
 }
 

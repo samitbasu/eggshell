@@ -344,16 +344,15 @@ impl<'b, 'f, A: 'static> PopOutChain<'b, 'f, A> {
         b.note_pop_out(slot.id);
         match popped {
             Popped::In => {
-                b.div_id_with(slot.id, &slot.label, classes, body);
+                b.div_id_with(&slot, classes, body);
             }
             Popped::Out => {
                 if let Some(placeholder) = placeholder {
-                    b.div_id_with(
+                    let stand_in = b.slot_of(
                         slot.id.with("placeholder"),
-                        &Placeholder(&slot.label),
-                        classes.clone(),
-                        placeholder,
+                        format!("{:?}", Placeholder(&slot.label)),
                     );
+                    b.div_id_with(&stand_in, classes.clone(), placeholder);
                 }
                 let decl = WindowDecl {
                     id: slot.id,

@@ -5,8 +5,8 @@
 //! cannot silently stop testing anything.
 
 use eggshell_ui::{
-    Builder, FontStyle, Icon, LayoutState, NodeKind, Placed, TextDecoration, TextSpec, TextStyle,
-    Track, tw,
+    Builder, FontStyle, Icon, LayoutState, NodeKind, Placed, Problem, TextDecoration, TextSpec,
+    TextStyle, Track, tw,
 };
 
 #[allow(dead_code, reason = "the example's main and controls are not run here")]
@@ -621,24 +621,57 @@ fn the_same_key_may_recur_in_different_scopes() {
 
 #[cfg(debug_assertions)]
 #[test]
-#[should_panic(expected = "duplicate key path /\"outer\"/\"dup\"")]
-fn a_duplicate_path_panics_with_the_readable_path() {
+fn a_duplicate_path_is_reported_with_the_readable_path() {
+    eggshell_ui::testing::take_reports(ctx());
     place(|b| {
         b.scope("outer", |b| {
             b.span("dup", tw(), "x");
             b.custom("dup", tw()).ui(|_, _| {});
         });
     });
+    let report = eggshell_ui::testing::assert_reported(ctx(), Problem::DuplicateKey);
+    assert!(
+        report
+            .message
+            .contains("duplicate key path /\"outer\"/\"dup\""),
+        "{}",
+        report.message
+    );
+    assert_eq!(report.at.file(), file!(), "reported at the declaring call");
 }
 
 #[cfg(debug_assertions)]
 #[test]
-#[should_panic(expected = "duplicate key path /(\"row\", 1)")]
-fn duplicate_identified_containers_panic() {
+fn duplicate_identified_containers_are_reported_and_get_ids_of_their_own() {
+    eggshell_ui::testing::take_reports(ctx());
+    let placed = place(|b| {
+        b.div_id(("row", 1), tw(), |b| {
+            b.span("cell", tw(), "a");
+        });
+        b.div_id(("row", 1), tw(), |b| {
+            b.span("cell", tw(), "b");
+        });
+    });
+    let report = eggshell_ui::testing::assert_reported(ctx(), Problem::DuplicateKey);
+    assert!(
+        report.message.contains("duplicate key path /(\"row\", 1)"),
+        "{}",
+        report.message
+    );
+    let ids: Vec<Id> = placed.nodes().filter_map(|n| n.id()).collect();
+    assert_eq!(ids.len(), 4, "two rows and a cell in each");
+    let distinct: std::collections::HashSet<_> = ids.iter().collect();
+    assert_eq!(distinct.len(), 4, "no two nodes share an id: {ids:?}");
+}
+
+#[test]
+fn distinct_paths_report_nothing() {
+    eggshell_ui::testing::take_reports(ctx());
     place(|b| {
         b.div_id(("row", 1), tw(), |_| {});
-        b.div_id(("row", 1), tw(), |_| {});
+        b.div_id(("row", 2), tw(), |_| {});
     });
+    eggshell_ui::testing::assert_no_reports(ctx());
 }
 
 #[test]

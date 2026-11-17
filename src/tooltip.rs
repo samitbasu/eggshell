@@ -370,7 +370,7 @@ pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
             content: tip.content.clone(),
             cause,
         };
-        if let Some(shell) = crate::shell::shell_or_warn(ui, "a tooltip") {
+        if let Some(shell) = crate::shell::shell_or_report(ui, "a tooltip") {
             shell.kept.viewport(ui.ctx().viewport_id(), |here| {
                 here.tooltips.requests.push(trigger)
             });
