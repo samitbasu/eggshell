@@ -9,15 +9,15 @@ use egui::{Key, Role, WidgetInfo};
 
 use super::number::{Edit, Edits, Step, pressed};
 use super::{
-    Chevron, Content, Enablement, FieldHooks, Tip, TipContent, centered, described, field_classes,
-    paint_chevron, tip, tipped,
+    Chevron, Content, Enablement, FieldHooks, Tip, TipContent, centered, described,
+    field_box_classes, text_sized, tip, tipped,
 };
 use crate::builder::Slot;
-use crate::contract::{Size, TextSize};
+use crate::contract::Size;
 use crate::focus::Autofocus;
 use crate::overlay_input::Blur;
 use crate::prim::text_field::{self, Field};
-use crate::{Builder, Style, TextSpec, Tw, tw};
+use crate::{Builder, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -212,34 +212,27 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             edits,
             autofocus,
         };
-        let group = enablement
-            .fade(
-                field_classes(&stepper.group, &style, metrics.radius, enablement)
-                    .flex()
-                    .items_stretch()
-                    .gap(1.0 / 4.0)
-                    .h_px(metrics.height)
-                    .w_px(112.0),
-                &style,
-            )
-            .merge(classes);
+        let group = field_box_classes(
+            &stepper.group,
+            &style,
+            metrics.radius,
+            metrics.height,
+            enablement,
+        )
+        .items_stretch()
+        .gap(1.0 / 4.0)
+        .w_px(112.0)
+        .merge(classes);
         let divider = match enablement {
             Enablement::Enabled => stepper.divider,
             Enablement::Disabled => enablement.colors(stepper.group.paint.states, &style).border,
         };
         let group = group.divide_x(1.0, divider);
-        let field_box = centered(match metrics.text {
-            Some(TextSize { size, line_height }) => tw().role(TextSpec {
-                size,
-                line_height,
-                ..b.text_style().spec.clone()
-            }),
-            None => tw(),
-        })
-        .justify_start()
-        .grow()
-        .min_w_0()
-        .px(metrics.padding_x / 4.0);
+        let field_box = centered(text_sized(&b, metrics.text))
+            .justify_start()
+            .grow()
+            .min_w_0()
+            .px(metrics.padding_x / 4.0);
         let inner_radius = f32::from(metrics.radius) - stepper.group.border_width;
         let button = |at_end: bool, corner: fn(Tw, f32) -> Tw| {
             let enablement = if at_end {
@@ -292,7 +285,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                         let set = set.clone();
                         let name = format!("{label} {}", spec.name);
                         b.div_id(part, classes, |b| {
-                            b.paint(tw().size_px(glyph), paint_chevron(chevron))
+                            b.glyph(tw().size_px(glyph), chevron.icon())
                         })
                         .draw(move |app, ui| {
                             if described(ui, Role::Button, None, name.trim(), &spec.tooltip)

@@ -62,7 +62,7 @@ fn nodes(harness: &Harness<'_, Rig<App>>) -> Vec<(String, Rect)> {
         .state()
         .nodes
         .iter()
-        .filter(|(path, _)| !path.ends_with("/<paint>"))
+        .filter(|(path, _)| !path.ends_with("/<paint>") && !path.ends_with("/<glyph>"))
         .cloned()
         .collect()
 }

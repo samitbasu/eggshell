@@ -43,6 +43,7 @@ mod button;
 mod checkbox;
 mod choice;
 mod custom;
+mod field_box;
 mod menu;
 mod number;
 mod progress;
@@ -65,12 +66,13 @@ use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::time::Duration;
 
-use egui::{Color32, Id, Painter, Pos2, Rect, Response, Role, Shape, Stroke, Ui, WidgetInfo, pos2};
+use egui::{Id, Response, Role, Ui, WidgetInfo};
 
 pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
+pub use field_box::FieldBoxChain;
 pub use menu::{Action, Checkbox, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use number::{Edit, Step};
@@ -89,7 +91,7 @@ pub use toggle_group::{Member, ToggleGroup};
 
 use crate::contract::{Colors, Disabled, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};
-use crate::{Builder, NodeUi as _, TextSpec, Tw, tw};
+use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, icons, tw};
 
 /// Whether a checkbox is ticked, a radio button chosen or a selectable
 /// button selected.
@@ -492,6 +494,35 @@ fn field_classes(look: &Look, style: &Style, radius: u8, enablement: Enablement)
     }
 }
 
+/// A box in `look` of `radius` and `height` that holds a row: the frame of a
+/// field and of what sits beside it.
+pub(crate) fn field_box_classes(
+    look: &Look,
+    style: &Style,
+    radius: u8,
+    height: f32,
+    enablement: Enablement,
+) -> Tw {
+    enablement.fade(
+        field_classes(look, style, radius, enablement)
+            .flex()
+            .h_px(height),
+        style,
+    )
+}
+
+/// `size`'s text laid over the role the subtree inherits.
+pub(crate) fn text_sized<A>(b: &Builder<'_, '_, A>, size: Option<crate::contract::TextSize>) -> Tw {
+    match size {
+        Some(crate::contract::TextSize { size, line_height }) => tw().role(TextSpec {
+            size,
+            line_height,
+            ..b.text_style().spec.clone()
+        }),
+        None => tw(),
+    }
+}
+
 /// The classes of a framed text field's leaf: the focus ring around the box the
 /// field's own frame draws. The frame's border is egui's, set by
 /// [`Style::map_input`].
@@ -501,27 +532,8 @@ pub(crate) fn text_field_classes(style: &Style, size: Size) -> Tw {
         .focus_within(|p| p.ring(ring.width, ring.color))
 }
 
-/// lucide's `check`, on its 24 point grid.
-const CHECK: [(f32, f32); 3] = [(4.0, 12.0), (9.0, 17.0), (20.0, 6.0)];
-
-/// lucide's `chevron-down`, on its 24 point grid.
-const CHEVRON_DOWN: [(f32, f32); 3] = [(6.0, 9.0), (12.0, 15.0), (18.0, 9.0)];
-
-/// A 2-point stroke of `points` on a 24 point grid fitted to `rect`, with
-/// round joins, as lucide draws its icons.
-fn paint_strokes(painter: &Painter, rect: Rect, color: Color32, points: [(f32, f32); 3]) {
-    let scale = rect.width() / 24.0;
-    let at = |(x, y): (f32, f32)| -> Pos2 { rect.min + pos2(x, y).to_vec2() * scale };
-    let width = 2.0 * scale;
-    let points = points.map(at);
-    painter.add(Shape::line(points.to_vec(), Stroke::new(width, color)));
-    for point in points {
-        painter.circle_filled(point, width / 2.0, color);
-    }
-}
-
-fn paint_check(painter: &Painter, rect: Rect, color: Color32) {
-    paint_strokes(painter, rect, color, CHECK);
+fn check() -> Icon {
+    Icon::new(icons::CHECK)
 }
 
 /// Which way a chevron points.
@@ -532,14 +544,13 @@ enum Chevron {
     Right,
 }
 
-fn paint_chevron(chevron: Chevron) -> impl Fn(&Painter, Rect, Color32) + 'static {
-    move |painter, rect, color| {
-        let points = match chevron {
-            Chevron::Down => CHEVRON_DOWN,
-            Chevron::Up => CHEVRON_DOWN.map(|(x, y)| (x, 24.0 - y)),
-            Chevron::Right => CHEVRON_DOWN.map(|(x, y)| (y, x)),
-        };
-        paint_strokes(painter, rect, color, points);
+impl Chevron {
+    fn icon(self) -> Icon {
+        Icon::new(match self {
+            Self::Down => icons::CHEVRON_DOWN,
+            Self::Up => icons::CHEVRON_UP,
+            Self::Right => icons::CHEVRON_RIGHT,
+        })
     }
 }
 

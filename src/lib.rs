@@ -340,6 +340,7 @@ mod dismiss;
 mod dnd;
 mod draw;
 mod focus;
+pub mod icons;
 mod kept;
 mod key;
 mod measure;

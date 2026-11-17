@@ -56,6 +56,12 @@ mod clipboard_example;
 #[path = "../../examples/control_sizes.rs"]
 mod control_sizes_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/field_icons.rs"]
+mod field_icons_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/icons.rs"]
+mod icons_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/list_nav.rs"]
 mod list_nav_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
@@ -2487,6 +2493,88 @@ fn control_sizes_light() {
 #[test]
 fn control_sizes_dark() {
     control_sizes_in("control_sizes_dark", egui::Theme::Dark);
+}
+
+/// The standard vector icons and three controls, the menu open or shut.
+fn icons_in(name: &str, theme: egui::Theme, open_menu: bool) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(620.0, 360.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        (),
+        icons_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    if open_menu {
+        support::click_node(&mut harness, r#"/"Page"/"context"/"menu""#);
+        harness.run_steps(8);
+    }
+    harness.snapshot(name);
+}
+
+#[test]
+fn icons_light() {
+    icons_in("icons_light", egui::Theme::Light, false);
+}
+
+#[test]
+fn icons_dark() {
+    icons_in("icons_dark", egui::Theme::Dark, false);
+}
+
+#[test]
+fn icons_menu_light() {
+    icons_in("icons_menu_light", egui::Theme::Light, true);
+}
+
+#[test]
+fn icons_menu_dark() {
+    icons_in("icons_menu_dark", egui::Theme::Dark, true);
+}
+
+/// Text fields with icons at three sizes, the search field focused or not.
+fn field_icons_in(name: &str, theme: egui::Theme, focused: bool) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(320.0, 240.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        field_icons_example::State::default(),
+        field_icons_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    if focused {
+        support::click_node(&mut harness, r#"/"Page"/"default"/"search"/Field"#);
+        harness.run_steps(6);
+    }
+    harness.snapshot(name);
+}
+
+#[test]
+fn field_icons_light() {
+    field_icons_in("field_icons_light", egui::Theme::Light, false);
+}
+
+#[test]
+fn field_icons_dark() {
+    field_icons_in("field_icons_dark", egui::Theme::Dark, false);
+}
+
+#[test]
+fn field_icons_focused_light() {
+    field_icons_in("field_icons_focused_light", egui::Theme::Light, true);
+}
+
+#[test]
+fn field_icons_focused_dark() {
+    field_icons_in("field_icons_focused_dark", egui::Theme::Dark, true);
 }
 
 /// A virtual listbox with the highlight on its fourth row.
