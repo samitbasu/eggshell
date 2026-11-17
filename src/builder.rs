@@ -371,9 +371,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             ..Parts::anonymous(NodeKind::DivId, path)
         };
         let mark = self.st.names.push(&slot.label);
-        self.container(tw, parts, slot.id, |b| body(&mut Scope(b)));
+        let node = self.container(tw, parts, slot.id, |b| body(&mut Scope(b)));
         self.st.names.pop_to(mark);
-        self.handle()
+        self.handle(node)
     }
 
     /// A scroll container: see [`scroll`](crate::scroll). Its children are
@@ -468,21 +468,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let id = slot.id;
         let tw = tw().w_full().h_px(height);
         let ambient = self.ambient_in(&tw);
-        self.leaf_node(
+        let leaf = self.leaf_node(
             tw,
             Parts {
                 id: Some(id),
                 ..Parts::anonymous(NodeKind::Region, readable.clone())
             },
         );
-        let leaf = *self.kids.last().expect("the leaf was just added");
-        let text = self
-            .st
-            .tree
-            .get_node_context(leaf)
-            .expect("the leaf has a context")
-            .text
-            .clone();
+        let text = self.leaf_text(leaf);
         RowsLeaf {
             leaf,
             readable,
@@ -572,15 +565,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             id: Some(id),
             ..Parts::anonymous(NodeKind::Region, readable.clone())
         };
-        self.leaf_node(tw, parts);
-        let leaf = *self.kids.last().expect("the leaf was just added");
-        let text = self
-            .st
-            .tree
-            .get_node_context(leaf)
-            .expect("the leaf has a context")
-            .text
-            .clone();
+        let leaf = self.leaf_node(tw, parts);
+        let text = self.leaf_text(leaf);
         self.frame.roots[self.frame.current]
             .regions
             .push(RegionDecl {
@@ -702,16 +688,17 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut kids,
             (self.inherited, self.ambient),
         ));
-        let root = st
-            .tree
-            .new_with_children(overlay_style(), &kids)
-            .expect("children were created in this tree");
+        let root = st.tree.new_node(
+            overlay_style(),
+            &kids,
+            Node::bare(NodeKind::Root, String::new(), self.inherited.clone()),
+        );
         let loose = Size {
             width: taffy::AvailableSpace::MaxContent,
             height: taffy::AvailableSpace::MaxContent,
         };
         solve(ctx, &frame.measures, &mut st.tree, root, loose);
-        Width::new(st.tree.layout(root).expect("node exists").size.width)
+        Width::new(st.tree.layout(root).size.width)
     }
 
     /// A part of the page that opens and closes by its size, an accordion
@@ -786,7 +773,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             collapse,
             ..Parts::anonymous(NodeKind::DivId, path.clone())
         };
-        match step {
+        let node = match step {
             Step::Closed { exited } => {
                 if let Some(then) = on_collapsed.filter(|_| exited) {
                     self.frame.exited.push(then);
@@ -804,7 +791,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                     })),
                     slot.id,
                     |_| {},
-                );
+                )
             }
             Step::Present(staged) => {
                 let moving = staged.phase != Presence::Open;
@@ -828,11 +815,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                         at,
                         |b| body(&mut Scope(b)),
                     );
-                });
+                })
             }
-        }
+        };
         self.st.names.pop_to(mark);
-        let node = *self.kids.last().expect("the wrapper was just added");
         NodeHandle {
             b: self,
             node,
@@ -902,12 +888,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
-        let Ok(root) = self.st.tree.new_with_children(style, &kids) else {
-            return;
-        };
-        if self.st.tree.set_node_context(root, Some(node)).is_ok()
-            && let Some(decl) = self.frame.roots.get_mut(at)
-        {
+        let root = self.st.tree.new_node(style, &kids, node);
+        if let Some(decl) = self.frame.roots.get_mut(at) {
             decl.node = Some(root);
         }
     }
@@ -976,15 +958,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
-        let root = self
-            .st
-            .tree
-            .new_with_children(overlay_style(), &kids)
-            .expect("children were created in this tree");
-        self.st
-            .tree
-            .set_node_context(root, Some(node))
-            .expect("node was just created");
+        let root = self.st.tree.new_node(overlay_style(), &kids, node);
         self.frame.roots[at].node = Some(root);
     }
 
@@ -1030,15 +1004,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         content_node.text = leaf.text.clone();
         let mut style = classes.style.clone();
         let content_style = crate::scroll::take_content_layout(&mut style);
-        let content = self
-            .st
-            .tree
-            .new_with_children(content_style, &kids)
-            .expect("children were created in this tree");
-        self.st
-            .tree
-            .set_node_context(content, Some(content_node))
-            .expect("node was just created");
+        let content = self.st.tree.new_node(content_style, &kids, content_node);
         let tab = TabRule::of(focusable, &classes, &self.st.tree, &kids);
         leaf.scroll = Some(ScrollNode {
             axis,
@@ -1053,11 +1019,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             x: Overflow::Scroll,
             y: Overflow::Scroll,
         };
-        let id = self
-            .st
-            .tree
-            .new_leaf_with_context(style, leaf)
-            .expect("taffy accepts a new leaf");
+        let id = self.st.tree.new_node(style, &[], leaf);
         self.kids.push(id);
         self.frame.add_scroll(id);
         NodeHandle {
@@ -1096,8 +1058,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             measure: Some(self.frame.measures.len() - 1),
             ..Parts::anonymous(NodeKind::Leaf, path)
         };
-        self.leaf_node(tw, parts);
-        self.handle()
+        let node = self.leaf_node(tw, parts);
+        self.handle(node)
     }
 
     /// An identified leaf holding a stock egui widget, sized by the library
@@ -1172,8 +1134,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             id: Some(slot.id),
             ..Parts::anonymous(kind, path).with_prim(prim)
         };
-        self.leaf_node(tw, parts);
-        self.handle()
+        let node = self.leaf_node(tw, parts);
+        self.handle(node)
     }
 
     /// An identified icon, measured and painted by the library.
@@ -1316,9 +1278,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         path
     }
 
-    /// A handle on the node just added to the current parent.
-    fn handle(&mut self) -> NodeHandle<'_, 'f, A> {
-        let node = *self.kids.last().expect("a node was just added");
+    fn handle(&mut self, node: NodeId) -> NodeHandle<'_, 'f, A> {
         NodeHandle {
             b: self.reborrow(),
             node,
@@ -1425,15 +1385,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         style
     }
 
-    fn leaf_node(&mut self, tw: Tw, parts: Parts) {
+    /// Adds a leaf to the current parent.
+    fn leaf_node(&mut self, tw: Tw, parts: Parts) -> NodeId {
         let node = self.node(&tw, parts);
         let style = self.resolved_style(tw, &node);
-        let id = self
-            .st
-            .tree
-            .new_leaf_with_context(style, node)
-            .expect("taffy accepts a new leaf");
+        let id = self.st.tree.new_node(style, &[], node);
         self.kids.push(id);
+        id
+    }
+
+    #[track_caller]
+    fn leaf_text(&self, leaf: NodeId) -> TextStyle {
+        self.st
+            .tree
+            .node(leaf)
+            .map_or_else(|| self.inherited.clone(), |node| node.text.clone())
     }
 
     /// What the controls inside a node with `classes` inherit.
@@ -1512,13 +1478,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let mut pieces = Vec::new();
         let mut stack: Vec<NodeId> = kids.into_iter().rev().collect();
         while let Some(node) = stack.pop() {
-            if let Some(text) = tree
-                .get_node_context(node)
-                .and_then(|node| node.prim.as_ref()?.text())
-            {
+            if let Some(text) = tree.node(node).and_then(|node| node.prim.as_ref()?.text()) {
                 pieces.push(text.into_owned());
             }
-            stack.extend(tree.children(node).into_iter().flatten().rev());
+            stack.extend(tree.children(node).into_iter().rev());
         }
         pieces.join(" ")
     }
@@ -1530,7 +1493,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// Builds `body` as the children of a new container whose children's key
     /// path starts at `path`.
-    fn container(&mut self, tw: Tw, parts: Parts, path: Id, body: impl FnOnce(Builder<'_, 'f, A>)) {
+    fn container(
+        &mut self,
+        tw: Tw,
+        parts: Parts,
+        path: Id,
+        body: impl FnOnce(Builder<'_, 'f, A>),
+    ) -> NodeId {
         let ambient = self.ambient_in(&tw);
         let node = self.node(&tw, parts);
         let style = self.resolved_style(tw, &node);
@@ -1543,16 +1512,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut kids,
             (&text, ambient),
         ));
-        let id = self
-            .st
-            .tree
-            .new_with_children(style, &kids)
-            .expect("children were created in this tree");
-        self.st
-            .tree
-            .set_node_context(id, Some(node))
-            .expect("node was just created");
+        let id = self.st.tree.new_node(style, &kids, node);
         self.kids.push(id);
+        id
     }
 }
 
@@ -1584,11 +1546,9 @@ impl<A: 'static> Builder<'_, '_, A> {
 
     /// Runs `draw` after the node's existing draw closure, if it has one.
     fn attach_draw(&mut self, node: NodeId, draw: impl FnOnce(&mut A, &mut egui::Ui) + 'static) {
-        let context = self
-            .st
-            .tree
-            .get_node_context_mut(node)
-            .expect("the handle's node was added to this tree");
+        let Some(context) = self.st.tree.node_mut(node) else {
+            return;
+        };
         let draws = &mut self.frame.draws;
         match context.draw {
             Some(slot) => {
@@ -1683,7 +1643,7 @@ impl<'b, 'f, A, K> NodeHandle<'b, 'f, A, K> {
         self.b
             .st
             .tree
-            .get_node_context(self.node)
+            .node(self.node)
             .and_then(|node| node.id)
             .expect("the node is identified")
     }
@@ -1757,10 +1717,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// frame's layout. The node is a sibling of the source, under an id
     /// derived from the source's.
     pub fn drag_preview(mut self, build: impl FnOnce(&mut Scope<'_, 'f, A>)) -> Self {
-        let (source, path) = {
-            let context = self.node_context();
-            (context.id, context.path.clone())
-        };
+        let (source, path) = self.id_and_path();
         self.edit(|context| context.drag().previewed = true);
         if let Some(source) = source
             .filter(|&id| crate::dnd::lifted_source(self.b.frame.ctx, &self.b.st.kept) == Some(id))
@@ -1806,22 +1763,16 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
-    fn node_context(&mut self) -> &mut Node {
-        self.b
-            .st
-            .tree
-            .get_node_context_mut(self.node)
-            .expect("the handle's node was added to this tree")
+    /// The node's id and path; none and empty if it is missing.
+    #[track_caller]
+    fn id_and_path(&mut self) -> (Option<Id>, String) {
+        self.edit(|context| (context.id, context.path.clone()))
+            .unwrap_or_default()
     }
 
-    fn edit<R>(&mut self, edit: impl FnOnce(&mut Node) -> R) -> R {
-        let context = self
-            .b
-            .st
-            .tree
-            .get_node_context_mut(self.node)
-            .expect("the handle's node was added to this tree");
-        edit(context)
+    #[track_caller]
+    fn edit<R>(&mut self, edit: impl FnOnce(&mut Node) -> R) -> Option<R> {
+        self.b.st.tree.node_mut(self.node).map(edit)
     }
 
     /// Runs `then` with the node's response each frame it is drawn: the escape
@@ -1908,13 +1859,8 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         mut self,
         items: impl for<'m> FnOnce(&mut crate::owned::Menu<'m, 'f, A>),
     ) -> Self {
-        let (owner, path) = {
-            let context = self.node_context();
-            (
-                context.id.expect("a context menu needs an identified node"),
-                context.path.clone(),
-            )
-        };
+        let (owner, path) = self.id_and_path();
+        let owner = owner.expect("a context menu needs an identified node");
         self.edit(|context| {
             let interaction = &mut context.interaction;
             if interaction.sensing == Sensing::None || interaction.sensing == Sensing::Hover {
@@ -1988,10 +1934,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A, DragSource> {
     /// source lifts.
     #[track_caller]
     pub fn drag_handle<K: Key>(mut self, key: K) -> Self {
-        let (source, path) = {
-            let context = self.node_context();
-            (context.id, context.path.clone())
-        };
+        let (source, path) = self.id_and_path();
         let ctx = self.b.frame.ctx;
         let Some(source) = source else {
             crate::report::report(
@@ -2017,7 +1960,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A, DragSource> {
             .b
             .st
             .tree
-            .get_node_context(found)
+            .node(found)
             .and_then(|node| node.drag.as_ref())
             .is_some_and(|drag| drag.source.is_some());
         if handle_is_source {
@@ -2030,7 +1973,7 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A, DragSource> {
                 context.interaction.sensing = source.declared;
             }
         });
-        if let Some(handle_node) = self.b.st.tree.get_node_context_mut(found) {
+        if let Some(handle_node) = self.b.st.tree.node_mut(found) {
             handle_node.interaction.sensing = handle_node.interaction.sensing.or(Sensing::Drag);
         }
         self
@@ -2039,12 +1982,12 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A, DragSource> {
     /// The node with `id` in this node's subtree, not the node itself.
     fn descendant(&self, id: Id) -> Option<NodeId> {
         let tree = &self.b.st.tree;
-        let mut pending = tree.children(self.node).unwrap_or_default();
+        let mut pending = tree.children(self.node);
         while let Some(node) = pending.pop() {
-            if tree.get_node_context(node).and_then(|context| context.id) == Some(id) {
+            if tree.node(node).and_then(|context| context.id) == Some(id) {
                 return Some(node);
             }
-            pending.extend(tree.children(node).unwrap_or_default());
+            pending.extend(tree.children(node));
         }
         None
     }
@@ -2111,7 +2054,7 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 /// enum Part { Save }
 ///
 /// fn save<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
-///     s.button(key, "Save").named("Save the form").tooltip("Saves")
+///     s.button(key, "Save").tooltip("Saves")
 /// }
 ///
 /// # fn demo(b: &mut eggshell_ui::Builder<'_, '_, App>) {
