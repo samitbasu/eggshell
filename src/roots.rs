@@ -74,6 +74,8 @@ pub(crate) struct RootDecl {
     /// The scroll containers' leaves in this root and in their contents, an
     /// enclosing container after those it encloses.
     pub(crate) scrolls: Vec<NodeId>,
+    /// The mount it was declared in, which its content belongs to.
+    pub(crate) mount: Option<egui::Id>,
 }
 
 impl RootDecl {
@@ -240,6 +242,8 @@ pub(crate) struct PlacedRoot {
     pub(crate) parent: Option<usize>,
     pub(crate) home: Home,
     pub(crate) kind: PlacedRootKind,
+    /// The mount it was declared in.
+    pub(crate) mount: Option<Id>,
 }
 
 impl PlacedRoot {

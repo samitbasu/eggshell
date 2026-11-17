@@ -1237,10 +1237,21 @@ impl<A> Walk<'_, A> {
         inherited: Inherited,
     ) {
         let nodes = self.nodes;
+        let wheel = self
+            .shell
+            .mount_of(nodes, index)
+            .map(|mount| self.shell.mount_selected(mount));
+        let source = match wheel {
+            Some(false) => egui::scroll_area::ScrollSource {
+                mouse_wheel: false,
+                ..scroll::source()
+            },
+            Some(true) | None => scroll::source(),
+        };
         let area = egui::ScrollArea::new(plan.overflows(boxes.padding.size() - plan.bars.gutter))
             .id_salt(scroll::AREA_SALT)
             .auto_shrink(false)
-            .scroll_source(scroll::source())
+            .scroll_source(source)
             // egui inflates a viewport smaller than 64 points to 64 and clamps
             // the offset to that, so a short container stopped short of its end
             // and then drifted back.
@@ -1314,6 +1325,12 @@ impl<A> Walk<'_, A> {
                     .visit(index.saturating_add(1), content);
                 });
                 scroll::note_bar_hold(shell, id, shown.id);
+                // A selected mount's scroll container keeps what the wheel
+                // gave it past its end: none of it reaches the page.
+                if wheel == Some(true) && ui.rect_contains_pointer(shown.inner_rect) {
+                    ui.ctx()
+                        .input_mut(|input| input.smooth_scroll_delta = egui::Vec2::ZERO);
+                }
             },
         );
     }
@@ -1906,6 +1923,7 @@ impl<A> Painting<A> {
         );
         finish.finish(&ctx, kept, nodes, drag, app);
         tooltip::end(&ctx, kept, interruption);
+        crate::mount::settle(&ctx, kept, (nodes, by_id), (roots, here), typing);
         scroll_keys::note_press(&ctx, kept, nodes);
         scroll_keys::apply_keys(&ctx, kept, nodes);
         scroll_keys::follow_focus(&ctx, kept, &pass.subtrees);

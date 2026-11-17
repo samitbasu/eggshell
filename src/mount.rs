@@ -9,10 +9,12 @@
 //! again.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
-use egui::Id;
+use egui::{Id, Pos2};
 
+use crate::NodeUi as _;
 use crate::builder::{Builder, NodeHandle, Slot};
 use crate::commands::{Commands, Declared, Table, Within, look_up};
 use crate::pipeline::{DismissFn, DrawFn, FrameCore, Sink, Twice};
@@ -37,6 +39,7 @@ pub struct MountChain<'a, 'f, A, S, L, V> {
     lens: L,
     view: V,
     caption: Option<String>,
+    name: Option<String>,
 }
 
 impl<'a, 'f, A, S, L, V> MountChain<'a, 'f, A, S, L, V>
@@ -60,7 +63,14 @@ where
             lens,
             view,
             caption: None,
+            name: None,
         }
+    }
+
+    /// TODO(prose): names the mount to assistive technology, where it has no caption.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     /// TODO(prose): shows `caption` above the mount, which is framed.
@@ -79,19 +89,28 @@ where
             lens,
             view,
             caption,
+            name,
         } = self;
         let mount = Mount::new(Rc::new(lens), b.mount_within(&slot));
+        let selected = b.declare_mount(&slot);
         let style = crate::Style::of(b.ctx());
         let look = &style.mount;
-        let frame = crate::tw().grow().min_h_0();
+        let frame = crate::tw()
+            .grow()
+            .min_h_0()
+            .rounded_px(f32::from(look.radius));
         let frame = match caption {
             None => frame,
             Some(_) => frame
                 .border(look.border_width)
                 .border_color(look.border)
-                .rounded_px(f32::from(look.radius))
                 .p(look.padding / 4.0),
         };
+        let frame = match selected {
+            Selected::Yes => frame.ring(style.focus.width, look.selected_ring),
+            Selected::No => frame,
+        };
+        let label = caption.clone().or(name);
         let caption_classes = crate::tw().text(look.caption);
         let caption_classes = match look.caption_text.clone() {
             Some(spec) => caption_classes.role(spec),
@@ -108,6 +127,18 @@ where
                     s.span(Part::Caption, caption_classes, caption);
                 }
                 s.div_id(Part::Frame, frame, |s| s.within(&mount, |b| view(b, data)));
+            })
+            .draw(move |_, ui| {
+                let response = ui.node_response();
+                ui.ctx().accesskit_node_builder(response.id, |node| {
+                    node.set_role(egui::accesskit::Role::Group);
+                    if let Some(label) = &label {
+                        node.set_label(label.as_str());
+                    }
+                    if selected == Selected::Yes {
+                        node.set_selected(true);
+                    }
+                });
             })
             .node();
         b.into_handle(node, slot.id)
@@ -294,4 +325,214 @@ impl<'f, R: 'static, S: 'static> Sink<'f, S> for Lensed<'_, 'f, R, S> {
     fn depth(&self) -> usize {
         self.mount.within.depth + 1
     }
+
+    fn mount(&self) -> Option<Id> {
+        Some(self.mount.within.mount)
+    }
+}
+
+/// A mount as a frame declared it: its id, and the mount it is built in.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MountDecl {
+    pub(crate) id: Id,
+    pub(crate) parent: Option<Id>,
+}
+
+/// Which mount is selected: the one a press or keyboard focus last landed
+/// in. A selected mount's ancestors are selected with it.
+#[derive(Default)]
+pub(crate) struct Selection {
+    /// The mounts of the last frame built, each with the one it is in.
+    parents: HashMap<Id, Option<Id>>,
+    selected: Option<Id>,
+    /// The widget that had focus when the selection last settled.
+    focus_seen: Option<Id>,
+}
+
+impl Selection {
+    /// The mounts the frame just built; a selected mount that is gone is
+    /// deselected.
+    pub(crate) fn set_mounts(&mut self, mounts: &[MountDecl]) {
+        self.parents = mounts
+            .iter()
+            .map(|mount| (mount.id, mount.parent))
+            .collect();
+        if self
+            .selected
+            .is_some_and(|selected| !self.parents.contains_key(&selected))
+        {
+            self.selected = None;
+        }
+    }
+
+    fn ids(&self) -> Vec<Id> {
+        self.parents.keys().copied().collect()
+    }
+
+    /// How many mounts `mount` is in.
+    fn depth(&self, mount: Id) -> usize {
+        let mut at = self.parents.get(&mount).copied().flatten();
+        let mut depth = 0;
+        while let Some(id) = at
+            && depth <= self.parents.len()
+        {
+            depth += 1;
+            at = self.parents.get(&id).copied().flatten();
+        }
+        depth
+    }
+
+    pub(crate) fn is_mount(&self, id: Id) -> bool {
+        self.parents.contains_key(&id)
+    }
+
+    /// Whether `mount` is selected or holds the selected mount.
+    pub(crate) fn is_selected(&self, mount: Id) -> bool {
+        let mut at = self.selected;
+        for _ in 0..=self.parents.len() {
+            match at {
+                Some(id) if id == mount => return true,
+                Some(id) => at = self.parents.get(&id).copied().flatten(),
+                None => return false,
+            }
+        }
+        false
+    }
+
+    /// Moves the selection to what this pass's input says: a press selects
+    /// the innermost mount under it, or none; keyboard focus arriving
+    /// somewhere selects the innermost mount holding it, or none; Escape
+    /// that nothing else takes steps out of the selected mount.
+    pub(crate) fn settle(&mut self, input: Settling, at: impl Fn(Pos2) -> Option<Id>) {
+        let arrived = input.focused.is_some() && input.focused != self.focus_seen;
+        if let Some(point) = input.press {
+            self.selected = at(point);
+        } else if arrived {
+            self.selected = input.focus_in.or_else(|| input.focus_at.and_then(&at));
+        } else if input.escape == Escape::Unclaimed {
+            self.selected = self
+                .selected
+                .and_then(|selected| self.parents.get(&selected).copied().flatten());
+        }
+        self.focus_seen = input.focused;
+    }
+}
+
+/// Whether a mount is selected.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Selected {
+    No,
+    Yes,
+}
+
+/// Whether Escape was pressed this pass with nothing else to take it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Escape {
+    Unpressed,
+    Claimed,
+    Unclaimed,
+}
+
+/// What a pass's input says that moves the selection.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Settling {
+    /// Where a press began this pass.
+    pub(crate) press: Option<Pos2>,
+    /// The widget with keyboard focus, the innermost mount it is
+    /// registered in, and where it is, for focus in an overlay.
+    pub(crate) focused: Option<Id>,
+    pub(crate) focus_in: Option<Id>,
+    pub(crate) focus_at: Option<Pos2>,
+    pub(crate) escape: Escape,
+}
+
+impl crate::Shell {
+    /// Whether `mount` is selected or holds the selected mount.
+    pub(crate) fn mount_selected(&self, mount: Id) -> bool {
+        self.kept.with(|kept| kept.mounts.is_selected(mount))
+    }
+
+    /// The innermost mount of the node at `index` in `nodes`, if it is in
+    /// one.
+    pub(crate) fn mount_of(&self, nodes: &crate::nodes::Nodes, index: usize) -> Option<Id> {
+        self.kept.with(|kept| {
+            nodes
+                .ancestors(index)
+                .filter_map(|above| nodes.get(above)?.id())
+                .find(|&id| kept.mounts.is_mount(id))
+        })
+    }
+}
+
+/// Moves the selection by this pass's input, over the frame placed in
+/// `nodes` and `roots`: what is under a point is the innermost mount whose
+/// node holds it where the pointer reaches it, or, in an overlay, the mount
+/// the overlay was declared in.
+pub(crate) fn settle(
+    ctx: &egui::Context,
+    kept: &crate::kept::Handle,
+    (nodes, by_id): (&crate::nodes::Nodes, &crate::roots::ById),
+    (roots, here): (&[crate::roots::PlacedRoot], crate::roots::Here),
+    typing: crate::overlay_input::Typing,
+) {
+    let mounts = kept.with(|kept| kept.mounts.ids());
+    let focused = ctx.memory(|memory| memory.focused());
+    let shell = crate::Shell::new(ctx, kept);
+    let holding: Vec<Id> = focused
+        .map(|_| {
+            mounts
+                .iter()
+                .copied()
+                .filter(|&mount| shell.focus_within(mount))
+                .collect()
+        })
+        .unwrap_or_default();
+    let focus_in = kept.with(|kept| {
+        holding
+            .iter()
+            .copied()
+            .max_by_key(|&mount| kept.mounts.depth(mount))
+    });
+    let escape = if !ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+        Escape::Unpressed
+    } else if typing == crate::overlay_input::Typing::Yes
+        || crate::overlay_input::topmost_root(roots, here) != here.root
+    {
+        Escape::Claimed
+    } else {
+        Escape::Unclaimed
+    };
+    let input = Settling {
+        press: crate::overlay_input::press_origin(ctx),
+        focused,
+        focus_in,
+        // Read from the pass's widgets: `read_response` builds a response,
+        // which moves egui's interaction state.
+        focus_at: focused.and_then(|id| {
+            ctx.viewport(|viewport| {
+                viewport
+                    .this_pass
+                    .widgets
+                    .get(id)
+                    .map(|widget| widget.rect.center())
+            })
+        }),
+        escape,
+    };
+    let at = |point: Pos2| {
+        let root = roots.get(crate::roots::root_at(roots, nodes, point, here))?;
+        let span = nodes.span(root.first);
+        mounts
+            .iter()
+            .filter_map(|&id| Some((*by_id.get(&id)?, id)))
+            .filter(|(index, _)| span.contains(index))
+            .filter(|&(index, _)| {
+                crate::pipeline::reachable(nodes, root.first, index, egui::Rect::EVERYTHING)
+                    .contains(point)
+            })
+            .max_by_key(|&(index, _)| index)
+            .map(|(_, id)| id)
+            .or(root.mount)
+    };
+    kept.with(|kept| kept.mounts.settle(input, at));
 }

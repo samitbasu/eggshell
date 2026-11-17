@@ -348,6 +348,8 @@ pub(crate) struct FrameCore<'f> {
     pub current: usize,
     /// Whether a collapsible is opening or closing in this frame.
     pub size_in_flight: bool,
+    /// Every mount declared, in the order they were.
+    pub mounts: Vec<crate::mount::MountDecl>,
 }
 
 /// One frame's closures. `'f` is how long the build may borrow application data.
@@ -421,6 +423,7 @@ impl<'f, A> Frame<'f, A> {
                 pop_outs: Vec::new(),
                 current: 0,
                 size_in_flight: false,
+                mounts: Vec::new(),
             },
             draws: Vec::new(),
             drag: Decls::default(),
@@ -472,6 +475,8 @@ pub(crate) trait Sink<'f, A>: std::ops::DerefMut<Target = FrameCore<'f>> {
     fn dispatch(&mut self, declared: Declared<A>);
     /// How many mounts deep the builder is.
     fn depth(&self) -> usize;
+    /// The mount the builder builds in, if it is in one.
+    fn mount(&self) -> Option<Id>;
 }
 
 /// A root's command table, declared again in the same frame.
@@ -547,6 +552,10 @@ impl<'f, A> Sink<'f, A> for Frame<'f, A> {
 
     fn depth(&self) -> usize {
         0
+    }
+
+    fn mount(&self) -> Option<Id> {
+        None
     }
 }
 
@@ -826,6 +835,7 @@ impl<'f, A> Built<'f, A> {
             parent: None,
             home: Home::Page,
             kind: PlacedRootKind::Base,
+            mount: None,
         }];
         let scope = st.scope;
         let root = st.root;
@@ -836,7 +846,11 @@ impl<'f, A> Built<'f, A> {
         // the build.
         let mut at = 1;
         while at < frame.roots.len() {
-            let RootDecl { layer, scrolls } = frame.take_decl(at);
+            let RootDecl {
+                layer,
+                scrolls,
+                mount,
+            } = frame.take_decl(at);
             let regions = frame.take_regions(at);
             let Some(Layer { kind, parent, node }) = layer else {
                 at += 1;
@@ -872,6 +886,7 @@ impl<'f, A> Built<'f, A> {
                         parent: Some(parent),
                         home,
                         kind: PlacedRootKind::Window(window),
+                        mount,
                     });
                     at += 1;
                     continue;
@@ -1065,6 +1080,7 @@ impl<'f, A> Built<'f, A> {
                 first,
                 parent: Some(parent),
                 home,
+                mount,
                 kind: PlacedRootKind::Overlay(PlacedOverlay {
                     id: overlay.id,
                     band: overlay.band,
@@ -1153,6 +1169,7 @@ impl<'f, A> Built<'f, A> {
                     measures,
                     pop_outs,
                     size_in_flight,
+                    mounts,
                     ..
                 },
             draws,
@@ -1164,6 +1181,7 @@ impl<'f, A> Built<'f, A> {
             ..
         } = frame;
         drop(measures);
+        st.kept.with(|kept| kept.mounts.set_mounts(&mounts));
         Placed {
             ctx: ctx.clone(),
             scope,

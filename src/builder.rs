@@ -399,6 +399,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// Where a mount keyed `slot` and built here is: its id and how deeply
     /// it is nested in other mounts.
+    /// Declares the mount keyed `slot`, built here, and says whether it is
+    /// selected.
+    pub(crate) fn declare_mount(&mut self, slot: &Slot) -> crate::mount::Selected {
+        let parent = self.frame.mount();
+        self.frame.mounts.push(crate::mount::MountDecl {
+            id: slot.id,
+            parent,
+        });
+        if self.st.kept.with(|kept| kept.mounts.is_selected(slot.id)) {
+            crate::mount::Selected::Yes
+        } else {
+            crate::mount::Selected::No
+        }
+    }
+
     pub(crate) fn mount_within(&self, slot: &Slot) -> Within {
         Within {
             mount: slot.id,
@@ -901,11 +916,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let text = node.text.clone();
         let root = self.st.tree.new_node(style, &[], node);
         let at = self.frame.roots.len();
-        self.frame.roots.push(RootDecl::layer(Layer {
-            kind: LayerKind::Window(decl),
-            parent,
-            node: root,
-        }));
+        let mount = self.frame.mount();
+        self.frame.roots.push(RootDecl {
+            mount,
+            ..RootDecl::layer(Layer {
+                kind: LayerKind::Window(decl),
+                parent,
+                node: root,
+            })
+        });
         self.frame.current = at;
         let mark = self.st.names.push(&slot.label);
         let mut kids = Vec::new();
@@ -973,11 +992,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let text = node.text.clone();
         let root = self.st.tree.new_node(overlay_style(), &[], node);
         let at = self.frame.roots.len();
-        self.frame.roots.push(RootDecl::layer(Layer {
-            kind: LayerKind::Overlay(decl),
-            parent,
-            node: root,
-        }));
+        let mount = self.frame.mount();
+        self.frame.roots.push(RootDecl {
+            mount,
+            ..RootDecl::layer(Layer {
+                kind: LayerKind::Overlay(decl),
+                parent,
+                node: root,
+            })
+        });
         self.frame.current = at;
         let mark = self.st.names.push(&slot.label);
         let mut kids = Vec::new();

@@ -7,7 +7,7 @@ use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, Chord, Command, Commands, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Modifiers, vec2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use crate::support::{self, Rig, click_node, focused_path, rect_of};
 
@@ -707,7 +707,14 @@ mod caption {
             look.gap > 0.0 && look.padding > 0.0,
             "precondition: a style that shows it"
         );
-        assert!(harness.query_by_label("Example: counter").is_some());
+        let roles: Vec<_> = harness
+            .query_all_by_label("Example: counter")
+            .map(|node| node.accesskit_node().role())
+            .collect();
+        assert!(
+            roles.contains(&egui::accesskit::Role::Group),
+            "the mount is a group named by its caption: {roles:?}"
+        );
         assert_eq!(frame.min.y - caption.max.y, look.gap, "the gap between");
         let inset = look.padding + look.border_width;
         assert_eq!(
@@ -741,5 +748,331 @@ mod caption {
             )),
             "no outline around it"
         );
+    }
+}
+
+/// One mount on a page is selected at a time: a press or keyboard focus in
+/// it selects it, a press or focus outside every mount, or Escape that
+/// nothing else takes, deselects it. A selected mount's commands run and its
+/// scroll containers take the wheel; an unselected one leaves both to the
+/// page.
+mod selection {
+    use egui::{Event, MouseWheelUnit, Pos2, Rect};
+
+    use super::*;
+
+    struct Page {
+        a: Counter,
+        notes: Notes,
+        rows: Rows,
+        nest: Nest,
+        log: Vec<&'static str>,
+    }
+
+    impl Default for Page {
+        fn default() -> Self {
+            Self {
+                a: Counter::default(),
+                notes: Notes::default(),
+                rows: Rows {
+                    rows: (0..40).collect(),
+                    picked: None,
+                },
+                nest: Nest::default(),
+                log: Vec::new(),
+            }
+        }
+    }
+
+    fn page_commands() -> Commands<Page> {
+        Commands::new().add(
+            "page k",
+            Command::new("Page K", |page: &mut Page| page.log.push("page k")).shortcut(SHARED),
+        )
+    }
+
+    fn view<'f>(b: &mut Builder<'_, 'f, Page>, page: &'f Page) {
+        b.commands(&page_commands(), page);
+        b.scroll(Part::Page, tw().w_px(400.0).h_px(360.0))
+            .children(|s| {
+                s.div(tw().flex().flex_col().gap(2.0).p(2.0), |s| {
+                    s.button(Part::Before, "Before").on_click(|_: &mut Page| {});
+                    s.mount(
+                        Part::Left,
+                        tw(),
+                        &page.a,
+                        |page: &mut Page| &mut page.a,
+                        counter,
+                    )
+                    .with_caption("Example A")
+                    .add();
+                    s.mount(
+                        Part::Notes,
+                        tw(),
+                        &page.notes,
+                        |page: &mut Page| &mut page.notes,
+                        notes,
+                    )
+                    .named("Example notes")
+                    .add();
+                    s.mount(
+                        Part::Rows,
+                        tw(),
+                        &page.rows,
+                        |page: &mut Page| &mut page.rows,
+                        rows,
+                    )
+                    .named("Example rows")
+                    .add();
+                    s.mount(
+                        Part::Nest,
+                        tw(),
+                        &page.nest,
+                        |page: &mut Page| &mut page.nest,
+                        nest,
+                    )
+                    .named("Example nest")
+                    .add();
+                    s.div(tw().h_px(600.0), |_| {});
+                    s.button(Part::After, "After").on_click(|_: &mut Page| {});
+                });
+            });
+    }
+
+    fn harness() -> Harness<'static, Rig<Page>> {
+        let mut harness = support::harness(vec2(480.0, 420.0), base_text(), Page::default(), view);
+        harness.run_steps(4);
+        harness
+    }
+
+    /// The rect of the one node whose path ends with `suffix`.
+    fn rect_at(harness: &Harness<'_, Rig<Page>>, suffix: &str) -> Rect {
+        let found: Vec<_> = harness
+            .state()
+            .nodes
+            .iter()
+            .filter(|(path, _)| path.ends_with(suffix))
+            .collect();
+        assert_eq!(found.len(), 1, "one node ends with {suffix}: {found:?}");
+        found[0].1
+    }
+
+    fn click(harness: &mut Harness<'_, Rig<Page>>, at: Pos2) {
+        support::hover_over(harness, at);
+        support::press_and_release(harness, at);
+        harness.run_steps(4);
+    }
+
+    fn click_on(harness: &mut Harness<'_, Rig<Page>>, suffix: &str) {
+        let at = rect_at(harness, suffix).center();
+        click(harness, at);
+    }
+
+    /// The groups selected, by name.
+    fn selected(harness: &Harness<'_, Rig<Page>>) -> Vec<String> {
+        let mut names: Vec<String> = ["Example A", "Example notes", "Example rows", "Example nest"]
+            .into_iter()
+            .filter(|name| {
+                harness.query_all_by_label(name).any(|node| {
+                    let node = node.accesskit_node();
+                    node.role() == egui::accesskit::Role::Group && node.is_selected() == Some(true)
+                })
+            })
+            .map(str::to_owned)
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn a_press_selects_the_example_it_lands_in_and_no_other() {
+        let mut harness = harness();
+        assert!(selected(&harness).is_empty(), "precondition: none at first");
+        click_on(&mut harness, "/Left/Frame/Add");
+        assert_eq!(selected(&harness), ["Example A"]);
+        click_on(&mut harness, "/Notes/Frame/Note");
+        assert_eq!(selected(&harness), ["Example notes"]);
+        click_on(&mut harness, "/Left/Caption");
+        assert_eq!(
+            selected(&harness),
+            ["Example A"],
+            "its caption is in it too"
+        );
+        click_on(&mut harness, "/Before");
+        assert!(
+            selected(&harness).is_empty(),
+            "a press outside every example"
+        );
+    }
+
+    #[test]
+    fn a_press_in_a_nested_example_selects_it_and_the_one_around_it() {
+        let mut harness = harness();
+        click_on(&mut harness, "/Nest/Frame/Inner/Frame/Add");
+        assert_eq!(selected(&harness), ["Example nest"]);
+        assert!(
+            harness.state().app.nest.inner.count == 1,
+            "the press activated too"
+        );
+        click_on(&mut harness, "/Left/Frame/Add");
+        assert_eq!(selected(&harness), ["Example A"]);
+    }
+
+    #[test]
+    fn tab_selects_the_example_focus_lands_in_and_leaving_deselects() {
+        let mut harness = harness();
+        support::past_bar(&mut harness);
+        let mut seen = Vec::new();
+        for _ in 0..80 {
+            harness.key_press(Key::Tab);
+            harness.run_steps(3);
+            let focused = support::focused_node(&harness);
+            let done = focused
+                .as_deref()
+                .is_some_and(|path| path.ends_with("/After"));
+            seen.push((focused, selected(&harness)));
+            if done {
+                break;
+            }
+        }
+        let rows: Vec<_> = seen
+            .iter()
+            .filter(|(focused, _)| {
+                focused
+                    .as_deref()
+                    .is_some_and(|path| path.contains("/Row("))
+            })
+            .collect();
+        assert!(
+            rows.len() > 3,
+            "precondition: Tab went past the list's viewport"
+        );
+        assert!(
+            rows.iter()
+                .all(|(_, selected)| selected == &["Example rows".to_owned()]),
+            "every row of the list keeps it selected: {rows:?}"
+        );
+        let at = |suffix: &str| {
+            seen.iter()
+                .find(|(focused, _)| {
+                    focused
+                        .as_deref()
+                        .is_some_and(|path| path.ends_with(suffix))
+                })
+                .map(|(_, selected)| selected.clone())
+        };
+        assert_eq!(at("/Before"), Some(Vec::new()), "{seen:?}");
+        assert_eq!(
+            at("/Left/Frame/Add"),
+            Some(vec!["Example A".to_owned()]),
+            "{seen:?}"
+        );
+        assert_eq!(
+            at("/Notes/Frame/Note"),
+            Some(vec!["Example notes".to_owned()]),
+            "{seen:?}"
+        );
+        assert_eq!(at("/After"), Some(Vec::new()), "{seen:?}");
+    }
+
+    #[test]
+    fn escape_closes_the_examples_menu_first_and_then_deselects_it() {
+        let mut harness = harness();
+        click_on(&mut harness, "/Left/Frame/More");
+        assert!(
+            harness.query_by_label("Reset").is_some(),
+            "precondition: the menu is open"
+        );
+        assert_eq!(selected(&harness), ["Example A"]);
+        harness.key_press(Key::Escape);
+        harness.run_steps(6);
+        assert!(harness.query_by_label("Reset").is_none(), "the menu closed");
+        assert_eq!(
+            selected(&harness),
+            ["Example A"],
+            "and the example stays selected"
+        );
+        harness.key_press(Key::Escape);
+        harness.run_steps(4);
+        assert!(selected(&harness).is_empty());
+    }
+
+    #[test]
+    fn a_press_in_the_examples_own_menu_keeps_it_selected() {
+        let mut harness = harness();
+        click_on(&mut harness, "/Left/Frame/Add");
+        click_on(&mut harness, "/Left/Frame/More");
+        let reset = harness.get_by_label("Reset").rect().center();
+        click(&mut harness, reset);
+        assert_eq!(harness.state().app.a.count, 0, "precondition: the item ran");
+        assert_eq!(selected(&harness), ["Example A"]);
+    }
+
+    #[test]
+    fn a_chord_reaches_the_selected_example_and_the_page_otherwise() {
+        let mut harness = harness();
+        click_on(&mut harness, "/Notes/Frame/Note");
+        harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
+        harness.run_steps(4);
+        click_on(&mut harness, "/Before");
+        harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
+        harness.run_steps(4);
+        let page = &harness.state().app;
+        assert_eq!(
+            (page.notes.log.as_slice(), page.log.as_slice()),
+            (&["notes k"][..], &["page k"][..])
+        );
+    }
+
+    fn wheel(harness: &mut Harness<'_, Rig<Page>>, at: Pos2, times: usize) {
+        harness.hover_at(at);
+        harness.step();
+        for _ in 0..times {
+            harness.event(Event::MouseWheel {
+                unit: MouseWheelUnit::Point,
+                delta: vec2(0.0, -120.0),
+                modifiers: Modifiers::NONE,
+                phase: egui::TouchPhase::Move,
+                source: egui::MouseWheelSource::Unknown,
+            });
+            harness.run_steps(10);
+        }
+        harness.run_steps(30);
+    }
+
+    fn page_offset(harness: &Harness<'_, Rig<Page>>) -> f32 {
+        rect_at(harness, "/Before").min.y
+    }
+
+    fn list_offset(harness: &Harness<'_, Rig<Page>>) -> f32 {
+        rect_at(harness, "/Rows/Frame/List").min.y - rect_at(harness, "/Row(0)").min.y
+    }
+
+    #[test]
+    fn the_wheel_over_an_unselected_examples_list_scrolls_the_page() {
+        let mut harness = harness();
+        let list = rect_at(&harness, "/Rows/Frame/List");
+        let (page, rows) = (page_offset(&harness), list_offset(&harness));
+        wheel(&mut harness, list.center(), 1);
+        assert!(
+            selected(&harness).is_empty(),
+            "precondition: nothing selected"
+        );
+        assert_eq!(list_offset(&harness), rows, "the list stays put");
+        assert!(page_offset(&harness) < page, "the page scrolled");
+    }
+
+    #[test]
+    fn the_wheel_over_a_selected_examples_list_scrolls_it_and_stops_at_its_end() {
+        let mut harness = harness();
+        click_on(&mut harness, "/Row(0)");
+        assert_eq!(selected(&harness), ["Example rows"], "precondition");
+        let list = rect_at(&harness, "/Rows/Frame/List");
+        let page = page_offset(&harness);
+        wheel(&mut harness, list.center(), 1);
+        assert!(list_offset(&harness) > 0.0, "the list scrolled");
+        assert_eq!(page_offset(&harness), page, "the page did not");
+        wheel(&mut harness, list.center(), 20);
+        assert_eq!(page_offset(&harness), page, "nor past the list's end");
     }
 }

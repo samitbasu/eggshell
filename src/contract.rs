@@ -791,6 +791,8 @@ pub struct MountStyle {
     pub radius: u8,
     /// TODO(prose)
     pub padding: f32,
+    /// TODO(prose): the ring around the selected mount, drawn as the focus ring is.
+    pub selected_ring: Color32,
 }
 
 /// TODO(prose)
@@ -1710,6 +1712,7 @@ impl Style {
                 border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
                 radius,
                 padding: f32::from(s.window_margin.left),
+                selected_ring: v.selection.stroke.color,
             },
             rich: RichTextStyle {
                 link: v.hyperlink_color,
