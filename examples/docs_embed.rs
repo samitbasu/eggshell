@@ -3,7 +3,7 @@
 //! Each `eggshell-example NAME` fence mounts a small app over a field of the
 //! page's state with `b.mount`. The two counters share one field. The bar at
 //! the top switches the theme colour, which colours the selected example's
-//! ring, and the gap between a caption and its example.
+//! ring.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -12,8 +12,8 @@ use eggshell_ui::owned::Mark;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, Chord, Command, Commands, Scope, tw};
 use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt};
-use eggshell_ui_shadcn::{Shadcn, ThemeColor};
-use egui::{Context, Key, Modifiers, Theme};
+use eggshell_ui_shadcn::ThemeColor;
+use egui::{Key, Modifiers};
 
 const LOREM: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod \
 tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud \
@@ -47,51 +47,6 @@ const THEMES: [(ThemeColor, &str); 3] = [
     (ThemeColor::Blue, "Blue"),
     (ThemeColor::Violet, "Violet"),
 ];
-
-/// The candidate gaps between a caption and its example's frame.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum Gap {
-    Four,
-    #[default]
-    Six,
-    Eight,
-}
-
-const GAPS: [(Gap, &str); 3] = [
-    (Gap::Four, "4 pt"),
-    (Gap::Six, "6 pt"),
-    (Gap::Eight, "8 pt"),
-];
-
-impl Gap {
-    fn points(self) -> f32 {
-        match self {
-            Self::Four => 4.0,
-            Self::Six => 6.0,
-            Self::Eight => 8.0,
-        }
-    }
-}
-
-/// The preset in `theme`, with the caption's gap overridden by `gap`.
-fn use_look(ctx: &Context, theme: ThemeColor, gap: Gap) {
-    common::use_theme_color(ctx, theme);
-    let points = gap.points();
-    if eggshell_ui::Style::of(ctx).mount.gap == points {
-        return;
-    }
-    for (preset, which) in [
-        (Shadcn::light(), Theme::Light),
-        (Shadcn::dark(), Theme::Dark),
-    ] {
-        let mut style = preset
-            .with_style(common::style_of(ctx))
-            .theme_color(theme)
-            .style();
-        style.mount.gap = points;
-        style.install_for(ctx, which);
-    }
-}
 
 #[derive(Default)]
 pub struct Counter {
@@ -127,7 +82,6 @@ impl Default for List {
 #[derive(Default)]
 pub struct State {
     pub theme: ThemeColor,
-    pub gap: Gap,
     pub clicks: Counter,
     pub menu: Menu,
     pub form: Form,
@@ -141,8 +95,6 @@ pub enum Part {
     Bar,
     Theme,
     ThemeLabel,
-    Gap,
-    GapLabel,
     Log,
     Doc,
     App,
@@ -341,12 +293,12 @@ fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption
 
 /// ```html
 /// <div class="flex flex-col size-full">
-///   <header class="flex gap-3 p-3 border-b">Theme: [Neutral|Blue|Violet] Caption gap: [4 pt|6 pt|8 pt] · log</header>
+///   <header class="flex gap-3 p-3 border-b">Theme: [Neutral|Blue|Violet] · log</header>
 ///   <main class="overflow-y-auto grow p-6"><article class="max-w-[640px]">…</article></main>
 /// </div>
 /// ```
 pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
-    use_look(b.ctx(), state.theme, state.gap);
+    common::use_theme_color(b.ctx(), state.theme);
     b.commands(&page_commands(), state);
     let tokens = common::tokens(b.ctx());
     let directives = directives();
@@ -365,9 +317,6 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                 b.span(Part::ThemeLabel, tw(), "Theme");
                 b.segmented(Part::Theme, state.theme, THEMES)
                     .on_change(|state: &mut State, theme| state.theme = theme);
-                b.span(Part::GapLabel, tw(), "Caption gap");
-                b.segmented(Part::Gap, state.gap, GAPS)
-                    .on_change(|state: &mut State, gap| state.gap = gap);
                 let last = state
                     .page_log
                     .last()
