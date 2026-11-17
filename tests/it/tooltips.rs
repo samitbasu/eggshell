@@ -1263,6 +1263,36 @@ mod segmented {
     }
 
     #[test]
+    fn leaving_a_cell_with_its_own_tooltip_outward_never_shows_the_controls() {
+        let mut harness = harness_of(view);
+        let cell = rect_of(&harness, "/\"axis\"/2");
+        let control = rect_of(&harness, "/\"axis\"");
+        assert!(
+            control.max.y > cell.max.y,
+            "precondition: a band of the control below the cell"
+        );
+        hover_node(&mut harness, "/\"axis\"/2");
+        wait(&mut harness, DELAY + GRACE);
+        assert!(
+            painted(&harness, "Tip for current"),
+            "precondition: it opened"
+        );
+        let x = cell.center().x;
+        let mut y = cell.center().y;
+        let mut crossed = false;
+        while y < control.max.y + 12.0 {
+            y += 1.0;
+            harness.hover_at(pos2(x, y));
+            harness.step();
+            crossed |= y > cell.max.y && y < control.max.y;
+            assert!(!painted(&harness, "Tip for axis"), "at y = {y}");
+        }
+        assert!(crossed, "precondition: the pointer crossed the band");
+        wait(&mut harness, DELAY + GRACE);
+        assert!(!painted(&harness, "Tip for axis"), "once outside");
+    }
+
+    #[test]
     fn a_cell_with_its_own_tooltip_shows_only_that_one() {
         let mut harness = harness_of(view);
         hover_node(&mut harness, "/\"axis\"/2");

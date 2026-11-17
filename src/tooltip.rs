@@ -143,6 +143,8 @@ pub(crate) struct Trigger {
     pub(crate) id: Id,
     pub(crate) content: Content,
     pub(crate) cause: Cause,
+    /// Where it is on screen.
+    pub(crate) rect: Rect,
 }
 
 /// What closes a tooltip and keeps it closed until its trigger is left.
@@ -202,6 +204,8 @@ pub(crate) struct Tooltips {
     latched: Option<Id>,
     restored: Option<Restored>,
     closed_at: Option<Duration>,
+    /// Where the trigger last opened is.
+    last: Option<Rect>,
 }
 
 impl Tooltips {
@@ -276,9 +280,20 @@ impl Tooltips {
         }
     }
 
+    /// Whether the grace opens `trigger` at once: it does for a neighbour
+    /// of the trigger last opened, not for one around it, which the pointer
+    /// crosses on its way out.
+    fn skips_delay(&self, trigger: &Trigger, now: Duration, grace: Duration) -> bool {
+        self.in_grace(now, grace)
+            && !self
+                .last
+                .is_some_and(|last| trigger.rect.contains_rect(last))
+    }
+
     fn open(&mut self, trigger: &Trigger, now: Duration) {
         self.close_all(now);
         self.closed_at = None;
+        self.last = Some(trigger.rect);
         match self
             .present
             .iter_mut()
@@ -342,7 +357,7 @@ impl Tooltips {
         };
         let delay = match trigger.cause {
             Cause::Focus => Duration::ZERO,
-            Cause::Pointer if self.in_grace(now, timing.grace) => Duration::ZERO,
+            Cause::Pointer if self.skips_delay(trigger, now, timing.grace) => Duration::ZERO,
             Cause::Pointer => timing.delay,
         };
         let waited = now.saturating_sub(since);
@@ -351,6 +366,7 @@ impl Tooltips {
             self.waiting = None;
             None
         } else {
+            self.close_all(now);
             Some(delay - waited)
         }
     }
@@ -366,7 +382,7 @@ pub(crate) fn begin(ctx: &Context, kept: &Handle) {
 pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
     let focus = response.has_focus().then_some(Cause::Focus);
     let pointer = response.contains_pointer().then_some(Cause::Pointer);
-    request(ui, tip, [focus, pointer]);
+    request(ui, tip, [focus, pointer], response.rect);
     describes(ui, response, tip);
 }
 
@@ -377,7 +393,7 @@ pub(crate) fn register_whole(ui: &Ui, tip: &Tooltip) {
     let response = ui.node_response();
     let focus = ui.has_focus_within().then_some(Cause::Focus);
     let pointer = response.contains_pointer().then_some(Cause::Pointer);
-    request(ui, tip, [focus, pointer]);
+    request(ui, tip, [focus, pointer], response.rect);
     describes(ui, &response, tip);
 }
 
@@ -391,8 +407,9 @@ pub(crate) fn describes(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
     }
 }
 
-/// Pushes a trigger for each of `causes`; focus counts only after a key.
-fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 2]) {
+/// Pushes a trigger at `rect` for each of `causes`; focus counts only after
+/// a key.
+fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 2], rect: Rect) {
     let id = crate::draw::node_id_or_report(ui, "a tooltip");
     let wants = |cause| {
         let Some(id) = id else { return };
@@ -400,6 +417,7 @@ fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 2]) {
             id,
             content: tip.content.clone(),
             cause,
+            rect,
         };
         if let Some(shell) = crate::shell::shell_or_report(ui, "a tooltip") {
             shell.kept.viewport(ui.ctx().viewport_id(), |here| {
@@ -619,7 +637,34 @@ mod tests {
             id: Id::NULL.with(name),
             content: Content::Text(name.into()),
             cause,
+            rect: Rect::NOTHING,
         }
+    }
+
+    fn at(trigger: Trigger, rect: Rect) -> Trigger {
+        Trigger { rect, ..trigger }
+    }
+
+    #[test]
+    fn the_grace_opens_a_neighbour_at_once_but_not_the_trigger_around_the_last() {
+        let inner = Rect::from_min_max(egui::pos2(10.0, 10.0), egui::pos2(20.0, 20.0));
+        let around = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(40.0, 30.0));
+        let beside = Rect::from_min_max(egui::pos2(50.0, 0.0), egui::pos2(60.0, 10.0));
+        let cell = at(trigger("cell", Cause::Pointer), inner);
+        let control = at(trigger("control", Cause::Pointer), around);
+        let neighbour = at(trigger("neighbour", Cause::Pointer), beside);
+        let mut tooltips = Tooltips::default();
+        tooltips.tick(ms(0), TIMING, Some(&cell), None);
+        tooltips.tick(ms(600), TIMING, Some(&cell), None);
+        assert_eq!(
+            open_ids(&tooltips),
+            [cell.id],
+            "precondition: the cell's is open"
+        );
+        tooltips.tick(ms(650), TIMING, Some(&control), None);
+        assert_eq!(open_ids(&tooltips), [], "the control around it waits");
+        tooltips.tick(ms(700), TIMING, Some(&neighbour), None);
+        assert_eq!(open_ids(&tooltips), [neighbour.id], "a neighbour does not");
     }
 
     fn id_of(trigger: Option<Trigger>) -> Option<Id> {
