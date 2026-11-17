@@ -24,7 +24,7 @@ use eggshell_ui::owned;
 use eggshell_ui::prim::text_field::{self, Field};
 use eggshell_ui::widget::{Lines, TextEdit};
 use eggshell_ui::{Builder, Progress, Scope, TextStyle, Tw, tw};
-use eggshell_ui_shadcn::{size, variant};
+use eggshell_ui_shadcn::{BaseColor, Palette, ThemeColor, size, variant};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
 type B<'b, 'f> = Builder<'b, 'f, State>;
@@ -238,6 +238,9 @@ pub struct State {
     pub owned_slider: f64,
     pub owned_select: usize,
     pub owned_stepper: f64,
+    /// The preset's base colour and theme colour, applied to the whole page.
+    pub base: BaseColor,
+    pub theme_color: ThemeColor,
 }
 
 /// The size of the window the example opens with.
@@ -294,14 +297,19 @@ impl Default for State {
             owned_slider: 40.0,
             owned_select: 0,
             owned_stepper: 3.0,
+            base: BaseColor::Neutral,
+            theme_color: common::ACCENT,
         }
     }
 }
 
-/// Tints the preset with the examples' accent, then sets the egui style the
-/// widgets are sized and drawn with.
+/// Colours the preset with the chosen base and theme colours, then sets the
+/// egui style the widgets are sized and drawn with.
 pub fn prepare(ctx: &Context, state: &State) {
-    common::use_accent(ctx, state);
+    common::use_palette(
+        ctx,
+        Palette::new().base(state.base).theme(state.theme_color),
+    );
     ctx.all_styles_mut(|style| {
         style.spacing.button_padding = state.padding.size();
         style.spacing.interact_size = state.interact.size();
@@ -606,6 +614,7 @@ fn cell(b: &mut B<'_, '_>, state: &State, control: Control) {
 /// </aside>
 /// ```
 fn controls(b: &mut B<'_, '_>, state: &State) {
+    palette_controls(b, state);
     common::captioned(b, "Section", |b| {
         b.segmented("section", state.section, Section::ALL)
             .on_change(|s: &mut State, section| s.section = section);
@@ -613,6 +622,32 @@ fn controls(b: &mut B<'_, '_>, state: &State) {
     if state.section == Section::Cells {
         cell_controls(b, state);
     }
+}
+
+/// The base colour and theme colour of the whole page. The base colour's own
+/// theme is listed under the base colour's name, as shadcn lists it.
+fn palette_controls(b: &mut B<'_, '_>, state: &State) {
+    common::captioned(b, "Base", |b| {
+        b.select("base", state.base, BaseColor::ALL.map(|c| (c, c.name())))
+            .named("Base")
+            .classes(tw().w_full())
+            .on_change(|s: &mut State, base| s.base = base);
+    });
+    let base = state.base;
+    let theme_name = |colour| match colour {
+        ThemeColor::Base => base.name(),
+        other => other.name(),
+    };
+    common::captioned(b, "Theme", |b| {
+        b.select(
+            "theme",
+            state.theme_color,
+            ThemeColor::ALL.map(|c| (c, theme_name(c))),
+        )
+        .named("Theme")
+        .classes(tw().w_full())
+        .on_change(|s: &mut State, colour| s.theme_color = colour);
+    });
 }
 
 /// The controls that only vary the cells section, and its legend.
