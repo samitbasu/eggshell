@@ -675,7 +675,8 @@ fn mount_view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
                 &app.mounted,
                 |app: &mut App| &mut app.mounted,
                 mounted_view,
-            );
+            )
+            .add();
         },
     );
 }
@@ -689,7 +690,8 @@ fn mount_only_view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
             &app.mounted,
             |app: &mut App| &mut app.mounted,
             mounted_view,
-        );
+        )
+        .add();
     });
 }
 
@@ -704,18 +706,22 @@ fn mount_hover_shows(view: support::View<App>, path: &str, tip: &str) {
 
 #[test]
 fn a_mounted_controls_text_tooltip_shows() {
-    mount_hover_shows(mount_only_view, "/\"mount\"/\"text\"", "Mounted text tip");
+    mount_hover_shows(
+        mount_only_view,
+        "/\"mount\"/Frame/\"text\"",
+        "Mounted text tip",
+    );
 }
 
 #[test]
 fn a_mounted_controls_built_tooltip_shows() {
-    mount_hover_shows(mount_only_view, "/\"mount\"/\"built\"", "Mounted tip");
+    mount_hover_shows(mount_only_view, "/\"mount\"/Frame/\"built\"", "Mounted tip");
 }
 
 #[test]
 fn one_content_helper_builds_a_tooltip_on_the_page_and_in_a_mount() {
     mount_hover_shows(mount_view, "/\"page\"", "Count");
-    mount_hover_shows(mount_view, "/\"mount\"/\"shared\"", "Count");
+    mount_hover_shows(mount_view, "/\"mount\"/Frame/\"shared\"", "Count");
 }
 
 #[test]
