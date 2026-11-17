@@ -85,7 +85,7 @@ impl Transition {
             from: current,
             target,
             start: now,
-            duration: full.mul_f32(distance),
+            duration: Duration::try_from_secs_f32(full.as_secs_f32() * distance).unwrap_or(full),
         }
     }
 }

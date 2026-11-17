@@ -4,9 +4,12 @@
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 
-use egui::{EventFilter, Key, Modifiers, Ui};
+use egui::{Context, EventFilter, Id, Key, Modifiers, Ui};
 
 use crate::NodeUi as _;
+use crate::Problem;
+use crate::finite::clamp;
+use crate::report::report;
 
 /// The start or the end of an edit of a slider or a stepper, for what the
 /// application does while a value is being changed (not re-syncing a draft
@@ -82,6 +85,137 @@ impl<A> Edits<A> {
     }
 }
 
+/// TODO(prose): the values a slider or a stepper takes, from its start to its end; both are finite and the start is not past the end.
+///
+/// A range converted from `start..=end` that is not one is mended: an end
+/// that is not finite becomes the other end (both, `0.0`), and reversed ends
+/// are swapped. A widget given a mended range reports
+/// [`Problem::BadRange`](crate::Problem::BadRange).
+///
+/// ```
+/// use eggshell_ui::owned::ValueRange;
+///
+/// let range = ValueRange::from(0.0..=10.0);
+/// assert_eq!((range.start(), range.end()), (0.0, 10.0));
+/// assert_eq!(ValueRange::new(10.0, 0.0), None);
+/// assert_eq!(ValueRange::from(10.0..=0.0), ValueRange::from(0.0..=10.0));
+/// assert_eq!(ValueRange::from(f64::NAN..=4.0), ValueRange::from(4.0..=4.0));
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct ValueRange {
+    start: f64,
+    end: f64,
+    given: Given,
+}
+
+/// What a [`ValueRange`] was made from, kept to report a mended one.
+#[derive(Clone, Copy, Debug)]
+enum Given {
+    Valid,
+    Mended { start: f64, end: f64 },
+}
+
+impl ValueRange {
+    /// TODO(prose): the range from `start` to `end`, if both are finite and `start` is not past `end`.
+    ///
+    /// ```
+    /// use eggshell_ui::owned::ValueRange;
+    ///
+    /// assert!(ValueRange::new(0.0, 1.0).is_some());
+    /// assert!(ValueRange::new(0.0, f64::INFINITY).is_none());
+    /// ```
+    pub fn new(start: f64, end: f64) -> Option<Self> {
+        (start.is_finite() && end.is_finite() && start <= end).then_some(Self {
+            start,
+            end,
+            given: Given::Valid,
+        })
+    }
+
+    /// TODO(prose): the lowest value.
+    ///
+    /// ```
+    /// use eggshell_ui::owned::ValueRange;
+    ///
+    /// assert_eq!(ValueRange::from(2.0..=3.0).start(), 2.0);
+    /// ```
+    pub fn start(self) -> f64 {
+        self.start
+    }
+
+    /// TODO(prose): the highest value.
+    ///
+    /// ```
+    /// use eggshell_ui::owned::ValueRange;
+    ///
+    /// assert_eq!(ValueRange::from(2.0..=3.0).end(), 3.0);
+    /// ```
+    pub fn end(self) -> f64 {
+        self.end
+    }
+
+    /// `value` within the range; NaN is the start.
+    pub(super) fn clamp(self, value: f64) -> f64 {
+        clamp(value, self.start, self.end)
+    }
+
+    /// Reports a mended range and a `value` that is not a number, for the
+    /// widget `subject`; the value is then the start.
+    #[track_caller]
+    pub(super) fn checked(self, ctx: &Context, subject: Id, value: f64) -> f64 {
+        if let Given::Mended { start, end } = self.given {
+            report(ctx, Problem::BadRange, Some(subject), || {
+                format!(
+                    "the range {start:?}..={end:?} is reversed or not finite; it is {:?}..={:?}",
+                    self.start, self.end
+                )
+            });
+        }
+        if value.is_nan() {
+            report(ctx, Problem::NanValue, Some(subject), || {
+                format!(
+                    "the value is NaN; it is {:?}, the start of its range",
+                    self.start
+                )
+            });
+            self.start
+        } else {
+            value
+        }
+    }
+}
+
+impl PartialEq for ValueRange {
+    fn eq(&self, other: &Self) -> bool {
+        (self.start, self.end) == (other.start, other.end)
+    }
+}
+
+impl From<RangeInclusive<f64>> for ValueRange {
+    fn from(range: RangeInclusive<f64>) -> Self {
+        let (start, end) = range.into_inner();
+        Self::new(start, end).unwrap_or_else(|| {
+            let (low, high) = match (start.is_finite(), end.is_finite()) {
+                (true, true) => (start, end),
+                (true, false) => (start, start),
+                (false, true) => (end, end),
+                (false, false) => (0.0, 0.0),
+            };
+            Self {
+                start: low.min(high),
+                end: low.max(high),
+                given: Given::Mended { start, end },
+            }
+        })
+    }
+}
+
+impl From<&RangeInclusive<f64>> for ValueRange {
+    fn from(range: &RangeInclusive<f64>) -> Self {
+        Self::from(range.clone())
+    }
+}
+
 /// The distance between the values of a slider or a stepper, always positive.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Step(f64);
@@ -102,14 +236,13 @@ impl Step {
 
     /// The nearest value of `range` that is a whole number of steps from its
     /// start, or its end if that is nearer than the last whole step.
-    pub fn snap(self, value: f64, range: &RangeInclusive<f64>) -> f64 {
-        let (low, high) = (*range.start(), *range.end());
+    pub fn snap(self, value: f64, range: impl Into<ValueRange>) -> f64 {
+        let range = range.into();
+        let (low, high) = (range.start, range.end);
         let steps = ((value - low) / self.0).round();
         let snapped = low + steps * self.0;
         let tidy = format!("{snapped:.*}", self.decimals());
-        let on_lattice = tidy
-            .parse()
-            .map_or(snapped, |tidy: f64| tidy.clamp(low, high));
+        let on_lattice = clamp(tidy.parse().unwrap_or(snapped), low, high);
         if (high - value).abs() < (on_lattice - value).abs() {
             high
         } else {
@@ -118,7 +251,7 @@ impl Step {
     }
 
     /// `value` moved `steps` steps, kept within `range`.
-    pub fn moved(self, value: f64, steps: i32, range: &RangeInclusive<f64>) -> f64 {
+    pub fn moved(self, value: f64, steps: i32, range: impl Into<ValueRange>) -> f64 {
         self.snap(value + f64::from(steps) * self.0, range)
     }
 

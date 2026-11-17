@@ -70,6 +70,7 @@ use std::sync::Arc;
 use egui::{Context, DragAndDrop, DroppedFileHandle, Event, Id, Pos2, Rect, Vec2, vec2};
 
 use crate::draw::{Lift, children_of};
+use crate::finite::clamp;
 use crate::kept::Handle;
 use crate::overlay_input::Drag;
 use crate::pipeline::{Flow, PlacedNode};
@@ -313,8 +314,8 @@ impl EdgeScroll {
             if band == 0.0 {
                 return 0.0;
             }
-            let near_min = ((min + band - at) / band).clamp(0.0, 1.0);
-            let near_max = ((at - (max - band)) / band).clamp(0.0, 1.0);
+            let near_min = clamp((min + band - at) / band, 0.0, 1.0);
+            let near_max = clamp((at - (max - band)) / band, 0.0, 1.0);
             speed * (near_max - near_min)
         };
         vec2(

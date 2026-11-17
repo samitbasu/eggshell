@@ -17,6 +17,7 @@ use crate::commands::Commands;
 use crate::debug::{Debug, Phase, Timer};
 use crate::dismiss::Opening;
 use crate::dnd::{Decls, EdgeScroll, NodeDrag};
+use crate::finite;
 use crate::focus;
 use crate::kept::Handle;
 use crate::key::{ReadablePath, Seen, layout_root, root_id};
@@ -1363,8 +1364,14 @@ fn collect(
     prims: &mut Vec<Option<Prim>>,
 ) {
     let layout = *tree.layout(id).expect("node exists");
-    let min = parent_origin + vec2(layout.location.x, layout.location.y);
-    let rect = Rect::from_min_size(min, vec2(layout.size.width, layout.size.height));
+    let rect = finite::rect_or_empty(
+        Rect::from_min_size(
+            parent_origin + vec2(layout.location.x, layout.location.y),
+            vec2(layout.size.width, layout.size.height),
+        ),
+        parent_origin,
+    );
+    let min = rect.min;
     let style = tree.style(id).expect("node exists");
     let flow = match (style.display, style.position) {
         (Display::None, _) => Flow::Hidden,
@@ -1373,10 +1380,10 @@ fn collect(
     };
     let overflow = style.overflow;
     let edges = |rect: taffy::Rect<f32>| Sides {
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.bottom,
-        left: rect.left,
+        top: finite::length_or_zero(rect.top),
+        right: finite::length_or_zero(rect.right),
+        bottom: finite::length_or_zero(rect.bottom),
+        left: finite::length_or_zero(rect.left),
     };
     let (border, padding) = (edges(layout.border), edges(layout.padding));
     let is_leaf = tree.children(id).expect("node exists").is_empty();

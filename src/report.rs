@@ -56,6 +56,8 @@ pub enum Problem {
     BadRange,
     /// TODO(prose): a length that is infinite or not a number.
     NonFiniteLength,
+    /// TODO(prose): a value that is not a number.
+    NanValue,
     /// TODO(prose): a weight the style declares no face for.
     MissingFace,
     /// TODO(prose): the shell asked for outside a draw.

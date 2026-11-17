@@ -54,7 +54,33 @@ pub struct Tw {
     pub(crate) focusability: Focusability,
     pub(crate) grouping: Grouping,
     pub(crate) variants: Variants,
+    pub(crate) lengths: Lengths,
     touched: Touched,
+}
+
+/// Whether a class was ignored because a length it was given is infinite or
+/// not a number.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Lengths {
+    #[default]
+    Finite,
+    Rejected,
+}
+
+impl Lengths {
+    /// `after` if `finite` holds for it, else `before` with the rejection noted.
+    fn keep<T>(&mut self, before: T, after: T, finite: impl FnOnce(&T) -> bool) -> T {
+        if finite(&after) {
+            after
+        } else {
+            *self = Self::Rejected;
+            before
+        }
+    }
+
+    fn or(self, other: Self) -> Self {
+        if self == Self::Rejected { self } else { other }
+    }
 }
 
 /// A fresh class list. Like CSS, it starts as `display: block`.
@@ -75,6 +101,7 @@ pub fn tw() -> Tw {
         focusability: Focusability::Tab,
         grouping: Grouping::Ungrouped,
         variants: Variants::default(),
+        lengths: Lengths::Finite,
         touched: Touched::default(),
     }
 }
@@ -170,6 +197,55 @@ mod tests {
             Display::Flex,
             "precondition: taffy defaults to flex, so tw() must set block itself"
         );
+    }
+
+    #[test]
+    fn a_class_given_a_number_that_is_not_finite_is_ignored_and_noted() {
+        use egui::Color32;
+
+        let width = tw().w_px(4.0);
+        assert_eq!(width.lengths, Lengths::Finite);
+        let rejected = [
+            width.clone().w_px(f32::NAN),
+            width.clone().p(f32::INFINITY),
+            width.clone().gap(f32::NEG_INFINITY),
+            width.clone().w_frac(1.0, 0.0),
+            width.clone().w_ch(f32::NAN),
+            width.clone().grow_by(f32::NAN),
+            width.clone().aspect(f32::INFINITY),
+            width.clone().grid_cols_tracks(&[Track::px(f32::NAN)]),
+        ];
+        for classes in rejected {
+            assert_eq!(*classes.style(), *width.style());
+            assert_eq!(classes.ch, width.ch);
+            assert_eq!(classes.lengths, Lengths::Rejected);
+        }
+        let ringed = tw().ring(2.0, Color32::RED);
+        let unringed = ringed.clone().ring(f32::NAN, Color32::BLUE);
+        assert_eq!(unringed.paint, ringed.paint);
+        assert_eq!(unringed.lengths, Lengths::Rejected);
+        let divided = tw().divide_x(f32::INFINITY, Color32::RED);
+        assert_eq!(divided.paint, tw().paint);
+        let hovered = tw().hover(|p| p.bg(Color32::RED).translate(f32::NAN, 0.0));
+        assert_eq!(hovered.variants, tw().hover(|p| p).variants);
+        assert_eq!(hovered.lengths, Lengths::Rejected);
+        let texted = tw().role(crate::text::TextSpec {
+            size: f32::NAN,
+            line_height: 20.0,
+            family: egui::FontFamily::Proportional,
+            weight: crate::text::Weight::Normal,
+        });
+        assert_eq!(texted.text, tw().text);
+        assert_eq!(texted.lengths, Lengths::Rejected);
+    }
+
+    #[test]
+    fn merging_keeps_the_note_and_a_rejected_class_overrides_nothing() {
+        let merged = tw().w_px(4.0).merge(tw().w_px(f32::NAN));
+        assert_eq!(*merged.style(), *tw().w_px(4.0).style());
+        assert_eq!(merged.lengths, Lengths::Rejected);
+        let merged = tw().w_px(f32::NAN).merge(tw().p(1.0));
+        assert_eq!(merged.lengths, Lengths::Rejected);
     }
 
     #[test]
