@@ -33,6 +33,7 @@ use crate::owned::Side;
 use crate::pipeline::{
     ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedNode, ScrollRef,
 };
+use crate::plane::Axis;
 use crate::presence::Staged;
 use crate::prim::{Icon, Prim};
 use crate::roots::{
@@ -411,35 +412,6 @@ fn paint_side_borders(painter: &Painter, boxes: &Boxes, colors: Sides<Option<Col
     for (color, strip) in strips {
         if let Some(color) = color.filter(|_| strip.is_positive()) {
             painter.rect_filled(strip, 0.0, color);
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-enum Axis {
-    X,
-    Y,
-}
-
-impl Axis {
-    fn span(self, rect: Rect) -> (f32, f32) {
-        match self {
-            Self::X => (rect.min.x, rect.max.x),
-            Self::Y => (rect.min.y, rect.max.y),
-        }
-    }
-
-    fn other(self) -> Self {
-        match self {
-            Self::X => Self::Y,
-            Self::Y => Self::X,
-        }
-    }
-
-    fn rect(self, along: (f32, f32), across: (f32, f32)) -> Rect {
-        match self {
-            Self::X => Rect::from_min_max(pos2(along.0, across.0), pos2(along.1, across.1)),
-            Self::Y => Rect::from_min_max(pos2(across.0, along.0), pos2(across.1, along.1)),
         }
     }
 }

@@ -355,6 +355,7 @@ mod overlay_chain;
 mod overlay_input;
 pub mod owned;
 mod pipeline;
+mod plane;
 mod presence;
 pub mod prim;
 mod region;

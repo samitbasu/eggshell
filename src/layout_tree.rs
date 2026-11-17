@@ -308,4 +308,29 @@ mod tests {
         assert_eq!(tree.children(parent), vec![kept]);
         assert_reported(&ctx, Problem::Internal("taffy: missing node"));
     }
+
+    #[test]
+    fn set_children_replaces_them_and_leaves_out_a_missing_one() {
+        let (ctx, mut tree, gone) = with_gone();
+        let first = tree.new_node(Style::default(), &[], node());
+        let second = tree.new_node(Style::default(), &[], node());
+        let parent = tree.new_node(Style::default(), &[first], node());
+        tree.set_children(parent, &[second]);
+        assert_eq!(tree.children(parent), vec![second]);
+        assert_no_reports(&ctx);
+        tree.set_children(parent, &[gone, first]);
+        assert_eq!(tree.children(parent), vec![first]);
+        assert_reported(&ctx, Problem::Internal("taffy: missing node"));
+    }
+
+    #[test]
+    fn a_node_that_is_no_scroll_container_has_no_scroll_and_reports() {
+        let ctx = Context::default();
+        let mut tree = LayoutTree::new();
+        tree.reset(&ctx);
+        let div = tree.new_node(Style::default(), &[], node());
+        assert!(tree.scroll(div).is_none());
+        assert!(tree.scroll_mut(div).is_none());
+        assert_reported(&ctx, Problem::Internal("taffy: not a scroll container"));
+    }
 }

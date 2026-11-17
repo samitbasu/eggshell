@@ -1030,6 +1030,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn children_with_answers_what_the_body_returns() {
+        let mut headless = crate::testing::Headless::new(egui::vec2(100.0, 100.0));
+        let built = std::cell::Cell::new(None);
+        headless.layout(&(), |b, _| {
+            let (_, count) = b.scroll("list", crate::tw()).children_with(|s| {
+                s.text(crate::tw(), "one");
+                1
+            });
+            built.set(Some(count));
+        });
+        assert_eq!(built.get(), Some(1));
+    }
+
+    #[test]
     fn reveal_moves_the_least_that_shows_the_item() {
         let view = (100.0, 200.0);
         assert_eq!(reveal(view, (120.0, 180.0), None), 0.0, "already visible");

@@ -1609,6 +1609,7 @@ pub(crate) enum Flow {
 }
 
 /// A scroll container of a laid-out frame.
+#[derive(Clone, Copy)]
 pub(crate) struct ScrollRef<'a> {
     pub(crate) id: Id,
     pub(crate) plan: &'a ScrollPlan,
@@ -2028,5 +2029,105 @@ impl<A> Placed<A> {
             );
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use egui::vec2;
+
+    use super::*;
+    use crate::testing::{Headless, assert_no_reports};
+    use crate::tw;
+
+    #[test]
+    fn only_an_identified_node_carries_an_id_and_what_hangs_off_it() {
+        let anonymous: Identity<ScrollPlan> = Identity::of(None);
+        assert!(anonymous.id().is_none());
+        assert!(anonymous.identified().is_none());
+        assert!(anonymous.draw().is_none() && anonymous.drag().is_none());
+        assert!(anonymous.scroll().is_none());
+        let id = Id::NULL.with("node");
+        let identified: Identity<ScrollPlan> = Identity::of(Some(id));
+        assert_eq!(identified.id(), Some(id));
+        assert!(identified.draw().is_none() && identified.scroll().is_none());
+    }
+
+    #[test]
+    fn a_scroll_container_is_one_with_its_id_and_plan() {
+        let mut headless = Headless::new(vec2(200.0, 200.0));
+        let placed = headless.layout(&(), |b, _| {
+            b.scroll("list", tw().h_px(50.0)).children(|s| {
+                s.div(tw().h_px(500.0), |_| {});
+            });
+        });
+        let list = placed.at("list");
+        let scroll = list.node().and_then(PlacedNode::as_scroll);
+        assert_eq!(scroll.map(|scroll| scroll.id), list.id());
+        assert!(scroll.is_some_and(|scroll| scroll.viewport.height() <= 50.0));
+        let others: Vec<&PlacedNode> = placed
+            .nodes()
+            .filter(|node| node.kind() != NodeKind::Scroll)
+            .collect();
+        assert!(!others.is_empty(), "precondition: other nodes");
+        assert!(others.iter().all(|node| node.as_scroll().is_none()));
+        assert_no_reports(headless.ctx());
+    }
+
+    #[test]
+    fn a_node_handle_carries_the_id_of_its_node() {
+        let handed = Cell::new(None);
+        let mut headless = Headless::new(vec2(200.0, 200.0));
+        let placed = headless.layout(&(), |b, _| {
+            handed.set(Some(b.div_id("card", tw(), |_| {}).id()));
+        });
+        assert!(handed.get().is_some(), "precondition: the view ran");
+        assert_eq!(handed.get(), placed.at("card").id());
+    }
+
+    #[test]
+    fn a_nested_overlay_names_the_root_it_was_declared_in() {
+        use crate::overlay::Anchor;
+        let mut headless = Headless::new(vec2(400.0, 300.0));
+        let placed = headless.layout(&(), |b, _| {
+            b.overlay("outer")
+                .anchor(Anchor::Point(egui::pos2(10.0, 10.0)))
+                .children(|s| {
+                    s.div_id("box", tw().w_px(50.0).h_px(50.0), |_| {});
+                    s.overlay("inner")
+                        .anchor(Anchor::Point(egui::pos2(100.0, 100.0)))
+                        .children(|s| {
+                            s.div_id("in", tw().w_px(20.0).h_px(20.0), |_| {});
+                        });
+                });
+        });
+        let parents: Vec<Option<usize>> = placed.roots.iter().map(|root| root.parent).collect();
+        assert_eq!(parents, [None, Some(0), Some(1)]);
+        let outer = placed.roots.get(1).map(|root| root.first);
+        let boxed = placed.at("outer").at("box").node().map(PlacedNode::rect);
+        assert!(
+            boxed.is_some_and(|rect| rect.width() == 50.0),
+            "the body is laid out"
+        );
+        assert!(outer.is_some_and(|first| {
+            placed
+                .nodes
+                .descendants(first)
+                .iter()
+                .any(|node| node.path().ends_with("\"box\""))
+        }));
+        assert_no_reports(headless.ctx());
+    }
+
+    #[test]
+    fn a_frame_without_the_root_asked_for_hands_back_an_empty_one() {
+        let ctx = egui::Context::default();
+        let mut frame: Frame<'_, ()> = Frame::new(&ctx);
+        let taken = frame.take_decl(5);
+        assert!(taken.layer.is_none() && taken.scrolls.is_empty());
+        let base = frame.take_decl(0);
+        assert!(base.parent().is_none() && !base.is_modal());
     }
 }

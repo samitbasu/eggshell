@@ -13,6 +13,7 @@ use std::fmt;
 use egui::{Context, Id, Rect, Vec2};
 
 use crate::overlay::Side;
+use crate::plane::Axis;
 use crate::tw::{Opacity, Progress};
 
 /// How a node may move on its own: by sliding over a layout change, or as part
@@ -422,9 +423,9 @@ const BOUNDS_EPSILON: f32 = 0.5;
 /// it: along an axis the rect is larger than the bounds, `place` starts it at
 /// their edge and it cannot be inside.
 pub fn leaves_bounds(rect: Rect, bounds: Rect) -> bool {
-    (0..2).any(|axis| {
-        let (lo, hi) = (rect.min[axis], rect.max[axis]);
-        let (min, max) = (bounds.min[axis], bounds.max[axis]);
+    Axis::BOTH.into_iter().any(|axis| {
+        let (lo, hi) = axis.span(rect);
+        let (min, max) = axis.span(bounds);
         hi - lo <= max - min + BOUNDS_EPSILON
             && (lo < min - BOUNDS_EPSILON || hi > max + BOUNDS_EPSILON)
     })

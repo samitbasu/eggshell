@@ -13,6 +13,7 @@ use egui::{Align, Context, EventFilter, FocusDirection, Id, Key, Modifiers, Rect
 
 use crate::kept::Handle;
 use crate::overlay::{Nav, Wrap};
+use crate::plane::Axis;
 use crate::shell::Shell;
 
 /// An open overlay with a keyboard pattern.
@@ -136,22 +137,26 @@ const CROSS_WEIGHT: f32 = 2.0;
 ///
 /// None when nothing lies in the direction: the grid's edge.
 fn nearest(from: Rect, items: &[(Id, Rect)], direction: Direction) -> Option<Id> {
-    let (along, across) = match direction {
-        Direction::Left | Direction::Right => (0, 1),
-        Direction::Up | Direction::Down => (1, 0),
+    let along = match direction {
+        Direction::Left | Direction::Right => Axis::X,
+        Direction::Up | Direction::Down => Axis::Y,
     };
+    let across = along.other();
     let forward = matches!(direction, Direction::Right | Direction::Down);
     let gap_along = |to: Rect| {
+        let (to, from) = (along.span(to), along.span(from));
         if forward {
-            to.min[along] - from.max[along]
+            to.0 - from.1
         } else {
-            from.min[along] - to.max[along]
+            from.0 - to.1
         }
     };
-    let overlaps =
-        |to: Rect| to.min[across] < from.max[across] && from.min[across] < to.max[across];
+    let overlaps = |to: Rect| {
+        let (to, from) = (across.span(to), across.span(from));
+        to.0 < from.1 && from.0 < to.1
+    };
     let score = |to: Rect| {
-        let offset = (to.center()[across] - from.center()[across]).abs();
+        let offset = (across.at(to.center()) - across.at(from.center())).abs();
         let off_line = if overlaps(to) { 0.0 } else { offset };
         (gap_along(to).max(0.0) + CROSS_WEIGHT * off_line, offset)
     };

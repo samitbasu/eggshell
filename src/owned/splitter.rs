@@ -11,6 +11,7 @@ use super::number;
 use crate::builder::Slot;
 use crate::contract::{Focus, SplitterStyle};
 use crate::draw::pane_rect;
+use crate::plane::Axis;
 use crate::{Builder, Easing, NodeUi as _, Progress, Style, transition, tw};
 
 /// TODO(prose): a pane's size along its container's axis, in points; never
@@ -101,12 +102,6 @@ struct Travel {
     grows: Grows,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Axis {
-    X,
-    Y,
-}
-
 /// Whether moving the handle towards the end of the axis grows the pane.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Grows {
@@ -114,26 +109,18 @@ enum Grows {
     TowardsStart,
 }
 
-impl Axis {
-    fn along(self, v: Vec2) -> f32 {
-        match self {
-            Self::X => v.x,
-            Self::Y => v.y,
-        }
+/// The arrow keys that move a handle along `axis`, towards the start first.
+fn keys(axis: Axis) -> (Key, Key) {
+    match axis {
+        Axis::X => (Key::ArrowLeft, Key::ArrowRight),
+        Axis::Y => (Key::ArrowUp, Key::ArrowDown),
     }
+}
 
-    fn keys(self) -> (Key, Key) {
-        match self {
-            Self::X => (Key::ArrowLeft, Key::ArrowRight),
-            Self::Y => (Key::ArrowUp, Key::ArrowDown),
-        }
-    }
-
-    fn cursor(self) -> CursorIcon {
-        match self {
-            Self::X => CursorIcon::ResizeColumn,
-            Self::Y => CursorIcon::ResizeRow,
-        }
+fn cursor(axis: Axis) -> CursorIcon {
+    match axis {
+        Axis::X => CursorIcon::ResizeColumn,
+        Axis::Y => CursorIcon::ResizeRow,
     }
 }
 
@@ -388,9 +375,9 @@ impl Handle {
     fn draw(&self, ui: &Ui, set: impl FnOnce(PaneSize)) {
         let response = ui.node_response();
         let axis = self.travel.axis;
-        let laid = pane_rect(ui).map_or(f32::from(self.size), |pane| axis.along(pane.size()));
+        let laid = pane_rect(ui).map_or(f32::from(self.size), |pane| axis.of(pane.size()));
         if response.hovered() || response.dragged() {
-            ui.ctx().set_cursor_icon(axis.cursor());
+            ui.ctx().set_cursor_icon(cursor(axis));
         }
         let wanted = self
             .dragged_to(ui, &response, laid)
@@ -440,7 +427,7 @@ impl Handle {
     /// travel since, so that clamping never accumulates drift.
     fn dragged_to(&self, ui: &Ui, response: &egui::Response, laid: f32) -> Option<f32> {
         let id = response.id.with("press");
-        let along = |at: Pos2| self.travel.axis.along(at.to_vec2());
+        let along = |at: Pos2| self.travel.axis.at(at);
         if response.drag_started() {
             let origin = ui.input(|input| input.pointer.press_origin());
             if let Some(origin) = origin.or(response.interact_pointer_pos()) {
@@ -464,7 +451,7 @@ impl Handle {
     /// Where the keys pressed this frame put the pane.
     fn keyed_to(&self, ui: &Ui, laid: f32) -> Option<f32> {
         number::hold_arrows(ui);
-        let (start, end) = self.travel.axis.keys();
+        let (start, end) = keys(self.travel.axis);
         let consume = |modifiers, key| ui.input_mut(|input| input.consume_key(modifiers, key));
         let stepped = [(Modifiers::SHIFT, SHIFT_STEP), (Modifiers::NONE, STEP)]
             .into_iter()

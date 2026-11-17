@@ -171,6 +171,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn an_overlay_opens_once_and_is_open_after() {
+        let mut stack = Stack::default();
+        let id = Id::NULL.with("menu");
+        assert_eq!(stack.enter(id, Band::Popup), Opening::Opened);
+        assert_eq!(stack.enter(id, Band::Popup), Opening::Open);
+        assert_eq!(stack.index_of(id), Some(0));
+        assert!(
+            stack
+                .get_mut(id)
+                .is_some_and(|open| open.entered == Entered::Not)
+        );
+    }
+
+    #[test]
     fn the_intact_prefix_is_the_leading_run_of_rising_ranks() {
         assert_eq!(intact_prefix(&[]), 0);
         assert_eq!(intact_prefix(&[7]), 1);
