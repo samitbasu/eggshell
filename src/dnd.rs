@@ -970,7 +970,15 @@ pub(crate) fn begin<A>(
                 hit: found.over,
             },
             None => Ending::Dropped {
-                landing: landing_of(nodes, &found, positioned),
+                landing: landing_of(
+                    nodes,
+                    &found,
+                    if positioned {
+                        Lands::UnderPointer
+                    } else {
+                        Lands::OnFallback
+                    },
+                ),
                 files: payload,
             },
         };
@@ -1030,8 +1038,16 @@ pub(crate) fn begin<A>(
 /// The target a drop from outside lands on, and where: under the pointer if
 /// the platform gave one, else the topmost accepting target that declared
 /// itself the fallback.
-fn landing_of(nodes: &Nodes, found: &Resolved, positioned: bool) -> Option<(usize, Landing)> {
-    if positioned {
+/// Where a drop from outside lands: under the pointer, when the platform
+/// gave a position, else on the fallback target.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Lands {
+    UnderPointer,
+    OnFallback,
+}
+
+fn landing_of(nodes: &Nodes, found: &Resolved, lands: Lands) -> Option<(usize, Landing)> {
+    if lands == Lands::UnderPointer {
         let hit = found.over.as_ref()?;
         return Some((
             hit.index,

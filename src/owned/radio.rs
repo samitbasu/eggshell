@@ -78,7 +78,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
     }
 
     /// Whether the group takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }

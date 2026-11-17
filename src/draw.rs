@@ -39,14 +39,14 @@ use crate::prim::{Icon, Prim};
 use crate::roots::{
     Form, Here, Home, PlacedRoot, covers_screen, root_and_node, root_at, root_of, stacked_top_down,
 };
-use crate::scroll::{self, Moved};
+use crate::scroll;
 use crate::scroll_keys;
 use crate::shadow_corners::{Corner, arc_segments, clip_mesh_to_triangle, outside_corner_fan};
 use crate::spans;
 use crate::stack::{self, Drawn};
 use crate::text::{Interactive, TextAlign, TextStyle};
 use crate::tooltip;
-use crate::transition::{self, LayoutAnimation, StartsSlides};
+use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
     BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,
     Sides, State,
@@ -112,13 +112,6 @@ impl Hovering {
     }
 }
 
-/// Whether nodes outside the clip are left out of the draw.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Culling {
-    Off,
-    On,
-}
-
 /// Whether a box takes drags from the widgets beneath it. Beneath a node that
 /// takes drags itself, or a scroll container whose content drags to scroll
 /// (egui's `ScrollSource`: on a touch screen), they are the ancestor's, and
@@ -142,7 +135,8 @@ impl Drags {
 #[derive(Clone, Copy)]
 struct Inherited {
     drags: Drags,
-    culling: Culling,
+    /// Whether nodes outside the clip are left out of the draw.
+    culls: bool,
     clip: Rect,
     opacity: Opacity,
     inertness: Inertness,
@@ -171,7 +165,7 @@ impl Inherited {
     fn root(clip: Rect, origin: Pos2) -> Self {
         Self {
             drags: Drags::Block,
-            culling: Culling::Off,
+            culls: false,
             clip,
             opacity: Opacity::OPAQUE,
             inertness: Inertness::Live,
@@ -617,11 +611,11 @@ impl<A> Walk<'_, A> {
                 if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
                     let role = plan.description.role.unwrap_or(Role::ScrollView);
                     let name = plan.description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&own, ui.is_enabled(), role, None, name);
+                    crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
                 } else if let Some(description) = node.description() {
                     let role = description.role.unwrap_or(Role::GenericContainer);
                     let name = description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&own, ui.is_enabled(), role, None, name);
+                    crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
                 }
                 own
             },
@@ -721,7 +715,7 @@ impl<A> Walk<'_, A> {
                 if let Some(description) = described {
                     let role = description.role.unwrap_or(Role::GenericContainer);
                     let name = description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&response, ui.is_enabled(), role, None, name);
+                    crate::owned::describe(&response, ui.is_enabled().into(), role, None, name);
                 }
                 if modal {
                     ui.ctx()
@@ -861,7 +855,7 @@ impl<A> Walk<'_, A> {
     /// Visits the node and its subtree, noting which focusable widgets the
     /// subtree registered if the node is identified.
     fn visit(&mut self, index: usize, parent: Inherited) {
-        if parent.culling == Culling::On && self.culled(index, parent.clip) {
+        if parent.culls && self.culled(index, parent.clip) {
             if self.shared.recording.is_some() {
                 let subtree = self.nodes.subtree(index);
                 self.shared
@@ -1107,10 +1101,7 @@ impl<A> Walk<'_, A> {
         let inherited = Inherited {
             // A lifted node is painted where the pointer carries it, not where
             // layout put it.
-            culling: match lifted {
-                Some(_) => Culling::Off,
-                None => parent.culling,
-            },
+            culls: lifted.is_none() && parent.culls,
             backdrop: parent.backdrop.blend(painted_background),
             clip: content_clip(parent.clip, boxes.padding, node.overflow),
             opacity,
@@ -1240,9 +1231,10 @@ impl<A> Walk<'_, A> {
             .min_scrolled_height(0.0)
             .content_margin(egui::Margin::ZERO)
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
-        let area = match plan.moved {
-            Moved::Yes => area.scroll_offset(plan.offset),
-            Moved::No => area,
+        let area = if plan.moved {
+            area.scroll_offset(plan.offset)
+        } else {
+            area
         };
         let Self {
             app,
@@ -1262,7 +1254,7 @@ impl<A> Walk<'_, A> {
         // The viewport clips the content, whatever egui reserves for its bars.
         let content = Inherited {
             clip: inherited.clip.intersect(grid.rect(viewport)),
-            culling: Culling::On,
+            culls: true,
             scrolled: inherited.scrolled - plan.offset,
             ..inherited
         };
@@ -1280,7 +1272,7 @@ impl<A> Walk<'_, A> {
                 // springs one past them back, carrying the spring's velocity
                 // into the next frames: an offset set at the end of content
                 // that grew this frame would creep back short of it.
-                if plan.moved == Moved::Yes {
+                if plan.moved {
                     ui.spacing_mut().scroll.kinetic.rubber_band = false;
                 }
                 plan.bars.paint_in(ui.visuals_mut());
@@ -1567,11 +1559,7 @@ impl<A> Walk<'_, A> {
             if let Some(drawn) = drawn {
                 shown.push(window::Shown {
                     root: index,
-                    closed: if open {
-                        window::Closed::No
-                    } else {
-                        window::Closed::Asked
-                    },
+                    close_asked: !open,
                     content: drawn.inner.unwrap_or(window.content),
                     outer: Some(drawn.response.rect),
                 });
@@ -1837,8 +1825,8 @@ impl<A> Painting<A> {
             app,
         );
         let selection = Style::of(&ctx).selection;
-        let mut animation = LayoutAnimation::begin(&ctx, kept, nodes)
-            .starting(StartsSlides::unless_size_in_flight(*size_in_flight));
+        let mut animation =
+            LayoutAnimation::begin(&ctx, kept, nodes).starts_slides(!*size_in_flight);
         if nodes.iter().any(|node| node.scroll().is_some()) {
             animation.anticipate(nodes);
         }

@@ -171,7 +171,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
     }
 
     /// Whether the select takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }
@@ -384,7 +385,7 @@ impl<T: Copy + 'static> List<T> {
             let mut row = row.draw(move |_, ui| {
                 describe(
                     &ui.node_response(),
-                    enablement == Enablement::Enabled,
+                    enablement,
                     Role::ListBoxOption,
                     Some(Mark::from(marked)),
                     &label,
