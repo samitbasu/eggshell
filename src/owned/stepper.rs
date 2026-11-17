@@ -287,6 +287,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                         b.div_id(part, classes, |b| {
                             b.glyph(tw().size_px(glyph), chevron.icon())
                         })
+                        .announces(Role::Button)
                         .draw(move |app, ui| {
                             if described(ui, Role::Button, None, name.trim(), &spec.tooltip)
                                 .clicked()

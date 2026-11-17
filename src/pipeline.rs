@@ -112,6 +112,8 @@ pub(crate) struct Node {
     /// For a collapsible's wrapper that is opening or closing.
     pub collapse: Option<Collapse>,
     pub description: Option<Box<Description>>,
+    /// The role a library control announces from its draw closure.
+    pub announced: Option<Role>,
     pub action: Option<Action>,
     pub open_focus: OpenFocus,
     /// For a splitter, the neighbour it sizes.
@@ -138,6 +140,7 @@ impl Node {
             region: None,
             collapse: None,
             description: None,
+            announced: None,
             action: None,
             open_focus: OpenFocus::Elsewhere,
             pane: None,
@@ -1548,6 +1551,7 @@ fn collect(
         interaction: node.interaction,
         draw_kind: node.draw_kind,
         description: node.description.take(),
+        announced: node.announced,
         action: node.action,
         open_focus: node.open_focus,
         pane: node.pane,
@@ -1653,6 +1657,7 @@ pub struct PlacedNode {
     pub(crate) interaction: Interaction,
     draw_kind: DrawKind,
     description: Option<Box<Description>>,
+    announced: Option<Role>,
     action: Option<Action>,
     open_focus: OpenFocus,
     pub(crate) pane: Option<Side>,
@@ -1692,6 +1697,7 @@ impl PlacedNode {
             interaction: Interaction::default(),
             draw_kind: DrawKind::Paint,
             description: None,
+            announced: None,
             action: None,
             open_focus: OpenFocus::Elsewhere,
             pane: None,
@@ -1879,6 +1885,15 @@ impl PlacedNode {
     /// The key the node answers, if it is a default or cancel button.
     pub(crate) fn action(&self) -> Option<Action> {
         self.action
+    }
+
+    /// Whether the node is a button: Return pressed while it has focus is
+    /// its own.
+    pub(crate) fn is_button(&self) -> bool {
+        self.description()
+            .and_then(|description| description.role)
+            .or(self.announced)
+            == Some(Role::Button)
     }
 
     /// Whether the overlay the node is in gives it focus as it opens.
