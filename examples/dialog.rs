@@ -16,6 +16,7 @@
 mod common;
 
 use eggshell_ui::overlay::{DismissOn, Modal, Nav, Shown, Side, Wrap};
+use eggshell_ui::owned::Face;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::{Builder, Scope, Tw, tw};
@@ -213,12 +214,14 @@ fn dialog(b: &mut Builder<'_, '_, State>, state: &State, t: &Tokens) {
                     );
                 });
                 field(s, "Role", |s| {
-                    s.button(Part::RoleButton, ROLES[state.role])
-                        .variant(variant::OUTLINE)
-                        .opens_popup()
-                        .classes(tw().justify_between().w_full())
-                        .named("Role")
-                        .on_click(|state: &mut State| state.picker = !state.picker);
+                    s.button(
+                        Part::RoleButton,
+                        Face::text(ROLES[state.role]).named("Role"),
+                    )
+                    .variant(variant::OUTLINE)
+                    .opens_popup()
+                    .classes(tw().justify_between().w_full())
+                    .on_click(|state: &mut State| state.picker = !state.picker);
                     if state.picker {
                         role_menu(s, state);
                     }
