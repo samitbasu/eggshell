@@ -381,7 +381,7 @@ pub(crate) fn begin(ctx: &Context, kept: &Handle) {
 /// `response` is the one the node's hover and focus are read from.
 pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
     let focus = response.has_focus().then_some(Cause::Focus);
-    let pointer = response.contains_pointer().then_some(Cause::Pointer);
+    let pointer = over(ui, response).then_some(Cause::Pointer);
     request(ui, tip, [focus, pointer], response.rect);
     describes(ui, response, tip);
 }
@@ -392,9 +392,19 @@ pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
 pub(crate) fn register_whole(ui: &Ui, tip: &Tooltip) {
     let response = ui.node_response();
     let focus = ui.has_focus_within().then_some(Cause::Focus);
-    let pointer = response.contains_pointer().then_some(Cause::Pointer);
+    let pointer = over(ui, &response).then_some(Cause::Pointer);
     request(ui, tip, [focus, pointer], response.rect);
     describes(ui, &response, tip);
+}
+
+/// Whether the pointer is on `response`'s widget, inside its rect: egui also
+/// hovers a widget the pointer is only near, within its interact radius.
+fn over(ui: &Ui, response: &egui::Response) -> bool {
+    response.contains_pointer()
+        && ui
+            .ctx()
+            .pointer_hover_pos()
+            .is_some_and(|at| response.interact_rect.contains(at))
 }
 
 /// Describes `response`'s widget to assistive technology by `tip`'s text,

@@ -274,3 +274,41 @@ fn every_row_name_fits_on_one_line() {
         }
     }
 }
+
+/// A control's tooltip opens over the control and not beside it, where egui
+/// still counts the pointer as near enough to hover it.
+#[test]
+fn a_controls_tooltip_opens_over_it_and_not_in_the_row_beside_it() {
+    let mut harness = harness(State {
+        section: controls_gallery::Section::Choices,
+        ..State::default()
+    });
+    let control = "/Choices/\"segmented\"";
+    let track = rect_of(&harness, control);
+    let beside = egui::pos2(track.max.x + 4.0, track.center().y);
+    let parts: Vec<_> = harness
+        .state()
+        .nodes
+        .iter()
+        .filter(|(path, _)| path.starts_with(control))
+        .map(|(_, rect)| *rect)
+        .collect();
+    assert!(parts.len() > 1, "precondition: the control and its cells");
+    assert!(
+        parts.iter().all(|rect| !rect.contains(beside)),
+        "precondition: the point is outside every node of the control"
+    );
+    let open = |harness: &Harness<'_, Rig<State>>| {
+        harness
+            .state()
+            .nodes
+            .iter()
+            .any(|(path, _)| path.contains("Tooltip("))
+    };
+    harness.hover_at(beside);
+    harness.run_steps(40);
+    assert!(!open(&harness), "nothing opens beside the control");
+    harness.hover_at(egui::pos2(track.max.x - 4.0, track.center().y));
+    harness.run_steps(40);
+    assert!(open(&harness), "its tooltip opens over it");
+}
