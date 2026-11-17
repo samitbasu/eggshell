@@ -157,7 +157,8 @@ pub use crate::contract::{EdgeFade, ScrollStyle};
 use crate::dnd::EdgeScroll;
 use crate::finite::clamp_vec2;
 use crate::key::Key;
-use crate::pipeline::{Node, PlacedNode, takes_tab};
+use crate::layout_tree::LayoutTree;
+use crate::pipeline::{PlacedNode, takes_tab};
 use crate::shell::Shell;
 use crate::tw::{Focusability, Tw};
 
@@ -217,7 +218,7 @@ impl TabRule {
     pub(crate) fn of(
         focusable: Focusable,
         classes: &Tw,
-        tree: &taffy::TaffyTree<Node>,
+        tree: &LayoutTree,
         kids: &[taffy::NodeId],
     ) -> Self {
         let takes = classes.focusability == Focusability::Tab && !classes.inert;
@@ -233,16 +234,14 @@ impl TabRule {
 /// Whether one of `nodes`, or of their descendants, is a Tab stop by what its
 /// classes declare. A nested scroll container counts: it is one or holds
 /// one. Inert and hidden subtrees do not.
-pub(crate) fn holds_tab_stop(tree: &taffy::TaffyTree<Node>, nodes: &[taffy::NodeId]) -> bool {
+pub(crate) fn holds_tab_stop(tree: &LayoutTree, nodes: &[taffy::NodeId]) -> bool {
     nodes.iter().any(|&id| {
-        let hidden = tree
-            .style(id)
-            .is_ok_and(|style| style.display == taffy::Display::None);
-        match tree.get_node_context(id) {
+        let hidden = tree.style(id).display == taffy::Display::None;
+        match tree.node(id) {
             Some(node) if node.inert || hidden => false,
             Some(node) if node.scroll.is_some() => true,
             Some(node) if takes_tab(&node.interaction, node.draw_kind) => true,
-            _ => holds_tab_stop(tree, &tree.children(id).unwrap_or_default()),
+            _ => holds_tab_stop(tree, &tree.children(id)),
         }
     })
 }
