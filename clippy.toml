@@ -1,3 +1,5 @@
+max-fn-params-bools = 1
+
 disallowed-macros = [
     { path = "std::assert", reason = "a failed assertion panics: report misuse with `report`, or an invariant as `Problem::Internal`, and fall back" },
     { path = "std::assert_eq", reason = "a failed assertion panics: report misuse with `report`, or an invariant as `Problem::Internal`, and fall back" },

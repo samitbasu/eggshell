@@ -15,7 +15,8 @@
         clippy::indexing_slicing,
         clippy::unchecked_time_subtraction,
         clippy::disallowed_macros,
-        clippy::disallowed_methods
+        clippy::disallowed_methods,
+        clippy::fn_params_excessive_bools
     )
 )]
 //! Eggshell: taffy lays out, egui draws and interacts.
