@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use egui::{Id, Pos2, Vec2, ViewportBuilder, ViewportId};
+use egui::{Event, Id, Pos2, Vec2, ViewportBuilder, ViewportId};
 
 use crate::builder::{Builder, Scope, Slot};
 use crate::kept::Handle;
@@ -556,4 +556,11 @@ pub(crate) fn enter_pass(
         }
     }
     stack.store(kept, viewport);
+}
+
+/// Whether `events` say the window lost the keyboard focus.
+pub(crate) fn blurred(events: &[Event]) -> bool {
+    events
+        .iter()
+        .any(|event| matches!(event, Event::WindowFocused(false)))
 }
