@@ -9,8 +9,8 @@ use egui::Role;
 
 use super::Mark;
 use super::{
-    Content, Enablement, OnResponse, TipContent, Unset, choice_label, choice_row, described, flip,
-    paint_check, tip,
+    Content, Enablement, OnResponse, TipContent, Unset, check, choice_label, choice_row, described,
+    flip, tip,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -217,7 +217,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             b.div(row, |b| {
                 b.div_id(Part::Box, box_classes, |b| {
                     if mark == Mark::On {
-                        b.paint(tw().size_px(glyph), paint_check);
+                        b.glyph(tw().size_px(glyph), check());
                     }
                 })
                 .draw(move |app, ui| {

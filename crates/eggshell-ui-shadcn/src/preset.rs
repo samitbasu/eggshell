@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use eggshell_ui::contract::{
     self, Arrow, CheckboxMetrics, Colors, Em, Entry, Focus, InputMetrics, Keyed, KindMotion,
-    Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size, SliderMetrics, States,
-    StepperMetrics, SwitchMetrics, TextSize, Variant,
+    Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size, SliderMetrics,
+    SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
@@ -471,20 +471,30 @@ impl Shadcn {
         };
         style.slider = {
             let mut slider = style.slider;
-            let slider_at = |track_height: f32, thumb_size: f32| SliderMetrics {
+            let slider_at = |track_height: f32,
+                             thumb_size: f32,
+                             text: Option<TextSize>,
+                             header_gap: f32| SliderMetrics {
                 track_height,
                 thumb_size,
                 radius: t.slider_radius,
+                text,
+                header_gap,
             };
-            slider.sizes = Keyed::new(Size::DEFAULT, slider_at(t.slider_track, t.slider_thumb))
-                .with(
-                    size::SM,
-                    slider_at(t.slider_track.min(4.0), t.slider_thumb - 2.0),
-                )
-                .with(
-                    size::XS,
-                    slider_at(t.slider_track.min(3.0), t.slider_thumb - 4.0),
-                );
+            slider.sizes = Keyed::new(
+                Size::DEFAULT,
+                slider_at(t.slider_track, t.slider_thumb, None, 8.0),
+            )
+            .with(
+                size::SM,
+                slider_at(t.slider_track.min(4.0), t.slider_thumb - 2.0, None, 6.0),
+            )
+            .with(
+                size::XS,
+                slider_at(t.slider_track.min(3.0), t.slider_thumb - 4.0, xs_text, 4.0),
+            );
+            slider.label = States::still(flat(clear, t.foreground), t.background);
+            slider.readout = States::still(flat(clear, t.muted_foreground), t.background);
             slider.track = States::still(flat(t.input, t.foreground), t.background);
             slider.range = States::still(flat(t.primary, t.primary_foreground), t.background);
             slider.thumb = shadowed(
@@ -646,19 +656,24 @@ impl Shadcn {
         style.input = {
             let mut input = style.input;
             input.look = field_look;
-            let field_at = |height: f32, padding: egui::Vec2, text| InputMetrics {
-                radius: t.radius_md(),
-                padding,
-                height,
-                text,
-            };
+            let field_at =
+                |height: f32, padding: egui::Vec2, text, (icon_size, icon_gap): (f32, f32)| {
+                    InputMetrics {
+                        radius: t.radius_md(),
+                        padding,
+                        height,
+                        text,
+                        icon_size,
+                        icon_gap,
+                    }
+                };
             input.sizes = Keyed::new(
                 Size::DEFAULT,
-                field_at(t.control_height, t.input_padding, None),
+                field_at(t.control_height, t.input_padding, None, (16.0, 8.0)),
             )
             .with(
                 size::SM,
-                field_at(t.control_height - 4.0, t.input_padding, None),
+                field_at(t.control_height - 4.0, t.input_padding, None, (14.0, 6.0)),
             )
             .with(
                 size::XS,
@@ -669,9 +684,11 @@ impl Shadcn {
                         t.input_padding.y.min(2.0),
                     ),
                     xs_text,
+                    (12.0, 6.0),
                 ),
             );
             input.hint = None;
+            input.icon = t.muted_foreground;
             input
         };
         style.selection = {
@@ -689,6 +706,22 @@ impl Shadcn {
         style.scroll.radius = egui::CornerRadius::same(u8::MAX);
         // Radix's ScrollArea keeps its thumb at least 18 px long.
         style.scroll.min_thumb_length = 18.0;
+        // shadcn's ResizableHandle: a `w-px bg-border` line in a wider hit area,
+        // which a faint band fills while hot.
+        style.splitter.thickness = 6.0;
+        style.splitter.line_width = 1.0;
+        style.splitter.rest = SplitterColors {
+            band: clear,
+            line: t.border,
+            grip: clear,
+        };
+        style.splitter.hot = SplitterColors {
+            band: t.primary.gamma_multiply(0.15),
+            line: t.primary,
+            grip: clear,
+        };
+        style.splitter.grip = None;
+        style.splitter.transition = Duration::from_millis(150);
         // shadcn's Table: `h-10 px-2 font-medium` head cells, `p-2` cells,
         // `border-b` rows (none under the last), `hover:bg-muted/50`,
         // `data-[state=selected]:bg-muted`, a `bg-muted/50 font-medium` footer

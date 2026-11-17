@@ -377,19 +377,31 @@ fn known_or(input: &LayoutInput, size: Size<f32>) -> LayoutOutput {
     })
 }
 
-/// The size of display content that is not text.
-fn display_size(prim: &Prim, text: &TextStyle) -> Size<f32> {
+/// The size of display content that is not text. An icon is square, as its
+/// SVG is, so a side the layout fixes sets the other too, and one em when
+/// neither is fixed. An image has its texture's size when egui knows it.
+fn display(prim: &Prim, text: &TextStyle, input: &LayoutInput) -> LayoutOutput {
     match prim {
-        Prim::Icon(_) => Size {
-            width: text.spec.size,
-            height: text.spec.size,
-        },
-        Prim::Image(egui::ImageSource::Texture(texture)) => Size {
-            width: texture.size.x,
-            height: texture.size.y,
-        },
+        Prim::Icon(_) => {
+            let known = input.known_dimensions;
+            let side = known.width.or(known.height).unwrap_or(text.spec.size);
+            known_or(
+                input,
+                Size {
+                    width: side,
+                    height: side,
+                },
+            )
+        }
+        Prim::Image(egui::ImageSource::Texture(texture)) => known_or(
+            input,
+            Size {
+                width: texture.size.x,
+                height: texture.size.y,
+            },
+        ),
         Prim::Text(_) | Prim::Rich(_) | Prim::Spans(_) | Prim::Image(_) | Prim::Paint(_) => {
-            Size::ZERO
+            known_or(input, Size::ZERO)
         }
     }
 }
@@ -417,7 +429,7 @@ pub(crate) fn measure_content(
     match content {
         Content::Prim(prim) => match TextLeaf::of(ctx, prim, text) {
             Some(leaf) => ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, input)),
-            None => known_or(input, display_size(prim, text)),
+            None => display(prim, text, input),
         },
         Content::Empty => known_or(input, Size::ZERO),
         Content::Leaf(measure) => known_or(input, measure(&Measure::new(ctx, input, text))),

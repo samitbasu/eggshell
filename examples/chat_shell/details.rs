@@ -83,9 +83,9 @@ fn section<'f>(
                             .pb(2.0),
                         |b| {
                             b.text(tw(), title);
-                            b.paint(
-                                tw().size_px(16.0).shrink_0(),
-                                common::chevron(k[Tok::InkDim], 180.0 * f32::from(progress)),
+                            b.glyph(
+                                tw().size_px(16.0).shrink_0().text(k[Tok::InkDim]),
+                                common::chevron(progress),
                             );
                         },
                     )

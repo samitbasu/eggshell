@@ -1,10 +1,11 @@
 //! Markdown source into a tree of blocks whose text is eggshell spans.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
+use eggshell_ui::owned::Align;
 use eggshell_ui::{FontStyle, Span, Spans, Weight};
-use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 /// A block of a Markdown document.
 #[derive(Clone, Debug, PartialEq)]
@@ -23,10 +24,20 @@ pub(crate) enum Block {
         alt: String,
     },
     Rule,
+    Table(Table),
     Unsupported {
         construct: Construct,
         source: String,
     },
+}
+
+/// A GFM table: a column per alignment, and rows of cells as written, which
+/// may be shorter or longer than the header.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Table {
+    pub align: Vec<Align>,
+    pub header: Vec<Spans>,
+    pub rows: Vec<Vec<Spans>>,
 }
 
 /// TODO(prose)
@@ -85,12 +96,11 @@ pub(crate) enum Task {
 /// A construct the widget shows as its source.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Construct {
-    Table,
     Html,
 }
 
-/// The blocks of `source`. Tables and HTML are recognised so that they can
-/// be shown as their source; other extensions are off, so their syntax reads
+/// The blocks of `source`. HTML is recognised so that it can be shown as
+/// its source; other extensions are off, so their syntax reads
 /// as the text it is.
 pub(crate) fn parse(source: &str) -> Vec<Block> {
     let options = Options::ENABLE_TABLES
@@ -101,10 +111,6 @@ pub(crate) fn parse(source: &str) -> Vec<Block> {
     let mut events = Parser::new_ext(source, options).into_offset_iter();
     while let Some((event, range)) = events.next() {
         match event {
-            Event::Start(Tag::Table(_)) => {
-                skip_to(&mut events, TagEnd::Table);
-                walk.unsupported(Construct::Table, source.get(range).unwrap_or_default());
-            }
             Event::Start(Tag::HtmlBlock) => {
                 skip_to(&mut events, TagEnd::HtmlBlock);
                 walk.unsupported(Construct::Html, source.get(range).unwrap_or_default());
@@ -128,6 +134,8 @@ enum Container {
     Quote(Vec<Block>),
     List(List),
     Item(Item),
+    /// A table, and the cells of the row being read.
+    Table(Table, Vec<Spans>),
 }
 
 /// The text-bearing block open while its inline events arrive.
@@ -136,6 +144,7 @@ enum Leaf {
     Heading { level: Level, id: Option<String> },
     Code { info: String, text: String },
     Image { uri: String, alt: String },
+    Cell,
 }
 
 /// The inline styles in force: how deep in each, and the links entered.
@@ -182,7 +191,15 @@ struct Walk {
     /// Text of one style, not yet a span.
     run: (Marks, String),
     spans: Spans,
-    anchors: HashMap<String, usize>,
+    anchors: Anchors,
+}
+
+/// The anchors given so far: each one issued, and for each wanted anchor
+/// the next suffix to try.
+#[derive(Default)]
+struct Anchors {
+    issued: HashSet<String>,
+    next: HashMap<String, usize>,
 }
 
 impl Default for Walk {
@@ -194,7 +211,7 @@ impl Default for Walk {
             marks: Marks::default(),
             run: (Marks::default(), String::new()),
             spans: Spans::new(),
-            anchors: HashMap::new(),
+            anchors: Anchors::default(),
         }
     }
 }
@@ -235,6 +252,15 @@ impl Walk {
                 },
                 text: String::new(),
             }),
+            Tag::Table(align) => self.contain(Container::Table(
+                Table {
+                    align: align.into_iter().map(column_align).collect(),
+                    ..Table::default()
+                },
+                Vec::new(),
+            )),
+            Tag::TableCell => self.open(Leaf::Cell),
+            Tag::Image { .. } if matches!(self.leaf, Some(Leaf::Cell)) => {}
             Tag::Image { dest_url, .. } => {
                 self.close_leaf();
                 self.leaf = Some(Leaf::Image {
@@ -258,7 +284,11 @@ impl Walk {
     fn end(&mut self, tag: TagEnd) {
         match tag {
             TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::CodeBlock => self.close_leaf(),
+            TagEnd::Image if matches!(self.leaf, Some(Leaf::Cell)) => {}
             TagEnd::Image => self.open(Leaf::Paragraph),
+            TagEnd::TableCell => self.close_leaf(),
+            TagEnd::TableHead | TagEnd::TableRow => self.end_row(tag),
+            TagEnd::Table => self.uncontain(),
             TagEnd::BlockQuote(_) | TagEnd::List(_) | TagEnd::Item => self.uncontain(),
             TagEnd::Emphasis => self.marks.emphasis = self.marks.emphasis.saturating_sub(1),
             TagEnd::Strong => self.marks.strong = self.marks.strong.saturating_sub(1),
@@ -273,7 +303,7 @@ impl Walk {
         match &mut self.leaf {
             Some(Leaf::Code { text: code, .. }) => code.push_str(text),
             Some(Leaf::Image { alt, .. }) => alt.push_str(text),
-            Some(Leaf::Paragraph | Leaf::Heading { .. }) => self.push_run(text),
+            Some(Leaf::Paragraph | Leaf::Heading { .. } | Leaf::Cell) => self.push_run(text),
             None => {
                 self.leaf = Some(Leaf::Paragraph);
                 self.push_run(text);
@@ -328,18 +358,42 @@ impl Walk {
             }
             Some(Leaf::Code { info, text }) => Block::Code { info, text },
             Some(Leaf::Image { uri, alt }) => Block::Image { uri, alt },
+            Some(Leaf::Cell) => match self.containers.last_mut() {
+                Some(Container::Table(_, row)) => return row.push(spans),
+                // TODO(#279): report a cell outside a table; its text is a paragraph.
+                _ if spans.is_empty() => return,
+                _ => Block::Paragraph(spans),
+            },
         };
         self.block(block);
     }
 
-    /// `wanted`, or `wanted-1`, `wanted-2`… when an earlier heading has it.
+    /// Ends the header or a body row of the open table, if one is open.
+    fn end_row(&mut self, end: TagEnd) {
+        self.close_leaf();
+        // TODO(#279): report a row ended outside a table; it is ignored.
+        if let Some(Container::Table(table, row)) = self.containers.last_mut() {
+            let row = std::mem::take(row);
+            match end {
+                TagEnd::TableHead => table.header = row,
+                _ => table.rows.push(row),
+            }
+        }
+    }
+
+    /// `wanted`, or `wanted-1`, `wanted-2`… when an earlier heading has it:
+    /// the first that no earlier heading has, so that every anchor, and the
+    /// key it gives the heading, is unique in the document.
     fn anchor(&mut self, wanted: String) -> String {
-        let seen = self.anchors.entry(wanted.clone()).or_insert(0);
-        let anchor = match *seen {
-            0 => wanted,
-            n => format!("{wanted}-{n}"),
-        };
-        *seen += 1;
+        let Anchors { issued, next } = &mut self.anchors;
+        let mut suffix = next.get(&wanted).copied().unwrap_or(0);
+        let mut anchor = suffixed(&wanted, suffix);
+        while issued.contains(&anchor) {
+            suffix = suffix.saturating_add(1);
+            anchor = suffixed(&wanted, suffix);
+        }
+        next.insert(wanted, suffix.saturating_add(1));
+        issued.insert(anchor.clone());
         anchor
     }
 
@@ -349,6 +403,8 @@ impl Walk {
             None => self.blocks.push(block),
             Some(Container::Quote(blocks)) => blocks.push(block),
             Some(Container::Item(item)) => item.blocks.push(block),
+            // TODO(#279): report a block inside a table, which holds only cells.
+            Some(Container::Table(..)) => self.blocks.push(block),
             Some(Container::List(list)) => list.items.push(Item {
                 task: None,
                 blocks: vec![block],
@@ -382,6 +438,7 @@ impl Walk {
             },
             Some(Container::Quote(blocks)) => self.block(Block::Quote(blocks)),
             Some(Container::List(list)) => self.block(Block::List(list)),
+            Some(Container::Table(table, _)) => self.block(Block::Table(table)),
         }
     }
 
@@ -414,8 +471,24 @@ fn collect_headings(blocks: &[Block], found: &mut Vec<Heading>) {
             | Block::Code { .. }
             | Block::Image { .. }
             | Block::Rule
+            | Block::Table(_)
             | Block::Unsupported { .. } => {}
         }
+    }
+}
+
+fn column_align(align: Alignment) -> Align {
+    match align {
+        Alignment::None | Alignment::Left => Align::Start,
+        Alignment::Center => Align::Center,
+        Alignment::Right => Align::End,
+    }
+}
+
+fn suffixed(wanted: &str, suffix: usize) -> String {
+    match suffix {
+        0 => wanted.to_owned(),
+        n => format!("{wanted}-{n}"),
     }
 }
 
@@ -499,6 +572,30 @@ mod tests {
             parse("soft\nbreak and hard  \nbreak"),
             vec![text("soft break and hard\nbreak")],
             "text of one style is one span"
+        );
+    }
+
+    #[test]
+    fn repeated_headings_take_anchors_no_other_heading_has() {
+        let anchors: Vec<String> = parse(
+            "# Notes\n\n## Notes\n\n## Notes 1\n\n## Twice {#notes-2}\n\n## Notes\n\n## Again {#notes}",
+        )
+        .into_iter()
+        .filter_map(|block| match block {
+            Block::Heading(heading) => Some(heading.anchor),
+            _ => None,
+        })
+        .collect();
+        assert_eq!(
+            anchors,
+            [
+                "notes",
+                "notes-1",
+                "notes-1-1",
+                "notes-2",
+                "notes-3",
+                "notes-4"
+            ]
         );
     }
 
@@ -634,16 +731,11 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_constructs_keep_their_source() {
-        let table = "| a | b |\n|---|---|\n| 1 | 2 |";
+    fn html_keeps_its_source() {
         let html = "<div>\nraw\n</div>";
         assert_eq!(
-            parse(&format!("{table}\n\n{html}\n\ninline <b>html</b>")),
+            parse(&format!("{html}\n\ninline <b>html</b>")),
             vec![
-                Block::Unsupported {
-                    construct: Construct::Table,
-                    source: table.to_owned(),
-                },
                 Block::Unsupported {
                     construct: Construct::Html,
                     source: html.to_owned(),
@@ -656,6 +748,70 @@ mod tests {
                 ]),
             ]
         );
+    }
+
+    fn cells(texts: &[&str]) -> Vec<Spans> {
+        texts.iter().map(|text| Spans::from(*text)).collect()
+    }
+
+    #[test]
+    fn a_table_keeps_its_alignments_header_and_rows() {
+        let source = "| a | b | c | d |\n|---|:--|:-:|--:|\n| 1 | 2 | 3 | 4 |\n| 5 | 6 | 7 | 8 |";
+        assert_eq!(
+            parse(source),
+            vec![Block::Table(Table {
+                align: vec![Align::Start, Align::Start, Align::Center, Align::End],
+                header: cells(&["a", "b", "c", "d"]),
+                rows: vec![cells(&["1", "2", "3", "4"]), cells(&["5", "6", "7", "8"])],
+            })]
+        );
+    }
+
+    #[test]
+    fn a_cell_keeps_its_inline_styles_and_links() {
+        let source = "| head |\n|---|\n| *em* `code` [to](#a) ![alt](x.png) |";
+        let blocks = parse(source);
+        let [Block::Table(table)] = blocks.as_slice() else {
+            panic!("one table");
+        };
+        assert_eq!(
+            table.rows,
+            vec![vec![Spans::from(vec![
+                Span::new("em").font_style(FontStyle::Italic),
+                Span::new(" "),
+                Span::new("code").code(),
+                Span::new(" "),
+                Span::new("to").link("#a"),
+                Span::new(" alt"),
+            ])]]
+        );
+    }
+
+    #[test]
+    fn a_ragged_row_takes_the_headers_width() {
+        let source = "| a | b | c |\n|---|---|---|\n| 1 |\n| 1 | 2 | 3 | 4 |";
+        let blocks = parse(source);
+        let [Block::Table(table)] = blocks.as_slice() else {
+            panic!("one table");
+        };
+        assert_eq!(table.header.len(), 3);
+        assert_eq!(table.rows.iter().map(Vec::len).collect::<Vec<_>>(), [3, 3]);
+    }
+
+    #[test]
+    fn cell_events_outside_a_table_do_not_panic() {
+        let mut walk = Walk::default();
+        for event in [
+            Event::Start(Tag::TableCell),
+            Event::Text("loose".into()),
+            Event::End(TagEnd::TableCell),
+            Event::End(TagEnd::TableRow),
+            Event::End(TagEnd::TableHead),
+            Event::End(TagEnd::Table),
+        ] {
+            walk.event(event);
+        }
+        assert_eq!(walk.finish(), [text("loose")]);
     }
 
     #[test]

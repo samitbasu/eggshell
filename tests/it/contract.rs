@@ -295,9 +295,12 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
             padding: vec2(9.0, 5.0),
             height: 41.0,
             text: None,
+            icon_size: 15.0,
+            icon_gap: 7.0,
         },
     );
     input.hint = Some(c(99));
+    input.icon = c(55);
     style.input = input;
     style.selection.fill = c(77);
     style.selection.text = Some(c(88));

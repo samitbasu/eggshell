@@ -6,16 +6,27 @@ use std::hash::Hash;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 
-use egui::{Key, Rect, Ui, WidgetInfo};
+use egui::{Key, Rect, Role, Ui, WidgetInfo};
 
 use super::number::{self, Edit, Edits, Step};
-use super::{Content, Enablement, OnResponse, TipContent, painted, tip, tipped};
+use super::{
+    Content, Enablement, FieldBoxChain, OnResponse, TipContent, described, painted, text_sized,
+    tip, tipped,
+};
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
+use crate::focus::Autofocus;
+use crate::input_trace::{self, Shown};
+use crate::prim::text_field::{self, Field};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
+    Box,
+    Header,
+    Label,
+    Readout,
+    Field,
     Track,
     Thumb,
 }
@@ -48,8 +59,21 @@ pub struct SliderChain<'a, 'f, A> {
     classes: Tw,
     enablement: Enablement,
     size: Option<Size>,
+    header: Header,
     on_response: OnResponse<A>,
     edits: Edits<A>,
+}
+
+type Format = Rc<dyn Fn(f64) -> String>;
+type Parse = Rc<dyn Fn(&str) -> Option<f64>>;
+type Set<A> = Rc<dyn Fn(&mut A, f64)>;
+
+/// What a slider says above its track.
+#[derive(Clone, Default)]
+struct Header {
+    label: Option<String>,
+    readout: Option<Format>,
+    parse: Option<Parse>,
 }
 
 /// What a draw closure needs to turn the pointer and the keys into a value.
@@ -136,6 +160,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             classes: tw(),
             enablement: Enablement::Enabled,
             size: None,
+            header: Header::default(),
             on_response: OnResponse::default(),
             edits: Edits::default(),
         }
@@ -203,6 +228,24 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): `label` on the left of a row above the track.
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.header.label = Some(label.into());
+        self
+    }
+
+    /// TODO(prose): the value as `format` writes it, on the right of the row above the track.
+    pub fn readout(mut self, format: impl Fn(f64) -> String + 'static) -> Self {
+        self.header.readout = Some(Rc::new(format));
+        self
+    }
+
+    /// TODO(prose): a click on the readout edits the value as text that `parse` reads.
+    pub fn editable(mut self, parse: impl Fn(&str) -> Option<f64> + 'static) -> Self {
+        self.header.parse = Some(Rc::new(parse));
+        self
+    }
+
     /// Whether the slider takes input.
     pub fn enablement(mut self, enablement: Enablement) -> Self {
         self.enablement = enablement;
@@ -225,6 +268,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             classes: caller,
             enablement,
             size,
+            header,
             on_response,
             edits,
         } = self;
@@ -248,7 +292,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             .h_px(thumb)
             .sense_click_drag()
             .focusable_none();
-        let hit = enablement.apply(hit, &style).merge(caller);
+        let hit = enablement.apply(hit, &style);
         let (bar, filled) = track_and_range(
             (metrics.track_height, metrics.radius),
             (
@@ -272,66 +316,308 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             step,
             thumb,
         };
-        let name = name.unwrap_or_default();
+        let name = name.or_else(|| header.label.clone()).unwrap_or_default();
         let (track_tip, thumb_tip) = (tooltip.clone(), tooltip);
+        let shown = header.is_shown();
+        let (hit, caller) = if shown {
+            (hit, Some(caller))
+        } else {
+            (hit.merge(caller), None)
+        };
+        let row = Row {
+            header,
+            value: scale.value,
+            step,
+            range: scale.range.clone(),
+            name: name.clone(),
+            enablement,
+            colors: (
+                enablement.colors(slider.label, &style),
+                enablement.colors(slider.readout, &style),
+            ),
+            text: text_sized(&b, metrics.text),
+            size: b.size_of(size),
+        };
+        let boxed = caller.map(|caller| {
+            enablement
+                .fade(
+                    tw().flex()
+                        .flex_col()
+                        .gap(metrics.header_gap / 4.0)
+                        .w_full(),
+                    &style,
+                )
+                .merge(caller)
+        });
         b.claim(&slot);
         b.scope_with(&slot, |b| {
-            let track = b.id_of(Part::Track);
             let on_track = scale.clone();
             let on_thumb = set.clone();
             let thumb_edits = edits.clone();
-            b.div_id(Part::Track, hit, |b| {
-                b.div(bar, |b| b.div(filled, |_| {}));
-                b.div(travel, |b| {
-                    b.div_id(Part::Thumb, knob, |_| {}).draw(move |app, ui| {
-                        let response = tipped(ui, ui.node_response(), &thumb_tip);
-                        let track = ui.ctx().read_response(track).map(|r| r.rect);
-                        let pointer = response
-                            .interact_pointer_pos()
-                            .zip(track)
-                            .filter(|_| response.is_pointer_button_down_on())
-                            .map(|(at, track)| scale.at(at.x, track));
-                        let keys = if response.has_focus() {
-                            scale.after_keys(ui)
-                        } else {
-                            None
-                        };
-                        let changed = |value: Option<f64>| value.filter(|&v| v != scale.value);
-                        let down = (response.id, response.is_pointer_button_down_on());
-                        thumb_edits.pointer(app, ui, down, |app| {
-                            if let Some(value) =
-                                changed(keys.is_none().then_some(pointer).flatten())
-                            {
-                                on_thumb(app, value);
+            let set_readout = set.clone();
+            let readout_edits = edits.clone();
+            let track_node = |b: &mut Builder<'_, '_, A>| {
+                let track = b.id_of(Part::Track);
+                b.div_id(Part::Track, hit, |b| {
+                    b.div(bar, |b| b.div(filled, |_| {}));
+                    b.div(travel, |b| {
+                        b.div_id(Part::Thumb, knob, |_| {}).draw(move |app, ui| {
+                            let response = tipped(ui, ui.node_response(), &thumb_tip);
+                            let track = ui.ctx().read_response(track).map(|r| r.rect);
+                            let pointer = response
+                                .interact_pointer_pos()
+                                .zip(track)
+                                .filter(|_| response.is_pointer_button_down_on())
+                                .map(|(at, track)| scale.at(at.x, track));
+                            let keys = if response.has_focus() {
+                                scale.after_keys(ui)
+                            } else {
+                                None
+                            };
+                            let changed = |value: Option<f64>| value.filter(|&v| v != scale.value);
+                            let down = (response.id, response.is_pointer_button_down_on());
+                            thumb_edits.pointer(app, ui, down, |app| {
+                                if let Some(value) =
+                                    changed(keys.is_none().then_some(pointer).flatten())
+                                {
+                                    on_thumb(app, value);
+                                }
+                            });
+                            if let Some(value) = changed(keys) {
+                                thumb_edits.once(app, |app| on_thumb(app, value));
                             }
-                        });
-                        if let Some(value) = changed(keys) {
-                            thumb_edits.once(app, |app| on_thumb(app, value));
-                        }
-                        on_response.run(app, &response);
-                        response.widget_info(|| {
-                            WidgetInfo::slider(ui.is_enabled(), scale.value, &name)
-                        });
-                        let (low, high) = (*scale.range.start(), *scale.range.end());
-                        ui.ctx().accesskit_node_builder(response.id, |node| {
-                            node.set_min_numeric_value(low);
-                            node.set_max_numeric_value(high);
+                            on_response.run(app, &response);
+                            response.widget_info(|| {
+                                WidgetInfo::slider(ui.is_enabled(), scale.value, &name)
+                            });
+                            let (low, high) = (*scale.range.start(), *scale.range.end());
+                            ui.ctx().accesskit_node_builder(response.id, |node| {
+                                node.set_min_numeric_value(low);
+                                node.set_max_numeric_value(high);
+                            });
                         });
                     });
-                });
-            })
-            .draw(move |app, ui| {
-                let response = tipped(ui, ui.node_response(), &track_tip);
-                let pressed = response.is_pointer_button_down_on();
-                edits.pointer(app, ui, (response.id, pressed), |app| {
-                    if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
-                        let value = on_track.at(at.x, response.rect);
-                        if value != on_track.value {
-                            set(app, value);
+                })
+                .draw(move |app, ui| {
+                    let response = tipped(ui, ui.node_response(), &track_tip);
+                    let pressed = response.is_pointer_button_down_on();
+                    edits.pointer(app, ui, (response.id, pressed), |app| {
+                        if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
+                            let value = on_track.at(at.x, response.rect);
+                            if value != on_track.value {
+                                set(app, value);
+                            }
                         }
-                    }
+                    });
                 });
-            });
+            };
+            match boxed {
+                None => track_node(b),
+                Some(boxed) => {
+                    b.div_id(Part::Box, boxed, |b| {
+                        row.show(b, set_readout, readout_edits);
+                        track_node(b);
+                    });
+                }
+            }
+        });
+    }
+}
+
+impl Header {
+    fn is_shown(&self) -> bool {
+        self.label.is_some() || self.readout.is_some() || self.parse.is_some()
+    }
+}
+
+const MIN_READOUT: f32 = 48.0;
+
+/// The row above the track.
+struct Row {
+    header: Header,
+    value: f64,
+    step: Step,
+    range: RangeInclusive<f64>,
+    name: String,
+    enablement: Enablement,
+    colors: (Colors, Colors),
+    text: Tw,
+    size: Size,
+}
+
+/// How the readout's field opens: a click puts the caret where it landed;
+/// the keyboard selects the whole value, as tabbing into a field does.
+#[derive(Clone, Copy)]
+enum Opening {
+    All,
+    Caret(egui::text::CCursor),
+}
+
+impl Opening {
+    fn of(ui: &Ui, response: &egui::Response, shown: &str) -> Self {
+        let at = response
+            .interact_pointer_pos()
+            .filter(|_| response.clicked_by(egui::PointerButton::Primary));
+        let Some(at) = at else {
+            return Self::All;
+        };
+        let style = crate::draw::node_text(ui);
+        let leaf = crate::measure::TextLeaf::plain(ui.ctx(), shown, &style);
+        let galley = ui.ctx().fonts_mut(|fonts| leaf.editing_galley(fonts, None));
+        Self::Caret(galley.cursor_from_pos(at - response.rect.min))
+    }
+
+    fn range(self, text: &str) -> egui::text::CCursorRange {
+        match self {
+            Self::All => text_field::all(text),
+            Self::Caret(caret) => egui::text::CCursorRange::one(caret),
+        }
+    }
+}
+
+impl Row {
+    fn show<A: 'static>(self, b: &mut Builder<'_, '_, A>, set: Set<A>, edits: Edits<A>) {
+        let Self {
+            header,
+            value,
+            step,
+            range,
+            name,
+            enablement,
+            colors: (label, readout),
+            text,
+            size,
+        } = self;
+        let input = *Style::of(b.ctx()).input.sizes.lookup(b.ctx(), size);
+        let row = tw().flex().items_center().justify_between().w_full();
+        let row = if header.parse.is_some() {
+            row.min_h_px(input.height)
+        } else {
+            row
+        };
+        let shown = header.readout.as_ref().map_or_else(
+            || format!("{value:.*}", step.decimals()),
+            |format| format(value),
+        );
+        let editing = b.id_of(Part::Readout).with("editing");
+        let typed = b.ctx().data(|data| data.get_temp::<String>(editing));
+        b.div_id(Part::Header, row, |b| {
+            match &header.label {
+                Some(label_text) => {
+                    let classes = painted(text.clone(), label);
+                    b.div_id(Part::Label, classes, |b| b.text(tw(), label_text.clone()));
+                }
+                None => b.div(tw(), |_| {}),
+            }
+            if header.readout.is_none() && header.parse.is_none() {
+                return;
+            }
+            let classes = painted(text.clone(), readout).tabular_nums().shrink_0();
+            let Some(parse) = header.parse else {
+                b.div_id(Part::Readout, classes, |b| b.text(tw(), shown));
+                return;
+            };
+            let accept = move |text: &str| {
+                parse(text)
+                    .map(|number| step.snap(number.max(*range.start()).min(*range.end()), &range))
+            };
+            match typed {
+                None => {
+                    let classes = enablement.apply(classes.sense_click(), &Style::of(b.ctx()));
+                    let label = format!("Edit {name}");
+                    let current = shown.clone();
+                    b.div_id(Part::Readout, classes, |b| b.text(tw(), shown))
+                        .draw(move |_, ui| {
+                            let response = described(ui, Role::Button, None, label.trim(), &None);
+                            let opened = response.clicked().then(|| {
+                                let width = response.rect.width();
+                                let opening = Opening::of(ui, &response, &current);
+                                ui.data_mut(|data| {
+                                    data.insert_temp(editing, current.clone());
+                                    data.insert_temp(editing.with("width"), width);
+                                    data.insert_temp(editing.with("opening"), opening);
+                                });
+                                opening
+                            });
+                            let decision = match opened {
+                                Some(Opening::All) => "open, select all",
+                                Some(Opening::Caret(_)) => "open, caret",
+                                None => "none",
+                            };
+                            input_trace::pointer(
+                                ui,
+                                editing,
+                                label.trim(),
+                                Shown::Text,
+                                &response,
+                                decision,
+                            );
+                        });
+                }
+                Some(_) => {
+                    let field = Field::singleline("").inset();
+                    let measured = field.clone();
+                    let padding = input.padding.x;
+                    let slot = b.slot(&Part::Readout);
+                    let shown_width = b
+                        .ctx()
+                        .data(|data| data.get_temp::<f32>(editing.with("width")))
+                        .unwrap_or(0.0);
+                    let width = shown_width.max(MIN_READOUT) + 2.0 * (padding + 1.0);
+                    FieldBoxChain::new(b.reborrow(), slot)
+                        .size(size)
+                        .classes(tw().w_px(width).px(0.0).shrink_0().tabular_nums())
+                        .children(|s| {
+                            let leaf = tw().w_full().h_full().text_right();
+                            s.leaf(Part::Field, leaf, move |m| {
+                                text_field::measure(m, &measured)
+                            })
+                            .draw_widgets(move |app, ui| {
+                                let mut text = ui
+                                    .data(|data| data.get_temp::<String>(editing))
+                                    .unwrap_or_default();
+                                let response = text_field::show(ui, &mut text, &field);
+                                Autofocus::OnAppear.apply(ui.ctx(), &response);
+                                let decision = if response.gained_focus() {
+                                    let opening = ui
+                                        .data(|data| data.get_temp(editing.with("opening")))
+                                        .unwrap_or(Opening::All);
+                                    text_field::select(ui, &response, opening.range(&text));
+                                    match opening {
+                                        Opening::All => "focus, select all",
+                                        Opening::Caret(_) => "focus, caret",
+                                    }
+                                } else if response.double_clicked() {
+                                    text_field::select(ui, &response, text_field::all(&text));
+                                    "double click, select all"
+                                } else {
+                                    "none"
+                                };
+                                if input_trace::enabled() {
+                                    let label = format!("Edit {name}");
+                                    input_trace::pointer(
+                                        ui,
+                                        editing,
+                                        label.trim(),
+                                        Shown::Field,
+                                        &response,
+                                        decision,
+                                    );
+                                }
+                                if response.changed() {
+                                    ui.data_mut(|data| data.insert_temp(editing, text.clone()));
+                                }
+                                if response.lost_focus() {
+                                    let entered = ui.input(|input| input.key_pressed(Key::Enter));
+                                    ui.data_mut(|data| data.remove::<String>(editing));
+                                    if let Some(value) = accept(&text).filter(|_| entered) {
+                                        edits.once(app, |app| set(app, value));
+                                    }
+                                }
+                            });
+                        });
+                }
+            }
         });
     }
 }

@@ -360,24 +360,22 @@ fn checkbox_box_and_glyph_are_the_styles() {
         let shape = box_at(&harness, rect);
         assert_eq!(shape.fill, checked.fill, "{theme:?} checked");
         assert_eq!(shape.stroke.color, checked.border);
-        let glyph = shapes(&harness)
+        let glyphs: Vec<_> = support::textured(&harness)
             .into_iter()
-            .find_map(|shape| match shape {
-                Shape::Path(path)
-                    if rect.contains_rect(path.visual_bounding_rect().shrink(0.5)) =>
-                {
-                    Some(path.clone())
-                }
-                _ => None,
-            })
-            .expect("a check glyph inside the box");
-        assert_eq!(
-            glyph.stroke.color,
-            egui::epaint::ColorMode::Solid(checked.text)
-        );
+            .filter(|mesh| rect.contains_rect(mesh.calc_bounds()))
+            .collect();
+        assert_eq!(glyphs.len(), 1, "a check glyph inside the box");
+        let glyph = glyphs[0];
         assert!(
-            (glyph.stroke.width - 2.0 * 14.0 / 24.0).abs() < 1e-4,
-            "stroke-2 on a 14 point icon"
+            glyph
+                .vertices
+                .iter()
+                .all(|vertex| vertex.color == checked.text)
+        );
+        assert_eq!(
+            glyph.calc_bounds().size(),
+            vec2(14.0, 14.0),
+            "a 14 point icon"
         );
     }
 }

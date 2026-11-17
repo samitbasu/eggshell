@@ -41,6 +41,23 @@ fn a_duplicate_div_id_names_the_second_call() {
 }
 
 #[test]
+fn a_duplicate_pop_out_names_the_call_that_finishes_it_and_its_path() {
+    use eggshell_ui::window::{Popped, Window};
+    for popped in [Popped::In, Popped::Out] {
+        let mut line = 0;
+        let report = report_of(|b| {
+            b.pop_out("pane").children(|_| {});
+            let again = b.pop_out("pane").popped(popped).window(Window::new("Pane"));
+            line = line!() + 1;
+            again.children(|_| {});
+        });
+        assert_names_call(&report, line);
+        let message = &report.message;
+        assert!(message.contains(r#"/"pane""#), "{popped:?}: {message}");
+    }
+}
+
+#[test]
 fn a_duplicate_control_names_the_call_that_finishes_it() {
     let mut line = 0;
     let report = report_of(|b| {

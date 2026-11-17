@@ -48,6 +48,10 @@ pub enum Problem {
     DragHandle,
     /// TODO(prose): an overlay whose anchor is not in the frame.
     MissingAnchor,
+    /// TODO(prose): a splitter outside a flex container.
+    MisplacedSplitter,
+    /// TODO(prose): icons given to a text field that shows none.
+    IgnoredIcons,
     /// TODO(prose): a value range that is reversed or not a number.
     BadRange,
     /// TODO(prose): a length that is infinite or not a number.

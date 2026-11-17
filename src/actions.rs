@@ -18,7 +18,7 @@ use crate::shell::Shell;
 
 use crate::nav;
 use crate::pipeline::PlacedNode;
-use crate::roots::PlacedRoot;
+use crate::roots::{Here, PlacedRoot};
 
 /// The key a button answers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,7 +65,12 @@ fn takes_return(ctx: &Context, kept: &Handle, nodes: &[PlacedNode], focused: Id)
 /// The root Return goes to: the overlay (or the page) that holds the focus,
 /// else the topmost open overlay, else the page. `open` are the roots of the
 /// attached overlays, the topmost first.
-fn return_root(shell: &Shell, roots: &[PlacedRoot], nodes: &[PlacedNode], open: &[usize]) -> usize {
+fn return_root(
+    shell: &Shell,
+    (roots, here): (&[PlacedRoot], Here),
+    nodes: &[PlacedNode],
+    open: &[usize],
+) -> usize {
     let holder = open.iter().copied().find(|&root| {
         nodes[roots[root].first]
             .id()
@@ -73,8 +78,8 @@ fn return_root(shell: &Shell, roots: &[PlacedRoot], nodes: &[PlacedNode], open: 
     });
     match (holder, shell.ctx.memory(|memory| memory.focused())) {
         (Some(root), _) => root,
-        (None, Some(_)) => 0,
-        (None, None) => open.first().copied().unwrap_or(0),
+        (None, Some(_)) => here.root,
+        (None, None) => open.first().copied().unwrap_or(here.root),
     }
 }
 
@@ -84,7 +89,7 @@ pub(crate) fn return_button(
     ctx: &Context,
     kept: &Handle,
     nodes: &[PlacedNode],
-    roots: &[PlacedRoot],
+    (roots, here): (&[PlacedRoot], Here),
     open: &[usize],
 ) -> Option<Id> {
     if let Some(focused) = ctx.memory(|memory| memory.focused())
@@ -92,6 +97,6 @@ pub(crate) fn return_button(
     {
         return None;
     }
-    let root = return_root(&Shell::new(ctx, kept), roots, nodes, open);
+    let root = return_root(&Shell::new(ctx, kept), (roots, here), nodes, open);
     button_in(nodes, roots[root].first, Action::Default)
 }

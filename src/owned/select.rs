@@ -12,8 +12,7 @@ use super::choice::{self, Choice, IntoChoice};
 use super::menu::Tone;
 use super::number::{hold_arrows, pressed};
 use super::{
-    Chevron, Content, Enablement, Mark, OnResponse, TipContent, describe, paint_check,
-    paint_chevron, tip, tipped,
+    Chevron, Content, Enablement, Mark, OnResponse, TipContent, check, describe, tip, tipped,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -233,9 +232,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         let label = name.clone();
         b.div_id_with(&slot, classes, |b| {
             b.text(tw(), shown);
-            b.paint(
+            b.glyph(
                 tw().size_px(chevron).shrink_0().opacity(opacity),
-                paint_chevron(Chevron::Down),
+                Chevron::Down.icon(),
             );
         })
         .draw(move |app, ui| {
@@ -370,7 +369,7 @@ impl<T: Copy + 'static> List<T> {
                 .div_id(Part::Option(index), self.row_classes(enablement), |s| {
                     s.text(tw(), label.clone());
                     if marked {
-                        s.paint(tw().size_px(side).shrink_0(), paint_check);
+                        s.glyph(tw().size_px(side).shrink_0(), check());
                     } else {
                         s.div(tw().size_px(side).shrink_0(), |_| {});
                     }

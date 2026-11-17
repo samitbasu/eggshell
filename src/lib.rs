@@ -330,6 +330,7 @@ struct ReadmeDoctests;
 
 mod actions;
 mod builder;
+mod clicks;
 mod clipboard;
 mod collapse;
 mod commands;
@@ -340,6 +341,8 @@ mod dismiss;
 mod dnd;
 mod draw;
 mod focus;
+pub mod icons;
+mod input_trace;
 mod kept;
 mod key;
 mod measure;
@@ -369,8 +372,10 @@ mod transition;
 mod tw;
 pub mod vlist;
 pub mod widget;
+pub mod window;
 
 pub use builder::{Builder, NodeHandle, Scope, SpansHandle};
+pub use clicks::DOUBLE_CLICK;
 pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
 pub use commands::{Command, Commands, InText};
@@ -381,7 +386,7 @@ pub use dnd::{
     ScrollSpeed, insertion_index,
 };
 pub use draw::NodeUi;
-pub use key::Key;
+pub use key::{Key, child_id};
 pub use measure::{Measure, fill};
 pub use overlay::{Boundary, Distance, InsetBoundary};
 pub use overlay_input::Blur;

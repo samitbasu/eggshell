@@ -147,6 +147,9 @@ pub(crate) struct Ambient {
     pub(crate) enablement: Enablement,
     pub(crate) surface: Surface,
     pub(crate) size: Option<ControlSize>,
+    /// The direction of the flex container the nodes are built in, if it is
+    /// one.
+    pub(crate) flex: Option<taffy::FlexDirection>,
 }
 
 impl Ambient {
@@ -154,6 +157,7 @@ impl Ambient {
         enablement: Enablement::Enabled,
         surface: Surface::Page,
         size: None,
+        flex: None,
     };
 }
 
@@ -211,6 +215,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             label: Label(format!("{key:?}")),
         };
         self.scope_with(&path, body);
+    }
+
+    /// Not a stable API: it exists for `eggshell-ui-extras`. Builds `body`
+    /// with its nodes keyed under the node `parent` instead of this scope, so
+    /// that their ids can be found from `parent` alone, wherever they sit in
+    /// the tree.
+    #[doc(hidden)]
+    pub fn keyed_under(&mut self, parent: Id, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
+        body(&mut Scope(Builder::new(
+            self.st,
+            self.frame,
+            parent,
+            self.kids,
+            (self.inherited, self.ambient),
+        )));
     }
 
     pub(crate) fn scope_with(&mut self, slot: &Slot, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
@@ -477,7 +496,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .iter()
             .filter_map(|root| match &root.kind {
                 RootKind::Overlay(overlay) => Some(overlay.id),
-                RootKind::Base => None,
+                RootKind::Base | RootKind::Window(_) => None,
             })
     }
 
@@ -491,7 +510,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 } => Some(id),
                 _ => None,
             },
-            RootKind::Base => None,
+            RootKind::Base | RootKind::Window(_) => None,
         })
     }
 
@@ -817,6 +836,70 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub fn overlay<K: Key>(&mut self, key: K) -> OverlayChain<'_, 'f, A, Unplaced> {
         let slot = self.slot(&key);
         OverlayChain::new(self.reborrow(), slot)
+    }
+
+    /// TODO(prose): a subtree shown inline or, while popped out, in a window
+    /// of its own. See [`crate::window`].
+    pub fn pop_out<K: Key>(&mut self, key: K) -> crate::window::PopOutChain<'_, 'f, A>
+    where
+        A: 'static,
+    {
+        let slot = self.slot(&key);
+        crate::window::PopOutChain::new(self.reborrow(), slot)
+    }
+
+    /// Notes the pop-out `id`, whatever it shows this frame.
+    pub(crate) fn note_pop_out(&mut self, id: Id) {
+        self.frame.pop_outs.push(id);
+    }
+
+    /// Declares the window `decl` of a popped-out subtree and builds `body`
+    /// as its content, a root of its own, at the path the subtree has
+    /// inline.
+    #[track_caller]
+    pub(crate) fn window_with(
+        mut self,
+        slot: &Slot,
+        decl: crate::window::WindowDecl,
+        hooks: crate::window::Hooks<A>,
+        classes: Tw,
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) {
+        self.frame.windows.insert(slot.id, hooks);
+        let path = self.identify(slot);
+        let parent = self.frame.current;
+        self.frame.roots.push(RootDecl::window(decl, parent));
+        let at = self.frame.roots.len() - 1;
+        self.frame.current = at;
+        let ambient = self.ambient_in(&classes);
+        let node = self.node(
+            &classes,
+            Parts {
+                id: Some(slot.id),
+                ..Parts::anonymous(NodeKind::Window, path)
+            },
+        );
+        let style = self.resolved_style(classes, &node);
+        let text = node.text.clone();
+        let mark = self.st.names.push(&slot.label);
+        let mut kids = Vec::new();
+        body(&mut Scope(Builder::new(
+            self.st,
+            self.frame,
+            slot.id,
+            &mut kids,
+            (&text, ambient),
+        )));
+        self.st.names.pop_to(mark);
+        self.frame.current = parent;
+        let Ok(root) = self.st.tree.new_with_children(style, &kids) else {
+            return;
+        };
+        if self.st.tree.set_node_context(root, Some(node)).is_ok()
+            && let Some(decl) = self.frame.roots.get_mut(at)
+        {
+            decl.node = Some(root);
+        }
     }
 
     /// Declares the overlay `decl` and builds `body` as its content, a root
@@ -1265,6 +1348,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             description: None,
             action: None,
             open_focus: crate::pipeline::OpenFocus::Elsewhere,
+            pane: None,
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
@@ -1311,8 +1395,20 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 self.ambient.enablement
             },
             size: classes.control_size.or(self.ambient.size),
+            flex: (classes.style.display == taffy::Display::Flex)
+                .then_some(classes.style.flex_direction),
             ..self.ambient
         }
+    }
+
+    pub(crate) fn flex(&self) -> Option<taffy::FlexDirection> {
+        self.ambient.flex
+    }
+
+    /// Declares that a size changes this frame by a gesture that moves it
+    /// smoothly, so layout moves start no slides.
+    pub(crate) fn size_in_flight(&mut self) {
+        self.frame.size_in_flight = true;
     }
 
     /// Builds `body` in place, its nodes drawn on `surface`.
@@ -1778,6 +1874,11 @@ impl<'f, A: 'static> NodeHandle<'_, 'f, A> {
 
     pub(crate) fn open_focus(mut self, open_focus: crate::pipeline::OpenFocus) -> Self {
         self.edit(|context| context.open_focus = open_focus);
+        self
+    }
+
+    pub(crate) fn sizes_pane(mut self, side: crate::owned::Side) -> Self {
+        self.edit(|context| context.pane = Some(side));
         self
     }
 

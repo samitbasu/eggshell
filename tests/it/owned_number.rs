@@ -404,15 +404,12 @@ fn is_open(harness: &Harness<'_, Rig<App>>) -> bool {
         .is_some()
 }
 
-fn chevron_in(harness: &Harness<'_, Rig<App>>, rect: Rect) -> Option<egui::epaint::PathShape> {
-    shapes(harness)
+/// The tint of the icon drawn inside `rect`, if one is.
+fn chevron_in(harness: &Harness<'_, Rig<App>>, rect: Rect) -> Option<egui::Color32> {
+    support::textured(harness)
         .into_iter()
-        .filter_map(|shape| match shape {
-            Shape::Path(path) if path.points.iter().all(|p| rect.contains(*p)) => {
-                Some(path.clone())
-            }
-            _ => None,
-        })
+        .filter(|mesh| rect.expand(0.5).contains_rect(mesh.calc_bounds()))
+        .map(|mesh| mesh.vertices[0].color)
         .next_back()
 }
 
@@ -441,7 +438,7 @@ fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
             support::text_color(&harness, trigger, "Europe"),
             look.paint.states.rest.text
         );
-        let glyph = rect_of(&harness, "/\"region\"/<paint>");
+        let glyph = rect_of(&harness, "/\"region\"/<glyph>");
         assert_eq!(glyph.size(), vec2(16.0, 16.0), "size-4");
         assert_eq!(
             trigger.right() - glyph.right(),
@@ -449,8 +446,8 @@ fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
         );
         let chevron = chevron_in(&harness, glyph).expect("a chevron");
         assert_eq!(
-            chevron.stroke.color,
-            egui::epaint::ColorMode::Solid(look.paint.states.rest.text.gamma_multiply(0.5)),
+            chevron,
+            look.paint.states.rest.text.gamma_multiply(0.5),
             "opacity-50"
         );
         let frozen = rect_of(&harness, "/\"frozen\"");
@@ -752,6 +749,16 @@ fn arrow_keys_in_the_field_step_the_value() {
         press(&mut harness, Key::ArrowUp);
     }
     assert_eq!(harness.state().app.count, 10.0, "clamped");
+}
+
+#[test]
+fn focusing_the_stepper_field_selects_its_value_so_typing_replaces_it() {
+    let mut harness = harness(Theme::Light);
+    click_node(&mut harness, FIELD);
+    harness.run_steps(3);
+    harness.event(egui::Event::Text("7".into()));
+    harness.run_steps(3);
+    assert_eq!(harness.state().app.count, 7.0);
 }
 
 #[test]

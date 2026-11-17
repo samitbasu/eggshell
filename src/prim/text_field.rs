@@ -8,13 +8,15 @@
 use egui::{Response, Ui};
 use taffy::Size;
 
+use crate::builder::Scope;
 use crate::builder::Slot;
-use crate::contract::{Size as ControlSize, TextSize};
+use crate::contract::Size as ControlSize;
 use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
+use crate::owned::{FieldBoxChain, text_sized};
 use crate::widget::Stock as _;
-use crate::{Builder, Key, Measure, TextSpec, Tw, tw};
+use crate::{Builder, Icon, Key, Measure, Tw, tw};
 
 pub use crate::widget::{Enter, Lines, TextEdit as Field};
 
@@ -27,6 +29,29 @@ pub fn measure(m: &Measure<'_>, field: &Field) -> Size<f32> {
 /// Edits `text` in the leaf's content rect.
 pub fn show(ui: &mut Ui, text: &mut String, field: &Field) -> Response {
     field.show(ui, text)
+}
+
+/// Selects all of `text` in the field `response` is of, in the frame it gains
+/// focus, so typing replaces it.
+pub(crate) fn select_on_focus(ui: &Ui, response: &Response, text: &str) {
+    if response.gained_focus() {
+        select(ui, response, all(text));
+    }
+}
+
+/// The whole of `text`, as a selection.
+pub(crate) fn all(text: &str) -> egui::text::CCursorRange {
+    egui::text::CCursorRange::two(
+        egui::text::CCursor::new(0),
+        egui::text::CCursor::new(text.chars().count()),
+    )
+}
+
+/// Sets the selection of the field `response` is of to `range`.
+pub(crate) fn select(ui: &Ui, response: &Response, range: egui::text::CCursorRange) {
+    let mut state = egui::TextEdit::load_state(ui.ctx(), response.id).unwrap_or_default();
+    state.cursor.set_char_range(Some(range));
+    state.store(ui.ctx(), response.id);
 }
 
 impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
@@ -55,8 +80,17 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
             hooks: FieldHooks::default(),
             autofocus: Autofocus::Never,
             size: None,
+            leading: None,
+            trailing: None,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Hash)]
+enum Part {
+    Leading,
+    Field,
+    Trailing,
 }
 
 /// A text field leaf. Start one with [`Builder::text_field`] and finish it
@@ -71,6 +105,8 @@ pub struct TextFieldChain<'a, 'f, A> {
     hooks: FieldHooks<A>,
     autofocus: Autofocus,
     size: Option<ControlSize>,
+    leading: Option<Icon>,
+    trailing: Option<Icon>,
 }
 
 impl<A: 'static> TextFieldChain<'_, '_, A> {
@@ -158,6 +194,18 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
+    /// TODO(prose): `icon` before the text, inside the field's box. Display only; a multi-line field shows none.
+    pub fn leading(mut self, icon: Icon) -> Self {
+        self.leading = Some(icon);
+        self
+    }
+
+    /// TODO(prose): `icon` after the text, inside the field's box. Display only; a multi-line field shows none.
+    pub fn trailing(mut self, icon: Icon) -> Self {
+        self.trailing = Some(icon);
+        self
+    }
+
     /// The accessible name, the equivalent of `aria-label`.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.field = self.field.named(name);
@@ -204,20 +252,57 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             hooks,
             autofocus,
             size,
+            leading,
+            trailing,
         } = self;
         let size = b.size_of(size);
         let field = field.sized(size);
         let measured = field.clone();
         let style = crate::Style::of(b.ctx());
-        let classes = match style.input.sizes.lookup(b.ctx(), size).text {
-            Some(TextSize { size, line_height }) => tw().role(TextSpec {
-                size,
-                line_height,
-                ..b.text_style().spec.clone()
-            }),
-            None => tw(),
+        if !field.is_single_line() && (leading.is_some() || trailing.is_some()) {
+            crate::report::report(b.ctx(), crate::Problem::IgnoredIcons, Some(slot.id), || {
+                format!(
+                    "the multi-line field {} shows no icons; the ones given are not drawn",
+                    slot.readable()
+                )
+            });
         }
-        .merge(classes);
+        if field.is_single_line() && (leading.is_some() || trailing.is_some()) {
+            let metrics = *style.input.sizes.get(size);
+            let (side, tint) = (metrics.icon_size, style.input.icon);
+            let put = |s: &mut Scope<'_, '_, A>, part, icon| {
+                s.icon(part, tw().size_px(side).shrink_0().text(tint), icon);
+            };
+            let field = field.bare();
+            let measured = field.clone();
+            FieldBoxChain::new(b, slot)
+                .size(size)
+                .classes(classes)
+                .children(|s| {
+                    if let Some(icon) = leading {
+                        put(s, Part::Leading, icon);
+                    }
+                    s.div(tw().flex().items_center().grow().min_w_0().h_full(), |b| {
+                        b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
+                            measure(m, &measured)
+                        })
+                        .draw_widgets(move |app, ui| {
+                            let mut edited = text;
+                            let response = show(ui, &mut edited, &field);
+                            autofocus.apply(ui.ctx(), &response);
+                            if response.changed() {
+                                on_change(app, edited);
+                            }
+                            hooks.run(app, ui, &response, field.enter());
+                        });
+                    });
+                    if let Some(icon) = trailing {
+                        put(s, Part::Trailing, icon);
+                    }
+                });
+            return;
+        }
+        let classes = text_sized(&b, style.input.sizes.lookup(b.ctx(), size).text).merge(classes);
         let classes = if field.is_bare() {
             classes
         } else {
