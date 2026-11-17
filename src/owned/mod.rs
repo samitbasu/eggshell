@@ -67,7 +67,7 @@ use std::time::Duration;
 
 use egui::{Id, Response, Role, Ui, WidgetInfo};
 
-pub use button::{ButtonChain, ButtonOptions, Face, TextFace};
+pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
@@ -297,7 +297,7 @@ fn after_ime(ui: &Ui, response: &Response) -> bool {
         ui.data_mut(|data| data.insert_temp(slot, now));
         return true;
     }
-    last.is_some_and(|last| now <= last + 1)
+    last.is_some_and(|last| now <= last.saturating_add(1))
 }
 
 /// What a control's tooltip shows, if it has one, until the control is

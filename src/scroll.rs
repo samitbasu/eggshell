@@ -158,7 +158,8 @@ use crate::dnd::EdgeScroll;
 use crate::finite::clamp_vec2;
 use crate::key::Key;
 use crate::layout_tree::LayoutTree;
-use crate::pipeline::{PlacedNode, takes_tab};
+use crate::nodes::Nodes;
+use crate::pipeline::{PlacedNode, ScrollMut, takes_tab};
 use crate::shell::Shell;
 use crate::tw::{Focusability, Tw};
 
@@ -239,7 +240,7 @@ pub(crate) fn holds_tab_stop(tree: &LayoutTree, nodes: &[taffy::NodeId]) -> bool
         let hidden = tree.style(id).display == taffy::Display::None;
         match tree.node(id) {
             Some(node) if node.inert || hidden => false,
-            Some(node) if node.scroll.is_some() => true,
+            Some(node) if node.identity.scroll().is_some() => true,
             Some(node) if takes_tab(&node.interaction, node.draw_kind) => true,
             _ => holds_tab_stop(tree, &tree.children(id)),
         }
@@ -387,6 +388,15 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
     /// handle attaches behaviour to the container's node.
     #[track_caller]
     pub fn children(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) -> NodeHandle<'a, 'f, A> {
+        self.children_with(body).0
+    }
+
+    /// [`children`](Self::children), answering what `body` returns too.
+    #[track_caller]
+    pub(crate) fn children_with<R>(
+        self,
+        body: impl FnOnce(&mut Scope<'_, 'f, A>) -> R,
+    ) -> (NodeHandle<'a, 'f, A>, R) {
         let Self {
             b,
             slot,
@@ -498,7 +508,8 @@ impl Shell {
                 .pending
                 .iter()
                 .filter(|request| {
-                    request.container == Some(scroll) && pass <= request.pass + REQUEST_LIFE
+                    request.container == Some(scroll)
+                        && pass <= request.pass.saturating_add(REQUEST_LIFE)
                 })
                 .filter_map(|request| match request.wish {
                     Wish::By(delta) => Some(delta),
@@ -896,7 +907,7 @@ impl Settle {
             .kept
             .with(|kept| std::mem::take(&mut kept.scrolls.pending))
             .into_iter()
-            .filter(|request| pass <= request.pass + REQUEST_LIFE)
+            .filter(|request| pass <= request.pass.saturating_add(REQUEST_LIFE))
             .collect();
         Self {
             pending,
@@ -914,14 +925,13 @@ impl Settle {
     /// Applies what is wanted of the container at `nodes[at]` to its content,
     /// the nodes after it, which are laid out at the plan's offset: moves
     /// them if the offset changes, and publishes the viewport.
-    pub(crate) fn settle(&mut self, nodes: &mut [PlacedNode], at: usize) {
-        let (head, content) = nodes.split_at_mut(at + 1);
-        let node = &mut head[at];
-        let id = node.id().expect("a scroll container is identified");
-        let viewport = node
-            .scroll_viewport()
-            .expect("a scroll container has a plan");
-        let plan = node.scroll.as_mut().expect("a scroll container has a plan");
+    pub(crate) fn settle(&mut self, nodes: &mut Nodes, at: usize) {
+        let Some((node, content)) = nodes.split_after_mut(at) else {
+            return;
+        };
+        let Some(ScrollMut { id, viewport, plan }) = node.as_scroll_mut() else {
+            return;
+        };
         let start = plan.offset;
         let max = limit(plan.content, viewport.size());
         let enabled = plan.axis.enabled();
@@ -995,7 +1005,7 @@ impl Settle {
         }
         let published = Viewport {
             rect: viewport,
-            content: content[0].rect(),
+            content: content.first().map_or(Rect::NOTHING, PlacedNode::rect),
         };
         self.shell
             .kept
@@ -1018,6 +1028,20 @@ impl Settle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn children_with_answers_what_the_body_returns() {
+        let mut headless = crate::testing::Headless::new(egui::vec2(100.0, 100.0));
+        let built = std::cell::Cell::new(None);
+        headless.layout(&(), |b, _| {
+            let (_, count) = b.scroll("list", crate::tw()).children_with(|s| {
+                s.text(crate::tw(), "one");
+                1
+            });
+            built.set(Some(count));
+        });
+        assert_eq!(built.get(), Some(1));
+    }
 
     #[test]
     fn reveal_moves_the_least_that_shows_the_item() {

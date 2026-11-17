@@ -551,7 +551,7 @@ pub(crate) fn look_up<A>(
     let roots = &core.roots;
     let live = live_roots(
         core.current,
-        |root| roots.get(root).and_then(|root| root.parent),
+        |root| roots.get(root).and_then(crate::roots::RootDecl::parent),
         |root| roots.get(root).is_some_and(|root| root.is_modal()),
     );
     let command = live

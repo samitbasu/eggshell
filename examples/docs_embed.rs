@@ -9,9 +9,9 @@ mod common;
 
 use eggshell_ui::owned::Mark;
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, Chord, Command, Commands, Scope, Tw, tw};
+use eggshell_ui::{Builder, Chord, Command, Commands, Scope, tw};
 use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt};
-use egui::{Key, Modifiers, Shadow};
+use egui::{Key, Modifiers};
 
 const LOREM: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod \
 tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud \
@@ -38,25 +38,22 @@ fn source() -> String {
     )
 }
 
-/// The frame drawn around each mount: the candidates for how an example
-/// sits in the page.
+/// How a selected example is marked: the candidates, shown on the menu
+/// (captioned) and the scroll list (uncaptioned) as a mock-up until
+/// selection is built.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
-pub enum Look {
+pub enum Selected {
     #[default]
-    None,
-    Outline,
-    Card,
-    Tinted,
-    Captioned,
+    Ring,
+    Chip,
+    Tint,
 }
 
-impl Look {
-    const ALL: [(Self, &str); 5] = [
-        (Self::None, "None"),
-        (Self::Outline, "Outline"),
-        (Self::Card, "Card"),
-        (Self::Tinted, "Tinted"),
-        (Self::Captioned, "Captioned"),
+impl Selected {
+    const ALL: [(Self, &str); 3] = [
+        (Self::Ring, "Ring"),
+        (Self::Chip, "Chip"),
+        (Self::Tint, "Tint"),
     ];
 }
 
@@ -93,7 +90,7 @@ impl Default for List {
 
 #[derive(Default)]
 pub struct State {
-    pub look: Look,
+    pub selected: Selected,
     pub clicks: Counter,
     pub menu: Menu,
     pub form: Form,
@@ -105,11 +102,14 @@ pub struct State {
 pub enum Part {
     Page,
     Bar,
-    Look,
+    Selected,
+    SelectedLabel,
     Log,
     Doc,
     App,
     Caption,
+    Mock,
+    Frame,
     Add,
     Count,
     Actions,
@@ -217,76 +217,89 @@ pub fn list<'f>(b: &mut Builder<'_, 'f, List>, list: &'f List) {
     });
 }
 
-fn frame(b: &Scope<'_, '_, State>, look: Look) -> Tw {
-    let tokens = common::tokens(b.ctx());
-    let outline = tw()
-        .border(1.0)
-        .border_color(tokens.border)
-        .rounded_lg()
-        .p(4.0);
-    match look {
-        Look::None => tw(),
-        Look::Outline | Look::Captioned => outline,
-        Look::Card => outline.bg(tokens.card).shadow(Shadow {
-            offset: [0, 1],
-            blur: 3,
-            spread: 0,
-            color: egui::Color32::from_black_alpha(25),
-        }),
-        Look::Tinted => tw().bg(tokens.muted).rounded_lg().p(4.0),
-    }
-}
-
 /// The directives of the page: `eggshell-example NAME` mounts the app NAME
 /// over its field of the page's state.
 pub fn directives() -> Directives<State> {
     Directives::new().with("eggshell-example", example)
 }
 
+/// Whether the example NAME is captioned, and whether it is shown selected
+/// in the mock-up.
+fn shown(name: &str) -> (bool, bool) {
+    match name {
+        "counter" => (true, false),
+        "menu" => (true, true),
+        "form" => (false, false),
+        _ => (false, true),
+    }
+}
+
 fn example<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, directive: &Directive<'_>) {
-    let classes = frame(s, state.look);
     let name = directive.arg;
-    if state.look == Look::Captioned {
-        let muted = common::tokens(s.ctx()).muted_foreground;
-        s.span(Part::Caption, tw().text(muted), format!("Example: {name}"));
+    let (captioned, selected) = shown(name);
+    if selected {
+        mock_selected(s, state, name, captioned);
+        return;
+    }
+    let caption = captioned.then(|| format!("Example: {name}"));
+    mount(s, state, name, caption);
+}
+
+/// Mounts the example NAME, captioned by `caption` if there is one.
+fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption: Option<String>) {
+    fn add<'f, A: 'static, S: 'static, L, V>(
+        chain: eggshell_ui::MountChain<'_, 'f, A, S, L, V>,
+        caption: Option<String>,
+    ) where
+        L: Fn(&mut A) -> &mut S + 'static,
+        V: FnOnce(&mut Builder<'_, 'f, S>, &'f S),
+    {
+        match caption {
+            Some(caption) => chain.with_caption(caption).add(),
+            None => chain.add(),
+        };
     }
     match name {
-        "counter" => {
+        "counter" => add(
             s.mount(
                 Part::App,
-                classes,
+                tw(),
                 &state.clicks,
                 |s: &mut State| &mut s.clicks,
                 counter,
-            );
-        }
-        "menu" => {
+            ),
+            caption,
+        ),
+        "menu" => add(
             s.mount(
                 Part::App,
-                classes,
+                tw(),
                 &state.menu,
                 |s: &mut State| &mut s.menu,
                 menu,
-            );
-        }
-        "form" => {
+            ),
+            caption,
+        ),
+        "form" => add(
             s.mount(
                 Part::App,
-                classes,
+                tw(),
                 &state.form,
                 |s: &mut State| &mut s.form,
                 form,
-            );
-        }
-        "scroll" => {
+            ),
+            caption,
+        ),
+        "scroll" => add(
             s.mount(
                 Part::App,
-                classes,
+                tw(),
                 &state.list,
                 |s: &mut State| &mut s.list,
                 list,
-            );
-        }
+            ),
+            caption,
+        ),
         name => {
             let muted = common::tokens(s.ctx()).muted_foreground;
             s.span(
@@ -296,6 +309,57 @@ fn example<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, directive: &Direc
             );
         }
     }
+}
+
+/// The example NAME as it would look selected, in the candidate look the
+/// page's switch picks: the caption and frame a captioned mount draws, from
+/// the same style, around the mount uncaptioned.
+fn mock_selected<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, captioned: bool) {
+    let style = eggshell_ui::Style::of(s.ctx());
+    let look = &style.mount;
+    let tokens = common::tokens(s.ctx());
+    let primary = tokens.primary;
+    let framed = tw()
+        .border(look.border_width)
+        .border_color(look.border)
+        .rounded_px(f32::from(look.radius))
+        .p(look.padding / 4.0);
+    let frame = match (captioned, state.selected) {
+        (true, Selected::Ring) => framed.border_color(primary).ring(1.0, primary),
+        (true, Selected::Chip) => framed.border_color(primary),
+        (true, Selected::Tint) => framed
+            .border_color(primary)
+            .bg(primary.gamma_multiply(0.06)),
+        (false, selected) => {
+            // Grown past the view by as much as it is padded, so the ring
+            // clears the view without moving it.
+            let around = tw().m(-2.0).p(2.0).rounded_px(f32::from(look.radius));
+            match selected {
+                Selected::Ring => around.ring(2.0, primary),
+                Selected::Chip => around.ring(1.0, primary),
+                Selected::Tint => around.ring(1.0, primary).bg(primary.gamma_multiply(0.06)),
+            }
+        }
+    };
+    let caption = match state.selected {
+        Selected::Chip => tw()
+            .self_start()
+            .px(2.0)
+            .rounded_md()
+            .bg(primary)
+            .text(tokens.primary_foreground),
+        _ => tw().text(look.caption),
+    };
+    s.div_id(
+        Part::Mock,
+        tw().flex().flex_col().gap(look.gap / 4.0),
+        |s| {
+            if captioned {
+                s.span(Part::Caption, caption, format!("Example: {name}"));
+            }
+            s.div_id(Part::Frame, frame, |s| mount(s, state, name, None));
+        },
+    );
 }
 
 /// ```html
@@ -320,9 +384,9 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                 .border_b(1.0)
                 .border_color(tokens.border),
             |b| {
-                b.span(Part::Caption, tw(), "Frame");
-                b.segmented(Part::Look, state.look, Look::ALL)
-                    .on_change(|state: &mut State, look| state.look = look);
+                b.span(Part::SelectedLabel, tw(), "Selected");
+                b.segmented(Part::Selected, state.selected, Selected::ALL)
+                    .on_change(|state: &mut State, selected| state.selected = selected);
                 let last = state
                     .page_log
                     .last()

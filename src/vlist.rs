@@ -290,8 +290,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
         let list = scroll.id();
         let kept = scroll.builder().kept().clone();
         let pass = scroll.builder().ctx().cumulative_pass_nr();
-        let mut planned = None;
-        let handle = scroll.children(|s| {
+        let (handle, (plan, leaf)) = scroll.children_with(|s| {
             let heights =
                 heights.unwrap_or_else(|| RowHeights::measured(s.text_style().spec.line_height));
             let plan = Plan::new(
@@ -307,11 +306,10 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
                 rows,
             );
             let leaf = s.rows_leaf(plan.total());
-            planned = Some((plan, leaf));
+            (plan, leaf)
         });
         let scroll = handle.node();
         let mut b = handle.into_builder();
-        let (plan, leaf) = planned.expect("the content was built");
         let behavior = listbox.then(|| Listbox {
             list,
             kept: kept.clone(),
@@ -323,7 +321,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             list,
             plan.run(scroll, Items::new(rows, item, row_classes, behavior)),
         );
-        b.into_handle(scroll)
+        b.into_handle(scroll, list)
     }
 }
 
@@ -457,14 +455,16 @@ impl Tops {
     fn len(&self) -> usize {
         match self {
             Self::Fixed { rows, .. } => *rows,
-            Self::Measured { offsets } => offsets.len() - 1,
+            Self::Measured { offsets } => offsets.len().saturating_sub(1),
         }
     }
 
     fn top(&self, at: usize) -> f32 {
         match self {
             Self::Fixed { height, .. } => at as f32 * height,
-            Self::Measured { offsets } => offsets[at],
+            Self::Measured { offsets } => {
+                offsets.get(at).or(offsets.last()).copied().unwrap_or(0.0)
+            }
         }
     }
 
@@ -488,12 +488,13 @@ impl Tops {
 pub(crate) trait Rows<'f, A> {
     fn len(&self) -> usize;
     /// The key of row `at` in the height cache.
-    fn key(&self, at: usize) -> IdSalt;
+    fn key(&self, at: usize) -> Option<IdSalt>;
     /// The id row `at` has when built under `base`.
-    fn id(&self, base: Id, at: usize) -> Id;
+    fn id(&self, base: Id, at: usize) -> Option<Id>;
     /// Builds row `at` under its own key with `classes`, returning its id
     /// and node.
-    fn build(&mut self, b: &mut Builder<'_, 'f, A>, at: usize, classes: Tw) -> (Id, NodeId);
+    fn build(&mut self, b: &mut Builder<'_, 'f, A>, at: usize, classes: Tw)
+    -> Option<(Id, NodeId)>;
 }
 
 /// What a listbox's row wrappers do.
@@ -529,21 +530,26 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
         self.rows.len()
     }
 
-    fn key(&self, at: usize) -> IdSalt {
-        row_key(&self.rows[at])
+    fn key(&self, at: usize) -> Option<IdSalt> {
+        self.rows.get(at).map(row_key)
     }
 
-    fn id(&self, base: Id, at: usize) -> Id {
-        child_id(base, &self.rows[at])
+    fn id(&self, base: Id, at: usize) -> Option<Id> {
+        self.rows.get(at).map(|row| child_id(base, row))
     }
 
-    fn build(&mut self, b: &mut Builder<'_, 'f, A>, at: usize, classes: Tw) -> (Id, NodeId) {
-        let row = self.rows[at];
+    fn build(
+        &mut self,
+        b: &mut Builder<'_, 'f, A>,
+        at: usize,
+        classes: Tw,
+    ) -> Option<(Id, NodeId)> {
+        let row = *self.rows.get(at)?;
         let item = &mut self.item;
         let classes = classes.merge(self.classes.clone());
         let Some(listbox) = &self.listbox else {
             let handle = b.div_id(row, classes, |s| item(s, row));
-            return (handle.id(), handle.node());
+            return Some((handle.id(), handle.node()));
         };
         let (list, kept) = (listbox.list, listbox.kept.clone());
         let on_activate = listbox.on_activate.clone();
@@ -579,7 +585,7 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
                 });
             }
         });
-        (handle.id(), handle.node())
+        Some((handle.id(), handle.node()))
     }
 }
 
@@ -698,7 +704,7 @@ pub(crate) struct ListRun<'f, A> {
 }
 
 /// Where a list's viewport is over its rows this frame.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct View {
     /// The rows' top in the content.
     top: f32,
@@ -778,15 +784,20 @@ impl<'f, R: 'static, S: 'static> Rows<'f, R> for Mounted<'f, R, S> {
         self.rows.len()
     }
 
-    fn key(&self, at: usize) -> IdSalt {
+    fn key(&self, at: usize) -> Option<IdSalt> {
         self.rows.key(at)
     }
 
-    fn id(&self, base: Id, at: usize) -> Id {
+    fn id(&self, base: Id, at: usize) -> Option<Id> {
         self.rows.id(base, at)
     }
 
-    fn build(&mut self, b: &mut Builder<'_, 'f, R>, at: usize, classes: Tw) -> (Id, NodeId) {
+    fn build(
+        &mut self,
+        b: &mut Builder<'_, 'f, R>,
+        at: usize,
+        classes: Tw,
+    ) -> Option<(Id, NodeId)> {
         let rows = &mut self.rows;
         b.within(&self.mount, |b| rows.build(b, at, classes))
     }
@@ -806,10 +817,9 @@ impl<'f, A> ListRun<'f, A> {
     ) -> View {
         let list = self.plan.list;
         let own = tree.layout(self.scroll);
-        let node = tree
-            .node(self.scroll)
-            .and_then(|node| node.scroll.as_ref())
-            .expect("a list's container is a scroll container");
+        let Some(node) = tree.scroll(self.scroll) else {
+            return View::default();
+        };
         let viewport = vec2(
             own.size.width - own.border.left - own.border.right - node.bars.gutter.x,
             own.size.height - own.border.top - own.border.bottom - node.bars.gutter.y,
@@ -884,13 +894,15 @@ impl<'f, A> ListRun<'f, A> {
         } else {
             None
         };
-        if let Some(at) = to {
-            select(kept, list, self.rows.key(at), self.rows.id(list, at));
+        if let Some(at) = to
+            && let (Some(key), Some(id)) = (self.rows.key(at), self.rows.id(list, at))
+        {
+            select(kept, list, key, id);
             kept.with(|kept| {
                 kept.scrolls.rows.insert(
                     list,
                     ScrollTo {
-                        row: self.rows.key(at),
+                        row: key,
                         align: None,
                     },
                 );
@@ -914,7 +926,7 @@ impl<'f, A> ListRun<'f, A> {
             && let (RowHeights::Measured { estimate }, Tops::Measured { offsets }) =
                 (self.plan.rows, &mut self.plan.tops)
         {
-            let rows = offsets.len() - 1;
+            let rows = offsets.len().saturating_sub(1);
             running_offsets(std::iter::repeat_n(estimate, rows), offsets);
         }
         hold
@@ -923,13 +935,13 @@ impl<'f, A> ListRun<'f, A> {
     /// The row whose key is `key`, looked for at `hint` first.
     fn find(&self, key: IdSalt, hint: usize) -> Option<usize> {
         let key_at = |at: usize| match self.plan.keys.get(at) {
-            Some(&key) => key,
+            Some(&key) => Some(key),
             None => self.rows.key(at),
         };
-        if hint < self.rows.len() && key_at(hint) == key {
+        if hint < self.rows.len() && key_at(hint) == Some(key) {
             return Some(hint);
         }
-        (0..self.rows.len()).find(|&at| key_at(at) == key)
+        (0..self.rows.len()).find(|&at| key_at(at) == Some(key))
     }
 
     /// The rows built in the last frame that are kept built: one with the
@@ -991,10 +1003,13 @@ impl<'f, A> ListRun<'f, A> {
                        at: usize,
                        flow: Flow| {
             let before = b.roots_declared();
-            let (id, node) = rows.build(b, at, classes.clone());
+            let (Some((id, node)), Some(key)) = (rows.build(b, at, classes.clone()), rows.key(at))
+            else {
+                return;
+            };
             built.push(Built {
                 at,
-                key: rows.key(at),
+                key,
                 id,
                 node,
                 flow,
@@ -1130,7 +1145,7 @@ impl Laid {
         }
         let nodes: Vec<NodeId> = built.iter().map(|row| row.node).collect();
         let holds_stop = scroll::holds_tab_stop(tree, &nodes);
-        if let Some(container) = tree.node_mut(scroll).and_then(|node| node.scroll.as_mut())
+        if let Some(container) = tree.scroll_mut(scroll)
             && container.tab == TabRule::WhenScrollable
             && holds_stop
         {
@@ -1172,7 +1187,7 @@ fn identified_in(tree: &LayoutTree, node: NodeId) -> Vec<Id> {
     let mut found = Vec::new();
     let mut stack = vec![node];
     while let Some(node) = stack.pop() {
-        if let Some(id) = tree.node(node).and_then(|node| node.id) {
+        if let Some(id) = tree.node(node).and_then(|node| node.identity.id()) {
             found.push(id);
         }
         stack.extend(tree.children(node));
@@ -1203,8 +1218,10 @@ pub(crate) fn running_offsets(heights: impl IntoIterator<Item = f32>, into: &mut
 /// The rows that reach into `span`, given the list's running offsets.
 pub(crate) fn visible(offsets: &[f32], span: Span) -> Range<usize> {
     let rows = offsets.len().saturating_sub(1);
-    let first = offsets[1..].partition_point(|&bottom| bottom <= span.start);
-    let end = offsets[..rows].partition_point(|&top| top < span.end);
+    let bottoms = offsets.get(1..).unwrap_or_default();
+    let tops = offsets.get(..rows).unwrap_or_default();
+    let first = bottoms.partition_point(|&bottom| bottom <= span.start);
+    let end = tops.partition_point(|&top| top < span.end);
     first..end.max(first)
 }
 

@@ -170,14 +170,13 @@ impl<'a> TextLeaf<'a> {
             break_on_newline: true,
             ..LayoutJob::default()
         };
-        for (at, c) in text.char_indices() {
-            let end = at + c.len_utf8();
+        for c in text.chars() {
             let gap = if c.is_ascii_digit() {
                 widest - fonts.glyph_width(&font_id, c)
             } else {
                 0.0
             };
-            job.append(&text[at..end], gap, format.clone());
+            job.append(c.encode_utf8(&mut [0; 4]), gap, format.clone());
         }
         job
     }
