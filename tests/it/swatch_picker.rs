@@ -3,7 +3,7 @@
 //! the swatches' placed rects.
 
 use eggshell_ui::Problem;
-use eggshell_ui::overlay::{Anchor, Nav, Wrap};
+use eggshell_ui::overlay::{Anchor, Nav};
 use eggshell_ui::testing::{assert_no_reports, assert_reported};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
@@ -132,31 +132,26 @@ fn space_picks_too() {
 #[derive(Default)]
 struct Plain;
 
-fn grid_overlay(b: &mut Builder<'_, '_, Plain>, wrap: Option<Wrap>, marked: &[u32]) {
+fn grid_overlay(b: &mut Builder<'_, '_, Plain>, marked: &[u32]) {
     let marked = marked.to_vec();
     b.div_id("anchor", tw().size_px(10.0), |_| {});
     let anchor = b.id_of("anchor");
-    let chain = b
-        .overlay("grid")
+    b.overlay("grid")
         .anchor(Anchor::Node(anchor))
         .nav(Nav::Grid)
         .role(Role::Grid)
-        .named("Grid");
-    let chain = match wrap {
-        Some(wrap) => chain.wrap(wrap),
-        None => chain,
-    };
-    chain.children(|s| {
-        for cell in 0..3u32 {
-            let node = s
-                .div_id(("cell", cell), tw().size_px(20.0).sense_click(), |_| {})
-                .role(Role::GridCell)
-                .named(format!("Cell {cell}"));
-            if marked.contains(&cell) {
-                node.focus_on_open();
+        .named("Grid")
+        .children(|s| {
+            for cell in 0..3u32 {
+                let node = s
+                    .div_id(("cell", cell), tw().size_px(20.0).sense_click(), |_| {})
+                    .role(Role::GridCell)
+                    .named(format!("Cell {cell}"));
+                if marked.contains(&cell) {
+                    node.focus_on_open();
+                }
             }
-        }
-    });
+        });
 }
 
 fn plain_harness(view: support::View<Plain>) -> Harness<'static, Rig<Plain>> {
@@ -178,10 +173,8 @@ fn focused_cell(harness: &Harness<'_, Rig<Plain>>) -> Option<u32> {
 }
 
 #[test]
-fn a_grid_told_to_wrap_around_stops_and_is_reported() {
-    let mut harness = plain_harness(|b, _| grid_overlay(b, Some(Wrap::Around), &[2]));
-    let report = assert_reported(&harness.ctx, Problem::UnsupportedNav);
-    assert!(report.message.contains("wrap around"), "{}", report.message);
+fn a_grid_stops_at_its_last_cell() {
+    let mut harness = plain_harness(|b, _| grid_overlay(b, &[2]));
     assert_eq!(
         focused_cell(&harness),
         Some(2),
@@ -190,17 +183,12 @@ fn a_grid_told_to_wrap_around_stops_and_is_reported() {
     harness.key_press(Key::ArrowRight);
     harness.run_steps(5);
     assert_eq!(focused_cell(&harness), Some(2));
-}
-
-#[test]
-fn a_grid_told_to_stop_builds() {
-    let harness = plain_harness(|b, _| grid_overlay(b, Some(Wrap::Stop), &[1]));
     assert_no_reports(&harness.ctx);
 }
 
 #[test]
 fn of_two_nodes_marked_focus_on_open_the_first_takes_focus_and_it_is_reported() {
-    let harness = plain_harness(|b, _| grid_overlay(b, None, &[2, 1]));
+    let harness = plain_harness(|b, _| grid_overlay(b, &[2, 1]));
     assert_reported(&harness.ctx, Problem::FocusOnOpenTwice);
     assert_eq!(focused_cell(&harness), Some(1));
 }

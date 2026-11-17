@@ -42,7 +42,7 @@ use crate::finite::clamp;
 use crate::kept::Handle;
 use crate::key::{Key, child_id};
 use crate::nav::ListMove;
-use crate::overlay::Nav;
+use crate::overlay::{Nav, Wrap};
 use crate::pipeline::Node;
 use crate::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain, ScrollStyle, TabRule};
 use crate::shell::Shell;
@@ -154,18 +154,22 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
         }
     }
 
-    /// TODO(prose): `Nav::Listbox` makes the list one Tab stop with a virtual highlight moved by the arrow, Home, End and Page keys; `Nav::None` is the default.
+    /// TODO(prose): `Nav::Listbox(Wrap::Stop)` makes the list one Tab stop with a virtual highlight moved by the arrow, Home, End and Page keys; `Nav::None` is the default. A virtual list stops at its ends: `Wrap::Around` is reported.
     #[track_caller]
     pub fn nav(mut self, nav: Nav) -> Self {
-        if !matches!(nav, Nav::None | Nav::Listbox) {
+        if !matches!(nav, Nav::None | Nav::Listbox(Wrap::Stop)) {
             crate::report::report(
                 self.scroll.builder().ctx(),
                 crate::Problem::UnsupportedNav,
                 Some(self.scroll.id()),
-                || format!("a virtual list navigates as a listbox or not at all, not {nav:?}"),
+                || {
+                    format!(
+                        "a virtual list navigates as a listbox that stops at its ends, or not at all, not {nav:?}"
+                    )
+                },
             );
         }
-        self.listbox = nav == Nav::Listbox;
+        self.listbox = nav.is_listbox();
         self
     }
 

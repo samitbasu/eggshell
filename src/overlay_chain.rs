@@ -6,7 +6,7 @@ use egui::Role;
 
 use crate::builder::{Builder, Scope, Slot};
 use crate::overlay::{
-    Anchor, Band, Behavior, DismissOn, Focus, MatchWidth, Modal, Nav, Outside, Placement, Wrap,
+    Anchor, Band, Behavior, DismissOn, Focus, MatchWidth, Modal, Nav, Outside, Placement,
 };
 use crate::pipeline::DismissFn;
 use crate::presence::{Entrance, ExitedFn, Motion, Shown, Staged};
@@ -271,15 +271,6 @@ impl<A, State, M> OverlayChain<'_, '_, A, State, M> {
         self
     }
 
-    /// What the arrow keys do at the first and last item of the overlay's
-    /// [`Nav`]. [`Wrap::Around`] unless set, and [`Wrap::Stop`] for a
-    /// [`Nav::Grid`], which only stops: a grid told to go round stops, and is
-    /// reported as [`UnsupportedNav`](crate::Problem::UnsupportedNav).
-    pub fn wrap(mut self, wrap: Wrap) -> Self {
-        self.behavior.wrap = Some(wrap);
-        self
-    }
-
     /// Runs `then` when the library dismisses the overlay (see
     /// [`DismissOn`]): close it. The library never changes the application's
     /// state itself, and an overlay no handler closes stays open.
@@ -385,28 +376,13 @@ impl<'f, A, State, M> OverlayChain<'_, 'f, A, State, M> {
             slot,
             band,
             description,
-            mut behavior,
+            behavior,
             on_dismiss,
             presence,
             declared_at,
             state: _,
             motion: _,
         } = self;
-        if behavior.nav == Nav::Grid && behavior.wrap == Some(Wrap::Around) {
-            crate::report::report_at(
-                b.ctx(),
-                crate::Problem::UnsupportedNav,
-                Some(slot.id),
-                declared_at,
-                || {
-                    format!(
-                        "{}: a grid overlay stops at its edges; it does not wrap around",
-                        slot.readable()
-                    )
-                },
-            );
-            behavior.wrap = Some(Wrap::Stop);
-        }
         let motion = presence.resolve(b.ctx(), &presentation, (band, behavior.nav));
         let decl = OverlayDecl {
             id: slot.id,
@@ -471,9 +447,7 @@ impl<A> Presence<A> {
         let motion = &crate::Style::of(ctx).motion;
         let (kind, edge) = match presentation {
             Presentation::Floating { .. } if band == Band::Tooltip => (motion.tooltip, None),
-            Presentation::Floating { .. }
-                if matches!(nav, Nav::Menu | Nav::Submenu | Nav::Listbox) =>
-            {
+            Presentation::Floating { .. } if nav.is_menu() || nav.is_listbox() => {
                 (motion.menu, None)
             }
             Presentation::Floating { .. } => (motion.popover, None),

@@ -32,6 +32,8 @@ pub enum Problem {
     CommandsTwice,
     /// TODO(prose): a command id no live table declares.
     UnknownCommand,
+    /// TODO(prose): Markdown whose structure the parser had to recover from.
+    MalformedMarkdown,
     /// TODO(prose): a key the style has no entry for.
     MissingStyleEntry,
     /// TODO(prose): two nodes of an overlay marked to take focus on open.
@@ -163,21 +165,11 @@ fn with_store<R>(ctx: &Context, f: impl FnOnce(&mut Store) -> R) -> R {
     ctx.data_mut(|data| f(data.get_temp_mut_or_default::<Store>(store_id())))
 }
 
-/// Reports `problem` at the caller, about `subject` if it concerns one
-/// identified thing. Repeats of a (problem, caller, subject) are counted, and
-/// only the first runs `message` and is logged.
-///
-/// TODO(prose): for a crate built on eggshell that finds a problem of its
-/// own, such as a widget's.
-///
-/// ```
-/// use eggshell_ui::testing::assert_reported;
-/// use eggshell_ui::{Problem, report};
-///
-/// let ctx = egui::Context::default();
-/// report(&ctx, Problem::Internal("widget"), None, || "what went wrong".to_owned());
-/// assert_eq!(assert_reported(&ctx, Problem::Internal("widget")).message, "what went wrong");
-/// ```
+/// Not a stable API: it exists for `eggshell-ui-extras`. Reports `problem`
+/// at the caller, about `subject` if it concerns one identified thing.
+/// Repeats of a (problem, caller, subject) are counted, and only the first
+/// runs `message` and is logged.
+#[doc(hidden)]
 #[track_caller]
 pub fn report(
     ctx: &Context,

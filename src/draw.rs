@@ -25,7 +25,7 @@ use crate::focus;
 use crate::kept::Handle;
 use crate::measure::TextLeaf;
 use crate::nav;
-use crate::overlay::{Anchored, Nav};
+use crate::overlay::Anchored;
 use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::owned::Side;
@@ -811,7 +811,7 @@ impl<A> Walk<'_, A> {
             && self.roots[root_of(self.roots, index)]
                 .overlay()
                 .map_or(node.is_listbox_option(), |overlay| {
-                    overlay.behavior.nav == Nav::Listbox
+                    overlay.behavior.nav.is_listbox()
                 });
         Hovering::of(highlighted || (pointed && !in_listbox))
     }

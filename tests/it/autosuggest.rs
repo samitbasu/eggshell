@@ -1,7 +1,7 @@
 //! A text field with a suggestion list under it: an overlay that leaves focus
 //! on the field (`Focus::Stay`), through the real path.
 
-use eggshell_ui::overlay::{Anchor, Focus, Nav};
+use eggshell_ui::overlay::{Anchor, Focus, Nav, Wrap};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Role, vec2};
 use egui_kittest::Harness;
@@ -52,7 +52,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             s.overlay("suggest")
                 .anchor(Anchor::Node(field))
                 .focus(Focus::Stay)
-                .nav(Nav::Listbox)
+                .nav(Nav::Listbox(Wrap::Around))
                 .role(Role::ListBox)
                 .named("Suggestions")
                 .children(|s| {

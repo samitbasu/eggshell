@@ -2,7 +2,7 @@
 //! events dispatched by `egui_kittest::Harness`, build, layout, draw, and the
 //! judgement of the frame's input after the draw.
 
-use eggshell_ui::overlay::{Anchor, DismissOn, Focus, Nav, Outside, Placement};
+use eggshell_ui::overlay::{Anchor, DismissOn, Focus, Nav, Outside, Placement, Wrap};
 use eggshell_ui::{Builder, Scope, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, Pos2, Role, pos2, vec2};
 use egui_kittest::Harness;
@@ -231,7 +231,7 @@ fn menu(s: &mut Scope<'_, '_, App>, app: &App) {
         .overlay(Part::Menu)
         .anchor(Anchor::Node(trigger))
         .placement(Placement::below())
-        .nav(Nav::Menu)
+        .nav(Nav::Menu(Wrap::Around))
         .role(Role::Menu)
         .named("Menu")
         .on_dismiss(|app: &mut App| {
@@ -261,7 +261,7 @@ fn menu(s: &mut Scope<'_, '_, App>, app: &App) {
                 s.overlay(Part::Submenu)
                     .anchor(Anchor::Node(more))
                     .placement(Placement::submenu())
-                    .nav(Nav::Submenu)
+                    .nav(Nav::Submenu(Wrap::Around))
                     .role(Role::Menu)
                     .named("More")
                     .on_dismiss(|app: &mut App| {
@@ -292,7 +292,7 @@ fn list(s: &mut Scope<'_, '_, App>) {
     s.overlay(Part::List)
         .anchor(Anchor::Node(trigger))
         .focus(Focus::Stay)
-        .nav(Nav::Listbox)
+        .nav(Nav::Listbox(Wrap::Around))
         .role(Role::ListBox)
         .named("Options")
         .on_dismiss(|app: &mut App| {

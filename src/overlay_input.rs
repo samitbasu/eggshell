@@ -127,8 +127,7 @@ impl Open<'_> {
     /// Whether the overlay is a menu, which swallows Tab as Radix's does:
     /// nothing moves until Esc, a press outside or a choice.
     fn holds_tab(&self) -> bool {
-        self.overlay.behavior.outside() == Outside::Swallow
-            || matches!(self.overlay.behavior.nav, Nav::Menu | Nav::Submenu)
+        self.overlay.behavior.outside() == Outside::Swallow || self.overlay.behavior.nav.is_menu()
     }
 
     fn anchor_node(&self) -> Option<Id> {
@@ -556,7 +555,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         .map(|open| Menu {
             id: open.overlay.id,
             nav: open.overlay.behavior.nav,
-            wrap: open.overlay.behavior.wrap(),
+            wrap: open.overlay.behavior.nav.wrap(),
             items: items(ctx, nodes, roots[open.root].first),
             own: subtrees
                 .iter()
@@ -619,7 +618,7 @@ impl Source {
 /// the pointer does not, as in Radix: nothing is highlighted until an arrow
 /// key, whose first press goes to the first (Down) or last (Up) item.
 fn enters_focus(behavior: Behavior, source: Source) -> bool {
-    let menu = matches!(behavior.nav, Nav::Menu | Nav::Submenu);
+    let menu = behavior.nav.is_menu();
     behavior.focus == Focus::Enter && !(menu && source == Source::Pointer)
 }
 

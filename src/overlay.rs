@@ -276,8 +276,8 @@ impl Outside {
     /// [`Swallow`](Self::Swallow) itself.
     pub(crate) fn of(nav: Nav) -> Self {
         match nav {
-            Nav::Menu | Nav::Submenu => Self::Swallow,
-            Nav::Listbox | Nav::Grid | Nav::None => Self::PassThrough,
+            Nav::Menu(_) | Nav::Submenu(_) => Self::Swallow,
+            Nav::Listbox(_) | Nav::Grid | Nav::None => Self::PassThrough,
         }
     }
 }
@@ -301,20 +301,38 @@ pub enum Focus {
 /// item role ([`NodeHandle::role`](crate::NodeHandle::role) with
 /// `MenuItem`, `MenuItemCheckbox`, `MenuItemRadio` or `ListBoxOption`) that
 /// can take focus; a disabled item is skipped.
+///
+/// ```
+/// use eggshell_ui::overlay::{Nav, Wrap};
+///
+/// let menu = Nav::Menu(Wrap::Around);
+/// let select = Nav::Listbox(Wrap::Stop);
+/// assert_ne!(menu, select);
+/// assert_eq!(Nav::default(), Nav::None);
+/// ```
+///
+/// A grid stops at its edges, so it takes no [`Wrap`]:
+///
+/// ```compile_fail
+/// use eggshell_ui::overlay::{Nav, Wrap};
+///
+/// let grid = Nav::Grid(Wrap::Around);
+/// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Nav {
     /// The content handles its own keys.
     #[default]
     None,
-    /// Up and Down move focus between items, wrapping; Home and End go to the
-    /// first and last. The items are real focus targets.
-    Menu,
+    /// Up and Down move focus between items, and at the first or last item
+    /// do as the [`Wrap`] says; Home and End go to the first and last. The
+    /// items are real focus targets.
+    Menu(Wrap),
     /// [`Menu`](Self::Menu), and Left dismisses the overlay and focuses the
     /// item it is anchored to.
-    Submenu,
+    Submenu(Wrap),
     /// The same keys, but focus stays where it is and the highlight is
     /// virtual: Enter and Space activate the highlighted item.
-    Listbox,
+    Listbox(Wrap),
     /// Each arrow moves focus to the nearest item in its direction, as the
     /// items are laid out, and stops at the edges; Home and End go to the
     /// first and last. The items are real focus targets, so the app declares
@@ -322,24 +340,32 @@ pub enum Nav {
     Grid,
 }
 
+impl Nav {
+    /// What the arrow keys do at the ends of the items: a grid, and an
+    /// overlay with no navigation, stop.
+    pub(crate) fn wrap(self) -> Wrap {
+        match self {
+            Self::Menu(wrap) | Self::Submenu(wrap) | Self::Listbox(wrap) => wrap,
+            Self::Grid | Self::None => Wrap::Stop,
+        }
+    }
+
+    pub(crate) fn is_menu(self) -> bool {
+        matches!(self, Self::Menu(_) | Self::Submenu(_))
+    }
+
+    pub(crate) fn is_listbox(self) -> bool {
+        matches!(self, Self::Listbox(_))
+    }
+}
+
 /// What an arrow key does at the first or last item of a [`Nav`] overlay.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Wrap {
-    /// Goes on to the other end: menus, and a listbox unless told otherwise.
+    /// Goes on to the other end: menus, and most listboxes.
     Around,
-    /// Stays on the item: a select's list, as Radix's, and a grid, always.
+    /// Stays on the item: a select's list, as Radix's.
     Stop,
-}
-
-impl Wrap {
-    /// What an overlay that navigates as `nav` does unless told otherwise: a
-    /// grid stops, everything else goes round.
-    pub(crate) fn of(nav: Nav) -> Self {
-        match nav {
-            Nav::Grid => Self::Stop,
-            Nav::Menu | Nav::Submenu | Nav::Listbox | Nav::None => Self::Around,
-        }
-    }
 }
 
 /// What an overlay does with input, as its chain declared it.
@@ -349,18 +375,12 @@ pub(crate) struct Behavior {
     pub(crate) outside: Option<Outside>,
     pub(crate) focus: Focus,
     pub(crate) nav: Nav,
-    pub(crate) wrap: Option<Wrap>,
 }
 
 impl Behavior {
     /// What a press outside the overlay does to the press.
     pub(crate) fn outside(self) -> Outside {
         self.outside.unwrap_or_else(|| Outside::of(self.nav))
-    }
-
-    /// What the arrow keys do at the ends of the overlay's items.
-    pub(crate) fn wrap(self) -> Wrap {
-        self.wrap.unwrap_or_else(|| Wrap::of(self.nav))
     }
 }
 

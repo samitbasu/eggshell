@@ -32,7 +32,7 @@ pub(crate) enum Malformed {
 }
 
 impl Malformed {
-    /// The name the problem is reported under, one per kind.
+    /// What the report says of it, one per kind.
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::CellOutsideTable => "markdown: a table cell outside a table",

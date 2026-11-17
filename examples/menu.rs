@@ -15,7 +15,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::overlay::{Anchor, Distance, MatchWidth, Nav, Placement};
+use eggshell_ui::overlay::{Anchor, Distance, MatchWidth, Nav, Placement, Wrap};
 use eggshell_ui::owned::Mark;
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::{Builder, Chord, Command, Commands, tw};
@@ -173,7 +173,7 @@ fn list(b: &mut Builder<'_, '_, State>) {
         .anchor(Anchor::Node(anchor))
         .placement(Placement::below().gap(Distance::new(4.0)))
         .match_width(MatchWidth::Anchor)
-        .nav(Nav::Menu)
+        .nav(Nav::Menu(Wrap::Around))
         .role(Role::Menu)
         .named("Options")
         .on_dismiss(|state: &mut State| state.list = false)

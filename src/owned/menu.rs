@@ -16,7 +16,7 @@ use super::{Chevron, Enablement, Mark, OnResponse, check, describe, painted};
 use crate::builder::{Scope, Slot};
 use crate::contract::{MenuStyle, Style, Variant};
 use crate::kept::Handle;
-use crate::overlay::{Anchor, Distance, Nav, Outside, Placement, Shown};
+use crate::overlay::{Anchor, Distance, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::pipeline::OpenFocus;
 use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
@@ -435,7 +435,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         OverlayChain::new(self.b.reborrow(), overlay)
             .anchor(Anchor::Node(item))
             .placement(Placement::submenu())
-            .nav(Nav::Submenu)
+            .nav(Nav::Submenu(Wrap::Around))
             .outside(Outside::PassThrough)
             .role(Role::Menu)
             .named(label)
@@ -861,7 +861,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             .anchor(Anchor::Node(trigger))
             .placement(Placement::below().gap(offset.unwrap_or(shared.style.menu.offset)))
             .shown(if open { Shown::Open } else { Shown::Closed })
-            .nav(Nav::Menu)
+            .nav(Nav::Menu(Wrap::Around))
             .role(Role::Menu)
             .named(name)
             .on_dismiss(move |_| close.close())
@@ -888,7 +888,7 @@ pub(crate) fn context<'f, A: 'static>(
     OverlayChain::new(b.reborrow(), slot)
         .anchor(Anchor::Point(at))
         .placement(Placement::menu())
-        .nav(Nav::Menu)
+        .nav(Nav::Menu(Wrap::Around))
         .role(Role::Menu)
         .named("Context menu")
         .on_dismiss(move |_| close.close())

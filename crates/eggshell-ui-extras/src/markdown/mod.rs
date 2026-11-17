@@ -109,9 +109,12 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone> Markdown<'s, 'b, 'f, A, K> {
 #[track_caller]
 fn report_malformed(ctx: &egui::Context, doc: egui::Id, malformed: &[parse::Malformed]) {
     for &problem in malformed {
-        eggshell_ui::report(ctx, Problem::Internal(problem.name()), Some(doc), || {
-            format!("{}; {}", problem.name(), problem.recovery())
-        });
+        eggshell_ui::report(
+            ctx,
+            Problem::MalformedMarkdown,
+            Some(doc.with(problem.name())),
+            || format!("{}; {}", problem.name(), problem.recovery()),
+        );
     }
 }
 
@@ -227,11 +230,21 @@ mod tests {
             parse::Malformed::CellOutsideTable,
         ];
         report_malformed(&ctx, doc, &malformed);
-        let cell = assert_reported(&ctx, Problem::Internal(malformed[0].name()));
+        let reports = eggshell_ui::testing::reports(&ctx);
+        assert_eq!(reports.len(), 2, "{reports:#?}");
+        assert!(
+            reports
+                .iter()
+                .all(|report| report.problem == Problem::MalformedMarkdown)
+        );
+        let cell = assert_reported(&ctx, Problem::MalformedMarkdown);
         assert_eq!(cell.count, 2);
         assert!(cell.message.contains("paragraph"), "{}", cell.message);
-        assert_reported(&ctx, Problem::Internal(malformed[1].name()));
-        assert_eq!(eggshell_ui::testing::reports(&ctx).len(), 2);
+        assert!(
+            reports[1].message.contains("inside a table"),
+            "{}",
+            reports[1].message
+        );
     }
 
     #[test]
