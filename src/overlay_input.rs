@@ -485,12 +485,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         escape: keys.escape == Pressed::Yes,
         tab: keys.tab == Pressed::Yes,
         drag_live: drag == Drag::Live,
-        window_blurred: ctx.input(|input| {
-            input
-                .events
-                .iter()
-                .any(|event| matches!(event, Event::WindowFocused(false)))
-        }),
+        window_blurred: ctx.input(|input| crate::window::blurred(&input.events)),
     };
     for open in open
         .iter()
