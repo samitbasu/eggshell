@@ -1811,6 +1811,7 @@ impl<A> Painting<A> {
         let interruption = tooltip::interruption(&ctx, dnd::drag_state(&ctx, kept));
         tooltip::begin(&ctx, kept);
         focus::release_press_on_blur(&ctx);
+        crate::clicks::widen_double_click(&ctx);
         let _anchor_focus =
             focus::AnchorFocusHeld::new(&ctx, overlay_input::pointer_on(&ctx, nodes, roots, here));
         let pressed = press_origin(&ctx)

@@ -7,6 +7,7 @@ use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Event, Key, Theme, vec2};
 use egui_kittest::Harness;
+use std::time::Duration;
 
 use crate::support::{self, Rig, box_at, click_node, focused_node, rect_of, ring_at, text_color};
 
@@ -36,7 +37,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             b.div_id("sm", tw().control_size(size::SM), |b| {
                 b.slider("small", 30.0, 0.0..=100.0)
                     .label("Small")
-                    .readout(|v| format!("{v:.0} dB"))
+                    .readout(|v| format!("{v:.1} dB"))
                     .editable(|text| text.trim().trim_end_matches("dB").trim().parse().ok())
                     .on_change(|_: &mut App, _| {});
             });
@@ -212,16 +213,70 @@ fn a_click_puts_the_caret_where_it_lands_and_selects_nothing() {
     assert_eq!(typed_into(&mut harness, READOUT, "5"), "450%");
 }
 
-#[test]
-fn a_double_click_selects_the_whole_value() {
-    let mut harness = harness();
-    let number = support::part_rect(&harness, "30 dB", "30");
-    for _ in 0..2 {
-        support::press_and_release(&mut harness, number.center());
-        harness.run_steps(2);
-    }
+/// Clicks twice at `at`, one event a frame as a browser sends them, the
+/// releases `apart` apart.
+fn click_twice(harness: &mut Harness<'_, Rig<App>>, at: egui::Pos2, apart: Duration) {
+    let frame = harness.ctx.input(|input| input.predicted_dt);
+    let frames = (apart.as_secs_f32() / frame).round() as usize;
+    assert!(
+        frames >= 2,
+        "precondition: a press and a release fit in {apart:?}"
+    );
+    support::press_and_release(harness, at);
+    harness.run_steps(frames - 2);
+    support::press_and_release(harness, at);
     harness.run_steps(6);
+}
+
+#[test]
+fn a_double_click_selects_the_whole_value_not_the_word_under_it() {
+    let mut harness = harness();
+    let number = support::part_rect(&harness, "30.0 dB", "30");
+    click_twice(&mut harness, number.center(), Duration::from_millis(200));
     assert_eq!(typed_into(&mut harness, SMALL, "7"), "7");
+}
+
+#[test]
+fn a_relaxed_double_click_still_selects_the_whole_value() {
+    let mut harness = harness();
+    let number = support::part_rect(&harness, "30.0 dB", "30");
+    click_twice(&mut harness, number.center(), Duration::from_millis(450));
+    assert_eq!(typed_into(&mut harness, SMALL, "7"), "7");
+}
+
+#[test]
+fn two_clicks_further_apart_than_a_double_click_are_two_clicks() {
+    let mut harness = harness();
+    let number = support::part_rect(&harness, "30.0 dB", "30");
+    click_twice(&mut harness, number.center(), Duration::from_millis(600));
+    let typed = typed_into(&mut harness, SMALL, "7");
+    assert_eq!(
+        typed.len(),
+        "30.0 dB".len() + 1,
+        "nothing replaced: {typed:?}"
+    );
+}
+
+#[test]
+fn eggshell_widens_eguis_double_click_window_to_its_own() {
+    let harness = harness();
+    let window = harness
+        .ctx
+        .options(|options| options.input_options.max_double_click_delay);
+    assert_eq!(Duration::from_secs_f64(window), eggshell_ui::DOUBLE_CLICK);
+}
+
+#[test]
+fn an_app_that_sets_its_own_double_click_window_keeps_it() {
+    let mut harness = harness();
+    harness
+        .ctx
+        .options_mut(|options| options.input_options.max_double_click_delay = 0.25);
+    harness.run_steps(2);
+    let window = harness
+        .ctx
+        .options(|options| options.input_options.max_double_click_delay);
+    assert_eq!(window, 0.25);
 }
 
 #[test]

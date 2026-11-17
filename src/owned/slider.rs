@@ -445,8 +445,7 @@ struct Row {
 }
 
 /// How the readout's field opens: a click puts the caret where it landed;
-/// the keyboard selects the whole value, as tabbing into a field does. (A
-/// double click's second click lands in the field, which selects it all.)
+/// the keyboard selects the whole value, as tabbing into a field does.
 #[derive(Clone, Copy)]
 enum Opening {
     All,
@@ -569,6 +568,8 @@ impl Row {
                                         .data(|data| data.get_temp(editing.with("opening")))
                                         .unwrap_or(Opening::All);
                                     text_field::select(ui, &response, opening.range(&text));
+                                } else if response.double_clicked() {
+                                    text_field::select(ui, &response, text_field::all(&text));
                                 }
                                 if response.changed() {
                                     ui.data_mut(|data| data.insert_temp(editing, text.clone()));
