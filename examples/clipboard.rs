@@ -13,8 +13,8 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::{Builder, ClipboardError, Command, Commands, Paste, Via, tw};
-use egui::{Color32, ColorImage, Key, KeyboardShortcut, Modifiers};
+use eggshell_ui::{Builder, Chord, ClipboardError, Command, Commands, Paste, Via, tw};
+use egui::{Color32, ColorImage, Key, Modifiers};
 
 /// The parts the layout names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -59,7 +59,7 @@ fn commands() -> Commands<State> {
             state.arrived = Some(Arrival { paste, via });
             state.error = None;
         })
-        .shortcut(KeyboardShortcut::new(Modifiers::COMMAND, Key::V))
+        .shortcut(const { Chord::new(Modifiers::COMMAND, Key::V).expect("not reserved") })
         .on_error(|state, error| state.error = Some(error)),
     )
 }

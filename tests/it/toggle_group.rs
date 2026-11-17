@@ -191,15 +191,12 @@ fn options_view(b: &mut Builder<'_, '_, App>, app: &App) {
             .classes(tw().w_px(70.0)),
     );
     b.div(tw().flex().gap(4.0), |b| {
-        b.toggle_item(&tools, Tool::Select, Face::Empty)
-            .named("Select")
+        b.toggle_item(&tools, Tool::Select, Face::Empty("Select".into()))
             .add();
-        b.toggle_item(&tools, Tool::Pan, Face::Empty)
-            .named("Pan")
+        b.toggle_item(&tools, Tool::Pan, Face::Empty("Pan".into()))
             .size(Size::DEFAULT)
             .add();
-        b.toggle_item(&tools, Tool::Zoom, Face::Empty)
-            .named("Zoom")
+        b.toggle_item(&tools, Tool::Zoom, Face::Empty("Zoom".into()))
             .with_options(ButtonOptions::new().classes(tw().w_px(90.0)))
             .add();
     });
@@ -237,8 +234,7 @@ fn cards_view(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().gap(4.0), |b| {
         for (tool, label) in LABELS.into_iter().take(2) {
             let chosen = app.tool == tool;
-            b.toggle_item(&tools, tool, Face::Empty)
-                .named(label)
+            b.toggle_item(&tools, tool, Face::Empty(label.into()))
                 .classes(tw().flex_col().h_px(60.0).w_px(100.0))
                 .children(|s| {
                     s.text(tw(), label);

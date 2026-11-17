@@ -20,18 +20,52 @@ enum Press {
 
 /// What a button shows: a label, or only an icon.
 ///
-/// A `&str` or `String` is a label and an [`Icon`] is an icon-only face,
-/// which assistive technology can read only from [`named`](ButtonChain::named).
+/// A `&str` or `String` is a label and an [`Icon`] with a name is an
+/// icon-only face, which assistive technology reads by the name.
 /// [`Face::Empty`] shows nothing, for a button whose content is all
-/// [`children`](ButtonChain::children).
+/// [`children`](ButtonChain::children), and is named too.
+///
+/// ```
+/// use eggshell_ui::owned::Face;
+/// use eggshell_ui::{Builder, Icon};
+///
+/// fn view(b: &mut Builder<'_, '_, ()>, close: Icon) {
+///     b.button("save", "Save").add();
+///     b.button("close", (close, "Close")).add();
+///     b.button("card", Face::Empty("Open the card".into()))
+///         .children(|_| {})
+///         .add();
+/// }
+/// ```
+///
+/// An icon alone has no name, so it is not a face:
+///
+/// ```compile_fail
+/// use eggshell_ui::{Builder, Icon};
+///
+/// fn view(b: &mut Builder<'_, '_, ()>, close: Icon) {
+///     b.button("close", close).add();
+/// }
+/// ```
 #[derive(Clone, Debug)]
 pub enum Face {
     /// Text, with no icon unless [`icon`](ButtonChain::icon) adds one.
     Label(String),
-    /// An icon and no text.
-    Icon(Icon),
+    /// An icon and no text, and the accessible name.
+    Icon(Icon, String),
     /// Nothing: the content is the button's [`children`](ButtonChain::children).
-    Empty,
+    /// Holds the accessible name.
+    Empty(String),
+}
+
+impl Face {
+    /// What assistive technology reads unless the button is
+    /// [`named`](ButtonChain::named) otherwise.
+    pub(crate) fn name(&self) -> &str {
+        match self {
+            Self::Label(name) | Self::Icon(_, name) | Self::Empty(name) => name,
+        }
+    }
 }
 
 impl From<&str> for Face {
@@ -46,9 +80,9 @@ impl From<String> for Face {
     }
 }
 
-impl From<Icon> for Face {
-    fn from(icon: Icon) -> Self {
-        Self::Icon(icon)
+impl<S: Into<String>> From<(Icon, S)> for Face {
+    fn from((icon, name): (Icon, S)) -> Self {
+        Self::Icon(icon, name.into())
     }
 }
 
@@ -58,8 +92,9 @@ impl From<Icon> for Face {
 /// does nothing.
 ///
 /// A button without a visible label has nothing for assistive technology to
-/// read, so it needs a [`named`](Self::named) name; one without panics in a
-/// debug build when it is added.
+/// read but its name: an icon-only or empty [`Face`] holds one. A label that
+/// is empty, with no [`named`](Self::named) name, is reported as
+/// [`Unnamed`](crate::Problem::Unnamed).
 #[must_use = "a button is not added until you call `.on_click(..)` or `.add()`"]
 pub struct ButtonChain<'a, 'f, A> {
     b: Builder<'a, 'f, A>,
@@ -205,10 +240,10 @@ impl ButtonOptions {
 
 impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K, face: Face) -> Self {
-        let (label, icon) = match face {
-            Face::Label(label) => (label, None),
-            Face::Icon(icon) => (String::new(), Some(icon)),
-            Face::Empty => (String::new(), None),
+        let (label, icon, name) = match face {
+            Face::Label(label) => (label, None, None),
+            Face::Icon(icon, name) => (String::new(), Some(icon), Some(name)),
+            Face::Empty(name) => (String::new(), None, Some(name)),
         };
         Self {
             slot: b.slot(&key),
@@ -218,6 +253,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             role: Role::Button,
             opts: ButtonOptions {
                 icon,
+                name,
                 ..ButtonOptions::new()
             },
             on_response: OnResponse::default(),
@@ -362,8 +398,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     ///
     /// fn tool(b: &mut Builder<'_, '_, App>, app: &App, icon: Icon) {
     ///     let active = app.active;
-    ///     b.button("tool", icon)
-    ///         .named("Tool")
+    ///     b.button("tool", (icon, "Tool"))
     ///         .children(|s| {
     ///             if active {
     ///                 s.div(
@@ -387,13 +422,24 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// for it does (see [`Menu::command`](crate::owned::Menu::command)). The
     /// label is the button's own.
     ///
-    /// Debug builds panic if no table declares `id`.
+    /// If no live table declares `id`, the button is added disabled and is
+    /// reported as [`UnknownCommand`](crate::Problem::UnknownCommand).
     #[track_caller]
     pub fn command<K: crate::Key>(mut self, id: K) {
         let Some((command, enabled)) = self.b.command(&id) else {
-            #[cfg(debug_assertions)]
-            panic!("button for {id:?}: no command of that key is declared");
-            #[cfg(not(debug_assertions))]
+            crate::report::report(
+                self.b.ctx(),
+                crate::Problem::UnknownCommand,
+                Some(self.slot.id),
+                || {
+                    format!(
+                        "button {} for {id:?}: no live command table declares it; it is disabled",
+                        self.slot.readable()
+                    )
+                },
+            );
+            self.opts.enablement = Some(Enablement::Disabled);
+            self.add();
             return;
         };
         if !enabled {
@@ -446,12 +492,15 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         let size = b.size_of(size);
         let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
         let press = press.unwrap_or(Press::Shifts);
-        debug_assert!(
-            !label.is_empty() || name.is_some(),
-            "the button {} has no label and no name: call `named`",
-            slot.readable(),
-        );
         let ctx = b.ctx();
+        if label.is_empty() && name.as_deref().is_none_or(str::is_empty) {
+            crate::report::report(ctx, crate::Problem::Unnamed, Some(slot.id), || {
+                format!(
+                    "the button {} has no label and no name: assistive technology cannot read it",
+                    slot.readable()
+                )
+            });
+        }
         let style = Style::of(ctx);
         let button = &style.button;
         let variant = |keyed_default: Variant| variant.unwrap_or(keyed_default);

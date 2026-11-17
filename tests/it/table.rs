@@ -626,3 +626,68 @@ mod example {
         assert_eq!(harness.state().app.selected, None);
     }
 }
+
+mod shape {
+    use eggshell_ui::Problem;
+    use eggshell_ui::testing::Headless;
+
+    use super::*;
+
+    #[test]
+    fn a_row_of_too_few_or_too_many_cells_is_reported_and_the_extra_is_dropped() {
+        let mut headless = Headless::new(vec2(400.0, 200.0));
+        let rows = [1_u32, 2];
+        let placed = headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _| {
+            b.table("t").named("T").columns(columns()).rows(
+                &rows,
+                |row| *row,
+                |cells, row| {
+                    let texts: &[&str] = if *row == 1 {
+                        &["short"]
+                    } else {
+                        &["a", "b", "c", "extra"]
+                    };
+                    for text in texts {
+                        cells.cell_text(*text);
+                    }
+                },
+            );
+        });
+        let messages: Vec<String> = headless
+            .reports()
+            .into_iter()
+            .filter(|report| report.problem == Problem::TableShape)
+            .map(|report| report.message)
+            .collect();
+        assert_eq!(messages.len(), 2, "{messages:#?}");
+        assert!(
+            messages[0].contains("1 cells for 3 columns"),
+            "{}",
+            messages[0]
+        );
+        assert!(
+            messages[1].contains("past its 3 columns"),
+            "{}",
+            messages[1]
+        );
+        assert!(
+            placed.try_at("t").is_some(),
+            "precondition: the table is laid out"
+        );
+        let shown = |text: &str| {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| placed.at("t").text(text)))
+                .is_ok()
+        };
+        assert!(
+            shown("short") && shown("c"),
+            "precondition: the text query finds cells"
+        );
+        assert!(!shown("extra"));
+    }
+
+    #[test]
+    fn a_table_of_whole_rows_reports_nothing() {
+        let harness = harness(Selection::Off);
+        eggshell_ui::testing::assert_no_reports(&harness.ctx);
+    }
+}

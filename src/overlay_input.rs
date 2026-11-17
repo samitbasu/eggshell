@@ -127,8 +127,7 @@ impl Open<'_> {
     /// Whether the overlay is a menu, which swallows Tab as Radix's does:
     /// nothing moves until Esc, a press outside or a choice.
     fn holds_tab(&self) -> bool {
-        self.overlay.behavior.outside() == Outside::Swallow
-            || matches!(self.overlay.behavior.nav, Nav::Menu | Nav::Submenu)
+        self.overlay.behavior.outside() == Outside::Swallow || self.overlay.behavior.nav.is_menu()
     }
 
     fn anchor_node(&self) -> Option<Id> {
@@ -531,7 +530,8 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         {
             entry.entered = Entered::Yet;
             if enters_focus(open.overlay.behavior, source)
-                && let Some(first) = opening_focus(nodes, roots[open.root].first, subtrees, open)
+                && let Some(first) =
+                    opening_focus(ctx, nodes, roots[open.root].first, subtrees, open)
             {
                 ctx.memory_mut(|memory| memory.request_focus(first));
             } else if open.holds_tab()
@@ -555,7 +555,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         .map(|open| Menu {
             id: open.overlay.id,
             nav: open.overlay.behavior.nav,
-            wrap: open.overlay.behavior.wrap(),
+            wrap: open.overlay.behavior.nav.wrap(),
             items: items(ctx, nodes, roots[open.root].first),
             own: subtrees
                 .iter()
@@ -618,14 +618,16 @@ impl Source {
 /// the pointer does not, as in Radix: nothing is highlighted until an arrow
 /// key, whose first press goes to the first (Down) or last (Up) item.
 fn enters_focus(behavior: Behavior, source: Source) -> bool {
-    let menu = matches!(behavior.nav, Nav::Menu | Nav::Submenu);
+    let menu = behavior.nav.is_menu();
     behavior.focus == Focus::Enter && !(menu && source == Source::Pointer)
 }
 
 /// Where focus goes as the overlay whose root is `nodes[first]` opens: the
 /// node marked with [`focus_on_open`](crate::NodeHandle::focus_on_open) if it
-/// takes focus, else the overlay's first focusable.
+/// takes focus, else the overlay's first focusable. Of two marked nodes the
+/// first declared is the one.
 fn opening_focus(
+    ctx: &Context,
     nodes: &[PlacedNode],
     first: usize,
     subtrees: &[(Id, Box<[Id]>)],
@@ -640,11 +642,19 @@ fn opening_focus(
         .filter(|node| node.focuses_on_open())
         .filter_map(PlacedNode::id);
     let chosen = marked.next();
-    debug_assert!(
-        marked.next().is_none(),
-        "two nodes of the overlay {} are marked `focus_on_open`",
-        nodes[first].path()
-    );
+    if marked.next().is_some() {
+        crate::report::report(
+            ctx,
+            crate::Problem::FocusOnOpenTwice,
+            Some(open.overlay.id),
+            || {
+                format!(
+                    "two nodes of the overlay {} are marked `focus_on_open`; the first takes focus",
+                    nodes[first].path()
+                )
+            },
+        );
+    }
     chosen
         .filter(|chosen| focusable.contains(chosen))
         .or_else(|| focusable.first().copied())

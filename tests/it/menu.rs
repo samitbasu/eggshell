@@ -1,7 +1,7 @@
 //! The stock menus through the real path: kittest's pointer and key events,
 //! build, layout, draw and the judgement of the frame's input.
 
-use eggshell_ui::overlay::{Anchor, Nav, Placement};
+use eggshell_ui::overlay::{Anchor, Nav, Placement, Wrap};
 use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::{Builder, NodeUi as _, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::{HasPopup, Toggled};
@@ -624,7 +624,7 @@ mod custom_item {
                 s.overlay("swatches")
                     .anchor(Anchor::Node(anchor))
                     .placement(Placement::below())
-                    .nav(Nav::Menu)
+                    .nav(Nav::Menu(Wrap::Around))
                     .role(Role::Menu)
                     .named("Colours")
                     .on_dismiss(|app: &mut App| app.disabled = false)

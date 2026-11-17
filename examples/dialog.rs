@@ -15,7 +15,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::overlay::{DismissOn, Modal, Nav, Shown, Side};
+use eggshell_ui::overlay::{DismissOn, Modal, Nav, Shown, Side, Wrap};
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::{Builder, Scope, Tw, tw};
@@ -260,7 +260,7 @@ fn role_menu(s: &mut Scope<'_, '_, State>, state: &State) {
             eggshell_ui::overlay::Placement::below().gap(eggshell_ui::overlay::Distance::new(4.0)),
         )
         .match_width(eggshell_ui::overlay::MatchWidth::Anchor)
-        .nav(Nav::Menu)
+        .nav(Nav::Menu(Wrap::Around))
         .role(Role::Menu)
         .named("Role")
         .on_dismiss(|state: &mut State| state.picker = false)

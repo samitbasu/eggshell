@@ -291,8 +291,8 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
     let mut dismiss = Vec::new();
     match menu.nav {
         Nav::None => {}
-        Nav::Menu | Nav::Submenu | Nav::Grid => {
-            if menu.nav == Nav::Submenu
+        Nav::Menu(_) | Nav::Submenu(_) | Nav::Grid => {
+            if matches!(menu.nav, Nav::Submenu(_))
                 && ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::ArrowLeft))
             {
                 dismiss.push(menu.id);
@@ -305,7 +305,7 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
                 focus_item(ctx, kept, to, focused);
             }
         }
-        Nav::Listbox => listbox(ctx, kept, menu, home_end),
+        Nav::Listbox(_) => listbox(ctx, kept, menu, home_end),
     }
     dismiss
 }

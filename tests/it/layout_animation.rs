@@ -4,8 +4,8 @@
 
 use core::time::Duration;
 
-use eggshell_ui::testing::{Points, Timeline, record};
-use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::testing::{Points, Timeline, assert_reported, record};
+use eggshell_ui::{Builder, LayoutState, Problem, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, vec2};
 use egui_kittest::Harness;
@@ -346,10 +346,8 @@ fn a_move_interrupted_mid_flight_starts_from_where_the_row_is_painted() {
         .assert_continuous();
 }
 
-#[cfg(debug_assertions)]
 #[test]
-#[should_panic(expected = "only identified nodes")]
-fn animating_an_anonymous_node_is_a_build_error() {
+fn animating_an_anonymous_node_is_ignored_and_reported() {
     let mut layout = LayoutState::new();
     let ctx = egui::Context::default();
     ctx.run_ui(egui::RawInput::default(), |_| {})
@@ -357,6 +355,8 @@ fn animating_an_anonymous_node_is_a_build_error() {
     layout.build::<()>(&ctx, |b| {
         b.div(tw().animate_layout(SLIDE), |_| {});
     });
+    assert_reported(&ctx, Problem::NeedsIdentity);
+    assert_eq!(eggshell_ui::tracked_layout_nodes(&layout), 0);
 }
 
 #[test]

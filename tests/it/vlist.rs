@@ -808,7 +808,7 @@ mod query {
 #[test]
 fn a_navigation_other_than_a_listbox_is_reported() {
     use eggshell_ui::Problem;
-    use eggshell_ui::overlay::Nav;
+    use eggshell_ui::overlay::{Nav, Wrap};
     use eggshell_ui::testing::{Headless, assert_no_reports, assert_reported, take_reports};
 
     fn build(headless: &mut Headless, nav: Nav) {
@@ -823,11 +823,15 @@ fn a_navigation_other_than_a_listbox_is_reported() {
         });
     }
     let mut headless = Headless::new(vec2(200.0, 200.0));
-    build(&mut headless, Nav::Menu);
+    build(&mut headless, Nav::Menu(Wrap::Around));
     let report = assert_reported(headless.ctx(), Problem::UnsupportedNav);
     assert!(report.message.contains("Menu"), "{}", report.message);
     take_reports(headless.ctx());
-    build(&mut headless, Nav::Listbox);
+    build(&mut headless, Nav::Listbox(Wrap::Around));
+    let report = assert_reported(headless.ctx(), Problem::UnsupportedNav);
+    assert!(report.message.contains("Around"), "{}", report.message);
+    take_reports(headless.ctx());
+    build(&mut headless, Nav::Listbox(Wrap::Stop));
     build(&mut headless, Nav::None);
     assert_no_reports(headless.ctx());
 }

@@ -956,7 +956,7 @@ mod two_frames {
 /// A key that dismisses an overlay or presses a button belongs to it: a draw
 /// closure under it never sees the event (#146).
 mod keys_are_taken {
-    use eggshell_ui::overlay::{Anchor, Focus, Nav};
+    use eggshell_ui::overlay::{Anchor, Focus, Nav, Wrap};
 
     use super::*;
 
@@ -1003,7 +1003,7 @@ mod keys_are_taken {
         if app.menu {
             b.overlay(P::Menu)
                 .anchor(Anchor::Point(pos2(100.0, 100.0)))
-                .nav(Nav::Menu)
+                .nav(Nav::Menu(Wrap::Around))
                 .focus(Focus::Enter)
                 .on_dismiss(|app: &mut App| {
                     app.menu = false;

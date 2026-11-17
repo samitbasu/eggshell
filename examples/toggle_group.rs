@@ -101,24 +101,22 @@ fn tool_cluster(b: &mut Builder<'_, '_, State>, state: &State) {
     b.div(tw().flex().items_center().gap(1.0), |b| {
         for tool in [Tool::Select, Tool::Pan, Tool::Zoom] {
             let (face, name) = icon(b, tool);
-            b.toggle_item(&tools, tool, face)
-                .named(name)
+            b.toggle_item(&tools, tool, (face, name))
                 .tooltip(name)
                 .add();
         }
         b.div(tw().w_px(1.0).h_px(20.0).bg(border), |_| {});
         b.div(tw().flex(), |b| {
-            let (face, name) = icon(b, Tool::AddPort);
-            b.toggle_item(&tools, Tool::AddPort, face).named(name).add();
+            b.toggle_item(&tools, Tool::AddPort, icon(b, Tool::AddPort))
+                .add();
             let caret = glyphs::icon(b.ctx(), Glyph::Caret);
-            b.button(Part::PortOptions, caret)
-                .named("Port options")
+            b.button(Part::PortOptions, (caret, "Port options"))
                 .variant(variant::GHOST)
                 .size(size::ICON)
                 .on_click(|state: &mut State| state.port_options_opened += 1);
         });
-        let (face, name) = icon(b, Tool::Delete);
-        b.toggle_item(&tools, Tool::Delete, face).named(name).add();
+        b.toggle_item(&tools, Tool::Delete, icon(b, Tool::Delete))
+            .add();
     });
 }
 
@@ -150,8 +148,7 @@ fn lettering_cards(b: &mut Builder<'_, '_, State>, state: &State) {
             for option in Lettering::ALL {
                 let chosen = state.lettering == option;
                 let check = check.clone();
-                b.toggle_item(&lettering, option, Face::Empty)
-                    .named(option.label())
+                b.toggle_item(&lettering, option, Face::Empty(option.label().into()))
                     .classes(tw().border(1.0).rounded_lg().border_color(if chosen {
                         tokens.primary
                     } else {

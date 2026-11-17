@@ -486,7 +486,7 @@ if self.filters_open {
 if let Some(menu) = &self.menu {
     s.overlay("canvas-menu")
         .anchor(Anchor::Point(menu.at)).placement(Placement::menu())
-        .nav(Nav::Menu).role(Role::Menu).named("Canvas")
+        .nav(Nav::Menu(Wrap::Around)).role(Role::Menu).named("Canvas")
         .on_dismiss(|app| app.menu = None)
         .children(|s| {
             menu_box(s, |s| {
@@ -499,7 +499,7 @@ if let Some(menu) = &self.menu {
                 if menu.sub {                                      // declared in the parent's body: D19
                     s.overlay("arrange-sub")
                         .anchor(Anchor::Node(s.id_of("arrange"))).placement(Placement::submenu())
-                        .nav(Nav::Submenu).role(Role::Menu).named("Arrange")
+                        .nav(Nav::Submenu(Wrap::Around)).role(Role::Menu).named("Arrange")
                         .on_dismiss(|app| app.menu.as_mut().unwrap().sub = false)   // Left or Esc: parent stays
                         .children(|s| menu_box(s, |s| { /* items */ }));
                 }
@@ -517,7 +517,7 @@ s.overlay((slot_key, "list"))
     .anchor(Anchor::Node(trigger_id))
     .placement(Placement::below().gap(Distance(4.0)))
     .match_width(MatchWidth::Anchor)
-    .focus(Focus::Stay).nav(Nav::Listbox)       // the trigger keeps focus; the highlight is virtual
+    .focus(Focus::Stay).nav(Nav::Listbox(Wrap::Around))       // the trigger keeps focus; the highlight is virtual
     .role(Role::ListBox).named(&name)
     .on_dismiss(close)                           // clears the widget's own open state
     .children(|s| list_box(s, |s| { for option in options { s.list_option(option) } }));
@@ -531,7 +531,7 @@ if self.suggest_open {
         .anchor(Anchor::Node(s.id_of("city")))
         .placement(Placement::below())
         .match_width(MatchWidth::Anchor)
-        .focus(Focus::Stay).nav(Nav::Listbox)
+        .focus(Focus::Stay).nav(Nav::Listbox(Wrap::Around))
         .dismiss_on(DismissOn::Default)         // press on the field is "inside" (the anchor)
         .role(Role::ListBox).named("Suggestions")
         .on_dismiss(|app| app.suggest_open = false)

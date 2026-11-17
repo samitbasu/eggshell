@@ -726,23 +726,29 @@ impl<'f, A> Built<'f, A> {
                                 .viewport(ctx.viewport_id(), |here| here.tooltips.forget(trigger));
                         }
                     } else if lookup == AnchorLookup::Missing && opening == Opening::Opened {
-                        #[cfg(debug_assertions)]
-                        {
+                        let missing = match (anchor_decl, boundary) {
+                            (Anchor::Node(id), _) if !by_id.contains_key(&id) => {
+                                Some(("anchored to", id))
+                            }
+                            (_, Some(Err(id))) => Some(("bounded by", id)),
+                            _ => None,
+                        };
+                        if let Some((what, id)) = missing {
                             let path = st
                                 .tree
                                 .get_node_context(node)
                                 .map_or_else(String::new, |context| context.path.clone());
-                            let (what, id) = match (anchor_decl, boundary) {
-                                (Anchor::Node(id), _) if !by_id.contains_key(&id) => {
-                                    ("anchored to", id)
-                                }
-                                (_, Some(Err(id))) => ("bounded by", id),
-                                _ => unreachable!("only a node can be missing"),
-                            };
-                            panic!(
-                                "overlay {path} is {what} a node that doesn't exist in this frame \
-                                 ({id:?}) (declared at {})",
-                                overlay.declared_at
+                            crate::report::report_at(
+                                ctx,
+                                crate::Problem::MissingAnchor,
+                                Some(overlay.id),
+                                overlay.declared_at,
+                                || {
+                                    format!(
+                                        "overlay {path} is {what} a node that doesn't exist in \
+                                         this frame ({id:?}); it is hidden and dismissed"
+                                    )
+                                },
                             );
                         }
                     }

@@ -5,8 +5,8 @@
 
 use eggshell_ui::overlay::{Anchor, Placement};
 use eggshell_ui::window::{MinSize, Popped, Window, WindowFrame};
-use eggshell_ui::{Builder, Command, Commands, TextSpec, TextStyle, Weight, tw};
-use egui::{Color32, FontFamily, Key, KeyboardShortcut, Modifiers, Pos2, Vec2, vec2};
+use eggshell_ui::{Builder, Chord, Command, Commands, TextSpec, TextStyle, Weight, tw};
+use egui::{Color32, FontFamily, Key, Modifiers, Pos2, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
@@ -79,7 +79,7 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
     let help = Commands::new().add(
         "help",
         Command::new("Help", |app: &mut App| app.helps += 1)
-            .shortcut(KeyboardShortcut::new(Modifiers::NONE, Key::H)),
+            .shortcut(const { Chord::new(Modifiers::NONE, Key::H).expect("not reserved") }),
     );
     b.commands(&help, app);
     b.div(tw().flex().gap(2.0).p(2.0), |b| {

@@ -1412,8 +1412,10 @@ mod tests {
 
         #[test]
         fn a_swallowing_overlay_covers_every_page_target() {
-            let placed =
-                popover_over_the_zone(crate::overlay::Nav::Menu, crate::overlay::Band::Popup);
+            let placed = popover_over_the_zone(
+                crate::overlay::Nav::Menu(crate::overlay::Wrap::Around),
+                crate::overlay::Band::Popup,
+            );
             assert_eq!(path_over(&placed, ONLY_ZONE), None, "even outside its box");
             let inner = placed.expect_overlay("pop").rect().min + vec2(10.0, 10.0);
             assert!(path_over(&placed, inner).is_some(), "its own are reachable");

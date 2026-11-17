@@ -157,9 +157,8 @@ pub fn layout(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
                         row.cell_text(dollars(invoice.cents));
                         row.cell(|b| {
                             let more = glyphs::icon(b.ctx(), Glyph::Ellipsis);
-                            b.dropdown_menu(Part::Menu, more)
+                            b.dropdown_menu(Part::Menu, (more, format!("Actions for {id}")))
                                 .variant(variant::GHOST)
-                                .named(format!("Actions for {id}"))
                                 .items(|m| {
                                     m.item(Part::Copy, "Copy invoice ID").on_click(
                                         move |app: &mut Invoices| {
