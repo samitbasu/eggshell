@@ -8,7 +8,7 @@
 //! ([`crate::testing`], *Continuity*) shows it under a kittest harness.
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::{self, Write as _};
+use std::fmt;
 
 use egui::{Context, Id, Rect, Vec2};
 
@@ -482,9 +482,16 @@ impl Timeline {
         self.frames.is_empty()
     }
 
-    /// The nodes drawn in frame `index`.
-    pub fn frame(&self, index: usize) -> &[NodeFrame] {
-        &self.frames[index]
+    /// TODO(prose): the nodes drawn in frame `index`, or `None` past the last frame.
+    ///
+    /// ```
+    /// use eggshell_ui::testing::Timeline;
+    ///
+    /// let timeline = Timeline::recorded(&egui::Context::default());
+    /// assert!(timeline.frame(0).is_none());
+    /// ```
+    pub fn frame(&self, index: usize) -> Option<&[NodeFrame]> {
+        self.frames.get(index).map(Vec::as_slice)
     }
 
     /// The largest painted move between consecutive frames that is not a
@@ -949,11 +956,11 @@ impl Timeline {
 
     /// Runs every check. Panics with one line per violation.
     #[track_caller]
+    #[expect(clippy::panic, reason = "an assertion fails the test")]
     pub fn assert_continuous(&self) {
-        assert!(
-            !self.is_empty(),
-            "nothing was recorded: call testing::record(ctx) before the frames run"
-        );
+        if self.is_empty() {
+            panic!("nothing was recorded: call testing::record(ctx) before the frames run");
+        }
         report(&self.violations());
     }
 }
@@ -976,15 +983,16 @@ fn continues_slide(prev: &NodeFrame, now: &NodeFrame) -> bool {
 }
 
 #[track_caller]
+#[expect(clippy::panic, reason = "an assertion fails the test")]
 fn report(violations: &[Violation]) {
     if violations.is_empty() {
         return;
     }
-    let mut message = format!("{} continuity violation(s):", violations.len());
-    for violation in violations {
-        write!(message, "\n  {violation}").expect("writing to a String cannot fail");
-    }
-    panic!("{message}");
+    let lines: String = violations
+        .iter()
+        .map(|violation| format!("\n  {violation}"))
+        .collect();
+    panic!("{} continuity violation(s):{lines}", violations.len());
 }
 
 #[cfg(test)]
@@ -1011,6 +1019,13 @@ mod tests {
                 offset: start * (1.0 - progress),
             }),
         }]
+    }
+
+    #[test]
+    fn a_frame_past_the_last_is_none() {
+        let timeline = Timeline::from_frames(vec![frame(0.0), frame(1.0)]);
+        assert_eq!(timeline.frame(1).map(<[NodeFrame]>::len), Some(1));
+        assert!(timeline.frame(2).is_none());
     }
 
     #[test]

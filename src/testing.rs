@@ -171,7 +171,6 @@
 //! under that: `placed.at(Region).at(Part::List).at(item_key).at(Part::Row(item_key))`.
 
 use std::collections::HashMap;
-use std::fmt::Write as _;
 
 use egui::{Id, Rect, Theme, Vec2};
 
@@ -183,7 +182,7 @@ use crate::key::{Key, child_id};
 pub use crate::pipeline::Placed;
 use crate::pipeline::{LayoutState, PlacedNode};
 use crate::prim::Prim;
-use crate::{Builder, Problem, Report, TextStyle};
+use crate::{Builder, OverlayRef, Problem, Report, TextStyle};
 
 type Prepare = Box<dyn FnOnce(&egui::Context)>;
 
@@ -294,8 +293,6 @@ impl Headless {
     ) -> Placed<A> {
         self.warm_up();
         let area = Rect::from_min_size(egui::Pos2::ZERO, self.size);
-        let mut view = Some(view);
-        let mut placed = None;
         let Self {
             ctx,
             size,
@@ -305,12 +302,10 @@ impl Headless {
             pixels_per_point,
             ..
         } = self;
-        run_pass(ctx, *size, *theme, *pixels_per_point, |ctx| {
-            let view = view.take().expect("a layout runs one pass");
+        in_pass(ctx, *size, *theme, *pixels_per_point, |ctx| {
             state.set_base_text(base_text.clone());
-            placed = Some(state.build(ctx, |b| view(b, app)).layout(area));
-        });
-        placed.expect("a pass runs its closure")
+            state.build(ctx, |b| view(b, app)).layout(area)
+        })
     }
 
     fn warm_up(&mut self) {
@@ -323,7 +318,7 @@ impl Headless {
         for setup in std::mem::take(&mut self.pending) {
             setup(&self.ctx);
         }
-        run_pass(
+        in_pass(
             &self.ctx,
             self.size,
             self.theme,
@@ -374,6 +369,7 @@ pub fn take_reports(ctx: &egui::Context) -> Vec<Report> {
 /// assert!(report.message.contains("/\"a\""));
 /// ```
 #[track_caller]
+#[expect(clippy::panic, reason = "an assertion fails the test")]
 pub fn assert_reported(ctx: &egui::Context, problem: Problem) -> Report {
     let reports = reports(ctx);
     match reports.iter().find(|report| report.problem == problem) {
@@ -390,18 +386,21 @@ pub fn assert_reported(ctx: &egui::Context, problem: Problem) -> Report {
 /// assert_no_reports(&egui::Context::default());
 /// ```
 #[track_caller]
+#[expect(clippy::panic, reason = "an assertion fails the test")]
 pub fn assert_no_reports(ctx: &egui::Context) {
     let reports = reports(ctx);
-    assert!(reports.is_empty(), "expected no reports, got {reports:#?}");
+    if !reports.is_empty() {
+        panic!("expected no reports, got {reports:#?}");
+    }
 }
 
-fn run_pass(
+fn in_pass<T>(
     ctx: &egui::Context,
     size: Vec2,
     theme: Option<Theme>,
     pixels_per_point: PixelsPerPoint,
-    run: impl FnMut(&egui::Context),
-) {
+    run: impl FnOnce(&egui::Context) -> T,
+) -> T {
     if let Some(theme) = theme {
         ctx.set_theme(theme);
     }
@@ -414,7 +413,10 @@ fn run_pass(
         .entry(egui::ViewportId::ROOT)
         .or_default()
         .native_pixels_per_point = Some(pixels_per_point.into());
-    ctx.run_pass(input, run).drop_without_applying_deltas();
+    ctx.begin_pass(input);
+    let out = run(ctx);
+    ctx.end_pass().drop_without_applying_deltas();
+    out
 }
 
 /// TODO(prose): the physical pixels a point spans on a display: finite and positive.
@@ -458,6 +460,15 @@ struct Layout<'p> {
     nodes: &'p [PlacedNode],
     prims: &'p [Option<Prim>],
     by_id: &'p HashMap<Id, usize>,
+}
+
+/// A node that shows text, its index and the text.
+type Shown<'p> = (&'p PlacedNode, usize, std::borrow::Cow<'p, str>);
+
+impl<'p> Layout<'p> {
+    fn node(&self, index: usize) -> Option<&'p PlacedNode> {
+        self.nodes.get(index)
+    }
 }
 
 /// A place in a laid-out frame, reached by chaining [`at`](Self::at) with the
@@ -505,6 +516,29 @@ impl<A> Placed<A> {
     /// [`at`](Self::at), or `None` when nothing is there.
     pub fn try_at<K: Key>(&self, key: K) -> Option<Query<'_>> {
         self.root_query().try_at(key)
+    }
+
+    /// TODO(prose): the overlay declared with `key` at the top of the view; panics if it is not open.
+    ///
+    /// ```
+    /// use eggshell_ui::overlay::Anchor;
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::{Builder, tw};
+    /// use egui::{pos2, vec2};
+    ///
+    /// let placed = Headless::new(vec2(200.0, 200.0)).layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
+    ///     b.overlay("menu").anchor(Anchor::Point(pos2(10.0, 10.0))).children(|s| {
+    ///         s.div_id("item", tw().w_px(40.0).h_px(20.0), |_| {});
+    ///     });
+    /// });
+    /// assert_eq!(placed.expect_overlay("menu").size(), vec2(40.0, 20.0));
+    /// ```
+    #[track_caller]
+    #[expect(clippy::panic, reason = "a test lookup fails the test")]
+    pub fn expect_overlay<K: Key>(&self, key: K) -> OverlayRef<'_> {
+        let open = || list(self.overlays().iter().map(OverlayRef::path));
+        self.overlay_with(child_id(self.root, &key))
+            .unwrap_or_else(|| panic!("no overlay {key:?}; the open overlays are: {}", open()))
     }
 
     /// The nodes whose border box differs between `self` and `other`, or that
@@ -569,6 +603,7 @@ impl<'p> Query<'p> {
     /// If there is none. The message names the path asked for and the paths
     /// of the nodes below the last one that exists.
     #[track_caller]
+    #[expect(clippy::panic, reason = "a test lookup fails the test")]
     pub fn at<K: Key>(&self, key: K) -> Query<'p> {
         self.child(&key).unwrap_or_else(|| {
             panic!(
@@ -578,8 +613,9 @@ impl<'p> Query<'p> {
                 self.display_path(),
                 list(
                     self.children()
-                        .iter()
-                        .map(|&index| self.layout.nodes[index].path())
+                        .into_iter()
+                        .filter_map(|index| self.layout.node(index))
+                        .map(PlacedNode::path)
                 ),
             )
         })
@@ -627,49 +663,37 @@ impl<'p> Query<'p> {
     /// Unless exactly one node below this one shows `text`. The message lists
     /// the candidates.
     #[track_caller]
+    #[expect(clippy::panic, reason = "a test lookup fails the test")]
     pub fn text(&self, text: &str) -> Query<'p> {
-        let texts: Vec<(usize, std::borrow::Cow<'_, str>)> = self
+        let texts: Vec<Shown<'p>> = self
             .descendants()
-            .filter_map(|index| match &self.layout.prims[index] {
-                Some(prim) => prim.text().map(|shown| (index, shown)),
-                None => None,
+            .filter_map(|index| {
+                let shown = self.layout.prims.get(index)?.as_ref()?.text()?;
+                Some((self.layout.node(index)?, index, shown))
             })
             .collect();
-        let matching: Vec<usize> = texts
-            .iter()
-            .filter(|(_, shown)| shown == text)
-            .map(|(index, _)| *index)
-            .collect();
-        let [index] = matching[..] else {
-            let describe = |indices: &mut dyn Iterator<Item = (usize, &str)>| {
-                list(indices.map(|(index, shown)| {
-                    format!("{shown:?} at {}", self.layout.nodes[index].path())
-                }))
-            };
-            if matching.is_empty() {
-                panic!(
-                    "no text {text:?} below {}; text below it: {}",
-                    self.display_path(),
-                    describe(&mut texts.iter().map(|(index, shown)| (*index, shown.as_ref()))),
-                )
-            }
-            panic!(
+        let describe = |shown: &mut dyn Iterator<Item = &Shown<'_>>| {
+            list(shown.map(|(node, _, shown)| format!("{shown:?} at {}", node.path())))
+        };
+        let matching: Vec<_> = texts.iter().filter(|(_, _, shown)| shown == text).collect();
+        match matching[..] {
+            [&(node, index, _)] => Query {
+                layout: self.layout,
+                path: node.path().to_owned(),
+                id: node.id(),
+                index: Some(index),
+            },
+            [] => panic!(
+                "no text {text:?} below {}; text below it: {}",
+                self.display_path(),
+                describe(&mut texts.iter()),
+            ),
+            _ => panic!(
                 "{} nodes show {text:?} below {}: {}",
                 matching.len(),
                 self.display_path(),
-                describe(
-                    &mut texts
-                        .iter()
-                        .map(|(index, shown)| (*index, shown.as_ref()))
-                        .filter(|(_, shown)| *shown == text)
-                ),
-            )
-        };
-        Query {
-            layout: self.layout,
-            path: self.layout.nodes[index].path().to_owned(),
-            id: self.layout.nodes[index].id(),
-            index: Some(index),
+                describe(&mut matching.iter().copied()),
+            ),
         }
     }
 
@@ -685,7 +709,7 @@ impl<'p> Query<'p> {
 
     /// The placed node, if this is a node and not a scope.
     pub fn node(&self) -> Option<&'p PlacedNode> {
-        Some(&self.layout.nodes[self.index?])
+        self.layout.node(self.index?)
     }
 
     /// The node's border box in absolute coordinates.
@@ -694,6 +718,7 @@ impl<'p> Query<'p> {
     ///
     /// If this names a scope, which has no box.
     #[track_caller]
+    #[expect(clippy::panic, reason = "a test lookup fails the test")]
     pub fn rect(&self) -> Rect {
         self.node()
             .unwrap_or_else(|| panic!("{} is a scope, not a node: it has no rect", self.path))
@@ -710,42 +735,46 @@ impl<'p> Query<'p> {
 
     /// Every node below this one, in pre-order.
     fn descendants(&self) -> impl Iterator<Item = usize> + '_ {
-        let (from, to, prefix) = match self.index {
-            Some(index) => (index + 1, self.layout.nodes[index].end, String::new()),
+        let (from, to, prefix) = match self
+            .index
+            .and_then(|index| Some((index, self.layout.node(index)?)))
+        {
+            Some((index, node)) => (index + 1, node.end, String::new()),
             None => (0, self.layout.nodes.len(), format!("{}/", self.path)),
         };
-        (from..to).filter(move |&index| self.layout.nodes[index].path().starts_with(&prefix))
+        (from..to).filter(move |&index| {
+            self.layout
+                .node(index)
+                .is_some_and(|node| node.path().starts_with(&prefix))
+        })
     }
 
     /// The identified nodes nearest below this one.
     fn children(&self) -> Vec<usize> {
-        let named: Vec<usize> = self
+        let named: Vec<(usize, &PlacedNode)> = self
             .descendants()
-            .filter(|&index| self.layout.nodes[index].id().is_some())
+            .filter_map(|index| Some((index, self.layout.node(index)?)))
+            .filter(|(_, node)| node.id().is_some())
             .collect();
-        let nearest = named
-            .iter()
-            .map(|&index| self.layout.nodes[index].depth())
-            .min();
+        let nearest = named.iter().map(|(_, node)| node.depth()).min();
         named
             .into_iter()
-            .filter(|&index| Some(self.layout.nodes[index].depth()) == nearest)
+            .filter(|(_, node)| Some(node.depth()) == nearest)
+            .map(|(index, _)| index)
             .collect()
     }
 }
 
 fn list<S: AsRef<str>>(items: impl Iterator<Item = S>) -> String {
-    let mut out = String::new();
-    for item in items {
-        if !out.is_empty() {
-            out.push_str(", ");
-        }
-        write!(out, "{}", item.as_ref()).expect("writing to a String cannot fail");
-    }
-    if out.is_empty() {
+    let items: Vec<S> = items.collect();
+    if items.is_empty() {
         "nothing".to_owned()
     } else {
-        out
+        items
+            .iter()
+            .map(AsRef::as_ref)
+            .collect::<Vec<&str>>()
+            .join(", ")
     }
 }
 

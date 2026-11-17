@@ -48,6 +48,7 @@ fn find(h: &H<'_>, suffix: &str) -> Rect {
     let timeline = Timeline::recorded(&h.ctx);
     timeline
         .frame(timeline.len() - 1)
+        .expect("a recorded frame")
         .iter()
         .find(|n| n.path.ends_with(suffix))
         .unwrap_or_else(|| panic!("no node ending in {suffix}"))

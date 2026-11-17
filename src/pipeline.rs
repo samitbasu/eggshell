@@ -1776,12 +1776,12 @@ impl<A> Placed<A> {
 
     /// The rect of an identified node.
     pub fn rect(&self, id: Id) -> Option<Rect> {
-        Some(self.nodes[*self.by_id.get(&id)?].rect)
+        self.node(id).map(|node| node.rect)
     }
 
     /// The identified node with this id.
     pub fn node(&self, id: Id) -> Option<&PlacedNode> {
-        Some(&self.nodes[*self.by_id.get(&id)?])
+        self.nodes.get(*self.by_id.get(&id)?)
     }
 
     /// Every node, anonymous ones included, in pre-order.
@@ -1801,9 +1801,11 @@ impl<A> Placed<A> {
     /// [`Debug::Outlines`] is set.
     pub fn overflowing(&self) -> Vec<&str> {
         let overflows = crate::debug::overflow(&self.ctx, &self.nodes, &self.prims);
-        (0..self.nodes.len())
-            .filter(|&index| overflows[index])
-            .map(|index| self.nodes[index].path())
+        self.nodes
+            .iter()
+            .zip(overflows)
+            .filter(|(_, overflows)| *overflows)
+            .map(|(node, _)| node.path())
             .collect()
     }
 
@@ -1819,13 +1821,11 @@ impl<A> Placed<A> {
 
     /// One line per node: indentation by depth, the readable path, the kind and the rect.
     pub fn dump(&self) -> String {
-        use std::fmt::Write as _;
         let mut out = String::new();
         for node in &self.nodes {
             let Rect { min, max } = node.rect;
-            writeln!(
-                out,
-                "{:indent$}{} {:?} [{:.1}, {:.1} .. {:.1}, {:.1}]",
+            out += &format!(
+                "{:indent$}{} {:?} [{:.1}, {:.1} .. {:.1}, {:.1}]\n",
                 "",
                 node.path,
                 node.kind,
@@ -1834,8 +1834,7 @@ impl<A> Placed<A> {
                 max.x,
                 max.y,
                 indent = node.depth * 2,
-            )
-            .expect("writing to a String cannot fail");
+            );
         }
         out
     }
