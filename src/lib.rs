@@ -342,6 +342,7 @@ mod dnd;
 mod draw;
 mod focus;
 pub mod icons;
+mod input_trace;
 mod kept;
 mod key;
 mod measure;

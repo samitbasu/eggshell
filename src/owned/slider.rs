@@ -16,6 +16,7 @@ use super::{
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
 use crate::focus::Autofocus;
+use crate::input_trace::{self, Shown};
 use crate::prim::text_field::{self, Field};
 use crate::{Builder, NodeUi as _, Style, Tw, tw};
 
@@ -528,7 +529,7 @@ impl Row {
                     b.div_id(Part::Readout, classes, |b| b.text(tw(), shown))
                         .draw(move |_, ui| {
                             let response = described(ui, Role::Button, None, label.trim(), &None);
-                            if response.clicked() {
+                            let opened = response.clicked().then(|| {
                                 let width = response.rect.width();
                                 let opening = Opening::of(ui, &response, &current);
                                 ui.data_mut(|data| {
@@ -536,11 +537,25 @@ impl Row {
                                     data.insert_temp(editing.with("width"), width);
                                     data.insert_temp(editing.with("opening"), opening);
                                 });
-                            }
+                                opening
+                            });
+                            let decision = match opened {
+                                Some(Opening::All) => "open, select all",
+                                Some(Opening::Caret(_)) => "open, caret",
+                                None => "none",
+                            };
+                            input_trace::pointer(
+                                ui,
+                                editing,
+                                label.trim(),
+                                Shown::Text,
+                                &response,
+                                decision,
+                            );
                         });
                 }
                 Some(_) => {
-                    let field = Field::singleline("").bare();
+                    let field = Field::singleline("").inset();
                     let measured = field.clone();
                     let padding = input.padding.x;
                     let slot = b.slot(&Part::Readout);
@@ -551,7 +566,7 @@ impl Row {
                     let width = shown_width.max(MIN_READOUT) + 2.0 * (padding + 1.0);
                     FieldBoxChain::new(b.reborrow(), slot)
                         .size(size)
-                        .classes(tw().w_px(width).shrink_0().tabular_nums())
+                        .classes(tw().w_px(width).px(0.0).shrink_0().tabular_nums())
                         .children(|s| {
                             let leaf = tw().w_full().h_full().text_right();
                             s.leaf(Part::Field, leaf, move |m| {
@@ -563,13 +578,31 @@ impl Row {
                                     .unwrap_or_default();
                                 let response = text_field::show(ui, &mut text, &field);
                                 Autofocus::OnAppear.apply(ui.ctx(), &response);
-                                if response.gained_focus() {
+                                let decision = if response.gained_focus() {
                                     let opening = ui
                                         .data(|data| data.get_temp(editing.with("opening")))
                                         .unwrap_or(Opening::All);
                                     text_field::select(ui, &response, opening.range(&text));
+                                    match opening {
+                                        Opening::All => "focus, select all",
+                                        Opening::Caret(_) => "focus, caret",
+                                    }
                                 } else if response.double_clicked() {
                                     text_field::select(ui, &response, text_field::all(&text));
+                                    "double click, select all"
+                                } else {
+                                    "none"
+                                };
+                                if input_trace::enabled() {
+                                    let label = format!("Edit {name}");
+                                    input_trace::pointer(
+                                        ui,
+                                        editing,
+                                        label.trim(),
+                                        Shown::Field,
+                                        &response,
+                                        decision,
+                                    );
                                 }
                                 if response.changed() {
                                     ui.data_mut(|data| data.insert_temp(editing, text.clone()));

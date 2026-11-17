@@ -660,3 +660,32 @@ pub fn chevron(open: eggshell_ui::Progress) -> eggshell_ui::Icon {
     eggshell_ui::Icon::new(eggshell_ui::icons::CHEVRON_DOWN)
         .rotated(eggshell_ui::Angle::degrees(180.0 * f32::from(open)))
 }
+
+/// Prints eggshell's `eggshell::input` trace (debug level) and every crate's
+/// warnings: to the browser console on the web, to stderr natively.
+pub fn trace_input() {
+    struct Trace;
+
+    impl log::Log for Trace {
+        fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+            metadata.level() <= log::Level::Warn || metadata.target().starts_with("eggshell::input")
+        }
+
+        fn log(&self, record: &log::Record<'_>) {
+            if !self.enabled(record.metadata()) {
+                return;
+            }
+            let line = format!("[{}] {}", record.target(), record.args());
+            #[cfg(target_arch = "wasm32")]
+            eframe::web_sys::console::log_1(&line.into());
+            #[cfg(not(target_arch = "wasm32"))]
+            eprintln!("{line}");
+        }
+
+        fn flush(&self) {}
+    }
+
+    if log::set_boxed_logger(Box::new(Trace)).is_ok() {
+        log::set_max_level(log::LevelFilter::Debug);
+    }
+}

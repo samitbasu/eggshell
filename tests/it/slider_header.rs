@@ -81,6 +81,7 @@ const TRACK: &str = "/\"volume\"/Box/Track";
 const LABEL: &str = "/\"volume\"/Box/Header/Label";
 const READOUT: &str = "/\"volume\"/Box/Header/Readout";
 const SMALL: &str = "/\"sm\"/\"small\"/Box/Header/Readout";
+const TINY: &str = "/\"xs\"/\"tiny\"/Box/Header/Readout";
 
 fn type_text(harness: &mut Harness<'_, Rig<App>>, text: &str) {
     harness.event(Event::Text(text.to_owned()));
@@ -234,6 +235,74 @@ fn a_double_click_selects_the_whole_value_not_the_word_under_it() {
     let number = support::part_rect(&harness, "30.0 dB", "30");
     click_twice(&mut harness, number.center(), Duration::from_millis(200));
     assert_eq!(typed_into(&mut harness, SMALL, "7"), "7");
+}
+
+/// Where a press on the last digit of the tiny readout's "30" lands: in the
+/// readout, and in the padding of the box that replaces it.
+fn on_the_last_digit(harness: &Harness<'_, Rig<App>>) -> egui::Pos2 {
+    let digit = support::part_rect(harness, "30", "0");
+    let at = egui::pos2(digit.right() - 1.0, digit.center().y);
+    let readout = rect_of(harness, TINY);
+    let padding = Style::of(&harness.ctx).input.sizes.get(size::XS).padding.x;
+    assert!(
+        readout.contains(at),
+        "precondition: {at:?} is on the readout {readout:?}"
+    );
+    assert!(
+        readout.right() - at.x < padding,
+        "precondition: {at:?} is within the box's padding of its right edge {readout:?}"
+    );
+    at
+}
+
+#[test]
+fn a_double_click_on_a_short_readouts_last_digit_selects_the_whole_value() {
+    let mut harness = harness();
+    let at = on_the_last_digit(&harness);
+    click_twice(&mut harness, at, Duration::from_millis(200));
+    assert_eq!(typed_into(&mut harness, TINY, "7"), "7");
+}
+
+#[test]
+fn the_field_spans_its_box_and_its_text_keeps_the_inputs_padding() {
+    let mut harness = harness();
+    open(&mut harness);
+    let boxed = rect_of(&harness, READOUT);
+    let field = rect_of(&harness, &format!("{READOUT}/Field"));
+    let input = Style::of(&harness.ctx).input.clone();
+    let (border, padding) = (
+        input.look.border_width,
+        input.sizes.get(Size::DEFAULT).padding.x,
+    );
+    assert!(
+        (boxed.right() - field.right() - border).abs() < 0.6,
+        "the field reaches the box's border: {field:?} in {boxed:?}"
+    );
+    let text = support::shapes(&harness)
+        .into_iter()
+        .find_map(|shape| match shape {
+            egui::Shape::Text(text) if field.contains(text.pos) => {
+                Some(text.galley.rect.translate(text.pos.to_vec2()))
+            }
+            _ => None,
+        })
+        .expect("precondition: the field shows its text");
+    assert!(
+        (field.right() - text.right() - padding).abs() < 0.6,
+        "the text sits the input's padding in: {text:?} in {field:?}"
+    );
+}
+
+#[test]
+fn a_click_in_the_fields_padding_keeps_it_open() {
+    let mut harness = harness();
+    let at = on_the_last_digit(&harness);
+    click_twice(&mut harness, at, Duration::from_millis(1000));
+    assert_eq!(
+        focused_node(&harness),
+        Some(format!("{TINY}/Field")),
+        "the second click lands in the field"
+    );
 }
 
 #[test]

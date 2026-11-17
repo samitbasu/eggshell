@@ -90,6 +90,8 @@ pub enum Enter {
 enum Framing {
     Framed,
     Bare,
+    /// Bare, with the input's side padding inside the field.
+    Inset,
 }
 
 /// Whether a one-line field shows what is typed.
@@ -210,6 +212,14 @@ impl TextEdit {
         self
     }
 
+    /// Draws no frame or background, like [`bare`](Self::bare), and pads its
+    /// own text by the input's side padding: the box it sits in leaves that
+    /// padding to the field, so a press there lands in the field.
+    pub(crate) fn inset(mut self) -> Self {
+        self.framing = Framing::Inset;
+        self
+    }
+
     pub(crate) fn is_bare(&self) -> bool {
         self.framing == Framing::Bare
     }
@@ -241,7 +251,7 @@ impl TextEdit {
     /// instead of showing one row too many or too few for a frame.
     pub fn show(&self, ui: &mut Ui, text: &mut String) -> Response {
         Style::of(ui.ctx()).map_input(ui.style_mut(), self.size);
-        if self.framing == Framing::Bare {
+        if self.framing != Framing::Framed {
             // egui floors a single-line field at interact_size.y, which
             // map_input set to input.height; a bare field is its leaf's height.
             ui.spacing_mut().interact_size.y = 0.0;
@@ -267,6 +277,9 @@ impl TextEdit {
         .desired_width(rect.width());
         match (self.framing, self.lines) {
             (Framing::Bare, _) => edit = edit.frame(Frame::NONE),
+            (Framing::Inset, _) => {
+                edit = edit.frame(Self::inset_frame(&Sizer::for_ui(ui), self.size))
+            }
             (Framing::Framed, _) => {
                 edit = edit.margin(Margin::from(
                     Sizer::for_ui(ui)
@@ -326,6 +339,19 @@ impl TextEdit {
         response
     }
 
+    /// An unframed field is as tall as its text.
+    fn unframed_floor(&self, sizer: &Sizer<'_>) -> f32 {
+        match self.lines {
+            Lines::Single => sizer.role_line_height.unwrap_or(0.0),
+            Lines::Multi { .. } => 0.0,
+        }
+    }
+
+    fn inset_frame(sizer: &Sizer<'_>, size: ControlSize) -> Frame {
+        let padding = sizer.contract.input.sizes.get(size).padding;
+        Frame::NONE.inner_margin(Margin::from(vec2(padding.x, 0.0)))
+    }
+
     /// The size the field takes with `text` in it, and how tall its text
     /// would be if the cap did not stop it.
     fn fit(&self, sizer: &Sizer<'_>, text: &str, width: Option<Width>) -> Fit {
@@ -336,12 +362,10 @@ impl TextEdit {
                 Frame::new().inner_margin(Margin::from(input.padding)),
                 input.height,
             ),
-            Framing::Bare => (
-                Frame::NONE,
-                match self.lines {
-                    Lines::Single => sizer.role_line_height.unwrap_or(0.0),
-                    Lines::Multi { .. } => 0.0,
-                },
+            Framing::Bare => (Frame::NONE, self.unframed_floor(sizer)),
+            Framing::Inset => (
+                Self::inset_frame(sizer, self.size),
+                self.unframed_floor(sizer),
             ),
         };
         let margin = frame.total_margin().sum();

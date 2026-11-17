@@ -67,5 +67,6 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, Levels>, levels: &'f Levels) {
 }
 
 fn main() -> eframe::Result {
+    common::trace_input();
     common::run_app("slider_header", Levels::default(), layout)
 }
