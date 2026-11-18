@@ -827,12 +827,6 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
                     .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
             });
         });
-        row(b, "refused", |b| {
-            b.button("refused", "Publish")
-                .tooltip("Publishes the draft")
-                .refused("Nothing to publish yet")
-                .on_click(|s: &mut State| s.owned_clicks += 1);
-        });
         tooltip_row(b, "Default tooltip");
         let t = common::tokens(b.ctx());
         b.styled(
@@ -1000,6 +994,12 @@ fn values_section(s: &mut S<'_, '_>, state: &State) {
                 .classes(tw().w_px(150.0))
                 .refused("Managed by your account")
                 .on_change(|_: &mut State, _| {});
+        });
+        row(b, "button, refused", |b| {
+            b.button("refused", "Publish")
+                .tooltip("Publishes the draft")
+                .refused("Nothing to publish yet")
+                .on_click(|s: &mut State| s.owned_clicks += 1);
         });
     });
 }
