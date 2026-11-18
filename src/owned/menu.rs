@@ -312,7 +312,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             CommandState::Checked(mark) => (Role::MenuItemCheckBox, Lead::Check(mark)),
             CommandState::Chosen(mark) => (Role::MenuItemRadio, Lead::Dot(mark)),
         };
-        let run = CommandItem::new(move |app| command.activate(app, &shell));
+        let run = CommandItem::new(move |app| command.run(app, &shell));
         let mut item = self
             .chain(id, command.title().to_owned(), run, role, lead)
             .allowed(enablement);

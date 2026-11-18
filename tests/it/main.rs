@@ -18,6 +18,7 @@ mod choices;
 mod clipboard;
 mod clipboard_example;
 mod collapsible;
+mod combobox_parts;
 mod commands;
 mod compile_fail;
 mod continuity;

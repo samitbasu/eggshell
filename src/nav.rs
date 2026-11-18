@@ -523,16 +523,15 @@ pub(crate) fn activate_highlighted(ctx: &Context, kept: &Handle) {
     let nothing_focused = ctx.memory(|memory| memory.focused()).is_none();
     let keyed = active
         .0
-        .values()
-        .find(|highlight| {
-            highlight.anchor.is_some_and(|anchor| {
-                if highlight.list {
-                    crate::focus::holds_focus(ctx, anchor)
-                } else {
-                    shell.focus_within(anchor)
-                }
-            })
-        })
+        .iter()
+        .find(
+            |(listbox, highlight)| match (highlight.anchor, highlight.list) {
+                (Some(anchor), true) => crate::focus::holds_focus(ctx, anchor),
+                (Some(anchor), false) => shell.focus_within(anchor),
+                (None, _) => shell.focus_within(**listbox),
+            },
+        )
+        .map(|(_, highlight)| highlight)
         .or_else(|| {
             active
                 .0

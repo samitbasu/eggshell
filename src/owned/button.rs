@@ -470,7 +470,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             self.opts.enablement = Some(Enablement::Disabled);
         }
         let (command, shell) = (bound.command, self.b.shell());
-        self.on_click(move |app| command.activate(app, &shell));
+        self.on_click(move |app| command.run(app, &shell));
     }
 
     /// Adds a button that does nothing when it is clicked: a placeholder, or
