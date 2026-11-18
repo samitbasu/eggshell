@@ -1491,6 +1491,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             action: None,
             open_focus: crate::pipeline::OpenFocus::Elsewhere,
             pane: None,
+            group: None,
+            selection: None,
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
@@ -2081,6 +2083,80 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
             let id = ui.node_response().id;
             ui.ctx()
                 .accesskit_node_builder(id, |node| node.set_expanded(open));
+        })
+    }
+
+    /// TODO(prose): makes the node a group of items the arrow keys move focus through as `nav` says, one Tab stop (the focused item, else the [`selected`](Self::selected) one, else the first enabled); a `Listbox` or `Submenu` nav is reported as [`NavNeedsOverlay`](crate::Problem::NavNeedsOverlay).
+    ///
+    /// ```
+    /// use eggshell_ui::overlay::{Nav, Wrap};
+    /// use eggshell_ui::owned::Mark;
+    /// use eggshell_ui::{Builder, tw};
+    /// use egui::Role;
+    ///
+    /// struct App { page: usize }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.div_id("pages", tw().flex(), |b| {
+    ///         for (page, label) in ["One", "Two"].into_iter().enumerate() {
+    ///             b.div_id(page, tw().sense_click(), |b| b.text(tw(), label))
+    ///                 .role(Role::Tab)
+    ///                 .named(label)
+    ///                 .selected(Mark::from(app.page == page))
+    ///                 .on_click(move |app: &mut App| app.page = page);
+    ///         }
+    ///     })
+    ///     .role(Role::TabList)
+    ///     .named("Pages")
+    ///     .nav(Nav::Row(Wrap::Around))
+    ///     .selection_follows_focus();
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn nav(mut self, nav: crate::overlay::Nav) -> Self {
+        if matches!(
+            nav,
+            crate::overlay::Nav::Listbox(_) | crate::overlay::Nav::Submenu(_)
+        ) {
+            let path = self.path();
+            crate::report::report_at(
+                self.b.frame.ctx,
+                crate::Problem::NavNeedsOverlay,
+                Some(self.id),
+                std::panic::Location::caller(),
+                || format!("{path}: nav({nav:?}) is an overlay's; the node is no group"),
+            );
+        }
+        let group = nav.on_page().then(|| crate::roving::Group::new(nav));
+        self.edit(|context| context.group = group);
+        self
+    }
+
+    /// TODO(prose): an arrow key that moves focus to an item of this [`nav`](Self::nav) group also activates it, as a click would.
+    pub fn selection_follows_focus(mut self) -> Self {
+        self.edit(|context| {
+            if let Some(group) = context.group.as_mut() {
+                group.follows = crate::roving::Follows::Selection;
+            }
+        });
+        self
+    }
+
+    /// TODO(prose): whether the node is the chosen item of its [`nav`](Self::nav) group, its Tab stop while focus is elsewhere; announced as selected, or as checked on a radio button.
+    pub fn selected(mut self, mark: crate::owned::Mark) -> Self {
+        self.edit(|context| context.selection = Some(mark));
+        self.draw(move |_, ui| {
+            let id = ui.node_response().id;
+            let on = mark == crate::owned::Mark::On;
+            ui.ctx()
+                .accesskit_node_builder(id, |node| match node.role() {
+                    egui::accesskit::Role::RadioButton => node.set_toggled(if on {
+                        egui::accesskit::Toggled::True
+                    } else {
+                        egui::accesskit::Toggled::False
+                    }),
+                    _ => node.set_selected(on),
+                });
         })
     }
 
