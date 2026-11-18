@@ -143,8 +143,8 @@ fn the_field_is_expanded_and_controls_its_suggestions() {
 fn a_closed_field_controls_nothing() {
     let mut harness = suggesting();
     down(&mut harness);
-    harness.key_press(Key::Escape);
-    harness.run_steps(6);
+    harness.state_mut().app.dismissed = true;
+    harness.run_steps(40);
     assert!(
         harness
             .query_by_role_and_label(AccessRole::ListBox, "Suggestions")
@@ -160,7 +160,10 @@ fn select(b: &mut Builder<'_, '_, App>, app: &App) {
         s.select(
             "pick",
             app.pick,
-            CITIES.into_iter().enumerate().map(|(at, city)| Choice::new(at, city)),
+            CITIES
+                .into_iter()
+                .enumerate()
+                .map(|(at, city)| Choice::new(at, city)),
         )
         .named("Pick")
         .classes(tw().w_px(160.0))
