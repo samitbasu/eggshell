@@ -5,7 +5,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::overlay::{Nav, Wrap};
+use eggshell_ui::vlist::ListNav;
 use eggshell_ui::{Builder, tw};
 
 pub const ROWS: u32 = 10_000;
@@ -45,7 +45,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                 &state.rows,
             )
             .fixed_px(28.0)
-            .nav(Nav::Listbox(Wrap::Stop))
+            .nav(ListNav::Listbox)
             .row_name(|row| format!("Row {}", row.0))
             .row_classes(
                 tw().px(2.0)
