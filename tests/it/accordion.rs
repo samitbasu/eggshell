@@ -15,7 +15,6 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use crate::support::{self, Rig};
 
 #[path = "../../examples/common/mod.rs"]
-#[allow(dead_code, reason = "the tests use the base text")]
 mod common;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

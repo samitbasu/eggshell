@@ -31,6 +31,9 @@ use eggshell_ui::{Builder, Key, Scope, Tw, tw};
 
 use crate::disclosure::{DisclosureStyle, SectionExt};
 
+/// What an accordion runs with what a header asked for.
+type OnItems<A, C> = Rc<dyn Fn(&mut A, C)>;
+
 /// TODO(prose): an accordion item's value: its key under the accordion's.
 pub trait Value: Key + Copy + PartialEq {}
 
@@ -195,7 +198,7 @@ pub struct BoundAccordion<'s, 'b, 'f, A, K, M, T, C> {
     key: K,
     mode: M,
     classes: Tw,
-    on_change: Rc<dyn Fn(&mut A, C)>,
+    on_change: OnItems<A, C>,
     value: PhantomData<fn(T)>,
 }
 
@@ -233,7 +236,7 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
 pub struct Items<'i, 'b, 'f, A, M, T, C> {
     b: &'i mut Builder<'b, 'f, A>,
     mode: Rc<M>,
-    on_change: Rc<dyn Fn(&mut A, C)>,
+    on_change: OnItems<A, C>,
     value: PhantomData<fn(T)>,
 }
 
