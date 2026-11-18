@@ -16,7 +16,7 @@ use egui::{
 };
 use taffy::Overflow;
 
-use crate::commands::Declared;
+use crate::commands::{Declared, Visit};
 use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
@@ -1895,7 +1895,12 @@ impl<A> Painting<A> {
             |root| roots.get(root).and_then(|root| root.parent),
             |root| roots.get(root).is_some_and(PlacedRoot::is_modal),
         );
-        crate::commands::dispatch_all(&ctx, &shell, typing, (commands, commanding), app);
+        let tables = (commands.as_slice(), commanding.as_slice());
+        crate::commands::visit_all(&ctx, &shell, typing, tables, app, &mut Visit::Fire);
+        let mut claimed = Vec::new();
+        let mut claim = Visit::Claim(&mut claimed);
+        crate::commands::visit_all(&ctx, &shell, typing, tables, app, &mut claim);
+        crate::web::ClaimedChords::of(&ctx).record(&ctx, claimed);
         scroll_keys::hold_arrows(&ctx, kept, nodes);
         let _drawing = crate::shell::Drawing::enter(&ctx, kept);
         let mut walk = Walk {

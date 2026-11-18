@@ -197,12 +197,12 @@ impl<'f, R: 'static, S: 'static> Mount<'f, R, S> {
     fn lift_table(&self, table: Table<S>) -> Table<R> {
         let lens = self.lens();
         Table::Lifted(match table {
-            Table::Own(table) => Box::new(move |ctx, shell, typing, app| {
-                crate::commands::dispatch(ctx, shell, typing, &table, lens(app));
+            Table::Own(table) => Box::new(move |ctx, shell, typing, app, visit| {
+                table.visit(ctx, shell, typing, lens(app), visit);
             }),
-            Table::Lifted(dispatch) => {
-                Box::new(move |ctx, shell, typing, app| dispatch(ctx, shell, typing, lens(app)))
-            }
+            Table::Lifted(dispatch) => Box::new(move |ctx, shell, typing, app, visit| {
+                dispatch(ctx, shell, typing, lens(app), visit);
+            }),
         })
     }
 }
