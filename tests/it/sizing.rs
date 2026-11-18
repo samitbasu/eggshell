@@ -141,7 +141,12 @@ fn context(tweak: &Tweak) -> Context {
 }
 
 fn estimate(ctx: &Context, text: &TextStyle, width: Option<f32>, widget: &impl Stock) -> Vec2 {
-    widget.size(ctx, text, width.map(Width::new))
+    widget.size(
+        ctx,
+        text,
+        &eggshell_ui::Style::of(ctx),
+        width.map(Width::new),
+    )
 }
 
 type Add = Box<dyn Fn(&mut Ui, Option<f32>) -> Response>;

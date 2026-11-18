@@ -2,7 +2,7 @@
 //! and what goes beside it.
 
 use crate::builder::{Scope, Slot};
-use crate::contract::{Size, Style};
+use crate::contract::Size;
 use crate::{Builder, Tw, tw};
 
 use super::{Enablement, field_box_classes, text_sized};
@@ -68,7 +68,7 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
         } = self;
         let size = b.size_of(size);
         let enablement = b.enablement_of(enablement);
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let metrics = *style.input.sizes.lookup(b.ctx(), size);
         let classes = field_box_classes(
             &style.input.look,

@@ -16,7 +16,7 @@ use crate::contract::Size;
 use crate::focus::Autofocus;
 use crate::overlay_input::Blur;
 use crate::prim::text_field::{self, Field};
-use crate::{Builder, Style, Tw, tw};
+use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -28,7 +28,7 @@ enum Part {
 }
 
 /// A number between the ends of a range, edited as text and stepped by two
-/// buttons, drawn from the [`Style`]. Start one with [`Builder::stepper`] and
+/// buttons, drawn from the [`Style`](crate::Style). Start one with [`Builder::stepper`] and
 /// finish it with [`on_change`](Self::on_change).
 ///
 /// With the field focused, ArrowUp and ArrowDown step the value. Typed
@@ -199,7 +199,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         let value = range.checked(b.ctx(), slot.id, value);
         let tooltip = tip(&mut b, slot.id, tooltip);
         let enablement = b.enablement_of(enablement);
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let stepper = &style.stepper;
         let metrics = *stepper.sizes.lookup(b.ctx(), b.size_of(size));
         let (low, high) = (range.start(), range.end());

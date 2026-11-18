@@ -552,7 +552,6 @@ struct Walk<'a, A> {
     shared: &'a mut Shared<A>,
     pass: &'a mut Pass,
     grid: PixelGrid,
-    selection: Selection,
     lift: Option<Lift>,
     drag: &'a dnd::Draw,
     roots: &'a [PlacedRoot],
@@ -571,7 +570,6 @@ impl<A> Walk<'_, A> {
             shared: &mut *self.shared,
             pass: &mut *self.pass,
             grid: self.grid,
-            selection: self.selection,
             lift: self.lift,
             drag: self.drag,
             roots: self.roots,
@@ -1152,7 +1150,7 @@ impl<A> Walk<'_, A> {
             && !interaction.variants.has_focus()
             && response.as_ref().is_some_and(Response::has_focus)
         {
-            let ring = Style::of(self.ui.ctx()).focus;
+            let ring = node.style.focus;
             self.painter(parent.clip, opacity).add(RectShape::stroke(
                 boxes.border,
                 look.paint.radius,
@@ -1206,6 +1204,7 @@ impl<A> Walk<'_, A> {
                     data.insert_temp(scope, PaneTag(pane));
                     data.insert_temp(scope, BlurTag(blur));
                     data.insert_temp(scope, TextTag(text.clone()));
+                    data.insert_temp(scope, StyleTag(node.style.clone()));
                     if let Some(response) = bubbled {
                         data.insert_temp(scope, BubbledTag(response.clone()));
                     } else {
@@ -1266,7 +1265,6 @@ impl<A> Walk<'_, A> {
             shared,
             pass,
             grid,
-            selection,
             lift,
             drag,
             roots,
@@ -1311,7 +1309,6 @@ impl<A> Walk<'_, A> {
                         shared: &mut **shared,
                         pass,
                         grid: *grid,
-                        selection: *selection,
                         lift: *lift,
                         drag,
                         roots,
@@ -1381,7 +1378,7 @@ impl<A> Walk<'_, A> {
         inherited: Inherited,
     ) {
         let content = boxes.content;
-        if let Some(leaf) = TextLeaf::of(self.ui.ctx(), &prim, text) {
+        if let Some(leaf) = TextLeaf::of(self.ui.ctx(), &prim, (text, &node.style.rich)) {
             self.paint_text(&leaf, index, node, boxes, inherited);
             return;
         }
@@ -1424,7 +1421,7 @@ impl<A> Walk<'_, A> {
         let marks = leaf.marks.as_deref();
         let runs = marks.map_or_else(Vec::new, |marks| spans::runs(&galley, marks));
         if let Some(marks) = marks {
-            let rich = &Style::of(self.ui.ctx()).rich;
+            let rich = &node.style.rich;
             let painter = self.painter(inherited.clip, inherited.opacity);
             for tint in spans::code_tints(&runs, marks, rich, anchor) {
                 painter.rect_filled(tint, rich.code.radius, rich.code.fill);
@@ -1433,7 +1430,13 @@ impl<A> Walk<'_, A> {
         let id = self.selection_id(index, node);
         let links = marks.filter(|marks| spans::has_links(marks));
         let response = if text.select.selects(inherited.interactive) {
-            Some(self.select_text(id, galley, anchor, content, text, inherited))
+            Some(self.select_text(
+                id,
+                (galley, anchor),
+                content,
+                (text, node.style.selection),
+                inherited,
+            ))
         } else {
             self.painter(inherited.clip, inherited.opacity)
                 .galley(anchor, galley, text.color);
@@ -1465,13 +1468,11 @@ impl<A> Walk<'_, A> {
     fn select_text(
         &mut self,
         id: Id,
-        galley: Arc<Galley>,
-        anchor: Pos2,
+        (galley, anchor): (Arc<Galley>, Pos2),
         content: Rect,
-        text: &TextStyle,
+        (text, selection): (&TextStyle, Selection),
         inherited: Inherited,
     ) -> Response {
-        let selection = self.selection;
         node_ui(
             self.ui,
             UiBuilder::new().max_rect(content),
@@ -1852,7 +1853,6 @@ impl<A> Painting<A> {
             drag,
             app,
         );
-        let selection = Style::of(&ctx).selection;
         let mut animation =
             LayoutAnimation::begin(&ctx, kept, nodes).starts_slides(!*size_in_flight);
         if nodes.iter().any(|node| node.scroll().is_some()) {
@@ -1888,7 +1888,6 @@ impl<A> Painting<A> {
             shared,
             pass: &mut pass,
             grid,
-            selection,
             lift: dragging.lift,
             drag: &dragging,
             roots,
@@ -2081,6 +2080,9 @@ struct BlurTag(Blur);
 #[derive(Clone)]
 struct TextTag(TextStyle);
 
+#[derive(Clone)]
+struct StyleTag(Arc<Style>);
+
 /// The node's response with what its subtree's boxes won merged in, for
 /// [`NodeUi::node_response`].
 #[derive(Clone)]
@@ -2229,6 +2231,21 @@ pub trait NodeUi {
     /// ```
     fn node_id(&self) -> Option<egui::Id>;
 
+    /// TODO(prose): the style the node is drawn with: the context's
+    /// [`Style::of`], or that of the [`styled`](crate::Builder::styled)
+    /// scope the node was built in. On any other `Ui`, the context's.
+    ///
+    /// ```
+    /// use eggshell_ui::{NodeUi as _, Style};
+    ///
+    /// let ctx = egui::Context::default();
+    /// ctx.run_ui(Default::default(), |ui| {
+    ///     assert_eq!(*ui.node_style(), *Style::of(ui.ctx()));
+    /// })
+    /// .drop_without_applying_deltas();
+    /// ```
+    fn node_style(&self) -> Arc<Style>;
+
     /// Whether the node, or a widget inside it, has keyboard focus. See
     /// [`Shell::focus_within`](crate::Shell::focus_within).
     ///
@@ -2252,6 +2269,12 @@ impl NodeUi for Ui {
         let scope = self.unique_id();
         self.data(|data| data.get_temp::<NodeIdTag>(scope))
             .map(|tag| tag.0)
+    }
+
+    fn node_style(&self) -> Arc<Style> {
+        let scope = self.unique_id();
+        self.data(|data| data.get_temp::<StyleTag>(scope))
+            .map_or_else(|| Style::of(self.ctx()), |tag| tag.0)
     }
 
     #[track_caller]

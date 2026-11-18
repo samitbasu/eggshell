@@ -194,7 +194,12 @@ fn inputs_take_the_input_proportions() {
         let ctx = context(theme);
         Shadcn::for_theme(theme).apply(&ctx);
         let text = base_text();
-        let field = TextEdit::singleline("").size(&ctx, &text, Some(Width::new(200.0)));
+        let field = TextEdit::singleline("").size(
+            &ctx,
+            &text,
+            &eggshell_ui::Style::of(&ctx),
+            Some(Width::new(200.0)),
+        );
         assert_eq!(field, vec2(200.0, 36.0), "{theme:?}");
     }
 }

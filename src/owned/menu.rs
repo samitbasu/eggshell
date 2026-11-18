@@ -132,7 +132,7 @@ impl Shared {
     fn of<A>(b: &Builder<'_, '_, A>, root: Id) -> Self {
         Self {
             root,
-            style: Style::of(b.ctx()),
+            style: b.style().clone(),
             kept: b.kept().clone(),
             ctx: b.ctx().clone(),
         }

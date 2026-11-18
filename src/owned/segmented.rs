@@ -13,7 +13,7 @@ use super::{
 };
 use crate::builder::Slot;
 use crate::contract::Size;
-use crate::{Builder, Style, Tw, tw};
+use crate::{Builder, Tw, tw};
 
 type Handler<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
 
@@ -35,7 +35,7 @@ enum Rows {
 
 /// A row of cells, one per option of `options` (anything [`IntoChoice`]; an icon
 /// goes before the label), of which the one
-/// equal to `current` is selected, drawn from the [`Style`]. Start one with
+/// equal to `current` is selected, drawn from the [`Style`](crate::Style). Start one with
 /// [`Builder::segmented`] and finish it with [`on_change`](Self::on_change).
 ///
 /// Clicking a cell, or pressing Enter or Space on it, runs the handler with
@@ -234,7 +234,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             );
             return;
         }
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let seg = &style.segmented;
         let metrics = *seg.sizes.lookup(b.ctx(), b.size_of(size));
         let container = tw()
