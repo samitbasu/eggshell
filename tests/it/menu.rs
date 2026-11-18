@@ -678,3 +678,174 @@ mod custom_item {
         assert_eq!(harness.state().app.swatch, 1);
     }
 }
+
+mod trigger {
+    use eggshell_ui::owned::Face;
+    use eggshell_ui::{Icon, Opacity, Style};
+
+    use super::*;
+
+    const DD: &str = r#"/"dd""#;
+    const SEL: &str = r#"/"sel""#;
+
+    fn icon() -> Icon {
+        Icon::new(egui::ImageSource::Texture(egui::load::SizedTexture::new(
+            egui::TextureId::default(),
+            vec2(4.0, 4.0),
+        )))
+    }
+
+    fn chevron_and_select(b: &mut Builder<'_, '_, App>, _: &App) {
+        b.dropdown_menu("dd", "File")
+            .chevron()
+            .items(|m| m.item("x", "X").on_click(say("x")));
+        b.dropdown_menu("iconed", "Edit")
+            .icon(icon())
+            .items(|m| m.item("x", "X").on_click(say("x")));
+        b.dropdown_menu("plain", "View")
+            .items(|m| m.item("x", "X").on_click(say("x")));
+        b.select("sel", 0u8, [(0u8, "Medium")])
+            .named("Size")
+            .on_change(|_, _| {});
+    }
+
+    fn opened(view: support::View<App>) -> Harness<'static, Rig<App>> {
+        let mut harness = support::harness(SCREEN, base_text(), App::default(), view);
+        harness.run_steps(4);
+        harness
+    }
+
+    fn under(harness: &Harness<'_, Rig<App>>, parent: &str, part: &str) -> Option<egui::Rect> {
+        let path = format!("{parent}/{part}");
+        harness
+            .state()
+            .nodes
+            .iter()
+            .find(|(candidate, _)| *candidate == path)
+            .map(|(_, rect)| *rect)
+    }
+
+    fn glyph(harness: &Harness<'_, Rig<App>>, parent: &str) -> egui::Rect {
+        under(harness, parent, "<glyph>").expect("the trigger draws a chevron")
+    }
+
+    /// The most opaque vertex the chevron of the dropdown is drawn with.
+    fn chevron_alpha(harness: &Harness<'_, Rig<App>>) -> u8 {
+        let at = glyph(harness, DD);
+        support::shapes(harness)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Mesh(mesh) if at.expand(0.5).contains_rect(mesh.calc_bounds()) => {
+                    mesh.vertices.iter().map(|vertex| vertex.color.a()).max()
+                }
+                _ => None,
+            })
+            .max()
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn a_chevron_trails_the_label_at_the_triggers_gap_and_is_as_big_as_a_selects() {
+        let harness = opened(chevron_and_select);
+        let (label, chevron) = (
+            under(&harness, DD, "<text>").expect("the trigger has its label"),
+            glyph(&harness, DD),
+        );
+        let iconed = r#"/"iconed""#;
+        let gap =
+            under(&harness, iconed, "<text>").expect("label").min.x - glyph(&harness, iconed).max.x;
+        assert!(gap > 0.0, "precondition: the trigger has a gap: {gap}");
+        assert!(
+            (chevron.min.x - label.max.x - gap).abs() < 0.01,
+            "the chevron is {} after the label, the trigger's gap is {gap}",
+            chevron.min.x - label.max.x
+        );
+        assert_eq!(chevron.size(), glyph(&harness, SEL).size());
+        harness.get_by_role_and_label(Role::Button, "File");
+    }
+
+    #[test]
+    fn the_chevron_takes_the_selects_size_and_tone_from_the_style() {
+        let restyled = |chevron: f32, opacity: f32| {
+            let mut harness = opened(chevron_and_select);
+            let mut style = (*Style::of(&harness.ctx)).clone();
+            style.select.chevron = chevron;
+            style.select.chevron_opacity = Opacity::new(opacity);
+            style.install(&harness.ctx);
+            harness.run_steps(4);
+            harness
+        };
+        let (faint, full) = (restyled(20.0, 0.25), restyled(20.0, 1.0));
+        assert_eq!(glyph(&full, DD).size(), vec2(20.0, 20.0));
+        assert_eq!(glyph(&full, SEL).size(), vec2(20.0, 20.0));
+        let (faint, full) = (chevron_alpha(&faint), chevron_alpha(&full));
+        assert!(full > 0, "precondition: the chevron is drawn");
+        assert!(
+            faint < full / 2,
+            "a quarter opacity draws fainter: {faint} against {full}"
+        );
+    }
+
+    #[test]
+    fn a_trigger_has_no_chevron_unless_asked() {
+        let harness = opened(chevron_and_select);
+        assert!(
+            under(&harness, r#"/"plain""#, "<text>").is_some(),
+            "precondition: the trigger is there"
+        );
+        assert!(under(&harness, r#"/"plain""#, "<glyph>").is_none());
+    }
+
+    #[test]
+    fn children_fill_a_trigger_whose_face_is_empty_and_it_is_named_by_the_face() {
+        fn swatch(b: &mut Builder<'_, '_, App>, _: &App) {
+            b.dropdown_menu("dd", Face::Empty("Accent".into()))
+                .children(|s| {
+                    s.div_id("dot", tw().size_px(12.0).bg(Color32::RED), |_| {});
+                })
+                .chevron()
+                .items(|m| m.item("x", "X").on_click(say("x")));
+        }
+        let mut harness = opened(swatch);
+        let trigger = rect_of(&harness, DD);
+        let dot = under(&harness, DD, r#""dot""#).expect("the child is in the trigger");
+        assert!(trigger.contains_rect(dot), "{dot:?} in {trigger:?}");
+        assert!(
+            dot.max.x <= glyph(&harness, DD).min.x,
+            "the chevron follows the children"
+        );
+        harness
+            .get_by_role_and_label(Role::Button, "Accent")
+            .click();
+        settle(&mut harness);
+        harness.get_by_role_and_label(Role::Menu, "Accent");
+    }
+
+    #[test]
+    fn menu_classes_reach_that_menus_box_alone() {
+        fn wide(b: &mut Builder<'_, '_, App>, _: &App) {
+            b.div_id("Top", tw().flex().gap(2.0), |s| {
+                s.dropdown_menu("wide", "Wide")
+                    .menu_classes(tw().min_w_px(300.0))
+                    .items(|m| m.item("x", "X").on_click(say("x")));
+                s.dropdown_menu("plain", "Plain")
+                    .items(|m| m.item("x", "X").on_click(say("x")));
+            });
+        }
+        let mut harness = opened(wide);
+        let width = |harness: &mut Harness<'_, Rig<App>>, key: &str| {
+            click_node(harness, &format!(r#"/"Top"/"{key}""#));
+            settle(harness);
+            let width = rect_of(harness, &format!(r#"/"Top"/("{key}", Menu)/Box"#)).width();
+            press(harness, Key::Escape);
+            settle(harness);
+            width
+        };
+        assert_eq!(width(&mut harness, "wide"), 300.0);
+        let plain = width(&mut harness, "plain");
+        assert!(
+            plain < 300.0,
+            "the other menu keeps the style's width: {plain}"
+        );
+    }
+}
