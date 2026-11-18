@@ -75,6 +75,9 @@ mod actions {
         Box,
         Name,
         Notes,
+        Check,
+        Radio,
+        Switch,
         Ok,
         Cancel,
         Other,
@@ -92,6 +95,9 @@ mod actions {
         cancel_disabled: bool,
         name: String,
         notes: String,
+        check: bool,
+        radio: u8,
+        switch: bool,
     }
 
     fn log(entry: &'static str) -> impl FnOnce(&mut App) + 'static {
@@ -148,6 +154,14 @@ mod actions {
                                 Field::multiline(&app.notes, 3).named("Notes"),
                             )
                             .on_change(|app: &mut App, text| app.notes = text);
+                            s.div(tw().flex().items_center().gap(2.0), |s| {
+                                s.checkbox(P::Check, "Check", app.check)
+                                    .on_change(|app: &mut App, check| app.check = check);
+                                s.radio_group(P::Radio, app.radio, [(0, "Zero"), (1, "One")])
+                                    .on_change(|app: &mut App, radio| app.radio = radio);
+                                s.switch(P::Switch, "Switch", app.switch)
+                                    .on_change(|app: &mut App, switch| app.switch = switch);
+                            });
                             s.button(P::Other, "Other").on_click(log("other"));
                             let mut ok = s
                                 .button(P::Ok, "Ok")
@@ -398,6 +412,36 @@ mod actions {
         tab_to(&mut harness, "/Dlg/Box/Other");
         press_key(&mut harness, Key::Enter);
         assert_eq!(log_of(&harness), ["other"], "not also the default");
+    }
+
+    /// Tabs until a node at or under `path` has focus.
+    fn tab_into(harness: &mut Harness<'_, Rig<App>>, path: &str) {
+        for _ in 0..12 {
+            if focused_node(harness).is_some_and(|node| node.starts_with(path)) {
+                return;
+            }
+            press_key(harness, Key::Tab);
+        }
+        panic!("Tab never reached {path}: {:?}", focused_node(harness));
+    }
+
+    #[test]
+    fn return_on_a_focused_checkbox_radio_or_switch_presses_the_default_button() {
+        for control in ["/Dlg/Box/Check", "/Dlg/Box/Radio", "/Dlg/Box/Switch"] {
+            let mut harness = opened(App {
+                default: true,
+                ..App::default()
+            });
+            tab_into(&mut harness, control);
+            press_key(&mut harness, Key::Enter);
+            assert_eq!(log_of(&harness), ["default"], "{control}");
+            let app = &harness.state().app;
+            assert_eq!(
+                (app.check, app.radio, app.switch),
+                (false, 0, false),
+                "Return did not also change {control}"
+            );
+        }
     }
 
     #[test]

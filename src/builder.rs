@@ -1416,6 +1416,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             region: None,
             collapse: parts.collapse,
             description: None,
+            announced: None,
             action: None,
             open_focus: crate::pipeline::OpenFocus::Elsewhere,
             pane: None,
@@ -1947,6 +1948,13 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// Makes the node the button that Return or Esc presses.
     pub(crate) fn action(mut self, action: crate::actions::Action) -> Self {
         self.edit(|context| context.action = Some(action));
+        self
+    }
+
+    /// Notes that the node's draw closure announces it as `role`, which
+    /// decides what the node does with keys before it is drawn.
+    pub(crate) fn announces(mut self, role: egui::Role) -> Self {
+        self.edit(|context| context.announced = Some(role));
         self
     }
 

@@ -9,7 +9,7 @@ use egui::{Key, Role, WidgetInfo};
 use super::number::{Edit, Edits, Step, ValueRange, pressed};
 use super::{
     Chevron, Content, Enablement, FieldHooks, Tip, TipContent, centered, described,
-    field_box_classes, text_sized, tip, tipped,
+    field_box_classes, text_sized, tip, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -229,6 +229,12 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             Enablement::Disabled => enablement.colors(stepper.group.paint.states, &style).border,
         };
         let group = group.divide_x(1.0, divider);
+        let group = if spec.tooltip.is_some() {
+            group.sense_hover()
+        } else {
+            group
+        };
+        let tooltip = spec.tooltip.clone();
         let field_box = centered(text_sized(&b, metrics.text))
             .justify_start()
             .grow()
@@ -288,10 +294,11 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                         b.div_id(part, classes, |b| {
                             b.glyph(tw().size_px(glyph), chevron.icon())
                         })
+                        .announces(Role::Button)
                         .draw(move |app, ui| {
-                            if described(ui, Role::Button, None, name.trim(), &spec.tooltip)
-                                .clicked()
-                            {
+                            let response = described(ui, Role::Button, None, name.trim(), &None);
+                            tip_describes(ui, &response, &spec.tooltip);
+                            if response.clicked() {
                                 spec.edits.once(app, |app| {
                                     set(app, spec.step.moved(spec.value, steps, spec.range));
                                 });
@@ -299,7 +306,8 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                         });
                     }
                 });
-            });
+            })
+            .draw(move |_, ui| tipped_whole(ui, &tooltip));
         });
     }
 }
@@ -365,7 +373,7 @@ impl<A> Spec<A> {
         }
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
         let response = text_field::show(ui, &mut text, field);
-        let response = tipped(ui, response, &self.tooltip);
+        tip_describes(ui, &response, &self.tooltip);
         self.autofocus.apply(ui.ctx(), &response);
         text_field::select_on_focus(ui, &response, &text);
         response.widget_info(|| WidgetInfo {

@@ -799,7 +799,7 @@ mod accents {
             assert_eq!(
                 eggshell_ui_shadcn::Shadcn::of(&harness.ctx).tokens.primary,
                 eggshell_ui_shadcn::Shadcn::for_theme(theme)
-                    .theme_color(ThemeColor::Blue)
+                    .with_palette(eggshell_ui_shadcn::Palette::new().theme(ThemeColor::Blue))
                     .tokens
                     .primary,
                 "the example's accent is blue"

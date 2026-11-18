@@ -5,7 +5,7 @@
 use eggshell_ui::contract::{Size, Style};
 use eggshell_ui::widget::TextEdit;
 use eggshell_ui::{Builder, LayoutState, Placed, tw};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
+use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Context, Rect, Theme, pos2};
 
 #[path = "../../examples/common/mod.rs"]
@@ -175,7 +175,7 @@ fn style_and_theme_colour_are_chosen_independently() {
     let blue = |style| {
         Shadcn::light()
             .with_style(style)
-            .theme_color(ThemeColor::Blue)
+            .with_palette(Palette::new().theme(ThemeColor::Blue))
             .style()
     };
     for style in ShadcnStyle::ALL {

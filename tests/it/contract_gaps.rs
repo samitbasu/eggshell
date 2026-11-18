@@ -894,10 +894,12 @@ fn an_icon_dropdowns_name_names_its_trigger_and_its_menu() {
 
 fn renamed_faces(b: &mut Builder<'_, '_, App>, app: &App) {
     b.div(tw().flex().gap(2.0).items_center(), |b| {
-        b.button("role", Face::text("Viewer").named("Role")).add();
-        b.toggle("bold", Face::text("B").named("Bold"), app.on)
+        b.button("role", "Viewer").named("Role").add();
+        b.toggle("bold", "B", app.on)
+            .named("Bold")
             .on_change(|app: &mut App, on| app.on = on);
-        b.dropdown_menu("levels", Face::text("···").named("The levels between"))
+        b.dropdown_menu("levels", "···")
+            .named("The levels between")
             .items(|m| {
                 m.item("docs", "Docs")
                     .on_click(|app: &mut App| app.clicks += 1)
@@ -937,6 +939,105 @@ fn a_renamed_dropdown_names_its_trigger_and_its_menu() {
     );
 }
 
+fn overridden_names(b: &mut Builder<'_, '_, App>, app: &App) {
+    let named = || eggshell_ui::owned::ButtonOptions::new().named("From options");
+    b.div(tw().flex().gap(2.0).items_center(), |b| {
+        b.button("icon", (app.icon(), "Search")).named("Find").add();
+        b.button("empty", Face::Empty("Card".into()))
+            .named("Open the card")
+            .add();
+        b.button("options", "Text").with_options(named()).add();
+        b.button("after", "Text")
+            .with_options(named())
+            .named("From the chain")
+            .add();
+        b.button("before", "Text")
+            .named("From the chain")
+            .with_options(named())
+            .add();
+        b.toggle_item(
+            &eggshell_ui::owned::ToggleGroup::new("group", 0u8),
+            1,
+            "One",
+        )
+        .named("The first")
+        .add();
+    });
+}
+
+#[test]
+fn named_overrides_whatever_name_the_face_gives() {
+    let harness = harness(Theme::Light, overridden_names);
+    assert_eq!(
+        read_name(&harness, "/\"icon\""),
+        "Find",
+        "an icon face's tuple"
+    );
+    assert_eq!(
+        read_name(&harness, "/\"empty\""),
+        "Open the card",
+        "an empty face"
+    );
+    assert_eq!(
+        read_name(&harness, "/\"options\""),
+        "From options",
+        "options"
+    );
+    assert_eq!(
+        read_name(&harness, "/\"after\""),
+        "From the chain",
+        "set after options"
+    );
+    assert_eq!(
+        read_name(&harness, "/\"before\""),
+        "From options",
+        "options set after"
+    );
+    let member = harness.get_by_label("The first");
+    assert_eq!(
+        member.accesskit_node().role(),
+        Role::RadioButton,
+        "a group member"
+    );
+}
+
+fn texture_icon() -> Icon {
+    Icon::new(egui::ImageSource::Texture(egui::load::SizedTexture::new(
+        egui::TextureId::default(),
+        vec2(4.0, 4.0),
+    )))
+}
+
+fn named_icons(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.div(tw().flex().gap(2.0), |b| {
+        b.button("tuple", (app.icon(), "Search")).add();
+        b.button("named", app.icon()).named("Search").add();
+        b.toggle("toggle", app.icon(), app.on)
+            .named("Pin")
+            .on_change(|app: &mut App, on| app.on = on);
+    });
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn a_bare_icon_face_is_reported_unnamed() {
+    let mut headless = eggshell_ui::testing::Headless::new(vec2(200.0, 100.0));
+    headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _| {
+        b.button("bare", texture_icon()).add();
+    });
+    let report =
+        eggshell_ui::testing::assert_reported(headless.ctx(), eggshell_ui::Problem::Unnamed);
+    assert!(report.message.contains("\"bare\""), "{}", report.message);
+}
+
+#[test]
+fn an_icon_named_by_its_tuple_or_by_named_is_not_reported() {
+    let harness = harness(Theme::Light, named_icons);
+    eggshell_ui::testing::assert_no_reports(&harness.ctx);
+    assert_eq!(read_name(&harness, "/\"named\""), "Search");
+}
+
+#[cfg(debug_assertions)]
 #[test]
 fn a_button_with_neither_label_nor_name_is_reported() {
     let mut headless = eggshell_ui::testing::Headless::new(vec2(200.0, 100.0));
@@ -950,6 +1051,17 @@ fn a_button_with_neither_label_nor_name_is_reported() {
         "{}",
         report.message
     );
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn an_unnamed_button_is_not_reported_in_release() {
+    let mut headless = eggshell_ui::testing::Headless::new(vec2(200.0, 100.0));
+    headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _| {
+        b.button("bare", texture_icon()).add();
+        b.button("nameless", "").add();
+    });
+    eggshell_ui::testing::assert_no_reports(headless.ctx());
 }
 
 #[test]

@@ -17,7 +17,7 @@ use std::ops::RangeInclusive;
 use eggshell_ui::owned::Cell;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Tw, Weight, tw};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor, Tokens};
+use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
 pub mod dnd;
@@ -54,14 +54,14 @@ pub fn tokens(ctx: &Context) -> Tokens {
     Shadcn::of(ctx).tokens
 }
 
-/// The shadcn style and theme colour the examples are drawn in, kept in the
+/// The shadcn style and palette the examples are drawn in, kept in the
 /// context so that [`style_toggle`] can change the style while they run. Stored
 /// as a tuple of the preset crate's types so that every copy of this module
 /// (each example includes it) shares one entry.
 #[derive(Clone, Copy)]
 struct Chosen {
     style: ShadcnStyle,
-    theme_color: ThemeColor,
+    palette: Palette,
 }
 
 fn chosen_id() -> egui::Id {
@@ -69,14 +69,14 @@ fn chosen_id() -> egui::Id {
 }
 
 fn chosen(ctx: &Context) -> Chosen {
-    let (style, theme_color) = ctx
-        .data(|data| data.get_temp::<(ShadcnStyle, ThemeColor)>(chosen_id()))
+    let (style, palette) = ctx
+        .data(|data| data.get_temp::<(ShadcnStyle, Palette)>(chosen_id()))
         .unwrap_or_default();
-    Chosen { style, theme_color }
+    Chosen { style, palette }
 }
 
-fn choose(ctx: &Context, Chosen { style, theme_color }: Chosen) {
-    ctx.data_mut(|data| data.insert_temp(chosen_id(), (style, theme_color)));
+fn choose(ctx: &Context, Chosen { style, palette }: Chosen) {
+    ctx.data_mut(|data| data.insert_temp(chosen_id(), (style, palette)));
 }
 
 /// Draws the examples in `style` from the next frame on.
@@ -95,23 +95,28 @@ pub fn style_of(ctx: &Context) -> ShadcnStyle {
     chosen(ctx).style
 }
 
-/// Applies the shadcn preset in the chosen style and theme colour to both
+/// Applies the shadcn preset in the chosen style and palette to both
 /// egui themes; a no-op while nothing changed.
 pub fn use_preset(ctx: &Context) {
-    let Chosen { style, theme_color } = chosen(ctx);
-    Shadcn::apply_both_with(ctx, style, theme_color);
+    let Chosen { style, palette } = chosen(ctx);
+    Shadcn::apply_both_with(ctx, style, palette);
 }
 
-/// [`use_preset`] with `theme_color`.
-pub fn use_theme_color(ctx: &Context, theme_color: ThemeColor) {
+/// [`use_preset`] with `palette`.
+pub fn use_palette(ctx: &Context, palette: Palette) {
     choose(
         ctx,
         Chosen {
-            theme_color,
+            palette,
             ..chosen(ctx)
         },
     );
     use_preset(ctx);
+}
+
+/// [`use_preset`] with `theme_color` on the neutral base.
+pub fn use_theme_color(ctx: &Context, theme_color: ThemeColor) {
+    use_palette(ctx, Palette::new().theme(theme_color));
 }
 
 /// [`use_theme_color`] with [`ACCENT`], for an example's `prepare`.

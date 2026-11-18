@@ -1919,7 +1919,7 @@ fn tooltip_open(name: &str, theme: egui::Theme) {
     harness.ctx.set_theme(theme);
     harness.run_steps(8);
     support::hover_node(&mut harness, "/\"add\"");
-    harness.run_steps(30);
+    support::rest_for_tooltip(&mut harness);
     assert!(
         harness
             .state()
@@ -2150,7 +2150,7 @@ mod tooltip_candidates {
         harness.ctx.set_theme(theme);
         harness.run_steps(8);
         support::hover_node(&mut harness, "/\"add\"");
-        harness.run_steps(30);
+        support::rest_for_tooltip(&mut harness);
         let label = if theme == egui::Theme::Light {
             "light"
         } else {
@@ -2209,7 +2209,7 @@ fn rich_tooltip_open(harness: &mut Harness<'static, support::Rig<()>>, theme: eg
     harness.ctx.set_theme(theme);
     harness.run_steps(8);
     support::hover_node(harness, "/\"save\"");
-    harness.run_steps(30);
+    support::rest_for_tooltip(harness);
     assert!(
         harness
             .state()

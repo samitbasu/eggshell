@@ -10,7 +10,7 @@ use egui::{Key, Rect, Role, Ui, WidgetInfo};
 use super::number::{self, Edit, Edits, Step, ValueRange};
 use super::{
     Content, Enablement, FieldBoxChain, OnResponse, TipContent, described, painted, text_sized,
-    tip, tipped,
+    tip, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
@@ -364,7 +364,8 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                     b.div(bar, |b| b.div(filled, |_| {}));
                     b.div(travel, |b| {
                         b.div_id(Part::Thumb, knob, |_| {}).draw(move |app, ui| {
-                            let response = tipped(ui, ui.node_response(), &thumb_tip);
+                            let response = ui.node_response();
+                            tip_describes(ui, &response, &thumb_tip);
                             let track = ui.ctx().read_response(track).map(|r| r.rect);
                             let pointer = response
                                 .interact_pointer_pos()
@@ -401,7 +402,8 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                     });
                 })
                 .draw(move |app, ui| {
-                    let response = tipped(ui, ui.node_response(), &track_tip);
+                    tipped_whole(ui, &track_tip);
+                    let response = ui.node_response();
                     let pressed = response.is_pointer_button_down_on();
                     edits.pointer(app, ui, (response.id, pressed), |app| {
                         if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
@@ -529,6 +531,7 @@ impl Row {
                     let label = format!("Edit {name}");
                     let current = shown.clone();
                     b.div_id(Part::Readout, classes, |b| b.text(tw(), shown))
+                        .announces(Role::Button)
                         .draw(move |_, ui| {
                             let response = described(ui, Role::Button, None, label.trim(), &None);
                             let opened = response.clicked().then(|| {
