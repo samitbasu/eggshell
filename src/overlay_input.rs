@@ -18,6 +18,7 @@ use crate::dismiss::{
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
 use crate::nav::{self, Menu};
+use crate::relation::Relation;
 use crate::nodes::Nodes;
 use crate::overlay::{Anchor, AnchorLookup, Anchored, Behavior, Focus, Nav, Outside};
 use crate::pipeline::{DismissFn, PlacedNode};
@@ -445,7 +446,14 @@ pub(crate) struct Frame<'a> {
 /// Judges the frame's input against the open overlays, as the last step of a
 /// draw. `subtrees` are the focusable widgets each identified node registered
 /// this frame.
-pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>, app: &mut A) {
+///
+/// Returns the relations of the open overlays to the nodes they are anchored
+/// to.
+pub(crate) fn judge<A>(
+    frame: Frame<'_>,
+    dismiss: &mut HashMap<Id, DismissFn<A>>,
+    app: &mut A,
+) -> Vec<Relation> {
     let Frame {
         ctx,
         kept,
@@ -483,12 +491,11 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         drag_live: drag == Drag::Live,
         window_blurred: ctx.input(|input| crate::window::blurred(&input.events)),
     };
-    for open in open
+    let popups: Vec<Relation> = open
         .iter()
         .filter(|open| open.overlay.lookup == AnchorLookup::Found)
-    {
-        describe_trigger(ctx, open);
-    }
+        .filter_map(|open| describe_trigger(&shell, roots, open))
+        .collect();
     let found = dismissals(&layers, &input);
     let mut dismissed = Vec::new();
     for found in &found {
@@ -513,7 +520,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
         actions::press(ctx, kept, button);
     }
     if open.is_empty() {
-        return;
+        return popups;
     }
 
     for (open, layer) in judged.iter().zip(&layers) {
@@ -570,6 +577,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             then(app);
         }
     }
+    popups
 }
 
 /// What the user last operated, which decides whether a menu takes focus
@@ -677,24 +685,27 @@ fn items(ctx: &Context, nodes: &Nodes, first: usize) -> Vec<(Id, Rect)> {
 
 /// Tells assistive technology that the node the overlay is anchored to has
 /// its popup open. Only while it is open: the widget that owns the trigger
-/// says what it is when closed.
-fn describe_trigger(ctx: &Context, open: &Open<'_>) {
+/// says what it is when closed. Returns that the trigger controls a listbox.
+fn describe_trigger(shell: &Shell, roots: &[PlacedRoot], open: &Open<'_>) -> Option<Relation> {
     use egui::accesskit::HasPopup;
-    let Some(trigger) = open.anchor_node() else {
-        return;
-    };
+    let trigger = nav::speaker(shell, open.anchor_node()?);
     let popup = match open.overlay.description.role {
         Some(egui::Role::Menu) => Some(HasPopup::Menu),
         Some(egui::Role::ListBox) => Some(HasPopup::Listbox),
         Some(egui::Role::Dialog) => Some(HasPopup::Dialog),
         _ => None,
     };
-    ctx.accesskit_node_builder(trigger, |node| {
+    shell.ctx.accesskit_node_builder(trigger, |node| {
         node.set_expanded(true);
         if let Some(popup) = popup {
             node.set_has_popup(popup);
         }
     });
+    let listbox = roots.get(open.root)?.first;
+    (popup == Some(HasPopup::Listbox)).then_some(Relation::Controls {
+        node: trigger,
+        target: crate::draw::blocker_id(listbox),
+    })
 }
 
 /// Whether the last input was from the keyboard, as opposed to a press.

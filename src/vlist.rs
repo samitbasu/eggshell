@@ -598,11 +598,6 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
             {
                 on_activate(app, row);
             }
-            if crate::nav::is_highlighted(&kept, id) {
-                ui.ctx().accesskit_node_builder(list, |node| {
-                    node.set_active_descendant(id.accesskit_id());
-                });
-            }
         });
         Some((handle.id(), handle.node()))
     }

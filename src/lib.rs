@@ -380,6 +380,7 @@ mod plane;
 mod presence;
 pub mod prim;
 mod region;
+mod relation;
 mod report;
 mod roots;
 mod roving;

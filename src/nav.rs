@@ -14,6 +14,7 @@ use egui::{Align, Context, EventFilter, FocusDirection, Id, Key, Modifiers, Rect
 use crate::kept::Handle;
 use crate::overlay::{Nav, Wrap};
 use crate::plane::Axis;
+use crate::relation::Relation;
 use crate::shell::Shell;
 
 /// An open overlay with a keyboard pattern.
@@ -508,6 +509,30 @@ pub(crate) fn forget_closed(kept: &Handle, open: &[Id]) {
     if active.0.len() != before {
         active.store(kept);
     }
+}
+
+/// The node that speaks for `owner`, the anchor of a listbox or the listbox
+/// itself: the focused widget inside it, such as a field's text edit, else
+/// `owner`.
+pub(crate) fn speaker(shell: &Shell, owner: Id) -> Id {
+    match shell.ctx.memory(|memory| memory.focused()) {
+        Some(focused) if shell.focus_within(owner) => focused,
+        _ => owner,
+    }
+}
+
+/// Each listbox's highlighted item, as the active descendant of the node
+/// that speaks for the listbox.
+pub(crate) fn relations(ctx: &Context, kept: &Handle) -> Vec<Relation> {
+    let shell = Shell::new(ctx, kept);
+    Active::load(kept)
+        .0
+        .iter()
+        .map(|(&listbox, highlight)| Relation::ActiveDescendant {
+            node: speaker(&shell, highlight.anchor.unwrap_or(listbox)),
+            target: highlight.item,
+        })
+        .collect()
 }
 
 /// Turns Enter, and Space unless a text field is being typed in, into the
