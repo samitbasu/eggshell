@@ -20,7 +20,7 @@ use example::State;
 const ROW: &str = r#"/Page/List/Row(0)"#;
 
 fn body(index: usize) -> String {
-    format!("/Page/Accordion/Item({index})/Body({index})")
+    format!("/Page/Accordion/{index}/Region")
 }
 
 fn harness() -> egui_kittest::Harness<'static, support::Rig<State>> {
@@ -72,7 +72,7 @@ fn opening_a_section_closes_the_open_one_and_the_list_follows() {
 }
 
 fn head(index: usize) -> String {
-    format!("/Page/Accordion/Item({index})/Head({index})")
+    format!("/Page/Accordion/{index}/Header")
 }
 
 /// The turn of the chevron painted in header `index`, in degrees from

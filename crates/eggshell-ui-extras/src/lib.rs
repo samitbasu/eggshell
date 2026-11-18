@@ -20,6 +20,8 @@
 )]
 //! TODO(prose)
 
+#[cfg(feature = "accordion")]
+pub mod accordion;
 #[cfg(feature = "badge")]
 pub mod badge;
 #[cfg(feature = "disclosure")]

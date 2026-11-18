@@ -995,6 +995,7 @@ impl Shadcn {
         disclosure.header.disabled = Opacity::new(0.5);
         disclosure.content_padding_bottom = if lyra { 10.0 } else { 16.0 };
         disclosure.button = 16.0;
+        disclosure.separator = Some(t.border);
         disclosure
     }
 

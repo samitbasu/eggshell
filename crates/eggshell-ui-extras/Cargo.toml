@@ -13,6 +13,7 @@ markdown = ["dep:pulldown-cmark"]
 badge = []
 spinner = []
 disclosure = []
+accordion = ["disclosure"]
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }

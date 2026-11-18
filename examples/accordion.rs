@@ -12,18 +12,13 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::overlay::Shown;
 use eggshell_ui::{Builder, tw};
-use eggshell_ui_extras::disclosure::{DisclosureStyle, chevron};
-use egui::{Color32, Role};
+use eggshell_ui_extras::accordion::{AccordionExt, Single};
 
 #[derive(Clone, Copy, Debug, Hash)]
 pub enum Part {
     Page,
     Accordion,
-    Item(usize),
-    Head(usize),
-    Body(usize),
     List,
     Row(usize),
 }
@@ -62,10 +57,9 @@ impl State {
 
 /// ```html
 /// <div class="flex w-[360px] flex-col gap-4 p-4">
-///   <div class="flex flex-col"> <!-- per section -->
-///     <button>Title</button>
-///     <div class="overflow-hidden"> <p class="px-2 pb-3">Body</p> </div>
-///   </div>
+///   <Accordion type="single" collapsible> <!-- shadcn's -->
+///     <AccordionItem> <AccordionTrigger>Title</AccordionTrigger> <AccordionContent>Body</AccordionContent> </AccordionItem>
+///   </Accordion>
 ///   <div class="flex flex-col gap-1"> <div>Row 1</div> … </div>
 /// </div>
 /// ```
@@ -74,44 +68,13 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
         Part::Page,
         tw().flex().flex_col().gap(4.0).w_px(360.0).p(4.0),
         |s| {
-            s.div_id(Part::Accordion, tw().flex().flex_col(), |s| {
-                for (index, (title, body)) in SECTIONS.into_iter().enumerate() {
-                    s.div_id(Part::Item(index), tw().flex().flex_col(), |s| {
-                        let open = state.open == Some(index);
-                        let muted = eggshell_ui_shadcn::tokens(s.ctx())
-                            .map_or(Color32::GRAY, |tokens| tokens.muted_foreground);
-                        s.collapsible(Part::Body(index), Shown::from(open))
-                            .content(tw().px(2.0).pb(3.0))
-                            .children_with_header(
-                                |s, progress| {
-                                    let turned =
-                                        chevron(&DisclosureStyle::of(s.ctx()).section, progress);
-                                    s.div_id(
-                                        Part::Head(index),
-                                        tw().sense_click()
-                                            .flex()
-                                            .items_center()
-                                            .justify_between()
-                                            .px(2.0)
-                                            .py(3.0),
-                                        |s| {
-                                            s.text(tw(), title);
-                                            s.glyph(
-                                                tw().size_px(16.0).shrink_0().text(muted),
-                                                turned,
-                                            );
-                                        },
-                                    )
-                                    .role(Role::Button)
-                                    .named(title)
-                                    .expanded(open)
-                                    .on_click(move |state: &mut State| state.toggle(index));
-                                },
-                                |s| s.text(tw(), body),
-                            );
-                    });
-                }
-            });
+            s.accordion(Part::Accordion, Single::collapsible(state.open))
+                .on_change(|state: &mut State, open| state.open = open)
+                .items(|items| {
+                    for (index, (title, body)) in SECTIONS.into_iter().enumerate() {
+                        items.item(index, title).children(|s| s.text(tw(), body));
+                    }
+                });
             s.div_id(Part::List, tw().flex().flex_col().gap(1.0), |s| {
                 for row in 0..ROWS {
                     s.div_id(Part::Row(row), tw().px(2.0).py(1.0), |s| {

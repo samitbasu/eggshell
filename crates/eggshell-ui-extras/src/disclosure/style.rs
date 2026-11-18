@@ -43,6 +43,8 @@ pub struct DisclosureStyle {
     pub button: f32,
     /// A disclosure button's fill under the pointer, if it has one.
     pub button_hover: Option<Color32>,
+    /// The line between an accordion's items, if there is one.
+    pub separator: Option<Color32>,
 }
 
 /// TODO(prose): a chevron, which turns by `turn` times how far open it is.
@@ -130,6 +132,7 @@ impl DisclosureStyle {
             content_padding_bottom: 16.0,
             button: glyph,
             button_hover: None,
+            separator: Some(style.table.rule),
         }
     }
 

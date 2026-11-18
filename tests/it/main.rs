@@ -6,6 +6,7 @@
     reason = "each example includes the shared examples/common module"
 )]
 
+mod accordion;
 mod accordion_example;
 mod autosuggest;
 mod badge;

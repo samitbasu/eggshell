@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use eggshell_ui::overlay::Shown;
 use eggshell_ui::owned::{Enablement, Face};
-use eggshell_ui::{Builder, Key, Progress, Scope, Tw, tw};
+use eggshell_ui::{Builder, Key, NodeUi as _, Progress, Scope, Tw, tw};
 use egui::Role;
 
 use super::{
@@ -17,6 +17,20 @@ use super::{
 enum Part {
     Header,
     Region,
+}
+
+/// Whether a header asks to change its section's state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    not(feature = "accordion"),
+    expect(dead_code, reason = "only an accordion pins a section open")
+)]
+enum Toggle {
+    /// A click, Enter or Space asks for the other state.
+    Free,
+    /// The section stays open: the header does nothing and is announced as
+    /// disabled, though it does not look it.
+    Pinned,
 }
 
 /// What builds the inside of a header after its face.
@@ -40,6 +54,7 @@ pub struct SectionChain<'s, 'b, 'f, A, K, H> {
     classes: Tw,
     content: Tw,
     enablement: Enablement,
+    toggle: Toggle,
     header_children: Option<HeaderChildren<'f, A>>,
 }
 
@@ -54,6 +69,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> SectionChain<'s, 'b, 'f, A, K, Unset> {
             classes: tw(),
             content: tw(),
             enablement: Enablement::Enabled,
+            toggle: Toggle::Free,
             header_children: None,
         }
     }
@@ -74,6 +90,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> SectionChain<'s, 'b, 'f, A, K, Unset> {
             classes: self.classes,
             content: self.content,
             enablement: self.enablement,
+            toggle: self.toggle,
             header_children: self.header_children,
         }
     }
@@ -98,6 +115,13 @@ impl<'f, A: 'static, K: Key, H> SectionChain<'_, '_, 'f, A, K, H> {
     /// it is disabled either way.
     pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
         self.enablement = enablement.into();
+        self
+    }
+
+    /// Keeps the open section open: [`Toggle::Pinned`].
+    #[cfg(feature = "accordion")]
+    pub(crate) fn pinned(mut self) -> Self {
+        self.toggle = Toggle::Pinned;
         self
     }
 
@@ -127,6 +151,7 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             classes,
             content,
             enablement,
+            toggle,
             header_children,
         } = self;
         let ctx = b.ctx().clone();
@@ -139,6 +164,7 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             header_children,
             classes,
             enablement,
+            toggle,
             current,
             on_change,
         };
@@ -167,6 +193,7 @@ struct Header<'a, 'f, A> {
     header_children: Option<HeaderChildren<'f, A>>,
     classes: Tw,
     enablement: Enablement,
+    toggle: Toggle,
     current: Shown,
     on_change: Rc<dyn Fn(&mut A, Shown)>,
 }
@@ -179,6 +206,7 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             header_children,
             classes,
             enablement,
+            toggle,
             current,
             on_change,
         } = self;
@@ -228,8 +256,18 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
         } else {
             handle
         };
-        if enablement == Enablement::Enabled {
-            handle.on_click(move |app: &mut A| on_change(app, toggled(current)));
+        match (enablement, toggle) {
+            (Enablement::Enabled, Toggle::Free) => {
+                handle.on_click(move |app: &mut A| on_change(app, toggled(current)));
+            }
+            (Enablement::Enabled, Toggle::Pinned) => {
+                handle.draw(|_, ui| {
+                    let id = ui.node_response().id;
+                    ui.ctx()
+                        .accesskit_node_builder(id, |node| node.set_disabled());
+                });
+            }
+            (Enablement::Disabled, _) => {}
         }
     }
 }
