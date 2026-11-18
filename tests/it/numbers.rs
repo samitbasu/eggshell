@@ -201,7 +201,13 @@ fn headless_layout_ignores_an_infinite_length() {
 struct Unmeasurable;
 
 impl Stock for Unmeasurable {
-    fn size(&self, _: &Context, _: &TextStyle, _: Option<Width>) -> Vec2 {
+    fn size(
+        &self,
+        _: &Context,
+        _: &TextStyle,
+        _: &std::sync::Arc<eggshell_ui::Style>,
+        _: Option<Width>,
+    ) -> Vec2 {
         vec2(f32::NAN, f32::INFINITY)
     }
 }

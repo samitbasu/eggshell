@@ -9,7 +9,7 @@ use super::choice::{self, Choice, IntoChoice};
 use super::{Enablement, OnResponse, Tooltip, choice_label, choice_row, described, number};
 use crate::builder::Slot;
 use crate::contract::Size;
-use crate::{Builder, Style, Tw, tw};
+use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -17,7 +17,7 @@ enum Part {
     Label(usize),
 }
 
-/// Radio buttons that choose one of `options`, drawn from the [`Style`]. Start
+/// Radio buttons that choose one of `options`, drawn from the [`Style`](crate::Style). Start
 /// a group with [`Builder::radio_group`] and finish it with
 /// [`on_change`](Self::on_change).
 ///
@@ -100,7 +100,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             on_response,
         } = self;
         let enablement = b.enablement_of(enablement);
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let radio = &style.radio;
         let metrics = *radio.sizes.lookup(b.ctx(), b.size_of(size));
         let values: Vec<T> = options.iter().map(|option| option.value).collect();

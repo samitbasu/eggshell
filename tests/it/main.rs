@@ -101,6 +101,7 @@ mod state;
 mod state_stable;
 mod style;
 mod style_switch;
+mod styled;
 mod support;
 mod swatch_picker;
 mod sweep;
