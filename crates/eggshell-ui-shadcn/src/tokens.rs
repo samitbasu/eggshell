@@ -58,6 +58,11 @@ pub struct Tokens {
     pub warning: Color32,
     /// The text on `warning`.
     pub warning_foreground: Color32,
+    /// TODO(prose): a problem that needs attention soon, between `warning`
+    /// and `destructive`: the Tailwind orange.
+    pub serious: Color32,
+    /// TODO(prose): the text on `serious`.
+    pub serious_foreground: Color32,
     /// Neutral news: the Tailwind sky.
     pub info: Color32,
     /// The text on `info`.
@@ -172,6 +177,8 @@ impl Tokens {
             success_foreground: rgb(0xfafafa),
             warning: rgb(0xfe9a00),
             warning_foreground: rgb(0x461901),
+            serious: rgb(0xf54900),
+            serious_foreground: rgb(0xfafafa),
             info: rgb(0x0084d1),
             info_foreground: rgb(0xfafafa),
             ..Self::sizes()
@@ -188,6 +195,8 @@ impl Tokens {
             success_foreground: rgb(0x032e15),
             warning: rgb(0xffb900),
             warning_foreground: rgb(0x461901),
+            serious: rgb(0xff8904),
+            serious_foreground: rgb(0x441306),
             info: rgb(0x00bcff),
             info_foreground: rgb(0x052f4a),
             ..Self::sizes()
@@ -228,6 +237,8 @@ impl Tokens {
             success_foreground: none,
             warning: none,
             warning_foreground: none,
+            serious: none,
+            serious_foreground: none,
             info: none,
             info_foreground: none,
             border: none,
@@ -360,6 +371,19 @@ impl Tokens {
         self.input.gamma_multiply(0.3)
     }
 
+    /// TODO(prose): the colours of each tone: the status tokens, with
+    /// `destructive`'s for [`Tone::Critical`](eggshell_ui::Tone::Critical).
+    pub fn tones(&self) -> eggshell_ui::contract::Tones {
+        let on = |tone, foreground| eggshell_ui::contract::ToneColors { tone, foreground };
+        eggshell_ui::contract::Tones {
+            info: on(self.info, self.info_foreground),
+            success: on(self.success, self.success_foreground),
+            warning: on(self.warning, self.warning_foreground),
+            serious: on(self.serious, self.serious_foreground),
+            critical: on(self.destructive, self.destructive_foreground),
+        }
+    }
+
     /// `input/50`: an outline button under the pointer in the dark theme.
     pub fn input_50(&self) -> Color32 {
         self.input.gamma_multiply(0.5)
@@ -368,7 +392,7 @@ impl Tokens {
     /// TODO(prose): these tokens with `palette`'s colours for `theme`, which
     /// must be the theme they were made for: every colour shadcn's base and
     /// theme colours set, and the switch's, which follow them. The semantic
-    /// colours (`destructive`, `success`, `warning`, `info`) are kept.
+    /// colours (`destructive`, `success`, `warning`, `serious`, `info`) are kept.
     #[must_use]
     pub fn with_palette(self, palette: Palette, theme: Theme) -> Self {
         let Scheme {

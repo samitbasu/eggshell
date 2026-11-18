@@ -2,6 +2,8 @@ use std::fmt;
 
 use egui::{Color32, Context, Theme};
 
+use eggshell_ui::Tone;
+
 use crate::{BaseColor, Palette, ThemeColor, Tokens};
 
 /// TODO(prose): a pair of tokens the components draw text on: the text
@@ -29,11 +31,17 @@ pub enum ContrastPair {
     DestructiveForegroundOnDestructive,
     /// `popover-foreground` on `popover`.
     PopoverForegroundOnPopover,
+    /// TODO(prose): a tone's colour as text on `background`.
+    ToneOnBackground(Tone),
+    /// TODO(prose): a tone's colour as text on `card`.
+    ToneOnCard(Tone),
+    /// TODO(prose): a tone's foreground on a solid fill of the tone.
+    ToneForegroundOnTone(Tone),
 }
 
 impl ContrastPair {
     /// Every pair.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 25] = [
         Self::ForegroundOnBackground,
         Self::ForegroundOnCard,
         Self::PrimaryForegroundOnPrimary,
@@ -44,6 +52,21 @@ impl ContrastPair {
         Self::LinkOnBackground,
         Self::DestructiveForegroundOnDestructive,
         Self::PopoverForegroundOnPopover,
+        Self::ToneOnBackground(Tone::Info),
+        Self::ToneOnCard(Tone::Info),
+        Self::ToneForegroundOnTone(Tone::Info),
+        Self::ToneOnBackground(Tone::Success),
+        Self::ToneOnCard(Tone::Success),
+        Self::ToneForegroundOnTone(Tone::Success),
+        Self::ToneOnBackground(Tone::Warning),
+        Self::ToneOnCard(Tone::Warning),
+        Self::ToneForegroundOnTone(Tone::Warning),
+        Self::ToneOnBackground(Tone::Serious),
+        Self::ToneOnCard(Tone::Serious),
+        Self::ToneForegroundOnTone(Tone::Serious),
+        Self::ToneOnBackground(Tone::Critical),
+        Self::ToneOnCard(Tone::Critical),
+        Self::ToneForegroundOnTone(Tone::Critical),
     ];
 
     /// The pair by shadcn's names, as `text on surface`.
@@ -59,6 +82,21 @@ impl ContrastPair {
             Self::LinkOnBackground => "primary (links) on background",
             Self::DestructiveForegroundOnDestructive => "destructive-foreground on destructive",
             Self::PopoverForegroundOnPopover => "popover-foreground on popover",
+            Self::ToneOnBackground(Tone::Info) => "info on background",
+            Self::ToneOnCard(Tone::Info) => "info on card",
+            Self::ToneForegroundOnTone(Tone::Info) => "info-foreground on info",
+            Self::ToneOnBackground(Tone::Success) => "success on background",
+            Self::ToneOnCard(Tone::Success) => "success on card",
+            Self::ToneForegroundOnTone(Tone::Success) => "success-foreground on success",
+            Self::ToneOnBackground(Tone::Warning) => "warning on background",
+            Self::ToneOnCard(Tone::Warning) => "warning on card",
+            Self::ToneForegroundOnTone(Tone::Warning) => "warning-foreground on warning",
+            Self::ToneOnBackground(Tone::Serious) => "serious on background",
+            Self::ToneOnCard(Tone::Serious) => "serious on card",
+            Self::ToneForegroundOnTone(Tone::Serious) => "serious-foreground on serious",
+            Self::ToneOnBackground(Tone::Critical) => "critical on background",
+            Self::ToneOnCard(Tone::Critical) => "critical on card",
+            Self::ToneForegroundOnTone(Tone::Critical) => "critical-foreground on critical",
         }
     }
 
@@ -75,6 +113,12 @@ impl ContrastPair {
             Self::LinkOnBackground => (t.primary, t.background),
             Self::DestructiveForegroundOnDestructive => (t.destructive_foreground, t.destructive),
             Self::PopoverForegroundOnPopover => (t.popover_foreground, t.popover),
+            Self::ToneOnBackground(tone) => (t.tones().get(tone).tone, t.background),
+            Self::ToneOnCard(tone) => (t.tones().get(tone).tone, t.card),
+            Self::ToneForegroundOnTone(tone) => {
+                let colours = t.tones().get(tone);
+                (colours.foreground, colours.tone)
+            }
         }
     }
 
@@ -156,11 +200,11 @@ const fn miss(
 }
 
 #[doc(hidden)]
-pub const REGISTRY_MISSES: [RegistryMiss; 18] = {
+pub const REGISTRY_MISSES: [RegistryMiss; 30] = {
     use BaseColor::{Mauve, Mist, Neutral, Olive, Stone, Taupe, Zinc};
     use ContrastPair::{
         DestructiveForegroundOnDestructive, LinkOnBackground, MutedForegroundOnBackground,
-        MutedForegroundOnMuted,
+        MutedForegroundOnMuted, ToneForegroundOnTone, ToneOnBackground, ToneOnCard,
     };
     use Theme::{Dark, Light};
     use ThemeColor::{Indigo, Lime, Violet, Yellow};
@@ -190,6 +234,21 @@ pub const REGISTRY_MISSES: [RegistryMiss; 18] = {
         // The violet nudge was measured on the neutral page; olive's is
         // lighter.
         miss(Dark, Some(Olive), Some(Violet), LinkOnBackground, 4.48),
+        // The tones (#129), kept as Tailwind has them for the user to decide
+        // on: light text shades are not chosen yet. Critical is
+        // `destructive`, whose dark miss is the one above.
+        miss(Light, None, None, ToneOnBackground(Tone::Info), 4.02),
+        miss(Light, None, None, ToneOnCard(Tone::Info), 4.02),
+        miss(Light, None, None, ToneForegroundOnTone(Tone::Info), 3.85),
+        miss(Light, None, None, ToneOnBackground(Tone::Success), 3.22),
+        miss(Light, None, None, ToneOnCard(Tone::Success), 3.22),
+        miss(Light, None, None, ToneForegroundOnTone(Tone::Success), 3.08),
+        miss(Light, None, None, ToneOnBackground(Tone::Warning), 2.13),
+        miss(Light, None, None, ToneOnCard(Tone::Warning), 2.13),
+        miss(Light, None, None, ToneOnBackground(Tone::Serious), 3.60),
+        miss(Light, None, None, ToneOnCard(Tone::Serious), 3.60),
+        miss(Light, None, None, ToneForegroundOnTone(Tone::Serious), 3.45),
+        miss(Dark, None, None, ToneForegroundOnTone(Tone::Critical), 2.89),
     ]
 };
 
