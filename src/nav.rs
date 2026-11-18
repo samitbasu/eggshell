@@ -1,5 +1,5 @@
-//! Arrow-key navigation of an overlay's items: the keyboard patterns of
-//! [`Nav`].
+//! Arrow-key navigation of an overlay's items, and of a group's on the
+//! page ([`roving`](crate::roving)): the keyboard patterns of [`Nav`].
 //!
 //! A menu moves real focus between its items, in paint order. A grid moves
 //! it too, to the nearest item in the arrow's direction as laid out. A listbox leaves focus on its
@@ -62,25 +62,34 @@ impl Move {
     /// frame it would also move focus itself, after the overlay has.
     fn of_key(ctx: &Context, nav: Nav, home_end: HomeEnd) -> Option<Self> {
         let pressed = |key| ctx.input_mut(|input| input.consume_key(Modifiers::NONE, key));
-        let arrows: &[(Key, Self)] = if nav == Nav::Grid {
-            &[
+        let arrows: &[(Key, Self)] = match nav {
+            Nav::Grid => &[
                 (Key::ArrowDown, Self::Toward(Direction::Down)),
                 (Key::ArrowUp, Self::Toward(Direction::Up)),
                 (Key::ArrowLeft, Self::Toward(Direction::Left)),
                 (Key::ArrowRight, Self::Toward(Direction::Right)),
-            ]
-        } else {
-            &[
+            ],
+            Nav::Row(_) => &[
+                (Key::ArrowRight, Self::Line(Step::Next)),
+                (Key::ArrowLeft, Self::Line(Step::Previous)),
+            ],
+            Nav::Radio(_) => &[
+                (Key::ArrowDown, Self::Line(Step::Next)),
+                (Key::ArrowRight, Self::Line(Step::Next)),
+                (Key::ArrowUp, Self::Line(Step::Previous)),
+                (Key::ArrowLeft, Self::Line(Step::Previous)),
+            ],
+            Nav::None | Nav::Menu(_) | Nav::Submenu(_) | Nav::Listbox(_) => &[
                 (Key::ArrowDown, Self::Line(Step::Next)),
                 (Key::ArrowUp, Self::Line(Step::Previous)),
-            ]
+            ],
         };
-        let ends: &[(Key, Self)] = match home_end {
-            HomeEnd::Ours => &[
+        let ends: &[(Key, Self)] = match (home_end, nav) {
+            (HomeEnd::Ours, Nav::Radio(_)) | (HomeEnd::Theirs, _) => &[],
+            (HomeEnd::Ours, _) => &[
                 (Key::Home, Self::Line(Step::First)),
                 (Key::End, Self::Line(Step::Last)),
             ],
-            HomeEnd::Theirs => &[],
         };
         if let Some((_, to)) = arrows.iter().find(|(key, _)| pressed(*key)) {
             ctx.memory_mut(|memory| memory.move_focus(FocusDirection::None));
@@ -296,7 +305,7 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
     let mut dismiss = Vec::new();
     match menu.nav {
         Nav::None => {}
-        Nav::Menu(_) | Nav::Submenu(_) | Nav::Grid => {
+        Nav::Menu(_) | Nav::Submenu(_) | Nav::Grid | Nav::Row(_) | Nav::Radio(_) => {
             if matches!(menu.nav, Nav::Submenu(_))
                 && ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::ArrowLeft))
             {
@@ -313,6 +322,21 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
         Nav::Listbox(_) => listbox(ctx, kept, menu, home_end),
     }
     dismiss
+}
+
+/// The item of a group on the page that the frame's key moves the focus to
+/// from `focused`, one of `items`, taking the key. A text field in a group
+/// keeps Home and End.
+pub(crate) fn rove(ctx: &Context, nav: Nav, items: &[(Id, Rect)], focused: Id) -> Option<Id> {
+    hold_arrows(ctx, focused);
+    let home_end = if ctx.text_edit_focused() {
+        HomeEnd::Theirs
+    } else {
+        HomeEnd::Ours
+    };
+    Move::of_key(ctx, nav, home_end)?
+        .target(items, Some(focused), nav.wrap())
+        .filter(|&to| to != focused)
 }
 
 /// Gives `to` the focus. With nothing focused before, egui has already read

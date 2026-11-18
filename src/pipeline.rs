@@ -122,6 +122,10 @@ pub(crate) struct Node {
     pub open_focus: OpenFocus,
     /// For a splitter, the neighbour it sizes.
     pub pane: Option<Side>,
+    /// For a group the arrow keys move through, what it does with its items.
+    pub group: Option<crate::roving::Group>,
+    /// For an item of a group, whether it is the chosen one.
+    pub selection: Option<crate::owned::Mark>,
 }
 
 impl Node {
@@ -153,6 +157,8 @@ impl Node {
             action: None,
             open_focus: OpenFocus::Elsewhere,
             pane: None,
+            group: None,
+            selection: None,
         }
     }
 }
@@ -1744,6 +1750,8 @@ fn collect(
         action: node.action,
         open_focus: node.open_focus,
         pane: node.pane,
+        group: node.group,
+        selection: node.selection,
         measured,
     });
     let mut children = Vec::new();
@@ -1881,6 +1889,8 @@ pub struct PlacedNode {
     action: Option<Action>,
     open_focus: OpenFocus,
     pub(crate) pane: Option<Side>,
+    group: Option<crate::roving::Group>,
+    selection: Option<crate::owned::Mark>,
     /// What the content of an application-measured leaf wants at its final
     /// width; recorded only while [`Debug::Outlines`] is set. The library's
     /// own leaves are measured when asked ([`Placed::overflowing`]).
@@ -1923,6 +1933,8 @@ impl PlacedNode {
             action: None,
             open_focus: OpenFocus::Elsewhere,
             pane: None,
+            group: None,
+            selection: None,
             measured: None,
         }
     }
@@ -2124,8 +2136,8 @@ impl PlacedNode {
         self.open_focus == OpenFocus::Here
     }
 
-    /// Whether the node is an item of a menu, a listbox or a grid: it has an
-    /// item role.
+    /// Whether the node is an item of a menu, a listbox, a grid or a group: it
+    /// has an item role.
     pub(crate) fn is_item(&self) -> bool {
         self.description()
             .and_then(|description| description.role)
@@ -2137,8 +2149,30 @@ impl PlacedNode {
                         | Role::MenuItemRadio
                         | Role::ListBoxOption
                         | Role::GridCell
+                        | Role::Tab
+                        | Role::RadioButton
                 )
             })
+    }
+
+    /// Whether focus on the node shows as its hover look: an item of a menu,
+    /// a listbox or a grid. A group's tab or radio button draws a focus ring.
+    pub(crate) fn hovers_when_focused(&self) -> bool {
+        self.is_item()
+            && !matches!(
+                self.description().and_then(|description| description.role),
+                Some(Role::Tab | Role::RadioButton)
+            )
+    }
+
+    /// For a group the arrow keys move through, what it does with its items.
+    pub(crate) fn group(&self) -> Option<crate::roving::Group> {
+        self.group
+    }
+
+    /// For an item of a group, whether it is the chosen one.
+    pub(crate) fn selection(&self) -> Option<crate::owned::Mark> {
+        self.selection
     }
 
     /// Whether the node is an option of a listbox, which may be a row of a
