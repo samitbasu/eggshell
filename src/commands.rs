@@ -528,7 +528,7 @@ pub(crate) fn dispatch_all<A>(
             .filter(|table| {
                 table
                     .within
-                    .is_none_or(|within| shell.focus_within(within.mount))
+                    .is_none_or(|within| shell.mount_selected(within.mount))
             })
             .collect();
         here.sort_by_key(|table| {

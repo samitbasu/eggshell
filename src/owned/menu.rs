@@ -514,7 +514,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             .open_focus(open_focus)
             .draw(move |app, ui| {
                 let response = ui.node_response();
-                describe(&response, ui.is_enabled(), role, mark, &label);
+                describe(&response, ui.is_enabled().into(), role, mark, &label);
                 if owns == Owns::Submenu {
                     ui.ctx().accesskit_node_builder(response.id, |node| {
                         node.set_has_popup(HasPopup::Menu);
@@ -633,7 +633,8 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
 
     /// Whether the item takes input. A disabled item is skipped by the arrow
     /// keys.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }
@@ -737,7 +738,6 @@ pub struct DropdownChain<'a, 'f, A, K> {
     key: K,
     face: Face,
     options: ButtonOptions,
-    name: Option<String>,
     offset: Option<Distance>,
     enablement: Enablement,
     on_response: OnResponse<A>,
@@ -750,7 +750,6 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             key,
             face,
             options: ButtonOptions::new(),
-            name: None,
             offset: None,
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
@@ -781,10 +780,10 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         self
     }
 
-    /// The accessible name of the trigger and of its menu, when it is not
-    /// the label.
+    /// TODO(prose): the accessible name of the trigger and of its menu, in
+    /// place of the face's, as `aria-label` is.
     pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
+        self.options = self.options.named(name);
         self
     }
 
@@ -797,7 +796,8 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
 
     /// Whether the trigger takes input. A trigger that becomes disabled
     /// closes its menu.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }
@@ -816,7 +816,6 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             key,
             face,
             options,
-            name,
             offset,
             enablement,
             on_response,
@@ -829,12 +828,11 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             shared.close();
         }
         let open = shared.kept.with(|kept| kept.menus.is_open(trigger));
-        let name = name.unwrap_or_else(|| face.name().to_owned());
+        let name = options.name_or(&face).to_owned();
         let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)
             .opens_popup()
-            .enablement(enablement)
-            .named(name.clone());
+            .enablement(enablement);
         let (on_key, on_click) = (shared.clone(), shared.clone());
         button
             .on_response(move |app, response| {

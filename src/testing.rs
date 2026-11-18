@@ -828,9 +828,7 @@ struct FakeState {
 
 impl FakeClipboard {
     fn state(&self) -> std::sync::MutexGuard<'_, FakeState> {
-        self.0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        crate::sync::lock(&self.0)
     }
 
     /// Puts `text` on the clipboard, leaving an image there as it is.

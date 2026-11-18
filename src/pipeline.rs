@@ -32,7 +32,7 @@ use crate::roots::{
     ById, Form, Home, Layer, LayerKind, PlacedOverlay, PlacedRoot, PlacedRootKind, Presentation,
     RootDecl, modal_style, root_of,
 };
-use crate::scroll::{Axis, Bars, Description, Moved, ScrollPlan, Settle};
+use crate::scroll::{Axis, Bars, Description, ScrollPlan, Settle};
 use crate::shell::Shell;
 use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
@@ -112,6 +112,8 @@ pub(crate) struct Node {
     /// For a collapsible's wrapper that is opening or closing.
     pub collapse: Option<Collapse>,
     pub description: Option<Box<Description>>,
+    /// The role a library control announces from its draw closure.
+    pub announced: Option<Role>,
     pub action: Option<Action>,
     pub open_focus: OpenFocus,
     /// For a splitter, the neighbour it sizes.
@@ -138,6 +140,7 @@ impl Node {
             region: None,
             collapse: None,
             description: None,
+            announced: None,
             action: None,
             open_focus: OpenFocus::Elsewhere,
             pane: None,
@@ -348,6 +351,8 @@ pub(crate) struct FrameCore<'f> {
     pub current: usize,
     /// Whether a collapsible is opening or closing in this frame.
     pub size_in_flight: bool,
+    /// Every mount declared, in the order they were.
+    pub mounts: Vec<crate::mount::MountDecl>,
 }
 
 /// One frame's closures. `'f` is how long the build may borrow application data.
@@ -421,6 +426,7 @@ impl<'f, A> Frame<'f, A> {
                 pop_outs: Vec::new(),
                 current: 0,
                 size_in_flight: false,
+                mounts: Vec::new(),
             },
             draws: Vec::new(),
             drag: Decls::default(),
@@ -472,6 +478,8 @@ pub(crate) trait Sink<'f, A>: std::ops::DerefMut<Target = FrameCore<'f>> {
     fn dispatch(&mut self, declared: Declared<A>);
     /// How many mounts deep the builder is.
     fn depth(&self) -> usize;
+    /// The mount the builder builds in, if it is in one.
+    fn mount(&self) -> Option<Id>;
 }
 
 /// A root's command table, declared again in the same frame.
@@ -547,6 +555,10 @@ impl<'f, A> Sink<'f, A> for Frame<'f, A> {
 
     fn depth(&self) -> usize {
         0
+    }
+
+    fn mount(&self) -> Option<Id> {
+        None
     }
 }
 
@@ -826,6 +838,7 @@ impl<'f, A> Built<'f, A> {
             parent: None,
             home: Home::Page,
             kind: PlacedRootKind::Base,
+            mount: None,
         }];
         let scope = st.scope;
         let root = st.root;
@@ -836,7 +849,11 @@ impl<'f, A> Built<'f, A> {
         // the build.
         let mut at = 1;
         while at < frame.roots.len() {
-            let RootDecl { layer, scrolls } = frame.take_decl(at);
+            let RootDecl {
+                layer,
+                scrolls,
+                mount,
+            } = frame.take_decl(at);
             let regions = frame.take_regions(at);
             let Some(Layer { kind, parent, node }) = layer else {
                 at += 1;
@@ -872,6 +889,7 @@ impl<'f, A> Built<'f, A> {
                         parent: Some(parent),
                         home,
                         kind: PlacedRootKind::Window(window),
+                        mount,
                     });
                     at += 1;
                     continue;
@@ -1065,6 +1083,7 @@ impl<'f, A> Built<'f, A> {
                 first,
                 parent: Some(parent),
                 home,
+                mount,
                 kind: PlacedRootKind::Overlay(PlacedOverlay {
                     id: overlay.id,
                     band: overlay.band,
@@ -1153,6 +1172,7 @@ impl<'f, A> Built<'f, A> {
                     measures,
                     pop_outs,
                     size_in_flight,
+                    mounts,
                     ..
                 },
             draws,
@@ -1164,6 +1184,7 @@ impl<'f, A> Built<'f, A> {
             ..
         } = frame;
         drop(measures);
+        st.kept.with(|kept| kept.mounts.set_mounts(&mounts));
         Placed {
             ctx: ctx.clone(),
             scope,
@@ -1660,7 +1681,7 @@ fn collect(
                     description: scroll.description,
                     content: scroll.size,
                     offset,
-                    moved: Moved::No,
+                    moved: false,
                 }
             });
             Identity::Identified(Identified {
@@ -1695,6 +1716,7 @@ fn collect(
         interaction: node.interaction,
         draw_kind: node.draw_kind,
         description: node.description.take(),
+        announced: node.announced,
         action: node.action,
         open_focus: node.open_focus,
         pane: node.pane,
@@ -1800,6 +1822,7 @@ pub struct PlacedNode {
     pub(crate) interaction: Interaction,
     draw_kind: DrawKind,
     description: Option<Box<Description>>,
+    announced: Option<Role>,
     action: Option<Action>,
     open_focus: OpenFocus,
     pub(crate) pane: Option<Side>,
@@ -1839,6 +1862,7 @@ impl PlacedNode {
             interaction: Interaction::default(),
             draw_kind: DrawKind::Paint,
             description: None,
+            announced: None,
             action: None,
             open_focus: OpenFocus::Elsewhere,
             pane: None,
@@ -2026,6 +2050,15 @@ impl PlacedNode {
     /// The key the node answers, if it is a default or cancel button.
     pub(crate) fn action(&self) -> Option<Action> {
         self.action
+    }
+
+    /// Whether the node is a button: Return pressed while it has focus is
+    /// its own.
+    pub(crate) fn is_button(&self) -> bool {
+        self.description()
+            .and_then(|description| description.role)
+            .or(self.announced)
+            == Some(Role::Button)
     }
 
     /// Whether the overlay the node is in gives it focus as it opens.

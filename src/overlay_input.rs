@@ -25,7 +25,7 @@ use crate::roots::{
     Form, Here, PlacedOverlay, PlacedRoot, ancestors, root_and_node, root_at, stacked_top_down,
 };
 use crate::shell::Shell;
-use crate::stack::{Entered, Stack};
+use crate::stack::Stack;
 
 /// Whether an in-app drag is live.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -267,13 +267,6 @@ fn trigger_of(ctx: &Context, overlay: &PlacedOverlay) -> Option<Trigger> {
     }
 }
 
-/// Whether a key was pressed this frame.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Pressed {
-    Yes,
-    No,
-}
-
 /// Where Esc goes, when it is pressed.
 enum EscapeGoes {
     /// To an overlay: its dismissal, or its cancel button.
@@ -355,9 +348,9 @@ pub enum Blur {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Keys {
     /// Whether Esc was pressed, even if it was then taken.
-    pub(crate) escape: Pressed,
+    pub(crate) escape: bool,
     /// Whether Tab was pressed, even if a menu then took it.
-    pub(crate) tab: Pressed,
+    pub(crate) tab: bool,
     /// The default button Return goes to.
     pub(crate) default: Option<Id>,
     /// Why a text field that loses focus in this pass does.
@@ -381,13 +374,9 @@ pub(crate) fn claim_keys(
     register_hold_tab(ctx);
     let open = open_overlays(roots, here);
     let pressed = |key| ctx.input(|input| input.key_pressed(key));
-    let escape = if pressed(Key::Escape) {
-        Pressed::Yes
-    } else {
-        Pressed::No
-    };
+    let escape = pressed(Key::Escape);
     let input = Input {
-        escape: escape == Pressed::Yes,
+        escape,
         drag_live: drag == Drag::Live,
         ..Input::default()
     };
@@ -401,13 +390,9 @@ pub(crate) fn claim_keys(
     if belongs_to_the_library {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
     }
-    let tab = if pressed(Key::Tab) {
-        Pressed::Yes
-    } else {
-        Pressed::No
-    };
+    let tab = pressed(Key::Tab);
     let typing_before = kept.viewport(ctx.viewport_id(), |here| here.typing) == Typing::Yes;
-    let escaped = escape == Pressed::Yes && Typing::escape_blurred(ctx, kept);
+    let escaped = escape && Typing::escape_blurred(ctx, kept);
     let top_down: Vec<usize> = open.iter().rev().map(|open| open.root).collect();
     let default = if pressed(Key::Enter) {
         actions::return_button(ctx, kept, nodes, (roots, here), &top_down)
@@ -482,15 +467,10 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     });
     let input = Input {
         press: press_origin(ctx),
-        escape: keys.escape == Pressed::Yes,
-        tab: keys.tab == Pressed::Yes,
+        escape: keys.escape,
+        tab: keys.tab,
         drag_live: drag == Drag::Live,
-        window_blurred: ctx.input(|input| {
-            input
-                .events
-                .iter()
-                .any(|event| matches!(event, Event::WindowFocused(false)))
-        }),
+        window_blurred: ctx.input(|input| crate::window::blurred(&input.events)),
     };
     for open in open
         .iter()
@@ -530,11 +510,8 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             continue;
         };
         entry.focus = layer.focus_now;
-        if entry.entered == Entered::Not
-            && layer.lookup == AnchorLookup::Found
-            && layer.seen == Seen::Drawn
-        {
-            entry.entered = Entered::Yet;
+        if !entry.entered && layer.lookup == AnchorLookup::Found && layer.seen == Seen::Drawn {
+            entry.entered = true;
             if enters_focus(open.overlay.behavior, source)
                 && let Some(root) = roots.get(open.root)
                 && let Some(first) = opening_focus(ctx, nodes, root.first, subtrees, open)

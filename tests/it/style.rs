@@ -3,7 +3,7 @@
 
 use eggshell_ui::widget::{Stock, TextEdit};
 use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, Width, tw};
-use eggshell_ui_shadcn::{Shadcn, ThemeColor, Tokens, tokens};
+use eggshell_ui_shadcn::{BaseColor, Palette, Shadcn, ThemeColor, Tokens, tokens};
 use egui::epaint::Shape;
 use egui::{Color32, Context, FontFamily, Rect, Theme, vec2};
 use egui_kittest::Harness;
@@ -412,39 +412,59 @@ fn a_text_field_under_the_preset_is_h9_with_px3() {
     assert_eq!(hint.x - rect.left(), 12.0, "px-3");
 }
 
+fn palette(base: BaseColor, theme_color: ThemeColor) -> Palette {
+    Palette::new().base(base).theme(theme_color)
+}
+
 #[test]
-fn an_accent_retints_primary_and_nothing_else() {
+fn an_accent_retints_primary_and_the_charts_and_nothing_else() {
     for theme in [Theme::Light, Theme::Dark] {
-        let neutral = Shadcn::for_theme(theme);
-        assert_eq!(neutral.clone().theme_color(ThemeColor::Neutral), neutral);
-        for accent in ThemeColor::ALL
-            .into_iter()
-            .filter(|a| *a != ThemeColor::Neutral)
-        {
-            let tinted = neutral.clone().theme_color(accent);
-            let (a, b) = (&neutral.tokens, &tinted.tokens);
-            assert_ne!(a.primary, b.primary, "{accent:?} {theme:?}");
-            assert_ne!(a.primary_foreground, b.primary_foreground);
-            assert_eq!(a.ring, b.ring, "the ring is the base colour's");
-            assert_eq!(b.switch_track_on, b.primary, "the switch follows");
-            let same = Tokens {
-                primary: a.primary,
-                primary_foreground: a.primary_foreground,
-                switch_track_on: a.switch_track_on,
-                switch_thumb_on: a.switch_thumb_on,
-                ..b.clone()
-            };
-            assert_eq!(&same, a, "{accent:?} {theme:?}: only those change");
+        for base in BaseColor::ALL {
+            let plain = Shadcn::for_theme(theme).with_palette(palette(base, ThemeColor::Base));
+            for accent in ThemeColor::ALL
+                .into_iter()
+                .filter(|a| *a != ThemeColor::Base)
+            {
+                let tinted = Shadcn::for_theme(theme).with_palette(palette(base, accent));
+                let (a, b) = (&plain.tokens, &tinted.tokens);
+                assert_ne!(a.primary, b.primary, "{base:?} {accent:?} {theme:?}");
+                assert_ne!(a.primary_foreground, b.primary_foreground);
+                assert_ne!(a.chart_1, b.chart_1, "the charts follow the theme colour");
+                assert_eq!(a.ring, b.ring, "the ring is the base colour's");
+                assert_eq!(b.switch_track_on, b.primary, "the switch follows");
+                let same = Tokens {
+                    primary: a.primary,
+                    primary_foreground: a.primary_foreground,
+                    switch_track_on: a.switch_track_on,
+                    switch_thumb_on: a.switch_thumb_on,
+                    chart_1: a.chart_1,
+                    chart_2: a.chart_2,
+                    chart_3: a.chart_3,
+                    chart_4: a.chart_4,
+                    chart_5: a.chart_5,
+                    ..b.clone()
+                };
+                assert_eq!(&same, a, "{base:?} {accent:?} {theme:?}: only those change");
+            }
         }
     }
     let blue = |theme| {
         Shadcn::for_theme(theme)
-            .theme_color(ThemeColor::Blue)
+            .with_palette(Palette::new().theme(ThemeColor::Blue))
             .tokens
     };
     assert_eq!(blue(Theme::Light).primary, rgb(0x14, 0x47, 0xe6));
     assert_eq!(blue(Theme::Dark).primary, rgb(0x2b, 0x7f, 0xff));
     assert_eq!(blue(Theme::Dark).primary_foreground, rgb(0, 0, 0));
+}
+
+#[test]
+fn the_default_palette_is_the_plain_preset() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let plain = Shadcn::for_theme(theme);
+        assert_eq!(plain.clone().with_palette(Palette::new()), plain);
+        assert_eq!(Palette::new(), Palette::default());
+    }
 }
 
 fn luminance(c: egui::Color32) -> f32 {
@@ -466,44 +486,49 @@ fn contrast(a: egui::Color32, b: egui::Color32) -> f32 {
 
 #[test]
 fn a_dark_accent_fills_with_its_bright_shade_and_keeps_its_label_readable() {
-    let neutral = Shadcn::dark().tokens;
-    for accent in ThemeColor::ALL
-        .into_iter()
-        .filter(|a| *a != ThemeColor::Neutral)
-    {
-        let t = Shadcn::dark().theme_color(accent).tokens;
-        assert!(
-            contrast(t.primary, t.primary_foreground) >= 4.5,
-            "{accent:?}: {}",
-            contrast(t.primary, t.primary_foreground)
-        );
-        assert!(
-            contrast(t.primary, neutral.background) >= 3.0,
-            "{accent:?} stands out on the page"
-        );
+    for base in BaseColor::ALL {
+        let plain = Shadcn::dark()
+            .with_palette(palette(base, ThemeColor::Base))
+            .tokens;
+        for accent in ThemeColor::ALL
+            .into_iter()
+            .filter(|a| *a != ThemeColor::Base)
+        {
+            let t = Shadcn::dark().with_palette(palette(base, accent)).tokens;
+            assert!(
+                contrast(t.primary, t.primary_foreground) >= 4.5,
+                "{base:?} {accent:?}: {}",
+                contrast(t.primary, t.primary_foreground)
+            );
+            assert!(
+                contrast(t.primary, plain.background) >= 3.0,
+                "{base:?} {accent:?} stands out on the page"
+            );
+        }
     }
-    let neutral_accent = Shadcn::dark().theme_color(ThemeColor::Neutral).tokens;
-    assert_eq!(neutral_accent, neutral, "neutral dark is shadcn's");
-    assert_eq!(neutral.primary, rgb(0xe5, 0xe5, 0xe5));
+    let neutral = Shadcn::dark().tokens;
+    assert_eq!(
+        neutral.primary,
+        rgb(0xe5, 0xe5, 0xe5),
+        "neutral dark is shadcn's"
+    );
 }
 
+/// The link's contrast is checked in the shadcn crate's `contrast` test.
 #[test]
-fn hyperlinks_are_primary_and_readable_on_the_page() {
+fn hyperlinks_are_primary() {
     for theme in [Theme::Light, Theme::Dark] {
-        for accent in ThemeColor::ALL {
-            let ctx = context(theme);
-            let preset = Shadcn::for_theme(theme).theme_color(accent);
-            preset.apply(&ctx);
-            assert_eq!(
-                ctx.style_of(theme).visuals.hyperlink_color,
-                preset.tokens.primary,
-                "{accent:?} {theme:?}"
-            );
-            let ratio = contrast(preset.tokens.primary, preset.tokens.background);
-            assert!(
-                ratio >= 4.5,
-                "{accent:?} {theme:?}: link text is {ratio:.3}:1 on the page"
-            );
+        for base in BaseColor::ALL {
+            for accent in ThemeColor::ALL {
+                let ctx = context(theme);
+                let preset = Shadcn::for_theme(theme).with_palette(palette(base, accent));
+                preset.apply(&ctx);
+                assert_eq!(
+                    ctx.style_of(theme).visuals.hyperlink_color,
+                    preset.tokens.primary,
+                    "{base:?} {accent:?} {theme:?}"
+                );
+            }
         }
     }
 }
@@ -511,7 +536,9 @@ fn hyperlinks_are_primary_and_readable_on_the_page() {
 #[test]
 fn an_accent_reaches_egui_when_applied() {
     let ctx = context(Theme::Light);
-    Shadcn::light().theme_color(ThemeColor::Violet).apply(&ctx);
+    Shadcn::light()
+        .with_palette(Palette::new().theme(ThemeColor::Violet))
+        .apply(&ctx);
     assert_eq!(
         ctx.style_of(Theme::Light).visuals.hyperlink_color,
         rgb(0x70, 0x08, 0xe7)
@@ -527,7 +554,7 @@ fn of_is_the_applied_preset_for_the_contexts_theme() {
         Shadcn::light(),
         "none applied: the default"
     );
-    let green = Shadcn::light().theme_color(ThemeColor::Green);
+    let green = Shadcn::light().with_palette(Palette::new().theme(ThemeColor::Green));
     green.apply(&ctx);
     Shadcn::dark().apply(&ctx);
     assert_eq!(Shadcn::of(&ctx), green);

@@ -47,7 +47,11 @@ impl Corner {
 /// How many fan segments make a corner arc whose chords stay well under a
 /// physical pixel from the arc.
 pub(crate) fn arc_segments(radius: f32, pixels_per_point: f32) -> usize {
-    ((radius * pixels_per_point.max(1.0) * 0.5).ceil() as usize).clamp(4, 32)
+    crate::finite::clamp(
+        (radius * pixels_per_point.max(1.0) * 0.5).ceil() as usize,
+        4,
+        32,
+    )
 }
 
 /// Triangles covering the region inside `rect`, outside the quarter-circle

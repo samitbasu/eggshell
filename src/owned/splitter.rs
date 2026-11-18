@@ -102,6 +102,14 @@ struct Travel {
     grows: Grows,
 }
 
+/// Whether the splitter is hovered, dragged or focused, and drawn in its hot
+/// colours, or at rest.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Heat {
+    Rest,
+    Hot,
+}
+
 /// Whether moving the handle towards the end of the axis grows the pane.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Grows {
@@ -399,8 +407,12 @@ impl Handle {
         {
             set(size);
         }
-        let hot = response.hovered() || response.dragged() || response.has_focus();
-        self.paint(ui, response.rect, hot);
+        let heat = if response.hovered() || response.dragged() || response.has_focus() {
+            Heat::Hot
+        } else {
+            Heat::Rest
+        };
+        self.paint(ui, response.rect, heat);
         if response.has_focus() {
             ui.painter().rect_stroke(
                 response.rect,
@@ -473,9 +485,12 @@ impl Handle {
         stepped.or(home).or(end)
     }
 
-    fn paint(&self, ui: &Ui, rect: Rect, hot: bool) {
+    fn paint(&self, ui: &Ui, rect: Rect, heat: Heat) {
         let style = &self.style;
-        let target = if hot { Progress::END } else { Progress::START };
+        let target = match heat {
+            Heat::Hot => Progress::END,
+            Heat::Rest => Progress::START,
+        };
         let progress = match crate::draw::node_id_or_report(ui, "the splitter's hover transition") {
             Some(id) => transition::animate(
                 ui.ctx(),

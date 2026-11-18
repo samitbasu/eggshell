@@ -112,15 +112,16 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
         self
     }
 
-    /// The accessible name, when it is not the label.
-    pub fn named(mut self, name: impl Into<String>) -> Self {
-        self.button = self.button.named(name);
-        self
-    }
-
     /// Shown while the pointer hovers the control, also when it is disabled.
     pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
         self.button = self.button.tooltip(text);
+        self
+    }
+
+    /// TODO(prose): the accessible name, in place of the face's, as
+    /// `aria-label` is.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.button = self.button.named(name);
         self
     }
 
@@ -135,7 +136,8 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
     }
 
     /// Whether the toggle takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.button = self.button.enablement(enablement);
         self
     }

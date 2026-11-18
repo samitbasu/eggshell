@@ -599,7 +599,7 @@ impl Input {
             latest: i.pointer.latest_pos(),
             press_origin: i.pointer.press_origin(),
             moved: i.events.iter().any(|e| matches!(e, Event::PointerMoved(_))),
-            focus_lost: focus_lost(&i.events),
+            focus_lost: crate::window::blurred(&i.events),
             hovered: (!i.raw.hovered_files.is_empty()).then(|| {
                 Files(
                     i.raw
@@ -630,17 +630,12 @@ impl Input {
     }
 }
 
-fn focus_lost(events: &[Event]) -> bool {
-    events
-        .iter()
-        .any(|event| matches!(event, Event::WindowFocused(false)))
-}
-
 /// The in-app drag in progress this pass: its payload is held and this pass
 /// is not its last.
 fn live_gesture(ctx: &Context, kept: &Handle) -> Option<Gesture> {
     let gesture = kept.viewport(ctx.viewport_id(), |here| here.drags.gesture.clone())?;
-    let (released, lost) = ctx.input(|i| (i.pointer.any_released(), focus_lost(&i.events)));
+    let (released, lost) =
+        ctx.input(|i| (i.pointer.any_released(), crate::window::blurred(&i.events)));
     (DragAndDrop::has_payload_of_type::<Lifted>(ctx) && !released && !lost).then_some(gesture)
 }
 
@@ -1004,7 +999,15 @@ pub(crate) fn begin<A>(
                 hit: found.over,
             },
             None => Ending::Dropped {
-                landing: landing_of(nodes, &found, positioned),
+                landing: landing_of(
+                    nodes,
+                    &found,
+                    if positioned {
+                        Lands::UnderPointer
+                    } else {
+                        Lands::OnFallback
+                    },
+                ),
                 files: payload,
             },
         };
@@ -1064,8 +1067,16 @@ pub(crate) fn begin<A>(
 /// The target a drop from outside lands on, and where: under the pointer if
 /// the platform gave one, else the topmost accepting target that declared
 /// itself the fallback.
-fn landing_of(nodes: &Nodes, found: &Resolved, positioned: bool) -> Option<(usize, Landing)> {
-    if positioned {
+/// Where a drop from outside lands: under the pointer, when the platform
+/// gave a position, else on the fallback target.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Lands {
+    UnderPointer,
+    OnFallback,
+}
+
+fn landing_of(nodes: &Nodes, found: &Resolved, lands: Lands) -> Option<(usize, Landing)> {
+    if lands == Lands::UnderPointer {
         let hit = found.over.as_ref()?;
         return Some((
             hit.index,

@@ -94,13 +94,6 @@ enum Framing {
     Inset,
 }
 
-/// Whether a one-line field shows what is typed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Masking {
-    Shown,
-    Hidden,
-}
-
 /// `egui::TextEdit`, single- or multi-line, with optional hint text.
 ///
 /// Holds the text as it is when the frame is built: the height of a
@@ -110,7 +103,8 @@ pub struct TextEdit {
     text: String,
     hint: Option<String>,
     lines: Lines,
-    masking: Masking,
+    /// Whether a one-line field hides what is typed.
+    masked: bool,
     framing: Framing,
     name: Option<String>,
     size: ControlSize,
@@ -129,7 +123,7 @@ impl TextEdit {
             text: text.into(),
             hint: None,
             lines: Lines::Single,
-            masking: Masking::Shown,
+            masked: false,
             framing: Framing::Framed,
             name: None,
             size: ControlSize::DEFAULT,
@@ -143,7 +137,7 @@ impl TextEdit {
             text: text.into(),
             hint: None,
             lines: Lines::Multi { min, max: None },
-            masking: Masking::Shown,
+            masked: false,
             framing: Framing::Framed,
             name: None,
             size: ControlSize::DEFAULT,
@@ -201,7 +195,7 @@ impl TextEdit {
     /// Shows dots for what is typed, like a password field. A one-line
     /// field's size does not depend on its text, so the size is unchanged.
     pub fn masked(mut self) -> Self {
-        self.masking = Masking::Hidden;
+        self.masked = true;
         self
     }
 
@@ -243,7 +237,8 @@ impl TextEdit {
     }
 
     /// Adds the field to `ui`, filling its rect, editing `text`. Focus and
-    /// the cursor follow the leaf's identity.
+    /// the cursor follow the leaf's identity. The field gives up its focus
+    /// when the window loses it.
     ///
     /// The leaf was sized from the text as it was when the frame was built.
     /// A keystroke that changes the field's height asks egui for another
@@ -258,6 +253,9 @@ impl TextEdit {
         }
         let rect = ui.max_rect();
         let id = Self::id_in(ui);
+        if ui.input(|input| crate::window::blurred(&input.events)) {
+            ui.memory_mut(|memory| memory.surrender_focus(id));
+        }
         let width = Width::new(rect.width());
         let before = self.fit(&Sizer::for_ui(ui), text, Some(width));
         let before_text = text.clone();
@@ -273,7 +271,7 @@ impl TextEdit {
             Lines::Multi { .. } => egui::TextEdit::multiline(text).desired_rows(self.rows()),
         }
         .id(id)
-        .password(self.masking == Masking::Hidden)
+        .password(self.masked)
         .desired_width(rect.width());
         match (self.framing, self.lines) {
             (Framing::Bare, _) => edit = edit.frame(Frame::NONE),

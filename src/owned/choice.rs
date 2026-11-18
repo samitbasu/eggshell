@@ -60,7 +60,8 @@ impl<T> Choice<T> {
     /// Whether the option takes input. A disabled option cannot be chosen with
     /// the pointer or the keyboard, is skipped by the arrow keys, is announced
     /// as disabled and is drawn in the disabled look.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }

@@ -7,7 +7,7 @@ use crate::Tokens;
 
 /// One of shadcn's styles, from `apps/v4/registry/styles/style-*.css`. A
 /// style is a parameter set (radii, control height, text size, ring width and
-/// a few choices of surface); it is independent of the [`ThemeColor`](crate::ThemeColor)
+/// a few choices of surface); it is independent of the [`Palette`](crate::Palette)
 /// and of light or dark.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ShadcnStyle {

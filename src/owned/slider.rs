@@ -10,7 +10,7 @@ use egui::{Key, Rect, Role, Ui, WidgetInfo};
 use super::number::{self, Edit, Edits, Step, ValueRange};
 use super::{
     Content, Enablement, FieldBoxChain, OnResponse, TipContent, described, painted, text_sized,
-    tip, tipped,
+    tip, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
@@ -247,7 +247,8 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     }
 
     /// Whether the slider takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }
@@ -363,7 +364,8 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                     b.div(bar, |b| b.div(filled, |_| {}));
                     b.div(travel, |b| {
                         b.div_id(Part::Thumb, knob, |_| {}).draw(move |app, ui| {
-                            let response = tipped(ui, ui.node_response(), &thumb_tip);
+                            let response = ui.node_response();
+                            tip_describes(ui, &response, &thumb_tip);
                             let track = ui.ctx().read_response(track).map(|r| r.rect);
                             let pointer = response
                                 .interact_pointer_pos()
@@ -400,7 +402,8 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                     });
                 })
                 .draw(move |app, ui| {
-                    let response = tipped(ui, ui.node_response(), &track_tip);
+                    tipped_whole(ui, &track_tip);
+                    let response = ui.node_response();
                     let pressed = response.is_pointer_button_down_on();
                     edits.pointer(app, ui, (response.id, pressed), |app| {
                         if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
@@ -489,7 +492,9 @@ impl Row {
             text,
             size,
         } = self;
-        let input = *Style::of(b.ctx()).input.sizes.lookup(b.ctx(), size);
+        let style = Style::of(b.ctx());
+        let input = *style.input.sizes.lookup(b.ctx(), size);
+        let border = style.input.look.border_width;
         let row = tw().flex().items_center().justify_between().w_full();
         let row = if header.parse.is_some() {
             row.min_h_px(input.height)
@@ -522,10 +527,11 @@ impl Row {
                 move |text: &str| parse(text).map(|number| step.snap(range.clamp(number), range));
             match typed {
                 None => {
-                    let classes = enablement.apply(classes.sense_click(), &Style::of(b.ctx()));
+                    let classes = enablement.apply(classes.sense_click(), &style);
                     let label = format!("Edit {name}");
                     let current = shown.clone();
                     b.div_id(Part::Readout, classes, |b| b.text(tw(), shown))
+                        .announces(Role::Button)
                         .draw(move |_, ui| {
                             let response = described(ui, Role::Button, None, label.trim(), &None);
                             let opened = response.clicked().then(|| {
@@ -533,6 +539,7 @@ impl Row {
                                 let opening = Opening::of(ui, &response, &current);
                                 ui.data_mut(|data| {
                                     data.insert_temp(editing, current.clone());
+                                    data.insert_temp(editing.with("opened"), current.clone());
                                     data.insert_temp(editing.with("width"), width);
                                     data.insert_temp(editing.with("opening"), opening);
                                 });
@@ -554,18 +561,25 @@ impl Row {
                         });
                 }
                 Some(_) => {
-                    let field = Field::singleline("").inset();
+                    let field = Field::singleline("").sized(size).inset();
                     let measured = field.clone();
-                    let padding = input.padding.x;
                     let slot = b.slot(&Part::Readout);
                     let shown_width = b
                         .ctx()
                         .data(|data| data.get_temp::<f32>(editing.with("width")))
                         .unwrap_or(0.0);
-                    let width = shown_width.max(MIN_READOUT) + 2.0 * (padding + 1.0);
+                    let outset = input.padding.x + border;
+                    let width = shown_width.max(MIN_READOUT) + 2.0 * outset;
+                    // The box grows past the row's edge so its text stays where the readout drew it.
                     FieldBoxChain::new(b.reborrow(), slot)
                         .size(size)
-                        .classes(tw().w_px(width).px(0.0).shrink_0().tabular_nums())
+                        .classes(
+                            tw().w_px(width)
+                                .mr(-outset / 4.0)
+                                .px(0.0)
+                                .shrink_0()
+                                .tabular_nums(),
+                        )
                         .children(|s| {
                             let leaf = tw().w_full().h_full().text_right();
                             s.leaf(Part::Field, leaf, move |m| {
@@ -608,8 +622,13 @@ impl Row {
                                 }
                                 if response.lost_focus() {
                                     let entered = ui.input(|input| input.key_pressed(Key::Enter));
-                                    ui.data_mut(|data| data.remove::<String>(editing));
-                                    if let Some(value) = accept(&text).filter(|_| entered) {
+                                    let opened = ui.data_mut(|data| {
+                                        data.remove::<String>(editing);
+                                        data.remove_temp::<String>(editing.with("opened"))
+                                    });
+                                    let edited = opened.as_ref() != Some(&text);
+                                    if let Some(value) = accept(&text).filter(|_| entered && edited)
+                                    {
                                         edits.once(app, |app| set(app, value));
                                     }
                                 }

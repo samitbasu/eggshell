@@ -142,7 +142,8 @@ impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
     }
 
     /// Whether the checkbox takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }

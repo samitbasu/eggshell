@@ -55,13 +55,14 @@ pub(crate) fn note_multiline_focus(ctx: &Context, kept: &Handle, id: Id) {
     kept.viewport(ctx.viewport_id(), |here| here.focus.multiline = Some(id));
 }
 
-/// Whether the focused widget `focused` takes Return itself: a button or
-/// other control that Return activates, or a multi-line text field.
+/// Whether the focused widget `focused` takes Return itself: a button or a
+/// multi-line text field. Any other control, such as a checkbox or a radio
+/// button, lets Return reach the default button.
 fn takes_return(ctx: &Context, kept: &Handle, nodes: &Nodes, focused: Id) -> bool {
     kept.viewport(ctx.viewport_id(), |here| here.focus.multiline) == Some(focused)
         || nodes
             .iter()
-            .any(|node| node.id() == Some(focused) && node.senses())
+            .any(|node| node.id() == Some(focused) && node.is_button())
 }
 
 /// The root Return goes to: the overlay (or the page) that holds the focus,

@@ -8,11 +8,12 @@ use egui::{Context, Role};
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{
-    Content, Enablement, OnResponse, Tip, TipContent, Tooltip, centered, described, tip, tipped,
+    Content, Enablement, OnResponse, Tip, TipContent, Tooltip, centered, described, tip,
+    tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
-use crate::{Builder, NodeUi as _, Style, Tw, tw};
+use crate::{Builder, Style, Tw, tw};
 
 type Handler<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
 
@@ -182,7 +183,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
     }
 
     /// Whether the control takes input.
-    pub fn enablement(mut self, enablement: Enablement) -> Self {
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        let enablement = enablement.into();
         self.enablement = enablement;
         self
     }
@@ -325,12 +327,16 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
             };
             let classes = cell(state, group.and(enablement)).sense_click();
             let name = label.clone();
-            let tooltip = tooltip.map(Tooltip::text).or_else(|| control_tip.clone());
+            let tooltip = tooltip.map(Tooltip::text);
+            let control_tip = control_tip.clone();
             let on_response = on_response.clone();
             let select = select.clone();
             let clicked = move |app: &mut A, ui: &mut egui::Ui| {
                 let mark = Mark::from(state == Cell::Pressed);
                 let response = described(ui, Role::RadioButton, Some(mark), &name, &tooltip);
+                if tooltip.is_none() {
+                    tip_describes(ui, &response, &control_tip);
+                }
                 on_response.run(app, &response);
                 response.clicked()
             };
@@ -355,7 +361,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
     });
     if tooltip.is_some() {
         handle.draw(move |_, ui| {
-            tipped(ui, ui.node_response(), &tooltip);
+            tipped_whole(ui, &tooltip);
         });
     }
 }

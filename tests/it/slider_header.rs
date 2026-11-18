@@ -14,6 +14,8 @@ use crate::support::{self, Rig, box_at, click_node, focused_node, rect_of, ring_
 struct App {
     volume: f64,
     changes: Vec<f64>,
+    current: f64,
+    current_changes: Vec<f64>,
 }
 
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
@@ -48,6 +50,15 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                     .editable(|text| text.trim().parse().ok())
                     .on_change(|_: &mut App, _| {});
             });
+            b.slider("current", app.current, 0.0..=10.0)
+                .step(Step::new(0.01))
+                .label("Current")
+                .readout(|v| format!("{v:.1} A"))
+                .editable(|text| text.trim().trim_end_matches('A').trim().parse().ok())
+                .on_change(|app: &mut App, value| {
+                    app.current = value;
+                    app.current_changes.push(value);
+                });
             b.slider("plain", 10.0, 0.0..=100.0)
                 .label("Plain")
                 .on_change(|_: &mut App, _| {});
@@ -68,6 +79,8 @@ fn harness() -> Harness<'static, Rig<App>> {
         App {
             volume: 40.0,
             changes: vec![],
+            current: 6.04,
+            current_changes: vec![],
         },
         view,
     );
@@ -494,4 +507,96 @@ fn the_readouts_digits_are_as_wide_as_each_other() {
         widths.windows(2).all(|w| (w[0] - w[1]).abs() < 0.25),
         "{widths:?}"
     );
+}
+
+/// Where the first glyph of the galley painted with `text` lands on screen:
+/// its left edge and its baseline, after the tessellator snaps the galley to
+/// whole pixels.
+fn first_glyph(harness: &Harness<'_, Rig<App>>, text: &str) -> egui::Pos2 {
+    use egui::emath::GuiRounding as _;
+    let (galley, at) = support::galley_of(harness, text);
+    assert!(
+        harness
+            .ctx
+            .tessellation_options(|options| options.round_text_to_pixels),
+        "precondition: text is drawn on whole pixels"
+    );
+    let row = galley
+        .rows
+        .first()
+        .expect("precondition: the text has a row");
+    let glyph = row
+        .glyphs
+        .first()
+        .expect("precondition: the row has a glyph");
+    at.round_to_pixels(harness.ctx.pixels_per_point()) + row.pos.to_vec2() + glyph.pos.to_vec2()
+}
+
+#[test]
+fn the_open_field_draws_the_value_where_the_readout_drew_it_at_every_size() {
+    let readouts = [
+        (READOUT, Size::DEFAULT, "40%"),
+        (SMALL, size::SM, "30.0 dB"),
+        (TINY, size::XS, "30"),
+    ];
+    let sizes: Vec<Size> = Style::of(&harness().ctx).slider.sizes.keys().collect();
+    assert!(
+        sizes
+            .iter()
+            .all(|size| readouts.iter().any(|(_, covered, _)| covered == size)),
+        "precondition: every slider size is covered: {sizes:?}"
+    );
+    for (readout, size, text) in readouts {
+        let mut harness = harness();
+        let closed = first_glyph(&harness, text);
+        click_node(&mut harness, readout);
+        harness.run_steps(6);
+        assert_eq!(
+            focused_node(&harness),
+            Some(format!("{readout}/Field")),
+            "precondition: the field is open at {size:?}"
+        );
+        let open = first_glyph(&harness, text);
+        assert!(
+            (open - closed).length() < 0.01,
+            "{size:?}: closed at {closed:?}, open at {open:?}"
+        );
+    }
+}
+
+const CURRENT: &str = "/\"current\"/Box/Header/Readout";
+
+/// The current slider at 6.04, its readout "6.0 A" opened into a field.
+fn current_open() -> Harness<'static, Rig<App>> {
+    let mut harness = harness();
+    support::galley_of(&harness, "6.0 A");
+    click_node(&mut harness, CURRENT);
+    harness.run_steps(6);
+    assert_eq!(
+        focused_node(&harness),
+        Some(format!("{CURRENT}/Field")),
+        "precondition: the field is open"
+    );
+    harness
+}
+
+#[test]
+fn return_on_the_text_as_it_opened_writes_nothing() {
+    let mut harness = current_open();
+    press(&mut harness, Key::Enter);
+    assert!(focused_node(&harness).is_none(), "the field closes");
+    let app = &harness.state().app;
+    assert_eq!(app.current, 6.04);
+    assert!(app.current_changes.is_empty(), "{:?}", app.current_changes);
+}
+
+#[test]
+fn return_after_typing_still_commits() {
+    let mut harness = current_open();
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
+    type_text(&mut harness, "6.5");
+    press(&mut harness, Key::Enter);
+    let app = &harness.state().app;
+    assert_eq!(app.current, 6.5);
+    assert_eq!(app.current_changes, [6.5]);
 }

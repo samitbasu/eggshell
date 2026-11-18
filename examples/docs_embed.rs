@@ -2,7 +2,8 @@
 //!
 //! Each `eggshell-example NAME` fence mounts a small app over a field of the
 //! page's state with `b.mount`. The two counters share one field. The bar at
-//! the top switches the frame drawn around every mount.
+//! the top switches the theme colour, which colours the selected example's
+//! ring.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -11,6 +12,7 @@ use eggshell_ui::owned::Mark;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, Chord, Command, Commands, Scope, tw};
 use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt};
+use eggshell_ui_shadcn::ThemeColor;
 use egui::{Key, Modifiers};
 
 const LOREM: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod \
@@ -38,24 +40,13 @@ fn source() -> String {
     )
 }
 
-/// How a selected example is marked: the candidates, shown on the menu
-/// (captioned) and the scroll list (uncaptioned) as a mock-up until
-/// selection is built.
-#[derive(Clone, Copy, Debug, PartialEq, Default)]
-pub enum Selected {
-    #[default]
-    Ring,
-    Chip,
-    Tint,
-}
-
-impl Selected {
-    const ALL: [(Self, &str); 3] = [
-        (Self::Ring, "Ring"),
-        (Self::Chip, "Chip"),
-        (Self::Tint, "Tint"),
-    ];
-}
+/// The theme colours the page can be shown in: the selected example's ring
+/// is the theme's primary colour.
+const THEMES: [(ThemeColor, &str); 3] = [
+    (ThemeColor::Base, "Neutral"),
+    (ThemeColor::Blue, "Blue"),
+    (ThemeColor::Violet, "Violet"),
+];
 
 #[derive(Default)]
 pub struct Counter {
@@ -90,7 +81,7 @@ impl Default for List {
 
 #[derive(Default)]
 pub struct State {
-    pub selected: Selected,
+    pub theme: ThemeColor,
     pub clicks: Counter,
     pub menu: Menu,
     pub form: Form,
@@ -102,8 +93,8 @@ pub struct State {
 pub enum Part {
     Page,
     Bar,
-    Selected,
-    SelectedLabel,
+    Theme,
+    ThemeLabel,
     Log,
     Doc,
     App,
@@ -223,25 +214,14 @@ pub fn directives() -> Directives<State> {
     Directives::new().with("eggshell-example", example)
 }
 
-/// Whether the example NAME is captioned, and whether it is shown selected
-/// in the mock-up.
-fn shown(name: &str) -> (bool, bool) {
-    match name {
-        "counter" => (true, false),
-        "menu" => (true, true),
-        "form" => (false, false),
-        _ => (false, true),
-    }
+/// Whether the example NAME is shown under a caption.
+fn captioned(name: &str) -> bool {
+    matches!(name, "counter" | "menu")
 }
 
 fn example<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, directive: &Directive<'_>) {
     let name = directive.arg;
-    let (captioned, selected) = shown(name);
-    if selected {
-        mock_selected(s, state, name, captioned);
-        return;
-    }
-    let caption = captioned.then(|| format!("Example: {name}"));
+    let caption = captioned(name).then(|| format!("Example: {name}"));
     mount(s, state, name, caption);
 }
 
@@ -311,64 +291,14 @@ fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption
     }
 }
 
-/// The example NAME as it would look selected, in the candidate look the
-/// page's switch picks: the caption and frame a captioned mount draws, from
-/// the same style, around the mount uncaptioned.
-fn mock_selected<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, captioned: bool) {
-    let style = eggshell_ui::Style::of(s.ctx());
-    let look = &style.mount;
-    let tokens = common::tokens(s.ctx());
-    let primary = tokens.primary;
-    let framed = tw()
-        .border(look.border_width)
-        .border_color(look.border)
-        .rounded_px(f32::from(look.radius))
-        .p(look.padding / 4.0);
-    let frame = match (captioned, state.selected) {
-        (true, Selected::Ring) => framed.border_color(primary).ring(1.0, primary),
-        (true, Selected::Chip) => framed.border_color(primary),
-        (true, Selected::Tint) => framed
-            .border_color(primary)
-            .bg(primary.gamma_multiply(0.06)),
-        (false, selected) => {
-            // Grown past the view by as much as it is padded, so the ring
-            // clears the view without moving it.
-            let around = tw().m(-2.0).p(2.0).rounded_px(f32::from(look.radius));
-            match selected {
-                Selected::Ring => around.ring(2.0, primary),
-                Selected::Chip => around.ring(1.0, primary),
-                Selected::Tint => around.ring(1.0, primary).bg(primary.gamma_multiply(0.06)),
-            }
-        }
-    };
-    let caption = match state.selected {
-        Selected::Chip => tw()
-            .self_start()
-            .px(2.0)
-            .rounded_md()
-            .bg(primary)
-            .text(tokens.primary_foreground),
-        _ => tw().text(look.caption),
-    };
-    s.div_id(
-        Part::Mock,
-        tw().flex().flex_col().gap(look.gap / 4.0),
-        |s| {
-            if captioned {
-                s.span(Part::Caption, caption, format!("Example: {name}"));
-            }
-            s.div_id(Part::Frame, frame, |s| mount(s, state, name, None));
-        },
-    );
-}
-
 /// ```html
 /// <div class="flex flex-col size-full">
-///   <header class="flex gap-3 p-3 border-b">Frame: [None|Outline|…] · log</header>
+///   <header class="flex gap-3 p-3 border-b">Theme: [Neutral|Blue|Violet] · log</header>
 ///   <main class="overflow-y-auto grow p-6"><article class="max-w-[640px]">…</article></main>
 /// </div>
 /// ```
 pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
+    common::use_theme_color(b.ctx(), state.theme);
     b.commands(&page_commands(), state);
     let tokens = common::tokens(b.ctx());
     let directives = directives();
@@ -384,9 +314,9 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                 .border_b(1.0)
                 .border_color(tokens.border),
             |b| {
-                b.span(Part::SelectedLabel, tw(), "Selected");
-                b.segmented(Part::Selected, state.selected, Selected::ALL)
-                    .on_change(|state: &mut State, selected| state.selected = selected);
+                b.span(Part::ThemeLabel, tw(), "Theme");
+                b.segmented(Part::Theme, state.theme, THEMES)
+                    .on_change(|state: &mut State, theme| state.theme = theme);
                 let last = state
                     .page_log
                     .last()

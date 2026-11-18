@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use egui::{Id, Pos2, Vec2, ViewportBuilder, ViewportId};
+use egui::{Event, Id, Pos2, Vec2, ViewportBuilder, ViewportId};
 
 use crate::builder::{Builder, Scope, Slot};
 use crate::kept::Handle;
@@ -379,19 +379,13 @@ impl<'b, 'f, A: 'static> PopOutChain<'b, 'f, A> {
     }
 }
 
-/// Whether a window's close button was used.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Closed {
-    No,
-    Asked,
-}
-
 /// What became of a pop-out's window in the pass that drew it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Shown {
     /// The index of the window's root.
     pub(crate) root: usize,
-    pub(crate) closed: Closed,
+    /// Whether the window's close button was used.
+    pub(crate) close_asked: bool,
     /// The window's content as drawn: in its own coordinates when native.
     pub(crate) content: egui::Rect,
     /// The window's outside, where the backend says.
@@ -408,7 +402,7 @@ impl Shown {
         });
         Self {
             root,
-            closed: if asked { Closed::Asked } else { Closed::No },
+            close_asked: asked,
             content,
             outer,
         }
@@ -529,7 +523,7 @@ pub(crate) fn report<A>(
     {
         then(app, frame);
     }
-    if shown.closed == Closed::Asked
+    if shown.close_asked
         && let Some(then) = hooks.on_close.take()
     {
         then(app);
@@ -562,4 +556,11 @@ pub(crate) fn enter_pass(
         }
     }
     stack.store(kept, viewport);
+}
+
+/// Whether `events` say the window lost the keyboard focus.
+pub(crate) fn blurred(events: &[Event]) -> bool {
+    events
+        .iter()
+        .any(|event| matches!(event, Event::WindowFocused(false)))
 }

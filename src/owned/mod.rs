@@ -134,6 +134,24 @@ pub enum Enablement {
     Disabled,
 }
 
+/// TODO(prose): `true` is [`Enabled`](Enablement::Enabled).
+///
+/// ```
+/// use eggshell_ui::owned::Enablement;
+///
+/// assert_eq!(Enablement::from(true), Enablement::Enabled);
+/// assert_eq!(Enablement::from(false), Enablement::Disabled);
+/// ```
+impl From<bool> for Enablement {
+    fn from(enabled: bool) -> Self {
+        if enabled {
+            Self::Enabled
+        } else {
+            Self::Disabled
+        }
+    }
+}
+
 impl Enablement {
     /// `classes`, inert when disabled and, if the style fades disabled
     /// controls, faded. Apply it to the root of a control: what is inside
@@ -320,11 +338,28 @@ pub(crate) fn tipped(ui: &Ui, response: Response, tip: &Tip) -> Response {
     response
 }
 
+/// `tip` shown while the pointer is anywhere over the node of `ui` or focus
+/// is on anything inside it, anchored to the node: a control's own tooltip,
+/// whatever part of it is hovered or focused.
+pub(crate) fn tipped_whole(ui: &Ui, tip: &Tip) {
+    if let Some(tip) = tip {
+        crate::tooltip::register_whole(ui, tip);
+    }
+}
+
+/// `response`, a part of a control [`tipped_whole`], described by the
+/// control's `tip`, which it does not trigger.
+pub(crate) fn tip_describes(ui: &Ui, response: &Response, tip: &Tip) {
+    if let Some(tip) = tip {
+        crate::tooltip::describes(ui, response, tip);
+    }
+}
+
 /// The node's response, described to assistive technology as a `role` named
 /// `name`, and as on or off when it is `selected`, with the tooltip `tip`.
 fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str, tip: &Tip) -> Response {
     let response = tipped(ui, ui.node_response(), tip);
-    describe(&response, ui.is_enabled(), role, selected, name);
+    describe(&response, ui.is_enabled().into(), role, selected, name);
     response
 }
 
@@ -332,11 +367,12 @@ fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str, tip: &Tip)
 /// and as on or off when it is `selected`.
 pub(crate) fn describe(
     response: &Response,
-    enabled: bool,
+    enablement: Enablement,
     role: Role,
     selected: Option<Mark>,
     name: &str,
 ) {
+    let enabled = enablement == Enablement::Enabled;
     response.widget_info(|| match selected {
         Some(mark) => WidgetInfo::selected(role, enabled, mark == Mark::On, name),
         None => WidgetInfo::labeled(role, enabled, name),

@@ -399,6 +399,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
 
     /// Where a mount keyed `slot` and built here is: its id and how deeply
     /// it is nested in other mounts.
+    /// Declares the mount keyed `slot`, built here, and says whether it is
+    /// selected.
+    pub(crate) fn declare_mount(&mut self, slot: &Slot) -> crate::mount::Selected {
+        let parent = self.frame.mount();
+        self.frame.mounts.push(crate::mount::MountDecl {
+            id: slot.id,
+            parent,
+        });
+        if self.st.kept.with(|kept| kept.mounts.is_selected(slot.id)) {
+            crate::mount::Selected::Yes
+        } else {
+            crate::mount::Selected::No
+        }
+    }
+
     pub(crate) fn mount_within(&self, slot: &Slot) -> Within {
         Within {
             mount: slot.id,
@@ -916,11 +931,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let text = node.text.clone();
         let root = self.st.tree.new_node(style, &[], node);
         let at = self.frame.roots.len();
-        self.frame.roots.push(RootDecl::layer(Layer {
-            kind: LayerKind::Window(decl),
-            parent,
-            node: root,
-        }));
+        let mount = self.frame.mount();
+        self.frame.roots.push(RootDecl {
+            mount,
+            ..RootDecl::layer(Layer {
+                kind: LayerKind::Window(decl),
+                parent,
+                node: root,
+            })
+        });
         self.frame.current = at;
         let mark = self.st.names.push(&slot.label);
         let mut kids = Vec::new();
@@ -988,11 +1007,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let text = node.text.clone();
         let root = self.st.tree.new_node(overlay_style(), &[], node);
         let at = self.frame.roots.len();
-        self.frame.roots.push(RootDecl::layer(Layer {
-            kind: LayerKind::Overlay(decl),
-            parent,
-            node: root,
-        }));
+        let mount = self.frame.mount();
+        self.frame.roots.push(RootDecl {
+            mount,
+            ..RootDecl::layer(Layer {
+                kind: LayerKind::Overlay(decl),
+                parent,
+                node: root,
+            })
+        });
         self.frame.current = at;
         let mark = self.st.names.push(&slot.label);
         let mut kids = Vec::new();
@@ -1408,6 +1431,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             region: None,
             collapse: parts.collapse,
             description: None,
+            announced: None,
             action: None,
             open_focus: crate::pipeline::OpenFocus::Elsewhere,
             pane: None,
@@ -1977,6 +2001,13 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
+    /// Notes that the node's draw closure announces it as `role`, which
+    /// decides what the node does with keys before it is drawn.
+    pub(crate) fn announces(mut self, role: egui::Role) -> Self {
+        self.edit(|context| context.announced = Some(role));
+        self
+    }
+
     /// Announces whether what the node controls is open, the `aria-expanded`
     /// of the web: for the header of a [`collapsible`](Builder::collapsible),
     /// with the [`Button`](egui::Role::Button) role.
@@ -2145,7 +2176,7 @@ impl<'b, 'f, A: 'static> SpansHandle<'b, 'f, A> {
 /// enum Part { Save }
 ///
 /// fn save<'a, 'f>(s: &'a mut Scope<'_, 'f, App>, key: Part) -> ButtonChain<'a, 'f, App> {
-///     s.button(key, "Save").named("Save the form").tooltip("Saves")
+///     s.button(key, "Save").tooltip("Saves")
 /// }
 ///
 /// # fn demo(b: &mut eggshell_ui::Builder<'_, '_, App>) {

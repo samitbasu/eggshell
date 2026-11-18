@@ -4,7 +4,7 @@
 //! `style.select` alone, which the second test pins.
 
 use eggshell_ui::{LayoutState, NodeUi as _, TextSpec, TextStyle, Weight, tw};
-use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, ThemeColor};
+use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
 use egui::{Color32, FontFamily, Popup, SetOpenCommand, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
@@ -89,7 +89,7 @@ fn open_select_shapes(restyle_global: bool) -> Vec<String> {
         .build_ui_state(
             |ui, pick: &mut Pick| {
                 let ctx = ui.ctx().clone();
-                Shadcn::apply_both_with(&ctx, ShadcnStyle::Lyra, ThemeColor::Neutral);
+                Shadcn::apply_both_with(&ctx, ShadcnStyle::Lyra, Palette::new());
                 if restyle_global {
                     ctx.global_style_mut(|style| {
                         let v = &mut style.visuals;
