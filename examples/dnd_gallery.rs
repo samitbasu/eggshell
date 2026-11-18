@@ -386,7 +386,7 @@ pub fn toolbar(b: &mut B<'_, '_, State>, state: &State) {
 }
 
 /// A tooltip's content: what a control does and the keys that do it too.
-fn shortcut(b: &mut B<'_, '_, State>, what: &str, keys: &[&str]) {
+fn shortcut(b: &mut B<'_, '_, ()>, what: &str, keys: &[&str]) {
     b.div(tw().flex().items_center().gap(2.0), |b| {
         b.text(tw(), what);
         b.div(tw().flex().items_center().gap(1.0), |b| {
