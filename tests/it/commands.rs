@@ -3,8 +3,12 @@
 //! after the library has claimed Esc and Return.
 
 use eggshell_ui::overlay::{Anchor, Modal};
+use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, Chord, Command, Commands, InText, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::{
+    Builder, Chord, Command, CommandState, Commands, Icon, InText, Shell, TextSpec, TextStyle,
+    Weight, tw,
+};
 use egui::{Color32, FontFamily, Key, Modifiers, Role, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -14,6 +18,8 @@ use crate::support::{self, Rig, click_node, focused_path, rect_of};
 const NAME: &str = r#"/"Page"/"name""#;
 const FILE: &str = r#"/"Page"/"file""#;
 const MENU: &str = r#"/"Page"/("file", Menu)/Box"#;
+const VIEW: &str = r#"/"Page"/"view""#;
+const VIEW_MENU: &str = r#"/"Page"/("view", Menu)/Box"#;
 
 #[derive(Hash, Debug, Clone, Copy)]
 enum Cmd {
@@ -27,6 +33,17 @@ enum Cmd {
     Confirm,
     Local,
     Shadow,
+    Grid,
+    Small,
+    Large,
+    Shelled,
+}
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum Size {
+    #[default]
+    Small,
+    Large,
 }
 
 #[derive(Default)]
@@ -42,6 +59,10 @@ struct App {
     dialog_item: Option<Cmd>,
     popover: bool,
     button: Option<Cmd>,
+    view_menu: bool,
+    grid: bool,
+    size: Size,
+    shell_width: Option<f32>,
 }
 
 const fn chord(modifiers: Modifiers, key: Key) -> Chord {
@@ -92,6 +113,29 @@ fn page_commands(app: &App) -> Commands<App> {
             Command::new("Jump", |app: &mut App| app.log.push("jump"))
                 .shortcut(chord(Modifiers::NONE, Key::J))
                 .in_text(InText::Fire),
+        )
+        .add(
+            Cmd::Grid,
+            Command::new("Grid", |app: &mut App| app.grid = !app.grid)
+                .checked(|app| Mark::from(app.grid)),
+        )
+        .add(
+            Cmd::Small,
+            Command::new("Small", |app: &mut App| app.size = Size::Small)
+                .chosen(|app| Mark::from(app.size == Size::Small)),
+        )
+        .add(
+            Cmd::Large,
+            Command::new("Large", |app: &mut App| app.size = Size::Large)
+                .chosen(|app| Mark::from(app.size == Size::Large)),
+        )
+        .add(
+            Cmd::Shelled,
+            Command::with_shell("Shelled", |app: &mut App, shell: &Shell| {
+                app.log.push("shelled");
+                app.shell_width = Some(shell.ctx().content_rect().width());
+            })
+            .shortcut(chord(Modifiers::COMMAND, Key::K)),
         );
     if app.with_save_as {
         table.add(
@@ -150,11 +194,21 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
             .classes(tw().w_px(160.0))
             .on_change(|app: &mut App, text| app.name = text);
         s.dropdown_menu("file", "File").items(|m| {
-            m.command(Cmd::Save);
-            m.command(Cmd::Copy);
+            m.command(Cmd::Save).add();
+            m.command(Cmd::Copy).add();
         });
         if let Some(command) = app.button {
             s.button("run", "Run").command(command);
+        }
+        if app.view_menu {
+            s.dropdown_menu("view", "View").items(|m| {
+                m.command(Cmd::Grid).icon(icon()).add();
+                m.command(Cmd::Small).add();
+                m.command(Cmd::Large).add();
+                m.command(Cmd::Shelled).inset().add();
+                m.command(Cmd::Copy).enablement(Enablement::Disabled).add();
+                m.command(Cmd::Save).enablement(Enablement::Enabled).add();
+            });
         }
         s.div_id("canvas", tw().w_px(160.0).h_px(60.0), |_| {})
             .draw(|app: &mut App, ui| {
@@ -185,12 +239,19 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
                     |s| {
                         if let Some(command) = app.dialog_item {
                             s.dropdown_menu("dialog menu", "Dialog menu")
-                                .items(move |m| m.command(command));
+                                .items(move |m| m.command(command).add());
                         }
                     },
                 );
             });
     }
+}
+
+fn icon() -> Icon {
+    Icon::new(egui::ImageSource::Texture(egui::load::SizedTexture::new(
+        egui::TextureId::default(),
+        vec2(4.0, 4.0),
+    )))
 }
 
 fn harness_of(app: App) -> Harness<'static, Rig<App>> {
@@ -572,6 +633,180 @@ mod menus {
         open_file(&mut harness);
         press(&mut harness, Modifiers::COMMAND, Key::S);
         assert_eq!(log(&harness), ["save"]);
+    }
+}
+
+mod command_items {
+    use super::*;
+
+    fn open_view(app: App) -> Harness<'static, Rig<App>> {
+        let mut harness = harness_of(App {
+            view_menu: true,
+            ..app
+        });
+        click_node(&mut harness, VIEW);
+        harness.run_steps(5);
+        assert!(
+            harness
+                .state()
+                .nodes
+                .iter()
+                .any(|(path, _)| path == VIEW_MENU),
+            "precondition: the menu is open"
+        );
+        harness
+    }
+
+    fn toggled(
+        harness: &Harness<'_, Rig<App>>,
+        role: Role,
+        label: &str,
+    ) -> Option<egui::accesskit::Toggled> {
+        harness
+            .get_by_role_and_label(role, label)
+            .accesskit_node()
+            .data()
+            .toggled()
+    }
+
+    fn disabled(harness: &Harness<'_, Rig<App>>, label: &str) -> bool {
+        harness
+            .query_by_label(label)
+            .expect("the item is in the menu")
+            .accesskit_node()
+            .data()
+            .is_disabled()
+    }
+
+    #[test]
+    fn a_checked_commands_item_is_a_checkbox_marked_as_the_app_has_it() {
+        use egui::accesskit::Toggled;
+        let off = open_view(App::default());
+        assert_eq!(
+            toggled(&off, Role::MenuItemCheckBox, "Grid"),
+            Some(Toggled::False)
+        );
+        let on = open_view(App {
+            grid: true,
+            ..App::default()
+        });
+        assert_eq!(
+            toggled(&on, Role::MenuItemCheckBox, "Grid"),
+            Some(Toggled::True)
+        );
+    }
+
+    #[test]
+    fn an_icon_does_not_replace_a_checked_commands_mark() {
+        let harness = open_view(App {
+            grid: true,
+            ..App::default()
+        });
+        let item = rect_of(&harness, &format!("{VIEW_MENU}/Grid"));
+        let checks = support::shapes(&harness)
+            .into_iter()
+            .filter(|shape| item.contains_rect(shape.visual_bounding_rect()))
+            .count();
+        let unchecked = open_view(App::default());
+        let bare = support::shapes(&unchecked)
+            .into_iter()
+            .filter(|shape| item.contains_rect(shape.visual_bounding_rect()))
+            .count();
+        assert!(
+            checks > bare,
+            "the check is drawn: {checks} shapes against {bare}"
+        );
+    }
+
+    #[test]
+    fn a_chosen_commands_item_is_a_radio_with_the_dot_on_the_choice() {
+        use egui::accesskit::Toggled;
+        let harness = open_view(App {
+            size: Size::Large,
+            ..App::default()
+        });
+        assert_eq!(
+            toggled(&harness, Role::MenuItemRadio, "Small"),
+            Some(Toggled::False)
+        );
+        assert_eq!(
+            toggled(&harness, Role::MenuItemRadio, "Large"),
+            Some(Toggled::True)
+        );
+    }
+
+    #[test]
+    fn activating_a_checked_commands_item_runs_the_command() {
+        let mut harness = open_view(App::default());
+        click_node(&mut harness, &format!("{VIEW_MENU}/Grid"));
+        harness.run_steps(5);
+        assert!(harness.state().app.grid);
+    }
+
+    #[test]
+    fn an_item_can_disable_an_enabled_command() {
+        let harness = open_view(App {
+            can_save: true,
+            ..App::default()
+        });
+        assert!(
+            !disabled(&harness, "Save"),
+            "precondition: an enabled item is not disabled"
+        );
+        assert!(disabled(&harness, "Copy"));
+    }
+
+    #[test]
+    fn an_item_cannot_enable_a_disabled_command() {
+        let harness = open_view(App::default());
+        assert!(disabled(&harness, "Save"));
+    }
+
+    #[test]
+    fn the_shell_reaches_a_command_from_a_chord_an_item_and_a_button() {
+        let mut harness = harness();
+        press(&mut harness, Modifiers::COMMAND, Key::K);
+        assert_eq!(log(&harness), ["shelled"]);
+        let width = harness.ctx.content_rect().width();
+        assert_eq!(harness.state().app.shell_width, Some(width));
+
+        let mut harness = open_view(App::default());
+        click_node(&mut harness, &format!("{VIEW_MENU}/Shelled"));
+        harness.run_steps(5);
+        assert_eq!(log(&harness), ["shelled"]);
+
+        let mut harness = harness_of(App {
+            button: Some(Cmd::Shelled),
+            ..App::default()
+        });
+        harness.get_by_role_and_label(Role::Button, "Run").click();
+        harness.run_steps(5);
+        assert_eq!(log(&harness), ["shelled"]);
+    }
+
+    #[test]
+    fn a_table_gives_a_command_by_its_key_and_its_shortcut_as_the_platform_writes_it() {
+        let harness = harness();
+        let app = App {
+            grid: true,
+            ..App::default()
+        };
+        let table = page_commands(&app);
+        let save = table.get(Cmd::Save).expect("Save is in the table");
+        assert_eq!(save.title(), "Save");
+        assert_eq!(
+            save.shortcut_text(&harness.ctx),
+            Some(harness.ctx.format_shortcut(&SAVE.into()))
+        );
+        assert_eq!(
+            table.get(Cmd::Grid).map(|grid| grid.state(&app)),
+            Some(CommandState::Checked(Mark::On))
+        );
+        assert_eq!(
+            table.get(Cmd::Save).map(|save| save.state(&app)),
+            Some(CommandState::Plain)
+        );
+        assert!(table.get(Cmd::Confirm).is_none());
     }
 }
 

@@ -57,7 +57,7 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
     b.commands(&commands(), app);
     b.div_id("Page", tw().flex().flex_col().p(2.0), |s| {
         s.dropdown_menu("file", "File")
-            .items(|m| m.command(Cmd::Paste));
+            .items(|m| m.command(Cmd::Paste).add());
     });
 }
 

@@ -1219,6 +1219,24 @@ mod menu_example {
     }
 
     #[test]
+    fn show_grid_is_on_a_chord_no_browser_keeps_and_not_on_find_next() {
+        let mut harness = menu();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::G);
+        harness.run_steps(3);
+        assert!(
+            !harness.state().app.grid,
+            "Ctrl+G is the browser's find next"
+        );
+        let ctrl_alt = egui::Modifiers {
+            alt: true,
+            ..egui::Modifiers::COMMAND
+        };
+        harness.key_press_modifiers(ctrl_alt, egui::Key::G);
+        harness.run_steps(3);
+        assert!(harness.state().app.grid);
+    }
+
+    #[test]
     fn the_popover_opens_under_its_button_and_the_button_closes_it() {
         let mut harness = menu();
         assert!(
