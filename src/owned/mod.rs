@@ -338,6 +338,23 @@ pub(crate) fn tipped(ui: &Ui, response: Response, tip: &Tip) -> Response {
     response
 }
 
+/// `tip` shown while the pointer is anywhere over the node of `ui` or focus
+/// is on anything inside it, anchored to the node: a control's own tooltip,
+/// whatever part of it is hovered or focused.
+pub(crate) fn tipped_whole(ui: &Ui, tip: &Tip) {
+    if let Some(tip) = tip {
+        crate::tooltip::register_whole(ui, tip);
+    }
+}
+
+/// `response`, a part of a control [`tipped_whole`], described by the
+/// control's `tip`, which it does not trigger.
+pub(crate) fn tip_describes(ui: &Ui, response: &Response, tip: &Tip) {
+    if let Some(tip) = tip {
+        crate::tooltip::describes(ui, response, tip);
+    }
+}
+
 /// The node's response, described to assistive technology as a `role` named
 /// `name`, and as on or off when it is `selected`, with the tooltip `tip`.
 fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str, tip: &Tip) -> Response {

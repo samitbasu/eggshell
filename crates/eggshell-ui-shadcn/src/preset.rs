@@ -569,8 +569,7 @@ impl Shadcn {
             menu
         };
         // shadcn's TooltipContent: `bg-foreground text-background rounded-md
-        // px-3 py-1.5 text-xs` with a 10 pt arrow. The delay is egui's and
-        // the grace is Radix's `skipDelayDuration`, until the user picks.
+        // px-3 py-1.5 text-xs` with a 10 pt arrow.
         style.tooltip = {
             let mut tooltip = style.tooltip;
             tooltip.popup = BoxLook::new(States::still(
@@ -588,7 +587,10 @@ impl Shadcn {
             tooltip.max_width = 320.0;
             tooltip.arrow = Some(Arrow { size: 10.0 });
             tooltip.offset = Distance::new(0.0);
-            tooltip.delay = Duration::from_millis(300);
+            // Radix's default delay, deliberately not shadcn's 0 ms, which
+            // assumes tooltips are rare (desktop apps use them densely); the
+            // grace is Radix's `skipDelayDuration`.
+            tooltip.delay = Duration::from_millis(700);
             tooltip.grace = Duration::from_millis(300);
             tooltip
         };
