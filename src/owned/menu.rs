@@ -454,7 +454,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             .role(Role::Menu)
             .named(label)
             .on_dismiss(move |_| close.change(|menus| menus.close_submenu(root, depth)))
-            .children(|s| menu_box(s, &shared, depth + 1, items));
+            .children(|s| menu_box(s, &shared, (depth + 1, tw()), items));
     }
 
     fn add_row(&mut self, row: Row<A>) {
@@ -573,15 +573,19 @@ impl Shared {
     }
 }
 
-/// The box of a menu at `depth`, with `items` in it.
+/// The box of a menu at `depth`, with `items` in it and `caller` merged over
+/// its classes.
 fn menu_box<'f, A: 'static>(
     s: &mut Scope<'_, 'f, A>,
     shared: &Shared,
-    depth: usize,
+    (depth, caller): (usize, Tw),
     items: impl for<'m> FnOnce(&mut Menu<'m, 'f, A>),
 ) {
     let menu = &shared.style.menu;
-    let classes = menu.box_classes(shared.text()).min_w_px(menu.min_width);
+    let classes = menu
+        .box_classes(shared.text())
+        .min_w_px(menu.min_width)
+        .merge(caller);
     let shared = shared.clone();
     s.div_id(Part::Box, classes, |s| {
         items(&mut Menu {
@@ -826,6 +830,19 @@ pub struct DropdownChain<'a, 'f, A, K> {
     offset: Option<Distance>,
     enablement: Enablement,
     on_response: OnResponse<A>,
+    children: Option<Body<'a, 'f, A>>,
+    trail: TriggerTrail,
+    menu_classes: Tw,
+}
+
+/// What a dropdown trigger's [`children`](DropdownChain::children) build.
+type Body<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
+
+/// What a dropdown trigger shows after its content.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TriggerTrail {
+    Nothing,
+    Chevron,
 }
 
 impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
@@ -838,7 +855,28 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             offset: None,
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
+            children: None,
+            trail: TriggerTrail::Nothing,
+            menu_classes: tw(),
         }
+    }
+
+    /// TODO(prose): builds `body`'s nodes inside the trigger, after its icon and label, as [`ButtonChain::children`] does.
+    pub fn children(mut self, body: impl for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a) -> Self {
+        self.children = Some(Box::new(body));
+        self
+    }
+
+    /// TODO(prose): a down chevron after the trigger's content, sized and toned as a select's.
+    pub fn chevron(mut self) -> Self {
+        self.trail = TriggerTrail::Chevron;
+        self
+    }
+
+    /// TODO(prose): classes merged over the styled ones of the menu's box ([`Tw::merge`]), such as its width.
+    pub fn menu_classes(mut self, classes: Tw) -> Self {
+        self.menu_classes = classes;
+        self
     }
 
     /// Applies shared button `options` to the trigger.
@@ -904,6 +942,9 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             offset,
             enablement,
             on_response,
+            children,
+            trail,
+            menu_classes,
         } = self;
         let shared = Shared::of(&b, b.slot(&key).id);
         let trigger = shared.root;
@@ -914,10 +955,26 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         }
         let open = shared.kept.with(|kept| kept.menus.is_open(trigger));
         let name = options.name_or(&face).to_owned();
+        let select = &shared.style.select;
+        let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)
             .opens_popup()
             .enablement(enablement);
+        let button = match (children, trail) {
+            (None, TriggerTrail::Nothing) => button,
+            (children, trail) => button.children(move |s| {
+                if let Some(children) = children {
+                    children(s);
+                }
+                if trail == TriggerTrail::Chevron {
+                    s.glyph(
+                        tw().size_px(chevron).shrink_0().opacity(opacity),
+                        Chevron::Down.icon(),
+                    );
+                }
+            }),
+        };
         let (on_key, on_click) = (shared.clone(), shared.clone());
         button
             .on_response(move |app, response| {
@@ -948,7 +1005,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             .role(Role::Menu)
             .named(name)
             .on_dismiss(move |_| close.close())
-            .children(|s| menu_box(s, &shared, 0, items));
+            .children(|s| menu_box(s, &shared, (0, menu_classes), items));
     }
 }
 
@@ -987,7 +1044,7 @@ pub(crate) fn context<'f, A: 'static>(
         .role(Role::Menu)
         .named("Context menu")
         .on_dismiss(move |_| close.close())
-        .children(|s| menu_box(s, &shared, 0, items));
+        .children(|s| menu_box(s, &shared, (0, tw()), items));
 }
 
 /// Opens the context menu of `owner` at the pointer on a secondary click.
