@@ -1406,7 +1406,7 @@ impl<A> Walk<'_, A> {
     ) {
         let content = boxes.content;
         let text = leaf.style;
-        let galley = self
+        let (galley, underlines) = self
             .ui
             .ctx()
             .fonts_mut(|fonts| leaf.drawn_galley(fonts, boxes.wrap_width));
@@ -1418,6 +1418,7 @@ impl<A> Walk<'_, A> {
             TextAlign::Center => content.center_top(),
             TextAlign::Right => content.right_top(),
         } + vec2(0.0, top);
+        let lines = spans::underlines(&galley, &underlines, anchor);
         let marks = leaf.marks.as_deref();
         let runs = marks.map_or_else(Vec::new, |marks| spans::runs(&galley, marks));
         if let Some(marks) = marks {
@@ -1442,6 +1443,14 @@ impl<A> Walk<'_, A> {
                 .galley(anchor, galley, text.color);
             links.map(|_| self.sense_links(id, content, inherited))
         };
+        let painter = self.painter(inherited.clip, inherited.opacity);
+        for (line, stroke) in lines {
+            let color = match stroke.color {
+                Color32::PLACEHOLDER => text.color,
+                color => color,
+            };
+            painter.line_segment(line, Stroke::new(stroke.width, color));
+        }
         // TODO(#279): report text with links that has no id, which `spans` never adds.
         if let (Some(marks), Some(response), Some(node)) = (links, response, node.id()) {
             spans::follow(&response, &runs, marks, anchor, node);

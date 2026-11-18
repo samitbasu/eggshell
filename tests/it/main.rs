@@ -112,6 +112,8 @@ mod theme_toggle;
 mod todo_demo;
 mod toggle_group;
 mod tooltips;
+mod typeset;
+mod underline;
 mod value_widgets;
 mod vlist;
 mod vlist_nav;

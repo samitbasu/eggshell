@@ -810,6 +810,8 @@ pub struct MountStyle {
 pub struct RichTextStyle {
     /// Link text and underline.
     pub link: Color32,
+    /// TODO(prose): a link's underline, in place of `link`.
+    pub link_underline: Option<Color32>,
     /// The least weight of link text.
     pub link_weight: Weight,
     /// Inline code.
@@ -1743,6 +1745,7 @@ impl Style {
             },
             rich: RichTextStyle {
                 link: v.hyperlink_color,
+                link_underline: None,
                 link_weight: Weight::Normal,
                 code: InlineCode {
                     fill: v.code_bg_color,

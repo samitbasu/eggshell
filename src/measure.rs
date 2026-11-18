@@ -219,14 +219,21 @@ impl<'a> TextLeaf<'a> {
     }
 
     /// The galley to paint in a content box `width` wide, anchored at the box
-    /// edge the text aligns to. Plain text is coloured
+    /// edge the text aligns to, and the underline of each of its sections,
+    /// which it is laid out without for the painter to draw (see
+    /// `spans::underlines`). Plain text is coloured
     /// [`Color32::PLACEHOLDER`], for the painter to resolve.
     pub(crate) fn drawn_galley(
         &self,
         fonts: &mut FontsView<'_>,
         width: f32,
-    ) -> std::sync::Arc<egui::Galley> {
+    ) -> (std::sync::Arc<egui::Galley>, Vec<Stroke>) {
         let mut job = self.job(fonts);
+        let underlines = job
+            .sections
+            .iter_mut()
+            .map(|section| std::mem::replace(&mut section.format.underline, Stroke::NONE))
+            .collect();
         job.halign = match self.style.align {
             TextAlign::Left => Align::LEFT,
             TextAlign::Center => Align::Center,
@@ -242,7 +249,7 @@ impl<'a> TextLeaf<'a> {
             }
         }
         self.clamp_rows(&mut job);
-        fonts.layout_job(job)
+        (fonts.layout_job(job), underlines)
     }
 
     /// The galley a text edit shows for its text: the job measurement and
