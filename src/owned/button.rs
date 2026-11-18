@@ -450,7 +450,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// reported as [`UnknownCommand`](crate::Problem::UnknownCommand).
     #[track_caller]
     pub fn command<K: crate::Key>(mut self, id: K) {
-        let Some((command, enabled)) = self.b.command(&id) else {
+        let Some(bound) = self.b.command(&id) else {
             crate::report::report(
                 self.b.ctx(),
                 crate::Problem::UnknownCommand,
@@ -466,10 +466,10 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             self.add();
             return;
         };
-        if !enabled {
+        if bound.enablement == Enablement::Disabled {
             self.opts.enablement = Some(Enablement::Disabled);
         }
-        let shell = self.b.shell();
+        let (command, shell) = (bound.command, self.b.shell());
         self.on_click(move |app| command.activate(app, &shell));
     }
 

@@ -14,12 +14,13 @@ use egui::{Color32, Context, EventFilter, Id, Key as EguiKey, Painter, Pos2, Rec
 use super::button::{ButtonChain, ButtonOptions, Face};
 use super::{Chevron, Enablement, Mark, OnResponse, check, describe, painted};
 use crate::builder::{Scope, Slot};
+use crate::commands::Bound;
 use crate::contract::{MenuStyle, Style, Variant};
 use crate::kept::Handle;
 use crate::overlay::{Anchor, Distance, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::pipeline::OpenFocus;
-use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
+use crate::{Builder, CommandState, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
 
 /// The parts of a menu.
 #[derive(Hash, Debug, Clone, Copy)]
@@ -269,14 +270,23 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
     /// declared on the builder: its label is the command's title, it shows the
     /// command's shortcut as the platform writes it, it is disabled while the
     /// command is, and activating it runs the command, which closes the menu.
+    /// A [`checked`](crate::Command::checked) command's item has a check mark
+    /// and a [`chosen`](crate::Command::chosen) one's a dot. Finish it with
+    /// [`add`](ItemChain::add).
     ///
     /// If no live table declares `id`, the item is disabled, says `id`, and
     /// is reported as [`UnknownCommand`](crate::Problem::UnknownCommand).
     #[track_caller]
-    pub fn command<K: crate::Key>(&mut self, id: K) {
-        let Some((command, enabled)) = self.b.command(&id) else {
+    pub fn command<K: crate::Key>(&mut self, id: K) -> ItemChain<'_, 'f, A, CommandItem<A>> {
+        let Some(bound) = self.b.command(&id) else {
             let readable = format!("{id:?}");
-            let item = self.item(id, readable.clone());
+            let item = self.chain(
+                id,
+                readable.clone(),
+                CommandItem::new(|_| {}),
+                Role::MenuItem,
+                Lead::Nothing,
+            );
             crate::report::report(
                 item.b.ctx(),
                 crate::Problem::UnknownCommand,
@@ -288,23 +298,26 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                     )
                 },
             );
-            item.enablement(Enablement::Disabled).on_click(|_| {});
-            return;
+            return item.allowed(Enablement::Disabled);
         };
-        let keys = command
-            .chord()
-            .map(|chord| self.b.ctx().format_shortcut(&chord));
+        let Bound {
+            command,
+            enablement,
+            state,
+        } = bound;
+        let keys = command.shortcut_text(self.b.ctx());
         let shell = self.b.shell();
-        let mut item = self.item(id, command.title());
-        if let Some(keys) = keys {
-            item = item.shortcut(keys);
-        }
-        let item = if enabled {
-            item
-        } else {
-            item.enablement(Enablement::Disabled)
+        let (role, lead) = match state {
+            CommandState::Plain => (Role::MenuItem, Lead::Nothing),
+            CommandState::Checked(mark) => (Role::MenuItemCheckBox, Lead::Check(mark)),
+            CommandState::Chosen(mark) => (Role::MenuItemRadio, Lead::Dot(mark)),
         };
-        item.on_click(move |app| command.activate(app, &shell));
+        let run = CommandItem::new(move |app| command.activate(app, &shell));
+        let mut item = self
+            .chain(id, command.title().to_owned(), run, role, lead)
+            .allowed(enablement);
+        item.shortcut = keys;
+        item
     }
 
     /// An item with a check mark where `current` is on, for a setting that
@@ -361,6 +374,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             shortcut: None,
             tone: Tone::Plain,
             enablement: Enablement::Enabled,
+            allowed: Enablement::Enabled,
             open_focus: OpenFocus::Elsewhere,
             kind,
         }
@@ -578,9 +592,10 @@ fn menu_box<'f, A: 'static>(
     });
 }
 
-/// An item of a menu, started with [`Menu::item`], [`Menu::checkbox_item`] or
-/// [`Menu::radio_item`] and finished with the handler of its kind.
-#[must_use = "an item is not added until you call `.on_click(..)` or `.on_change(..)`"]
+/// An item of a menu, started with [`Menu::item`], [`Menu::checkbox_item`],
+/// [`Menu::radio_item`] or [`Menu::command`] and finished with the handler of
+/// its kind.
+#[must_use = "an item is not added until you call `.on_click(..)`, `.on_change(..)` or `.add()`"]
 pub struct ItemChain<'m, 'f, A, Kind> {
     b: Builder<'m, 'f, A>,
     shared: Shared,
@@ -592,6 +607,9 @@ pub struct ItemChain<'m, 'f, A, Kind> {
     shortcut: Option<String>,
     tone: Tone,
     enablement: Enablement,
+    /// Whether the item may take input at all, whatever its own enablement
+    /// says: a command item's command.
+    allowed: Enablement,
     open_focus: OpenFocus,
     kind: Kind,
 }
@@ -602,26 +620,82 @@ pub struct Action;
 pub struct Checkbox(Mark);
 /// The kind of an item with a dot.
 pub struct Radio;
+/// TODO(prose): the kind of an item for a command, which runs the command.
+pub struct CommandItem<A>(Box<dyn FnOnce(&mut A)>);
+
+impl<A> CommandItem<A> {
+    fn new(run: impl FnOnce(&mut A) + 'static) -> Self {
+        Self(Box::new(run))
+    }
+}
 
 impl<A: 'static> ItemChain<'_, '_, A, Action> {
     /// TODO(prose): leaves the width of an icon before the label, to line up with items that have one.
-    pub fn inset(mut self) -> Self {
-        self.lead = Lead::Inset;
-        self
+    pub fn inset(self) -> Self {
+        self.lead_unless_marked(Lead::Inset)
     }
 
     /// TODO(prose): `icon` before the label, in the item's text colour.
-    pub fn icon(mut self, icon: Icon) -> Self {
-        self.lead = Lead::Icon(icon);
-        self
+    pub fn icon(self, icon: Icon) -> Self {
+        self.lead_unless_marked(Lead::Icon(icon))
+    }
+
+    /// The keys that do the same thing, shown after the label. Display only:
+    /// the application handles the keys.
+    pub fn shortcut(self, keys: impl Into<String>) -> Self {
+        self.keys(keys.into())
+    }
+}
+
+impl<A: 'static> ItemChain<'_, '_, A, Checkbox> {
+    /// The keys that do the same thing, as [`ItemChain::shortcut`] of an
+    /// action item.
+    pub fn shortcut(self, keys: impl Into<String>) -> Self {
+        self.keys(keys.into())
+    }
+}
+
+impl<A: 'static> ItemChain<'_, '_, A, Radio> {
+    /// The keys that do the same thing, as [`ItemChain::shortcut`] of an
+    /// action item.
+    pub fn shortcut(self, keys: impl Into<String>) -> Self {
+        self.keys(keys.into())
+    }
+}
+
+impl<A: 'static> ItemChain<'_, '_, A, CommandItem<A>> {
+    /// TODO(prose): leaves the width of an icon before the label; a checked or chosen command's item keeps its mark there.
+    pub fn inset(self) -> Self {
+        self.lead_unless_marked(Lead::Inset)
+    }
+
+    /// TODO(prose): `icon` before the label; a checked or chosen command's item keeps its mark there.
+    pub fn icon(self, icon: Icon) -> Self {
+        self.lead_unless_marked(Lead::Icon(icon))
+    }
+
+    /// TODO(prose): adds the item; activating it runs the command, and then the menu closes.
+    #[track_caller]
+    pub fn add(self) {
+        self.finish_with(|CommandItem(run)| run);
     }
 }
 
 impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
-    /// The keys that do the same thing, shown after the label. Display only:
-    /// the application handles the keys.
-    pub fn shortcut(mut self, keys: impl Into<String>) -> Self {
-        self.shortcut = Some(keys.into());
+    fn lead_unless_marked(mut self, lead: Lead) -> Self {
+        if !matches!(self.lead, Lead::Check(_) | Lead::Dot(_)) {
+            self.lead = lead;
+        }
+        self
+    }
+
+    fn keys(mut self, keys: String) -> Self {
+        self.shortcut = Some(keys);
+        self
+    }
+
+    fn allowed(mut self, allowed: Enablement) -> Self {
+        self.allowed = allowed;
         self
     }
 
@@ -632,7 +706,8 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
     }
 
     /// Whether the item takes input. A disabled item is skipped by the arrow
-    /// keys.
+    /// keys. A command's item takes input only while its command is enabled
+    /// too.
     pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
         let enablement = enablement.into();
         self.enablement = enablement;
@@ -648,6 +723,11 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
 
     #[track_caller]
     fn finish(self, handler: impl FnOnce(&mut A) + 'static) {
+        self.finish_with(|_| handler);
+    }
+
+    #[track_caller]
+    fn finish_with<H: FnOnce(&mut A) + 'static>(self, handler: impl FnOnce(Kind) -> H) {
         let Self {
             b,
             shared,
@@ -659,9 +739,14 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             shortcut,
             tone,
             enablement,
+            allowed,
             open_focus,
-            kind: _,
+            kind,
         } = self;
+        let enablement = match allowed {
+            Enablement::Enabled => enablement,
+            Enablement::Disabled => Enablement::Disabled,
+        };
         Menu { b, shared, depth }.add_row(Row {
             slot,
             label,
@@ -671,7 +756,7 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             tone,
             enablement,
             open_focus,
-            reaction: Reaction::Run(Box::new(handler)),
+            reaction: Reaction::Run(Box::new(handler(kind))),
         });
     }
 }
