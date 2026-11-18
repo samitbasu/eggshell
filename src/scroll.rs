@@ -152,7 +152,6 @@ use std::collections::HashMap;
 use egui::{Align, Context, Id, Pos2, Rect, Role, Vec2, Vec2b};
 
 use crate::builder::{Builder, NodeHandle, Scope, Slot};
-use crate::contract::Style;
 pub use crate::contract::{EdgeFade, ScrollStyle};
 use crate::dnd::EdgeScroll;
 use crate::finite::clamp_vec2;
@@ -409,7 +408,7 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             role,
             name,
         } = self;
-        let mut style = bars.unwrap_or_else(|| Style::of(b.ctx()).scroll);
+        let mut style = bars.unwrap_or_else(|| b.style().clone().scroll);
         if let Some(fade) = fade {
             style.fade = fade;
         }

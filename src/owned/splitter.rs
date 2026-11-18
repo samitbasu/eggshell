@@ -12,7 +12,7 @@ use crate::builder::Slot;
 use crate::contract::{Focus, SplitterStyle};
 use crate::draw::pane_rect;
 use crate::plane::Axis;
-use crate::{Builder, Easing, NodeUi as _, Progress, Style, transition, tw};
+use crate::{Builder, Easing, NodeUi as _, Progress, transition, tw};
 
 /// TODO(prose): a pane's size along its container's axis, in points; never
 /// negative or NaN.
@@ -335,7 +335,7 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
         }
         let travel = Travel::of(direction.unwrap_or(FlexDirection::Row), side);
         let (style, ring) = {
-            let style = Style::of(b.ctx());
+            let style = b.style().clone();
             (style.splitter, style.focus)
         };
         let thickness = style.thickness.max(0.0);

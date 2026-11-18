@@ -104,20 +104,25 @@ fn measured_size_equals_the_size_used() {
     let harness = harness();
     let ctx = harness.ctx.clone();
     let text = base_text();
+    let style = eggshell_ui::Style::of(&ctx);
     let app = &harness.state().app;
 
     for (name, measured) in [
         (
             "name",
-            TextEdit::singleline("")
-                .hint("Name")
-                .size(&ctx, &text, Some(Width::new(220.0))),
+            TextEdit::singleline("").hint("Name").size(
+                &ctx,
+                &text,
+                &style,
+                Some(Width::new(220.0)),
+            ),
         ),
         (
             "notes",
             TextEdit::multiline("", 2).max_rows(4).hint("Notes").size(
                 &ctx,
                 &text,
+                &style,
                 Some(Width::new(220.0)),
             ),
         ),
@@ -263,7 +268,12 @@ fn a_multi_line_field_grows_with_its_content_up_to_its_cap() {
         "a fourth row grows it: {heights:?}"
     );
     let cap = TextEdit::multiline("", 4)
-        .size(&harness.ctx, &base_text(), Some(Width::new(220.0)))
+        .size(
+            &harness.ctx,
+            &base_text(),
+            &eggshell_ui::Style::of(&harness.ctx),
+            Some(Width::new(220.0)),
+        )
         .y;
     assert!(
         heights[3] <= cap,

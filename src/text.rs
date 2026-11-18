@@ -678,6 +678,11 @@ pub(crate) mod tests {
         )
     }
 
+    /// The style a test node is built with: egui's default, derived.
+    pub(crate) fn style() -> std::sync::Arc<crate::Style> {
+        std::sync::Arc::new(crate::Style::from_egui(&egui::Style::default()))
+    }
+
     #[test]
     fn no_classes_inherit_everything() {
         assert_eq!(TextClasses::default().over(&base()), base());

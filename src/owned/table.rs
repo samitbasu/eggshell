@@ -305,7 +305,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
             footer,
             selection,
         } = self;
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let rows: Vec<(&T, K)> = items.into_iter().map(|item| (item, key(item))).collect();
         let tracks: Vec<Track> = columns.iter().map(|column| column.track).collect();
         let columns: Rc<[Column]> = columns.into();
@@ -477,8 +477,8 @@ fn band_classes<A, K>(
             .sense_hover(),
         Part::Body => {
             let classes = match last {
-                Last::Yes => tw(),
-                Last::No => ruled(tw()),
+                Last::Yes if !table.rule_below_last => tw(),
+                Last::Yes | Last::No => ruled(tw()),
             };
             let classes = match stripe {
                 Stripe::Striped => classes.bg(table.stripe),
@@ -564,19 +564,23 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
                 .items_center()
                 .whitespace_nowrap(),
         );
+        let placed = placed.px(table.cell_padding / 4.0);
+        let placed = match table.first_column_inset {
+            Some(inset) if column == 0 => placed.pl(inset / 4.0),
+            _ => placed,
+        };
+        let cell_y = table.cell_padding_y.unwrap_or(table.cell_padding) / 4.0;
         let (classes, role) = match self.part {
-            Part::Header => (
-                placed
-                    .h_px(table.header_height)
-                    .px(table.cell_padding / 4.0)
-                    .font_weight(table.header_weight),
-                Role::ColumnHeader,
-            ),
-            Part::Body => (placed.p(table.cell_padding / 4.0), Role::Cell),
+            Part::Header => {
+                let placed = match table.header_padding_y {
+                    Some(padding) => placed.py(padding / 4.0),
+                    None => placed.h_px(table.header_height),
+                };
+                (placed.font_weight(table.header_weight), Role::ColumnHeader)
+            }
+            Part::Body => (placed.py(cell_y), Role::Cell),
             Part::Footer => (
-                placed
-                    .p(table.cell_padding / 4.0)
-                    .font_weight(table.footer_weight),
+                placed.py(cell_y).font_weight(table.footer_weight),
                 Role::Cell,
             ),
         };

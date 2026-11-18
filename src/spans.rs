@@ -164,14 +164,15 @@ impl Spans {
         self.0.iter().map(|span| span.text.as_str()).collect()
     }
 
-    /// One section per span over `style`, and what each one marks. Inline
-    /// code takes the tint's padding as layout space on both sides.
+    /// One section per span over `style` in `rich`'s looks, and what each
+    /// one marks. Inline code takes the tint's padding as layout space on
+    /// both sides.
     pub(crate) fn laid_out(
         &self,
         ctx: &egui::Context,
         style: &TextStyle,
+        rich: &RichTextStyle,
     ) -> (LayoutJob, Vec<Mark>) {
-        let rich = &crate::Style::of(ctx).rich;
         let mut job = LayoutJob::default();
         let mut marks = Vec::with_capacity(self.0.len());
         let mut pad_after = 0.0;
@@ -443,7 +444,7 @@ mod tests {
             ..body_style()
         };
         let spans = Spans::from(vec![Span::new("ßß"), Span::new("x").code()]);
-        let (job, marks) = spans.laid_out(&ctx, &style);
+        let (job, marks) = spans.laid_out(&ctx, &style, &crate::Style::of(&ctx).rich);
         assert_eq!(job.text, "SSSSX", "precondition: casing lengthens the text");
         let galley = ctx.fonts_mut(|fonts| fonts.layout_job(job));
         let runs = runs(&galley, &marks);
