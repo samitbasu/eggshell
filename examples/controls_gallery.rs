@@ -827,6 +827,12 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
                     .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
             });
         });
+        row(b, "refused", |b| {
+            b.button("refused", "Publish")
+                .tooltip("Publishes the draft")
+                .refused("Nothing to publish yet")
+                .on_click(|s: &mut State| s.owned_clicks += 1);
+        });
     });
 }
 
@@ -844,6 +850,11 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
                 .on_change(|s: &mut State, checked| s.owned_checked = checked);
             });
         }
+        row(b, "checkbox, refused", |b| {
+            b.checkbox("checkbox-refused", "Share usage data", state.owned_checked)
+                .refused("Your organisation decides this")
+                .on_change(|s: &mut State, checked| s.owned_checked = checked);
+        });
         row(b, "radio group", |b| {
             b.radio_group(
                 "radio",
@@ -897,6 +908,29 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
             .cells(tw().flex_1())
             .on_change(|s: &mut State, unit| s.unit = unit);
         });
+        row(b, "segmented, refused", |b| {
+            b.segmented(
+                "segmented-refused",
+                state.unit,
+                [
+                    owned::Choice::new(Unit::Metric, "Metric"),
+                    owned::Choice::new(Unit::Imperial, "Imperial").tooltip("Feet and pounds"),
+                ],
+            )
+            .refused("Units follow the project")
+            .on_change(|s: &mut State, unit| s.unit = unit);
+        });
+        row(b, "choice, refused", |b| {
+            b.segmented(
+                "segmented-choice-refused",
+                state.unit,
+                [
+                    owned::Choice::new(Unit::Metric, "Metric"),
+                    owned::Choice::new(Unit::Imperial, "Imperial").refused("Not in this region"),
+                ],
+            )
+            .on_change(|s: &mut State, unit| s.unit = unit);
+        });
     });
 }
 
@@ -936,6 +970,13 @@ fn values_section(s: &mut S<'_, '_>, state: &State) {
                     .on_change(|s: &mut State, value| s.owned_stepper = value);
             });
         }
+        row(b, "field, refused", |b| {
+            b.text_field("field-refused", "ada@example.com")
+                .named("Email")
+                .classes(tw().w_px(150.0))
+                .refused("Managed by your account")
+                .on_change(|_: &mut State, _| {});
+        });
     });
 }
 

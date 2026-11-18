@@ -454,7 +454,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         for path in [
             "/\"button\"",
             "/\"checkbox\"/<div>",
-            "/\"radio\"/<div>",
+            "/\"radio\"",
             "/\"switch\"/<div>",
             "/\"slider\"/Track",
             "/\"select\"",

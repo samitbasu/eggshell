@@ -14,7 +14,8 @@ use crate::contract::Size as ControlSize;
 use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
-use crate::owned::{FieldBoxChain, text_sized};
+use crate::owned::options::{self, Gate};
+use crate::owned::{Enablement, FieldBoxChain, IntoTip, text_sized, tipped};
 use crate::widget::Stock as _;
 use crate::{Builder, Icon, Key, Measure, Tw, tw};
 
@@ -77,6 +78,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
             text: field.text().to_owned(),
             field,
             classes: tw(),
+            enablement: Enablement::Enabled,
+            gate: Gate::default(),
             hooks: FieldHooks::default(),
             autofocus: Autofocus::Never,
             size: None,
@@ -102,6 +105,8 @@ pub struct TextFieldChain<'a, 'f, A> {
     field: Field,
     text: String,
     classes: Tw,
+    enablement: Enablement,
+    gate: Gate,
     hooks: FieldHooks<A>,
     autofocus: Autofocus,
     size: Option<ControlSize>,
@@ -212,10 +217,54 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
-    /// Classes of the leaf, such as its width.
+    /// Classes of the leaf, such as its width; the later class wins
+    /// ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
+    }
+
+    /// TODO(prose): shown while the pointer hovers the field or it has
+    /// keyboard focus, also when it is disabled.
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
+        self
+    }
+
+    /// Like [`tooltip`](Self::tooltip), with content `build` makes inside the
+    /// tooltip's box.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut Builder<'_, '_, ()>) + Send + Sync + 'static,
+    ) -> Self {
+        self.gate.tooltip_with(build);
+        self
+    }
+
+    /// TODO(prose): whether the field takes input. A disabled field is inert,
+    /// as an HTML `disabled` input is: it takes no focus, and its text cannot
+    /// be selected.
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        self.enablement = enablement.into();
+        self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
     }
 
     /// Runs `then` with the field's response each frame: the escape hatch
@@ -249,12 +298,15 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             field,
             text,
             classes,
+            enablement,
+            gate,
             hooks,
             autofocus,
             size,
             leading,
             trailing,
         } = self;
+        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let size = b.size_of(size);
         let field = field.sized(size);
         let measured = field.clone();
@@ -275,8 +327,10 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             };
             let field = field.bare();
             let measured = field.clone();
+            let tip = tooltip.clone();
             FieldBoxChain::new(b, slot)
                 .size(size)
+                .enablement(enablement)
                 .classes(classes)
                 .children(|s| {
                     if let Some(icon) = leading {
@@ -288,7 +342,8 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                         })
                         .draw_widgets(move |app, ui| {
                             let mut edited = text;
-                            let response = show(ui, &mut edited, &field);
+                            let shown = show(ui, &mut edited, &field);
+                            let response = tipped(ui, shown, &tip);
                             autofocus.apply(ui.ctx(), &response);
                             if response.changed() {
                                 on_change(app, edited);
@@ -308,10 +363,12 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         } else {
             crate::owned::text_field_classes(&style, size).merge(classes)
         };
+        let classes = enablement.apply(classes, &style);
         b.leaf_with(&slot, classes, move |m| measure(m, &measured))
             .draw_widgets(move |app, ui| {
                 let mut edited = text;
-                let response = show(ui, &mut edited, &field);
+                let shown = show(ui, &mut edited, &field);
+                let response = tipped(ui, shown, &tooltip);
                 autofocus.apply(ui.ctx(), &response);
                 if response.changed() {
                     on_change(app, edited);

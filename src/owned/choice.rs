@@ -5,7 +5,8 @@ use std::fmt::Display;
 
 use egui::WidgetText;
 
-use super::Enablement;
+use super::options::Refused;
+use super::{Enablement, IntoTip};
 use crate::Icon;
 
 /// One option of a radio group, a segmented control or a select: the `value`
@@ -30,6 +31,10 @@ pub struct Choice<T> {
     pub tooltip: Option<WidgetText>,
     /// Whether this option takes input, on top of its widget's own.
     pub enablement: Enablement,
+    /// TODO(prose): why the option is disabled, shown in place of its
+    /// tooltip and read as its accessible description; `None` while it is not
+    /// refused.
+    pub refusal: Option<WidgetText>,
 }
 
 impl<T> Choice<T> {
@@ -41,6 +46,7 @@ impl<T> Choice<T> {
             icon: None,
             tooltip: None,
             enablement: Enablement::Enabled,
+            refusal: None,
         }
     }
 
@@ -52,8 +58,8 @@ impl<T> Choice<T> {
     }
 
     /// Shows `text` while the pointer hovers the option.
-    pub fn tooltip(mut self, text: impl Into<WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.tooltip = text.into_tip();
         self
     }
 
@@ -64,6 +70,33 @@ impl<T> Choice<T> {
         let enablement = enablement.into();
         self.enablement = enablement;
         self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason in
+    /// place of the option's tooltip and as its accessible description. `None`
+    /// clears it; the last call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.refusal = reason.into_tip();
+        self
+    }
+
+    /// The option's enablement within a group that is `group`, and the
+    /// tooltip it shows. A refused group's reason shows once, on the control,
+    /// so its options show none of their own.
+    pub(super) fn gated(
+        &self,
+        group: Enablement,
+        refused: Refused,
+    ) -> (Enablement, Option<WidgetText>) {
+        let own_refusal = match self.refusal {
+            Some(_) => Enablement::Disabled,
+            None => Enablement::Enabled,
+        };
+        let tooltip = match refused {
+            Refused::Yes => None,
+            Refused::No => self.refusal.clone().or_else(|| self.tooltip.clone()),
+        };
+        (group.and(self.enablement).and(own_refusal), tooltip)
     }
 }
 
