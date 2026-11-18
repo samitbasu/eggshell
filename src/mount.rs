@@ -19,7 +19,7 @@ use crate::builder::{Builder, NodeHandle, Slot};
 use crate::commands::{Commands, Declared, Table, Within, look_up};
 use crate::pipeline::{DismissFn, DrawFn, FrameCore, Sink, Twice};
 use crate::region::RegionDecl;
-use crate::tooltip::BuildBuilt;
+use crate::tooltip::{BuildBuilt, build_built};
 use crate::window::Hooks;
 
 /// The parts of a mount the library adds around its view.
@@ -167,12 +167,10 @@ impl<R, S> Clone for Mount<'_, R, S> {
 }
 
 /// What a mount declared that its builders read back: its command tables,
-/// by root, the data their enablement is read from, and how a built tooltip
-/// is built.
+/// by root, and the data their enablement is read from.
 struct Declarations<'f, S> {
     tables: Vec<(usize, Commands<S>)>,
     app: Option<&'f S>,
-    build_built: Option<BuildBuilt<S>>,
 }
 
 impl<'f, R: 'static, S: 'static> Mount<'f, R, S> {
@@ -183,7 +181,6 @@ impl<'f, R: 'static, S: 'static> Mount<'f, R, S> {
             declared: Rc::new(RefCell::new(Declarations {
                 tables: Vec::new(),
                 app: None,
-                build_built: None,
             })),
         }
     }
@@ -269,17 +266,15 @@ impl<'f, R: 'static, S: 'static> Sink<'f, S> for Lensed<'_, 'f, R, S> {
     }
 
     fn build_built(&self) -> Option<BuildBuilt<S>> {
-        self.mount
-            .declared
-            .try_borrow()
-            .ok()
-            .and_then(|declared| declared.build_built)
+        self.outer
+            .build_built()
+            .map(|_| build_built::<S> as BuildBuilt<S>)
     }
 
-    fn set_build_built(&mut self, build: BuildBuilt<S>) {
-        if let Ok(mut declared) = self.mount.declared.try_borrow_mut() {
-            declared.build_built = Some(build);
-        }
+    /// The tooltips are declared with the page's builder, so it is the page's
+    /// frame that must know how to build their content.
+    fn set_build_built(&mut self, _: BuildBuilt<S>) {
+        self.outer.set_build_built(build_built::<R>);
     }
 
     fn declare_commands(&mut self, table: &Commands<S>, app: &'f S) -> Result<(), Twice> {

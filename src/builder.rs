@@ -421,6 +421,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
+    /// Builds `body` here with a builder of `()`, for content that takes no
+    /// input.
+    pub(crate) fn unit<T>(&mut self, body: impl FnOnce(&mut Builder<'_, 'f, ()>) -> T) -> T
+    where
+        A: 'static,
+    {
+        let within = Within {
+            mount: self.path,
+            depth: self.frame.depth(),
+        };
+        // A `()` is never allocated, so leaking one leaks nothing.
+        let lens: crate::mount::Lens<A, ()> = std::rc::Rc::new(|_| Box::leak(Box::new(())));
+        self.within(&Mount::new(lens, within), body)
+    }
+
     /// Builds `body` here with a builder of `mount`'s data.
     pub(crate) fn within<S: 'static, T>(
         &mut self,
@@ -1864,9 +1879,44 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// tooltip's box, such as text and a [`kbd`](Builder::kbd) chip. The
     /// content takes no input, and its text describes the node to assistive
     /// technology.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// struct App { saves: u32 }
+    ///
+    /// fn save_tip(s: &mut Builder<'_, '_, ()>) {
+    ///     s.text(tw(), "Save");
+    ///     s.kbd("Ctrl+S");
+    /// }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>) {
+    ///     b.span("label", tw(), "Saves").tooltip_with(save_tip);
+    ///     b.button("save", "Save")
+    ///         .tooltip_with(save_tip)
+    ///         .on_click(|app: &mut App| app.saves += 1);
+    /// }
+    /// ```
+    ///
+    /// The content is built over `()`, so it cannot reach the application:
+    ///
+    /// ```compile_fail
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// struct App { saves: u32 }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>) {
+    ///     b.span("label", tw(), "Saves").tooltip_with(|s| {
+    ///         s.button("save", "Save")
+    ///             .on_click(|app: &mut App| app.saves += 1);
+    ///     });
+    /// }
+    /// ```
     pub fn tooltip_with(
         self,
-        build: impl Fn(&mut Builder<'_, '_, A>) + Send + Sync + 'static,
+        build: impl Fn(&mut Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
         self.tipped(Content::built(build))
     }

@@ -201,7 +201,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     /// assistive technology.
     pub fn tooltip_with(
         mut self,
-        build: impl Fn(&mut crate::Builder<'_, '_, A>) + Send + Sync + 'static,
+        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
         self.tooltip = Some(Content::built(build));
         self
