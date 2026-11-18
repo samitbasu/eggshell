@@ -10,7 +10,7 @@ use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
 use crate::styles::{DestructiveLook, HoverSurface, SecondaryHover, ShadcnStyle};
-use crate::{FontSet, ThemeColor, Tokens, size, variant};
+use crate::{ContrastPair, FontSet, Palette, Tokens, size, variant};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]
@@ -48,11 +48,20 @@ impl Shadcn {
         self
     }
 
-    /// This preset with `theme_color`'s colours for `primary` and
-    /// `primary-foreground`.
+    /// TODO(prose): this preset in `palette`'s colours.
     #[must_use]
-    pub fn theme_color(mut self, theme_color: ThemeColor) -> Self {
-        self.tokens = self.tokens.with_theme_color(theme_color, self.theme);
+    pub fn with_palette(mut self, palette: Palette) -> Self {
+        self.tokens = self.tokens.with_palette(palette, self.theme);
+        self
+    }
+
+    /// TODO(prose): this preset accepting `pair` under AA contrast, so that
+    /// [`apply`](Self::apply) does not warn about it.
+    #[must_use]
+    pub fn accept_contrast(mut self, pair: ContrastPair) -> Self {
+        if !self.tokens.accepted_contrast.contains(&pair) {
+            self.tokens.accepted_contrast.push(pair);
+        }
         self
     }
 
@@ -77,11 +86,11 @@ impl Shadcn {
         Self::dark().apply(ctx);
     }
 
-    /// Applies both themes in `style` with `theme_color`, unless the
+    /// Applies both themes in `style` with `palette`, unless the
     /// context's current theme already has exactly that preset, so that an
     /// application can call it every frame and switch either at run time.
-    pub fn apply_both_with(ctx: &Context, style: ShadcnStyle, theme_color: ThemeColor) {
-        let of = |preset: Self| preset.with_style(style).theme_color(theme_color);
+    pub fn apply_both_with(ctx: &Context, style: ShadcnStyle, palette: Palette) {
+        let of = |preset: Self| preset.with_style(style).with_palette(palette);
         let current = of(Self::for_theme(ctx.theme()));
         if Self::applied(ctx).as_ref() != Some(&current) {
             of(Self::light()).apply(ctx);
@@ -791,7 +800,13 @@ impl Shadcn {
     /// already has by name. egui draws with added fonts from the next pass,
     /// or from this one if no text has been laid out in it yet; until then
     /// a weight is drawn in the nearest lighter registered face.
+    ///
+    /// TODO(prose): in a debug build it reports each [`ContrastPair`] under
+    /// AA contrast as [`Problem::LowContrast`](eggshell_ui::Problem::LowContrast),
+    /// unless the tokens accept it or it is shadcn's own colour; it never
+    /// changes a colour.
     pub fn apply(&self, ctx: &Context) {
+        crate::contrast::warn_low_contrast(ctx, self.theme, &self.tokens);
         if let Some(font) = &self.tokens.font {
             font.install(ctx);
         }

@@ -1,9 +1,9 @@
 use eggshell_ui::{Opacity, TextSpec, Weight};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
-use crate::FontSet;
+use crate::palette::{Palette, Scheme};
 use crate::styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, ShadcnStyle};
-use crate::theme_color::{Hues, ThemeColor};
+use crate::{ContrastPair, FontSet};
 
 /// A colour from `0xRRGGBB`.
 pub(crate) const fn rgb(hex: u32) -> Color32 {
@@ -68,6 +68,16 @@ pub struct Tokens {
     pub input: Color32,
     /// `--ring`.
     pub ring: Color32,
+    /// `--chart-1`.
+    pub chart_1: Color32,
+    /// `--chart-2`.
+    pub chart_2: Color32,
+    /// `--chart-3`.
+    pub chart_3: Color32,
+    /// `--chart-4`.
+    pub chart_4: Color32,
+    /// `--chart-5`.
+    pub chart_5: Color32,
     /// The shadcn style these sizes belong to.
     pub style: ShadcnStyle,
     /// `--radius`, in whole points. `rounded-lg` is this, `rounded-md` two
@@ -143,6 +153,10 @@ pub struct Tokens {
     pub font: Option<FontSet>,
     /// The weight of buttons, toggles, tabs and key chips (`font-medium`).
     pub control_weight: Weight,
+    /// TODO(prose): the pairs under AA contrast the application accepts:
+    /// [`Shadcn::apply`](crate::Shadcn::apply) warns about the others in a
+    /// debug build.
+    pub accepted_contrast: Vec<ContrastPair>,
     /// The weight of a label (`.cn-label`): beside a checkbox, radio button
     /// or switch, and over a group of menu items.
     pub label_weight: Weight,
@@ -151,24 +165,7 @@ pub struct Tokens {
 impl Tokens {
     /// The neutral light palette.
     pub fn light() -> Self {
-        let input = rgb(0xe5e5e5);
-        let background = rgb(0xffffff);
-        let primary = rgb(0x171717);
         Self {
-            background,
-            foreground: rgb(0x0a0a0a),
-            card: background,
-            card_foreground: rgb(0x0a0a0a),
-            popover: background,
-            popover_foreground: rgb(0x0a0a0a),
-            primary,
-            primary_foreground: rgb(0xfafafa),
-            secondary: rgb(0xf5f5f5),
-            secondary_foreground: primary,
-            muted: rgb(0xf5f5f5),
-            muted_foreground: rgb(0x737373),
-            accent: rgb(0xf5f5f5),
-            accent_foreground: primary,
             destructive: rgb(0xe7000b),
             destructive_foreground: Color32::WHITE,
             success: rgb(0x00a63e),
@@ -177,38 +174,14 @@ impl Tokens {
             warning_foreground: rgb(0x461901),
             info: rgb(0x0084d1),
             info_foreground: rgb(0xfafafa),
-            border: input,
-            input,
-            ring: rgb(0xa1a1a1),
-            switch_track_on: primary,
-            switch_track_off: input,
-            switch_thumb_on: background,
-            switch_thumb_off: background,
             ..Self::sizes()
         }
+        .with_palette(Palette::new(), Theme::Light)
     }
 
     /// The neutral dark palette.
     pub fn dark() -> Self {
-        let primary = rgb(0xe5e5e5);
-        let primary_foreground = rgb(0x171717);
-        let foreground = rgb(0xfafafa);
-        let input = Color32::from_white_alpha(38);
         Self {
-            background: rgb(0x0a0a0a),
-            foreground,
-            card: primary_foreground,
-            card_foreground: foreground,
-            popover: primary_foreground,
-            popover_foreground: foreground,
-            primary,
-            primary_foreground,
-            secondary: rgb(0x262626),
-            secondary_foreground: foreground,
-            muted: rgb(0x262626),
-            muted_foreground: rgb(0xa1a1a1),
-            accent: rgb(0x262626),
-            accent_foreground: foreground,
             destructive: rgb(0xff6467),
             destructive_foreground: Color32::WHITE,
             success: rgb(0x05df72),
@@ -217,15 +190,9 @@ impl Tokens {
             warning_foreground: rgb(0x461901),
             info: rgb(0x00bcff),
             info_foreground: rgb(0x052f4a),
-            border: Color32::from_white_alpha(26),
-            input,
-            ring: rgb(0x737373),
-            switch_track_on: primary,
-            switch_track_off: input.gamma_multiply(0.8),
-            switch_thumb_on: primary_foreground,
-            switch_thumb_off: foreground,
             ..Self::sizes()
         }
+        .with_palette(Palette::new(), Theme::Dark)
     }
 
     /// The tokens for `theme`.
@@ -266,6 +233,11 @@ impl Tokens {
             border: none,
             input: none,
             ring: none,
+            chart_1: none,
+            chart_2: none,
+            chart_3: none,
+            chart_4: none,
+            chart_5: none,
             style: ShadcnStyle::Vega,
             radius: 0,
             text_size: 0.0,
@@ -318,6 +290,7 @@ impl Tokens {
             font: FontSet::bundled(),
             control_weight: Weight::Normal,
             label_weight: Weight::Normal,
+            accepted_contrast: Vec::new(),
         };
         ShadcnStyle::Vega.shape(&mut tokens);
         tokens
@@ -392,23 +365,63 @@ impl Tokens {
         self.input.gamma_multiply(0.5)
     }
 
-    /// These tokens re-tinted with `theme_color`'s `primary` and
-    /// `primary-foreground` for `theme`, which must be the theme they were made for.
+    /// TODO(prose): these tokens with `palette`'s colours for `theme`, which
+    /// must be the theme they were made for: every colour shadcn's base and
+    /// theme colours set, and the switch's, which follow them. The semantic
+    /// colours (`destructive`, `success`, `warning`, `info`) are kept.
     #[must_use]
-    pub fn with_theme_color(self, theme_color: ThemeColor, theme: Theme) -> Self {
-        let Hues {
+    pub fn with_palette(self, palette: Palette, theme: Theme) -> Self {
+        let Scheme {
+            background,
+            foreground,
+            card,
+            card_foreground,
+            popover,
+            popover_foreground,
             primary,
             primary_foreground,
-        } = theme_color.hues(theme);
-        let (switch_thumb_on, switch_track_on) = match theme {
-            Theme::Light => (self.switch_thumb_on, primary),
-            Theme::Dark => (primary_foreground, primary),
+            secondary,
+            secondary_foreground,
+            muted,
+            muted_foreground,
+            accent,
+            accent_foreground,
+            border,
+            input,
+            ring,
+            charts: [chart_1, chart_2, chart_3, chart_4, chart_5],
+        } = palette.scheme(theme);
+        let (switch_track_off, switch_thumb_on, switch_thumb_off) = match theme {
+            Theme::Light => (input, background, background),
+            Theme::Dark => (input.gamma_multiply(0.8), primary_foreground, foreground),
         };
         Self {
+            background,
+            foreground,
+            card,
+            card_foreground,
+            popover,
+            popover_foreground,
             primary,
             primary_foreground,
-            switch_track_on,
+            secondary,
+            secondary_foreground,
+            muted,
+            muted_foreground,
+            accent,
+            accent_foreground,
+            border,
+            input,
+            ring,
+            chart_1,
+            chart_2,
+            chart_3,
+            chart_4,
+            chart_5,
+            switch_track_on: primary,
+            switch_track_off,
             switch_thumb_on,
+            switch_thumb_off,
             ..self
         }
     }
