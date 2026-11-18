@@ -659,13 +659,6 @@ pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
         .hover(move |p| p.bg(hover.fill).text(hover.text))
 }
 
-/// lucide's chevron-down, turned half a turn as `open` goes from 0 to 1: a
-/// disclosure arrow that points up when its section is open.
-pub fn chevron(open: eggshell_ui::Progress) -> eggshell_ui::Icon {
-    eggshell_ui::Icon::new(eggshell_ui::icons::CHEVRON_DOWN)
-        .rotated(eggshell_ui::Angle::degrees(180.0 * f32::from(open)))
-}
-
 /// Prints eggshell's `eggshell::input` trace (debug level) and every crate's
 /// warnings: to the browser console on the web, to stderr natively.
 pub fn trace_input() {

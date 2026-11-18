@@ -844,6 +844,7 @@ impl Shadcn {
         {
             self.markdown().install_for(ctx, self.theme);
             self.badge(&style).install_for(ctx, self.theme);
+            self.disclosure(&style).install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
     }
@@ -952,6 +953,49 @@ impl Shadcn {
         badge.remove.glyph = 12.0;
         badge.remove.padding_end = 6.0;
         badge
+    }
+
+    /// The section header and disclosure button look, after shadcn/ui's
+    /// Accordion in the preset's style (`cn-accordion-*` in `style-*.css`):
+    /// a trigger `py-4 text-sm font-medium hover:underline rounded-md` in
+    /// Vega and `py-2.5 text-xs rounded-none` in Lyra, with the base's
+    /// `border border-transparent focus-visible:border-ring` and the
+    /// style's ring, `disabled:opacity-50`; the icon `size-4
+    /// text-muted-foreground`, nudged `translate-y-0.5`; the content's inner
+    /// block `pb-4` in Vega and `pb-2.5` in Lyra.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui_shadcn::Shadcn;
+    ///
+    /// let shadcn = Shadcn::light();
+    /// let disclosure = shadcn.disclosure(&shadcn.style());
+    /// assert_eq!(disclosure.header.padding_y, 16.0);
+    /// ```
+    #[cfg(feature = "extras")]
+    pub fn disclosure(
+        &self,
+        style: &contract::Style,
+    ) -> eggshell_ui_extras::disclosure::DisclosureStyle {
+        let t = &self.tokens;
+        let lyra = t.style == ShadcnStyle::Lyra;
+        let mut disclosure = eggshell_ui_extras::disclosure::DisclosureStyle::from_style(style);
+        disclosure.section.size = 16.0;
+        disclosure.tree.size = 16.0;
+        disclosure.tone = Some(t.muted_foreground);
+        disclosure.tone_opacity = Opacity::new(1.0);
+        disclosure.nudge = 2.0;
+        disclosure.header.ring = style.focus;
+        disclosure.header.focus_border = Some(t.ring);
+        disclosure.header.radius = if lyra { 0 } else { t.radius_md() };
+        disclosure.header.padding_y = if lyra { 10.0 } else { 16.0 };
+        disclosure.header.gap = 16.0;
+        disclosure.header.text = t.text_role_at(Weight::Medium);
+        disclosure.header.disabled = Opacity::new(0.5);
+        disclosure.content_padding_bottom = if lyra { 10.0 } else { 16.0 };
+        disclosure.button = 16.0;
+        disclosure
     }
 
     /// TODO(prose): the Markdown widget's look: shadcn/typeset at its

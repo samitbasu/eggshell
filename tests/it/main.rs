@@ -27,6 +27,7 @@ mod contract_gaps;
 mod control_size;
 mod controls;
 mod debug;
+mod disclosure;
 mod dnd_gallery;
 mod dnd_handle;
 mod dnd_preview;

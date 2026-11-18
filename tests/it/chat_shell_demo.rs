@@ -807,7 +807,7 @@ mod accents {
             );
             let meter = rect_of(
                 &harness,
-                "/Frame/Details/\"Context\"/Fold(\"Context\")/Group/Row(\"Context window\")/Meter",
+                "/Frame/Details/\"Context\"/Region/Group/Row(\"Context window\")/Meter",
             );
             assert!(meter.is_positive(), "precondition: the meter is laid out");
             assert!(
@@ -851,14 +851,11 @@ mod grouped_form {
             let mut harness = harness_in(theme, App::default());
             harness.run_steps(3);
             let line = Theme::of(&harness.ctx)[Tok::Line];
-            let group = rect_of(
-                &harness,
-                "/Frame/Details/\"Environment\"/Fold(\"Environment\")/Group",
-            );
+            let group = rect_of(&harness, "/Frame/Details/\"Environment\"/Region/Group");
             let rows = ["Branch", "Runtime", "Model"].map(|label| {
                 rect_of(
                     &harness,
-                    &format!("/Frame/Details/\"Environment\"/Fold(\"Environment\")/Group/Row(\"{label}\")"),
+                    &format!("/Frame/Details/\"Environment\"/Region/Group/Row(\"{label}\")"),
                 )
             });
             assert!(
@@ -1235,8 +1232,8 @@ mod long_conversation {
 mod folding {
     use super::*;
 
-    const HEAD: &str = "/Frame/Details/\"Changes\"/Head(\"Changes\")";
-    const FOLD: &str = "/Frame/Details/\"Changes\"/Fold(\"Changes\")";
+    const HEAD: &str = "/Frame/Details/\"Changes\"/Header";
+    const FOLD: &str = "/Frame/Details/\"Changes\"/Region";
     const NEXT: &str = "/Frame/Details/\"Background tasks\"";
 
     #[test]

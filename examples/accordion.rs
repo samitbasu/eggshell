@@ -14,6 +14,7 @@ mod common;
 
 use eggshell_ui::overlay::Shown;
 use eggshell_ui::{Builder, tw};
+use eggshell_ui_extras::disclosure::{DisclosureStyle, chevron};
 use egui::{Color32, Role};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -83,6 +84,8 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                             .content(tw().px(2.0).pb(3.0))
                             .children_with_header(
                                 |s, progress| {
+                                    let turned =
+                                        chevron(&DisclosureStyle::of(s.ctx()).section, progress);
                                     s.div_id(
                                         Part::Head(index),
                                         tw().sense_click()
@@ -95,7 +98,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
                                             s.text(tw(), title);
                                             s.glyph(
                                                 tw().size_px(16.0).shrink_0().text(muted),
-                                                common::chevron(progress),
+                                                turned,
                                             );
                                         },
                                     )
