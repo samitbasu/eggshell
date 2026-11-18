@@ -170,6 +170,16 @@ pub const WASM_TARGET: &str = "wasm32-unknown-unknown";
 /// lavapipe. The `snapshots` feature carries it, so the build is the test step's.
 #[cfg(target_os = "linux")]
 pub fn screenshots() -> Step {
+    Step::internal("screenshots", || {
+        screenshots_step(&snapshots::lavapipe_icd()?).run()
+    })
+}
+
+/// The child sees only the lavapipe driver, as the goldens' does: enumerating
+/// every adapter in-process loads the GPU's driver too, which can crash when
+/// runs overlap (#367).
+#[cfg(target_os = "linux")]
+fn screenshots_step(icd: &Path) -> Step {
     Step::cargo(
         "screenshots",
         &[
@@ -181,6 +191,7 @@ pub fn screenshots() -> Step {
             "screenshot",
         ],
     )
+    .on_lavapipe(icd)
     .expecting_tests()
 }
 
@@ -306,6 +317,18 @@ mod tests {
                 "PROPTEST_CASES=\"500\" cargo test --test it fuzz:: --profile fuzz",
             ]
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn screenshots_select_lavapipe_for_the_child() {
+        let step = screenshots_step(Path::new("/icd/lvp.json"));
+        assert_eq!(
+            step.to_string(),
+            "VK_ICD_FILENAMES=\"/icd/lvp.json\" VK_DRIVER_FILES=\"/icd/lvp.json\" \
+             cargo test --workspace --features eggshell-ui/snapshots -- screenshot"
+        );
+        assert_eq!(step.expect, Expect::SomeTestPassed);
     }
 
     #[test]
