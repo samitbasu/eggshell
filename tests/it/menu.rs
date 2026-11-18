@@ -678,3 +678,98 @@ mod custom_item {
         assert_eq!(harness.state().app.swatch, 1);
     }
 }
+
+mod open_query {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use super::*;
+
+    /// Each frame's answer to `open` and whether a menu overlay was leaving.
+    type Frames = Rc<RefCell<Vec<(bool, bool)>>>;
+
+    fn observed<A: 'static>(
+        harness: &mut Harness<'_, Rig<A>>,
+        open: impl Fn(&eggshell_ui::Placed<A>) -> bool + 'static,
+    ) -> Frames {
+        let frames: Frames = Rc::default();
+        let seen = Rc::clone(&frames);
+        harness.state_mut().observe = Some(Box::new(move |placed| {
+            let leaving = placed.overlays().iter().any(|overlay| overlay.is_exiting());
+            seen.borrow_mut().push((open(placed), leaving));
+        }));
+        frames
+    }
+
+    fn last(frames: &Frames) -> bool {
+        last_of(&frames.borrow())
+    }
+
+    fn last_of(frames: &[(bool, bool)]) -> bool {
+        frames.last().is_some_and(|(open, _)| *open)
+    }
+
+    /// Escape closes the menu: it is not open on any frame it is still on
+    /// screen for, fading out.
+    fn closes_before_it_fades<A>(harness: &mut Harness<'_, Rig<A>>, frames: &Frames) {
+        frames.borrow_mut().clear();
+        harness.key_press(Key::Escape);
+        harness.run_steps(8);
+        let frames = frames.borrow();
+        assert!(
+            frames.iter().any(|(_, leaving)| *leaving),
+            "precondition: the menu fades out over frames: {frames:?}"
+        );
+        assert!(
+            frames
+                .iter()
+                .filter(|(_, leaving)| *leaving)
+                .all(|(open, _)| !open),
+            "open while fading: {frames:?}"
+        );
+        assert!(!last_of(&frames), "open after it closed: {frames:?}");
+    }
+
+    #[test]
+    fn a_dropdowns_menu_is_open_from_the_click_and_closed_from_the_frame_it_closes() {
+        let mut harness = harness();
+        let trigger = support::id_of(&harness, FILE);
+        let frames = observed(&mut harness, move |placed| placed.menu_open_with(trigger));
+        settle(&mut harness);
+        assert!(!last(&frames));
+        open_file(&mut harness);
+        assert!(last(&frames));
+        closes_before_it_fades(&mut harness, &frames);
+    }
+
+    #[test]
+    fn a_dropdown_at_the_top_of_the_view_is_found_by_its_key() {
+        fn top(b: &mut Builder<'_, '_, App>, _: &App) {
+            b.dropdown_menu("top", "Top")
+                .items(|m| m.item("copy", "Copy").on_click(say("copy")));
+        }
+        let mut harness = support::harness(SCREEN, base_text(), App::default(), top);
+        harness.run_steps(4);
+        let frames = observed(&mut harness, |placed| placed.menu_open("top"));
+        settle(&mut harness);
+        assert!(!last(&frames));
+        click_node(&mut harness, r#"/"top""#);
+        settle(&mut harness);
+        assert!(last(&frames));
+        closes_before_it_fades(&mut harness, &frames);
+    }
+
+    #[test]
+    fn a_context_menu_is_found_by_its_node() {
+        let mut harness = harness();
+        let canvas = support::id_of(&harness, CANVAS);
+        let frames = observed(&mut harness, move |placed| placed.menu_open_with(canvas));
+        settle(&mut harness);
+        assert!(!last(&frames));
+        let at = rect_of(&harness, CANVAS).min + vec2(30.0, 20.0);
+        secondary_click(&mut harness, at);
+        assert!(last(&frames));
+        press(&mut harness, Key::Escape);
+        assert!(!last(&frames));
+    }
+}

@@ -363,7 +363,8 @@ pub(crate) fn stacked_top_down(roots: &[PlacedRoot], here: Here) -> Vec<usize> {
 }
 
 impl<A> Placed<A> {
-    /// The open overlays, the one opened first at the bottom.
+    /// The overlays on screen, the one opened first at the bottom: open, or
+    /// still leaving after they closed ([`OverlayRef::is_exiting`]).
     pub fn overlays(&self) -> Vec<OverlayRef<'_>> {
         let mut found: Vec<OverlayRef<'_>> = self
             .roots
@@ -381,7 +382,7 @@ impl<A> Placed<A> {
         found
     }
 
-    /// TODO(prose): the overlay declared with `key` at the top of the view, or `None` when it is not open.
+    /// TODO(prose): the overlay declared with `key` at the top of the view, open or still leaving, or `None` when it is neither.
     ///
     /// ```
     /// use eggshell_ui::testing::Headless;
@@ -410,7 +411,7 @@ impl<A> Placed<A> {
     }
 }
 
-/// An open overlay of a laid-out frame, for tests.
+/// An overlay on screen in a laid-out frame, open or leaving, for tests.
 #[derive(Clone, Copy)]
 pub struct OverlayRef<'p> {
     node: &'p PlacedNode,
