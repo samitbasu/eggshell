@@ -65,6 +65,8 @@ mod tests {
             }
             announce(ui.ctx(), relations);
         });
+        let mut output = output;
+        output.textures_delta.clear();
         output
             .platform_output
             .accesskit_update
