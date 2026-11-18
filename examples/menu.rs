@@ -9,8 +9,9 @@
 //! Copy and Paste are commands (`Commands`): the menu takes their title,
 //! shortcut and enablement from the table, and Ctrl+C (Cmd+C on a Mac) runs
 //! Copy with the menu closed. Paste is disabled, and so is its menu item.
-//! Show grid is a checked command: Ctrl+G (Cmd+G) toggles it, and its item's
-//! check follows.
+//! Show grid is a checked command: Ctrl+Alt+G (Cmd+Option+G on a Mac)
+//! toggles it, and its item's check follows. The chord is one no browser
+//! keeps for itself; Ctrl+G is find next.
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
@@ -131,7 +132,18 @@ fn commands() -> Commands<State> {
             Part::Item(Item::Grid),
             Command::new("Show grid", |state: &mut State| state.grid = !state.grid)
                 .checked(|state| Mark::from(state.grid))
-                .shortcut(const { Chord::new(Modifiers::COMMAND, Key::G).expect("not reserved") }),
+                .shortcut(
+                    const {
+                        Chord::new(
+                            Modifiers {
+                                alt: true,
+                                ..Modifiers::COMMAND
+                            },
+                            Key::G,
+                        )
+                        .expect("not reserved")
+                    },
+                ),
         )
 }
 
