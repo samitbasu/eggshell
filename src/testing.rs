@@ -170,6 +170,9 @@
 //! Each row sits under its item key, and the nodes the row builder makes sit
 //! under that: `placed.at(Region).at(Part::List).at(item_key).at(Part::Row(item_key))`.
 
+#[cfg(all(feature = "screenshots", target_os = "linux"))]
+pub mod screenshot;
+
 use std::collections::HashMap;
 
 use egui::{Id, Rect, Theme, Vec2};

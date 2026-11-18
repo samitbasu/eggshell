@@ -19,7 +19,8 @@ pub struct Cli {
 pub enum Command {
     /// Run everything CI runs, in CI's order, and list the failed steps at
     /// the end: fmt --check, the no-wall-clock check, clippy -D warnings,
-    /// tests, doctests, rustdoc -D warnings, wasm32 check, fuzz
+    /// tests, doctests, rustdoc -D warnings, screenshots (Linux), wasm32 check,
+    /// fuzz
     Ci {
         /// Leave out the step of this name; repeatable. CI runs `fuzz` as a
         /// parallel job with `cargo xtask fuzz`

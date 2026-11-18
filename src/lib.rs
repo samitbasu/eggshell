@@ -393,6 +393,11 @@ mod stack;
 mod symbols;
 mod sync;
 pub mod testing;
+#[cfg(all(feature = "screenshots", not(target_os = "linux")))]
+compile_error!(
+    "the `screenshots` feature renders on Mesa lavapipe and is Linux-only for now; \
+     Windows and macOS are tracked in https://github.com/samitbasu/eggshell/issues/337"
+);
 mod text;
 mod tiling;
 mod tooltip;
