@@ -70,6 +70,7 @@ mod modal;
 mod mount;
 mod named_layouts;
 mod nested_layouts;
+mod node_controls;
 mod numbers;
 mod overlay;
 mod overlay_input;

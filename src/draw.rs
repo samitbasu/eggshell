@@ -530,6 +530,21 @@ struct Pass {
     blur: Blur,
     /// The items of groups on the page that are not their group's Tab stop.
     off_tab: std::collections::HashSet<Id>,
+    /// Each node that controls another, with the node it controls.
+    controls: Vec<(Id, Id)>,
+}
+
+/// Announces each of `controls` whose two nodes are in this pass's
+/// accessibility tree: a relation to a node that is not there is dropped,
+/// since the platform adapters expect every node a relation names to exist.
+fn relate_controls(ctx: &egui::Context, controls: &[(Id, Id)]) {
+    for &(node, target) in controls {
+        if ctx.has_accesskit_node(node) && ctx.has_accesskit_node(target) {
+            ctx.accesskit_node_builder(node, |built| {
+                built.push_controlled(target.accesskit_id());
+            });
+        }
+    }
 }
 
 /// How an entering or leaving overlay is painted at one of its nodes.
@@ -615,7 +630,7 @@ impl<A> Walk<'_, A> {
                     let role = plan.description.role.unwrap_or(Role::ScrollView);
                     let name = plan.description.name.as_deref().unwrap_or_default();
                     crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
-                } else if let Some(description) = node.description() {
+                } else if let Some(description) = node.description().filter(|d| d.is_set()) {
                     let role = description.role.unwrap_or(Role::GenericContainer);
                     let name = description.name.as_deref().unwrap_or_default();
                     crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
@@ -623,6 +638,9 @@ impl<A> Walk<'_, A> {
                 own
             },
         );
+        if let Some(target) = node.description().and_then(|d| d.controls) {
+            self.pass.controls.push((id, target));
+        }
         let merged = self.merge_hot(index, &mut response);
         let lost_focus = had_focus && !self.ui.ctx().memory(|memory| memory.has_focus(id));
         if lost_focus && merged == Merged::Bubbled && response.flags.intersects(Hot::PRESS) {
@@ -1882,6 +1900,7 @@ impl<A> Painting<A> {
             highlighted: nav::highlighted(kept),
             blur: Blur::Elsewhere,
             off_tab: std::collections::HashSet::new(),
+            controls: Vec::new(),
         };
         nav::activate_highlighted(&ctx, kept);
         nav::apply_deferred(&ctx, kept);
@@ -1915,6 +1934,7 @@ impl<A> Painting<A> {
         walk.visit(first, inherited);
         let embedded = walk.embedded_windows(here, kept.with(|kept| kept.chrome));
         let shown = walk.overlays(here);
+        relate_controls(&ctx, &pass.controls);
         stack::repair(&ctx, &shown, pressed);
         overlay_input::judge(
             overlay_input::Frame {

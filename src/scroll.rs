@@ -418,7 +418,11 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             edge,
             bars,
             focusable,
-            description: Description { role, name },
+            description: Description {
+                role,
+                name,
+                controls: None,
+            },
         };
         b.scroll_with(&slot, classes, options, body)
     }
@@ -665,6 +669,8 @@ pub(crate) struct ScrollOptions {
 pub(crate) struct Description {
     pub(crate) role: Option<Role>,
     pub(crate) name: Option<String>,
+    /// The node it controls, announced only while that node is too.
+    pub(crate) controls: Option<egui::Id>,
 }
 
 impl Description {
