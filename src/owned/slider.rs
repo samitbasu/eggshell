@@ -529,6 +529,7 @@ impl Row {
                     let label = format!("Edit {name}");
                     let current = shown.clone();
                     b.div_id(Part::Readout, classes, |b| b.text(tw(), shown))
+                        .announces(Role::Button)
                         .draw(move |_, ui| {
                             let response = described(ui, Role::Button, None, label.trim(), &None);
                             let opened = response.clicked().then(|| {

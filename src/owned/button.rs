@@ -578,6 +578,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 children(b);
             }
         });
+        let node = node.announces(role);
         let node = match action {
             Some(action) => node.action(action),
             None => node,
