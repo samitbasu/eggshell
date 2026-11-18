@@ -13,16 +13,19 @@
 //! toggles it, and its item's check follows. The chord is one no browser
 //! keeps for itself; Ctrl+G is find next.
 //!
+//! Actions ends in a chevron, as a select does. Accent's trigger is a swatch
+//! of its own and a chevron, and its menu is wider than the style's.
+//!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
 #[path = "common/mod.rs"]
 mod common;
 
 use eggshell_ui::overlay::{Anchor, Distance, MatchWidth, Nav, Placement, Wrap};
-use eggshell_ui::owned::Mark;
+use eggshell_ui::owned::{Face, Mark};
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::{Builder, Chord, Command, Commands, tw};
-use egui::{Key, Modifiers, Role};
+use egui::{Color32, Key, Modifiers, Role};
 
 #[derive(Clone, Copy, Debug, Hash)]
 pub enum Part {
@@ -30,6 +33,8 @@ pub enum Part {
     Top,
     Bottom,
     PopoverButton,
+    Accent,
+    Swatch,
     Menu,
     Item(Item),
     List,
@@ -45,6 +50,7 @@ pub enum Item {
     Grid,
     Snap,
     Size(Size),
+    Accent(usize),
     Arrange,
     Front,
     Back,
@@ -75,6 +81,7 @@ impl Size {
 pub struct State {
     pub grid: bool,
     pub snap: bool,
+    pub accent: usize,
     pub size: Size,
     pub list: bool,
     pub chosen: Option<String>,
@@ -98,6 +105,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
         |s| {
             s.div_id(Part::Top, tw().flex().gap(2.0), |s| {
                 actions(s, state);
+                accent(s, state);
                 if let Some(chosen) = &state.chosen {
                     s.text(tw().ml(4.0), format!("Chose {chosen}"));
                 }
@@ -151,6 +159,7 @@ fn actions(b: &mut Builder<'_, '_, State>, state: &State) {
     let (snap, size) = (state.snap, state.size);
     b.dropdown_menu(Part::PopoverButton, "Actions")
         .variant(eggshell_ui_shadcn::variant::OUTLINE)
+        .chevron()
         .items(|m| {
             m.command(Part::Item(Item::Copy)).add();
             m.command(Part::Item(Item::Paste)).add();
@@ -181,6 +190,41 @@ fn actions(b: &mut Builder<'_, '_, State>, state: &State) {
                 .shortcut("Del")
                 .destructive()
                 .on_click(|state: &mut State| state.chosen = Some("Delete".into()));
+        });
+}
+
+/// The accents Accent offers: Tailwind's blue, green and rose 500.
+const ACCENTS: [(&str, Color32); 3] = [
+    ("Blue", Color32::from_rgb(0x3b, 0x82, 0xf6)),
+    ("Green", Color32::from_rgb(0x22, 0xc5, 0x5e)),
+    ("Rose", Color32::from_rgb(0xf4, 0x3f, 0x5e)),
+];
+
+fn accent(b: &mut Builder<'_, '_, State>, state: &State) {
+    let chosen = state.accent;
+    let color = ACCENTS
+        .get(chosen)
+        .map_or(Color32::GRAY, |(_, color)| *color);
+    b.dropdown_menu(Part::Accent, Face::Empty("Accent".into()))
+        .variant(eggshell_ui_shadcn::variant::OUTLINE)
+        .children(move |s| {
+            s.div_id(
+                Part::Swatch,
+                tw().size_px(14.0).rounded_full().bg(color),
+                |_| {},
+            );
+        })
+        .chevron()
+        .menu_classes(tw().min_w_px(200.0))
+        .items(|m| {
+            for (at, (name, _)) in ACCENTS.iter().enumerate() {
+                m.radio_item(
+                    Part::Item(Item::Accent(at)),
+                    *name,
+                    Mark::from(at == chosen),
+                )
+                .on_click(move |state: &mut State| state.accent = at);
+            }
         });
 }
 
