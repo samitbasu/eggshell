@@ -43,7 +43,7 @@ fn source() -> String {
 /// The theme colours the page can be shown in: the selected example's ring
 /// is the theme's primary colour.
 const THEMES: [(ThemeColor, &str); 3] = [
-    (ThemeColor::Neutral, "Neutral"),
+    (ThemeColor::Base, "Neutral"),
     (ThemeColor::Blue, "Blue"),
     (ThemeColor::Violet, "Violet"),
 ];
