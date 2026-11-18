@@ -2,16 +2,17 @@
 
 use std::rc::Rc;
 
-use egui::{Id, Key, Role, Ui};
+use egui::Role;
 
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{
     Enablement, Gate, IntoTip, OnResponse, Tooltip, announce_group, choice_label, choice_row,
-    described, number, options, tip_describes, tipped_whole,
+    described, options, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
+use crate::overlay::{Nav, Wrap};
 use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -154,22 +155,6 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
         let style = b.style().clone();
         let radio = &style.radio;
         let metrics = *radio.sizes.lookup(b.ctx(), b.size_of(size));
-        let values: Vec<T> = options.iter().map(|option| option.value).collect();
-        let gated: Vec<_> = options
-            .iter()
-            .map(|option| option.gated(enablement, refused))
-            .collect();
-        let enabled: Vec<bool> = gated
-            .iter()
-            .map(|(enablement, _)| *enablement == Enablement::Enabled)
-            .collect();
-        let count = values.len();
-        let tab_stop = values
-            .iter()
-            .zip(&enabled)
-            .position(|(&value, &enabled)| enabled && value == current)
-            .or_else(|| enabled.iter().position(|&enabled| enabled))
-            .unwrap_or(0);
         let group = tw().flex().flex_col().gap(3.0).merge(classes);
         let group = match &group_tip {
             Some(_) => group.sense_hover(),
@@ -177,12 +162,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
         };
         let whole_tip = group_tip.clone();
         b.div_id_with(&slot, group, |b| {
-            let ids: Vec<_> = (0..count)
-                .map(|index| b.id_of(Part::Circle(index)))
-                .collect();
-            for (((index, option), &control), (enablement, tooltip)) in
-                options.into_iter().enumerate().zip(&ids).zip(gated)
-            {
+            for (index, option) in options.into_iter().enumerate() {
+                let control = b.id_of(Part::Circle(index));
+                let (enablement, tooltip) = option.gated(enablement, refused);
                 let Choice { value, label, .. } = option;
                 let tooltip = tooltip.map(Tooltip::text);
                 let group_tip = group_tip.clone();
@@ -196,20 +178,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                     radio.transition,
                     metrics.size,
                 );
-                let circle = if index == tab_stop {
-                    circle
-                } else {
-                    circle.focusable_none()
-                };
                 let on_response = on_response.clone();
                 let (on_circle, on_label) = (select.clone(), select.clone());
-                let stop = |at: usize| {
-                    let value = *values.get(at)?;
-                    let id = *ids.get(at)?;
-                    enabled.get(at)?.then_some((value, id))
-                };
-                let previous = (1..count).find_map(|step| stop((index + count - step) % count));
-                let next = (1..count).find_map(|step| stop((index + step) % count));
                 let dot = metrics.dot;
                 b.div(
                     choice_row(
@@ -226,26 +196,18 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                                 });
                             }
                         })
+                        .role(Role::RadioButton)
                         .draw(move |app, ui| {
-                            let response = described(
-                                ui,
-                                Role::RadioButton,
-                                Some(Mark::from(chosen)),
-                                "",
-                                &tooltip,
-                            );
+                            let response = described(ui, Role::RadioButton, None, "", &tooltip);
                             if tooltip.is_none() {
                                 tip_describes(ui, &response, &group_tip);
                             }
-                            if response.clicked() {
+                            if response.clicked() || crate::nav::take_activation(ui, response.id) {
                                 on_circle(app, value);
                             }
                             on_response.run(app, &response);
-                            take_focus_if_asked(ui, response.id);
-                            if response.has_focus() {
-                                navigate(app, ui, &*on_circle, previous, next);
-                            }
-                        });
+                        })
+                        .selected(Mark::from(chosen));
                         choice_label(
                             b,
                             Part::Label(index),
@@ -260,57 +222,11 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                 );
             }
         })
+        .nav(Nav::Radio(Wrap::Around))
+        .selection_follows_focus()
         .draw(move |_, ui| {
             tipped_whole(ui, &whole_tip);
             announce_group(ui, Role::RadioGroup, name.as_deref());
         });
-    }
-}
-
-/// Moves the choice and the focus on an arrow key. The focused circle keeps
-/// the arrows from moving the focus spatially.
-fn navigate<A, T: Copy>(
-    app: &mut A,
-    ui: &Ui,
-    select: impl Fn(&mut A, T),
-    previous: Option<(T, Id)>,
-    next: Option<(T, Id)>,
-) {
-    number::hold_arrows(ui);
-    let pressed = |key| number::pressed(ui, key);
-    let forward = pressed(Key::ArrowDown) | pressed(Key::ArrowRight);
-    let backward = pressed(Key::ArrowUp) | pressed(Key::ArrowLeft);
-    let target = match (forward, backward) {
-        (true, false) => next,
-        (false, true) => previous,
-        _ => return,
-    };
-    let Some((value, id)) = target else { return };
-    select(app, value);
-    let key = focus_request(ui.ctx());
-    ui.data_mut(|data| data.insert_temp(key, id));
-    ui.ctx().request_repaint();
-}
-
-/// Where the circle that is to take the focus is recorded. egui drops focus
-/// given to a node that is not focusable yet, and a circle becomes its
-/// group's Tab stop only once the choice has moved to it.
-const FOCUS_REQUEST: &str = "eggshell-radio-focus";
-
-fn focus_request(ctx: &egui::Context) -> Id {
-    crate::key::viewport_id(ctx, FOCUS_REQUEST)
-}
-
-fn take_focus_if_asked(ui: &Ui, circle: Id) {
-    let key = focus_request(ui.ctx());
-    let asked = ui.data_mut(|data| {
-        let asked = data.get_temp::<Id>(key) == Some(circle);
-        if asked {
-            data.remove::<Id>(key);
-        }
-        asked
-    });
-    if asked {
-        ui.memory_mut(|memory| memory.request_focus(circle));
     }
 }

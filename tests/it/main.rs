@@ -87,6 +87,7 @@ mod reduced_motion;
 mod refused;
 mod regions;
 mod responsive_example;
+mod roving;
 #[cfg(all(feature = "screenshots", target_os = "linux"))]
 mod screenshot;
 mod scroll;
