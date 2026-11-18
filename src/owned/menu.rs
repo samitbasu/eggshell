@@ -51,7 +51,7 @@ enum Owns {
 }
 
 impl Menus {
-    fn is_open(&self, root: Id) -> bool {
+    pub(crate) fn is_open(&self, root: Id) -> bool {
         self.0.contains_key(&root)
     }
 
@@ -949,6 +949,18 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             .named(name)
             .on_dismiss(move |_| close.close())
             .children(|s| menu_box(s, &shared, 0, items));
+    }
+}
+
+impl<A> crate::Placed<A> {
+    /// TODO(prose): whether the menu of the dropdown declared with `key` at the top of the view is open; false from the frame it closes, while it fades out.
+    pub fn menu_open<K: crate::Key>(&self, key: K) -> bool {
+        self.menu_open_with(crate::child_id(self.root, &key))
+    }
+
+    /// TODO(prose): whether the menu the node `id` opens is open, a dropdown's by its trigger or a context menu's by its node.
+    pub fn menu_open_with(&self, id: Id) -> bool {
+        self.kept.with(|kept| kept.menus.is_open(id))
     }
 }
 
