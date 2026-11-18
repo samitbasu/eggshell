@@ -404,6 +404,7 @@ mod tooltip;
 mod transition;
 mod tw;
 pub mod vlist;
+pub mod web;
 pub mod widget;
 pub mod window;
 
