@@ -137,6 +137,9 @@ pub(crate) struct Trigger {
     pub(crate) cause: Cause,
     /// Where it is on screen.
     pub(crate) rect: Rect,
+    /// The style its node was built in, which the tooltip is built and drawn
+    /// with.
+    pub(crate) style: Arc<crate::Style>,
 }
 
 /// What closes a tooltip and keeps it closed until its trigger is left.
@@ -158,6 +161,7 @@ pub(crate) struct Timing {
 struct Present {
     trigger: Id,
     content: Content,
+    style: Arc<crate::Style>,
     open: bool,
 }
 
@@ -293,11 +297,13 @@ impl Tooltips {
         {
             Some(present) => {
                 present.content.clone_from(&trigger.content);
+                present.style.clone_from(&trigger.style);
                 present.open = true;
             }
             None => self.present.push(Present {
                 trigger: trigger.id,
                 content: trigger.content.clone(),
+                style: trigger.style.clone(),
                 open: true,
             }),
         }
@@ -413,6 +419,7 @@ pub(crate) fn describes(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
 /// a key.
 fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 2], rect: Rect) {
     let id = crate::draw::node_id_or_report(ui, "a tooltip");
+    let style = ui.node_style();
     let wants = |cause| {
         let Some(id) = id else { return };
         let trigger = Trigger {
@@ -420,6 +427,7 @@ fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 2], rect: Rect) {
             content: tip.content.clone(),
             cause,
             rect,
+            style: style.clone(),
         };
         if let Some(shell) = crate::shell::shell_or_report(ui, "a tooltip") {
             shell.kept.viewport(ui.ctx().viewport_id(), |here| {
@@ -505,7 +513,6 @@ impl std::fmt::Debug for Tip {
 
 /// Declares the overlay of every tooltip that is open or still leaving.
 pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
-    let style = b.style().clone();
     let present = b
         .kept()
         .viewport(b.viewport(), |here| here.tooltips.present.clone());
@@ -526,6 +533,7 @@ pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
         if !kept {
             continue;
         }
+        let style = &tip.style;
         let tooltip = &style.tooltip;
         let arrow = tooltip.arrow;
         let gap = f32::from(tooltip.offset) + arrow.map_or(0.0, |arrow| arrow.size);
@@ -549,24 +557,26 @@ pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
             None => classes,
         };
         let border = Vec2::splat(tooltip.popup.border_width);
-        OverlayChain::new(b.reborrow(), slot)
-            .band(Band::Tooltip)
-            .anchor(Anchor::Node(trigger))
-            .placement(Placement::tooltip().gap(Distance::new(gap)))
-            .focus(Focus::None)
-            .dismiss_on(DismissOn::Never)
-            .shown(if tip.open { Shown::Open } else { Shown::Closed })
-            .children(|s| {
-                s.div_id("Box", classes, |s| {
-                    tip.content.build(s);
-                    if let Some(arrow) = arrow {
-                        s.paint(
-                            tw().absolute().inset_px(0.0),
-                            arrow_painter(trigger, arrow.size, colors.fill, border),
-                        );
-                    }
+        b.with_style(style, |b| {
+            OverlayChain::new(b.reborrow(), slot)
+                .band(Band::Tooltip)
+                .anchor(Anchor::Node(trigger))
+                .placement(Placement::tooltip().gap(Distance::new(gap)))
+                .focus(Focus::None)
+                .dismiss_on(DismissOn::Never)
+                .shown(if tip.open { Shown::Open } else { Shown::Closed })
+                .children(|s| {
+                    s.div_id("Box", classes, |s| {
+                        tip.content.build(s);
+                        if let Some(arrow) = arrow {
+                            s.paint(
+                                tw().absolute().inset_px(0.0),
+                                arrow_painter(trigger, arrow.size, colors.fill, border),
+                            );
+                        }
+                    });
                 });
-            });
+        });
     }
 }
 
@@ -640,6 +650,7 @@ mod tests {
             content: Content::Text(name.into()),
             cause,
             rect: Rect::NOTHING,
+            style: crate::text::tests::style(),
         }
     }
 
