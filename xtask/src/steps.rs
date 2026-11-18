@@ -14,6 +14,15 @@ pub struct Step {
     pub env: Vec<(&'static str, String)>,
     /// A check run in this process instead of a cargo invocation.
     pub internal: Option<fn() -> Result<()>>,
+    pub expect: Expect,
+}
+
+/// What a successful step must also show.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Expect {
+    Success,
+    /// A filter that matches nothing passes silently; this fails it.
+    SomeTestPassed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +50,7 @@ impl Step {
             args: args.iter().map(|arg| (*arg).to_owned()).collect(),
             env: Vec::new(),
             internal: None,
+            expect: Expect::Success,
         }
     }
 
@@ -50,6 +60,7 @@ impl Step {
             args: Vec::new(),
             env: Vec::new(),
             internal: Some(check),
+            expect: Expect::Success,
         }
     }
 
@@ -58,6 +69,11 @@ impl Step {
         let icd = icd.display().to_string();
         self.with_env("VK_ICD_FILENAMES", icd.clone())
             .with_env("VK_DRIVER_FILES", icd)
+    }
+
+    pub fn expecting_tests(mut self) -> Self {
+        self.expect = Expect::SomeTestPassed;
+        self
     }
 
     pub fn with_env(mut self, key: &'static str, value: impl Into<String>) -> Self {
@@ -76,6 +92,9 @@ impl Step {
                 "{}",
                 summary::failure_line(self.name, &status.to_string(), &output)
             );
+        }
+        if self.expect == Expect::SomeTestPassed && summary::tests_passed(&output) == 0 {
+            bail!("step `{}` ran no tests; its filter matches none", self.name);
         }
         Ok(())
     }
@@ -147,6 +166,32 @@ pub fn wasm() -> Step {
 
 pub const WASM_TARGET: &str = "wasm32-unknown-unknown";
 
+/// The `screenshots` feature's tests and doctests (#337), which render on
+/// lavapipe. The `snapshots` feature carries it, so the build is the test step's.
+#[cfg(target_os = "linux")]
+pub fn screenshots() -> Step {
+    Step::cargo(
+        "screenshots",
+        &[
+            "test",
+            "--workspace",
+            "--features",
+            "eggshell-ui/snapshots",
+            "--",
+            "screenshot",
+        ],
+    )
+    .expecting_tests()
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn screenshots() -> Step {
+    Step::internal("screenshots", || {
+        eprintln!("screenshots: skipped, the feature is Linux-only for now (#337)");
+        Ok(())
+    })
+}
+
 /// What CI runs, in order. The test step carries the golden check, which needs
 /// Mesa lavapipe, locally and on the runner alike.
 pub fn ci_steps() -> Vec<Step> {
@@ -170,6 +215,7 @@ pub fn ci_steps() -> Vec<Step> {
         Step::cargo("doctest", &["test", "--workspace", "--doc"]),
         Step::cargo("rustdoc", &["doc", "--workspace", "--no-deps"])
             .with_env("RUSTDOCFLAGS", "-D warnings"),
+        screenshots(),
         wasm(),
         fuzz(FUZZ_CASES),
     ]
@@ -255,6 +301,7 @@ mod tests {
                 "built-in test check",
                 "cargo test --workspace --doc",
                 "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
+                screenshots().to_string().as_str(),
                 "cargo check --target wasm32-unknown-unknown --workspace --exclude xtask --lib --examples",
                 "PROPTEST_CASES=\"500\" cargo test --test it fuzz:: --profile fuzz",
             ]
@@ -271,7 +318,15 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            ["fmt", "clock", "clippy", "test", "doctest", "rustdoc"]
+            [
+                "fmt",
+                "clock",
+                "clippy",
+                "test",
+                "doctest",
+                "rustdoc",
+                "screenshots"
+            ]
         );
         assert_eq!(ci_steps_skipping(&[]).unwrap().len(), ci_steps().len());
     }
