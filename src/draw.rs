@@ -207,6 +207,8 @@ pub(crate) fn drag_layer() -> egui::LayerId {
 /// A node's boxes, snapped to physical pixels.
 struct Boxes {
     border: Rect,
+    /// Where the node takes the pointer: see [`PlacedNode::hit`].
+    hit: Rect,
     padding: Rect,
     content: Rect,
     /// The unsnapped content width. Text wraps at this width, the one it was
@@ -235,6 +237,7 @@ impl Boxes {
         let content = inset(rect, add(node.border, node.padding));
         Self {
             border: grid.rect(rect),
+            hit: grid.rect(node.hit),
             padding: grid.rect(inset(rect, node.border)),
             content: grid.rect(content),
             wrap_width: content.width(),
@@ -603,11 +606,11 @@ impl<A> Walk<'_, A> {
         let had_focus = self.ui.ctx().memory(|memory| memory.has_focus(id));
         let mut response = node_ui(
             self.ui,
-            UiBuilder::new().max_rect(boxes.border),
+            UiBuilder::new().max_rect(boxes.hit),
             inherited,
             None,
             |ui| {
-                let own = ui.interact(boxes.border, id, sense);
+                let own = ui.interact(boxes.hit, id, sense);
                 if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
                     let role = plan.description.role.unwrap_or(Role::ScrollView);
                     let name = plan.description.name.as_deref().unwrap_or_default();

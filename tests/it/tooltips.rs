@@ -1293,6 +1293,22 @@ mod segmented {
     }
 
     #[test]
+    fn the_tracks_padding_beside_a_cell_shows_that_cells_tooltip() {
+        let mut harness = harness_of(view);
+        let control = rect_of(&harness, "/\"axis\"");
+        let cell = rect_of(&harness, "/\"axis\"/2");
+        let at = pos2((cell.max.x + control.max.x) / 2.0, cell.center().y);
+        assert!(
+            control.contains(at) && !cell.contains(at),
+            "precondition: {at:?} is on the track beside the cell"
+        );
+        harness.hover_at(at);
+        wait(&mut harness, DELAY + GRACE);
+        assert!(painted(&harness, "Tip for current"));
+        assert!(!painted(&harness, "Tip for axis"));
+    }
+
+    #[test]
     fn a_cell_with_its_own_tooltip_shows_only_that_one() {
         let mut harness = harness_of(view);
         hover_node(&mut harness, "/\"axis\"/2");

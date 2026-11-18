@@ -577,3 +577,90 @@ fn a_click_on_a_segmented_cell_does_not_show_the_focus_ring() {
         "focus-visible: keyboard only"
     );
 }
+
+/// The cells of a segmented control tile its track for the pointer: the
+/// track's padding and the gaps between cells each belong to the nearest
+/// cell, as a native segmented control's do.
+mod tiling {
+    use egui::{Pos2, pos2};
+
+    use super::*;
+
+    const CELLS: [&str; 3] = ["/\"seg\"/0", "/\"seg\"/1", "/\"seg\"/2"];
+
+    fn cells(harness: &Harness<'_, Rig<App>>) -> [Rect; 3] {
+        CELLS.map(|path| rect_of(harness, path))
+    }
+
+    /// Asserts `at` is on the track and in no cell's box.
+    fn between_cells(harness: &Harness<'_, Rig<App>>, at: Pos2) {
+        assert!(
+            rect_of(harness, "/\"seg\"").contains(at),
+            "precondition: {at:?} is on the track"
+        );
+        assert!(
+            cells(harness).iter().all(|cell| !cell.contains(at)),
+            "precondition: {at:?} is in no cell"
+        );
+    }
+
+    fn click(harness: &mut Harness<'_, Rig<App>>, at: Pos2) {
+        support::hover_over(harness, at);
+        support::press_and_release(harness, at);
+        harness.run_steps(4);
+    }
+
+    #[test]
+    fn a_click_in_the_tracks_padding_beside_the_last_cell_chooses_it() {
+        let mut harness = harness(Theme::Light);
+        let track = rect_of(&harness, "/\"seg\"");
+        let [_, _, last] = cells(&harness);
+        let at = pos2((last.max.x + track.max.x) / 2.0, last.center().y);
+        between_cells(&harness, at);
+        click(&mut harness, at);
+        assert_eq!(harness.state().app.segment, Unit::Nautical);
+    }
+
+    #[test]
+    fn a_click_in_the_tracks_padding_above_a_cell_chooses_it() {
+        let mut harness = harness(Theme::Light);
+        let track = rect_of(&harness, "/\"seg\"");
+        let [_, middle, _] = cells(&harness);
+        let at = pos2(middle.center().x, (track.min.y + middle.min.y) / 2.0);
+        between_cells(&harness, at);
+        click(&mut harness, at);
+        assert_eq!(harness.state().app.segment, Unit::Imperial);
+    }
+
+    fn gapped(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div(tw().p(4.0), |b| {
+            b.segmented("seg", app.segment, SEGMENTS)
+                .track(tw().gap_x(2.0))
+                .on_change(|app: &mut App, unit| app.segment = unit);
+        });
+    }
+
+    #[test]
+    fn a_click_in_the_gap_between_cells_chooses_the_nearer() {
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut harness = support::harness(
+            vec2(500.0, 200.0),
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            App::default(),
+            gapped,
+        );
+        harness.run_steps(4);
+        let [first, second, _] = cells(&harness);
+        let gap = second.min.x - first.max.x;
+        assert!(gap >= 4.0, "precondition: a gap of {gap} between the cells");
+        let y = first.center().y;
+        let near_second = pos2(second.min.x - gap / 4.0, y);
+        between_cells(&harness, near_second);
+        click(&mut harness, near_second);
+        assert_eq!(harness.state().app.segment, Unit::Imperial);
+        let near_first = pos2(first.max.x + gap / 4.0, y);
+        between_cells(&harness, near_first);
+        click(&mut harness, near_first);
+        assert_eq!(harness.state().app.segment, Unit::Metric);
+    }
+}

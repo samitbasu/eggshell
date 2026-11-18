@@ -1427,6 +1427,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 variants: tw.variants,
                 color_source,
                 hover_by: crate::pipeline::HoverBy::Hit,
+                tiling: crate::tiling::Tiling::Untiled,
             },
         }
     }
@@ -1898,6 +1899,13 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// sibling drawn over it takes the pointer.
     pub(crate) fn hover_by_rect(mut self) -> Self {
         self.edit(|context| context.interaction.hover_by = crate::pipeline::HoverBy::Rect);
+        self
+    }
+
+    /// Lets the node's sensing children tile its padding box for the
+    /// pointer: a press in a gap or in the padding goes to the nearest.
+    pub(crate) fn tile_hits(mut self) -> Self {
+        self.edit(|context| context.interaction.tiling = crate::tiling::Tiling::Tiled);
         self
     }
 

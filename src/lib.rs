@@ -393,6 +393,7 @@ mod symbols;
 mod sync;
 pub mod testing;
 mod text;
+mod tiling;
 mod tooltip;
 mod transition;
 mod tw;
