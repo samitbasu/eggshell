@@ -1045,3 +1045,43 @@ fn handlers_compose_in_call_order() {
     assert_eq!(order[at - 1], "response", "{order:?}");
     assert_eq!(order[at - 2], "draw", "{order:?}");
 }
+
+#[test]
+fn a_live_node_is_announced_as_a_live_region() {
+    use egui::accesskit::{Live, Role};
+    use egui_kittest::kittest::{NodeT as _, Queryable as _};
+
+    let harness = crate::support::harness(
+        vec2(200.0, 100.0),
+        TextStyle::new(
+            TextSpec {
+                size: 16.0,
+                line_height: 20.0,
+                family: FontFamily::Proportional,
+                weight: Weight::Normal,
+            },
+            Color32::BLACK,
+        ),
+        (),
+        |b, _| {
+            b.div_id("status", tw().sense_hover().w_px(100.0).h_px(40.0), |s| {
+                s.text(tw(), "Saved");
+            })
+            .role(egui::Role::Status)
+            .named("Status")
+            .live(Live::Polite);
+            b.div_id("quiet", tw().sense_hover().w_px(100.0).h_px(40.0), |_| {})
+                .role(egui::Role::Status)
+                .named("Quiet");
+        },
+    );
+    let live = |name: &str| {
+        harness
+            .get_by_role_and_label(Role::Status, name)
+            .accesskit_node()
+            .data()
+            .live()
+    };
+    assert_eq!(live("Status"), Some(Live::Polite));
+    assert_eq!(live("Quiet"), None);
+}
