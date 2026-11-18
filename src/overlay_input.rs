@@ -664,10 +664,9 @@ fn opening_focus(
 /// The items of the overlay whose root is `nodes[first]`, in paint order,
 /// that take input, where they were laid out.
 fn items(ctx: &Context, nodes: &Nodes, first: usize) -> Vec<(Id, Rect)> {
-    nodes
-        .subtree(first)
-        .iter()
-        .filter(|node| node.is_item())
+    crate::roving::items_under(nodes, first)
+        .into_iter()
+        .filter_map(|at| nodes.get(at))
         .filter_map(|node| Some((node.id()?, node.rect())))
         .filter(|&(id, _)| {
             ctx.read_response(id)
