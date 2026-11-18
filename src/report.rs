@@ -43,6 +43,8 @@ pub enum Problem {
     FocusOnOpenTwice,
     /// TODO(prose): a call that needs an identified node, on an anonymous one.
     NeedsIdentity,
+    /// TODO(prose): a keyboard pattern only an overlay has, on a group on the page.
+    NavNeedsOverlay,
     /// TODO(prose): a group variant with no group around it.
     GroupHoverWithoutGroup,
     /// TODO(prose): a group that senses nothing, so is never hovered.
