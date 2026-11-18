@@ -13,7 +13,7 @@ use super::{
 };
 use crate::builder::Slot;
 use crate::contract::Size;
-use crate::focus::Autofocus;
+use crate::focus::{Autofocus, Select};
 use crate::overlay_input::Blur;
 use crate::prim::text_field::{self, Field};
 use crate::{Builder, Style, Tw, tw};
@@ -35,6 +35,9 @@ enum Part {
 /// numbers apply as they parse, are clamped to the range, and snap to the
 /// step when the field loses focus. A button is disabled at its end of the
 /// range. The buttons are not Tab stops: the keyboard steps in the field.
+///
+/// TODO(prose): a click in the field places the caret; a double click or Tab
+/// selects the whole value, as the slider's readout does.
 ///
 /// ```html
 /// <div class="flex items-stretch gap-px divide-x divide-input w-28 h-9 rounded-md border border-input shadow-xs
@@ -159,8 +162,14 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
 
     /// Takes keyboard focus in its field in the first frame the stepper is
     /// built after a frame in which it was not.
-    pub fn focus_on_appear(mut self) -> Self {
-        self.autofocus = Autofocus::OnAppear;
+    pub fn focus_on_appear(self) -> Self {
+        self.focus_on_appear_selecting(Select::None)
+    }
+
+    /// TODO(prose): [`focus_on_appear`](Self::focus_on_appear), selecting as
+    /// `select` says when it takes focus.
+    pub fn focus_on_appear_selecting(mut self, select: Select) -> Self {
+        self.autofocus = Autofocus::OnAppear(select);
         self
     }
 
@@ -374,8 +383,9 @@ impl<A> Spec<A> {
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
         let response = text_field::show(ui, &mut text, field);
         tip_describes(ui, &response, &self.tooltip);
-        self.autofocus.apply(ui.ctx(), &response);
-        text_field::select_on_focus(ui, &response, &text);
+        let asked = self.autofocus.apply(ui.ctx(), &response);
+        let opening = text_field::Opening::of_number(&response, asked);
+        text_field::select_number(ui, &response, &text, opening);
         response.widget_info(|| WidgetInfo {
             label: Some(self.name.clone()),
             ..WidgetInfo::drag_value(ui.is_enabled(), value)

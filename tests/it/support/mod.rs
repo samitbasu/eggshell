@@ -369,6 +369,25 @@ pub fn rest_for_tooltip<A>(harness: &mut Harness<'_, Rig<A>>) {
     harness.run_steps(4);
 }
 
+/// Clicks twice at `at`, one event a frame as a browser sends them, the
+/// releases `apart` apart.
+pub fn click_twice<A>(
+    harness: &mut Harness<'_, Rig<A>>,
+    at: egui::Pos2,
+    apart: std::time::Duration,
+) {
+    let frame = harness.ctx.input(|input| input.predicted_dt);
+    let frames = (apart.as_secs_f32() / frame).round() as usize;
+    assert!(
+        frames >= 2,
+        "precondition: a press and a release fit in {apart:?}"
+    );
+    press_and_release(harness, at);
+    harness.run_steps(frames - 2);
+    press_and_release(harness, at);
+    harness.run_steps(6);
+}
+
 /// Clicks the centre of the node `path`.
 pub fn click_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
     let at = rect_of(harness, path).center();
