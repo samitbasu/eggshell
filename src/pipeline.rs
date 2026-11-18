@@ -275,6 +275,7 @@ pub(crate) struct Interaction {
     pub variants: Variants,
     pub color_source: ColorSource,
     pub hover_by: HoverBy,
+    pub tiling: crate::tiling::Tiling,
 }
 
 pub(crate) type MeasureFn<'f> = Box<dyn Fn(&Measure<'_>) -> Size<f32> + 'f>;
@@ -1528,6 +1529,7 @@ fn collect(
         }
     };
     let region = node.region.take();
+    let tiling = node.interaction.tiling;
     let index = nodes.push(PlacedNode {
         identity,
         path: std::mem::take(&mut node.path),
@@ -1536,6 +1538,7 @@ fn collect(
         end: 0,
         rect,
         reach: rect.expand(paint_reach(&node.paint)),
+        hit: rect,
         border,
         padding,
         overflow,
@@ -1557,10 +1560,15 @@ fn collect(
         pane: node.pane,
         measured,
     });
+    let mut children = Vec::new();
     for child in tree.children(id) {
         let at = nodes.len();
         collect(tree, child, min, depth + 1, probe, settle, nodes, prims);
         widen_reach(nodes, index, at);
+        children.push(at);
+    }
+    if tiling == crate::tiling::Tiling::Tiled {
+        tile_hits(nodes, crate::draw::inset(rect, border), &children);
     }
     if let Some(content) = region {
         let (inset, _) = region::content_box(tree, id);
@@ -1603,6 +1611,28 @@ fn widen_reach(nodes: &mut Nodes, index: usize, child: usize) {
     }
 }
 
+/// Gives each sensing child among `children` its tile of `area`.
+fn tile_hits(nodes: &mut Nodes, area: Rect, children: &[usize]) {
+    let cells: Vec<usize> = children
+        .iter()
+        .copied()
+        .filter(|&at| {
+            nodes
+                .node(at)
+                .is_some_and(|child| child.flow == Flow::Normal && child.senses())
+        })
+        .collect();
+    let rects: Vec<Rect> = cells
+        .iter()
+        .filter_map(|&at| nodes.node(at).map(PlacedNode::rect))
+        .collect();
+    for (at, hit) in cells.into_iter().zip(crate::tiling::tile(area, &rects)) {
+        if let Some(child) = nodes.node_mut(at) {
+            child.hit = hit;
+        }
+    }
+}
+
 /// How a node takes part in its parent's layout.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Flow {
@@ -1641,6 +1671,9 @@ pub struct PlacedNode {
     rect: Rect,
     /// Where the node and its descendants may paint: for culling.
     pub(crate) reach: Rect,
+    /// Where the node takes the pointer: its rect, or its tile of a parent
+    /// whose children tile it.
+    pub(crate) hit: Rect,
     pub(crate) border: Sides<f32>,
     pub(crate) padding: Sides<f32>,
     pub(crate) overflow: Point<Overflow>,
@@ -1679,6 +1712,7 @@ impl PlacedNode {
             end: 0,
             rect: Rect::NOTHING,
             reach: Rect::NOTHING,
+            hit: Rect::NOTHING,
             border: Sides::default(),
             padding: Sides::default(),
             overflow: Point {
@@ -1710,6 +1744,7 @@ impl PlacedNode {
     pub(crate) fn translate(&mut self, by: egui::Vec2) {
         self.rect = self.rect.translate(by);
         self.reach = self.reach.translate(by);
+        self.hit = self.hit.translate(by);
     }
 
     /// The clip the node's descendants are painted and reached within, given

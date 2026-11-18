@@ -359,6 +359,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
             }
         }
     });
+    let handle = handle.tile_hits();
     if tooltip.is_some() {
         handle.draw(move |_, ui| {
             tipped_whole(ui, &tooltip);
