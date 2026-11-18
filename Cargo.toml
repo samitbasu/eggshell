@@ -77,3 +77,11 @@ workspace = true
 inherits = "dev"
 opt-level = 1
 debug = "line-tables-only"
+
+# `cargo xtask ci`'s release step: the dev build without debug assertions, so
+# the checks gated on them are proven off as in release, without release's
+# rebuild time (#336).
+[profile.release-gates]
+inherits = "dev"
+debug-assertions = false
+overflow-checks = false
