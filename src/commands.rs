@@ -23,6 +23,7 @@ use crate::Problem;
 use crate::clipboard::{ClipboardError, Paste, Via};
 use crate::key::{Key, child_id};
 use crate::overlay_input::Typing;
+use crate::owned::{Enablement, Mark};
 use crate::report::report;
 use crate::shell::Shell;
 
@@ -45,7 +46,34 @@ pub struct Command<A> {
     title: &'static str,
     run: Run<A>,
     binding: Binding<A>,
+    shows: Shows<A>,
 }
+
+/// TODO(prose): what a command's items show of the application data, read with [`Command::state`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CommandState {
+    /// TODO(prose): an action, shown with nothing before its title.
+    Plain,
+    /// TODO(prose): a setting that is on or off, shown with a check mark where it is on.
+    Checked(Mark),
+    /// TODO(prose): one choice among several, shown with a dot where it is chosen.
+    Chosen(Mark),
+}
+
+/// What a command reads of the application data to say its state.
+enum Shows<A> {
+    Plain,
+    Checked(fn(&A) -> Mark),
+    Chosen(fn(&A) -> Mark),
+}
+
+impl<A> Clone for Shows<A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<A> Copy for Shows<A> {}
 
 /// When a command runs: shared by plain and paste commands.
 struct Binding<A> {
@@ -220,6 +248,7 @@ impl<A> From<PasteCommand<A>> for Command<A> {
             title,
             run: Run::Paste { run, on_error },
             binding,
+            shows: Shows::Plain,
         }
     }
 }
@@ -227,6 +256,7 @@ impl<A> From<PasteCommand<A>> for Command<A> {
 /// What a command does.
 enum Run<A> {
     Plain(fn(&mut A)),
+    Shell(fn(&mut A, &Shell)),
     /// Takes what the clipboard holds, from the chord's event or, for a
     /// click, a read; `on_error` hears a read that failed.
     Paste {
@@ -255,10 +285,20 @@ impl<A> Command<A> {
     /// A command that is always enabled and has no shortcut. `title` is what a
     /// menu item says.
     pub fn new(title: &'static str, run: fn(&mut A)) -> Self {
+        Self::running(title, Run::Plain(run))
+    }
+
+    /// TODO(prose): a command whose `run` also gets the [`Shell`] of the layout it runs in.
+    pub fn with_shell(title: &'static str, run: fn(&mut A, &Shell)) -> Self {
+        Self::running(title, Run::Shell(run))
+    }
+
+    fn running(title: &'static str, run: Run<A>) -> Self {
         Self {
             title,
-            run: Run::Plain(run),
+            run,
             binding: Binding::default(),
+            shows: Shows::Plain,
         }
     }
 
@@ -300,6 +340,27 @@ impl<A> Command<A> {
         self
     }
 
+    /// TODO(prose): makes the command a setting that is on or off: its menu items show a check mark where `checked` is on.
+    pub fn checked(mut self, checked: fn(&A) -> Mark) -> Self {
+        self.shows = Shows::Checked(checked);
+        self
+    }
+
+    /// TODO(prose): makes the command one choice among several: its menu items show a dot where `chosen` is on.
+    pub fn chosen(mut self, chosen: fn(&A) -> Mark) -> Self {
+        self.shows = Shows::Chosen(chosen);
+        self
+    }
+
+    /// TODO(prose): whether the command is a plain action, or a setting or a choice and how `app` has it.
+    pub fn state(&self, app: &A) -> CommandState {
+        match self.shows {
+            Shows::Plain => CommandState::Plain,
+            Shows::Checked(checked) => CommandState::Checked(checked(app)),
+            Shows::Chosen(chosen) => CommandState::Chosen(chosen(app)),
+        }
+    }
+
     /// What a menu item for the command says.
     pub fn title(&self) -> &'static str {
         self.title
@@ -308,6 +369,11 @@ impl<A> Command<A> {
     /// The chord that runs the command.
     pub fn chord(&self) -> Option<KeyboardShortcut> {
         self.binding.shortcut.map(KeyboardShortcut::from)
+    }
+
+    /// TODO(prose): the chord as the platform writes it, as a menu item for the command shows it.
+    pub fn shortcut_text(&self, ctx: &Context) -> Option<String> {
+        self.chord().map(|chord| ctx.format_shortcut(&chord))
     }
 
     pub(crate) fn is_enabled(&self, app: &A) -> bool {
@@ -323,6 +389,7 @@ impl<A> Command<A> {
     fn fire(&self, app: &mut A, pasted: Option<Paste>, shell: &Shell) {
         match self.run {
             Run::Plain(run) => run(app),
+            Run::Shell(run) => run(app, shell),
             Run::Paste { run, on_error } => {
                 let paste = match pasted {
                     Some(paste) => Ok((paste, Via::Event)),
@@ -426,6 +493,11 @@ impl<A> Commands<A> {
     /// other than the menus and the dispatcher, such as a native menu bar.
     pub fn iter(&self) -> impl Iterator<Item = &Command<A>> {
         self.entries.iter().map(|entry| &entry.command)
+    }
+
+    /// TODO(prose): the command added under `id`, or `None` if there is none.
+    pub fn get<K: Key>(&self, id: K) -> Option<&Command<A>> {
+        self.find(child_id(Id::NULL, &id))
     }
 
     pub(crate) fn find(&self, id: Id) -> Option<&Command<A>> {
@@ -540,14 +612,21 @@ pub(crate) fn dispatch_all<A>(
     }
 }
 
+/// A command as `app` has it now, for an item or a button that runs it.
+pub(crate) struct Bound<A> {
+    pub(crate) command: Command<A>,
+    pub(crate) enablement: Enablement,
+    pub(crate) state: CommandState,
+}
+
 /// The command `id` names in `tables`, from the tables whose chords are live
-/// in the root being built, and whether `app` enables it.
+/// in the root being built, as `app` has it.
 pub(crate) fn look_up<A>(
     core: &crate::pipeline::FrameCore<'_>,
     tables: &[(usize, Commands<A>)],
     app: &A,
     id: Id,
-) -> Option<(Command<A>, bool)> {
+) -> Option<Bound<A>> {
     let roots = &core.roots;
     let live = live_roots(
         core.current,
@@ -559,7 +638,11 @@ pub(crate) fn look_up<A>(
         .filter_map(|root| tables.iter().find(|(at, _)| *at == root))
         .find_map(|(_, table)| table.find(id))
         .copied()?;
-    Some((command, command.is_enabled(app)))
+    Some(Bound {
+        command,
+        enablement: command.is_enabled(app).into(),
+        state: command.state(app),
+    })
 }
 
 /// The roots whose commands are live from `start`: `start`, then the root

@@ -405,7 +405,7 @@ pub use builder::{AnyNode, Builder, DragSource, NodeHandle, Scope, SpansHandle};
 pub use clicks::DOUBLE_CLICK;
 pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
-pub use commands::{Chord, Command, Commands, InText, PasteCommand};
+pub use commands::{Chord, Command, CommandState, Commands, InText, PasteCommand};
 pub use contract::Style;
 pub use debug::Debug;
 pub use dnd::{

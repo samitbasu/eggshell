@@ -298,7 +298,7 @@ impl<'f, R: 'static, S: 'static> Sink<'f, S> for Lensed<'_, 'f, R, S> {
         Ok(())
     }
 
-    fn command(&self, id: Id) -> Option<(crate::Command<S>, bool)> {
+    fn command(&self, id: Id) -> Option<crate::commands::Bound<S>> {
         let declared = self.mount.declared.try_borrow().ok()?;
         look_up(self, &declared.tables, declared.app?, id)
     }
