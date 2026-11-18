@@ -54,6 +54,7 @@ mod hit_route;
 mod icons;
 mod inert_look;
 mod interaction;
+mod invisible;
 mod kaolin_sidebar;
 mod known_gaps_demo;
 mod layout;
