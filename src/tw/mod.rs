@@ -25,7 +25,8 @@ use taffy::{Display, Style};
 use crate::contract::Size;
 use crate::text::TextClasses;
 
-pub(crate) use ch::ChWidths;
+pub use ch::Reserve;
+pub(crate) use ch::{MinWidth, TextWidths};
 pub use easing::Easing;
 pub use grid::Track;
 use merge::{Layout, Touched};
@@ -43,7 +44,7 @@ const SPACE_UNIT: f32 = 4.0;
 #[derive(Clone, Debug)]
 pub struct Tw {
     pub(crate) style: Style,
-    pub(crate) ch: ChWidths,
+    pub(crate) ch: TextWidths,
     pub(crate) paint: BoxPaint,
     pub(crate) text: TextClasses,
     pub(crate) z: Option<i16>,
@@ -90,7 +91,7 @@ pub fn tw() -> Tw {
             display: Display::Block,
             ..Style::default()
         },
-        ch: ChWidths::default(),
+        ch: TextWidths::default(),
         paint: BoxPaint::default(),
         text: TextClasses::default(),
         z: None,

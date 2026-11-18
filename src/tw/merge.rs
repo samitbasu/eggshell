@@ -15,7 +15,7 @@ use taffy::style::{
 };
 use taffy::{Line, Rect, Size, Style};
 
-use super::{BoxPaint, ChWidths, Opacity, Tw};
+use super::{BoxPaint, Opacity, TextWidths, Tw};
 
 /// The properties a class list has set: a bit for each layout property that
 /// can be merged on its own, then the corner radii and the opacity.
@@ -79,7 +79,7 @@ macro_rules! layout_properties {
                 $(
                     let mut style = Style::default();
                     let mut touched = Touched::default();
-                    Layout { style: &mut style, ch: &mut ChWidths::default(), touched: &mut touched }.$name();
+                    Layout { style: &mut style, ch: &mut TextWidths::default(), touched: &mut touched }.$name();
                     assert_eq!(
                         touched.0,
                         1 << Property::$name as u32,
@@ -153,11 +153,11 @@ layout_properties! {
 /// the accessor named for it, which records the write for [`Tw::merge`].
 pub(super) struct Layout<'a> {
     style: &'a mut Style,
-    pub(super) ch: &'a mut ChWidths,
+    pub(super) ch: &'a mut TextWidths,
     touched: &'a mut Touched,
 }
 
-impl ChWidths {
+impl TextWidths {
     /// A class that writes `property` in points or as a fraction replaces a
     /// width pending in `ch`.
     fn supersede(&mut self, property: Property) {
@@ -250,14 +250,14 @@ impl Shape<'_> {
 impl Tw {
     /// Writes layout with `set`, which records each property it writes.
     pub(super) fn write_layout(&mut self, set: impl FnOnce(&mut Layout<'_>)) {
-        let (style, ch) = (self.style.clone(), self.ch);
+        let (style, ch) = (self.style.clone(), self.ch.clone());
         let mut written = Touched::default();
         set(&mut Layout {
             style: &mut self.style,
             ch: &mut self.ch,
             touched: &mut written,
         });
-        if super::layout::is_finite(&self.style, self.ch) {
+        if super::layout::is_finite(&self.style, &self.ch) {
             self.touched = self.touched | written;
         } else {
             (self.style, self.ch) = (style, ch);
@@ -300,11 +300,6 @@ impl Tw {
         for (property, mine, theirs) in [
             (Property::width, &mut self.ch.width, other.ch.width),
             (
-                Property::min_width,
-                &mut self.ch.min_width,
-                other.ch.min_width,
-            ),
-            (
                 Property::max_width,
                 &mut self.ch.max_width,
                 other.ch.max_width,
@@ -313,6 +308,9 @@ impl Tw {
             if other.touched.has(property) {
                 *mine = theirs;
             }
+        }
+        if other.touched.has(Property::min_width) {
+            self.ch.min_width = other.ch.min_width.clone();
         }
         let (mine, theirs) = (&mut self.paint, &other.paint);
         let corners = |own: u8, over: u8, property| {
