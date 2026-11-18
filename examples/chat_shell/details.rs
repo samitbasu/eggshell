@@ -70,6 +70,7 @@ fn section<'f>(
     b.section(title, title, Shown::from(!app.is_folded(title)))
         .classes(
             tw().items_center()
+                .border(0.0)
                 .py(0.0)
                 .pb(2.0)
                 .role(k[Role::Meta].clone())

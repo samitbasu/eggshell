@@ -227,7 +227,9 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
         }
         let name = name_of(&face).to_owned();
         let glyph = chevron(&style.section, open);
-        let glyph_classes = chevron_classes(style, &style.section).mt(style.nudge / 4.0);
+        let glyph_classes = chevron_classes(style, &style.section)
+            .mt(style.nudge / 4.0)
+            .mb(-style.nudge / 4.0);
         let handle = b
             .div_id(Part::Header, box_classes.merge(classes), |b| {
                 b.div(
