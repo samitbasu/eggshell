@@ -22,3 +22,5 @@
 
 #[cfg(feature = "markdown")]
 pub mod markdown;
+#[cfg(feature = "notify")]
+pub mod notify;
