@@ -1245,6 +1245,14 @@ fn place_window(
     } else {
         Presentation::Native
     };
+    let _timer = (presentation == Presentation::Native).then(|| {
+        Timer::window(
+            ctx,
+            Phase::Layout,
+            ctx.viewport_id(),
+            (decl.id, &decl.window.title),
+        )
+    });
     let mut style = st.tree.style(node).clone();
     let mut sized = |size: Option<Vec2>, available: AvailableSpace| {
         style.size = Size {
