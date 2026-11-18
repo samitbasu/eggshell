@@ -28,6 +28,9 @@ pub enum Problem {
     DuplicateCommand,
     /// TODO(prose): two commands of a table on one chord.
     DuplicateChord,
+    /// TODO(prose): a command bound to a chord the browser keeps, such as
+    /// `Cmd+W`. Debug builds on the web only.
+    BrowserChord,
     /// TODO(prose): commands declared twice in one root.
     CommandsTwice,
     /// TODO(prose): a command id no live table declares.
