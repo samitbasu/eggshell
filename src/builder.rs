@@ -242,13 +242,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ) {
         let mut style = crate::Style::clone(self.style);
         edit(&mut style);
-        let style = Arc::new(style);
+        self.with_style(&Arc::new(style), body);
+    }
+
+    /// Builds `body` in place with `style` for this scope's.
+    pub(crate) fn with_style(
+        &mut self,
+        style: &Arc<crate::Style>,
+        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+    ) {
         body(&mut Builder::new(
             self.st,
             self.frame,
             self.path,
             self.kids,
-            (self.inherited, self.ambient, &style),
+            (self.inherited, self.ambient, style),
         ));
     }
 
