@@ -20,5 +20,7 @@
 )]
 //! TODO(prose)
 
+#[cfg(feature = "command")]
+pub mod command;
 #[cfg(feature = "markdown")]
 pub mod markdown;

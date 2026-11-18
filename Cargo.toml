@@ -44,7 +44,7 @@ eframe = "0.37"
 egui_kittest = "0.37"
 trybuild = "1"
 eggshell-ui-shadcn = { path = "crates/eggshell-ui-shadcn", features = ["extras"] }
-eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = ["markdown"] }
+eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = ["markdown", "command"] }
 
 # proptest's rng wants a getrandom backend that the browser build does not
 # select, and the fuzzers only run natively.
