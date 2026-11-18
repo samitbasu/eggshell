@@ -42,7 +42,10 @@ pub use style::{DisclosureStyle, Glyph, HeaderStyle, Hover};
 pub struct Unset;
 
 /// TODO(prose): a section's `on_change`, given.
-pub struct OnChange<A>(Rc<dyn Fn(&mut A, Shown)>);
+pub struct OnChange<A>(ChangeFn<A>);
+
+/// What a section runs with the state its header asks for.
+type ChangeFn<A> = Rc<dyn Fn(&mut A, Shown)>;
 
 /// TODO(prose): `glyph`'s icon turned by its turn times `open`, zero closed
 /// and one open: the chevron of a section header and of a disclosure

@@ -13,7 +13,6 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use crate::support::{self, ReducedMotion, Rig, rect_of};
 
 #[path = "../../examples/common/mod.rs"]
-#[allow(dead_code, reason = "the tests use the base text")]
 mod common;
 
 const TITLE: &str = "Environment";
