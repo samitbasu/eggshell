@@ -8,8 +8,8 @@ use eggshell_ui::{Builder, Key, Progress, Scope, Tw, tw};
 use egui::Role;
 
 use super::{
-    DisclosureStyle, Hover, OnChange, Unset, box_classes, chevron, chevron_classes, enablement_in,
-    name_of, toggled,
+    ChangeFn, DisclosureStyle, Hover, OnChange, Unset, box_classes, chevron, chevron_classes,
+    enablement_in, name_of, toggled,
 };
 
 /// The parts of a section, under its key.
@@ -168,7 +168,7 @@ struct Header<'a, 'f, A> {
     classes: Tw,
     enablement: Enablement,
     current: Shown,
-    on_change: Rc<dyn Fn(&mut A, Shown)>,
+    on_change: ChangeFn<A>,
 }
 
 impl<'f, A: 'static> Header<'_, 'f, A> {
