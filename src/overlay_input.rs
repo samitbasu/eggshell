@@ -13,7 +13,7 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect};
 
 use crate::actions::{self, Action};
 use crate::dismiss::{
-    Boundary, Cause, FocusAt, Input, Layer, Seen, Trigger, dismissals, esc_target,
+    Boundary, Cause, FocusAt, Input, Layer, Seen, Trigger, WindowFocus, dismissals, esc_target,
 };
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
@@ -207,20 +207,32 @@ fn box_of(nodes: &Nodes, roots: &[PlacedRoot], root: usize) -> egui::Rect {
     }
 }
 
-/// The layers dismissal judges; `focus` says where focus was and is relative
-/// to each.
+/// What an open overlay's past frames left for dismissal to judge it by.
+#[derive(Default)]
+struct Remembered {
+    focus_before: FocusAt,
+    focus_now: FocusAt,
+    window_focus: WindowFocus,
+}
+
+/// The layers dismissal judges; `remembered` says, for each, where focus was
+/// and is relative to it, and whether the window has had the focus.
 fn layers_of(
     ctx: &Context,
     open: &[Open<'_>],
     nodes: &Nodes,
     roots: &[PlacedRoot],
-    mut focus: impl FnMut(&Open<'_>) -> (FocusAt, FocusAt),
+    mut remembered: impl FnMut(&Open<'_>) -> Remembered,
 ) -> Vec<Layer> {
     let position = |root: usize| open.iter().position(|open| open.root == root);
     open.iter()
         .map(|open| {
             let overlay = open.overlay;
-            let (focus_before, focus_now) = focus(open);
+            let Remembered {
+                focus_before,
+                focus_now,
+                window_focus,
+            } = remembered(open);
             Layer {
                 parent: roots
                     .get(open.root)
@@ -246,6 +258,7 @@ fn layers_of(
                     Anchored::Attached => Seen::Drawn,
                     Anchored::Detached => Seen::Hidden,
                 },
+                window_focus,
             }
         })
         .collect()
@@ -381,7 +394,7 @@ pub(crate) fn claim_keys(
         ..Input::default()
     };
     let layers = layers_of(ctx, &judged_overlays(roots, here), nodes, roots, |_| {
-        (FocusAt::Nowhere, FocusAt::Nowhere)
+        Remembered::default()
     });
     let belongs_to_the_library = match escape_goes(&layers, nodes, &input) {
         EscapeGoes::Nobody => input.escape && !input.drag_live && Typing::escape_blurred(ctx, kept),
@@ -456,14 +469,12 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     let mut stack = Stack::load(kept, ctx.viewport_id());
     let judged = judged_overlays(roots, here);
     let layers = layers_of(ctx, &judged, nodes, roots, |open| {
-        let before = stack
-            .get_mut(open.overlay.id)
-            .map(|entry| entry.focus)
-            .unwrap_or_default();
-        (
-            before,
-            focus::at(&shell, open.overlay.id, &open.nested, open.anchor_node()),
-        )
+        let entry = stack.get_mut(open.overlay.id);
+        Remembered {
+            focus_before: entry.as_ref().map(|entry| entry.focus).unwrap_or_default(),
+            focus_now: focus::at(&shell, open.overlay.id, &open.nested, open.anchor_node()),
+            window_focus: entry.map(|entry| entry.window_focus).unwrap_or_default(),
+        }
     });
     let input = Input {
         press: press_origin(ctx),
@@ -510,6 +521,9 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             continue;
         };
         entry.focus = layer.focus_now;
+        if layer.seen == Seen::Drawn && ctx.input(|input| input.focused) {
+            entry.window_focus = WindowFocus::Had;
+        }
         if !entry.entered && layer.lookup == AnchorLookup::Found && layer.seen == Seen::Drawn {
             entry.entered = true;
             if enters_focus(open.overlay.behavior, source)
