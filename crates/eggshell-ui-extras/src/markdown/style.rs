@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use eggshell_ui::{Style, TextSpec, Tracking, Weight};
-use egui::{Color32, Context, FontFamily, Id, Theme};
+use egui::{Color32, Context, FontFamily, Theme};
 
 use super::parse::Level;
 
@@ -203,16 +203,11 @@ impl MarkdownStyle {
 
     /// TODO(prose)
     pub fn of(ctx: &Context) -> Arc<Self> {
-        ctx.data(|data| data.get_temp::<Arc<Self>>(id(ctx.theme())))
-            .unwrap_or_else(|| Arc::new(Self::from_style(&Style::of(ctx))))
+        crate::styles::of(ctx, Self::from_style)
     }
 
     /// TODO(prose)
     pub fn install_for(self, ctx: &Context, theme: Theme) {
-        ctx.data_mut(|data| data.insert_temp(id(theme), Arc::new(self)));
+        crate::styles::install_for(self, ctx, theme);
     }
-}
-
-fn id(theme: Theme) -> Id {
-    Id::NULL.with(("eggshell-ui-extras-markdown-style", theme))
 }

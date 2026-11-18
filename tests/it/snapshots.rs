@@ -989,6 +989,7 @@ owned_section_goldens! {
     controls_gallery_buttons_light, controls_gallery_buttons_dark: Buttons;
     controls_gallery_choices_light, controls_gallery_choices_dark: Choices;
     controls_gallery_values_light, controls_gallery_values_dark: Values;
+    controls_gallery_labels_light, controls_gallery_labels_dark: Labels;
 }
 
 /// The enabled stepper with its text field focused: the ring surrounds the
@@ -1261,6 +1262,7 @@ mod lyra {
         controls_gallery_lyra_buttons_light, controls_gallery_lyra_buttons_dark: Buttons;
         controls_gallery_lyra_choices_light, controls_gallery_lyra_choices_dark: Choices;
         controls_gallery_lyra_values_light, controls_gallery_lyra_values_dark: Values;
+        controls_gallery_lyra_labels_light, controls_gallery_lyra_labels_dark: Labels;
     }
 
     /// The text edits of the cells section, whose computed and drawn rects
