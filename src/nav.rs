@@ -199,8 +199,10 @@ pub(crate) enum ListMove {
 impl ListMove {
     /// The move of the frame's key, taking it. An arrow is taken from egui
     /// too, as for an overlay's listbox.
-    pub(crate) fn of_key(ctx: &Context) -> Option<Self> {
+    /// With `Keys::From` a text field has Home and End.
+    pub(crate) fn of_key(ctx: &Context, keys: Keys) -> Option<Self> {
         let pressed = |key| ctx.input_mut(|input| input.consume_key(Modifiers::NONE, key));
+        let field = matches!(keys, Keys::From(_));
         const KEYS: [(Key, ListMove); 6] = [
             (Key::ArrowDown, ListMove::Next),
             (Key::ArrowUp, ListMove::Previous),
@@ -211,6 +213,7 @@ impl ListMove {
         ];
         let to = KEYS
             .iter()
+            .filter(|(_, to)| !(field && matches!(to, Self::First | Self::Last)))
             .find(|(key, _)| pressed(*key))
             .map(|(_, to)| *to)?;
         ctx.memory_mut(|memory| memory.move_focus(FocusDirection::None));
@@ -244,6 +247,27 @@ impl ListMove {
             Self::PageUp => current.map_or(from(false), |at| at.saturating_sub(page)),
         };
         Some(to.min(last))
+    }
+}
+
+impl ListMove {
+    /// The row [`target`](Self::target) gives, or the nearest row past it
+    /// in the move's direction that is `enabled`; with none there, the
+    /// current row, if it is enabled.
+    pub(crate) fn target_enabled(
+        self,
+        current: Option<usize>,
+        len: usize,
+        page: usize,
+        visible: std::ops::Range<usize>,
+        enabled: impl Fn(usize) -> bool,
+    ) -> Option<usize> {
+        let to = self.target(current, len, page, visible)?;
+        let found = match self {
+            Self::Next | Self::PageDown | Self::First => (to..len).find(|&at| enabled(at)),
+            Self::Previous | Self::PageUp | Self::Last => (0..=to).rev().find(|&at| enabled(at)),
+        };
+        found.or_else(|| current.filter(|&at| enabled(at)))
     }
 }
 
@@ -422,9 +446,50 @@ pub(crate) struct Active(HashMap<Id, Highlight>);
 #[derive(Clone, Copy)]
 struct Highlight {
     item: Id,
-    anchor: Option<Id>,
-    /// Whether the listbox is a virtual list, which is no overlay.
-    list: bool,
+    owner: Owner,
+}
+
+/// What a listbox is, and so where its keys come from.
+#[derive(Clone, Copy)]
+enum Owner {
+    /// An overlay, keyed while the focus is in its anchor, or in the
+    /// overlay itself when it has none.
+    Overlay { anchor: Option<Id> },
+    /// A virtual list, which is no overlay.
+    List(Keys),
+}
+
+/// Where a virtual list's keys come from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Keys {
+    /// The list's own, while it holds the focus.
+    Own,
+    /// The node `field`'s, while the focus is in it: a search field over
+    /// its results.
+    From(Id),
+}
+
+impl Owner {
+    /// The node that has the focus while the listbox `listbox` takes keys.
+    fn holder(self, listbox: Id) -> Id {
+        match self {
+            Self::Overlay { anchor } => anchor.unwrap_or(listbox),
+            Self::List(Keys::Own) => listbox,
+            Self::List(Keys::From(field)) => field,
+        }
+    }
+
+    /// Whether the listbox `listbox` takes the frame's keys. A list that
+    /// keys itself takes them only while it holds the focus, not while a
+    /// widget in one of its rows does.
+    fn is_keyed(self, shell: &Shell, listbox: Id) -> bool {
+        match self {
+            Self::List(Keys::Own) => crate::focus::holds_focus(&shell.ctx, listbox),
+            Self::Overlay { .. } | Self::List(Keys::From(_)) => {
+                shell.focus_within(self.holder(listbox))
+            }
+        }
+    }
 }
 
 impl Active {
@@ -445,22 +510,21 @@ impl Active {
             listbox,
             Highlight {
                 item,
-                anchor,
-                list: false,
+                owner: Owner::Overlay { anchor },
             },
         );
     }
 }
 
-/// Highlights the row `item` of the virtual list `list`.
-pub(crate) fn highlight_row(kept: &Handle, list: Id, item: Id) {
+/// Highlights the row `item` of the virtual list `list`, which takes its
+/// keys as `keys` says.
+pub(crate) fn highlight_row(kept: &Handle, list: Id, item: Id, keys: Keys) {
     kept.with(|kept| {
         kept.listbox.0.insert(
             list,
             Highlight {
                 item,
-                anchor: Some(list),
-                list: true,
+                owner: Owner::List(keys),
             },
         );
     });
@@ -503,9 +567,10 @@ pub(crate) fn highlighted(kept: &Handle) -> Vec<Id> {
 pub(crate) fn forget_closed(kept: &Handle, open: &[Id]) {
     let mut active = Active::load(kept);
     let before = active.0.len();
-    active
-        .0
-        .retain(|listbox, highlight| highlight.list || open.contains(listbox));
+    active.0.retain(|listbox, highlight| match highlight.owner {
+        Owner::List(_) => true,
+        Owner::Overlay { .. } => open.contains(listbox),
+    });
     if active.0.len() != before {
         active.store(kept);
     }
@@ -529,7 +594,7 @@ pub(crate) fn relations(ctx: &Context, kept: &Handle) -> Vec<Relation> {
         .0
         .iter()
         .map(|(&listbox, highlight)| Relation::ActiveDescendant {
-            node: speaker(&shell, highlight.anchor.unwrap_or(listbox)),
+            node: speaker(&shell, highlight.owner.holder(listbox)),
             target: highlight.item,
         })
         .collect()
@@ -549,19 +614,13 @@ pub(crate) fn activate_highlighted(ctx: &Context, kept: &Handle) {
     let keyed = active
         .0
         .iter()
-        .find(
-            |(listbox, highlight)| match (highlight.anchor, highlight.list) {
-                (Some(anchor), true) => crate::focus::holds_focus(ctx, anchor),
-                (Some(anchor), false) => shell.focus_within(anchor),
-                (None, _) => shell.focus_within(**listbox),
-            },
-        )
+        .find(|(listbox, highlight)| highlight.owner.is_keyed(&shell, **listbox))
         .map(|(_, highlight)| highlight)
         .or_else(|| {
             active
                 .0
                 .values()
-                .find(|highlight| !highlight.list)
+                .find(|highlight| matches!(highlight.owner, Owner::Overlay { .. }))
                 .filter(|_| nothing_focused)
         });
     let Some(highlight) = keyed else {
@@ -652,6 +711,29 @@ mod tests {
         assert_eq!(row(ListMove::PageDown, None), Some(40));
         assert_eq!(row(ListMove::Previous, None), Some(51));
         assert_eq!(row(ListMove::PageUp, None), Some(51));
+    }
+
+    fn skipping(to: ListMove, current: Option<usize>, disabled: &[usize]) -> Option<usize> {
+        to.target_enabled(current, 10, 3, 0..10, |at| !disabled.contains(&at))
+    }
+
+    #[test]
+    fn steps_pass_disabled_rows_by() {
+        assert_eq!(skipping(ListMove::Next, Some(1), &[2, 3]), Some(4));
+        assert_eq!(skipping(ListMove::Previous, Some(4), &[2, 3]), Some(1));
+        assert_eq!(skipping(ListMove::First, Some(5), &[0]), Some(1));
+        assert_eq!(skipping(ListMove::Last, Some(5), &[9, 8]), Some(7));
+        assert_eq!(skipping(ListMove::PageDown, Some(0), &[3]), Some(4));
+    }
+
+    #[test]
+    fn with_only_disabled_rows_past_it_the_highlight_stays() {
+        assert_eq!(skipping(ListMove::Next, Some(7), &[8, 9]), Some(7));
+        assert_eq!(skipping(ListMove::Previous, Some(2), &[0, 1]), Some(2));
+        assert_eq!(
+            skipping(ListMove::Next, None, &(0..10).collect::<Vec<_>>()),
+            None
+        );
     }
 
     #[test]

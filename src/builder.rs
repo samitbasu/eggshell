@@ -546,13 +546,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         &mut self,
         key: K,
         tw: Tw,
-        rows: &'f [R],
+        rows: impl Into<std::borrow::Cow<'f, [R]>>,
     ) -> crate::vlist::ListChain<'_, 'f, A, R>
     where
         A: 'static,
     {
         let slot = self.slot(&key);
-        crate::vlist::ListChain::new(self.reborrow(), slot, tw, rows)
+        crate::vlist::ListChain::new(self.reborrow(), slot, tw, rows.into())
     }
 
     /// Declares the rows of the virtual list `list`, built into `leaf` by

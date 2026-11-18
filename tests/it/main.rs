@@ -122,6 +122,7 @@ mod typeset;
 mod underline;
 mod value_widgets;
 mod vlist;
+mod vlist_keys_from;
 mod vlist_nav;
 mod vlist_ports;
 mod widgets;

@@ -1946,6 +1946,11 @@ impl<A> Painting<A> {
         );
         pass.relations.extend(popups);
         pass.relations.extend(nav::relations(&ctx, kept));
+        pass.relations.extend(crate::vlist::relations(
+            kept,
+            &shell,
+            ctx.cumulative_pass_nr(),
+        ));
         crate::relation::announce(&ctx, &pass.relations);
         finish.finish(&ctx, kept, nodes, drag, app);
         tooltip::end(&ctx, kept, interruption);

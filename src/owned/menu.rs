@@ -160,8 +160,10 @@ pub(crate) enum Tone {
 }
 
 impl MenuStyle {
-    /// The classes of the box that holds the items.
-    pub(crate) fn box_classes(&self, text: &TextSpec) -> Tw {
+    /// The classes of the box that holds the items, in the text role
+    /// `text`: a menu's, a select's list's, or a popover of a widget of its
+    /// own that lists items as a menu does.
+    pub fn box_classes(&self, text: &TextSpec) -> Tw {
         let colors = self.popup.paint.states.rest;
         let classes = tw()
             .flex()
@@ -180,8 +182,8 @@ impl MenuStyle {
         }
     }
 
-    /// The height of one item.
-    pub(crate) fn row_height(&self, text: &TextSpec) -> f32 {
+    /// The height of one item in the text role `text`.
+    pub fn row_height(&self, text: &TextSpec) -> f32 {
         text.line_height + 2.0 * self.item_padding.y
     }
 
