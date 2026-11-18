@@ -691,3 +691,115 @@ mod shape {
         eggshell_ui::testing::assert_no_reports(&harness.ctx);
     }
 }
+
+/// The table fields a typeset needs (#355): its own top-bottom padding, a
+/// header sized by padding, a flush first column and a rule under the last
+/// row, each set in a `styled` scope.
+mod spacing {
+    use super::*;
+
+    const LINE: f32 = 20.0;
+
+    fn view<A: 'static>(b: &mut Builder<'_, '_, A>, edit: fn(&mut Style)) {
+        b.styled(edit, |b| {
+            b.table("t")
+                .columns([Column::new(Track::auto()), Column::new(Track::auto())])
+                .header(|h| {
+                    h.cell_text("Name");
+                    h.cell_text("Kind");
+                })
+                .rows(
+                    &[1, 2],
+                    |row| *row,
+                    |cells, _| {
+                        cells.cell_text("alpha");
+                        cells.cell_text("beta");
+                    },
+                );
+        });
+    }
+
+    fn harness(edit: fn(&mut Style)) -> Harness<'static, Rig<fn(&mut Style)>> {
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut text = tokens.text_role();
+        text.line_height = LINE;
+        let mut harness = support::harness(
+            WINDOW,
+            TextStyle::new(text, tokens.foreground),
+            edit,
+            |b, edit| view(b, *edit),
+        );
+        harness.run_steps(3);
+        harness
+    }
+
+    fn cell(harness: &Harness<'_, Rig<fn(&mut Style)>>, band: &str, column: usize) -> Rect {
+        rect_of(harness, &format!("/\"t\"/({band}, {column})"))
+    }
+
+    fn table(harness: &Harness<'_, Rig<fn(&mut Style)>>) -> eggshell_ui::contract::TableStyle {
+        Style::of(&harness.ctx).table.clone()
+    }
+
+    #[test]
+    fn cell_padding_y_sets_a_body_cells_top_and_bottom_only() {
+        let harness = harness(|style| style.table.cell_padding_y = Some(3.0));
+        let padding = table(&harness).cell_padding;
+        assert_ne!(padding, 3.0, "precondition");
+        let body = cell(&harness, "Row(1)", 1);
+        assert!((body.height() - (LINE + 6.0)).abs() < 0.6, "{body:?}");
+        let (_, at) = support::galley_of(&harness, "beta");
+        let inset = at.x - body.left();
+        assert!((inset - padding).abs() < 0.6, "beside: {inset}");
+    }
+
+    #[test]
+    fn header_padding_y_sizes_the_header_by_its_text() {
+        let harness = harness(|style| style.table.header_padding_y = Some(5.0));
+        assert_ne!(table(&harness).header_height, LINE + 10.0, "precondition");
+        let header = cell(&harness, "Header", 0);
+        assert!((header.height() - (LINE + 10.0)).abs() < 0.6, "{header:?}");
+    }
+
+    #[test]
+    fn a_first_column_inset_moves_only_the_first_columns_text() {
+        let harness = harness(|style| style.table.first_column_inset = Some(0.0));
+        let padding = table(&harness).cell_padding;
+        let (first, second) = (cell(&harness, "Row(1)", 0), cell(&harness, "Row(1)", 1));
+        let (_, alpha) = support::galley_of(&harness, "alpha");
+        let (_, beta) = support::galley_of(&harness, "beta");
+        assert!(
+            (alpha.x - first.left()).abs() < 0.6,
+            "flush: {alpha:?} in {first:?}"
+        );
+        assert!(
+            (beta.x - second.left() - padding).abs() < 0.6,
+            "padded: {beta:?}"
+        );
+        let (_, name) = support::galley_of(&harness, "Name");
+        assert!(
+            (name.x - cell(&harness, "Header", 0).left()).abs() < 0.6,
+            "the header too"
+        );
+    }
+
+    #[test]
+    fn rule_below_last_rules_off_the_last_row() {
+        let rule = |harness: &Harness<'_, Rig<fn(&mut Style)>>| {
+            let last = rect_of(harness, "/\"t\"/Row(2)");
+            let color = table(harness).rule;
+            support::shapes(harness)
+                .into_iter()
+                .any(|shape| match shape {
+                    Shape::Rect(r) => {
+                        r.fill == color
+                            && (r.rect.bottom() - last.bottom()).abs() < 0.6
+                            && r.rect.height() < 2.0
+                    }
+                    _ => false,
+                })
+        };
+        assert!(!rule(&harness(|_| {})), "open by default");
+        assert!(rule(&harness(|style| style.table.rule_below_last = true)));
+    }
+}

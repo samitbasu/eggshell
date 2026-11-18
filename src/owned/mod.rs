@@ -615,7 +615,7 @@ fn choice_label<A: 'static, K: crate::Key>(
     enablement: Enablement,
     on_click: impl FnOnce(&mut A) + 'static,
 ) {
-    let style = Style::of(b.ctx());
+    let style = b.style().clone();
     let color = enablement.colors(style.label, &style).text;
     let name = text.clone();
     b.span(key, tw().text(color).sense_click().focusable_none(), text)

@@ -378,7 +378,12 @@ fn overflows(ctx: &Context, nodes: &Nodes, prims: &[Option<Prim>], index: usize)
         };
         let wanted = node.measured.or_else(|| {
             let prim = prims.get(index)?.as_ref()?;
-            crate::pipeline::wanted(ctx, Content::Prim(prim), &node.text, content_size)
+            crate::pipeline::wanted(
+                ctx,
+                Content::Prim(prim),
+                (&node.text, &node.style),
+                content_size,
+            )
         });
         return wanted.is_some_and(|wanted| {
             wanted.x > content.width() + TOLERANCE || wanted.y > content.height() + TOLERANCE

@@ -644,15 +644,36 @@ pub fn galley_of<A>(
     harness: &Harness<'_, Rig<A>>,
     text: &str,
 ) -> (std::sync::Arc<egui::Galley>, Pos2) {
+    placed_galleys(harness, text)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("{text:?} was painted as one galley"))
+}
+
+/// Every galley painted with `text`, in paint order.
+pub fn galleys_of<A>(
+    harness: &Harness<'_, Rig<A>>,
+    text: &str,
+) -> Vec<std::sync::Arc<egui::Galley>> {
+    placed_galleys(harness, text)
+        .into_iter()
+        .map(|(galley, _)| galley)
+        .collect()
+}
+
+fn placed_galleys<A>(
+    harness: &Harness<'_, Rig<A>>,
+    text: &str,
+) -> Vec<(std::sync::Arc<egui::Galley>, Pos2)> {
     shapes(harness)
         .into_iter()
-        .find_map(|shape| match shape {
+        .filter_map(|shape| match shape {
             Shape::Text(shape) if shape.galley.text() == text => {
                 Some((shape.galley.clone(), shape.pos))
             }
             _ => None,
         })
-        .unwrap_or_else(|| panic!("{text:?} was painted as one galley"))
+        .collect()
 }
 
 /// The screen rect of `part` within the galley painted with `text`; `part`
@@ -663,7 +684,10 @@ pub fn part_rect<A>(harness: &Harness<'_, Rig<A>>, text: &str, part: &str) -> Re
         .chars()
         .count();
     let end = start + part.chars().count();
-    let first = galley.pos_from_cursor(egui::text::CCursor::new(start));
+    let first = galley.pos_from_cursor(egui::text::CCursor {
+        prefer_next_row: true,
+        ..egui::text::CCursor::new(start)
+    });
     let last = galley.pos_from_cursor(egui::text::CCursor::new(end));
     assert!(
         (first.center().y - last.center().y).abs() < 0.5,

@@ -348,7 +348,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         let size = b.size_of(size);
         let field = field.sized(size);
         let measured = field.clone();
-        let style = crate::Style::of(b.ctx());
+        let style = b.style().clone();
         if !field.is_single_line() && (leading.is_some() || trailing.is_some()) {
             crate::report::report(b.ctx(), crate::Problem::IgnoredIcons, Some(slot.id), || {
                 format!(

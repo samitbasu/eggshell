@@ -10,7 +10,7 @@ use std::collections::HashSet;
 
 use egui::{Context, Id, LayerId, Pos2, ViewportId};
 
-use crate::dismiss::{FocusAt, Opening};
+use crate::dismiss::{FocusAt, Opening, WindowFocus};
 use crate::kept::Handle;
 use crate::overlay::Band;
 
@@ -29,6 +29,7 @@ pub(crate) struct Open {
     pub(crate) entered: bool,
     /// Where focus was at the end of the last frame the overlay was drawn.
     pub(crate) focus: FocusAt,
+    pub(crate) window_focus: WindowFocus,
 }
 
 impl Open {
@@ -40,6 +41,7 @@ impl Open {
             restore: None,
             entered: false,
             focus: FocusAt::Nowhere,
+            window_focus: WindowFocus::NotYet,
         }
     }
 }

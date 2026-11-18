@@ -1,5 +1,6 @@
 //! Rich inline text: one wrapping text node made of styled spans.
 
+use egui::Stroke;
 use egui::epaint::text::{ByteIndex, LayoutJob, LayoutSection};
 use egui::{Color32, FontFamily, FontId, Galley, Pos2, Rect, TextFormat, pos2};
 
@@ -164,14 +165,15 @@ impl Spans {
         self.0.iter().map(|span| span.text.as_str()).collect()
     }
 
-    /// One section per span over `style`, and what each one marks. Inline
-    /// code takes the tint's padding as layout space on both sides.
+    /// One section per span over `style` in `rich`'s looks, and what each
+    /// one marks. Inline code takes the tint's padding as layout space on
+    /// both sides.
     pub(crate) fn laid_out(
         &self,
         ctx: &egui::Context,
         style: &TextStyle,
+        rich: &RichTextStyle,
     ) -> (LayoutJob, Vec<Mark>) {
-        let rich = &crate::Style::of(ctx).rich;
         let mut job = LayoutJob::default();
         let mut marks = Vec::with_capacity(self.0.len());
         let mut pad_after = 0.0;
@@ -231,7 +233,10 @@ impl Span {
         let mut format = crate::measure::text_format(&style, font_id);
         if let Some(color) = self.color.or(self.link.as_ref().map(|_| rich.link)) {
             format.color = color;
-            format.underline.color = color;
+            format.underline.color = match self.link {
+                Some(_) => rich.link_underline.unwrap_or(color),
+                None => color,
+            };
         }
         format
     }
@@ -290,10 +295,16 @@ pub(crate) struct Run {
 
 /// Every run of `galley`, whose sections are `marks`' spans in order.
 pub(crate) fn runs(galley: &Galley, marks: &[Mark]) -> Vec<Run> {
-    let owners: Vec<usize> = marks
-        .iter()
+    runs_of(galley, marks.iter().map(|mark| mark.chars))
+}
+
+/// Every run of `galley`: the glyphs of one row that belong to the same
+/// owner, where owner `n` is the next `chars[n]` characters.
+fn runs_of(galley: &Galley, chars: impl IntoIterator<Item = usize>) -> Vec<Run> {
+    let owners: Vec<usize> = chars
+        .into_iter()
         .enumerate()
-        .flat_map(|(span, mark)| std::iter::repeat_n(span, mark.chars))
+        .flat_map(|(owner, chars)| std::iter::repeat_n(owner, chars))
         .collect();
     let mut runs: Vec<Run> = Vec::new();
     let mut char_at = 0;
@@ -326,6 +337,41 @@ pub(crate) fn runs(galley: &Galley, marks: &[Mark]) -> Vec<Run> {
         }
     }
     runs
+}
+
+/// The underlines of `galley`, which was laid out without them, its
+/// sections underlined by `strokes`: one line along the foot of each run's
+/// font box, where egui draws an underline when the line is no taller than
+/// the font. egui's own sits at the foot of the line box, which leading
+/// lowers towards the next line.
+pub(crate) fn underlines(
+    galley: &Galley,
+    strokes: &[Stroke],
+    anchor: Pos2,
+) -> Vec<([Pos2; 2], Stroke)> {
+    let job = &galley.job;
+    let chars = job.sections.iter().map(|section| {
+        job.text
+            .get(section.byte_range.start.0..section.byte_range.end.0)
+            .map_or(0, |text| text.chars().count())
+    });
+    let mut lines: Vec<([Pos2; 2], Stroke)> = Vec::new();
+    for run in runs_of(galley, chars) {
+        let Some(&stroke) = strokes.get(run.span).filter(|stroke| !stroke.is_empty()) else {
+            continue;
+        };
+        let y = anchor.y + run.ink.bottom();
+        let (left, right) = (anchor.x + run.ink.left(), anchor.x + run.ink.right());
+        match lines.last_mut() {
+            Some(([_, end], last))
+                if *last == stroke && end.y == y && (end.x - left).abs() < 0.5 =>
+            {
+                end.x = right;
+            }
+            _ => lines.push(([pos2(left, y), pos2(right, y)], stroke)),
+        }
+    }
+    lines
 }
 
 /// The tints behind `galley`'s inline code, drawn at `anchor`.
@@ -443,7 +489,7 @@ mod tests {
             ..body_style()
         };
         let spans = Spans::from(vec![Span::new("ßß"), Span::new("x").code()]);
-        let (job, marks) = spans.laid_out(&ctx, &style);
+        let (job, marks) = spans.laid_out(&ctx, &style, &crate::Style::of(&ctx).rich);
         assert_eq!(job.text, "SSSSX", "precondition: casing lengthens the text");
         let galley = ctx.fonts_mut(|fonts| fonts.layout_job(job));
         let runs = runs(&galley, &marks);

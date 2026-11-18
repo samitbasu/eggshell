@@ -14,7 +14,7 @@ use super::{
 };
 use crate::builder::Slot;
 use crate::contract::Size;
-use crate::{Builder, Style, Tw, tw};
+use crate::{Builder, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -22,7 +22,7 @@ enum Part {
     Label,
 }
 
-/// A checkbox drawn from the [`Style`], with an optional label. Start one with
+/// A checkbox drawn from the [`Style`](crate::Style), with an optional label. Start one with
 /// [`Builder::checkbox`] and finish it with [`on_change`](Self::on_change).
 ///
 /// It shows `current` and is checked when that is its `on` value: `true` for
@@ -187,7 +187,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let enablement = b.enablement_of(enablement);
         let (mark, toggled) = flip([off, on], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let checkbox = &style.checkbox;
         let metrics = *checkbox.sizes.lookup(b.ctx(), b.size_of(size));
         let look = match mark {

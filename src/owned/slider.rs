@@ -18,7 +18,7 @@ use crate::finite::clamp;
 use crate::focus::{Autofocus, Select};
 use crate::input_trace::{self, Shown};
 use crate::prim::text_field::{self, Field, Opening};
-use crate::{Builder, NodeUi as _, Style, Tw, tw};
+use crate::{Builder, NodeUi as _, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -31,7 +31,7 @@ enum Part {
     Thumb,
 }
 
-/// A horizontal slider drawn from the [`Style`]. Start one with
+/// A horizontal slider drawn from the [`Style`](crate::Style). Start one with
 /// [`Builder::slider`] and finish it with [`on_change`](Self::on_change).
 ///
 /// Pressing the track jumps the thumb there, and dragging the track or the
@@ -276,7 +276,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         let value = range.checked(b.ctx(), slot.id, value);
         let tooltip = tip(&mut b, slot.id, tooltip);
         let enablement = b.enablement_of(enablement);
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let slider = &style.slider;
         let metrics = *slider.sizes.lookup(b.ctx(), b.size_of(size));
         let (low, high) = (range.start(), range.end());
@@ -477,7 +477,7 @@ impl Row {
             text,
             size,
         } = self;
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let input = *style.input.sizes.lookup(b.ctx(), size);
         let border = style.input.look.border_width;
         let row = tw().flex().items_center().justify_between().w_full();

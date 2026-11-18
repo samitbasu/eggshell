@@ -249,7 +249,11 @@ mod tests {
     use taffy::prelude::TaffyMaxContent;
 
     fn node() -> Node {
-        Node::bare(NodeKind::Div, String::new(), crate::text::tests::base())
+        Node::bare(
+            NodeKind::Div,
+            String::new(),
+            (crate::text::tests::base(), crate::text::tests::style()),
+        )
     }
 
     /// A tree reporting to a context of its own, and a node that was in it

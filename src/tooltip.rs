@@ -505,7 +505,7 @@ impl std::fmt::Debug for Tip {
 
 /// Declares the overlay of every tooltip that is open or still leaving.
 pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
-    let style = crate::Style::of(b.ctx());
+    let style = b.style().clone();
     let present = b
         .kept()
         .viewport(b.viewport(), |here| here.tooltips.present.clone());

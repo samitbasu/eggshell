@@ -587,6 +587,7 @@ mod composer_growth {
         field.size(
             &harness.ctx,
             &Theme::of(&harness.ctx).base_text(),
+            &eggshell_ui::Style::of(&harness.ctx),
             Some(Width::new(width)),
         )
     }

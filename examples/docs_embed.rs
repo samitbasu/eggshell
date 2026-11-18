@@ -11,7 +11,7 @@ mod common;
 use eggshell_ui::owned::Mark;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, Chord, Command, Commands, Scope, tw};
-use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt};
+use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt, Typeset};
 use eggshell_ui_shadcn::ThemeColor;
 use egui::{Key, Modifiers};
 
@@ -294,7 +294,7 @@ fn mount<'f>(s: &mut Scope<'_, 'f, State>, state: &'f State, name: &str, caption
 /// ```html
 /// <div class="flex flex-col size-full">
 ///   <header class="flex gap-3 p-3 border-b">Theme: [Neutral|Blue|Violet] · log</header>
-///   <main class="overflow-y-auto grow p-6"><article class="max-w-[640px]">…</article></main>
+///   <main class="overflow-y-auto grow p-6"><article class="max-w-[37em]">…</article></main>
 /// </div>
 /// ```
 pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
@@ -326,11 +326,17 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
             },
         );
         b.scroll(Part::Page, tw().grow().p(6.0)).children(|s| {
-            s.div(tw().flex().flex_col().gap(6.0).max_w_px(640.0), |b| {
-                b.markdown(Part::Doc, &source)
-                    .directives(&directives, state)
-                    .add();
-            });
+            s.div(
+                tw().flex()
+                    .flex_col()
+                    .gap(6.0)
+                    .max_w_px(Typeset::default().measure_width()),
+                |b| {
+                    b.markdown(Part::Doc, &source)
+                        .directives(&directives, state)
+                        .add();
+                },
+            );
         });
     });
 }
