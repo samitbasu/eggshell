@@ -8,10 +8,10 @@
 //!     page: String,
 //! }
 //!
-//! fn view(b: &mut Builder<'_, '_, Docs>, directives: &Directives<Docs>) {
+//! fn view<'f>(b: &mut Builder<'_, 'f, Docs>, docs: &'f Docs, directives: &Directives<Docs>) {
 //!     b.markdown("intro", "# Hello\n\nSee [the guide](guide.md).")
 //!         .on_link(|docs: &mut Docs, href: &str| docs.page = href.to_owned())
-//!         .directives(directives)
+//!         .directives(directives, docs)
 //!         .add();
 //! }
 //! ```
@@ -66,7 +66,7 @@ pub struct Markdown<'s, 'b, 'f, A, K> {
     key: K,
     source: &'s str,
     on_link: Option<OnLink<A>>,
-    directives: Option<&'s Directives<A>>,
+    directives: Option<(&'s Directives<A>, &'f A)>,
 }
 
 type OnLink<A> = Rc<dyn Fn(&mut A, &str)>;
@@ -81,9 +81,9 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone> Markdown<'s, 'b, 'f, A, K> {
     }
 
     /// TODO(prose)
-    pub fn directives(self, directives: &'s Directives<A>) -> Self {
+    pub fn directives(self, directives: &'s Directives<A>, app: &'f A) -> Self {
         Self {
-            directives: Some(directives),
+            directives: Some((directives, app)),
             ..self
         }
     }
@@ -128,7 +128,7 @@ pub struct Directive<'a> {
     pub body: &'a str,
 }
 
-type Mount<A> = Box<dyn for<'x, 'f> Fn(&mut Scope<'x, 'f, A>, &Directive<'_>)>;
+type Mount<A> = Box<dyn for<'x, 'f> Fn(&mut Scope<'x, 'f, A>, &'f A, &Directive<'_>)>;
 
 /// TODO(prose)
 ///
@@ -157,7 +157,7 @@ impl<A> Directives<A> {
     pub fn with(
         mut self,
         name: impl Into<String>,
-        mount: impl for<'x, 'f> Fn(&mut Scope<'x, 'f, A>, &Directive<'_>) + 'static,
+        mount: impl for<'x, 'f> Fn(&mut Scope<'x, 'f, A>, &'f A, &Directive<'_>) + 'static,
     ) -> Self {
         self.mounts.insert(name.into(), Box::new(mount));
         self

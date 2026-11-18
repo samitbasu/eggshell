@@ -13,7 +13,7 @@ use taffy::{
 use crate::actions::Action;
 use crate::builder::Builder;
 use crate::collapse::{Collapse, Flight};
-use crate::commands::Commands;
+use crate::commands::{Commands, Declared};
 use crate::debug::{Debug, Phase, Timer};
 use crate::dismiss::Opening;
 use crate::dnd::{Decls, EdgeScroll, NodeDrag};
@@ -336,39 +336,67 @@ impl BuildState {
     }
 }
 
-/// One frame's closures. `'f` is how long the build may borrow application data.
-pub(crate) struct Frame<'f, A> {
+/// What a frame's closures are built around, whatever application data they
+/// take. A mount's builder shares it with the page's.
+pub(crate) struct FrameCore<'f> {
     pub ctx: &'f egui::Context,
     pub measures: Vec<MeasureFn<'f>>,
-    pub draws: Vec<DrawFn<A>>,
-    pub drag: Decls<A>,
     /// The roots, the base first and each overlay in the order it was
     /// declared: a slot is reserved before a body is built, so an overlay
     /// declared in a body comes after the overlay it is declared in.
-    pub roots: Vec<RootDecl<'f, A>>,
+    pub roots: Vec<RootDecl>,
+    /// Every pop-out declared, inline or popped out.
+    pub pop_outs: Vec<Id>,
+    /// The root whose body is being built.
+    pub current: usize,
+    /// Whether a collapsible is opening or closing in this frame.
+    pub size_in_flight: bool,
+    /// Every mount declared, in the order they were.
+    pub mounts: Vec<crate::mount::MountDecl>,
+}
+
+/// One frame's closures. `'f` is how long the build may borrow application data.
+pub(crate) struct Frame<'f, A> {
+    pub core: FrameCore<'f>,
+    /// The draw closures of each slot a node names, run in order.
+    pub draws: Vec<Vec<DrawFn<A>>>,
+    pub drag: Decls<A>,
+    /// The regions declared, by the index of the root each was declared in.
+    pub regions: Vec<(usize, RegionDecl<'f, A>)>,
     /// What to run when an overlay is dismissed, by the overlay's id.
     pub dismiss: HashMap<Id, DismissFn<A>>,
     /// What to run when a pop-out's window is closed or moved, by its id.
     pub windows: HashMap<Id, crate::window::Hooks<A>>,
-    /// Every pop-out declared, inline or popped out.
-    pub pop_outs: Vec<Id>,
     /// What to run for the overlays that finished leaving this frame.
     pub exited: Vec<DismissFn<A>>,
-    /// The root whose body is being built.
-    pub current: usize,
     pub build_built: Option<crate::tooltip::BuildBuilt<A>>,
-    /// The commands each root declared, by the root's index.
-    pub commands: Vec<(usize, Commands<A>)>,
+    /// The command tables each root declared, by the root's index.
+    pub tables: Vec<(usize, Commands<A>)>,
     /// The application data the commands' enablement is read from.
     pub app: Option<&'f A>,
-    /// Whether a collapsible is opening or closing in this frame.
-    pub size_in_flight: bool,
+    /// What runs the chords of every table declared, the page's and the
+    /// mounts'.
+    pub commands: Vec<Declared<A>>,
 }
 
-impl<'f, A> Frame<'f, A> {
+impl<'f, A> std::ops::Deref for Frame<'f, A> {
+    type Target = FrameCore<'f>;
+
+    fn deref(&self) -> &FrameCore<'f> {
+        &self.core
+    }
+}
+
+impl<'f, A> std::ops::DerefMut for Frame<'f, A> {
+    fn deref_mut(&mut self) -> &mut FrameCore<'f> {
+        &mut self.core
+    }
+}
+
+impl<'f> FrameCore<'f> {
     /// Takes the declaration of root `at` for layout, leaving an empty one
     /// that the closures of its regions declare into.
-    pub(crate) fn take_decl(&mut self, at: usize) -> RootDecl<'f, A> {
+    pub(crate) fn take_decl(&mut self, at: usize) -> RootDecl {
         self.roots
             .get_mut(at)
             .map(std::mem::take)
@@ -376,27 +404,8 @@ impl<'f, A> Frame<'f, A> {
     }
 
     /// The declaration of the root whose body is being built.
-    pub(crate) fn current_mut(&mut self) -> Option<&mut RootDecl<'f, A>> {
+    pub(crate) fn current_mut(&mut self) -> Option<&mut RootDecl> {
         self.roots.get_mut(self.current)
-    }
-
-    pub(crate) fn new(ctx: &'f egui::Context) -> Self {
-        Self {
-            ctx,
-            measures: Vec::new(),
-            draws: Vec::new(),
-            drag: Decls::default(),
-            roots: vec![RootDecl::default()],
-            dismiss: HashMap::new(),
-            windows: HashMap::new(),
-            pop_outs: Vec::new(),
-            exited: Vec::new(),
-            current: 0,
-            build_built: None,
-            commands: Vec::new(),
-            app: None,
-            size_in_flight: false,
-        }
     }
 
     /// Records `leaf` as a scroll container of the root being built.
@@ -404,6 +413,152 @@ impl<'f, A> Frame<'f, A> {
         if let Some(root) = self.current_mut() {
             root.scrolls.push(leaf);
         }
+    }
+}
+
+impl<'f, A> Frame<'f, A> {
+    pub(crate) fn new(ctx: &'f egui::Context) -> Self {
+        Self {
+            core: FrameCore {
+                ctx,
+                measures: Vec::new(),
+                roots: vec![RootDecl::default()],
+                pop_outs: Vec::new(),
+                current: 0,
+                size_in_flight: false,
+                mounts: Vec::new(),
+            },
+            draws: Vec::new(),
+            drag: Decls::default(),
+            regions: Vec::new(),
+            dismiss: HashMap::new(),
+            windows: HashMap::new(),
+            exited: Vec::new(),
+            build_built: None,
+            tables: Vec::new(),
+            app: None,
+            commands: Vec::new(),
+        }
+    }
+
+    /// Takes the regions declared in root `at`, in the order they were
+    /// declared.
+    pub(crate) fn take_regions(&mut self, at: usize) -> Vec<RegionDecl<'f, A>> {
+        let (taken, kept) = std::mem::take(&mut self.regions)
+            .into_iter()
+            .partition(|(root, _)| *root == at);
+        self.regions = kept;
+        taken.into_iter().map(|(_, region)| region).collect()
+    }
+}
+
+/// Where a builder puts what it declares that takes application data: the
+/// page's [`Frame`], or a mount's, which lifts each closure through its lens
+/// into the frame around it.
+pub(crate) trait Sink<'f, A>: std::ops::DerefMut<Target = FrameCore<'f>> {
+    /// Runs `draw` after the draw closure in `slot`, if there is one, and
+    /// returns the slot that runs both.
+    fn attach_draw(&mut self, slot: Option<usize>, draw: DrawFn<A>) -> usize;
+    fn add_drop(&mut self, decl: crate::dnd::DropDecl<A>) -> usize;
+    fn add_end(&mut self, decl: crate::dnd::EndDecl<A>);
+    /// Declares a region in the root being built.
+    fn add_region(&mut self, region: RegionDecl<'f, A>);
+    fn on_dismiss(&mut self, overlay: Id, then: DismissFn<A>);
+    fn on_exited(&mut self, then: DismissFn<A>);
+    fn window_hooks(&mut self, window: Id, hooks: crate::window::Hooks<A>);
+    fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>>;
+    fn set_build_built(&mut self, build: crate::tooltip::BuildBuilt<A>);
+    /// Declares the command table of the root being built, or returns it if
+    /// that root has one.
+    fn declare_commands(&mut self, table: &Commands<A>, app: &'f A) -> Result<(), Twice>;
+    /// The command `id` names, from the tables whose chords are live in the
+    /// root being built, and whether it is enabled.
+    fn command(&self, id: Id) -> Option<(crate::Command<A>, bool)>;
+    /// Adds what runs a table's chords.
+    fn dispatch(&mut self, declared: Declared<A>);
+    /// How many mounts deep the builder is.
+    fn depth(&self) -> usize;
+    /// The mount the builder builds in, if it is in one.
+    fn mount(&self) -> Option<Id>;
+}
+
+/// A root's command table, declared again in the same frame.
+pub(crate) struct Twice;
+
+impl<'f, A> Sink<'f, A> for Frame<'f, A> {
+    fn attach_draw(&mut self, slot: Option<usize>, draw: DrawFn<A>) -> usize {
+        if let Some(slot) = slot
+            && let Some(at) = self.draws.get_mut(slot)
+        {
+            at.push(draw);
+            return slot;
+        }
+        let at = self.draws.len();
+        self.draws.push(vec![draw]);
+        at
+    }
+
+    fn add_drop(&mut self, decl: crate::dnd::DropDecl<A>) -> usize {
+        self.drag.push_drop(decl)
+    }
+
+    fn add_end(&mut self, decl: crate::dnd::EndDecl<A>) {
+        self.drag.push_end(decl);
+    }
+
+    fn add_region(&mut self, region: RegionDecl<'f, A>) {
+        self.regions.push((self.core.current, region));
+    }
+
+    fn on_dismiss(&mut self, overlay: Id, then: DismissFn<A>) {
+        self.dismiss.insert(overlay, then);
+    }
+
+    fn on_exited(&mut self, then: DismissFn<A>) {
+        self.exited.push(then);
+    }
+
+    fn window_hooks(&mut self, window: Id, hooks: crate::window::Hooks<A>) {
+        self.windows.insert(window, hooks);
+    }
+
+    fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>> {
+        self.build_built
+    }
+
+    fn set_build_built(&mut self, build: crate::tooltip::BuildBuilt<A>) {
+        self.build_built = Some(build);
+    }
+
+    fn declare_commands(&mut self, table: &Commands<A>, app: &'f A) -> Result<(), Twice> {
+        let root = self.core.current;
+        if self.tables.iter().any(|(at, _)| *at == root) {
+            return Err(Twice);
+        }
+        self.app = Some(app);
+        self.tables.push((root, table.clone()));
+        self.commands.push(Declared {
+            root,
+            within: None,
+            table: crate::commands::Table::Own(table.clone()),
+        });
+        Ok(())
+    }
+
+    fn command(&self, id: Id) -> Option<(crate::Command<A>, bool)> {
+        crate::commands::look_up(&self.core, &self.tables, self.app?, id)
+    }
+
+    fn dispatch(&mut self, declared: Declared<A>) {
+        self.commands.push(declared);
+    }
+
+    fn depth(&self) -> usize {
+        0
+    }
+
+    fn mount(&self) -> Option<Id> {
+        None
     }
 }
 
@@ -654,7 +809,8 @@ impl<'f, A> Built<'f, A> {
                 height: AvailableSpace::Definite(area.height()),
             },
         );
-        settle_below(ctx, st, &mut frame, 0, base.scrolls, base.regions);
+        let regions = frame.take_regions(0);
+        settle_below(ctx, st, &mut frame, 0, base.scrolls, regions);
 
         let mut nodes = Nodes::new(ctx);
         let mut prims = Vec::new();
@@ -682,6 +838,7 @@ impl<'f, A> Built<'f, A> {
             parent: None,
             home: Home::Page,
             kind: PlacedRootKind::Base,
+            mount: None,
         }];
         let scope = st.scope;
         let root = st.root;
@@ -695,8 +852,9 @@ impl<'f, A> Built<'f, A> {
             let RootDecl {
                 layer,
                 scrolls,
-                regions,
+                mount,
             } = frame.take_decl(at);
+            let regions = frame.take_regions(at);
             let Some(Layer { kind, parent, node }) = layer else {
                 at += 1;
                 continue;
@@ -731,6 +889,7 @@ impl<'f, A> Built<'f, A> {
                         parent: Some(parent),
                         home,
                         kind: PlacedRootKind::Window(window),
+                        mount,
                     });
                     at += 1;
                     continue;
@@ -924,6 +1083,7 @@ impl<'f, A> Built<'f, A> {
                 first,
                 parent: Some(parent),
                 home,
+                mount,
                 kind: PlacedRootKind::Overlay(PlacedOverlay {
                     id: overlay.id,
                     band: overlay.band,
@@ -1007,19 +1167,24 @@ impl<'f, A> Built<'f, A> {
             crate::nav::forget_lists(kept, &gone);
         });
         let Frame {
-            measures,
+            core:
+                FrameCore {
+                    measures,
+                    pop_outs,
+                    size_in_flight,
+                    mounts,
+                    ..
+                },
             draws,
             drag,
             dismiss,
             windows,
-            pop_outs,
             exited,
             commands,
-            size_in_flight,
             ..
         } = frame;
         drop(measures);
-        let draws = draws.into_iter().map(Some).collect();
+        st.kept.with(|kept| kept.mounts.set_mounts(&mounts));
         Placed {
             ctx: ctx.clone(),
             scope,
@@ -1959,7 +2124,7 @@ pub struct Placed<A> {
     pub(crate) nodes: Nodes,
     pub(crate) by_id: HashMap<Id, usize>,
     pub(crate) prims: Vec<Option<Prim>>,
-    pub(crate) draws: Vec<Option<DrawFn<A>>>,
+    pub(crate) draws: Vec<Vec<DrawFn<A>>>,
     pub(crate) drag: Decls<A>,
     pub(crate) dismiss: HashMap<Id, DismissFn<A>>,
     /// What to run when a pop-out's window is closed or moved, by its id.
@@ -1969,8 +2134,8 @@ pub struct Placed<A> {
     pub(crate) exited: Vec<DismissFn<A>>,
     /// The base root, then the overlays in the order they were declared.
     pub(crate) roots: Vec<PlacedRoot>,
-    /// The commands each root declared, by the root's index.
-    pub(crate) commands: Vec<(usize, Commands<A>)>,
+    /// The command tables declared, the page's and the mounts'.
+    pub(crate) commands: Vec<Declared<A>>,
     /// Whether a collapsible is opening or closing in this frame.
     pub(crate) size_in_flight: bool,
 }

@@ -255,6 +255,13 @@ pub struct Focus {
     pub color: Color32,
 }
 
+impl Focus {
+    /// TODO(prose): the inset that keeps this ring a ring's width clear of the box's edge.
+    pub fn clearance(&self) -> f32 {
+        2.0 * self.width
+    }
+}
+
 /// How a box is painted: colours per state, shadow and focus ring. Nothing in
 /// it changes the box's size, so the two [`Paint`]s of an on/off widget can
 /// differ freely without moving anything.
@@ -773,6 +780,30 @@ pub struct KbdStyle {
     pub text: Option<TextSpec>,
 }
 
+/// TODO(prose): how a mount with a caption is framed.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MountStyle {
+    /// TODO(prose)
+    pub caption: Color32,
+    /// TODO(prose)
+    pub caption_text: Option<TextSpec>,
+    /// TODO(prose)
+    pub gap: f32,
+    /// TODO(prose)
+    pub border: Color32,
+    /// TODO(prose)
+    pub border_width: f32,
+    /// TODO(prose)
+    pub radius: u8,
+    /// TODO(prose)
+    pub padding: f32,
+    /// TODO(prose): the inset of an uncaptioned mount, which keeps its controls' focus rings clear of the selected ring.
+    pub bare_padding: f32,
+    /// TODO(prose): the ring around the selected mount, drawn as the focus ring is.
+    pub selected_ring: Color32,
+}
+
 /// TODO(prose)
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -1167,6 +1198,8 @@ pub struct Style {
     pub tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
+    /// TODO(prose)
+    pub mount: MountStyle,
     /// Rich text: links and inline code.
     pub rich: RichTextStyle,
     /// Steppers.
@@ -1376,13 +1409,14 @@ impl Style {
             ..metrics
         };
         let track = vec2(2.0 * s.icon_width, s.icon_width);
+        let focus = Focus {
+            width: 2.0,
+            color: v.selection.bg_fill,
+        };
         Self {
             text,
             faces: Faces::default(),
-            focus: Focus {
-                width: 2.0,
-                color: v.selection.bg_fill,
-            },
+            focus,
             disabled: Disabled::Colors,
             label,
             button: ButtonStyle {
@@ -1679,6 +1713,17 @@ impl Style {
                 padding_x: 4.0,
                 height: s.interact_size.y.min(20.0),
                 text: None,
+            },
+            mount: MountStyle {
+                caption: v.weak_text_color(),
+                caption_text: None,
+                gap: s.item_spacing.y,
+                border: v.widgets.noninteractive.bg_stroke.color,
+                border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
+                radius,
+                padding: f32::from(s.window_margin.left),
+                bare_padding: focus.clearance(),
+                selected_ring: v.selection.stroke.color,
             },
             rich: RichTextStyle {
                 link: v.hyperlink_color,

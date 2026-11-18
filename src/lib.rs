@@ -368,6 +368,7 @@ mod kept;
 mod key;
 mod layout_tree;
 mod measure;
+mod mount;
 mod nav;
 mod nodes;
 pub mod overlay;
@@ -413,6 +414,7 @@ pub use dnd::{
 pub use draw::NodeUi;
 pub use key::{Key, child_id};
 pub use measure::{Measure, fill};
+pub use mount::MountChain;
 pub use overlay::{Boundary, Distance, InsetBoundary};
 pub use overlay_input::Blur;
 pub use pipeline::{Built, LayoutState, NodeKind, Placed, PlacedNode};

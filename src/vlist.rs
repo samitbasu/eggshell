@@ -752,6 +752,51 @@ impl Plan {
     }
 }
 
+impl<'f, S: 'static> ListRun<'f, S> {
+    /// The same list, declared from a mount's builder into the frame around
+    /// it: its rows are built under the mount again.
+    pub(crate) fn lift<R: 'static>(self, mount: crate::mount::Mount<'f, R, S>) -> ListRun<'f, R> {
+        ListRun {
+            plan: self.plan,
+            scroll: self.scroll,
+            rows: Box::new(Mounted {
+                rows: self.rows,
+                mount,
+            }),
+        }
+    }
+}
+
+/// A mount's rows, built from a builder of the data around it.
+struct Mounted<'f, R, S> {
+    rows: Box<dyn Rows<'f, S> + 'f>,
+    mount: crate::mount::Mount<'f, R, S>,
+}
+
+impl<'f, R: 'static, S: 'static> Rows<'f, R> for Mounted<'f, R, S> {
+    fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    fn key(&self, at: usize) -> Option<IdSalt> {
+        self.rows.key(at)
+    }
+
+    fn id(&self, base: Id, at: usize) -> Option<Id> {
+        self.rows.id(base, at)
+    }
+
+    fn build(
+        &mut self,
+        b: &mut Builder<'_, 'f, R>,
+        at: usize,
+        classes: Tw,
+    ) -> Option<(Id, NodeId)> {
+        let rows = &mut self.rows;
+        b.within(&self.mount, |b| rows.build(b, at, classes))
+    }
+}
+
 impl<'f, A> ListRun<'f, A> {
     /// Where the viewport of the laid-out container is over the rows, which
     /// `leaf` holds, `width` wide. Forgets the heights if the width changed,

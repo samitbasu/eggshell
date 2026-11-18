@@ -606,6 +606,21 @@ impl Shadcn {
         // shadcn's Kbd: `bg-muted text-muted-foreground h-5 min-w-5 rounded-sm
         // px-1 text-xs font-medium`, and inside a tooltip
         // `bg-background/20 text-background` (`/10` in the dark theme).
+        // A captioned mount: `text-muted-foreground` above `border rounded-md
+        // p-4`, as the docs page's examples were rendered for the pick.
+        style.mount = {
+            let mut mount = style.mount;
+            mount.caption = t.muted_foreground;
+            mount.caption_text = None;
+            mount.gap = 6.0;
+            mount.border = t.border;
+            mount.border_width = 1.0;
+            mount.radius = t.radius_md();
+            mount.padding = 16.0;
+            mount.bare_padding = 8.0;
+            mount.selected_ring = t.primary;
+            mount
+        };
         style.kbd = {
             let mut kbd = style.kbd;
             kbd.page = flat(t.muted, t.muted_foreground);

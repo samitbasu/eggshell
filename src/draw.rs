@@ -16,7 +16,7 @@ use egui::{
 };
 use taffy::Overflow;
 
-use crate::commands::Commands;
+use crate::commands::Declared;
 use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
@@ -504,7 +504,7 @@ fn scaled_about_centre(rect: Rect, scale: f32) -> Rect {
 /// What the walk of a frame accumulates, whichever `Ui` it is in.
 struct Shared<A> {
     prims: Vec<Option<Prim>>,
-    draws: Vec<Option<DrawFn<A>>>,
+    draws: Vec<Vec<DrawFn<A>>>,
     recording: Option<Vec<NodeFrame>>,
     /// While recording, the identified nodes left out as culled.
     culled: Vec<Id>,
@@ -1181,7 +1181,13 @@ impl<A> Walk<'_, A> {
         let Some((id, slot)) = node.draw_with_id() else {
             return;
         };
-        if let Some(draw) = self.shared.draws.get_mut(slot).and_then(Option::take) {
+        let draws = self
+            .shared
+            .draws
+            .get_mut(slot)
+            .map(std::mem::take)
+            .filter(|draws| !draws.is_empty());
+        if let Some(draws) = draws {
             let builder = UiBuilder::new()
                 .max_rect(boxes.content)
                 .scope_id(id.with(DRAW_SCOPE));
@@ -1203,7 +1209,9 @@ impl<A> Walk<'_, A> {
                         data.remove::<BubbledTag>(scope);
                     }
                 });
-                draw(app, ui)
+                for draw in draws {
+                    draw(app, ui);
+                }
             });
         }
     }
@@ -1220,10 +1228,21 @@ impl<A> Walk<'_, A> {
         inherited: Inherited,
     ) {
         let nodes = self.nodes;
+        let wheel = self
+            .shell
+            .mount_of(nodes, index)
+            .map(|mount| self.shell.mount_selected(mount));
+        let source = match wheel {
+            Some(false) => egui::scroll_area::ScrollSource {
+                mouse_wheel: false,
+                ..scroll::source()
+            },
+            Some(true) | None => scroll::source(),
+        };
         let area = egui::ScrollArea::new(plan.overflows(boxes.padding.size() - plan.bars.gutter))
             .id_salt(scroll::AREA_SALT)
             .auto_shrink(false)
-            .scroll_source(scroll::source())
+            .scroll_source(source)
             // egui inflates a viewport smaller than 64 points to 64 and clamps
             // the offset to that, so a short container stopped short of its end
             // and then drifted back.
@@ -1298,6 +1317,12 @@ impl<A> Walk<'_, A> {
                     .visit(index.saturating_add(1), content);
                 });
                 scroll::note_bar_hold(shell, id, shown.id);
+                // A selected mount's scroll container keeps what the wheel
+                // gave it past its end: none of it reaches the page.
+                if wheel == Some(true) && ui.rect_contains_pointer(shown.inner_rect) {
+                    ui.ctx()
+                        .input_mut(|input| input.smooth_scroll_delta = egui::Vec2::ZERO);
+                }
             },
         );
     }
@@ -1754,7 +1779,7 @@ struct Painting<A> {
     windows: HashMap<Id, window::Hooks<A>>,
     pop_outs: Vec<Id>,
     roots: Vec<PlacedRoot>,
-    commands: Vec<(usize, Commands<A>)>,
+    commands: Vec<Declared<A>>,
     size_in_flight: bool,
     /// The viewport the page is drawn in.
     page: egui::ViewportId,
@@ -1843,15 +1868,12 @@ impl<A> Painting<A> {
         pass.blur = keys.blur;
         let shell = crate::Shell::new(&ctx, kept);
         let typing = kept.viewport(ctx.viewport_id(), |here| here.typing);
-        for root in crate::commands::live_roots(
+        let commanding = crate::commands::live_roots(
             overlay_input::topmost_root(roots, here),
             |root| roots.get(root).and_then(|root| root.parent),
             |root| roots.get(root).is_some_and(PlacedRoot::is_modal),
-        ) {
-            if let Some((_, table)) = commands.iter().find(|(at, _)| *at == root) {
-                crate::commands::dispatch(&ctx, &shell, typing, table, app);
-            }
-        }
+        );
+        crate::commands::dispatch_all(&ctx, &shell, typing, (commands, commanding), app);
         scroll_keys::hold_arrows(&ctx, kept, nodes);
         let _drawing = crate::shell::Drawing::enter(&ctx, kept);
         let mut walk = Walk {
@@ -1889,6 +1911,7 @@ impl<A> Painting<A> {
         );
         finish.finish(&ctx, kept, nodes, drag, app);
         tooltip::end(&ctx, kept, interruption);
+        crate::mount::settle(&ctx, kept, (nodes, by_id), (roots, here), typing);
         scroll_keys::note_press(&ctx, kept, nodes);
         scroll_keys::apply_keys(&ctx, kept, nodes);
         scroll_keys::follow_focus(&ctx, kept, &pass.subtrees);

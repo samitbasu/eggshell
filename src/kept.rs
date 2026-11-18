@@ -38,6 +38,7 @@ pub(crate) struct Kept {
     /// What an embedded pop-out window draws around its content, once one
     /// has been drawn.
     pub(crate) chrome: Option<crate::window::Chrome>,
+    pub(crate) mounts: crate::mount::Selection,
     viewports: HashMap<ViewportId, Viewport>,
     /// Where clipboard reads and writes go; the system's when unset.
     pub(crate) clipboard: Option<std::sync::Arc<dyn crate::ClipboardSource>>,

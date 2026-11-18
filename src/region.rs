@@ -15,6 +15,7 @@ use taffy::{AvailableSpace, Display, NodeId, Size, Style, style_helpers::length}
 
 use crate::builder::{Ambient, Builder};
 use crate::layout_tree::LayoutTree;
+use crate::mount::Mount;
 use crate::pipeline::{BuildState, Frame, Node, NodeKind, solve};
 use crate::text::TextStyle;
 use crate::vlist::ListRun;
@@ -28,6 +29,29 @@ pub(crate) type RegionFn<'f, A> = Box<dyn FnOnce(&mut Builder<'_, 'f, A>, Vec2) 
 pub(crate) enum RegionBody<'f, A> {
     Closure(RegionFn<'f, A>),
     List(ListRun<'f, A>),
+}
+
+impl<'f, S: 'static> RegionDecl<'f, S> {
+    /// The same region, declared from a mount's builder into the frame
+    /// around it: its body is built under the mount again.
+    pub(crate) fn lift<R: 'static>(self, mount: Mount<'f, R, S>) -> RegionDecl<'f, R> {
+        let body = match self.body {
+            RegionBody::Closure(body) => {
+                RegionBody::Closure(Box::new(move |b: &mut Builder<'_, 'f, R>, size| {
+                    b.within(&mount, |b| body(b, size));
+                }))
+            }
+            RegionBody::List(list) => RegionBody::List(list.lift(mount)),
+        };
+        RegionDecl {
+            leaf: self.leaf,
+            id: self.id,
+            readable: self.readable,
+            text: self.text,
+            ambient: self.ambient,
+            body,
+        }
+    }
 }
 
 /// A region from the moment it is declared until its closure runs.
@@ -132,14 +156,10 @@ pub(crate) fn run<'f, A>(
     if let Some(laid) = laid {
         laid.settle(ctx, &mut st.tree);
     }
-    frame
+    let scrolls = frame
         .roots
         .get_mut(at)
-        .map(|declared| {
-            (
-                std::mem::take(&mut declared.scrolls),
-                std::mem::take(&mut declared.regions),
-            )
-        })
-        .unwrap_or_default()
+        .map(|declared| std::mem::take(&mut declared.scrolls))
+        .unwrap_or_default();
+    (scrolls, frame.take_regions(at))
 }

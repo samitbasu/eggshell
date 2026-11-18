@@ -13,10 +13,10 @@ use egui::{Align, Id, ImageSource, TextureOptions};
 use super::parse::{Block, Construct, Item, List, Table, Task};
 use super::{Directive, Directives, MarkdownStyle, OnLink};
 
-pub(super) struct Context<'s, A> {
+pub(super) struct Context<'s, 'f, A> {
     pub style: Arc<MarkdownStyle>,
     pub links: Rc<Links<A>>,
-    pub directives: Option<&'s Directives<A>>,
+    pub directives: Option<(&'s Directives<A>, &'f A)>,
     pub ctx: egui::Context,
 }
 
@@ -82,11 +82,11 @@ enum Part {
 }
 
 #[track_caller]
-pub(super) fn document<A: 'static, K: Key>(
-    b: &mut Builder<'_, '_, A>,
+pub(super) fn document<'f, A: 'static, K: Key>(
+    b: &mut Builder<'_, 'f, A>,
     key: K,
     blocks: &[Block],
-    context: &Context<'_, A>,
+    context: &Context<'_, 'f, A>,
 ) {
     b.div_id(key, tw().flex().flex_col(), |s| {
         emit(s, blocks, context, Depth::default());
@@ -108,10 +108,10 @@ impl Depth {
     }
 }
 
-fn emit<A: 'static>(
-    s: &mut Scope<'_, '_, A>,
+fn emit<'f, A: 'static>(
+    s: &mut Scope<'_, 'f, A>,
     blocks: &[Block],
-    context: &Context<'_, A>,
+    context: &Context<'_, 'f, A>,
     depth: Depth,
 ) {
     let style = &context.style;
@@ -170,12 +170,12 @@ fn emit<A: 'static>(
     }
 }
 
-fn paragraph<A: 'static>(
-    s: &mut Builder<'_, '_, A>,
+fn paragraph<'f, A: 'static>(
+    s: &mut Builder<'_, 'f, A>,
     key: impl Key,
     at: Tw,
     spans: &Spans,
-    context: &Context<'_, A>,
+    context: &Context<'_, 'f, A>,
 ) {
     let node = s.spans(key, at, spans.clone());
     if spans.iter().any(|span| span.href().is_some()) {
@@ -186,19 +186,19 @@ fn paragraph<A: 'static>(
 
 /// A GFM table through `b.table`: a content-sized column per alignment, and
 /// every row padded or cut to that many cells, whose text wraps.
-fn table<A: 'static>(
-    s: &mut Scope<'_, '_, A>,
+fn table<'f, A: 'static>(
+    s: &mut Scope<'_, 'f, A>,
     key: Part,
     at: Tw,
     table: &Table,
-    context: &Context<'_, A>,
+    context: &Context<'_, 'f, A>,
 ) {
     let width = table.align.len();
     let columns = table
         .align
         .iter()
         .map(|align| Column::new(Track::auto()).align(*align));
-    let row = |cells: &mut Cells<'_, '_, A>, row: &[Spans]| {
+    let row = |cells: &mut Cells<'_, 'f, A>, row: &[Spans]| {
         for column in 0..width {
             let spans = row.get(column);
             cells.cell(|b| {
@@ -221,12 +221,12 @@ fn table<A: 'static>(
     });
 }
 
-fn list<A: 'static>(
-    s: &mut Scope<'_, '_, A>,
+fn list<'f, A: 'static>(
+    s: &mut Scope<'_, 'f, A>,
     key: Part,
     at: Tw,
     list: &List,
-    context: &Context<'_, A>,
+    context: &Context<'_, 'f, A>,
     depth: Depth,
 ) {
     let look = &context.style.list;
@@ -330,22 +330,25 @@ impl Shape {
     }
 }
 
-fn code<A: 'static>(
-    s: &mut Scope<'_, '_, A>,
+fn code<'f, A: 'static>(
+    s: &mut Scope<'_, 'f, A>,
     key: Part,
     at: Tw,
     info: &str,
     text: &str,
-    context: &Context<'_, A>,
+    context: &Context<'_, 'f, A>,
 ) {
     let (name, arg) = info.split_once(' ').unwrap_or((info, ""));
-    if let Some(mount) = context.directives.and_then(|all| all.mount(name)) {
+    if let Some((mount, app)) = context
+        .directives
+        .and_then(|(all, app)| all.mount(name).map(|mount| (mount, app)))
+    {
         let directive = Directive {
             name,
             arg: arg.trim(),
             body: text,
         };
-        s.div_id(key, at, |s| mount(s, &directive));
+        s.div_id(key, at, |s| mount(s, app, &directive));
         return;
     }
     let look = &context.style.code;
@@ -364,13 +367,13 @@ fn code<A: 'static>(
     });
 }
 
-fn image<A: 'static>(
-    s: &mut Scope<'_, '_, A>,
+fn image<'f, A: 'static>(
+    s: &mut Scope<'_, 'f, A>,
     key: Part,
     at: Tw,
     uri: &str,
     alt: &str,
-    context: &Context<'_, A>,
+    context: &Context<'_, 'f, A>,
 ) {
     match context
         .ctx
@@ -398,13 +401,13 @@ fn image<A: 'static>(
     }
 }
 
-fn unsupported<A: 'static>(
-    s: &mut Scope<'_, '_, A>,
+fn unsupported<'f, A: 'static>(
+    s: &mut Scope<'_, 'f, A>,
     key: Part,
     at: Tw,
     label: &str,
     source: &str,
-    context: &Context<'_, A>,
+    context: &Context<'_, 'f, A>,
 ) {
     let look = &context.style.unsupported;
     let block = at

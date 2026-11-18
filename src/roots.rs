@@ -22,7 +22,6 @@ use crate::overlay::{
 };
 use crate::pipeline::{Placed, PlacedNode};
 use crate::presence::Staged;
-use crate::region::RegionDecl;
 use crate::scroll::Description;
 
 /// What a root over the base is, and what only that kind of root declares.
@@ -65,30 +64,21 @@ pub(crate) struct OverlayDecl {
 }
 
 /// A root, from the moment its body starts to be built: the slot is
-/// reserved before, so roots declared in the body come after it.
-pub(crate) struct RootDecl<'f, A> {
+/// reserved before, so roots declared in the body come after it. Its regions
+/// are the frame's, which knows the application they build for.
+#[derive(Default)]
+pub(crate) struct RootDecl {
     /// None for the base root, which the layout is given, and for a root
     /// the layout has taken.
     pub(crate) layer: Option<Layer>,
     /// The scroll containers' leaves in this root and in their contents, an
     /// enclosing container after those it encloses.
     pub(crate) scrolls: Vec<NodeId>,
-    /// The regions' leaves in this root and in its scroll containers' content,
-    /// in the order they were declared.
-    pub(crate) regions: Vec<RegionDecl<'f, A>>,
+    /// The mount it was declared in, which its content belongs to.
+    pub(crate) mount: Option<egui::Id>,
 }
 
-impl<A> Default for RootDecl<'_, A> {
-    fn default() -> Self {
-        Self {
-            layer: None,
-            scrolls: Vec::new(),
-            regions: Vec::new(),
-        }
-    }
-}
-
-impl<A> RootDecl<'_, A> {
+impl RootDecl {
     pub(crate) fn layer(layer: Layer) -> Self {
         Self {
             layer: Some(layer),
@@ -252,6 +242,8 @@ pub(crate) struct PlacedRoot {
     pub(crate) parent: Option<usize>,
     pub(crate) home: Home,
     pub(crate) kind: PlacedRootKind,
+    /// The mount it was declared in.
+    pub(crate) mount: Option<Id>,
 }
 
 impl PlacedRoot {
