@@ -358,6 +358,75 @@ fn a_chord_that_is_not_pressed_exactly_does_not_run() {
     assert!(log(&harness).is_empty(), "{:?}", log(&harness));
 }
 
+mod claimed {
+    use eggshell_ui::web::ClaimedChords;
+    use egui::KeyboardShortcut;
+
+    use super::*;
+
+    fn claims(harness: &Harness<'_, Rig<App>>, modifiers: Modifiers, key: Key) -> bool {
+        ClaimedChords::of(&harness.ctx).claims(KeyboardShortcut::new(modifiers, key))
+    }
+
+    #[test]
+    fn an_enabled_commands_chord_is_claimed_and_no_other() {
+        let harness = harness();
+        assert!(claims(&harness, Modifiers::COMMAND, Key::S));
+        assert!(claims(
+            &harness,
+            Modifiers::MAC_CMD | Modifiers::COMMAND,
+            Key::S
+        ));
+        assert!(!claims(&harness, Modifiers::COMMAND, Key::G));
+        assert!(!claims(
+            &harness,
+            Modifiers::COMMAND | Modifiers::SHIFT,
+            Key::S
+        ));
+    }
+
+    #[test]
+    fn a_disabled_commands_chord_is_not_claimed() {
+        let mut harness = harness();
+        assert!(
+            claims(&harness, Modifiers::COMMAND, Key::S),
+            "precondition: claimed while enabled"
+        );
+        harness.state_mut().app.can_save = false;
+        harness.run_steps(2);
+        assert!(!claims(&harness, Modifiers::COMMAND, Key::S));
+        assert!(claims(&harness, Modifiers::COMMAND, Key::K));
+    }
+
+    #[test]
+    fn a_chord_that_yields_to_a_text_field_is_not_claimed_while_typing() {
+        let mut harness = harness();
+        assert!(
+            claims(&harness, Modifiers::COMMAND, Key::O),
+            "precondition: claimed before typing"
+        );
+        start_typing(&mut harness);
+        assert!(!claims(&harness, Modifiers::COMMAND, Key::O));
+        assert!(claims(&harness, Modifiers::NONE, Key::J));
+    }
+
+    #[test]
+    fn copy_and_paste_are_left_to_the_browser() {
+        let harness = harness();
+        assert!(!claims(&harness, Modifiers::COMMAND, Key::C));
+        assert!(!claims(&harness, Modifiers::COMMAND, Key::V));
+    }
+
+    #[test]
+    fn under_a_modal_only_its_own_chords_are_claimed() {
+        let mut harness = harness();
+        harness.state_mut().app.dialog = true;
+        harness.run_steps(12);
+        assert!(claims(&harness, Modifiers::COMMAND, Key::Enter));
+        assert!(!claims(&harness, Modifiers::COMMAND, Key::S));
+    }
+}
+
 mod modals {
     use super::*;
 
