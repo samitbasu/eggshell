@@ -72,7 +72,7 @@ pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
-pub use menu::{Action, Checkbox, DropdownChain, ItemChain, Menu, Radio};
+pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use number::{Edit, Step, ValueRange};
 pub use progress::ProgressChain;

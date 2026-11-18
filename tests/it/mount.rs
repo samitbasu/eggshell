@@ -574,7 +574,7 @@ mod paste {
         );
         b.commands(&table, clip);
         b.dropdown_menu("edit", "Edit")
-            .items(|m| m.command("paste"));
+            .items(|m| m.command("paste").add());
     }
 
     fn view<'f>(b: &mut Builder<'_, 'f, Page>, page: &'f Page) {

@@ -11,7 +11,7 @@ use egui::{Color32, Id, ImageSource, Painter, Rect};
 use taffy::{NodeId, Size};
 
 use crate::collapse::{Collapse, CollapseAxis, CollapsibleChain, Declared};
-use crate::commands::{Command, Commands, Within};
+use crate::commands::{Bound, Commands, Within};
 use crate::contract::{Size as ControlSize, Style};
 use crate::dnd::{Activator, DragEnd, DragImage, Dragging, Drop, NodeDrag, Source};
 use crate::draw::NodeUi;
@@ -700,7 +700,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// The command `id` names, from the tables whose chords are live here.
-    pub(crate) fn command<K: Key>(&self, id: &K) -> Option<(Command<A>, bool)> {
+    pub(crate) fn command<K: Key>(&self, id: &K) -> Option<Bound<A>> {
         self.frame.command(child_id(Id::NULL, id))
     }
 

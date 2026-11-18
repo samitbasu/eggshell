@@ -473,8 +473,8 @@ pub(crate) trait Sink<'f, A>: std::ops::DerefMut<Target = FrameCore<'f>> {
     /// that root has one.
     fn declare_commands(&mut self, table: &Commands<A>, app: &'f A) -> Result<(), Twice>;
     /// The command `id` names, from the tables whose chords are live in the
-    /// root being built, and whether it is enabled.
-    fn command(&self, id: Id) -> Option<(crate::Command<A>, bool)>;
+    /// root being built, as the application data has it.
+    fn command(&self, id: Id) -> Option<crate::commands::Bound<A>>;
     /// Adds what runs a table's chords.
     fn dispatch(&mut self, declared: Declared<A>);
     /// How many mounts deep the builder is.
@@ -546,7 +546,7 @@ impl<'f, A> Sink<'f, A> for Frame<'f, A> {
         Ok(())
     }
 
-    fn command(&self, id: Id) -> Option<(crate::Command<A>, bool)> {
+    fn command(&self, id: Id) -> Option<crate::commands::Bound<A>> {
         crate::commands::look_up(&self.core, &self.tables, self.app?, id)
     }
 
