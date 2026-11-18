@@ -7,7 +7,7 @@ mod common;
 use std::sync::Arc;
 
 use eggshell_ui::{Builder, Scope, Shell, Span, tw};
-use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt, heading_id};
+use eggshell_ui_extras::markdown::{Directive, Directives, MarkdownExt, Typeset, heading_id};
 use egui::load::{ImageLoadResult, ImageLoader, ImagePoll, LoadError, SizeHint};
 use egui::{Align, Color32, ColorImage, Context, Id, Rect};
 
@@ -226,7 +226,7 @@ fn example(s: &mut Scope<'_, '_, State>, _: &State, directive: &Directive<'_>) {
 }
 
 /// ```html
-/// <main class="overflow-y-auto size-full p-6"><article class="max-w-[640px]">
+/// <main class="overflow-y-auto size-full p-6"><article class="max-w-[37em]">
 ///   <a href="…">Back</a> …
 /// </article></main>
 /// ```
@@ -241,23 +241,29 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
             page,
             doc: s.id_of(Part::Doc),
         };
-        s.div(tw().flex().flex_col().gap(6.0).max_w_px(640.0), |b| {
-            if !state.trail.is_empty() {
-                let back = landing.clone();
-                b.spans(Part::Back, tw(), Span::new("Back").link("back"))
-                    .on_link(move |state: &mut State, _| back.back(state));
-            }
-            b.markdown(Part::Doc, state.page.source())
-                .on_link(move |state: &mut State, href| landing.follow(state, href))
-                .directives(&directives, state)
-                .add();
-            let followed = state.followed.last().map_or("nothing yet", String::as_str);
-            b.span(
-                Part::Followed,
-                tw().text(muted),
-                format!("Followed: {followed}; counted {}", state.count),
-            );
-        });
+        s.div(
+            tw().flex()
+                .flex_col()
+                .gap(6.0)
+                .max_w_px(Typeset::default().measure_width()),
+            |b| {
+                if !state.trail.is_empty() {
+                    let back = landing.clone();
+                    b.spans(Part::Back, tw(), Span::new("Back").link("back"))
+                        .on_link(move |state: &mut State, _| back.back(state));
+                }
+                b.markdown(Part::Doc, state.page.source())
+                    .on_link(move |state: &mut State, href| landing.follow(state, href))
+                    .directives(&directives, state)
+                    .add();
+                let followed = state.followed.last().map_or("nothing yet", String::as_str);
+                b.span(
+                    Part::Followed,
+                    tw().text(muted),
+                    format!("Followed: {followed}; counted {}", state.count),
+                );
+            },
+        );
     });
 }
 

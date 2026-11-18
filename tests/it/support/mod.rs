@@ -665,7 +665,10 @@ pub fn part_rect<A>(harness: &Harness<'_, Rig<A>>, text: &str, part: &str) -> Re
         .chars()
         .count();
     let end = start + part.chars().count();
-    let first = galley.pos_from_cursor(egui::text::CCursor::new(start));
+    let first = galley.pos_from_cursor(egui::text::CCursor {
+        prefer_next_row: true,
+        ..egui::text::CCursor::new(start)
+    });
     let last = galley.pos_from_cursor(egui::text::CCursor::new(end));
     assert!(
         (first.center().y - last.center().y).abs() < 0.5,

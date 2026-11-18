@@ -19,6 +19,7 @@
 mod build;
 mod parse;
 mod style;
+mod typeset;
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -29,9 +30,10 @@ use egui::cache::{ComputerMut, FrameCache};
 
 pub use parse::{Heading, Level};
 pub use style::{
-    CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, MarkdownStyle, QuoteStyle,
-    UnsupportedStyle,
+    Case, CodeBlockStyle, HeadingRule, HeadingStyle, ListStyle, MarkdownStyle, QuoteStyle,
+    RichLook, TableLook, UnsupportedStyle,
 };
+pub use typeset::{Measure, Typeset, TypesetInk};
 
 /// TODO(prose)
 pub trait MarkdownExt<'b, 'f, A> {
