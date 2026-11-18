@@ -23,23 +23,31 @@
 //! it draws the widget.
 
 use egui::{Context, Frame, Margin, NumExt as _, Response, RichText, TextWrapMode, Ui, Vec2, vec2};
+use std::sync::Arc;
 use taffy::Size;
 
 use crate::contract::Size as ControlSize;
 use crate::sizing::Sizer;
 use crate::text::{Numerals, TextAlign};
-use crate::{Measure, Style, TextStyle, Width};
+use crate::{Measure, NodeUi as _, Style, TextStyle, Width};
 
 /// A stock widget the builder can size.
 pub trait Stock: Clone + 'static {
-    /// The widget's size in `ctx` for text in `text`, when `width` is the
-    /// width it will be given. `None` is the natural width.
-    fn size(&self, ctx: &Context, text: &TextStyle, width: Option<Width>) -> Vec2;
+    /// The widget's size in `ctx` for text in `text` and controls in
+    /// `style`, when `width` is the width it will be given. `None` is the
+    /// natural width.
+    fn size(
+        &self,
+        ctx: &Context,
+        text: &TextStyle,
+        style: &Arc<Style>,
+        width: Option<Width>,
+    ) -> Vec2;
 
     /// The size as a leaf's measure: the known or definite width is the
     /// width the widget is given.
     fn measure(&self, m: &Measure<'_>) -> Size<f32> {
-        let size = self.size(m.ctx(), m.text(), m.width().map(Width::new));
+        let size = self.size(m.ctx(), m.text(), m.style(), m.width().map(Width::new));
         Size {
             width: size.x,
             height: size.y,
@@ -245,7 +253,7 @@ impl TextEdit {
     /// pass, so the frame that is painted is laid out for the new text
     /// instead of showing one row too many or too few for a frame.
     pub fn show(&self, ui: &mut Ui, text: &mut String) -> Response {
-        Style::of(ui.ctx()).map_input(ui.style_mut(), self.size);
+        ui.node_style().map_input(ui.style_mut(), self.size);
         if self.framing != Framing::Framed {
             // egui floors a single-line field at interact_size.y, which
             // map_input set to input.height; a bare field is its leaf's height.
@@ -418,8 +426,15 @@ impl Fit {
 }
 
 impl Stock for TextEdit {
-    fn size(&self, ctx: &Context, text: &TextStyle, width: Option<Width>) -> Vec2 {
-        self.fit(&Sizer::new(ctx, text), &self.text, width).size
+    fn size(
+        &self,
+        ctx: &Context,
+        text: &TextStyle,
+        style: &Arc<Style>,
+        width: Option<Width>,
+    ) -> Vec2 {
+        self.fit(&Sizer::new(ctx, text, style), &self.text, width)
+            .size
     }
 }
 

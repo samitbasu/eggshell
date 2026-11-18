@@ -1,7 +1,6 @@
 //! The Markdown widget (#254) through the real path: its test page, built,
 //! laid out and drawn by the rig, clicked as a user would.
 
-use eggshell_ui::Style;
 use eggshell_ui::testing::Headless;
 use eggshell_ui_extras::markdown::{Level, MarkdownExt, MarkdownStyle, heading_id, headings};
 use egui::epaint::Shape;
@@ -86,7 +85,7 @@ fn headings_take_their_level_style_and_anchor_keys() {
     for (level, anchor, text) in [
         (Level::H1, "markdown-in-eggshell", "Markdown in eggshell"),
         (Level::H2, "lists", "Lists"),
-        (Level::H6, "what-degrades", "What degrades"),
+        (Level::H6, "what-degrades", "WHAT DEGRADES"),
     ] {
         rect_of(&harness, &doc(&format!("/Heading({anchor:?})")));
         let (galley, _) = support::galley_of(&harness, text);
@@ -116,14 +115,13 @@ fn headings_list_the_page_outline() {
 }
 
 #[test]
-fn an_h2_has_a_rule_below() {
+fn a_typeset_h2_has_no_rule_below() {
     let harness = harness();
     let heading = rect_of(&harness, &doc("/Heading(\"lists\")"));
     let rule = filled(&harness, style(&harness).rule)
         .into_iter()
-        .find(|rect| (rect.max.y - heading.max.y).abs() < 0.5 && rect.height() <= 1.5)
-        .expect("a rule along the heading's bottom edge");
-    assert!(rule.width() >= heading.width() - 0.5);
+        .find(|rect| (rect.max.y - heading.max.y).abs() < 0.5 && rect.height() <= 1.5);
+    assert_eq!(rule, None);
 }
 
 #[test]
@@ -263,7 +261,7 @@ fn the_shadcn_preset_fills_the_markdown_style() {
     let tokens = common::tokens(&harness.ctx);
     let preset = eggshell_ui_shadcn::Shadcn::of(&harness.ctx);
     let installed = style(&harness);
-    assert_eq!(*installed, preset.markdown(&Style::of(&harness.ctx)));
+    assert_eq!(*installed, preset.markdown());
     assert_eq!(installed.rule, tokens.border);
     assert_eq!(installed.code.fill, tokens.muted);
 }
@@ -458,10 +456,13 @@ fn every_row_lines_up_with_the_header_and_its_alignment() {
         rect_of(&harness, &cell("Row(0)", 1)),
         rect_of(&harness, &cell("Row(0)", 2)),
     );
-    let inset = content("Row(0)", 0).left() - left.left();
+    let inset = right.right() - content("Row(0)", 2).right();
     assert!(inset > 0.0, "precondition: cells are padded");
     assert!((content("Row(1)", 1).center().x - centred.center().x).abs() < 0.6);
-    assert!((right.right() - content("Row(0)", 2).right() - inset).abs() < 0.6);
+    assert!(
+        (content("Row(0)", 0).left() - left.left()).abs() < 0.6,
+        "typeset's first column is flush"
+    );
 }
 
 #[test]

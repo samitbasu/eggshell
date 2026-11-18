@@ -516,6 +516,46 @@ mod popover {
         assert_eq!(log(&harness), ["popover dismissed"]);
     }
 
+    /// Sets whether the window has the keyboard focus, as egui-winit does,
+    /// with the event it sends alongside.
+    fn window_focus(harness: &mut Harness<'_, Rig<App>>, focused: bool) {
+        harness.input_mut().focused = focused;
+        harness.event(Event::WindowFocused(focused));
+        settle(harness);
+        assert_eq!(
+            harness.ctx.input(|input| input.focused),
+            focused,
+            "precondition: the window's focus"
+        );
+    }
+
+    /// A screenshot run's window can start without the focus, and still be
+    /// told it lost it (#326).
+    #[test]
+    fn a_window_that_never_had_focus_while_it_was_open_does_not_dismiss_it() {
+        let mut harness = harness(App::default());
+        window_focus(&mut harness, false);
+        open_popover(&mut harness);
+        harness.event(Event::WindowFocused(false));
+        settle(&mut harness);
+        assert!(harness.state().app.popover);
+        assert!(log(&harness).is_empty());
+    }
+
+    #[test]
+    fn a_window_that_gains_focus_while_it_is_open_dismisses_it_on_losing_it() {
+        let mut harness = harness(App::default());
+        window_focus(&mut harness, false);
+        open_popover(&mut harness);
+        window_focus(&mut harness, true);
+        assert!(
+            harness.state().app.popover,
+            "gaining focus dismisses nothing"
+        );
+        window_focus(&mut harness, false);
+        assert_eq!(log(&harness), ["popover dismissed"]);
+    }
+
     #[test]
     fn tabbing_out_of_it_dismisses_it() {
         let mut harness = harness(App::default());

@@ -42,6 +42,10 @@ mod rich_text;
 mod markdown;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/typeset/main.rs"]
+mod typeset;
+
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/dialog.rs"]
 mod dialog;
 
@@ -190,7 +194,12 @@ fn report_renderer() {
             egui_kittest::wgpu::default_wgpu_setup(),
             Default::default(),
         );
-        println!("snapshot renderer: {:?}", state.adapter.get_info());
+        let info = state.adapter.get_info();
+        println!("snapshot renderer: {info:?}");
+        assert!(
+            eggshell_ui::testing::screenshot::is_lavapipe(&info),
+            "the goldens are rendered on Mesa lavapipe; `cargo xtask snapshots` selects it"
+        );
     });
 }
 
@@ -584,6 +593,42 @@ fn markdown_in(name: &str, theme: egui::Theme) {
         (
             markdown::State::default(),
             markdown::layout,
+            common::base_text(theme),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
+}
+
+/// shadcn/typeset's fixtures at its defaults, for the look to be compared
+/// with shadcn's own.
+#[test]
+fn typeset_article_light() {
+    typeset_of("typeset_article_light", typeset::Fixture::Article, 2600.0);
+}
+
+#[test]
+fn typeset_docs_light() {
+    typeset_of("typeset_docs_light", typeset::Fixture::Docs, 5600.0);
+}
+
+#[test]
+fn typeset_changelog_light() {
+    typeset_of(
+        "typeset_changelog_light",
+        typeset::Fixture::Changelog,
+        1300.0,
+    );
+}
+
+fn typeset_of(name: &str, fixture: typeset::Fixture, height: f32) {
+    let theme = egui::Theme::Light;
+    snapshot_themed(
+        name,
+        Vec2::new(720.0, height),
+        (
+            typeset::State { fixture },
+            typeset::layout,
             common::base_text(theme),
         ),
         None,

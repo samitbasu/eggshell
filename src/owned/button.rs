@@ -9,7 +9,7 @@ use super::{Content, Enablement, OnResponse, TipContent, centered, described, ti
 use crate::actions::Action;
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
-use crate::{Builder, Icon, Scope, Style, Tw, tw};
+use crate::{Builder, Icon, Scope, Tw, tw};
 
 /// Whether pressing a button shifts it down, as web buttons commonly do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,7 +88,7 @@ impl<S: Into<String>> From<(Icon, S)> for Face {
     }
 }
 
-/// A button drawn from the [`Style`]: one of its variants, with
+/// A button drawn from the [`Style`](crate::Style): one of its variants, with
 /// an icon, a label or both. Start one with [`Builder::button`] and finish it
 /// with [`on_click`](Self::on_click), or [`add`](Self::add) for a button that
 /// does nothing.
@@ -528,7 +528,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 )
             });
         }
-        let style = Style::of(ctx);
+        let style = b.style().clone();
         let button = &style.button;
         let variant = |keyed_default: Variant| variant.unwrap_or(keyed_default);
         let (look, metrics, selected) = match toggle {

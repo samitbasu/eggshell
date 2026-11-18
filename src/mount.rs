@@ -93,7 +93,7 @@ where
         } = self;
         let mount = Mount::new(Rc::new(lens), b.mount_within(&slot));
         let selected = b.declare_mount(&slot);
-        let style = crate::Style::of(b.ctx());
+        let style = b.style().clone();
         let look = &style.mount;
         let frame = crate::tw()
             .grow()

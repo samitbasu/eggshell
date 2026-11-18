@@ -810,6 +810,8 @@ pub struct MountStyle {
 pub struct RichTextStyle {
     /// Link text and underline.
     pub link: Color32,
+    /// TODO(prose): a link's underline, in place of `link`.
+    pub link_underline: Option<Color32>,
     /// The least weight of link text.
     pub link_weight: Weight,
     /// Inline code.
@@ -1121,6 +1123,18 @@ pub struct TableStyle {
     /// Padding around a body or footer cell's content, and beside a header
     /// cell's.
     pub cell_padding: f32,
+    /// TODO(prose): padding above and below a body or footer cell's content,
+    /// in place of `cell_padding`.
+    pub cell_padding_y: Option<f32>,
+    /// TODO(prose): padding above and below a header cell's content, which
+    /// then sizes the header row in place of `header_height`.
+    pub header_padding_y: Option<f32>,
+    /// TODO(prose): padding before the first column's content, in place of
+    /// `cell_padding`; zero sets it flush with the table's edge.
+    pub first_column_inset: Option<f32>,
+    /// TODO(prose): whether a rule also runs under the last body row,
+    /// closing the table.
+    pub rule_below_last: bool,
     /// The line under each row but the last body row, and over the footer.
     pub rule: Color32,
     /// The rule's width.
@@ -1149,6 +1163,10 @@ impl TableStyle {
             header_weight: Weight::Normal,
             header_height: s.interact_size.y + 2.0 * s.button_padding.y,
             cell_padding: s.button_padding.x,
+            cell_padding_y: None,
+            header_padding_y: None,
+            first_column_inset: None,
+            rule_below_last: false,
             rule: v.widgets.noninteractive.bg_stroke.color,
             rule_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
             stripe: Color32::TRANSPARENT,
@@ -1727,6 +1745,7 @@ impl Style {
             },
             rich: RichTextStyle {
                 link: v.hyperlink_color,
+                link_underline: None,
                 link_weight: Weight::Normal,
                 code: InlineCode {
                     fill: v.code_bg_color,

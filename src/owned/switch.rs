@@ -15,7 +15,7 @@ use super::{
 use crate::builder::Slot;
 use crate::contract::Size;
 use crate::transition;
-use crate::{Builder, Easing, Progress, Style, Tw, tw};
+use crate::{Builder, Easing, Progress, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -23,7 +23,7 @@ enum Part {
     Label,
 }
 
-/// A switch drawn from the [`Style`], with an optional label. Start one with
+/// A switch drawn from the [`Style`](crate::Style), with an optional label. Start one with
 /// [`Builder::switch`] and finish it with [`on_change`](Self::on_change).
 ///
 /// It shows `current` and is on when that is its `on` value: `true` for a
@@ -186,7 +186,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         let enablement = b.enablement_of(enablement);
         let (mark, toggled) = flip([off, on_value], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let switch = &style.switch;
         let metrics = *switch.sizes.lookup(b.ctx(), b.size_of(size));
         let track = track.unwrap_or(metrics.track);

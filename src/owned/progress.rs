@@ -6,7 +6,7 @@ use egui::{Painter, Pos2, Rect, Role, Shape, Stroke, WidgetInfo, pos2};
 use super::slider::track_classes;
 use super::{Content, TipContent, tip, tipped};
 use crate::builder::Slot;
-use crate::{Builder, NodeUi as _, Progress, Style, Tw, tw};
+use crate::{Builder, NodeUi as _, Progress, Tw, tw};
 
 /// Segments of each quarter-circle of a corner.
 const ARC: usize = 8;
@@ -69,7 +69,7 @@ fn paint_fill(painter: &Painter, track: Rect, radius: f32, value: Progress, colo
     }
 }
 
-/// A bar filled to `progress`, drawn from the [`Style`]'s progress entry, and
+/// A bar filled to `progress`, drawn from the [`Style`](crate::Style)'s progress entry, and
 /// announced to assistive technology as a progress indicator whose value is
 /// the percentage. The fill ends in a straight edge at the value and follows
 /// the track's rounded end on the left. Start one with
@@ -145,7 +145,7 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
             classes,
         } = self;
         let tooltip = tip(&mut b, slot.id, tooltip);
-        let style = Style::of(b.ctx());
+        let style = b.style().clone();
         let bar = &style.progress;
         let track = track_classes((bar.height, bar.radius), bar.track).merge(classes);
         let (radius, fill) = (f32::from(bar.radius), bar.range.fill);

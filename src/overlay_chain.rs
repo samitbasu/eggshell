@@ -383,7 +383,7 @@ impl<'f, A, State, M> OverlayChain<'_, 'f, A, State, M> {
             state: _,
             motion: _,
         } = self;
-        let motion = presence.resolve(b.ctx(), &presentation, (band, behavior.nav));
+        let motion = presence.resolve(b.style(), &presentation, (band, behavior.nav));
         let decl = OverlayDecl {
             id: slot.id,
             presentation,
@@ -439,12 +439,12 @@ impl<A> Presence<A> {
     /// The motion the overlay declared, over the style's for its kind.
     fn resolve(
         &self,
-        ctx: &egui::Context,
+        style: &crate::Style,
         presentation: &Presentation,
         (band, nav): (Band, Nav),
     ) -> Option<Motion> {
         let shown = self.shown?;
-        let motion = &crate::Style::of(ctx).motion;
+        let motion = &style.motion;
         let (kind, edge) = match presentation {
             Presentation::Floating { .. } if band == Band::Tooltip => (motion.tooltip, None),
             Presentation::Floating { .. } if nav.is_menu() || nav.is_listbox() => {

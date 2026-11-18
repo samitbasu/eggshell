@@ -208,7 +208,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         if enablement == Enablement::Disabled && Listing::of(&ctx, trigger) == Listing::Open {
             Listing::Closed.store(&ctx, trigger);
         }
-        let style = Style::of(&ctx);
+        let style = b.style().clone();
         let offset = offset.unwrap_or(style.menu.offset);
         let select = &style.select;
         let metrics = *select.sizes.lookup(b.ctx(), b.size_of(size));

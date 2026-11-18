@@ -324,7 +324,11 @@ mod tests {
             },
             Color32::BLACK,
         );
-        let mut node = Node::bare(NodeKind::Div, String::new(), text);
+        let mut node = Node::bare(
+            NodeKind::Div,
+            String::new(),
+            (text, crate::text::tests::style()),
+        );
         node.collapse = flight.map(|flight| Collapse {
             axis: flight.axis,
             motion: None,
