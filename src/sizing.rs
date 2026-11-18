@@ -11,7 +11,7 @@ use std::sync::Arc;
 use egui::epaint::text::TextWrapping;
 use egui::{Align, Context, FontId, Galley, Style, TextWrapMode, Ui, WidgetText};
 
-use crate::{Style as EggshellStyle, TextStyle};
+use crate::{NodeUi as _, Style as EggshellStyle, TextStyle};
 
 /// A width a widget will be given, for wrapping its text and growing its
 /// height.
@@ -43,7 +43,7 @@ pub(crate) struct Sizer<'a> {
 }
 
 impl<'a> Sizer<'a> {
-    pub fn new(ctx: &'a Context, text: &TextStyle) -> Self {
+    pub fn new(ctx: &'a Context, text: &TextStyle, contract: &Arc<EggshellStyle>) -> Self {
         let font = text.spec.font_id(ctx);
         let mut style = (*ctx.global_style()).clone();
         style.override_font_id = Some(font.clone());
@@ -52,7 +52,7 @@ impl<'a> Sizer<'a> {
             style,
             font,
             role_line_height: Some(text.spec.line_height),
-            contract: EggshellStyle::of(ctx),
+            contract: contract.clone(),
         }
     }
 
@@ -69,7 +69,7 @@ impl<'a> Sizer<'a> {
             style,
             font,
             role_line_height: None,
-            contract: EggshellStyle::of(ui.ctx()),
+            contract: ui.node_style(),
         }
     }
 

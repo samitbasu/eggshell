@@ -5,7 +5,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 
-use eggshell_ui::overlay::{Nav, Wrap};
+use eggshell_ui::vlist::ListNav;
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Key, Pos2, Rect, Theme, vec2};
@@ -43,9 +43,9 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
                 .fixed_px(HEIGHT)
                 .named("Rows")
                 .nav(if app.listbox {
-                    Nav::Listbox(Wrap::Stop)
+                    ListNav::Listbox
                 } else {
-                    Nav::None
+                    ListNav::None
                 })
                 .row_classes(tw().hover(|p| p.bg(HIGHLIGHT)))
                 .row_name(|row| format!("row {}", row.0))

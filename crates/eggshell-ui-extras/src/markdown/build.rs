@@ -88,9 +88,17 @@ pub(super) fn document<'f, A: 'static, K: Key>(
     blocks: &[Block],
     context: &Context<'_, 'f, A>,
 ) {
-    b.div_id(key, tw().flex().flex_col(), |s| {
-        emit(s, blocks, context, Depth::default());
-    });
+    let body = |b: &mut Builder<'_, 'f, A>| {
+        b.div_id(key, tw().flex().flex_col(), |s| {
+            emit(s, blocks, context, Depth::default());
+        });
+    };
+    let style = &context.style;
+    if style.restyles() {
+        b.styled(|page| style.restyle(page), body);
+    } else {
+        body(b);
+    }
 }
 
 /// How many lists the blocks are inside.
@@ -115,19 +123,28 @@ fn emit<'f, A: 'static>(
     depth: Depth,
 ) {
     let style = &context.style;
+    let mut previous = None;
     for (index, block) in blocks.iter().enumerate() {
-        let top = match (index, block) {
-            (0, _) => 0.0,
-            (_, Block::Heading(heading)) => style.heading(heading.level).margin_top,
-            _ => depth.gap(style),
+        let top = match previous {
+            None => 0.0,
+            Some(previous) => space_above(style, depth, previous, block),
         };
+        previous = Some(block);
         let at = tw().mt(top);
         let key = Part::Block(index);
         match block {
-            Block::Paragraph(spans) => paragraph(s, key, at, spans, context),
+            Block::Paragraph(spans) => paragraph(s, key, prose(at, style), spans, context),
             Block::Heading(heading) => {
                 let look = style.heading(heading.level);
                 let at = at.role(look.text.clone()).tracking(look.tracking);
+                let at = match look.color.or(style.color) {
+                    Some(color) => at.text(color),
+                    None => at,
+                };
+                let at = match look.case {
+                    super::Case::AsWritten => at,
+                    super::Case::Upper => at.uppercase(),
+                };
                 let at = match look.rule {
                     super::HeadingRule::None => at,
                     super::HeadingRule::Below { padding } => {
@@ -170,6 +187,43 @@ fn emit<'f, A: 'static>(
     }
 }
 
+/// The space above `block`, which follows `previous`: typeset.css's
+/// cascade, in which a heading owns the space below it and a list item's
+/// blocks sit as close as its items.
+fn space_above(style: &MarkdownStyle, depth: Depth, previous: &Block, block: &Block) -> f32 {
+    match (previous, block) {
+        (Block::Heading(_), Block::Heading(heading)) => style.heading(heading.level).after_heading,
+        (Block::Rule, Block::Heading(heading)) => style.heading(heading.level).after_rule,
+        (_, Block::Heading(heading)) => style.heading(heading.level).margin_top,
+        (_, Block::Rule) => style.rule_gap,
+        _ if depth.0 > 0 => depth.gap(style),
+        (Block::Heading(_), Block::Paragraph(_)) => style.after_heading,
+        _ => style.block_gap,
+    }
+}
+
+/// A table cell's text: the document's tables', else its body text.
+fn cell_text(style: &MarkdownStyle) -> Tw {
+    let at = prose(tw().whitespace_normal(), style);
+    match &style.table {
+        Some(table) => at.role(table.text.clone()).tabular_nums(),
+        None => at,
+    }
+}
+
+/// `at` in the document's body text, which only prose takes: a directive's
+/// output keeps the page's.
+fn prose(at: Tw, style: &MarkdownStyle) -> Tw {
+    let at = match &style.body {
+        Some(body) => at.role(body.clone()),
+        None => at,
+    };
+    match style.color {
+        Some(color) => at.text(color),
+        None => at,
+    }
+}
+
 fn paragraph<'f, A: 'static>(
     s: &mut Builder<'_, 'f, A>,
     key: impl Key,
@@ -203,7 +257,7 @@ fn table<'f, A: 'static>(
             let spans = row.get(column);
             cells.cell(|b| {
                 if let Some(spans) = spans {
-                    paragraph(b, Part::Cell, tw().whitespace_normal(), spans, context);
+                    paragraph(b, Part::Cell, cell_text(&context.style), spans, context);
                 }
             });
         }
@@ -240,7 +294,7 @@ fn list<'f, A: 'static>(
                 .gap(look.marker_gap)
                 .mt(top);
             s.div_id(Part::Item(index), row, |s| {
-                let column = tw()
+                let column = prose(tw(), &context.style)
                     .w(look.indent)
                     .shrink_0()
                     .text_right()
@@ -357,7 +411,8 @@ fn code<'f, A: 'static>(
         .border(look.border_width)
         .border_color(look.border)
         .rounded_px(look.radius)
-        .p(look.padding);
+        .px(look.padding_x)
+        .py(look.padding_y);
     s.div_id(key, block, |s| {
         s.span(
             Part::Source,

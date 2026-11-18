@@ -842,7 +842,7 @@ impl Shadcn {
         let style = self.style();
         #[cfg(feature = "extras")]
         {
-            self.markdown(&style).install_for(ctx, self.theme);
+            self.markdown().install_for(ctx, self.theme);
             self.badge(&style).install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
@@ -954,20 +954,27 @@ impl Shadcn {
         badge
     }
 
-    /// The Markdown widget's look, after shadcn/ui's typography.
+    /// TODO(prose): the Markdown widget's look: shadcn/typeset at its
+    /// defaults, in this preset's colours.
     #[cfg(feature = "extras")]
-    pub fn markdown(&self, style: &contract::Style) -> eggshell_ui_extras::markdown::MarkdownStyle {
+    pub fn markdown(&self) -> eggshell_ui_extras::markdown::MarkdownStyle {
+        eggshell_ui_extras::markdown::Typeset::default().markdown_style(&self.typeset_ink())
+    }
+
+    /// TODO(prose): the theme colours a [`Typeset`] takes, from this preset's
+    /// tokens, for a typeset of other parameters.
+    ///
+    /// [`Typeset`]: eggshell_ui_extras::markdown::Typeset
+    #[cfg(feature = "extras")]
+    pub fn typeset_ink(&self) -> eggshell_ui_extras::markdown::TypesetInk {
         let t = &self.tokens;
-        let mut markdown = eggshell_ui_extras::markdown::MarkdownStyle::from_style(style);
-        markdown.rule = t.border;
-        markdown.list.marker = t.muted_foreground;
-        markdown.quote.border = t.border;
-        markdown.quote.text = t.foreground;
-        markdown.code.fill = t.muted;
-        markdown.code.border = t.border;
-        markdown.unsupported.border = t.border;
-        markdown.unsupported.label = t.muted_foreground;
-        markdown
+        eggshell_ui_extras::markdown::TypesetInk {
+            foreground: t.foreground,
+            muted: t.muted_foreground,
+            rule: t.border,
+            code_fill: t.muted,
+            radius: f32::from(t.radius),
+        }
     }
 }
 

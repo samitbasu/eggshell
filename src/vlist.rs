@@ -43,7 +43,6 @@ use crate::kept::Handle;
 use crate::key::{Key, child_id};
 use crate::layout_tree::LayoutTree;
 use crate::nav::ListMove;
-use crate::overlay::{Nav, Wrap};
 use crate::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain, ScrollStyle, TabRule};
 use crate::shell::Shell;
 use crate::tw::{Tw, tw};
@@ -113,6 +112,44 @@ const SAME: f32 = 0.01;
 /// viewport it clamps the offset to to pixels, and the layout does not.
 const AT_END: f32 = 1.0;
 
+/// TODO(prose): the keyboard pattern of a virtual list.
+///
+/// ```
+/// use eggshell_ui::vlist::ListNav;
+/// use eggshell_ui::{Builder, tw};
+///
+/// fn view<'f>(b: &mut Builder<'_, 'f, ()>, rows: &'f [u32]) {
+///     b.virtual_list("list", tw(), rows)
+///         .nav(ListNav::Listbox)
+///         .items(|s, row| {
+///             s.text(tw(), row.to_string());
+///         });
+/// }
+/// ```
+///
+/// TODO(prose): a virtual list stops at its ends, so it takes no [`Wrap`](crate::overlay::Wrap):
+///
+/// ```compile_fail
+/// use eggshell_ui::overlay::{Nav, Wrap};
+/// use eggshell_ui::{Builder, tw};
+///
+/// fn view<'f>(b: &mut Builder<'_, 'f, ()>, rows: &'f [u32]) {
+///     b.virtual_list("list", tw(), rows)
+///         .nav(Nav::Listbox(Wrap::Around))
+///         .items(|s, row| {
+///             s.text(tw(), row.to_string());
+///         });
+/// }
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ListNav {
+    /// TODO(prose): the rows handle their own keys.
+    #[default]
+    None,
+    /// TODO(prose): one Tab stop, with a virtual highlight that stops at the ends.
+    Listbox,
+}
+
 /// A virtual list, started with [`Builder::virtual_list`] and finished with
 /// [`items`](Self::items).
 ///
@@ -131,7 +168,7 @@ pub struct ListChain<'a, 'f, A, R> {
     heights: Option<RowHeights>,
     overscan: f32,
     start: Start,
-    listbox: bool,
+    nav: ListNav,
     row_classes: Tw,
     on_activate: Option<Activate<A, R>>,
     row_name: Option<std::rc::Rc<dyn Fn(R) -> String>>,
@@ -147,29 +184,16 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             heights: None,
             overscan: OVERSCAN,
             start: Start::Top,
-            listbox: false,
+            nav: ListNav::None,
             row_classes: tw(),
             on_activate: None,
             row_name: None,
         }
     }
 
-    /// TODO(prose): `Nav::Listbox(Wrap::Stop)` makes the list one Tab stop with a virtual highlight moved by the arrow, Home, End and Page keys; `Nav::None` is the default. A virtual list stops at its ends: `Wrap::Around` is reported.
-    #[track_caller]
-    pub fn nav(mut self, nav: Nav) -> Self {
-        if !matches!(nav, Nav::None | Nav::Listbox(Wrap::Stop)) {
-            crate::report::report(
-                self.scroll.builder().ctx(),
-                crate::Problem::UnsupportedNav,
-                Some(self.scroll.id()),
-                || {
-                    format!(
-                        "a virtual list navigates as a listbox that stops at its ends, or not at all, not {nav:?}"
-                    )
-                },
-            );
-        }
-        self.listbox = nav.is_listbox();
+    /// TODO(prose): [`ListNav::Listbox`] makes the list one Tab stop with a virtual highlight moved by the arrow, Home, End and Page keys; [`ListNav::None`] is the default.
+    pub fn nav(mut self, nav: ListNav) -> Self {
+        self.nav = nav;
         self
     }
 
@@ -277,11 +301,12 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             heights,
             overscan,
             start,
-            listbox,
+            nav,
             row_classes,
             on_activate,
             row_name,
         } = self;
+        let listbox = nav == ListNav::Listbox;
         let scroll = if listbox {
             scroll.focusable(Focusable::Always).role(Role::ListBox)
         } else {

@@ -48,7 +48,12 @@ fn notes(b: &mut Builder<'_, '_, Notes>, app: &Notes) {
 fn a_leaf_is_as_large_as_the_size() {
     let mut harness = support::harness(vec2(400.0, 100.0), base_text(), Notes::default(), notes);
     harness.run();
-    let size = TextEdit::singleline("").size(&harness.ctx, &base_text(), Some(Width::new(200.0)));
+    let size = TextEdit::singleline("").size(
+        &harness.ctx,
+        &base_text(),
+        &eggshell_ui::Style::of(&harness.ctx),
+        Some(Width::new(200.0)),
+    );
     assert_eq!(rect_of(&harness, "/\"notes\"").size(), size);
 }
 

@@ -12,7 +12,7 @@ use taffy::{NodeId, Size};
 
 use crate::collapse::{Collapse, CollapseAxis, CollapsibleChain, Declared};
 use crate::commands::{Bound, Commands, Within};
-use crate::contract::{Size as ControlSize, Style};
+use crate::contract::Size as ControlSize;
 use crate::dnd::{Activator, DragEnd, DragImage, Dragging, Drop, NodeDrag, Source};
 use crate::draw::NodeUi;
 use crate::key::{Key, Repeat, child_id};
@@ -136,6 +136,7 @@ pub struct Builder<'b, 'f, A: 'f> {
     kids: &'b mut Vec<NodeId>,
     inherited: &'b TextStyle,
     ambient: Ambient,
+    style: &'b Arc<crate::Style>,
 }
 
 /// The leaf a virtual list's rows are built into, as its region needs it.
@@ -144,6 +145,7 @@ pub(crate) struct RowsLeaf {
     readable: String,
     text: TextStyle,
     ambient: Ambient,
+    style: Arc<crate::Style>,
 }
 
 /// What a subtree's nodes take from where it is built, beyond text.
@@ -179,7 +181,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         frame: &'b mut dyn Sink<'f, A>,
         path: Id,
         kids: &'b mut Vec<NodeId>,
-        (inherited, ambient): (&'b TextStyle, Ambient),
+        (inherited, ambient, style): (&'b TextStyle, Ambient, &'b Arc<crate::Style>),
     ) -> Self {
         Self {
             st,
@@ -188,6 +190,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             kids,
             inherited,
             ambient,
+            style,
         }
     }
 
@@ -238,6 +241,50 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.ambient.enablement
     }
 
+    /// TODO(prose): the style the nodes built here are built, measured and
+    /// drawn with: the context's [`Style::of`](crate::Style::of), or that of
+    /// the [`styled`](Self::styled) scope around them.
+    pub fn style(&self) -> &Arc<crate::Style> {
+        self.style
+    }
+
+    /// TODO(prose): builds `body` in place with a style of its own: the style
+    /// here, changed by `edit`. Every node `body` builds, and every control
+    /// among them, is built, measured and drawn with it; nothing outside
+    /// changes, and a scope inside starts from this one. No node is created.
+    ///
+    /// The fonts a style's [`faces`](crate::Style::faces) name are the
+    /// context's, so a scope cannot change which faces exist.
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>) {
+    ///     b.styled(
+    ///         |style| style.table.cell_padding = 16.0,
+    ///         |b| {
+    ///             b.text(tw(), "Tables built here are roomier.");
+    ///         },
+    ///     );
+    /// }
+    /// ```
+    pub fn styled(
+        &mut self,
+        edit: impl FnOnce(&mut crate::Style),
+        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+    ) {
+        let mut style = crate::Style::clone(self.style);
+        edit(&mut style);
+        let style = Arc::new(style);
+        body(&mut Builder::new(
+            self.st,
+            self.frame,
+            self.path,
+            self.kids,
+            (self.inherited, self.ambient, &style),
+        ));
+    }
+
     /// Builds `body` with a key pushed onto the path. No node is created;
     /// the children attach to the current parent.
     ///
@@ -266,7 +313,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             parent,
             self.kids,
-            (self.inherited, self.ambient),
+            (self.inherited, self.ambient, self.style),
         )));
     }
 
@@ -277,7 +324,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             slot.id,
             self.kids,
-            (self.inherited, self.ambient),
+            (self.inherited, self.ambient, self.style),
         )));
         self.st.names.pop_to(mark);
     }
@@ -289,7 +336,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             self.path,
             self.kids,
-            (self.inherited, self.ambient),
+            (self.inherited, self.ambient, self.style),
         )
     }
 
@@ -484,7 +531,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut lensed,
             self.path,
             self.kids,
-            (self.inherited, self.ambient),
+            (self.inherited, self.ambient, self.style),
         ))
     }
 
@@ -542,6 +589,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             readable,
             text,
             ambient,
+            style,
         }: RowsLeaf,
         list: Id,
         run: crate::vlist::ListRun<'f, A>,
@@ -552,6 +600,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             readable,
             text,
             ambient,
+            style,
             body: RegionBody::List(run),
         });
     }
@@ -592,6 +641,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             readable,
             text,
             ambient,
+            style: self.style.clone(),
         }
     }
 
@@ -684,6 +734,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             readable,
             text,
             ambient,
+            style: self.style.clone(),
             body: RegionBody::Closure(Box::new(body)),
         });
     }
@@ -773,12 +824,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut frame,
             self.path,
             &mut kids,
-            (self.inherited, self.ambient),
+            (self.inherited, self.ambient, self.style),
         ));
         let root = st.tree.new_node(
             overlay_style(),
             &kids,
-            Node::bare(NodeKind::Root, String::new(), self.inherited.clone()),
+            Node::bare(
+                NodeKind::Root,
+                String::new(),
+                (self.inherited.clone(), self.style.clone()),
+            ),
         );
         let loose = Size {
             width: taffy::AvailableSpace::MaxContent,
@@ -981,7 +1036,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             slot.id,
             &mut kids,
-            (&text, ambient),
+            (&text, ambient, self.style),
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
@@ -1019,7 +1074,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
         let band = decl.band;
         let classes = match decl.presentation {
-            Presentation::Modal(_) => tw().bg(Style::of(self.ctx()).scrim),
+            Presentation::Modal(_) => tw().bg(self.style.scrim),
             Presentation::Floating { .. } => tw(),
         };
         if let Some(on_dismiss) = on_dismiss {
@@ -1057,7 +1112,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             slot.id,
             &mut kids,
-            (&text, self.ambient),
+            (&text, self.ambient, self.style),
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
@@ -1096,7 +1151,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             slot.id,
             &mut kids,
-            (&leaf.text, ambient),
+            (&leaf.text, ambient, self.style),
         )));
         self.st.names.pop_to(mark);
         let mut content_node = self.node(
@@ -1276,7 +1331,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// `<kbd>`. Inside a tooltip it takes the look the style gives a chip on
     /// a tooltip ([`KbdStyle`](crate::contract::KbdStyle)).
     pub fn kbd(&mut self, keys: impl Into<String>) {
-        let style = crate::Style::of(self.frame.ctx);
+        let style = self.style.clone();
         let kbd = &style.kbd;
         let colors = match self.surface() {
             Surface::Page => kbd.page,
@@ -1454,6 +1509,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             kind: parts.kind,
             paint: tw.paint,
             text: tw.text.over(self.inherited),
+            style: self.style.clone(),
             text_valign: VAlign::of(&tw.style),
             prim: parts.prim,
             measure: parts.measure,
@@ -1554,6 +1610,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                     surface,
                     ..self.ambient
                 },
+                self.style,
             ),
         ));
     }
@@ -1581,7 +1638,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             self.path.with(("eggshell-text-of", salt)),
             &mut kids,
-            (self.inherited, self.ambient),
+            (self.inherited, self.ambient, self.style),
         ));
         self.st.names.pop_to(mark);
         let tree = &self.st.tree;
@@ -1620,7 +1677,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             path,
             &mut kids,
-            (&text, ambient),
+            (&text, ambient, self.style),
         ));
         let id = self.st.tree.new_node(style, &kids, node);
         self.kids.push(id);

@@ -11,6 +11,7 @@
 //! closure always before the ones inside it.
 
 use egui::{Id, Vec2, vec2};
+use std::sync::Arc;
 use taffy::{AvailableSpace, Display, NodeId, Size, Style, style_helpers::length};
 
 use crate::builder::{Ambient, Builder};
@@ -49,6 +50,7 @@ impl<'f, S: 'static> RegionDecl<'f, S> {
             readable: self.readable,
             text: self.text,
             ambient: self.ambient,
+            style: self.style,
             body,
         }
     }
@@ -62,6 +64,7 @@ pub(crate) struct RegionDecl<'f, A> {
     pub(crate) readable: String,
     pub(crate) text: TextStyle,
     pub(crate) ambient: Ambient,
+    pub(crate) style: Arc<crate::Style>,
     pub(crate) body: RegionBody<'f, A>,
 }
 
@@ -109,6 +112,7 @@ pub(crate) fn run<'f, A>(
         readable,
         text,
         ambient,
+        style,
         body,
     } = region;
     let (_, size) = content_box(&st.tree, leaf);
@@ -118,7 +122,7 @@ pub(crate) fn run<'f, A>(
     let laid = match body {
         RegionBody::Closure(body) => {
             body(
-                &mut Builder::new(st, frame, id, &mut kids, (&text, ambient)),
+                &mut Builder::new(st, frame, id, &mut kids, (&text, ambient, &style)),
                 size,
             );
             None
@@ -126,7 +130,7 @@ pub(crate) fn run<'f, A>(
         RegionBody::List(mut list) => {
             let view = list.view(ctx, &st.tree, leaf, size.x);
             Some(list.build(
-                &mut Builder::new(st, frame, id, &mut kids, (&text, ambient)),
+                &mut Builder::new(st, frame, id, &mut kids, (&text, ambient, &style)),
                 view,
             ))
         }
@@ -137,7 +141,7 @@ pub(crate) fn run<'f, A>(
         Node::bare(
             NodeKind::RegionContent,
             format!("{readable}/<regioncontent>"),
-            text,
+            (text, style),
         ),
     );
     if let Some(leaf) = st.tree.node_mut(leaf) {

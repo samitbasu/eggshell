@@ -562,7 +562,14 @@ fn text_is_painted_in_the_resolved_style() {
     assert_eq!(shape.fallback_color, Color32::RED);
     let format = &shape.galley.job.sections[0].format;
     assert!(format.italics);
-    assert!(!format.underline.is_empty());
+    assert!(
+        format.underline.is_empty(),
+        "laid out without its underline, which is painted as a line"
+    );
+    let underline = shapes.iter().any(|clipped| {
+        matches!(&clipped.shape, Shape::LineSegment { stroke, .. } if stroke.color == Color32::RED)
+    });
+    assert!(underline, "an underline in the text's colour");
     assert_eq!(format.extra_letter_spacing, 1.0);
     assert_eq!(
         format.font_id,

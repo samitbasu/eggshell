@@ -70,6 +70,15 @@ pub(crate) enum Seen {
     Hidden,
 }
 
+/// Whether the window has had the keyboard focus in a frame an open overlay
+/// was drawn: a window that has not cannot lose it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum WindowFocus {
+    Had,
+    #[default]
+    NotYet,
+}
+
 /// An open overlay as dismissal sees it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Layer {
@@ -93,6 +102,7 @@ pub(crate) struct Layer {
     pub(crate) lookup: AnchorLookup,
     /// A hidden overlay takes no press, Esc or window blur.
     pub(crate) seen: Seen,
+    pub(crate) window_focus: WindowFocus,
 }
 
 /// What the frame's input did.
@@ -190,6 +200,7 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
     if input.window_blurred {
         for (at, _) in top_down()
             .filter(|(_, layer)| layer.seen == Seen::Drawn)
+            .filter(|(_, layer)| layer.window_focus == WindowFocus::Had)
             .filter(|(_, layer)| dismisses_on_focus_loss(layer))
         {
             found.add(at, Cause::WindowBlur);
@@ -351,6 +362,7 @@ mod tests {
             focus_now: FocusAt::Nowhere,
             lookup: AnchorLookup::Found,
             seen: Seen::Drawn,
+            window_focus: WindowFocus::Had,
         }
     }
 
@@ -615,6 +627,25 @@ mod tests {
                 "{before:?} to {now:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_window_blur_dismisses_only_an_overlay_shown_while_the_window_had_focus() {
+        let blur = Input {
+            window_blurred: true,
+            ..Input::default()
+        };
+        let not_yet = Layer {
+            window_focus: WindowFocus::NotYet,
+            ..popover(0.0)
+        };
+        assert_eq!(closed(&[popover(0.0)], &blur), vec![0]);
+        assert_eq!(closed(&[not_yet], &blur), Vec::<usize>::new());
+        assert_eq!(
+            closed(&[not_yet], &press(PAGE)),
+            vec![0],
+            "the rest still apply"
+        );
     }
 
     #[test]

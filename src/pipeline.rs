@@ -2,6 +2,7 @@
 //! [`layout`](Built::layout) gives [`Placed`].
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use egui::{Id, Rect, Role, Vec2, ViewportId, vec2};
 use taffy::{
@@ -99,6 +100,9 @@ pub(crate) struct Node {
     pub kind: NodeKind,
     pub paint: BoxPaint,
     pub text: TextStyle,
+    /// The style the node is built, measured and drawn with: the context's,
+    /// or a [`styled`](Builder::styled) scope's.
+    pub style: Arc<crate::Style>,
     pub text_valign: VAlign,
     pub prim: Option<Prim>,
     pub measure: Option<usize>,
@@ -122,13 +126,18 @@ pub(crate) struct Node {
 
 impl Node {
     /// A node with no identity, paint or behaviour.
-    pub(crate) fn bare(kind: NodeKind, path: String, text: TextStyle) -> Self {
+    pub(crate) fn bare(
+        kind: NodeKind,
+        path: String,
+        (text, style): (TextStyle, Arc<crate::Style>),
+    ) -> Self {
         Self {
             identity: Identity::Anonymous,
             path,
             kind,
             paint: BoxPaint::default(),
             text,
+            style,
             text_valign: VAlign::Top,
             prim: None,
             measure: None,
@@ -742,19 +751,20 @@ impl LayoutState {
         st.names.clear();
         let mut frame = Frame::new(ctx);
         let mut kids = Vec::new();
+        let style = crate::Style::of(ctx);
         let mut builder = Builder::new(
             st,
             &mut frame,
             st.root,
             &mut kids,
-            (&base, crate::builder::Ambient::PAGE),
+            (&base, crate::builder::Ambient::PAGE, &style),
         );
         f(&mut builder);
         crate::tooltip::declare(&mut builder);
         let root = st.tree.new_node(
             Style::default(),
             &kids,
-            Node::bare(NodeKind::Root, "<root>".to_owned(), base),
+            Node::bare(NodeKind::Root, "<root>".to_owned(), (base, style)),
         );
         Built {
             st,
@@ -1300,7 +1310,12 @@ pub(crate) fn solve(
                 return leaf_layout(input, style, |_| LayoutOutput::from_outer_size(Size::ZERO));
             };
             leaf_layout(input, style, |input| {
-                measure_content(ctx, node_content(node, measures), &node.text, &input)
+                measure_content(
+                    ctx,
+                    node_content(node, measures),
+                    (&node.text, &node.style),
+                    &input,
+                )
             })
         });
     });
@@ -1554,7 +1569,12 @@ struct Probe<'a, 'f> {
 impl Probe<'_, '_> {
     fn wanted(&self, node: &Node, content: Size<f32>) -> Option<egui::Vec2> {
         match node_content(node, self.measures) {
-            Content::Leaf(measure) => wanted(self.ctx, Content::Leaf(measure), &node.text, content),
+            Content::Leaf(measure) => wanted(
+                self.ctx,
+                Content::Leaf(measure),
+                (&node.text, &node.style),
+                content,
+            ),
             _ => None,
         }
     }
@@ -1567,7 +1587,7 @@ impl Probe<'_, '_> {
 pub(crate) fn wanted(
     ctx: &egui::Context,
     content_of: Content<'_>,
-    text: &TextStyle,
+    text: (&TextStyle, &Arc<crate::Style>),
     content: Size<f32>,
 ) -> Option<egui::Vec2> {
     if matches!(content_of, Content::Empty | Content::Prim(Prim::Icon(_))) {
@@ -1582,7 +1602,7 @@ pub(crate) fn wanted(
         ..LayoutInput::HIDDEN
     };
     let size = measure_content(ctx, content_of, text, &input).size;
-    let width = match text.white_space {
+    let width = match text.0.white_space {
         WhiteSpace::Truncate => size.width.min(content.width),
         _ => size.width,
     };
@@ -1710,6 +1730,7 @@ fn collect(
         flow,
         paint: node.paint,
         text: node.text.clone(),
+        style: node.style.clone(),
         text_valign: node.text_valign,
         z: node.z,
         inert: node.inert,
@@ -1845,6 +1866,7 @@ pub struct PlacedNode {
     pub(crate) flow: Flow,
     paint: BoxPaint,
     pub(crate) text: TextStyle,
+    pub(crate) style: Arc<crate::Style>,
     text_valign: VAlign,
     z: i16,
     inert: bool,
@@ -1887,6 +1909,7 @@ impl PlacedNode {
             flow: Flow::Normal,
             paint: BoxPaint::default(),
             text: crate::text::tests::base(),
+            style: crate::text::tests::style(),
             text_valign: VAlign::Top,
             z: 0,
             inert: false,

@@ -7,6 +7,7 @@ use egui::epaint::text::{ByteIndex, LayoutJob, LayoutSection};
 use egui::{Align, Color32, FontId, FontSelection, Stroke, TextFormat, WidgetText};
 use taffy::{AvailableSpace, Baselines, LayoutInput, LayoutOutput, Size};
 
+use crate::contract::RichTextStyle;
 use crate::prim::Prim;
 use crate::text::{FontStyle, Numerals, TextAlign, TextDecoration, TextStyle, WhiteSpace};
 
@@ -19,11 +20,28 @@ pub struct Measure<'a> {
     ctx: &'a egui::Context,
     input: &'a LayoutInput,
     text: &'a TextStyle,
+    style: &'a Arc<crate::Style>,
 }
 
 impl<'a> Measure<'a> {
-    pub(crate) fn new(ctx: &'a egui::Context, input: &'a LayoutInput, text: &'a TextStyle) -> Self {
-        Self { ctx, input, text }
+    pub(crate) fn new(
+        ctx: &'a egui::Context,
+        input: &'a LayoutInput,
+        (text, style): (&'a TextStyle, &'a Arc<crate::Style>),
+    ) -> Self {
+        Self {
+            ctx,
+            input,
+            text,
+            style,
+        }
+    }
+
+    /// TODO(prose): the style the leaf is measured with: the context's
+    /// [`Style::of`](crate::Style::of), or that of the
+    /// [`styled`](crate::Builder::styled) scope it was built in.
+    pub fn style(&self) -> &Arc<crate::Style> {
+        self.style
     }
 
     /// The egui context, for fonts and other shared state.
@@ -104,13 +122,18 @@ impl<'a> TextLeaf<'a> {
         }
     }
 
-    /// The leaf `prim` shows in `style`, if `prim` is text.
-    pub(crate) fn of(ctx: &egui::Context, prim: &'a Prim, style: &'a TextStyle) -> Option<Self> {
+    /// The leaf `prim` shows in `style`, its rich text in `rich`'s looks, if
+    /// `prim` is text.
+    pub(crate) fn of(
+        ctx: &egui::Context,
+        prim: &'a Prim,
+        (style, rich): (&'a TextStyle, &RichTextStyle),
+    ) -> Option<Self> {
         match prim {
             Prim::Text(text) => Some(Self::plain(ctx, text, style)),
             Prim::Rich(rich) => Some(Self::rich(ctx, rich, style)),
             Prim::Spans(spans) => {
-                let (job, marks) = spans.laid_out(ctx, style);
+                let (job, marks) = spans.laid_out(ctx, style, rich);
                 Some(Self {
                     text: Shown::Rich(job),
                     style,
@@ -196,14 +219,21 @@ impl<'a> TextLeaf<'a> {
     }
 
     /// The galley to paint in a content box `width` wide, anchored at the box
-    /// edge the text aligns to. Plain text is coloured
+    /// edge the text aligns to, and the underline of each of its sections,
+    /// which it is laid out without for the painter to draw (see
+    /// `spans::underlines`). Plain text is coloured
     /// [`Color32::PLACEHOLDER`], for the painter to resolve.
     pub(crate) fn drawn_galley(
         &self,
         fonts: &mut FontsView<'_>,
         width: f32,
-    ) -> std::sync::Arc<egui::Galley> {
+    ) -> (std::sync::Arc<egui::Galley>, Vec<Stroke>) {
         let mut job = self.job(fonts);
+        let underlines = job
+            .sections
+            .iter_mut()
+            .map(|section| std::mem::replace(&mut section.format.underline, Stroke::NONE))
+            .collect();
         job.halign = match self.style.align {
             TextAlign::Left => Align::LEFT,
             TextAlign::Center => Align::Center,
@@ -219,7 +249,7 @@ impl<'a> TextLeaf<'a> {
             }
         }
         self.clamp_rows(&mut job);
-        fonts.layout_job(job)
+        (fonts.layout_job(job), underlines)
     }
 
     /// The galley a text edit shows for its text: the job measurement and
@@ -422,16 +452,18 @@ pub(crate) enum Content<'a> {
 pub(crate) fn measure_content(
     ctx: &egui::Context,
     content: Content<'_>,
-    text: &TextStyle,
+    (text, style): (&TextStyle, &Arc<crate::Style>),
     input: &LayoutInput,
 ) -> LayoutOutput {
     match content {
-        Content::Prim(prim) => match TextLeaf::of(ctx, prim, text) {
+        Content::Prim(prim) => match TextLeaf::of(ctx, prim, (text, &style.rich)) {
             Some(leaf) => ctx.fonts_mut(|fonts| measure_text(fonts, &leaf, input)),
             None => display(prim, text, input),
         },
         Content::Empty => known_or(input, Size::ZERO),
-        Content::Leaf(measure) => known_or(input, measure(&Measure::new(ctx, input, text))),
+        Content::Leaf(measure) => {
+            known_or(input, measure(&Measure::new(ctx, input, (text, style))))
+        }
     }
 }
 
