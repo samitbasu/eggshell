@@ -234,7 +234,7 @@ fn parse_changes(porcelain: &str) -> Vec<Change> {
 }
 
 /// The lavapipe ICD manifest of this machine's architecture.
-fn lavapipe_icd() -> Result<PathBuf> {
+pub fn lavapipe_icd() -> Result<PathBuf> {
     let dirs = icd_dirs(std::env::var("XDG_DATA_DIRS").ok().as_deref());
     find_lavapipe_icd(&dirs, std::env::consts::ARCH).with_context(|| {
         format!(
