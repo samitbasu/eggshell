@@ -2,14 +2,12 @@
 //! drops, auto-scroll) through the real path: pointer events, hit testing,
 //! the gesture, the layout and the draw.
 
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::path::PathBuf;
 
-use eggshell_ui::testing::Timeline;
+use eggshell_ui::testing::{Driver, Timeline};
 use eggshell_ui::{Cause, DragEnd};
 use egui::epaint::Shape;
 use egui::{Color32, Event, Key, Modifiers, MouseWheelUnit, Pos2, Rect, vec2};
-use egui_kittest::Harness;
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -18,10 +16,10 @@ mod common;
 #[path = "../../examples/dnd_gallery.rs"]
 mod gallery;
 
-use crate::support::{self, FrameRig};
+use crate::support;
 use gallery::{Image, Lift, State};
 
-type H<'a> = Harness<'a, FrameRig<State>>;
+type H = Driver<State>;
 
 const SIZE: egui::Vec2 = vec2(520.0, 400.0);
 /// The scroll area's viewport: egui's margin inside the window.
@@ -37,10 +35,15 @@ const FACE_INSET: f32 = 4.0;
 fn harness_with(
     state: State,
     frame: fn(&mut egui::Ui, &mut State, &mut eggshell_ui::LayoutState),
-) -> H<'static> {
-    let mut h = support::frame_harness(SIZE, common::base_text(egui::Theme::Light), state, frame);
-    h.run_steps(4);
-    h
+) -> H {
+    let mut d = support::recorded(support::frame_driver(
+        SIZE,
+        common::base_text(egui::Theme::Light),
+        state,
+        frame,
+    ));
+    d.frames(4);
+    d
 }
 
 /// One frame of the window exactly as `main` draws it, toolbar tree first.
@@ -50,7 +53,7 @@ pub fn window_frame(ui: &mut egui::Ui, app: &mut State, layout: &mut eggshell_ui
     gallery::window(ui, app, layout, &mut eggshell_ui::LayoutState::new());
 }
 
-fn harness(cols: usize) -> H<'static> {
+fn harness(cols: usize) -> H {
     let mut state = State::default();
     state.cols = cols;
     harness_with(state, window_frame)
@@ -65,26 +68,26 @@ fn face_path(key: u32) -> String {
 }
 
 /// The panel's slot as layout gave it this frame.
-fn rect(h: &H<'_>, key: u32) -> Rect {
-    support::layout_rect(&h.ctx, &slot_path(key))
+fn rect(d: &H, key: u32) -> Rect {
+    support::layout_rect(d.ctx(), &slot_path(key))
 }
 
 /// Where the panel is painted: its face, with its slide.
-fn painted(h: &H<'_>, key: u32) -> Rect {
-    support::last_drawn(&h.ctx, &face_path(key))
+fn painted(d: &H, key: u32) -> Rect {
+    support::last_drawn(d.ctx(), &face_path(key))
         .expect("the face is drawn")
         .painted_rect
 }
 
-fn face_layout(h: &H<'_>, key: u32) -> Rect {
-    support::layout_rect(&h.ctx, &face_path(key))
+fn face_layout(d: &H, key: u32) -> Rect {
+    support::layout_rect(d.ctx(), &face_path(key))
 }
 
 /// The panels in the order layout puts them, by reading order.
-fn layout_order(h: &H<'_>) -> Vec<u32> {
+fn layout_order(d: &H) -> Vec<u32> {
     let mut keys: Vec<(u32, Rect)> = (0..20)
         .filter_map(|key| {
-            eggshell_ui::testing::laid_out_rect(&h.ctx, &slot_path(key)).map(|r| (key, r))
+            eggshell_ui::testing::laid_out_rect(d.ctx(), &slot_path(key)).map(|r| (key, r))
         })
         .collect();
     keys.sort_by(|a, b| {
@@ -96,228 +99,185 @@ fn layout_order(h: &H<'_>) -> Vec<u32> {
     keys.into_iter().map(|(key, _)| key).collect()
 }
 
-fn order(h: &H<'_>) -> Vec<u32> {
-    h.state().app.panels.iter().map(|p| p.0.0).collect()
+fn order(d: &H) -> Vec<u32> {
+    d.app().panels.iter().map(|p| p.0.0).collect()
 }
 
-fn lift(h: &mut H<'_>, key: u32) {
-    let from = rect(h, key).center();
-    h.hover_at(from);
-    h.run_steps(3);
-    h.drag_at(from);
-    h.step();
-    h.hover_at(from + vec2(0.0, 6.0));
-    h.step();
-    h.hover_at(from + vec2(0.0, 12.0));
-    h.run_steps(2);
-}
-
-fn pointer_to(h: &mut H<'_>, at: Pos2) {
-    h.hover_at(at);
-    h.run_steps(3);
+fn lift(d: &mut H, key: u32) {
+    let from = rect(d, key).center();
+    d.lift(from, vec2(0.0, 12.0)).frames(1);
 }
 
 /// The right half of a panel's slot: the pointer has passed its middle.
-fn after_middle(h: &H<'_>, key: u32) -> Pos2 {
-    let r = rect(h, key);
+fn after_middle(d: &H, key: u32) -> Pos2 {
+    let r = rect(d, key);
     r.center() + vec2(r.width() / 4.0, 0.0)
 }
 
-fn move_past(h: &mut H<'_>, key: u32) {
-    let at = after_middle(h, key);
-    pointer_to(h, at);
+fn move_past(d: &mut H, key: u32) {
+    let at = after_middle(d, key);
+    pointer_to(d, at);
 }
 
-fn carried(h: &H<'_>) -> bool {
-    crate::support::shell(h).drag_pointer().is_some()
+/// Rests the pointer on `at`, which may be below the window's edge, where
+/// the driver's pointer actions do not go.
+fn pointer_to(d: &mut H, at: Pos2) {
+    d.harness_mut().hover_at(at);
+    d.frames(3);
 }
 
-#[derive(Debug)]
-struct TestFile(PathBuf);
-
-impl egui::DroppedFile for TestFile {
-    fn path(&self) -> &Path {
-        &self.0
-    }
-    fn bytes(&self) -> Result<Vec<u8>, String> {
-        Ok(Vec::new())
-    }
+fn carried(d: &H) -> bool {
+    d.shell().drag_pointer().is_some()
 }
 
-fn hover_files(h: &mut H<'_>, names: &[&str]) {
-    h.input_mut().hovered_files = names
-        .iter()
-        .map(|n| egui::HoveredFile {
-            path: Some(PathBuf::from(n)),
-            mime: String::new(),
-        })
-        .collect();
-}
-
-fn drop_files(h: &mut H<'_>, names: &[&str]) {
-    h.input_mut().hovered_files.clear();
-    h.input_mut().dropped_files = names
-        .iter()
-        .map(|n| Arc::new(TestFile(PathBuf::from(n))) as egui::DroppedFileHandle)
-        .collect();
+fn paths(names: &[&str]) -> Vec<PathBuf> {
+    names.iter().map(PathBuf::from).collect()
 }
 
 #[test]
 fn the_gallery_wraps_into_square_columns_and_scrolls() {
-    let h = harness(3);
-    let (a, b) = (rect(&h, 0), rect(&h, 1));
+    let d = harness(3);
+    let (a, b) = (rect(&d, 0), rect(&d, 1));
     assert!((a.width() - a.height()).abs() < 1.0, "square: {a:?}");
     assert!((b.min.x - a.max.x).abs() < 1.0, "next to each other");
-    assert!(rect(&h, 3).min.y > a.max.y - 1.0, "the fourth wraps");
+    assert!(rect(&d, 3).min.y > a.max.y - 1.0, "the fourth wraps");
     assert!(
-        rect(&h, 11).max.y > SIZE.y,
+        rect(&d, 11).max.y > SIZE.y,
         "taller than the viewport: {:?}",
-        rect(&h, 11)
+        rect(&d, 11)
     );
 }
 
 #[test]
 fn reorder_across_a_row_boundary_previews_then_commits_on_release() {
-    let mut h = harness(3);
-    lift(&mut h, 2);
-    assert!(carried(&h), "precondition: the panel is lifted");
-    let r4 = rect(&h, 4);
+    let mut d = harness(3);
+    lift(&mut d, 2);
+    assert!(carried(&d), "precondition: the panel is lifted");
+    let r4 = rect(&d, 4);
     assert!(
-        r4.min.y > rect(&h, 2).max.y - 1.0,
+        r4.min.y > rect(&d, 2).max.y - 1.0,
         "precondition: panel 4 is on the next row"
     );
-    move_past(&mut h, 4);
+    move_past(&mut d, 4);
     assert_eq!(
-        layout_order(&h)[..6],
+        layout_order(&d)[..6],
         [0, 1, 3, 4, 2, 5],
         "after 4, before 5"
     );
     assert_eq!(
-        order(&h)[..6],
+        order(&d)[..6],
         [0, 1, 2, 3, 4, 5],
         "the data does not change until the drop"
     );
-    let at = rect(&h, 2).center();
-    h.drop_at(at);
-    h.run_steps(3);
-    assert_eq!(order(&h)[..6], [0, 1, 3, 4, 2, 5]);
-    assert_eq!(layout_order(&h)[..6], [0, 1, 3, 4, 2, 5]);
-    assert!(!carried(&h));
-    assert!(
-        h.state().app.status.ends_with("Dropped"),
-        "{}",
-        h.state().app.status
-    );
+    let at = rect(&d, 2).center();
+    d.pointer_up(at).event(Event::PointerGone).frames(2);
+    assert_eq!(order(&d)[..6], [0, 1, 3, 4, 2, 5]);
+    assert_eq!(layout_order(&d)[..6], [0, 1, 3, 4, 2, 5]);
+    assert!(!carried(&d));
+    assert!(d.app().status.ends_with("Dropped"), "{}", d.app().status);
 }
 
 #[test]
 fn layout_rects_are_final_while_painting_slides() {
-    let mut h = harness(3);
-    lift(&mut h, 0);
-    let old = rect(&h, 1);
-    move_past_for_a_frame(&mut h, 4);
-    let now = rect(&h, 1);
+    let mut d = harness(3);
+    lift(&mut d, 0);
+    let old = rect(&d, 1);
+    move_past_for_a_frame(&mut d, 4);
+    let now = rect(&d, 1);
     assert!(now.min.x < old.min.x, "panel 1 moved left in layout");
-    let drawn = painted(&h, 1);
-    let face = support::last_drawn(&h.ctx, &face_path(1))
+    let drawn = painted(&d, 1);
+    let face = support::last_drawn(d.ctx(), &face_path(1))
         .unwrap()
         .layout_rect;
     assert!(
         drawn.min.x > face.min.x + 1.0 && drawn.min.x < old.min.x + FACE_INSET + 1.0,
         "panel 1 is painted away from its final place, towards the old one: {drawn:?} vs {face:?}"
     );
-    h.run_steps(20);
+    d.frames(20);
     assert!(
-        (painted(&h, 1).min - face_layout(&h, 1).min).length() < 1.0,
+        (painted(&d, 1).min - face_layout(&d, 1).min).length() < 1.0,
         "and reaches it"
     );
 }
 
-fn move_past_for_a_frame(h: &mut H<'_>, key: u32) {
-    h.hover_at(after_middle(h, key));
-    h.step();
-    h.step();
+fn move_past_for_a_frame(d: &mut H, key: u32) {
+    let at = after_middle(d, key);
+    d.carry_to(at).frames(1);
 }
 
 #[test]
 fn escape_cancels_a_2d_reorder_with_no_undo() {
-    let mut h = harness(3);
-    lift(&mut h, 2);
-    move_past(&mut h, 4);
-    assert_ne!(layout_order(&h)[..6], [0, 1, 2, 3, 4, 5]);
-    h.key_press(Key::Escape);
-    h.run_steps(8);
-    assert_eq!(layout_order(&h)[..6], [0, 1, 2, 3, 4, 5]);
-    assert_eq!(order(&h)[..6], [0, 1, 2, 3, 4, 5]);
-    let far = rect(&h, 8).center();
-    pointer_to(&mut h, far);
-    assert_eq!(layout_order(&h)[..6], [0, 1, 2, 3, 4, 5], "stays cancelled");
+    let mut d = harness(3);
+    lift(&mut d, 2);
+    move_past(&mut d, 4);
+    assert_ne!(layout_order(&d)[..6], [0, 1, 2, 3, 4, 5]);
+    d.press(Key::Escape).frames(7);
+    assert_eq!(layout_order(&d)[..6], [0, 1, 2, 3, 4, 5]);
+    assert_eq!(order(&d)[..6], [0, 1, 2, 3, 4, 5]);
+    let far = rect(&d, 8).center();
+    pointer_to(&mut d, far);
+    assert_eq!(layout_order(&d)[..6], [0, 1, 2, 3, 4, 5], "stays cancelled");
     assert!(
-        h.state().app.status.contains("Cancelled(Esc)"),
+        d.app().status.contains("Cancelled(Esc)"),
         "{}",
-        h.state().app.status
+        d.app().status
     );
 }
 
 #[test]
 fn releasing_outside_the_viewport_cancels() {
-    let mut h = harness(3);
-    lift(&mut h, 2);
-    move_past(&mut h, 4);
-    h.drop_at(Pos2::new(SIZE.x + 40.0, SIZE.y / 2.0));
-    h.run_steps(8);
-    assert_eq!(order(&h)[..6], [0, 1, 2, 3, 4, 5]);
-    assert_eq!(layout_order(&h)[..6], [0, 1, 2, 3, 4, 5]);
+    let mut d = harness(3);
+    lift(&mut d, 2);
+    move_past(&mut d, 4);
+    d.harness_mut()
+        .drop_at(Pos2::new(SIZE.x + 40.0, SIZE.y / 2.0));
+    d.frames(8);
+    assert_eq!(order(&d)[..6], [0, 1, 2, 3, 4, 5]);
+    assert_eq!(layout_order(&d)[..6], [0, 1, 2, 3, 4, 5]);
     assert!(
-        h.state().app.status.contains("Cancelled(Outside)"),
+        d.app().status.contains("Cancelled(Outside)"),
         "{}",
-        h.state().app.status
+        d.app().status
     );
 }
 
 #[test]
 fn losing_window_focus_cancels() {
-    let mut h = harness(3);
-    lift(&mut h, 2);
-    move_past(&mut h, 4);
-    h.event(Event::WindowFocused(false));
-    h.run_steps(8);
-    assert!(!carried(&h));
-    assert_eq!(layout_order(&h)[..6], [0, 1, 2, 3, 4, 5]);
+    let mut d = harness(3);
+    lift(&mut d, 2);
+    move_past(&mut d, 4);
+    d.event(Event::WindowFocused(false)).frames(7);
+    assert!(!carried(&d));
+    assert_eq!(layout_order(&d)[..6], [0, 1, 2, 3, 4, 5]);
     assert!(
-        h.state()
-            .app
+        d.app()
             .status
             .contains(&format!("{:?}", DragEnd::Cancelled(Cause::FocusLost))),
         "{}",
-        h.state().app.status
+        d.app().status
     );
 }
 
 #[test]
 fn a_panel_removed_mid_drag_cancels_the_drag() {
-    let mut h = harness(3);
-    lift(&mut h, 2);
-    h.state_mut().app.panels.retain(|p| p.0.0 != 2);
-    h.run_steps(3);
-    assert!(!carried(&h));
-    assert!(
-        h.state().app.status.contains("SourceGone"),
-        "{}",
-        h.state().app.status
-    );
+    let mut d = harness(3);
+    lift(&mut d, 2);
+    d.app_mut().panels.retain(|p| p.0.0 != 2);
+    d.frames(3);
+    assert!(!carried(&d));
+    assert!(d.app().status.contains("SourceGone"), "{}", d.app().status);
 }
 
 #[test]
 fn the_drag_keeps_its_identity_while_the_order_changes_under_it() {
-    let mut h = harness(3);
-    lift(&mut h, 2);
+    let mut d = harness(3);
+    lift(&mut d, 2);
     for target in [4, 7, 1] {
-        move_past(&mut h, target);
-        assert!(carried(&h), "still dragging after crossing {target}");
+        move_past(&mut d, target);
+        assert!(carried(&d), "still dragging after crossing {target}");
     }
     assert_eq!(
-        layout_order(&h).iter().position(|&k| k == 2),
+        layout_order(&d).iter().position(|&k| k == 2),
         Some(2),
         "after panel 1 and before 3: a different slot, the same drag"
     );
@@ -325,123 +285,108 @@ fn the_drag_keeps_its_identity_while_the_order_changes_under_it() {
 
 #[test]
 fn outside_files_show_a_gap_and_insert_at_the_pointer() {
-    let mut h = harness(3);
-    let at = after_middle(&h, 4);
-    h.hover_at(at);
-    hover_files(&mut h, &["pic.png"]);
-    h.run_steps(3);
+    let mut d = harness(3);
+    let at = after_middle(&d, 4);
+    d.harness_mut().hover_at(at);
+    d.hover_files(&paths(&["pic.png"])).frames(2);
     assert!(
-        support::last_drawn(&h.ctx, &format!("{}/\"insert\"", gallery::GRID)).is_some(),
+        support::last_drawn(d.ctx(), &format!("{}/\"insert\"", gallery::GRID)).is_some(),
         "a placeholder holds the gap"
     );
     assert!(
-        layout_order(&h)[..6] == [0, 1, 2, 3, 4, 5],
+        layout_order(&d)[..6] == [0, 1, 2, 3, 4, 5],
         "the panels are in order, the gap after 4"
     );
     assert!(
-        rect(&h, 5).min.x > rect(&h, 4).max.x + 1.0 || rect(&h, 5).min.y > rect(&h, 4).max.y - 1.0
+        rect(&d, 5).min.x > rect(&d, 4).max.x + 1.0 || rect(&d, 5).min.y > rect(&d, 4).max.y - 1.0
     );
-    drop_files(&mut h, &["/tmp/pic.png"]);
-    h.run_steps(3);
-    let app = &h.state().app;
+    d.drop_files(&paths(&["/tmp/pic.png"])).frames(2);
+    let app = &d.app();
     assert_eq!(app.panels.len(), 13);
     assert_eq!(app.panels[5].1, "pic.png");
     assert!(
-        support::last_drawn(&h.ctx, &format!("{}/\"insert\"", gallery::GRID)).is_none(),
+        support::last_drawn(d.ctx(), &format!("{}/\"insert\"", gallery::GRID)).is_none(),
         "the gap is gone"
     );
 }
 
 #[test]
 fn outside_files_of_the_wrong_type_show_nothing_and_are_refused() {
-    let mut h = harness(3);
-    let at = rect(&h, 4).center();
-    h.hover_at(at);
-    hover_files(&mut h, &["notes.txt"]);
-    h.run_steps(3);
-    assert!(support::last_drawn(&h.ctx, &format!("{}/\"insert\"", gallery::GRID)).is_none());
-    drop_files(&mut h, &["/tmp/notes.txt"]);
-    h.run_steps(3);
-    assert_eq!(h.state().app.panels.len(), 12);
-    assert!(
-        h.state().app.status.starts_with("refused"),
-        "{}",
-        h.state().app.status
-    );
+    let mut d = harness(3);
+    let at = rect(&d, 4).center();
+    d.harness_mut().hover_at(at);
+    d.hover_files(&paths(&["notes.txt"])).frames(2);
+    assert!(support::last_drawn(d.ctx(), &format!("{}/\"insert\"", gallery::GRID)).is_none());
+    d.drop_files(&paths(&["/tmp/notes.txt"])).frames(2);
+    assert_eq!(d.app().panels.len(), 12);
+    assert!(d.app().status.starts_with("refused"), "{}", d.app().status);
 }
 
 #[test]
 fn a_drop_with_no_position_appends_and_scrolls_the_new_panel_into_view() {
-    let mut h = harness(3);
+    let mut d = harness(3);
     assert!(
-        rect(&h, 11).max.y > SIZE.y,
+        rect(&d, 11).max.y > SIZE.y,
         "precondition: the end is below the fold"
     );
-    let before = rect(&h, 0).min.y;
-    hover_files(&mut h, &["pic.png"]);
-    h.run_steps(3);
+    let before = rect(&d, 0).min.y;
+    d.hover_files(&paths(&["pic.png"])).frames(2);
     assert!(
-        support::last_drawn(&h.ctx, &format!("{}/\"insert\"", gallery::GRID)).is_none(),
+        support::last_drawn(d.ctx(), &format!("{}/\"insert\"", gallery::GRID)).is_none(),
         "no position, so no gap, and nothing is guessed"
     );
-    drop_files(&mut h, &["/tmp/pic.png"]);
-    h.run_steps(30);
-    let app = &h.state().app;
+    d.drop_files(&paths(&["/tmp/pic.png"])).frames(29);
+    let app = &d.app();
     assert_eq!(app.panels.len(), 13);
     assert_eq!(app.panels[12].1, "pic.png");
     assert!(app.reveal.is_none());
     assert!(
-        rect(&h, 12).min.y < SIZE.y && rect(&h, 12).max.y > 0.0,
+        rect(&d, 12).min.y < SIZE.y && rect(&d, 12).max.y > 0.0,
         "the new panel is on screen"
     );
-    assert!(rect(&h, 0).min.y < before - 20.0, "the view scrolled");
+    assert!(rect(&d, 0).min.y < before - 20.0, "the view scrolled");
 }
 
 #[test]
 fn a_drop_at_a_position_that_arrived_with_it_inserts_there() {
-    let mut h = harness(3);
-    let at = after_middle(&h, 4);
-    h.hover_at(at);
-    hover_files(&mut h, &["pic.png"]);
-    h.step();
-    drop_files(&mut h, &["/tmp/pic.png"]);
-    h.hover_at(at);
-    h.run_steps(3);
-    assert_eq!(h.state().app.panels[5].1, "pic.png");
+    let mut d = harness(3);
+    let at = after_middle(&d, 4);
+    d.harness_mut().hover_at(at);
+    d.hover_files(&paths(&["pic.png"]));
+    d.harness_mut().hover_at(at);
+    d.drop_files(&paths(&["/tmp/pic.png"])).frames(2);
+    assert_eq!(d.app().panels[5].1, "pic.png");
 }
 
 #[test]
 fn dragging_near_the_bottom_edge_scrolls_and_the_gap_follows() {
-    let mut h = harness(3);
-    lift(&mut h, 0);
-    let grid_top = |h: &H<'_>| support::layout_rect(&h.ctx, gallery::GRID).min.y;
-    let before = grid_top(&h);
-    pointer_to(&mut h, near_the_bottom_edge());
-    h.run_steps(10);
+    let mut d = harness(3);
+    lift(&mut d, 0);
+    let grid_top = |d: &H| support::layout_rect(d.ctx(), gallery::GRID).min.y;
+    let before = grid_top(&d);
+    d.hover(near_the_bottom_edge());
+    d.frames(10);
     assert!(
-        grid_top(&h) < before - 20.0,
+        grid_top(&d) < before - 20.0,
         "content scrolled up: {before} -> {}",
-        grid_top(&h)
+        grid_top(&d)
     );
-    let slot = layout_order(&h).iter().position(|&k| k == 0).unwrap();
+    let slot = layout_order(&d).iter().position(|&k| k == 0).unwrap();
     assert!(slot >= 6, "the panel went to a lower row: {slot}");
 }
 
 #[test]
 fn outside_drop_on_a_scrolled_away_part_via_auto_scroll() {
-    let mut h = harness(3);
-    h.hover_at(near_the_bottom_edge());
-    hover_files(&mut h, &["far.png"]);
-    h.run_steps(30);
+    let mut d = harness(3);
+    d.harness_mut().hover_at(near_the_bottom_edge());
+    d.hover_files(&paths(&["far.png"])).frames(29);
     assert!(
-        support::last_drawn(&h.ctx, &format!("{}/\"insert\"", gallery::GRID)).is_some(),
+        support::last_drawn(d.ctx(), &format!("{}/\"insert\"", gallery::GRID)).is_some(),
         "a placeholder holds the gap"
     );
-    drop_files(&mut h, &["/tmp/far.png"]);
-    h.run_steps(2);
-    let at = h
-        .state()
-        .app
+    d.drop_files(&paths(&["/tmp/far.png"])).frames(1);
+    let at = d
+        .app()
         .panels
         .iter()
         .position(|p| p.1 == "far.png")
@@ -454,44 +399,43 @@ fn outside_drop_on_a_scrolled_away_part_via_auto_scroll() {
 
 #[test]
 fn the_wheel_scrolls_during_a_drag() {
-    let mut h = harness(3);
-    lift(&mut h, 0);
-    pointer_to(&mut h, Pos2::new(SIZE.x / 2.0, SIZE.y / 2.0));
-    let before = rect(&h, 8).min.y;
-    h.event(Event::MouseWheel {
+    let mut d = harness(3);
+    lift(&mut d, 0);
+    d.hover(Pos2::new(SIZE.x / 2.0, SIZE.y / 2.0));
+    let before = rect(&d, 8).min.y;
+    d.event(Event::MouseWheel {
         unit: MouseWheelUnit::Point,
         delta: vec2(0.0, -150.0),
         modifiers: Modifiers::NONE,
         phase: egui::TouchPhase::Move,
         source: egui::MouseWheelSource::Unknown,
-    });
-    h.run_steps(8);
+    })
+    .frames(7);
     assert!(
-        rect(&h, 8).min.y < before - 20.0,
+        rect(&d, 8).min.y < before - 20.0,
         "the wheel scrolled while dragging"
     );
-    assert!(carried(&h));
+    assert!(carried(&d));
 }
 
 #[test]
 fn scrolling_alone_does_not_slide_panels() {
-    let mut h = harness(3);
-    pointer_to(&mut h, Pos2::new(SIZE.x / 2.0, SIZE.y / 2.0));
-    let before = rect(&h, 4).min.y;
-    h.event(Event::MouseWheel {
+    let mut d = harness(3);
+    d.hover(Pos2::new(SIZE.x / 2.0, SIZE.y / 2.0));
+    let before = rect(&d, 4).min.y;
+    d.event(Event::MouseWheel {
         unit: MouseWheelUnit::Point,
         delta: vec2(0.0, -60.0),
         modifiers: Modifiers::NONE,
         phase: egui::TouchPhase::Move,
         source: egui::MouseWheelSource::Unknown,
-    });
-    h.step();
-    h.step();
-    assert!(rect(&h, 4).min.y < before - 10.0, "it did scroll");
+    })
+    .frames(1);
+    assert!(rect(&d, 4).min.y < before - 10.0, "it did scroll");
     for key in [0, 4, 7] {
         assert!(
-            (painted(&h, key).min
-                - support::last_drawn(&h.ctx, &face_path(key))
+            (painted(&d, key).min
+                - support::last_drawn(d.ctx(), &face_path(key))
                     .unwrap()
                     .layout_rect
                     .min)
@@ -504,15 +448,15 @@ fn scrolling_alone_does_not_slide_panels() {
 
 #[test]
 fn changing_the_column_count_reflows_with_final_layout_and_a_slide() {
-    let mut h = harness(3);
-    let old = rect(&h, 3);
-    h.state_mut().app.cols = 2;
-    h.step();
-    let now = rect(&h, 3);
+    let mut d = harness(3);
+    let old = rect(&d, 3);
+    d.app_mut().cols = 2;
+    d.frames(1);
+    let now = rect(&d, 3);
     assert!(now.min != old.min && now.width() > old.width());
     assert!(
-        (painted(&h, 3).min
-            - support::last_drawn(&h.ctx, &face_path(3))
+        (painted(&d, 3).min
+            - support::last_drawn(d.ctx(), &face_path(3))
                 .unwrap()
                 .layout_rect
                 .min)
@@ -520,8 +464,8 @@ fn changing_the_column_count_reflows_with_final_layout_and_a_slide() {
             > 3.0,
         "panel 3 is not yet painted at its final rect"
     );
-    h.run_steps(20);
-    assert!((painted(&h, 3).min - face_layout(&h, 3).min).length() < 1.0);
+    d.frames(20);
+    assert!((painted(&d, 3).min - face_layout(&d, 3).min).length() < 1.0);
 }
 
 /// The gallery under a toolbar strip, as `main` lays it out.
@@ -541,9 +485,9 @@ fn under_a_toolbar(ui: &mut egui::Ui, app: &mut State, layout: &mut eggshell_ui:
 
 /// The trace painted last, which is the lifted panel's: its shapes are on the
 /// layer above every other. With its shape index and clip.
-fn lifted_trace(h: &H<'_>) -> (Vec<Pos2>, usize, Rect) {
+fn lifted_trace(d: &H) -> (Vec<Pos2>, usize, Rect) {
     let mut last = None;
-    for (i, clipped) in h.output().shapes.iter().enumerate() {
+    for (i, clipped) in d.harness().output().shapes.iter().enumerate() {
         let mut flat = Vec::new();
         support::flatten(&clipped.shape, &mut flat);
         for shape in flat {
@@ -559,19 +503,19 @@ fn lifted_trace(h: &H<'_>) -> (Vec<Pos2>, usize, Rect) {
 
 #[test]
 fn the_live_image_keeps_moving_under_the_pointer() {
-    let mut h = harness(3);
-    lift(&mut h, 0);
-    let at = rect(&h, 4).center() + vec2(17.0, 13.0);
-    pointer_to(&mut h, at);
-    let (first, ..) = lifted_trace(&h);
+    let mut d = harness(3);
+    lift(&mut d, 0);
+    let at = rect(&d, 4).center() + vec2(17.0, 13.0);
+    d.hover(at);
+    let (first, ..) = lifted_trace(&d);
     let centre = Rect::from_points(&first).center();
     assert!(
         (centre - at).length() < 40.0,
         "the trace is under the pointer: {centre:?}"
     );
-    h.step();
-    h.step();
-    let (second, ..) = lifted_trace(&h);
+    d.frames(1);
+    d.frames(1);
+    let (second, ..) = lifted_trace(&d);
     assert_ne!(
         first, second,
         "the lifted panel's trace changed between frames"
@@ -580,18 +524,19 @@ fn the_live_image_keeps_moving_under_the_pointer() {
 
 #[test]
 fn the_live_image_is_unclipped_and_above_the_toolbar() {
-    let mut h = support::frame_harness(
+    let mut d = support::recorded(support::frame_driver(
         SIZE,
         common::base_text(egui::Theme::Light),
         State::default(),
         under_a_toolbar,
-    );
-    h.run_steps(4);
-    lift(&mut h, 0);
+    ));
+    d.frames(4);
+    lift(&mut d, 0);
     let viewport_top = 44.0;
     let at = Pos2::new(SIZE.x / 2.0, 10.0);
-    pointer_to(&mut h, at);
-    let toolbar = h
+    d.hover(at);
+    let toolbar = d
+        .harness()
         .output()
         .shapes
         .iter()
@@ -599,7 +544,7 @@ fn the_live_image_is_unclipped_and_above_the_toolbar() {
             |s| matches!(&s.shape, Shape::Rect(r) if r.fill == egui::Color32::from_rgb(1, 2, 3)),
         )
         .expect("the toolbar is painted");
-    let (trace, index, clip) = lifted_trace(&h);
+    let (trace, index, clip) = lifted_trace(&d);
     assert!(
         index > toolbar,
         "the lifted trace is painted after the toolbar"
@@ -616,11 +561,11 @@ fn the_live_image_is_unclipped_and_above_the_toolbar() {
 
 #[test]
 fn the_slot_is_outlined_while_the_panel_is_lifted_and_the_image_has_no_outline() {
-    let mut h = harness(3);
-    let ring = common::tokens(&h.ctx).ring;
-    let strokes = |h: &H<'_>| -> Vec<Rect> {
+    let mut d = harness(3);
+    let ring = common::tokens(d.ctx()).ring;
+    let strokes = |d: &H| -> Vec<Rect> {
         let mut all = Vec::new();
-        for clipped in &h.output().shapes {
+        for clipped in &d.harness().output().shapes {
             support::flatten(&clipped.shape, &mut all);
         }
         all.into_iter()
@@ -630,20 +575,20 @@ fn the_slot_is_outlined_while_the_panel_is_lifted_and_the_image_has_no_outline()
             })
             .collect()
     };
-    assert!(strokes(&h).is_empty(), "no outline before the lift");
-    lift(&mut h, 0);
-    let away = rect(&h, 0).center() + vec2(0.0, 40.0);
-    pointer_to(&mut h, away);
-    let slot = rect(&h, 0);
+    assert!(strokes(&d).is_empty(), "no outline before the lift");
+    lift(&mut d, 0);
+    let away = rect(&d, 0).center() + vec2(0.0, 40.0);
+    d.hover(away);
+    let slot = rect(&d, 0);
     assert!(
-        strokes(&h)
+        strokes(&d)
             .iter()
             .any(|r| support::same(*r, slot.shrink(1.0)) || support::same(*r, slot)),
         "the slot is outlined: {:?} vs {slot:?}",
-        strokes(&h)
+        strokes(&d)
     );
     assert!(
-        (painted(&h, 0).center() - slot.center()).length() < 1.0,
+        (painted(&d, 0).center() - slot.center()).length() < 1.0,
         "and the layout rect is still the slot"
     );
 }
@@ -652,13 +597,13 @@ fn the_slot_is_outlined_while_the_panel_is_lifted_and_the_image_has_no_outline()
 fn the_chip_image_leaves_the_panel_in_its_slot_dimmed() {
     let mut state = State::default();
     state.image = Image::Chip;
-    let mut h = harness_with(state, gallery::frame);
-    lift(&mut h, 0);
-    let pointer = rect(&h, 4).center();
-    pointer_to(&mut h, pointer);
-    h.run_steps(20);
-    let label = |h: &H<'_>| -> Vec<(Pos2, f32)> {
-        support::flatten_all(h)
+    let mut d = harness_with(state, gallery::frame);
+    lift(&mut d, 0);
+    let pointer = rect(&d, 4).center();
+    d.hover(pointer);
+    d.frames(20);
+    let label = |d: &H| -> Vec<(Pos2, f32)> {
+        support::shapes(d)
             .into_iter()
             .filter_map(|s| match s {
                 Shape::Text(t) if t.galley.text() == "w0" => Some((t.pos, t.opacity_factor)),
@@ -666,7 +611,7 @@ fn the_chip_image_leaves_the_panel_in_its_slot_dimmed() {
             })
             .collect()
     };
-    let labels = label(&h);
+    let labels = label(&d);
     assert_eq!(labels.len(), 2, "the panel's own label and the chip's");
     let (in_slot, chip): (Vec<_>, Vec<_>) = labels
         .into_iter()
@@ -676,37 +621,36 @@ fn the_chip_image_leaves_the_panel_in_its_slot_dimmed() {
         "the chip follows the pointer, undimmed: {chip:?}"
     );
     assert_eq!(in_slot.len(), 1, "the panel's label stays in its slot");
-    let dimmed = common::tokens(&h.ctx).muted.gamma_multiply(0.35);
+    let dimmed = common::tokens(d.ctx()).muted.gamma_multiply(0.35);
     assert!(
-        painted_fills(&h, dimmed)
+        painted_fills(&d, dimmed)
             .iter()
-            .any(|face| support::same(*face, face_layout(&h, 0))),
+            .any(|face| support::same(*face, face_layout(&d, 0))),
         "the face in the slot is dimmed"
     );
     assert!(
-        (painted(&h, 0).center() - face_layout(&h, 0).center()).length() < 1.0,
+        (painted(&d, 0).center() - face_layout(&d, 0).center()).length() < 1.0,
         "and is painted at it"
     );
 }
 
 #[test]
 fn on_release_the_panel_is_opaque_in_its_slot_with_no_flash() {
-    let mut h = harness(3);
-    let muted = common::tokens(&h.ctx).muted;
-    lift(&mut h, 0);
-    move_past(&mut h, 4);
-    let at = rect(&h, 0).center();
-    h.drop_at(at);
-    h.step();
-    let slot = rect(&h, 0);
+    let mut d = harness(3);
+    let muted = common::tokens(d.ctx()).muted;
+    lift(&mut d, 0);
+    move_past(&mut d, 4);
+    let at = rect(&d, 0).center();
+    d.pointer_up(at).event(Event::PointerGone);
+    let slot = rect(&d, 0);
     // The toolbar's segmented controls share the fill; count panel faces only.
-    let face = face_layout(&h, 1);
-    let faces: Vec<Rect> = painted_fills(&h, muted)
+    let face = face_layout(&d, 1);
+    let faces: Vec<Rect> = painted_fills(&d, muted)
         .into_iter()
         .filter(|r| (r.width() - face.width()).abs() < 2.0)
         .collect();
     let in_view = (0..12)
-        .filter(|&key| rect(&h, key).intersects(VIEWPORT))
+        .filter(|&key| rect(&d, key).intersects(VIEWPORT))
         .count();
     assert!(in_view < 12, "precondition: some panels are scrolled out");
     assert!(
@@ -727,8 +671,8 @@ fn on_release_the_panel_is_opaque_in_its_slot_with_no_flash() {
     );
 }
 
-fn painted_fills(h: &H<'_>, fill: egui::Color32) -> Vec<Rect> {
-    support::flatten_all(h)
+fn painted_fills(d: &H, fill: egui::Color32) -> Vec<Rect> {
+    support::shapes(d)
         .into_iter()
         .filter_map(|s| match s {
             Shape::Rect(r) if r.fill == fill => Some(r.rect),
@@ -743,26 +687,25 @@ fn painted_fills(h: &H<'_>, fill: egui::Color32) -> Vec<Rect> {
 /// width, so the trace's horizontal centre is the panel's.
 #[test]
 fn the_lifted_panel_never_lags_its_slot_when_the_order_changes() {
-    let mut h = harness(3);
-    lift(&mut h, 2);
-    let start = h.ctx.pointer_latest_pos().expect("a pointer");
-    let centre_x = |h: &H<'_>| {
-        let (trace, ..) = lifted_trace(h);
+    let mut d = harness(3);
+    lift(&mut d, 2);
+    let start = d.ctx().pointer_latest_pos().expect("a pointer");
+    let centre_x = |d: &H| {
+        let (trace, ..) = lifted_trace(d);
         (trace[0].x + trace[trace.len() - 1].x) / 2.0
     };
-    let grab_x = start.x - centre_x(&h);
-    let target = rect(&h, 1).center() - vec2(rect(&h, 1).width() / 4.0, 0.0);
+    let grab_x = start.x - centre_x(&d);
+    let target = rect(&d, 1).center() - vec2(rect(&d, 1).width() / 4.0, 0.0);
     assert!(
-        target.x < start.x - rect(&h, 1).width() / 2.0,
+        target.x < start.x - rect(&d, 1).width() / 2.0,
         "precondition: the walk crosses into column 2"
     );
     let mut reordered = false;
     for step in 1..=20 {
         let at = start + (target - start) * (step as f32 / 20.0);
-        h.hover_at(at);
-        h.step();
-        reordered |= layout_order(&h)[1] == 2;
-        let drawn = centre_x(&h);
+        d.carry_to(at);
+        reordered |= layout_order(&d)[1] == 2;
+        let drawn = centre_x(&d);
         assert!(
             (drawn - (at.x - grab_x)).abs() < 1.5,
             "step {step}: the lifted panel is centred at x={drawn}, not under the pointer at x={}",
@@ -777,62 +720,58 @@ fn the_lifted_panel_never_lags_its_slot_when_the_order_changes() {
 
 #[test]
 fn a_whole_gallery_drag_is_continuous() {
-    let mut h = harness(3);
-    lift(&mut h, 2);
+    let mut d = harness(3);
+    lift(&mut d, 2);
     for target in [4, 7, 1, 10] {
-        move_past(&mut h, target);
+        move_past(&mut d, target);
     }
-    let at = rect(&h, 2).center();
-    h.drop_at(at);
-    h.run_steps(20);
-    Timeline::recorded(&h.ctx).assert_continuous();
+    let at = rect(&d, 2).center();
+    d.pointer_up(at).event(Event::PointerGone).frames(19);
+    Timeline::recorded(d.ctx()).assert_continuous();
 }
 
 #[test]
 fn an_escaped_gallery_drag_is_continuous() {
-    let mut h = harness(2);
-    lift(&mut h, 1);
+    let mut d = harness(2);
+    lift(&mut d, 1);
     for target in [3, 5] {
-        move_past(&mut h, target);
+        move_past(&mut d, target);
     }
-    h.key_press(Key::Escape);
-    h.run_steps(20);
-    Timeline::recorded(&h.ctx).assert_continuous();
+    d.press(Key::Escape).frames(19);
+    Timeline::recorded(d.ctx()).assert_continuous();
 }
 
 #[test]
 fn a_resize_under_a_held_panel_keeps_the_drag() {
-    let mut h = harness(3);
-    lift(&mut h, 0);
+    let mut d = harness(3);
+    lift(&mut d, 0);
     let mut width = SIZE.x;
     while width > 400.0 {
         width -= 12.0;
-        h.set_size(vec2(width, SIZE.y));
-        h.step();
-        assert!(carried(&h), "still dragging at width {width}");
+        d.resize(vec2(width, SIZE.y));
+        assert!(carried(&d), "still dragging at width {width}");
     }
-    h.run_steps(20);
+    d.frames(20);
     assert_eq!(
-        layout_order(&h)[..3],
+        layout_order(&d)[..3],
         [0, 1, 2],
         "the pointer stayed over the first slot"
     );
-    assert!(rect(&h, 1).max.x <= width, "the grid follows the window");
-    let at = rect(&h, 0).center();
-    h.drop_at(at);
-    h.run_steps(20);
-    Timeline::recorded(&h.ctx).assert_continuous();
+    assert!(rect(&d, 1).max.x <= width, "the grid follows the window");
+    let at = rect(&d, 0).center();
+    d.pointer_up(at).event(Event::PointerGone).frames(19);
+    Timeline::recorded(d.ctx()).assert_continuous();
 }
 
 #[test]
 fn a_gallery_grown_by_a_column_change_while_scrolling_slides_a_reorder() {
-    let mut h = harness(3);
-    lift(&mut h, 0);
-    pointer_to(&mut h, near_the_bottom_edge());
-    h.run_steps(4);
-    let before = painted(&h, 1);
-    move_past(&mut h, 3);
-    let after = painted(&h, 1);
+    let mut d = harness(3);
+    lift(&mut d, 0);
+    d.hover(near_the_bottom_edge());
+    d.frames(4);
+    let before = painted(&d, 1);
+    move_past(&mut d, 3);
+    let after = painted(&d, 1);
     assert!(
         (after.min - before.min).length() < 120.0,
         "a reorder while the view scrolls slides, it does not snap: {before:?} -> {after:?}"
@@ -843,16 +782,16 @@ fn a_gallery_grown_by_a_column_change_while_scrolling_slides_a_reorder() {
 /// the dimmed in-slot look a chip drag uses.
 #[test]
 fn the_live_image_keeps_the_panels_look_at_rest() {
-    let mut h = harness(3);
-    lift(&mut h, 0);
-    let over = rect(&h, 4).center() + vec2(17.0, 13.0);
-    pointer_to(&mut h, over);
+    let mut d = harness(3);
+    lift(&mut d, 0);
+    let over = rect(&d, 4).center() + vec2(17.0, 13.0);
+    d.hover(over);
     assert!(
-        carried(&h),
+        carried(&d),
         "precondition: the panel is carried as a live image"
     );
     let opacity = |key: u32| {
-        support::last_drawn(&h.ctx, &face_path(key))
+        support::last_drawn(d.ctx(), &face_path(key))
             .expect("the face is drawn")
             .opacity
     };
@@ -868,18 +807,18 @@ fn the_live_image_keeps_the_panels_look_at_rest() {
 /// toolbar drawn first, the panels never moved.)
 #[test]
 fn another_tree_drawn_first_keeps_the_preview() {
-    let mut h = harness(3);
-    let before = layout_order(&h);
+    let mut d = harness(3);
+    let before = layout_order(&d);
     assert_eq!(
         before[..3],
         [0, 1, 2],
         "precondition: the gallery starts in order"
     );
-    lift(&mut h, 0);
-    move_past(&mut h, 4);
-    assert!(carried(&h), "precondition: the panel is still carried");
+    lift(&mut d, 0);
+    move_past(&mut d, 4);
+    assert!(carried(&d), "precondition: the panel is still carried");
     assert_ne!(
-        layout_order(&h)[..6],
+        layout_order(&d)[..6],
         before[..6],
         "the other panels make room while the drag is over the grid"
     );
@@ -890,14 +829,14 @@ fn the_drag_chip_wears_the_tooltip_look_in_both_themes() {
     for theme in [egui::Theme::Light, egui::Theme::Dark] {
         let mut state = State::default();
         state.image = Image::Chip;
-        let mut h = harness_with(state, gallery::frame);
-        h.ctx.set_theme(theme);
-        h.run_steps(4);
-        lift(&mut h, 0);
-        let pointer = rect(&h, 4).center();
-        pointer_to(&mut h, pointer);
-        let tokens = common::tokens(&h.ctx);
-        let labels: Vec<(Pos2, Color32)> = support::flatten_all(&h)
+        let mut d = harness_with(state, gallery::frame);
+        d.ctx().set_theme(theme);
+        d.frames(4);
+        lift(&mut d, 0);
+        let pointer = rect(&d, 4).center();
+        d.hover(pointer);
+        let tokens = common::tokens(d.ctx());
+        let labels: Vec<(Pos2, Color32)> = support::shapes(&d)
             .into_iter()
             .filter_map(|s| match s {
                 Shape::Text(t) if t.galley.text() == "w0" => {
@@ -916,7 +855,7 @@ fn the_drag_chip_wears_the_tooltip_look_in_both_themes() {
             "{theme:?}: one label at the pointer: {labels:?}"
         );
         assert_eq!(chip[0].1, tokens.primary_foreground, "{theme:?}: text");
-        let fills: Vec<Rect> = support::flatten_all(&h)
+        let fills: Vec<Rect> = support::shapes(&d)
             .into_iter()
             .filter_map(|s| match s {
                 Shape::Rect(r) if r.fill == tokens.primary && r.rect.contains(chip[0].0) => {
@@ -950,34 +889,22 @@ fn grip_path(key: u32) -> String {
     format!("{}/\"grip\"", face_path(key))
 }
 
-fn lift_from(h: &mut H<'_>, from: Pos2) {
-    h.hover_at(from);
-    h.run_steps(3);
-    h.drag_at(from);
-    h.step();
-    h.hover_at(from + vec2(0.0, 6.0));
-    h.step();
-    h.hover_at(from + vec2(0.0, 12.0));
-    h.run_steps(2);
-}
-
 #[test]
 fn h_switches_to_grip_mode_where_only_the_grip_lifts_a_panel() {
-    let mut h = harness(3);
+    let mut d = harness(3);
     assert_eq!(
-        h.state().app.lift,
+        d.app().lift,
         Lift::Anywhere,
         "precondition: a panel lifts from anywhere by default"
     );
     assert!(
-        eggshell_ui::testing::laid_out_rect(&h.ctx, &grip_path(2)).is_none(),
+        eggshell_ui::testing::laid_out_rect(d.ctx(), &grip_path(2)).is_none(),
         "no grip by default"
     );
-    h.key_press(Key::H);
-    h.run_steps(3);
-    assert_eq!(h.state().app.lift, Lift::Grip);
-    let grip = support::layout_rect(&h.ctx, &grip_path(2));
-    let face = face_layout(&h, 2);
+    d.press(Key::H).frames(2);
+    assert_eq!(d.app().lift, Lift::Grip);
+    let grip = support::layout_rect(d.ctx(), &grip_path(2));
+    let face = face_layout(&d, 2);
     assert!(face.contains_rect(grip), "the grip is on the face");
 
     let body = face.center();
@@ -985,23 +912,22 @@ fn h_switches_to_grip_mode_where_only_the_grip_lifts_a_panel() {
         !grip.contains(body),
         "precondition: the face's centre is not the grip"
     );
-    lift_from(&mut h, body);
-    assert!(!carried(&h), "the face's body no longer lifts the panel");
-    h.drop_at(body + vec2(0.0, 12.0));
-    h.run_steps(3);
+    d.lift(body, vec2(0.0, 12.0)).frames(1);
+    assert!(!carried(&d), "the face's body no longer lifts the panel");
+    d.pointer_up(body + vec2(0.0, 12.0))
+        .event(Event::PointerGone)
+        .frames(2);
 
-    lift_from(&mut h, grip.center());
-    assert!(carried(&h), "the grip lifts the panel");
-    move_past(&mut h, 4);
-    assert_eq!(layout_order(&h)[..6], [0, 1, 3, 4, 2, 5], "the panel moves");
-    let at = rect(&h, 2).center();
-    h.drop_at(at);
-    h.run_steps(3);
-    assert_eq!(order(&h)[..6], [0, 1, 3, 4, 2, 5]);
+    d.lift(grip.center(), vec2(0.0, 12.0)).frames(1);
+    assert!(carried(&d), "the grip lifts the panel");
+    move_past(&mut d, 4);
+    assert_eq!(layout_order(&d)[..6], [0, 1, 3, 4, 2, 5], "the panel moves");
+    let at = rect(&d, 2).center();
+    d.pointer_up(at).event(Event::PointerGone).frames(2);
+    assert_eq!(order(&d)[..6], [0, 1, 3, 4, 2, 5]);
 
-    h.key_press(Key::H);
-    h.run_steps(3);
-    assert_eq!(h.state().app.lift, Lift::Anywhere, "H switches back");
+    d.press(Key::H).frames(2);
+    assert_eq!(d.app().lift, Lift::Anywhere, "H switches back");
 }
 
 /// A resize that moves the held panel's insertion point reorders the
@@ -1009,24 +935,23 @@ fn h_switches_to_grip_mode_where_only_the_grip_lifts_a_panel() {
 #[test]
 fn a_resize_that_reorders_under_a_held_panel_is_continuous() {
     for cols in 3..=5 {
-        let mut h = harness(cols);
-        lift(&mut h, 2);
-        assert!(carried(&h), "cols {cols}: precondition: lifted");
-        let order = layout_order(&h);
+        let mut d = harness(cols);
+        lift(&mut d, 2);
+        assert!(carried(&d), "cols {cols}: precondition: lifted");
+        let order = layout_order(&d);
         let mut width = SIZE.x;
         while width < 857.0 {
             width = (width + 12.0).min(857.0);
-            h.set_size(vec2(width, SIZE.y));
-            h.step();
-            assert!(carried(&h), "cols {cols}: still dragging at {width}");
+            d.resize(vec2(width, SIZE.y));
+            assert!(carried(&d), "cols {cols}: still dragging at {width}");
         }
-        h.run_steps(20);
+        d.frames(20);
         assert_ne!(
-            layout_order(&h)[..6],
+            layout_order(&d)[..6],
             order[..6],
             "cols {cols}: precondition: the resize reorders the preview"
         );
-        Timeline::recorded(&h.ctx).assert_continuous();
+        Timeline::recorded(d.ctx()).assert_continuous();
     }
 }
 
@@ -1034,16 +959,15 @@ fn a_resize_that_reorders_under_a_held_panel_is_continuous() {
 /// it would lag the window's edge.
 #[test]
 fn a_plain_resize_places_the_panels_at_once() {
-    let mut h = harness(3);
+    let mut d = harness(3);
     let mut width = SIZE.x;
     while width > 400.0 {
         width -= 12.0;
-        h.set_size(vec2(width, SIZE.y));
-        h.step();
+        d.resize(vec2(width, SIZE.y));
         for key in 0..6 {
             assert_eq!(
-                painted(&h, key),
-                face_layout(&h, key),
+                painted(&d, key),
+                face_layout(&d, key),
                 "panel {key} at width {width}"
             );
         }

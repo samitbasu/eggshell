@@ -2,17 +2,16 @@
 //! what moves, through the real path (kittest pointer events, egui's hit test,
 //! the gesture, the layout and the draw).
 
-use eggshell_ui::testing::{Headless, assert_reported};
+use eggshell_ui::testing::{Driver, Headless, assert_reported};
 use eggshell_ui::{Builder, DragEnd, LayoutState, NodeUi as _, tw};
 use eggshell_ui::{Problem, Report};
 use egui::epaint::Shape;
 use egui::{Color32, CursorIcon, Event, Modifiers, PointerButton, Pos2, Rect, Ui, Vec2, vec2};
-use egui_kittest::Harness;
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
 
-use crate::support::{self, FrameRig};
+use crate::support;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Pane(u32);
@@ -39,7 +38,7 @@ struct App {
     ends: Vec<DragEnd>,
 }
 
-type H = Harness<'static, FrameRig<App>>;
+type H = Driver<App>;
 
 const GRIP_FILL: Color32 = Color32::from_rgb(250, 200, 0);
 
@@ -116,14 +115,14 @@ fn harness(lifts: Lifts) -> H {
         plot_drags: 0,
         ends: Vec::new(),
     };
-    let mut h = support::frame_harness(
+    let mut d = support::recorded(support::frame_driver(
         vec2(400.0, 340.0),
         common::base_text(egui::Theme::Light),
         app,
         frame,
-    );
-    h.run_steps(4);
-    h
+    ));
+    d.frames(4);
+    d
 }
 
 fn pane_path(key: u32) -> String {
@@ -134,61 +133,61 @@ fn part_path(key: u32, part: Part) -> String {
     format!("{}/{part:?}", pane_path(key))
 }
 
-fn pane(h: &H, key: u32) -> Rect {
-    support::layout_rect(&h.ctx, &pane_path(key))
+fn pane(d: &H, key: u32) -> Rect {
+    support::layout_rect(d.ctx(), &pane_path(key))
 }
 
-fn part(h: &H, key: u32, part: Part) -> Rect {
-    support::layout_rect(&h.ctx, &part_path(key, part))
+fn part(d: &H, key: u32, part: Part) -> Rect {
+    support::layout_rect(d.ctx(), &part_path(key, part))
 }
 
 /// A point of pane `key` on none of its children: its painted body.
-fn body(h: &H, key: u32) -> Pos2 {
-    let at = pane(h, key).max - vec2(12.0, 12.0);
+fn body(d: &H, key: u32) -> Pos2 {
+    let at = pane(d, key).max - vec2(12.0, 12.0);
     for child in [Part::Grip, Part::Button, Part::Plot] {
         assert!(
-            !part(h, key, child).contains(at),
+            !part(d, key, child).contains(at),
             "precondition: {at:?} is on the pane's body, not its {child:?}"
         );
     }
-    assert!(pane(h, key).contains(at), "precondition: on the pane");
+    assert!(pane(d, key).contains(at), "precondition: on the pane");
     at
 }
 
 /// The bottom half of pane 2: a drop there lands after it.
-fn after_the_last(h: &H) -> Pos2 {
-    pane(h, 2).center() + vec2(0.0, 20.0)
+fn after_the_last(d: &H) -> Pos2 {
+    pane(d, 2).center() + vec2(0.0, 20.0)
 }
 
-fn carried(h: &H) -> bool {
-    crate::support::shell(h).drag_pointer().is_some()
+fn carried(d: &H) -> bool {
+    d.shell().drag_pointer().is_some()
 }
 
-fn press_and_move(h: &mut H, from: Pos2, to: Pos2) {
-    h.hover_at(from);
-    h.run_steps(3);
-    h.drag_at(from);
-    h.step();
-    h.hover_at(from + vec2(0.0, 6.0));
-    h.step();
-    h.hover_at(from.lerp(to, 0.5));
-    h.step();
-    h.hover_at(to);
-    h.run_steps(2);
+fn press_and_move(d: &mut H, from: Pos2, to: Pos2) {
+    d.hover(from);
+    d.event(Event::PointerButton {
+        pos: from,
+        button: PointerButton::Primary,
+        pressed: true,
+        modifiers: Modifiers::NONE,
+    });
+    d.carry_to(from + vec2(0.0, 6.0));
+    d.carry_to(from.lerp(to, 0.5));
+    d.carry_to(to).frames(1);
 }
 
-fn release(h: &mut H, at: Pos2) {
-    h.drop_at(at);
-    h.run_steps(3);
+fn release(d: &mut H, at: Pos2) {
+    d.pointer_up(at).event(Event::PointerGone).frames(2);
 }
 
-fn cursor(h: &H) -> CursorIcon {
-    h.output().platform_output.cursor_icon
+fn cursor(d: &H) -> CursorIcon {
+    d.harness().output().platform_output.cursor_icon
 }
 
 /// Where the rects painted with `fill` and `size` are.
-fn painted(h: &H, fill: Color32, size: Vec2) -> Vec<Pos2> {
-    h.output()
+fn painted(d: &H, fill: Color32, size: Vec2) -> Vec<Pos2> {
+    d.harness()
+        .output()
         .shapes
         .iter()
         .filter_map(|clipped| match &clipped.shape {
@@ -202,112 +201,108 @@ fn painted(h: &H, fill: Color32, size: Vec2) -> Vec<Pos2> {
 
 #[test]
 fn a_drag_from_the_handle_moves_the_panel() {
-    let mut h = harness(Lifts::FromGrip);
-    let grip = part(&h, 0, Part::Grip);
+    let mut d = harness(Lifts::FromGrip);
+    let grip = part(&d, 0, Part::Grip);
     assert!(
-        pane(&h, 0).contains_rect(grip),
+        pane(&d, 0).contains_rect(grip),
         "precondition: the grip is in the pane"
     );
-    let to = after_the_last(&h);
-    press_and_move(&mut h, grip.center(), to);
-    assert!(carried(&h), "the pane is lifted");
-    release(&mut h, to);
-    assert_eq!(h.state().app.panes, [1, 2, 0]);
-    assert_eq!(h.state().app.ends, [DragEnd::Dropped]);
+    let to = after_the_last(&d);
+    press_and_move(&mut d, grip.center(), to);
+    assert!(carried(&d), "the pane is lifted");
+    release(&mut d, to);
+    assert_eq!(d.app().panes, [1, 2, 0]);
+    assert_eq!(d.app().ends, [DragEnd::Dropped]);
 }
 
 #[test]
 fn a_drag_from_the_panel_body_does_not_lift_it() {
-    let mut h = harness(Lifts::FromGrip);
-    let from = body(&h, 0);
-    let to = after_the_last(&h);
-    press_and_move(&mut h, from, to);
-    assert!(!carried(&h), "nothing is lifted");
-    release(&mut h, to);
-    assert_eq!(h.state().app.panes, [0, 1, 2]);
-    assert!(h.state().app.ends.is_empty(), "{:?}", h.state().app.ends);
+    let mut d = harness(Lifts::FromGrip);
+    let from = body(&d, 0);
+    let to = after_the_last(&d);
+    press_and_move(&mut d, from, to);
+    assert!(!carried(&d), "nothing is lifted");
+    release(&mut d, to);
+    assert_eq!(d.app().panes, [0, 1, 2]);
+    assert!(d.app().ends.is_empty(), "{:?}", d.app().ends);
 }
 
 #[test]
 fn without_a_handle_a_drag_from_the_body_lifts_the_panel() {
-    let mut h = harness(Lifts::FromAnywhere);
-    let from = body(&h, 0);
-    let to = after_the_last(&h);
-    press_and_move(&mut h, from, to);
-    assert!(carried(&h), "the pane is lifted");
-    release(&mut h, to);
-    assert_eq!(h.state().app.panes, [1, 2, 0]);
+    let mut d = harness(Lifts::FromAnywhere);
+    let from = body(&d, 0);
+    let to = after_the_last(&d);
+    press_and_move(&mut d, from, to);
+    assert!(carried(&d), "the pane is lifted");
+    release(&mut d, to);
+    assert_eq!(d.app().panes, [1, 2, 0]);
 }
 
 #[test]
 fn a_button_in_the_panel_still_clicks() {
-    let mut h = harness(Lifts::FromGrip);
-    let at = part(&h, 0, Part::Button).center();
+    let mut d = harness(Lifts::FromGrip);
+    let at = part(&d, 0, Part::Button).center();
     assert!(
-        pane(&h, 0).contains(at),
+        pane(&d, 0).contains(at),
         "precondition: the button is in the pane"
     );
-    h.hover_at(at);
-    h.run_steps(3);
+    d.hover(at);
     for pressed in [true, false] {
-        h.event(Event::PointerButton {
+        d.event(Event::PointerButton {
             pos: at,
             button: PointerButton::Primary,
             pressed,
             modifiers: Modifiers::NONE,
         });
-        h.step();
     }
-    assert_eq!(h.state().app.clicks, 1);
-    assert!(h.state().app.ends.is_empty());
+    assert_eq!(d.app().clicks, 1);
+    assert!(d.app().ends.is_empty());
 }
 
 #[test]
 fn a_click_on_a_button_in_a_whole_panel_source_lifts_nothing() {
-    let mut h = harness(Lifts::FromAnywhere);
-    let at = part(&h, 0, Part::Button).center();
+    let mut d = harness(Lifts::FromAnywhere);
+    let at = part(&d, 0, Part::Button).center();
     assert!(
-        pane(&h, 0).contains(at),
+        pane(&d, 0).contains(at),
         "precondition: the button is in the pane"
     );
-    h.hover_at(at);
-    h.run_steps(3);
+    d.hover(at);
     for pressed in [true, false] {
-        h.event(Event::PointerButton {
+        d.event(Event::PointerButton {
             pos: at,
             button: PointerButton::Primary,
             pressed,
             modifiers: Modifiers::NONE,
         });
-        h.step();
-        assert!(!carried(&h), "nothing is lifted (pressed: {pressed})");
+        assert!(!carried(&d), "nothing is lifted (pressed: {pressed})");
     }
-    h.run_steps(3);
-    assert_eq!(h.state().app.clicks, 1);
-    assert!(h.state().app.ends.is_empty(), "{:?}", h.state().app.ends);
+    d.frames(3);
+    assert_eq!(d.app().clicks, 1);
+    assert!(d.app().ends.is_empty(), "{:?}", d.app().ends);
 }
 
 #[test]
 fn a_custom_node_in_the_panel_gets_its_own_drag() {
-    let mut h = harness(Lifts::FromGrip);
-    let plot = part(&h, 0, Part::Plot);
+    let mut d = harness(Lifts::FromGrip);
+    let plot = part(&d, 0, Part::Plot);
     assert!(
-        pane(&h, 0).contains_rect(plot),
+        pane(&d, 0).contains_rect(plot),
         "precondition: the plot is in the pane"
     );
     let from = plot.center();
-    press_and_move(&mut h, from, from + vec2(30.0, 0.0));
-    assert!(!carried(&h), "the pane is not lifted");
-    assert!(h.state().app.plot_drags > 0, "the plot was dragged");
-    release(&mut h, from + vec2(30.0, 0.0));
-    assert_eq!(h.state().app.panes, [0, 1, 2]);
-    assert!(h.state().app.ends.is_empty());
+    press_and_move(&mut d, from, from + vec2(30.0, 0.0));
+    assert!(!carried(&d), "the pane is not lifted");
+    assert!(d.app().plot_drags > 0, "the plot was dragged");
+    release(&mut d, from + vec2(30.0, 0.0));
+    assert_eq!(d.app().panes, [0, 1, 2]);
+    assert!(d.app().ends.is_empty());
 }
 
 #[test]
 fn the_live_image_is_the_whole_panel_with_the_grab_kept() {
-    let mut h = harness(Lifts::FromGrip);
-    let (panel, grip) = (pane(&h, 0), part(&h, 0, Part::Grip));
+    let mut d = harness(Lifts::FromGrip);
+    let (panel, grip) = (pane(&d, 0), part(&d, 0, Part::Grip));
     let press = grip.center();
     let grab = press - panel.min;
     assert!(
@@ -315,14 +310,14 @@ fn the_live_image_is_the_whole_panel_with_the_grab_kept() {
         "precondition: the grab from the panel differs from the grab from the grip"
     );
     let to = Pos2::new(250.0, 300.0);
-    press_and_move(&mut h, press, to);
-    assert!(carried(&h), "precondition: the pane is lifted");
-    let image = painted(&h, pane_fill(0), panel.size());
+    press_and_move(&mut d, press, to);
+    assert!(carried(&d), "precondition: the pane is lifted");
+    let image = painted(&d, pane_fill(0), panel.size());
     assert!(
         image.iter().any(|min| (*min - (to - grab)).length() < 1.0),
         "the panel is painted with its top-left {grab:?} behind the pointer {to:?}: {image:?}"
     );
-    let grip_painted = painted(&h, GRIP_FILL, grip.size());
+    let grip_painted = painted(&d, GRIP_FILL, grip.size());
     let grip_in_image = to - grab + (grip.min - panel.min);
     assert!(
         grip_painted
@@ -330,44 +325,41 @@ fn the_live_image_is_the_whole_panel_with_the_grab_kept() {
             .any(|min| (*min - grip_in_image).length() < 1.0),
         "the grip moves with the panel: {grip_painted:?}, expected {grip_in_image:?}"
     );
-    release(&mut h, to);
+    release(&mut d, to);
 }
 
 #[test]
 fn the_cursor_grabs_over_the_handle_only() {
-    let mut h = harness(Lifts::FromGrip);
-    let grip = part(&h, 0, Part::Grip).center();
-    h.hover_at(grip);
-    h.run_steps(2);
-    assert_eq!(cursor(&h), CursorIcon::Grab, "over the handle");
-    let at = body(&h, 0);
-    h.hover_at(at);
-    h.run_steps(2);
-    assert_eq!(cursor(&h), CursorIcon::Default, "over the body");
+    let mut d = harness(Lifts::FromGrip);
+    let grip = part(&d, 0, Part::Grip).center();
+    d.carry_to(grip).frames(1);
+    assert_eq!(cursor(&d), CursorIcon::Grab, "over the handle");
+    let at = body(&d, 0);
+    d.carry_to(at).frames(1);
+    assert_eq!(cursor(&d), CursorIcon::Default, "over the body");
 }
 
 #[test]
 fn without_a_handle_the_cursor_grabs_over_the_whole_source() {
-    let mut h = harness(Lifts::FromAnywhere);
-    let at = body(&h, 0);
-    h.hover_at(at);
-    h.run_steps(2);
-    assert_eq!(cursor(&h), CursorIcon::Grab);
+    let mut d = harness(Lifts::FromAnywhere);
+    let at = body(&d, 0);
+    d.carry_to(at).frames(1);
+    assert_eq!(cursor(&d), CursorIcon::Grab);
 }
 
 #[test]
 fn the_cursor_is_grabbing_for_the_whole_gesture() {
-    let mut h = harness(Lifts::FromGrip);
-    let grip = part(&h, 0, Part::Grip).center();
+    let mut d = harness(Lifts::FromGrip);
+    let grip = part(&d, 0, Part::Grip).center();
     let outside = Pos2::new(380.0, 320.0);
     assert!(
-        !pane(&h, 0).contains(outside) && !pane(&h, 2).contains(outside),
+        !pane(&d, 0).contains(outside) && !pane(&d, 2).contains(outside),
         "precondition: the pointer leaves the panes"
     );
-    press_and_move(&mut h, grip, outside);
-    assert!(carried(&h), "precondition: the pane is lifted");
-    assert_eq!(cursor(&h), CursorIcon::Grabbing);
-    release(&mut h, outside);
+    press_and_move(&mut d, grip, outside);
+    assert!(carried(&d), "precondition: the pane is lifted");
+    assert_eq!(cursor(&d), CursorIcon::Grabbing);
+    release(&mut d, outside);
 }
 
 /// The report of a misplaced handle, which must be the only report.
