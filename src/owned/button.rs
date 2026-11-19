@@ -9,6 +9,7 @@ use super::{Enablement, Gate, IntoTip, OnResponse, centered, described, options}
 use crate::actions::Action;
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
+use crate::focus::{Autofocus, Select};
 use crate::{Builder, Icon, Scope, Tw, tw};
 
 /// Whether pressing a button shifts it down, as web buttons commonly do.
@@ -120,6 +121,7 @@ pub struct ButtonChain<'a, 'f, A> {
     on_response: OnResponse<A>,
     children: Option<Children<'a, 'f, A>>,
     action: Option<Action>,
+    autofocus: Autofocus,
 }
 
 type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
@@ -297,12 +299,19 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             on_response: OnResponse::default(),
             children: None,
             action: None,
+            autofocus: Autofocus::Never,
         }
     }
 
     /// Makes the button a toggle that shows `mark`.
     pub(super) fn marked(mut self, mark: Mark) -> Self {
         self.toggle = Some(mark);
+        self
+    }
+
+    /// Asks for focus as `autofocus` says.
+    pub(super) fn autofocus(mut self, autofocus: Autofocus) -> Self {
+        self.autofocus = autofocus;
         self
     }
 
@@ -331,6 +340,19 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// first declared is the one.
     pub fn cancel_action(mut self) -> Self {
         self.action = Some(Action::Cancel);
+        self
+    }
+
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
         self
     }
 
@@ -547,6 +569,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             on_response,
             children,
             action,
+            autofocus,
         } = self;
         let name = name.unwrap_or(face_name);
         let (enablement, tooltip) =
@@ -613,13 +636,14 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 children(b);
             }
         });
-        let node = node.announces(role);
+        let node = node.announces(role).open_focus(autofocus.open_focus());
         let node = match action {
             Some(action) => node.action(action),
             None => node,
         };
         node.draw(move |app, ui| {
             let response = described(ui, role, selected, &name, &tooltip);
+            autofocus.apply(ui.ctx(), &response);
             if response.clicked() || crate::nav::take_activation(ui, response.id) {
                 on_click(app, ui.ctx());
             }
