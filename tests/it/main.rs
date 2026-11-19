@@ -141,6 +141,7 @@ mod toggle_group;
 mod tone;
 mod tooltips;
 mod touch_scroll;
+mod typed_range;
 mod typeset;
 mod underline;
 mod value_widgets;
