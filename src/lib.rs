@@ -364,6 +364,7 @@ mod finite;
 mod focus;
 pub mod icons;
 mod input_trace;
+mod intent;
 mod kept;
 mod key;
 mod layout_tree;
@@ -413,7 +414,7 @@ pub use clicks::DOUBLE_CLICK;
 pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
 pub use commands::{Chord, Command, CommandState, Commands, InText, PasteCommand};
-pub use contract::Style;
+pub use contract::{Style, Tone};
 pub use debug::Debug;
 pub use dnd::{
     Cause, DragEnd, DragImage, Dragging, Drop, EdgeBand, EdgeScroll, File, Files, Over,
