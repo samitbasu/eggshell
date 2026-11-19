@@ -119,7 +119,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     /// An identified leaf that edits `text`, the string of the application's
     /// state as it is when the frame is built. The field edits a copy, which
     /// [`on_change`](TextFieldChain::on_change) hands back when it differs.
-    /// Assistive technology sees a `Role::TextInput`, named by
+    /// Assistive technology sees a `Role::TextInput`, unless
+    /// [`role`](TextFieldChain::role) says otherwise, named by
     /// [`named`](TextFieldChain::named).
     pub fn text_field<K: Key>(
         &mut self,
@@ -318,6 +319,25 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// The accessible name, the equivalent of `aria-label`.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.field = self.field.named(name);
+        self
+    }
+
+    /// TODO(prose): the role assistive technology sees, `Role::TextInput` unless set: a combobox's field says `Role::ComboBox`, a search box `Role::SearchInput`.
+    ///
+    /// ```
+    /// use eggshell_ui::Builder;
+    ///
+    /// struct App { query: String }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.text_field("search", &app.query)
+    ///         .role(egui::Role::SearchInput)
+    ///         .named("Search")
+    ///         .on_change(|app, query| app.query = query);
+    /// }
+    /// ```
+    pub fn role(mut self, role: egui::Role) -> Self {
+        self.field = self.field.role(role);
         self
     }
 

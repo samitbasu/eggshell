@@ -316,7 +316,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             CommandState::Checked(mark) => (Role::MenuItemCheckBox, Lead::Check(mark)),
             CommandState::Chosen(mark) => (Role::MenuItemRadio, Lead::Dot(mark)),
         };
-        let run = CommandItem::new(move |app| command.activate(app, &shell));
+        let run = CommandItem::new(move |app| command.run(app, &shell));
         let mut item = self
             .chain(id, command.title().to_owned(), run, role, lead)
             .allowed(enablement);
@@ -1080,7 +1080,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
     }
 }
 
-impl<A> crate::Placed<A> {
+impl crate::testing::PlacedFrame {
     /// TODO(prose): whether the menu of the dropdown declared with `key` at the top of the view is open; false from the frame it closes, while it fades out.
     pub fn menu_open<K: crate::Key>(&self, key: K) -> bool {
         self.menu_open_with(crate::child_id(self.root, &key))
