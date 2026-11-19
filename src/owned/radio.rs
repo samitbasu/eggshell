@@ -12,6 +12,7 @@ use super::{
 };
 use crate::builder::Slot;
 use crate::contract::Size;
+use crate::focus::{Autofocus, Select};
 use crate::overlay::{Nav, Wrap};
 use crate::{Builder, Tw, tw};
 
@@ -41,6 +42,7 @@ pub struct RadioGroupChain<'a, 'f, A, T> {
     name: Option<String>,
     size: Option<Size>,
     on_response: OnResponse<A>,
+    autofocus: Autofocus,
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, A, T> {
@@ -62,6 +64,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             name: None,
             size: None,
             on_response: OnResponse::default(),
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -123,6 +126,19 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
         self
     }
 
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -149,6 +165,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             name,
             size,
             on_response,
+            autofocus,
         } = self;
         let refused = gate.refused();
         let (enablement, group_tip) = gate.resolve(&mut b, slot.id, enablement);
@@ -161,8 +178,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             None => group,
         };
         let whole_tip = group_tip.clone();
+        let target = choice::focus_target(&options, &current, enablement);
         b.div_id_with(&slot, group, |b| {
             for (index, option) in options.into_iter().enumerate() {
+                let autofocus = if Some(index) == target {
+                    autofocus
+                } else {
+                    Autofocus::Never
+                };
                 let control = b.id_of(Part::Circle(index));
                 let (enablement, tooltip) = option.gated(enablement, refused);
                 let Choice { value, label, .. } = option;
@@ -197,8 +220,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                             }
                         })
                         .role(Role::RadioButton)
+                        .open_focus(autofocus.open_focus())
                         .draw(move |app, ui| {
                             let response = described(ui, Role::RadioButton, None, "", &tooltip);
+                            autofocus.apply(ui.ctx(), &response);
                             if tooltip.is_none() {
                                 tip_describes(ui, &response, &group_tip);
                             }

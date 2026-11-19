@@ -647,8 +647,9 @@ fn enters_focus(behavior: Behavior, source: Source) -> bool {
 }
 
 /// Where focus goes as the overlay whose root is `nodes[first]` opens: the
-/// node marked with [`focus_on_open`](crate::NodeHandle::focus_on_open) if it
-/// takes focus, else the overlay's first focusable. Of two marked nodes the
+/// first focusable widget of the node marked with
+/// [`focus_on_open`](crate::NodeHandle::focus_on_open), the node itself or
+/// one inside it, else the overlay's first focusable. Of two marked nodes the
 /// first declared is the one.
 fn opening_focus(
     ctx: &Context,
@@ -681,7 +682,13 @@ fn opening_focus(
         );
     }
     chosen
-        .filter(|chosen| focusable.contains(chosen))
+        .and_then(|chosen| {
+            subtrees
+                .iter()
+                .find(|(node, _)| *node == chosen)
+                .and_then(|(_, widgets)| widgets.first().copied())
+        })
+        .filter(|widget| focusable.contains(widget))
         .or_else(|| focusable.first().copied())
 }
 
