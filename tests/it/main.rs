@@ -16,6 +16,7 @@
 
 mod accordion_example;
 mod autosuggest;
+mod badge;
 mod blur_cause;
 mod borrowed_app;
 mod button_options;
@@ -98,6 +99,7 @@ mod reduced_motion;
 mod refused;
 mod regions;
 mod release;
+mod reserve;
 mod responsive_example;
 mod roving;
 #[cfg(all(feature = "screenshots", target_os = "linux"))]

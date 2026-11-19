@@ -122,6 +122,14 @@ pub struct ButtonChain<'a, 'f, A> {
     children: Option<Children<'a, 'f, A>>,
     action: Option<Action>,
     autofocus: Autofocus,
+    closes: Closes,
+}
+
+/// What pressing a button does to the overlay it is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Closes {
+    Nothing,
+    Overlay,
 }
 
 type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
@@ -300,6 +308,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             children: None,
             action: None,
             autofocus: Autofocus::Never,
+            closes: Closes::Nothing,
         }
     }
 
@@ -353,6 +362,39 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// TODO(prose): takes focus on every frame this is set.
     pub fn focus_now(mut self) -> Self {
         self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
+    /// Makes pressing the button dismiss the overlay it is in, after its own
+    /// handler has run: the overlay's
+    /// [`on_dismiss`](crate::overlay::OverlayChain::on_dismiss) is called, as
+    /// for a press outside or Esc, so the code that closes the overlay is
+    /// written once. The overlay is dismissed whatever its
+    /// [`DismissOn`](crate::overlay::DismissOn) says. A dialog's close
+    /// button, or a cancel button with no handler of its own:
+    ///
+    /// ```
+    /// use eggshell_ui::overlay::{Modal, Shown};
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// struct App { open: Shown }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.overlay("dialog")
+    ///         .modal(Modal::Center)
+    ///         .shown(app.open)
+    ///         .on_dismiss(|app: &mut App| app.open = Shown::Closed)
+    ///         .children(|s| {
+    ///             s.div(tw().p(6.0), |s| {
+    ///                 s.button("cancel", "Cancel").cancel_action().dismisses().add();
+    ///             });
+    ///         });
+    /// }
+    /// ```
+    ///
+    /// Outside an overlay it does nothing more than its handler.
+    pub fn dismisses(mut self) -> Self {
+        self.closes = Closes::Overlay;
         self
     }
 
@@ -570,6 +612,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             children,
             action,
             autofocus,
+            closes,
         } = self;
         let name = name.unwrap_or(face_name);
         let (enablement, tooltip) =
@@ -646,6 +689,11 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             autofocus.apply(ui.ctx(), &response);
             if response.clicked() || crate::nav::take_activation(ui, response.id) {
                 on_click(app, ui.ctx());
+                if closes == Closes::Overlay
+                    && let Some(shell) = crate::shell::shell_or_report(ui, "a dismissing button")
+                {
+                    crate::actions::note_closer(ui.ctx(), &shell.kept, response.id);
+                }
             }
             on_response.run(app, &response);
         });
