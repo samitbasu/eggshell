@@ -884,22 +884,23 @@ mod groups {
         }
     }
 
-    fn harness_of(app: App) -> Harness<'static, Rig<App>> {
+    fn harness_of(app: App) -> Driver<App> {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness_prepared(
+        let mut d = support::prepared_driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             app,
             grouped,
             group_filled,
-        );
-        harness.run_steps(3);
-        harness
+        )
+        .build();
+        d.frames(3);
+        d
     }
 
-    fn group_fill(harness: &Harness<'_, Rig<App>>, name: &str) -> Option<Color32> {
-        let rect = rect_of(harness, &grouped_band(name));
-        support::shapes(harness)
+    fn group_fill(d: &Driver<App>, name: &str) -> Option<Color32> {
+        let rect = d.rect(Target::suffix(&grouped_band(name)));
+        support::shapes(d)
             .into_iter()
             .filter_map(|shape| match shape {
                 Shape::Rect(r) if support::same(r.rect, rect) && r.stroke.width == 0.0 => {
@@ -912,13 +913,13 @@ mod groups {
 
     #[test]
     fn a_group_row_spans_every_column() {
-        let harness = harness_of(App::new(Selection::Off));
+        let d = harness_of(App::new(Selection::Off));
         assert!(columns().len() > 1, "precondition: more than one column");
-        let title = rect_of(&harness, &grouped_cell("Group(1)", 0));
-        let first = rect_of(&harness, &grouped_cell("Row(1024)", 0));
-        let last = rect_of(&harness, &grouped_cell("Row(1024)", 2));
+        let title = d.rect(Target::suffix(&grouped_cell("Group(1)", 0)));
+        let first = d.rect(Target::suffix(&grouped_cell("Row(1024)", 0)));
+        let last = d.rect(Target::suffix(&grouped_cell("Row(1024)", 2)));
         assert_eq!((title.left(), title.right()), (first.left(), last.right()));
-        let band = rect_of(&harness, &grouped_band("Group(1)"));
+        let band = d.rect(Target::suffix(&grouped_band("Group(1)")));
         assert_eq!((title.top(), title.bottom()), (band.top(), band.bottom()));
         assert!(
             band.bottom() <= first.top() + 0.5,
@@ -928,24 +929,20 @@ mod groups {
 
     #[test]
     fn a_group_row_is_neither_selected_nor_hovered() {
-        let mut harness = harness_of(App::new(Selection::On));
+        let mut d = harness_of(App::new(Selection::On));
+        assert_eq!(group_fill(&d, "Group(0)"), Some(GROUP), "precondition");
+        d.click(Target::suffix(&grouped_cell("Group(0)", 0)));
+        d.frames(12);
+        assert_eq!(d.app().selected, None);
         assert_eq!(
-            group_fill(&harness, "Group(0)"),
-            Some(GROUP),
-            "precondition"
-        );
-        support::click_node(&mut harness, &grouped_cell("Group(0)", 0));
-        settle(&mut harness);
-        assert_eq!(harness.state().app.selected, None);
-        assert_eq!(
-            group_fill(&harness, "Group(0)"),
+            group_fill(&d, "Group(0)"),
             Some(GROUP),
             "the pointer on it does not hover it"
         );
-        support::click_node(&mut harness, &grouped_cell("Row(31)", 0));
-        settle(&mut harness);
+        d.click(Target::suffix(&grouped_cell("Row(31)", 0)));
+        d.frames(12);
         assert_eq!(
-            harness.state().app.selected,
+            d.app().selected,
             Some(31),
             "precondition: rows still select"
         );
@@ -953,19 +950,19 @@ mod groups {
 
     #[test]
     fn stripes_count_afresh_after_each_group_row() {
-        let mut harness = harness_of(App {
+        let mut d = harness_of(App {
             stripes: Stripes::Alternate,
             ..App::new(Selection::Off)
         });
-        harness.run_steps(3);
-        let stripe = style(&harness).stripe;
+        d.frames(3);
+        let stripe = style(&d).stripe;
         assert_ne!(
             stripe,
             Color32::TRANSPARENT,
             "precondition: the preset stripes"
         );
         let fills = ["Group(0)", "Row(7)", "Group(1)", "Row(1024)", "Row(31)"]
-            .map(|name| group_fill(&harness, name) == Some(stripe));
+            .map(|name| group_fill(&d, name) == Some(stripe));
         assert_eq!(fills, [false, false, false, false, true]);
     }
 
@@ -979,8 +976,9 @@ mod groups {
         roles
     }
 
-    fn row_named(harness: &Harness<'_, Rig<App>>, cell: &str) -> Vec<(Role, Option<String>)> {
-        let node = harness
+    fn row_named(d: &Driver<App>, cell: &str) -> Vec<(Role, Option<String>)> {
+        let node = d
+            .harness()
             .get_all_by_role(Role::Cell)
             .find(|node| node.accesskit_node().label().as_deref() == Some(cell))
             .unwrap_or_else(|| panic!("the cell {cell}"));
@@ -992,8 +990,9 @@ mod groups {
 
     #[test]
     fn a_group_row_is_a_row_header_spanning_the_table() {
-        let harness = harness_of(App::new(Selection::Off));
-        let headers: Vec<_> = harness
+        let d = harness_of(App::new(Selection::Off));
+        let headers: Vec<_> = d
+            .harness()
             .get_all_by_role(Role::RowHeader)
             .map(|header| {
                 let data = header.accesskit_node();
@@ -1012,20 +1011,21 @@ mod groups {
                 (Some("Open".to_owned()), Some(2), Some(0), Some(3)),
             ]
         );
-        let table = harness.get_by_role(Role::Table);
+        let table = d.harness().get_by_role(Role::Table);
         assert_eq!(table.accesskit_node().data().row_count(), Some(5));
     }
 
     #[test]
     fn each_group_s_rows_are_inside_a_row_group_named_by_its_title() {
-        let harness = harness_of(App::new(Selection::Off));
-        let groups: Vec<_> = harness
+        let d = harness_of(App::new(Selection::Off));
+        let groups: Vec<_> = d
+            .harness()
             .get_all_by_role(Role::RowGroup)
             .map(|group| group.accesskit_node().label())
             .collect();
         assert_eq!(groups, [Some("Paid".to_owned()), Some("Open".to_owned())]);
         let around = |cell: &str| -> Vec<(Role, Option<String>)> {
-            row_named(&harness, cell)
+            row_named(&d, cell)
                 .into_iter()
                 .take(3)
                 .map(|(role, label)| (role, label.filter(|_| role != Role::Row)))
@@ -1046,8 +1046,8 @@ mod groups {
 
     #[test]
     fn rows_outside_any_group_are_inside_the_table() {
-        let harness = harness(Selection::Off);
-        let around: Vec<Role> = row_named(&harness, "INV-7")
+        let d = harness(Selection::Off);
+        let around: Vec<Role> = row_named(&d, "INV-7")
             .into_iter()
             .take(2)
             .map(|(role, _)| role)
