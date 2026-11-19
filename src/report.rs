@@ -28,6 +28,9 @@ pub enum Problem {
     DuplicateCommand,
     /// TODO(prose): two commands of a table on one chord.
     DuplicateChord,
+    /// TODO(prose): a command bound to a chord the browser keeps, such as
+    /// `Cmd+W`. Debug builds on the web only.
+    BrowserChord,
     /// TODO(prose): commands declared twice in one root.
     CommandsTwice,
     /// TODO(prose): a command id no live table declares.
@@ -40,6 +43,8 @@ pub enum Problem {
     FocusOnOpenTwice,
     /// TODO(prose): a call that needs an identified node, on an anonymous one.
     NeedsIdentity,
+    /// TODO(prose): a keyboard pattern only an overlay has, on a group on the page.
+    NavNeedsOverlay,
     /// TODO(prose): a group variant with no group around it.
     GroupHoverWithoutGroup,
     /// TODO(prose): a group that senses nothing, so is never hovered.

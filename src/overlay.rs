@@ -277,7 +277,9 @@ impl Outside {
     pub(crate) fn of(nav: Nav) -> Self {
         match nav {
             Nav::Menu(_) | Nav::Submenu(_) => Self::Swallow,
-            Nav::Listbox(_) | Nav::Grid | Nav::None => Self::PassThrough,
+            Nav::Listbox(_) | Nav::Grid | Nav::Row(_) | Nav::Radio(_) | Nav::None => {
+                Self::PassThrough
+            }
         }
     }
 }
@@ -297,10 +299,12 @@ pub enum Focus {
     None,
 }
 
-/// The keyboard pattern of an overlay's items. Items are the nodes with an
+/// The keyboard pattern of an overlay's items, or of a group's on the page
+/// ([`NodeHandle::nav`](crate::NodeHandle::nav)). Items are the nodes with an
 /// item role ([`NodeHandle::role`](crate::NodeHandle::role) with
-/// `MenuItem`, `MenuItemCheckbox`, `MenuItemRadio` or `ListBoxOption`) that
-/// can take focus; a disabled item is skipped.
+/// `MenuItem`, `MenuItemCheckbox`, `MenuItemRadio`, `ListBoxOption`,
+/// `GridCell`, `Tab` or `RadioButton`) that can take focus; a disabled item
+/// is skipped.
 ///
 /// ```
 /// use eggshell_ui::overlay::{Nav, Wrap};
@@ -338,6 +342,10 @@ pub enum Nav {
     /// first and last. The items are real focus targets, so the app declares
     /// no rows or columns: a colour-swatch picker.
     Grid,
+    /// TODO(prose): Left and Right move real focus between items, wrapping as the [`Wrap`] says, Home and End go to the ends, Up and Down do nothing: a tab list.
+    Row(Wrap),
+    /// TODO(prose): all four arrows move real focus between items (Down and Right forward), wrapping as the [`Wrap`] says, Home and End do nothing: a radio group.
+    Radio(Wrap),
 }
 
 impl Nav {
@@ -345,7 +353,11 @@ impl Nav {
     /// overlay with no navigation, stop.
     pub(crate) fn wrap(self) -> Wrap {
         match self {
-            Self::Menu(wrap) | Self::Submenu(wrap) | Self::Listbox(wrap) => wrap,
+            Self::Menu(wrap)
+            | Self::Submenu(wrap)
+            | Self::Listbox(wrap)
+            | Self::Row(wrap)
+            | Self::Radio(wrap) => wrap,
             Self::Grid | Self::None => Wrap::Stop,
         }
     }
@@ -356,6 +368,15 @@ impl Nav {
 
     pub(crate) fn is_listbox(self) -> bool {
         matches!(self, Self::Listbox(_))
+    }
+
+    /// Whether a group on the page can navigate so: a listbox's highlight
+    /// and a submenu's Left belong to an overlay.
+    pub(crate) fn on_page(self) -> bool {
+        match self {
+            Self::Menu(_) | Self::Grid | Self::Row(_) | Self::Radio(_) => true,
+            Self::None | Self::Submenu(_) | Self::Listbox(_) => false,
+        }
     }
 }
 

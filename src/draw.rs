@@ -16,7 +16,7 @@ use egui::{
 };
 use taffy::Overflow;
 
-use crate::commands::Declared;
+use crate::commands::{Declared, Visit};
 use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
@@ -528,6 +528,8 @@ struct Pass {
     highlighted: Vec<Id>,
     /// Why a field losing focus in this pass does, told to its hooks.
     blur: Blur,
+    /// The items of groups on the page that are not their group's Tab stop.
+    off_tab: std::collections::HashSet<Id>,
 }
 
 /// How an entering or leaving overlay is painted at one of its nodes.
@@ -734,7 +736,12 @@ impl<A> Walk<'_, A> {
         let id = node.id()?;
         let sense = if node.senses() {
             let interaction = &node.interaction;
-            interaction.focusability.sense(interaction.sensing)
+            let sense = interaction.focusability.sense(interaction.sensing);
+            if self.pass.off_tab.contains(&id) {
+                sense - Sense::FOCUSABLE
+            } else {
+                sense
+            }
         } else if self.scroller_takes_focus(index) {
             Sense::focusable_noninteractive()
         } else {
@@ -765,7 +772,8 @@ impl<A> Walk<'_, A> {
         let ctx = self.ui.ctx();
         let descendants = self.nodes.descendants(index);
         let highlighted = node.id().is_some_and(|id| {
-            self.pass.highlighted.contains(&id) || (node.is_item() && focus::holds_focus(ctx, id))
+            self.pass.highlighted.contains(&id)
+                || (node.hovers_when_focused() && focus::holds_focus(ctx, id))
         });
         let by_rect = node.interaction.hover_by == crate::pipeline::HoverBy::Rect
             && ctx.rect_contains_pointer(self.ui.layer_id(), own.interact_rect);
@@ -1873,9 +1881,11 @@ impl<A> Painting<A> {
             hot: hot_boxes(&ctx, nodes, &shared.box_ids),
             highlighted: nav::highlighted(kept),
             blur: Blur::Elsewhere,
+            off_tab: std::collections::HashSet::new(),
         };
         nav::activate_highlighted(&ctx, kept);
         nav::apply_deferred(&ctx, kept);
+        pass.off_tab = crate::roving::settle(&ctx, kept, nodes);
         let keys = overlay_input::claim_keys(&ctx, kept, nodes, (roots, here), live);
         pass.blur = keys.blur;
         let shell = crate::Shell::new(&ctx, kept);
@@ -1885,7 +1895,12 @@ impl<A> Painting<A> {
             |root| roots.get(root).and_then(|root| root.parent),
             |root| roots.get(root).is_some_and(PlacedRoot::is_modal),
         );
-        crate::commands::dispatch_all(&ctx, &shell, typing, (commands, commanding), app);
+        let tables = (commands.as_slice(), commanding.as_slice());
+        crate::commands::visit_all(&ctx, &shell, typing, tables, app, &mut Visit::Fire);
+        let mut claimed = Vec::new();
+        let mut claim = Visit::Claim(&mut claimed);
+        crate::commands::visit_all(&ctx, &shell, typing, tables, app, &mut claim);
+        crate::web::ClaimedChords::of(&ctx).record(&ctx, claimed);
         scroll_keys::hold_arrows(&ctx, kept, nodes);
         let _drawing = crate::shell::Drawing::enter(&ctx, kept);
         let mut walk = Walk {

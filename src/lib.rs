@@ -382,6 +382,7 @@ pub mod prim;
 mod region;
 mod report;
 mod roots;
+mod roving;
 pub mod scroll;
 mod scroll_keys;
 mod shadow_corners;
@@ -403,6 +404,7 @@ mod tooltip;
 mod transition;
 mod tw;
 pub mod vlist;
+pub mod web;
 pub mod widget;
 pub mod window;
 

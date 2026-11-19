@@ -845,6 +845,30 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
                     .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
             });
         });
+        tooltip_row(b, "Default tooltip");
+        let t = common::tokens(b.ctx());
+        b.styled(
+            |style| {
+                let tooltip = &mut style.tooltip;
+                tooltip.padding = vec2(24.0, 12.0);
+                tooltip.popup.paint.states.rest = Colors {
+                    fill: t.primary,
+                    border: t.primary,
+                    text: t.primary_foreground,
+                };
+            },
+            |b| tooltip_row(b, "Scoped tooltip"),
+        );
+    });
+}
+
+/// A row named `name` with a button whose tooltip is drawn in the style here.
+fn tooltip_row(b: &mut B<'_, '_>, name: &'static str) {
+    row(b, name, |b| {
+        b.button(("tooltip", name), "Hover me")
+            .variant(variant::OUTLINE)
+            .tooltip(name)
+            .on_click(|s: &mut State| s.owned_clicks += 1);
     });
 }
 
