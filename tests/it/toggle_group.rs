@@ -3,13 +3,13 @@
 
 use eggshell_ui::contract::{Keyed, Metrics, Size};
 use eggshell_ui::owned::{ButtonOptions, Face, ToggleGroup};
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Problem, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Rect, Role, Theme, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, box_at, hover_over, press_and_release, rect_of};
+use crate::support::{self, box_at};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 enum Part {
@@ -75,42 +75,35 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness_of(view: support::View<App>) -> Harness<'static, Rig<App>> {
+fn harness_of(view: support::View<App>) -> Driver<App> {
     harness_styled(view, |_, _| {})
 }
 
-fn harness_styled(
-    view: support::View<App>,
-    prepare: fn(&egui::Context, &App),
-) -> Harness<'static, Rig<App>> {
+fn harness_styled(view: support::View<App>, prepare: fn(&egui::Context, &App)) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness_prepared(
+    let mut d = support::prepared_driver(
         vec2(500.0, 200.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
         prepare,
-    );
-    harness.ctx.set_theme(Theme::Light);
-    harness.run_steps(6);
-    harness
+    )
+    .build();
+    d.ctx().set_theme(Theme::Light);
+    d.frames(6);
+    d
 }
 
-fn member_rect(harness: &Harness<'_, Rig<App>>, label: &str) -> Rect {
-    harness
-        .get_by_role_and_label(Role::RadioButton, label)
-        .rect()
+fn member_rect(d: &Driver<App>, label: &str) -> Rect {
+    d.rect(Target::role(Role::RadioButton, label))
 }
 
-fn click(harness: &mut Harness<'_, Rig<App>>, label: &str) {
-    let at = member_rect(harness, label).center();
-    hover_over(harness, at);
-    press_and_release(harness, at);
-    harness.run_steps(4);
+fn click(d: &mut Driver<App>, label: &str) {
+    d.click(Target::role(Role::RadioButton, label)).frames(4);
 }
 
-fn is_on(harness: &Harness<'_, Rig<App>>, label: &str) -> bool {
-    harness
+fn is_on(d: &Driver<App>, label: &str) -> bool {
+    d.harness()
         .get_by_role_and_label(Role::RadioButton, label)
         .accesskit_node()
         .toggled()
@@ -118,68 +111,66 @@ fn is_on(harness: &Harness<'_, Rig<App>>, label: &str) -> bool {
         .unwrap_or_else(|| panic!("{label} reports no on state"))
 }
 
-fn on_labels(harness: &Harness<'_, Rig<App>>) -> Vec<&'static str> {
+fn on_labels(d: &Driver<App>) -> Vec<&'static str> {
     LABELS
         .iter()
-        .filter(|(_, label)| is_on(harness, label))
+        .filter(|(_, label)| is_on(d, label))
         .map(|(_, label)| *label)
         .collect()
 }
 
 #[test]
 fn exactly_the_member_with_the_current_value_is_on() {
-    let mut harness = harness_of(view);
-    assert_eq!(on_labels(&harness), ["Select"]);
-    harness.state_mut().app.tool = Tool::Zoom;
-    harness.run_steps(3);
-    assert_eq!(on_labels(&harness), ["Zoom"]);
+    let mut d = harness_of(view);
+    assert_eq!(on_labels(&d), ["Select"]);
+    d.app_mut().tool = Tool::Zoom;
+    d.frames(3);
+    assert_eq!(on_labels(&d), ["Zoom"]);
 }
 
 #[test]
 fn clicking_another_member_calls_on_change_once_and_moves_the_on_state() {
-    let mut harness = harness_of(view);
-    click(&mut harness, "Pan");
-    assert_eq!(harness.state().app.changes, [Tool::Pan]);
-    assert_eq!(on_labels(&harness), ["Pan"]);
+    let mut d = harness_of(view);
+    click(&mut d, "Pan");
+    assert_eq!(d.app().changes, [Tool::Pan]);
+    assert_eq!(on_labels(&d), ["Pan"]);
 }
 
 #[test]
 fn clicking_the_member_that_is_on_keeps_it_on_and_does_not_call_on_change() {
-    let mut harness = harness_of(view);
-    assert!(is_on(&harness, "Select"), "precondition");
-    click(&mut harness, "Select");
-    assert!(harness.state().app.changes.is_empty());
-    assert_eq!(on_labels(&harness), ["Select"]);
+    let mut d = harness_of(view);
+    assert!(is_on(&d, "Select"), "precondition");
+    click(&mut d, "Select");
+    assert!(d.app().changes.is_empty());
+    assert_eq!(on_labels(&d), ["Select"]);
 }
 
 #[test]
 fn members_after_other_nodes_and_nested_two_divs_deep_work() {
-    let mut harness = harness_of(view);
-    let rule = harness
-        .state()
-        .nodes
-        .iter()
+    let mut d = harness_of(view);
+    let rule = support::nodes(&d)
+        .into_iter()
         .find(|(_, rect)| rect.width() == 1.0)
         .expect("the rule")
         .1;
-    let zoom = member_rect(&harness, "Zoom");
+    let zoom = member_rect(&d, "Zoom");
     assert!(
         rule.right() <= zoom.left(),
         "precondition: a rule sits before Zoom"
     );
-    click(&mut harness, "Zoom");
-    click(&mut harness, "Pen");
-    assert_eq!(harness.state().app.changes, [Tool::Zoom, Tool::Pen]);
-    assert_eq!(on_labels(&harness), ["Pen"]);
+    click(&mut d, "Zoom");
+    click(&mut d, "Pen");
+    assert_eq!(d.app().changes, [Tool::Zoom, Tool::Pen]);
+    assert_eq!(on_labels(&d), ["Pen"]);
 }
 
 #[test]
 fn members_are_radio_buttons_in_the_accessibility_tree() {
-    let mut harness = harness_of(view);
-    harness.state_mut().companion = support::Companion::Alone;
-    harness.run();
+    let mut d = harness_of(view);
+    support::set_companion(&d, support::Companion::Alone);
+    d.harness_mut().run();
     assert_eq!(
-        harness.query_all_by_role(Role::RadioButton).count(),
+        d.harness().query_all_by_role(Role::RadioButton).count(),
         LABELS.len()
     );
 }
@@ -206,7 +197,7 @@ const TALL: f32 = 50.0;
 
 #[test]
 fn group_options_apply_to_every_member_and_a_members_own_override_it_alone() {
-    let harness = harness_styled(options_view, |ctx, _| {
+    let d = harness_styled(options_view, |ctx, _| {
         let mut style = Shadcn::for_theme(Theme::Light).style();
         let tall = Metrics {
             height: TALL,
@@ -216,9 +207,9 @@ fn group_options_apply_to_every_member_and_a_members_own_override_it_alone() {
             .with(size::ICON, *style.button.toggle_sizes.get(size::ICON));
         style.install(ctx);
     });
-    let select = member_rect(&harness, "Select");
-    let pan = member_rect(&harness, "Pan");
-    let zoom = member_rect(&harness, "Zoom");
+    let select = member_rect(&d, "Select");
+    let pan = member_rect(&d, "Pan");
+    let zoom = member_rect(&d, "Zoom");
     assert_eq!(select.height(), 36.0, "the group's size");
     assert_eq!(zoom.height(), 36.0, "the group's size");
     assert_eq!(pan.height(), TALL, "the member's own size wins");
@@ -249,26 +240,24 @@ fn cards_view(b: &mut Builder<'_, '_, App>, app: &App) {
 
 #[test]
 fn a_card_member_has_its_check_only_while_chosen() {
-    let mut harness = harness_of(cards_view);
-    let paths = |harness: &Harness<'_, Rig<App>>| {
-        harness
-            .state()
-            .nodes
-            .iter()
+    let mut d = harness_of(cards_view);
+    let paths = |d: &Driver<App>| {
+        support::nodes(d)
+            .into_iter()
             .filter(|(path, _)| path.ends_with("/\"check\""))
-            .map(|(path, _)| path.clone())
+            .map(|(path, _)| path)
             .collect::<Vec<_>>()
     };
-    let select = paths(&harness);
+    let select = paths(&d);
     assert_eq!(select.len(), 1, "one check: {select:?}");
     assert!(
         select[0].contains("Select"),
         "on the chosen card: {select:?}"
     );
-    let check = rect_of(&harness, &select[0]);
-    assert_eq!(box_at(&harness, check).fill, CHECK);
-    click(&mut harness, "Pan");
-    let pan = paths(&harness);
+    let check = d.rect(Target::suffix(&select[0]));
+    assert_eq!(box_at(&d, check).fill, CHECK);
+    click(&mut d, "Pan");
+    let pan = paths(&d);
     assert_eq!(pan.len(), 1, "one check: {pan:?}");
     assert!(pan[0].contains("Pan"), "moved to the new card: {pan:?}");
 }
@@ -281,8 +270,8 @@ fn two_members_with_one_value_in_a_group_are_a_duplicate_path() {
         b.toggle_item(&tools, Tool::Pan, "Pan").add();
         b.toggle_item(&tools, Tool::Pan, "Pan again").add();
     }
-    let harness = harness_of(twice);
-    let report = eggshell_ui::testing::assert_reported(&harness.ctx, Problem::DuplicateKey);
+    let d = harness_of(twice);
+    let report = eggshell_ui::testing::assert_reported(d.ctx(), Problem::DuplicateKey);
     assert!(
         report.message.contains("duplicate key path /Tools=Pan"),
         "{}",
@@ -297,7 +286,7 @@ fn a_group_without_a_handler_builds_and_ignores_presses() {
         b.toggle_item(&tools, Tool::Select, "Select").add();
         b.toggle_item(&tools, Tool::Pan, "Pan").add();
     }
-    let mut harness = harness_of(silent);
-    click(&mut harness, "Pan");
-    assert!(is_on(&harness, "Select") && !is_on(&harness, "Pan"));
+    let mut d = harness_of(silent);
+    click(&mut d, "Pan");
+    assert!(is_on(&d, "Select") && !is_on(&d, "Pan"));
 }

@@ -34,7 +34,8 @@ pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
 pub use units::{Angle, Mirror, Opacity, Progress};
 pub use variants::Paint;
 pub(crate) use variants::{
-    Focusability, Grouping, Look, PointerEvents, Presence, Sensing, State, Variants, Visibility,
+    Focusability, Grouping, Look, PointerEvents, Presence, Scrollbar, Sensing, State, Variants,
+    Visibility,
 };
 
 /// One Tailwind space unit, in points.
@@ -55,6 +56,7 @@ pub struct Tw {
     pub(crate) visibility: Option<Visibility>,
     pub(crate) sensing: Sensing,
     pub(crate) focusability: Focusability,
+    pub(crate) scrollbar: Scrollbar,
     pub(crate) grouping: Grouping,
     pub(crate) variants: Variants,
     pub(crate) lengths: Lengths,
@@ -103,6 +105,7 @@ pub fn tw() -> Tw {
         visibility: None,
         sensing: Sensing::None,
         focusability: Focusability::Tab,
+        scrollbar: Scrollbar::Gutter,
         grouping: Grouping::Ungrouped,
         variants: Variants::default(),
         lengths: Lengths::Finite,
