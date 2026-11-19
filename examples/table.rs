@@ -1,6 +1,8 @@
 //! TODO(prose): an invoices table with a checkbox column that selects a row,
 //! a status badge, a right-aligned amount, a footer total and a menu on each
-//! row; and the same invoices grouped by status, striped.
+//! row; the same invoices grouped by status, striped; and a summary whose
+//! labels name its rows, whose counts keep a six-digit column, and whose
+//! long notes are cut with a tooltip.
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
@@ -72,6 +74,7 @@ pub enum Part {
     Page,
     Invoices,
     ByStatus,
+    Summary,
     Pick,
     Menu,
     Copy,
@@ -184,6 +187,7 @@ pub fn layout(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
                 b.text(tw().text(t.muted_foreground), action.clone());
             }
             by_status(b, app);
+            summary(b, app);
         },
     );
 }
@@ -226,10 +230,60 @@ fn by_status(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
         });
 }
 
+/// ```html
+/// <table>
+///   <tr><th scope="row">Paid</th><td class="text-right tabular-nums min-w-[6ch]">3</td>
+///       <td class="truncate" title="…">Settled by card…</td></tr>
+/// </table>
+/// ```
+fn summary(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
+    b.div(tw().w_px(440.0), |b| summary_table(b, app));
+}
+
+fn summary_table(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
+    let rows = [
+        (
+            Status::Paid,
+            "Settled by card or bank transfer, receipts sent to each customer",
+        ),
+        (Status::Pending, "Awaiting transfer"),
+        (
+            Status::Unpaid,
+            "Reminders go out on the first of the month, then every week",
+        ),
+    ];
+    b.table(Part::Summary)
+        .named("Summary")
+        .columns([
+            Column::new(Track::auto()).labels(),
+            Column::digits(6),
+            Column::new(Track::fr(1.0)).truncate(),
+        ])
+        .header(|h| {
+            for heading in ["Status", "Count", "Note"] {
+                h.cell_text(heading);
+            }
+        })
+        .rows(
+            &rows,
+            |(status, _)| status.label(),
+            |row, (status, note)| {
+                let count = app
+                    .invoices
+                    .iter()
+                    .filter(|invoice| invoice.status == *status)
+                    .count();
+                row.cell_text(status.label());
+                row.cell_text(count.to_string());
+                row.cell_text(*note);
+            },
+        );
+}
+
 fn main() -> eframe::Result {
     common::run_app_sized(
         "table",
-        egui::vec2(820.0, 1000.0),
+        egui::vec2(820.0, 1160.0),
         Invoices::default(),
         |_, _| {},
         layout,
