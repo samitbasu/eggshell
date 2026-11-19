@@ -59,6 +59,7 @@ pub struct SliderChain<'a, 'f, A> {
     header: Header,
     on_response: OnResponse<A>,
     edits: Edits<A>,
+    autofocus: Autofocus,
 }
 
 /// What a slider says above its track.
@@ -166,6 +167,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             header: Header::default(),
             on_response: OnResponse::default(),
             edits: Edits::default(),
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -275,6 +277,19 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -305,6 +320,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             header,
             on_response,
             edits,
+            autofocus,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
         let typed = typed_within(b.ctx(), slot.id, range, typed);
@@ -398,45 +414,49 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                 b.div_id(Part::Track, hit, |b| {
                     b.div(bar, |b| b.div(filled, |_| {}));
                     b.div(travel, |b| {
-                        b.div_id(Part::Thumb, knob, |_| {}).draw(move |app, ui| {
-                            let response = ui.node_response();
-                            tip_describes(ui, &response, &thumb_tip);
-                            let track = ui.ctx().read_response(track).map(|r| r.rect);
-                            let pointer = response
-                                .interact_pointer_pos()
-                                .zip(track)
-                                .filter(|_| response.is_pointer_button_down_on())
-                                .map(|(at, track)| scale.at(at.x, track));
-                            let keys = if response.has_focus() {
-                                scale.after_keys(ui)
-                            } else {
-                                None
-                            };
-                            let changed = |value: Option<f64>| value.filter(|&v| v != scale.value);
-                            let down = (response.id, response.is_pointer_button_down_on());
-                            thumb_edits.pointer(app, ui, down, |app| {
-                                if let Some(value) =
-                                    changed(keys.is_none().then_some(pointer).flatten())
-                                {
-                                    on_thumb(app, value);
+                        b.div_id(Part::Thumb, knob, |_| {})
+                            .open_focus(autofocus.open_focus())
+                            .draw(move |app, ui| {
+                                let response = ui.node_response();
+                                autofocus.apply(ui.ctx(), &response);
+                                tip_describes(ui, &response, &thumb_tip);
+                                let track = ui.ctx().read_response(track).map(|r| r.rect);
+                                let pointer = response
+                                    .interact_pointer_pos()
+                                    .zip(track)
+                                    .filter(|_| response.is_pointer_button_down_on())
+                                    .map(|(at, track)| scale.at(at.x, track));
+                                let keys = if response.has_focus() {
+                                    scale.after_keys(ui)
+                                } else {
+                                    None
+                                };
+                                let changed =
+                                    |value: Option<f64>| value.filter(|&v| v != scale.value);
+                                let down = (response.id, response.is_pointer_button_down_on());
+                                thumb_edits.pointer(app, ui, down, |app| {
+                                    if let Some(value) =
+                                        changed(keys.is_none().then_some(pointer).flatten())
+                                    {
+                                        on_thumb(app, value);
+                                    }
+                                });
+                                if let Some(value) = changed(keys) {
+                                    thumb_edits.once(app, |app| on_thumb(app, value));
                                 }
+                                on_response.run(app, &response);
+                                response.widget_info(|| {
+                                    WidgetInfo::slider(ui.is_enabled(), scale.value, &name)
+                                });
+                                let (low, high) = (
+                                    scale.range.start().min(scale.value),
+                                    scale.range.end().max(scale.value),
+                                );
+                                ui.ctx().accesskit_node_builder(response.id, |node| {
+                                    node.set_min_numeric_value(low);
+                                    node.set_max_numeric_value(high);
+                                });
                             });
-                            if let Some(value) = changed(keys) {
-                                thumb_edits.once(app, |app| on_thumb(app, value));
-                            }
-                            on_response.run(app, &response);
-                            response.widget_info(|| {
-                                WidgetInfo::slider(ui.is_enabled(), scale.value, &name)
-                            });
-                            let (low, high) = (
-                                scale.range.start().min(scale.value),
-                                scale.range.end().max(scale.value),
-                            );
-                            ui.ctx().accesskit_node_builder(response.id, |node| {
-                                node.set_min_numeric_value(low);
-                                node.set_max_numeric_value(high);
-                            });
-                        });
                     });
                 })
                 .draw(move |app, ui| {

@@ -376,12 +376,13 @@ impl<A> Command<A> {
         self.chord().map(|chord| ctx.format_shortcut(&chord))
     }
 
-    pub(crate) fn is_enabled(&self, app: &A) -> bool {
+    /// TODO(prose): whether the command can run now, as [`enabled`](Self::enabled) says; what a palette asks before it offers it.
+    pub fn is_enabled(&self, app: &A) -> bool {
         (self.binding.enabled)(app)
     }
 
-    /// Runs the command as a click does, with nothing from an event.
-    pub(crate) fn activate(&self, app: &mut A, shell: &Shell) {
+    /// TODO(prose): runs the command as a click on its menu item does (a paste reads the clipboard), whether or not it [`is_enabled`](Self::is_enabled).
+    pub fn run(&self, app: &mut A, shell: &Shell) {
         self.fire(app, None, shell);
     }
 

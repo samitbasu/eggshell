@@ -17,6 +17,7 @@ use super::{
 };
 use crate::builder::Slot;
 use crate::contract::Size;
+use crate::focus::{Autofocus, Select};
 use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::pipeline::Room;
@@ -88,6 +89,7 @@ pub struct SelectChain<'a, 'f, A, T> {
     enablement: Enablement,
     size: Option<Size>,
     on_response: OnResponse<A>,
+    autofocus: Autofocus,
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T> {
@@ -111,6 +113,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             enablement: Enablement::Enabled,
             size: None,
             on_response: OnResponse::default(),
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -186,6 +189,19 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         self
     }
 
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -219,6 +235,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             enablement,
             size,
             on_response,
+            autofocus,
         } = self;
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let ctx = b.ctx().clone();
@@ -258,8 +275,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
                 Chevron::Down.icon(),
             );
         })
+        .open_focus(autofocus.open_focus())
         .draw(move |app, ui| {
             let response = tipped(ui, ui.node_response(), &tooltip);
+            autofocus.apply(ui.ctx(), &response);
             let ctx = ui.ctx();
             hold_arrows(ui);
             let listing = Listing::of(ctx, trigger);

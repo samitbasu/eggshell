@@ -11,6 +11,7 @@ use super::number;
 use crate::builder::Slot;
 use crate::contract::{Focus, SplitterStyle};
 use crate::draw::pane_rect;
+use crate::focus::{Autofocus, Select};
 use crate::plane::Axis;
 use crate::{Builder, Easing, NodeUi as _, Progress, transition, tw};
 
@@ -258,9 +259,23 @@ pub struct SplitterChain<'a, 'f, A> {
     limits: Limits,
     reset: Option<PaneSize>,
     name: Option<String>,
+    autofocus: Autofocus,
 }
 
 impl<'a, 'f, A> SplitterChain<'a, 'f, A> {
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         crate::owned::options::when(self, condition, then)
@@ -282,6 +297,7 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
             limits: Limits::ANY,
             reset: None,
             name: None,
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -330,6 +346,7 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
             limits,
             reset,
             name,
+            autofocus,
         } = self;
         let direction = b.flex();
         if direction.is_none() {
@@ -372,12 +389,16 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
         let node = b
             .div_id_with(&slot, classes, |_| {})
             .role(Role::Splitter)
-            .sizes_pane(side);
+            .sizes_pane(side)
+            .open_focus(autofocus.open_focus());
         let node = match name {
             Some(name) => node.named(name),
             None => node,
         };
-        node.draw(move |app, ui| handle.draw(ui, |size| set(app, size)));
+        node.draw(move |app, ui| {
+            autofocus.apply(ui.ctx(), &ui.node_response());
+            handle.draw(ui, |size| set(app, size));
+        });
     }
 }
 
