@@ -22,3 +22,6 @@
 
 #[cfg(feature = "markdown")]
 pub mod markdown;
+
+#[cfg(feature = "dialog")]
+pub mod dialog;
