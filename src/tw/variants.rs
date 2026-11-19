@@ -87,6 +87,15 @@ impl PointerEvents {
     }
 }
 
+/// Whether a node's subtree is shown, as CSS `visibility` says. It is
+/// inherited: a node without a class of its own takes its parent's.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Visibility {
+    #[default]
+    Visible,
+    Hidden,
+}
+
 /// Whether a sensing node takes part in keyboard navigation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Focusability {

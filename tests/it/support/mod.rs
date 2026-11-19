@@ -8,7 +8,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::testing::{After, Driver, DriverBuilder, Reports};
+use eggshell_ui::testing::{After, Driver, DriverBuilder, PlacedFrame, Reports};
 use eggshell_ui::{Builder, LayoutState, Shell, TextStyle};
 use egui::epaint::{RectShape, Shape, StrokeKind};
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
@@ -924,7 +924,7 @@ pub fn prepared_driver<A: 'static>(
         layout
             .build(ui.ctx(), |b| view(b, &*app))
             .layout(area)
-            .draw(app, ui);
+            .draw(app, ui)
     })
     .size(size)
     .base_text(base_text)
@@ -941,7 +941,7 @@ pub fn frame_driver<A: 'static>(
     size: Vec2,
     base_text: TextStyle,
     app: A,
-    frame: fn(&mut egui::Ui, &mut A, &mut LayoutState),
+    frame: fn(&mut egui::Ui, &mut A, &mut LayoutState) -> PlacedFrame,
 ) -> DriverBuilder<A> {
     let mut bar = Bar::new(base_text.clone());
     let step = Duration::from_nanos(1_000_000_000 / 60);
@@ -953,7 +953,7 @@ pub fn frame_driver<A: 'static>(
         ui.painter()
             .rect_filled(ui.ctx().content_rect(), 0.0, background);
         bar.show(ui);
-        frame(ui, app, layout);
+        frame(ui, app, layout)
     })
     .size(size)
     .base_text(base_text)

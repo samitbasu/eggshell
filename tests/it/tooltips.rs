@@ -1446,3 +1446,71 @@ fn a_part_is_described_by_its_controls_tooltip() {
         "the stepper's button"
     );
 }
+
+const LONG_NOTE: &str = "A note much longer than its narrow box";
+const SHORT_NOTE: &str = "Fits";
+
+/// ```html
+/// <div class="flex flex-col items-start gap-4 p-4">
+///   <div class="w-[80px]"><span class="truncate">A note much longer…</span></div>
+///   <div class="w-[80px]"><span class="truncate">Fits</span></div>
+/// </div>
+/// ```
+fn notes_view(b: &mut Builder<'_, '_, App>, _: &App) {
+    b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
+        for (key, note) in [("long", LONG_NOTE), ("short", SHORT_NOTE)] {
+            b.div(tw().w_px(80.0), |b| {
+                b.span(key, tw().truncate(), note).tooltip_when_truncated();
+            });
+        }
+    });
+}
+
+/// For each time `text` is drawn, whether it was cut short.
+fn drawn_elided(harness: &Harness<'_, Rig<App>>, text: &str) -> Vec<bool> {
+    support::shapes(harness)
+        .iter()
+        .filter_map(|shape| match shape {
+            Shape::Text(shape) if shape.galley.text() == text => Some(shape.galley.elided),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_truncated_span_shows_its_whole_text_and_one_that_fits_shows_none() {
+    let mut harness = harness_of(notes_view);
+    assert_eq!(
+        drawn_elided(&harness, LONG_NOTE),
+        [true],
+        "precondition: the long note is cut"
+    );
+    assert_eq!(
+        drawn_elided(&harness, SHORT_NOTE),
+        [false],
+        "precondition: the short one fits"
+    );
+
+    hover_node(&mut harness, "/\"short\"");
+    wait(&mut harness, DELAY + GRACE);
+    assert!(!is_shown(&harness), "text that fits has no tooltip");
+
+    hover_node(&mut harness, "/\"long\"");
+    wait(&mut harness, DELAY + GRACE);
+    assert!(is_shown(&harness), "the cut note opens a tooltip");
+    assert_eq!(
+        drawn_elided(&harness, LONG_NOTE),
+        [true, false],
+        "the tooltip draws the whole note over the cut one"
+    );
+}
+
+#[test]
+fn a_truncated_span_keeps_its_whole_text_as_its_name_and_no_description() {
+    let mut harness = harness_of(notes_view);
+    hover_node(&mut harness, "/\"long\"");
+    wait(&mut harness, DELAY + GRACE);
+    assert!(is_shown(&harness), "precondition: the tooltip is open");
+    let node = harness.get_by_label(LONG_NOTE);
+    assert_eq!(node.accesskit_node().description(), None);
+}
