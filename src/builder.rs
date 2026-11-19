@@ -1547,18 +1547,33 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
-    /// The node's layout style, its widths in `ch` measured in its resolved font.
+    /// The node's layout style, its widths in `ch` and its reservation
+    /// measured in its resolved text style.
     fn resolved_style(&self, tw: Tw, node: &Node) -> taffy::Style {
+        let ctx = self.frame.ctx;
         let mut style = tw.style;
-        let font = node.text.spec.font_id(self.frame.ctx);
-        tw.ch.resolve(&mut style, || {
-            self.frame.ctx.fonts_mut(|fonts| {
-                fonts
-                    .layout_no_wrap("0".to_owned(), font, Color32::PLACEHOLDER)
-                    .size()
-                    .x
-            })
-        });
+        let font = node.text.spec.font_id(ctx);
+        let mut reserved = None;
+        tw.ch.resolve(
+            &mut style,
+            || {
+                ctx.fonts_mut(|fonts| {
+                    fonts
+                        .layout_no_wrap("0".to_owned(), font, Color32::PLACEHOLDER)
+                        .size()
+                        .x
+                })
+            },
+            |reserve| {
+                let width = crate::measure::reserved_width(ctx, reserve, &node.text);
+                reserved = Some(width);
+                width
+            },
+        );
+        #[cfg(debug_assertions)]
+        if let (Some(reserve), Some(reserved)) = (tw.ch.reserve(), reserved) {
+            report_outgrown(ctx, node, reserve, reserved);
+        }
         style
     }
 
@@ -2062,6 +2077,36 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self.tipped(Content::built(build))
     }
 
+    /// Shows the node's whole text in a tooltip while the node is hovered,
+    /// on the frames its text is drawn cut short, as
+    /// [`truncate`](crate::Tw::truncate) and
+    /// [`line_clamp`](crate::Tw::line_clamp) cut it. Text that fits shows
+    /// none. The node must be a text node, such as [`span`](Builder::span)
+    /// makes; it senses hover if it senses nothing else. Its accessible name
+    /// is its whole text already, so the tooltip does not describe it.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>) {
+    ///     b.div(tw().w_px(80.0), |b| {
+    ///         b.span("note", tw().truncate(), "A note longer than its box")
+    ///             .tooltip_when_truncated();
+    ///     });
+    /// }
+    /// ```
+    pub fn tooltip_when_truncated(mut self) -> Self {
+        self.senses_hover_for_tip();
+        self.draw(|_, ui| {
+            if let Some(text) = crate::draw::elided_text(ui) {
+                let tip = Some(Tooltip::undescribed(egui::WidgetText::from(&*text)));
+                crate::owned::tipped(ui, ui.node_response(), &tip);
+            }
+        })
+    }
+
     fn tipped(mut self, content: Content) -> Self {
         let tip = Tooltip::new(&mut self.b, self.node, content);
         self.tip(tip)
@@ -2069,6 +2114,14 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
 
     /// Shows `tip` on the node, as [`tooltip`](Self::tooltip) does.
     pub(crate) fn tip(mut self, tip: Tooltip) -> Self {
+        self.senses_hover_for_tip();
+        let tip = Some(tip);
+        self.draw(move |_, ui| {
+            crate::owned::tipped(ui, ui.node_response(), &tip);
+        })
+    }
+
+    fn senses_hover_for_tip(&mut self) {
         self.edit(|context| {
             let interaction = &mut context.interaction;
             if interaction.sensing == Sensing::None {
@@ -2076,10 +2129,6 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
             }
             interaction.sensing = interaction.sensing.or(Sensing::Hover);
         });
-        let tip = Some(tip);
-        self.draw(move |_, ui| {
-            crate::owned::tipped(ui, ui.node_response(), &tip);
-        })
     }
 
     /// Announces the node to assistive technology as a `role`. A node
@@ -2463,4 +2512,35 @@ impl<A> DerefMut for Scope<'_, '_, A> {
 /// accesskit is on.
 fn accesskit_is_on(ctx: &egui::Context) -> bool {
     ctx.has_accesskit_node(egui::accesskit_root_id())
+}
+
+/// Reports a text leaf whose text is wider than the widest template it
+/// reserves, `reserved` points: the leaf grew past its reservation.
+#[cfg(debug_assertions)]
+fn report_outgrown(ctx: &egui::Context, node: &Node, reserve: &crate::Reserve, reserved: f32) {
+    let Some(prim) = &node.prim else {
+        return;
+    };
+    let Some(leaf) = crate::measure::TextLeaf::of(ctx, prim, (&node.text, &node.style.rich)) else {
+        return;
+    };
+    let galley = ctx.fonts_mut(|fonts| leaf.unwrapped(fonts));
+    let width = galley.size().x;
+    if width <= reserved + 0.5 {
+        return;
+    }
+    let subject = node
+        .identity
+        .id()
+        .unwrap_or_else(|| Id::NULL.with(&node.path));
+    crate::report::report(ctx, crate::Problem::OutgrewReserve, Some(subject), || {
+        let templates: Vec<_> = reserve.templates().map(|t| format!("{t:?}")).collect();
+        format!(
+            "{}: {:?} is {width:.1} points wide, wider than the {reserved:.1} its node reserves \
+             for the widest of [{}]; the node grew, so its neighbours moved",
+            node.path,
+            galley.text(),
+            templates.join(", ")
+        )
+    });
 }
