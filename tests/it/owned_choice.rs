@@ -2,16 +2,18 @@
 //! a control, through kittest's real pointer and key events and the
 //! accessibility check the support harness switches on.
 
+use core::time::Duration;
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::{CircleShape, Shape};
-use egui::{Key, Rect, Role, Theme, vec2};
-use egui_kittest::Harness;
+use egui::{Key, KeyboardShortcut, Rect, Role, Theme, vec2};
+
+use eggshell_ui::testing::{Driver, Target};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, box_at, click_node, focused_path, rect_of, ring_at, shapes};
+use crate::support::{self, box_at, focused_path, ring_at, shapes};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 enum Unit {
@@ -78,30 +80,32 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(theme: Theme) -> Harness<'static, Rig<App>> {
+fn harness(theme: Theme) -> Driver<App> {
     harness_stepping(theme, 0.05)
 }
 
-fn harness_stepping(theme: Theme, step_dt: f32) -> Harness<'static, Rig<App>> {
+fn harness_stepping(theme: Theme, step_dt: f32) -> Driver<App> {
     let tokens = Tokens::for_theme(theme);
-    let mut harness = support::harness_stepped(
+    let mut d = support::driver(
         vec2(500.0, 600.0),
-        step_dt,
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
-    );
-    harness.ctx.set_theme(theme);
-    harness.run_steps(12);
-    harness
+    )
+    .step(Duration::from_secs_f32(step_dt))
+    .settle_within(Duration::from_secs_f32(step_dt) * 4)
+    .build();
+    d.ctx().set_theme(theme);
+    d.frames(12);
+    d
 }
 
 fn style(theme: Theme) -> Style {
     Shadcn::for_theme(theme).style()
 }
 
-fn circle_in(harness: &Harness<'_, Rig<App>>, rect: Rect) -> Option<CircleShape> {
-    shapes(harness)
+fn circle_in(d: &Driver<App>, rect: Rect) -> Option<CircleShape> {
+    shapes(d)
         .into_iter()
         .filter_map(|shape| match shape {
             Shape::Circle(circle) if rect.expand(0.5).contains(circle.center) => Some(*circle),
@@ -110,15 +114,14 @@ fn circle_in(harness: &Harness<'_, Rig<App>>, rect: Rect) -> Option<CircleShape>
         .next_back()
 }
 
-fn tab_to(harness: &mut Harness<'_, Rig<App>>, path: &str) {
+fn tab_to(d: &mut Driver<App>, path: &str) {
     for _ in 0..16 {
-        if focused_path(harness).as_deref() == Some(path) {
+        if focused_path(d).as_deref() == Some(path) {
             return;
         }
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
+        d.press(Key::Tab).frames(1);
     }
-    panic!("Tab never reached {path}: {:?}", focused_path(harness));
+    panic!("Tab never reached {path}: {:?}", focused_path(d));
 }
 
 fn circle_path(unit: Unit) -> String {
@@ -128,19 +131,19 @@ fn circle_path(unit: Unit) -> String {
 #[test]
 fn radio_circles_and_dots_are_the_styles() {
     for theme in [Theme::Light, Theme::Dark] {
-        let harness = harness(theme);
+        let d = harness(theme);
         let radio = style(theme).radio;
         for (unit, _) in UNITS {
-            let rect = rect_of(&harness, &circle_path(unit));
+            let rect = d.rect(Target::suffix(&circle_path(unit)));
             assert_eq!(rect.size(), vec2(16.0, 16.0), "size-4");
-            let shape = box_at(&harness, rect);
+            let shape = box_at(&d, rect);
             let chosen = unit == Unit::Metric;
             let look = if chosen { radio.on } else { radio.off };
             assert_eq!(shape.fill, look.states.rest.fill, "{theme:?} {unit:?}");
             assert_eq!(shape.stroke.color, look.states.rest.border);
             assert_eq!(shape.stroke.width, 1.0);
             assert_eq!(shape.corner_radius, egui::CornerRadius::same(u8::MAX));
-            match (chosen, circle_in(&harness, rect)) {
+            match (chosen, circle_in(&d, rect)) {
                 (true, Some(dot)) => {
                     assert_eq!(dot.radius, 4.0, "size-2 dot");
                     assert_eq!(dot.fill, look.states.rest.text);
@@ -155,64 +158,60 @@ fn radio_circles_and_dots_are_the_styles() {
 
 #[test]
 fn clicking_a_circle_or_its_label_chooses_it() {
-    let mut harness = harness(Theme::Light);
-    click_node(&mut harness, &circle_path(Unit::Imperial));
-    assert_eq!(harness.state().app.unit, Unit::Imperial);
-    click_node(&mut harness, "/\"units\"/Label(2)");
-    harness.run_steps(3);
-    assert_eq!(
-        harness.state().app.unit,
-        Unit::Nautical,
-        "the label forwards"
-    );
-    let rect = rect_of(&harness, &circle_path(Unit::Nautical));
-    assert!(circle_in(&harness, rect).is_some(), "and the dot follows");
+    let mut d = harness(Theme::Light);
+    d.click(Target::suffix(&circle_path(Unit::Imperial)));
+    assert_eq!(d.app().unit, Unit::Imperial);
+    d.click(Target::suffix("/\"units\"/Label(2)")).frames(3);
+    assert_eq!(d.app().unit, Unit::Nautical, "the label forwards");
+    let rect = d.rect(Target::suffix(&circle_path(Unit::Nautical)));
+    assert!(circle_in(&d, rect).is_some(), "and the dot follows");
 }
 
 #[test]
 fn arrow_keys_move_the_choice_and_the_focus_within_the_group() {
-    let mut harness = harness(Theme::Light);
-    tab_to(&mut harness, &circle_path(Unit::Metric));
-    let step = |harness: &mut Harness<'_, Rig<App>>, key, expected: Unit| {
-        harness.key_press(key);
-        harness.run_steps(4);
-        assert_eq!(harness.state().app.unit, expected, "{key:?}");
+    let mut d = harness(Theme::Light);
+    tab_to(&mut d, &circle_path(Unit::Metric));
+    let step = |d: &mut Driver<App>, key, expected: Unit| {
+        d.press(key).frames(3);
+        assert_eq!(d.app().unit, expected, "{key:?}");
         assert_eq!(
-            focused_path(harness).as_deref(),
+            focused_path(d).as_deref(),
             Some(circle_path(expected).as_str()),
             "{key:?} moves the focus with the choice"
         );
     };
-    step(&mut harness, Key::ArrowDown, Unit::Imperial);
-    step(&mut harness, Key::ArrowRight, Unit::Nautical);
-    step(&mut harness, Key::ArrowDown, Unit::Metric);
-    step(&mut harness, Key::ArrowUp, Unit::Nautical);
-    step(&mut harness, Key::ArrowLeft, Unit::Imperial);
+    step(&mut d, Key::ArrowDown, Unit::Imperial);
+    step(&mut d, Key::ArrowRight, Unit::Nautical);
+    step(&mut d, Key::ArrowDown, Unit::Metric);
+    step(&mut d, Key::ArrowUp, Unit::Nautical);
+    step(&mut d, Key::ArrowLeft, Unit::Imperial);
 
-    harness.key_press(Key::Space);
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.unit, Unit::Imperial, "Space chooses");
+    d.press(Key::Space).frames(1);
+    assert_eq!(d.app().unit, Unit::Imperial, "Space chooses");
 }
 
 #[test]
 fn a_disabled_group_cannot_be_focused_or_changed() {
-    let mut harness = harness(Theme::Light);
+    let mut d = harness(Theme::Light);
     for unit in [Unit::Imperial, Unit::Nautical] {
-        click_node(&mut harness, &format!("/\"locked\"/Circle({})", unit.at()));
-        click_node(&mut harness, &format!("/\"locked\"/Label({})", unit.at()));
+        d.click(Target::suffix(&format!(
+            "/\"locked\"/Circle({})",
+            unit.at()
+        )));
+        d.click(Target::suffix(&format!("/\"locked\"/Label({})", unit.at())));
     }
-    assert_eq!(harness.state().app.locked, Unit::Metric);
+    assert_eq!(d.app().locked, Unit::Metric);
     let mut visited = Vec::new();
     for _ in 0..16 {
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
-        visited.extend(focused_path(&harness));
+        d.press(Key::Tab).frames(1);
+        visited.extend(focused_path(&d));
     }
     assert!(
         visited.iter().all(|path| !path.contains("locked")),
         "{visited:?}"
     );
-    let disabled: Vec<_> = harness
+    let disabled: Vec<_> = d
+        .harness()
         .get_all_by_role(Role::RadioButton)
         .filter(|node| node.accesskit_node().is_disabled())
         .collect();
@@ -221,8 +220,9 @@ fn a_disabled_group_cannot_be_focused_or_changed() {
 
 #[test]
 fn labels_name_their_controls_for_assistive_technology() {
-    let harness = harness(Theme::Light);
-    let radio = harness
+    let d = harness(Theme::Light);
+    let radio = d
+        .harness()
         .get_all_by_role_and_label(Role::RadioButton, "Metric")
         .next()
         .expect("the first group's Metric");
@@ -235,7 +235,7 @@ fn labels_name_their_controls_for_assistive_technology() {
     assert_eq!(labels[0].role(), Role::Label);
     assert_eq!(labels[0].value().as_deref(), Some("Metric"));
     assert_eq!(
-        harness
+        d.harness()
             .get_all_by_role_and_label(Role::RadioButton, "Imperial")
             .next()
             .expect("the first group's Imperial")
@@ -244,10 +244,12 @@ fn labels_name_their_controls_for_assistive_technology() {
         Some(egui::accesskit::Toggled::False)
     );
 
-    let switch = harness.get_by_role_and_label(Role::Switch, "Airplane mode");
+    let switch = d
+        .harness()
+        .get_by_role_and_label(Role::Switch, "Airplane mode");
     assert_eq!(switch.accesskit_node().labelled_by().count(), 1);
     assert_eq!(
-        harness
+        d.harness()
             .get_by_role_and_label(Role::Switch, "Bare switch")
             .accesskit_node()
             .labelled_by()
@@ -255,7 +257,7 @@ fn labels_name_their_controls_for_assistive_technology() {
         0,
         "named() names a switch without a label"
     );
-    let frozen = harness.get_by_role_and_label(Role::Switch, "Locked");
+    let frozen = d.harness().get_by_role_and_label(Role::Switch, "Locked");
     assert!(frozen.accesskit_node().is_disabled());
     assert_eq!(
         frozen.accesskit_node().toggled(),
@@ -263,27 +265,26 @@ fn labels_name_their_controls_for_assistive_technology() {
     );
 }
 
-fn thumb(harness: &Harness<'_, Rig<App>>, path: &str) -> (Rect, CircleShape) {
-    let rect = rect_of(harness, path);
-    let thumb = circle_in(harness, rect).unwrap_or_else(|| panic!("no thumb in {rect:?}"));
+fn thumb(d: &Driver<App>, path: &str) -> (Rect, CircleShape) {
+    let rect = d.rect(Target::suffix(path));
+    let thumb = circle_in(d, rect).unwrap_or_else(|| panic!("no thumb in {rect:?}"));
     (rect, thumb)
 }
 
 #[test]
 fn switch_track_and_thumb_are_the_styles_off_and_on() {
     for theme in [Theme::Light, Theme::Dark] {
-        let mut harness = harness(theme);
+        let mut d = harness(theme);
         let switch = style(theme).switch;
         let metrics = *switch.sizes.get(Size::DEFAULT);
         for on in [false, true] {
             if on {
-                click_node(&mut harness, "/\"air\"/Track");
-                harness.run_steps(12);
+                d.click(Target::suffix("/\"air\"/Track")).frames(12);
             }
             let look = if on { switch.on } else { switch.off };
-            let (rect, thumb) = thumb(&harness, "/\"air\"/Track");
+            let (rect, thumb) = thumb(&d, "/\"air\"/Track");
             assert!((rect.size() - metrics.track).abs().max_elem() < 0.01);
-            let track = box_at(&harness, rect);
+            let track = box_at(&d, rect);
             assert_eq!(track.fill, look.states.rest.fill, "{theme:?} on {on}");
             assert_eq!(track.corner_radius, egui::CornerRadius::same(u8::MAX));
             assert_eq!(thumb.fill, look.states.rest.text);
@@ -313,13 +314,12 @@ fn switch_track_and_thumb_are_the_styles_off_and_on() {
 
 #[test]
 fn the_thumb_slides_between_the_ends() {
-    let mut harness = harness_stepping(Theme::Light, 0.016);
-    let (rect, rest) = thumb(&harness, "/\"air\"/Track");
-    click_node(&mut harness, "/\"air\"/Track");
-    harness.run_steps(2);
-    let (_, mid) = thumb(&harness, "/\"air\"/Track");
-    harness.run_steps(12);
-    let (_, end) = thumb(&harness, "/\"air\"/Track");
+    let mut d = harness_stepping(Theme::Light, 0.016);
+    let (rect, rest) = thumb(&d, "/\"air\"/Track");
+    d.click(Target::suffix("/\"air\"/Track")).frames(2);
+    let (_, mid) = thumb(&d, "/\"air\"/Track");
+    d.frames(12);
+    let (_, end) = thumb(&d, "/\"air\"/Track");
     assert!(
         rest.center.x < mid.center.x && mid.center.x < end.center.x,
         "{} < {} < {} in {rect:?}",
@@ -331,34 +331,32 @@ fn the_thumb_slides_between_the_ends() {
 
 #[test]
 fn a_switch_flips_from_the_track_the_label_and_the_keyboard() {
-    let mut harness = harness(Theme::Light);
-    click_node(&mut harness, "/\"air\"/Track");
-    assert!(harness.state().app.on);
-    click_node(&mut harness, "/\"air\"/Label");
-    assert!(!harness.state().app.on, "the label flips it too");
+    let mut d = harness(Theme::Light);
+    d.click(Target::suffix("/\"air\"/Track"));
+    assert!(d.app().on);
+    d.click(Target::suffix("/\"air\"/Label"));
+    assert!(!d.app().on, "the label flips it too");
 
-    tab_to(&mut harness, "/\"air\"/Track");
-    harness.key_press(Key::Space);
-    harness.run_steps(2);
-    assert!(harness.state().app.on, "Space");
-    harness.key_press(Key::Enter);
-    harness.run_steps(2);
-    assert!(!harness.state().app.on, "Enter");
+    tab_to(&mut d, "/\"air\"/Track");
+    d.press(Key::Space).frames(1);
+    assert!(d.app().on, "Space");
+    d.press(Key::Enter).frames(1);
+    assert!(!d.app().on, "Enter");
 
-    click_node(&mut harness, "/\"frozen\"/Track");
-    click_node(&mut harness, "/\"frozen\"/Label");
-    assert!(!harness.state().app.on, "a disabled switch is inert");
+    d.click(Target::suffix("/\"frozen\"/Track"));
+    d.click(Target::suffix("/\"frozen\"/Label"));
+    assert!(!d.app().on, "a disabled switch is inert");
 }
 
 #[test]
 fn a_focused_switch_shows_the_styles_ring() {
     for theme in [Theme::Light, Theme::Dark] {
-        let mut harness = harness(theme);
+        let mut d = harness(theme);
         let style = style(theme);
-        tab_to(&mut harness, "/\"air\"/Track");
-        harness.run_steps(12);
-        let rect = rect_of(&harness, "/\"air\"/Track");
-        let ring = ring_at(&harness, rect).expect("a focus ring");
+        tab_to(&mut d, "/\"air\"/Track");
+        d.frames(12);
+        let rect = d.rect(Target::suffix("/\"air\"/Track"));
+        let ring = ring_at(&d, rect).expect("a focus ring");
         assert_eq!(ring.stroke.width, style.focus.width);
         assert_eq!(ring.stroke.color, style.focus.color);
     }
@@ -371,26 +369,26 @@ fn cell_path(unit: Unit) -> String {
 #[test]
 fn segmented_track_and_cells_are_the_styles() {
     for theme in [Theme::Light, Theme::Dark] {
-        let harness = harness(theme);
+        let d = harness(theme);
         let seg = style(theme).segmented;
-        let track = rect_of(&harness, "/\"seg\"");
+        let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.height(), seg.sizes.get(Size::DEFAULT).height);
-        assert_eq!(box_at(&harness, track).fill, seg.track_fill);
-        let metric = rect_of(&harness, &cell_path(Unit::Metric));
+        assert_eq!(box_at(&d, track).fill, seg.track_fill);
+        let metric = d.rect(Target::suffix(&cell_path(Unit::Metric)));
         assert_eq!(
             metric.top() - track.top(),
             seg.sizes.get(Size::DEFAULT).track_padding
         );
-        let selected = box_at(&harness, metric);
+        let selected = box_at(&d, metric);
         assert_eq!(selected.fill, seg.selected.states.rest.fill, "{theme:?}");
         assert_eq!(
             selected.corner_radius,
             egui::CornerRadius::same(seg.sizes.get(Size::DEFAULT).cell_radius)
         );
         assert_eq!(selected.stroke.width, seg.cell_border_width);
-        let imperial = rect_of(&harness, &cell_path(Unit::Imperial));
+        let imperial = d.rect(Target::suffix(&cell_path(Unit::Imperial)));
         assert!(
-            !shapes(&harness).iter().any(|shape| matches!(
+            !shapes(&d).iter().any(|shape| matches!(
                 shape,
                 Shape::Rect(r) if r.rect.is_positive() && support::same(r.rect, imperial) && r.fill != egui::Color32::TRANSPARENT
             )),
@@ -401,33 +399,32 @@ fn segmented_track_and_cells_are_the_styles() {
 
 #[test]
 fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
-    let mut harness = harness(Theme::Light);
+    let mut d = harness(Theme::Light);
     let mut stops = Vec::new();
     for _ in 0..16 {
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
-        stops.extend(focused_path(&harness).filter(|path| path.starts_with("/\"seg\"/")));
+        d.press(Key::Tab).frames(1);
+        stops.extend(focused_path(&d).filter(|path| path.starts_with("/\"seg\"/")));
     }
     assert_eq!(
         &stops[..3],
         [Unit::Metric, Unit::Imperial, Unit::Nautical].map(cell_path)
     );
 
-    tab_to(&mut harness, &cell_path(Unit::Imperial));
-    harness.run_steps(12);
+    tab_to(&mut d, &cell_path(Unit::Imperial));
+    d.frames(12);
     let seg = style(Theme::Light).segmented;
-    let ring = ring_at(&harness, rect_of(&harness, &cell_path(Unit::Imperial)))
+    let ring = ring_at(&d, d.rect(Target::suffix(&cell_path(Unit::Imperial))))
         .expect("the focused cell has a ring");
     assert_eq!(ring.stroke.width, 3.0);
     let _ = seg;
-    harness.key_press(Key::Enter);
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.segment, Unit::Imperial);
+    d.press(Key::Enter).frames(2);
+    assert_eq!(d.app().segment, Unit::Imperial);
 
-    click_node(&mut harness, &cell_path(Unit::Nautical));
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.segment, Unit::Nautical);
-    let selected: Vec<_> = harness
+    d.click(Target::suffix(&cell_path(Unit::Nautical)))
+        .frames(3);
+    assert_eq!(d.app().segment, Unit::Nautical);
+    let selected: Vec<_> = d
+        .harness()
         .get_all_by_role(Role::RadioButton)
         .filter(|node| node.accesskit_node().label().as_deref() == Some("Knots"))
         .map(|node| node.accesskit_node().toggled())
@@ -443,41 +440,37 @@ fn installing_a_modified_style_changes_every_owned_widget() {
     style.switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
     style.radio.sizes.default_entry_mut().size = 24.0;
     style.segmented.track_fill = red;
-    let mut harness = harness(Theme::Light);
-    style.install(&harness.ctx);
-    harness.run_steps(4);
-    click_node(&mut harness, "/\"air\"/Track");
-    harness.run_steps(12);
-    assert!(harness.state().app.on, "precondition: the switch is on");
-    harness.hover_at(egui::pos2(490.0, 590.0));
-    harness.run_steps(12);
+    let mut d = harness(Theme::Light);
+    style.install(d.ctx());
+    d.frames(4);
+    d.click(Target::suffix("/\"air\"/Track")).frames(12);
+    assert!(d.app().on, "precondition: the switch is on");
+    d.carry_to(egui::pos2(490.0, 590.0)).frames(11);
 
-    let track = rect_of(&harness, "/\"air\"/Track");
+    let track = d.rect(Target::suffix("/\"air\"/Track"));
     assert_eq!(track.size(), vec2(60.0, 30.0));
-    assert_eq!(box_at(&harness, track).fill, red);
+    assert_eq!(box_at(&d, track).fill, red);
     assert_eq!(
-        rect_of(&harness, &circle_path(Unit::Metric)).size(),
+        d.rect(Target::suffix(&circle_path(Unit::Metric))).size(),
         vec2(24.0, 24.0)
     );
-    assert_eq!(box_at(&harness, rect_of(&harness, "/\"seg\"")).fill, red);
+    assert_eq!(box_at(&d, d.rect(Target::suffix("/\"seg\""))).fill, red);
 }
 
 #[test]
 fn a_radio_group_is_one_tab_stop_on_the_chosen_option() {
-    let mut harness = harness(Theme::Light);
-    support::past_bar(&mut harness);
-    harness.key_press(Key::Tab);
-    harness.run_steps(2);
+    let mut d = harness(Theme::Light);
+    support::drive_past_bar(&mut d);
+    d.press(Key::Tab).frames(1);
     assert_eq!(
-        focused_path(&harness).as_deref(),
+        focused_path(&d).as_deref(),
         Some(circle_path(Unit::Metric).as_str()),
         "Tab enters the group on the chosen option"
     );
     let mut visited = Vec::new();
     for _ in 0..16 {
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
-        visited.extend(focused_path(&harness));
+        d.press(Key::Tab).frames(1);
+        visited.extend(focused_path(&d));
     }
     assert!(
         visited
@@ -487,20 +480,18 @@ fn a_radio_group_is_one_tab_stop_on_the_chosen_option() {
         "a full cycle of Tab stops visits no other circle: {visited:?}"
     );
 
-    tab_to(&mut harness, &circle_path(Unit::Metric));
-    harness.key_press(Key::ArrowDown);
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.unit, Unit::Imperial);
-    harness.key_press(Key::Tab);
-    harness.run_steps(2);
+    tab_to(&mut d, &circle_path(Unit::Metric));
+    d.press(Key::ArrowDown).frames(3);
+    assert_eq!(d.app().unit, Unit::Imperial);
+    d.press(Key::Tab).frames(1);
     assert!(
-        !focused_path(&harness).is_some_and(|path| path.contains("Circle")),
+        !focused_path(&d).is_some_and(|path| path.contains("Circle")),
         "Tab leaves from the moved choice"
     );
-    harness.key_press_modifiers(egui::Modifiers::SHIFT, Key::Tab);
-    harness.run_steps(2);
+    d.press(KeyboardShortcut::new(egui::Modifiers::SHIFT, Key::Tab))
+        .frames(1);
     assert_eq!(
-        focused_path(&harness).as_deref(),
+        focused_path(&d).as_deref(),
         Some(circle_path(Unit::Imperial).as_str()),
         "Shift+Tab comes back to the chosen option"
     );
@@ -508,41 +499,38 @@ fn a_radio_group_is_one_tab_stop_on_the_chosen_option() {
 
 #[test]
 fn tab_enters_a_group_on_its_chosen_option_wherever_it_is() {
-    let mut harness = harness(Theme::Light);
-    harness.state_mut().app.unit = Unit::Nautical;
-    harness.run_steps(3);
-    support::past_bar(&mut harness);
-    harness.key_press(Key::Tab);
-    harness.run_steps(2);
+    let mut d = harness(Theme::Light);
+    d.app_mut().unit = Unit::Nautical;
+    d.frames(3);
+    support::drive_past_bar(&mut d);
+    d.press(Key::Tab).frames(1);
     assert_eq!(
-        focused_path(&harness).as_deref(),
+        focused_path(&d).as_deref(),
         Some(circle_path(Unit::Nautical).as_str())
     );
 }
 
 #[test]
 fn the_switch_track_eases_to_its_new_colour() {
-    let mut harness = harness_stepping(Theme::Light, 0.016);
+    let mut d = harness_stepping(Theme::Light, 0.016);
     let switch = style(Theme::Light).switch;
     let (off, on) = (switch.off.states.rest.fill, switch.on.states.rest.fill);
     assert_ne!(off, on);
-    let track = rect_of(&harness, "/\"air\"/Track");
-    assert_eq!(box_at(&harness, track).fill, off);
-    click_node(&mut harness, "/\"air\"/Track");
-    harness.run_steps(2);
-    let mid = box_at(&harness, track).fill;
+    let track = d.rect(Target::suffix("/\"air\"/Track"));
+    assert_eq!(box_at(&d, track).fill, off);
+    d.click(Target::suffix("/\"air\"/Track")).frames(2);
+    let mid = box_at(&d, track).fill;
     assert!(
         mid != off && mid != on,
         "{mid:?} between {off:?} and {on:?}"
     );
-    harness.run_steps(12);
-    assert_eq!(box_at(&harness, track).fill, on);
-    click_node(&mut harness, "/\"air\"/Track");
-    harness.run_steps(2);
-    let back = box_at(&harness, track).fill;
+    d.frames(12);
+    assert_eq!(box_at(&d, track).fill, on);
+    d.click(Target::suffix("/\"air\"/Track")).frames(2);
+    let back = box_at(&d, track).fill;
     assert!(back != off && back != on, "and back again");
-    harness.run_steps(12);
-    assert_eq!(box_at(&harness, track).fill, off);
+    d.frames(12);
+    assert_eq!(box_at(&d, track).fill, off);
 }
 
 #[test]
@@ -551,31 +539,27 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
     let mut style = style(Theme::Light);
     style.switch.off.states.hover.text = red;
     style.switch.off.states.pressed.text = red;
-    let mut harness = harness(Theme::Light);
-    style.clone().install(&harness.ctx);
-    harness.run_steps(4);
+    let mut d = harness(Theme::Light);
+    style.clone().install(d.ctx());
+    d.frames(4);
     let rest = style.switch.off.states.rest.text;
-    let (_, at_rest) = thumb(&harness, "/\"air\"/Track");
+    let (_, at_rest) = thumb(&d, "/\"air\"/Track");
     assert_eq!(at_rest.fill, rest);
-    support::hover_node(&mut harness, "/\"air\"/Track");
-    harness.run_steps(12);
-    assert_eq!(thumb(&harness, "/\"air\"/Track").1.fill, rest, "hovered");
-    support::press(&mut harness, "/\"air\"/Track");
-    assert_eq!(thumb(&harness, "/\"air\"/Track").1.fill, rest, "pressed");
-    support::release(&mut harness, "/\"air\"/Track");
+    d.hover(Target::suffix("/\"air\"/Track")).frames(12);
+    assert_eq!(thumb(&d, "/\"air\"/Track").1.fill, rest, "hovered");
+    d.pointer_down(Target::suffix("/\"air\"/Track")).frames(11);
+    assert_eq!(thumb(&d, "/\"air\"/Track").1.fill, rest, "pressed");
+    d.pointer_up(Target::suffix("/\"air\"/Track")).frames(11);
 }
 
 #[test]
 fn a_click_on_a_segmented_cell_does_not_show_the_focus_ring() {
-    let mut harness = harness(Theme::Light);
-    click_node(&mut harness, &cell_path(Unit::Nautical));
-    harness.run_steps(12);
-    assert_eq!(harness.state().app.segment, Unit::Nautical, "precondition");
-    let cell = rect_of(&harness, &cell_path(Unit::Nautical));
-    assert!(
-        ring_at(&harness, cell).is_none(),
-        "focus-visible: keyboard only"
-    );
+    let mut d = harness(Theme::Light);
+    d.click(Target::suffix(&cell_path(Unit::Nautical)))
+        .frames(12);
+    assert_eq!(d.app().segment, Unit::Nautical, "precondition");
+    let cell = d.rect(Target::suffix(&cell_path(Unit::Nautical)));
+    assert!(ring_at(&d, cell).is_none(), "focus-visible: keyboard only");
 }
 
 /// The cells of a segmented control tile its track for the pointer: the
@@ -588,48 +572,48 @@ mod tiling {
 
     const CELLS: [&str; 3] = ["/\"seg\"/0", "/\"seg\"/1", "/\"seg\"/2"];
 
-    fn cells(harness: &Harness<'_, Rig<App>>) -> [Rect; 3] {
-        CELLS.map(|path| rect_of(harness, path))
+    fn cells(d: &Driver<App>) -> [Rect; 3] {
+        CELLS.map(|path| d.rect(Target::suffix(path)))
     }
 
     /// Asserts `at` is on the track and in no cell's box.
-    fn between_cells(harness: &Harness<'_, Rig<App>>, at: Pos2) {
+    fn between_cells(d: &Driver<App>, at: Pos2) {
         assert!(
-            rect_of(harness, "/\"seg\"").contains(at),
+            d.rect(Target::suffix("/\"seg\"")).contains(at),
             "precondition: {at:?} is on the track"
         );
         assert!(
-            cells(harness).iter().all(|cell| !cell.contains(at)),
+            cells(d).iter().all(|cell| !cell.contains(at)),
             "precondition: {at:?} is in no cell"
         );
     }
 
-    fn click(harness: &mut Harness<'_, Rig<App>>, at: Pos2) {
-        support::hover_over(harness, at);
-        support::press_and_release(harness, at);
-        harness.run_steps(4);
+    fn click(d: &mut Driver<App>, at: Pos2) {
+        d.hover(at);
+        press_and_release(d, at);
+        d.frames(4);
     }
 
     #[test]
     fn a_click_in_the_tracks_padding_beside_the_last_cell_chooses_it() {
-        let mut harness = harness(Theme::Light);
-        let track = rect_of(&harness, "/\"seg\"");
-        let [_, _, last] = cells(&harness);
+        let mut d = harness(Theme::Light);
+        let track = d.rect(Target::suffix("/\"seg\""));
+        let [_, _, last] = cells(&d);
         let at = pos2((last.max.x + track.max.x) / 2.0, last.center().y);
-        between_cells(&harness, at);
-        click(&mut harness, at);
-        assert_eq!(harness.state().app.segment, Unit::Nautical);
+        between_cells(&d, at);
+        click(&mut d, at);
+        assert_eq!(d.app().segment, Unit::Nautical);
     }
 
     #[test]
     fn a_click_in_the_tracks_padding_above_a_cell_chooses_it() {
-        let mut harness = harness(Theme::Light);
-        let track = rect_of(&harness, "/\"seg\"");
-        let [_, middle, _] = cells(&harness);
+        let mut d = harness(Theme::Light);
+        let track = d.rect(Target::suffix("/\"seg\""));
+        let [_, middle, _] = cells(&d);
         let at = pos2(middle.center().x, (track.min.y + middle.min.y) / 2.0);
-        between_cells(&harness, at);
-        click(&mut harness, at);
-        assert_eq!(harness.state().app.segment, Unit::Imperial);
+        between_cells(&d, at);
+        click(&mut d, at);
+        assert_eq!(d.app().segment, Unit::Imperial);
     }
 
     fn gapped(b: &mut Builder<'_, '_, App>, app: &App) {
@@ -643,24 +627,37 @@ mod tiling {
     #[test]
     fn a_click_in_the_gap_between_cells_chooses_the_nearer() {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness(
+        let mut d = support::driver(
             vec2(500.0, 200.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             App::default(),
             gapped,
-        );
-        harness.run_steps(4);
-        let [first, second, _] = cells(&harness);
+        )
+        .build();
+        d.frames(4);
+        let [first, second, _] = cells(&d);
         let gap = second.min.x - first.max.x;
         assert!(gap >= 4.0, "precondition: a gap of {gap} between the cells");
         let y = first.center().y;
         let near_second = pos2(second.min.x - gap / 4.0, y);
-        between_cells(&harness, near_second);
-        click(&mut harness, near_second);
-        assert_eq!(harness.state().app.segment, Unit::Imperial);
+        between_cells(&d, near_second);
+        click(&mut d, near_second);
+        assert_eq!(d.app().segment, Unit::Imperial);
         let near_first = pos2(first.max.x + gap / 4.0, y);
-        between_cells(&harness, near_first);
-        click(&mut harness, near_first);
-        assert_eq!(harness.state().app.segment, Unit::Metric);
+        between_cells(&d, near_first);
+        click(&mut d, near_first);
+        assert_eq!(d.app().segment, Unit::Metric);
+    }
+}
+
+/// A primary press and release at `at`, a frame each.
+fn press_and_release<A>(d: &mut Driver<A>, at: egui::Pos2) {
+    for pressed in [true, false] {
+        d.event(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
     }
 }

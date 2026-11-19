@@ -4,47 +4,41 @@
 
 use std::time::Duration;
 
-use eggshell_ui::testing::{Headless, assert_no_reports, assert_reported};
+use eggshell_ui::testing::{Driver, Headless, Target, assert_no_reports, assert_reported};
 use eggshell_ui::widget::Stock;
 use eggshell_ui::{Builder, Problem, Style, TextStyle, Width, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Context, Key, Role, Theme, Vec2, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, View, focused_path, hover_node, rect_of};
+use crate::support::{self, View, focused_path};
 
 struct App {
     value: f64,
     ends: (f64, f64),
 }
 
-fn harness(app: App, view: View<App>) -> Harness<'static, Rig<App>> {
+fn harness(app: App, view: View<App>) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(300.0, 200.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         app,
         view,
-    );
-    harness.run_steps(4);
-    harness
+    )
+    .build();
+    d.frames(4);
+    d
 }
 
-fn tab_to(harness: &mut Harness<'_, Rig<App>>, path: &str) {
+fn tab_to(d: &mut Driver<App>, path: &str) {
     for _ in 0..8 {
-        if focused_path(harness).as_deref() == Some(path) {
+        if focused_path(d).as_deref() == Some(path) {
             return;
         }
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
+        d.press(Key::Tab).frames(1);
     }
-    panic!("Tab never reached {path}: {:?}", focused_path(harness));
-}
-
-fn press(harness: &mut Harness<'_, Rig<App>>, key: Key) {
-    harness.key_press(key);
-    harness.run_steps(4);
+    panic!("Tab never reached {path}: {:?}", focused_path(d));
 }
 
 fn slider(b: &mut Builder<'_, '_, App>, app: &App) {
@@ -61,97 +55,91 @@ fn stepper(b: &mut Builder<'_, '_, App>, app: &App) {
 
 const THUMB: &str = "/\"s\"/Track/Thumb";
 
-fn numeric_range(harness: &Harness<'_, Rig<App>>, role: Role) -> (Option<f64>, Option<f64>) {
-    let node = harness.get_by_role(role);
+fn numeric_range(d: &Driver<App>, role: Role) -> (Option<f64>, Option<f64>) {
+    let node = d.harness().get_by_role(role);
     let node = node.accesskit_node();
     (node.min_numeric_value(), node.max_numeric_value())
 }
 
 #[test]
 fn a_reversed_slider_range_is_swapped_and_reported() {
-    let mut harness = harness(
+    let mut d = harness(
         App {
             value: 40.0,
             ends: (100.0, 0.0),
         },
         slider,
     );
-    let report = assert_reported(&harness.ctx, Problem::BadRange);
+    let report = assert_reported(d.ctx(), Problem::BadRange);
     assert!(report.message.contains("100.0..=0.0"), "{report:?}");
-    assert_eq!(
-        numeric_range(&harness, Role::Slider),
-        (Some(0.0), Some(100.0))
-    );
-    tab_to(&mut harness, THUMB);
-    press(&mut harness, Key::ArrowRight);
-    assert_eq!(harness.state().app.value, 41.0);
+    assert_eq!(numeric_range(&d, Role::Slider), (Some(0.0), Some(100.0)));
+    tab_to(&mut d, THUMB);
+    d.press(Key::ArrowRight).frames(3);
+    assert_eq!(d.app().value, 41.0);
 }
 
 #[test]
 fn a_stepper_range_with_a_nan_end_ends_at_its_other_end() {
-    let mut harness = harness(
+    let mut d = harness(
         App {
             value: 3.0,
             ends: (0.0, f64::NAN),
         },
         stepper,
     );
-    assert_reported(&harness.ctx, Problem::BadRange);
-    assert_eq!(
-        numeric_range(&harness, Role::SpinButton),
-        (Some(0.0), Some(0.0))
-    );
-    harness.get_by_role(Role::SpinButton).focus();
-    harness.run_steps(2);
-    press(&mut harness, Key::ArrowUp);
-    assert_eq!(harness.state().app.value, 0.0);
+    assert_reported(d.ctx(), Problem::BadRange);
+    assert_eq!(numeric_range(&d, Role::SpinButton), (Some(0.0), Some(0.0)));
+    d.harness().get_by_role(Role::SpinButton).focus();
+    d.frames(2);
+    d.press(Key::ArrowUp).frames(3);
+    assert_eq!(d.app().value, 0.0);
 }
 
 #[test]
 fn an_infinite_stepper_end_is_mended_too() {
-    let harness = harness(
+    let d = harness(
         App {
             value: 3.0,
             ends: (f64::NEG_INFINITY, 10.0),
         },
         stepper,
     );
-    assert_reported(&harness.ctx, Problem::BadRange);
+    assert_reported(d.ctx(), Problem::BadRange);
     assert_eq!(
-        numeric_range(&harness, Role::SpinButton),
+        numeric_range(&d, Role::SpinButton),
         (Some(10.0), Some(10.0))
     );
 }
 
 #[test]
 fn a_nan_slider_value_is_the_start_of_its_range() {
-    let mut harness = harness(
+    let mut d = harness(
         App {
             value: f64::NAN,
             ends: (0.0, 100.0),
         },
         slider,
     );
-    assert_reported(&harness.ctx, Problem::NanValue);
-    let track = rect_of(&harness, "/\"s\"/Track");
-    let thumb = rect_of(&harness, THUMB);
+    assert_reported(d.ctx(), Problem::NanValue);
+    let track = d.rect(Target::suffix("/\"s\"/Track"));
+    let thumb = d.rect(Target::suffix(THUMB));
     assert!(thumb.is_finite(), "{thumb:?}");
     assert_eq!(thumb.left(), track.left(), "at the start");
-    tab_to(&mut harness, THUMB);
-    press(&mut harness, Key::End);
-    assert_eq!(harness.state().app.value, 100.0);
+    tab_to(&mut d, THUMB);
+    d.press(Key::End).frames(3);
+    assert_eq!(d.app().value, 100.0);
 }
 
 #[test]
 fn a_valid_range_and_value_report_nothing() {
-    let harness = harness(
+    let d = harness(
         App {
             value: 4.0,
             ends: (0.0, 10.0),
         },
         slider,
     );
-    assert_no_reports(&harness.ctx);
+    assert_no_reports(d.ctx());
 }
 
 fn nan_lengths(b: &mut Builder<'_, '_, App>, _: &App) {
@@ -171,16 +159,16 @@ fn nan_lengths(b: &mut Builder<'_, '_, App>, _: &App) {
 
 #[test]
 fn a_length_that_is_not_finite_is_ignored_reported_and_drawn_without_a_panic() {
-    let harness = harness(
+    let d = harness(
         App {
             value: 0.0,
             ends: (0.0, 1.0),
         },
         nan_lengths,
     );
-    let report = assert_reported(&harness.ctx, Problem::NonFiniteLength);
+    let report = assert_reported(d.ctx(), Problem::NonFiniteLength);
     assert!(report.message.contains("box"), "{report:?}");
-    let rect = rect_of(&harness, "/\"box\"");
+    let rect = d.rect(Target::suffix("/\"box\""));
     assert!(rect.is_finite(), "{rect:?}");
     assert_eq!(rect.width(), 40.0, "the earlier, finite width stands");
 }
@@ -223,19 +211,19 @@ fn unmeasurable(b: &mut Builder<'_, '_, App>, _: &App) {
 
 #[test]
 fn a_node_laid_out_at_nan_is_placed_empty_and_drawn_without_a_panic() {
-    let harness = harness(
+    let d = harness(
         App {
             value: 0.0,
             ends: (0.0, 1.0),
         },
         unmeasurable,
     );
-    let rect = rect_of(&harness, "/\"w\"");
+    let rect = d.rect(Target::suffix("/\"w\""));
     assert!(
         rect.is_finite() && rect.size() == Vec2::ZERO,
         "the precondition and the fallback: {rect:?}"
     );
-    assert!(rect_of(&harness, "/\"after\"").is_finite());
+    assert!(d.rect(Target::suffix("/\"after\"")).is_finite());
 }
 
 fn endless_transition(b: &mut Builder<'_, '_, App>, _: &App) {
@@ -251,17 +239,16 @@ fn endless_transition(b: &mut Builder<'_, '_, App>, _: &App) {
 
 #[test]
 fn a_transition_as_long_as_a_duration_gets_retargets_without_a_panic() {
-    let mut harness = harness(
+    let mut d = harness(
         App {
             value: 0.0,
             ends: (0.0, 1.0),
         },
         endless_transition,
     );
-    hover_node(&mut harness, "/\"hovered\"");
-    harness.hover_at(egui::pos2(250.0, 180.0));
-    harness.run_steps(3);
-    hover_node(&mut harness, "/\"hovered\"");
+    d.hover(Target::suffix("/\"hovered\""))
+        .hover(egui::pos2(250.0, 180.0))
+        .hover(Target::suffix("/\"hovered\""));
 }
 
 #[test]

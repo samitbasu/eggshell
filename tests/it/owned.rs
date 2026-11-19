@@ -5,17 +5,14 @@
 use eggshell_ui::Style;
 use eggshell_ui::contract::{Size, Variant};
 use eggshell_ui::owned::Enablement;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens, variant};
 use egui::epaint::Shape;
 use egui::{Color32, Key, Role, Theme, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{
-    self, Rig, box_at, click_node, focused_path, hover_node, press, rect_of, release, ring_at,
-    shapes, text_color,
-};
+use crate::support::{self, box_at, focused_path, ring_at, shapes};
 
 const VARIANTS: [Variant; 5] = [
     variant::PRIMARY,
@@ -69,47 +66,47 @@ fn path(name: Variant, enablement: Enablement) -> String {
     format!("/({name:?}, {enablement:?})")
 }
 
-fn harness(theme: Theme) -> Harness<'static, Rig<App>> {
+fn harness(theme: Theme) -> Driver<App> {
     let tokens = Tokens::for_theme(theme);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(500.0, 760.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
-    );
-    harness.ctx.set_theme(theme);
-    harness.run_steps(12);
-    harness
+    )
+    .build();
+    d.ctx().set_theme(theme);
+    d.frames(12);
+    d
 }
 
 fn style(theme: Theme) -> Style {
     Shadcn::for_theme(theme).style()
 }
 
-fn move_away(harness: &mut Harness<'_, Rig<App>>) {
-    harness.hover_at(egui::pos2(490.0, 690.0));
-    harness.run_steps(12);
+fn move_away(d: &mut Driver<App>) {
+    d.carry_to(egui::pos2(490.0, 690.0)).frames(11);
 }
 
 #[test]
 fn every_variant_and_state_draws_the_styles_colours() {
     for theme in [Theme::Light, Theme::Dark] {
         let style = style(theme);
-        let mut harness = harness(theme);
+        let mut d = harness(theme);
         for name in VARIANTS {
             let look = style.button.variants.get(name);
             let node = path(name, Enablement::Enabled);
-            let rect = rect_of(&harness, &node);
+            let rect = d.rect(Target::suffix(&node));
             let radius = f32::from(style.button.sizes.get(Size::DEFAULT).radius);
             let rest = look.paint.states.rest;
-            let shape = box_at(&harness, rect);
+            let shape = box_at(&d, rect);
             assert_eq!(shape.fill, rest.fill, "{theme:?} {name} rest fill");
             assert_eq!(
                 shape.corner_radius,
                 egui::CornerRadius::same(style.button.sizes.get(Size::DEFAULT).radius),
                 "{theme:?} {name} radius {radius}"
             );
-            assert_eq!(text_color(&harness, rect, "Save"), rest.text);
+            assert_eq!(text_color(&d, rect, "Save"), rest.text);
             if look.border_width > 0.0 {
                 assert_eq!(shape.stroke.color, rest.border, "{theme:?} {name} border");
                 assert_eq!(shape.stroke.width, look.border_width);
@@ -117,36 +114,32 @@ fn every_variant_and_state_draws_the_styles_colours() {
                 assert_eq!(shape.stroke.width, 0.0, "{theme:?} {name} has no border");
             }
 
-            hover_node(&mut harness, &node);
-            harness.run_steps(12);
-            let shape = box_at(&harness, rect);
+            d.hover(Target::suffix(&node)).frames(12);
+            let shape = box_at(&d, rect);
             assert_eq!(
                 shape.fill, look.paint.states.hover.fill,
                 "{theme:?} {name} hover fill"
             );
-            assert_eq!(
-                text_color(&harness, rect, "Save"),
-                look.paint.states.hover.text
-            );
+            assert_eq!(text_color(&d, rect, "Save"), look.paint.states.hover.text);
 
-            press(&mut harness, &node);
-            let shape = box_at(&harness, rect.translate(vec2(0.0, 1.0)));
+            d.pointer_down(Target::suffix(&node)).frames(11);
+            let shape = box_at(&d, rect.translate(vec2(0.0, 1.0)));
             assert_eq!(
                 shape.fill, look.paint.states.pressed.fill,
                 "{theme:?} {name} pressed"
             );
-            release(&mut harness, &node);
-            move_away(&mut harness);
+            d.pointer_up(Target::suffix(&node)).frames(11);
+            move_away(&mut d);
 
             let off = path(name, Enablement::Disabled);
-            let off_rect = rect_of(&harness, &off);
-            let shape = box_at(&harness, off_rect);
+            let off_rect = d.rect(Target::suffix(&off));
+            let shape = box_at(&d, off_rect);
             assert_eq!(
                 shape.fill, look.paint.states.disabled.fill,
                 "{theme:?} {name} disabled"
             );
             assert_eq!(
-                text_color(&harness, off_rect, "Save"),
+                text_color(&d, off_rect, "Save"),
                 look.paint.states.disabled.text
             );
             assert_ne!(
@@ -200,10 +193,10 @@ fn vega_values_are_shadcns() {
 
 #[test]
 fn disabled_is_explicit_opaque_colours_not_alpha() {
-    let harness = harness(Theme::Light);
+    let d = harness(Theme::Light);
     let node = path(variant::PRIMARY, Enablement::Disabled);
-    let rect = rect_of(&harness, &node);
-    let shape = box_at(&harness, rect);
+    let rect = d.rect(Target::suffix(&node));
+    let shape = box_at(&d, rect);
     let rest = style(Theme::Light)
         .button
         .variants
@@ -219,7 +212,7 @@ fn disabled_is_explicit_opaque_colours_not_alpha() {
     );
     assert_eq!(shape.fill.a(), 255, "opaque, so nothing shows through");
     assert!(
-        ring_at(&harness, rect).is_none(),
+        ring_at(&d, rect).is_none(),
         "a disabled button never shows a focus ring"
     );
 }
@@ -227,59 +220,56 @@ fn disabled_is_explicit_opaque_colours_not_alpha() {
 #[test]
 fn the_focus_ring_is_shadcns_three_pixels_at_half_ring() {
     for theme in [Theme::Light, Theme::Dark] {
-        let mut harness = harness(theme);
+        let mut d = harness(theme);
         let tokens = Tokens::for_theme(theme);
-        support::past_bar(&mut harness);
-        harness.key_press(Key::Tab);
-        harness.run_steps(12);
+        support::drive_past_bar(&mut d);
+        d.press(Key::Tab).frames(11);
         let node = path(variant::PRIMARY, Enablement::Enabled);
-        assert_eq!(focused_path(&harness).as_deref(), Some(node.as_str()));
-        let rect = rect_of(&harness, &node);
-        let ring = ring_at(&harness, rect).expect("a focus ring");
+        assert_eq!(focused_path(&d).as_deref(), Some(node.as_str()));
+        let rect = d.rect(Target::suffix(&node));
+        let ring = ring_at(&d, rect).expect("a focus ring");
         assert_eq!(ring.stroke.width, 3.0, "ring-[3px]");
         assert_eq!(
             ring.stroke.color,
             tokens.ring.gamma_multiply(0.5),
             "ring-ring/50"
         );
-        assert_eq!(ring.rect, box_at(&harness, rect).rect, "no ring offset");
+        assert_eq!(ring.rect, box_at(&d, rect).rect, "no ring offset");
         assert_eq!(
-            box_at(&harness, rect).stroke.width,
+            box_at(&d, rect).stroke.width,
             0.0,
             "primary has no border to recolour"
         );
 
         let outline = path(variant::OUTLINE, Enablement::Enabled);
-        while focused_path(&harness).as_deref() != Some(outline.as_str()) {
-            harness.key_press(Key::Tab);
-            harness.run_steps(12);
+        while focused_path(&d).as_deref() != Some(outline.as_str()) {
+            d.press(Key::Tab).frames(11);
         }
-        let rect = rect_of(&harness, &outline);
-        let border = box_at(&harness, rect).stroke;
+        let rect = d.rect(Target::suffix(&outline));
+        let border = box_at(&d, rect).stroke;
         assert_eq!(
             (border.color, border.width),
             (tokens.ring, 1.0),
             "border-ring"
         );
-        assert_eq!(ring_at(&harness, rect).expect("a ring").stroke.width, 3.0);
+        assert_eq!(ring_at(&d, rect).expect("a ring").stroke.width, 3.0);
     }
 }
 
 #[test]
 fn destructive_has_its_own_focus_ring() {
-    let mut harness = harness(Theme::Light);
+    let mut d = harness(Theme::Light);
     let node = path(variant::DESTRUCTIVE, Enablement::Enabled);
-    click_node(&mut harness, &node);
-    support::past_bar(&mut harness);
+    d.click(Target::suffix(&node));
+    support::drive_past_bar(&mut d);
     for _ in 0..3 {
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
-        if focused_path(&harness).as_deref() == Some(node.as_str()) {
+        d.press(Key::Tab).frames(1);
+        if focused_path(&d).as_deref() == Some(node.as_str()) {
             break;
         }
     }
-    harness.run_steps(12);
-    let ring = ring_at(&harness, rect_of(&harness, &node)).expect("a focus ring");
+    d.frames(12);
+    let ring = ring_at(&d, d.rect(Target::suffix(&node))).expect("a focus ring");
     assert_eq!(
         ring.stroke.color,
         Tokens::light().destructive.gamma_multiply(0.2)
@@ -288,20 +278,20 @@ fn destructive_has_its_own_focus_ring() {
 
 #[test]
 fn sizes_are_what_the_classes_imply() {
-    let mut harness = harness(Theme::Light);
+    let mut d = harness(Theme::Light);
     let style = style(Theme::Light);
-    let font = style.role(&style.button.text).font_id(&harness.ctx);
-    let text_width = |harness: &Harness<'_, Rig<App>>, text: &str| {
-        harness.ctx.fonts_mut(|fonts| {
+    let font = style.role(&style.button.text).font_id(d.ctx());
+    let text_width = |d: &Driver<App>, text: &str| {
+        d.ctx().fonts_mut(|fonts| {
             fonts
                 .layout_no_wrap(text.to_owned(), font.clone(), Color32::WHITE)
                 .size()
                 .x
         })
     };
-    let save = text_width(&harness, "Save");
+    let save = text_width(&d, "Save");
     for name in VARIANTS {
-        let rect = rect_of(&harness, &path(name, Enablement::Enabled));
+        let rect = d.rect(Target::suffix(&path(name, Enablement::Enabled)));
         let border = if name == variant::OUTLINE { 2.0 } else { 0.0 };
         assert_eq!(rect.height(), 36.0, "{name}: h-9");
         assert!(
@@ -316,51 +306,50 @@ fn sizes_are_what_the_classes_imply() {
             save + 32.0 + border
         );
     }
-    let toggle = rect_of(&harness, "/\"toggle\"");
+    let toggle = d.rect(Target::suffix("/\"toggle\""));
     assert_eq!(toggle.height(), 36.0);
     assert!(
-        (toggle.width() - (text_width(&harness, "Toggle") + 16.0)).abs() < 0.01,
+        (toggle.width() - (text_width(&d, "Toggle") + 16.0)).abs() < 0.01,
         "px-2"
     );
 
-    let bare = rect_of(&harness, "/\"bare\"/Box");
+    let bare = d.rect(Target::suffix("/\"bare\"/Box"));
     assert_eq!(bare.size(), vec2(16.0, 16.0), "size-4");
-    let boxed = rect_of(&harness, "/(\"check\", Enabled)/Box");
-    let label = rect_of(&harness, "/(\"check\", Enabled)/Label");
+    let boxed = d.rect(Target::suffix("/(\"check\", Enabled)/Box"));
+    let label = d.rect(Target::suffix("/(\"check\", Enabled)/Label"));
     assert_eq!(boxed.size(), vec2(16.0, 16.0));
     assert!((label.min.x - boxed.max.x - 8.0).abs() < 0.01, "gap-2");
-    let again = harness.state().nodes.len();
+    let again = support::nodes(&d).len();
     assert!(again > 0);
-    harness.run_steps(1);
+    d.frames(1);
 }
 
 #[test]
 fn checkbox_box_and_glyph_are_the_styles() {
     for theme in [Theme::Light, Theme::Dark] {
-        let mut harness = harness(theme);
+        let mut d = harness(theme);
         let style = style(theme);
         let node = "/(\"check\", Enabled)/Box";
-        let rect = rect_of(&harness, node);
-        let shape = box_at(&harness, rect);
+        let rect = d.rect(Target::suffix(node));
+        let shape = box_at(&d, rect);
         let unchecked = style.checkbox.off.states.rest;
         assert_eq!(shape.fill, unchecked.fill, "{theme:?} unchecked");
         assert_eq!(shape.stroke.color, unchecked.border);
         assert_eq!(shape.corner_radius, egui::CornerRadius::same(4));
         assert!(
-            !shapes(&harness)
+            !shapes(&d)
                 .iter()
                 .any(|s| matches!(s, Shape::LineSegment { .. } | Shape::Path(_))
                     && s.visual_bounding_rect().intersects(rect)),
             "no check glyph while unchecked"
         );
-        click_node(&mut harness, node);
-        harness.run_steps(12);
-        assert!(harness.state().app.checked);
+        d.click(Target::suffix(node)).frames(12);
+        assert!(d.app().checked);
         let checked = style.checkbox.on.states.rest;
-        let shape = box_at(&harness, rect);
+        let shape = box_at(&d, rect);
         assert_eq!(shape.fill, checked.fill, "{theme:?} checked");
         assert_eq!(shape.stroke.color, checked.border);
-        let glyphs: Vec<_> = support::textured(&harness)
+        let glyphs: Vec<_> = support::textured(&d)
             .into_iter()
             .filter(|mesh| rect.contains_rect(mesh.calc_bounds()))
             .collect();
@@ -382,38 +371,31 @@ fn checkbox_box_and_glyph_are_the_styles() {
 
 #[test]
 fn clicking_and_keys_activate() {
-    let mut harness = harness(Theme::Light);
+    let mut d = harness(Theme::Light);
     let node = path(variant::PRIMARY, Enablement::Enabled);
-    click_node(&mut harness, &node);
-    assert_eq!(harness.state().app.clicks, ["primary"]);
+    d.click(Target::suffix(&node));
+    assert_eq!(d.app().clicks, ["primary"]);
 
-    harness.hover_at(egui::pos2(490.0, 690.0));
-    support::past_bar(&mut harness);
-    harness.key_press(Key::Tab);
-    harness.run_steps(2);
+    d.harness().hover_at(egui::pos2(490.0, 690.0));
+    support::drive_past_bar(&mut d);
+    d.press(Key::Tab).frames(1);
     assert_eq!(
-        focused_path(&harness).as_deref(),
+        focused_path(&d).as_deref(),
         Some(path(variant::PRIMARY, Enablement::Enabled).as_str())
     );
-    harness.key_press(Key::Enter);
-    harness.run_steps(2);
-    harness.key_press(Key::Space);
-    harness.run_steps(2);
-    assert_eq!(
-        harness.state().app.clicks,
-        ["primary", "primary", "primary"]
-    );
+    d.press(Key::Enter).frames(1);
+    d.press(Key::Space).frames(1);
+    assert_eq!(d.app().clicks, ["primary", "primary", "primary"]);
 }
 
 #[test]
 fn tab_visits_enabled_controls_only() {
-    let mut harness = harness(Theme::Light);
+    let mut d = harness(Theme::Light);
     let mut visited = Vec::new();
-    support::past_bar(&mut harness);
+    support::drive_past_bar(&mut d);
     for _ in 0..12 {
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
-        visited.extend(focused_path(&harness));
+        d.press(Key::Tab).frames(1);
+        visited.extend(focused_path(&d));
     }
     let expected: Vec<String> = VARIANTS
         .into_iter()
@@ -435,41 +417,42 @@ fn tab_visits_enabled_controls_only() {
 
 #[test]
 fn disabled_controls_block_input() {
-    let mut harness = harness(Theme::Light);
-    click_node(&mut harness, &path(variant::PRIMARY, Enablement::Disabled));
-    click_node(&mut harness, "/(\"check\", Disabled)/Box");
-    click_node(&mut harness, "/(\"check\", Disabled)/Label");
-    assert!(harness.state().app.clicks.is_empty());
-    assert!(!harness.state().app.checked);
+    let mut d = harness(Theme::Light);
+    d.click(Target::suffix(&path(
+        variant::PRIMARY,
+        Enablement::Disabled,
+    )));
+    d.click(Target::suffix("/(\"check\", Disabled)/Box"));
+    d.click(Target::suffix("/(\"check\", Disabled)/Label"));
+    assert!(d.app().clicks.is_empty());
+    assert!(!d.app().checked);
 }
 
 #[test]
 fn toggle_and_checkbox_toggle() {
-    let mut harness = harness(Theme::Light);
-    click_node(&mut harness, "/\"toggle\"");
-    assert!(harness.state().app.toggled);
-    click_node(&mut harness, "/\"toggle\"");
-    assert!(!harness.state().app.toggled);
+    let mut d = harness(Theme::Light);
+    d.click(Target::suffix("/\"toggle\""));
+    assert!(d.app().toggled);
+    d.click(Target::suffix("/\"toggle\""));
+    assert!(!d.app().toggled);
 
-    click_node(&mut harness, "/(\"check\", Enabled)/Label");
-    assert!(harness.state().app.checked, "the label toggles the box");
-    click_node(&mut harness, "/(\"check\", Enabled)/Box");
-    assert!(!harness.state().app.checked);
+    d.click(Target::suffix("/(\"check\", Enabled)/Label"));
+    assert!(d.app().checked, "the label toggles the box");
+    d.click(Target::suffix("/(\"check\", Enabled)/Box"));
+    assert!(!d.app().checked);
 
-    let before = harness.state().app.checked;
+    let before = d.app().checked;
     let node = "/(\"check\", Enabled)/Box";
     for _ in 0..12 {
-        if focused_path(&harness).as_deref() == Some(node) {
+        if focused_path(&d).as_deref() == Some(node) {
             break;
         }
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
+        d.press(Key::Tab).frames(1);
     }
-    assert_eq!(focused_path(&harness).as_deref(), Some(node));
-    harness.key_press(Key::Space);
-    harness.run_steps(2);
+    assert_eq!(focused_path(&d).as_deref(), Some(node));
+    d.press(Key::Space).frames(1);
     assert_eq!(
-        harness.state().app.checked,
+        d.app().checked,
         !before,
         "Space on the focused box toggles it"
     );
@@ -477,15 +460,17 @@ fn toggle_and_checkbox_toggle() {
 
 #[test]
 fn accessibility_roles_labels_and_state() {
-    let mut harness = harness(Theme::Light);
-    let buttons: Vec<_> = harness
+    let mut d = harness(Theme::Light);
+    let buttons: Vec<_> = d
+        .harness()
         .get_all_by_role_and_label(Role::Button, "Save")
         .map(|node| node.accesskit_node().is_disabled())
         .collect();
     assert_eq!(buttons.len(), 10, "one button per variant, enabled and not");
     assert_eq!(buttons.iter().filter(|disabled| **disabled).count(), 5);
 
-    let checkboxes: Vec<_> = harness
+    let checkboxes: Vec<_> = d
+        .harness()
         .get_all_by_role_and_label(Role::CheckBox, "Accept terms")
         .map(|node| {
             (
@@ -502,7 +487,7 @@ fn accessibility_roles_labels_and_state() {
         ]
     );
     assert_eq!(
-        harness
+        d.harness()
             .get_by_role_and_label(Role::CheckBox, "Bare")
             .accesskit_node()
             .toggled(),
@@ -510,18 +495,17 @@ fn accessibility_roles_labels_and_state() {
         "named() labels a checkbox without text"
     );
     assert_eq!(
-        harness
+        d.harness()
             .get_by_role_and_label(Role::Button, "Toggle")
             .accesskit_node()
             .toggled(),
         Some(egui::accesskit::Toggled::False)
     );
 
-    click_node(&mut harness, "/(\"check\", Enabled)/Box");
-    click_node(&mut harness, "/\"toggle\"");
-    harness.run_steps(2);
+    d.click(Target::suffix("/(\"check\", Enabled)/Box"));
+    d.click(Target::suffix("/\"toggle\"")).frames(2);
     assert_eq!(
-        harness
+        d.harness()
             .get_all_by_role_and_label(Role::CheckBox, "Accept terms")
             .next()
             .unwrap()
@@ -530,7 +514,7 @@ fn accessibility_roles_labels_and_state() {
         Some(egui::accesskit::Toggled::True)
     );
     assert_eq!(
-        harness
+        d.harness()
             .get_by_role_and_label(Role::Button, "Toggle")
             .accesskit_node()
             .toggled(),
@@ -546,20 +530,19 @@ fn a_changed_style_changes_the_drawing() {
     look.paint.states.rest.fill = red;
     style.button.sizes.get_mut(Size::DEFAULT).unwrap().radius = 0;
     style.button.sizes.get_mut(Size::DEFAULT).unwrap().height = 40.0;
-    let mut harness = harness(Theme::Light);
-    style.install(&harness.ctx);
-    harness.run_steps(12);
-    let rect = rect_of(&harness, &path(variant::PRIMARY, Enablement::Enabled));
-    let shape = box_at(&harness, rect);
+    let mut d = harness(Theme::Light);
+    style.install(d.ctx());
+    d.frames(12);
+    let rect = d.rect(Target::suffix(&path(variant::PRIMARY, Enablement::Enabled)));
+    let shape = box_at(&d, rect);
     assert_eq!(shape.fill, red);
     assert_eq!(shape.corner_radius, egui::CornerRadius::ZERO);
     assert_eq!(rect.height(), 40.0);
 }
 
-fn press_at(harness: &mut Harness<'_, Rig<App>>, at: egui::Pos2) {
-    harness.hover_at(at);
-    harness.run_steps(2);
-    harness.event(egui::Event::PointerButton {
+fn press_at(d: &mut Driver<App>, at: egui::Pos2) {
+    d.carry_to(at).frames(1);
+    d.harness().event(egui::Event::PointerButton {
         pos: at,
         button: egui::PointerButton::Primary,
         pressed: true,
@@ -567,8 +550,8 @@ fn press_at(harness: &mut Harness<'_, Rig<App>>, at: egui::Pos2) {
     });
 }
 
-fn label_top(harness: &Harness<'_, Rig<App>>, inside: egui::Rect) -> f32 {
-    shapes(harness)
+fn label_top(d: &Driver<App>, inside: egui::Rect) -> f32 {
+    shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(t) if inside.contains(t.pos) => Some(t.pos.y),
@@ -579,22 +562,22 @@ fn label_top(harness: &Harness<'_, Rig<App>>, inside: egui::Rect) -> f32 {
 
 #[test]
 fn a_pressed_button_is_painted_one_point_lower_and_nothing_else_moves() {
-    let mut harness = harness(Theme::Light);
+    let mut d = harness(Theme::Light);
     let node = path(variant::PRIMARY, Enablement::Enabled);
-    let rect = rect_of(&harness, &node);
-    let rest_text = label_top(&harness, rect);
-    let nodes_before = harness.state().nodes.clone();
+    let rect = d.rect(Target::suffix(&node));
+    let rest_text = label_top(&d, rect);
+    let nodes_before = support::nodes(&d).clone();
     assert_eq!(
         style(Theme::Light).button.press_shift,
         1.0,
         "precondition: vega shifts"
     );
 
-    press_at(&mut harness, rect.center());
-    harness.run_steps(12);
+    press_at(&mut d, rect.center());
+    d.frames(12);
     let moved = rect.translate(vec2(0.0, 1.0));
     assert_eq!(
-        box_at(&harness, moved).fill,
+        box_at(&d, moved).fill,
         style(Theme::Light)
             .button
             .variants
@@ -605,42 +588,42 @@ fn a_pressed_button_is_painted_one_point_lower_and_nothing_else_moves() {
             .fill
     );
     assert_eq!(
-        label_top(&harness, moved) - rest_text,
+        label_top(&d, moved) - rest_text,
         1.0,
         "the subtree moves with the box"
     );
-    assert_eq!(harness.state().nodes, nodes_before, "layout rects stay");
+    assert_eq!(support::nodes(&d), nodes_before, "layout rects stay");
 }
 
 #[test]
 fn the_hit_rect_stays_where_layout_put_it() {
-    let mut harness = harness(Theme::Light);
+    let mut d = harness(Theme::Light);
     let node = path(variant::PRIMARY, Enablement::Enabled);
-    let rect = rect_of(&harness, &node);
+    let rect = d.rect(Target::suffix(&node));
     let top_edge = egui::pos2(rect.center().x, rect.top() + 0.25);
-    press_at(&mut harness, top_edge);
-    harness.run_steps(12);
+    press_at(&mut d, top_edge);
+    d.frames(12);
     assert!(
-        box_at(&harness, rect.translate(vec2(0.0, 1.0))).rect.top() > top_edge.y,
+        box_at(&d, rect.translate(vec2(0.0, 1.0))).rect.top() > top_edge.y,
         "precondition: the point is above the moved box"
     );
-    harness.event(egui::Event::PointerButton {
+    d.event(egui::Event::PointerButton {
         pos: top_edge,
         button: egui::PointerButton::Primary,
         pressed: false,
         modifiers: egui::Modifiers::NONE,
-    });
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.clicks, ["primary"]);
+    })
+    .frames(1);
+    assert_eq!(d.app().clicks, ["primary"]);
 }
 
 #[test]
 fn the_press_eases_in_and_out_with_the_transition() {
-    let mut harness = harness(Theme::Light);
+    let mut d = harness(Theme::Light);
     let node = path(variant::PRIMARY, Enablement::Enabled);
-    let rect = rect_of(&harness, &node);
-    let offset = |harness: &Harness<'_, Rig<App>>| {
-        let top = shapes(harness)
+    let rect = d.rect(Target::suffix(&node));
+    let offset = |d: &Driver<App>| {
+        let top = shapes(d)
             .into_iter()
             .filter_map(|shape| match shape {
                 Shape::Rect(r)
@@ -657,12 +640,12 @@ fn the_press_eases_in_and_out_with_the_transition() {
             .expect("the box");
         top - rect.top()
     };
-    assert_eq!(offset(&harness), 0.0);
-    press_at(&mut harness, rect.center());
+    assert_eq!(offset(&d), 0.0);
+    press_at(&mut d, rect.center());
     let mut seen = Vec::new();
     for _ in 0..6 {
-        harness.step();
-        seen.push(offset(&harness));
+        d.frames(1);
+        seen.push(offset(&d));
     }
     assert!(
         seen.iter().any(|y| *y > 0.0 && *y < 1.0),
@@ -671,7 +654,7 @@ fn the_press_eases_in_and_out_with_the_transition() {
     assert!(seen.windows(2).all(|pair| pair[0] <= pair[1]), "{seen:?}");
     assert_eq!(*seen.last().unwrap(), 1.0);
 
-    harness.event(egui::Event::PointerButton {
+    d.harness().event(egui::Event::PointerButton {
         pos: rect.center(),
         button: egui::PointerButton::Primary,
         pressed: false,
@@ -679,8 +662,8 @@ fn the_press_eases_in_and_out_with_the_transition() {
     });
     let mut back = Vec::new();
     for _ in 0..6 {
-        harness.step();
-        back.push(offset(&harness));
+        d.frames(1);
+        back.push(offset(&d));
     }
     assert!(back.iter().any(|y| *y > 0.0 && *y < 1.0), "{back:?}");
     assert_eq!(*back.last().unwrap(), 0.0);
@@ -688,12 +671,12 @@ fn the_press_eases_in_and_out_with_the_transition() {
 
 #[test]
 fn a_button_that_opens_a_popup_stays_put_when_pressed() {
-    let mut harness = harness(Theme::Light);
-    let rect = rect_of(&harness, "/\"menu\"");
-    press_at(&mut harness, rect.center());
-    harness.run_steps(12);
+    let mut d = harness(Theme::Light);
+    let rect = d.rect(Target::suffix("/\"menu\""));
+    press_at(&mut d, rect.center());
+    d.frames(12);
     assert_eq!(
-        box_at(&harness, rect).fill,
+        box_at(&d, rect).fill,
         style(Theme::Light)
             .button
             .variants
@@ -710,13 +693,13 @@ fn a_button_that_opens_a_popup_stays_put_when_pressed() {
 fn a_style_without_press_shift_does_not_move_buttons() {
     let mut style = style(Theme::Light);
     style.button.press_shift = 0.0;
-    let mut harness = harness(Theme::Light);
-    style.install(&harness.ctx);
-    harness.run_steps(4);
-    let rect = rect_of(&harness, &path(variant::PRIMARY, Enablement::Enabled));
-    press_at(&mut harness, rect.center());
-    harness.run_steps(12);
-    box_at(&harness, rect);
+    let mut d = harness(Theme::Light);
+    style.install(d.ctx());
+    d.frames(4);
+    let rect = d.rect(Target::suffix(&path(variant::PRIMARY, Enablement::Enabled)));
+    press_at(&mut d, rect.center());
+    d.frames(12);
+    box_at(&d, rect);
 }
 
 mod toggle_chain {
@@ -750,20 +733,21 @@ mod toggle_chain {
         });
     }
 
-    fn harness() -> Harness<'static, Rig<App>> {
+    fn harness() -> Driver<App> {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness(
+        let mut d = support::driver(
             vec2(300.0, 200.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             App::default(),
             view,
-        );
-        harness.run_steps(4);
-        harness
+        )
+        .build();
+        d.frames(4);
+        d
     }
 
-    fn disabled(harness: &Harness<'_, Rig<App>>, label: &str) -> bool {
-        harness
+    fn disabled(d: &Driver<App>, label: &str) -> bool {
+        d.harness()
             .get_by_role_and_label(Role::Button, label)
             .accesskit_node()
             .is_disabled()
@@ -771,21 +755,19 @@ mod toggle_chain {
 
     #[test]
     fn a_disabled_toggle_ignores_clicks_and_keys_and_is_announced_disabled() {
-        let mut harness = harness();
-        assert!(!disabled(&harness, "Live"), "precondition: Live is enabled");
-        click_node(&mut harness, "/\"live\"");
-        assert!(harness.state().app.on, "precondition: a click toggles Live");
+        let mut d = harness();
+        assert!(!disabled(&d, "Live"), "precondition: Live is enabled");
+        d.click(Target::suffix("/\"live\""));
+        assert!(d.app().on, "precondition: a click toggles Live");
 
-        assert!(disabled(&harness, "Off"));
-        click_node(&mut harness, "/\"off\"");
-        harness.run_steps(2);
-        assert!(!harness.state().app.off_on, "the click did not toggle it");
+        assert!(disabled(&d, "Off"));
+        d.click(Target::suffix("/\"off\"")).frames(2);
+        assert!(!d.app().off_on, "the click did not toggle it");
 
         let mut live_focused = false;
         for _ in 0..4 {
-            harness.key_press(Key::Tab);
-            harness.run_steps(2);
-            let focused = focused_path(&harness);
+            d.press(Key::Tab).frames(1);
+            let focused = focused_path(&d);
             live_focused |= focused.as_deref() == Some("/\"live\"");
             assert_ne!(
                 focused.as_deref(),
@@ -798,20 +780,32 @@ mod toggle_chain {
 
     #[test]
     fn on_response_sees_the_toggles_hover_and_click() {
-        let mut harness = harness();
-        assert!(!harness.state().app.hovered, "precondition: not hovered");
-        hover_node(&mut harness, "/\"live\"");
-        harness.run_steps(2);
-        assert!(harness.state().app.hovered);
-        assert_eq!(harness.state().app.clicks_seen, 0);
+        let mut d = harness();
+        assert!(!d.app().hovered, "precondition: not hovered");
+        d.hover(Target::suffix("/\"live\"")).frames(2);
+        assert!(d.app().hovered);
+        assert_eq!(d.app().clicks_seen, 0);
 
-        click_node(&mut harness, "/\"live\"");
-        harness.run_steps(2);
-        assert_eq!(harness.state().app.clicks_seen, 1, "the click is seen once");
-        assert!(harness.state().app.on, "and still toggles");
+        d.click(Target::suffix("/\"live\"")).frames(2);
+        assert_eq!(d.app().clicks_seen, 1, "the click is seen once");
+        assert!(d.app().on, "and still toggles");
 
-        support::hover_over(&mut harness, egui::pos2(290.0, 190.0));
-        harness.run_steps(2);
-        assert!(!harness.state().app.hovered);
+        d.hover(egui::pos2(290.0, 190.0)).frames(2);
+        assert!(!d.app().hovered);
     }
+}
+
+/// The colour of the text `text` painted with its origin inside `inside`.
+fn text_color<A>(d: &Driver<A>, inside: egui::Rect, text: &str) -> egui::Color32 {
+    d.painted()
+        .all(text)
+        .into_iter()
+        .find(|painted| inside.contains(origin(painted)))
+        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
+        .color()
+}
+
+/// Where the galley of `painted` was placed.
+fn origin(painted: &eggshell_ui::testing::PaintedText<'_>) -> egui::Pos2 {
+    painted.rect().min - painted.galley().rect.min.to_vec2()
 }
