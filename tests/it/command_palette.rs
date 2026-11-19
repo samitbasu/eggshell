@@ -265,3 +265,33 @@ fn the_autosuggest_shows_nothing_when_nothing_matches() {
     assert!(options(&harness).is_empty());
     assert!(harness.query_by_label("No results found.").is_none());
 }
+
+#[test]
+fn escape_puts_the_suggestions_away_until_the_next_edit() {
+    let mut harness = harness();
+    harness
+        .get_by_role_and_label(Role::ComboBox, "City")
+        .click();
+    step(&mut harness);
+    harness
+        .get_by_role_and_label(Role::ComboBox, "City")
+        .type_text("b");
+    step(&mut harness);
+    assert!(!options(&harness).is_empty(), "precondition: suggesting");
+    harness.key_press(Key::Escape);
+    harness.run_steps(20);
+    assert!(
+        options(&harness).is_empty(),
+        "focus after Escape: {:?}",
+        support::focused_path(&harness)
+    );
+    harness
+        .get_by_role_and_label(Role::ComboBox, "City")
+        .click();
+    step(&mut harness);
+    harness
+        .get_by_role_and_label(Role::ComboBox, "City")
+        .type_text("e");
+    step(&mut harness);
+    assert_eq!(options(&harness), ["Berlin", "Bern"]);
+}

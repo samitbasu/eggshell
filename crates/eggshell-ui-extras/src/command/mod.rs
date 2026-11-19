@@ -526,6 +526,15 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
         if let Some(name) = options.name.clone() {
             field = field.named(name);
         }
+        let escaped = ctx.clone();
+        field = field.on_response(move |_, response| {
+            let escape = response
+                .ctx
+                .input(|input| input.key_pressed(egui::Key::Escape));
+            if escape && (response.has_focus() || response.lost_focus()) {
+                Suggesting::Dismissed.store(&escaped, field_id);
+            }
+        });
         let (typed, reset) = (Rc::clone(&on_change), ctx.clone());
         field.on_change(move |app, text| {
             Suggesting::Yes.store(&reset, field_id);
