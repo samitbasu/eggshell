@@ -420,3 +420,30 @@ fn tabbing_away_from_the_field_closes_the_list() {
         "precondition: the focus left the field"
     );
 }
+
+#[test]
+fn the_lists_have_no_scrollbar_so_their_rows_are_as_wide_as_the_box() {
+    let mut harness = harness();
+    open_palette(&mut harness);
+    let results = harness
+        .state()
+        .nodes
+        .iter()
+        .find(|(path, _)| path.ends_with("/Results"))
+        .map(|(_, rect)| *rect)
+        .expect("the palette's list");
+    let rows = harness
+        .state()
+        .nodes
+        .iter()
+        .find(|(path, _)| path.ends_with("/Results/<rows>"))
+        .map(|(_, rect)| *rect)
+        .expect("the rows");
+    let padding = 8.0;
+    assert!(
+        (rows.width() - (results.width() - padding)).abs() < 1.0,
+        "the rows span the list less its padding, with no gutter: {} of {}",
+        rows.width(),
+        results.width()
+    );
+}

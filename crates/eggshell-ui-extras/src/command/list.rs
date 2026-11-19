@@ -447,7 +447,9 @@ pub(crate) fn show<'f, A: 'static>(
         let mut list = s
             .virtual_list(
                 Part::Results,
-                tw().h_px(height).p(style.menu.padding / 4.0),
+                tw().h_px(height)
+                    .p(style.menu.padding / 4.0)
+                    .scrollbar_none(),
                 rows,
             )
             .nav(ListNav::Listbox)
