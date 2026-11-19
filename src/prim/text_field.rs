@@ -11,6 +11,7 @@ use taffy::Size;
 use crate::builder::Scope;
 use crate::builder::Slot;
 use crate::contract::Size as ControlSize;
+pub use crate::focus::Select;
 use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
@@ -32,12 +33,71 @@ pub fn show(ui: &mut Ui, text: &mut String, field: &Field) -> Response {
     field.show(ui, text)
 }
 
-/// Selects all of `text` in the field `response` is of, in the frame it gains
-/// focus, so typing replaces it.
-pub(crate) fn select_on_focus(ui: &Ui, response: &Response, text: &str) {
-    if response.gained_focus() {
-        select(ui, response, all(text));
+/// How a field opens when focus arrives in it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Opening {
+    /// The whole text selected.
+    All,
+    /// The caret at a place in the text.
+    Caret(egui::text::CCursor),
+    /// The caret where the field keeps it, or a click puts it.
+    Kept,
+}
+
+impl From<Select> for Opening {
+    fn from(select: Select) -> Self {
+        match select {
+            Select::All => Self::All,
+            Select::None => Self::Kept,
+        }
     }
+}
+
+impl Opening {
+    /// A number field's: as the application asked when it focused the
+    /// field, otherwise the caret where a click put it, otherwise all of it,
+    /// as Tab does. `None` in a frame focus did not arrive.
+    pub(crate) fn of_number(response: &Response, asked: Option<Select>) -> Option<Self> {
+        match asked {
+            Some(select) => Some(select.into()),
+            None if !response.gained_focus() => None,
+            None if response.is_pointer_button_down_on() => Some(Self::Kept),
+            None => Some(Self::All),
+        }
+    }
+
+    /// Selects as this says in the field `response` is of.
+    pub(crate) fn open(self, ui: &Ui, response: &Response, text: &str) {
+        let range = match self {
+            Self::All => all(text),
+            Self::Caret(caret) => egui::text::CCursorRange::one(caret),
+            Self::Kept => return,
+        };
+        select(ui, response, range);
+    }
+}
+
+/// The selection rule of a field that edits a number, the stepper's and the
+/// slider readout's: focus arriving opens it as `opening` says, and a double
+/// click selects all of it. Returns what it did, for the input trace.
+pub(crate) fn select_number(
+    ui: &Ui,
+    response: &Response,
+    text: &str,
+    opening: Option<Opening>,
+) -> &'static str {
+    if let Some(opening) = opening {
+        opening.open(ui, response, text);
+        return match opening {
+            Opening::All => "focus, select all",
+            Opening::Caret(_) | Opening::Kept => "focus, caret",
+        };
+    }
+    if response.double_clicked() {
+        select(ui, response, all(text));
+        return "double click, select all";
+    }
+    "none"
 }
 
 /// The whole of `text`, as a selection.
@@ -150,8 +210,14 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// frame in which it was not: an inline edit or a sheet's name field that
     /// appears on a click. A field that stays built keeps whatever focus it
     /// has.
-    pub fn focus_on_appear(mut self) -> Self {
-        self.autofocus = Autofocus::OnAppear;
+    pub fn focus_on_appear(self) -> Self {
+        self.focus_on_appear_selecting(Select::None)
+    }
+
+    /// TODO(prose): [`focus_on_appear`](Self::focus_on_appear), selecting as
+    /// `select` says when it takes focus.
+    pub fn focus_on_appear_selecting(mut self, select: Select) -> Self {
+        self.autofocus = Autofocus::OnAppear(select);
         self
     }
 
@@ -194,8 +260,32 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     ///         .on_change(|app, name| app.name = name);
     /// }
     /// ```
-    pub fn focus_on_change(mut self, token: impl std::hash::Hash) -> Self {
-        self.autofocus = Autofocus::OnChange(Token::of(&token));
+    pub fn focus_on_change(self, token: impl std::hash::Hash) -> Self {
+        self.focus_on_change_selecting(token, Select::None)
+    }
+
+    /// TODO(prose): [`focus_on_change`](Self::focus_on_change), selecting as
+    /// `select` says when it takes focus: with [`Select::All`], typing
+    /// replaces the text, as a browser's `input.select()` arranges.
+    ///
+    /// ```
+    /// use eggshell_ui::Builder;
+    /// use eggshell_ui::prim::text_field::Select;
+    ///
+    /// struct App { name: String, focus_name: u32 }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.text_field("name", &app.name)
+    ///         .focus_on_change_selecting(app.focus_name, Select::All)
+    ///         .on_change(|app, name| app.name = name);
+    /// }
+    /// ```
+    pub fn focus_on_change_selecting(
+        mut self,
+        token: impl std::hash::Hash,
+        select: Select,
+    ) -> Self {
+        self.autofocus = Autofocus::OnChange(Token::of(&token), select);
         self
     }
 
@@ -344,7 +434,9 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                             let mut edited = text;
                             let shown = show(ui, &mut edited, &field);
                             let response = tipped(ui, shown, &tip);
-                            autofocus.apply(ui.ctx(), &response);
+                            if let Some(select) = autofocus.apply(ui.ctx(), &response) {
+                                Opening::from(select).open(ui, &response, &edited);
+                            }
                             if response.changed() {
                                 on_change(app, edited);
                             }
@@ -369,7 +461,9 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 let mut edited = text;
                 let shown = show(ui, &mut edited, &field);
                 let response = tipped(ui, shown, &tooltip);
-                autofocus.apply(ui.ctx(), &response);
+                if let Some(select) = autofocus.apply(ui.ctx(), &response) {
+                    Opening::from(select).open(ui, &response, &edited);
+                }
                 if response.changed() {
                     on_change(app, edited);
                 }
