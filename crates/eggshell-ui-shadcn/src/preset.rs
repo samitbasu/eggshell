@@ -778,6 +778,7 @@ impl Shadcn {
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);
+        style.tones = t.tones();
         // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
         // selects: `zoom-in-95 slide-in-from-*-2`. DialogContent:
         // `zoom-in-95 duration-200`. SheetContent:
