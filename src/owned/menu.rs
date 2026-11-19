@@ -12,7 +12,9 @@ use egui::accesskit::HasPopup;
 use egui::{Color32, Context, EventFilter, Id, Key as EguiKey, Painter, Pos2, Rect, Role, Vec2};
 
 use super::button::{ButtonChain, ButtonOptions, Face};
-use super::{Chevron, Enablement, Mark, OnResponse, check, describe, painted};
+use super::{
+    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, painted, tipped,
+};
 use crate::builder::{Scope, Slot};
 use crate::commands::Bound;
 use crate::contract::{MenuStyle, Style, Variant};
@@ -242,6 +244,7 @@ struct Row<A> {
     trail: Trail,
     tone: Tone,
     enablement: Enablement,
+    gate: Gate,
     open_focus: OpenFocus,
     reaction: Reaction<A>,
 }
@@ -374,6 +377,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             shortcut: None,
             tone: Tone::Plain,
             enablement: Enablement::Enabled,
+            gate: Gate::default(),
             allowed: Enablement::Enabled,
             open_focus: OpenFocus::Elsewhere,
             kind,
@@ -432,6 +436,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             trail: Trail::Chevron,
             tone: Tone::Plain,
             enablement: Enablement::Enabled,
+            gate: Gate::default(),
             open_focus: OpenFocus::Elsewhere,
             reaction: Reaction::OpenSubmenu,
         });
@@ -454,7 +459,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             .role(Role::Menu)
             .named(label)
             .on_dismiss(move |_| close.change(|menus| menus.close_submenu(root, depth)))
-            .children(|s| menu_box(s, &shared, depth + 1, items));
+            .children(|s| menu_box(s, &shared, (depth + 1, tw()), items));
     }
 
     fn add_row(&mut self, row: Row<A>) {
@@ -466,10 +471,11 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             trail,
             tone,
             enablement,
+            gate,
             open_focus,
             reaction,
         } = row;
-        let enablement = self.b.enablement_of(enablement);
+        let (enablement, tip) = gate.resolve(&mut self.b, slot.id, enablement);
         let shared = self.shared.clone();
         let (text, menu) = (shared.text(), &shared.style.menu);
         let classes = menu.row_classes(tone, enablement, text);
@@ -527,7 +533,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             .named(label.clone())
             .open_focus(open_focus)
             .draw(move |app, ui| {
-                let response = ui.node_response();
+                let response = tipped(ui, ui.node_response(), &tip);
                 describe(&response, ui.is_enabled().into(), role, mark, &label);
                 if owns == Owns::Submenu {
                     ui.ctx().accesskit_node_builder(response.id, |node| {
@@ -573,15 +579,19 @@ impl Shared {
     }
 }
 
-/// The box of a menu at `depth`, with `items` in it.
+/// The box of a menu at `depth`, with `items` in it and `caller` merged over
+/// its classes.
 fn menu_box<'f, A: 'static>(
     s: &mut Scope<'_, 'f, A>,
     shared: &Shared,
-    depth: usize,
+    (depth, caller): (usize, Tw),
     items: impl for<'m> FnOnce(&mut Menu<'m, 'f, A>),
 ) {
     let menu = &shared.style.menu;
-    let classes = menu.box_classes(shared.text()).min_w_px(menu.min_width);
+    let classes = menu
+        .box_classes(shared.text())
+        .min_w_px(menu.min_width)
+        .merge(caller);
     let shared = shared.clone();
     s.div_id(Part::Box, classes, |s| {
         items(&mut Menu {
@@ -607,6 +617,7 @@ pub struct ItemChain<'m, 'f, A, Kind> {
     shortcut: Option<String>,
     tone: Tone,
     enablement: Enablement,
+    gate: Gate,
     /// Whether the item may take input at all, whatever its own enablement
     /// says: a command item's command.
     allowed: Enablement,
@@ -714,6 +725,25 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
         self
     }
 
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the item's tooltip and accessible description. `None` clears it; the
+    /// last call wins. A command's item is disabled while its command is,
+    /// whatever this says.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
+    }
+
     /// Gives the item focus as the menu opens from the keyboard, instead of
     /// the first item: the current choice.
     pub fn focus_on_open(mut self) -> Self {
@@ -739,6 +769,7 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             shortcut,
             tone,
             enablement,
+            gate,
             allowed,
             open_focus,
             kind,
@@ -755,6 +786,7 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             trail: shortcut.map_or(Trail::Nothing, Trail::Shortcut),
             tone,
             enablement,
+            gate,
             open_focus,
             reaction: Reaction::Run(Box::new(handler(kind))),
         });
@@ -826,6 +858,19 @@ pub struct DropdownChain<'a, 'f, A, K> {
     offset: Option<Distance>,
     enablement: Enablement,
     on_response: OnResponse<A>,
+    children: Option<Body<'a, 'f, A>>,
+    trail: TriggerTrail,
+    menu_classes: Tw,
+}
+
+/// What a dropdown trigger's [`children`](DropdownChain::children) build.
+type Body<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
+
+/// What a dropdown trigger shows after its content.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TriggerTrail {
+    Nothing,
+    Chevron,
 }
 
 impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
@@ -838,7 +883,28 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             offset: None,
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
+            children: None,
+            trail: TriggerTrail::Nothing,
+            menu_classes: tw(),
         }
+    }
+
+    /// TODO(prose): builds `body`'s nodes inside the trigger, after its icon and label, as [`ButtonChain::children`] does.
+    pub fn children(mut self, body: impl for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a) -> Self {
+        self.children = Some(Box::new(body));
+        self
+    }
+
+    /// TODO(prose): a down chevron after the trigger's content, sized and toned as a select's.
+    pub fn chevron(mut self) -> Self {
+        self.trail = TriggerTrail::Chevron;
+        self
+    }
+
+    /// TODO(prose): classes merged over the styled ones of the menu's box ([`Tw::merge`]), such as its width.
+    pub fn menu_classes(mut self, classes: Tw) -> Self {
+        self.menu_classes = self.menu_classes.merge(classes);
+        self
     }
 
     /// Applies shared button `options` to the trigger.
@@ -887,6 +953,31 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         self
     }
 
+    /// TODO(prose): shown while the pointer hovers the trigger or it has
+    /// keyboard focus, also when it is disabled.
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.options = self.options.tooltip(text);
+        self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description; a refused trigger closes
+    /// its menu. `None` clears it; the last call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.options = self.options.refused(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
+    }
+
     /// Runs `then` with the trigger's response each frame.
     pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
         self.on_response.set(then);
@@ -904,20 +995,39 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             offset,
             enablement,
             on_response,
+            children,
+            trail,
+            menu_classes,
         } = self;
         let shared = Shared::of(&b, b.slot(&key).id);
         let trigger = shared.root;
         let list = b.slot(&(key.clone(), Part::Menu));
-        let enablement = b.enablement_of(enablement);
+        let enablement = b.enablement_of(enablement.and(options.refusal()));
         if enablement == Enablement::Disabled {
             shared.close();
         }
         let open = shared.kept.with(|kept| kept.menus.is_open(trigger));
         let name = options.name_or(&face).to_owned();
+        let select = &shared.style.select;
+        let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)
             .opens_popup()
             .enablement(enablement);
+        let button = match (children, trail) {
+            (None, TriggerTrail::Nothing) => button,
+            (children, trail) => button.children(move |s| {
+                if let Some(children) = children {
+                    children(s);
+                }
+                if trail == TriggerTrail::Chevron {
+                    s.glyph(
+                        tw().size_px(chevron).shrink_0().opacity(opacity),
+                        Chevron::Down.icon(),
+                    );
+                }
+            }),
+        };
         let (on_key, on_click) = (shared.clone(), shared.clone());
         button
             .on_response(move |app, response| {
@@ -948,7 +1058,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             .role(Role::Menu)
             .named(name)
             .on_dismiss(move |_| close.close())
-            .children(|s| menu_box(s, &shared, 0, items));
+            .children(|s| menu_box(s, &shared, (0, menu_classes), items));
     }
 }
 
@@ -987,7 +1097,7 @@ pub(crate) fn context<'f, A: 'static>(
         .role(Role::Menu)
         .named("Context menu")
         .on_dismiss(move |_| close.close())
-        .children(|s| menu_box(s, &shared, 0, items));
+        .children(|s| menu_box(s, &shared, (0, tw()), items));
 }
 
 /// Opens the context menu of `owner` at the pointer on a secondary click.

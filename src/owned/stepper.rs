@@ -7,13 +7,14 @@ use std::rc::Rc;
 use egui::{Key, Role, WidgetInfo};
 
 use super::number::{Edit, Edits, Step, ValueRange, pressed};
+use super::number_field::Session;
 use super::{
-    Chevron, Content, Enablement, FieldHooks, Tip, TipContent, centered, described,
-    field_box_classes, text_sized, tip, tip_describes, tipped_whole,
+    Chevron, Enablement, FieldHooks, Gate, IntoTip, Tip, centered, described, field_box_classes,
+    options, text_sized, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
-use crate::focus::Autofocus;
+use crate::focus::{Autofocus, Select};
 use crate::overlay_input::Blur;
 use crate::prim::text_field::{self, Field};
 use crate::{Builder, Tw, tw};
@@ -36,6 +37,9 @@ enum Part {
 /// step when the field loses focus. A button is disabled at its end of the
 /// range. The buttons are not Tab stops: the keyboard steps in the field.
 ///
+/// TODO(prose): a click in the field places the caret; a double click or Tab
+/// selects the whole value, as the slider's readout does.
+///
 /// ```html
 /// <div class="flex items-stretch gap-px divide-x divide-input w-28 h-9 rounded-md border border-input shadow-xs
 ///   focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
@@ -53,7 +57,7 @@ pub struct StepperChain<'a, 'f, A> {
     range: ValueRange,
     step: Step,
     name: Option<String>,
-    tooltip: TipContent,
+    gate: Gate,
     classes: Tw,
     enablement: Enablement,
     size: Option<Size>,
@@ -77,7 +81,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             range,
             step: Step::ONE,
             name: None,
-            tooltip: None,
+            gate: Gate::default(),
             classes: tw(),
             enablement: Enablement::Enabled,
             size: None,
@@ -103,7 +107,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
     /// width, which is 112 points until then; the later class wins
     /// ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
     }
 
@@ -112,8 +116,8 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
     /// delay, at once when it has keyboard focus, and also when the control is
     /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
     }
 
@@ -125,7 +129,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         mut self,
         build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
-        self.tooltip = Some(Content::built(build));
+        self.gate.tooltip_with(build);
         self
     }
 
@@ -159,8 +163,14 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
 
     /// Takes keyboard focus in its field in the first frame the stepper is
     /// built after a frame in which it was not.
-    pub fn focus_on_appear(mut self) -> Self {
-        self.autofocus = Autofocus::OnAppear;
+    pub fn focus_on_appear(self) -> Self {
+        self.focus_on_appear_selecting(Select::None)
+    }
+
+    /// TODO(prose): [`focus_on_appear`](Self::focus_on_appear), selecting as
+    /// `select` says when it takes focus.
+    pub fn focus_on_appear_selecting(mut self, select: Select) -> Self {
+        self.autofocus = Autofocus::OnAppear(select);
         self
     }
 
@@ -177,6 +187,24 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
+    }
+
     /// Adds the stepper. `set` runs with the new value.
     #[track_caller]
     pub fn on_change(self, set: impl Fn(&mut A, f64) + 'static) {
@@ -188,7 +216,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             range,
             step,
             name,
-            tooltip,
+            gate,
             classes,
             enablement,
             size,
@@ -197,8 +225,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             autofocus,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
-        let tooltip = tip(&mut b, slot.id, tooltip);
-        let enablement = b.enablement_of(enablement);
+        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let style = b.style().clone();
         let stepper = &style.stepper;
         let metrics = *stepper.sizes.lookup(b.ctx(), b.size_of(size));
@@ -340,9 +367,9 @@ impl<A> Clone for Spec<A> {
 }
 
 impl<A> Spec<A> {
-    /// Shows the field for a frame: the arrow keys step it, typing applies
-    /// numbers as they parse, and losing focus snaps the number to the step.
-    /// What is typed is kept in `editing` while the field is focused.
+    /// Shows the field for a frame: the arrow keys step it, and what is
+    /// typed is committed, snapped to the step, by Enter or leaving the
+    /// field, and reverted by Escape (see [`Session`]).
     fn run_field(
         &self,
         app: &mut A,
@@ -354,9 +381,8 @@ impl<A> Spec<A> {
         let parse = |text: &str| text.trim().parse::<f64>().ok();
         let (low, high) = (self.range.start(), self.range.end());
         let mut value = self.value;
-        let mut typed = ui.data(|data| data.get_temp::<String>(editing));
-        let session = editing.with("session");
-        let typing = ui.data(|data| data.get_temp::<()>(session)).is_some();
+        let session = Session::of(editing);
+        let mut typed = session.typed(ui.ctx());
         if ui.memory(|memory| memory.has_focus(Field::id_in(ui))) {
             let current = typed.as_deref().and_then(parse).unwrap_or(value);
             let steps =
@@ -364,7 +390,8 @@ impl<A> Spec<A> {
             if steps != 0 {
                 value = self.step.moved(current, steps, self.range);
                 typed = None;
-                if typing {
+                session.forget_typed(ui.ctx());
+                if session.is_open(ui.ctx()) {
                     set(app, value);
                 } else {
                     self.edits.once(app, |app| set(app, value));
@@ -374,8 +401,9 @@ impl<A> Spec<A> {
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
         let response = text_field::show(ui, &mut text, field);
         tip_describes(ui, &response, &self.tooltip);
-        self.autofocus.apply(ui.ctx(), &response);
-        text_field::select_on_focus(ui, &response, &text);
+        let asked = self.autofocus.apply(ui.ctx(), &response);
+        let opening = text_field::Opening::of_number(&response, asked);
+        text_field::select_number(ui, &response, &text, opening);
         response.widget_info(|| WidgetInfo {
             label: Some(self.name.clone()),
             ..WidgetInfo::drag_value(ui.is_enabled(), value)
@@ -385,24 +413,14 @@ impl<A> Spec<A> {
             node.set_max_numeric_value(high);
         });
         if response.changed() {
-            let number = parse(&text).map(|number| self.range.clamp(number));
-            if !typing {
-                self.edits.emit(app, Edit::Began);
-                ui.data_mut(|data| data.insert_temp(session, ()));
-            }
-            if let Some(number) = number.filter(|&number| number != self.value) {
-                set(app, number);
-            }
-            ui.data_mut(|data| data.insert_temp(editing, text));
+            let shown = format!("{value:.*}", self.step.decimals());
+            session.open(app, ui.ctx(), &shown, &self.edits);
+            session.keep(ui.ctx(), &text);
         } else if response.lost_focus() {
-            if let Some(number) = parse(&text) {
-                set(app, self.step.snap(number, self.range));
-            }
-            ui.data_mut(|data| data.remove::<String>(editing));
-            if typing {
-                self.edits.emit(app, Edit::Ended);
-                ui.data_mut(|data| data.remove::<()>(session));
-            }
+            let accept = |text: &str| {
+                parse(text).map(|number| self.step.snap(self.range.clamp(number), self.range))
+            };
+            session.close(app, ui, (&text, value), accept, (&self.edits, &set));
         }
         self.hooks.run(app, ui, &response, field.enter());
     }

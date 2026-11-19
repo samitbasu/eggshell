@@ -39,6 +39,7 @@ use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
 use crate::tw::{
     BoxPaint, Focusability, Grouping, PointerEvents, RingPlacement, Sensing, Sides, Variants,
+    Visibility,
 };
 
 /// The kind of a node, for diagnostics.
@@ -110,6 +111,7 @@ pub(crate) struct Node {
     pub z: i16,
     pub inert: bool,
     pub pointer_events: PointerEvents,
+    pub(crate) visibility: Option<Visibility>,
     pub interaction: Interaction,
     /// For a region's leaf, the root of its content, once built.
     pub region: Option<NodeId>,
@@ -122,6 +124,10 @@ pub(crate) struct Node {
     pub open_focus: OpenFocus,
     /// For a splitter, the neighbour it sizes.
     pub pane: Option<Side>,
+    /// For a group the arrow keys move through, what it does with its items.
+    pub group: Option<crate::roving::Group>,
+    /// For an item of a group, whether it is the chosen one.
+    pub selection: Option<crate::owned::Mark>,
 }
 
 impl Node {
@@ -145,6 +151,7 @@ impl Node {
             z: 0,
             inert: false,
             pointer_events: PointerEvents::Auto,
+            visibility: None,
             interaction: Interaction::default(),
             region: None,
             collapse: None,
@@ -153,6 +160,8 @@ impl Node {
             action: None,
             open_focus: OpenFocus::Elsewhere,
             pane: None,
+            group: None,
+            selection: None,
         }
     }
 }
@@ -1737,6 +1746,7 @@ fn collect(
         collapsible: node.collapse.is_some(),
         flight: node.collapse.and_then(|collapse| collapse.flight),
         pointer_events: node.pointer_events,
+        visibility: node.visibility,
         interaction: node.interaction,
         draw_kind: node.draw_kind,
         description: node.description.take(),
@@ -1744,6 +1754,8 @@ fn collect(
         action: node.action,
         open_focus: node.open_focus,
         pane: node.pane,
+        group: node.group,
+        selection: node.selection,
         measured,
     });
     let mut children = Vec::new();
@@ -1874,6 +1886,7 @@ pub struct PlacedNode {
     pub(crate) collapsible: bool,
     flight: Option<Flight>,
     pointer_events: PointerEvents,
+    visibility: Option<Visibility>,
     pub(crate) interaction: Interaction,
     draw_kind: DrawKind,
     description: Option<Box<Description>>,
@@ -1881,6 +1894,8 @@ pub struct PlacedNode {
     action: Option<Action>,
     open_focus: OpenFocus,
     pub(crate) pane: Option<Side>,
+    group: Option<crate::roving::Group>,
+    selection: Option<crate::owned::Mark>,
     /// What the content of an application-measured leaf wants at its final
     /// width; recorded only while [`Debug::Outlines`] is set. The library's
     /// own leaves are measured when asked ([`Placed::overflowing`]).
@@ -1916,6 +1931,7 @@ impl PlacedNode {
             collapsible: false,
             flight: None,
             pointer_events: PointerEvents::Auto,
+            visibility: None,
             interaction: Interaction::default(),
             draw_kind: DrawKind::Paint,
             description: None,
@@ -1923,6 +1939,8 @@ impl PlacedNode {
             action: None,
             open_focus: OpenFocus::Elsewhere,
             pane: None,
+            group: None,
+            selection: None,
             measured: None,
         }
     }
@@ -1945,6 +1963,11 @@ impl PlacedNode {
             Some(viewport) => inner.intersect(viewport),
             None => inner,
         }
+    }
+
+    /// The node's own visibility class; `None` inherits its parent's.
+    pub(crate) fn visibility(&self) -> Option<Visibility> {
+        self.visibility
     }
 
     /// Whether the node, by itself, lets the pointer through.
@@ -2124,8 +2147,8 @@ impl PlacedNode {
         self.open_focus == OpenFocus::Here
     }
 
-    /// Whether the node is an item of a menu, a listbox or a grid: it has an
-    /// item role.
+    /// Whether the node is an item of a menu, a listbox, a grid or a group: it
+    /// has an item role.
     pub(crate) fn is_item(&self) -> bool {
         self.description()
             .and_then(|description| description.role)
@@ -2137,8 +2160,30 @@ impl PlacedNode {
                         | Role::MenuItemRadio
                         | Role::ListBoxOption
                         | Role::GridCell
+                        | Role::Tab
+                        | Role::RadioButton
                 )
             })
+    }
+
+    /// Whether focus on the node shows as its hover look: an item of a menu,
+    /// a listbox or a grid. A group's tab or radio button draws a focus ring.
+    pub(crate) fn hovers_when_focused(&self) -> bool {
+        self.is_item()
+            && !matches!(
+                self.description().and_then(|description| description.role),
+                Some(Role::Tab | Role::RadioButton)
+            )
+    }
+
+    /// For a group the arrow keys move through, what it does with its items.
+    pub(crate) fn group(&self) -> Option<crate::roving::Group> {
+        self.group
+    }
+
+    /// For an item of a group, whether it is the chosen one.
+    pub(crate) fn selection(&self) -> Option<crate::owned::Mark> {
+        self.selection
     }
 
     /// Whether the node is an option of a listbox, which may be a row of a

@@ -46,6 +46,8 @@ mod custom;
 mod field_box;
 mod menu;
 mod number;
+mod number_field;
+pub(crate) mod options;
 mod progress;
 mod radio;
 mod segmented;
@@ -75,6 +77,8 @@ pub use field_box::FieldBoxChain;
 pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use number::{Edit, Step, ValueRange};
+pub(crate) use options::Gate;
+pub use options::IntoTip;
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
 pub use segmented::{Cell, Rows, SegmentedChain};
@@ -156,7 +160,7 @@ impl Enablement {
     /// `classes`, inert when disabled and, if the style fades disabled
     /// controls, faded. Apply it to the root of a control: what is inside
     /// follows the root's opacity.
-    fn apply(self, classes: Tw, style: &Style) -> Tw {
+    pub(crate) fn apply(self, classes: Tw, style: &Style) -> Tw {
         match self {
             Self::Enabled => classes,
             Self::Disabled => self.fade(classes.inert(), style),
@@ -372,6 +376,18 @@ fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str, tip: &Tip)
     response
 }
 
+/// Announces the node of `ui` to assistive technology as a group of `role`,
+/// named `name` if it has one.
+pub(crate) fn announce_group(ui: &Ui, role: Role, name: Option<&str>) {
+    let id = ui.node_response().id;
+    ui.ctx().accesskit_node_builder(id, |node| {
+        node.set_role(role);
+        if let Some(name) = name {
+            node.set_label(name);
+        }
+    });
+}
+
 /// Describes `response` to assistive technology as a `role` named `name`,
 /// and as on or off when it is `selected`.
 pub(crate) fn describe(
@@ -399,8 +415,28 @@ fn painted(classes: Tw, colors: Colors) -> Tw {
 }
 
 impl Look {
-    /// The classes that draw a box of `radius` in this look.
-    pub(crate) fn classes(
+    /// The classes that draw a box of `radius` in this look, as the owned
+    /// button does: the rest colours, the hover, pressed and focused looks
+    /// over them, the focus ring and the shadow, or when `enablement` is
+    /// disabled the disabled form. The box senses clicks and is a Tab stop.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use eggshell_ui::owned::Enablement;
+    /// use eggshell_ui::{Builder, Style};
+    ///
+    /// fn tile(b: &mut Builder<'_, '_, ()>) {
+    ///     let style = Style::of(b.ctx());
+    ///     let look = style.button.variants.get(style.button.variants.default_key());
+    ///     let classes = look.classes(&style, 6, b.enablement(), Duration::from_millis(150));
+    ///     b.div_id("tile", classes.p(2.0), |b| b.text(eggshell_ui::tw(), "Tile"))
+    ///         .role(egui::Role::Button)
+    ///         .on_click(|_| {});
+    /// }
+    /// ```
+    pub fn classes(
         &self,
         style: &Style,
         radius: u8,
@@ -414,9 +450,25 @@ impl Look {
 
 impl Paint {
     /// The classes that draw a box of `radius` with a border `border_width`
-    /// wide in this paint. A disabled box is inert and has no variants: its
-    /// colours are the style's, not an opacity.
-    pub(crate) fn classes(
+    /// wide in this paint: [`Look::classes`] for a paint and a border width
+    /// apart. A disabled box is inert and has no variants: its colours are
+    /// the style's, not an opacity.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use eggshell_ui::owned::Enablement;
+    /// use eggshell_ui::{Builder, Style};
+    ///
+    /// fn cell(b: &mut Builder<'_, '_, ()>) {
+    ///     let style = Style::of(b.ctx());
+    ///     let paint = style.checkbox.off;
+    ///     let classes = paint.classes(1.0, &style, 4, Enablement::Enabled, Duration::ZERO);
+    ///     b.div_id("cell", classes.size_px(16.0), |_| {});
+    /// }
+    /// ```
+    pub fn classes(
         &self,
         border_width: f32,
         style: &Style,
