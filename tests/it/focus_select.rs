@@ -200,7 +200,14 @@ fn a_stepper_appearing_selecting_all_lets_typing_replace_its_value() {
     harness.run_steps(4);
     harness.event(Event::Text("7".into()));
     harness.run_steps(4);
+    commit(&mut harness);
     assert_eq!(harness.state().app.count, 7.0);
+}
+
+/// Enter: the stepper commits what was typed.
+fn commit(harness: &mut Harness<'_, Rig<App>>) {
+    harness.key_press(egui::Key::Enter);
+    harness.run_steps(4);
 }
 
 #[test]
@@ -212,6 +219,7 @@ fn a_stepper_appearing_selecting_none_keeps_its_value_and_takes_the_typing() {
         harness.run_steps(4);
         harness.event(Event::Text("7".into()));
         harness.run_steps(4);
+        commit(&mut harness);
         assert_eq!(
             harness.state().app.count,
             10.0,
@@ -243,5 +251,6 @@ fn a_double_click_in_a_stepper_field_selects_the_whole_value_not_the_word_under_
     );
     harness.event(Event::Text("7".into()));
     harness.run_steps(4);
+    commit(&mut harness);
     assert_eq!(harness.state().app.count, 7.0);
 }

@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use egui::{Context, Role};
 
 use super::Mark;
-use super::{Content, Enablement, OnResponse, TipContent, centered, described, tip};
+use super::{Enablement, Gate, IntoTip, OnResponse, centered, described, options};
 use crate::actions::Action;
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
@@ -160,7 +160,7 @@ pub struct ButtonOptions {
     variant: Option<Variant>,
     size: Option<Size>,
     name: Option<String>,
-    tooltip: TipContent,
+    gate: Gate,
     enablement: Option<Enablement>,
     press: Option<Press>,
     classes: Tw,
@@ -180,7 +180,7 @@ impl ButtonOptions {
             variant: None,
             size: None,
             name: None,
-            tooltip: None,
+            gate: Gate::default(),
             enablement: None,
             press: None,
             classes: tw(),
@@ -195,7 +195,7 @@ impl ButtonOptions {
             variant: other.variant.or(self.variant),
             size: other.size.or(self.size),
             name: other.name.or(self.name),
-            tooltip: other.tooltip.or(self.tooltip),
+            gate: self.gate.merge(other.gate),
             enablement: other.enablement.or(self.enablement),
             press: other.press.or(self.press),
             classes: self.classes.merge(other.classes),
@@ -244,6 +244,14 @@ impl ButtonOptions {
         self
     }
 
+    /// Disabled while the options refuse the button.
+    pub(super) fn refusal(&self) -> Enablement {
+        match self.gate.refused() {
+            super::options::Refused::Yes => Enablement::Disabled,
+            super::options::Refused::No => Enablement::Enabled,
+        }
+    }
+
     /// The name assistive technology reads for a button showing `face`.
     pub(crate) fn name_or<'s>(&'s self, face: &'s Face) -> &'s str {
         self.name.as_deref().unwrap_or_else(|| face.name())
@@ -254,8 +262,8 @@ impl ButtonOptions {
     /// delay, at once when it has keyboard focus, and also when the control is
     /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
     }
 
@@ -263,6 +271,14 @@ impl ButtonOptions {
     pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
         let enablement = enablement.into();
         self.enablement = Some(enablement);
+        self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
         self
     }
 }
@@ -407,7 +423,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// delay, at once when it has keyboard focus, and also when the control is
     /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
         self.opts = self.opts.tooltip(text);
         self
     }
@@ -427,7 +443,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         mut self,
         build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
-        self.opts.tooltip = Some(Content::built(build));
+        self.opts.gate.tooltip_with(build);
         self
     }
 
@@ -443,6 +459,25 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         let enablement = enablement.into();
         self.opts = self.opts.enablement(enablement);
         self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins. A [`command`](Self::command)'s button is disabled while its
+    /// command is, whatever this says.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.opts = self.opts.refused(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<T>(self, value: Option<T>, then: impl FnOnce(Self, T) -> Self) -> Self {
+        options::when_some(self, value, then)
     }
 
     /// Builds `body`'s nodes inside the button, after its icon and label, as
@@ -546,7 +581,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                     variant,
                     size,
                     name,
-                    tooltip,
+                    gate,
                     enablement,
                     press,
                     classes: caller,
@@ -557,9 +592,9 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             closes,
         } = self;
         let name = name.unwrap_or(face_name);
-        let tooltip = tip(&mut b, slot.id, tooltip);
+        let (enablement, tooltip) =
+            gate.resolve(&mut b, slot.id, enablement.unwrap_or(Enablement::Enabled));
         let size = b.size_of(size);
-        let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
         let press = press.unwrap_or(Press::Shifts);
         let ctx = b.ctx();
         #[cfg(debug_assertions)]

@@ -308,6 +308,8 @@ mod signup {
         click_node(harness, "/Form/Age/Box/Field");
         harness.run_steps(2);
         type_text(harness, "30");
+        harness.key_press(egui::Key::Enter);
+        harness.run_steps(2);
     }
 
     #[test]
