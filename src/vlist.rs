@@ -174,6 +174,18 @@ pub struct ListChain<'a, 'f, A, R> {
     row_name: Option<std::rc::Rc<dyn Fn(R) -> String>>,
 }
 
+impl<'a, 'f, A, R> ListChain<'a, 'f, A, R> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 type Activate<A, R> = std::rc::Rc<dyn Fn(&mut A, R)>;
 
 impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
@@ -211,7 +223,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
 
     /// TODO(prose): classes of each row's wrapper, such as a `hover` look the highlighted row takes.
     pub fn row_classes(mut self, classes: Tw) -> Self {
-        self.row_classes = classes;
+        self.row_classes = self.row_classes.merge(classes);
         self
     }
 

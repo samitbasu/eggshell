@@ -13,7 +13,8 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect};
 
 use crate::actions::{self, Action};
 use crate::dismiss::{
-    Boundary, Cause, FocusAt, Input, Layer, Seen, Trigger, WindowFocus, dismissals, esc_target,
+    Boundary, Cause, Closer, FocusAt, Input, Layer, Seen, Trigger, WindowFocus, dismissals,
+    esc_target,
 };
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
@@ -220,7 +221,7 @@ struct Remembered {
 /// and is relative to it, and whether the window has had the focus.
 fn layers_of(
     ctx: &Context,
-    open: &[Open<'_>],
+    (open, closers): (&[Open<'_>], &[Id]),
     nodes: &Nodes,
     roots: &[PlacedRoot],
     mut remembered: impl FnMut(&Open<'_>) -> Remembered,
@@ -260,9 +261,27 @@ fn layers_of(
                     Anchored::Detached => Seen::Hidden,
                 },
                 window_focus,
+                closer: closer_of(nodes, roots.get(open.root), closers),
             }
         })
         .collect()
+}
+
+/// Whether one of `closers` is a button of the overlay whose root is `root`,
+/// not of one nested in it.
+fn closer_of(nodes: &Nodes, root: Option<&PlacedRoot>, closers: &[Id]) -> Closer {
+    let pressed = root.is_some_and(|root| {
+        nodes
+            .subtree(root.first)
+            .iter()
+            .filter_map(PlacedNode::id)
+            .any(|id| closers.contains(&id))
+    });
+    if pressed {
+        Closer::Pressed
+    } else {
+        Closer::Idle
+    }
 }
 
 /// The overlay's trigger as dismissal judges a press on it. A trigger that
@@ -385,6 +404,7 @@ pub(crate) fn claim_keys(
     drag: Drag,
 ) -> Keys {
     Source::note(ctx);
+    Pointing::note(ctx);
     register_hold_tab(ctx);
     let open = open_overlays(roots, here);
     let pressed = |key| ctx.input(|input| input.key_pressed(key));
@@ -394,9 +414,13 @@ pub(crate) fn claim_keys(
         drag_live: drag == Drag::Live,
         ..Input::default()
     };
-    let layers = layers_of(ctx, &judged_overlays(roots, here), nodes, roots, |_| {
-        Remembered::default()
-    });
+    let layers = layers_of(
+        ctx,
+        (&judged_overlays(roots, here), &[]),
+        nodes,
+        roots,
+        |_| Remembered::default(),
+    );
     let belongs_to_the_library = match escape_goes(&layers, nodes, &input) {
         EscapeGoes::Nobody => input.escape && !input.drag_live && Typing::escape_blurred(ctx, kept),
         EscapeGoes::Overlay | EscapeGoes::Window(_) => true,
@@ -476,7 +500,8 @@ pub(crate) fn judge<A>(
     let shell = Shell::new(ctx, kept);
     let mut stack = Stack::load(kept, ctx.viewport_id());
     let judged = judged_overlays(roots, here);
-    let layers = layers_of(ctx, &judged, nodes, roots, |open| {
+    let closers = actions::take_closers(ctx, kept);
+    let layers = layers_of(ctx, (&judged, &closers), nodes, roots, |open| {
         let entry = stack.get_mut(open.overlay.id);
         Remembered {
             focus_before: entry.as_ref().map(|entry| entry.focus).unwrap_or_default(),
@@ -507,6 +532,9 @@ pub(crate) fn judge<A>(
             _ => {
                 let id = open.overlay.id;
                 dismissed.push(id);
+                if open.overlay.behavior.hover.is_some() {
+                    kept.viewport(ctx.viewport_id(), |here| here.hover_cards.dismissed());
+                }
                 if let Some(then) = dismiss.remove(&id) {
                     then(app);
                 }
@@ -631,8 +659,9 @@ fn enters_focus(behavior: Behavior, source: Source) -> bool {
 }
 
 /// Where focus goes as the overlay whose root is `nodes[first]` opens: the
-/// node marked with [`focus_on_open`](crate::NodeHandle::focus_on_open) if it
-/// takes focus, else the overlay's first focusable. Of two marked nodes the
+/// first focusable widget of the node marked with
+/// [`focus_on_open`](crate::NodeHandle::focus_on_open), the node itself or
+/// one inside it, else the overlay's first focusable. Of two marked nodes the
 /// first declared is the one.
 fn opening_focus(
     ctx: &Context,
@@ -665,7 +694,13 @@ fn opening_focus(
         );
     }
     chosen
-        .filter(|chosen| focusable.contains(chosen))
+        .and_then(|chosen| {
+            subtrees
+                .iter()
+                .find(|(node, _)| *node == chosen)
+                .and_then(|(_, widgets)| widgets.first().copied())
+        })
+        .filter(|widget| focusable.contains(widget))
         .or_else(|| focusable.first().copied())
 }
 
@@ -706,6 +741,51 @@ fn describe_trigger(shell: &Shell, roots: &[PlacedRoot], open: &Open<'_>) -> Opt
         node: trigger,
         target: crate::draw::blocker_id(listbox),
     })
+}
+
+/// What the pointer was the last time it moved or pressed: a mouse (or a
+/// pen), or a finger on a touch screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Pointing {
+    Mouse,
+    Touch,
+}
+
+impl Pointing {
+    fn key(ctx: &Context) -> Id {
+        crate::key::viewport_id(ctx, "pointing")
+    }
+
+    /// Notes what this frame's pointer input came from, if it has any. A
+    /// touch also comes as pointer events, in the same frame.
+    fn note(ctx: &Context) {
+        let latest = ctx.input(|input| {
+            let events = &input.events;
+            if events
+                .iter()
+                .any(|event| matches!(event, Event::Touch { .. }))
+            {
+                Some(Self::Touch)
+            } else {
+                events
+                    .iter()
+                    .any(|event| {
+                        matches!(event, Event::PointerMoved(_) | Event::PointerButton { .. })
+                    })
+                    .then_some(Self::Mouse)
+            }
+        });
+        if let Some(latest) = latest {
+            let key = Self::key(ctx);
+            ctx.data_mut(|data| data.insert_temp(key, latest));
+        }
+    }
+}
+
+/// Whether the last pointer input was a touch.
+pub(crate) fn touch_was_last(ctx: &Context) -> bool {
+    let key = Pointing::key(ctx);
+    ctx.data(|data| data.get_temp(key)) == Some(Pointing::Touch)
 }
 
 /// Whether the last input was from the keyboard, as opposed to a press.
