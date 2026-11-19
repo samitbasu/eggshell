@@ -434,14 +434,16 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             }
             let (handled, shown) = (ctx.clone(), text.clone());
             field = field.on_response(move |_, response| {
-                let (escape, down) = response.ctx.input(|input| {
+                let (escape, down, tab) = response.ctx.input(|input| {
                     (
                         input.key_pressed(egui::Key::Escape),
                         input.key_pressed(egui::Key::ArrowDown),
+                        input.key_pressed(egui::Key::Tab),
                     )
                 });
                 let focused = response.has_focus();
-                if escape && (focused || response.lost_focus()) {
+                let tabbed_away = tab && response.lost_focus();
+                if (escape && (focused || response.lost_focus())) || tabbed_away {
                     Typing::CLOSED.store(&handled, key);
                 } else if (down && focused && !open) || response.clicked() {
                     Typing::opened().store(&handled, key);

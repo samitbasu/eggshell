@@ -402,3 +402,21 @@ fn the_list_is_as_tall_as_its_rows_up_to_the_style_limit() {
         "a long list stops at max-h-72: {height}"
     );
 }
+
+#[test]
+fn tabbing_away_from_the_field_closes_the_list() {
+    let mut harness = harness();
+    combobox(&harness).click();
+    harness.run_steps(20);
+    assert!(
+        !options(&harness).is_empty(),
+        "precondition: the list is open"
+    );
+    press(&mut harness, Key::Tab);
+    harness.run_steps(10);
+    assert!(options(&harness).is_empty(), "Tab closes the list");
+    assert!(
+        !combobox(&harness).accesskit_node().is_focused(),
+        "precondition: the focus left the field"
+    );
+}
