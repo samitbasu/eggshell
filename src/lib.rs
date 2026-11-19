@@ -364,6 +364,7 @@ mod finite;
 mod focus;
 pub mod icons;
 mod input_trace;
+mod intent;
 mod kept;
 mod key;
 mod layout_tree;
