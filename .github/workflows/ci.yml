@@ -30,7 +30,7 @@ jobs:
           # The test build carries the golden feature; bump this when the
           # features it builds with change, or the old cache is restored whole
           # and never saved again.
-          key: workspace-goldens-screenshots-clippy
+          key: workspace-goldens-screenshots-clippy-release
       - name: Mesa lavapipe for the golden images and screenshots
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
       # The fuzz step runs in the `fuzz` job, beside this one.

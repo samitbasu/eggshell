@@ -227,26 +227,11 @@ fn a_click_puts_the_caret_where_it_lands_and_selects_nothing() {
     assert_eq!(typed_into(&mut harness, READOUT, "5"), "450%");
 }
 
-/// Clicks twice at `at`, one event a frame as a browser sends them, the
-/// releases `apart` apart.
-fn click_twice(harness: &mut Harness<'_, Rig<App>>, at: egui::Pos2, apart: Duration) {
-    let frame = harness.ctx.input(|input| input.predicted_dt);
-    let frames = (apart.as_secs_f32() / frame).round() as usize;
-    assert!(
-        frames >= 2,
-        "precondition: a press and a release fit in {apart:?}"
-    );
-    support::press_and_release(harness, at);
-    harness.run_steps(frames - 2);
-    support::press_and_release(harness, at);
-    harness.run_steps(6);
-}
-
 #[test]
 fn a_double_click_selects_the_whole_value_not_the_word_under_it() {
     let mut harness = harness();
     let number = support::part_rect(&harness, "30.0 dB", "30");
-    click_twice(&mut harness, number.center(), Duration::from_millis(200));
+    support::click_twice(&mut harness, number.center(), Duration::from_millis(200));
     assert_eq!(typed_into(&mut harness, SMALL, "7"), "7");
 }
 
@@ -272,7 +257,7 @@ fn on_the_last_digit(harness: &Harness<'_, Rig<App>>) -> egui::Pos2 {
 fn a_double_click_on_a_short_readouts_last_digit_selects_the_whole_value() {
     let mut harness = harness();
     let at = on_the_last_digit(&harness);
-    click_twice(&mut harness, at, Duration::from_millis(200));
+    support::click_twice(&mut harness, at, Duration::from_millis(200));
     assert_eq!(typed_into(&mut harness, TINY, "7"), "7");
 }
 
@@ -310,7 +295,7 @@ fn the_field_spans_its_box_and_its_text_keeps_the_inputs_padding() {
 fn a_click_in_the_fields_padding_keeps_it_open() {
     let mut harness = harness();
     let at = on_the_last_digit(&harness);
-    click_twice(&mut harness, at, Duration::from_millis(1000));
+    support::click_twice(&mut harness, at, Duration::from_millis(1000));
     assert_eq!(
         focused_node(&harness),
         Some(format!("{TINY}/Field")),
@@ -322,7 +307,7 @@ fn a_click_in_the_fields_padding_keeps_it_open() {
 fn a_relaxed_double_click_still_selects_the_whole_value() {
     let mut harness = harness();
     let number = support::part_rect(&harness, "30.0 dB", "30");
-    click_twice(&mut harness, number.center(), Duration::from_millis(450));
+    support::click_twice(&mut harness, number.center(), Duration::from_millis(450));
     assert_eq!(typed_into(&mut harness, SMALL, "7"), "7");
 }
 
@@ -330,7 +315,7 @@ fn a_relaxed_double_click_still_selects_the_whole_value() {
 fn two_clicks_further_apart_than_a_double_click_are_two_clicks() {
     let mut harness = harness();
     let number = support::part_rect(&harness, "30.0 dB", "30");
-    click_twice(&mut harness, number.center(), Duration::from_millis(600));
+    support::click_twice(&mut harness, number.center(), Duration::from_millis(600));
     let typed = typed_into(&mut harness, SMALL, "7");
     assert_eq!(
         typed.len(),
