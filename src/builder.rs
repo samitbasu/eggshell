@@ -1547,18 +1547,33 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
-    /// The node's layout style, its widths in `ch` measured in its resolved font.
+    /// The node's layout style, its widths in `ch` and its reservation
+    /// measured in its resolved text style.
     fn resolved_style(&self, tw: Tw, node: &Node) -> taffy::Style {
+        let ctx = self.frame.ctx;
         let mut style = tw.style;
-        let font = node.text.spec.font_id(self.frame.ctx);
-        tw.ch.resolve(&mut style, || {
-            self.frame.ctx.fonts_mut(|fonts| {
-                fonts
-                    .layout_no_wrap("0".to_owned(), font, Color32::PLACEHOLDER)
-                    .size()
-                    .x
-            })
-        });
+        let font = node.text.spec.font_id(ctx);
+        let mut reserved = None;
+        tw.ch.resolve(
+            &mut style,
+            || {
+                ctx.fonts_mut(|fonts| {
+                    fonts
+                        .layout_no_wrap("0".to_owned(), font, Color32::PLACEHOLDER)
+                        .size()
+                        .x
+                })
+            },
+            |reserve| {
+                let width = crate::measure::reserved_width(ctx, reserve, &node.text);
+                reserved = Some(width);
+                width
+            },
+        );
+        #[cfg(debug_assertions)]
+        if let (Some(reserve), Some(reserved)) = (tw.ch.reserve(), reserved) {
+            report_outgrown(ctx, node, reserve, reserved);
+        }
         style
     }
 
@@ -2417,4 +2432,35 @@ impl<A> DerefMut for Scope<'_, '_, A> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+/// Reports a text leaf whose text is wider than the widest template it
+/// reserves, `reserved` points: the leaf grew past its reservation.
+#[cfg(debug_assertions)]
+fn report_outgrown(ctx: &egui::Context, node: &Node, reserve: &crate::Reserve, reserved: f32) {
+    let Some(prim) = &node.prim else {
+        return;
+    };
+    let Some(leaf) = crate::measure::TextLeaf::of(ctx, prim, (&node.text, &node.style.rich)) else {
+        return;
+    };
+    let galley = ctx.fonts_mut(|fonts| leaf.unwrapped(fonts));
+    let width = galley.size().x;
+    if width <= reserved + 0.5 {
+        return;
+    }
+    let subject = node
+        .identity
+        .id()
+        .unwrap_or_else(|| Id::NULL.with(&node.path));
+    crate::report::report(ctx, crate::Problem::OutgrewReserve, Some(subject), || {
+        let templates: Vec<_> = reserve.templates().map(|t| format!("{t:?}")).collect();
+        format!(
+            "{}: {:?} is {width:.1} points wide, wider than the {reserved:.1} its node reserves \
+             for the widest of [{}]; the node grew, so its neighbours moved",
+            node.path,
+            galley.text(),
+            templates.join(", ")
+        )
+    });
 }
