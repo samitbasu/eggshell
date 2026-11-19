@@ -562,6 +562,7 @@ mod misuse {
             last.right(),
             d.rect(Target::suffix(&cell("Row(31)", 2))).right()
         );
+        d.expect_reported(eggshell_ui::Problem::TableShape);
     }
 }
 
