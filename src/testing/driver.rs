@@ -920,6 +920,12 @@ impl<A: 'static> Driver<A> {
         self.harness.state().layout.shell(&self.harness.ctx)
     }
 
+    /// TODO(prose): the driver's layout: to install a clipboard, or to ask
+    /// what it keeps.
+    pub fn layout(&self) -> &LayoutState {
+        &self.harness.state().layout
+    }
+
     /// TODO(prose): the egui context.
     pub fn ctx(&self) -> &egui::Context {
         &self.harness.ctx
