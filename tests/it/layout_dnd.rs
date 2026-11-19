@@ -2,14 +2,14 @@
 //! layout in the same egui context does not see it, or the grab and pointer
 //! it reads through its own `Shell`.
 
+use eggshell_ui::testing::{Driver, PlacedFrame};
 use eggshell_ui::{Builder, LayoutState, tw};
-use egui::{Color32, Pos2, Ui, vec2};
-use egui_kittest::Harness;
+use egui::{Color32, Ui, vec2};
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
 
-use crate::support::{self, FrameRig};
+use crate::support;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Item(u32);
@@ -20,8 +20,6 @@ struct App {
     carried: Option<Item>,
     watched: Option<Item>,
 }
-
-type H = Harness<'static, FrameRig<App>>;
 
 fn items(b: &mut Builder<'_, '_, App>, carried: &mut Option<Item>) {
     *carried = b.dragging::<Item>().map(|drag| *drag.payload);
@@ -38,7 +36,7 @@ fn items(b: &mut Builder<'_, '_, App>, carried: &mut Option<Item>) {
     .drop_target::<Item>(|_, _| {});
 }
 
-fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) {
+fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) -> PlacedFrame {
     let ctx = ui.ctx().clone();
     let area = ui.max_rect();
     let mut carried = None;
@@ -53,54 +51,46 @@ fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) {
         .layout(area)
         .draw(app, ui);
     app.watched = watched;
-    placed.draw(app, ui);
+    placed.draw(app, ui)
 }
 
-fn harness() -> H {
+fn harness() -> Driver<App> {
     let app = App {
         watcher: LayoutState::named("watcher"),
         carried: None,
         watched: None,
     };
-    let mut h = support::frame_harness(
+    let mut d = support::recorded(support::frame_driver(
         vec2(460.0, 320.0),
         common::base_text(egui::Theme::Light),
         app,
         frame,
-    );
-    h.run_steps(4);
-    h
+    ));
+    d.frames(4);
+    d
 }
 
-fn lift(h: &mut H) -> Pos2 {
-    let from = support::layout_rect(&h.ctx, "/\"grid\"/Item(1)").center();
-    h.hover_at(from);
-    h.run_steps(3);
-    h.drag_at(from);
-    h.step();
-    h.hover_at(from + vec2(0.0, 6.0));
-    h.step();
-    h.hover_at(from + vec2(0.0, 12.0));
-    h.run_steps(3);
-    from
+fn lift(d: &mut Driver<App>) {
+    let from = support::layout_rect(d.ctx(), "/\"grid\"/Item(1)").center();
+    d.lift(from, vec2(0.0, 12.0)).frames(2);
 }
 
 #[test]
 fn a_drag_is_seen_only_by_the_layout_it_was_lifted_in() {
-    let mut h = harness();
-    lift(&mut h);
-    assert_eq!(h.state().app.carried, Some(Item(1)), "the drag is live");
-    assert_eq!(h.state().app.watched, None, "another layout's drag");
+    let mut d = harness();
+    lift(&mut d);
+    assert_eq!(d.app().carried, Some(Item(1)), "the drag is live");
+    assert_eq!(d.app().watched, None, "another layout's drag");
 }
 
 #[test]
 fn the_pointer_of_a_drag_is_read_through_the_layout_that_holds_it() {
-    let mut h = harness();
-    lift(&mut h);
-    let ctx = h.ctx.clone();
-    let App { watcher, .. } = &h.state().app;
+    let mut d = harness();
+    lift(&mut d);
+    let ctx = d.ctx().clone();
+    let App { watcher, .. } = d.app();
     assert!(
-        h.state().layout.shell(&ctx).drag_pointer().is_some(),
+        d.shell().drag_pointer().is_some(),
         "the lifting layout reads the pointer"
     );
     assert_eq!(watcher.shell(&ctx).drag_pointer(), None);
