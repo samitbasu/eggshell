@@ -644,7 +644,7 @@ mod tests {
             ctx,
             Phase::Draw,
             ctx.viewport_id(),
-            (Id::new("pane"), "Pane"),
+            (Id::NULL.with("pane"), "Pane"),
         ));
     }
 
@@ -672,7 +672,7 @@ mod tests {
                 draw: ms(9),
             },
             windows: vec![WindowSpent {
-                id: Id::new("pane"),
+                id: Id::NULL.with("pane"),
                 title: "Pane".to_owned(),
                 times: Times {
                     build: Duration::ZERO,
