@@ -16,6 +16,7 @@ use super::{
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
 use crate::finite::clamp;
+use crate::focus::{Autofocus, Select};
 use crate::{Builder, NodeUi as _, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
