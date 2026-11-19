@@ -656,6 +656,12 @@ impl LayoutState {
         &self.st.kept
     }
 
+    /// The id every node's path derives from.
+    #[cfg_attr(not(feature = "driver"), expect(dead_code))]
+    pub(crate) fn root(&self) -> Id {
+        self.st.root
+    }
+
     /// This state, reached from where only `ctx` is at hand.
     pub fn shell(&self, ctx: &egui::Context) -> crate::Shell {
         crate::Shell::new(ctx, &self.st.kept)

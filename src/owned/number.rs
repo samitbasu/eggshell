@@ -153,6 +153,24 @@ impl ValueRange {
         self.end
     }
 
+    /// The smallest range holding both.
+    pub(super) fn union(self, other: Self) -> Self {
+        Self {
+            start: self.start.min(other.start),
+            end: self.end.max(other.end),
+            given: Given::Valid,
+        }
+    }
+
+    /// Whether `other` lies within this range.
+    pub(super) fn holds(self, other: Self) -> bool {
+        self.start <= other.start && other.end <= self.end
+    }
+
+    pub(super) fn contains(self, value: f64) -> bool {
+        self.start <= value && value <= self.end
+    }
+
     /// `value` within the range; NaN is the start.
     pub(super) fn clamp(self, value: f64) -> f64 {
         clamp(value, self.start, self.end)
@@ -237,16 +255,30 @@ impl Step {
     /// start, or its end if that is nearer than the last whole step.
     pub fn snap(self, value: f64, range: impl Into<ValueRange>) -> f64 {
         let range = range.into();
+        self.snap_from(range.start, value, range)
+    }
+
+    /// The nearest value of `range` that is a whole number of steps from
+    /// `origin`, or an end of `range` if that is nearer: a slider's typed
+    /// value stays on its track's lattice, whatever the typed range.
+    pub(super) fn snap_from(self, origin: f64, value: f64, range: ValueRange) -> f64 {
         let (low, high) = (range.start, range.end);
-        let steps = ((value - low) / self.0).round();
-        let snapped = low + steps * self.0;
+        let steps = ((value - origin) / self.0).round();
+        let snapped = origin + steps * self.0;
         let tidy = format!("{snapped:.*}", self.decimals());
         let on_lattice = clamp(tidy.parse().unwrap_or(snapped), low, high);
-        if (high - value).abs() < (on_lattice - value).abs() {
-            high
-        } else {
-            on_lattice
-        }
+        [high, low].into_iter().fold(on_lattice, |best, end| {
+            if (end - value).abs() < (best - value).abs() {
+                end
+            } else {
+                best
+            }
+        })
+    }
+
+    /// The distance itself.
+    pub(super) fn size(self) -> f64 {
+        self.0
     }
 
     /// `value` moved `steps` steps, kept within `range`.
