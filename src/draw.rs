@@ -532,6 +532,14 @@ struct Pass {
     blur: Blur,
     /// The items of groups on the page that are not their group's Tab stop.
     off_tab: std::collections::HashSet<Id>,
+    /// The relations between the pass's nodes, announced once it has drawn.
+    relations: Vec<crate::relation::Relation>,
+}
+
+/// The id of the blocker of the node at `index`: the widget an overlay's
+/// root is described on to assistive technology.
+pub(crate) fn blocker_id(index: usize) -> Id {
+    crate::key::root_id().with("blocker").with(index)
 }
 
 /// How an entering or leaving overlay is painted at one of its nodes.
@@ -619,11 +627,16 @@ impl<A> Walk<'_, A> {
             if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
                 plan.description
                     .announce(&own, ui.is_enabled().into(), Role::ScrollView);
-            } else if let Some(description) = node.description() {
+            } else if let Some(description) = node.description().filter(|d| d.is_set()) {
                 description.announce(&own, ui.is_enabled().into(), Role::GenericContainer);
             }
             own
         });
+        if let Some(target) = node.description().and_then(|d| d.controls) {
+            self.pass
+                .relations
+                .push(crate::relation::Relation::Controls { node: id, target });
+        }
         let merged = self.merge_hot(index, &mut response);
         let lost_focus = had_focus && !self.ui.ctx().memory(|memory| memory.has_focus(id));
         if lost_focus && merged == Merged::Bubbled && response.flags.intersects(Hot::PRESS) {
@@ -690,7 +703,7 @@ impl<A> Walk<'_, A> {
     /// The node's blocker: a widget over its border box that takes clicks and
     /// drags, registered before the node's descendants so that they win.
     fn block(&mut self, index: usize, boxes: &Boxes, inherited: Inherited) {
-        let id = crate::key::root_id().with("blocker").with(index);
+        let id = blocker_id(index);
         let overlay = self
             .roots
             .iter()
@@ -1962,6 +1975,7 @@ impl<A> Painting<A> {
             highlighted: nav::highlighted(kept),
             blur: Blur::Elsewhere,
             off_tab: std::collections::HashSet::new(),
+            relations: Vec::new(),
         };
         nav::activate_highlighted(&ctx, kept);
         nav::apply_deferred(&ctx, kept);
@@ -2003,7 +2017,7 @@ impl<A> Painting<A> {
         let embedded = walk.embedded_windows(here, kept.with(|kept| kept.chrome));
         let shown = walk.overlays(here);
         stack::repair(&ctx, &shown, pressed);
-        overlay_input::judge(
+        let popups = overlay_input::judge(
             overlay_input::Frame {
                 ctx: &ctx,
                 kept,
@@ -2017,6 +2031,14 @@ impl<A> Painting<A> {
             dismiss,
             app,
         );
+        pass.relations.extend(popups);
+        pass.relations.extend(nav::relations(&ctx, kept));
+        pass.relations.extend(crate::vlist::relations(
+            kept,
+            &shell,
+            ctx.cumulative_pass_nr(),
+        ));
+        crate::relation::announce(&ctx, &pass.relations);
         finish.finish(&ctx, kept, nodes, drag, app);
         let quiet = crate::hover::end(crate::hover::Frame {
             ctx: &ctx,

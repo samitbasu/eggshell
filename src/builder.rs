@@ -592,13 +592,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         &mut self,
         key: K,
         tw: Tw,
-        rows: &'f [R],
+        rows: impl Into<std::borrow::Cow<'f, [R]>>,
     ) -> crate::vlist::ListChain<'_, 'f, A, R>
     where
         A: 'static,
     {
         let slot = self.slot(&key);
-        crate::vlist::ListChain::new(self.reborrow(), slot, tw, rows)
+        crate::vlist::ListChain::new(self.reborrow(), slot, tw, rows.into())
     }
 
     /// Declares the rows of the virtual list `list`, built into `leaf` by
@@ -2315,6 +2315,37 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
                     _ => node.set_selected(on),
                 });
         })
+    }
+
+    /// Announces that the node controls the node `target`, the
+    /// `aria-controls` of the web: a section header the region it opens, a
+    /// tab its panel. `target` is that node's id, from
+    /// [`Builder::id_of`]. The node must sense; the relation is announced
+    /// only in a frame where `target` is in the accessibility tree too, which
+    /// a node that does not sense, or is not built, is not.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, tw};
+    /// # use eggshell_ui::overlay::Shown;
+    /// struct App { open: bool }
+    ///
+    /// fn item<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
+    ///     let region = b.id_of("details");
+    ///     b.div_id("head", tw().sense_click(), |b| b.text(tw(), "Details"))
+    ///         .role(egui::Role::Button)
+    ///         .expanded(app.open)
+    ///         .controls(region)
+    ///         .on_click(|app: &mut App| app.open = !app.open);
+    ///     b.collapsible("details", Shown::from(app.open))
+    ///         .classes(tw().sense_hover())
+    ///         .children(|b| b.text(tw(), "Only as tall as it needs"))
+    ///         .role(egui::Role::Region)
+    ///         .named("Details");
+    /// }
+    /// ```
+    pub fn controls(mut self, target: Id) -> Self {
+        self.edit(|context| context.description.get_or_insert_default().controls = Some(target));
+        self
     }
 
     /// The node's accessible name, the `aria-label` of the web.
