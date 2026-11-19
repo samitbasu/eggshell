@@ -14,6 +14,7 @@ use super::{
 };
 use crate::builder::Slot;
 use crate::contract::Size;
+use crate::focus::{Autofocus, Select};
 use crate::{Builder, Tw, tw};
 
 type Handler<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
@@ -79,6 +80,7 @@ pub struct SegmentedChain<'a, 'f, A, T> {
     cells: Tw,
     custom: Option<Custom<'a>>,
     on_response: OnResponse<A>,
+    autofocus: Autofocus,
 }
 
 /// The classes of the track and of each cell, given instead of read from the
@@ -110,6 +112,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             cells: tw(),
             custom: None,
             on_response: OnResponse::default(),
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -206,6 +209,19 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
         self
     }
 
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -241,6 +257,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             cells: caller,
             custom,
             on_response,
+            autofocus,
         } = self;
         let refused = gate.refused();
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
@@ -250,6 +267,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             enablement,
             refused,
             name,
+            autofocus,
         };
         if let Some(Custom { track, cell }) = custom {
             cells_in(
@@ -343,7 +361,9 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
         enablement,
         refused,
         name,
+        autofocus,
     } = group;
+    let target = choice::focus_target(&options, &current, enablement);
     let container = if tooltip.is_some() {
         container.sense_hover()
     } else {
@@ -363,6 +383,11 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
             };
             let classes = cell(state, enablement).sense_click();
             let name = label.clone();
+            let autofocus = if Some(index) == target {
+                autofocus
+            } else {
+                Autofocus::Never
+            };
 
             let control_tip = control_tip.clone();
             let on_response = on_response.clone();
@@ -370,6 +395,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
             let clicked = move |app: &mut A, ui: &mut egui::Ui| {
                 let mark = Mark::from(state == Cell::Pressed);
                 let response = described(ui, Role::RadioButton, Some(mark), &name, &tooltip);
+                autofocus.apply(ui.ctx(), &response);
                 if tooltip.is_none() {
                     tip_describes(ui, &response, &control_tip);
                 }
@@ -383,13 +409,16 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
             };
             match icon {
                 None => {
-                    b.span(index, classes, label).draw(draw);
+                    b.span(index, classes, label)
+                        .open_focus(autofocus.open_focus())
+                        .draw(draw);
                 }
                 Some(icon) => {
                     b.div_id(index, classes, |b| {
                         b.glyph(icon_classes.clone().shrink_0(), icon);
                         b.text(tw(), label);
                     })
+                    .open_focus(autofocus.open_focus())
                     .draw(draw);
                 }
             }
@@ -408,4 +437,5 @@ struct Group<T> {
     enablement: Enablement,
     refused: Refused,
     name: Option<String>,
+    autofocus: Autofocus,
 }

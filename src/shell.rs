@@ -17,7 +17,7 @@ use crate::kept::Handle;
 ///
 /// From [`LayoutState::shell`](crate::LayoutState::shell),
 /// [`Builder::shell`](crate::Builder::shell),
-/// [`Placed::shell`](crate::Placed::shell) or, in a draw closure,
+/// [`Placed::shell`](crate::testing::PlacedFrame::shell) or, in a draw closure,
 /// [`ShellExt::try_shell`] on the `Ui`. Cloning is cheap and it outlives the
 /// borrow of the layout it came from.
 ///

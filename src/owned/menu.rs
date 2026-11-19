@@ -18,6 +18,7 @@ use super::{
 use crate::builder::{Scope, Slot};
 use crate::commands::Bound;
 use crate::contract::{MenuStyle, Style, Variant};
+use crate::focus::{Autofocus, Select};
 use crate::kept::Handle;
 use crate::overlay::{Anchor, Distance, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
@@ -315,7 +316,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             CommandState::Checked(mark) => (Role::MenuItemCheckBox, Lead::Check(mark)),
             CommandState::Chosen(mark) => (Role::MenuItemRadio, Lead::Dot(mark)),
         };
-        let run = CommandItem::new(move |app| command.activate(app, &shell));
+        let run = CommandItem::new(move |app| command.run(app, &shell));
         let mut item = self
             .chain(id, command.title().to_owned(), run, role, lead)
             .allowed(enablement);
@@ -861,6 +862,7 @@ pub struct DropdownChain<'a, 'f, A, K> {
     children: Option<Body<'a, 'f, A>>,
     trail: TriggerTrail,
     menu_classes: Tw,
+    autofocus: Autofocus,
 }
 
 /// What a dropdown trigger's [`children`](DropdownChain::children) build.
@@ -886,6 +888,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             children: None,
             trail: TriggerTrail::Nothing,
             menu_classes: tw(),
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -968,6 +971,19 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         self
     }
 
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -998,6 +1014,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             children,
             trail,
             menu_classes,
+            autofocus,
         } = self;
         let shared = Shared::of(&b, b.slot(&key).id);
         let trigger = shared.root;
@@ -1013,7 +1030,8 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)
             .opens_popup()
-            .enablement(enablement);
+            .enablement(enablement)
+            .autofocus(autofocus);
         let button = match (children, trail) {
             (None, TriggerTrail::Nothing) => button,
             (children, trail) => button.children(move |s| {
@@ -1062,7 +1080,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
     }
 }
 
-impl<A> crate::Placed<A> {
+impl crate::testing::PlacedFrame {
     /// TODO(prose): whether the menu of the dropdown declared with `key` at the top of the view is open; false from the frame it closes, while it fades out.
     pub fn menu_open<K: crate::Key>(&self, key: K) -> bool {
         self.menu_open_with(crate::child_id(self.root, &key))
