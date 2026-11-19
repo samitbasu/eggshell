@@ -16,6 +16,8 @@ pub enum Easing {
     Out,
     /// `ease-in-out`: `cubic-bezier(0.4, 0, 0.2, 1)`.
     InOut,
+    /// `animate-pulse`'s: `cubic-bezier(0.4, 0, 0.6, 1)`.
+    Pulse,
     /// What `transition` uses without an `ease-*` class: Tailwind's default
     /// `cubic-bezier(0.4, 0, 0.2, 1)`.
     #[default]
@@ -88,6 +90,7 @@ impl Easing {
             Self::In => bezier(0.4, 0.0, 1.0, 1.0),
             Self::Out => bezier(0.0, 0.0, 0.2, 1.0),
             Self::InOut | Self::Default => bezier(0.4, 0.0, 0.2, 1.0),
+            Self::Pulse => bezier(0.4, 0.0, 0.6, 1.0),
         }
     }
 
@@ -104,11 +107,12 @@ impl Easing {
 mod tests {
     use super::*;
 
-    const ALL: [Easing; 5] = [
+    const ALL: [Easing; 6] = [
         Easing::Linear,
         Easing::In,
         Easing::Out,
         Easing::InOut,
+        Easing::Pulse,
         Easing::Default,
     ];
 
