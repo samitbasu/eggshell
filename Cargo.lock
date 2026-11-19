@@ -1150,6 +1150,7 @@ dependencies = [
  "arboard",
  "criterion",
  "eframe",
+ "eggshell-ui",
  "eggshell-ui-extras",
  "eggshell-ui-shadcn",
  "egui",

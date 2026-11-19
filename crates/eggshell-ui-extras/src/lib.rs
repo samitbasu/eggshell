@@ -22,6 +22,8 @@
 
 #[cfg(feature = "badge")]
 pub mod badge;
+#[cfg(feature = "form")]
+pub mod form;
 #[cfg(feature = "hover-card")]
 pub mod hover_card;
 #[cfg(feature = "markdown")]
@@ -32,6 +34,7 @@ pub mod skeleton;
 pub mod spinner;
 #[cfg(any(
     feature = "badge",
+    feature = "form",
     feature = "markdown",
     feature = "skeleton",
     feature = "spinner"
