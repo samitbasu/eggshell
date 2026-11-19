@@ -831,6 +831,8 @@ impl Shadcn {
         let style = self.style();
         #[cfg(feature = "extras")]
         self.markdown().install_for(ctx, self.theme);
+        #[cfg(feature = "extras")]
+        self.dialog().install_for(ctx, self.theme);
         style.install_for(ctx, self.theme);
     }
 
@@ -839,6 +841,30 @@ impl Shadcn {
     #[cfg(feature = "extras")]
     pub fn markdown(&self) -> eggshell_ui_extras::markdown::MarkdownStyle {
         eggshell_ui_extras::markdown::Typeset::default().markdown_style(&self.typeset_ink())
+    }
+
+    /// TODO(prose): the look of the dialog surface, the sheet and the
+    /// popover: shadcn's `DialogContent`, `SheetContent` and
+    /// `PopoverContent`. Placeholder values until the render round.
+    #[cfg(feature = "extras")]
+    pub fn dialog(&self) -> eggshell_ui_extras::dialog::DialogStyle {
+        use eggshell_ui_extras::dialog::{DialogStyle, Surface, shadow_lg};
+        let t = &self.tokens;
+        let visuals = match self.theme {
+            Theme::Light => egui::Visuals::light(),
+            Theme::Dark => egui::Visuals::dark(),
+        };
+        let mut dialog = DialogStyle::from_style(&self.style(), &visuals);
+        dialog.surface = Surface::new(t.background, t.foreground, t.border)
+            .rounded(t.radius)
+            .shadow(shadow_lg());
+        dialog.description_color = t.muted_foreground;
+        dialog.cancel = variant::OUTLINE;
+        dialog.default = variant::PRIMARY;
+        dialog.close = variant::GHOST;
+        dialog.close_size = size::ICON_SM;
+        dialog.close_inset = 2.0;
+        dialog
     }
 
     /// TODO(prose): the theme colours a [`Typeset`] takes, from this preset's

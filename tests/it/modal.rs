@@ -516,7 +516,7 @@ mod example {
 
     fn confirm() -> Harness<'static, Rig<State>> {
         let mut harness = dialog();
-        click_node(&mut harness, "/Dialog/Box/Footer/Delete");
+        click_node(&mut harness, "/Dialog/Box/Footer/Leading");
         settle(&mut harness);
         assert!(
             harness.state().app.confirm.is_open(),
@@ -680,7 +680,7 @@ mod example {
             "trapped: {lap:?}"
         );
         assert!(
-            lap.iter().any(|node| node.ends_with("/Save")),
+            lap.iter().any(|node| node.ends_with("/Default")),
             "and reaches the end of it: {lap:?}"
         );
     }
@@ -710,7 +710,7 @@ mod example {
     #[test]
     fn esc_presses_cancel_and_return_presses_save() {
         let mut harness = dialog();
-        click_node(&mut harness, "/Dialog/Box/Group(\"Name\")/Name");
+        click_node(&mut harness, "/Dialog/Box/Body/Group(\"Name\")/Name");
         harness.event(Event::Text("Ada".into()));
         settle(&mut harness);
         assert_eq!(harness.state().app.name, "Ada", "precondition: typed");
@@ -727,8 +727,8 @@ mod example {
     #[test]
     fn a_confirmation_opened_from_the_dialog_is_above_it_and_the_dialog_is_inert() {
         let mut harness = confirm();
-        let save = rect_of(&harness, "/Dialog/Box/Footer/Save");
-        let confirm_box = rect_of(&harness, "/Dialog/Box/Confirm/Box");
+        let save = rect_of(&harness, "/Dialog/Box/Footer/Default");
+        let confirm_box = rect_of(&harness, "/Dialog/Box/Body/Confirm/Box");
         assert!(
             !confirm_box.contains(save.center()),
             "precondition: Save is outside the confirmation"
@@ -742,7 +742,7 @@ mod example {
         let lap = lap(&mut harness);
         assert!(
             lap.iter()
-                .all(|node| node.starts_with("/Dialog/Box/Confirm/")),
+                .all(|node| node.starts_with("/Dialog/Box/Body/Confirm/")),
             "focus is trapped in the confirmation: {lap:?}"
         );
     }
@@ -770,7 +770,7 @@ mod example {
     fn return_in_the_confirmation_is_the_focused_buttons_and_never_the_dialogs() {
         let mut harness = confirm();
         assert!(
-            focus(&harness).ends_with("/Confirm/Box/Cancel"),
+            focus(&harness).ends_with("/Confirm/Box/Footer/Cancel"),
             "precondition: focus entered at Cancel, as an alert dialog does: {}",
             focus(&harness)
         );
@@ -798,12 +798,12 @@ mod example {
     #[test]
     fn a_menu_nested_in_the_dialog_is_above_the_trap_and_usable() {
         let mut harness = dialog();
-        click_node(&mut harness, "/Dialog/Box/Group(\"Role\")/RoleButton");
+        click_node(&mut harness, "/Dialog/Box/Body/Group(\"Role\")/RoleButton");
         settle(&mut harness);
         assert!(harness.state().app.picker, "precondition: the menu opened");
         let item = rect_of(
             &harness,
-            "/Dialog/Box/Group(\"Role\")/RoleMenu/Role/RoleItem(1)",
+            "/Dialog/Box/Body/Group(\"Role\")/RoleMenu/Role/RoleItem(1)",
         );
         click_at(&mut harness, item.center());
         assert_eq!(harness.state().app.role, 1);
@@ -817,7 +817,7 @@ mod example {
     #[test]
     fn a_press_on_the_scrim_closes_the_open_menu_and_the_dialog() {
         let mut harness = dialog();
-        click_node(&mut harness, "/Dialog/Box/Group(\"Role\")/RoleButton");
+        click_node(&mut harness, "/Dialog/Box/Body/Group(\"Role\")/RoleButton");
         settle(&mut harness);
         assert!(harness.state().app.picker, "precondition: the menu opened");
         click_at(&mut harness, pos2(5.0, 5.0));
@@ -826,10 +826,10 @@ mod example {
 
     const ROLES_LAST: usize = 2;
 
-    const ROLE_BUTTON: &str = "/Dialog/Box/Group(\"Role\")/RoleButton";
+    const ROLE_BUTTON: &str = "/Dialog/Box/Body/Group(\"Role\")/RoleButton";
 
     fn item(index: usize) -> String {
-        format!("/Dialog/Box/Group(\"Role\")/RoleMenu/Role/RoleItem({index})")
+        format!("/Dialog/Box/Body/Group(\"Role\")/RoleMenu/Role/RoleItem({index})")
     }
 
     fn open_menu_with_the_pointer() -> Harness<'static, Rig<State>> {
@@ -876,7 +876,7 @@ mod example {
     #[test]
     fn a_menu_opened_from_the_keyboard_focuses_its_first_item() {
         let mut harness = dialog();
-        click_node(&mut harness, "/Dialog/Box/Group(\"Name\")/Name");
+        click_node(&mut harness, "/Dialog/Box/Body/Group(\"Name\")/Name");
         for _ in 0..4 {
             if support::focused_path(&harness).as_deref() == Some(ROLE_BUTTON) {
                 break;
@@ -914,7 +914,7 @@ mod example {
     #[test]
     fn esc_in_the_menu_closes_only_the_menu() {
         let mut harness = dialog();
-        click_node(&mut harness, "/Dialog/Box/Group(\"Role\")/RoleButton");
+        click_node(&mut harness, "/Dialog/Box/Body/Group(\"Role\")/RoleButton");
         settle(&mut harness);
         press_key(&mut harness, Key::Escape);
         assert!(!harness.state().app.picker);
