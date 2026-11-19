@@ -898,8 +898,14 @@ impl egui::DroppedFile for DroppedPath {
         &self.0
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn bytes(&self) -> Result<Vec<u8>, String> {
         Ok(Vec::new())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn bytes_async(&self) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<u8>, String>> + '_>> {
+        Box::pin(std::future::ready(Ok(Vec::new())))
     }
 }
 
