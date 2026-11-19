@@ -46,6 +46,8 @@ mod custom;
 mod field_box;
 mod menu;
 mod number;
+mod number_field;
+pub(crate) mod options;
 mod progress;
 mod radio;
 mod segmented;
@@ -75,6 +77,8 @@ pub use field_box::FieldBoxChain;
 pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use number::{Edit, Step, ValueRange};
+pub(crate) use options::Gate;
+pub use options::IntoTip;
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
 pub use segmented::{Cell, SegmentedChain};
@@ -156,7 +160,7 @@ impl Enablement {
     /// `classes`, inert when disabled and, if the style fades disabled
     /// controls, faded. Apply it to the root of a control: what is inside
     /// follows the root's opacity.
-    fn apply(self, classes: Tw, style: &Style) -> Tw {
+    pub(crate) fn apply(self, classes: Tw, style: &Style) -> Tw {
         match self {
             Self::Enabled => classes,
             Self::Disabled => self.fade(classes.inert(), style),
@@ -361,6 +365,18 @@ fn described(ui: &Ui, role: Role, selected: Option<Mark>, name: &str, tip: &Tip)
     let response = tipped(ui, ui.node_response(), tip);
     describe(&response, ui.is_enabled().into(), role, selected, name);
     response
+}
+
+/// Announces the node of `ui` to assistive technology as a group of `role`,
+/// named `name` if it has one.
+pub(crate) fn announce_group(ui: &Ui, role: Role, name: Option<&str>) {
+    let id = ui.node_response().id;
+    ui.ctx().accesskit_node_builder(id, |node| {
+        node.set_role(role);
+        if let Some(name) = name {
+            node.set_label(name);
+        }
+    });
 }
 
 /// Describes `response` to assistive technology as a `role` named `name`,

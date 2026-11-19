@@ -33,7 +33,7 @@ pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
 pub use units::{Angle, Mirror, Opacity, Progress};
 pub use variants::Paint;
 pub(crate) use variants::{
-    Focusability, Grouping, Look, PointerEvents, Presence, Sensing, State, Variants,
+    Focusability, Grouping, Look, PointerEvents, Presence, Sensing, State, Variants, Visibility,
 };
 
 /// One Tailwind space unit, in points.
@@ -50,6 +50,8 @@ pub struct Tw {
     pub(crate) inert: bool,
     pub(crate) control_size: Option<Size>,
     pub(crate) pointer_events: PointerEvents,
+    /// `None` inherits the parent's.
+    pub(crate) visibility: Option<Visibility>,
     pub(crate) sensing: Sensing,
     pub(crate) focusability: Focusability,
     pub(crate) grouping: Grouping,
@@ -97,6 +99,7 @@ pub fn tw() -> Tw {
         inert: false,
         control_size: None,
         pointer_events: PointerEvents::Auto,
+        visibility: None,
         sensing: Sensing::None,
         focusability: Focusability::Tab,
         grouping: Grouping::Ungrouped,
@@ -169,6 +172,36 @@ impl Tw {
     /// turn blocking back on below it.
     pub fn pointer_events_none(mut self) -> Self {
         self.pointer_events = PointerEvents::None;
+        self
+    }
+
+    /// TODO(prose): hides the node and its subtree but keeps its box in the
+    /// layout, like Tailwind's `invisible` (CSS `visibility: hidden`):
+    /// nothing of it is painted, takes the pointer or the keyboard focus,
+    /// shows a tooltip or reaches assistive technology, and its neighbours
+    /// stay where they are. A descendant with [`visible`](Self::visible) is
+    /// shown again. [`hidden`](Self::hidden) removes the box instead.
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>, saving: bool) {
+    ///     let spinner = if saving { tw() } else { tw().invisible() };
+    ///     b.div(tw().flex().gap(2.0), |b| {
+    ///         b.span("status", spinner, "Saving…");
+    ///         b.button("save", "Save").add();
+    ///     });
+    /// }
+    /// ```
+    pub fn invisible(mut self) -> Self {
+        self.visibility = Some(Visibility::Hidden);
+        self
+    }
+
+    /// TODO(prose): shows the node again inside an [`invisible`](Self::invisible)
+    /// subtree, like Tailwind's `visible` (CSS `visibility: visible`).
+    pub fn visible(mut self) -> Self {
+        self.visibility = Some(Visibility::Visible);
         self
     }
 
