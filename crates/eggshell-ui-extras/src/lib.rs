@@ -26,7 +26,14 @@ pub mod badge;
 pub mod hover_card;
 #[cfg(feature = "markdown")]
 pub mod markdown;
+#[cfg(feature = "skeleton")]
+pub mod skeleton;
 #[cfg(feature = "spinner")]
 pub mod spinner;
-#[cfg(any(feature = "badge", feature = "markdown", feature = "spinner"))]
+#[cfg(any(
+    feature = "badge",
+    feature = "markdown",
+    feature = "skeleton",
+    feature = "spinner"
+))]
 mod styles;
