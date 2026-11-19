@@ -55,6 +55,7 @@ mod focus_on_appear;
 mod focus_options;
 mod focus_select;
 mod font_weights;
+mod form;
 mod form_demo;
 mod fractions;
 mod fuzz;

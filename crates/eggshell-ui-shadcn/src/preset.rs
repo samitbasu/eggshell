@@ -852,6 +852,7 @@ impl Shadcn {
         {
             self.markdown().install_for(ctx, self.theme);
             self.badge(&style).install_for(ctx, self.theme);
+            self.form(&style).install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
     }
@@ -960,6 +961,62 @@ impl Shadcn {
         badge.remove.glyph = 12.0;
         badge.remove.padding_end = 6.0;
         badge
+    }
+
+    /// TODO(prose): the form section and labelled row look. shadcn has no
+    /// grouped-form box, so the section is `FieldSet`'s semantics in `Card`'s
+    /// frame, with the looks the user chose on #370. From `ref/shadcn`
+    /// (f50887a), `registry/styles/style-{vega,lyra}.css`:
+    /// - the box is `cn-card`'s `bg-card`, `rounded-xl` in Vega and
+    ///   `rounded-none` in Lyra (vega 241, lyra 233). Its frame is a 1 pt
+    ///   `border`, not the card's `ring-1 ring-foreground/10`, and has no
+    ///   `shadow-xs`, as chosen;
+    /// - the title is `cn-field-legend`'s label variant: `font-medium`,
+    ///   `text-sm` and `mb-3` in Vega, `text-xs` and `mb-2.5` in Lyra
+    ///   (vega 624, lyra 599);
+    /// - a row is `cn-field`'s horizontal field: `gap-3` in Vega, `gap-2` in
+    ///   Lyra (vega 632, lyra 607), `items-center` (`bases/radix/ui/field.tsx`
+    ///   54);
+    /// - sections stack `cn-field-set`'s `gap-6` in Vega, `gap-4` in Lyra
+    ///   (vega 620, lyra 595);
+    /// - the rule is `divide-y` in `border`, edge to edge; the box is `py-2`
+    ///   and a row `px-4 py-2`, as chosen.
+    ///
+    /// ```
+    /// use eggshell_ui_shadcn::Shadcn;
+    ///
+    /// let shadcn = Shadcn::light();
+    /// let form = shadcn.form(&shadcn.style());
+    /// assert_eq!(form.fill, shadcn.tokens.card);
+    /// assert_eq!(form.radius, 14);
+    /// ```
+    #[cfg(feature = "extras")]
+    pub fn form(&self, style: &contract::Style) -> eggshell_ui_extras::form::FormStyle {
+        let t = &self.tokens;
+        let vega = t.style == ShadcnStyle::Vega;
+        let mut form = eggshell_ui_extras::form::FormStyle::from_style(style);
+        form.fill = t.card;
+        form.border = t.border;
+        form.border_width = 1.0;
+        form.radius = if vega { t.radius.saturating_add(4) } else { 0 };
+        form.padding_y = 8.0;
+        form.row_padding_x = 16.0;
+        form.row_padding_y = 8.0;
+        form.rule = t.border;
+        form.rule_width = 1.0;
+        form.title = TextSpec {
+            size: if vega { 14.0 } else { 12.0 },
+            line_height: if vega { 20.0 } else { 16.0 },
+            ..t.text_role_at(Weight::Medium)
+        };
+        form.title_color = t.foreground;
+        form.title_gap = if vega { 12.0 } else { 10.0 };
+        form.row_gap = if vega { 12.0 } else { 8.0 };
+        form.row_min_height = t.control_height;
+        form.label_color = t.foreground;
+        form.value_color = t.muted_foreground;
+        form.section_gap = if vega { 24.0 } else { 16.0 };
+        form
     }
 
     /// TODO(prose): the Markdown widget's look: shadcn/typeset at its

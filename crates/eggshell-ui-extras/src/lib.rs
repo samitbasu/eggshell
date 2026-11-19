@@ -22,9 +22,16 @@
 
 #[cfg(feature = "badge")]
 pub mod badge;
+#[cfg(feature = "form")]
+pub mod form;
 #[cfg(feature = "markdown")]
 pub mod markdown;
 #[cfg(feature = "spinner")]
 pub mod spinner;
-#[cfg(any(feature = "badge", feature = "markdown", feature = "spinner"))]
+#[cfg(any(
+    feature = "badge",
+    feature = "form",
+    feature = "markdown",
+    feature = "spinner"
+))]
 mod styles;

@@ -11,6 +11,7 @@ repository = "https://github.com/samitbasu/eggshell"
 # Each widget is opt-in.
 markdown = ["dep:pulldown-cmark"]
 badge = []
+form = []
 spinner = []
 
 [dependencies]
