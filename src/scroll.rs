@@ -486,6 +486,15 @@ impl Shell {
         });
     }
 
+    /// Scrolls the innermost container that holds the node `node` by `delta`,
+    /// as [`scroll_by`](Self::scroll_by) does.
+    pub(crate) fn scroll_within(&self, node: Id, delta: Vec2) {
+        self.submit(Request {
+            wish: Wish::Within { node, delta },
+            ..Request::new(&self.ctx)
+        });
+    }
+
     /// Scrolls the container `scroll` to show `rect`, a rect in the
     /// content's coordinates ([`Viewport::to_content`]). With an `align`, the
     /// rect is aligned in the viewport that way; without, the content moves
@@ -552,8 +561,19 @@ const REQUEST_LIFE: u64 = 2;
 #[derive(Clone, Debug)]
 enum Wish {
     By(Vec2),
-    Rect { rect: Rect, align: Option<Align> },
-    Node { node: Id, align: Option<Align> },
+    Rect {
+        rect: Rect,
+        align: Option<Align>,
+    },
+    Node {
+        node: Id,
+        align: Option<Align>,
+    },
+    /// Moves the innermost container that holds `node`.
+    Within {
+        node: Id,
+        delta: Vec2,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -940,6 +960,16 @@ impl Settle {
         for request in &mut self.pending {
             let item = match &request.wish {
                 Wish::By(delta) if request.container == Some(id) => {
+                    want += *delta;
+                    request.applied = true;
+                    continue;
+                }
+                Wish::Within { node, delta }
+                    if !request.applied
+                        && content
+                            .iter()
+                            .any(|candidate| candidate.id() == Some(*node)) =>
+                {
                     want += *delta;
                     request.applied = true;
                     continue;

@@ -93,7 +93,7 @@ fn offset(h: &H) -> f32 {
 }
 
 fn touch(h: &mut H, phase: TouchPhase, pos: Pos2) {
-    h.event(Event::Touch {
+    h.input_mut().events.push(Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(0),
         phase,
@@ -103,7 +103,7 @@ fn touch(h: &mut H, phase: TouchPhase, pos: Pos2) {
 }
 
 fn finger_down(h: &mut H, pos: Pos2) {
-    h.event(Event::PointerButton {
+    h.input_mut().events.push(Event::PointerButton {
         pos,
         button: egui::PointerButton::Primary,
         pressed: true,
@@ -114,19 +114,19 @@ fn finger_down(h: &mut H, pos: Pos2) {
 }
 
 fn finger_move(h: &mut H, pos: Pos2) {
-    h.event(Event::PointerMoved(pos));
+    h.input_mut().events.push(Event::PointerMoved(pos));
     touch(h, TouchPhase::Move, pos);
     h.step();
 }
 
 fn finger_up(h: &mut H, pos: Pos2) {
-    h.event(Event::PointerButton {
+    h.input_mut().events.push(Event::PointerButton {
         pos,
         button: egui::PointerButton::Primary,
         pressed: false,
         modifiers: egui::Modifiers::NONE,
     });
-    h.event(Event::PointerGone);
+    h.input_mut().events.push(Event::PointerGone);
     touch(h, TouchPhase::End, pos);
     h.step();
 }
@@ -154,11 +154,13 @@ fn drag(start: Start, distance: f32, speed: f32, warm: bool) -> Drag {
     };
     assert_eq!(offset(&h), 0.0, "precondition: at the top");
     finger_down(&mut h, from);
+    h.step();
     let mut y = from.y;
     while from.y - y < distance {
         y -= speed.min(distance - (from.y - y));
         finger_move(&mut h, Pos2::new(from.x, y));
     }
+    h.step();
     let held = offset(&h);
     finger_up(&mut h, Pos2::new(from.x, y));
     h.run_steps(120);
@@ -219,20 +221,65 @@ fn letting_go_of_a_drag_coasts_on_in_its_direction() {
 }
 
 #[test]
-#[ignore = "the first touch of a session scrolls nothing (#416)"]
 fn the_first_touch_of_a_session_scrolls() {
-    for start in [
-        Start::Background,
-        Start::Button,
-        Start::Field,
-        Start::Slider,
-    ] {
+    for start in [Start::Background, Start::Button, Start::Field] {
         assert_follows_finger(start, false);
     }
 }
 
 #[test]
-#[ignore = "a drag that starts on a slider is taken by the slider, so the container never scrolls (#416)"]
 fn a_touch_drag_from_a_slider_moves_the_content_by_the_finger() {
     assert_follows_finger(Start::Slider, true);
+    assert_follows_finger(Start::Slider, false);
+}
+
+/// A slider held down on the finger's way along it: `moves` steps of
+/// `step` points to the right of its centre.
+fn slide_along(warm: bool, moves: u32, step: f32) -> (f64, f32) {
+    let mut h = harness(Start::Slider);
+    if warm {
+        let tap = Pos2::new(150.0, 100.0);
+        finger_down(&mut h, tap);
+        finger_up(&mut h, tap);
+        h.run_steps(4);
+    }
+    let from = rect_of_control(&h).center();
+    finger_down(&mut h, from);
+    h.step();
+    let mut x = from.x;
+    for _ in 0..moves {
+        x += step;
+        finger_move(&mut h, Pos2::new(x, from.y));
+    }
+    h.step();
+    finger_up(&mut h, Pos2::new(x, from.y));
+    h.run_steps(30);
+    (h.state().app.value, offset(&h))
+}
+
+#[test]
+fn a_touch_drag_along_a_slider_moves_the_slider_and_not_the_content() {
+    for warm in [true, false] {
+        let (value, scrolled) = slide_along(warm, 4, 10.0);
+        assert!(value > 60.0, "warm: {warm}: the slider stayed at {value}");
+        assert_eq!(scrolled, 0.0, "warm: {warm}: the content moved");
+    }
+}
+
+#[test]
+fn a_touch_tap_on_a_slider_sets_its_value_there() {
+    let mut h = harness(Start::Slider);
+    let tap = Pos2::new(150.0, 100.0);
+    finger_down(&mut h, tap);
+    finger_up(&mut h, tap);
+    h.run_steps(4);
+    let track = rect_of_control(&h);
+    let at = Pos2::new(track.left() + track.width() * 0.9, track.center().y);
+    finger_down(&mut h, at);
+    h.step();
+    finger_up(&mut h, at);
+    h.run_steps(4);
+    let value = h.state().app.value;
+    assert!(value > 80.0, "a tap at nine tenths set {value}");
+    assert_eq!(offset(&h), 0.0);
 }

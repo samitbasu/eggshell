@@ -401,6 +401,7 @@ compile_error!(
 mod text;
 mod tiling;
 mod tooltip;
+mod touch;
 mod transition;
 mod tw;
 pub mod vlist;

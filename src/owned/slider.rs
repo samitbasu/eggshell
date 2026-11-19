@@ -19,6 +19,7 @@ use crate::finite::clamp;
 use crate::focus::{Autofocus, Select};
 use crate::input_trace::{self, Shown};
 use crate::prim::text_field::{self, Field, Opening};
+use crate::touch::{self, Reading};
 use crate::{Builder, NodeUi as _, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -372,6 +373,10 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         b.claim(&slot);
         b.scope_with(&slot, |b| {
             let on_track = scale.clone();
+            let on_tap = scale.clone();
+            let set_tap = set.clone();
+            let shell = b.shell();
+            let track_shell = shell.clone();
             let on_thumb = set.clone();
             let thumb_edits = edits.clone();
             let set_readout = set.clone();
@@ -384,11 +389,19 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                         b.div_id(Part::Thumb, knob, |_| {}).draw(move |app, ui| {
                             let response = ui.node_response();
                             tip_describes(ui, &response, &thumb_tip);
-                            let track = ui.ctx().read_response(track).map(|r| r.rect);
+                            let track_rect = ui.ctx().read_response(track).map(|r| r.rect);
+                            let reading = touch::read_horizontal_drag(
+                                ui,
+                                response.id,
+                                response.is_pointer_button_down_on(),
+                            );
+                            let held =
+                                reading == Reading::Along && response.is_pointer_button_down_on();
+                            touch::scroll_across(&shell, track, reading);
                             let pointer = response
                                 .interact_pointer_pos()
-                                .zip(track)
-                                .filter(|_| response.is_pointer_button_down_on())
+                                .zip(track_rect)
+                                .filter(|_| held)
                                 .map(|(at, track)| scale.at(at.x, track));
                             let keys = if response.has_focus() {
                                 scale.after_keys(ui)
@@ -396,7 +409,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                                 None
                             };
                             let changed = |value: Option<f64>| value.filter(|&v| v != scale.value);
-                            let down = (response.id, response.is_pointer_button_down_on());
+                            let down = (response.id, held);
                             thumb_edits.pointer(app, ui, down, |app| {
                                 if let Some(value) =
                                     changed(keys.is_none().then_some(pointer).flatten())
@@ -404,6 +417,12 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                                     on_thumb(app, value);
                                 }
                             });
+                            if let (Reading::Tapped(at), Some(track)) = (reading, track_rect) {
+                                let tapped = scale.at(at.x, track);
+                                if let Some(value) = changed(Some(tapped)) {
+                                    thumb_edits.once(app, |app| on_thumb(app, value));
+                                }
+                            }
                             if let Some(value) = changed(keys) {
                                 thumb_edits.once(app, |app| on_thumb(app, value));
                             }
@@ -422,7 +441,13 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                 .draw(move |app, ui| {
                     tipped_whole(ui, &track_tip);
                     let response = ui.node_response();
-                    let pressed = response.is_pointer_button_down_on();
+                    let reading = touch::read_horizontal_drag(
+                        ui,
+                        response.id,
+                        response.is_pointer_button_down_on(),
+                    );
+                    touch::scroll_across(&track_shell, track, reading);
+                    let pressed = reading == Reading::Along && response.is_pointer_button_down_on();
                     edits.pointer(app, ui, (response.id, pressed), |app| {
                         if let (true, Some(at)) = (pressed, response.interact_pointer_pos()) {
                             let value = on_track.at(at.x, response.rect);
@@ -431,6 +456,12 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                             }
                         }
                     });
+                    if let Reading::Tapped(at) = reading {
+                        let value = on_tap.at(at.x, response.rect);
+                        if value != on_tap.value {
+                            edits.once(app, |app| set_tap(app, value));
+                        }
+                    }
                 });
             };
             match boxed {

@@ -385,6 +385,7 @@ pub(crate) fn claim_keys(
 ) -> Keys {
     Source::note(ctx);
     register_hold_tab(ctx);
+    crate::touch::register(ctx);
     let open = open_overlays(roots, here);
     let pressed = |key| ctx.input(|input| input.key_pressed(key));
     let escape = pressed(Key::Escape);
