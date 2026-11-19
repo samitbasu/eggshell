@@ -50,7 +50,7 @@ mod tests {
     use egui::{Rect, Sense, pos2, vec2};
 
     fn id(name: &str) -> Id {
-        Id::new(name)
+        Id::NULL.with(name)
     }
 
     /// The tree of a pass that builds a widget for each of `built` and then
