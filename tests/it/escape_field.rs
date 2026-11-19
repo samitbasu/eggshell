@@ -1,11 +1,11 @@
 //! The Esc that unfocuses a text field belongs to the field: a custom node
 //! that reads the keys sees no Escape for it, and still sees every other.
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node, focused_path};
+use crate::support::{self, focused_path};
 
 const FIELD: &str = r#"/"Page"/"name""#;
 
@@ -42,52 +42,42 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
-    let mut harness = support::harness(vec2(400.0, 300.0), base_text(), App::default(), view);
-    harness.run_steps(4);
-    harness
+fn harness() -> Driver<App> {
+    let mut d = support::driver(vec2(400.0, 300.0), base_text(), App::default(), view).build();
+    d.frames(4);
+    d
 }
 
 #[test]
 fn the_escape_that_unfocuses_a_field_does_not_reach_a_custom_node() {
-    let mut harness = harness();
-    click_node(&mut harness, FIELD);
-    harness.run_steps(6);
+    let mut d = harness();
+    d.click(Target::suffix(FIELD)).frames(6);
     assert_eq!(
-        focused_path(&harness).as_deref(),
+        focused_path(&d).as_deref(),
         Some("<widget>"),
         "precondition: the field has focus"
     );
-    harness.key_press(Key::Escape);
-    harness.run_steps(6);
-    assert_eq!(focused_path(&harness), None, "Esc unfocused the field");
-    assert_eq!(harness.state().app.escapes, 0, "and went no further");
+    d.press(Key::Escape).frames(5);
+    assert_eq!(focused_path(&d), None, "Esc unfocused the field");
+    assert_eq!(d.app().escapes, 0, "and went no further");
 }
 
 #[test]
 fn with_nothing_focused_the_escape_reaches_the_custom_node() {
-    let mut harness = harness();
-    assert_eq!(
-        focused_path(&harness),
-        None,
-        "precondition: nothing has focus"
-    );
-    harness.key_press(Key::Escape);
-    harness.run_steps(6);
-    assert_eq!(harness.state().app.escapes, 1);
+    let mut d = harness();
+    assert_eq!(focused_path(&d), None, "precondition: nothing has focus");
+    d.press(Key::Escape).frames(5);
+    assert_eq!(d.app().escapes, 1);
 }
 
 #[test]
 fn a_second_escape_reaches_the_custom_node() {
-    let mut harness = harness();
-    click_node(&mut harness, FIELD);
-    harness.run_steps(6);
-    harness.key_press(Key::Escape);
-    harness.run_steps(6);
-    harness.key_press(Key::Escape);
-    harness.run_steps(6);
+    let mut d = harness();
+    d.click(Target::suffix(FIELD)).frames(6);
+    d.press(Key::Escape).frames(5);
+    d.press(Key::Escape).frames(5);
     assert_eq!(
-        harness.state().app.escapes,
+        d.app().escapes,
         1,
         "the first was the field's, the second is the node's"
     );

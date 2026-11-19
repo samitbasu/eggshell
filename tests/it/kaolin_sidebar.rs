@@ -1,10 +1,11 @@
 //! The kaolin gallery's sidebar rows hold stock buttons the library sizes:
 //! no row overlaps the next, and each button is drawn inside its row.
 
-use eggshell_ui::LayoutState;
+use std::time::Duration;
+
+use eggshell_ui::testing::{After, Animation, Driver, Reports};
 use egui::accesskit::Role;
 use egui::{ImageSource, Rect, Theme, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
 #[path = "../../examples/common/mod.rs"]
@@ -20,50 +21,47 @@ enum Styling {
     EguiDefaults,
 }
 
-struct Rig {
-    gallery: kaolin::Gallery,
-    rows: Vec<Rect>,
-}
-
 /// The rects of the sidebar's rows, and of the buttons drawn in them.
 fn sidebar(styling: Styling, theme: Theme) -> (Vec<Rect>, Vec<Rect>) {
-    let mut layout = LayoutState::new().with_base_text(common::base_text(theme));
-    let mut harness = Harness::builder()
-        .with_size(vec2(900.0, 700.0))
-        .with_theme(theme)
-        .build_ui_state(
-            move |ui, rig: &mut Rig| {
-                if matches!(styling, Styling::Preset) {
-                    common::use_preset(ui.ctx());
-                }
-                let area = ui.max_rect();
-                let selected = rig.gallery.selected;
-                let placed = layout
-                    .build(ui.ctx(), |b| {
-                        kaolin::window(b, selected, ImageSource::Uri("bytes://logo".into()));
-                    })
-                    .layout(area);
-                rig.rows = placed
-                    .nodes()
-                    .filter(|node| {
-                        node.path().starts_with("/(\"entry\", ") && !node.path().ends_with("<text>")
-                    })
-                    .map(|node| node.rect())
-                    .collect();
-                placed.draw(&mut rig.gallery, ui);
-            },
-            Rig {
-                gallery: kaolin::Gallery { selected: 1 },
-                rows: Vec::new(),
-            },
-        );
-    harness.run_steps(3);
+    let step = Duration::from_millis(250);
+    let mut d = Driver::whole_frame(
+        kaolin::Gallery { selected: 1 },
+        move |ui, gallery: &mut kaolin::Gallery, layout| {
+            if matches!(styling, Styling::Preset) {
+                common::use_preset(ui.ctx());
+            }
+            let area = ui.max_rect();
+            let selected = gallery.selected;
+            layout
+                .build(ui.ctx(), |b| {
+                    kaolin::window(b, selected, ImageSource::Uri("bytes://logo".into()));
+                })
+                .layout(area)
+                .draw(gallery, ui);
+        },
+    )
+    .size(vec2(900.0, 700.0))
+    .theme(theme)
+    .base_text(common::base_text(theme))
+    .step(step)
+    .settle_within(step * 4)
+    .motion(Animation::Reduced)
+    .after(After::Frames(0))
+    .reports(Reports::Unchecked)
+    .build();
+    d.frames(3);
 
+    let rows = d
+        .frame()
+        .nodes()
+        .filter(|node| node.path().starts_with("/(\"entry\", ") && !node.path().ends_with("<text>"))
+        .map(|node| node.rect())
+        .collect();
     let buttons = kaolin::ENTRIES
         .iter()
-        .map(|(name, _)| harness.get_by_role_and_label(Role::Button, name).rect())
+        .map(|(name, _)| d.harness().get_by_role_and_label(Role::Button, name).rect())
         .collect();
-    (harness.state().rows.clone(), buttons)
+    (rows, buttons)
 }
 
 #[test]
