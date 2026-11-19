@@ -5,6 +5,14 @@
     clippy::duplicate_mod,
     reason = "each example includes the shared examples/common module"
 )]
+#![cfg_attr(
+    not(debug_assertions),
+    allow(
+        unused_imports,
+        dead_code,
+        reason = "the release step builds without the debug-only tests these serve"
+    )
+)]
 
 mod accordion_example;
 mod autosuggest;
@@ -42,6 +50,7 @@ mod field_focus_example;
 mod field_text;
 mod focus;
 mod focus_on_appear;
+mod focus_select;
 mod font_weights;
 mod form_demo;
 mod fractions;
@@ -54,6 +63,7 @@ mod hit_route;
 mod icons;
 mod inert_look;
 mod interaction;
+mod invisible;
 mod kaolin_sidebar;
 mod known_gaps_demo;
 mod layout;
@@ -84,7 +94,9 @@ mod press_bubble;
 mod prims;
 mod progress;
 mod reduced_motion;
+mod refused;
 mod regions;
+mod release;
 mod reserve;
 mod responsive_example;
 mod roving;
