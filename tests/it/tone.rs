@@ -12,7 +12,6 @@ fn each_tone_finds_its_own_entry() {
     for (index, tone) in Tone::ALL.into_iter().enumerate() {
         let marker = ToneColors {
             tone: Color32::from_rgb(index as u8 + 1, 0, 0),
-            text: Color32::from_rgb(0, 0, index as u8 + 1),
             foreground: Color32::from_rgb(0, index as u8 + 1, 0),
         };
         style.tones.set(tone, marker);
@@ -24,11 +23,6 @@ fn each_tone_finds_its_own_entry() {
             "{tone:?}"
         );
         assert_eq!(
-            style.tones.get(tone).text,
-            Color32::from_rgb(0, 0, index as u8 + 1),
-            "{tone:?}"
-        );
-        assert_eq!(
             style.tones.get(tone).foreground,
             Color32::from_rgb(0, index as u8 + 1, 0),
             "{tone:?}"
@@ -37,7 +31,7 @@ fn each_tone_finds_its_own_entry() {
 }
 
 #[test]
-fn the_egui_style_takes_egui_s_warning_and_error_colours() {
+fn the_egui_style_takes_egui_s_warning_colour() {
     for visuals in [egui::Visuals::light(), egui::Visuals::dark()] {
         let egui = egui::Style {
             visuals: visuals.clone(),
@@ -45,24 +39,13 @@ fn the_egui_style_takes_egui_s_warning_and_error_colours() {
         };
         let tones = Style::from_egui(&egui).tones;
         assert_eq!(tones.get(Tone::Warning).tone, visuals.warn_fg_color);
-        assert_eq!(tones.get(Tone::Warning).text, visuals.warn_fg_color);
-        assert_eq!(tones.get(Tone::Critical).tone, visuals.error_fg_color);
     }
 }
 
 /// The egui-derived tones' pairs under AA, which the user accepted: egui's
-/// own warning and error colours, kept as egui has them.
-const EGUI_MISSES: [(egui::Theme, Tone, Pair, f32); 4] = [
-    (egui::Theme::Light, Tone::Warning, Pair::TextOnPanel, 2.79),
-    (egui::Theme::Light, Tone::Critical, Pair::TextOnPanel, 3.76),
-    (
-        egui::Theme::Light,
-        Tone::Critical,
-        Pair::ForegroundOnFill,
-        3.83,
-    ),
-    (egui::Theme::Dark, Tone::Critical, Pair::TextOnPanel, 4.31),
-];
+/// own warning colour, kept as egui has it.
+const EGUI_MISSES: [(egui::Theme, Tone, Pair, f32); 1] =
+    [(egui::Theme::Light, Tone::Warning, Pair::TextOnPanel, 2.79)];
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Pair {
@@ -83,7 +66,7 @@ fn the_egui_style_s_tones_pass_aa_but_for_the_listed_misses() {
         for tone in Tone::ALL {
             let colours = tones.get(tone);
             for (pair, text, surface) in [
-                (Pair::TextOnPanel, colours.text, visuals.panel_fill),
+                (Pair::TextOnPanel, colours.tone, visuals.panel_fill),
                 (Pair::ForegroundOnFill, colours.foreground, colours.tone),
             ] {
                 let ratio = f32::from(ContrastRatio::between(text, surface));

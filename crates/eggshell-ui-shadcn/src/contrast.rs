@@ -31,9 +31,9 @@ pub enum ContrastPair {
     DestructiveForegroundOnDestructive,
     /// `popover-foreground` on `popover`.
     PopoverForegroundOnPopover,
-    /// TODO(prose): a tone's text colour on `background`.
+    /// TODO(prose): a tone's colour as text on `background`.
     ToneOnBackground(Tone),
-    /// TODO(prose): a tone's text colour on `card`.
+    /// TODO(prose): a tone's colour as text on `card`.
     ToneOnCard(Tone),
     /// TODO(prose): a tone's foreground on a solid fill of the tone.
     ToneForegroundOnTone(Tone),
@@ -41,7 +41,7 @@ pub enum ContrastPair {
 
 impl ContrastPair {
     /// Every pair.
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 19] = [
         Self::ForegroundOnBackground,
         Self::ForegroundOnCard,
         Self::PrimaryForegroundOnPrimary,
@@ -61,12 +61,6 @@ impl ContrastPair {
         Self::ToneOnBackground(Tone::Warning),
         Self::ToneOnCard(Tone::Warning),
         Self::ToneForegroundOnTone(Tone::Warning),
-        Self::ToneOnBackground(Tone::Serious),
-        Self::ToneOnCard(Tone::Serious),
-        Self::ToneForegroundOnTone(Tone::Serious),
-        Self::ToneOnBackground(Tone::Critical),
-        Self::ToneOnCard(Tone::Critical),
-        Self::ToneForegroundOnTone(Tone::Critical),
     ];
 
     /// The pair by shadcn's names, as `text on surface`.
@@ -91,12 +85,6 @@ impl ContrastPair {
             Self::ToneOnBackground(Tone::Warning) => "warning on background",
             Self::ToneOnCard(Tone::Warning) => "warning on card",
             Self::ToneForegroundOnTone(Tone::Warning) => "warning-foreground on warning",
-            Self::ToneOnBackground(Tone::Serious) => "serious on background",
-            Self::ToneOnCard(Tone::Serious) => "serious on card",
-            Self::ToneForegroundOnTone(Tone::Serious) => "serious-foreground on serious",
-            Self::ToneOnBackground(Tone::Critical) => "critical on background",
-            Self::ToneOnCard(Tone::Critical) => "critical on card",
-            Self::ToneForegroundOnTone(Tone::Critical) => "critical-foreground on critical",
         }
     }
 
@@ -113,8 +101,8 @@ impl ContrastPair {
             Self::LinkOnBackground => (t.primary, t.background),
             Self::DestructiveForegroundOnDestructive => (t.destructive_foreground, t.destructive),
             Self::PopoverForegroundOnPopover => (t.popover_foreground, t.popover),
-            Self::ToneOnBackground(tone) => (t.tones().get(tone).text, t.background),
-            Self::ToneOnCard(tone) => (t.tones().get(tone).text, t.card),
+            Self::ToneOnBackground(tone) => (t.tones().get(tone).tone, t.background),
+            Self::ToneOnCard(tone) => (t.tones().get(tone).tone, t.card),
             Self::ToneForegroundOnTone(tone) => {
                 let colours = t.tones().get(tone);
                 (colours.foreground, colours.tone)
@@ -200,11 +188,11 @@ const fn miss(
 }
 
 #[doc(hidden)]
-pub const REGISTRY_MISSES: [RegistryMiss; 19] = {
+pub const REGISTRY_MISSES: [RegistryMiss; 18] = {
     use BaseColor::{Mauve, Mist, Neutral, Olive, Stone, Taupe, Zinc};
     use ContrastPair::{
         DestructiveForegroundOnDestructive, LinkOnBackground, MutedForegroundOnBackground,
-        MutedForegroundOnMuted, ToneForegroundOnTone,
+        MutedForegroundOnMuted,
     };
     use Theme::{Dark, Light};
     use ThemeColor::{Indigo, Lime, Violet, Yellow};
@@ -234,9 +222,6 @@ pub const REGISTRY_MISSES: [RegistryMiss; 19] = {
         // The violet nudge was measured on the neutral page; olive's is
         // lighter.
         miss(Dark, Some(Olive), Some(Violet), LinkOnBackground, 4.48),
-        // The tones (#129): critical-foreground on critical is destructive's
-        // own dark miss, above.
-        miss(Dark, None, None, ToneForegroundOnTone(Tone::Critical), 2.89),
     ]
 };
 

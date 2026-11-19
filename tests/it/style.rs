@@ -578,14 +578,10 @@ fn semantic_colours_are_defined_in_both_themes() {
         rgb(0xfa, 0xfa, 0xfa),
         "neutral-50"
     );
-    assert_eq!(light.serious, rgb(0xca, 0x35, 0x00), "orange-700");
     assert_eq!(light.info, rgb(0x00, 0x69, 0xa8), "sky-700");
-    assert_eq!(light.destructive_text, rgb(0xc1, 0x00, 0x07), "red-700");
     assert_eq!(dark.success, rgb(0x05, 0xdf, 0x72), "green-400");
     assert_eq!(dark.warning, rgb(0xff, 0xb9, 0x00), "amber-400");
     assert_eq!(dark.info, rgb(0x00, 0xbc, 0xff), "sky-400");
-    assert_eq!(dark.serious, rgb(0xff, 0x89, 0x04), "orange-400");
-    assert_eq!(dark.destructive_text, dark.destructive);
     for t in [light, dark] {
         let all = [
             t.destructive,

@@ -1189,7 +1189,6 @@ impl TableStyle {
 /// for tone in Tone::ALL {
 ///     let colours = style.tones.get(tone);
 ///     assert_ne!(colours.tone, colours.foreground);
-///     assert_ne!(colours.text, colours.foreground);
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1200,31 +1199,19 @@ pub enum Tone {
     Success,
     /// TODO(prose): a caution.
     Warning,
-    /// TODO(prose): a problem that needs attention soon.
-    Serious,
-    /// TODO(prose): a failure; the colours of a destructive action.
-    Critical,
 }
 
 impl Tone {
     /// Every tone, least severe first.
-    pub const ALL: [Self; 5] = [
-        Self::Info,
-        Self::Success,
-        Self::Warning,
-        Self::Serious,
-        Self::Critical,
-    ];
+    pub const ALL: [Self; 3] = [Self::Info, Self::Success, Self::Warning];
 }
 
 /// TODO(prose): the colours of one tone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ToneColors {
-    /// TODO(prose): the tone itself: a solid fill, or the base of a tint.
+    /// TODO(prose): the tone itself: its text or icon on the page, a solid
+    /// fill, or the base of a tint.
     pub tone: Color32,
-    /// TODO(prose): its text or icon on the page, darker than `tone` where
-    /// `tone` would be too light to read.
-    pub text: Color32,
     /// TODO(prose): text on a solid fill of `tone`.
     pub foreground: Color32,
 }
@@ -1238,10 +1225,6 @@ pub struct Tones {
     pub success: ToneColors,
     /// TODO(prose)
     pub warning: ToneColors,
-    /// TODO(prose)
-    pub serious: ToneColors,
-    /// TODO(prose)
-    pub critical: ToneColors,
 }
 
 impl Tones {
@@ -1260,8 +1243,6 @@ impl Tones {
             Tone::Info => &self.info,
             Tone::Success => &self.success,
             Tone::Warning => &self.warning,
-            Tone::Serious => &self.serious,
-            Tone::Critical => &self.critical,
         }
     }
 
@@ -1270,36 +1251,26 @@ impl Tones {
             Tone::Info => &mut self.info,
             Tone::Success => &mut self.success,
             Tone::Warning => &mut self.warning,
-            Tone::Serious => &mut self.serious,
-            Tone::Critical => &mut self.critical,
         }
     }
 
-    /// egui's warning and error colours, and Tailwind's sky, green and
-    /// orange for the tones egui has none of, in `visuals`' theme: the 700
-    /// shades in light, the 400 in dark.
+    /// egui's warning colour, and Tailwind's sky and green for the tones
+    /// egui has none of, in `visuals`' theme: the 700 shades in light, the
+    /// 400 in dark.
     fn from_egui(visuals: &egui::Visuals) -> Self {
         let rgb = |hex: u32| Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8);
-        let on = |tone: Color32, foreground: Color32| ToneColors {
-            tone,
-            text: tone,
-            foreground,
-        };
+        let on = |tone: Color32, foreground: Color32| ToneColors { tone, foreground };
         let (light, dark) = (rgb(0xfafafa), rgb(0x0a0a0a));
         match visuals.dark_mode {
             false => Self {
                 info: on(rgb(0x0069a8), light),
                 success: on(rgb(0x008236), light),
                 warning: on(visuals.warn_fg_color, dark),
-                serious: on(rgb(0xca3500), light),
-                critical: on(visuals.error_fg_color, light),
             },
             true => Self {
                 info: on(rgb(0x00bcff), dark),
                 success: on(rgb(0x05df72), dark),
                 warning: on(visuals.warn_fg_color, dark),
-                serious: on(rgb(0xff8904), dark),
-                critical: on(visuals.error_fg_color, dark),
             },
         }
     }

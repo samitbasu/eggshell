@@ -49,9 +49,6 @@ pub struct Tokens {
     pub destructive: Color32,
     /// The text on `destructive` (`text-white`).
     pub destructive_foreground: Color32,
-    /// TODO(prose): `destructive` as text on the page: a darker red in the
-    /// light theme, where `destructive` reads too light.
-    pub destructive_text: Color32,
     /// A positive outcome. Not a shadcn variable: the Tailwind green
     /// that `destructive` is the red of.
     pub success: Color32,
@@ -61,11 +58,6 @@ pub struct Tokens {
     pub warning: Color32,
     /// The text on `warning`.
     pub warning_foreground: Color32,
-    /// TODO(prose): a problem that needs attention soon, between `warning`
-    /// and `destructive`: the Tailwind orange.
-    pub serious: Color32,
-    /// TODO(prose): the text on `serious`.
-    pub serious_foreground: Color32,
     /// Neutral news: the Tailwind sky.
     pub info: Color32,
     /// The text on `info`.
@@ -176,13 +168,10 @@ impl Tokens {
         Self {
             destructive: rgb(0xe7000b),
             destructive_foreground: Color32::WHITE,
-            destructive_text: rgb(0xc10007),
             success: rgb(0x008236),
             success_foreground: rgb(0xfafafa),
             warning: rgb(0xbb4d00),
             warning_foreground: rgb(0xfafafa),
-            serious: rgb(0xca3500),
-            serious_foreground: rgb(0xfafafa),
             info: rgb(0x0069a8),
             info_foreground: rgb(0xfafafa),
             ..Self::sizes()
@@ -195,13 +184,10 @@ impl Tokens {
         Self {
             destructive: rgb(0xff6467),
             destructive_foreground: Color32::WHITE,
-            destructive_text: rgb(0xff6467),
             success: rgb(0x05df72),
             success_foreground: rgb(0x032e15),
             warning: rgb(0xffb900),
             warning_foreground: rgb(0x461901),
-            serious: rgb(0xff8904),
-            serious_foreground: rgb(0x441306),
             info: rgb(0x00bcff),
             info_foreground: rgb(0x052f4a),
             ..Self::sizes()
@@ -238,13 +224,10 @@ impl Tokens {
             accent_foreground: none,
             destructive: none,
             destructive_foreground: none,
-            destructive_text: none,
             success: none,
             success_foreground: none,
             warning: none,
             warning_foreground: none,
-            serious: none,
-            serious_foreground: none,
             info: none,
             info_foreground: none,
             border: none,
@@ -377,26 +360,13 @@ impl Tokens {
         self.input.gamma_multiply(0.3)
     }
 
-    /// TODO(prose): the colours of each tone: the status tokens, each its own
-    /// text, with `destructive`'s for
-    /// [`Tone::Critical`](eggshell_ui::Tone::Critical) and `destructive_text`
-    /// as its text.
+    /// TODO(prose): the colours of each tone: the status tokens.
     pub fn tones(&self) -> eggshell_ui::contract::Tones {
-        let on = |tone, text, foreground| eggshell_ui::contract::ToneColors {
-            tone,
-            text,
-            foreground,
-        };
+        let on = |tone, foreground| eggshell_ui::contract::ToneColors { tone, foreground };
         eggshell_ui::contract::Tones {
-            info: on(self.info, self.info, self.info_foreground),
-            success: on(self.success, self.success, self.success_foreground),
-            warning: on(self.warning, self.warning, self.warning_foreground),
-            serious: on(self.serious, self.serious, self.serious_foreground),
-            critical: on(
-                self.destructive,
-                self.destructive_text,
-                self.destructive_foreground,
-            ),
+            info: on(self.info, self.info_foreground),
+            success: on(self.success, self.success_foreground),
+            warning: on(self.warning, self.warning_foreground),
         }
     }
 
@@ -408,7 +378,7 @@ impl Tokens {
     /// TODO(prose): these tokens with `palette`'s colours for `theme`, which
     /// must be the theme they were made for: every colour shadcn's base and
     /// theme colours set, and the switch's, which follow them. The semantic
-    /// colours (`destructive`, `success`, `warning`, `serious`, `info`) are kept.
+    /// colours (`destructive`, `success`, `warning`, `info`) are kept.
     #[must_use]
     pub fn with_palette(self, palette: Palette, theme: Theme) -> Self {
         let Scheme {
