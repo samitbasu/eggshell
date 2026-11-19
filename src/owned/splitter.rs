@@ -260,6 +260,18 @@ pub struct SplitterChain<'a, 'f, A> {
     name: Option<String>,
 }
 
+impl<'a, 'f, A> SplitterChain<'a, 'f, A> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
     fn new(start: SplitterStart<'a, 'f, A>, side: Side, size: PaneSize) -> Self {
         Self {

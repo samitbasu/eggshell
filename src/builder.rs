@@ -1990,6 +1990,12 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     }
 
     fn tipped(mut self, content: Content) -> Self {
+        let tip = Tooltip::new(&mut self.b, self.node, content);
+        self.tip(tip)
+    }
+
+    /// Shows `tip` on the node, as [`tooltip`](Self::tooltip) does.
+    pub(crate) fn tip(mut self, tip: Tooltip) -> Self {
         self.edit(|context| {
             let interaction = &mut context.interaction;
             if interaction.sensing == Sensing::None {
@@ -1997,7 +2003,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
             }
             interaction.sensing = interaction.sensing.or(Sensing::Hover);
         });
-        let tip = Some(Tooltip::new(&mut self.b, self.node, content));
+        let tip = Some(tip);
         self.draw(move |_, ui| {
             crate::owned::tipped(ui, ui.node_response(), &tip);
         })

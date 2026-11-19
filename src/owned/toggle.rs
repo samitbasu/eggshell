@@ -113,7 +113,7 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
     }
 
     /// Shown while the pointer hovers the control, also when it is disabled.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+    pub fn tooltip(mut self, text: impl super::IntoTip) -> Self {
         self.button = self.button.tooltip(text);
         self
     }
@@ -140,6 +140,24 @@ impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
         let enablement = enablement.into();
         self.button = self.button.enablement(enablement);
         self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl super::IntoTip) -> Self {
+        self.button = self.button.refused(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        super::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<V2>(self, value: Option<V2>, then: impl FnOnce(Self, V2) -> Self) -> Self {
+        super::options::when_some(self, value, then)
     }
 
     /// Builds `body`'s nodes inside the toggle after its face; see
