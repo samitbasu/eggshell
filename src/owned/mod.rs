@@ -81,7 +81,7 @@ pub(crate) use options::Gate;
 pub use options::IntoTip;
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
-pub use segmented::{Cell, SegmentedChain};
+pub use segmented::{Cell, SegmentedChain, SegmentedRows};
 pub use select::SelectChain;
 pub use slider::SliderChain;
 pub(crate) use splitter::Side;
@@ -178,8 +178,17 @@ impl Enablement {
         }
     }
 
-    /// Disabled if either is.
-    pub(crate) fn and(self, other: Self) -> Self {
+    /// TODO(prose): disabled if either is.
+    ///
+    /// ```
+    /// use eggshell_ui::owned::Enablement;
+    ///
+    /// assert_eq!(Enablement::Enabled.and(Enablement::Enabled), Enablement::Enabled);
+    /// assert_eq!(Enablement::Enabled.and(Enablement::Disabled), Enablement::Disabled);
+    /// assert_eq!(Enablement::Disabled.and(Enablement::Enabled), Enablement::Disabled);
+    /// ```
+    #[must_use]
+    pub fn and(self, other: Self) -> Self {
         match (self, other) {
             (Self::Enabled, Self::Enabled) => Self::Enabled,
             _ => Self::Disabled,
