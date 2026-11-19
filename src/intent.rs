@@ -46,7 +46,6 @@ pub(crate) enum Skip {
     /// Within this long of a close, or while one is open, the next trigger
     /// opens without the delay.
     Grace(Duration),
-    #[cfg_attr(not(test), expect(dead_code, reason = "hover cards (#376) never skip"))]
     Never,
 }
 
@@ -54,10 +53,6 @@ pub(crate) enum Skip {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum FocusOpens {
     AtOnce,
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "hover cards (#376) wait on focus")
-    )]
     AfterDelay,
 }
 
@@ -320,6 +315,25 @@ impl<P: Clone> Intent<P> {
         } else {
             [Some(remaining), closing].into_iter().flatten().min()
         }
+    }
+}
+
+/// The time of the frame `ctx` is in, as the intent counts it.
+pub(crate) fn now(ctx: &egui::Context) -> Duration {
+    Duration::try_from_secs_f64(ctx.input(|input| input.time).max(0.0)).unwrap_or(Duration::MAX)
+}
+
+/// Asks for the frame a tick waits for, and for the next one if what is
+/// open `changed`.
+pub(crate) fn repaint(ctx: &egui::Context, wait: Option<Duration>, changed: bool) {
+    if let Some(wait) = wait {
+        ctx.request_repaint_after(wait);
+    }
+    // The state moves at the end of the draw and the overlay is declared by
+    // the next build, which a reactive app (eframe, the browser) only runs
+    // when asked: without input, what just opened would never show.
+    if changed {
+        ctx.request_repaint();
     }
 }
 

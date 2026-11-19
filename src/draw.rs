@@ -1886,6 +1886,8 @@ impl<A> Painting<A> {
         nav::activate_highlighted(&ctx, kept);
         nav::apply_deferred(&ctx, kept);
         pass.off_tab = crate::roving::settle(&ctx, kept, nodes);
+        pass.off_tab
+            .extend(crate::hover::off_tab(nodes, roots, here));
         let keys = overlay_input::claim_keys(&ctx, kept, nodes, (roots, here), live);
         pass.blur = keys.blur;
         let shell = crate::Shell::new(&ctx, kept);
@@ -1936,7 +1938,16 @@ impl<A> Painting<A> {
             app,
         );
         finish.finish(&ctx, kept, nodes, drag, app);
-        tooltip::end(&ctx, kept, interruption);
+        let quiet = crate::hover::end(crate::hover::Frame {
+            ctx: &ctx,
+            kept,
+            nodes,
+            by_id,
+            roots,
+            here,
+            subtrees: &pass.subtrees,
+        });
+        tooltip::end(&ctx, kept, interruption, &quiet);
         crate::mount::settle(&ctx, kept, (nodes, by_id), (roots, here), typing);
         scroll_keys::note_press(&ctx, kept, nodes);
         scroll_keys::apply_keys(&ctx, kept, nodes);

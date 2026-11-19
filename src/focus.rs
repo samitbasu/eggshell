@@ -310,7 +310,8 @@ pub(crate) fn restore(ctx: &Context, kept: &Handle, closed: &[Open]) {
             if ctx.memory(|memory| memory.is_above_modal_layer(response.layer_id)) {
                 ctx.memory_mut(|memory| memory.request_focus(target));
                 kept.viewport(ctx.viewport_id(), |here| {
-                    here.tooltips.focus_restored(target)
+                    here.tooltips.focus_restored(target);
+                    here.hover_cards.intent.focus_restored(target);
                 });
             } else {
                 returning.0.push(target);

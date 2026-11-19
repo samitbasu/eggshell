@@ -362,6 +362,7 @@ mod dnd;
 mod draw;
 mod finite;
 mod focus;
+mod hover;
 pub mod icons;
 mod input_trace;
 mod intent;

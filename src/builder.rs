@@ -1592,9 +1592,6 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         ));
     }
 
-    /// The text `body` shows, its pieces joined by spaces, in the order
-    /// they are drawn. Its nodes are built under `salt` and left out of the
-    /// frame, so nothing is laid out or drawn.
     pub(crate) fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>> {
         self.frame.build_built()
     }
@@ -1603,6 +1600,49 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.frame.set_build_built(build);
     }
 
+    /// Whether this builds inside a hover card's content, or inside an
+    /// overlay nested in one.
+    pub(crate) fn in_hover_card(&self) -> bool {
+        let layer = |at: usize| self.frame.roots.get(at)?.layer.as_ref();
+        std::iter::successors(layer(self.frame.current), |found| layer(found.parent)).any(|layer| {
+            match &layer.kind {
+                LayerKind::Overlay(decl) => decl.behavior.hover.is_some(),
+                LayerKind::Window(_) => false,
+            }
+        })
+    }
+
+    /// TODO(prose): while assistive technology is on, the text `body` shows,
+    /// its pieces joined by spaces in the order they are drawn: the
+    /// accessible description of content shown elsewhere, such as a hover
+    /// card's. `None` while it is off, without building `body`. Its nodes
+    /// are built under `salt` and left out of the frame, so nothing is laid
+    /// out or drawn, and no handler it registers runs.
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>) {
+    ///     let description = b.description_of("card", |c| {
+    ///         c.text(tw(), "@nextjs");
+    ///         c.text(tw(), "The React Framework");
+    ///     });
+    ///     if let Some(text) = description {
+    ///         assert_eq!(text, "@nextjs The React Framework");
+    ///     }
+    /// }
+    /// ```
+    pub fn description_of(
+        &mut self,
+        salt: impl std::hash::Hash + Debug,
+        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+    ) -> Option<String> {
+        accesskit_is_on(self.ctx()).then(|| self.text_of(salt, body))
+    }
+
+    /// The text `body` shows, its pieces joined by spaces, in the order
+    /// they are drawn. Its nodes are built under `salt` and left out of the
+    /// frame, so nothing is laid out or drawn.
     pub(crate) fn text_of(
         &mut self,
         salt: impl std::hash::Hash + Debug,
@@ -2367,4 +2407,10 @@ impl<A> DerefMut for Scope<'_, '_, A> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+/// egui has no public query for this; its root node is made only while
+/// accesskit is on.
+fn accesskit_is_on(ctx: &egui::Context) -> bool {
+    ctx.has_accesskit_node(egui::accesskit_root_id())
 }
