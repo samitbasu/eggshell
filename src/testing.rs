@@ -410,60 +410,6 @@ pub fn assert_no_reports(ctx: &egui::Context) {
     }
 }
 
-thread_local! {
-    /// The last frame each keeping layout drew, by the layout's scope. Kept
-    /// per thread, not in the layout's state: a frame's paint closures are
-    /// not `Send`, and the state is.
-    static KEPT_FRAMES: std::cell::RefCell<HashMap<Id, PlacedFrame>> =
-        std::cell::RefCell::default();
-}
-
-/// TODO(prose): has every frame `layout` draws from now on kept for [`take_frame`],
-/// instead of dropped, so a test can query a frame after
-/// [`Placed::draw`] has consumed it.
-///
-/// ```
-/// use eggshell_ui::testing::{keep_frames, take_frame};
-/// use eggshell_ui::{Builder, LayoutState, tw};
-/// use egui_kittest::Harness;
-///
-/// let mut layout = LayoutState::new();
-/// keep_frames(&layout);
-/// let mut harness = Harness::new_ui_state(
-///     |ui, layout: &mut LayoutState| {
-///         let view = |b: &mut Builder<'_, '_, ()>| {
-///             b.div_id("card", tw(), |b| { b.span("name", tw(), "Mono"); });
-///         };
-///         layout.build(ui.ctx(), view).layout(ui.max_rect()).draw(&mut (), ui);
-///     },
-///     layout,
-/// );
-/// harness.step();
-/// let frame = take_frame(harness.state()).expect("the frame was drawn");
-/// let card = frame.at("card");
-/// assert_eq!(card.at("name").rect(), card.text("Mono").rect());
-/// assert!(take_frame(harness.state()).is_none());
-/// ```
-pub fn keep_frames(layout: &LayoutState) {
-    layout.kept().with(|kept| kept.keep_frame = true);
-}
-
-/// TODO(prose): the last frame `layout` drew since [`keep_frames`], taken; `None` if
-/// it drew none since the last take.
-pub fn take_frame(layout: &LayoutState) -> Option<PlacedFrame> {
-    KEPT_FRAMES.with_borrow_mut(|frames| frames.remove(&layout.scope()))
-}
-
-/// Whether the layout of `kept` keeps the frames it draws.
-pub(crate) fn kept_on_request(kept: &crate::kept::Handle) -> bool {
-    kept.with(|kept| kept.keep_frame)
-}
-
-pub(crate) fn hand_over(frame: PlacedFrame) {
-    let replaced = KEPT_FRAMES.with_borrow_mut(|frames| frames.insert(frame.scope, frame));
-    drop(replaced);
-}
-
 fn in_pass<T>(
     ctx: &egui::Context,
     size: Vec2,

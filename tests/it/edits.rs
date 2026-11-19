@@ -38,6 +38,12 @@ fn view(b: &mut Builder<'_, '_, App>, _: &App) {
                 .named("Count")
                 .on_edit(|app: &mut App, edit| app.log.push(Logged::Edit(edit)))
                 .on_change(|app: &mut App, value| app.log.push(Logged::Value(value)));
+            b.slider("gain", 50.4, 0.0..=100.0)
+                .named("Gain")
+                .readout(|value| format!("{value:.0}"))
+                .editable(|text| text.trim().parse().ok())
+                .on_edit(|app: &mut App, edit| app.log.push(Logged::Edit(edit)))
+                .on_change(|app: &mut App, value| app.log.push(Logged::Value(value)));
         },
     );
 }
@@ -146,4 +152,56 @@ fn typing_in_the_stepper_is_one_edit_until_the_field_loses_focus() {
     assert_eq!(edits(&d), [Edit::Began], "{:?}", log(&d));
     d.press(Key::Tab).frames(2);
     assert_eq!(edits(&d), [Edit::Began, Edit::Ended]);
+}
+
+const READOUT: &str = r#"/"gain"/Box/Header/Readout"#;
+
+/// Clicks the readout open and selects what it shows.
+fn open_readout(d: &mut Driver<App>) {
+    d.click(Target::suffix(READOUT)).frames(4);
+    d.harness()
+        .key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
+    d.frames(2);
+}
+
+#[test]
+fn opening_the_readout_begins_an_edit_and_escape_ends_it_setting_nothing() {
+    let mut d = harness();
+    open_readout(&mut d);
+    assert_eq!(log(&d), [Logged::Edit(Edit::Began)], "open is the signal");
+    d.event(Event::Text("70".into())).frames(2);
+    d.press(Key::Escape).frames(3);
+    assert_eq!(
+        log(&d),
+        [Logged::Edit(Edit::Began), Logged::Edit(Edit::Ended)]
+    );
+}
+
+#[test]
+fn a_readout_committed_by_enter_sets_its_value_inside_the_edit() {
+    let mut d = harness();
+    open_readout(&mut d);
+    d.event(Event::Text("70".into())).frames(2);
+    assert_eq!(log(&d), [Logged::Edit(Edit::Began)], "nothing while typing");
+    d.press(Key::Enter).frames(3);
+    assert_eq!(
+        log(&d),
+        [
+            Logged::Edit(Edit::Began),
+            Logged::Value(70.0),
+            Logged::Edit(Edit::Ended)
+        ]
+    );
+}
+
+#[test]
+fn a_readout_closed_unchanged_sets_nothing() {
+    let mut d = harness();
+    d.click(Target::suffix(READOUT)).frames(4);
+    d.press(Key::Enter).frames(3);
+    assert_eq!(
+        log(&d),
+        [Logged::Edit(Edit::Began), Logged::Edit(Edit::Ended)],
+        "Enter on the text as it opened (50 for 50.4) commits nothing"
+    );
 }

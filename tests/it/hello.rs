@@ -276,6 +276,7 @@ mod signup {
         d.click(Target::suffix("/Form/Terms/Box")).frames(2);
         d.click(Target::suffix("/Form/Age/Box/Field")).frames(2);
         d.type_text("30").frames(2);
+        d.press(egui::Key::Enter).frames(1);
     }
 
     #[test]

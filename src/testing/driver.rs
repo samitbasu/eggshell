@@ -14,14 +14,14 @@ use egui::{
 use egui_kittest::kittest::Queryable as _;
 use egui_kittest::{Harness, HarnessBuilder};
 
-use super::{PixelsPerPoint, PlacedFrame, keep_frames, list, take_frame};
+use super::{PixelsPerPoint, PlacedFrame, list};
 use crate::key::{Key, child_id};
 use crate::{Builder, Chord, LayoutState, Problem, Report, Shell, TextStyle};
 
 /// egui's own animation time, which kittest sets to zero.
 const FULL_MOTION: f32 = 1.0 / 12.0;
 
-type DrawFrame<A> = Box<dyn FnMut(&mut egui::Ui, &mut A, &mut LayoutState)>;
+type DrawFrame<A> = Box<dyn FnMut(&mut egui::Ui, &mut A, &mut LayoutState) -> PlacedFrame>;
 type Setup = Box<dyn FnOnce(&egui::Context)>;
 
 /// TODO(prose): a view under test, driven through whole frames: each frame builds, lays
@@ -292,17 +292,18 @@ impl<A: 'static> Driver<A> {
             layout
                 .build(ui.ctx(), |b| view(b, &*app))
                 .layout(area)
-                .draw(app, ui);
+                .draw(app, ui)
         })
     }
 
     /// TODO(prose): a driver for a view that draws the whole frame itself, as an
     /// application's `update` does: scroll areas, a bar beside the layout,
     /// work after the draw. `frame` draws with the [`LayoutState`] it is
-    /// given, and the driver asks that layout's frame.
+    /// given and answers the frame its [`Placed::draw`](crate::Placed::draw)
+    /// answered, which the driver asks.
     pub fn whole_frame(
         app: A,
-        frame: impl FnMut(&mut egui::Ui, &mut A, &mut LayoutState) + 'static,
+        frame: impl FnMut(&mut egui::Ui, &mut A, &mut LayoutState) -> PlacedFrame + 'static,
     ) -> DriverBuilder<A> {
         DriverBuilder {
             app,
@@ -462,7 +463,6 @@ impl<A: 'static> DriverBuilder<A> {
             Some(base) => LayoutState::new().with_base_text(base),
             None => LayoutState::new(),
         };
-        keep_frames(&layout);
         let stage = Stage {
             app,
             layout,
@@ -476,10 +476,7 @@ impl<A: 'static> DriverBuilder<A> {
                     ui.ctx()
                         .global_style_mut(|style| style.animation_time = FULL_MOTION);
                 }
-                draw(ui, &mut stage.app, &mut stage.layout);
-                if let Some(frame) = take_frame(&stage.layout) {
-                    stage.frame = Some(frame);
-                }
+                stage.frame = Some(draw(ui, &mut stage.app, &mut stage.layout));
             },
             stage,
         );
@@ -962,8 +959,8 @@ impl<A: 'static> Driver<A> {
     ///
     /// # Panics
     ///
-    /// If no frame was drawn, which only a
-    /// [`whole_frame`](Self::whole_frame) that did not draw leaves.
+    /// If no frame was drawn yet, which [`build`](DriverBuilder::build)'s
+    /// first frame rules out.
     #[track_caller]
     #[expect(clippy::panic, reason = "an assertion fails the test")]
     pub fn frame(&self) -> &PlacedFrame {

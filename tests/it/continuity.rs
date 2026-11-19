@@ -21,7 +21,7 @@ fn rig<A: 'static>(
         let area = Rect::from_min_size(Pos2::ZERO, area(app));
         let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
         observe(app, &placed);
-        placed.draw(app, ui);
+        placed.draw(app, ui)
     })
     .size(vec2(4000.0, 400.0))
     .step(step)

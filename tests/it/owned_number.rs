@@ -721,8 +721,10 @@ fn arrow_keys_in_the_field_step_the_value() {
     assert_eq!(d.app().count, 10.0, "clamped");
 }
 
+/// Types a 7 and commits it with Enter.
 fn type_seven(d: &mut Driver<App>) {
     d.type_text("7").frames(2);
+    d.press(Key::Enter).frames(2);
 }
 
 #[test]
@@ -758,28 +760,40 @@ fn tab_into_the_stepper_field_selects_its_value_so_typing_replaces_it() {
 }
 
 #[test]
-fn typing_sets_the_value_clamps_it_and_snaps_when_the_field_is_left() {
+fn typing_commits_on_enter_or_leaving_clamped_and_snapped_and_escape_reverts() {
     let mut d = harness(Theme::Light);
     d.click(Target::suffix(FIELD)).frames(3);
     d.press(KeyboardShortcut::new(Modifiers::COMMAND, Key::A))
         .frames(1);
-    d.type_text("7").frames(2);
-    assert_eq!(d.app().count, 7.0);
-    d.type_text(".4").frames(2);
-    assert_eq!(d.app().count, 7.4, "applied as it parses");
-    assert!(d.painted().shows("7.4"), "and the text stays as typed");
+    d.type_text("7.4").frames(2);
+    assert_eq!(d.app().count, 3.0, "nothing applies while typing");
+    assert!(d.painted().shows("7.4"), "the text stays as typed");
 
     d.press(Key::Tab).frames(3);
-    assert_eq!(d.app().count, 7.0, "snapped to the step on leaving");
+    assert_eq!(d.app().count, 7.0, "leaving commits, snapped to the step");
     assert!(d.painted().shows("7"));
 
     d.click(Target::suffix(FIELD));
     d.harness().key_press_modifiers(Modifiers::COMMAND, Key::A);
     d.type_text("99").frames(2);
-    assert_eq!(d.app().count, 10.0, "clamped");
+    d.press(Key::Enter).frames(2);
+    assert_eq!(d.app().count, 10.0, "Enter commits, clamped");
+
+    d.click(Target::suffix(FIELD));
     d.harness().key_press_modifiers(Modifiers::COMMAND, Key::A);
     d.type_text("-").frames(2);
+    d.press(Key::Enter).frames(2);
     assert_eq!(d.app().count, 10.0, "text that is not a number is ignored");
+
+    d.click(Target::suffix(FIELD));
+    d.harness().key_press_modifiers(Modifiers::COMMAND, Key::A);
+    d.type_text("4").frames(2);
+    d.press(Key::Escape).frames(2);
+    assert_eq!(d.app().count, 10.0, "Escape reverts");
+    assert!(
+        d.painted().shows("10"),
+        "and the field shows the value again"
+    );
 }
 
 #[test]

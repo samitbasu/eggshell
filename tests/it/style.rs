@@ -573,9 +573,14 @@ fn of_is_the_applied_preset_for_the_contexts_theme() {
 fn semantic_colours_are_defined_in_both_themes() {
     let light = Tokens::light();
     let dark = Tokens::dark();
-    assert_eq!(light.success, rgb(0x00, 0xa6, 0x3e), "green-600");
-    assert_eq!(light.warning, rgb(0xfe, 0x9a, 0x00), "amber-500");
-    assert_eq!(light.info, rgb(0x00, 0x84, 0xd1), "sky-600");
+    assert_eq!(light.success, rgb(0x00, 0x82, 0x36), "green-700");
+    assert_eq!(light.warning, rgb(0xbb, 0x4d, 0x00), "amber-700");
+    assert_eq!(
+        light.warning_foreground,
+        rgb(0xfa, 0xfa, 0xfa),
+        "neutral-50"
+    );
+    assert_eq!(light.info, rgb(0x00, 0x69, 0xa8), "sky-700");
     assert_eq!(dark.success, rgb(0x05, 0xdf, 0x72), "green-400");
     assert_eq!(dark.warning, rgb(0xff, 0xb9, 0x00), "amber-400");
     assert_eq!(dark.info, rgb(0x00, 0xbc, 0xff), "sky-400");

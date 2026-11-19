@@ -8,7 +8,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::testing::{After, Driver, DriverBuilder, Reports};
+use eggshell_ui::testing::{After, Driver, DriverBuilder, PlacedFrame, Reports};
 use eggshell_ui::{Builder, LayoutState, Shell, TextStyle};
 use egui::epaint::{RectShape, Shape, StrokeKind};
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
@@ -239,9 +239,17 @@ pub fn full_motion(ctx: &egui::Context) {
     }
 }
 
+/// Whether a rig runs with the style's animation time at zero.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ReducedMotion {
+    No,
+    Yes,
+}
+
 pub struct Rig<A> {
     pub page: Page,
     pub companion: Companion,
+    pub reduced_motion: ReducedMotion,
     pub bar: Bar,
     pub layout: LayoutState,
     pub app: A,
@@ -286,6 +294,18 @@ pub fn harness_stepped<A>(
 
 /// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
 /// points.
+/// [`harness_prepared`] whose frames are `step_dt` seconds apart.
+pub fn harness_scaled_stepped<A>(
+    size: Vec2,
+    step_dt: f32,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    prepare: fn(&egui::Context, &A),
+) -> Harness<'static, Rig<A>> {
+    harness_timed(size, 1.0, step_dt, base_text, app, view, prepare)
+}
+
 pub fn harness_scaled<A>(
     size: Vec2,
     pixels_per_point: f32,
@@ -309,6 +329,7 @@ fn harness_timed<A>(
     let rig = Rig {
         page: Page::default(),
         companion: Companion::default(),
+        reduced_motion: ReducedMotion::No,
         bar: Bar::new(base_text.clone()),
         layout: LayoutState::new().with_base_text(base_text),
         app,
@@ -328,6 +349,7 @@ fn harness_timed<A>(
                 let Rig {
                     page,
                     companion,
+                    reduced_motion,
                     bar,
                     layout,
                     app,
@@ -336,7 +358,9 @@ fn harness_timed<A>(
                     nodes,
                     ids,
                 } = rig;
-                full_motion(ui.ctx());
+                if *reduced_motion == ReducedMotion::No {
+                    full_motion(ui.ctx());
+                }
                 if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                     eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
                 }
@@ -382,6 +406,19 @@ pub fn id_of<S: Seen>(seen: &S, path: &str) -> egui::Id {
         .into_iter()
         .find_map(|(candidate, _, id)| (candidate == path).then_some(id).flatten())
         .unwrap_or_else(|| panic!("no identified node {path}"))
+}
+
+/// Presses at `from`, moves to `to` in two steps and releases there.
+pub fn drag<A>(harness: &mut Harness<'_, Rig<A>>, from: Pos2, to: Pos2) {
+    hover_over(harness, from);
+    harness.drag_at(from);
+    harness.step();
+    harness.hover_at(from.lerp(to, 0.5));
+    harness.step();
+    harness.hover_at(to);
+    harness.step();
+    harness.drop_at(to);
+    harness.run_steps(3);
 }
 
 pub fn hover_over<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {
@@ -809,7 +846,7 @@ pub fn prepared_driver<A: 'static>(
         layout
             .build(ui.ctx(), |b| view(b, &*app))
             .layout(area)
-            .draw(app, ui);
+            .draw(app, ui)
     })
     .size(size)
     .base_text(base_text)
@@ -826,7 +863,7 @@ pub fn frame_driver<A: 'static>(
     size: Vec2,
     base_text: TextStyle,
     app: A,
-    frame: fn(&mut egui::Ui, &mut A, &mut LayoutState),
+    frame: fn(&mut egui::Ui, &mut A, &mut LayoutState) -> PlacedFrame,
 ) -> DriverBuilder<A> {
     let mut bar = Bar::new(base_text.clone());
     let step = Duration::from_nanos(1_000_000_000 / 60);
@@ -838,7 +875,7 @@ pub fn frame_driver<A: 'static>(
         ui.painter()
             .rect_filled(ui.ctx().content_rect(), 0.0, background);
         bar.show(ui);
-        frame(ui, app, layout);
+        frame(ui, app, layout)
     })
     .size(size)
     .base_text(base_text)

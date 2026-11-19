@@ -200,6 +200,36 @@ fn items_have_the_menu_item_roles_and_the_checked_state() {
 }
 
 #[test]
+fn separators_have_no_node_and_the_arrows_pass_them() {
+    let mut d = harness();
+    open_file(&mut d);
+    assert_eq!(
+        d.harness().query_all_by_role(Role::Splitter).count(),
+        0,
+        "a separator is painted, not announced"
+    );
+    for _ in 0..10 {
+        if focused_path(&d) == Some(item(MENU, r#""plain""#)) {
+            break;
+        }
+        d.press(Key::ArrowDown).frames(4);
+    }
+    assert_eq!(
+        focused_path(&d),
+        Some(item(MENU, r#""plain""#)),
+        "precondition: the item before the separator is focused"
+    );
+    d.press(Key::ArrowDown).frames(4);
+    assert_eq!(
+        focused_path(&d),
+        Some(item(MENU, r#""delete""#)),
+        "Down passes the separator"
+    );
+    d.press(Key::ArrowUp).frames(4);
+    assert_eq!(focused_path(&d), Some(item(MENU, r#""plain""#)));
+}
+
+#[test]
 fn activating_an_item_runs_its_handler_and_closes_the_menu() {
     let mut d = harness();
     open_file(&mut d);
@@ -860,7 +890,7 @@ mod open_query {
             if let Some(observe) = observe.borrow_mut().as_mut() {
                 observe(&placed);
             }
-            placed.draw(app, ui);
+            placed.draw(app, ui)
         })
         .size(SCREEN)
         .base_text(base_text())

@@ -2,7 +2,7 @@
 //! layout in the same egui context does not see it, or the grab and pointer
 //! it reads through its own `Shell`.
 
-use eggshell_ui::testing::Driver;
+use eggshell_ui::testing::{Driver, PlacedFrame};
 use eggshell_ui::{Builder, LayoutState, tw};
 use egui::{Color32, Ui, vec2};
 
@@ -36,7 +36,7 @@ fn items(b: &mut Builder<'_, '_, App>, carried: &mut Option<Item>) {
     .drop_target::<Item>(|_, _| {});
 }
 
-fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) {
+fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) -> PlacedFrame {
     let ctx = ui.ctx().clone();
     let area = ui.max_rect();
     let mut carried = None;
@@ -51,7 +51,7 @@ fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) {
         .layout(area)
         .draw(app, ui);
     app.watched = watched;
-    placed.draw(app, ui);
+    placed.draw(app, ui)
 }
 
 fn harness() -> Driver<App> {

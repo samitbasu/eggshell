@@ -102,6 +102,28 @@ pub(crate) fn allowed(ctx: &Context, duration: Duration) -> Duration {
     }
 }
 
+/// TODO(prose): where a looping animation of `period` is now, as a fraction of
+/// the period; `None` under reduced motion or with no period. Asks for the next
+/// frame.
+pub fn cycle(ctx: &Context, period: Duration) -> Option<Progress> {
+    let period = allowed(ctx, period);
+    if period.is_zero() {
+        return None;
+    }
+    ctx.request_repaint();
+    Some(phase_at(ctx.input(|input| input.time), period))
+}
+
+/// How far into a repeating `period` it is `time` seconds after the clock
+/// started.
+fn phase_at(time: f64, period: Duration) -> Progress {
+    let period = period.as_secs_f64();
+    if period <= 0.0 {
+        return Progress::START;
+    }
+    Progress::new((time / period).rem_euclid(1.0) as f32)
+}
+
 /// The value of the transition keyed by `id` towards `target`
 /// ([`Progress::START`] or [`Progress::END`]) over `duration`, eased.
 ///
@@ -352,4 +374,74 @@ impl LayoutAnimation {
 #[doc(hidden)]
 pub fn tracked_layout_nodes(layout: &crate::LayoutState) -> usize {
     layout.kept().with(|kept| kept.animation.nodes.len())
+}
+
+#[cfg(test)]
+mod cycle_tests {
+    use super::*;
+    use egui::RawInput;
+
+    fn phase(time: f64, animation_time: f32, period: Duration) -> (Option<Progress>, bool) {
+        let ctx = Context::default();
+        ctx.global_style_mut(|style| style.animation_time = animation_time);
+        let frame = |seen: &mut Option<Progress>| {
+            let mut output = ctx.run_ui(
+                RawInput {
+                    time: Some(time),
+                    ..RawInput::default()
+                },
+                |_| *seen = cycle(&ctx, period),
+            );
+            output.textures_delta.clear();
+            output
+                .viewport_output
+                .values()
+                .any(|viewport| viewport.repaint_delay.is_zero())
+        };
+        let mut seen = None;
+        for _ in 0..3 {
+            frame(&mut seen);
+        }
+        let repainted = frame(&mut seen);
+        (seen, repainted)
+    }
+
+    fn at(progress: Option<Progress>) -> f32 {
+        progress.map_or(-1.0, f32::from)
+    }
+
+    const SECOND: Duration = Duration::from_secs(1);
+
+    #[test]
+    fn a_cycle_takes_one_period() {
+        assert_eq!(f32::from(phase_at(0.0, SECOND)), 0.0);
+        assert!((f32::from(phase_at(0.25, SECOND)) - 0.25).abs() < 1e-6);
+        assert!((f32::from(phase_at(1.5, SECOND)) - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_zero_period_stands_at_the_start() {
+        assert_eq!(f32::from(phase_at(12.3, Duration::ZERO)), 0.0);
+    }
+
+    #[test]
+    fn a_running_cycle_reports_its_phase_and_asks_for_the_next_frame() {
+        let (progress, repainted) = phase(0.5, 1.0 / 12.0, SECOND);
+        assert!((at(progress) - 0.5).abs() < 1e-6);
+        assert!(repainted);
+    }
+
+    #[test]
+    fn reduced_motion_has_no_cycle_and_asks_for_nothing() {
+        let (progress, repainted) = phase(0.5, 0.0, SECOND);
+        assert_eq!(progress, None);
+        assert!(!repainted);
+    }
+
+    #[test]
+    fn no_period_has_no_cycle_and_asks_for_nothing() {
+        let (progress, repainted) = phase(0.5, 1.0 / 12.0, Duration::ZERO);
+        assert_eq!(progress, None);
+        assert!(!repainted);
+    }
 }
