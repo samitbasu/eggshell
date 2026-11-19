@@ -323,9 +323,17 @@ mod web {
                 .expect("the page has a canvas with id `eggshell_canvas`");
             let started = eframe::WebRunner::new()
                 .start(
-                    canvas,
+                    canvas.clone(),
                     eframe::WebOptions::default(),
-                    Box::new(|_| Ok(Box::new(App(ui_fun)))),
+                    Box::new(move |cc| {
+                        let claimed = eggshell_ui::web::ClaimedChords::of(&cc.egui_ctx);
+                        if let Err(error) =
+                            eggshell_ui::web::prevent_claimed_chords(&canvas, claimed)
+                        {
+                            log::warn!("chords stay the browser's too: {error:?}");
+                        }
+                        Ok(Box::new(App(ui_fun)))
+                    }),
                 )
                 .await;
             if let Err(error) = started {

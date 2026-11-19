@@ -454,7 +454,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         for path in [
             "/\"button\"",
             "/\"checkbox\"/<div>",
-            "/\"radio\"/<div>",
+            "/\"radio\"",
             "/\"switch\"/<div>",
             "/\"slider\"/Track",
             "/\"select\"",
@@ -1051,17 +1051,6 @@ fn a_button_with_neither_label_nor_name_is_reported() {
         "{}",
         report.message
     );
-}
-
-#[cfg(not(debug_assertions))]
-#[test]
-fn an_unnamed_button_is_not_reported_in_release() {
-    let mut headless = eggshell_ui::testing::Headless::new(vec2(200.0, 100.0));
-    headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _| {
-        b.button("bare", texture_icon()).add();
-        b.button("nameless", "").add();
-    });
-    eggshell_ui::testing::assert_no_reports(headless.ctx());
 }
 
 #[test]

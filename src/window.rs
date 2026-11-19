@@ -296,6 +296,18 @@ pub struct PopOutChain<'b, 'f, A> {
     placeholder: Option<PlaceholderFn<'b, 'f, A>>,
 }
 
+impl<'b, 'f, A> PopOutChain<'b, 'f, A> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 impl<'b, 'f, A: 'static> PopOutChain<'b, 'f, A> {
     pub(crate) fn new(b: Builder<'b, 'f, A>, slot: Slot) -> Self {
         Self {
@@ -312,7 +324,7 @@ impl<'b, 'f, A: 'static> PopOutChain<'b, 'f, A> {
     /// TODO(prose): the classes of the subtree's container, inline and in its
     /// window.
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
     }
 

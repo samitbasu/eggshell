@@ -12,7 +12,13 @@ default = ["fonts"]
 # Bundles Geist (SIL OFL 1.1, fonts/OFL.txt), 165 KiB, as the preset's font.
 fonts = []
 # Fills the looks of eggshell-ui-extras' widgets from the preset's tokens.
-extras = ["dep:eggshell-ui-extras", "eggshell-ui-extras/markdown"]
+extras = [
+    "dep:eggshell-ui-extras",
+    "eggshell-ui-extras/badge",
+    "eggshell-ui-extras/hover-card",
+    "eggshell-ui-extras/markdown",
+    "eggshell-ui-extras/skeleton",
+]
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }
