@@ -194,18 +194,51 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
-    /// `own`, and disabled when the control is inside an
-    /// [`inert`](Tw::inert) subtree, as a `<fieldset disabled>` disables the
-    /// controls inside it.
+    /// `own`, and disabled where [`enablement`](Self::enablement) is.
     pub(crate) fn enablement_of(&self, own: Enablement) -> Enablement {
-        self.ambient.enablement.and(own)
+        self.enablement().and(own)
     }
 
-    /// The size a control draws at: its own, else the one its subtree
-    /// inherits from [`control_size`](Tw::control_size), else the style's
-    /// default.
+    /// The size a control draws at: its own, else [`control_size`](Self::control_size).
     pub(crate) fn size_of(&self, own: Option<ControlSize>) -> ControlSize {
-        own.or(self.ambient.size).unwrap_or(ControlSize::DEFAULT)
+        own.unwrap_or_else(|| self.control_size())
+    }
+
+    /// TODO(prose): the size a control built here draws at unless it sets
+    /// its own: the one its subtree inherits from
+    /// [`control_size`](Tw::control_size), else the style's default.
+    ///
+    /// ```
+    /// use eggshell_ui::contract::Size;
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::tw;
+    ///
+    /// const SM: Size = Size("sm");
+    /// Headless::new(egui::vec2(100.0, 100.0)).layout(&(), |b, _| {
+    ///     assert_eq!(b.control_size(), Size::DEFAULT);
+    ///     b.div(tw().control_size(SM), |b| assert_eq!(b.control_size(), SM));
+    /// });
+    /// ```
+    pub fn control_size(&self) -> ControlSize {
+        self.ambient.size.unwrap_or(ControlSize::DEFAULT)
+    }
+
+    /// TODO(prose): whether controls built here take input: disabled inside
+    /// an [`inert`](Tw::inert) subtree, as a `<fieldset disabled>` disables
+    /// the controls inside it.
+    ///
+    /// ```
+    /// use eggshell_ui::owned::Enablement;
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::tw;
+    ///
+    /// Headless::new(egui::vec2(100.0, 100.0)).layout(&(), |b, _| {
+    ///     assert_eq!(b.enablement(), Enablement::Enabled);
+    ///     b.div(tw().inert(), |b| assert_eq!(b.enablement(), Enablement::Disabled));
+    /// });
+    /// ```
+    pub fn enablement(&self) -> Enablement {
+        self.ambient.enablement
     }
 
     /// TODO(prose): the style the nodes built here are built, measured and
@@ -1514,18 +1547,33 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
-    /// The node's layout style, its widths in `ch` measured in its resolved font.
+    /// The node's layout style, its widths in `ch` and its reservation
+    /// measured in its resolved text style.
     fn resolved_style(&self, tw: Tw, node: &Node) -> taffy::Style {
+        let ctx = self.frame.ctx;
         let mut style = tw.style;
-        let font = node.text.spec.font_id(self.frame.ctx);
-        tw.ch.resolve(&mut style, || {
-            self.frame.ctx.fonts_mut(|fonts| {
-                fonts
-                    .layout_no_wrap("0".to_owned(), font, Color32::PLACEHOLDER)
-                    .size()
-                    .x
-            })
-        });
+        let font = node.text.spec.font_id(ctx);
+        let mut reserved = None;
+        tw.ch.resolve(
+            &mut style,
+            || {
+                ctx.fonts_mut(|fonts| {
+                    fonts
+                        .layout_no_wrap("0".to_owned(), font, Color32::PLACEHOLDER)
+                        .size()
+                        .x
+                })
+            },
+            |reserve| {
+                let width = crate::measure::reserved_width(ctx, reserve, &node.text);
+                reserved = Some(width);
+                width
+            },
+        );
+        #[cfg(debug_assertions)]
+        if let (Some(reserve), Some(reserved)) = (tw.ch.reserve(), reserved) {
+            report_outgrown(ctx, node, reserve, reserved);
+        }
         style
     }
 
@@ -2216,6 +2264,16 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
+    /// The node's accessible description, the `aria-description` of the
+    /// web: read after its name, such as a dialog's explanatory sentence.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        let description = description.into();
+        self.edit(|context| {
+            context.description.get_or_insert_default().description = Some(description);
+        });
+        self
+    }
+
     /// Runs `act` when the node is clicked. The node must sense clicks.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {
@@ -2408,4 +2466,35 @@ impl<A> DerefMut for Scope<'_, '_, A> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+/// Reports a text leaf whose text is wider than the widest template it
+/// reserves, `reserved` points: the leaf grew past its reservation.
+#[cfg(debug_assertions)]
+fn report_outgrown(ctx: &egui::Context, node: &Node, reserve: &crate::Reserve, reserved: f32) {
+    let Some(prim) = &node.prim else {
+        return;
+    };
+    let Some(leaf) = crate::measure::TextLeaf::of(ctx, prim, (&node.text, &node.style.rich)) else {
+        return;
+    };
+    let galley = ctx.fonts_mut(|fonts| leaf.unwrapped(fonts));
+    let width = galley.size().x;
+    if width <= reserved + 0.5 {
+        return;
+    }
+    let subject = node
+        .identity
+        .id()
+        .unwrap_or_else(|| Id::NULL.with(&node.path));
+    crate::report::report(ctx, crate::Problem::OutgrewReserve, Some(subject), || {
+        let templates: Vec<_> = reserve.templates().map(|t| format!("{t:?}")).collect();
+        format!(
+            "{}: {:?} is {width:.1} points wide, wider than the {reserved:.1} its node reserves \
+             for the widest of [{}]; the node grew, so its neighbours moved",
+            node.path,
+            galley.text(),
+            templates.join(", ")
+        )
+    });
 }
