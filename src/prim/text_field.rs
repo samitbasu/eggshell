@@ -222,6 +222,20 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set, selecting as
+    /// `select` says.
+    pub fn focus_now(mut self, select: Select) -> Self {
+        self.autofocus = Autofocus::Now(select);
+        self
+    }
+
     /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = Some(size);
@@ -454,6 +468,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                         b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
                             measure(m, &measured)
                         })
+                        .open_focus(autofocus.open_focus())
                         .draw_widgets(move |app, ui| {
                             let mut edited = text;
                             let shown = show(ui, &mut edited, &field);
@@ -481,6 +496,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         };
         let classes = enablement.apply(classes, &style);
         b.leaf_with(&slot, classes, move |m| measure(m, &measured))
+            .open_focus(autofocus.open_focus())
             .draw_widgets(move |app, ui| {
                 let mut edited = text;
                 let shown = show(ui, &mut edited, &field);

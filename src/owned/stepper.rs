@@ -174,6 +174,20 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set, selecting as
+    /// `select` says.
+    pub fn focus_now(mut self, select: Select) -> Self {
+        self.autofocus = Autofocus::Now(select);
+        self
+    }
+
     /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
     pub fn size(mut self, size: Size) -> Self {
         self.size = Some(size);
@@ -301,6 +315,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                     b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
                         text_field::measure(m, &measured)
                     })
+                    .open_focus(autofocus.open_focus())
                     .draw_widgets(move |app, ui| spec.run_field(app, ui, &field, editing, &*set));
                 });
                 let buttons = tw()

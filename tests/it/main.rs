@@ -52,6 +52,7 @@ mod field_focus_example;
 mod field_text;
 mod focus;
 mod focus_on_appear;
+mod focus_options;
 mod focus_select;
 mod font_weights;
 mod form_demo;
