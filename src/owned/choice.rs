@@ -148,6 +148,20 @@ impl<T> IntoChoice<T> for Choice<T> {
     }
 }
 
+/// The option a group's focus goes to: the chosen one, or the first enabled
+/// one when no enabled option is chosen, as the group's Tab stop.
+pub(super) fn focus_target<T: PartialEq>(
+    options: &[Choice<T>],
+    current: &T,
+    group: Enablement,
+) -> Option<usize> {
+    let enabled = |option: &Choice<T>| option.gated(group, Refused::No).0 == Enablement::Enabled;
+    options
+        .iter()
+        .position(|option| option.value == *current && enabled(option))
+        .or_else(|| options.iter().position(enabled))
+}
+
 pub(super) fn collect<T, O: IntoChoice<T>>(options: impl IntoIterator<Item = O>) -> Vec<Choice<T>> {
     options.into_iter().map(IntoChoice::into_choice).collect()
 }
