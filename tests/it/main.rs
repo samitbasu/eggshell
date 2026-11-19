@@ -16,6 +16,7 @@
 
 mod accordion_example;
 mod autosuggest;
+mod badge;
 mod blur_cause;
 mod borrowed_app;
 mod button_options;
