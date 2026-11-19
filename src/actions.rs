@@ -50,6 +50,18 @@ pub(crate) fn press(ctx: &Context, kept: &Handle, button: Id) {
     }
 }
 
+/// Notes that `button`, which dismisses its overlay, was pressed: the pass's
+/// dismissal closes the overlay it is in.
+pub(crate) fn note_closer(ctx: &Context, kept: &Handle, button: Id) {
+    kept.viewport(ctx.viewport_id(), |here| here.closers.push(button));
+}
+
+/// The buttons that dismiss their overlay pressed since the last time this
+/// was asked. Asking takes them.
+pub(crate) fn take_closers(ctx: &Context, kept: &Handle) -> Vec<Id> {
+    kept.viewport(ctx.viewport_id(), |here| std::mem::take(&mut here.closers))
+}
+
 /// Notes that the multi-line text field `id` has focus: Return is its own.
 pub(crate) fn note_multiline_focus(ctx: &Context, kept: &Handle, id: Id) {
     kept.viewport(ctx.viewport_id(), |here| here.focus.multiline = Some(id));

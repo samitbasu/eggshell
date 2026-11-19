@@ -194,18 +194,51 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
-    /// `own`, and disabled when the control is inside an
-    /// [`inert`](Tw::inert) subtree, as a `<fieldset disabled>` disables the
-    /// controls inside it.
+    /// `own`, and disabled where [`enablement`](Self::enablement) is.
     pub(crate) fn enablement_of(&self, own: Enablement) -> Enablement {
-        self.ambient.enablement.and(own)
+        self.enablement().and(own)
     }
 
-    /// The size a control draws at: its own, else the one its subtree
-    /// inherits from [`control_size`](Tw::control_size), else the style's
-    /// default.
+    /// The size a control draws at: its own, else [`control_size`](Self::control_size).
     pub(crate) fn size_of(&self, own: Option<ControlSize>) -> ControlSize {
-        own.or(self.ambient.size).unwrap_or(ControlSize::DEFAULT)
+        own.unwrap_or_else(|| self.control_size())
+    }
+
+    /// TODO(prose): the size a control built here draws at unless it sets
+    /// its own: the one its subtree inherits from
+    /// [`control_size`](Tw::control_size), else the style's default.
+    ///
+    /// ```
+    /// use eggshell_ui::contract::Size;
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::tw;
+    ///
+    /// const SM: Size = Size("sm");
+    /// Headless::new(egui::vec2(100.0, 100.0)).layout(&(), |b, _| {
+    ///     assert_eq!(b.control_size(), Size::DEFAULT);
+    ///     b.div(tw().control_size(SM), |b| assert_eq!(b.control_size(), SM));
+    /// });
+    /// ```
+    pub fn control_size(&self) -> ControlSize {
+        self.ambient.size.unwrap_or(ControlSize::DEFAULT)
+    }
+
+    /// TODO(prose): whether controls built here take input: disabled inside
+    /// an [`inert`](Tw::inert) subtree, as a `<fieldset disabled>` disables
+    /// the controls inside it.
+    ///
+    /// ```
+    /// use eggshell_ui::owned::Enablement;
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::tw;
+    ///
+    /// Headless::new(egui::vec2(100.0, 100.0)).layout(&(), |b, _| {
+    ///     assert_eq!(b.enablement(), Enablement::Enabled);
+    ///     b.div(tw().inert(), |b| assert_eq!(b.enablement(), Enablement::Disabled));
+    /// });
+    /// ```
+    pub fn enablement(&self) -> Enablement {
+        self.ambient.enablement
     }
 
     /// TODO(prose): the style the nodes built here are built, measured and
@@ -2194,6 +2227,16 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     pub fn named(mut self, name: impl Into<String>) -> Self {
         let name = name.into();
         self.edit(|context| context.description.get_or_insert_default().name = Some(name));
+        self
+    }
+
+    /// The node's accessible description, the `aria-description` of the
+    /// web: read after its name, such as a dialog's explanatory sentence.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        let description = description.into();
+        self.edit(|context| {
+            context.description.get_or_insert_default().description = Some(description);
+        });
         self
     }
 
