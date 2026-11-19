@@ -7,17 +7,15 @@ use std::collections::BTreeMap;
 use eggshell_ui::owned::Cell;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::testing::Headless;
+use eggshell_ui::testing::{Driver, PixelsPerPoint, Target};
 use eggshell_ui::widget::{Stock, TextEdit};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, Width, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
-use egui::{Color32, Event, FontFamily, Id, Key, Theme, vec2};
-use egui_kittest::Harness;
+use egui::{Color32, FontFamily, Id, Key, Theme, vec2};
 use egui_kittest::kittest::Queryable as _;
 
 use crate::support;
-
-use support::{Rig, click_node, rect_of};
 
 fn base_text() -> TextStyle {
     TextStyle::new(
@@ -79,33 +77,23 @@ fn controls(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness_of(view: support::View<App>, app: App) -> Harness<'static, Rig<App>> {
-    support::harness(vec2(400.0, 500.0), base_text(), app, view)
+fn harness_of(view: support::View<App>, app: App) -> Driver<App> {
+    support::driver(vec2(400.0, 500.0), base_text(), app, view).build()
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
-    let mut harness = harness_of(controls, App::default());
-    harness.run_steps(3);
-    harness
-}
-
-fn type_text(harness: &mut Harness<'_, Rig<App>>, text: &str) {
-    harness.event(Event::Text(text.to_owned()));
-    harness.run_steps(2);
-}
-
-fn focus(harness: &mut Harness<'_, Rig<App>>, path: &str) {
-    click_node(harness, path);
-    harness.run_steps(2);
+fn harness() -> Driver<App> {
+    let mut d = harness_of(controls, App::default());
+    d.frames(3);
+    d
 }
 
 #[test]
 fn measured_size_equals_the_size_used() {
-    let harness = harness();
-    let ctx = harness.ctx.clone();
+    let d = harness();
+    let ctx = d.ctx().clone();
     let text = base_text();
     let style = eggshell_ui::Style::of(&ctx);
-    let app = &harness.state().app;
+    let app = &d.app();
 
     for (name, measured) in [
         (
@@ -128,7 +116,7 @@ fn measured_size_equals_the_size_used() {
         ),
     ] {
         let path = format!("/{name:?}");
-        let rect = rect_of(&harness, &path);
+        let rect = d.rect(Target::suffix(&path));
         assert_eq!(rect.size(), measured, "{name}: the leaf is as measured");
         // The draw phase snaps the content rect to whole pixels.
         let used = app.used[name];
@@ -141,30 +129,26 @@ fn measured_size_equals_the_size_used() {
 
 #[test]
 fn text_fields_edit_and_show_their_hint() {
-    let mut harness = harness();
-    focus(&mut harness, "/\"name\"");
-    type_text(&mut harness, "Ada");
-    assert_eq!(harness.state().app.one_line, "Ada");
+    let mut d = harness();
+    d.click(Target::suffix("/\"name\"")).frames(2);
+    d.type_text("Ada").frames(1);
+    assert_eq!(d.app().one_line, "Ada");
 }
 
 #[test]
 fn an_inert_subtree_disables_its_text_fields() {
-    let mut harness = harness();
-    focus(&mut harness, "/\"name\"");
-    type_text(&mut harness, "x");
-    assert_eq!(
-        harness.state().app.one_line,
-        "x",
-        "precondition: editable while live"
-    );
+    let mut d = harness();
+    d.click(Target::suffix("/\"name\"")).frames(2);
+    d.type_text("x").frames(1);
+    assert_eq!(d.app().one_line, "x", "precondition: editable while live");
 
-    harness.state_mut().app.inert = true;
-    harness.run_steps(3);
-    let before = harness.state().app.one_line.clone();
+    d.app_mut().inert = true;
+    d.frames(3);
+    let before = d.app().one_line.clone();
 
-    focus(&mut harness, "/\"name\"");
-    type_text(&mut harness, "yz");
-    assert_eq!(harness.state().app.one_line, before, "no edit");
+    d.click(Target::suffix("/\"name\"")).frames(2);
+    d.type_text("yz").frames(1);
+    assert_eq!(d.app().one_line, before, "no edit");
 }
 
 /// ```html
@@ -202,61 +186,51 @@ fn text_field_focus_and_cursor_survive_a_reorder() {
         ],
         ..App::default()
     };
-    let mut harness = harness_of(rows, app);
-    harness.run_steps(3);
+    let mut d = harness_of(rows, app);
+    d.frames(3);
 
-    focus(&mut harness, "/(\"row\", 2)");
-    harness.key_press(Key::Home);
-    harness.run_steps(2);
+    d.click(Target::suffix("/(\"row\", 2)")).frames(2);
+    d.press(Key::Home).frames(1);
     for _ in 0..4 {
-        harness.key_press(Key::ArrowRight);
-        harness.run_steps(1);
+        d.press(Key::ArrowRight);
     }
-    let id = harness.state().app.field_ids[&2];
-    let cursor = |harness: &Harness<'_, Rig<App>>| {
-        egui::TextEdit::load_state(&harness.ctx, id)
+    let id = d.app().field_ids[&2];
+    let cursor = |d: &Driver<App>| {
+        egui::TextEdit::load_state(d.ctx(), id)
             .and_then(|state| state.cursor.char_range())
             .map(|range| usize::from(range.primary.index))
     };
-    assert_eq!(cursor(&harness), Some(4), "precondition: the cursor moved");
-    assert_eq!(harness.ctx.memory(|m| m.focused()), Some(id));
-    let before = rect_of(&harness, "/(\"row\", 2)");
+    assert_eq!(cursor(&d), Some(4), "precondition: the cursor moved");
+    assert_eq!(d.ctx().memory(|m| m.focused()), Some(id));
+    let before = d.rect(Target::suffix("/(\"row\", 2)"));
 
-    harness.state_mut().app.rows.rotate_left(1);
-    harness.run_steps(3);
-    let after = rect_of(&harness, "/(\"row\", 2)");
+    d.app_mut().rows.rotate_left(1);
+    d.frames(3);
+    let after = d.rect(Target::suffix("/(\"row\", 2)"));
     assert_eq!(
         after.min.x, before.min.x,
         "precondition: only the vertical position changed"
     );
     assert_ne!(after.min.y, before.min.y, "precondition: the row moved");
-    assert_eq!(
-        harness.state().app.field_ids[&2],
-        id,
-        "same id after the move"
-    );
-    assert_eq!(
-        harness.ctx.memory(|m| m.focused()),
-        Some(id),
-        "still focused"
-    );
-    assert_eq!(cursor(&harness), Some(4), "cursor kept");
+    assert_eq!(d.app().field_ids[&2], id, "same id after the move");
+    assert_eq!(d.ctx().memory(|m| m.focused()), Some(id), "still focused");
+    assert_eq!(cursor(&d), Some(4), "cursor kept");
 
-    type_text(&mut harness, "!");
-    assert_eq!(harness.state().app.rows[0].1, "beta! gamma");
+    d.type_text("!").frames(1);
+    assert_eq!(d.app().rows[0].1, "beta! gamma");
 }
 
 #[test]
 fn a_multi_line_field_grows_with_its_content_up_to_its_cap() {
-    let mut harness = harness();
-    let height = |harness: &Harness<'_, Rig<App>>| rect_of(harness, "/\"notes\"").height();
-    let resting = height(&harness);
+    let mut d = harness();
+    let height = |d: &Driver<App>| d.rect(Target::suffix("/\"notes\"")).height();
+    let resting = height(&d);
 
     let mut heights = Vec::new();
     for lines in 1..=8 {
-        harness.state_mut().app.notes = vec!["line"; lines].join("\n");
-        harness.run_steps(3);
-        heights.push(height(&harness));
+        d.app_mut().notes = vec!["line"; lines].join("\n");
+        d.frames(3);
+        heights.push(height(&d));
     }
     assert_eq!(
         heights[0], resting,
@@ -269,9 +243,9 @@ fn a_multi_line_field_grows_with_its_content_up_to_its_cap() {
     );
     let cap = TextEdit::multiline("", 4)
         .size(
-            &harness.ctx,
+            d.ctx(),
             &base_text(),
-            &eggshell_ui::Style::of(&harness.ctx),
+            &eggshell_ui::Style::of(d.ctx()),
             Some(Width::new(220.0)),
         )
         .y;
@@ -284,27 +258,26 @@ fn a_multi_line_field_grows_with_its_content_up_to_its_cap() {
         "the cap is the height of a four-row field, {cap}: {heights:?}"
     );
 
-    focus(&mut harness, "/\"notes\"");
-    type_text(&mut harness, "tail");
+    d.click(Target::suffix("/\"notes\"")).frames(2);
+    d.type_text("tail").frames(1);
     assert!(
-        harness.state().app.notes.contains("tail"),
+        d.app().notes.contains("tail"),
         "a capped field still edits: {:?}",
-        harness.state().app.notes
+        d.app().notes
     );
-    assert_eq!(height(&harness), cap);
+    assert_eq!(height(&d), cap);
 }
 
 #[test]
 fn typing_enter_in_a_multi_line_field_grows_it() {
-    let mut harness = harness();
-    focus(&mut harness, "/\"notes\"");
-    let start = rect_of(&harness, "/\"notes\"").height();
+    let mut d = harness();
+    d.click(Target::suffix("/\"notes\"")).frames(2);
+    let start = d.rect(Target::suffix("/\"notes\"")).height();
     for _ in 0..3 {
-        harness.key_press(Key::Enter);
-        harness.run_steps(2);
+        d.press(Key::Enter).frames(1);
     }
     assert!(
-        rect_of(&harness, "/\"notes\"").height() > start,
+        d.rect(Target::suffix("/\"notes\"")).height() > start,
         "three newlines make a fourth row"
     );
 }
@@ -351,10 +324,10 @@ fn picker(b: &mut Builder<'_, '_, Picker>, app: &Picker) {
     .on_change(|app, mode| app.mode = mode);
 }
 
-fn picker_harness() -> Harness<'static, Rig<Picker>> {
-    let mut harness = support::harness(vec2(300.0, 100.0), base_text(), Picker::default(), picker);
-    harness.run_steps(3);
-    harness
+fn picker_harness() -> Driver<Picker> {
+    let mut d = support::driver(vec2(300.0, 100.0), base_text(), Picker::default(), picker).build();
+    d.frames(3);
+    d
 }
 
 fn cell_path(mode: Mode) -> String {
@@ -362,56 +335,53 @@ fn cell_path(mode: Mode) -> String {
 }
 
 /// The modes whose cells are painted pressed.
-fn pressed(harness: &Harness<'_, Rig<Picker>>) -> Vec<Mode> {
+fn pressed(d: &Driver<Picker>) -> Vec<Mode> {
     [Mode::Day, Mode::Week, Mode::Month]
         .into_iter()
-        .filter(|&mode| support::fill_of(harness, &cell_path(mode)) == Some(ON))
+        .filter(|&mode| support::fill_of(d, &cell_path(mode)) == Some(ON))
         .collect()
 }
 
-fn choose(harness: &mut Harness<'_, Rig<Picker>>, mode: Mode) {
-    click_node(harness, &cell_path(mode));
-    harness.run_steps(2);
+fn choose(d: &mut Driver<Picker>, mode: Mode) {
+    d.click(Target::suffix(&cell_path(mode))).frames(2);
 }
 
 #[test]
 fn a_segmented_control_has_exactly_one_pressed_cell_and_clicks_change_it() {
-    let mut harness = picker_harness();
+    let mut d = picker_harness();
     let rects: Vec<_> = [Mode::Day, Mode::Week, Mode::Month]
-        .map(|mode| rect_of(&harness, &cell_path(mode)))
+        .map(|mode| d.rect(Target::suffix(&cell_path(mode))))
         .into();
     assert!(
         rects.windows(2).all(|pair| pair[0].max.x < pair[1].min.x),
         "precondition: three separate cells in a row: {rects:?}"
     );
-    assert_eq!(pressed(&harness), [Mode::Day]);
+    assert_eq!(pressed(&d), [Mode::Day]);
 
-    choose(&mut harness, Mode::Month);
-    assert_eq!(harness.state().app.mode, Mode::Month, "through the lens");
-    assert_eq!(pressed(&harness), [Mode::Month]);
+    choose(&mut d, Mode::Month);
+    assert_eq!(d.app().mode, Mode::Month, "through the lens");
+    assert_eq!(pressed(&d), [Mode::Month]);
 
-    click_node(&mut harness, &cell_path(Mode::Month));
+    d.click(Target::suffix(&cell_path(Mode::Month)));
     assert_eq!(
-        pressed(&harness),
+        pressed(&d),
         [Mode::Month],
         "clicking the chosen cell keeps it"
     );
 
-    choose(&mut harness, Mode::Week);
-    assert_eq!(pressed(&harness), [Mode::Week]);
+    choose(&mut d, Mode::Week);
+    assert_eq!(pressed(&d), [Mode::Week]);
 }
 
 #[test]
 fn the_keyboard_chooses_a_cell() {
-    let mut harness = picker_harness();
-    support::past_bar(&mut harness);
-    harness.key_press(Key::Tab);
-    harness.key_press(Key::Tab);
-    harness.run_steps(2);
-    harness.key_press(Key::Enter);
-    harness.run_steps(3);
+    let mut d = picker_harness();
+    support::drive_past_bar(&mut d);
+    d.harness().key_press(Key::Tab);
+    d.press(Key::Tab).frames(1);
+    d.press(Key::Enter).frames(2);
     assert_eq!(
-        pressed(&harness),
+        pressed(&d),
         [Mode::Week],
         "Tab visits cells in order, Enter chooses"
     );
@@ -419,12 +389,12 @@ fn the_keyboard_chooses_a_cell() {
 
 #[test]
 fn an_inert_segmented_control_does_not_change() {
-    let mut harness = picker_harness();
-    harness.state_mut().app.inert = true;
-    harness.run_steps(3);
-    choose(&mut harness, Mode::Month);
-    assert_eq!(harness.state().app.mode, Mode::Day);
-    assert_eq!(pressed(&harness), [Mode::Day]);
+    let mut d = picker_harness();
+    d.app_mut().inert = true;
+    d.frames(3);
+    choose(&mut d, Mode::Month);
+    assert_eq!(d.app().mode, Mode::Day);
+    assert_eq!(pressed(&d), [Mode::Day]);
 }
 
 #[derive(Default)]
@@ -453,8 +423,8 @@ fn centred(b: &mut Builder<'_, '_, Centred>, app: &Centred) {
 }
 
 /// The vertical extent of the text the field painted.
-fn painted_text(harness: &Harness<'_, Rig<Centred>>) -> (f32, f32) {
-    harness
+fn painted_text(d: &Driver<Centred>) -> (f32, f32) {
+    d.harness()
         .output()
         .shapes
         .iter()
@@ -483,17 +453,13 @@ fn a_single_line_field_centres_its_line_in_a_taller_leaf() {
                     let mut base = base_text();
                     base.spec.size = size;
                     base.spec.line_height = size * 1.25;
-                    let mut harness = support::harness_scaled(
-                        vec2(300.0, 200.0),
-                        ppp,
-                        base,
-                        app,
-                        centred,
-                        |_, _| {},
-                    );
-                    harness.run_steps(3);
-                    let leaf = rect_of(&harness, "/\"field\"");
-                    let (top, bottom) = painted_text(&harness);
+                    let mut d =
+                        support::prepared_driver(vec2(300.0, 200.0), base, app, centred, |_, _| {})
+                            .pixels_per_point(PixelsPerPoint::new(ppp))
+                            .build();
+                    d.frames(3);
+                    let leaf = d.rect(Target::suffix("/\"field\""));
+                    let (top, bottom) = painted_text(&d);
                     assert!(
                         leaf.height() > bottom - top + 12.0,
                         "precondition: the leaf is taller than the line ({leaf:?}, {top}..{bottom})"
@@ -520,17 +486,13 @@ fn a_multi_line_field_keeps_its_text_at_the_top() {
             multi: true,
             ..Centred::default()
         };
-        let mut harness = support::harness_scaled(
-            vec2(300.0, 200.0),
-            ppp,
-            base_text(),
-            app,
-            centred,
-            |_, _| {},
-        );
-        harness.run_steps(3);
-        let leaf = rect_of(&harness, "/\"field\"");
-        let (top, _) = painted_text(&harness);
+        let mut d =
+            support::prepared_driver(vec2(300.0, 200.0), base_text(), app, centred, |_, _| {})
+                .pixels_per_point(PixelsPerPoint::new(ppp))
+                .build();
+        d.frames(3);
+        let leaf = d.rect(Target::suffix("/\"field\""));
+        let (top, _) = painted_text(&d);
         assert!(leaf.height() >= 90.0, "precondition: a tall leaf");
         assert!(
             top - leaf.top() <= 6.0,
@@ -541,9 +503,9 @@ fn a_multi_line_field_keeps_its_text_at_the_top() {
 
 #[test]
 fn named_primitives_are_found_by_their_accessible_name() {
-    let harness = harness();
+    let d = harness();
     for name in ["Name", "Notes"] {
-        let _ = harness.get_by_label(name);
+        let _ = d.harness().get_by_label(name);
     }
 }
 
@@ -585,15 +547,16 @@ fn bare_field_in_a_box(b: &mut Builder<'_, '_, String>, text: &String) {
 #[test]
 fn a_bare_field_draws_its_widget_in_its_leaf_not_at_the_input_height() {
     let tokens = Tokens::for_theme(Theme::Light);
-    let harness = support::harness_prepared(
+    let d = support::prepared_driver(
         vec2(400.0, 200.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         "x".to_owned(),
         bare_field_in_a_box,
         |ctx, _| Shadcn::apply_both(ctx),
-    );
-    let leaf = rect_of(&harness, "/\"box\"/\"bare\"");
-    let input_height = eggshell_ui::Style::of(&harness.ctx)
+    )
+    .build();
+    let leaf = d.rect(Target::suffix("/\"box\"/\"bare\""));
+    let input_height = eggshell_ui::Style::of(d.ctx())
         .input
         .sizes
         .get(eggshell_ui::contract::Size::DEFAULT)
@@ -603,6 +566,6 @@ fn a_bare_field_draws_its_widget_in_its_leaf_not_at_the_input_height() {
         "precondition: the leaf ({}) is shorter than input.height ({input_height})",
         leaf.height()
     );
-    let drawn = harness.get_by_label("Bare").rect();
+    let drawn = d.harness().get_by_label("Bare").rect();
     assert_eq!(drawn, leaf, "the field's widget rect is its leaf");
 }

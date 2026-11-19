@@ -3,11 +3,11 @@
 //! handler; egui-native content gets presses only where no box covers it.
 
 use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Sense, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, hover_over, press_and_release, rect_of};
+use crate::support;
 
 fn base() -> TextStyle {
     TextStyle::new(
@@ -33,11 +33,11 @@ struct App {
     ended: u32,
 }
 
-type H = Harness<'static, Rig<App>>;
+type H = Driver<App>;
 
 fn harness(app: App, view: support::View<App>) -> H {
-    let mut h = support::harness(vec2(400.0, 400.0), base(), app, view);
-    h.run_steps(3);
+    let mut h = support::driver(vec2(400.0, 400.0), base(), app, view).build();
+    h.frames(3);
     h
 }
 
@@ -64,10 +64,9 @@ fn badge(b: &mut Builder<'_, '_, App>, _: &App) {
 #[test]
 fn a_press_on_a_painted_badge_clicks_the_button() {
     let mut h = harness(App::default(), badge);
-    let at = rect_of(&h, "/\"button\"/\"badge\"").center();
-    hover_over(&mut h, at);
-    press_and_release(&mut h, at);
-    assert_eq!(h.state().app.clicks, 1);
+    let at = h.rect(Target::suffix("/\"button\"/\"badge\"")).center();
+    h.click(at);
+    assert_eq!(h.app().clicks, 1);
 }
 
 /// ```html
@@ -102,16 +101,15 @@ fn press_label(pass_through: bool) -> u32 {
         },
         label_over_plot,
     );
-    let label = rect_of(&h, "/\"label\"");
-    let plot = rect_of(&h, "/\"plot\"");
+    let label = h.rect(Target::suffix("/\"label\""));
+    let plot = h.rect(Target::suffix("/\"plot\""));
     assert!(
         plot.contains_rect(label),
         "precondition: the label is over the plot"
     );
     let at = label.center();
-    hover_over(&mut h, at);
-    press_and_release(&mut h, at);
-    h.state().app.plot_clicks
+    h.click(at);
+    h.app().plot_clicks
 }
 
 #[test]
@@ -152,10 +150,9 @@ fn canvas(b: &mut Builder<'_, '_, App>, _: &App) {
 #[test]
 fn a_press_on_a_child_shows_in_the_canvas_node_response() {
     let mut h = harness(App::default(), canvas);
-    let at = rect_of(&h, "/\"canvas\"/\"a\"").center();
-    hover_over(&mut h, at);
-    press_and_release(&mut h, at);
-    assert_eq!(h.state().app.canvas_clicked, 1);
+    let at = h.rect(Target::suffix("/\"canvas\"/\"a\"")).center();
+    h.click(at);
+    assert_eq!(h.app().canvas_clicked, 1);
 }
 
 /// ```html
@@ -197,11 +194,10 @@ fn touch_screen(h: &mut H) {
         pos: egui::Pos2::ZERO,
         force: None,
     });
-    h.step();
 }
 
 fn scrolled(h: &H) -> f32 {
-    crate::support::shell(h)
+    h.shell()
         .viewport(support::id_of(h, "/\"list\""))
         .expect("laid out")
         .offset()
@@ -211,20 +207,19 @@ fn scrolled(h: &H) -> f32 {
 #[test]
 fn a_click_on_a_row_in_a_scroll_area_clicks_it() {
     let mut h = harness(App::default(), rows);
-    let at = rect_of(&h, "/\"list\"/1").center();
-    hover_over(&mut h, at);
-    press_and_release(&mut h, at);
-    assert_eq!(h.state().app.row_clicks, [1]);
+    let at = h.rect(Target::suffix("/\"list\"/1")).center();
+    h.click(at);
+    assert_eq!(h.app().row_clicks, [1]);
 }
 
 #[test]
 fn a_drag_on_a_clickable_row_scrolls_and_does_not_click() {
     let mut h = harness(App::default(), rows);
     touch_screen(&mut h);
-    let from = rect_of(&h, "/\"list\"/1").center();
-    support::drag(&mut h, from, from + vec2(0.0, -40.0));
+    let from = h.rect(Target::suffix("/\"list\"/1")).center();
+    h.drag(from, from + vec2(0.0, -40.0));
     assert!(scrolled(&h) > 10.0, "scrolled {}", scrolled(&h));
-    assert!(h.state().app.row_clicks.is_empty());
+    assert!(h.app().row_clicks.is_empty());
 }
 
 #[test]
@@ -237,10 +232,10 @@ fn a_drag_on_a_dnd_source_in_a_scroll_area_is_the_sources() {
         rows,
     );
     touch_screen(&mut h);
-    let from = rect_of(&h, "/\"list\"/1").center();
-    support::drag(&mut h, from, from + vec2(0.0, -40.0));
+    let from = h.rect(Target::suffix("/\"list\"/1")).center();
+    h.drag(from, from + vec2(0.0, -40.0));
     assert_eq!(scrolled(&h), 0.0, "the area did not scroll");
-    assert_eq!(h.state().app.ended, 1, "the drag was the DnD's");
+    assert_eq!(h.app().ended, 1, "the drag was the DnD's");
 }
 
 /// ```html
@@ -261,11 +256,9 @@ fn card(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn clicking_a_field_in_a_card_focuses_it_and_does_not_click_the_card() {
     let mut h = harness(App::default(), card);
-    let at = rect_of(&h, "/\"card\"/\"name\"").center();
-    hover_over(&mut h, at);
-    press_and_release(&mut h, at);
-    h.run_steps(2);
-    assert_eq!(h.state().app.clicks, 0);
+    let at = h.rect(Target::suffix("/\"card\"/\"name\"")).center();
+    h.click(at).frames(2);
+    assert_eq!(h.app().clicks, 0);
     assert_eq!(
         support::focused_node(&h).as_deref(),
         Some("/\"card\"/\"name\"")
@@ -298,22 +291,15 @@ fn onto_custom(b: &mut Builder<'_, '_, App>, _: &App) {
 #[test]
 fn a_custom_node_sees_the_payload_of_an_eggshell_drag_over_it() {
     let mut h = harness(App::default(), onto_custom);
-    let from = rect_of(&h, "/\"source\"").center();
-    let to = rect_of(&h, "/\"target\"").center();
-    hover_over(&mut h, from);
-    h.drag_at(from);
-    h.step();
-    h.hover_at(from + vec2(6.0, 0.0));
-    h.step();
-    h.hover_at(from + vec2(12.0, 0.0));
-    h.run_steps(2);
-    h.hover_at(to);
-    h.run_steps(3);
+    let from = h.rect(Target::suffix("/\"source\"")).center();
+    let to = h.rect(Target::suffix("/\"target\"")).center();
+    h.lift(from, vec2(12.0, 0.0)).frames(1);
+    h.hover(to);
     assert!(
-        crate::support::shell(&h).drag_pointer().is_some(),
+        h.shell().drag_pointer().is_some(),
         "precondition: the source is lifted"
     );
-    assert!(h.state().app.sees_payload);
+    assert!(h.app().sees_payload);
 }
 
 /// ```html
@@ -341,8 +327,8 @@ fn hover_parent(b: &mut Builder<'_, '_, App>, _: &App) {
 #[test]
 fn hovering_a_child_box_shows_the_parents_hover_variant() {
     let mut h = harness(App::default(), hover_parent);
-    let at = rect_of(&h, "/\"parent\"/\"child\"").center();
-    hover_over(&mut h, at);
+    let at = h.rect(Target::suffix("/\"parent\"/\"child\"")).center();
+    h.hover(at);
     assert_eq!(support::fill_of(&h, "/\"parent\""), Some(Color32::RED));
 }
 
@@ -364,13 +350,13 @@ fn maybe_painted(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn widget_count(h: &H) -> usize {
-    h.ctx
+    h.ctx()
         .viewport(|v| v.this_pass.widgets.layers().map(|(_, w)| w.len()).sum())
 }
 
 fn accessible_nodes(h: &H) -> usize {
     use egui_kittest::kittest::NodeT as _;
-    h.root().children_recursive().count()
+    h.harness().root().children_recursive().count()
 }
 
 #[test]
@@ -420,14 +406,14 @@ fn panel_in_scroll(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn with_a_mouse_a_painted_panel_in_a_scroll_area_blocks_a_sibling_drag() {
     let mut h = harness(App::default(), panel_in_scroll);
-    let panel = rect_of(&h, "/\"list\"/\"panel\"");
-    let under = rect_of(&h, "/\"list\"/\"under\"");
+    let panel = h.rect(Target::suffix("/\"list\"/\"panel\""));
+    let under = h.rect(Target::suffix("/\"list\"/\"under\""));
     assert!(
         under.contains_rect(panel),
         "precondition: the panel covers it"
     );
-    support::drag(&mut h, panel.center(), panel.center() + vec2(0.0, 20.0));
-    assert!(!h.state().app.sees_payload);
+    h.drag(panel.center(), panel.center() + vec2(0.0, 20.0));
+    assert!(!h.app().sees_payload);
 }
 
 #[test]
@@ -440,8 +426,8 @@ fn with_a_touch_screen_a_drag_on_painted_content_scrolls_the_area() {
         panel_in_scroll,
     );
     touch_screen(&mut h);
-    let panel = rect_of(&h, "/\"list\"/\"panel\"");
-    support::drag(&mut h, panel.center(), panel.center() + vec2(0.0, -40.0));
+    let panel = h.rect(Target::suffix("/\"list\"/\"panel\""));
+    h.drag(panel.center(), panel.center() + vec2(0.0, -40.0));
     assert!(scrolled(&h) > 10.0, "scrolled {}", scrolled(&h));
 }
 
@@ -469,9 +455,7 @@ fn focusable_card(b: &mut Builder<'_, '_, App>, _: &App) {
 }
 
 fn focus(h: &mut H, path: &str) {
-    let id = support::id_of(h, path);
-    h.ctx.memory_mut(|memory| memory.request_focus(id));
-    h.run_steps(2);
+    h.focus(Target::suffix(path)).frames(1);
     assert_eq!(
         support::focused_path(h).as_deref(),
         Some(path),
@@ -483,11 +467,9 @@ fn focus(h: &mut H, path: &str) {
 fn a_press_on_a_painted_child_keeps_the_focus_of_its_focused_card() {
     let mut h = harness(App::default(), focusable_card);
     focus(&mut h, "/\"card\"");
-    let at = rect_of(&h, "/\"card\"/\"badge\"").center();
-    hover_over(&mut h, at);
-    press_and_release(&mut h, at);
-    h.run_steps(2);
-    assert_eq!(h.state().app.clicks, 1);
+    let at = h.rect(Target::suffix("/\"card\"/\"badge\"")).center();
+    h.click(at).frames(2);
+    assert_eq!(h.app().clicks, 1);
     assert_eq!(support::focused_path(&h).as_deref(), Some("/\"card\""));
 }
 
@@ -496,15 +478,13 @@ fn a_press_on_a_painted_child_leaves_the_focus_elsewhere_as_a_press_on_the_card_
     let press_at = |badge: bool| {
         let mut h = harness(App::default(), focusable_card);
         focus(&mut h, "/\"other\"");
-        let card = rect_of(&h, "/\"card\"");
+        let card = h.rect(Target::suffix("/\"card\""));
         let at = if badge {
-            rect_of(&h, "/\"card\"/\"badge\"").center()
+            h.rect(Target::suffix("/\"card\"/\"badge\"")).center()
         } else {
             card.left_top() + vec2(4.0, 4.0)
         };
-        hover_over(&mut h, at);
-        press_and_release(&mut h, at);
-        h.run_steps(2);
+        h.click(at).frames(2);
         support::focused_path(&h)
     };
     assert_eq!(press_at(true), press_at(false));
@@ -533,24 +513,22 @@ fn anonymous_badge(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn a_press_held_while_a_sibling_is_inserted_above_still_completes_as_a_click() {
     let mut h = harness(App::default(), anonymous_badge);
-    let card = rect_of(&h, "/\"card\"");
+    let card = h.rect(Target::suffix("/\"card\""));
     let at = card.center();
-    hover_over(&mut h, at);
+    h.hover(at);
     h.event(egui::Event::PointerButton {
         pos: at,
         button: egui::PointerButton::Primary,
         pressed: true,
         modifiers: egui::Modifiers::NONE,
     });
-    h.step();
-    h.state_mut().app.pass_through = true;
-    h.run_steps(3);
+    h.app_mut().pass_through = true;
+    h.frames(3);
     h.event(egui::Event::PointerButton {
         pos: at,
         button: egui::PointerButton::Primary,
         pressed: false,
         modifiers: egui::Modifiers::NONE,
     });
-    h.step();
-    assert_eq!(h.state().app.clicks, 1);
+    assert_eq!(h.app().clicks, 1);
 }

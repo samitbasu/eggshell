@@ -12,6 +12,7 @@ mod common;
 
 use std::any::Any;
 
+use eggshell_ui::testing::PlacedFrame;
 use eggshell_ui::{File, Files, LayoutState, tw};
 use eggshell_ui_shadcn::DragChip as _;
 use egui::{Ui, Vec2};
@@ -179,12 +180,12 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
 }
 
 /// One frame; shared by `main` and the tests.
-pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) {
+pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) -> PlacedFrame {
     let area = ui.max_rect();
     layout_state
         .build(&ui.ctx().clone(), |b| layout(b, app))
         .layout(area)
-        .draw(app, ui);
+        .draw(app, ui)
 }
 
 fn main() -> eframe::Result {

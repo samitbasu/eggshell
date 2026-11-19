@@ -1417,7 +1417,9 @@ fn dnd_gallery_in(name: &str, theme: egui::Theme) {
         Vec2::new(520.0, 400.0),
         common::base_text(theme),
         dnd_gallery::State::default(),
-        dnd_gallery::frame,
+        |ui, app, layout| {
+            dnd_gallery::frame(ui, app, layout);
+        },
     );
     harness.ctx.set_theme(theme);
     harness.run_steps(6);
@@ -1444,7 +1446,9 @@ fn dnd_gallery_chip_in(name: &str, theme: egui::Theme) {
         2.0,
         common::base_text(theme),
         state,
-        |ui, app, layout| dnd_gallery::window(ui, app, layout, &mut LayoutState::new()),
+        |ui, app, layout| {
+            dnd_gallery::window(ui, app, layout, &mut LayoutState::new());
+        },
     );
     harness.ctx.set_theme(theme);
     harness.run_steps(6);
