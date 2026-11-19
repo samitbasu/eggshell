@@ -5,16 +5,15 @@
 use core::time::Duration;
 
 use eggshell_ui::overlay::Shown;
-use eggshell_ui::testing::{Points, Timeline, record};
+use eggshell_ui::testing::{Animation, Driver, Points, Target, Timeline, record};
 use eggshell_ui::{Builder, CollapseAxis, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui::{Easing, Progress};
-use egui::{Color32, FontFamily, pos2, vec2};
-use egui_kittest::Harness;
+use egui::{Color32, Event, FontFamily, Modifiers, PointerButton, Pos2, pos2, vec2};
 
-use crate::support::{self, ReducedMotion, Rig, press_and_release, rect_of};
+use crate::support;
 
 /// Frames are this far apart; the default motion lasts 20 of them.
-const STEP: f32 = 0.01;
+const STEP: Duration = Duration::from_millis(10);
 const HEAD: f32 = 30.0;
 const FILL: f32 = 100.0;
 const TAIL: f32 = 20.0;
@@ -102,52 +101,71 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
     });
 }
 
-fn harness_of(app: App) -> Harness<'static, Rig<App>> {
-    let mut harness = support::harness_stepped(vec2(400.0, 500.0), STEP, base_text(), app, view);
-    harness.run_steps(4);
-    harness
+/// A driver for `view` of `app` whose frames are [`STEP`] apart.
+fn stepped<A: 'static>(size: egui::Vec2, app: A, view: support::View<A>) -> Driver<A> {
+    let mut d = support::driver(size, base_text(), app, view)
+        .step(STEP)
+        .settle_within(STEP * 4)
+        .build();
+    d.frames(4);
+    d
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
+fn harness_of(app: App) -> Driver<App> {
+    stepped(vec2(400.0, 500.0), app, view)
+}
+
+fn harness() -> Driver<App> {
     harness_of(App::default())
 }
 
-fn height(harness: &Harness<'_, Rig<App>>, path: &str) -> f32 {
-    rect_of(harness, path).height()
+fn height<A>(d: &Driver<A>, path: &str) -> f32 {
+    d.rect(Target::suffix(path)).height()
 }
 
-fn has(harness: &Harness<'_, Rig<App>>, path: &str) -> bool {
-    harness
-        .state()
-        .nodes
+fn has(d: &Driver<App>, path: &str) -> bool {
+    support::nodes(d)
         .iter()
         .any(|(candidate, _)| candidate == path)
 }
 
 /// The heights of the wrapper after each of `frames` frames.
-fn heights(harness: &mut Harness<'_, Rig<App>>, frames: usize, path: &str) -> Vec<f32> {
+fn heights(d: &mut Driver<App>, frames: usize, path: &str) -> Vec<f32> {
     (0..frames)
         .map(|_| {
-            harness.step();
-            height(harness, path)
+            d.frames(1);
+            height(d, path)
         })
         .collect()
 }
 
-fn open(harness: &mut Harness<'_, Rig<App>>, i: usize, open: bool) {
-    harness.state_mut().app.open[i] = open;
+fn open(d: &mut Driver<App>, i: usize, open: bool) {
+    d.app_mut().open[i] = open;
 }
 
-fn settled_open(i: usize) -> Harness<'static, Rig<App>> {
-    let mut harness = harness();
-    open(&mut harness, i, true);
-    harness.run_steps(40);
-    assert_eq!(height(&harness, &body(i)), FILL, "precondition: it is open");
-    harness
+fn settled_open(i: usize) -> Driver<App> {
+    let mut d = harness();
+    open(&mut d, i, true);
+    d.frames(40);
+    assert_eq!(height(&d, &body(i)), FILL, "precondition: it is open");
+    d
 }
 
-fn painted_top(harness: &Harness<'_, Rig<App>>, fill: Color32) -> f32 {
-    support::shapes(harness)
+/// Presses and releases the primary button at `at`, a frame each, with no
+/// hover first.
+fn press_and_release<A>(d: &mut Driver<A>, at: Pos2) {
+    for pressed in [true, false] {
+        d.event(Event::PointerButton {
+            pos: at,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        });
+    }
+}
+
+fn painted_top(d: &Driver<App>, fill: Color32) -> f32 {
+    support::shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             egui::Shape::Rect(rect) if rect.fill == fill => Some(rect.rect.min.y),
@@ -158,25 +176,25 @@ fn painted_top(harness: &Harness<'_, Rig<App>>, fill: Color32) -> f32 {
 
 #[test]
 fn a_closed_region_has_no_size_and_builds_nothing() {
-    let harness = harness();
-    assert_eq!(height(&harness, &body(0)), 0.0);
-    assert!(!has(&harness, &fill(0)), "its content is not built");
+    let d = harness();
+    assert_eq!(height(&d, &body(0)), 0.0);
+    assert!(!has(&d, &fill(0)), "its content is not built");
 }
 
 #[test]
 fn a_region_first_seen_open_is_open_at_once() {
-    let harness = harness_of(App {
+    let d = harness_of(App {
         open: [true, false, false],
         ..App::default()
     });
-    assert_eq!(height(&harness, &body(0)), FILL);
+    assert_eq!(height(&d, &body(0)), FILL);
 }
 
 #[test]
 fn opening_runs_from_nothing_to_the_content_along_the_curve() {
-    let mut harness = harness();
-    open(&mut harness, 0, true);
-    let run = heights(&mut harness, 40, &body(0));
+    let mut d = harness();
+    open(&mut d, 0, true);
+    let run = heights(&mut d, 40, &body(0));
     assert!(run[0] < FILL / 2.0, "it starts small: {run:?}");
     assert!(
         run.windows(2).all(|pair| pair[0] <= pair[1]),
@@ -198,15 +216,15 @@ fn opening_runs_from_nothing_to_the_content_along_the_curve() {
 
 #[test]
 fn what_follows_the_region_moves_with_it() {
-    let mut harness = harness();
-    let closed_tail = rect_of(&harness, TAIL_PATH).min.y;
-    open(&mut harness, 0, true);
+    let mut d = harness();
+    let closed_tail = d.rect(Target::suffix(TAIL_PATH)).min.y;
+    open(&mut d, 0, true);
     let mut mid_motion = 0;
     for _ in 0..40 {
-        harness.step();
-        let grown = height(&harness, &body(0));
+        d.frames(1);
+        let grown = height(&d, &body(0));
         assert_eq!(
-            rect_of(&harness, TAIL_PATH).min.y,
+            d.rect(Target::suffix(TAIL_PATH)).min.y,
             closed_tail + grown,
             "the tail is where layout puts it"
         );
@@ -217,13 +235,13 @@ fn what_follows_the_region_moves_with_it() {
 
 #[test]
 fn the_content_is_clipped_at_its_natural_size_not_squeezed() {
-    let mut harness = harness();
-    open(&mut harness, 0, true);
+    let mut d = harness();
+    open(&mut d, 0, true);
     for _ in 0..40 {
-        harness.step();
-        let wrapper = rect_of(&harness, &body(0));
+        d.frames(1);
+        let wrapper = d.rect(Target::suffix(&body(0)));
         if wrapper.height() > 0.0 && wrapper.height() < FILL {
-            let content = rect_of(&harness, &fill(0));
+            let content = d.rect(Target::suffix(&fill(0)));
             assert_eq!(content.size(), vec2(200.0, FILL), "{wrapper:?}");
             assert_eq!(content.min, wrapper.min);
             return;
@@ -234,80 +252,80 @@ fn the_content_is_clipped_at_its_natural_size_not_squeezed() {
 
 #[test]
 fn the_part_of_the_content_below_the_clip_cannot_be_clicked() {
-    let mut harness = harness();
-    open(&mut harness, 0, true);
+    let mut d = harness();
+    open(&mut d, 0, true);
     let at = (0..40)
         .find_map(|_| {
-            harness.step();
-            let wrapper = rect_of(&harness, &body(0));
+            d.frames(1);
+            let wrapper = d.rect(Target::suffix(&body(0)));
             (wrapper.height() > 30.0 && wrapper.height() < 60.0)
                 .then(|| pos2(wrapper.center().x, wrapper.min.y + FILL - 10.0))
         })
         .expect("the region was in between");
-    let wrapper = rect_of(&harness, &body(0));
-    let content = rect_of(&harness, &fill(0));
+    let wrapper = d.rect(Target::suffix(&body(0)));
+    let content = d.rect(Target::suffix(&fill(0)));
     assert!(
         content.contains(at) && !wrapper.contains(at),
         "precondition: the point is in the content and below the clip edge"
     );
-    press_and_release(&mut harness, at);
-    assert_eq!(harness.state().app.clicked, 0);
-    harness.run_steps(40);
-    let at = pos2(at.x, rect_of(&harness, &fill(0)).max.y - 10.0);
-    press_and_release(&mut harness, at);
-    assert_eq!(harness.state().app.clicked, 1, "open, it can be clicked");
+    press_and_release(&mut d, at);
+    assert_eq!(d.app().clicked, 0);
+    d.frames(40);
+    let at = pos2(at.x, d.rect(Target::suffix(&fill(0))).max.y - 10.0);
+    press_and_release(&mut d, at);
+    assert_eq!(d.app().clicked, 1, "open, it can be clicked");
 }
 
 #[test]
 fn a_region_that_is_closing_takes_no_input() {
-    let mut harness = settled_open(0);
-    open(&mut harness, 0, false);
-    harness.run_steps(3);
-    let wrapper = rect_of(&harness, &body(0));
+    let mut d = settled_open(0);
+    open(&mut d, 0, false);
+    d.frames(3);
+    let wrapper = d.rect(Target::suffix(&body(0)));
     assert!(
         wrapper.height() > 60.0 && wrapper.height() < FILL,
         "precondition: it is closing: {wrapper:?}"
     );
-    press_and_release(&mut harness, wrapper.min + vec2(20.0, 20.0));
-    assert_eq!(harness.state().app.clicked, 0);
+    press_and_release(&mut d, wrapper.min + vec2(20.0, 20.0));
+    assert_eq!(d.app().clicked, 0);
 }
 
 #[test]
 fn closing_unbuilds_the_content_and_collapses_once() {
-    let mut harness = settled_open(0);
-    open(&mut harness, 0, false);
-    let run = heights(&mut harness, 40, &body(0));
+    let mut d = settled_open(0);
+    open(&mut d, 0, false);
+    let run = heights(&mut d, 40, &body(0));
     assert!(
         run.windows(2).all(|pair| pair[0] >= pair[1]),
         "it only shrinks: {run:?}"
     );
     assert_eq!(*run.last().expect("frames"), 0.0);
-    assert!(!has(&harness, &fill(0)));
-    assert_eq!(harness.state().app.collapsed, 1);
-    harness.run_steps(10);
-    assert_eq!(harness.state().app.collapsed, 1, "once");
+    assert!(!has(&d, &fill(0)));
+    assert_eq!(d.app().collapsed, 1);
+    d.frames(10);
+    assert_eq!(d.app().collapsed, 1, "once");
 }
 
 #[test]
 fn it_does_not_collapse_before_it_has_closed() {
-    let mut harness = settled_open(0);
-    open(&mut harness, 0, false);
-    harness.run_steps(5);
-    assert_eq!(harness.state().app.collapsed, 0);
+    let mut d = settled_open(0);
+    open(&mut d, 0, false);
+    d.frames(5);
+    assert_eq!(d.app().collapsed, 0);
 }
 
 #[test]
 fn toggling_in_the_middle_reverses_from_where_it_is() {
-    let mut harness = harness();
-    open(&mut harness, 0, true);
-    harness.run_steps(8);
-    let before = height(&harness, &body(0));
+    let mut d = harness();
+    open(&mut d, 0, true);
+    d.frames(8);
+    let before = height(&d, &body(0));
     assert!(
         before > 20.0 && before < 90.0,
         "precondition: in the middle: {before}"
     );
-    open(&mut harness, 0, false);
-    let run = heights(&mut harness, 40, &body(0));
+    open(&mut d, 0, false);
+    let run = heights(&mut d, 40, &body(0));
     assert!(
         (run[0] - before).abs() < 25.0,
         "no jump: {before} then {}",
@@ -321,34 +339,34 @@ fn toggling_in_the_middle_reverses_from_where_it_is() {
 
 #[test]
 fn siblings_open_and_close_together() {
-    let mut harness = settled_open(0);
-    open(&mut harness, 0, false);
-    open(&mut harness, 1, true);
-    harness.run_steps(8);
-    let (closing, opening) = (height(&harness, &body(0)), height(&harness, &body(1)));
+    let mut d = settled_open(0);
+    open(&mut d, 0, false);
+    open(&mut d, 1, true);
+    d.frames(8);
+    let (closing, opening) = (height(&d, &body(0)), height(&d, &body(1)));
     assert!(
         closing > 0.0 && closing < FILL && opening > 0.0 && opening < FILL,
         "precondition: both are moving: {closing} {opening}"
     );
-    harness.run_steps(40);
-    assert_eq!(height(&harness, &body(0)), 0.0);
-    assert_eq!(height(&harness, &body(1)), FILL);
+    d.frames(40);
+    assert_eq!(height(&d, &body(0)), 0.0);
+    assert_eq!(height(&d, &body(1)), FILL);
 }
 
 #[test]
 fn a_position_slide_does_not_run_on_top_of_a_size_animation() {
-    let mut harness = harness();
-    open(&mut harness, 0, true);
+    let mut d = harness();
+    open(&mut d, 0, true);
     let mut checked = 0;
     for _ in 0..40 {
-        harness.step();
-        let grown = height(&harness, &body(0));
+        d.frames(1);
+        let grown = height(&d, &body(0));
         if grown > 0.0 && grown < FILL {
-            let laid_out = rect_of(&harness, TAIL_PATH).min.y;
+            let laid_out = d.rect(Target::suffix(TAIL_PATH)).min.y;
             assert!(
-                (painted_top(&harness, TAIL_COLOR) - laid_out).abs() <= 0.5,
+                (painted_top(&d, TAIL_COLOR) - laid_out).abs() <= 0.5,
                 "the tail is painted where layout puts it: {laid_out} and {}",
-                painted_top(&harness, TAIL_COLOR)
+                painted_top(&d, TAIL_COLOR)
             );
             checked += 1;
         }
@@ -358,61 +376,59 @@ fn a_position_slide_does_not_run_on_top_of_a_size_animation() {
 
 #[test]
 fn a_position_slide_runs_again_once_the_size_animation_is_over() {
-    let mut harness = settled_open(0);
-    harness.state_mut().app.lead = 40.0;
-    harness.step();
-    let laid_out = rect_of(&harness, TAIL_PATH).min.y;
+    let mut d = settled_open(0);
+    d.app_mut().lead = 40.0;
+    d.frames(1);
+    let laid_out = d.rect(Target::suffix(TAIL_PATH)).min.y;
     assert!(
-        painted_top(&harness, TAIL_COLOR) < laid_out - 5.0,
+        painted_top(&d, TAIL_COLOR) < laid_out - 5.0,
         "the tail slides to its new place"
     );
 }
 
 #[test]
 fn the_size_animation_is_continuous_and_leaves_no_gaps() {
-    let mut harness = harness();
-    record(&harness.ctx);
-    open(&mut harness, 0, true);
-    harness.run_steps(8);
-    open(&mut harness, 0, false);
-    open(&mut harness, 2, true);
-    harness.run_steps(40);
-    Timeline::recorded(&harness.ctx)
+    let mut d = harness();
+    record(d.ctx());
+    open(&mut d, 0, true);
+    d.frames(8);
+    open(&mut d, 0, false);
+    open(&mut d, 2, true);
+    d.frames(40);
+    Timeline::recorded(d.ctx())
         .max_resize(Points::new(30.0))
         .assert_continuous();
 }
 
 #[test]
 fn a_jump_is_caught_by_the_resize_check() {
-    let mut harness = harness_of(App {
+    let mut d = harness_of(App {
         duration: Some(Duration::ZERO),
         ..App::default()
     });
-    record(&harness.ctx);
-    harness.step();
-    open(&mut harness, 0, true);
-    harness.run_steps(6);
-    let timeline = Timeline::recorded(&harness.ctx);
+    record(d.ctx());
+    d.frames(1);
+    open(&mut d, 0, true);
+    d.frames(6);
+    let timeline = Timeline::recorded(d.ctx());
     let found = timeline.resizes();
     assert!(!found.is_empty(), "a snap of {FILL} is more than a step");
 }
 
 #[test]
 fn a_style_without_animation_time_opens_and_closes_at_once() {
-    let mut harness = harness();
-    harness.state_mut().reduced_motion = ReducedMotion::Yes;
-    harness
-        .ctx
-        .global_style_mut(|style| style.animation_time = 0.0);
-    open(&mut harness, 0, true);
-    harness.step();
-    harness.step();
-    assert_eq!(height(&harness, &body(0)), FILL);
-    open(&mut harness, 0, false);
-    harness.step();
-    harness.step();
-    assert_eq!(height(&harness, &body(0)), 0.0);
-    assert_eq!(harness.state().app.collapsed, 1);
+    let mut d = harness();
+    d.set_motion(Animation::Reduced);
+    d.ctx().global_style_mut(|style| style.animation_time = 0.0);
+    open(&mut d, 0, true);
+    d.frames(1);
+    d.frames(1);
+    assert_eq!(height(&d, &body(0)), FILL);
+    open(&mut d, 0, false);
+    d.frames(1);
+    d.frames(1);
+    assert_eq!(height(&d, &body(0)), 0.0);
+    assert_eq!(d.app().collapsed, 1);
 }
 
 mod sidebar {
@@ -446,28 +462,26 @@ mod sidebar {
 
     #[test]
     fn a_sidebar_opens_by_its_width_and_its_content_keeps_its_own() {
-        let mut harness =
-            support::harness_stepped(vec2(400.0, 100.0), STEP, base_text(), Side::default(), view);
-        harness.run_steps(4);
-        assert_eq!(rect_of(&harness, r#"/"row"/"side""#).width(), 0.0);
-        harness.state_mut().app.open = true;
+        let mut d = stepped(vec2(400.0, 100.0), Side::default(), view);
+        assert_eq!(d.rect(Target::suffix(r#"/"row"/"side""#)).width(), 0.0);
+        d.app_mut().open = true;
         let mut between = 0;
         for _ in 0..40 {
-            harness.step();
-            let side = rect_of(&harness, r#"/"row"/"side""#);
+            d.frames(1);
+            let side = d.rect(Target::suffix(r#"/"row"/"side""#));
             assert_eq!(
-                rect_of(&harness, r#"/"row"/"main""#).min.x,
+                d.rect(Target::suffix(r#"/"row"/"main""#)).min.x,
                 side.max.x,
                 "what follows moves with it"
             );
             if side.width() > 0.0 && side.width() < WIDTH {
                 between += 1;
-                let panel = rect_of(&harness, r#"/"row"/"side"/"panel""#);
+                let panel = d.rect(Target::suffix(r#"/"row"/"side"/"panel""#));
                 assert_eq!(panel.width(), WIDTH, "not squeezed");
             }
         }
         assert!(between > 5);
-        assert_eq!(rect_of(&harness, r#"/"row"/"side""#).width(), WIDTH);
+        assert_eq!(d.rect(Target::suffix(r#"/"row"/"side""#)).width(), WIDTH);
     }
 }
 
@@ -491,18 +505,16 @@ mod scrolling {
 
     #[test]
     fn a_region_in_a_scroll_container_moves_what_follows_it() {
-        let mut harness =
-            support::harness_stepped(vec2(400.0, 300.0), STEP, base_text(), Page::default(), view);
-        harness.run_steps(4);
-        let after = |harness: &Harness<'_, Rig<Page>>| rect_of(harness, r#"/"list"/"after""#).min.y;
-        let closed = after(&harness);
-        harness.state_mut().app.open = true;
-        harness.step();
-        harness.step();
-        let moving = after(&harness);
+        let mut d = stepped(vec2(400.0, 300.0), Page::default(), view);
+        let after = |d: &Driver<Page>| d.rect(Target::suffix(r#"/"list"/"after""#)).min.y;
+        let closed = after(&d);
+        d.app_mut().open = true;
+        d.frames(1);
+        d.frames(1);
+        let moving = after(&d);
         assert!(moving > closed && moving < closed + FILL, "{moving}");
-        harness.run_steps(40);
-        assert_eq!(after(&harness), closed + FILL);
+        d.frames(40);
+        assert_eq!(after(&d), closed + FILL);
     }
 }
 
@@ -575,50 +587,47 @@ mod header {
             );
     }
 
-    fn harness() -> Harness<'static, Rig<Page>> {
-        let mut harness =
-            support::harness_stepped(vec2(400.0, 300.0), STEP, base_text(), Page::default(), view);
-        harness.run_steps(4);
-        harness
+    fn harness() -> Driver<Page> {
+        stepped(vec2(400.0, 300.0), Page::default(), view)
     }
 
-    fn lag(harness: &Harness<'_, Rig<Page>>) -> f32 {
-        let height = rect_of(harness, r#"/"body""#).height();
-        (harness.state().app.progress.get() - height / FILL).abs()
+    fn lag(d: &Driver<Page>) -> f32 {
+        let height = d.rect(Target::suffix(r#"/"body""#)).height();
+        (d.app().progress.get() - height / FILL).abs()
     }
 
     #[test]
     fn the_header_is_told_how_far_open_the_region_is_by_the_value_its_size_follows() {
-        let mut harness = harness();
-        assert_eq!(harness.state().app.progress.get(), 0.0, "closed");
-        harness.state_mut().app.open = true;
+        let mut d = harness();
+        assert_eq!(d.app().progress.get(), 0.0, "closed");
+        d.app_mut().open = true;
         let mut between = 0;
         for _ in 0..40 {
-            harness.step();
-            assert!(lag(&harness) < 0.005, "{}", lag(&harness));
-            let progress = harness.state().app.progress.get();
+            d.frames(1);
+            assert!(lag(&d) < 0.005, "{}", lag(&d));
+            let progress = d.app().progress.get();
             between += usize::from(progress > 0.05 && progress < 0.95);
         }
         assert!(between > 5, "precondition: it was in between");
-        assert_eq!(harness.state().app.progress.get(), 1.0);
+        assert_eq!(d.app().progress.get(), 1.0);
     }
 
     #[test]
     fn it_reverses_with_the_size() {
-        let mut harness = harness();
-        harness.state_mut().app.open = true;
-        harness.run_steps(8);
-        let before = harness.state().app.progress.get();
+        let mut d = harness();
+        d.app_mut().open = true;
+        d.frames(8);
+        let before = d.app().progress.get();
         assert!(before > 0.2 && before < 0.95, "precondition: {before}");
-        harness.state_mut().app.open = false;
-        harness.step();
-        let mut last = harness.state().app.progress.get();
+        d.app_mut().open = false;
+        d.frames(1);
+        let mut last = d.app().progress.get();
         assert!((last - before).abs() < 0.1, "no jump: {before} then {last}");
         for _ in 0..30 {
-            harness.step();
-            let now = harness.state().app.progress.get();
+            d.frames(1);
+            let now = d.app().progress.get();
             assert!(now <= last + 1e-6, "falls: {last} then {now}");
-            assert!(lag(&harness) < 0.005);
+            assert!(lag(&d) < 0.005);
             last = now;
         }
         assert_eq!(last, 0.0);
@@ -626,18 +635,16 @@ mod header {
 
     #[test]
     fn a_style_without_animation_time_snaps_it() {
-        let mut harness = harness();
-        harness.state_mut().reduced_motion = ReducedMotion::Yes;
-        harness
-            .ctx
-            .global_style_mut(|style| style.animation_time = 0.0);
-        harness.state_mut().app.open = true;
-        harness.step();
-        harness.step();
-        assert_eq!(harness.state().app.progress.get(), 1.0);
-        harness.state_mut().app.open = false;
-        harness.step();
-        harness.step();
-        assert_eq!(harness.state().app.progress.get(), 0.0);
+        let mut d = harness();
+        d.set_motion(Animation::Reduced);
+        d.ctx().global_style_mut(|style| style.animation_time = 0.0);
+        d.app_mut().open = true;
+        d.frames(1);
+        d.frames(1);
+        assert_eq!(d.app().progress.get(), 1.0);
+        d.app_mut().open = false;
+        d.frames(1);
+        d.frames(1);
+        assert_eq!(d.app().progress.get(), 0.0);
     }
 }
