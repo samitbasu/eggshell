@@ -2,14 +2,12 @@
 //! `egui_kittest::Harness`, egui's focus traversal, the `focus` variants and
 //! the focus record that answers `focus_within`.
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, NodeUi, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, FontFamily, Key, Rect, vec2};
-use egui_kittest::Harness;
 
 use crate::support;
-
-use support::{Rig, hover_over, press_and_release, rect_of};
 
 const RING: Color32 = Color32::from_rgb(10, 120, 240);
 const WITHIN: Color32 = Color32::from_rgb(240, 200, 10);
@@ -36,8 +34,8 @@ struct App {
     other: String,
 }
 
-fn harness(view: support::View<App>) -> Harness<'static, Rig<App>> {
-    support::harness(vec2(400.0, 200.0), base_text(), App::default(), view)
+fn harness(view: support::View<App>) -> Driver<App> {
+    support::driver(vec2(400.0, 200.0), base_text(), App::default(), view).build()
 }
 
 /// Records focus and clicks of the node it is drawn for.
@@ -53,14 +51,15 @@ fn mark(name: &'static str) -> impl FnOnce(&mut App, &mut egui::Ui) {
     }
 }
 
-fn tab(harness: &mut Harness<'_, Rig<App>>, modifiers: egui::Modifiers) {
-    harness.state_mut().app.focused = None;
-    harness.key_press_modifiers(modifiers, Key::Tab);
-    harness.run_steps(2);
+/// Tab with `modifiers` held, sent as a chord even with none held.
+fn tab(d: &mut Driver<App>, modifiers: egui::Modifiers) {
+    d.app_mut().focused = None;
+    d.harness().key_press_modifiers(modifiers, Key::Tab);
+    d.frames(2);
 }
 
-fn focused(harness: &Harness<'_, Rig<App>>) -> Option<&'static str> {
-    harness.state().app.focused
+fn focused(d: &Driver<App>) -> Option<&'static str> {
+    d.app().focused
 }
 
 fn cell() -> eggshell_ui::Tw {
@@ -89,8 +88,8 @@ fn row(b: &mut Builder<'_, '_, App>, _: &App) {
     });
 }
 
-fn rings(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
-    let shapes: &[ClippedShape] = &harness.output().shapes;
+fn rings(d: &Driver<App>) -> Vec<Rect> {
+    let shapes: &[ClippedShape] = &d.harness().output().shapes;
     shapes
         .iter()
         .filter_map(|clipped| match &clipped.shape {
@@ -102,83 +101,76 @@ fn rings(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
 
 #[test]
 fn tab_visits_nodes_in_paint_order_and_skips_the_opted_out() {
-    let mut harness = harness(row);
-    harness.run();
+    let mut d = harness(row);
+    d.harness_mut().run();
     assert!(
-        rect_of(&harness, "/\"first\"").min.x < rect_of(&harness, "/\"second\"").min.x,
+        d.rect(Target::suffix("/\"first\"")).min.x < d.rect(Target::suffix("/\"second\"")).min.x,
         "precondition: `first` is laid out before `second`"
     );
 
     // z paints `first` after its siblings, and egui registers in paint order.
     let mut order = Vec::new();
-    support::past_bar(&mut harness);
+    support::drive_past_bar(&mut d);
     for _ in 0..3 {
-        tab(&mut harness, egui::Modifiers::NONE);
-        order.push(focused(&harness));
+        tab(&mut d, egui::Modifiers::NONE);
+        order.push(focused(&d));
     }
     assert_eq!(
         order,
         [Some("second"), Some("last"), Some("first")],
         "the z-raised node is last in paint order, the opted-out one is absent"
     );
-    tab(&mut harness, egui::Modifiers::NONE);
+    tab(&mut d, egui::Modifiers::NONE);
     assert_eq!(
-        support::focused_path(&harness).as_deref(),
+        support::focused_path(&d).as_deref(),
         Some("<widget>"),
         "the stop after the last is the bar's"
     );
 
-    tab(&mut harness, egui::Modifiers::SHIFT);
-    assert_eq!(focused(&harness), Some("first"));
-    tab(&mut harness, egui::Modifiers::SHIFT);
-    assert_eq!(focused(&harness), Some("last"));
+    tab(&mut d, egui::Modifiers::SHIFT);
+    assert_eq!(focused(&d), Some("first"));
+    tab(&mut d, egui::Modifiers::SHIFT);
+    assert_eq!(focused(&d), Some("last"));
 }
 
 #[test]
 fn the_focused_node_paints_its_focus_variant() {
-    let mut harness = harness(row);
-    harness.run();
-    assert!(rings(&harness).is_empty(), "no focus, no ring");
+    let mut d = harness(row);
+    d.harness_mut().run();
+    assert!(rings(&d).is_empty(), "no focus, no ring");
 
-    support::past_bar(&mut harness);
-    tab(&mut harness, egui::Modifiers::NONE);
-    assert_eq!(focused(&harness), Some("second"));
-    assert_eq!(rings(&harness), [rect_of(&harness, "/\"second\"")]);
+    support::drive_past_bar(&mut d);
+    tab(&mut d, egui::Modifiers::NONE);
+    assert_eq!(focused(&d), Some("second"));
+    assert_eq!(rings(&d), [d.rect(Target::suffix("/\"second\""))]);
 
-    tab(&mut harness, egui::Modifiers::NONE);
-    assert_eq!(rings(&harness), [rect_of(&harness, "/\"last\"")]);
+    tab(&mut d, egui::Modifiers::NONE);
+    assert_eq!(rings(&d), [d.rect(Target::suffix("/\"last\""))]);
 }
 
 #[test]
 fn enter_and_space_click_the_focused_node() {
-    let mut harness = harness(row);
-    harness.run();
-    support::past_bar(&mut harness);
-    tab(&mut harness, egui::Modifiers::NONE);
-    assert_eq!(focused(&harness), Some("second"));
-    assert!(harness.state().app.clicks.is_empty(), "precondition");
+    let mut d = harness(row);
+    d.harness_mut().run();
+    support::drive_past_bar(&mut d);
+    tab(&mut d, egui::Modifiers::NONE);
+    assert_eq!(focused(&d), Some("second"));
+    assert!(d.app().clicks.is_empty(), "precondition");
 
-    harness.key_press(Key::Enter);
-    harness.run_steps(2);
-    harness.key_press(Key::Space);
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.clicks, ["second", "second"]);
+    d.press(Key::Enter).frames(1);
+    d.press(Key::Space).frames(1);
+    assert_eq!(d.app().clicks, ["second", "second"]);
 }
 
 #[test]
 fn a_pointer_click_does_not_focus_the_node() {
-    let mut harness = harness(row);
-    harness.run();
-    let at = rect_of(&harness, "/\"second\"").center();
-    hover_over(&mut harness, at);
-    press_and_release(&mut harness, at);
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.clicks, ["second"], "precondition");
-    assert_eq!(focused(&harness), None);
-    assert!(
-        rings(&harness).is_empty(),
-        "this is focus-visible, not focus"
-    );
+    let mut d = harness(row);
+    d.harness_mut().run();
+    let at = d.rect(Target::suffix("/\"second\"")).center();
+    d.click(at).frames(2);
+    assert_eq!(d.app().clicks, ["second"], "precondition");
+    assert_eq!(focused(&d), None);
+    assert!(rings(&d).is_empty(), "this is focus-visible, not focus");
 }
 
 /// ```html
@@ -198,13 +190,13 @@ fn with_inert(b: &mut Builder<'_, '_, App>, _: &App) {
 
 #[test]
 fn an_inert_subtree_is_not_a_tab_stop() {
-    let mut harness = harness(with_inert);
-    harness.run();
-    support::past_bar(&mut harness);
-    tab(&mut harness, egui::Modifiers::NONE);
-    assert_eq!(focused(&harness), Some("live"));
-    tab(&mut harness, egui::Modifiers::NONE);
-    assert_eq!(focused(&harness), Some("live"), "the only stop, wrapped");
+    let mut d = harness(with_inert);
+    d.harness_mut().run();
+    support::drive_past_bar(&mut d);
+    tab(&mut d, egui::Modifiers::NONE);
+    assert_eq!(focused(&d), Some("live"));
+    tab(&mut d, egui::Modifiers::NONE);
+    assert_eq!(focused(&d), Some("live"), "the only stop, wrapped");
 }
 
 fn field_text(app: &mut App) -> &mut String {
@@ -237,23 +229,20 @@ fn two_fields(b: &mut Builder<'_, '_, App>, _: &App) {
 
 #[test]
 fn focus_within_follows_a_text_edit_inside_a_node() {
-    let mut harness = harness(two_fields);
-    harness.run_steps(3);
-    assert_eq!(support::fill_of(&harness, "/\"one\""), Some(PLAIN));
-    assert_eq!(support::fill_of(&harness, "/\"two\""), Some(PLAIN));
+    let mut d = harness(two_fields);
+    d.frames(3);
+    assert_eq!(support::fill_of(&d, "/\"one\""), Some(PLAIN));
+    assert_eq!(support::fill_of(&d, "/\"two\""), Some(PLAIN));
 
-    let one = rect_of(&harness, "/\"one\"");
+    let one = d.rect(Target::suffix("/\"one\""));
     let at = one.center();
-    hover_over(&mut harness, at);
-    press_and_release(&mut harness, at);
-    harness.run_steps(3);
-    assert_eq!(support::fill_of(&harness, "/\"one\""), Some(WITHIN));
-    assert_eq!(support::fill_of(&harness, "/\"two\""), Some(PLAIN));
+    d.click(at).frames(3);
+    assert_eq!(support::fill_of(&d, "/\"one\""), Some(WITHIN));
+    assert_eq!(support::fill_of(&d, "/\"two\""), Some(PLAIN));
 
-    harness.key_press(Key::Tab);
-    harness.run_steps(3);
-    assert_eq!(support::fill_of(&harness, "/\"one\""), Some(PLAIN));
-    assert_eq!(support::fill_of(&harness, "/\"two\""), Some(WITHIN));
+    d.press(Key::Tab).frames(2);
+    assert_eq!(support::fill_of(&d, "/\"one\""), Some(PLAIN));
+    assert_eq!(support::fill_of(&d, "/\"two\""), Some(WITHIN));
 }
 
 /// A press held on a text field does not take focus back once Tab has moved
@@ -261,39 +250,38 @@ fn focus_within_follows_a_text_edit_inside_a_node() {
 /// it is dragged. Found through #219.
 #[test]
 fn tab_away_from_a_held_text_field_keeps_focus_where_tab_put_it() {
-    let mut harness = harness(two_fields);
-    harness.run_steps(3);
-    let at = rect_of(&harness, "/\"one\"").center();
-    hover_over(&mut harness, at);
-    harness.event(egui::Event::PointerButton {
+    let mut d = harness(two_fields);
+    d.frames(3);
+    let at = d.rect(Target::suffix("/\"one\"")).center();
+    d.hover(at);
+    d.event(egui::Event::PointerButton {
         pos: at,
         button: egui::PointerButton::Primary,
         pressed: true,
         modifiers: egui::Modifiers::NONE,
-    });
-    harness.run_steps(2);
+    })
+    .frames(1);
     assert_eq!(
-        support::fill_of(&harness, "/\"one\""),
+        support::fill_of(&d, "/\"one\""),
         Some(WITHIN),
         "precondition: the press focused the field"
     );
-    let pressed_at = harness.ctx.input(|input| input.time);
-    harness.key_press(Key::Tab);
-    harness.run_steps(60);
-    let held = harness.ctx.input(|input| input.time) - pressed_at;
-    let click = harness
-        .ctx
+    let pressed_at = d.ctx().input(|input| input.time);
+    d.press(Key::Tab).frames(59);
+    let held = d.ctx().input(|input| input.time) - pressed_at;
+    let click = d
+        .ctx()
         .options(|options| options.input_options.max_click_duration);
     assert!(
         held > click,
         "precondition: held {held} s, past a click's {click} s, so egui drags"
     );
     assert!(
-        harness.ctx.input(|input| input.pointer.primary_down()),
+        d.ctx().input(|input| input.pointer.primary_down()),
         "precondition: still held"
     );
-    assert_eq!(support::fill_of(&harness, "/\"one\""), Some(PLAIN));
-    assert_eq!(support::fill_of(&harness, "/\"two\""), Some(WITHIN));
+    assert_eq!(support::fill_of(&d, "/\"one\""), Some(PLAIN));
+    assert_eq!(support::fill_of(&d, "/\"two\""), Some(WITHIN));
 }
 
 /// ```html
@@ -314,36 +302,35 @@ fn growing(b: &mut Builder<'_, '_, App>, _: &App) {
 
 #[test]
 fn has_focus_at_build_drives_a_layout_change_one_frame_later() {
-    let mut harness = harness(growing);
-    harness.run_steps(2);
-    assert_eq!(rect_of(&harness, "/\"box\"").width(), 100.0);
+    let mut d = harness(growing);
+    d.frames(2);
+    assert_eq!(d.rect(Target::suffix("/\"box\"")).width(), 100.0);
 
-    support::past_bar(&mut harness);
-    harness.key_down(Key::Tab);
-    harness.step();
+    support::drive_past_bar(&mut d);
+    d.harness().key_down(Key::Tab);
+    d.frames(1);
     assert_eq!(
-        harness.state().app.focused,
+        d.app().focused,
         Some("field"),
         "precondition: focus arrived in this frame"
     );
     assert_eq!(
-        rect_of(&harness, "/\"box\"").width(),
+        d.rect(Target::suffix("/\"box\"")).width(),
         100.0,
         "the build saw the focus egui held at the start of the frame"
     );
-    harness.step();
-    assert_eq!(rect_of(&harness, "/\"box\"").width(), 200.0);
-    harness.key_up(Key::Tab);
-    harness.run_steps(5);
+    d.frames(1);
+    assert_eq!(d.rect(Target::suffix("/\"box\"")).width(), 200.0);
+    d.harness().key_up(Key::Tab);
+    d.frames(5);
     assert_eq!(
-        rect_of(&harness, "/\"box\"").width(),
+        d.rect(Target::suffix("/\"box\"")).width(),
         200.0,
         "no oscillation"
     );
 
-    harness.key_press(Key::Escape);
-    harness.run_steps(3);
-    assert_eq!(rect_of(&harness, "/\"box\"").width(), 100.0);
+    d.press(Key::Escape).frames(2);
+    assert_eq!(d.rect(Target::suffix("/\"box\"")).width(), 100.0);
 }
 
 #[test]
@@ -362,14 +349,12 @@ fn has_focus_within_sees_widgets_registered_in_the_previous_frame() {
                 });
         });
     }
-    let mut harness = harness(view);
-    harness.run_steps(3);
-    assert_eq!(rect_of(&harness, "/\"box\"").width(), 100.0);
-    let at = rect_of(&harness, "/\"form\"").center();
-    hover_over(&mut harness, at);
-    press_and_release(&mut harness, at);
-    harness.run_steps(3);
-    assert_eq!(rect_of(&harness, "/\"box\"").width(), 200.0);
+    let mut d = harness(view);
+    d.frames(3);
+    assert_eq!(d.rect(Target::suffix("/\"box\"")).width(), 100.0);
+    let at = d.rect(Target::suffix("/\"form\"")).center();
+    d.click(at).frames(3);
+    assert_eq!(d.rect(Target::suffix("/\"box\"")).width(), 200.0);
 }
 
 fn inset_ring_cell() -> eggshell_ui::Tw {
@@ -380,8 +365,8 @@ fn inset_ring_cell() -> eggshell_ui::Tw {
         .focus(|p| p.ring(2.0, RING).ring_inset())
 }
 
-fn ring_shapes(harness: &Harness<'_, Rig<App>>) -> Vec<RectShape> {
-    harness
+fn ring_shapes(d: &Driver<App>) -> Vec<RectShape> {
+    d.harness()
         .output()
         .shapes
         .iter()
@@ -402,18 +387,18 @@ fn ring_inset_paints_the_ring_inside_the_border_box_and_changes_no_layout() {
     }
     let mut outside = harness(plain);
     let mut inside = harness(inset);
-    outside.run();
-    inside.run();
+    outside.harness_mut().run();
+    inside.harness_mut().run();
     assert_eq!(
-        rect_of(&outside, "/\"cell\""),
-        rect_of(&inside, "/\"cell\""),
+        outside.rect(Target::suffix("/\"cell\"")),
+        inside.rect(Target::suffix("/\"cell\"")),
         "same layout"
     );
-    support::past_bar(&mut outside);
-    support::past_bar(&mut inside);
+    support::drive_past_bar(&mut outside);
+    support::drive_past_bar(&mut inside);
     tab(&mut outside, egui::Modifiers::NONE);
     tab(&mut inside, egui::Modifiers::NONE);
-    let node = rect_of(&inside, "/\"cell\"");
+    let node = inside.rect(Target::suffix("/\"cell\""));
     let ring = ring_shapes(&inside);
     assert_eq!(ring.len(), 1, "precondition: the focused node has a ring");
     assert_eq!(ring[0].stroke_kind, egui::StrokeKind::Inside);
