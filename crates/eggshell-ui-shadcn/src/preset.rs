@@ -837,11 +837,14 @@ impl Shadcn {
     }
 
     /// TODO(prose): the hover card's look: shadcn's `HoverCardContent`
-    /// (`w-64 rounded-md border bg-popover p-4 shadow-md`, 4 pt below,
+    /// (`w-64 rounded-lg bg-popover p-4 shadow-md duration-100`, 4 pt below,
     /// centred) in this preset's colours, with Radix's 700/300 ms delays.
     #[cfg(feature = "extras")]
     pub fn hover_card(&self) -> eggshell_ui_extras::hover_card::HoverCardStyle {
-        eggshell_ui_extras::hover_card::HoverCardStyle::from_style(&self.style())
+        let mut card = eggshell_ui_extras::hover_card::HoverCardStyle::from_style(&self.style());
+        card.radius = self.tokens.radius;
+        card.transition = Duration::from_millis(100);
+        card
     }
 
     /// TODO(prose): the Markdown widget's look: shadcn/typeset at its

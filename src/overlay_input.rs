@@ -13,7 +13,8 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect};
 
 use crate::actions::{self, Action};
 use crate::dismiss::{
-    Boundary, Cause, FocusAt, Input, Layer, Seen, Trigger, WindowFocus, dismissals, esc_target,
+    Boundary, Cause, Closer, FocusAt, Input, Layer, Seen, Trigger, WindowFocus, dismissals,
+    esc_target,
 };
 use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
@@ -219,7 +220,7 @@ struct Remembered {
 /// and is relative to it, and whether the window has had the focus.
 fn layers_of(
     ctx: &Context,
-    open: &[Open<'_>],
+    (open, closers): (&[Open<'_>], &[Id]),
     nodes: &Nodes,
     roots: &[PlacedRoot],
     mut remembered: impl FnMut(&Open<'_>) -> Remembered,
@@ -259,9 +260,27 @@ fn layers_of(
                     Anchored::Detached => Seen::Hidden,
                 },
                 window_focus,
+                closer: closer_of(nodes, roots.get(open.root), closers),
             }
         })
         .collect()
+}
+
+/// Whether one of `closers` is a button of the overlay whose root is `root`,
+/// not of one nested in it.
+fn closer_of(nodes: &Nodes, root: Option<&PlacedRoot>, closers: &[Id]) -> Closer {
+    let pressed = root.is_some_and(|root| {
+        nodes
+            .subtree(root.first)
+            .iter()
+            .filter_map(PlacedNode::id)
+            .any(|id| closers.contains(&id))
+    });
+    if pressed {
+        Closer::Pressed
+    } else {
+        Closer::Idle
+    }
 }
 
 /// The overlay's trigger as dismissal judges a press on it. A trigger that
@@ -394,9 +413,13 @@ pub(crate) fn claim_keys(
         drag_live: drag == Drag::Live,
         ..Input::default()
     };
-    let layers = layers_of(ctx, &judged_overlays(roots, here), nodes, roots, |_| {
-        Remembered::default()
-    });
+    let layers = layers_of(
+        ctx,
+        (&judged_overlays(roots, here), &[]),
+        nodes,
+        roots,
+        |_| Remembered::default(),
+    );
     let belongs_to_the_library = match escape_goes(&layers, nodes, &input) {
         EscapeGoes::Nobody => input.escape && !input.drag_live && Typing::escape_blurred(ctx, kept),
         EscapeGoes::Overlay | EscapeGoes::Window(_) => true,
@@ -469,7 +492,8 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     let shell = Shell::new(ctx, kept);
     let mut stack = Stack::load(kept, ctx.viewport_id());
     let judged = judged_overlays(roots, here);
-    let layers = layers_of(ctx, &judged, nodes, roots, |open| {
+    let closers = actions::take_closers(ctx, kept);
+    let layers = layers_of(ctx, (&judged, &closers), nodes, roots, |open| {
         let entry = stack.get_mut(open.overlay.id);
         Remembered {
             focus_before: entry.as_ref().map(|entry| entry.focus).unwrap_or_default(),

@@ -27,24 +27,33 @@ fn still(ctx: &egui::Context, _: &App) {
 }
 
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
-    b.div(tw().flex().justify_center().gap(4.0).p(4.0).items_start(), |b| {
-        b.hover_card("nextjs")
-            .trigger(tw().flex(), |t| {
-                t.button("handle", "@nextjs").on_click(|_: &mut App| {});
-            })
-            .content(|c| {
-                c.text(tw().font_semibold(), "@nextjs");
-                c.text(tw(), format!("{} follows", app.follows));
-                c.button("follow", "Follow")
-                    .on_click(|app: &mut App| app.follows += 1);
-            });
-        b.hover_card("quick")
-            .open_delay(Duration::from_millis(100))
-            .trigger(tw().flex(), |t| {
-                t.button("handle", "@quick").on_click(|_: &mut App| {});
-            })
-            .content(|c| c.text(tw(), "Quick"));
-    });
+    b.div(
+        tw().flex().justify_center().gap(4.0).p(4.0).items_start(),
+        |b| {
+            b.hover_card("nextjs")
+                .trigger(tw().flex(), |t| {
+                    t.button("handle", "@nextjs").on_click(|_: &mut App| {});
+                })
+                .content(|c| {
+                    c.text(tw().font_semibold(), "@nextjs");
+                    c.text(tw(), format!("{} follows", app.follows));
+                    c.button("follow", "Follow")
+                        .on_click(|app: &mut App| app.follows += 1);
+                });
+            b.hover_card("link")
+                .trigger(tw().flex(), |t| t.text(tw(), "@link"))
+                .content(|c| c.text(tw(), "A link's card"));
+            b.hover_card("avatar")
+                .trigger(tw().size_px(40.0).rounded_full(), |_| {})
+                .content(|c| c.text(tw(), "An avatar's card"));
+            b.hover_card("quick")
+                .open_delay(Duration::from_millis(100))
+                .trigger(tw().flex(), |t| {
+                    t.button("handle", "@quick").on_click(|_: &mut App| {});
+                })
+                .content(|c| c.text(tw(), "Quick"));
+        },
+    );
 }
 
 fn harness() -> Harness<'static, Rig<App>> {
@@ -83,6 +92,12 @@ fn the_shadcn_preset_installs_shadcns_hover_card() {
     assert_eq!(*installed, preset.hover_card());
     assert_eq!(installed.width, 256.0, "w-64");
     assert_eq!(installed.padding, 16.0, "p-4");
+    assert_eq!(installed.radius, preset.tokens.radius, "rounded-lg");
+    assert_eq!(
+        installed.transition,
+        Duration::from_millis(100),
+        "duration-100"
+    );
     assert_eq!(installed.open_delay, Duration::from_millis(700));
     assert_eq!(installed.close_delay, Duration::from_millis(300));
     let colors = installed.look.paint.states.rest;
@@ -140,4 +155,20 @@ fn the_cards_text_describes_the_trigger() {
         node.accesskit_node().description().as_deref(),
         Some("@nextjs 0 follows Follow")
     );
+}
+
+#[test]
+fn hovering_a_trigger_with_nothing_focusable_in_it_opens_the_card() {
+    for (key, text) in [("link", "A link's card"), ("avatar", "An avatar's card")] {
+        let mut harness = harness();
+        let trigger = rect_of(&harness, &format!("/\"{key}\""));
+        assert!(
+            trigger.width() > 0.0 && trigger.height() > 0.0,
+            "precondition: {key} is laid out"
+        );
+        hover_over(&mut harness, trigger.center());
+        wait(&mut harness, Duration::from_millis(800));
+        assert!(shown(&harness, key).is_some(), "{key}: the card opens");
+        harness.get_by_label(text);
+    }
 }

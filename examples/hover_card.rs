@@ -10,7 +10,7 @@ mod common;
 
 use core::time::Duration;
 
-use eggshell_ui::overlay::{Anchor, Placement};
+use eggshell_ui::overlay::{Anchor, Placement, Side};
 use eggshell_ui::{Builder, Distance, Icon, tw};
 use eggshell_ui_extras::hover_card::HoverCardExt as _;
 use eggshell_ui_shadcn::variant;
@@ -102,6 +102,50 @@ fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
                 b.hover_card(name)
                     .trigger(tw().flex(), |t| handle(t, "handle", name))
                     .content(|c| profile(c, name, bio, "2024"));
+            }
+        });
+
+        b.text(
+            tw().font_semibold(),
+            "Triggers that are not buttons: pointer only",
+        );
+        b.div(tw().flex().gap(6.0).items_center(), |b| {
+            let t = common::tokens(b.ctx());
+            b.hover_card("link")
+                .trigger(tw().flex(), |t2| {
+                    t2.text(
+                        tw().text(t.primary).underline().role(common::sized(14.0)),
+                        "@nextjs",
+                    )
+                })
+                .content(|c| profile(c, "@nextjs", "A plain text link.", "December 2021"));
+            b.hover_card("avatar")
+                .trigger(tw().size_px(40.0).rounded_full(), |t2| {
+                    t2.div(
+                        tw().size_px(40.0)
+                            .rounded_full()
+                            .bg(t.muted)
+                            .flex()
+                            .items_center()
+                            .justify_center(),
+                        |t2| t2.text(tw().font_semibold(), "VC"),
+                    );
+                })
+                .content(|c| profile(c, "@vercel", "An avatar.", "2024"));
+        });
+
+        b.text(tw().font_semibold(), "On each side");
+        b.div(tw().flex().gap(4.0).items_center().px(48.0).py(24.0), |b| {
+            for (name, side) in [
+                ("Top", Side::Top),
+                ("Bottom", Side::Bottom),
+                ("Left", Side::Left),
+                ("Right", Side::Right),
+            ] {
+                b.hover_card(name)
+                    .placement(Placement::beside(side).gap(Distance::new(4.0)))
+                    .trigger(tw().flex(), |t| handle(t, "handle", name))
+                    .content(|c| c.text(tw(), format!("On the {name} side")));
             }
         });
 

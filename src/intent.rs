@@ -18,6 +18,8 @@ pub(crate) enum Cause {
     Pointer,
     /// It has keyboard focus.
     Focus,
+    /// It was pressed, and what it shows opens on a press.
+    Pressed,
 }
 
 /// A trigger drawn this frame that wants what it shows.
@@ -109,6 +111,9 @@ pub(crate) struct Intent<P> {
     /// Since when the open one has not been wanted.
     unwanted_since: Option<Duration>,
     latched: Option<Id>,
+    /// The trigger whose show a press opened, kept open until the next
+    /// interruption.
+    pinned: Option<Id>,
     restored: Option<Restored>,
     closed_at: Option<Duration>,
     /// Where the trigger last opened is.
@@ -123,6 +128,7 @@ impl<P> Default for Intent<P> {
             waiting: None,
             unwanted_since: None,
             latched: None,
+            pinned: None,
             restored: None,
             closed_at: None,
             last: None,
@@ -271,6 +277,20 @@ impl<P: Clone> Intent<P> {
         wanted: Option<&Trigger<P>>,
         interruption: Option<Interruption>,
     ) -> Option<Duration> {
+        if let Some(trigger) = wanted.filter(|trigger| trigger.cause == Cause::Pressed) {
+            self.pinned = Some(trigger.id);
+            self.latched = None;
+            self.waiting = None;
+            self.open(trigger, now, timing);
+            return None;
+        }
+        if let Some(pinned) = self.pinned {
+            if interruption.is_none() && self.is_open_for(pinned) {
+                self.waiting = None;
+                return None;
+            }
+            self.pinned = None;
+        }
         if interruption.is_some() {
             self.latched = wanted.map(|trigger| trigger.id);
             self.waiting = None;
@@ -303,7 +323,7 @@ impl<P: Clone> Intent<P> {
             }
         };
         let delay = match (trigger.cause, timing.focus) {
-            (Cause::Focus, FocusOpens::AtOnce) => Duration::ZERO,
+            (Cause::Focus, FocusOpens::AtOnce) | (Cause::Pressed, _) => Duration::ZERO,
             _ if self.skips_delay(trigger, now, timing.skip) => Duration::ZERO,
             _ => timing.open,
         };
@@ -340,10 +360,11 @@ pub(crate) fn repaint(ctx: &egui::Context, wait: Option<Duration>, changed: bool
 /// The triggers this frame, resolved: a pointer over a trigger beats focus
 /// on another, and the one drawn last (the deepest) wins.
 pub(crate) fn wanted<P: Clone>(triggers: Vec<Trigger<P>>) -> Option<Trigger<P>> {
-    let pointer = triggers
-        .iter()
-        .rfind(|trigger| trigger.cause == Cause::Pointer);
-    pointer.or_else(|| triggers.iter().next_back()).cloned()
+    let of = |cause| triggers.iter().rfind(|trigger| trigger.cause == cause);
+    of(Cause::Pressed)
+        .or_else(|| of(Cause::Pointer))
+        .or_else(|| triggers.iter().next_back())
+        .cloned()
 }
 
 #[cfg(test)]

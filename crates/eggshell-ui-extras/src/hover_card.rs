@@ -5,7 +5,7 @@
 //!
 //! ```html
 //! <span class="flex"><a href="#">@nextjs</a></span>
-//! <div class="w-64 rounded-md border bg-popover p-4 text-popover-foreground shadow-md">
+//! <div class="w-64 rounded-lg border bg-popover p-4 text-popover-foreground shadow-md">
 //!   <p class="font-semibold">@nextjs</p> <p>The React Framework</p>
 //! </div>  <!-- 4 px below, centred -->
 //! ```
@@ -28,6 +28,9 @@
 //!         });
 //! }
 //! ```
+//!
+//! TODO(prose): a trigger with no focusable content, such as plain text or
+//! an image, opens the card by the pointer only.
 //!
 //! The card is a supplement, as in Radix: Tab never stops in it and focus
 //! never moves into it, so what it holds that matters must be reachable some
@@ -64,6 +67,8 @@ pub struct HoverCardStyle {
     pub width: f32,
     /// TODO(prose): the gap between the trigger and the box.
     pub offset: Distance,
+    /// TODO(prose): how long the card takes to enter and to leave.
+    pub transition: Duration,
 }
 
 impl HoverCardStyle {
@@ -77,6 +82,7 @@ impl HoverCardStyle {
             padding: 16.0,
             width: 256.0,
             offset: style.menu.offset,
+            transition: style.motion.popover.enter,
         }
     }
 
@@ -234,6 +240,8 @@ where
             body(t);
             t.overlay("Card")
                 .hover_anchored(trigger, intent)
+                .transition(style.transition)
+                .exit_transition(style.transition)
                 .placement(placement)
                 .children(|c| {
                     c.div_id("Box", style.classes(), |c| content(c));
