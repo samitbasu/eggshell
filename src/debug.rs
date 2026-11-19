@@ -340,8 +340,8 @@ fn readout_text(ctx: &Context) -> String {
     for window in &spent.windows {
         let _ = write!(
             text,
-            "\n  {:<19} layout {:5.2}  draw {:5.2} ms",
-            window.title,
+            "\n  {:<TITLE_COLUMN$} layout {:5.2}  draw {:5.2} ms",
+            title_column(&window.title),
             ms_of(window.times.layout),
             ms_of(window.times.draw),
         );
@@ -354,6 +354,19 @@ fn readout_text(ctx: &Context) -> String {
     let _ = write!(text, "\nrepaint  {repaint}");
     text.push_str(&reports_text(ctx));
     text
+}
+
+/// The characters of a window's title column in the readout.
+const TITLE_COLUMN: usize = 19;
+
+/// `title` to fit the readout's title column: cut with an ellipsis when it
+/// is longer, so the times of every row stay in line.
+fn title_column(title: &str) -> String {
+    if title.chars().count() <= TITLE_COLUMN {
+        return title.to_owned();
+    }
+    let kept: String = title.chars().take(TITLE_COLUMN - 1).collect();
+    format!("{kept}…")
 }
 
 /// The reports section of the readout: one line per report, or nothing
@@ -634,6 +647,28 @@ fn label(painter: &Painter, screen: Rect, pointer: Pos2, node: &PlacedNode, fit:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_long_title_is_cut_to_the_column_and_a_short_one_is_kept() {
+        assert_eq!(title_column("Revenue"), "Revenue");
+        let fits = "A".repeat(TITLE_COLUMN);
+        assert_eq!(title_column(&fits), fits, "exactly the column is kept");
+        let cut = title_column("Quarterly revenue by region");
+        assert_eq!(cut, "Quarterly revenue …");
+        assert_eq!(cut.chars().count(), TITLE_COLUMN);
+    }
+
+    #[test]
+    fn every_window_rows_times_line_up_whatever_its_title() {
+        let rows = ["Revenue", "Quarterly revenue by region and month"]
+            .map(|title| format!("  {:<TITLE_COLUMN$} layout", title_column(title)));
+        let at = rows.clone().map(|row| {
+            row.split(" layout")
+                .next()
+                .map_or(0, |before| before.chars().count())
+        });
+        assert_eq!(at[0], at[1], "{rows:?}");
+    }
 
     fn spent(ctx: &Context) -> Option<Spent> {
         ctx.data(|data| data.get_temp::<Spent>(spent_id().with(ctx.viewport_id())))
