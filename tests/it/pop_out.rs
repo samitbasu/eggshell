@@ -7,10 +7,11 @@ use eggshell_ui::overlay::{Anchor, Placement};
 use eggshell_ui::window::{MinSize, Popped, Window, WindowFrame};
 use eggshell_ui::{Builder, Chord, Command, Commands, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Modifiers, Pos2, Vec2, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-use crate::support::{self, Rig, rect_of};
+use eggshell_ui::testing::{Driver, Target};
+
+use crate::support;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/pop_out.rs"]
@@ -118,24 +119,23 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
     });
 }
 
-type H = Harness<'static, Rig<App>>;
+type H = Driver<App>;
 
 fn harness(app: App) -> H {
-    let mut h = support::harness(SIZE, base(), app, view);
-    h.state_mut().companion = support::Companion::Alone;
-    h.run_steps(4);
+    let mut h = support::driver(SIZE, base(), app, view).build();
+    support::set_companion(&h, support::Companion::Alone);
+    h.frames(4);
     h
 }
 
 fn has(h: &H, path: &str) -> bool {
-    h.state()
-        .nodes
+    support::nodes(h)
         .iter()
         .any(|(candidate, _)| candidate == path)
 }
 
 fn offset(h: &H) -> Vec2 {
-    support::shell(h)
+    h.shell()
         .viewport(support::id_of(h, LIST))
         .expect("the list has a viewport")
         .offset()
@@ -144,18 +144,18 @@ fn offset(h: &H) -> Vec2 {
 #[test]
 fn inline_the_subtree_is_a_container_at_its_place() {
     let h = harness(App::default());
-    assert!(h.ctx.embed_viewports(), "precondition: kittest embeds");
-    assert_eq!(rect_of(&h, PANE).size(), vec2(200.0, 150.0));
+    assert!(h.ctx().embed_viewports(), "precondition: kittest embeds");
+    assert_eq!(h.rect(Target::suffix(PANE)).size(), vec2(200.0, 150.0));
     assert!(!has(&h, PLACEHOLDER));
 }
 
 #[test]
 fn popped_out_the_subtree_fills_a_window_at_the_frame_and_the_placeholder_holds_its_place() {
     let mut h = harness(App::default());
-    h.state_mut().app.popped = Popped::Out;
-    h.run_steps(4);
-    assert_eq!(rect_of(&h, PANE).size(), OPENS_AT.size);
-    assert!(has(&h, PLACEHOLDER), "{:?}", h.state().nodes);
+    h.app_mut().popped = Popped::Out;
+    h.frames(4);
+    assert_eq!(h.rect(Target::suffix(PANE)).size(), OPENS_AT.size);
+    assert!(has(&h, PLACEHOLDER), "{:?}", support::nodes(&h));
     assert!(has(&h, LIST), "the subtree is laid out in the window");
 }
 
@@ -163,74 +163,70 @@ fn popped_out_the_subtree_fills_a_window_at_the_frame_and_the_placeholder_holds_
 fn a_scroll_offset_survives_popping_out_and_back_in() {
     let mut h = harness(App::default());
     let list = support::id_of(&h, LIST);
-    support::shell(&h).scroll_by(list, vec2(0.0, 90.0));
-    h.run_steps(4);
+    h.shell().scroll_by(list, vec2(0.0, 90.0));
+    h.frames(4);
     let before = offset(&h);
     assert!(before.y > 0.0, "precondition: the list scrolled");
-    h.state_mut().app.popped = Popped::Out;
-    h.run_steps(4);
+    h.app_mut().popped = Popped::Out;
+    h.frames(4);
     assert_eq!(offset(&h), before, "in the window");
-    h.state_mut().app.popped = Popped::In;
-    h.run_steps(4);
+    h.app_mut().popped = Popped::In;
+    h.frames(4);
     assert_eq!(offset(&h), before, "back inline");
 }
 
 #[test]
 fn the_close_button_runs_on_close_once_and_the_window_goes() {
     let mut h = harness(App::default());
-    h.state_mut().app.popped = Popped::Out;
-    h.run_steps(4);
-    h.get_by_label("Close window").click();
-    h.run_steps(4);
-    assert_eq!(h.state().app.closes, 1);
-    assert_eq!(h.state().app.popped, Popped::In);
-    assert_eq!(rect_of(&h, PANE).size(), vec2(200.0, 150.0), "back inline");
-    assert!(h.query_by_label("Close window").is_none());
+    h.app_mut().popped = Popped::Out;
+    h.frames(4);
+    h.harness().get_by_label("Close window").click();
+    h.frames(4);
+    assert_eq!(h.app().closes, 1);
+    assert_eq!(h.app().popped, Popped::In);
+    assert_eq!(
+        h.rect(Target::suffix(PANE)).size(),
+        vec2(200.0, 150.0),
+        "back inline"
+    );
+    assert!(h.harness().query_by_label("Close window").is_none());
 }
 
 #[test]
 fn on_frame_runs_when_the_window_moves_and_not_while_it_stays() {
     let mut h = harness(App::default());
-    h.state_mut().app.popped = Popped::Out;
-    h.run_steps(6);
-    h.state_mut().app.frames.clear();
-    h.run_steps(6);
-    assert!(
-        h.state().app.frames.is_empty(),
-        "{:?}",
-        h.state().app.frames
-    );
-    let window = h.get_by_label("Pane").rect();
-    let content = rect_of(&h, PANE);
+    h.app_mut().popped = Popped::Out;
+    h.frames(6);
+    h.app_mut().frames.clear();
+    h.frames(6);
+    assert!(h.app().frames.is_empty(), "{:?}", h.app().frames);
+    let window = h.harness().get_by_label("Pane").rect();
+    let content = h.rect(Target::suffix(PANE));
     assert!(
         content.min.y - window.min.y > 16.0,
         "precondition: a title bar above the content"
     );
     let title = window.min + vec2(window.width() / 2.0, 8.0);
-    support::drag(&mut h, title, title + vec2(40.0, 30.0));
-    h.run_steps(4);
-    let frames = &h.state().app.frames;
+    h.drag(title, title + vec2(40.0, 30.0));
+    h.frames(4);
+    let frames = &h.app().frames;
     let last = frames.last().expect("the move was reported");
     assert!(last.position.x > OPENS_AT.position.x + 30.0, "{frames:?}");
     let moved = frames.len();
-    h.run_steps(6);
-    assert_eq!(
-        h.state().app.frames.len(),
-        moved,
-        "no report while it stays"
-    );
+    h.frames(6);
+    assert_eq!(h.app().frames.len(), moved, "no report while it stays");
 }
 
 #[test]
 fn a_window_drawn_where_it_was_not_laid_out_is_laid_out_there_one_frame_later() {
     let mut h = harness(App::default());
-    h.state_mut().app.popped = Popped::Out;
-    h.step();
-    let laid = rect_of(&h, PANE);
-    h.step();
-    let next = rect_of(&h, PANE);
-    h.run_steps(4);
-    let settled = rect_of(&h, PANE);
+    h.app_mut().popped = Popped::Out;
+    h.frames(1);
+    let laid = h.rect(Target::suffix(PANE));
+    h.frames(1);
+    let next = h.rect(Target::suffix(PANE));
+    h.frames(4);
+    let settled = h.rect(Target::suffix(PANE));
     assert_ne!(
         laid, settled,
         "precondition: the first frame was laid out off"
@@ -248,9 +244,9 @@ fn min_size_content_is_the_subtrees_min_content_size() {
         }),
         ..App::default()
     });
-    h.state_mut().app.popped = Popped::Out;
-    h.run_steps(4);
-    let pane = rect_of(&h, PANE);
+    h.app_mut().popped = Popped::Out;
+    h.frames(4);
+    let pane = h.rect(Target::suffix(PANE));
     assert_eq!(
         pane.size(),
         vec2(150.0, 120.0),
@@ -266,19 +262,23 @@ fn without_a_frame_the_window_opens_at_the_subtrees_inline_size() {
         frame: None,
         ..App::default()
     });
-    assert_eq!(rect_of(&h, PANE).size(), INLINE, "precondition: inline");
-    h.state_mut().app.popped = Popped::Out;
-    h.run_steps(4);
-    assert_eq!(rect_of(&h, PANE).size(), INLINE);
+    assert_eq!(
+        h.rect(Target::suffix(PANE)).size(),
+        INLINE,
+        "precondition: inline"
+    );
+    h.app_mut().popped = Popped::Out;
+    h.frames(4);
+    assert_eq!(h.rect(Target::suffix(PANE)).size(), INLINE);
 }
 
 #[test]
 fn a_given_frame_wins_over_the_inline_size() {
     let mut h = harness(App::default());
     assert_ne!(OPENS_AT.size, INLINE, "precondition: they differ");
-    h.state_mut().app.popped = Popped::Out;
-    h.run_steps(4);
-    assert_eq!(rect_of(&h, PANE).size(), OPENS_AT.size);
+    h.app_mut().popped = Popped::Out;
+    h.frames(4);
+    assert_eq!(h.rect(Target::suffix(PANE)).size(), OPENS_AT.size);
 }
 
 #[test]
@@ -289,7 +289,7 @@ fn popped_out_from_the_start_the_window_opens_at_the_max_content_size() {
         ..App::default()
     });
     assert_eq!(
-        rect_of(&h, PANE).size(),
+        h.rect(Target::suffix(PANE)).size(),
         vec2(150.0, 120.0),
         "the header's width and the header and list's height"
     );
@@ -384,15 +384,15 @@ mod native {
     fn harness_native() -> H {
         install();
         let mut h = super::harness(App::default());
-        h.ctx.set_embed_viewports(false);
-        h.state_mut().app.popped = Popped::Out;
-        h.run_steps(4);
+        h.ctx().set_embed_viewports(false);
+        h.app_mut().popped = Popped::Out;
+        h.frames(4);
         h
     }
 
     fn shown_this_step(h: &mut H) -> Vec<ViewportId> {
         CHILD.with_borrow_mut(|child| child.shown.clear());
-        h.step();
+        h.frames(1);
         CHILD.with_borrow(|child| child.shown.clone())
     }
 
@@ -403,43 +403,44 @@ mod native {
     #[test]
     fn the_subtree_is_laid_out_in_the_window_at_its_size_in_its_coordinates() {
         let mut h = harness_native();
-        assert!(!h.ctx.embed_viewports(), "precondition: native windows");
+        assert!(!h.ctx().embed_viewports(), "precondition: native windows");
         assert_eq!(shown_this_step(&mut h), vec![pane_viewport(&h)]);
         assert_eq!(
-            rect_of(&h, PANE),
+            h.rect(Target::suffix(PANE)),
             Rect::from_min_size(Pos2::ZERO, OPENS_AT.size)
         );
         assert!(has(&h, PLACEHOLDER));
     }
 
     fn repaint_asked(h: &H) -> bool {
-        h.output().viewport_output[&ViewportId::ROOT].repaint_delay == std::time::Duration::ZERO
+        h.harness().output().viewport_output[&ViewportId::ROOT].repaint_delay
+            == std::time::Duration::ZERO
     }
 
     #[test]
     fn a_resize_is_laid_out_one_frame_later_and_settles() {
         let mut h = harness_native();
-        h.run_steps(4);
+        h.frames(4);
         assert!(!repaint_asked(&h), "precondition: idle");
         CHILD.with_borrow_mut(|child| child.inner = vec2(300.0, 220.0));
-        h.step();
+        h.frames(1);
         assert_eq!(
-            rect_of(&h, PANE).size(),
+            h.rect(Target::suffix(PANE)).size(),
             OPENS_AT.size,
             "laid out at the last size"
         );
         assert!(repaint_asked(&h), "the mismatch asks for the next frame");
-        h.step();
+        h.frames(1);
         assert_eq!(
-            rect_of(&h, PANE).size(),
+            h.rect(Target::suffix(PANE)).size(),
             vec2(300.0, 220.0),
             "one frame later"
         );
-        let frames = h.state().app.frames.len();
-        h.run_steps(4);
-        assert_eq!(rect_of(&h, PANE).size(), vec2(300.0, 220.0));
+        let frames = h.app().frames.len();
+        h.frames(4);
+        assert_eq!(h.rect(Target::suffix(PANE)).size(), vec2(300.0, 220.0));
         assert_eq!(
-            h.state().app.frames.len(),
+            h.app().frames.len(),
             frames,
             "settled: nothing more to report"
         );
@@ -453,7 +454,7 @@ mod native {
             child.position = pos2(260.0, 120.0);
             child.commands.clear();
         });
-        h.run_steps(4);
+        h.frames(4);
         let builders = CHILD.with_borrow(|child| child.builders.clone());
         assert!(builders.len() > 4, "precondition: several frames shown");
         assert!(
@@ -472,57 +473,68 @@ mod native {
             frame: None,
             ..App::default()
         });
-        h.ctx.set_embed_viewports(false);
-        h.run_steps(2);
-        assert_eq!(rect_of(&h, PANE).size(), INLINE, "precondition: inline");
+        h.ctx().set_embed_viewports(false);
+        h.frames(2);
+        assert_eq!(
+            h.rect(Target::suffix(PANE)).size(),
+            INLINE,
+            "precondition: inline"
+        );
         CHILD.with_borrow_mut(|child| child.inner = INLINE);
-        h.state_mut().app.popped = Popped::Out;
-        h.run_steps(4);
+        h.app_mut().popped = Popped::Out;
+        h.frames(4);
         let opened = CHILD.with_borrow(|child| child.builders.first().cloned());
         assert_eq!(opened.expect("shown").inner_size, Some(INLINE));
-        assert_eq!(rect_of(&h, PANE), Rect::from_min_size(Pos2::ZERO, INLINE));
+        assert_eq!(
+            h.rect(Target::suffix(PANE)),
+            Rect::from_min_size(Pos2::ZERO, INLINE)
+        );
     }
 
     #[test]
     fn a_move_and_a_resize_are_reported_once_each() {
         let mut h = harness_native();
-        h.state_mut().app.frames.clear();
-        h.run_steps(4);
-        assert!(h.state().app.frames.is_empty(), "nothing while it stays");
+        h.app_mut().frames.clear();
+        h.frames(4);
+        assert!(h.app().frames.is_empty(), "nothing while it stays");
         CHILD.with_borrow_mut(|child| child.position = pos2(260.0, 120.0));
-        h.run_steps(4);
+        h.frames(4);
         assert_eq!(
-            h.state().app.frames,
+            h.app().frames,
             vec![WindowFrame {
                 position: pos2(260.0, 120.0),
                 size: OPENS_AT.size,
             }]
         );
         CHILD.with_borrow_mut(|child| child.inner = vec2(300.0, 220.0));
-        h.run_steps(4);
-        assert_eq!(h.state().app.frames.len(), 2, "{:?}", h.state().app.frames);
-        assert_eq!(h.state().app.frames[1].size, vec2(300.0, 220.0));
+        h.frames(4);
+        assert_eq!(h.app().frames.len(), 2, "{:?}", h.app().frames);
+        assert_eq!(h.app().frames[1].size, vec2(300.0, 220.0));
     }
 
     #[test]
     fn a_close_request_runs_on_close_once_and_the_window_is_gone_the_next_frame() {
         let mut h = harness_native();
         CHILD.with_borrow_mut(|child| child.close = true);
-        h.step();
-        assert_eq!(h.state().app.closes, 1);
+        h.frames(1);
+        assert_eq!(h.app().closes, 1);
         assert!(
             shown_this_step(&mut h).is_empty(),
             "not shown once popped in"
         );
-        h.run_steps(4);
-        assert_eq!(h.state().app.closes, 1);
-        assert_eq!(rect_of(&h, PANE).size(), vec2(200.0, 150.0), "back inline");
+        h.frames(4);
+        assert_eq!(h.app().closes, 1);
+        assert_eq!(
+            h.rect(Target::suffix(PANE)).size(),
+            vec2(200.0, 150.0),
+            "back inline"
+        );
     }
 
     #[test]
     fn a_click_in_the_window_reaches_its_subtree() {
         let mut h = harness_native();
-        let act = rect_of(&h, ACT).center();
+        let act = h.rect(Target::suffix(ACT)).center();
         for pressed in [true, false] {
             CHILD.with_borrow_mut(|child| {
                 child.events.push(Event::PointerMoved(act));
@@ -533,10 +545,10 @@ mod native {
                     modifiers: egui::Modifiers::NONE,
                 });
             });
-            h.step();
+            h.frames(1);
         }
-        h.run_steps(2);
-        assert_eq!(h.state().app.acts, 1);
+        h.frames(2);
+        assert_eq!(h.app().acts, 1);
     }
 
     fn press_in_window(h: &mut H, key: egui::Key) {
@@ -551,29 +563,28 @@ mod native {
                 });
             }
         });
-        h.run_steps(3);
+        h.frames(3);
     }
 
     #[test]
     fn focus_follows_the_subtree_into_its_window() {
         install();
         let mut h = super::harness(App::default());
-        h.ctx.set_embed_viewports(false);
+        h.ctx().set_embed_viewports(false);
         let act = support::id_of(&h, ACT);
         for _ in 0..4 {
-            if h.ctx.memory(|memory| memory.focused()) == Some(act) {
+            if h.ctx().memory(|memory| memory.focused()) == Some(act) {
                 break;
             }
-            h.key_press(egui::Key::Tab);
-            h.run_steps(2);
+            h.press(egui::Key::Tab).frames(1);
         }
         assert_eq!(
-            h.ctx.memory(|memory| memory.focused()),
+            h.ctx().memory(|memory| memory.focused()),
             Some(act),
             "precondition: the button has focus inline"
         );
-        h.state_mut().app.popped = Popped::Out;
-        h.run_steps(3);
+        h.app_mut().popped = Popped::Out;
+        h.frames(3);
         assert_eq!(CHILD.with_borrow(|child| child.focused), Some(act));
     }
 
@@ -587,10 +598,10 @@ mod native {
             Some(act),
             "precondition: the button has focus in the window"
         );
-        assert_ne!(h.ctx.memory(|memory| memory.focused()), Some(act));
-        h.state_mut().app.popped = Popped::In;
-        h.run_steps(3);
-        assert_eq!(h.ctx.memory(|memory| memory.focused()), Some(act));
+        assert_ne!(h.ctx().memory(|memory| memory.focused()), Some(act));
+        h.app_mut().popped = Popped::In;
+        h.frames(3);
+        assert_eq!(h.ctx().memory(|memory| memory.focused()), Some(act));
     }
 
     #[test]
@@ -607,7 +618,7 @@ mod native {
             );
             reached.extend(focused);
             assert_eq!(
-                h.ctx.memory(|memory| memory.focused()),
+                h.ctx().memory(|memory| memory.focused()),
                 None,
                 "the page is untouched"
             );
@@ -622,15 +633,15 @@ mod native {
     fn a_shortcut_of_the_page_fires_from_the_window() {
         let mut h = harness_native();
         press_in_window(&mut h, Key::H);
-        assert_eq!(h.state().app.helps, 1);
+        assert_eq!(h.app().helps, 1);
     }
 
     #[test]
     fn an_overlay_declared_in_the_window_opens_in_the_window() {
         let mut h = harness_native();
-        h.state_mut().app.menu = true;
-        h.run_steps(4);
-        let item = rect_of(&h, "/\"pane\"/\"menu\"/\"item\"");
+        h.app_mut().menu = true;
+        h.frames(4);
+        let item = h.rect(Target::suffix("/\"pane\"/\"menu\"/\"item\""));
         let window = Rect::from_min_size(Pos2::ZERO, OPENS_AT.size);
         assert!(
             window.contains_rect(item),
@@ -646,10 +657,10 @@ mod native {
                     modifiers: egui::Modifiers::NONE,
                 });
             });
-            h.step();
+            h.frames(1);
         }
-        h.run_steps(2);
-        assert_eq!(h.state().app.items, 1);
+        h.frames(2);
+        assert_eq!(h.app().items, 1);
     }
 }
 
@@ -663,44 +674,59 @@ mod example_cards {
     #[test]
     fn a_cards_button_pops_it_out_and_back_in() {
         let tokens = eggshell_ui_shadcn::Tokens::for_theme(egui::Theme::Light);
-        let mut h = support::harness(
+        let mut h = support::driver(
             vec2(800.0, 700.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             example::State::default(),
             example::layout,
-        );
-        h.state_mut().companion = support::Companion::Alone;
-        h.run_steps(4);
-        h.get_all_by_label("Pop out")
+        )
+        .build();
+        support::set_companion(&h, support::Companion::Alone);
+        h.frames(4);
+        h.harness()
+            .get_all_by_label("Pop out")
             .next()
             .expect("a card")
             .click();
-        h.run_steps(4);
-        assert_eq!(h.state().app.popped[0], Popped::Out);
-        assert!(h.query_by_label("Revenue is in its own window").is_some());
-        h.get_by_label("Pop in").click();
-        h.run_steps(4);
-        assert_eq!(h.state().app.popped[0], Popped::In);
-        assert!(h.query_by_label("Revenue is in its own window").is_none());
+        h.frames(4);
+        assert_eq!(h.app().popped[0], Popped::Out);
+        assert!(
+            h.harness()
+                .query_by_label("Revenue is in its own window")
+                .is_some()
+        );
+        h.harness().get_by_label("Pop in").click();
+        h.frames(4);
+        assert_eq!(h.app().popped[0], Popped::In);
+        assert!(
+            h.harness()
+                .query_by_label("Revenue is in its own window")
+                .is_none()
+        );
     }
 
     #[test]
     fn a_card_with_a_scroll_body_opens_at_its_inline_size() {
         const CARD: &str = "/Grid/Card(0)";
         let tokens = eggshell_ui_shadcn::Tokens::for_theme(egui::Theme::Light);
-        let mut h = support::harness(
+        let mut h = support::driver(
             vec2(800.0, 700.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             example::State::default(),
             example::layout,
-        );
-        h.state_mut().companion = support::Companion::Alone;
-        h.run_steps(4);
-        let inline = rect_of(&h, CARD).size();
+        )
+        .build();
+        support::set_companion(&h, support::Companion::Alone);
+        h.frames(4);
+        let inline = h.rect(Target::suffix(CARD)).size();
         assert_eq!(inline.y, 220.0, "precondition: the card's inline height");
-        h.state_mut().app.popped[0] = Popped::Out;
-        h.run_steps(4);
-        assert!(h.query_by_label("Revenue is in its own window").is_some());
-        assert_eq!(rect_of(&h, CARD).size(), inline);
+        h.app_mut().popped[0] = Popped::Out;
+        h.frames(4);
+        assert!(
+            h.harness()
+                .query_by_label("Revenue is in its own window")
+                .is_some()
+        );
+        assert_eq!(h.rect(Target::suffix(CARD)).size(), inline);
     }
 }
