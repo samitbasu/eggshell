@@ -1492,6 +1492,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
             pointer_events: tw.pointer_events,
+            visibility: tw.visibility,
             region: None,
             collapse: parts.collapse,
             description: None,
