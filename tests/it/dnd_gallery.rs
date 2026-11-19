@@ -34,7 +34,11 @@ const FACE_INSET: f32 = 4.0;
 
 fn harness_with(
     state: State,
-    frame: fn(&mut egui::Ui, &mut State, &mut eggshell_ui::LayoutState),
+    frame: fn(
+        &mut egui::Ui,
+        &mut State,
+        &mut eggshell_ui::LayoutState,
+    ) -> eggshell_ui::testing::PlacedFrame,
 ) -> H {
     let mut d = support::recorded(support::frame_driver(
         SIZE,
@@ -49,8 +53,12 @@ fn harness_with(
 /// One frame of the window exactly as `main` draws it, toolbar tree first.
 /// The toolbar's tree has no animations to keep, so a fresh layout state per
 /// frame is fine here.
-pub fn window_frame(ui: &mut egui::Ui, app: &mut State, layout: &mut eggshell_ui::LayoutState) {
-    gallery::window(ui, app, layout, &mut eggshell_ui::LayoutState::new());
+pub fn window_frame(
+    ui: &mut egui::Ui,
+    app: &mut State,
+    layout: &mut eggshell_ui::LayoutState,
+) -> eggshell_ui::testing::PlacedFrame {
+    gallery::window(ui, app, layout, &mut eggshell_ui::LayoutState::new())
 }
 
 fn harness(cols: usize) -> H {
@@ -469,7 +477,11 @@ fn changing_the_column_count_reflows_with_final_layout_and_a_slide() {
 }
 
 /// The gallery under a toolbar strip, as `main` lays it out.
-fn under_a_toolbar(ui: &mut egui::Ui, app: &mut State, layout: &mut eggshell_ui::LayoutState) {
+fn under_a_toolbar(
+    ui: &mut egui::Ui,
+    app: &mut State,
+    layout: &mut eggshell_ui::LayoutState,
+) -> eggshell_ui::testing::PlacedFrame {
     egui::Panel::top("toolbar")
         .exact_size(44.0)
         .show_separator_line(false)
@@ -480,7 +492,8 @@ fn under_a_toolbar(ui: &mut egui::Ui, app: &mut State, layout: &mut eggshell_ui:
         });
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE)
-        .show(ui, |ui| gallery::frame(ui, app, layout));
+        .show(ui, |ui| gallery::frame(ui, app, layout))
+        .inner
 }
 
 /// The trace painted last, which is the lifted panel's: its shapes are on the

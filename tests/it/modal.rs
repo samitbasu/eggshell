@@ -5,7 +5,7 @@
 use eggshell_ui::overlay::{DismissOn, Modal, Shown, Side};
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::testing::{Driver, PlacedFrame, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, Pos2, Role, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -887,7 +887,7 @@ mod two_frames {
         state: State,
     }
 
-    fn frame(ui: &mut Ui, shell: &mut Shell, page: &mut LayoutState) {
+    fn frame(ui: &mut Ui, shell: &mut Shell, page: &mut LayoutState) -> PlacedFrame {
         let area = ui.max_rect();
         let ctx = ui.ctx().clone();
         let top = egui::Rect::from_min_size(area.min, vec2(area.width(), 10.0));
@@ -901,7 +901,7 @@ mod two_frames {
         page.set_base_text(Some(common::base_text(egui::Theme::Light)));
         page.build(&ctx, |b| dialog::layout(b, &shell.state))
             .layout(area)
-            .draw(&mut shell.state, ui);
+            .draw(&mut shell.state, ui)
     }
 
     #[test]
@@ -1115,77 +1115,74 @@ mod closers {
         }
     }
 
-    fn opened(app: App) -> Harness<'static, Rig<App>> {
-        let mut harness = support::harness(
+    fn opened(app: App) -> Driver<App> {
+        let mut d = support::driver(
             vec2(400.0, 400.0),
             base_text(),
             App { open: true, ..app },
             view,
-        );
-        settle(&mut harness);
-        harness
+        )
+        .build();
+        d.frames(12);
+        d
     }
 
     #[test]
     fn a_closer_runs_its_handler_then_on_dismiss_once() {
-        let mut harness = opened(App::default());
-        click_node(&mut harness, "/Dlg/Box/Close");
-        settle(&mut harness);
-        assert_eq!(harness.state().app.log, ["close", "dismissed"]);
-        assert!(!harness.state().app.open);
+        let mut d = opened(App::default());
+        d.click(Target::suffix("/Dlg/Box/Close")).frames(12);
+        assert_eq!(d.app().log, ["close", "dismissed"]);
+        assert!(!d.app().open);
     }
 
     #[test]
     fn esc_presses_a_handlerless_dismissing_cancel_which_runs_on_dismiss_once() {
-        let mut harness = opened(App::default());
-        press_key(&mut harness, Key::Escape);
-        assert_eq!(harness.state().app.log, ["dismissed"]);
-        assert!(!harness.state().app.open);
+        let mut d = opened(App::default());
+        d.press(Key::Escape).frames(11);
+        assert_eq!(d.app().log, ["dismissed"]);
+        assert!(!d.app().open);
     }
 
     #[test]
     fn a_closer_closes_a_modal_that_must_be_answered() {
-        let mut harness = opened(App {
+        let mut d = opened(App {
             dismiss_on: DismissOn::Never,
             ..App::default()
         });
-        click_at(&mut harness, pos2(5.0, 5.0));
-        assert!(harness.state().app.log.is_empty(), "precondition: held");
-        click_node(&mut harness, "/Dlg/Box/Close");
-        settle(&mut harness);
-        assert_eq!(harness.state().app.log, ["close", "dismissed"]);
+        d.click(pos2(5.0, 5.0)).frames(12);
+        assert!(d.app().log.is_empty(), "precondition: held");
+        d.click(Target::suffix("/Dlg/Box/Close")).frames(12);
+        assert_eq!(d.app().log, ["close", "dismissed"]);
     }
 
     #[test]
     fn a_closer_in_a_nested_overlay_closes_only_that_overlay() {
-        let mut harness = opened(App {
+        let mut d = opened(App {
             popover: true,
             ..App::default()
         });
-        click_node(&mut harness, "/Dlg/Box/Pop/PopClose");
-        settle(&mut harness);
-        assert_eq!(harness.state().app.log, ["popover dismissed"]);
-        assert!(harness.state().app.open, "the dialog stays");
+        d.click(Target::suffix("/Dlg/Box/Pop/PopClose")).frames(12);
+        assert_eq!(d.app().log, ["popover dismissed"]);
+        assert!(d.app().open, "the dialog stays");
     }
 
     #[test]
     fn a_closer_outside_any_overlay_only_runs_its_handler() {
-        let mut harness = support::harness(vec2(400.0, 400.0), base_text(), App::default(), view);
-        settle(&mut harness);
-        click_node(&mut harness, "/Page/Plain");
-        settle(&mut harness);
-        assert_eq!(harness.state().app.log, ["plain"]);
+        let mut d = support::driver(vec2(400.0, 400.0), base_text(), App::default(), view).build();
+        d.frames(12);
+        d.click(Target::suffix("/Page/Plain")).frames(12);
+        assert_eq!(d.app().log, ["plain"]);
     }
 
     #[test]
     fn an_overlay_and_a_node_carry_their_descriptions() {
-        let harness = opened(App::default());
-        let dialog = harness.get_by_role_and_label(Role::Dialog, "Edit");
+        let d = opened(App::default());
+        let dialog = d.harness().get_by_role_and_label(Role::Dialog, "Edit");
         assert_eq!(
             dialog.accesskit_node().data().description(),
             Some("Make your changes.")
         );
-        let note = harness.get_by_role_and_label(Role::Note, "Note");
+        let note = d.harness().get_by_role_and_label(Role::Note, "Note");
         assert_eq!(
             note.accesskit_node().data().description(),
             Some("Read me after the name.")
