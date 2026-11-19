@@ -59,6 +59,7 @@ pub(crate) struct Viewport {
     pub(crate) stack: Stack,
     pub(crate) typing: Typing,
     pub(crate) tooltips: Tooltips,
+    pub(crate) hover_cards: crate::hover::Cards,
     pub(crate) drags: crate::dnd::Drags,
     pub(crate) focus: crate::focus::Held,
     pub(crate) navigation: crate::nav::Navigation,
