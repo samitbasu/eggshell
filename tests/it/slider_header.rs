@@ -405,15 +405,19 @@ fn escape_reverts_what_was_typed() {
 }
 
 #[test]
-fn a_click_away_reverts_what_was_typed() {
+fn a_click_away_commits_what_was_typed() {
     let mut harness = harness();
     open(&mut harness);
     harness.key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
     type_text(&mut harness, "10");
+    assert!(
+        harness.state().app.changes.is_empty(),
+        "nothing while typing"
+    );
     click_node(&mut harness, "/\"elsewhere\"");
     harness.run_steps(6);
-    assert!(harness.state().app.changes.is_empty());
-    text_color(&harness, rect_of(&harness, READOUT).expand(1.0), "40%");
+    assert_eq!(harness.state().app.changes, [10.0]);
+    text_color(&harness, rect_of(&harness, READOUT).expand(1.0), "10%");
 }
 
 #[test]

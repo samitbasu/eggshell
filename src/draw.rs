@@ -617,13 +617,10 @@ impl<A> Walk<'_, A> {
         let mut response = node_ui(self.ui, builder, inherited, None, |ui| {
             let own = ui.interact(boxes.hit, id, sense);
             if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
-                let role = plan.description.role.unwrap_or(Role::ScrollView);
-                let name = plan.description.name.as_deref().unwrap_or_default();
-                crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
+                plan.description
+                    .announce(&own, ui.is_enabled().into(), Role::ScrollView);
             } else if let Some(description) = node.description() {
-                let role = description.role.unwrap_or(Role::GenericContainer);
-                let name = description.name.as_deref().unwrap_or_default();
-                crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
+                description.announce(&own, ui.is_enabled().into(), Role::GenericContainer);
             }
             own
         });
@@ -720,9 +717,7 @@ impl<A> Walk<'_, A> {
             |ui| {
                 let response = ui.interact(boxes.border, id, Sense::CLICK | Sense::DRAG);
                 if let Some(description) = described {
-                    let role = description.role.unwrap_or(Role::GenericContainer);
-                    let name = description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&response, ui.is_enabled().into(), role, None, name);
+                    description.announce(&response, ui.is_enabled().into(), Role::GenericContainer);
                 }
                 if modal {
                     ui.ctx()
@@ -929,7 +924,7 @@ impl<A> Walk<'_, A> {
                     walk.interact(index, node, test, &boxes, hidden);
                 }
                 if node.draws_widgets() {
-                    walk.run_draw(index, &boxes, hidden, node.text(), None);
+                    walk.run_draw(index, &boxes, hidden, node.text(), (None, None));
                 }
             }
             for child in nodes.in_paint_order(index) {
@@ -1158,14 +1153,13 @@ impl<A> Walk<'_, A> {
                 parent.interactive
             },
         };
-        if let Some(prim) = self.shared.prims.get_mut(index).and_then(Option::take)
-            && shown
-        {
-            self.paint_prim(prim, index, node, &text, &boxes, inherited);
-        }
+        let prim = self.shared.prims.get_mut(index).and_then(Option::take);
+        let elided = prim
+            .filter(|_| shown)
+            .and_then(|prim| self.paint_prim(prim, index, node, &text, &boxes, inherited));
         if shown {
             let bubbled = response.as_ref().filter(|_| merged == Merged::Bubbled);
-            self.run_draw(index, &boxes, inherited, &text, bubbled);
+            self.run_draw(index, &boxes, inherited, &text, (bubbled, elided));
         }
 
         if let Some(scroll) = node.as_scroll() {
@@ -1206,7 +1200,7 @@ impl<A> Walk<'_, A> {
         boxes: &Boxes,
         inherited: Inherited,
         text: &TextStyle,
-        bubbled: Option<&Response>,
+        (bubbled, elided): (Option<&Response>, Option<Elided>),
     ) {
         let Some(node) = self.nodes.node(index) else {
             return;
@@ -1241,6 +1235,11 @@ impl<A> Walk<'_, A> {
                         data.insert_temp(scope, BubbledTag(response.clone()));
                     } else {
                         data.remove::<BubbledTag>(scope);
+                    }
+                    if let Some(elided) = elided {
+                        data.insert_temp(scope, elided);
+                    } else {
+                        data.remove::<Elided>(scope);
                     }
                 });
                 for draw in draws {
@@ -1408,11 +1407,10 @@ impl<A> Walk<'_, A> {
         text: &TextStyle,
         boxes: &Boxes,
         inherited: Inherited,
-    ) {
+    ) -> Option<Elided> {
         let content = boxes.content;
         if let Some(leaf) = TextLeaf::of(self.ui.ctx(), &prim, (text, &node.style.rich)) {
-            self.paint_text(&leaf, index, node, boxes, inherited);
-            return;
+            return self.paint_text(&leaf, index, node, boxes, inherited);
         }
         match prim {
             Prim::Icon(icon) => {
@@ -1426,6 +1424,7 @@ impl<A> Walk<'_, A> {
             ),
             Prim::Text(_) | Prim::Rich(_) | Prim::Spans(_) => {}
         }
+        None
     }
 
     fn paint_text(
@@ -1435,13 +1434,14 @@ impl<A> Walk<'_, A> {
         node: &PlacedNode,
         boxes: &Boxes,
         inherited: Inherited,
-    ) {
+    ) -> Option<Elided> {
         let content = boxes.content;
         let text = leaf.style;
         let (galley, underlines) = self
             .ui
             .ctx()
             .fonts_mut(|fonts| leaf.drawn_galley(fonts, boxes.wrap_width));
+        let elided = galley.elided.then(|| Elided(galley.text().into()));
         let top = node
             .text_valign()
             .offset(content.height() - galley.size().y);
@@ -1487,6 +1487,7 @@ impl<A> Walk<'_, A> {
         if let (Some(marks), Some(response), Some(node)) = (links, response, node.id()) {
             spans::follow(&response, &runs, marks, anchor, node);
         }
+        elided
     }
 
     fn sense_links(&mut self, id: Id, content: Rect, inherited: Inherited) -> Response {
@@ -2130,6 +2131,18 @@ struct TextTag(TextStyle);
 
 #[derive(Clone)]
 struct StyleTag(Arc<Style>);
+
+/// The full text of the node's own text, which was drawn cut short.
+#[derive(Clone)]
+pub(crate) struct Elided(Arc<str>);
+
+/// The full text of the node whose draw closure is running, if its own text
+/// was drawn cut short this pass.
+pub(crate) fn elided_text(ui: &Ui) -> Option<Arc<str>> {
+    let scope = ui.unique_id();
+    ui.data(|data| data.get_temp::<Elided>(scope))
+        .map(|tag| tag.0)
+}
 
 /// The node's response with what its subtree's boxes won merged in, for
 /// [`NodeUi::node_response`].
