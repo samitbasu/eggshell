@@ -5,10 +5,10 @@
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Role, Theme, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-use crate::support::{self, Rig, click_node};
+use crate::support;
+use eggshell_ui::testing::{Driver, Target};
 
 /// Neither `Hash` nor `Debug`, as a generated FFI enum may be.
 #[derive(Clone, Copy, PartialEq)]
@@ -74,9 +74,9 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
+fn harness() -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 600.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App {
@@ -88,25 +88,25 @@ fn harness() -> Harness<'static, Rig<App>> {
             pass_seen: 0,
         },
         view,
-    );
-    harness.run_steps(8);
-    harness
+    )
+    .build();
+    d.frames(8);
+    d
 }
 
 #[test]
 fn controls_take_handlers_that_own_data_and_values_without_hash() {
-    let mut harness = harness();
-    click_node(&mut harness, "/\"seg\"/1");
-    click_node(&mut harness, "/\"radio\"/Circle(2)");
-    click_node(&mut harness, "/\"check\"/Box");
-    click_node(&mut harness, "/\"switch\"/Track");
-    click_node(&mut harness, "/\"select\"");
-    harness.run_steps(4);
-    harness
+    let mut d = harness();
+    d.click(Target::suffix("/\"seg\"/1"));
+    d.click(Target::suffix("/\"radio\"/Circle(2)"));
+    d.click(Target::suffix("/\"check\"/Box"));
+    d.click(Target::suffix("/\"switch\"/Track"));
+    d.click(Target::suffix("/\"select\"")).frames(4);
+    d.harness()
         .get_by_role_and_label(Role::ListBoxOption, "Fast")
         .click();
-    harness.run_steps(4);
-    let app = &harness.state().app;
+    d.frames(4);
+    let app = d.app();
     assert!(app.segmented == Mode::Slow);
     assert!(app.radio == Mode::Fast);
     assert!(app.select == Mode::Fast);
@@ -118,25 +118,22 @@ fn controls_take_handlers_that_own_data_and_values_without_hash() {
 
 #[test]
 fn a_slider_and_a_stepper_call_a_handler_that_owns_data() {
-    let mut harness = harness();
-    harness.get_by_label("Level").focus();
-    harness.run_steps(2);
-    harness.key_press(egui::Key::ArrowRight);
-    harness.run_steps(3);
-    harness.get_by_label("Count").focus();
-    harness.run_steps(2);
-    harness.key_press(egui::Key::ArrowUp);
-    harness.run_steps(3);
-    let log = &harness.state().app.log;
+    let mut d = harness();
+    d.harness().get_by_label("Level").focus();
+    d.frames(2);
+    d.press(egui::Key::ArrowRight).frames(2);
+    d.harness().get_by_label("Count").focus();
+    d.frames(2);
+    d.press(egui::Key::ArrowUp).frames(2);
+    let log = &d.app().log;
     assert!(log.contains(&"row-7: slider".to_owned()), "{log:?}");
     assert!(log.contains(&"row-7: stepper".to_owned()), "{log:?}");
 }
 
 #[test]
 fn a_click_handler_gets_the_context() {
-    let mut harness = harness();
-    assert_eq!(harness.state().app.pass_seen, 0, "precondition");
-    click_node(&mut harness, "/\"copy\"");
-    harness.run_steps(3);
-    assert!(harness.state().app.pass_seen > 0);
+    let mut d = harness();
+    assert_eq!(d.app().pass_seen, 0, "precondition");
+    d.click(Target::suffix("/\"copy\"")).frames(3);
+    assert!(d.app().pass_seen > 0);
 }

@@ -1,11 +1,11 @@
 //! Selectable text (issue #39) through the real path: pointer drags and
 //! `Event::Copy` dispatched by kittest into egui's label selection.
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use egui::{Event, OutputCommand, Pos2, Rect, pos2, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, drag, press_and_release, rect_of};
+use crate::support;
 
 const FIRST: &str = "Alpha bravo charlie";
 const SECOND: &str = "Delta echo foxtrot";
@@ -54,8 +54,8 @@ fn base() -> TextStyle {
     TextStyle::new(tokens.text_role(), tokens.foreground)
 }
 
-fn harness(select: Select) -> Harness<'static, Rig<App>> {
-    let mut harness = support::harness(
+fn harness(select: Select) -> Driver<App> {
+    let mut d = support::driver(
         vec2(300.0, 200.0),
         base(),
         App {
@@ -63,19 +63,19 @@ fn harness(select: Select) -> Harness<'static, Rig<App>> {
             ..App::default()
         },
         view,
-    );
-    harness.run_steps(6);
-    harness
+    )
+    .build();
+    d.frames(6);
+    d
 }
 
-fn text_of(harness: &Harness<'_, Rig<App>>, node: &str) -> Rect {
-    rect_of(harness, &format!("/\"{node}\"/<text>"))
+fn text_of(d: &Driver<App>, node: &str) -> Rect {
+    d.rect(Target::suffix(&format!("/\"{node}\"/<text>")))
 }
 
-fn copied(harness: &mut Harness<'_, Rig<App>>) -> Option<String> {
-    harness.event(Event::Copy);
-    harness.step();
-    harness
+fn copied(d: &mut Driver<App>) -> Option<String> {
+    d.event(Event::Copy);
+    d.harness()
         .output()
         .platform_output
         .commands
@@ -92,31 +92,23 @@ fn inside(rect: Rect, x: f32) -> Pos2 {
 
 #[test]
 fn dragging_across_a_paragraph_selects_and_copies_it() {
-    let mut harness = harness(Select::Auto);
-    let rect = text_of(&harness, "first");
+    let mut d = harness(Select::Auto);
+    let rect = text_of(&d, "first");
     assert!(
         rect.width() > 60.0,
         "the paragraph is wide enough to drag in"
     );
-    drag(
-        &mut harness,
-        inside(rect, 1.0),
-        inside(rect, rect.width() - 1.0),
-    );
-    assert_eq!(copied(&mut harness).as_deref(), Some(FIRST));
+    d.drag(inside(rect, 1.0), inside(rect, rect.width() - 1.0));
+    assert_eq!(copied(&mut d).as_deref(), Some(FIRST));
 }
 
 #[test]
 fn dragging_from_one_paragraph_to_the_next_copies_both() {
-    let mut harness = harness(Select::Auto);
-    let (first, second) = (text_of(&harness, "first"), text_of(&harness, "second"));
+    let mut d = harness(Select::Auto);
+    let (first, second) = (text_of(&d, "first"), text_of(&d, "second"));
     assert!(first.max.y < second.min.y, "the paragraphs are stacked");
-    drag(
-        &mut harness,
-        inside(first, 1.0),
-        inside(second, second.width() - 1.0),
-    );
-    let copied = copied(&mut harness).expect("something was copied");
+    d.drag(inside(first, 1.0), inside(second, second.width() - 1.0));
+    let copied = copied(&mut d).expect("something was copied");
     assert!(
         copied.contains(FIRST) && copied.contains(SECOND),
         "{copied:?}"
@@ -125,48 +117,36 @@ fn dragging_from_one_paragraph_to_the_next_copies_both() {
 
 #[test]
 fn a_click_on_text_inside_a_clickable_row_activates_it_and_selects_nothing() {
-    let mut harness = harness(Select::Auto);
-    let row = rect_of(&harness, "/\"row\"");
+    let mut d = harness(Select::Auto);
+    let row = d.rect(Target::suffix("/\"row\""));
     assert!(row.width() > 20.0);
-    drag(
-        &mut harness,
-        inside(row, 1.0),
-        inside(row, row.width() - 1.0),
-    );
-    press_and_release(&mut harness, row.center());
-    assert_eq!(harness.state().app.row_clicks, 1);
-    assert_eq!(copied(&mut harness), None);
+    d.drag(inside(row, 1.0), inside(row, row.width() - 1.0));
+    press_and_release(&mut d, row.center());
+    assert_eq!(d.app().row_clicks, 1);
+    assert_eq!(copied(&mut d), None);
 }
 
 #[test]
 fn select_none_text_cannot_be_selected() {
-    let mut harness = harness(Select::None);
-    let rect = text_of(&harness, "first");
-    drag(
-        &mut harness,
-        inside(rect, 1.0),
-        inside(rect, rect.width() - 1.0),
-    );
-    assert_eq!(copied(&mut harness), None);
+    let mut d = harness(Select::None);
+    let rect = text_of(&d, "first");
+    d.drag(inside(rect, 1.0), inside(rect, rect.width() - 1.0));
+    assert_eq!(copied(&mut d), None);
 }
 
 #[test]
 fn select_text_makes_a_clickable_row_selectable() {
-    let mut harness = harness(Select::Text);
-    let row = rect_of(&harness, "/\"row\"");
-    drag(
-        &mut harness,
-        inside(row, 1.0),
-        inside(row, row.width() - 1.0),
-    );
-    assert_eq!(copied(&mut harness).as_deref(), Some("Clickable row"));
+    let mut d = harness(Select::Text);
+    let row = d.rect(Target::suffix("/\"row\""));
+    d.drag(inside(row, 1.0), inside(row, row.width() - 1.0));
+    assert_eq!(copied(&mut d).as_deref(), Some("Clickable row"));
 }
 
 #[test]
 fn selecting_does_not_change_layout() {
     let rects = |select: Select| {
-        let harness = harness(select);
-        harness.state().nodes.clone()
+        let d = harness(select);
+        support::nodes(&d)
     };
     let selectable = rects(Select::Text);
     assert_eq!(selectable, rects(Select::None));
@@ -175,14 +155,22 @@ fn selecting_does_not_change_layout() {
 
 #[test]
 fn a_live_selection_does_not_move_anything() {
-    let mut harness = harness(Select::Auto);
-    let before = harness.state().nodes.clone();
-    let rect = text_of(&harness, "first");
-    drag(
-        &mut harness,
-        inside(rect, 1.0),
-        inside(rect, rect.width() - 1.0),
-    );
-    assert!(copied(&mut harness).is_some(), "there is a selection");
-    assert_eq!(harness.state().nodes, before);
+    let mut d = harness(Select::Auto);
+    let before = support::nodes(&d);
+    let rect = text_of(&d, "first");
+    d.drag(inside(rect, 1.0), inside(rect, rect.width() - 1.0));
+    assert!(copied(&mut d).is_some(), "there is a selection");
+    assert_eq!(support::nodes(&d), before);
+}
+
+/// A primary press and release at `at`, a frame each, with no hover first.
+fn press_and_release(d: &mut Driver<App>, at: Pos2) {
+    for pressed in [true, false] {
+        d.event(Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
 }

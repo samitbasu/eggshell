@@ -4,9 +4,9 @@
 use eggshell_ui::prim::text_field::Enter;
 use eggshell_ui::{Blur, Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node, focused_node};
+use crate::support::{self, focused_node};
+use eggshell_ui::testing::{Driver, Target};
 
 const NAME: &str = r#"/"Page"/"name""#;
 const OTHER: &str = r#"/"Page"/"other""#;
@@ -50,94 +50,83 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(enter: Enter) -> Harness<'static, Rig<App>> {
+fn harness(enter: Enter) -> Driver<App> {
     let app = App {
         enter,
         ..App::default()
     };
-    let mut harness = support::harness(vec2(400.0, 200.0), base_text(), app, view);
-    harness.run_steps(4);
-    harness
+    let mut d = support::driver(vec2(400.0, 200.0), base_text(), app, view).build();
+    d.frames(4);
+    d
 }
 
-fn typing(enter: Enter) -> Harness<'static, Rig<App>> {
-    let mut harness = harness(enter);
-    click_node(&mut harness, NAME);
-    harness.run_steps(6);
-    harness.event(Event::Text("abc".into()));
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.draft, "abc", "precondition: typed");
+fn typing(enter: Enter) -> Driver<App> {
+    let mut d = harness(enter);
+    d.click(Target::suffix(NAME)).frames(6);
+    d.event(Event::Text("abc".into())).frames(3);
+    assert_eq!(d.app().draft, "abc", "precondition: typed");
     assert_eq!(
-        focused_node(&harness).as_deref(),
+        focused_node(&d).as_deref(),
         Some(NAME),
         "precondition: the field has focus"
     );
-    harness
+    d
 }
 
 #[test]
 fn enter_with_keep_focus_submits_and_the_field_stays_focused() {
-    let mut harness = typing(Enter::KeepFocus);
-    harness.key_press(Key::Enter);
-    harness.run_steps(6);
-    let app = &harness.state().app;
+    let mut d = typing(Enter::KeepFocus);
+    d.press(Key::Enter).frames(5);
+    let app = d.app();
     assert_eq!(app.submitted, 1);
     assert!(app.blurs.is_empty(), "no blur: {:?}", app.blurs);
-    assert_eq!(focused_node(&harness).as_deref(), Some(NAME));
-    harness.key_press(Key::Enter);
-    harness.run_steps(6);
-    assert_eq!(harness.state().app.submitted, 2, "and again");
+    assert_eq!(focused_node(&d).as_deref(), Some(NAME));
+    d.press(Key::Enter).frames(5);
+    assert_eq!(d.app().submitted, 2, "and again");
 }
 
 #[test]
 fn enter_by_default_submits_and_blurs() {
-    let mut harness = typing(Enter::Submit);
-    harness.key_press(Key::Enter);
-    harness.run_steps(6);
-    let app = &harness.state().app;
+    let mut d = typing(Enter::Submit);
+    d.press(Key::Enter).frames(5);
+    let app = d.app();
     assert_eq!(app.submitted, 1);
     assert_eq!(app.blurs, [Blur::Submitted]);
-    assert_eq!(focused_node(&harness), None);
+    assert_eq!(focused_node(&d), None);
 }
 
 #[test]
 fn an_enter_that_confirms_an_ime_composition_does_not_submit() {
-    let mut harness = typing(Enter::KeepFocus);
-    harness.event(Event::Ime(egui::ImeEvent::Commit("x".into())));
-    harness.key_press(Key::Enter);
-    harness.run_steps(6);
-    assert_eq!(
-        harness.state().app.submitted,
-        0,
-        "the Enter belonged to the IME"
-    );
-    harness.key_press(Key::Enter);
-    harness.run_steps(6);
-    assert_eq!(harness.state().app.submitted, 1, "the next one submits");
+    let mut d = typing(Enter::KeepFocus);
+    d.harness()
+        .event(Event::Ime(egui::ImeEvent::Commit("x".into())));
+    d.press(Key::Enter).frames(5);
+    assert_eq!(d.app().submitted, 0, "the Enter belonged to the IME");
+    d.press(Key::Enter).frames(5);
+    assert_eq!(d.app().submitted, 1, "the next one submits");
 }
 
 #[test]
 fn a_changed_token_focuses_the_field_once() {
-    let mut harness = harness(Enter::Submit);
+    let mut d = harness(Enter::Submit);
     assert_eq!(
-        focused_node(&harness),
+        focused_node(&d),
         None,
         "the first sight of a token asks for nothing"
     );
-    harness.state_mut().app.token = 1;
-    harness.run_steps(4);
-    assert_eq!(focused_node(&harness).as_deref(), Some(NAME));
-    click_node(&mut harness, OTHER);
-    harness.run_steps(6);
+    d.app_mut().token = 1;
+    d.frames(4);
+    assert_eq!(focused_node(&d).as_deref(), Some(NAME));
+    d.click(Target::suffix(OTHER)).frames(6);
     assert_eq!(
-        focused_node(&harness).as_deref(),
+        focused_node(&d).as_deref(),
         Some(OTHER),
         "an unchanged token leaves the user's focus alone"
     );
-    harness.state_mut().app.token = 2;
-    harness.run_steps(4);
+    d.app_mut().token = 2;
+    d.frames(4);
     assert_eq!(
-        focused_node(&harness).as_deref(),
+        focused_node(&d).as_deref(),
         Some(NAME),
         "a new token asks again"
     );

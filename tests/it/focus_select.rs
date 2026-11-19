@@ -3,11 +3,11 @@
 
 use eggshell_ui::owned::Step;
 use eggshell_ui::prim::text_field::Select;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
-use egui::{Color32, Event, FontFamily, Key, vec2};
-use egui_kittest::Harness;
+use egui::{Color32, Event, FontFamily, Key, PointerButton, vec2};
 
-use crate::support::{self, Rig, click_node, focused_node};
+use crate::support::{self, focused_node};
 
 const NAME: &str = r#"/"Page"/"name""#;
 const OTHER: &str = r#"/"Page"/"other""#;
@@ -86,134 +86,123 @@ fn stepper_appears(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(
-    view: fn(&mut Builder<'_, '_, App>, &App),
-    select: Option<Select>,
-) -> Harness<'static, Rig<App>> {
+fn harness(view: fn(&mut Builder<'_, '_, App>, &App), select: Option<Select>) -> Driver<App> {
     let app = App {
         name: DEFAULT.to_owned(),
         select,
         ..App::default()
     };
-    let mut harness = support::harness(vec2(400.0, 200.0), base_text(), app, view);
-    harness.run_steps(4);
-    harness
+    let mut d = support::driver(vec2(400.0, 200.0), base_text(), app, view).build();
+    d.frames(4);
+    d
 }
 
-fn type_text(harness: &mut Harness<'_, Rig<App>>, text: &str) {
+fn type_text(d: &mut Driver<App>, text: &str) {
     assert_eq!(
-        focused_node(harness).as_deref(),
+        focused_node(d).as_deref(),
         Some(NAME),
         "precondition: the name field has focus"
     );
-    harness.event(Event::Text(text.into()));
-    harness.run_steps(4);
+    d.event(Event::Text(text.into())).frames(3);
 }
 
-fn app_focuses(harness: &mut Harness<'_, Rig<App>>) {
-    harness.state_mut().app.token += 1;
-    harness.run_steps(4);
+fn app_focuses(d: &mut Driver<App>) {
+    d.app_mut().token += 1;
+    d.frames(4);
 }
 
 #[test]
 fn app_focus_selecting_all_lets_typing_replace_the_text() {
-    let mut harness = harness(on_change, Some(Select::All));
-    app_focuses(&mut harness);
-    type_text(&mut harness, "Box");
-    assert_eq!(harness.state().app.name, "Box");
+    let mut d = harness(on_change, Some(Select::All));
+    app_focuses(&mut d);
+    type_text(&mut d, "Box");
+    assert_eq!(d.app().name, "Box");
 }
 
 #[test]
 fn app_focus_selecting_none_appends_as_focus_on_change_does() {
     for select in [Some(Select::None), None] {
-        let mut harness = harness(on_change, select);
-        app_focuses(&mut harness);
-        type_text(&mut harness, "x");
-        assert_eq!(harness.state().app.name, "Item 1x", "{select:?}");
+        let mut d = harness(on_change, select);
+        app_focuses(&mut d);
+        type_text(&mut d, "x");
+        assert_eq!(d.app().name, "Item 1x", "{select:?}");
     }
 }
 
 #[test]
 fn appearing_selecting_all_lets_typing_replace_the_text() {
-    let mut harness = harness(on_appear, None);
-    harness.state_mut().app.shown = true;
-    harness.run_steps(4);
-    type_text(&mut harness, "Box");
-    assert_eq!(harness.state().app.name, "Box");
+    let mut d = harness(on_appear, None);
+    d.app_mut().shown = true;
+    d.frames(4);
+    type_text(&mut d, "Box");
+    assert_eq!(d.app().name, "Box");
 }
 
 #[test]
 fn app_focus_selects_all_again_in_a_field_that_already_has_focus() {
-    let mut harness = harness(on_change, Some(Select::All));
-    app_focuses(&mut harness);
-    type_text(&mut harness, "Box");
-    app_focuses(&mut harness);
-    type_text(&mut harness, "Crate");
-    assert_eq!(harness.state().app.name, "Crate");
+    let mut d = harness(on_change, Some(Select::All));
+    app_focuses(&mut d);
+    type_text(&mut d, "Box");
+    app_focuses(&mut d);
+    type_text(&mut d, "Crate");
+    assert_eq!(d.app().name, "Crate");
 }
 
 #[test]
 fn a_click_into_the_field_places_the_caret_and_selects_nothing() {
-    let mut harness = harness(on_change, Some(Select::All));
-    click_node(&mut harness, NAME);
-    harness.run_steps(6);
-    type_text(&mut harness, "x");
-    let name = &harness.state().app.name;
+    let mut d = harness(on_change, Some(Select::All));
+    d.click(Target::suffix(NAME)).frames(6);
+    type_text(&mut d, "x");
+    let name = &d.app().name;
     assert_eq!(name.chars().count(), DEFAULT.len() + 1, "{name:?}");
 }
 
 #[test]
 fn tab_into_the_field_selects_nothing() {
-    let mut harness = harness(on_change, Some(Select::All));
-    click_node(&mut harness, OTHER);
-    harness.run_steps(6);
+    let mut d = harness(on_change, Some(Select::All));
+    d.click(Target::suffix(OTHER)).frames(6);
     assert_eq!(
-        focused_node(&harness).as_deref(),
+        focused_node(&d).as_deref(),
         Some(OTHER),
         "precondition: Tab starts from the other field"
     );
-    harness.key_press(Key::Tab);
-    harness.run_steps(6);
-    type_text(&mut harness, "x");
-    let name = &harness.state().app.name;
+    d.press(Key::Tab).frames(5);
+    type_text(&mut d, "x");
+    let name = &d.app().name;
     assert_eq!(name.chars().count(), DEFAULT.len() + 1, "{name:?}");
 }
 
 #[test]
 fn a_click_after_app_focus_selected_all_places_the_caret() {
-    let mut harness = harness(on_change, Some(Select::All));
-    app_focuses(&mut harness);
-    click_node(&mut harness, OTHER);
-    harness.run_steps(6);
-    click_node(&mut harness, NAME);
-    harness.run_steps(6);
-    type_text(&mut harness, "x");
-    let name = &harness.state().app.name;
+    let mut d = harness(on_change, Some(Select::All));
+    app_focuses(&mut d);
+    d.click(Target::suffix(OTHER)).frames(6);
+    d.click(Target::suffix(NAME)).frames(6);
+    type_text(&mut d, "x");
+    let name = &d.app().name;
     assert_eq!(name.chars().count(), DEFAULT.len() + 1, "{name:?}");
 }
 
 #[test]
 fn a_stepper_appearing_selecting_all_lets_typing_replace_its_value() {
-    let mut harness = harness(stepper_appears, Some(Select::All));
-    harness.state_mut().app.count = 3.0;
-    harness.state_mut().app.shown = true;
-    harness.run_steps(4);
-    harness.event(Event::Text("7".into()));
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.count, 7.0);
+    let mut d = harness(stepper_appears, Some(Select::All));
+    d.app_mut().count = 3.0;
+    d.app_mut().shown = true;
+    d.frames(4);
+    d.event(Event::Text("7".into())).frames(3);
+    assert_eq!(d.app().count, 7.0);
 }
 
 #[test]
 fn a_stepper_appearing_selecting_none_keeps_its_value_and_takes_the_typing() {
     for select in [Some(Select::None), None] {
-        let mut harness = harness(stepper_appears, select);
-        harness.state_mut().app.count = 3.0;
-        harness.state_mut().app.shown = true;
-        harness.run_steps(4);
-        harness.event(Event::Text("7".into()));
-        harness.run_steps(4);
+        let mut d = harness(stepper_appears, select);
+        d.app_mut().count = 3.0;
+        d.app_mut().shown = true;
+        d.frames(4);
+        d.event(Event::Text("7".into())).frames(3);
         assert_eq!(
-            harness.state().app.count,
+            d.app().count,
             10.0,
             "{select:?}: the 7 joins the 3, and 37 clamps to 10"
         );
@@ -232,16 +221,45 @@ fn halves(b: &mut Builder<'_, '_, App>, app: &App) {
 
 #[test]
 fn a_double_click_in_a_stepper_field_selects_the_whole_value_not_the_word_under_it() {
-    let mut harness = harness(halves, None);
-    harness.state_mut().app.count = 2.5;
-    harness.run_steps(4);
-    let fraction = support::part_rect(&harness, "2.5", "5");
-    support::click_twice(
-        &mut harness,
+    let mut d = harness(halves, None);
+    d.app_mut().count = 2.5;
+    d.frames(4);
+    let fraction = d
+        .painted()
+        .expect("2.5")
+        .part_rect("5")
+        .expect("precondition: \"5\" is on one row");
+    click_twice(
+        &mut d,
         fraction.center(),
         std::time::Duration::from_millis(200),
     );
-    harness.event(Event::Text("7".into()));
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.count, 7.0);
+    d.event(Event::Text("7".into())).frames(3);
+    assert_eq!(d.app().count, 7.0);
+}
+
+/// Clicks twice at `at`, one event a frame as a browser sends them, the
+/// releases `apart` apart.
+fn click_twice(d: &mut Driver<App>, at: egui::Pos2, apart: std::time::Duration) {
+    let frame = d.ctx().input(|input| input.predicted_dt);
+    let frames = (apart.as_secs_f32() / frame).round() as usize;
+    assert!(
+        frames >= 2,
+        "precondition: a press and a release fit in {apart:?}"
+    );
+    press_and_release(d, at);
+    d.frames(frames - 2);
+    press_and_release(d, at);
+    d.frames(6);
+}
+
+fn press_and_release(d: &mut Driver<App>, at: egui::Pos2) {
+    for pressed in [true, false] {
+        d.event(Event::PointerButton {
+            pos: at,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
 }
