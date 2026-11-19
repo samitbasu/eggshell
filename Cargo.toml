@@ -32,6 +32,12 @@ snapshots = ["screenshots", "egui_kittest/snapshot"]
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android", target_os = "ios")))'.dependencies]
 arboard = { version = "3.6", optional = true, default-features = false, features = ["image-data", "wayland-data-control"] }
 
+# The web build's key listener (`web::prevent_claimed_chords`); eframe's
+# web runner already brings both.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.126"
+web-sys = { version = "0.3.103", features = ["Event", "EventTarget", "HtmlCanvasElement", "KeyboardEvent", "Node"] }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 egui_kittest = { version = "0.37", optional = true }
 egui-wgpu = { version = "0.37", optional = true, default-features = false }
@@ -44,7 +50,7 @@ eframe = "0.37"
 egui_kittest = "0.37"
 trybuild = "1"
 eggshell-ui-shadcn = { path = "crates/eggshell-ui-shadcn", features = ["extras"] }
-eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = ["markdown"] }
+eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = ["markdown", "badge", "spinner"] }
 
 # proptest's rng wants a getrandom backend that the browser build does not
 # select, and the fuzzers only run natively.
@@ -77,3 +83,11 @@ workspace = true
 inherits = "dev"
 opt-level = 1
 debug = "line-tables-only"
+
+# `cargo xtask ci`'s release step: the dev build without debug assertions, so
+# the checks gated on them are proven off as in release, without release's
+# rebuild time (#336).
+[profile.release-gates]
+inherits = "dev"
+debug-assertions = false
+overflow-checks = false
