@@ -73,6 +73,8 @@
 //!
 //! The design, with what was built, is in `docs/overlays.md`.
 
+use core::time::Duration;
+
 use crate::tw::Sides;
 use egui::{Id, Order, Pos2, Rect, Vec2, pos2, vec2};
 
@@ -190,7 +192,7 @@ pub enum Band {
     /// Popovers, menus, selects, dialogs and their scrims.
     #[default]
     Popup,
-    /// Tooltips and hover cards. Never sensing.
+    /// Tooltips. Never sensing.
     Tooltip,
 }
 
@@ -396,12 +398,57 @@ pub(crate) struct Behavior {
     pub(crate) outside: Option<Outside>,
     pub(crate) focus: Focus,
     pub(crate) nav: Nav,
+    /// The trigger of a hover card, which hover intent opens.
+    pub(crate) hover: Option<Id>,
 }
 
 impl Behavior {
     /// What a press outside the overlay does to the press.
     pub(crate) fn outside(self) -> Outside {
         self.outside.unwrap_or_else(|| Outside::of(self.nav))
+    }
+}
+
+/// How an overlay that [`hover_anchored`](OverlayChain::hover_anchored)
+/// opens: how long the pointer or the keyboard focus rests on the trigger
+/// before it opens, how long it stays once neither the trigger nor the box
+/// is hovered, and what it says of the trigger to assistive technology.
+///
+/// ```
+/// use core::time::Duration;
+/// use eggshell_ui::overlay::HoverIntent;
+///
+/// let intent = HoverIntent::new(Duration::from_millis(700), Duration::from_millis(300))
+///     .description("Profile of @nextjs");
+/// assert_eq!(intent.close, Duration::from_millis(300));
+/// ```
+#[non_exhaustive]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HoverIntent {
+    /// How long the pointer or focus rests on the trigger before it opens.
+    pub open: Duration,
+    /// How long it stays open once nothing holds it.
+    pub close: Duration,
+    /// The trigger's accessible description: the text of the content, which
+    /// a screen reader cannot reach by focus.
+    pub description: Option<String>,
+}
+
+impl HoverIntent {
+    /// Opens after `open` and closes `close` after the pointer leaves.
+    pub fn new(open: Duration, close: Duration) -> Self {
+        Self {
+            open,
+            close,
+            description: None,
+        }
+    }
+
+    /// Describes the trigger's widgets to assistive technology by `text`.
+    #[must_use]
+    pub fn description(mut self, text: impl Into<String>) -> Self {
+        self.description = Some(text.into());
+        self
     }
 }
 

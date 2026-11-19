@@ -2,6 +2,8 @@ use std::fmt;
 
 use egui::{Color32, Context, Theme};
 
+use eggshell_ui::Tone;
+
 use crate::{BaseColor, Palette, ThemeColor, Tokens};
 
 /// TODO(prose): a pair of tokens the components draw text on: the text
@@ -29,11 +31,17 @@ pub enum ContrastPair {
     DestructiveForegroundOnDestructive,
     /// `popover-foreground` on `popover`.
     PopoverForegroundOnPopover,
+    /// TODO(prose): a tone's colour as text on `background`.
+    ToneOnBackground(Tone),
+    /// TODO(prose): a tone's colour as text on `card`.
+    ToneOnCard(Tone),
+    /// TODO(prose): a tone's foreground on a solid fill of the tone.
+    ToneForegroundOnTone(Tone),
 }
 
 impl ContrastPair {
     /// Every pair.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 19] = [
         Self::ForegroundOnBackground,
         Self::ForegroundOnCard,
         Self::PrimaryForegroundOnPrimary,
@@ -44,6 +52,15 @@ impl ContrastPair {
         Self::LinkOnBackground,
         Self::DestructiveForegroundOnDestructive,
         Self::PopoverForegroundOnPopover,
+        Self::ToneOnBackground(Tone::Info),
+        Self::ToneOnCard(Tone::Info),
+        Self::ToneForegroundOnTone(Tone::Info),
+        Self::ToneOnBackground(Tone::Success),
+        Self::ToneOnCard(Tone::Success),
+        Self::ToneForegroundOnTone(Tone::Success),
+        Self::ToneOnBackground(Tone::Warning),
+        Self::ToneOnCard(Tone::Warning),
+        Self::ToneForegroundOnTone(Tone::Warning),
     ];
 
     /// The pair by shadcn's names, as `text on surface`.
@@ -59,6 +76,15 @@ impl ContrastPair {
             Self::LinkOnBackground => "primary (links) on background",
             Self::DestructiveForegroundOnDestructive => "destructive-foreground on destructive",
             Self::PopoverForegroundOnPopover => "popover-foreground on popover",
+            Self::ToneOnBackground(Tone::Info) => "info on background",
+            Self::ToneOnCard(Tone::Info) => "info on card",
+            Self::ToneForegroundOnTone(Tone::Info) => "info-foreground on info",
+            Self::ToneOnBackground(Tone::Success) => "success on background",
+            Self::ToneOnCard(Tone::Success) => "success on card",
+            Self::ToneForegroundOnTone(Tone::Success) => "success-foreground on success",
+            Self::ToneOnBackground(Tone::Warning) => "warning on background",
+            Self::ToneOnCard(Tone::Warning) => "warning on card",
+            Self::ToneForegroundOnTone(Tone::Warning) => "warning-foreground on warning",
         }
     }
 
@@ -75,6 +101,12 @@ impl ContrastPair {
             Self::LinkOnBackground => (t.primary, t.background),
             Self::DestructiveForegroundOnDestructive => (t.destructive_foreground, t.destructive),
             Self::PopoverForegroundOnPopover => (t.popover_foreground, t.popover),
+            Self::ToneOnBackground(tone) => (t.tones().get(tone).tone, t.background),
+            Self::ToneOnCard(tone) => (t.tones().get(tone).tone, t.card),
+            Self::ToneForegroundOnTone(tone) => {
+                let colours = t.tones().get(tone);
+                (colours.foreground, colours.tone)
+            }
         }
     }
 

@@ -769,7 +769,14 @@ impl Shadcn {
         style.table.cell_padding = 8.0;
         style.table.rule = t.border;
         style.table.rule_width = 1.0;
-        style.table.stripe = clear;
+        style.table.stripe = t.muted.gamma_multiply(0.3);
+        style.table.group_fill = t.muted.gamma_multiply(0.5);
+        style.table.group_text = Some(t.muted_foreground);
+        style.table.group_text_size = Some(TextSize {
+            size: 12.0,
+            line_height: 16.0,
+        });
+        style.table.group_weight = Weight::Medium;
         style.table.hover = t.muted.gamma_multiply(0.5);
         style.table.selected = t.muted;
         style.table.footer_fill = t.muted.gamma_multiply(0.5);
@@ -778,6 +785,7 @@ impl Shadcn {
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);
+        style.tones = t.tones();
         // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
         // selects: `zoom-in-95 slide-in-from-*-2`. DialogContent:
         // `zoom-in-95 duration-200`. SheetContent:
@@ -844,6 +852,7 @@ impl Shadcn {
         {
             self.markdown().install_for(ctx, self.theme);
             self.badge(&style).install_for(ctx, self.theme);
+            self.hover_card().install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
     }
@@ -952,6 +961,17 @@ impl Shadcn {
         badge.remove.glyph = 12.0;
         badge.remove.padding_end = 6.0;
         badge
+    }
+
+    /// TODO(prose): the hover card's look: shadcn's `HoverCardContent`
+    /// (`w-64 rounded-lg bg-popover p-4 shadow-md duration-100`, 4 pt below,
+    /// centred) in this preset's colours, with Radix's 700/300 ms delays.
+    #[cfg(feature = "extras")]
+    pub fn hover_card(&self) -> eggshell_ui_extras::hover_card::HoverCardStyle {
+        let mut card = eggshell_ui_extras::hover_card::HoverCardStyle::from_style(&self.style());
+        card.radius = self.tokens.radius;
+        card.transition = Duration::from_millis(100);
+        card
     }
 
     /// TODO(prose): the Markdown widget's look: shadcn/typeset at its

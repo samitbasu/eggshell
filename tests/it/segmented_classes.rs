@@ -4,7 +4,7 @@
 //! subtree gives them (`Builder::control_size`, `Builder::enablement`).
 
 use eggshell_ui::contract::{Disabled, SegmentedMetrics, Size, Style};
-use eggshell_ui::owned::{Cell, Rows};
+use eggshell_ui::owned::{Cell, SegmentedRows};
 use eggshell_ui::{Builder, Icon, Opacity, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Theme, vec2};
@@ -33,7 +33,7 @@ enum Ambient {
 
 struct App {
     ambient: Ambient,
-    rows: Rows,
+    rows: SegmentedRows,
 }
 
 fn prepare(ctx: &egui::Context, app: &App) {
@@ -69,7 +69,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 .enumerate()
                 .map(|(index, label)| (index, icon(), label));
             let chain = b.segmented("library", 1, options);
-            let chain = if rows == Rows::Wrapping {
+            let chain = if rows == SegmentedRows::Wrapping {
                 chain.wrapping()
             } else {
                 chain
@@ -103,7 +103,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(ambient: Ambient, rows: Rows) -> Harness<'static, Rig<App>> {
+fn harness(ambient: Ambient, rows: SegmentedRows) -> Harness<'static, Rig<App>> {
     let tokens = Tokens::for_theme(Theme::Light);
     let mut harness = support::harness_prepared(
         vec2(500.0, 300.0),
@@ -117,7 +117,7 @@ fn harness(ambient: Ambient, rows: Rows) -> Harness<'static, Rig<App>> {
     harness
 }
 
-fn same_look(ambient: Ambient, rows: Rows) {
+fn same_look(ambient: Ambient, rows: SegmentedRows) {
     let harness = harness(ambient, rows);
     let (library, public) = ("/\"library\"", "/\"public\"");
     let nodes = &harness.state().nodes;
@@ -167,30 +167,30 @@ fn same_look(ambient: Ambient, rows: Rows) {
 
 #[test]
 fn public_classes_draw_the_library_s_control() {
-    same_look(Ambient::Plain, Rows::One);
+    same_look(Ambient::Plain, SegmentedRows::One);
 }
 
 #[test]
 fn they_follow_the_size_a_subtree_gives() {
-    let small = harness(Ambient::Small, Rows::One);
-    let plain = harness(Ambient::Plain, Rows::One);
+    let small = harness(Ambient::Small, SegmentedRows::One);
+    let plain = harness(Ambient::Plain, SegmentedRows::One);
     assert_ne!(
         rect_of(&small, "/\"public\"").height(),
         rect_of(&plain, "/\"public\"").height(),
         "precondition: the small size is another height"
     );
-    same_look(Ambient::Small, Rows::One);
+    same_look(Ambient::Small, SegmentedRows::One);
 }
 
 #[test]
 fn they_follow_an_inert_subtree() {
-    same_look(Ambient::Inert, Rows::One);
+    same_look(Ambient::Inert, SegmentedRows::One);
 }
 
 #[test]
 fn they_fade_as_the_style_fades_disabled_controls() {
-    let faded = harness(Ambient::InertFaded, Rows::One);
-    let colours = harness(Ambient::Inert, Rows::One);
+    let faded = harness(Ambient::InertFaded, SegmentedRows::One);
+    let colours = harness(Ambient::Inert, SegmentedRows::One);
     let track = |harness: &Harness<'static, Rig<App>>| {
         box_at(harness, rect_of(harness, "/\"library\"")).fill
     };
@@ -199,10 +199,10 @@ fn they_fade_as_the_style_fades_disabled_controls() {
         track(&colours),
         "precondition: the faded style draws the library's track otherwise"
     );
-    same_look(Ambient::InertFaded, Rows::One);
+    same_look(Ambient::InertFaded, SegmentedRows::One);
 }
 
 #[test]
 fn a_wrapping_track_matches_too() {
-    same_look(Ambient::Plain, Rows::Wrapping);
+    same_look(Ambient::Plain, SegmentedRows::Wrapping);
 }

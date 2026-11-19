@@ -338,6 +338,19 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// The same builder, borrowed for the life of a chain.
+    /// How many children this builder has added.
+    pub(crate) fn added(&self) -> usize {
+        self.kids.len()
+    }
+
+    /// Moves the child added last to `at` among its siblings, so that it is
+    /// painted and hit-tested before those added from `at` on.
+    pub(crate) fn move_last_to(&mut self, at: usize) {
+        if let Some(last) = self.kids.pop() {
+            self.kids.insert(at.min(self.kids.len()), last);
+        }
+    }
+
     pub(crate) fn reborrow(&mut self) -> Builder<'_, 'f, A> {
         Builder::new(
             self.st,
@@ -1641,9 +1654,6 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         ));
     }
 
-    /// The text `body` shows, its pieces joined by spaces, in the order
-    /// they are drawn. Its nodes are built under `salt` and left out of the
-    /// frame, so nothing is laid out or drawn.
     pub(crate) fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>> {
         self.frame.build_built()
     }
@@ -1652,6 +1662,49 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.frame.set_build_built(build);
     }
 
+    /// Whether this builds inside a hover card's content, or inside an
+    /// overlay nested in one.
+    pub(crate) fn in_hover_card(&self) -> bool {
+        let layer = |at: usize| self.frame.roots.get(at)?.layer.as_ref();
+        std::iter::successors(layer(self.frame.current), |found| layer(found.parent)).any(|layer| {
+            match &layer.kind {
+                LayerKind::Overlay(decl) => decl.behavior.hover.is_some(),
+                LayerKind::Window(_) => false,
+            }
+        })
+    }
+
+    /// TODO(prose): while assistive technology is on, the text `body` shows,
+    /// its pieces joined by spaces in the order they are drawn: the
+    /// accessible description of content shown elsewhere, such as a hover
+    /// card's. `None` while it is off, without building `body`. Its nodes
+    /// are built under `salt` and left out of the frame, so nothing is laid
+    /// out or drawn, and no handler it registers runs.
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>) {
+    ///     let description = b.description_of("card", |c| {
+    ///         c.text(tw(), "@nextjs");
+    ///         c.text(tw(), "The React Framework");
+    ///     });
+    ///     if let Some(text) = description {
+    ///         assert_eq!(text, "@nextjs The React Framework");
+    ///     }
+    /// }
+    /// ```
+    pub fn description_of(
+        &mut self,
+        salt: impl std::hash::Hash + Debug,
+        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+    ) -> Option<String> {
+        accesskit_is_on(self.ctx()).then(|| self.text_of(salt, body))
+    }
+
+    /// The text `body` shows, its pieces joined by spaces, in the order
+    /// they are drawn. Its nodes are built under `salt` and left out of the
+    /// frame, so nothing is laid out or drawn.
     pub(crate) fn text_of(
         &mut self,
         salt: impl std::hash::Hash + Debug,
@@ -2101,6 +2154,13 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
+    /// Puts the node inside `parent` for assistive technology: a table's row
+    /// inside the table, or inside its row group.
+    pub(crate) fn accessibility_parent(mut self, parent: Id) -> Self {
+        self.edit(|context| context.description.get_or_insert_default().parent = Some(parent));
+        self
+    }
+
     /// Hovers the node whenever the pointer is over its rect, also where a
     /// sibling drawn over it takes the pointer.
     pub(crate) fn hover_by_rect(mut self) -> Self {
@@ -2118,7 +2178,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// Gives the node focus as the overlay it is in opens, instead of the
     /// overlay's first focusable: the current colour of a swatch picker. For
     /// an overlay that takes focus in ([`Focus::Enter`](crate::overlay::Focus));
-    /// the node must take focus. If two nodes of one overlay are marked, the
+    /// the node, or a widget inside it, must take focus. If two nodes of one overlay are marked, the
     /// first takes focus and it is reported as
     /// [`FocusOnOpenTwice`](crate::Problem::FocusOnOpenTwice).
     pub fn focus_on_open(self) -> Self {
@@ -2181,6 +2241,37 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
             ui.ctx()
                 .accesskit_node_builder(id, |node| node.set_expanded(open));
         })
+    }
+
+    /// Announces that the node controls the node `target`, the
+    /// `aria-controls` of the web: a section header the region it opens, a
+    /// tab its panel. `target` is that node's id, from
+    /// [`Builder::id_of`]. The node must sense; the relation is announced
+    /// only in a frame where `target` is in the accessibility tree too, which
+    /// a node that does not sense, or is not built, is not.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, tw};
+    /// # use eggshell_ui::overlay::Shown;
+    /// struct App { open: bool }
+    ///
+    /// fn item<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
+    ///     let region = b.id_of("details");
+    ///     b.div_id("head", tw().sense_click(), |b| b.text(tw(), "Details"))
+    ///         .role(egui::Role::Button)
+    ///         .expanded(app.open)
+    ///         .controls(region)
+    ///         .on_click(|app: &mut App| app.open = !app.open);
+    ///     b.collapsible("details", Shown::from(app.open))
+    ///         .classes(tw().sense_hover())
+    ///         .children(|b| b.text(tw(), "Only as tall as it needs"))
+    ///         .role(egui::Role::Region)
+    ///         .named("Details");
+    /// }
+    /// ```
+    pub fn controls(mut self, target: Id) -> Self {
+        self.edit(|context| context.description.get_or_insert_default().controls = Some(target));
+        self
     }
 
     /// TODO(prose): makes the node a group of items the arrow keys move focus through as `nav` says, one Tab stop (the focused item, else the [`selected`](Self::selected) one, else the first enabled); a `Listbox` or `Submenu` nav is reported as [`NavNeedsOverlay`](crate::Problem::NavNeedsOverlay).
@@ -2466,6 +2557,12 @@ impl<A> DerefMut for Scope<'_, '_, A> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+/// egui has no public query for this; its root node is made only while
+/// accesskit is on.
+fn accesskit_is_on(ctx: &egui::Context) -> bool {
+    ctx.has_accesskit_node(egui::accesskit_root_id())
 }
 
 /// Reports a text leaf whose text is wider than the widest template it
