@@ -98,6 +98,7 @@ mod reduced_motion;
 mod refused;
 mod regions;
 mod release;
+mod reserve;
 mod responsive_example;
 mod roving;
 #[cfg(all(feature = "screenshots", target_os = "linux"))]
@@ -127,6 +128,7 @@ mod text_field_ring;
 mod theme_toggle;
 mod todo_demo;
 mod toggle_group;
+mod tone;
 mod tooltips;
 mod touch_scroll;
 mod typeset;

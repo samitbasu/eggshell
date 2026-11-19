@@ -270,6 +270,12 @@ impl<'a> TextLeaf<'a> {
         }
     }
 
+    /// The leaf's text laid out on one line, as painting lays it out.
+    pub(crate) fn unwrapped(&self, fonts: &mut FontsView<'_>) -> std::sync::Arc<egui::Galley> {
+        let job = self.job(fonts);
+        self.galley(fonts, job, Wrap::Off)
+    }
+
     /// Width of the widest whitespace-separated word, unwrapped.
     fn min_content_width(&self, fonts: &mut FontsView<'_>, job: &LayoutJob) -> f32 {
         words(job)
@@ -656,4 +662,27 @@ mod tests {
         let warm = start.elapsed() / warm_runs;
         println!("50-word MinContent: cold {cold:?}, warm {warm:?}");
     }
+}
+
+/// The width of the widest of `reserve`'s templates, each laid out on one
+/// line in `style` with tabular numerals, so that a digit stands for any.
+pub(crate) fn reserved_width(
+    ctx: &egui::Context,
+    reserve: &crate::Reserve,
+    style: &TextStyle,
+) -> f32 {
+    let style = TextStyle {
+        numerals: Numerals::Tabular,
+        ..style.clone()
+    };
+    let leaves: Vec<_> = reserve
+        .templates()
+        .map(|template| TextLeaf::plain(ctx, template, &style))
+        .collect();
+    ctx.fonts_mut(|fonts| {
+        leaves
+            .iter()
+            .map(|leaf| leaf.unwrapped(fonts).size().x)
+            .fold(0.0, f32::max)
+    })
 }
