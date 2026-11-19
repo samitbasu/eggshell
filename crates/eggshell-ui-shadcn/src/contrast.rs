@@ -31,9 +31,9 @@ pub enum ContrastPair {
     DestructiveForegroundOnDestructive,
     /// `popover-foreground` on `popover`.
     PopoverForegroundOnPopover,
-    /// TODO(prose): a tone's colour as text on `background`.
+    /// TODO(prose): a tone's text colour on `background`.
     ToneOnBackground(Tone),
-    /// TODO(prose): a tone's colour as text on `card`.
+    /// TODO(prose): a tone's text colour on `card`.
     ToneOnCard(Tone),
     /// TODO(prose): a tone's foreground on a solid fill of the tone.
     ToneForegroundOnTone(Tone),
@@ -113,8 +113,8 @@ impl ContrastPair {
             Self::LinkOnBackground => (t.primary, t.background),
             Self::DestructiveForegroundOnDestructive => (t.destructive_foreground, t.destructive),
             Self::PopoverForegroundOnPopover => (t.popover_foreground, t.popover),
-            Self::ToneOnBackground(tone) => (t.tones().get(tone).tone, t.background),
-            Self::ToneOnCard(tone) => (t.tones().get(tone).tone, t.card),
+            Self::ToneOnBackground(tone) => (t.tones().get(tone).text, t.background),
+            Self::ToneOnCard(tone) => (t.tones().get(tone).text, t.card),
             Self::ToneForegroundOnTone(tone) => {
                 let colours = t.tones().get(tone);
                 (colours.foreground, colours.tone)
@@ -200,11 +200,11 @@ const fn miss(
 }
 
 #[doc(hidden)]
-pub const REGISTRY_MISSES: [RegistryMiss; 30] = {
+pub const REGISTRY_MISSES: [RegistryMiss; 19] = {
     use BaseColor::{Mauve, Mist, Neutral, Olive, Stone, Taupe, Zinc};
     use ContrastPair::{
         DestructiveForegroundOnDestructive, LinkOnBackground, MutedForegroundOnBackground,
-        MutedForegroundOnMuted, ToneForegroundOnTone, ToneOnBackground, ToneOnCard,
+        MutedForegroundOnMuted, ToneForegroundOnTone,
     };
     use Theme::{Dark, Light};
     use ThemeColor::{Indigo, Lime, Violet, Yellow};
@@ -234,20 +234,8 @@ pub const REGISTRY_MISSES: [RegistryMiss; 30] = {
         // The violet nudge was measured on the neutral page; olive's is
         // lighter.
         miss(Dark, Some(Olive), Some(Violet), LinkOnBackground, 4.48),
-        // The tones (#129), kept as Tailwind has them for the user to decide
-        // on: light text shades are not chosen yet. Critical is
-        // `destructive`, whose dark miss is the one above.
-        miss(Light, None, None, ToneOnBackground(Tone::Info), 4.02),
-        miss(Light, None, None, ToneOnCard(Tone::Info), 4.02),
-        miss(Light, None, None, ToneForegroundOnTone(Tone::Info), 3.85),
-        miss(Light, None, None, ToneOnBackground(Tone::Success), 3.22),
-        miss(Light, None, None, ToneOnCard(Tone::Success), 3.22),
-        miss(Light, None, None, ToneForegroundOnTone(Tone::Success), 3.08),
-        miss(Light, None, None, ToneOnBackground(Tone::Warning), 2.13),
-        miss(Light, None, None, ToneOnCard(Tone::Warning), 2.13),
-        miss(Light, None, None, ToneOnBackground(Tone::Serious), 3.60),
-        miss(Light, None, None, ToneOnCard(Tone::Serious), 3.60),
-        miss(Light, None, None, ToneForegroundOnTone(Tone::Serious), 3.45),
+        // The tones (#129): critical-foreground on critical is destructive's
+        // own dark miss, above.
         miss(Dark, None, None, ToneForegroundOnTone(Tone::Critical), 2.89),
     ]
 };

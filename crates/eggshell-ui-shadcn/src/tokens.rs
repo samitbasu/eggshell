@@ -49,6 +49,9 @@ pub struct Tokens {
     pub destructive: Color32,
     /// The text on `destructive` (`text-white`).
     pub destructive_foreground: Color32,
+    /// TODO(prose): `destructive` as text on the page: a darker red in the
+    /// light theme, where `destructive` reads too light.
+    pub destructive_text: Color32,
     /// A positive outcome. Not a shadcn variable: the Tailwind green
     /// that `destructive` is the red of.
     pub success: Color32,
@@ -173,13 +176,14 @@ impl Tokens {
         Self {
             destructive: rgb(0xe7000b),
             destructive_foreground: Color32::WHITE,
-            success: rgb(0x00a63e),
+            destructive_text: rgb(0xc10007),
+            success: rgb(0x008236),
             success_foreground: rgb(0xfafafa),
-            warning: rgb(0xfe9a00),
-            warning_foreground: rgb(0x461901),
-            serious: rgb(0xf54900),
+            warning: rgb(0xbb4d00),
+            warning_foreground: rgb(0xfafafa),
+            serious: rgb(0xca3500),
             serious_foreground: rgb(0xfafafa),
-            info: rgb(0x0084d1),
+            info: rgb(0x0069a8),
             info_foreground: rgb(0xfafafa),
             ..Self::sizes()
         }
@@ -191,6 +195,7 @@ impl Tokens {
         Self {
             destructive: rgb(0xff6467),
             destructive_foreground: Color32::WHITE,
+            destructive_text: rgb(0xff6467),
             success: rgb(0x05df72),
             success_foreground: rgb(0x032e15),
             warning: rgb(0xffb900),
@@ -233,6 +238,7 @@ impl Tokens {
             accent_foreground: none,
             destructive: none,
             destructive_foreground: none,
+            destructive_text: none,
             success: none,
             success_foreground: none,
             warning: none,
@@ -371,16 +377,26 @@ impl Tokens {
         self.input.gamma_multiply(0.3)
     }
 
-    /// TODO(prose): the colours of each tone: the status tokens, with
-    /// `destructive`'s for [`Tone::Critical`](eggshell_ui::Tone::Critical).
+    /// TODO(prose): the colours of each tone: the status tokens, each its own
+    /// text, with `destructive`'s for
+    /// [`Tone::Critical`](eggshell_ui::Tone::Critical) and `destructive_text`
+    /// as its text.
     pub fn tones(&self) -> eggshell_ui::contract::Tones {
-        let on = |tone, foreground| eggshell_ui::contract::ToneColors { tone, foreground };
+        let on = |tone, text, foreground| eggshell_ui::contract::ToneColors {
+            tone,
+            text,
+            foreground,
+        };
         eggshell_ui::contract::Tones {
-            info: on(self.info, self.info_foreground),
-            success: on(self.success, self.success_foreground),
-            warning: on(self.warning, self.warning_foreground),
-            serious: on(self.serious, self.serious_foreground),
-            critical: on(self.destructive, self.destructive_foreground),
+            info: on(self.info, self.info, self.info_foreground),
+            success: on(self.success, self.success, self.success_foreground),
+            warning: on(self.warning, self.warning, self.warning_foreground),
+            serious: on(self.serious, self.serious, self.serious_foreground),
+            critical: on(
+                self.destructive,
+                self.destructive_text,
+                self.destructive_foreground,
+            ),
         }
     }
 
