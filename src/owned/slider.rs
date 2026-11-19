@@ -54,6 +54,7 @@ pub struct SliderChain<'a, 'f, A> {
     slot: Slot,
     value: f64,
     range: ValueRange,
+    typed: Option<ValueRange>,
     step: Step,
     name: Option<String>,
     gate: Gate,
@@ -83,6 +84,8 @@ struct Header {
 struct Scale {
     value: f64,
     range: ValueRange,
+    /// The range a typed value reaches: `range` unless the slider widens it.
+    typed: ValueRange,
     step: Step,
     thumb: f32,
 }
@@ -115,7 +118,14 @@ impl Scale {
         match (end, steps) {
             (Some(value), _) => Some(value),
             (None, 0) => None,
-            (None, steps) => Some(self.step.moved(self.value, steps, self.range)),
+            (None, steps) => {
+                let bounds = match self.range.contains(self.value) {
+                    true => self.range,
+                    false => self.typed,
+                };
+                let moved = self.value + f64::from(steps) * self.step.size();
+                Some(self.step.snap_from(self.range.start(), moved, bounds))
+            }
         }
     }
 }
@@ -156,6 +166,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             b,
             value,
             range,
+            typed: None,
             step: Step::ONE,
             name: None,
             gate: Gate::default(),
@@ -249,6 +260,17 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): the range a value typed in the [`editable`](Self::editable)
+    /// readout reaches, wider than the track's: a typed value is clamped to
+    /// it, and stays on the track's step lattice. Outside the track the thumb
+    /// pins at its end and the arrow keys step from where the value is. A
+    /// range that does not hold the track's is widened to it and reported as
+    /// [`BadRange`](crate::Problem::BadRange).
+    pub fn typed_range(mut self, typed: impl Into<ValueRange>) -> Self {
+        self.typed = Some(typed.into());
+        self
+    }
+
     /// Whether the slider takes input.
     pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
         let enablement = enablement.into();
@@ -297,6 +319,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             slot,
             value,
             range,
+            typed,
             step,
             name,
             gate,
@@ -309,6 +332,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             autofocus,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
+        let typed = typed_within(b.ctx(), slot.id, range, typed);
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let style = b.style().clone();
         let slider = &style.slider;
@@ -349,6 +373,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         let scale = Scale {
             value,
             range,
+            typed,
             step,
             thumb,
         };
@@ -365,6 +390,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             value: scale.value,
             step,
             range: scale.range,
+            typed,
             name: name.clone(),
             enablement,
             colors: (
@@ -431,7 +457,10 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
                                 response.widget_info(|| {
                                     WidgetInfo::slider(ui.is_enabled(), scale.value, &name)
                                 });
-                                let (low, high) = (scale.range.start(), scale.range.end());
+                                let (low, high) = (
+                                    scale.range.start().min(scale.value),
+                                    scale.range.end().max(scale.value),
+                                );
                                 ui.ctx().accesskit_node_builder(response.id, |node| {
                                     node.set_min_numeric_value(low);
                                     node.set_max_numeric_value(high);
@@ -480,6 +509,7 @@ struct Row {
     value: f64,
     step: Step,
     range: ValueRange,
+    typed: ValueRange,
     name: String,
     enablement: Enablement,
     colors: (Colors, Colors),
@@ -509,6 +539,7 @@ impl Row {
             value,
             step,
             range,
+            typed: reach,
             name,
             enablement,
             colors: (label, readout),
@@ -547,8 +578,9 @@ impl Row {
                 b.div_id(Part::Readout, classes, |b| b.text(tw(), shown));
                 return;
             };
-            let accept =
-                move |text: &str| parse(text).map(|number| step.snap(range.clamp(number), range));
+            let accept = move |text: &str| {
+                parse(text).map(|number| step.snap_from(range.start(), reach.clamp(number), reach))
+            };
             match typed {
                 None => {
                     let classes = enablement.apply(classes.sense_click(), &style);
@@ -648,4 +680,31 @@ impl Row {
             }
         });
     }
+}
+
+/// The range a typed value reaches: `typed`, widened to hold `range` and
+/// reported if it did not, or `range` when the slider has none.
+#[track_caller]
+fn typed_within(
+    ctx: &egui::Context,
+    subject: egui::Id,
+    range: ValueRange,
+    typed: Option<ValueRange>,
+) -> ValueRange {
+    let Some(typed) = typed else {
+        return range;
+    };
+    if !typed.holds(range) {
+        crate::report::report(ctx, crate::Problem::BadRange, Some(subject), || {
+            format!(
+                "the typed range {:?}..={:?} does not hold the track's {:?}..={:?}; \
+                 it is widened to hold it",
+                typed.start(),
+                typed.end(),
+                range.start(),
+                range.end()
+            )
+        });
+    }
+    typed.union(range)
 }

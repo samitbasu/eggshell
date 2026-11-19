@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 use egui::epaint::StrokeKind;
 use egui::{
     Align, Align2, Color32, Context, FontId, Id, Key, LayerId, Order, Painter, Pos2, Rect, Shape,
-    Stroke, Vec2, vec2,
+    Stroke, Vec2, ViewportId, vec2,
 };
 use taffy::Overflow;
 
@@ -46,6 +46,9 @@ use crate::prim::Prim;
 /// - `eggshell`: the time spent in [`LayoutState::build`](crate::LayoutState::build),
 ///   [`Built::layout`](crate::Built::layout) and [`Placed::draw`](crate::Placed::draw),
 ///   summed over every tree of the pass (the readout sees the draws before it);
+///   under it, a row per native pop-out window, by its title, with the layout
+///   and draw of that window, which the page's row leaves out (an embedded
+///   window's are in the page's row);
 /// - `repaint`: whether egui has been asked to repaint at once, as it is while
 ///   an animation is in progress, or is idle;
 /// - `reports`, once there are any: each [`Report`](crate::Report) of the
@@ -121,47 +124,136 @@ pub(crate) enum Phase {
     Draw,
 }
 
-/// The time eggshell spent in each [`Phase`] of one egui pass.
+/// The time spent in each [`Phase`].
 #[derive(Clone, Copy, Default)]
-struct Spent {
-    pass: u64,
+struct Times {
     build: Duration,
     layout: Duration,
     draw: Duration,
 }
 
+impl Times {
+    fn add(&mut self, phase: Phase, elapsed: Duration) {
+        match phase {
+            Phase::Build => self.build += elapsed,
+            Phase::Layout => self.layout += elapsed,
+            Phase::Draw => self.draw += elapsed,
+        }
+    }
+}
+
+impl std::ops::Sub for Times {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self {
+            build: self.build.saturating_sub(other.build),
+            layout: self.layout.saturating_sub(other.layout),
+            draw: self.draw.saturating_sub(other.draw),
+        }
+    }
+}
+
+/// A native pop-out window's share of a pass's time.
+#[derive(Clone)]
+struct WindowSpent {
+    id: Id,
+    title: String,
+    times: Times,
+}
+
+/// The time eggshell spent in one egui pass of a page.
+#[derive(Clone, Default)]
+struct Spent {
+    pass: u64,
+    /// Everything, the native windows' time included: their timers run
+    /// inside the page's.
+    total: Times,
+    windows: Vec<WindowSpent>,
+}
+
+impl Spent {
+    fn page(&self) -> Times {
+        self.windows
+            .iter()
+            .fold(self.total, |page, window| page - window.times)
+    }
+}
+
+/// What a [`Timer`] is timing, and for which page's pass.
+struct Timing {
+    ctx: Context,
+    phase: Phase,
+    page: ViewportId,
+    window: Option<(Id, String)>,
+    started: web_time::Instant,
+}
+
 /// Adds the time between its creation and its drop to the pass's total for
 /// its phase. Does nothing while the overlay is off.
-pub(crate) struct Timer(Option<(Context, Phase, web_time::Instant)>);
+pub(crate) struct Timer(Option<Timing>);
 
 impl Timer {
     pub(crate) fn start(ctx: &Context, phase: Phase) -> Self {
-        Self(
-            (Debug::of(ctx) == Debug::Outlines)
-                .then(|| (ctx.clone(), phase, web_time::Instant::now())),
-        )
+        Self::timing(ctx, phase, ctx.viewport_id(), None)
+    }
+
+    /// Times `phase` of the native pop-out `window` (its id and title) for
+    /// the pass of the page `page`, which may be another viewport's.
+    pub(crate) fn window(
+        ctx: &Context,
+        phase: Phase,
+        page: ViewportId,
+        (id, title): (Id, &str),
+    ) -> Self {
+        Self::timing(ctx, phase, page, Some((id, title)))
+    }
+
+    fn timing(ctx: &Context, phase: Phase, page: ViewportId, window: Option<(Id, &str)>) -> Self {
+        Self((Debug::of(ctx) == Debug::Outlines).then(|| Timing {
+            ctx: ctx.clone(),
+            phase,
+            page,
+            window: window.map(|(id, title)| (id, title.to_owned())),
+            started: web_time::Instant::now(),
+        }))
     }
 }
 
 impl Drop for Timer {
     fn drop(&mut self) {
-        let Some((ctx, phase, started)) = self.0.take() else {
+        let Some(Timing {
+            ctx,
+            phase,
+            page,
+            window,
+            started,
+        }) = self.0.take()
+        else {
             return;
         };
         let elapsed = started.elapsed();
-        let pass = ctx.cumulative_pass_nr();
+        let pass = ctx.cumulative_pass_nr_for(page);
         ctx.data_mut(|data| {
-            let spent = data.get_temp_mut_or_default::<Spent>(spent_id());
+            let spent = data.get_temp_mut_or_default::<Spent>(spent_id().with(page));
             if spent.pass != pass {
                 *spent = Spent {
                     pass,
                     ..Spent::default()
                 };
             }
-            match phase {
-                Phase::Build => spent.build += elapsed,
-                Phase::Layout => spent.layout += elapsed,
-                Phase::Draw => spent.draw += elapsed,
+            match window {
+                None => spent.total.add(phase, elapsed),
+                Some((id, title)) => {
+                    match spent.windows.iter_mut().find(|window| window.id == id) {
+                        Some(window) => window.times.add(phase, elapsed),
+                        None => {
+                            let mut times = Times::default();
+                            times.add(phase, elapsed);
+                            spent.windows.push(WindowSpent { id, title, times });
+                        }
+                    }
+                }
             }
         });
     }
@@ -227,29 +319,39 @@ fn readout_text(ctx: &Context) -> String {
     let fps = record_frame(ctx, unstable);
     let pass = ctx.cumulative_pass_nr();
     let spent = ctx
-        .data(|data| data.get_temp::<Spent>(spent_id()))
+        .data(|data| data.get_temp::<Spent>(spent_id().with(ctx.viewport_id())))
         .filter(|spent| spent.pass == pass)
         .unwrap_or_default();
+    let page = spent.page();
     let ms = |seconds: f32| seconds * 1000.0;
     let ms_of = |duration: Duration| duration.as_secs_f32() * 1000.0;
     let mut text = format!(
         "frame    {:6.1} ms  {:6.1} fps\n\
          dt       stable {:5.1}  predicted {:5.1} ms\n\
-         eggshell build {:5.2}  layout {:5.2}  draw {:5.2} ms\n\
-         repaint  {}",
+         eggshell build {:5.2}  layout {:5.2}  draw {:5.2} ms",
         ms(unstable),
         fps,
         ms(stable),
         ms(predicted),
-        ms_of(spent.build),
-        ms_of(spent.layout),
-        ms_of(spent.draw),
-        if ctx.has_requested_repaint() {
-            "requested"
-        } else {
-            "idle"
-        },
+        ms_of(page.build),
+        ms_of(page.layout),
+        ms_of(page.draw),
     );
+    for window in &spent.windows {
+        let _ = write!(
+            text,
+            "\n  {:<19} layout {:5.2}  draw {:5.2} ms",
+            window.title,
+            ms_of(window.times.layout),
+            ms_of(window.times.draw),
+        );
+    }
+    let repaint = if ctx.has_requested_repaint() {
+        "requested"
+    } else {
+        "idle"
+    };
+    let _ = write!(text, "\nrepaint  {repaint}");
     text.push_str(&reports_text(ctx));
     text
 }
@@ -527,4 +629,59 @@ fn label(painter: &Painter, screen: Rect, pointer: Pos2, node: &PlacedNode, fit:
         ),
         Shape::galley(origin + margin, galley, Color32::WHITE),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn spent(ctx: &Context) -> Option<Spent> {
+        ctx.data(|data| data.get_temp::<Spent>(spent_id().with(ctx.viewport_id())))
+    }
+
+    fn time_a_window(ctx: &Context) {
+        drop(Timer::window(
+            ctx,
+            Phase::Draw,
+            ctx.viewport_id(),
+            (Id::NULL.with("pane"), "Pane"),
+        ));
+    }
+
+    #[test]
+    fn nothing_is_timed_while_the_overlay_is_off() {
+        let ctx = Context::default();
+        assert_eq!(Debug::of(&ctx), Debug::Off);
+        drop(Timer::start(&ctx, Phase::Draw));
+        time_a_window(&ctx);
+        assert!(spent(&ctx).is_none());
+        Debug::set(&ctx, Debug::Outlines);
+        time_a_window(&ctx);
+        let windows = spent(&ctx).map(|spent| spent.windows.len());
+        assert_eq!(windows, Some(1), "precondition: timed while it's on");
+    }
+
+    #[test]
+    fn the_pages_row_leaves_out_its_windows() {
+        let ms = Duration::from_millis;
+        let spent = Spent {
+            pass: 0,
+            total: Times {
+                build: ms(1),
+                layout: ms(4),
+                draw: ms(9),
+            },
+            windows: vec![WindowSpent {
+                id: Id::NULL.with("pane"),
+                title: "Pane".to_owned(),
+                times: Times {
+                    build: Duration::ZERO,
+                    layout: ms(1),
+                    draw: ms(6),
+                },
+            }],
+        };
+        let page = spent.page();
+        assert_eq!((page.build, page.layout, page.draw), (ms(1), ms(3), ms(3)));
+    }
 }
