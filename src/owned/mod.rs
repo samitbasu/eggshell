@@ -46,6 +46,7 @@ mod custom;
 mod field_box;
 mod menu;
 mod number;
+mod number_field;
 pub(crate) mod options;
 mod progress;
 mod radio;

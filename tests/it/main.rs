@@ -128,6 +128,7 @@ mod theme_toggle;
 mod todo_demo;
 mod toggle_group;
 mod tooltips;
+mod touch_scroll;
 mod typeset;
 mod underline;
 mod value_widgets;
