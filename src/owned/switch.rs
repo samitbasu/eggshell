@@ -9,11 +9,12 @@ use egui::{Role, Vec2};
 
 use super::Mark;
 use super::{
-    Content, Enablement, OnResponse, TipContent, Unset, choice_label, choice_row, described, flip,
-    tip,
+    Enablement, Gate, IntoTip, OnResponse, Unset, choice_label, choice_row, described, flip,
+    options,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
+use crate::focus::{Autofocus, Select};
 use crate::transition;
 use crate::{Builder, Easing, Progress, Tw, tw};
 
@@ -39,7 +40,7 @@ pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
     slot: Slot,
     label: Option<String>,
     name: Option<String>,
-    tooltip: TipContent,
+    gate: Gate,
     current: T,
     values: V,
     size: Option<Size>,
@@ -47,6 +48,7 @@ pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
     classes: Tw,
     enablement: Enablement,
     on_response: OnResponse<A>,
+    autofocus: Autofocus,
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T> {
@@ -61,7 +63,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             b,
             label,
             name: None,
-            tooltip: None,
+            gate: Gate::default(),
             current,
             values: Unset,
             size: None,
@@ -69,6 +71,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             classes: tw(),
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -79,7 +82,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             slot: self.slot,
             label: self.label,
             name: self.name,
-            tooltip: self.tooltip,
+            gate: self.gate,
             current: self.current,
             values: [off, on],
             size: self.size,
@@ -87,6 +90,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             classes: self.classes,
             enablement: self.enablement,
             on_response: self.on_response,
+            autofocus: self.autofocus,
         }
     }
 }
@@ -113,7 +117,7 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
     /// Classes merged over the styled ones of the whole row, such as its
     /// width or placement; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
     }
 
@@ -122,8 +126,8 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
     /// delay, at once when it has keyboard focus, and also when the control is
     /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
     }
 
@@ -135,7 +139,7 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
         mut self,
         build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
-        self.tooltip = Some(Content::built(build));
+        self.gate.tooltip_with(build);
         self
     }
 
@@ -144,6 +148,37 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
         let enablement = enablement.into();
         self.enablement = enablement;
         self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
     }
 
     /// Runs `then` with the track's response each frame: the escape hatch for
@@ -173,7 +208,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             slot,
             label,
             name,
-            tooltip,
+            gate,
             current,
             values: [off, on_value],
             size,
@@ -181,9 +216,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             classes: caller,
             enablement,
             on_response,
+            autofocus,
         } = self;
-        let tooltip = tip(&mut b, slot.id, tooltip);
-        let enablement = b.enablement_of(enablement);
+        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let (mark, toggled) = flip([off, on_value], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = b.style().clone();
@@ -252,8 +287,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                         );
                     });
                 })
+                .open_focus(autofocus.open_focus())
                 .draw(move |app, ui| {
                     let response = described(ui, Role::Switch, Some(mark), &name, &tooltip);
+                    autofocus.apply(ui.ctx(), &response);
                     if response.clicked() {
                         on_press(app);
                     }

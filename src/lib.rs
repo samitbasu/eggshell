@@ -362,8 +362,10 @@ mod dnd;
 mod draw;
 mod finite;
 mod focus;
+mod hover;
 pub mod icons;
 mod input_trace;
+mod intent;
 mod kept;
 mod key;
 mod layout_tree;
@@ -405,6 +407,7 @@ mod tooltip;
 mod transition;
 mod tw;
 pub mod vlist;
+pub mod web;
 pub mod widget;
 pub mod window;
 
@@ -413,7 +416,7 @@ pub use clicks::DOUBLE_CLICK;
 pub use clipboard::{Clipboard, ClipboardError, ClipboardSource, Paste, Via};
 pub use collapse::{CollapseAxis, CollapsibleChain, Flight};
 pub use commands::{Chord, Command, CommandState, Commands, InText, PasteCommand};
-pub use contract::Style;
+pub use contract::{Style, Tone};
 pub use debug::Debug;
 pub use dnd::{
     Cause, DragEnd, DragImage, Dragging, Drop, EdgeBand, EdgeScroll, File, Files, Over,
@@ -437,8 +440,8 @@ pub use text::{
     Tracking, Weight, WhiteSpace,
 };
 #[doc(hidden)]
-pub use transition::tracked_layout_nodes;
+pub use transition::{cycle, tracked_layout_nodes};
 pub use tw::{
-    Angle, BoxPaint, Divide, Easing, Mirror, Opacity, Paint, Progress, Ring, RingPlacement, Sides,
-    Track, Tw, tw,
+    Angle, BoxPaint, Divide, Easing, Mirror, Opacity, Paint, Progress, Reserve, Ring,
+    RingPlacement, Sides, Track, Tw, tw,
 };

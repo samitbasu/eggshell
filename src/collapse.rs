@@ -76,6 +76,18 @@ pub struct CollapsibleChain<'b, 'f, A> {
     on_collapsed: Option<DismissFn<A>>,
 }
 
+impl<'b, 'f, A> CollapsibleChain<'b, 'f, A> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 /// What the chain declared, for the builder.
 pub(crate) struct Declared<A> {
     pub(crate) shown: Shown,
@@ -147,7 +159,7 @@ impl<'b, 'f, A> CollapsibleChain<'b, 'f, A> {
     /// grow, margin). Its padding and border do not open and close with it;
     /// put those on [`content`](Self::content). The wrapper clips.
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
     }
 
