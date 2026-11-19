@@ -2,12 +2,12 @@
 //! laid out and drawn by the rig, clicked as a user would.
 
 use eggshell_ui::testing::Headless;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui_extras::markdown::{Level, MarkdownExt, MarkdownStyle, heading_id, headings};
 use egui::epaint::Shape;
 use egui::{Rect, Theme, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, press_and_release, rect_of};
+use crate::support;
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -18,23 +18,24 @@ mod page;
 const PARAGRAPH: &str = "A paragraph with strong, emphasis, both, inline code and links: internal, relative and external. A soft break joins lines; a hard break\nstarts a new one.";
 const CODE: &str = "fn main() {\n    println!(\"plain for now\");\n}";
 
-fn harness() -> Harness<'static, Rig<page::State>> {
-    harness_sized(vec2(720.0, 1700.0))
+fn driver() -> Driver<page::State> {
+    driver_sized(vec2(720.0, 1700.0))
 }
 
-fn harness_sized(size: egui::Vec2) -> Harness<'static, Rig<page::State>> {
-    let mut harness = support::harness(
+fn driver_sized(size: egui::Vec2) -> Driver<page::State> {
+    let mut d = support::driver(
         size,
         common::base_text(Theme::Light),
         page::State::default(),
         page::layout,
-    );
-    harness.run_steps(4);
-    harness
+    )
+    .build();
+    d.frames(4);
+    d
 }
 
-fn style(harness: &Harness<'_, Rig<page::State>>) -> std::sync::Arc<MarkdownStyle> {
-    MarkdownStyle::of(&harness.ctx)
+fn style(d: &Driver<page::State>) -> std::sync::Arc<MarkdownStyle> {
+    MarkdownStyle::of(d.ctx())
 }
 
 fn doc(path: &str) -> String {
@@ -42,8 +43,8 @@ fn doc(path: &str) -> String {
 }
 
 /// Every rect painted in `color`.
-fn filled(harness: &Harness<'_, Rig<page::State>>, color: egui::Color32) -> Vec<Rect> {
-    support::shapes(harness)
+fn filled(d: &Driver<page::State>, color: egui::Color32) -> Vec<Rect> {
+    support::shapes(d)
         .into_iter()
         .filter_map(|shape| match shape {
             Shape::Rect(rect) if rect.fill == color => Some(rect.rect),
@@ -54,9 +55,9 @@ fn filled(harness: &Harness<'_, Rig<page::State>>, color: egui::Color32) -> Vec<
 
 #[test]
 fn the_page_shows_every_text_block() {
-    let harness = harness();
+    let d = driver();
     assert!(
-        rect_of(&harness, "/Page/Followed").max.y < 1700.0,
+        d.rect(Target::suffix("/Page/Followed")).max.y < 1700.0,
         "precondition: the whole page is in view"
     );
     for text in [
@@ -69,14 +70,14 @@ fn the_page_shows_every_text_block() {
         "Image not shown: A missing swatch",
         "No example named \"nonexistent\"",
     ] {
-        support::galley_of(&harness, text);
+        d.painted().expect(text);
     }
 }
 
 #[test]
 fn headings_take_their_level_style_and_anchor_keys() {
-    let harness = harness();
-    let style = style(&harness);
+    let d = driver();
+    let style = style(&d);
     assert_ne!(
         style.heading(Level::H1).text.size,
         common::base_text(Theme::Light).spec.size,
@@ -87,8 +88,8 @@ fn headings_take_their_level_style_and_anchor_keys() {
         (Level::H2, "lists", "Lists"),
         (Level::H6, "what-degrades", "WHAT DEGRADES"),
     ] {
-        rect_of(&harness, &doc(&format!("/Heading({anchor:?})")));
-        let (galley, _) = support::galley_of(&harness, text);
+        d.rect(Target::suffix(&doc(&format!("/Heading({anchor:?})"))));
+        let galley = d.painted().expect(text).galley().clone();
         let size = galley.job.sections[0].format.font_id.size;
         assert_eq!(size, style.heading(level).text.size, "{text}");
     }
@@ -116,9 +117,9 @@ fn headings_list_the_page_outline() {
 
 #[test]
 fn a_typeset_h2_has_no_rule_below() {
-    let harness = harness();
-    let heading = rect_of(&harness, &doc("/Heading(\"lists\")"));
-    let rule = filled(&harness, style(&harness).rule)
+    let d = driver();
+    let heading = d.rect(Target::suffix(&doc("/Heading(\"lists\")")));
+    let rule = filled(&d, style(&d).rule)
         .into_iter()
         .find(|rect| (rect.max.y - heading.max.y).abs() < 0.5 && rect.height() <= 1.5);
     assert_eq!(rule, None);
@@ -126,14 +127,14 @@ fn a_typeset_h2_has_no_rule_below() {
 
 #[test]
 fn list_markers_sit_on_their_first_line() {
-    let harness = harness();
+    let d = driver();
     let item = doc("/Block(3)/Item(1)");
     let (marker, content) = (
-        rect_of(&harness, &format!("{item}/Marker")),
-        rect_of(&harness, &format!("{item}/Content/Block(0)")),
+        d.rect(Target::suffix(&format!("{item}/Marker"))),
+        d.rect(Target::suffix(&format!("{item}/Content/Block(0)"))),
     );
     assert!(
-        rect_of(&harness, &item).height() > 2.0 * content.height(),
+        d.rect(Target::suffix(&item)).height() > 2.0 * content.height(),
         "precondition: the item has a nested list below its first line"
     );
     assert_eq!(
@@ -142,7 +143,7 @@ fn list_markers_sit_on_their_first_line() {
         "a marker is one line tall"
     );
     assert_eq!(marker.min.y, content.min.y);
-    let painted = support::shapes(&harness)
+    let painted = support::shapes(&d)
         .into_iter()
         .any(|shape| matches!(shape, Shape::Circle(circle) if marker.contains(circle.center)));
     assert!(painted, "a disc is painted in the marker's line");
@@ -150,17 +151,17 @@ fn list_markers_sit_on_their_first_line() {
 
 #[test]
 fn an_ordered_list_counts_from_its_start() {
-    let harness = harness();
-    support::galley_of(&harness, "3.");
-    support::galley_of(&harness, "4.");
+    let d = driver();
+    d.painted().expect("3.");
+    d.painted().expect("4.");
 }
 
 #[test]
 fn a_quote_has_a_border_on_its_left() {
-    let harness = harness();
-    let quote = rect_of(&harness, &doc("/Block(6)"));
-    let look = &style(&harness).quote;
-    let border = filled(&harness, look.border)
+    let d = driver();
+    let quote = d.rect(Target::suffix(&doc("/Block(6)")));
+    let look = &style(&d).quote;
+    let border = filled(&d, look.border)
         .into_iter()
         .find(|rect| {
             (rect.min.x - quote.min.x).abs() < 0.5 && rect.height() >= quote.height() - 0.5
@@ -171,16 +172,16 @@ fn a_quote_has_a_border_on_its_left() {
 
 #[test]
 fn a_code_block_is_monospace_on_its_fill() {
-    let harness = harness();
-    let block = rect_of(&harness, &doc("/Block(7)"));
-    let look = &style(&harness).code;
+    let d = driver();
+    let block = d.rect(Target::suffix(&doc("/Block(7)")));
+    let look = &style(&d).code;
     assert!(
-        filled(&harness, look.fill)
+        filled(&d, look.fill)
             .iter()
             .any(|rect| support::same(*rect, block)),
         "the block is filled"
     );
-    let (galley, _) = support::galley_of(&harness, CODE);
+    let galley = d.painted().expect(CODE).galley().clone();
     assert_eq!(
         galley.job.sections[0].format.font_id.family,
         egui::FontFamily::Monospace
@@ -189,98 +190,108 @@ fn a_code_block_is_monospace_on_its_fill() {
 
 #[test]
 fn an_image_takes_its_texture_size() {
-    let harness = harness();
-    let image = rect_of(&harness, &doc("/Block(9)/<image>"));
+    let d = driver();
+    let image = d.rect(Target::suffix(&doc("/Block(9)/<image>")));
     assert_eq!(image.size(), vec2(240.0, 64.0));
 }
 
 #[test]
 fn clicking_an_internal_link_scrolls_to_its_heading() {
-    let mut harness = harness_sized(vec2(720.0, 360.0));
+    let mut d = driver_sized(vec2(720.0, 360.0));
     let heading = || doc("/Heading(\"directives\")");
-    let page = rect_of(&harness, "/Page");
+    let page = d.rect(Target::suffix("/Page"));
     assert!(
-        rect_of(&harness, &heading()).min.y > page.max.y,
+        d.rect(Target::suffix(&heading())).min.y > page.max.y,
         "precondition: the heading starts out of view"
     );
-    let link = support::part_rect(&harness, PARAGRAPH, "internal");
-    press_and_release(&mut harness, link.center());
-    harness.run_steps(4);
-    let top = rect_of(&harness, &heading()).min.y;
+    let link = d
+        .painted()
+        .expect(PARAGRAPH)
+        .part_rect("internal")
+        .expect("the part is on one row");
+    press_and_release(&mut d, link.center());
+    d.frames(4);
+    let top = d.rect(Target::suffix(&heading())).min.y;
     assert!(
         (page.min.y..page.min.y + 1.0).contains(&top),
         "the heading is scrolled to the page's top, at {top}"
     );
     assert!(
-        harness.state().app.followed.is_empty(),
+        d.app().followed.is_empty(),
         "an anchor the document holds is not passed on"
     );
 }
 
 #[test]
 fn clicking_a_relative_link_calls_on_link() {
-    let mut harness = harness();
-    let link = support::part_rect(&harness, PARAGRAPH, "relative");
-    press_and_release(&mut harness, link.center());
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.followed, ["guide.md"]);
-    support::galley_of(&harness, "Followed: guide.md; counted 0");
+    let mut d = driver();
+    let link = d
+        .painted()
+        .expect(PARAGRAPH)
+        .part_rect("relative")
+        .expect("the part is on one row");
+    press_and_release(&mut d, link.center());
+    d.frames(2);
+    assert_eq!(d.app().followed, ["guide.md"]);
+    d.painted().expect("Followed: guide.md; counted 0");
 }
 
 #[test]
 fn clicking_an_external_link_opens_it() {
-    let mut harness = harness();
-    let link = support::part_rect(&harness, PARAGRAPH, "external");
-    support::hover_over(&mut harness, link.center());
+    let mut d = driver();
+    let link = d
+        .painted()
+        .expect(PARAGRAPH)
+        .part_rect("external")
+        .expect("the part is on one row");
+    d.hover(link.center());
     let mut opened = Vec::new();
     for pressed in [true, false] {
-        harness.event(egui::Event::PointerButton {
+        d.event(egui::Event::PointerButton {
             pos: link.center(),
             button: egui::PointerButton::Primary,
             pressed,
             modifiers: egui::Modifiers::NONE,
         });
-        harness.step();
-        opened.extend(support::opened_urls(&harness));
+        opened.extend(support::opened_urls(&d));
     }
     assert_eq!(opened, ["https://github.com/samitbasu/eggshell"]);
-    assert!(harness.state().app.followed.is_empty());
+    assert!(d.app().followed.is_empty());
 }
 
 #[test]
 fn a_registered_directive_mounts_a_live_example() {
-    let mut harness = harness();
-    support::click_node(&mut harness, &doc("/Block(13)/\"add\""));
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.count, 1);
+    let mut d = driver();
+    d.click(Target::suffix(&doc("/Block(13)/\"add\"")));
+    d.frames(2);
+    assert_eq!(d.app().count, 1);
 }
 
 #[test]
 fn the_shadcn_preset_fills_the_markdown_style() {
-    let harness = harness();
-    let tokens = common::tokens(&harness.ctx);
-    let preset = eggshell_ui_shadcn::Shadcn::of(&harness.ctx);
-    let installed = style(&harness);
+    let d = driver();
+    let tokens = common::tokens(d.ctx());
+    let preset = eggshell_ui_shadcn::Shadcn::of(d.ctx());
+    let installed = style(&d);
     assert_eq!(*installed, preset.markdown());
     assert_eq!(installed.rule, tokens.border);
     assert_eq!(installed.code.fill, tokens.muted);
 }
 
 /// egui's scroll areas drag to scroll only once a touch has been seen.
-fn touch_screen(harness: &mut Harness<'_, Rig<page::State>>) {
-    harness.event(egui::Event::Touch {
+fn touch_screen(d: &mut Driver<page::State>) {
+    d.event(egui::Event::Touch {
         device_id: egui::TouchDeviceId(0),
         id: egui::TouchId(0),
         phase: egui::TouchPhase::Cancel,
         pos: egui::Pos2::ZERO,
         force: None,
     });
-    harness.step();
 }
 
-fn page_offset(harness: &Harness<'_, Rig<page::State>>) -> f32 {
-    support::shell(harness)
-        .viewport(support::id_of(harness, "/Page"))
+fn page_offset(d: &Driver<page::State>) -> f32 {
+    d.shell()
+        .viewport(support::id_of(d, "/Page"))
         .expect("laid out")
         .offset()
         .y
@@ -288,12 +299,10 @@ fn page_offset(harness: &Harness<'_, Rig<page::State>>) -> f32 {
 
 #[test]
 fn a_touch_drag_that_starts_on_any_block_scrolls_the_page() {
-    let mut harness = harness_sized(vec2(720.0, 400.0));
-    touch_screen(&mut harness);
-    let blocks: Vec<String> = harness
-        .state()
-        .nodes
-        .iter()
+    let mut d = driver_sized(vec2(720.0, 400.0));
+    touch_screen(&mut d);
+    let blocks: Vec<String> = support::nodes(&d)
+        .into_iter()
         .map(|(path, _)| path.clone())
         .filter(|path| {
             path.strip_prefix("/Page/Doc/")
@@ -307,19 +316,19 @@ fn a_touch_drag_that_starts_on_any_block_scrolls_the_page() {
     let mut stuck = Vec::new();
     let mut swept = 0;
     for block in &blocks {
-        support::shell(&harness)
-            .scroll_into_view(support::id_of(&harness, block), Some(egui::Align::Center));
-        harness.run_steps(4);
-        let page = rect_of(&harness, "/Page");
-        let rect = rect_of(&harness, block).intersect(page.shrink(24.0));
+        d.shell()
+            .scroll_into_view(support::id_of(&d, block), Some(egui::Align::Center));
+        d.frames(4);
+        let page = d.rect(Target::suffix("/Page"));
+        let rect = d.rect(Target::suffix(block)).intersect(page.shrink(24.0));
         if !rect.is_positive() {
             continue;
         }
         swept += 1;
-        let before = page_offset(&harness);
+        let before = page_offset(&d);
         let up = if before > 100.0 { 60.0 } else { -60.0 };
-        support::drag(&mut harness, rect.center(), rect.center() + vec2(0.0, up));
-        let moved = (page_offset(&harness) - before).abs();
+        drag_through(&mut d, rect.center(), rect.center() + vec2(0.0, up));
+        let moved = (page_offset(&d) - before).abs();
         if moved < 20.0 {
             stuck.push(format!("{block}: moved {moved}"));
         }
@@ -333,18 +342,21 @@ fn a_touch_drag_that_starts_on_any_block_scrolls_the_page() {
 
 #[test]
 fn on_a_touch_screen_a_tap_on_a_link_still_follows_it() {
-    let mut harness = harness();
-    touch_screen(&mut harness);
-    let link = support::part_rect(&harness, PARAGRAPH, "relative");
-    press_and_release(&mut harness, link.center());
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.followed, ["guide.md"]);
+    let mut d = driver();
+    touch_screen(&mut d);
+    let link = d
+        .painted()
+        .expect(PARAGRAPH)
+        .part_rect("relative")
+        .expect("the part is on one row");
+    press_and_release(&mut d, link.center());
+    d.frames(2);
+    assert_eq!(d.app().followed, ["guide.md"]);
 }
 
-fn copied(harness: &mut Harness<'_, Rig<page::State>>) -> Option<String> {
-    harness.event(egui::Event::Copy);
-    harness.step();
-    harness
+fn copied(d: &mut Driver<page::State>) -> Option<String> {
+    d.event(egui::Event::Copy);
+    d.harness()
         .output()
         .platform_output
         .commands
@@ -355,19 +367,33 @@ fn copied(harness: &mut Harness<'_, Rig<page::State>>) -> Option<String> {
         })
 }
 
+/// `Driver::drag`'s events, to a point the driver does not point at: one
+/// that may be past the window's edge.
+fn drag_through(d: &mut Driver<page::State>, from: egui::Pos2, to: egui::Pos2) {
+    d.harness().hover_at(from);
+    d.frames(3);
+    d.harness().drag_at(from);
+    d.frames(1);
+    d.harness().hover_at(from.lerp(to, 0.5));
+    d.frames(1);
+    d.harness().hover_at(to);
+    d.frames(1);
+    d.harness().drop_at(to);
+    d.frames(3);
+}
+
 /// The same drag on the first paragraph, upward from its last row, with a
 /// mouse or on a touch screen: what it copied and how far it scrolled.
 fn drag_on_the_paragraph(touch: bool) -> (Option<String>, f32) {
-    let mut harness = harness_sized(vec2(720.0, 400.0));
+    let mut d = driver_sized(vec2(720.0, 400.0));
     if touch {
-        touch_screen(&mut harness);
+        touch_screen(&mut d);
     }
-    let (galley, at) = support::galley_of(&harness, PARAGRAPH);
-    let paragraph = galley.rect.translate(at.to_vec2());
+    let paragraph = d.painted().expect(PARAGRAPH).rect();
     let from = egui::pos2(paragraph.max.x - 4.0, paragraph.max.y - 4.0);
-    support::drag(&mut harness, from, from - vec2(0.0, 60.0));
-    let scrolled = page_offset(&harness);
-    (copied(&mut harness), scrolled)
+    d.drag(from, from - vec2(0.0, 60.0));
+    let scrolled = page_offset(&d);
+    (copied(&mut d), scrolled)
 }
 
 #[test]
@@ -397,12 +423,12 @@ fn cell(row: &str, column: usize) -> String {
 
 #[test]
 fn a_gfm_table_is_a_table_not_a_degrade_box() {
-    let harness = harness();
-    rect_of(&harness, TABLE);
+    let d = driver();
+    d.rect(Target::suffix(TABLE));
     for heading in ["Left", "Centred", "Right"] {
-        support::galley_of(&harness, heading);
+        d.painted().expect(heading);
     }
-    let degraded = support::shapes(&harness).into_iter().any(
+    let degraded = support::shapes(&d).into_iter().any(
         |shape| matches!(shape, Shape::Text(text) if text.galley.text().starts_with("Not shown: table")),
     );
     assert!(!degraded);
@@ -410,8 +436,8 @@ fn a_gfm_table_is_a_table_not_a_degrade_box() {
 
 #[test]
 fn a_cell_keeps_its_inline_styles() {
-    let harness = harness();
-    let (galley, _) = support::galley_of(&harness, "emphasis and code");
+    let d = driver();
+    let galley = d.painted().expect("emphasis and code").galley().clone();
     let families: Vec<_> = galley
         .job
         .sections
@@ -433,28 +459,33 @@ fn a_cell_keeps_its_inline_styles() {
 
 #[test]
 fn a_link_in_a_cell_calls_on_link() {
-    let mut harness = harness();
-    let link = support::part_rect(&harness, "a relative link", "relative");
-    press_and_release(&mut harness, link.center());
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.followed, ["table.md"]);
+    let mut d = driver();
+    let link = d
+        .painted()
+        .expect("a relative link")
+        .part_rect("relative")
+        .expect("the part is on one row");
+    press_and_release(&mut d, link.center());
+    d.frames(2);
+    assert_eq!(d.app().followed, ["table.md"]);
 }
 
 #[test]
 fn every_row_lines_up_with_the_header_and_its_alignment() {
-    let harness = harness();
+    let d = driver();
     for column in 0..3 {
-        let header = rect_of(&harness, &cell("Header", column));
+        let header = d.rect(Target::suffix(&cell("Header", column)));
         for row in ["Row(0)", "Row(1)", "Row(2)"] {
-            let at = rect_of(&harness, &cell(row, column));
+            let at = d.rect(Target::suffix(&cell(row, column)));
             assert_eq!(at.x_range(), header.x_range(), "{row} column {column}");
         }
     }
-    let content = |row: &str, column| rect_of(&harness, &format!("{}/Cell", cell(row, column)));
+    let content =
+        |row: &str, column| d.rect(Target::suffix(&format!("{}/Cell", cell(row, column))));
     let (left, centred, right) = (
-        rect_of(&harness, &cell("Row(0)", 0)),
-        rect_of(&harness, &cell("Row(0)", 1)),
-        rect_of(&harness, &cell("Row(0)", 2)),
+        d.rect(Target::suffix(&cell("Row(0)", 0))),
+        d.rect(Target::suffix(&cell("Row(0)", 1))),
+        d.rect(Target::suffix(&cell("Row(0)", 2))),
     );
     let inset = right.right() - content("Row(0)", 2).right();
     assert!(inset > 0.0, "precondition: cells are padded");
@@ -467,15 +498,19 @@ fn every_row_lines_up_with_the_header_and_its_alignment() {
 
 #[test]
 fn a_wide_cell_wraps_and_the_table_fits_the_page() {
-    let harness = harness();
-    let table = rect_of(&harness, TABLE);
-    let article = rect_of(&harness, "/Page/Doc");
+    let d = driver();
+    let table = d.rect(Target::suffix(TABLE));
+    let article = d.rect(Target::suffix("/Page/Doc"));
     assert!(
         table.width() <= article.width() + 0.5,
         "{table:?} in {article:?}"
     );
-    let one_line = rect_of(&harness, &format!("{}/Cell", cell("Row(0)", 0))).height();
-    let wide = rect_of(&harness, &format!("{}/Cell", cell("Row(1)", 0))).height();
+    let one_line = d
+        .rect(Target::suffix(&format!("{}/Cell", cell("Row(0)", 0))))
+        .height();
+    let wide = d
+        .rect(Target::suffix(&format!("{}/Cell", cell("Row(1)", 0))))
+        .height();
     assert!(
         wide >= 2.0 * one_line,
         "the long cell wraps: {wide} vs {one_line}"
@@ -484,15 +519,13 @@ fn a_wide_cell_wraps_and_the_table_fits_the_page() {
 
 #[test]
 fn headless_places_the_table_where_the_frame_draws_it() {
-    let harness = harness();
+    let d = driver();
     let placed = Headless::new(vec2(720.0, 1700.0) - vec2(16.0, 16.0))
         .base_text(common::base_text(Theme::Light))
         .prepare(common::use_preset)
         .layout(&page::State::default(), page::layout);
-    let drawn: Vec<_> = harness
-        .state()
-        .nodes
-        .iter()
+    let drawn: Vec<_> = support::nodes(&d)
+        .into_iter()
         .filter(|(path, _)| path.starts_with(TABLE))
         .collect();
     assert!(
@@ -503,49 +536,65 @@ fn headless_places_the_table_where_the_frame_draws_it() {
         .nodes()
         .find(|node| node.path() == TABLE)
         .expect("headless has the table");
-    let shift = rect_of(&harness, TABLE).min - table.rect().min;
+    let shift = d.rect(Target::suffix(TABLE)).min - table.rect().min;
     for (path, rect) in drawn {
         let node = placed
             .nodes()
             .find(|node| node.path() == path)
             .unwrap_or_else(|| panic!("headless lacks {path}"));
-        assert_eq!(node.rect().translate(shift), *rect, "{path}");
+        assert_eq!(node.rect().translate(shift), rect, "{path}");
     }
 }
 
 const GUIDE: &str = "A sibling page, shown by the demo when a relative link names it. From here:";
 const BACK: &str = "Back";
 
-fn painted(harness: &Harness<'_, Rig<page::State>>, text: &str) -> bool {
-    support::shapes(harness)
+fn painted(d: &Driver<page::State>, text: &str) -> bool {
+    support::shapes(d)
         .into_iter()
         .any(|shape| matches!(shape, Shape::Text(shown) if shown.galley.text() == text))
 }
 
-fn follow(harness: &mut Harness<'_, Rig<page::State>>, text: &str, part: &str) {
-    let link = support::part_rect(harness, text, part);
-    press_and_release(harness, link.center());
-    harness.run_steps(4);
+/// A primary press and release at `at`, a frame each, with no hover first.
+fn press_and_release(d: &mut Driver<page::State>, at: egui::Pos2) {
+    for pressed in [true, false] {
+        d.event(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+}
+
+fn follow(d: &mut Driver<page::State>, text: &str, part: &str) {
+    let link = d
+        .painted()
+        .expect(text)
+        .part_rect(part)
+        .expect("the part is on one row");
+    press_and_release(d, link.center());
+    d.frames(4);
 }
 
 #[test]
 fn a_relative_link_to_a_sibling_page_shows_it_from_its_top() {
-    let mut harness = harness_sized(vec2(720.0, 360.0));
-    support::shell(&harness).scroll_into_view(
-        support::id_of(&harness, &cell("Row(0)", 1)),
+    let mut d = driver_sized(vec2(720.0, 360.0));
+    d.shell().scroll_into_view(
+        support::id_of(&d, &cell("Row(0)", 1)),
         Some(egui::Align::Max),
     );
-    harness.run_steps(4);
-    let page = rect_of(&harness, "/Page");
+    d.frames(4);
+    let page = d.rect(Target::suffix("/Page"));
     assert!(
-        rect_of(&harness, "/Page/Doc").min.y < page.min.y - 600.0,
+        d.rect(Target::suffix("/Page/Doc")).min.y < page.min.y - 600.0,
         "precondition: the sample is scrolled far down: {:?}",
-        rect_of(&harness, "/Page/Doc")
+        d.rect(Target::suffix("/Page/Doc"))
     );
-    follow(&mut harness, "a relative link", "relative");
-    assert!(painted(&harness, "Table page"), "table.md is shown");
-    assert!(!painted(&harness, PARAGRAPH), "the sample is not");
-    let back = rect_of(&harness, "/Page/Back");
+    follow(&mut d, "a relative link", "relative");
+    assert!(painted(&d, "Table page"), "table.md is shown");
+    assert!(!painted(&d, PARAGRAPH), "the sample is not");
+    let back = d.rect(Target::suffix("/Page/Back"));
     assert!(
         (back.min.y - (page.min.y + 24.0)).abs() < 1.0,
         "the new page starts at the top: {back:?} in {page:?}"
@@ -554,34 +603,31 @@ fn a_relative_link_to_a_sibling_page_shows_it_from_its_top() {
 
 #[test]
 fn back_retraces_the_pages_followed() {
-    let mut harness = harness();
-    assert!(
-        !painted(&harness, BACK),
-        "the sample has nowhere to go back to"
-    );
-    follow(&mut harness, PARAGRAPH, "relative");
-    assert!(painted(&harness, GUIDE));
-    follow(&mut harness, "the table page", "the table page");
-    assert!(painted(&harness, "Table page"));
-    follow(&mut harness, BACK, BACK);
-    assert!(painted(&harness, GUIDE), "back to guide.md");
-    follow(&mut harness, BACK, BACK);
-    assert!(painted(&harness, PARAGRAPH), "back to the sample");
-    assert!(!painted(&harness, BACK));
+    let mut d = driver();
+    assert!(!painted(&d, BACK), "the sample has nowhere to go back to");
+    follow(&mut d, PARAGRAPH, "relative");
+    assert!(painted(&d, GUIDE));
+    follow(&mut d, "the table page", "the table page");
+    assert!(painted(&d, "Table page"));
+    follow(&mut d, BACK, BACK);
+    assert!(painted(&d, GUIDE), "back to guide.md");
+    follow(&mut d, BACK, BACK);
+    assert!(painted(&d, PARAGRAPH), "back to the sample");
+    assert!(!painted(&d, BACK));
 }
 
 #[test]
 fn a_link_to_a_page_the_demo_lacks_stays_on_the_page() {
-    let mut harness = harness();
-    follow(&mut harness, PARAGRAPH, "relative");
+    let mut d = driver();
+    follow(&mut d, PARAGRAPH, "relative");
     follow(
-        &mut harness,
+        &mut d,
         "a page that is not there",
         "a page that is not there",
     );
-    assert!(painted(&harness, GUIDE));
+    assert!(painted(&d, GUIDE));
     assert_eq!(
-        harness.state().app.followed.last().map(String::as_str),
+        d.app().followed.last().map(String::as_str),
         Some("missing.md")
     );
 }
@@ -594,45 +640,38 @@ fn nested(b: &mut eggshell_ui::Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn heading_id_names_every_heading_however_deep_and_repeated() {
-    let harness = support::harness(
+    let d = support::driver(
         vec2(400.0, 300.0),
         common::base_text(Theme::Light),
         (),
         nested,
-    );
-    let doc = support::id_of(&harness, "/\"doc\"");
+    )
+    .build();
+    let doc = support::id_of(&d, "/\"doc\"");
     for anchor in ["top", "quoted", "listed", "top-1", "top-2"] {
         let heading = format!("Heading({anchor:?})");
-        let (path, _) = harness
-            .state()
-            .nodes
-            .iter()
+        let (path, _) = support::nodes(&d)
+            .into_iter()
             .find(|(path, _)| path.ends_with(&heading))
             .unwrap_or_else(|| panic!("precondition: {anchor} is drawn"));
-        assert_eq!(
-            support::id_of(&harness, path),
-            heading_id(doc, anchor),
-            "{path}"
-        );
+        assert_eq!(support::id_of(&d, &path), heading_id(doc, anchor), "{path}");
     }
     assert!(
-        harness
-            .state()
-            .nodes
-            .iter()
+        support::nodes(&d)
+            .into_iter()
             .any(|(path, _)| path.contains("Item(0)") && path.ends_with("Heading(\"listed\")")),
         "precondition: a heading sits in a list item"
     );
-    eggshell_ui::testing::assert_no_reports(&harness.ctx);
+    eggshell_ui::testing::assert_no_reports(d.ctx());
 }
 
 #[test]
 fn a_link_to_a_heading_on_a_sibling_page_lands_on_it() {
-    let mut harness = harness_sized(vec2(720.0, 360.0));
-    follow(&mut harness, PARAGRAPH, "relative");
-    follow(&mut harness, "its alignments", "its alignments");
-    let page = rect_of(&harness, "/Page");
-    let heading = rect_of(&harness, "/Page/Doc/Heading(\"alignments\")");
+    let mut d = driver_sized(vec2(720.0, 360.0));
+    follow(&mut d, PARAGRAPH, "relative");
+    follow(&mut d, "its alignments", "its alignments");
+    let page = d.rect(Target::suffix("/Page"));
+    let heading = d.rect(Target::suffix("/Page/Doc/Heading(\"alignments\")"));
     assert!(
         (page.min.y..page.min.y + 1.0).contains(&heading.min.y),
         "the heading is at the page's top: {heading:?} in {page:?}"
