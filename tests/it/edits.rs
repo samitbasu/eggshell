@@ -38,6 +38,12 @@ fn view(b: &mut Builder<'_, '_, App>, _: &App) {
                 .named("Count")
                 .on_edit(|app: &mut App, edit| app.log.push(Logged::Edit(edit)))
                 .on_change(|app: &mut App, value| app.log.push(Logged::Value(value)));
+            b.slider("gain", 50.4, 0.0..=100.0)
+                .named("Gain")
+                .readout(|value| format!("{value:.0}"))
+                .editable(|text| text.trim().parse().ok())
+                .on_edit(|app: &mut App, edit| app.log.push(Logged::Edit(edit)))
+                .on_change(|app: &mut App, value| app.log.push(Logged::Value(value)));
         },
     );
 }
@@ -149,4 +155,70 @@ fn typing_in_the_stepper_is_one_edit_until_the_field_loses_focus() {
     harness.key_press(Key::Tab);
     harness.run_steps(3);
     assert_eq!(edits(&harness), [Edit::Began, Edit::Ended]);
+}
+
+const READOUT: &str = r#"/"gain"/Box/Header/Readout"#;
+
+/// Clicks the readout open and selects what it shows.
+fn open_readout(harness: &mut Harness<'_, Rig<App>>) {
+    click_node(harness, READOUT);
+    harness.run_steps(4);
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
+    harness.run_steps(2);
+}
+
+#[test]
+fn opening_the_readout_begins_an_edit_and_escape_ends_it_setting_nothing() {
+    let mut harness = harness();
+    open_readout(&mut harness);
+    assert_eq!(
+        log(&harness),
+        [Logged::Edit(Edit::Began)],
+        "open is the signal"
+    );
+    harness.event(Event::Text("70".into()));
+    harness.run_steps(3);
+    harness.key_press(Key::Escape);
+    harness.run_steps(4);
+    assert_eq!(
+        log(&harness),
+        [Logged::Edit(Edit::Began), Logged::Edit(Edit::Ended)]
+    );
+}
+
+#[test]
+fn a_readout_committed_by_enter_sets_its_value_inside_the_edit() {
+    let mut harness = harness();
+    open_readout(&mut harness);
+    harness.event(Event::Text("70".into()));
+    harness.run_steps(3);
+    assert_eq!(
+        log(&harness),
+        [Logged::Edit(Edit::Began)],
+        "nothing while typing"
+    );
+    harness.key_press(Key::Enter);
+    harness.run_steps(4);
+    assert_eq!(
+        log(&harness),
+        [
+            Logged::Edit(Edit::Began),
+            Logged::Value(70.0),
+            Logged::Edit(Edit::Ended)
+        ]
+    );
+}
+
+#[test]
+fn a_readout_closed_unchanged_sets_nothing() {
+    let mut harness = harness();
+    click_node(&mut harness, READOUT);
+    harness.run_steps(4);
+    harness.key_press(Key::Enter);
+    harness.run_steps(4);
+    assert_eq!(
+        log(&harness),
+        [Logged::Edit(Edit::Began), Logged::Edit(Edit::Ended)],
+        "Enter on the text as it opened (50 for 50.4) commits nothing"
+    );
 }

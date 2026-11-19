@@ -79,6 +79,15 @@ pub(crate) enum WindowFocus {
     NotYet,
 }
 
+/// Whether a button that [`dismisses`](crate::owned::ButtonChain::dismisses)
+/// its overlay was pressed this frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Closer {
+    Pressed,
+    #[default]
+    Idle,
+}
+
 /// An open overlay as dismissal sees it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Layer {
@@ -103,6 +112,7 @@ pub(crate) struct Layer {
     /// A hidden overlay takes no press, Esc or window blur.
     pub(crate) seen: Seen,
     pub(crate) window_focus: WindowFocus,
+    pub(crate) closer: Closer,
 }
 
 /// What the frame's input did.
@@ -133,6 +143,9 @@ pub(crate) enum Cause {
     Exclusive,
     /// The node the overlay is anchored to is not in the frame.
     AnchorGone,
+    /// A button that dismisses the overlay was pressed, whatever
+    /// [`DismissOn`] says.
+    Closed,
 }
 
 /// An overlay to dismiss.
@@ -175,7 +188,9 @@ impl Found {
 ///    press reaches it to do so.
 /// 5. The window losing focus dismisses every drawn overlay that dismisses
 ///    on focus leaving.
-/// 6. An overlay opening while a swallowing overlay is open, that is not
+/// 6. A button that dismisses its overlay closes it, whatever `DismissOn`
+///    says: the press is the application's own request.
+/// 7. An overlay opening while a swallowing overlay is open, that is not
 ///    nested in it, dismisses the swallowing one, drawn or hidden: menus are
 ///    exclusive. Tooltips and hidden overlays do not count as opening.
 ///
@@ -196,6 +211,13 @@ pub(crate) fn dismissals(layers: &[Layer], input: &Input) -> Vec<Dismissal> {
         .filter(|(_, layer)| layer.lookup == AnchorLookup::Missing)
     {
         found.add(at, Cause::AnchorGone);
+    }
+    for (at, _) in layers
+        .iter()
+        .enumerate()
+        .filter(|(_, layer)| layer.closer == Closer::Pressed)
+    {
+        found.add(at, Cause::Closed);
     }
     if input.window_blurred {
         for (at, _) in top_down()
@@ -363,6 +385,7 @@ mod tests {
             lookup: AnchorLookup::Found,
             seen: Seen::Drawn,
             window_focus: WindowFocus::Had,
+            closer: Closer::Idle,
         }
     }
 
@@ -1019,6 +1042,32 @@ mod tests {
                 cause: Cause::Esc
             }],
             "the select closes; the dialog's cancel waits for the next Esc"
+        );
+    }
+
+    #[test]
+    fn a_pressed_closer_closes_its_overlay_whatever_dismiss_on_says() {
+        let asked = |layer: Layer| Layer {
+            closer: Closer::Pressed,
+            dismiss_on: DismissOn::Never,
+            ..layer
+        };
+        assert_eq!(closed(&[asked(modal(0.0))], &Input::default()), vec![0]);
+        assert_eq!(
+            dismissals(
+                &[modal(0.0), asked(nested(modal(0.0), 0))],
+                &Input::default()
+            ),
+            vec![Dismissal {
+                layer: 1,
+                cause: Cause::Closed
+            }],
+            "only the closer's own overlay closes"
+        );
+        assert_eq!(
+            closed(&[popover(150.0), modal(0.0)], &Input::default()),
+            Vec::<usize>::new(),
+            "nothing is closed without a press"
         );
     }
 

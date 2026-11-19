@@ -11,7 +11,8 @@
 //! hint text, which is how the computation drifts when it is wrong.
 //!
 //! The buttons, choices and values sections show every control built from
-//! eggshell nodes, which have no size computation to check.
+//! eggshell nodes, which have no size computation to check, and the labels
+//! section the badges, chips, spinners and skeletons of `eggshell-ui-extras`.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -23,7 +24,10 @@ use eggshell_ui::contract::{Colors, Paint, States, Style, Variant};
 use eggshell_ui::owned;
 use eggshell_ui::prim::text_field::{self, Field};
 use eggshell_ui::widget::{Lines, TextEdit};
-use eggshell_ui::{Builder, Progress, Scope, TextStyle, Tw, tw};
+use eggshell_ui::{Builder, Icon, Progress, Scope, TextStyle, Tw, icons, tw};
+use eggshell_ui_extras::badge::BadgeExt;
+use eggshell_ui_extras::skeleton::SkeletonExt;
+use eggshell_ui_extras::spinner::SpinnerExt;
 use eggshell_ui_shadcn::{BaseColor, Palette, ThemeColor, size, variant};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
 
@@ -238,6 +242,8 @@ pub struct State {
     pub owned_slider: f64,
     pub owned_select: usize,
     pub owned_stepper: f64,
+    /// The tags the labels section's removable chips show.
+    pub owned_tags: Vec<&'static str>,
     /// The preset's base colour and theme colour, applied to the whole page.
     pub base: BaseColor,
     pub theme_color: ThemeColor,
@@ -257,14 +263,17 @@ pub enum Section {
     Choices,
     /// The owned slider, select and stepper.
     Values,
+    /// The extras' badges, chips, spinners and skeletons.
+    Labels,
 }
 
 impl Section {
-    const ALL: [(Self, &'static str); 4] = [
+    const ALL: [(Self, &'static str); 5] = [
         (Self::Cells, "text"),
         (Self::Buttons, "button"),
         (Self::Choices, "choice"),
         (Self::Values, "value"),
+        (Self::Labels, "label"),
     ];
 }
 
@@ -297,6 +306,7 @@ impl Default for State {
             owned_slider: 40.0,
             owned_select: 0,
             owned_stepper: 3.0,
+            owned_tags: TAGS.to_vec(),
             base: BaseColor::Neutral,
             theme_color: common::ACCENT,
         }
@@ -617,6 +627,7 @@ fn controls(b: &mut B<'_, '_>, state: &State) {
     palette_controls(b, state);
     common::captioned(b, "Section", |b| {
         b.segmented("section", state.section, Section::ALL)
+            .wrapping()
             .on_change(|s: &mut State, section| s.section = section);
     });
     if state.section == Section::Cells {
@@ -732,6 +743,7 @@ pub fn layout(b: &mut B<'_, '_>, state: &State) {
             Section::Buttons => b.scope(Section::Buttons, |s| buttons_section(s, state)),
             Section::Choices => b.scope(Section::Choices, |s| choices_section(s, state)),
             Section::Values => b.scope(Section::Values, |s| values_section(s, state)),
+            Section::Labels => b.scope(Section::Labels, |s| labels_section(s, state)),
         },
     );
 }
@@ -757,6 +769,13 @@ fn named(name: &str, enablement: owned::Enablement) -> String {
 
 /// One row: a name, then the control.
 fn row<'f>(b: &mut B<'_, 'f>, name: &str, control: impl FnOnce(&mut B<'_, 'f>)) {
+    row_of(b, name, CONTROL_COLUMN, control);
+}
+
+const CONTROL_COLUMN: f32 = 170.0;
+
+/// [`row`] with the control's column `width` points wide.
+fn row_of<'f>(b: &mut B<'_, 'f>, name: &str, width: f32, control: impl FnOnce(&mut B<'_, 'f>)) {
     b.div(tw().flex().items_center().gap(4.0), |b| {
         b.div(
             tw().w(NAME_COLUMN)
@@ -766,7 +785,7 @@ fn row<'f>(b: &mut B<'_, 'f>, name: &str, control: impl FnOnce(&mut B<'_, 'f>)) 
                 b.text(tw(), name);
             },
         );
-        b.div(tw().w_px(170.0).shrink_0().flex().items_center(), control);
+        b.div(tw().w_px(width).shrink_0().flex().items_center(), control);
     });
 }
 
@@ -868,6 +887,11 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
                 .on_change(|s: &mut State, checked| s.owned_checked = checked);
             });
         }
+        row(b, "checkbox, refused", |b| {
+            b.checkbox("checkbox-refused", "Share usage data", state.owned_checked)
+                .refused("Your organisation decides this")
+                .on_change(|s: &mut State, checked| s.owned_checked = checked);
+        });
         row(b, "radio group", |b| {
             b.radio_group(
                 "radio",
@@ -921,6 +945,29 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
             .cells(tw().flex_1())
             .on_change(|s: &mut State, unit| s.unit = unit);
         });
+        row(b, "segmented, refused", |b| {
+            b.segmented(
+                "segmented-refused",
+                state.unit,
+                [
+                    owned::Choice::new(Unit::Metric, "Metric"),
+                    owned::Choice::new(Unit::Imperial, "Imperial").tooltip("Feet and pounds"),
+                ],
+            )
+            .refused("Units follow the project")
+            .on_change(|s: &mut State, unit| s.unit = unit);
+        });
+        row(b, "choice, refused", |b| {
+            b.segmented(
+                "segmented-choice-refused",
+                state.unit,
+                [
+                    owned::Choice::new(Unit::Metric, "Metric"),
+                    owned::Choice::new(Unit::Imperial, "Imperial").refused("Not in this region"),
+                ],
+            )
+            .on_change(|s: &mut State, unit| s.unit = unit);
+        });
     });
 }
 
@@ -960,6 +1007,107 @@ fn values_section(s: &mut S<'_, '_>, state: &State) {
                     .on_change(|s: &mut State, value| s.owned_stepper = value);
             });
         }
+        row(b, "field, refused", |b| {
+            b.text_field("field-refused", "ada@example.com")
+                .named("Email")
+                .classes(tw().w_px(150.0))
+                .refused("Managed by your account")
+                .on_change(|_: &mut State, _| {});
+        });
+        row(b, "button, refused", |b| {
+            b.button("refused", "Publish")
+                .tooltip("Publishes the draft")
+                .refused("Nothing to publish yet")
+                .on_click(|s: &mut State| s.owned_clicks += 1);
+        });
+    });
+}
+
+const BADGE_VARIANTS: [(&str, Variant); 4] = [
+    ("primary", variant::PRIMARY),
+    ("secondary", variant::SECONDARY),
+    ("destructive", variant::DESTRUCTIVE),
+    ("outline", variant::OUTLINE),
+];
+
+const TAGS: [&str; 3] = ["Rust", "egui", "taffy"];
+
+/// The labels section's controls are wider than one control.
+const LABELS_COLUMN: f32 = 360.0;
+
+/// A row per badge variant with a badge, one with an icon and a chip of each
+/// kind, then removable tags, and the spinner at each size and composed.
+fn labels_section(s: &mut S<'_, '_>, state: &State) {
+    rows(s, |b| {
+        for (name, variant) in BADGE_VARIANTS {
+            row_of(b, &format!("badge, {name}"), LABELS_COLUMN, |b| {
+                b.div(tw().flex().items_center().gap(2.0), |b| {
+                    b.badge(("badge", name), "Badge").variant(variant).add();
+                    b.badge(("icon", name), "Verified")
+                        .variant(variant)
+                        .icon(Icon::new(icons::CHECK))
+                        .add();
+                    b.chip(("click", name), "Filter")
+                        .variant(variant)
+                        .on_click(|s: &mut State| s.owned_clicks += 1)
+                        .add();
+                    b.chip(("remove", name), "Tag")
+                        .variant(variant)
+                        .on_remove(|s: &mut State| s.owned_clicks += 1)
+                        .add();
+                    b.chip(("both", name), "Both")
+                        .variant(variant)
+                        .on_click(|s: &mut State| s.owned_clicks += 1)
+                        .on_remove(|s: &mut State| s.owned_clicks += 1)
+                        .add();
+                });
+            });
+        }
+        row_of(b, "chips, removable", LABELS_COLUMN, |b| {
+            b.div(tw().flex().items_center().gap(2.0), |b| {
+                for &tag in &state.owned_tags {
+                    b.chip(("tag", tag), tag)
+                        .variant(variant::SECONDARY)
+                        .on_remove(move |s: &mut State| s.owned_tags.retain(|kept| *kept != tag))
+                        .add();
+                }
+                b.button("reset-tags", "Reset")
+                    .variant(variant::GHOST)
+                    .size(size::XS)
+                    .on_click(|s: &mut State| s.owned_tags = TAGS.to_vec());
+            });
+        });
+        row_of(b, "spinner", LABELS_COLUMN, |b| {
+            b.div(tw().flex().items_center().gap(4.0), |b| {
+                b.spinner("spinner").add();
+                b.spinner("spinner-sm").size(size::SM).add();
+                b.spinner("spinner-xs").size(size::XS).add();
+            });
+        });
+        row_of(b, "spinner, composed", LABELS_COLUMN, |b| {
+            b.div(tw().flex().items_center().gap(4.0), |b| {
+                b.button("saving", "Saving")
+                    .variant(variant::OUTLINE)
+                    .enablement(owned::Enablement::Disabled)
+                    .children(|s| s.spinner("spinner").named("Saving").add())
+                    .add();
+                b.div(tw().flex().items_center().gap(1.0), |b| {
+                    b.spinner("syncing").named("Syncing").add();
+                    b.badge("count", "3").variant(variant::SECONDARY).add();
+                });
+            });
+        });
+        // shadcn's Skeleton demo: `flex items-center space-x-4` of a
+        // `size-12 rounded-full` and two lines, `h-4 w-[250px]` and `w-[200px]`.
+        row_of(b, "skeleton", LABELS_COLUMN, |b| {
+            b.div(tw().flex().items_center().gap(4.0), |b| {
+                b.skeleton(tw().size_px(48.0).rounded_full());
+                b.div(tw().flex().flex_col().gap(2.0), |b| {
+                    b.skeleton(tw().h_px(16.0).w_px(250.0));
+                    b.skeleton(tw().h_px(16.0).w_px(200.0));
+                });
+            });
+        });
     });
 }
 

@@ -39,6 +39,7 @@ use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
 use crate::tw::{
     BoxPaint, Focusability, Grouping, PointerEvents, RingPlacement, Sensing, Sides, Variants,
+    Visibility,
 };
 
 /// The kind of a node, for diagnostics.
@@ -110,6 +111,7 @@ pub(crate) struct Node {
     pub z: i16,
     pub inert: bool,
     pub pointer_events: PointerEvents,
+    pub(crate) visibility: Option<Visibility>,
     pub interaction: Interaction,
     /// For a region's leaf, the root of its content, once built.
     pub region: Option<NodeId>,
@@ -149,6 +151,7 @@ impl Node {
             z: 0,
             inert: false,
             pointer_events: PointerEvents::Auto,
+            visibility: None,
             interaction: Interaction::default(),
             region: None,
             collapse: None,
@@ -1203,20 +1206,22 @@ impl<'f, A> Built<'f, A> {
         drop(measures);
         st.kept.with(|kept| kept.mounts.set_mounts(&mounts));
         Placed {
-            ctx: ctx.clone(),
-            scope,
-            root,
-            kept: st.kept.clone(),
-            nodes,
-            by_id,
-            prims,
+            frame: PlacedFrame {
+                ctx: ctx.clone(),
+                scope,
+                root,
+                kept: st.kept.clone(),
+                nodes,
+                by_id,
+                prims,
+                roots,
+            },
             draws,
             drag,
             dismiss,
             windows,
             pop_outs,
             exited,
-            roots,
             commands,
             size_in_flight,
         }
@@ -1293,7 +1298,8 @@ fn place_window(
                 let offset = chrome.map_or(Vec2::ZERO, |chrome| chrome.offset);
                 decl.window
                     .frame
-                    .map_or(area.center() - size / 2.0, |frame| frame.position + offset)
+                    .and_then(|frame| frame.position)
+                    .map_or(area.center() - size / 2.0, |position| position + offset)
             },
             |content| content.min,
         ),
@@ -1751,6 +1757,7 @@ fn collect(
         collapsible: node.collapse.is_some(),
         flight: node.collapse.and_then(|collapse| collapse.flight),
         pointer_events: node.pointer_events,
+        visibility: node.visibility,
         interaction: node.interaction,
         draw_kind: node.draw_kind,
         description: node.description.take(),
@@ -1890,6 +1897,7 @@ pub struct PlacedNode {
     pub(crate) collapsible: bool,
     flight: Option<Flight>,
     pointer_events: PointerEvents,
+    visibility: Option<Visibility>,
     pub(crate) interaction: Interaction,
     draw_kind: DrawKind,
     description: Option<Box<Description>>,
@@ -1901,7 +1909,7 @@ pub struct PlacedNode {
     selection: Option<crate::owned::Mark>,
     /// What the content of an application-measured leaf wants at its final
     /// width; recorded only while [`Debug::Outlines`] is set. The library's
-    /// own leaves are measured when asked ([`Placed::overflowing`]).
+    /// own leaves are measured when asked ([`PlacedFrame::overflowing`](crate::testing::PlacedFrame::overflowing)).
     pub(crate) measured: Option<egui::Vec2>,
 }
 
@@ -1934,6 +1942,7 @@ impl PlacedNode {
             collapsible: false,
             flight: None,
             pointer_events: PointerEvents::Auto,
+            visibility: None,
             interaction: Interaction::default(),
             draw_kind: DrawKind::Paint,
             description: None,
@@ -1965,6 +1974,11 @@ impl PlacedNode {
             Some(viewport) => inner.intersect(viewport),
             None => inner,
         }
+    }
+
+    /// The node's own visibility class; `None` inherits its parent's.
+    pub(crate) fn visibility(&self) -> Option<Visibility> {
+        self.visibility
     }
 
     /// Whether the node, by itself, lets the pointer through.
@@ -2216,14 +2230,12 @@ impl PlacedNode {
 
 /// A laid-out frame. Nodes are in pre-order: the root first, then each
 /// node followed by its descendants.
+///
+/// TODO(prose): it is a [`PlacedFrame`], the frame's nodes, with the closures the view
+/// declared for drawing it: every query of the frame is asked through
+/// [`Deref`](std::ops::Deref).
 pub struct Placed<A> {
-    pub(crate) ctx: egui::Context,
-    pub(crate) scope: Id,
-    pub(crate) root: Id,
-    pub(crate) kept: Handle,
-    pub(crate) nodes: Nodes,
-    pub(crate) by_id: HashMap<Id, usize>,
-    pub(crate) prims: Vec<Option<Prim>>,
+    pub(crate) frame: PlacedFrame,
     pub(crate) draws: Vec<Vec<DrawFn<A>>>,
     pub(crate) drag: Decls<A>,
     pub(crate) dismiss: HashMap<Id, DismissFn<A>>,
@@ -2232,15 +2244,37 @@ pub struct Placed<A> {
     /// Every pop-out declared, inline or popped out.
     pub(crate) pop_outs: Vec<Id>,
     pub(crate) exited: Vec<DismissFn<A>>,
-    /// The base root, then the overlays in the order they were declared.
-    pub(crate) roots: Vec<PlacedRoot>,
     /// The command tables declared, the page's and the mounts'.
     pub(crate) commands: Vec<Declared<A>>,
     /// Whether a collapsible is opening or closing in this frame.
     pub(crate) size_in_flight: bool,
 }
 
-impl<A> Placed<A> {
+impl<A> std::ops::Deref for Placed<A> {
+    type Target = PlacedFrame;
+
+    fn deref(&self) -> &PlacedFrame {
+        &self.frame
+    }
+}
+
+/// TODO(prose): the nodes of a laid-out frame and where they were placed, without the
+/// closures that draw it: what a test asks a frame, before or after it is
+/// drawn. Nodes are in pre-order: the root first, then each node followed by
+/// its descendants.
+pub struct PlacedFrame {
+    pub(crate) ctx: egui::Context,
+    pub(crate) scope: Id,
+    pub(crate) root: Id,
+    pub(crate) kept: Handle,
+    pub(crate) nodes: Nodes,
+    pub(crate) by_id: HashMap<Id, usize>,
+    pub(crate) prims: Vec<Option<Prim>>,
+    /// The base root, then the overlays in the order they were declared.
+    pub(crate) roots: Vec<PlacedRoot>,
+}
+
+impl PlacedFrame {
     /// The state of the layout this was placed by.
     pub fn shell(&self) -> Shell {
         Shell::new(&self.ctx, &self.kept)

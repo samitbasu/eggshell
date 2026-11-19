@@ -24,8 +24,9 @@ pub enum Popped {
 /// TODO(prose): a window's outer position and inner size, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WindowFrame {
-    /// TODO(prose): the outer top-left corner, on the screen.
-    pub position: Pos2,
+    /// TODO(prose): the outer top-left corner, on the screen; `None` where it
+    /// is not known (Wayland) or left to the platform.
+    pub position: Option<Pos2>,
     /// TODO(prose): the size of the content.
     pub size: Vec2,
 }
@@ -77,6 +78,8 @@ impl Window {
     }
 
     /// TODO(prose): changes the window's [`ViewportBuilder`] before it opens.
+    /// The size the subtree is laid out at is [`frame`](Self::frame)'s, not
+    /// an inner size set here, and the title is always [`Window::new`]'s.
     #[must_use]
     pub fn viewport(
         mut self,
@@ -293,6 +296,18 @@ pub struct PopOutChain<'b, 'f, A> {
     placeholder: Option<PlaceholderFn<'b, 'f, A>>,
 }
 
+impl<'b, 'f, A> PopOutChain<'b, 'f, A> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 impl<'b, 'f, A: 'static> PopOutChain<'b, 'f, A> {
     pub(crate) fn new(b: Builder<'b, 'f, A>, slot: Slot) -> Self {
         Self {
@@ -309,7 +324,7 @@ impl<'b, 'f, A: 'static> PopOutChain<'b, 'f, A> {
     /// TODO(prose): the classes of the subtree's container, inline and in its
     /// window.
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
     }
 
@@ -410,19 +425,18 @@ impl Shown {
 }
 
 /// The builder the native window of `window` is shown with: the one it
-/// opened with, kept unchanged while it stays open, so that egui sends the
-/// window no command that would undo the user's move or resize.
+/// opened with, kept while it stays open so that egui sends the window no
+/// command that would undo the user's move or resize, under the title and
+/// min size the window has now.
 pub(crate) fn builder(kept: &Handle, window: &PlacedWindow) -> ViewportBuilder {
     let decl = &window.window;
     kept.with(|kept| {
         let seen = kept.windows.entry(window.id).or_default();
         seen.opened
             .get_or_insert_with(|| {
-                let mut opening = ViewportBuilder::default()
-                    .with_title(decl.title.clone())
-                    .with_inner_size(window.content.size());
-                if let Some(frame) = decl.frame {
-                    opening = opening.with_position(frame.position);
+                let mut opening = ViewportBuilder::default().with_inner_size(window.content.size());
+                if let Some(position) = decl.frame.and_then(|frame| frame.position) {
+                    opening = opening.with_position(position);
                 }
                 match &decl.viewport {
                     Some(change) => change(opening),
@@ -430,6 +444,7 @@ pub(crate) fn builder(kept: &Handle, window: &PlacedWindow) -> ViewportBuilder {
                 }
             })
             .clone()
+            .with_title(decl.title.clone())
             .with_min_inner_size(window.min)
     })
 }
@@ -509,8 +524,7 @@ pub(crate) fn report<A>(
             position: shown
                 .outer
                 .map(|outer| outer.min)
-                .or(before.map(|before| before.position))
-                .unwrap_or(Pos2::ZERO),
+                .or(before.and_then(|before| before.position)),
             size: shown.content.size(),
         };
         seen.content = Some(shown.content);
