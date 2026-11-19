@@ -14,6 +14,10 @@
 //! - An [`egui_kittest`](https://docs.rs/egui_kittest) `Harness` runs whole
 //!   frames: build, layout, draw, and the input of each frame. Use it for
 //!   behaviour: clicks, keys, focus, overlays, motion.
+//! - TODO(prose): `Driver`, behind the `driver` feature, wraps that harness:
+//!   it clicks, drags, types and presses keys by the node they aim at,
+//!   settles after each action, asks the frame it drew, and checks that the
+//!   view reported nothing.
 //!
 //! # Headless
 //!
@@ -170,8 +174,16 @@
 //! Each row sits under its item key, and the nodes the row builder makes sit
 //! under that: `placed.at(Region).at(Part::List).at(item_key).at(Part::Row(item_key))`.
 
+#[cfg(feature = "driver")]
+mod driver;
 #[cfg(all(feature = "screenshots", target_os = "linux"))]
 pub mod screenshot;
+
+#[cfg(feature = "driver")]
+pub use driver::{
+    After, Animation, Driver, DriverBuilder, Focused, Painted, PaintedText, Path, Press, Reports,
+    Settled, Stage, Target, TextFinding, Unsettled, WindowFocus,
+};
 
 use std::collections::HashMap;
 
@@ -609,20 +621,26 @@ impl<'p> Query<'p> {
     #[track_caller]
     #[expect(clippy::panic, reason = "a test lookup fails the test")]
     pub fn at<K: Key>(&self, key: K) -> Query<'p> {
-        self.child(&key).unwrap_or_else(|| {
-            panic!(
-                "no node {}/{key:?}{}; below {} there are: {}",
-                self.path,
-                self.not_built_hint(),
-                self.display_path(),
-                list(
-                    self.children()
-                        .into_iter()
-                        .filter_map(|index| self.layout.node(index))
-                        .map(PlacedNode::path)
-                ),
-            )
-        })
+        let readable = format!("{key:?}");
+        self.child_by_id(child_id_of(self.id, &key), &readable)
+            .unwrap_or_else(|| panic!("{}", self.missing(&readable)))
+    }
+
+    /// Why there is no node `readable` below this one: the path asked for,
+    /// then what exists below this one.
+    fn missing(&self, readable: &str) -> String {
+        format!(
+            "no node {}/{readable}{}; below {} there are: {}",
+            self.path,
+            self.not_built_hint(),
+            self.display_path(),
+            list(
+                self.children()
+                    .into_iter()
+                    .filter_map(|index| self.layout.node(index))
+                    .map(PlacedNode::path)
+            ),
+        )
     }
 
     /// What to add to the message for a missing node when this one is a
@@ -638,12 +656,14 @@ impl<'p> Query<'p> {
 
     /// [`at`](Self::at), or `None` when nothing is there.
     pub fn try_at<K: Key>(&self, key: K) -> Option<Query<'p>> {
-        self.child(&key)
+        self.child_by_id(child_id_of(self.id, &key), &format!("{key:?}"))
     }
 
-    fn child<K: Key>(&self, key: &K) -> Option<Query<'p>> {
-        let id = child_id(self.id?, key);
-        let path = format!("{}/{key:?}", self.path);
+    /// The node or scope below this one whose id is `id`, which the key
+    /// that reads as `readable` hashes to.
+    fn child_by_id(&self, id: Option<Id>, readable: &str) -> Option<Query<'p>> {
+        let id = id?;
+        let path = format!("{}/{readable}", self.path);
         let index = self.layout.by_id.get(&id).copied();
         let is_scope = || {
             let prefix = format!("{path}/");
@@ -669,6 +689,11 @@ impl<'p> Query<'p> {
     #[track_caller]
     #[expect(clippy::panic, reason = "a test lookup fails the test")]
     pub fn text(&self, text: &str) -> Query<'p> {
+        self.find_text(text).unwrap_or_else(|miss| panic!("{miss}"))
+    }
+
+    /// [`text`](Self::text), or why no one node below this one shows `text`.
+    fn find_text(&self, text: &str) -> Result<Query<'p>, String> {
         let texts: Vec<Shown<'p>> = self
             .descendants()
             .filter_map(|index| {
@@ -681,23 +706,23 @@ impl<'p> Query<'p> {
         };
         let matching: Vec<_> = texts.iter().filter(|(_, _, shown)| shown == text).collect();
         match matching[..] {
-            [&(node, index, _)] => Query {
+            [&(node, index, _)] => Ok(Query {
                 layout: self.layout,
                 path: node.path().to_owned(),
                 id: node.id(),
                 index: Some(index),
-            },
-            [] => panic!(
+            }),
+            [] => Err(format!(
                 "no text {text:?} below {}; text below it: {}",
                 self.display_path(),
                 describe(&mut texts.iter()),
-            ),
-            _ => panic!(
+            )),
+            _ => Err(format!(
                 "{} nodes show {text:?} below {}: {}",
                 matching.len(),
                 self.display_path(),
                 describe(&mut matching.iter().copied()),
-            ),
+            )),
         }
     }
 
@@ -767,6 +792,11 @@ impl<'p> Query<'p> {
             .map(|(index, _)| index)
             .collect()
     }
+}
+
+/// The id `key` hashes to below `parent`, if the parent has one.
+fn child_id_of<K: Key>(parent: Option<Id>, key: &K) -> Option<Id> {
+    Some(child_id(parent?, key))
 }
 
 fn list<S: AsRef<str>>(items: impl Iterator<Item = S>) -> String {

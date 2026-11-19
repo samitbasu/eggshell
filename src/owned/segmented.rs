@@ -13,9 +13,9 @@ use super::{
     tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
-use crate::contract::Size;
+use crate::contract::{SegmentedMetrics, Size};
 use crate::focus::{Autofocus, Select};
-use crate::{Builder, Tw, tw};
+use crate::{Builder, Style, Tw, tw};
 
 type Handler<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
 
@@ -28,10 +28,12 @@ pub enum Cell {
     Released,
 }
 
-/// Whether a track keeps its cells on one row.
+/// TODO(prose): whether a segmented track keeps its cells on one row or wraps them onto more.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Rows {
+pub enum SegmentedRows {
+    /// TODO(prose): one row, at the size's height.
     One,
+    /// TODO(prose): as many rows as the width needs, the track as tall as they are.
     Wrapping,
 }
 
@@ -71,7 +73,7 @@ pub struct SegmentedChain<'a, 'f, A, T> {
     slot: Slot,
     current: T,
     options: Vec<Choice<T>>,
-    rows: Rows,
+    rows: SegmentedRows,
     enablement: Enablement,
     size: Option<Size>,
     gate: Gate,
@@ -103,7 +105,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             b,
             current,
             options: choice::collect(options),
-            rows: Rows::One,
+            rows: SegmentedRows::One,
             enablement: Enablement::Enabled,
             size: None,
             gate: Gate::default(),
@@ -119,7 +121,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
     /// A track that wraps its cells onto more rows when it is narrower than
     /// they are, and takes its height from the rows.
     pub fn wrapping(mut self) -> Self {
-        self.rows = Rows::Wrapping;
+        self.rows = SegmentedRows::Wrapping;
         self
     }
 
@@ -282,57 +284,20 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
                         Enablement::Disabled => classes.inert(),
                     }
                 },
-                tw(),
+                tw().shrink_0(),
                 (select, on_response),
             );
             return;
         }
         let style = b.style().clone();
-        let seg = &style.segmented;
-        let metrics = *seg.sizes.lookup(b.ctx(), b.size_of(size));
-        let container = tw()
-            .flex()
-            .items_center()
-            .w_fit()
-            .p(metrics.track_padding / 4.0)
-            .rounded_px(f32::from(metrics.track_radius))
-            .bg(seg.track_fill);
-        let container = match rows {
-            Rows::One => container
-                .h_px(metrics.height)
-                .gap_x(metrics.column_gap / 4.0),
-            Rows::Wrapping => container.flex_wrap().h_auto().gap(metrics.row_gap / 4.0),
-        };
-        let container = enablement.fade(container, &style).merge(track);
+        let metrics = *style.segmented.sizes.lookup(b.ctx(), b.size_of(size));
+        let container = style.track_of(&metrics, rows, enablement).merge(track);
         let cell = |cell, enablement| {
-            let look = match cell {
-                Cell::Pressed => &seg.selected,
-                Cell::Released => &seg.unselected,
-            };
-            let mut role = style.role_sized(&seg.text, metrics.text);
-            if let (Cell::Pressed, Some(weight)) = (cell, seg.selected_weight) {
-                role.weight = weight;
-            }
-            let classes = centered(look.classes(
-                seg.cell_border_width,
-                &style,
-                metrics.cell_radius,
-                enablement,
-                seg.transition,
-            ))
-            .grow()
-            .text_center()
-            .px(metrics.cell_padding.x / 4.0)
-            .py(metrics.cell_padding.y / 4.0)
-            .gap(metrics.icon_gap / 4.0)
-            .role(role);
-            let classes = match rows {
-                Rows::One => classes.h_full(),
-                Rows::Wrapping => classes.h_auto(),
-            };
-            classes.merge(caller.clone())
+            style
+                .cell_of(&metrics, rows, cell, enablement)
+                .merge(caller.clone())
         };
-        let icon = tw().size_px(metrics.icon_size);
+        let icon = icon_of(&metrics);
         cells_in(
             b,
             slot,
@@ -415,7 +380,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
                 }
                 Some(icon) => {
                     b.div_id(index, classes, |b| {
-                        b.glyph(icon_classes.clone().shrink_0(), icon);
+                        b.glyph(icon_classes.clone(), icon);
                         b.text(tw(), label);
                     })
                     .open_focus(autofocus.open_focus())
@@ -438,4 +403,97 @@ struct Group<T> {
     refused: Refused,
     name: Option<String>,
     autofocus: Autofocus,
+}
+
+impl Style {
+    /// TODO(prose): the classes of a segmented control's track at `size`, as [`Builder::segmented`] draws it.
+    #[track_caller]
+    pub fn segmented_track(
+        &self,
+        ctx: &Context,
+        size: Size,
+        rows: SegmentedRows,
+        enablement: Enablement,
+    ) -> Tw {
+        self.track_of(self.segmented.sizes.lookup(ctx, size), rows, enablement)
+    }
+
+    /// TODO(prose): the classes of one cell of a segmented control at `size`, chosen or not, as [`Builder::segmented`] draws it; add `sense_click` to make it take input.
+    #[track_caller]
+    pub fn segmented_cell(
+        &self,
+        ctx: &Context,
+        size: Size,
+        rows: SegmentedRows,
+        cell: Cell,
+        enablement: Enablement,
+    ) -> Tw {
+        let metrics = self.segmented.sizes.lookup(ctx, size);
+        self.cell_of(metrics, rows, cell, enablement)
+    }
+
+    /// TODO(prose): the classes of the icon in a segmented control's cell at `size`.
+    #[track_caller]
+    pub fn segmented_icon(&self, ctx: &Context, size: Size) -> Tw {
+        icon_of(self.segmented.sizes.lookup(ctx, size))
+    }
+
+    fn track_of(
+        &self,
+        metrics: &SegmentedMetrics,
+        rows: SegmentedRows,
+        enablement: Enablement,
+    ) -> Tw {
+        let track = tw()
+            .flex()
+            .items_center()
+            .w_fit()
+            .p(metrics.track_padding / 4.0)
+            .rounded_px(f32::from(metrics.track_radius))
+            .bg(self.segmented.track_fill);
+        let track = match rows {
+            SegmentedRows::One => track.h_px(metrics.height).gap_x(metrics.column_gap / 4.0),
+            SegmentedRows::Wrapping => track.flex_wrap().h_auto().gap(metrics.row_gap / 4.0),
+        };
+        enablement.fade(track, self)
+    }
+
+    fn cell_of(
+        &self,
+        metrics: &SegmentedMetrics,
+        rows: SegmentedRows,
+        cell: Cell,
+        enablement: Enablement,
+    ) -> Tw {
+        let seg = &self.segmented;
+        let look = match cell {
+            Cell::Pressed => &seg.selected,
+            Cell::Released => &seg.unselected,
+        };
+        let mut role = self.role_sized(&seg.text, metrics.text);
+        if let (Cell::Pressed, Some(weight)) = (cell, seg.selected_weight) {
+            role.weight = weight;
+        }
+        let classes = centered(look.classes(
+            seg.cell_border_width,
+            self,
+            metrics.cell_radius,
+            enablement,
+            seg.transition,
+        ))
+        .grow()
+        .text_center()
+        .px(metrics.cell_padding.x / 4.0)
+        .py(metrics.cell_padding.y / 4.0)
+        .gap(metrics.icon_gap / 4.0)
+        .role(role);
+        match rows {
+            SegmentedRows::One => classes.h_full(),
+            SegmentedRows::Wrapping => classes.h_auto(),
+        }
+    }
+}
+
+fn icon_of(metrics: &SegmentedMetrics) -> Tw {
+    tw().size_px(metrics.icon_size).shrink_0()
 }
