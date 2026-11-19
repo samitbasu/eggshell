@@ -181,7 +181,7 @@ pub struct ListChain<'a, 'f, A, R: Clone> {
     mark: Option<RowMark<R>>,
 }
 
-impl<'a, 'f, A, R> ListChain<'a, 'f, A, R> {
+impl<'a, 'f, A, R: Clone> ListChain<'a, 'f, A, R> {
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         crate::owned::options::when(self, condition, then)
