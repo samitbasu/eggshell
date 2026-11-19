@@ -12,7 +12,9 @@ use egui::accesskit::HasPopup;
 use egui::{Color32, Context, EventFilter, Id, Key as EguiKey, Painter, Pos2, Rect, Role, Vec2};
 
 use super::button::{ButtonChain, ButtonOptions, Face};
-use super::{Chevron, Enablement, Mark, OnResponse, check, describe, painted};
+use super::{
+    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, painted, tipped,
+};
 use crate::builder::{Scope, Slot};
 use crate::commands::Bound;
 use crate::contract::{MenuStyle, Style, Variant};
@@ -242,6 +244,7 @@ struct Row<A> {
     trail: Trail,
     tone: Tone,
     enablement: Enablement,
+    gate: Gate,
     open_focus: OpenFocus,
     reaction: Reaction<A>,
 }
@@ -374,6 +377,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             shortcut: None,
             tone: Tone::Plain,
             enablement: Enablement::Enabled,
+            gate: Gate::default(),
             allowed: Enablement::Enabled,
             open_focus: OpenFocus::Elsewhere,
             kind,
@@ -432,6 +436,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             trail: Trail::Chevron,
             tone: Tone::Plain,
             enablement: Enablement::Enabled,
+            gate: Gate::default(),
             open_focus: OpenFocus::Elsewhere,
             reaction: Reaction::OpenSubmenu,
         });
@@ -466,10 +471,11 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             trail,
             tone,
             enablement,
+            gate,
             open_focus,
             reaction,
         } = row;
-        let enablement = self.b.enablement_of(enablement);
+        let (enablement, tip) = gate.resolve(&mut self.b, slot.id, enablement);
         let shared = self.shared.clone();
         let (text, menu) = (shared.text(), &shared.style.menu);
         let classes = menu.row_classes(tone, enablement, text);
@@ -527,7 +533,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             .named(label.clone())
             .open_focus(open_focus)
             .draw(move |app, ui| {
-                let response = ui.node_response();
+                let response = tipped(ui, ui.node_response(), &tip);
                 describe(&response, ui.is_enabled().into(), role, mark, &label);
                 if owns == Owns::Submenu {
                     ui.ctx().accesskit_node_builder(response.id, |node| {
@@ -611,6 +617,7 @@ pub struct ItemChain<'m, 'f, A, Kind> {
     shortcut: Option<String>,
     tone: Tone,
     enablement: Enablement,
+    gate: Gate,
     /// Whether the item may take input at all, whatever its own enablement
     /// says: a command item's command.
     allowed: Enablement,
@@ -718,6 +725,25 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
         self
     }
 
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the item's tooltip and accessible description. `None` clears it; the
+    /// last call wins. A command's item is disabled while its command is,
+    /// whatever this says.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
+    }
+
     /// Gives the item focus as the menu opens from the keyboard, instead of
     /// the first item: the current choice.
     pub fn focus_on_open(mut self) -> Self {
@@ -743,6 +769,7 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             shortcut,
             tone,
             enablement,
+            gate,
             allowed,
             open_focus,
             kind,
@@ -759,6 +786,7 @@ impl<A: 'static, Kind> ItemChain<'_, '_, A, Kind> {
             trail: shortcut.map_or(Trail::Nothing, Trail::Shortcut),
             tone,
             enablement,
+            gate,
             open_focus,
             reaction: Reaction::Run(Box::new(handler(kind))),
         });
@@ -875,7 +903,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
 
     /// TODO(prose): classes merged over the styled ones of the menu's box ([`Tw::merge`]), such as its width.
     pub fn menu_classes(mut self, classes: Tw) -> Self {
-        self.menu_classes = classes;
+        self.menu_classes = self.menu_classes.merge(classes);
         self
     }
 
@@ -925,6 +953,31 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         self
     }
 
+    /// TODO(prose): shown while the pointer hovers the trigger or it has
+    /// keyboard focus, also when it is disabled.
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.options = self.options.tooltip(text);
+        self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description; a refused trigger closes
+    /// its menu. `None` clears it; the last call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.options = self.options.refused(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
+    }
+
     /// Runs `then` with the trigger's response each frame.
     pub fn on_response(mut self, then: impl Fn(&mut A, &egui::Response) + 'static) -> Self {
         self.on_response.set(then);
@@ -949,7 +1002,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         let shared = Shared::of(&b, b.slot(&key).id);
         let trigger = shared.root;
         let list = b.slot(&(key.clone(), Part::Menu));
-        let enablement = b.enablement_of(enablement);
+        let enablement = b.enablement_of(enablement.and(options.refusal()));
         if enablement == Enablement::Disabled {
             shared.close();
         }

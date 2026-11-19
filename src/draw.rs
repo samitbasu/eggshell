@@ -49,7 +49,7 @@ use crate::tooltip;
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
     BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,
-    Sides, State,
+    Sides, State, Visibility,
 };
 use crate::window;
 
@@ -140,6 +140,7 @@ struct Inherited {
     clip: Rect,
     opacity: Opacity,
     inertness: Inertness,
+    visibility: Visibility,
     group: Option<Hovering>,
     /// A text colour a variant of an ancestor set, for descendants that
     /// inherit their colour.
@@ -169,6 +170,7 @@ impl Inherited {
             clip,
             opacity: Opacity::OPAQUE,
             inertness: Inertness::Live,
+            visibility: Visibility::Visible,
             group: None,
             text_color: None,
             interactive: Interactive::Outside,
@@ -911,18 +913,22 @@ impl<A> Walk<'_, A> {
             return;
         }
         let inertness = parent.inertness.or(node.is_inert().into());
+        let visibility = node.visibility().unwrap_or(parent.visibility);
         let hidden = Inherited {
             inertness,
+            visibility,
             opacity: Opacity::TRANSPARENT,
             ..parent
         };
         self.noting(index, |walk| {
             let boxes = Boxes::of(node, walk.grid);
-            if let Some(test) = walk.sense_of(index) {
-                walk.interact(index, node, test, &boxes, hidden);
-            }
-            if node.draws_widgets() {
-                walk.run_draw(index, &boxes, hidden, node.text(), None);
+            if visibility == Visibility::Visible {
+                if let Some(test) = walk.sense_of(index) {
+                    walk.interact(index, node, test, &boxes, hidden);
+                }
+                if node.draws_widgets() {
+                    walk.run_draw(index, &boxes, hidden, node.text(), None);
+                }
             }
             for child in nodes.in_paint_order(index) {
                 walk.register_culled(child, hidden);
@@ -963,20 +969,27 @@ impl<A> Walk<'_, A> {
         }
         let boxes = Boxes::of(node, self.grid);
         let inertness = parent.inertness.or(node.is_inert().into());
+        let visibility = node.visibility().unwrap_or(parent.visibility);
+        let shown = visibility == Visibility::Visible;
+        if !shown && node.as_scroll().is_some() {
+            return;
+        }
         let interaction = &node.interaction;
 
         let pointer_events = parent.pointer_events.merge(node.pointer_events());
-        self.cover(
-            index,
-            &boxes,
-            Inherited {
-                inertness,
-                pointer_events,
-                ..parent
-            },
-        );
+        if shown {
+            self.cover(
+                index,
+                &boxes,
+                Inherited {
+                    inertness,
+                    pointer_events,
+                    ..parent
+                },
+            );
+        }
 
-        let (response, merged) = match self.sense_of(index) {
+        let (response, merged) = match self.sense_of(index).filter(|_| shown) {
             Some(test) => {
                 let (response, merged) = self.interact(
                     index,
@@ -1096,13 +1109,15 @@ impl<A> Walk<'_, A> {
         }
         let moved_from = (translate != Vec2::ZERO || lifted.is_some() || staged_scale != 1.0)
             .then(|| self.next_shape());
-        paint_box(
-            &self.painter(parent.clip, own_opacity),
-            &look.paint,
-            &boxes,
-            node.border,
-            self.grid,
-        );
+        if shown {
+            paint_box(
+                &self.painter(parent.clip, own_opacity),
+                &look.paint,
+                &boxes,
+                node.border,
+                self.grid,
+            );
+        }
 
         let painted_background = look.paint.background.map_or(Color32::TRANSPARENT, |fill| {
             fill.gamma_multiply(f32::from(opacity))
@@ -1115,6 +1130,7 @@ impl<A> Walk<'_, A> {
             clip: content_clip(parent.clip, boxes.padding, node.overflow),
             opacity,
             inertness,
+            visibility,
             pointer_events,
             drags: if interaction.sensing.drags()
                 || (node.scroll().is_some() && scroll::drag_scrolls(self.ui.ctx()))
@@ -1141,13 +1157,17 @@ impl<A> Walk<'_, A> {
             },
         };
         if let Some(prim) = self.shared.prims.get_mut(index).and_then(Option::take) {
-            self.paint_prim(&prim, index, node, &text, &boxes, inherited);
+            if shown {
+                self.paint_prim(&prim, index, node, &text, &boxes, inherited);
+            }
             if let Some(slot) = self.shared.prims.get_mut(index) {
                 *slot = Some(prim);
             }
         }
-        let bubbled = response.as_ref().filter(|_| merged == Merged::Bubbled);
-        self.run_draw(index, &boxes, inherited, &text, bubbled);
+        if shown {
+            let bubbled = response.as_ref().filter(|_| merged == Merged::Bubbled);
+            self.run_draw(index, &boxes, inherited, &text, bubbled);
+        }
 
         if let Some(scroll) = node.as_scroll() {
             self.scroll_content(index, scroll, &boxes, inherited);
@@ -1155,7 +1175,9 @@ impl<A> Walk<'_, A> {
             for child in nodes.in_paint_order(index) {
                 self.visit(child, inherited);
             }
-            self.paint_dividers(node, index, inherited);
+            if shown {
+                self.paint_dividers(node, index, inherited);
+            }
         }
         if self.scroller_takes_focus(index)
             && !interaction.variants.has_focus()
