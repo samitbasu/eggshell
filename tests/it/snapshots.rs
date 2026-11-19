@@ -63,6 +63,9 @@ mod control_sizes_example;
 #[path = "../../examples/field_icons.rs"]
 mod field_icons_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/form_sections.rs"]
+mod form_sections_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/icons.rs"]
 mod icons_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
@@ -2645,6 +2648,33 @@ fn slider_header_in(name: &str, theme: egui::Theme) {
     harness.ctx.set_theme(theme);
     harness.run_steps(3);
     harness.snapshot(name);
+}
+
+/// Form sections of labelled rows beside every control with a track (#370).
+fn form_sections_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(460.0, 600.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        form_sections_example::Settings::default(),
+        form_sections_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    harness.snapshot(name);
+}
+
+#[test]
+fn form_sections_light() {
+    form_sections_in("form_sections_light", egui::Theme::Light);
+}
+
+#[test]
+fn form_sections_dark() {
+    form_sections_in("form_sections_dark", egui::Theme::Dark);
 }
 
 /// The table example: selectable invoices, the same grouped and striped,

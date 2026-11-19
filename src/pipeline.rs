@@ -656,6 +656,12 @@ impl LayoutState {
         &self.st.kept
     }
 
+    /// The id every node's path derives from.
+    #[cfg_attr(not(feature = "driver"), expect(dead_code))]
+    pub(crate) fn root(&self) -> Id {
+        self.st.root
+    }
+
     /// This state, reached from where only `ctx` is at hand.
     pub fn shell(&self, ctx: &egui::Context) -> crate::Shell {
         crate::Shell::new(ctx, &self.st.kept)
@@ -1250,6 +1256,14 @@ fn place_window(
     } else {
         Presentation::Native
     };
+    let _timer = (presentation == Presentation::Native).then(|| {
+        Timer::window(
+            ctx,
+            Phase::Layout,
+            ctx.viewport_id(),
+            (decl.id, &decl.window.title),
+        )
+    });
     let mut style = st.tree.style(node).clone();
     let mut sized = |size: Option<Vec2>, available: AvailableSpace| {
         style.size = Size {
