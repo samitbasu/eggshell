@@ -63,6 +63,9 @@ mod control_sizes_example;
 #[path = "../../examples/field_icons.rs"]
 mod field_icons_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/form_sections.rs"]
+mod form_sections_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/icons.rs"]
 mod icons_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
@@ -71,9 +74,6 @@ mod list_nav_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/slider_header.rs"]
 mod slider_header_example;
-#[allow(dead_code, reason = "the example's main is not run here")]
-#[path = "../../examples/form_sections.rs"]
-mod form_sections_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/swatch_picker.rs"]
 mod swatch_picker;
