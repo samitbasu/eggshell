@@ -10,8 +10,8 @@ use egui::{Key, Rect, Role, Ui, WidgetInfo};
 use super::number::{self, Edit, Edits, Step, ValueRange};
 use super::number_field::Session;
 use super::{
-    Content, Enablement, FieldBoxChain, OnResponse, TipContent, described, painted, text_sized,
-    tip, tip_describes, tipped_whole,
+    Enablement, FieldBoxChain, Gate, IntoTip, OnResponse, described, options, painted, text_sized,
+    tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
@@ -56,7 +56,7 @@ pub struct SliderChain<'a, 'f, A> {
     range: ValueRange,
     step: Step,
     name: Option<String>,
-    tooltip: TipContent,
+    gate: Gate,
     classes: Tw,
     enablement: Enablement,
     size: Option<Size>,
@@ -157,7 +157,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             range,
             step: Step::ONE,
             name: None,
-            tooltip: None,
+            gate: Gate::default(),
             classes: tw(),
             enablement: Enablement::Enabled,
             size: None,
@@ -182,7 +182,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     /// Classes merged over the styled ones of the whole slider (its hit area, which is as wide as the space it is given), such as its
     /// width or placement; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
     }
 
@@ -191,8 +191,8 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
     /// delay, at once when it has keyboard focus, and also when the control is
     /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
     }
 
@@ -204,7 +204,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         mut self,
         build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
-        self.tooltip = Some(Content::built(build));
+        self.gate.tooltip_with(build);
         self
     }
 
@@ -254,6 +254,24 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
+    }
+
     /// Adds the slider, as wide as the space it is given. `set` runs with the
     /// new value when the pointer or the keyboard changes it.
     #[track_caller]
@@ -266,7 +284,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             range,
             step,
             name,
-            tooltip,
+            gate,
             classes: caller,
             enablement,
             size,
@@ -275,8 +293,7 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             edits,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
-        let tooltip = tip(&mut b, slot.id, tooltip);
-        let enablement = b.enablement_of(enablement);
+        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let style = b.style().clone();
         let slider = &style.slider;
         let metrics = *slider.sizes.lookup(b.ctx(), b.size_of(size));

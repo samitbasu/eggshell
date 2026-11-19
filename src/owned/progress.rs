@@ -4,7 +4,7 @@
 use egui::{Painter, Pos2, Rect, Role, Shape, Stroke, WidgetInfo, pos2};
 
 use super::slider::track_classes;
-use super::{Content, TipContent, tip, tipped};
+use super::{Gate, IntoTip, options, tipped};
 use crate::builder::Slot;
 use crate::{Builder, NodeUi as _, Progress, Tw, tw};
 
@@ -86,7 +86,7 @@ pub struct ProgressChain<'a, 'f, A> {
     slot: Slot,
     progress: Progress,
     name: Option<String>,
-    tooltip: TipContent,
+    gate: Gate,
     classes: Tw,
 }
 
@@ -97,7 +97,7 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
             b,
             progress,
             name: None,
-            tooltip: None,
+            gate: Gate::default(),
             classes: tw(),
         }
     }
@@ -111,14 +111,24 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
     /// Classes merged over the styled ones of the bar, such as its width,
     /// which is the space it is given; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
     }
 
     /// Shown while the pointer hovers the bar, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)). It adds to the accessible name and does not replace it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
     }
 
@@ -130,7 +140,7 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
         mut self,
         build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
-        self.tooltip = Some(Content::built(build));
+        self.gate.tooltip_with(build);
         self
     }
 
@@ -141,10 +151,10 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
             slot,
             progress,
             name,
-            tooltip,
+            gate,
             classes,
         } = self;
-        let tooltip = tip(&mut b, slot.id, tooltip);
+        let (_, tooltip) = gate.resolve(&mut b, slot.id, super::Enablement::Enabled);
         let style = b.style().clone();
         let bar = &style.progress;
         let track = track_classes((bar.height, bar.radius), bar.track).merge(classes);
