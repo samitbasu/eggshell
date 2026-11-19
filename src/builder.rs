@@ -2178,7 +2178,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// Gives the node focus as the overlay it is in opens, instead of the
     /// overlay's first focusable: the current colour of a swatch picker. For
     /// an overlay that takes focus in ([`Focus::Enter`](crate::overlay::Focus));
-    /// the node must take focus. If two nodes of one overlay are marked, the
+    /// the node, or a widget inside it, must take focus. If two nodes of one overlay are marked, the
     /// first takes focus and it is reported as
     /// [`FocusOnOpenTwice`](crate::Problem::FocusOnOpenTwice).
     pub fn focus_on_open(self) -> Self {
