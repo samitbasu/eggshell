@@ -3,9 +3,9 @@
 //! draw exactly as `Builder::segmented` does, at the size and enablement a
 //! subtree gives them (`Builder::control_size`, `Builder::enablement`).
 
-use eggshell_ui::contract::{SegmentedMetrics, Size, Style};
+use eggshell_ui::contract::{Disabled, SegmentedMetrics, Size, Style};
 use eggshell_ui::owned::{Cell, Rows};
-use eggshell_ui::{Builder, Icon, TextStyle, tw};
+use eggshell_ui::{Builder, Icon, Opacity, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Theme, vec2};
 use egui_kittest::Harness;
@@ -27,6 +27,8 @@ enum Ambient {
     Plain,
     Small,
     Inert,
+    /// Inert, under a style that draws disabled controls faded.
+    InertFaded,
 }
 
 struct App {
@@ -34,8 +36,11 @@ struct App {
     rows: Rows,
 }
 
-fn prepare(ctx: &egui::Context, _: &App) {
+fn prepare(ctx: &egui::Context, app: &App) {
     let mut style = (*Style::of(ctx)).clone();
+    if app.ambient == Ambient::InertFaded {
+        style.disabled = Disabled::Faded(Opacity::new(0.4));
+    }
     let default = *style.segmented.sizes.get(Size::DEFAULT);
     style.segmented.sizes = style.segmented.sizes.clone().with(
         SM,
@@ -54,7 +59,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     let around = match app.ambient {
         Ambient::Plain => tw(),
         Ambient::Small => tw().control_size(SM),
-        Ambient::Inert => tw().inert(),
+        Ambient::Inert | Ambient::InertFaded => tw().inert(),
     };
     let rows = app.rows;
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
@@ -126,7 +131,7 @@ fn same_look(ambient: Ambient, rows: Rows) {
         .filter_map(|(path, rect)| Some((path.strip_prefix(public)?, *rect)))
         .collect();
     assert!(
-        ours.len() >= 1 + 3 * LABELS.len(),
+        ours.len() > 3 * LABELS.len(),
         "precondition: the track, its cells, their icons and labels: {ours:?}"
     );
     assert_eq!(ours.len(), theirs.len(), "{ours:?}\n{theirs:?}");
@@ -180,6 +185,21 @@ fn they_follow_the_size_a_subtree_gives() {
 #[test]
 fn they_follow_an_inert_subtree() {
     same_look(Ambient::Inert, Rows::One);
+}
+
+#[test]
+fn they_fade_as_the_style_fades_disabled_controls() {
+    let faded = harness(Ambient::InertFaded, Rows::One);
+    let colours = harness(Ambient::Inert, Rows::One);
+    let track = |harness: &Harness<'static, Rig<App>>| {
+        box_at(harness, rect_of(harness, "/\"library\"")).fill
+    };
+    assert_ne!(
+        track(&faded),
+        track(&colours),
+        "precondition: the faded style draws the library's track otherwise"
+    );
+    same_look(Ambient::InertFaded, Rows::One);
 }
 
 #[test]
