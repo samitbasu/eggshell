@@ -1139,8 +1139,20 @@ pub struct TableStyle {
     pub rule: Color32,
     /// The rule's width.
     pub rule_width: f32,
-    /// Behind every second body row, starting with the second.
+    /// TODO(prose): behind every second body row of a table with
+    /// [`Stripes::Alternate`](crate::owned::Stripes::Alternate), starting
+    /// with the second, and again after each group row.
     pub stripe: Color32,
+    /// TODO(prose): behind a group row.
+    pub group_fill: Color32,
+    /// TODO(prose): the colour of a group row's title; `None` keeps the
+    /// table's.
+    pub group_text: Option<Color32>,
+    /// TODO(prose): the size of a group row's title; `None` keeps the
+    /// table's.
+    pub group_text_size: Option<TextSize>,
+    /// TODO(prose): the weight of a group row's title.
+    pub group_weight: Weight,
     /// Behind a hovered body row.
     pub hover: Color32,
     /// Behind the selected row.
@@ -1169,7 +1181,11 @@ impl TableStyle {
             rule_below_last: false,
             rule: v.widgets.noninteractive.bg_stroke.color,
             rule_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
-            stripe: Color32::TRANSPARENT,
+            stripe: v.faint_bg_color,
+            group_fill: v.faint_bg_color,
+            group_text: None,
+            group_text_size: None,
+            group_weight: Weight::Normal,
             hover: v.widgets.hovered.weak_bg_fill,
             selected: v.selection.bg_fill,
             footer_fill: v.faint_bg_color,

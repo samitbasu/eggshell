@@ -338,6 +338,19 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// The same builder, borrowed for the life of a chain.
+    /// How many children this builder has added.
+    pub(crate) fn added(&self) -> usize {
+        self.kids.len()
+    }
+
+    /// Moves the child added last to `at` among its siblings, so that it is
+    /// painted and hit-tested before those added from `at` on.
+    pub(crate) fn move_last_to(&mut self, at: usize) {
+        if let Some(last) = self.kids.pop() {
+            self.kids.insert(at.min(self.kids.len()), last);
+        }
+    }
+
     pub(crate) fn reborrow(&mut self) -> Builder<'_, 'f, A> {
         Builder::new(
             self.st,
@@ -2141,6 +2154,13 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
+    /// Puts the node inside `parent` for assistive technology: a table's row
+    /// inside the table, or inside its row group.
+    pub(crate) fn accessibility_parent(mut self, parent: Id) -> Self {
+        self.edit(|context| context.description.get_or_insert_default().parent = Some(parent));
+        self
+    }
+
     /// Hovers the node whenever the pointer is over its rect, also where a
     /// sibling drawn over it takes the pointer.
     pub(crate) fn hover_by_rect(mut self) -> Self {
@@ -2158,7 +2178,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// Gives the node focus as the overlay it is in opens, instead of the
     /// overlay's first focusable: the current colour of a swatch picker. For
     /// an overlay that takes focus in ([`Focus::Enter`](crate::overlay::Focus));
-    /// the node must take focus. If two nodes of one overlay are marked, the
+    /// the node, or a widget inside it, must take focus. If two nodes of one overlay are marked, the
     /// first takes focus and it is reported as
     /// [`FocusOnOpenTwice`](crate::Problem::FocusOnOpenTwice).
     pub fn focus_on_open(self) -> Self {
