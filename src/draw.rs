@@ -31,7 +31,7 @@ use crate::overlay_input::Blur;
 use crate::overlay_input::{self, press_origin};
 use crate::owned::Side;
 use crate::pipeline::{
-    ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedNode, ScrollRef,
+    ColorSource, DismissFn, DrawFn, Flow, NodeKind, Placed, PlacedFrame, PlacedNode, ScrollRef,
 };
 use crate::plane::Axis;
 use crate::presence::Staged;
@@ -1141,7 +1141,10 @@ impl<A> Walk<'_, A> {
             },
         };
         if let Some(prim) = self.shared.prims.get_mut(index).and_then(Option::take) {
-            self.paint_prim(prim, index, node, &text, &boxes, inherited);
+            self.paint_prim(&prim, index, node, &text, &boxes, inherited);
+            if let Some(slot) = self.shared.prims.get_mut(index) {
+                *slot = Some(prim);
+            }
         }
         let bubbled = response.as_ref().filter(|_| merged == Merged::Bubbled);
         self.run_draw(index, &boxes, inherited, &text, bubbled);
@@ -1378,7 +1381,7 @@ impl<A> Walk<'_, A> {
 
     fn paint_prim(
         &mut self,
-        prim: Prim,
+        prim: &Prim,
         index: usize,
         node: &PlacedNode,
         text: &TextStyle,
@@ -1386,15 +1389,17 @@ impl<A> Walk<'_, A> {
         inherited: Inherited,
     ) {
         let content = boxes.content;
-        if let Some(leaf) = TextLeaf::of(self.ui.ctx(), &prim, (text, &node.style.rich)) {
+        if let Some(leaf) = TextLeaf::of(self.ui.ctx(), prim, (text, &node.style.rich)) {
             self.paint_text(&leaf, index, node, boxes, inherited);
             return;
         }
         match prim {
-            Prim::Icon(icon) => {
-                self.paint_image(image_for(icon, text.color), meet(content), inherited)
-            }
-            Prim::Image(src) => self.paint_image(Image::new(src), content, inherited),
+            Prim::Icon(icon) => self.paint_image(
+                image_for(icon.clone(), text.color),
+                meet(content),
+                inherited,
+            ),
+            Prim::Image(src) => self.paint_image(Image::new(src.clone()), content, inherited),
             Prim::Paint(paint) => paint(
                 &self.painter(inherited.clip, inherited.opacity),
                 content,
@@ -1733,22 +1738,25 @@ impl<A> Placed<A> {
     pub fn draw(self, app: &mut A, ui: &mut Ui) {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
         let Self {
-            ctx: _,
-            scope,
-            kept,
-            nodes,
-            prims,
+            frame:
+                PlacedFrame {
+                    ctx,
+                    scope,
+                    root,
+                    kept,
+                    nodes,
+                    by_id,
+                    prims,
+                    roots,
+                },
             draws,
-            by_id,
             drag,
             dismiss,
             windows,
             pop_outs,
-            roots,
             exited,
             commands,
             size_in_flight,
-            root: _,
         } = self;
         let overflow = (Debug::of(ui.ctx()) == Debug::Outlines)
             .then(|| debug::overflow(ui.ctx(), &nodes, &prims));
@@ -1784,6 +1792,26 @@ impl<A> Placed<A> {
         drop(timer);
         if let Some(overflow) = overflow {
             debug::paint(ui.ctx(), &painting.nodes, &overflow);
+        }
+        if crate::testing::kept_on_request(&painting.kept) {
+            let Painting {
+                kept,
+                nodes,
+                by_id,
+                roots,
+                shared: Shared { prims, .. },
+                ..
+            } = painting;
+            crate::testing::hand_over(PlacedFrame {
+                ctx,
+                scope,
+                root,
+                kept,
+                nodes,
+                by_id,
+                prims,
+                roots,
+            });
         }
     }
 }

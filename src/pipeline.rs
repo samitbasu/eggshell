@@ -653,6 +653,10 @@ impl LayoutState {
         &self.st.kept
     }
 
+    pub(crate) fn scope(&self) -> Id {
+        self.st.scope
+    }
+
     /// This state, reached from where only `ctx` is at hand.
     pub fn shell(&self, ctx: &egui::Context) -> crate::Shell {
         crate::Shell::new(ctx, &self.st.kept)
@@ -1203,20 +1207,22 @@ impl<'f, A> Built<'f, A> {
         drop(measures);
         st.kept.with(|kept| kept.mounts.set_mounts(&mounts));
         Placed {
-            ctx: ctx.clone(),
-            scope,
-            root,
-            kept: st.kept.clone(),
-            nodes,
-            by_id,
-            prims,
+            frame: PlacedFrame {
+                ctx: ctx.clone(),
+                scope,
+                root,
+                kept: st.kept.clone(),
+                nodes,
+                by_id,
+                prims,
+                roots,
+            },
             draws,
             drag,
             dismiss,
             windows,
             pop_outs,
             exited,
-            roots,
             commands,
             size_in_flight,
         }
@@ -1893,7 +1899,7 @@ pub struct PlacedNode {
     selection: Option<crate::owned::Mark>,
     /// What the content of an application-measured leaf wants at its final
     /// width; recorded only while [`Debug::Outlines`] is set. The library's
-    /// own leaves are measured when asked ([`Placed::overflowing`]).
+    /// own leaves are measured when asked ([`PlacedFrame::overflowing`](crate::testing::PlacedFrame::overflowing)).
     pub(crate) measured: Option<egui::Vec2>,
 }
 
@@ -2208,14 +2214,12 @@ impl PlacedNode {
 
 /// A laid-out frame. Nodes are in pre-order: the root first, then each
 /// node followed by its descendants.
+///
+/// It is a [`PlacedFrame`], the frame's nodes, with the closures the view
+/// declared for drawing it: every query of the frame is asked through
+/// [`Deref`](std::ops::Deref).
 pub struct Placed<A> {
-    pub(crate) ctx: egui::Context,
-    pub(crate) scope: Id,
-    pub(crate) root: Id,
-    pub(crate) kept: Handle,
-    pub(crate) nodes: Nodes,
-    pub(crate) by_id: HashMap<Id, usize>,
-    pub(crate) prims: Vec<Option<Prim>>,
+    pub(crate) frame: PlacedFrame,
     pub(crate) draws: Vec<Vec<DrawFn<A>>>,
     pub(crate) drag: Decls<A>,
     pub(crate) dismiss: HashMap<Id, DismissFn<A>>,
@@ -2224,15 +2228,37 @@ pub struct Placed<A> {
     /// Every pop-out declared, inline or popped out.
     pub(crate) pop_outs: Vec<Id>,
     pub(crate) exited: Vec<DismissFn<A>>,
-    /// The base root, then the overlays in the order they were declared.
-    pub(crate) roots: Vec<PlacedRoot>,
     /// The command tables declared, the page's and the mounts'.
     pub(crate) commands: Vec<Declared<A>>,
     /// Whether a collapsible is opening or closing in this frame.
     pub(crate) size_in_flight: bool,
 }
 
-impl<A> Placed<A> {
+impl<A> std::ops::Deref for Placed<A> {
+    type Target = PlacedFrame;
+
+    fn deref(&self) -> &PlacedFrame {
+        &self.frame
+    }
+}
+
+/// The nodes of a laid-out frame and where they were placed, without the
+/// closures that draw it: what a test asks a frame, before or after it is
+/// drawn. Nodes are in pre-order: the root first, then each node followed by
+/// its descendants.
+pub struct PlacedFrame {
+    pub(crate) ctx: egui::Context,
+    pub(crate) scope: Id,
+    pub(crate) root: Id,
+    pub(crate) kept: Handle,
+    pub(crate) nodes: Nodes,
+    pub(crate) by_id: HashMap<Id, usize>,
+    pub(crate) prims: Vec<Option<Prim>>,
+    /// The base root, then the overlays in the order they were declared.
+    pub(crate) roots: Vec<PlacedRoot>,
+}
+
+impl PlacedFrame {
     /// The state of the layout this was placed by.
     pub fn shell(&self) -> Shell {
         Shell::new(&self.ctx, &self.kept)

@@ -42,6 +42,8 @@ pub(crate) struct Kept {
     viewports: HashMap<ViewportId, Viewport>,
     /// Where clipboard reads and writes go; the system's when unset.
     pub(crate) clipboard: Option<std::sync::Arc<dyn crate::ClipboardSource>>,
+    /// Whether each drawn frame is handed to [`crate::testing::take_frame`].
+    pub(crate) keep_frame: bool,
 }
 
 impl Kept {
