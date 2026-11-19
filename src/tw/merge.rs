@@ -350,6 +350,7 @@ impl Tw {
         self.inert |= other.inert;
         self.control_size = other.control_size.or(self.control_size);
         self.pointer_events = self.pointer_events.merge(other.pointer_events);
+        self.visibility = other.visibility.or(self.visibility);
         self.sensing = self.sensing.or(other.sensing);
         self.focusability = self.focusability.merge(other.focusability);
         self.grouping = self.grouping.merge(other.grouping);
@@ -479,6 +480,24 @@ mod tests {
         );
         assert_eq!(replaced.variants.easing, crate::tw::Easing::Out);
         assert_eq!(replaced.z, Some(0), "z(0) is still a z");
+    }
+
+    #[test]
+    fn the_later_visibility_class_wins_and_none_keeps_the_earlier() {
+        use crate::tw::Visibility;
+        assert_eq!(
+            tw().invisible().merge(tw().visible()).visibility,
+            Some(Visibility::Visible)
+        );
+        assert_eq!(
+            tw().visible().merge(tw().invisible()).visibility,
+            Some(Visibility::Hidden)
+        );
+        assert_eq!(
+            tw().invisible().merge(tw()).visibility,
+            Some(Visibility::Hidden)
+        );
+        assert_eq!(tw().merge(tw()).visibility, None);
     }
 
     #[test]

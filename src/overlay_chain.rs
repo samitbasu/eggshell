@@ -124,6 +124,18 @@ pub struct OverlayChain<'b, 'f, A, State, Motion = Static> {
     motion: Motion,
 }
 
+impl<'b, 'f, A, State, Motion> OverlayChain<'b, 'f, A, State, Motion> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 /// What the chain said of the overlay's presence; the style fills in the
 /// rest.
 struct Presence<A> {

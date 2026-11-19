@@ -46,13 +46,23 @@ pub(crate) fn holds_focus(ctx: &Context, id: Id) -> bool {
     ctx.input(|input| input.focused) && ctx.memory(|memory| memory.has_focus(id))
 }
 
-/// Whether a field takes focus when it appears.
+/// Whether a field takes focus when it appears, and what it then selects.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Autofocus {
     #[default]
     Never,
-    OnAppear,
-    OnChange(Token),
+    OnAppear(Select),
+    OnChange(Token, Select),
+}
+
+/// TODO(prose): what a field selects when the application focuses it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Select {
+    /// TODO(prose): the whole text, so typing replaces it.
+    All,
+    /// TODO(prose): nothing; the caret stays where the field keeps it.
+    #[default]
+    None,
 }
 
 /// What an application hands a field to ask for its focus: hashed, so a field
@@ -71,29 +81,33 @@ impl Token {
 
 impl Autofocus {
     /// Requests focus for `response`'s widget if this is the first frame it
-    /// is drawn after a frame in which it was not, or ever.
-    pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) {
-        let token = match self {
-            Self::Never => return,
-            Self::OnAppear => None,
-            Self::OnChange(token) => Some(token),
+    /// is drawn after a frame in which it was not, or ever, or if its token
+    /// changed. Returns what to select when it did.
+    pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) -> Option<Select> {
+        let (token, select) = match self {
+            Self::Never => return None,
+            Self::OnAppear(select) => (None, select),
+            Self::OnChange(token, select) => (Some(token), select),
         };
-        if let Some(token) = token {
-            let slot = response.id.with("eggshell-token");
-            let last = ctx.data_mut(|data| data.get_temp::<Token>(slot));
-            ctx.data_mut(|data| data.insert_temp(slot, token));
-            if last.is_some_and(|last| last != token) {
-                response.request_focus();
+        let asks = match token {
+            Some(token) => {
+                let slot = response.id.with("eggshell-token");
+                let last = ctx.data_mut(|data| data.get_temp::<Token>(slot));
+                ctx.data_mut(|data| data.insert_temp(slot, token));
+                last.is_some_and(|last| last != token)
             }
-            return;
-        }
-        let seen = response.id.with("eggshell-seen");
-        let now = ctx.cumulative_frame_nr();
-        let last = ctx.data_mut(|data| data.get_temp::<u64>(seen));
-        ctx.data_mut(|data| data.insert_temp(seen, now));
-        if last.is_none_or(|last| last.saturating_add(1) < now) {
+            None => {
+                let seen = response.id.with("eggshell-seen");
+                let now = ctx.cumulative_frame_nr();
+                let last = ctx.data_mut(|data| data.get_temp::<u64>(seen));
+                ctx.data_mut(|data| data.insert_temp(seen, now));
+                last.is_none_or(|last| last.saturating_add(1) < now)
+            }
+        };
+        asks.then(|| {
             response.request_focus();
-        }
+            select
+        })
     }
 }
 
