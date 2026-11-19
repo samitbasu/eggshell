@@ -2215,7 +2215,7 @@ impl PlacedNode {
 /// A laid-out frame. Nodes are in pre-order: the root first, then each
 /// node followed by its descendants.
 ///
-/// It is a [`PlacedFrame`], the frame's nodes, with the closures the view
+/// TODO(prose): it is a [`PlacedFrame`], the frame's nodes, with the closures the view
 /// declared for drawing it: every query of the frame is asked through
 /// [`Deref`](std::ops::Deref).
 pub struct Placed<A> {
@@ -2242,7 +2242,7 @@ impl<A> std::ops::Deref for Placed<A> {
     }
 }
 
-/// The nodes of a laid-out frame and where they were placed, without the
+/// TODO(prose): the nodes of a laid-out frame and where they were placed, without the
 /// closures that draw it: what a test asks a frame, before or after it is
 /// drawn. Nodes are in pre-order: the root first, then each node followed by
 /// its descendants.

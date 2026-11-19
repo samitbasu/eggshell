@@ -406,7 +406,7 @@ thread_local! {
         std::cell::RefCell::default();
 }
 
-/// Has every frame `layout` draws from now on kept for [`take_frame`],
+/// TODO(prose): has every frame `layout` draws from now on kept for [`take_frame`],
 /// instead of dropped, so a test can query a frame after
 /// [`Placed::draw`] has consumed it.
 ///
@@ -419,21 +419,24 @@ thread_local! {
 /// keep_frames(&layout);
 /// let mut harness = Harness::new_ui_state(
 ///     |ui, layout: &mut LayoutState| {
-///         let view = |b: &mut Builder<'_, '_, ()>| { b.span("name", tw(), "Mono"); };
+///         let view = |b: &mut Builder<'_, '_, ()>| {
+///             b.div_id("card", tw(), |b| { b.span("name", tw(), "Mono"); });
+///         };
 ///         layout.build(ui.ctx(), view).layout(ui.max_rect()).draw(&mut (), ui);
 ///     },
 ///     layout,
 /// );
 /// harness.step();
 /// let frame = take_frame(harness.state()).expect("the frame was drawn");
-/// assert_eq!(frame.at("name").rect(), frame.text("Mono").rect());
+/// let card = frame.at("card");
+/// assert_eq!(card.at("name").rect(), card.text("Mono").rect());
 /// assert!(take_frame(harness.state()).is_none());
 /// ```
 pub fn keep_frames(layout: &LayoutState) {
     layout.kept().with(|kept| kept.keep_frame = true);
 }
 
-/// The last frame `layout` drew since [`keep_frames`], taken; `None` if
+/// TODO(prose): the last frame `layout` drew since [`keep_frames`], taken; `None` if
 /// it drew none since the last take.
 pub fn take_frame(layout: &LayoutState) -> Option<PlacedFrame> {
     KEPT_FRAMES.with_borrow_mut(|frames| frames.remove(&layout.scope()))
