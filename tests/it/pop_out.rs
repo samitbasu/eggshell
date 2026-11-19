@@ -5,7 +5,7 @@
 
 use eggshell_ui::overlay::{Anchor, Placement};
 use eggshell_ui::window::{MinSize, Popped, Window, WindowFrame};
-use eggshell_ui::{Builder, Chord, Command, Commands, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::{Builder, Chord, Command, Commands, Debug, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Modifiers, Pos2, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
@@ -160,6 +160,32 @@ fn offset(h: &H) -> Vec2 {
         .viewport(support::id_of(h, LIST))
         .expect("the list has a viewport")
         .offset()
+}
+
+/// The rows of the debug overlay's timing readout under the page's, one
+/// per native window.
+fn window_rows(h: &mut H) -> Vec<String> {
+    Debug::set(&h.ctx, Debug::Outlines);
+    h.run_steps(2);
+    let readout = support::shapes(h)
+        .into_iter()
+        .find_map(|shape| match shape {
+            egui::epaint::Shape::Text(text) if text.galley.text().contains("fps") => {
+                Some(text.galley.text().to_owned())
+            }
+            _ => None,
+        });
+    let readout = readout.expect("the readout is drawn");
+    let lines: Vec<&str> = readout.lines().collect();
+    let page = lines.iter().position(|line| line.starts_with("eggshell"));
+    let repaint = lines.iter().position(|line| line.starts_with("repaint"));
+    let (Some(page), Some(repaint)) = (page, repaint) else {
+        panic!("no page or repaint row in {readout}");
+    };
+    lines[page + 1..repaint]
+        .iter()
+        .map(|line| (*line).to_owned())
+        .collect()
 }
 
 #[test]
@@ -329,6 +355,15 @@ fn an_embedded_windows_title_follows_the_app_and_the_window_stays() {
     h.run_steps(2);
     assert!(h.query_by_label("Pane").is_none());
     assert_eq!(h.get_by_label("Renamed").rect(), before);
+}
+
+#[test]
+fn an_embedded_windows_time_is_in_its_pages_row() {
+    let mut h = harness(App::default());
+    h.state_mut().app.popped = Popped::Out;
+    h.run_steps(4);
+    assert!(h.query_by_label("Pane").is_some(), "precondition: open");
+    assert_eq!(window_rows(&mut h), Vec::<String>::new());
 }
 
 #[test]
@@ -672,6 +707,17 @@ mod native {
             "reopened as saved: {:?}",
             h.state().app.frames
         );
+    }
+
+    #[test]
+    fn a_native_window_has_a_row_of_its_own_in_the_readout() {
+        let mut h = harness_native();
+        let rows = window_rows(&mut h);
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        let row = &rows[0];
+        assert!(row.trim_start().starts_with("Pane"), "{row}");
+        assert!(row.contains("layout") && row.contains("draw"), "{row}");
+        assert!(!row.contains("build"), "built in the page's view: {row}");
     }
 
     #[test]
