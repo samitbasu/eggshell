@@ -403,6 +403,7 @@ pub(crate) fn claim_keys(
     drag: Drag,
 ) -> Keys {
     Source::note(ctx);
+    Pointing::note(ctx);
     register_hold_tab(ctx);
     let open = open_overlays(roots, here);
     let pressed = |key| ctx.input(|input| input.key_pressed(key));
@@ -510,6 +511,7 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
     for open in open
         .iter()
         .filter(|open| open.overlay.lookup == AnchorLookup::Found)
+        .filter(|open| open.overlay.behavior.hover.is_none())
     {
         describe_trigger(ctx, open);
     }
@@ -524,6 +526,9 @@ pub(crate) fn judge<A>(frame: Frame<'_>, dismiss: &mut HashMap<Id, DismissFn<A>>
             _ => {
                 let id = open.overlay.id;
                 dismissed.push(id);
+                if open.overlay.behavior.hover.is_some() {
+                    kept.viewport(ctx.viewport_id(), |here| here.hover_cards.dismissed());
+                }
                 if let Some(then) = dismiss.remove(&id) {
                     then(app);
                 }
@@ -726,6 +731,51 @@ fn describe_trigger(ctx: &Context, open: &Open<'_>) {
             node.set_has_popup(popup);
         }
     });
+}
+
+/// What the pointer was the last time it moved or pressed: a mouse (or a
+/// pen), or a finger on a touch screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Pointing {
+    Mouse,
+    Touch,
+}
+
+impl Pointing {
+    fn key(ctx: &Context) -> Id {
+        crate::key::viewport_id(ctx, "pointing")
+    }
+
+    /// Notes what this frame's pointer input came from, if it has any. A
+    /// touch also comes as pointer events, in the same frame.
+    fn note(ctx: &Context) {
+        let latest = ctx.input(|input| {
+            let events = &input.events;
+            if events
+                .iter()
+                .any(|event| matches!(event, Event::Touch { .. }))
+            {
+                Some(Self::Touch)
+            } else {
+                events
+                    .iter()
+                    .any(|event| {
+                        matches!(event, Event::PointerMoved(_) | Event::PointerButton { .. })
+                    })
+                    .then_some(Self::Mouse)
+            }
+        });
+        if let Some(latest) = latest {
+            let key = Self::key(ctx);
+            ctx.data_mut(|data| data.insert_temp(key, latest));
+        }
+    }
+}
+
+/// Whether the last pointer input was a touch.
+pub(crate) fn touch_was_last(ctx: &Context) -> bool {
+    let key = Pointing::key(ctx);
+    ctx.data(|data| data.get_temp(key)) == Some(Pointing::Touch)
 }
 
 /// Whether the last input was from the keyboard, as opposed to a press.
