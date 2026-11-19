@@ -43,6 +43,7 @@ mod dnd_reorder;
 mod dnd_zones;
 mod docs_embed;
 mod draw;
+mod driver;
 mod duplicate_key;
 mod edits;
 mod escape_field;
