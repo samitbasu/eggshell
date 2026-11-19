@@ -10,7 +10,7 @@ use egui::{Id, Role, Sense, Ui, UiBuilder, WidgetInfo};
 
 use crate::builder::Slot;
 use crate::contract::TableStyle;
-use crate::{Builder, NodeUi as _, Track, Tw, tw};
+use crate::{Builder, NodeUi as _, Reserve, Track, Tw, tw};
 
 /// TODO(prose): where a column's cells place their content.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -35,11 +35,41 @@ pub enum Stripes {
     Alternate,
 }
 
-/// TODO(prose): a column's track and alignment.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// TODO(prose): a column's track and alignment, and how its cells hold
+/// their content: a width reserved for it, tabular figures, cut short with an
+/// ellipsis, or the row headers that name each row.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Column {
     track: Track,
     align: Align,
+    reserve: Option<Reserve>,
+    figures: Figures,
+    overflow: Overflow,
+    cells: CellRole,
+}
+
+/// Whether a column's figures are all one width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Figures {
+    Proportional,
+    Tabular,
+}
+
+/// What a column's cells do with content wider than the column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Overflow {
+    /// The column grows to fit it.
+    Grow,
+    /// The column can shrink, and its text is cut with an ellipsis: its cells
+    /// are `min-w-0`, so even an `auto` track gives way.
+    Truncate,
+}
+
+/// What a column's body cells are to assistive technology.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CellRole {
+    Data,
+    RowHeader,
 }
 
 impl Column {
@@ -48,7 +78,23 @@ impl Column {
         Self {
             track,
             align: Align::Start,
+            reserve: None,
+            figures: Figures::Proportional,
+            overflow: Overflow::Grow,
+            cells: CellRole::Data,
         }
+    }
+
+    /// TODO(prose): a column of numbers up to `n` digits wide: sized by its
+    /// content, at least `n` tabular zeros wide, its content at the end.
+    /// [`reserve`](Self::reserve) of [`Reserve::digits`], with tabular
+    /// figures, aligned to the end.
+    pub fn digits(n: u8) -> Self {
+        let mut column = Self::new(Track::auto())
+            .align(Align::End)
+            .reserve(Reserve::digits(n));
+        column.figures = Figures::Tabular;
+        column
     }
 
     /// TODO(prose): places the column's content, header and footer included.
@@ -56,11 +102,55 @@ impl Column {
         Self { align, ..self }
     }
 
-    fn justified(self, classes: Tw) -> Tw {
-        match self.align {
+    /// TODO(prose): keeps the column at least as wide as `reserve`'s widest
+    /// template inside each cell's padding, in every row, header and footer
+    /// included, so it does not move as its values change. A value wider than
+    /// the reservation widens the column and is reported as
+    /// [`OutgrewReserve`](crate::Problem::OutgrewReserve).
+    pub fn reserve(self, reserve: Reserve) -> Self {
+        Self {
+            reserve: Some(reserve),
+            ..self
+        }
+    }
+
+    /// TODO(prose): lets the column shrink below its content, cutting its
+    /// text with an ellipsis; a cut text shows the whole of it in a tooltip.
+    pub fn truncate(self) -> Self {
+        Self {
+            overflow: Overflow::Truncate,
+            ..self
+        }
+    }
+
+    /// TODO(prose): makes the column's body cells the headers of their rows,
+    /// which name each row to assistive technology: the keys of a key–value
+    /// table.
+    pub fn labels(self) -> Self {
+        Self {
+            cells: CellRole::RowHeader,
+            ..self
+        }
+    }
+
+    /// The classes of a cell of the column, over `classes`.
+    fn cell_classes(&self, classes: Tw) -> Tw {
+        let classes = match self.align {
             Align::Start => classes.justify_start().text_left(),
             Align::Center => classes.justify_center().text_center(),
             Align::End => classes.justify_end().text_right(),
+        };
+        let classes = match self.overflow {
+            Overflow::Grow => classes.whitespace_nowrap(),
+            Overflow::Truncate => classes.min_w(0.0).overflow_hidden(),
+        };
+        let classes = match &self.reserve {
+            Some(reserve) => classes.min_w_text(reserve.clone()),
+            None => classes,
+        };
+        match self.figures {
+            Figures::Proportional => classes,
+            Figures::Tabular => classes.tabular_nums(),
         }
     }
 }
@@ -719,7 +809,21 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
     pub fn cell_text(&mut self, text: impl Into<String>) {
         let text = text.into();
         let shown = text.clone();
-        self.add(Some(text), |b| b.text(tw(), shown));
+        let column = self.columns.get(self.count);
+        let overflow = column.map_or(Overflow::Grow, |column| column.overflow);
+        // The cell reserves the width for any body; its text reserves it too,
+        // so a value that outgrows it is reported.
+        let leaf = match column.and_then(|column| column.reserve.clone()) {
+            Some(reserve) => tw().min_w_text(reserve),
+            None => tw(),
+        };
+        self.add(Some(text), move |b| match overflow {
+            Overflow::Grow => b.text(leaf, shown),
+            Overflow::Truncate => {
+                b.span("text", leaf.truncate().min_w(0.0).flex_1(), shown)
+                    .tooltip_when_truncated();
+            }
+        });
     }
 
     /// TODO(prose): the next cell, holding what `body` builds.
@@ -733,7 +837,9 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
     fn group_cell(&mut self, title: String) {
         self.count = self.columns.len();
         let table = &self.style;
-        let classes = crate::owned::text_sized(&self.b, table.group_text_size).col_span_full();
+        let classes = crate::owned::text_sized(&self.b, table.group_text_size)
+            .col_span_full()
+            .whitespace_nowrap();
         let classes = match table.group_text {
             Some(color) => classes.text(color),
             None => classes,
@@ -762,7 +868,7 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
             );
             return;
         };
-        let classes = spec.justified(tw().col_start(start));
+        let classes = spec.cell_classes(tw().col_start(start));
         self.place(classes, (column, Span::Column), name, body);
     }
 
@@ -777,11 +883,7 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
         body: impl FnOnce(&mut Builder<'_, 'f, A>),
     ) {
         let table = &self.style;
-        let placed = classes
-            .row_start(self.line)
-            .flex()
-            .items_center()
-            .whitespace_nowrap();
+        let placed = classes.row_start(self.line).flex().items_center();
         let placed = placed.px(table.cell_padding / 4.0);
         let placed = match table.first_column_inset {
             Some(inset) if column == 0 => placed.pl(inset / 4.0),
@@ -796,7 +898,13 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
                 };
                 (placed.font_weight(table.header_weight), Role::ColumnHeader)
             }
-            Part::Body => (placed.py(cell_y), Role::Cell),
+            Part::Body => (
+                placed.py(cell_y),
+                match self.columns.get(column).map(|spec| spec.cells) {
+                    Some(CellRole::RowHeader) => Role::RowHeader,
+                    Some(CellRole::Data) | None => Role::Cell,
+                },
+            ),
             Part::Group => (
                 placed.py(cell_y).font_weight(table.group_weight),
                 Role::RowHeader,
