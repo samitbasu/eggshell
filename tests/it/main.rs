@@ -64,6 +64,7 @@ mod headless;
 mod hello;
 mod hit_route;
 mod hover_anchored;
+mod hover_card;
 mod icons;
 mod inert_look;
 mod interaction;
