@@ -12,7 +12,7 @@ mod common;
 #[path = "../../examples/todo.rs"]
 mod todo;
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
 use support::fill_of;
 use todo::{ItemKey, State};
@@ -42,18 +42,6 @@ fn button_path(key: ItemKey, button: &str) -> String {
 fn click_button(d: &mut Driver<State>, key: ItemKey, button: &str) {
     let at = d.rect(Target::suffix(&button_path(key, button))).center();
     press_and_release(d, at);
-}
-
-/// A primary press and release at `at`, a frame each, with no hover first.
-fn press_and_release(d: &mut Driver<State>, at: egui::Pos2) {
-    for pressed in [true, false] {
-        d.event(egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
-    }
 }
 
 fn item(n: usize) -> ItemKey {

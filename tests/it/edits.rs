@@ -8,7 +8,7 @@ use eggshell_ui_shadcn::Tokens;
 use egui::{Event, Key, Theme, pos2, vec2};
 use egui_kittest::kittest::Queryable as _;
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
 #[derive(Debug, PartialEq)]
 enum Logged {
@@ -146,16 +146,4 @@ fn typing_in_the_stepper_is_one_edit_until_the_field_loses_focus() {
     assert_eq!(edits(&d), [Edit::Began], "{:?}", log(&d));
     d.press(Key::Tab).frames(2);
     assert_eq!(edits(&d), [Edit::Began, Edit::Ended]);
-}
-
-/// A primary press and release at `at`, a frame each, with no hover first.
-fn press_and_release(d: &mut Driver<App>, at: egui::Pos2) {
-    for pressed in [true, false] {
-        d.event(Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
-    }
 }

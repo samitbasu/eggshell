@@ -5,7 +5,7 @@ use eggshell_ui::{Builder, Placed, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, FontFamily, TextStyle as EguiTextStyle, Theme, vec2};
 
-use crate::support;
+use crate::support::{self, rect_of};
 
 #[derive(Hash, Debug, Clone, Copy)]
 enum Region {
@@ -80,7 +80,7 @@ fn headless_rects_match_the_support_harness() {
         200.0,
         "precondition: the card is fixed width"
     );
-    let shift = drawn_rect(&d, panel.path()).min - panel.rect().min;
+    let shift = rect_of(&d, panel.path()).min - panel.rect().min;
     assert!(
         shift.length() > 0.0,
         "precondition: the harness insets its page"
@@ -93,7 +93,7 @@ fn headless_rects_match_the_support_harness() {
     ] {
         assert_eq!(
             query.rect().translate(shift),
-            drawn_rect(&d, query.path()),
+            rect_of(&d, query.path()),
             "headless and harness disagree on {}",
             query.path()
         );
@@ -458,7 +458,7 @@ fn text_agrees_at(scale: PixelsPerPoint) {
         .theme(Theme::Light)
         .layout(&(), wrapping_card);
     let card = placed.at(Region::Viewport).at(Part::Card);
-    let shift = drawn_rect(&d, card.path()).min - card.rect().min;
+    let shift = rect_of(&d, card.path()).min - card.rect().min;
     let (title, body) = (card.text(CARD_TITLE), card.text(CARD_BODY));
     assert!(
         body.rect().height() > title.rect().height() * 2.0,
@@ -470,7 +470,7 @@ fn text_agrees_at(scale: PixelsPerPoint) {
     );
     for text in [title, body] {
         let laid = text.rect().translate(shift);
-        let drawn = drawn_rect(&d, text.path());
+        let drawn = rect_of(&d, text.path());
         assert!(
             (laid.min - drawn.min).length() <= 0.5 && (laid.max - drawn.max).length() <= 0.5,
             "at {scale:?}, {}: headless {laid:?}, drawn {drawn:?}",
@@ -544,13 +544,4 @@ fn a_scale_that_is_not_finite_and_positive_falls_back_to_one() {
     for scale in [f32::NAN, f32::INFINITY, 0.0, -2.0] {
         assert_eq!(f32::from(PixelsPerPoint::new(scale)), 1.0, "{scale}");
     }
-}
-
-/// The rect the driver's last frame placed the first node `path` at.
-fn drawn_rect<A>(d: &eggshell_ui::testing::Driver<A>, path: &str) -> egui::Rect {
-    support::nodes(d)
-        .into_iter()
-        .find(|(candidate, _)| candidate == path)
-        .unwrap_or_else(|| panic!("no node {path}"))
-        .1
 }

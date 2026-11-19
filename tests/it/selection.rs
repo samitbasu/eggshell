@@ -5,7 +5,7 @@ use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use egui::{Event, OutputCommand, Pos2, Rect, pos2, vec2};
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
 const FIRST: &str = "Alpha bravo charlie";
 const SECOND: &str = "Delta echo foxtrot";
@@ -161,16 +161,4 @@ fn a_live_selection_does_not_move_anything() {
     d.drag(inside(rect, 1.0), inside(rect, rect.width() - 1.0));
     assert!(copied(&mut d).is_some(), "there is a selection");
     assert_eq!(support::nodes(&d), before);
-}
-
-/// A primary press and release at `at`, a frame each, with no hover first.
-fn press_and_release(d: &mut Driver<App>, at: Pos2) {
-    for pressed in [true, false] {
-        d.event(Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
-    }
 }

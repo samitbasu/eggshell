@@ -8,7 +8,7 @@ use eggshell_ui::{Builder, NodeUi as _, Span, Spans, Style, TextStyle, Track, tw
 use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Theme, Vec2, vec2};
 
-use crate::support;
+use crate::support::{self, rest_for_tooltip};
 
 const WINDOW: Vec2 = vec2(900.0, 600.0);
 const PADDING: f32 = 20.0;
@@ -221,17 +221,4 @@ fn a_tooltip_inside_styled_draws_with_the_override_and_one_outside_does_not() {
         (grown - expected).length() < 0.6,
         "the box grows by the padding: {grown:?} against {expected:?}"
     );
-}
-
-/// Leaves the pointer resting until a tooltip it opens has entered: the
-/// style's delay and entry motion as frame time, then a few frames for the
-/// overlay to be built and placed.
-fn rest_for_tooltip(d: &mut Driver<()>) {
-    let style = Style::of(d.ctx());
-    let wait = (style.tooltip.delay + style.motion.tooltip.enter).as_secs_f64();
-    let start = d.ctx().input(|input| input.time);
-    while d.ctx().input(|input| input.time) - start < wait {
-        d.frames(1);
-    }
-    d.frames(4);
 }

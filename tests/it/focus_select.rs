@@ -5,9 +5,9 @@ use eggshell_ui::owned::Step;
 use eggshell_ui::prim::text_field::Select;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
-use egui::{Color32, Event, FontFamily, Key, PointerButton, vec2};
+use egui::{Color32, Event, FontFamily, Key, vec2};
 
-use crate::support::{self, focused_node};
+use crate::support::{self, click_twice, focused_node};
 
 const NAME: &str = r#"/"Page"/"name""#;
 const OTHER: &str = r#"/"Page"/"other""#;
@@ -236,30 +236,4 @@ fn a_double_click_in_a_stepper_field_selects_the_whole_value_not_the_word_under_
     );
     d.event(Event::Text("7".into())).frames(3);
     assert_eq!(d.app().count, 7.0);
-}
-
-/// Clicks twice at `at`, one event a frame as a browser sends them, the
-/// releases `apart` apart.
-fn click_twice(d: &mut Driver<App>, at: egui::Pos2, apart: std::time::Duration) {
-    let frame = d.ctx().input(|input| input.predicted_dt);
-    let frames = (apart.as_secs_f32() / frame).round() as usize;
-    assert!(
-        frames >= 2,
-        "precondition: a press and a release fit in {apart:?}"
-    );
-    press_and_release(d, at);
-    d.frames(frames - 2);
-    press_and_release(d, at);
-    d.frames(6);
-}
-
-fn press_and_release(d: &mut Driver<App>, at: egui::Pos2) {
-    for pressed in [true, false] {
-        d.event(Event::PointerButton {
-            pos: at,
-            button: PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
-    }
 }
