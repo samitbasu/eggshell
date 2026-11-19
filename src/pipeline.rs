@@ -656,10 +656,6 @@ impl LayoutState {
         &self.st.kept
     }
 
-    pub(crate) fn scope(&self) -> Id {
-        self.st.scope
-    }
-
     /// This state, reached from where only `ctx` is at hand.
     pub fn shell(&self, ctx: &egui::Context) -> crate::Shell {
         crate::Shell::new(ctx, &self.st.kept)

@@ -1757,7 +1757,34 @@ impl<A> Placed<A> {
     /// keys of [`Nav`](crate::overlay::Nav).
     ///
     /// Rects are rounded to physical pixels here; layout itself is exact.
-    pub fn draw(self, app: &mut A, ui: &mut Ui) {
+    ///
+    /// TODO(prose): answers the frame, to query after it is drawn; an app ignores it.
+    ///
+    /// ```
+    /// use eggshell_ui::testing::PlacedFrame;
+    /// use eggshell_ui::{Builder, LayoutState, tw};
+    /// use egui_kittest::Harness;
+    ///
+    /// struct State {
+    ///     layout: LayoutState,
+    ///     drawn: Option<PlacedFrame>,
+    /// }
+    ///
+    /// let mut harness = Harness::new_ui_state(
+    ///     |ui, state: &mut State| {
+    ///         let view = |b: &mut Builder<'_, '_, ()>| {
+    ///             b.div_id("card", tw(), |b| { b.span("name", tw(), "Mono"); });
+    ///         };
+    ///         let placed = state.layout.build(ui.ctx(), view).layout(ui.max_rect());
+    ///         state.drawn = Some(placed.draw(&mut (), ui));
+    ///     },
+    ///     State { layout: LayoutState::new(), drawn: None },
+    /// );
+    /// harness.step();
+    /// let card = harness.state().drawn.as_ref().expect("the frame was drawn").at("card");
+    /// assert_eq!(card.at("name").rect(), card.text("Mono").rect());
+    /// ```
+    pub fn draw(self, app: &mut A, ui: &mut Ui) -> PlacedFrame {
         let timer = Timer::start(ui.ctx(), Phase::Draw);
         let Self {
             frame:
@@ -1815,25 +1842,23 @@ impl<A> Placed<A> {
         if let Some(overflow) = overflow {
             debug::paint(ui.ctx(), &painting.nodes, &overflow);
         }
-        if crate::testing::kept_on_request(&painting.kept) {
-            let Painting {
-                kept,
-                nodes,
-                by_id,
-                roots,
-                shared: Shared { prims, .. },
-                ..
-            } = painting;
-            crate::testing::hand_over(PlacedFrame {
-                ctx,
-                scope,
-                root,
-                kept,
-                nodes,
-                by_id,
-                prims,
-                roots,
-            });
+        let Painting {
+            kept,
+            nodes,
+            by_id,
+            roots,
+            shared: Shared { prims, .. },
+            ..
+        } = painting;
+        PlacedFrame {
+            ctx,
+            scope,
+            root,
+            kept,
+            nodes,
+            by_id,
+            prims,
+            roots,
         }
     }
 }
