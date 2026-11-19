@@ -7,6 +7,7 @@ use std::rc::Rc;
 use egui::{Key, Role, WidgetInfo};
 
 use super::number::{Edit, Edits, Step, ValueRange, pressed};
+use super::number_field::Session;
 use super::{
     Chevron, Content, Enablement, FieldHooks, Tip, TipContent, centered, described,
     field_box_classes, text_sized, tip, tip_describes, tipped_whole,
@@ -349,9 +350,9 @@ impl<A> Clone for Spec<A> {
 }
 
 impl<A> Spec<A> {
-    /// Shows the field for a frame: the arrow keys step it, typing applies
-    /// numbers as they parse, and losing focus snaps the number to the step.
-    /// What is typed is kept in `editing` while the field is focused.
+    /// Shows the field for a frame: the arrow keys step it, and what is
+    /// typed is committed, snapped to the step, by Enter or leaving the
+    /// field, and reverted by Escape (see [`Session`]).
     fn run_field(
         &self,
         app: &mut A,
@@ -363,9 +364,8 @@ impl<A> Spec<A> {
         let parse = |text: &str| text.trim().parse::<f64>().ok();
         let (low, high) = (self.range.start(), self.range.end());
         let mut value = self.value;
-        let mut typed = ui.data(|data| data.get_temp::<String>(editing));
-        let session = editing.with("session");
-        let typing = ui.data(|data| data.get_temp::<()>(session)).is_some();
+        let session = Session::of(editing);
+        let mut typed = session.typed(ui.ctx());
         if ui.memory(|memory| memory.has_focus(Field::id_in(ui))) {
             let current = typed.as_deref().and_then(parse).unwrap_or(value);
             let steps =
@@ -373,7 +373,8 @@ impl<A> Spec<A> {
             if steps != 0 {
                 value = self.step.moved(current, steps, self.range);
                 typed = None;
-                if typing {
+                session.forget_typed(ui.ctx());
+                if session.is_open(ui.ctx()) {
                     set(app, value);
                 } else {
                     self.edits.once(app, |app| set(app, value));
@@ -395,24 +396,14 @@ impl<A> Spec<A> {
             node.set_max_numeric_value(high);
         });
         if response.changed() {
-            let number = parse(&text).map(|number| self.range.clamp(number));
-            if !typing {
-                self.edits.emit(app, Edit::Began);
-                ui.data_mut(|data| data.insert_temp(session, ()));
-            }
-            if let Some(number) = number.filter(|&number| number != self.value) {
-                set(app, number);
-            }
-            ui.data_mut(|data| data.insert_temp(editing, text));
+            let shown = format!("{value:.*}", self.step.decimals());
+            session.open(app, ui.ctx(), &shown, &self.edits);
+            session.keep(ui.ctx(), &text);
         } else if response.lost_focus() {
-            if let Some(number) = parse(&text) {
-                set(app, self.step.snap(number, self.range));
-            }
-            ui.data_mut(|data| data.remove::<String>(editing));
-            if typing {
-                self.edits.emit(app, Edit::Ended);
-                ui.data_mut(|data| data.remove::<()>(session));
-            }
+            let accept = |text: &str| {
+                parse(text).map(|number| self.step.snap(self.range.clamp(number), self.range))
+            };
+            session.close(app, ui, (&text, value), accept, (&self.edits, &set));
         }
         self.hooks.run(app, ui, &response, field.enter());
     }
