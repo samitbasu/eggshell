@@ -852,8 +852,20 @@ impl Shadcn {
         {
             self.markdown().install_for(ctx, self.theme);
             self.badge(&style).install_for(ctx, self.theme);
+            self.skeleton(&style).install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
+    }
+
+    /// TODO(prose): the skeleton's look: shadcn's `Skeleton`, `bg-muted
+    /// rounded-md animate-pulse`: the muted fill, the radius of its style
+    /// (square in Lyra) and Tailwind's two-second pulse down to half.
+    #[cfg(feature = "extras")]
+    pub fn skeleton(&self, style: &contract::Style) -> eggshell_ui_extras::skeleton::SkeletonStyle {
+        let mut skeleton = eggshell_ui_extras::skeleton::SkeletonStyle::from_style(style);
+        skeleton.fill = self.tokens.muted;
+        skeleton.radius = self.tokens.radius_md();
+        skeleton
     }
 
     /// The badge and chip look, after shadcn/ui's Badge in the preset's

@@ -12,6 +12,7 @@ repository = "https://github.com/samitbasu/eggshell"
 markdown = ["dep:pulldown-cmark"]
 badge = []
 spinner = []
+skeleton = []
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }
