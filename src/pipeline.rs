@@ -1290,7 +1290,8 @@ fn place_window(
                 let offset = chrome.map_or(Vec2::ZERO, |chrome| chrome.offset);
                 decl.window
                     .frame
-                    .map_or(area.center() - size / 2.0, |frame| frame.position + offset)
+                    .and_then(|frame| frame.position)
+                    .map_or(area.center() - size / 2.0, |position| position + offset)
             },
             |content| content.min,
         ),
