@@ -84,7 +84,9 @@ pub(crate) use splitter::Side;
 pub use splitter::{PaneSize, SplitterChain, SplitterStart};
 pub use stepper::StepperChain;
 pub use switch::SwitchChain;
-pub use table::{Align, Cells, Column, Selectable, Selected, TableChain, Unselectable};
+pub use table::{
+    Align, Cells, Column, Rows, Selectable, Selected, Stripes, TableChain, Unselectable,
+};
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
 

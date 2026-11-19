@@ -10,7 +10,7 @@ use egui::{Id, Role, Sense, Ui, UiBuilder, WidgetInfo};
 
 use crate::builder::Slot;
 use crate::contract::TableStyle;
-use crate::{Builder, NodeUi as _, Style, Track, Tw, tw};
+use crate::{Builder, NodeUi as _, Track, Tw, tw};
 
 /// TODO(prose): where a column's cells place their content.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -22,6 +22,17 @@ pub enum Align {
     Center,
     /// TODO(prose): at the right.
     End,
+}
+
+/// TODO(prose): whether a table fills every second body row with the
+/// style's stripe, counting afresh after each group row.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Stripes {
+    /// TODO(prose): no stripes.
+    #[default]
+    None,
+    /// TODO(prose): the second, fourth, … body row of each run is striped.
+    Alternate,
 }
 
 /// TODO(prose): a column's track and alignment.
@@ -125,6 +136,7 @@ pub struct TableChain<'a, 'f, A, S = Unselectable> {
     columns: Vec<Column>,
     header: Option<Build<'a, 'f, A>>,
     footer: Option<Build<'a, 'f, A>>,
+    stripes: Stripes,
     selection: S,
 }
 
@@ -137,6 +149,7 @@ impl<'a, 'f, A: 'static> TableChain<'a, 'f, A> {
             columns: Vec::new(),
             header: None,
             footer: None,
+            stripes: Stripes::None,
             selection: Unselectable,
         }
     }
@@ -154,7 +167,53 @@ impl<'a, 'f, A: 'static> TableChain<'a, 'f, A> {
         key: impl Fn(&T) -> K,
         body: impl FnMut(&mut Cells<'_, 'f, A>, &T),
     ) {
-        self.with_selection(|_| None).add(items, key, body);
+        self.rows_with(each_item(items, key, body));
+    }
+
+    /// TODO(prose): adds the table, with the rows and group rows `rows` adds
+    /// in order.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, Track};
+    /// # use eggshell_ui::owned::{Align, Column};
+    /// struct Entry { key: u32, label: String, value: f64 }
+    /// struct Section { title: String, entries: Vec<Entry> }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>, sections: &[Section]) {
+    ///     b.table("state")
+    ///         .columns([Column::new(Track::fr(1.0)), Column::new(Track::auto()).align(Align::End)])
+    ///         .rows_with(|rows| {
+    ///             for section in sections {
+    ///                 rows.group(&section.title);
+    ///                 for entry in &section.entries {
+    ///                     rows.row(entry.key, |cells| {
+    ///                         cells.cell_text(&entry.label);
+    ///                         cells.cell_text(entry.value.to_string());
+    ///                     });
+    ///                 }
+    ///             }
+    ///         });
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn rows_with<K: crate::Key + Clone + PartialEq>(
+        self,
+        rows: impl FnOnce(&mut Rows<'_, 'f, A, K>),
+    ) {
+        self.with_selection(|_| None).add(rows);
+    }
+}
+
+/// A row per item of `items` under `key`, each filled by `body`.
+fn each_item<'i, 'f, A: 'static, T: 'i, K: crate::Key + Clone + PartialEq>(
+    items: impl IntoIterator<Item = &'i T>,
+    key: impl Fn(&T) -> K,
+    mut body: impl FnMut(&mut Cells<'_, 'f, A>, &T),
+) -> impl FnOnce(&mut Rows<'_, 'f, A, K>) {
+    move |rows| {
+        for item in items {
+            rows.row(key(item), |cells| body(cells, item));
+        }
     }
 }
 
@@ -183,6 +242,12 @@ impl<'a, 'f, A: 'static, S> TableChain<'a, 'f, A, S> {
         self
     }
 
+    /// TODO(prose): stripes every second body row, `Stripes::None` by default.
+    pub fn stripes(mut self, stripes: Stripes) -> Self {
+        self.stripes = stripes;
+        self
+    }
+
     fn with_selection<T>(self, selection: impl FnOnce(S) -> T) -> TableChain<'a, 'f, A, T> {
         let Self {
             b,
@@ -191,6 +256,7 @@ impl<'a, 'f, A: 'static, S> TableChain<'a, 'f, A, S> {
             columns,
             header,
             footer,
+            stripes,
             selection: was,
         } = self;
         let selection = selection(was);
@@ -201,6 +267,7 @@ impl<'a, 'f, A: 'static, S> TableChain<'a, 'f, A, S> {
             columns,
             header,
             footer,
+            stripes,
             selection,
         }
     }
@@ -230,15 +297,24 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
         key: impl Fn(&T) -> K,
         body: impl FnMut(&mut Cells<'_, 'f, A>, &T),
     ) {
-        self.with_selection(Some).add(items, key, body);
+        self.rows_with(each_item(items, key, body));
+    }
+
+    /// TODO(prose): adds the table, with the rows and group rows `rows` adds
+    /// in order. Group rows are never selected.
+    #[track_caller]
+    pub fn rows_with(self, rows: impl FnOnce(&mut Rows<'_, 'f, A, K>)) {
+        self.with_selection(Some).add(rows);
     }
 }
 
-/// The band behind a row of cells, keyed by what the row shows.
+/// The band behind a row of cells, keyed by what the row shows; a group row
+/// by its ordinal among the groups, so two may share a title.
 #[derive(Clone, Debug, Hash)]
 enum Band<K> {
     Header,
     Row(K),
+    Group(usize),
     Footer,
 }
 
@@ -247,6 +323,7 @@ enum Band<K> {
 enum Part {
     Header,
     Body,
+    Group,
     Footer,
 }
 
@@ -255,6 +332,7 @@ impl Part {
         match band {
             Band::Header => Self::Header,
             Band::Row(_) => Self::Body,
+            Band::Group(_) => Self::Group,
             Band::Footer => Self::Footer,
         }
     }
@@ -276,12 +354,11 @@ enum Stripe {
 }
 
 impl Stripe {
-    /// The stripe of the `nth` body row, counting from one.
-    fn of(nth: usize) -> Self {
-        if nth.is_multiple_of(2) {
-            Self::Striped
-        } else {
-            Self::Plain
+    /// The stripe of the `nth` body row of its run, counting from one.
+    fn of(nth: usize, stripes: Stripes) -> Self {
+        match stripes {
+            Stripes::Alternate if nth.is_multiple_of(2) => Self::Striped,
+            Stripes::Alternate | Stripes::None => Self::Plain,
         }
     }
 }
@@ -290,12 +367,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
     TableChain<'a, 'f, A, Option<Selectable<A, K>>>
 {
     #[track_caller]
-    fn add<'i, T: 'i>(
-        self,
-        items: impl IntoIterator<Item = &'i T>,
-        key: impl Fn(&T) -> K,
-        mut body: impl FnMut(&mut Cells<'_, 'f, A>, &T),
-    ) {
+    fn add(self, body: impl FnOnce(&mut Rows<'_, 'f, A, K>)) {
         let Self {
             mut b,
             slot,
@@ -303,44 +375,44 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
             columns,
             header,
             footer,
+            stripes,
             selection,
         } = self;
-        let style = b.style().clone();
-        let rows: Vec<(&T, K)> = items.into_iter().map(|item| (item, key(item))).collect();
+        let table = b.style().table.clone();
         let tracks: Vec<Track> = columns.iter().map(|column| column.track).collect();
         let columns: Rc<[Column]> = columns.into();
-        let row_count = usize::from(header.is_some()) + rows.len() + usize::from(footer.is_some());
         let column_count = columns.len();
         let classes = tw().grid().grid_cols_tracks(&tracks).w_full().sense_hover();
+        let table_id = slot.id;
+        let mut built = Built::default();
         let handle = b.div_id_with(&slot, classes, |b| {
-            let mut rower = Rower {
-                style: &style,
-                columns: &columns,
+            let mut rows = Rows {
+                b: b.reborrow(),
+                table,
+                columns,
+                stripes,
+                selection,
+                table_id,
+                parent: table_id,
                 index: 0,
                 bodies: 0,
+                groups: Vec::new(),
+                pending: None,
             };
             if let Some(header) = header {
-                rower.row(b, Band::<K>::Header, Last::No, None, header);
+                rows.start(Band::Header, None, header);
             }
-            let last = rows.len().saturating_sub(1);
-            for (position, (item, key)) in rows.iter().enumerate() {
-                let picking = selection.as_ref().map(|selection| Picking {
-                    key: key.clone(),
-                    selected: selection.current.as_ref() == Some(key),
-                    select: selection.select.clone(),
-                });
-                let last = if position == last {
-                    Last::Yes
-                } else {
-                    Last::No
-                };
-                rower.row(b, Band::Row(key.clone()), last, picking, |cells| {
-                    body(cells, item);
-                });
-            }
+            body(&mut rows);
+            rows.settle(Last::Yes);
             if let Some(footer) = footer {
-                rower.row(b, Band::<K>::Footer, Last::No, None, footer);
+                rows.parent = table_id;
+                rows.start(Band::Footer, None, footer);
+                rows.settle(Last::No);
             }
+            built = Built {
+                row_count: rows.index,
+                groups: rows.groups,
+            };
         });
         let handle = handle.role(Role::Table);
         let handle = match name {
@@ -350,11 +422,33 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
         handle.draw(move |_, ui| {
             let id = ui.node_response().id;
             ui.ctx().accesskit_node_builder(id, |node| {
-                node.set_row_count(row_count);
+                node.set_row_count(built.row_count);
                 node.set_column_count(column_count);
             });
+            for (ordinal, title) in built.groups.into_iter().enumerate() {
+                ui.new_child(
+                    UiBuilder::new()
+                        .scope_id(group_id(table_id, ordinal))
+                        .max_rect(ui.max_rect())
+                        .accessibility_parent(id)
+                        .accessibility_role(Role::RowGroup)
+                        .accessibility_label(title),
+                );
+            }
         });
     }
+}
+
+/// What adding a table's rows found: for its accessibility node.
+#[derive(Default)]
+struct Built {
+    row_count: usize,
+    groups: Vec<String>,
+}
+
+/// The id of the accessibility node of the table's `ordinal`th row group.
+fn group_id(table: Id, ordinal: usize) -> Id {
+    table.with(("row group", ordinal))
 }
 
 /// How a body row of a selectable table takes part in the selection.
@@ -364,28 +458,82 @@ struct Picking<A, K> {
     select: Select<A, K>,
 }
 
-/// Adds the rows of one table in order: a band, then its cells.
-struct Rower<'r> {
-    style: &'r Style,
-    columns: &'r Rc<[Column]>,
+/// TODO(prose): the rows of a table, added in order by
+/// [`TableChain::rows_with`]: body rows, and group rows that head the body
+/// rows after them.
+pub struct Rows<'r, 'f, A, K> {
+    b: Builder<'r, 'f, A>,
+    table: TableStyle,
+    columns: Rc<[Column]>,
+    stripes: Stripes,
+    selection: Option<Selectable<A, K>>,
+    table_id: Id,
+    /// The table, or the row group the next rows are in.
+    parent: Id,
     index: usize,
+    /// The body rows since the header or the last group row.
     bodies: usize,
+    groups: Vec<String>,
+    /// The row whose cells are added and whose band is not: whether it is
+    /// the last body row, which decides its rule, is known only once the
+    /// next row starts or the rows end.
+    pending: Option<Pending<A, K>>,
 }
 
-impl Rower<'_> {
+/// A row's band, waiting to be added behind the cells that are.
+struct Pending<A, K> {
+    /// Where the band goes among the table's children: before its cells.
+    at: usize,
+    slot: Slot,
+    part: Part,
+    stripe: Stripe,
+    index: usize,
+    line: i16,
+    picking: Option<Picking<A, K>>,
+    parent: Id,
+}
+
+impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
+    /// TODO(prose): the next body row, under `key`, its cells added by
+    /// `cells`.
     #[track_caller]
-    fn row<'f, A: 'static, K: crate::Key + Clone>(
+    pub fn row(&mut self, key: K, cells: impl FnOnce(&mut Cells<'_, 'f, A>)) {
+        let picking = self.selection.as_ref().map(|selection| Picking {
+            selected: selection.current.as_ref() == Some(&key),
+            key: key.clone(),
+            select: selection.select.clone(),
+        });
+        self.start(Band::Row(key), picking, cells);
+    }
+
+    /// TODO(prose): a group row titled `title`, one cell spanning the table,
+    /// which heads the body rows after it up to the next group row.
+    /// Assistive technology finds them in a `Role::RowGroup` named `title`.
+    #[track_caller]
+    pub fn group(&mut self, title: impl Into<String>) {
+        let title = title.into();
+        let ordinal = self.groups.len();
+        self.settle(Last::No);
+        self.parent = group_id(self.table_id, ordinal);
+        self.bodies = 0;
+        self.groups.push(title.clone());
+        self.start(Band::Group(ordinal), None, |cells| cells.group_cell(title));
+    }
+
+    /// Adds the band left waiting, then starts the row `band`: its cells now,
+    /// its band once the next row starts.
+    #[track_caller]
+    fn start(
         &mut self,
-        b: &mut Builder<'_, 'f, A>,
         band: Band<K>,
-        last: Last,
         picking: Option<Picking<A, K>>,
         cells: impl FnOnce(&mut Cells<'_, 'f, A>),
     ) {
+        self.settle(Last::No);
         let index = self.index;
         self.index += 1;
         let Ok(line) = i16::try_from(index + 1) else {
-            crate::report::report(b.ctx(), crate::Problem::TableShape, None, || {
+            crate::report::report(self.b.ctx(), crate::Problem::TableShape, None, || {
                 format!(
                     "a table of more than {} rows; the rest are dropped",
                     i16::MAX - 1
@@ -397,40 +545,18 @@ impl Rower<'_> {
         let stripe = match part {
             Part::Body => {
                 self.bodies += 1;
-                Stripe::of(self.bodies)
+                Stripe::of(self.bodies, self.stripes)
             }
-            Part::Header | Part::Footer => Stripe::Plain,
+            Part::Header | Part::Group | Part::Footer => Stripe::Plain,
         };
-        let table = &self.style.table;
         let label = format!("{band:?}");
-        let classes = band_classes(table, (part, last, stripe), picking.as_ref())
-            .col_span_full()
-            .row_start(line);
-        let selectable = picking.as_ref().map(|picking| picking.selected);
-        let handle = b
-            .div_id(band, classes, |_| {})
-            .role(Role::Row)
-            .hover_by_rect();
-        let band_id = handle.id();
-        handle.draw(move |app, ui| {
-            let response = ui.node_response();
-            ui.ctx().accesskit_node_builder(response.id, |node| {
-                node.set_row_index(index);
-                if let Some(selected) = selectable {
-                    node.set_selected(selected);
-                }
-            });
-            if let Some(picking) = picking
-                && response.clicked()
-            {
-                (picking.select)(app, picking.key);
-            }
-        });
+        let slot = self.b.slot(&band);
+        let at = self.b.added();
         let mut row = Cells {
-            b: b.reborrow(),
+            b: self.b.reborrow(),
             columns: self.columns.clone(),
-            style: table.clone(),
-            band: band_id,
+            style: self.table.clone(),
+            band: slot.id,
             label,
             line,
             index,
@@ -442,7 +568,7 @@ impl Rower<'_> {
             crate::report::report(
                 row.b.ctx(),
                 crate::Problem::TableShape,
-                Some(band_id),
+                Some(slot.id),
                 || {
                     format!(
                         "row {} has {} cells for {} columns; the rest stay blank",
@@ -453,6 +579,58 @@ impl Rower<'_> {
                 },
             );
         }
+        self.pending = Some(Pending {
+            at,
+            slot,
+            part,
+            stripe,
+            index,
+            line,
+            picking,
+            parent: self.parent,
+        });
+    }
+
+    /// Adds the band left waiting, if any, before its cells.
+    #[track_caller]
+    fn settle(&mut self, last: Last) {
+        let Some(Pending {
+            at,
+            slot,
+            part,
+            stripe,
+            index,
+            line,
+            picking,
+            parent,
+        }) = self.pending.take()
+        else {
+            return;
+        };
+        let classes = band_classes(&self.table, (part, last, stripe), picking.as_ref())
+            .col_span_full()
+            .row_start(line);
+        let selectable = picking.as_ref().map(|picking| picking.selected);
+        self.b
+            .div_id_with(&slot, classes, |_| {})
+            .role(Role::Row)
+            .hover_by_rect()
+            .accessibility_parent(parent)
+            .draw(move |app, ui| {
+                let response = ui.node_response();
+                ui.ctx().accesskit_node_builder(response.id, |node| {
+                    node.set_row_index(index);
+                    if let Some(selected) = selectable {
+                        node.set_selected(selected);
+                    }
+                });
+                if let Some(picking) = picking
+                    && response.clicked()
+                {
+                    (picking.select)(app, picking.key);
+                }
+            });
+        self.b.move_last_to(at);
     }
 }
 
@@ -470,6 +648,7 @@ fn band_classes<A, K>(
     };
     match part {
         Part::Header => ruled(tw().bg(table.header_fill)).sense_hover(),
+        Part::Group => ruled(tw().bg(table.group_fill)).sense_hover(),
         Part::Footer => tw()
             .bg(table.footer_fill)
             .border_t(table.rule_width)
@@ -537,6 +716,21 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
         self.add(None, body);
     }
 
+    /// The one cell of a group row, spanning every column.
+    #[track_caller]
+    fn group_cell(&mut self, title: String) {
+        self.count = self.columns.len();
+        let table = &self.style;
+        let classes = crate::owned::text_sized(&self.b, table.group_text_size).col_span_full();
+        let classes = match table.group_text {
+            Some(color) => classes.text(color),
+            None => classes,
+        };
+        let shown = title.clone();
+        let span = Span::Row(self.columns.len());
+        self.place(classes, (0, span), Some(title), |b| b.text(tw(), shown));
+    }
+
     #[track_caller]
     fn add(&mut self, name: Option<String>, body: impl FnOnce(&mut Builder<'_, 'f, A>)) {
         let column = self.count;
@@ -556,14 +750,26 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
             );
             return;
         };
+        let classes = spec.justified(tw().col_start(start));
+        self.place(classes, (column, Span::Column), name, body);
+    }
+
+    /// Adds a cell from `column` on, over `classes` that place it across the
+    /// grid's columns.
+    #[track_caller]
+    fn place(
+        &mut self,
+        classes: Tw,
+        (column, span): (usize, Span),
+        name: Option<String>,
+        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+    ) {
         let table = &self.style;
-        let placed = spec.justified(
-            tw().col_start(start)
-                .row_start(self.line)
-                .flex()
-                .items_center()
-                .whitespace_nowrap(),
-        );
+        let placed = classes
+            .row_start(self.line)
+            .flex()
+            .items_center()
+            .whitespace_nowrap();
         let placed = placed.px(table.cell_padding / 4.0);
         let placed = match table.first_column_inset {
             Some(inset) if column == 0 => placed.pl(inset / 4.0),
@@ -579,6 +785,10 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
                 (placed.font_weight(table.header_weight), Role::ColumnHeader)
             }
             Part::Body => (placed.py(cell_y), Role::Cell),
+            Part::Group => (
+                placed.py(cell_y).font_weight(table.group_weight),
+                Role::RowHeader,
+            ),
             Part::Footer => (
                 placed.py(cell_y).font_weight(table.footer_weight),
                 Role::Cell,
@@ -594,8 +804,16 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
         let (band, index) = (self.band, self.index);
         self.b
             .div_id_with(&slot, classes, |b| body(b))
-            .draw(move |_, ui| describe_cell(ui, band, role, name, (index, column)));
+            .draw(move |_, ui| describe_cell(ui, band, (role, name), (index, column, span)));
     }
+}
+
+/// How many columns a cell covers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Span {
+    Column,
+    /// The whole row, of this many columns.
+    Row(usize),
 }
 
 /// Describes the cell drawn in `ui` to assistive technology, inside its row.
@@ -604,9 +822,8 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
 fn describe_cell(
     ui: &mut Ui,
     band: Id,
-    role: Role,
-    name: Option<String>,
-    (row, column): (usize, usize),
+    (role, name): (Role, Option<String>),
+    (row, column, span): (usize, usize, Span),
 ) {
     let rect = ui.max_rect();
     let Some(node) = crate::draw::node_id_or_report(ui, "a table cell's description") else {
@@ -620,5 +837,8 @@ fn describe_cell(
     ui.ctx().accesskit_node_builder(response.id, |node| {
         node.set_row_index(row);
         node.set_column_index(column);
+        if let Span::Row(columns) = span {
+            node.set_column_span(columns);
+        }
     });
 }

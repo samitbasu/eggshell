@@ -418,7 +418,11 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             edge,
             bars,
             focusable,
-            description: Description { role, name },
+            description: Description {
+                role,
+                name,
+                parent: None,
+            },
         };
         b.scroll_with(&slot, classes, options, body)
     }
@@ -665,6 +669,9 @@ pub(crate) struct ScrollOptions {
 pub(crate) struct Description {
     pub(crate) role: Option<Role>,
     pub(crate) name: Option<String>,
+    /// The node assistive technology finds this one inside, in place of the
+    /// tree's root: the accesskit tree is otherwise flat.
+    pub(crate) parent: Option<egui::Id>,
 }
 
 impl Description {

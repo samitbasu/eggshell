@@ -604,25 +604,27 @@ impl<A> Walk<'_, A> {
             sense
         };
         let had_focus = self.ui.ctx().memory(|memory| memory.has_focus(id));
-        let mut response = node_ui(
-            self.ui,
-            UiBuilder::new().max_rect(boxes.hit),
-            inherited,
-            None,
-            |ui| {
-                let own = ui.interact(boxes.hit, id, sense);
-                if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
-                    let role = plan.description.role.unwrap_or(Role::ScrollView);
-                    let name = plan.description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
-                } else if let Some(description) = node.description() {
-                    let role = description.role.unwrap_or(Role::GenericContainer);
-                    let name = description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
-                }
-                own
-            },
-        );
+        let builder = UiBuilder::new().max_rect(boxes.hit);
+        let builder = match node
+            .description()
+            .and_then(|description| description.parent)
+        {
+            Some(parent) => builder.accessibility_parent(parent),
+            None => builder,
+        };
+        let mut response = node_ui(self.ui, builder, inherited, None, |ui| {
+            let own = ui.interact(boxes.hit, id, sense);
+            if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
+                let role = plan.description.role.unwrap_or(Role::ScrollView);
+                let name = plan.description.name.as_deref().unwrap_or_default();
+                crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
+            } else if let Some(description) = node.description() {
+                let role = description.role.unwrap_or(Role::GenericContainer);
+                let name = description.name.as_deref().unwrap_or_default();
+                crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
+            }
+            own
+        });
         let merged = self.merge_hot(index, &mut response);
         let lost_focus = had_focus && !self.ui.ctx().memory(|memory| memory.has_focus(id));
         if lost_focus && merged == Merged::Bubbled && response.flags.intersects(Hot::PRESS) {
