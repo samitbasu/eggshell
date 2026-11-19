@@ -13,6 +13,7 @@ markdown = ["dep:pulldown-cmark"]
 hover-card = []
 badge = []
 spinner = []
+skeleton = []
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }
