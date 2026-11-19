@@ -1195,6 +1195,103 @@ impl TableStyle {
     }
 }
 
+/// TODO(prose): the severity of a status a control shows: a badge, an
+/// alert, a notification. Its colours come from [`Style::tones`].
+///
+/// ```
+/// use eggshell_ui::{Style, Tone};
+///
+/// let style = Style::from_egui(&egui::Style::default());
+/// for tone in Tone::ALL {
+///     let colours = style.tones.get(tone);
+///     assert_ne!(colours.tone, colours.foreground);
+/// }
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Tone {
+    /// TODO(prose): neutral news.
+    Info,
+    /// TODO(prose): a good outcome.
+    Success,
+    /// TODO(prose): a caution.
+    Warning,
+}
+
+impl Tone {
+    /// Every tone, least severe first.
+    pub const ALL: [Self; 3] = [Self::Info, Self::Success, Self::Warning];
+}
+
+/// TODO(prose): the colours of one tone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ToneColors {
+    /// TODO(prose): the tone itself: its text or icon on the page, a solid
+    /// fill, or the base of a tint.
+    pub tone: Color32,
+    /// TODO(prose): text on a solid fill of `tone`.
+    pub foreground: Color32,
+}
+
+/// TODO(prose): the colours of every tone, one entry each.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Tones {
+    /// TODO(prose)
+    pub info: ToneColors,
+    /// TODO(prose)
+    pub success: ToneColors,
+    /// TODO(prose)
+    pub warning: ToneColors,
+}
+
+impl Tones {
+    /// TODO(prose): the colours of `tone`.
+    pub fn get(&self, tone: Tone) -> ToneColors {
+        *self.slot(tone)
+    }
+
+    /// TODO(prose): sets the colours of `tone`.
+    pub fn set(&mut self, tone: Tone, colors: ToneColors) {
+        *self.slot_mut(tone) = colors;
+    }
+
+    fn slot(&self, tone: Tone) -> &ToneColors {
+        match tone {
+            Tone::Info => &self.info,
+            Tone::Success => &self.success,
+            Tone::Warning => &self.warning,
+        }
+    }
+
+    fn slot_mut(&mut self, tone: Tone) -> &mut ToneColors {
+        match tone {
+            Tone::Info => &mut self.info,
+            Tone::Success => &mut self.success,
+            Tone::Warning => &mut self.warning,
+        }
+    }
+
+    /// egui's warning colour, and Tailwind's sky and green for the tones
+    /// egui has none of, in `visuals`' theme: the 700 shades in light, the
+    /// 400 in dark.
+    fn from_egui(visuals: &egui::Visuals) -> Self {
+        let rgb = |hex: u32| Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8);
+        let on = |tone: Color32, foreground: Color32| ToneColors { tone, foreground };
+        let (light, dark) = (rgb(0xfafafa), rgb(0x0a0a0a));
+        match visuals.dark_mode {
+            false => Self {
+                info: on(rgb(0x0069a8), light),
+                success: on(rgb(0x008236), light),
+                warning: on(visuals.warn_fg_color, dark),
+            },
+            true => Self {
+                info: on(rgb(0x00bcff), dark),
+                success: on(rgb(0x05df72), dark),
+                warning: on(visuals.warn_fg_color, dark),
+            },
+        }
+    }
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -1253,6 +1350,8 @@ pub struct Style {
     pub scrim: Color32,
     /// How overlays that declare when they are shown enter and leave.
     pub motion: MotionStyle,
+    /// TODO(prose): the colours of each [`Tone`].
+    pub tones: Tones,
 }
 
 #[derive(Clone)]
@@ -1841,6 +1940,7 @@ impl Style {
             table: TableStyle::from_egui(egui),
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
+            tones: Tones::from_egui(v),
         }
     }
 
