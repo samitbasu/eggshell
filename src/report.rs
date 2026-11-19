@@ -20,6 +20,10 @@ pub enum Problem {
     DuplicateKey,
     /// TODO(prose): two different key paths with the same id.
     KeyCollision,
+    /// TODO(prose): text wider than the widest template its node reserves
+    /// room for ([`Tw::min_w_text`](crate::Tw::min_w_text)): the node grew,
+    /// so its neighbours moved. Reported in debug builds.
+    OutgrewReserve,
     /// TODO(prose): two live layouts of a context with the same name.
     LayoutNameClash,
     /// TODO(prose): two live layouts of a context with the same top-level key.
@@ -28,6 +32,9 @@ pub enum Problem {
     DuplicateCommand,
     /// TODO(prose): two commands of a table on one chord.
     DuplicateChord,
+    /// TODO(prose): a command bound to a chord the browser keeps, such as
+    /// `Cmd+W`. Debug builds on the web only.
+    BrowserChord,
     /// TODO(prose): commands declared twice in one root.
     CommandsTwice,
     /// TODO(prose): a command id no live table declares.

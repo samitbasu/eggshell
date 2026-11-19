@@ -410,6 +410,15 @@ impl<A> Command<A> {
         }
     }
 
+    /// The command's chord, if a press of it would run the command now.
+    fn armed(&self, typing: Typing, app: &A) -> Option<KeyboardShortcut> {
+        let shortcut = self.chord()?;
+        if typing == Typing::Yes && !self.fires_while_typing(shortcut) {
+            return None;
+        }
+        self.is_enabled(app).then_some(shortcut)
+    }
+
     fn fires_while_typing(&self, shortcut: KeyboardShortcut) -> bool {
         match self.binding.in_text {
             Some(InText::Fire) => true,
@@ -513,6 +522,11 @@ impl<A> Commands<A> {
     /// the one that runs.
     #[track_caller]
     pub(crate) fn validate(&self, ctx: &Context) {
+        self.validate_on(ctx, Host::CURRENT);
+    }
+
+    #[track_caller]
+    fn validate_on(&self, ctx: &Context, host: Host) {
         for (at, entry) in self.entries.iter().enumerate() {
             let Entry {
                 readable, command, ..
@@ -529,6 +543,14 @@ impl<A> Commands<A> {
             let Some(shortcut) = command.chord() else {
                 continue;
             };
+            if host == Host::Web && cfg!(debug_assertions) && browser_keeps(shortcut) {
+                report(ctx, Problem::BrowserChord, Some(entry.id), || {
+                    format!(
+                        "command {readable} is bound to {}, which the browser keeps: on the web the chord never reaches the app",
+                        ctx.format_shortcut(&shortcut)
+                    )
+                });
+            }
             if let Some(other) = earlier.iter().find(|other| {
                 other
                     .command
@@ -547,11 +569,67 @@ impl<A> Commands<A> {
 }
 
 fn same_chord(a: KeyboardShortcut, b: KeyboardShortcut) -> bool {
-    a.logical_key == b.logical_key && a.modifiers.matches_exact(b.modifiers)
+    presses(b, a.logical_key, a.modifiers)
+}
+
+/// Whether pressing `key` with `held` is a press of `chord`, its modifiers
+/// matched exactly.
+pub(crate) fn presses(chord: KeyboardShortcut, key: EguiKey, held: Modifiers) -> bool {
+    key == chord.logical_key && held.matches_exact(chord.modifiers)
+}
+
+/// Whether `chord` arrives as a cut, copy or paste event rather than a key
+/// press: `Cmd+X`, `Cmd+C` or `Cmd+V`.
+pub(crate) fn is_clipboard_chord(chord: KeyboardShortcut) -> bool {
+    matches!(chord.logical_key, EguiKey::X | EguiKey::C | EguiKey::V)
+        && Modifiers::COMMAND.matches_exact(chord.modifiers)
+}
+
+/// Where the application runs, for what reaches it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Host {
+    Web,
+    Native,
+}
+
+impl Host {
+    const CURRENT: Self = if cfg!(target_arch = "wasm32") {
+        Self::Web
+    } else {
+        Self::Native
+    };
+}
+
+/// Whether a browser acts on `chord` before the page sees it, so a page
+/// cannot take it: closing, opening and switching tabs and windows, and
+/// quitting.
+fn browser_keeps(chord: KeyboardShortcut) -> bool {
+    let KeyboardShortcut {
+        modifiers,
+        logical_key,
+    } = chord;
+    let command = modifiers.command || modifiers.ctrl || modifiers.mac_cmd;
+    if !command || modifiers.alt {
+        return false;
+    }
+    match logical_key {
+        EguiKey::W | EguiKey::T | EguiKey::N | EguiKey::Q | EguiKey::Tab => true,
+        EguiKey::OpenBracket | EguiKey::CloseBracket => modifiers.shift,
+        _ => false,
+    }
+}
+
+/// What a walk of the live tables does with each command a chord would run
+/// now.
+pub(crate) enum Visit<'v> {
+    /// Runs the command if the frame pressed its chord.
+    Fire,
+    /// Collects the chord.
+    Claim(&'v mut Vec<KeyboardShortcut>),
 }
 
 /// What runs a table's chords on the application data.
-pub(crate) type Dispatch<A> = Box<dyn Fn(&Context, &Shell, Typing, &mut A)>;
+pub(crate) type Dispatch<A> = Box<dyn Fn(&Context, &Shell, Typing, &mut A, &mut Visit<'_>)>;
 
 /// A command table as the draw runs it: the root it was declared in and, for
 /// a mount's, the mount that focus must be within.
@@ -576,25 +654,33 @@ pub(crate) struct Within {
 }
 
 impl<A> Table<A> {
-    fn dispatch(&self, ctx: &Context, shell: &Shell, typing: Typing, app: &mut A) {
+    fn visit(
+        &self,
+        ctx: &Context,
+        shell: &Shell,
+        typing: Typing,
+        app: &mut A,
+        visit: &mut Visit<'_>,
+    ) {
         match self {
-            Self::Own(table) => dispatch(ctx, shell, typing, table, app),
-            Self::Lifted(dispatch) => dispatch(ctx, shell, typing, app),
+            Self::Own(table) => table.visit(ctx, shell, typing, app, visit),
+            Self::Lifted(dispatch) => dispatch(ctx, shell, typing, app, visit),
         }
     }
 }
 
-/// Runs the tables of the live roots, topmost first, each root's mounts that
+/// Walks the tables of the live roots, topmost first, each root's mounts that
 /// hold focus before the root's own table, the innermost mount first: a
 /// chord goes to the innermost table that has it.
-pub(crate) fn dispatch_all<A>(
+pub(crate) fn visit_all<A>(
     ctx: &Context,
     shell: &Shell,
     typing: Typing,
-    (declared, live): (&[Declared<A>], Vec<usize>),
+    (declared, live): (&[Declared<A>], &[usize]),
     app: &mut A,
+    visit: &mut Visit<'_>,
 ) {
-    for root in live {
+    for &root in live {
         let mut here: Vec<&Declared<A>> = declared
             .iter()
             .filter(|table| table.root == root)
@@ -608,7 +694,7 @@ pub(crate) fn dispatch_all<A>(
             std::cmp::Reverse(table.within.map_or(0, |within| within.depth + 1))
         });
         for table in here {
-            table.table.dispatch(ctx, shell, typing, app);
+            table.table.visit(ctx, shell, typing, app, visit);
         }
     }
 }
@@ -665,30 +751,33 @@ pub(crate) fn live_roots(
     live
 }
 
-/// Runs the commands of `table` whose chord this frame pressed, each once, in
-/// table order, taking the key from the frame's input. A chord is left alone
-/// for a command that is disabled, or that yields to a text field that has
-/// the keyboard.
-pub(crate) fn dispatch<A>(
-    ctx: &Context,
-    shell: &Shell,
-    typing: Typing,
-    table: &Commands<A>,
-    app: &mut A,
-) {
-    for Entry { command, .. } in &table.entries {
-        let Some(shortcut) = command.chord() else {
-            continue;
-        };
-        if typing == Typing::Yes && !command.fires_while_typing(shortcut) {
-            continue;
-        }
-        if !command.is_enabled(app) {
-            continue;
-        }
-        if let Some(press) = consume(ctx, shortcut) {
-            command.fire(app, press.pasted(), shell);
-            ctx.request_repaint();
+impl<A> Commands<A> {
+    /// Visits the commands of the table a chord would run now, in table
+    /// order: firing runs each whose chord this frame pressed, once, taking
+    /// the key from the frame's input. A chord is left alone for a command
+    /// that is disabled, or that yields to a text field that has the
+    /// keyboard.
+    pub(crate) fn visit(
+        &self,
+        ctx: &Context,
+        shell: &Shell,
+        typing: Typing,
+        app: &mut A,
+        visit: &mut Visit<'_>,
+    ) {
+        for Entry { command, .. } in &self.entries {
+            let Some(shortcut) = command.armed(typing, app) else {
+                continue;
+            };
+            match visit {
+                Visit::Fire => {
+                    if let Some(press) = consume(ctx, shortcut) {
+                        command.fire(app, press.pasted(), shell);
+                        ctx.request_repaint();
+                    }
+                }
+                Visit::Claim(chords) => chords.push(shortcut),
+            }
         }
     }
 }
@@ -716,11 +805,8 @@ impl Press {
 /// no key press. A paste carries what the backend read: the first of them, if
 /// there are several.
 fn consume(ctx: &Context, shortcut: KeyboardShortcut) -> Option<Press> {
-    let KeyboardShortcut {
-        modifiers,
-        logical_key,
-    } = shortcut;
-    let clipboard = |key| logical_key == key && Modifiers::COMMAND.matches_exact(modifiers);
+    let logical_key = shortcut.logical_key;
+    let clipboard = |key| logical_key == key && is_clipboard_chord(shortcut);
     ctx.input_mut(|input| {
         let mut pressed = None;
         input.events.retain(|event| {
@@ -730,7 +816,7 @@ fn consume(ctx: &Context, shortcut: KeyboardShortcut) -> Option<Press> {
                     modifiers: held,
                     pressed: true,
                     ..
-                } => (*key == logical_key && held.matches_exact(modifiers)).then_some(Press::Key),
+                } => presses(shortcut, *key, *held).then_some(Press::Key),
                 Event::Cut => clipboard(EguiKey::X).then_some(Press::Key),
                 Event::Copy => clipboard(EguiKey::C).then_some(Press::Key),
                 Event::Paste(_) | Event::PasteImage(_) => clipboard(EguiKey::V)
@@ -746,4 +832,90 @@ fn consume(ctx: &Context, shortcut: KeyboardShortcut) -> Option<Press> {
         });
         pressed
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Hash, Debug)]
+    enum Cmd {
+        Close,
+        Grid,
+    }
+
+    fn chord(modifiers: Modifiers, key: EguiKey) -> Chord {
+        Chord::new(modifiers, key).expect("not a chord the library keeps")
+    }
+
+    fn table(close: Chord) -> Commands<()> {
+        Commands::new()
+            .add(Cmd::Close, Command::new("Close", |_| {}).shortcut(close))
+            .add(
+                Cmd::Grid,
+                Command::new("Grid", |_| {})
+                    .shortcut(chord(Modifiers::COMMAND | Modifiers::ALT, EguiKey::G)),
+            )
+    }
+
+    fn browser_chord_reports(ctx: &Context) -> Vec<crate::Report> {
+        crate::report::reports(ctx)
+            .into_iter()
+            .filter(|report| report.problem == Problem::BrowserChord)
+            .collect()
+    }
+
+    #[test]
+    fn a_command_on_a_chord_the_browser_keeps_reports_on_the_web() {
+        let ctx = Context::default();
+        table(chord(Modifiers::COMMAND, EguiKey::W)).validate_on(&ctx, Host::Web);
+        let reports = browser_chord_reports(&ctx);
+        assert_eq!(reports.len(), 1, "{reports:?}");
+        assert!(
+            reports[0].message.contains("Close") && reports[0].message.contains("browser keeps"),
+            "{}",
+            reports[0].message
+        );
+    }
+
+    #[test]
+    fn a_chord_the_browser_keeps_does_not_report_natively() {
+        let ctx = Context::default();
+        table(chord(Modifiers::COMMAND, EguiKey::W)).validate_on(&ctx, Host::Native);
+        assert!(browser_chord_reports(&ctx).is_empty());
+    }
+
+    #[test]
+    fn the_browser_keeps_tab_and_window_chords_only() {
+        let kept = [
+            (Modifiers::COMMAND, EguiKey::W),
+            (Modifiers::COMMAND, EguiKey::T),
+            (Modifiers::COMMAND, EguiKey::N),
+            (Modifiers::COMMAND, EguiKey::Q),
+            (Modifiers::COMMAND | Modifiers::SHIFT, EguiKey::T),
+            (Modifiers::CTRL, EguiKey::Tab),
+            (Modifiers::CTRL | Modifiers::SHIFT, EguiKey::Tab),
+            (Modifiers::COMMAND | Modifiers::SHIFT, EguiKey::OpenBracket),
+            (Modifiers::COMMAND | Modifiers::SHIFT, EguiKey::CloseBracket),
+        ];
+        for (modifiers, key) in kept {
+            assert!(
+                browser_keeps(KeyboardShortcut::new(modifiers, key)),
+                "{modifiers:?} {key:?}"
+            );
+        }
+        let free = [
+            (Modifiers::COMMAND | Modifiers::ALT, EguiKey::G),
+            (Modifiers::COMMAND | Modifiers::ALT, EguiKey::W),
+            (Modifiers::NONE, EguiKey::W),
+            (Modifiers::COMMAND, EguiKey::OpenBracket),
+            (Modifiers::NONE, EguiKey::Tab),
+        ];
+        for (modifiers, key) in free {
+            assert!(
+                !browser_keeps(KeyboardShortcut::new(modifiers, key)),
+                "{modifiers:?} {key:?}"
+            );
+        }
+    }
 }
