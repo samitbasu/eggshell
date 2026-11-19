@@ -406,8 +406,28 @@ fn painted(classes: Tw, colors: Colors) -> Tw {
 }
 
 impl Look {
-    /// The classes that draw a box of `radius` in this look.
-    pub(crate) fn classes(
+    /// The classes that draw a box of `radius` in this look, as the owned
+    /// button does: the rest colours, the hover, pressed and focused looks
+    /// over them, the focus ring and the shadow, or when `enablement` is
+    /// disabled the disabled form. The box senses clicks and is a Tab stop.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use eggshell_ui::owned::Enablement;
+    /// use eggshell_ui::{Builder, Style};
+    ///
+    /// fn tile(b: &mut Builder<'_, '_, ()>) {
+    ///     let style = Style::of(b.ctx());
+    ///     let look = style.button.variants.get(style.button.variants.default_key());
+    ///     let classes = look.classes(&style, 6, b.enablement(), Duration::from_millis(150));
+    ///     b.div_id("tile", classes.p(2.0), |b| b.text(eggshell_ui::tw(), "Tile"))
+    ///         .role(egui::Role::Button)
+    ///         .on_click(|_| {});
+    /// }
+    /// ```
+    pub fn classes(
         &self,
         style: &Style,
         radius: u8,
@@ -421,9 +441,25 @@ impl Look {
 
 impl Paint {
     /// The classes that draw a box of `radius` with a border `border_width`
-    /// wide in this paint. A disabled box is inert and has no variants: its
-    /// colours are the style's, not an opacity.
-    pub(crate) fn classes(
+    /// wide in this paint: [`Look::classes`] for a paint and a border width
+    /// apart. A disabled box is inert and has no variants: its colours are
+    /// the style's, not an opacity.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use eggshell_ui::owned::Enablement;
+    /// use eggshell_ui::{Builder, Style};
+    ///
+    /// fn cell(b: &mut Builder<'_, '_, ()>) {
+    ///     let style = Style::of(b.ctx());
+    ///     let paint = style.checkbox.off;
+    ///     let classes = paint.classes(1.0, &style, 4, Enablement::Enabled, Duration::ZERO);
+    ///     b.div_id("cell", classes.size_px(16.0), |_| {});
+    /// }
+    /// ```
+    pub fn classes(
         &self,
         border_width: f32,
         style: &Style,

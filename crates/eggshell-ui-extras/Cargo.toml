@@ -11,6 +11,8 @@ repository = "https://github.com/samitbasu/eggshell"
 # Each widget is opt-in.
 markdown = ["dep:pulldown-cmark"]
 hover-card = []
+badge = []
+spinner = []
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }
