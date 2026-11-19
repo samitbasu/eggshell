@@ -132,7 +132,7 @@ fn the_window_losing_focus_blurs_a_steppers_field_as_elsewhere() {
 }
 
 #[test]
-fn the_window_losing_focus_closes_a_sliders_readout_and_writes_nothing() {
+fn the_window_losing_focus_closes_a_sliders_readout_and_commits_what_was_typed() {
     let mut harness = support::harness(vec2(400.0, 300.0), base_text(), App::default(), view);
     harness.run_steps(4);
     click_node(&mut harness, READOUT);
@@ -151,7 +151,11 @@ fn the_window_losing_focus_closes_a_sliders_readout_and_writes_nothing() {
         !harness.state().nodes.iter().any(|(path, _)| *path == field),
         "the readout closed"
     );
-    assert!(harness.state().app.levels.is_empty());
+    assert_eq!(
+        harness.state().app.levels.len(),
+        1,
+        "leaving the field commits, as a click elsewhere does"
+    );
 }
 
 #[test]
