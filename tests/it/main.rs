@@ -79,6 +79,7 @@ mod modal;
 mod mount;
 mod named_layouts;
 mod nested_layouts;
+mod number_readout;
 mod numbers;
 mod overlay;
 mod overlay_input;
