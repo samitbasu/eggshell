@@ -2,11 +2,12 @@
 
 use core::time::Duration;
 
-use egui::Role;
+use egui::{Id, Role};
 
 use crate::builder::{Builder, Scope, Slot};
 use crate::overlay::{
-    Anchor, Band, Behavior, DismissOn, Focus, MatchWidth, Modal, Nav, Outside, Placement,
+    Anchor, Band, Behavior, DismissOn, Focus, HoverIntent, MatchWidth, Modal, Nav, Outside,
+    Placement,
 };
 use crate::pipeline::DismissFn;
 use crate::presence::{Entrance, ExitedFn, Motion, Shown, Staged};
@@ -256,6 +257,13 @@ impl<A, State, M> OverlayChain<'_, '_, A, State, M> {
         self
     }
 
+    /// The overlay's accessible description, read after its name: a
+    /// dialog's explanatory sentence.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description.description = Some(description.into());
+        self
+    }
+
     /// What dismisses the overlay. [`DismissOn::Default`] unless set.
     pub fn dismiss_on(mut self, dismiss_on: DismissOn) -> Self {
         self.behavior.dismiss_on = dismiss_on;
@@ -289,6 +297,70 @@ impl<A, State, M> OverlayChain<'_, '_, A, State, M> {
     pub fn on_dismiss(mut self, then: impl FnOnce(&mut A) + 'static) -> Self {
         self.on_dismiss = Some(Box::new(then));
         self
+    }
+}
+
+impl<'b, 'f, A> OverlayChain<'b, 'f, A, Unplaced, Static> {
+    /// TODO(prose): anchors the overlay to the identified node `trigger` and
+    /// lets hover intent open and close it, as a hover card: it supplies
+    /// both [`anchor`](Self::anchor) and [`shown`](Self::shown). Declare it
+    /// every frame.
+    ///
+    /// - The pointer resting anywhere over `trigger`, or keyboard focus on
+    ///   anything inside it, opens it after `intent.open`. Touch never does.
+    /// - The overlay's box, and the overlays nested in it, count as the
+    ///   trigger: the pointer may cross into it, and a press that started in
+    ///   it holds it open until release. It closes `intent.close` after
+    ///   nothing holds it.
+    /// - Esc, a press outside the box (the trigger's included), focus
+    ///   leaving and the window losing focus close it, and keep it closed
+    ///   until the trigger is left.
+    /// - Focus does not move into it, and Tab never stops in it: what it
+    ///   holds must be reachable some other way. `intent`'s
+    ///   [`description`](HoverIntent::description) describes the trigger's
+    ///   widgets to assistive technology.
+    /// - It replaces the tooltip of `trigger` and of anything inside it.
+    ///
+    /// A hover card declared inside another is reported
+    /// ([`Problem::NestedHoverCard`](crate::Problem::NestedHoverCard)) and
+    /// never opens.
+    ///
+    /// ```
+    /// use core::time::Duration;
+    /// use eggshell_ui::overlay::HoverIntent;
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// struct App { follows: u32 }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>) {
+    ///     b.div_id("trigger", tw().flex(), |t| {
+    ///         t.text(tw(), "@nextjs");
+    ///     });
+    ///     let trigger = b.id_of("trigger");
+    ///     let intent = HoverIntent::new(Duration::from_millis(700), Duration::from_millis(300));
+    ///     b.overlay("card")
+    ///         .hover_anchored(trigger, intent)
+    ///         .children(|c| {
+    ///             c.div(tw().w(64.0).p(4.0).rounded_md().border(1.0), |c| {
+    ///                 c.text(tw(), "The React Framework");
+    ///                 c.button("follow", "Follow").on_click(|app: &mut App| app.follows += 1);
+    ///             });
+    ///         });
+    /// }
+    /// ```
+    pub fn hover_anchored(
+        mut self,
+        trigger: Id,
+        intent: HoverIntent,
+    ) -> OverlayChain<'b, 'f, A, Floating, Animated> {
+        let shown =
+            crate::hover::declare(&self.b, (self.slot.id, trigger), intent, self.declared_at);
+        self.band = Band::Popup;
+        self.behavior.focus = Focus::None;
+        self.behavior.outside = Some(Outside::PassThrough);
+        self.behavior.hover = shown.map(|_| trigger);
+        self.anchor(Anchor::Node(trigger))
+            .shown(shown.unwrap_or(Shown::Closed))
     }
 }
 
@@ -430,6 +502,13 @@ impl<'f, A, M> OverlayChain<'_, 'f, A, Floating, M> {
             },
             body,
         );
+    }
+}
+
+impl<A, M> OverlayChain<'_, '_, A, Modally, M> {
+    /// How the modal is presented: centred, or docked to which side.
+    pub fn presentation(&self) -> Modal {
+        self.state.modal
     }
 }
 

@@ -9,7 +9,7 @@
 //!
 //! - [`Headless`] builds and lays a view out without a window, a GPU or a
 //!   draw, and answers where its nodes are. Use it for layout: sizes,
-//!   positions, what a change of state moves ([`Placed::diff`],
+//!   positions, what a change of state moves ([`PlacedFrame::diff`],
 //!   [`Change::moved`]). Nothing is drawn, so no input is handled.
 //! - An [`egui_kittest`](https://docs.rs/egui_kittest) `Harness` runs whole
 //!   frames: build, layout, draw, and the input of each frame. Use it for
@@ -183,8 +183,8 @@ pub use crate::continuity::{
 };
 use crate::key::{Key, child_id};
 use crate::nodes::Nodes;
-pub use crate::pipeline::Placed;
 use crate::pipeline::{LayoutState, PlacedNode};
+pub use crate::pipeline::{Placed, PlacedFrame};
 use crate::prim::Prim;
 use crate::{Builder, OverlayRef, Problem, Report, TextStyle};
 
@@ -489,7 +489,7 @@ pub struct Query<'p> {
     index: Option<usize>,
 }
 
-impl<A> Placed<A> {
+impl PlacedFrame {
     fn layout_view(&self) -> Layout<'_> {
         Layout {
             nodes: &self.nodes,
