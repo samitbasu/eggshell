@@ -440,7 +440,7 @@ pub use text::{
     Tracking, Weight, WhiteSpace,
 };
 #[doc(hidden)]
-pub use transition::tracked_layout_nodes;
+pub use transition::{cycle, tracked_layout_nodes};
 pub use tw::{
     Angle, BoxPaint, Divide, Easing, Mirror, Opacity, Paint, Progress, Reserve, Ring,
     RingPlacement, Sides, Track, Tw, tw,
