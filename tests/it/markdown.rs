@@ -7,7 +7,7 @@ use eggshell_ui_extras::markdown::{Level, MarkdownExt, MarkdownStyle, heading_id
 use egui::epaint::Shape;
 use egui::{Rect, Theme, vec2};
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -327,7 +327,7 @@ fn a_touch_drag_that_starts_on_any_block_scrolls_the_page() {
         swept += 1;
         let before = page_offset(&d);
         let up = if before > 100.0 { 60.0 } else { -60.0 };
-        drag_through(&mut d, rect.center(), rect.center() + vec2(0.0, up));
+        d.drag(rect.center(), rect.center() + vec2(0.0, up));
         let moved = (page_offset(&d) - before).abs();
         if moved < 20.0 {
             stuck.push(format!("{block}: moved {moved}"));
@@ -365,21 +365,6 @@ fn copied(d: &mut Driver<page::State>) -> Option<String> {
             egui::OutputCommand::CopyText(text) => Some(text.clone()),
             _ => None,
         })
-}
-
-/// `Driver::drag`'s events, to a point the driver does not point at: one
-/// that may be past the window's edge.
-fn drag_through(d: &mut Driver<page::State>, from: egui::Pos2, to: egui::Pos2) {
-    d.harness().hover_at(from);
-    d.frames(3);
-    d.harness().drag_at(from);
-    d.frames(1);
-    d.harness().hover_at(from.lerp(to, 0.5));
-    d.frames(1);
-    d.harness().hover_at(to);
-    d.frames(1);
-    d.harness().drop_at(to);
-    d.frames(3);
 }
 
 /// The same drag on the first paragraph, upward from its last row, with a
@@ -553,18 +538,6 @@ fn painted(d: &Driver<page::State>, text: &str) -> bool {
     support::shapes(d)
         .into_iter()
         .any(|shape| matches!(shape, Shape::Text(shown) if shown.galley.text() == text))
-}
-
-/// A primary press and release at `at`, a frame each, with no hover first.
-fn press_and_release(d: &mut Driver<page::State>, at: egui::Pos2) {
-    for pressed in [true, false] {
-        d.event(egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
-    }
 }
 
 fn follow(d: &mut Driver<page::State>, text: &str, part: &str) {

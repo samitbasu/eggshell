@@ -112,6 +112,24 @@ impl<A> Seen for Driver<A> {
     }
 }
 
+impl<S: Seen> Seen for &S {
+    fn context(&self) -> &egui::Context {
+        (**self).context()
+    }
+
+    fn last_output(&self) -> &egui::FullOutput {
+        (**self).last_output()
+    }
+
+    fn placed(&self) -> Vec<(String, Rect, Option<egui::Id>)> {
+        (**self).placed()
+    }
+
+    fn view_shell(&self) -> Shell {
+        (**self).view_shell()
+    }
+}
+
 /// Every node of the last frame: its readable path and border box.
 pub fn nodes<S: Seen>(seen: &S) -> Vec<(String, Rect)> {
     seen.placed()
@@ -378,13 +396,15 @@ fn harness_timed<A>(
         )
 }
 
-pub fn rect_of<A>(harness: &Harness<'_, Rig<A>>, path: &str) -> Rect {
-    harness
-        .state()
-        .nodes
+/// The border box of the first node whose readable path is `path`: an
+/// anonymous path may repeat, which a driver's unique `Target::suffix`
+/// refuses.
+pub fn rect_of<S: Seen>(seen: &S, path: &str) -> Rect {
+    let nodes = nodes(seen);
+    nodes
         .iter()
         .find(|(candidate, _)| candidate == path)
-        .unwrap_or_else(|| panic!("no node {path}: {:?}", harness.state().nodes))
+        .unwrap_or_else(|| panic!("no node {path}: {nodes:?}"))
         .1
 }
 

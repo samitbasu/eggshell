@@ -556,10 +556,8 @@ mod paste {
     use eggshell_ui::testing::FakeClipboard;
     use eggshell_ui::{ClipboardError, Paste, Via};
     use egui::Event;
-    use egui_kittest::Harness;
 
     use super::*;
-    use crate::support::{Rig, click_node, focused_path};
 
     #[derive(Default)]
     struct Clip {
@@ -597,41 +595,35 @@ mod paste {
         .add();
     }
 
-    fn harness() -> (Harness<'static, Rig<Page>>, FakeClipboard) {
+    fn harness() -> (Driver<Page>, FakeClipboard) {
         let fake = FakeClipboard::default();
-        let mut harness = support::harness(vec2(300.0, 200.0), base_text(), Page::default(), view);
-        harness
-            .state()
-            .layout
-            .set_clipboard(Some(Arc::new(fake.clone())));
-        harness.run_steps(4);
-        (harness, fake)
+        let mut d = support::driver(vec2(300.0, 200.0), base_text(), Page::default(), view).build();
+        d.layout().set_clipboard(Some(Arc::new(fake.clone())));
+        d.frames(4);
+        (d, fake)
     }
 
-    fn click_paste(harness: &mut Harness<'_, Rig<Page>>) {
-        click_node(harness, r#"/"m"/Frame/"edit""#);
-        harness.run_steps(5);
-        click_node(harness, r#"/"m"/Frame/("edit", Menu)/Box/"paste""#);
-        harness.run_steps(5);
+    fn click_paste(d: &mut Driver<Page>) {
+        d.click(Target::suffix(r#"/"m"/Frame/"edit""#)).frames(5);
+        d.click(Target::suffix(r#"/"m"/Frame/("edit", Menu)/Box/"paste""#))
+            .frames(5);
     }
 
     #[test]
     fn a_mounted_paste_gets_the_click_and_the_chord_through_the_lens() {
-        let (mut harness, fake) = harness();
+        let (mut d, fake) = harness();
         fake.set_text("hello");
-        click_paste(&mut harness);
-        support::past_bar(&mut harness);
-        harness.key_press(Key::Tab);
-        harness.run_steps(4);
+        click_paste(&mut d);
+        support::drive_past_bar(&mut d);
+        d.press(Key::Tab).frames(3);
         assert_eq!(
-            focused_path(&harness).as_deref(),
+            focused_path(&d).as_deref(),
             Some(r#"/"m"/Frame/"edit""#),
             "precondition: focus is within the mount"
         );
-        harness.event(Event::Paste("hello".into()));
-        harness.run_steps(4);
+        d.event(Event::Paste("hello".into())).frames(3);
         assert_eq!(
-            harness.state().app.clip.pasted,
+            d.app().clip.pasted,
             [
                 (Paste::Text("hello".into()), Via::Read),
                 (Paste::Text("hello".into()), Via::Event)
@@ -641,10 +633,10 @@ mod paste {
 
     #[test]
     fn a_mounted_paste_hears_a_failed_read_through_the_lens() {
-        let (mut harness, fake) = harness();
+        let (mut d, fake) = harness();
         fake.refuse(Some(ClipboardError::Failed("denied".into())));
-        click_paste(&mut harness);
-        let clip = &harness.state().app.clip;
+        click_paste(&mut d);
+        let clip = &d.app().clip;
         assert!(clip.pasted.is_empty());
         assert_eq!(clip.errors, [ClipboardError::Failed("denied".into())]);
     }

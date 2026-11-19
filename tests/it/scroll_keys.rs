@@ -12,7 +12,7 @@ use egui_kittest::kittest::Queryable as _;
 
 use eggshell_ui::testing::{Driver, Target};
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
 const ROW: f32 = 30.0;
 const VIEWPORT: f32 = 100.0;
@@ -224,17 +224,6 @@ fn press(h: &mut H, key: Key) {
 fn press_with(h: &mut H, modifiers: Modifiers, key: Key) {
     h.harness().key_press_modifiers(modifiers, key);
     h.frames(3);
-}
-
-fn press_and_release(h: &mut H, at: egui::Pos2) {
-    for pressed in [true, false] {
-        h.event(egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: Modifiers::NONE,
-        });
-    }
 }
 
 fn tab_to(h: &mut H, path: &str) {

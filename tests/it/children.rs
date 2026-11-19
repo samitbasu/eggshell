@@ -8,7 +8,7 @@ use eggshell_ui::{Builder, Opacity, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Color32, Rect, Theme, pos2, vec2};
 
-use crate::support::{self, box_at, shapes};
+use crate::support::{self, box_at, shapes, text_color};
 
 const BAR: Color32 = Color32::from_rgb(220, 20, 20);
 
@@ -288,14 +288,4 @@ fn an_empty_face_with_children_and_a_name_draws_and_clicks() {
     assert!(card.contains_rect(content));
     d.click(Target::suffix("/\"card\"/\"box\""));
     assert_eq!(d.app().clicks, ["card"]);
-}
-
-/// The colour of the text `text` painted inside `inside`.
-fn text_color<A>(d: &Driver<A>, inside: Rect, text: &str) -> Color32 {
-    d.painted()
-        .all(text)
-        .into_iter()
-        .find(|shown| inside.contains(shown.rect().min - shown.galley().rect.min.to_vec2()))
-        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
-        .color()
 }

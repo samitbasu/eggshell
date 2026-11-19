@@ -10,7 +10,7 @@ use egui::{
     Color32, CursorIcon, Event, FontFamily, Galley, OutputCommand, Pos2, Rect, Theme, pos2, vec2,
 };
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -114,18 +114,6 @@ fn galley_of(d: &Driver<App>, text: &str) -> (Arc<Galley>, Pos2) {
         Arc::new(galley.clone()),
         shown.rect().min - galley.rect.min.to_vec2(),
     )
-}
-
-/// A primary press and release at `at`, a frame each, with no hover first.
-fn press_and_release<A>(d: &mut Driver<A>, at: Pos2) {
-    for pressed in [true, false] {
-        d.event(Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
-    }
 }
 
 #[test]

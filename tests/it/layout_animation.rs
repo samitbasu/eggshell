@@ -8,9 +8,9 @@ use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::testing::{Points, Timeline, assert_reported, record};
 use eggshell_ui::{Builder, LayoutState, Problem, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
-use egui::{Color32, FontFamily, Pos2, vec2};
+use egui::{Color32, FontFamily, vec2};
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
 const SLIDE: Duration = Duration::from_millis(1000);
 const ROW: f32 = 30.0;
@@ -100,18 +100,6 @@ fn driver(app: App, view: support::View<App>) -> Driver<App> {
     let mut d = support::driver(vec2(400.0, 300.0), text(), app, view).build();
     d.frames(3);
     d
-}
-
-/// A primary press and release at `at`, a frame each, with no hover first.
-fn press_and_release(d: &mut Driver<App>, at: Pos2) {
-    for pressed in [true, false] {
-        d.event(egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
-    }
 }
 
 fn painted_top<A>(d: &Driver<A>, fill: Color32) -> f32 {
@@ -371,19 +359,17 @@ fn animating_an_anonymous_node_is_ignored_and_reported() {
 
 #[test]
 fn nodes_that_are_no_longer_built_are_forgotten() {
-    // A driver keeps its LayoutState to itself, so this one stays on the rig.
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 300.0),
         text(),
         App::new(&[1, 2, 3], &[1, 2, 3]),
         rows,
-    );
-    harness.run_steps(3);
-    let tracked = |harness: &egui_kittest::Harness<'_, support::Rig<App>>| {
-        eggshell_ui::tracked_layout_nodes(&harness.state().layout)
-    };
-    assert_eq!(tracked(&harness), 3);
-    harness.state_mut().app.order.truncate(1);
-    harness.step();
-    assert_eq!(tracked(&harness), 1);
+    )
+    .build();
+    d.frames(3);
+    let tracked = |d: &Driver<App>| eggshell_ui::tracked_layout_nodes(d.layout());
+    assert_eq!(tracked(&d), 3);
+    d.app_mut().order.truncate(1);
+    d.frames(1);
+    assert_eq!(tracked(&d), 1);
 }

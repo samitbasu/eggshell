@@ -14,7 +14,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use eggshell_ui::testing::{Driver, Target};
 
-use crate::support::{self, box_at, shapes};
+use crate::support::{self, box_at, rect_of, shapes, text_color};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 enum Mode {
@@ -120,19 +120,6 @@ const COMBINATIONS: [(Theme, ShadcnStyle); 4] = [
 
 fn cell_path(mode: Mode) -> String {
     format!("/\"seg\"/{}", mode as usize)
-}
-
-/// The colour of the text `text` painted at a point inside `inside`.
-fn text_color(d: &Harn, inside: Rect, text: &str) -> Color32 {
-    shapes(d)
-        .into_iter()
-        .find_map(|shape| match shape {
-            Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => {
-                Some(t.override_text_color.unwrap_or(t.fallback_color))
-            }
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
 }
 
 /// The box a text was painted in, if one was painted inside `inside`.
@@ -462,15 +449,6 @@ fn classed(b: &mut Builder<'_, '_, App>, _: &App) {
     });
 }
 
-/// The first node whose readable path is `path`: an anonymous path repeats.
-fn first_rect(d: &Harn, path: &str) -> Rect {
-    support::nodes(d)
-        .into_iter()
-        .find(|(candidate, _)| candidate == path)
-        .unwrap_or_else(|| panic!("no node {path}"))
-        .1
-}
-
 #[test]
 fn every_owned_widget_takes_caller_classes_over_its_own() {
     for (theme, shadcn) in COMBINATIONS {
@@ -486,7 +464,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
             "/\"stepper\"/Box",
             "/\"segmented\"",
         ] {
-            assert_eq!(first_rect(&d, path).width(), 321.0, "{path}");
+            assert_eq!(rect_of(&d, path).width(), 321.0, "{path}");
         }
         let height = |path| d.rect(Target::suffix(path)).height();
         assert_eq!(
