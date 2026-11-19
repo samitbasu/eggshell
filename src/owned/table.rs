@@ -140,6 +140,18 @@ pub struct TableChain<'a, 'f, A, S = Unselectable> {
     selection: S,
 }
 
+impl<'a, 'f, A, S> TableChain<'a, 'f, A, S> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 impl<'a, 'f, A: 'static> TableChain<'a, 'f, A> {
     pub(super) fn new<K: crate::Key>(b: Builder<'a, 'f, A>, key: K) -> Self {
         Self {
