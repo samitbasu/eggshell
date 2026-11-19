@@ -3,7 +3,7 @@
 use egui::{Role, Ui, WidgetInfo};
 use taffy::Size;
 
-use super::{Content, OnResponse, TipContent, tip, tipped};
+use super::{Enablement, Gate, IntoTip, OnResponse, options, tipped};
 use crate::builder::Slot;
 use crate::{Builder, Measure, NodeUi as _, Tw, fill};
 
@@ -35,7 +35,8 @@ pub struct CustomChain<'a, 'f, A> {
     measure: Option<MeasureFn<'f>>,
     name: Option<String>,
     role: Role,
-    tooltip: TipContent,
+    gate: Gate,
+    enablement: Enablement,
     on_response: OnResponse<A>,
 }
 
@@ -48,7 +49,8 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
             measure: None,
             name: None,
             role: Role::Unknown,
-            tooltip: None,
+            gate: Gate::default(),
+            enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
         }
     }
@@ -78,8 +80,8 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
 
     /// Shown while the pointer hovers the node, in a tooltip overlay
     /// ([`TooltipStyle`](crate::contract::TooltipStyle)).
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
     }
 
@@ -91,8 +93,34 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
         mut self,
         build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
-        self.tooltip = Some(Content::built(build));
+        self.gate.tooltip_with(build);
         self
+    }
+
+    /// TODO(prose): whether the node takes input. A disabled node's `Ui` is
+    /// disabled: its draw closure sees `ui.is_enabled()` false, and egui's
+    /// widgets in it take no input.
+    pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
+        self.enablement = enablement.into();
+        self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
     }
 
     /// Runs `then` with the node's response each frame.
@@ -112,10 +140,15 @@ impl<'a, 'f, A: 'static> CustomChain<'a, 'f, A> {
             measure,
             name,
             role,
-            tooltip,
+            gate,
+            enablement,
             on_response,
         } = self;
-        let tooltip = tip(&mut b, slot.id, tooltip);
+        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
+        let classes = match enablement {
+            Enablement::Enabled => classes,
+            Enablement::Disabled => classes.inert(),
+        };
         let measure: MeasureFn<'f> = measure.unwrap_or_else(|| Box::new(fill));
         let mut node = b.leaf_with(&slot, classes, measure);
         if role != Role::Unknown {

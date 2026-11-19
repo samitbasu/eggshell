@@ -1101,3 +1101,163 @@ mod keys_are_taken {
         assert_eq!(harness.state().app.enters, 1);
     }
 }
+
+/// Buttons that dismiss their overlay (`ButtonChain::dismisses`), and the
+/// accessible description of an overlay and of a node.
+mod closers {
+    use super::*;
+
+    #[derive(Clone, Copy, Debug, Hash)]
+    enum P {
+        Page,
+        Plain,
+        Dlg,
+        Box,
+        Close,
+        Cancel,
+        Note,
+        Pop,
+        PopClose,
+    }
+
+    #[derive(Default)]
+    struct App {
+        open: bool,
+        popover: bool,
+        dismiss_on: DismissOn,
+        log: Vec<String>,
+    }
+
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div_id(P::Page, tw().w_full().h_full().p(2.0), |s| {
+            s.button(P::Plain, "Plain")
+                .dismisses()
+                .on_click(|app: &mut App| app.log.push("plain".into()));
+        });
+        if app.open {
+            b.overlay(P::Dlg)
+                .modal(Modal::Center)
+                .dismiss_on(app.dismiss_on)
+                .role(Role::Dialog)
+                .named("Edit")
+                .description("Make your changes.")
+                .on_dismiss(|app: &mut App| {
+                    app.open = false;
+                    app.log.push("dismissed".into());
+                })
+                .children(|s| {
+                    s.div_id(
+                        P::Box,
+                        tw().flex()
+                            .flex_col()
+                            .gap(2.0)
+                            .w_px(300.0)
+                            .p(2.0)
+                            .bg(Color32::WHITE),
+                        |s| {
+                            s.div_id(P::Note, tw().sense_hover(), |_| {})
+                                .role(Role::Note)
+                                .named("Note")
+                                .description("Read me after the name.");
+                            s.button(P::Cancel, "Cancel")
+                                .cancel_action()
+                                .dismisses()
+                                .add();
+                            s.button(P::Close, "Close")
+                                .dismisses()
+                                .on_click(|app: &mut App| app.log.push("close".into()));
+                            if app.popover {
+                                let anchor = s.id_of(P::Close);
+                                s.overlay(P::Pop)
+                                    .anchor(eggshell_ui::overlay::Anchor::Node(anchor))
+                                    .on_dismiss(|app: &mut App| {
+                                        app.popover = false;
+                                        app.log.push("popover dismissed".into());
+                                    })
+                                    .children(|s| {
+                                        s.button(P::PopClose, "Done").dismisses().add();
+                                    });
+                            }
+                        },
+                    );
+                });
+        }
+    }
+
+    fn opened(app: App) -> Harness<'static, Rig<App>> {
+        let mut harness = support::harness(
+            vec2(400.0, 400.0),
+            base_text(),
+            App { open: true, ..app },
+            view,
+        );
+        settle(&mut harness);
+        harness
+    }
+
+    #[test]
+    fn a_closer_runs_its_handler_then_on_dismiss_once() {
+        let mut harness = opened(App::default());
+        click_node(&mut harness, "/Dlg/Box/Close");
+        settle(&mut harness);
+        assert_eq!(harness.state().app.log, ["close", "dismissed"]);
+        assert!(!harness.state().app.open);
+    }
+
+    #[test]
+    fn esc_presses_a_handlerless_dismissing_cancel_which_runs_on_dismiss_once() {
+        let mut harness = opened(App::default());
+        press_key(&mut harness, Key::Escape);
+        assert_eq!(harness.state().app.log, ["dismissed"]);
+        assert!(!harness.state().app.open);
+    }
+
+    #[test]
+    fn a_closer_closes_a_modal_that_must_be_answered() {
+        let mut harness = opened(App {
+            dismiss_on: DismissOn::Never,
+            ..App::default()
+        });
+        click_at(&mut harness, pos2(5.0, 5.0));
+        assert!(harness.state().app.log.is_empty(), "precondition: held");
+        click_node(&mut harness, "/Dlg/Box/Close");
+        settle(&mut harness);
+        assert_eq!(harness.state().app.log, ["close", "dismissed"]);
+    }
+
+    #[test]
+    fn a_closer_in_a_nested_overlay_closes_only_that_overlay() {
+        let mut harness = opened(App {
+            popover: true,
+            ..App::default()
+        });
+        click_node(&mut harness, "/Dlg/Box/Pop/PopClose");
+        settle(&mut harness);
+        assert_eq!(harness.state().app.log, ["popover dismissed"]);
+        assert!(harness.state().app.open, "the dialog stays");
+    }
+
+    #[test]
+    fn a_closer_outside_any_overlay_only_runs_its_handler() {
+        let mut harness = support::harness(vec2(400.0, 400.0), base_text(), App::default(), view);
+        settle(&mut harness);
+        click_node(&mut harness, "/Page/Plain");
+        settle(&mut harness);
+        assert_eq!(harness.state().app.log, ["plain"]);
+    }
+
+    #[test]
+    fn an_overlay_and_a_node_carry_their_descriptions() {
+        let harness = opened(App::default());
+        let dialog = harness.get_by_role_and_label(Role::Dialog, "Edit");
+        assert_eq!(
+            dialog.accesskit_node().data().description(),
+            Some("Make your changes.")
+        );
+        let note = harness.get_by_role_and_label(Role::Note, "Note");
+        assert_eq!(
+            note.accesskit_node().data().description(),
+            Some("Read me after the name.")
+        );
+    }
+}

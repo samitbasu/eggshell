@@ -414,15 +414,16 @@ fn escape_reverts_what_was_typed() {
 }
 
 #[test]
-fn a_click_away_reverts_what_was_typed() {
+fn a_click_away_commits_what_was_typed() {
     let mut d = harness();
     open(&mut d);
     d.harness()
         .key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
     d.type_text("10").frames(3);
+    assert!(d.app().changes.is_empty(), "nothing while typing");
     d.click(Target::suffix("/\"elsewhere\"")).frames(6);
-    assert!(d.app().changes.is_empty());
-    text_color(&d, d.rect(Target::suffix(READOUT)).expand(1.0), "40%");
+    assert_eq!(d.app().changes, [10.0]);
+    text_color(&d, d.rect(Target::suffix(READOUT)).expand(1.0), "10%");
 }
 
 #[test]

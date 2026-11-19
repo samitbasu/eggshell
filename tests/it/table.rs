@@ -2,7 +2,7 @@
 //! columns line up across rows, a band per row for its rule, hover and
 //! selection, and the accessibility tree.
 
-use eggshell_ui::owned::{Align, Column};
+use eggshell_ui::owned::{Align, Column, Stripes};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextStyle, Track, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
@@ -31,6 +31,7 @@ struct App {
     selected: Option<u32>,
     selections: Vec<u32>,
     archived: Vec<u32>,
+    stripes: Stripes,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -63,6 +64,7 @@ impl App {
             selected: None,
             selections: Vec::new(),
             archived: Vec::new(),
+            stripes: Stripes::None,
         }
     }
 }
@@ -104,6 +106,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .table(Part::Invoices)
             .named("Invoices")
             .columns(columns())
+            .stripes(app.stripes)
             .header(|h| {
                 h.cell_text("Invoice");
                 h.cell_text("Status");
@@ -292,21 +295,35 @@ mod stripe {
         }
     }
 
-    #[test]
-    fn a_stripe_fills_every_second_body_row() {
+    fn striped_fills(stripes: Stripes) -> [bool; 5] {
         let tokens = Tokens::for_theme(Theme::Light);
         let mut d = support::prepared_driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
-            App::new(Selection::Off),
+            App {
+                stripes,
+                ..App::new(Selection::Off)
+            },
             view,
             striped,
         )
         .build();
         d.frames(3);
-        let fills = ["Header", "Row(7)", "Row(1024)", "Row(31)", "Footer"]
-            .map(|name| fill_of(&d, name) == Some(STRIPE));
-        assert_eq!(fills, [false, false, true, false, false]);
+        ["Header", "Row(7)", "Row(1024)", "Row(31)", "Footer"]
+            .map(|name| fill_of(&d, name) == Some(STRIPE))
+    }
+
+    #[test]
+    fn a_stripe_fills_every_second_body_row() {
+        assert_eq!(
+            striped_fills(Stripes::Alternate),
+            [false, false, true, false, false]
+        );
+    }
+
+    #[test]
+    fn a_table_is_striped_only_when_it_asks() {
+        assert_eq!(striped_fills(Stripes::None), [false; 5]);
     }
 }
 
@@ -560,7 +577,8 @@ mod preset {
         assert_eq!(table.header_height, 40.0);
         assert_eq!(table.cell_padding, 8.0);
         assert_eq!((table.rule, table.rule_width), (t.border, 1.0));
-        assert_eq!(table.stripe, Color32::TRANSPARENT);
+        assert_ne!(table.stripe, Color32::TRANSPARENT);
+        assert_ne!(table.stripe, table.hover, "a hovered stripe still changes");
         assert_eq!(table.hover, t.muted.gamma_multiply(0.5));
         assert_eq!(table.selected, t.muted);
         assert_eq!(table.footer_fill, t.muted.gamma_multiply(0.5));
@@ -800,5 +818,240 @@ mod spacing {
         };
         assert!(!rule(&harness(|_| {})), "open by default");
         assert!(rule(&harness(|style| style.table.rule_below_last = true)));
+    }
+}
+
+mod groups {
+    use super::*;
+    use egui_kittest::kittest::AccessKitNode;
+
+    const GROUPED: &str = "/Page/\"Grouped\"";
+
+    fn grouped_band(name: &str) -> String {
+        format!("{GROUPED}/{name}")
+    }
+
+    fn grouped_cell(band: &str, column: usize) -> String {
+        format!("{GROUPED}/({band}, {column})")
+    }
+
+    /// ```html
+    /// <table>
+    ///   <tbody><tr><th scope="rowgroup" colspan="3">Paid</th></tr> INV-7 </tbody>
+    ///   <tbody><tr><th scope="rowgroup" colspan="3">Open</th></tr> INV-1024 INV-31 </tbody>
+    /// </table>
+    /// ```
+    fn grouped(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div_id(Part::Page, tw().p(4.0).w_full(), |b| {
+            let sections: [(&str, &[u32]); 2] = [("Paid", &[7]), ("Open", &[1024, 31])];
+            let table = b
+                .table("Grouped")
+                .named("Grouped")
+                .columns(columns())
+                .stripes(app.stripes);
+            let body = |rows: &mut eggshell_ui::owned::Rows<'_, '_, App, u32>| {
+                for (title, ids) in sections {
+                    rows.group(title);
+                    for id in ids {
+                        let invoice = app.invoices.iter().find(|invoice| invoice.id == *id);
+                        if let Some(invoice) = invoice {
+                            rows.row(invoice.id, |cells| row(cells, invoice));
+                        }
+                    }
+                }
+            };
+            match app.selection {
+                Selection::Off => table.rows_with(body),
+                Selection::On => table
+                    .selected(app.selected)
+                    .on_select(|app: &mut App, id| {
+                        app.selected = Some(id);
+                        app.selections.push(id);
+                    })
+                    .rows_with(body),
+            }
+        });
+    }
+
+    /// A group fill unlike any other fill of the preset.
+    const GROUP: Color32 = Color32::from_rgb(220, 240, 200);
+
+    fn group_filled(ctx: &egui::Context, _: &App) {
+        for theme in [Theme::Light, Theme::Dark] {
+            let mut style = Shadcn::for_theme(theme).style();
+            style.table.group_fill = GROUP;
+            style.install_for(ctx, theme);
+        }
+    }
+
+    fn harness_of(app: App) -> Harness<'static, Rig<App>> {
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut harness = support::harness_prepared(
+            WINDOW,
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            app,
+            grouped,
+            group_filled,
+        );
+        harness.run_steps(3);
+        harness
+    }
+
+    fn group_fill(harness: &Harness<'_, Rig<App>>, name: &str) -> Option<Color32> {
+        let rect = rect_of(harness, &grouped_band(name));
+        support::shapes(harness)
+            .into_iter()
+            .filter_map(|shape| match shape {
+                Shape::Rect(r) if support::same(r.rect, rect) && r.stroke.width == 0.0 => {
+                    Some(r.fill)
+                }
+                _ => None,
+            })
+            .next_back()
+    }
+
+    #[test]
+    fn a_group_row_spans_every_column() {
+        let harness = harness_of(App::new(Selection::Off));
+        assert!(columns().len() > 1, "precondition: more than one column");
+        let title = rect_of(&harness, &grouped_cell("Group(1)", 0));
+        let first = rect_of(&harness, &grouped_cell("Row(1024)", 0));
+        let last = rect_of(&harness, &grouped_cell("Row(1024)", 2));
+        assert_eq!((title.left(), title.right()), (first.left(), last.right()));
+        let band = rect_of(&harness, &grouped_band("Group(1)"));
+        assert_eq!((title.top(), title.bottom()), (band.top(), band.bottom()));
+        assert!(
+            band.bottom() <= first.top() + 0.5,
+            "the group row heads its rows"
+        );
+    }
+
+    #[test]
+    fn a_group_row_is_neither_selected_nor_hovered() {
+        let mut harness = harness_of(App::new(Selection::On));
+        assert_eq!(
+            group_fill(&harness, "Group(0)"),
+            Some(GROUP),
+            "precondition"
+        );
+        support::click_node(&mut harness, &grouped_cell("Group(0)", 0));
+        settle(&mut harness);
+        assert_eq!(harness.state().app.selected, None);
+        assert_eq!(
+            group_fill(&harness, "Group(0)"),
+            Some(GROUP),
+            "the pointer on it does not hover it"
+        );
+        support::click_node(&mut harness, &grouped_cell("Row(31)", 0));
+        settle(&mut harness);
+        assert_eq!(
+            harness.state().app.selected,
+            Some(31),
+            "precondition: rows still select"
+        );
+    }
+
+    #[test]
+    fn stripes_count_afresh_after_each_group_row() {
+        let mut harness = harness_of(App {
+            stripes: Stripes::Alternate,
+            ..App::new(Selection::Off)
+        });
+        harness.run_steps(3);
+        let stripe = style(&harness).stripe;
+        assert_ne!(
+            stripe,
+            Color32::TRANSPARENT,
+            "precondition: the preset stripes"
+        );
+        let fills = ["Group(0)", "Row(7)", "Group(1)", "Row(1024)", "Row(31)"]
+            .map(|name| group_fill(&harness, name) == Some(stripe));
+        assert_eq!(fills, [false, false, false, false, true]);
+    }
+
+    fn ancestor_roles(node: AccessKitNode<'_>) -> Vec<(Role, Option<String>)> {
+        let mut roles = Vec::new();
+        let mut at = node.parent();
+        while let Some(node) = at {
+            roles.push((node.role(), node.label()));
+            at = node.parent();
+        }
+        roles
+    }
+
+    fn row_named(harness: &Harness<'_, Rig<App>>, cell: &str) -> Vec<(Role, Option<String>)> {
+        let node = harness
+            .get_all_by_role(Role::Cell)
+            .find(|node| node.accesskit_node().label().as_deref() == Some(cell))
+            .unwrap_or_else(|| panic!("the cell {cell}"));
+        ancestor_roles(node.accesskit_node())
+            .into_iter()
+            .filter(|(role, _)| *role != Role::GenericContainer)
+            .collect()
+    }
+
+    #[test]
+    fn a_group_row_is_a_row_header_spanning_the_table() {
+        let harness = harness_of(App::new(Selection::Off));
+        let headers: Vec<_> = harness
+            .get_all_by_role(Role::RowHeader)
+            .map(|header| {
+                let data = header.accesskit_node();
+                (
+                    data.label(),
+                    data.data().row_index(),
+                    data.data().column_index(),
+                    data.data().column_span(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            headers,
+            [
+                (Some("Paid".to_owned()), Some(0), Some(0), Some(3)),
+                (Some("Open".to_owned()), Some(2), Some(0), Some(3)),
+            ]
+        );
+        let table = harness.get_by_role(Role::Table);
+        assert_eq!(table.accesskit_node().data().row_count(), Some(5));
+    }
+
+    #[test]
+    fn each_group_s_rows_are_inside_a_row_group_named_by_its_title() {
+        let harness = harness_of(App::new(Selection::Off));
+        let groups: Vec<_> = harness
+            .get_all_by_role(Role::RowGroup)
+            .map(|group| group.accesskit_node().label())
+            .collect();
+        assert_eq!(groups, [Some("Paid".to_owned()), Some("Open".to_owned())]);
+        let around = |cell: &str| -> Vec<(Role, Option<String>)> {
+            row_named(&harness, cell)
+                .into_iter()
+                .take(3)
+                .map(|(role, label)| (role, label.filter(|_| role != Role::Row)))
+                .collect()
+        };
+        for (cell, group) in [("INV-7", "Paid"), ("INV-1024", "Open"), ("INV-31", "Open")] {
+            assert_eq!(
+                around(cell),
+                [
+                    (Role::Row, None),
+                    (Role::RowGroup, Some(group.to_owned())),
+                    (Role::Table, Some("Grouped".to_owned())),
+                ],
+                "{cell}"
+            );
+        }
+    }
+
+    #[test]
+    fn rows_outside_any_group_are_inside_the_table() {
+        let harness = harness(Selection::Off);
+        let around: Vec<Role> = row_named(&harness, "INV-7")
+            .into_iter()
+            .take(2)
+            .map(|(role, _)| role)
+            .collect();
+        assert_eq!(around, [Role::Row, Role::Table]);
     }
 }
