@@ -1446,3 +1446,71 @@ fn a_part_is_described_by_its_controls_tooltip() {
         "the stepper's button"
     );
 }
+
+const LONG_NOTE: &str = "A note much longer than its narrow box";
+const SHORT_NOTE: &str = "Fits";
+
+/// ```html
+/// <div class="flex flex-col items-start gap-4 p-4">
+///   <div class="w-[80px]"><span class="truncate">A note much longer…</span></div>
+///   <div class="w-[80px]"><span class="truncate">Fits</span></div>
+/// </div>
+/// ```
+fn notes_view(b: &mut Builder<'_, '_, App>, _: &App) {
+    b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
+        for (key, note) in [("long", LONG_NOTE), ("short", SHORT_NOTE)] {
+            b.div(tw().w_px(80.0), |b| {
+                b.span(key, tw().truncate(), note).tooltip_when_truncated();
+            });
+        }
+    });
+}
+
+/// For each time `text` is drawn, whether it was cut short.
+fn drawn_elided(d: &Driver<App>, text: &str) -> Vec<bool> {
+    support::shapes(d)
+        .iter()
+        .filter_map(|shape| match shape {
+            Shape::Text(shape) if shape.galley.text() == text => Some(shape.galley.elided),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_truncated_span_shows_its_whole_text_and_one_that_fits_shows_none() {
+    let mut d = harness_of(notes_view);
+    assert_eq!(
+        drawn_elided(&d, LONG_NOTE),
+        [true],
+        "precondition: the long note is cut"
+    );
+    assert_eq!(
+        drawn_elided(&d, SHORT_NOTE),
+        [false],
+        "precondition: the short one fits"
+    );
+
+    d.hover(Target::suffix("/\"short\""));
+    d.advance(DELAY + GRACE);
+    assert!(!is_shown(&d), "text that fits has no tooltip");
+
+    d.hover(Target::suffix("/\"long\""));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "the cut note opens a tooltip");
+    assert_eq!(
+        drawn_elided(&d, LONG_NOTE),
+        [true, false],
+        "the tooltip draws the whole note over the cut one"
+    );
+}
+
+#[test]
+fn a_truncated_span_keeps_its_whole_text_as_its_name_and_no_description() {
+    let mut d = harness_of(notes_view);
+    d.hover(Target::suffix("/\"long\""));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "precondition: the tooltip is open");
+    let node = d.harness().get_by_label(LONG_NOTE);
+    assert_eq!(node.accesskit_node().description(), None);
+}

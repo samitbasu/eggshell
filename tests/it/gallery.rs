@@ -174,7 +174,7 @@ fn section_cells(d: &Driver<State>) -> Vec<egui::Rect> {
 }
 
 #[test]
-fn the_four_sections_share_one_row_of_the_aside() {
+fn the_sections_wrap_inside_the_aside() {
     let d = driver(State::default());
     let track = d.rect(Target::suffix("/\"section\""));
     let caption = support::nodes(&d)
@@ -184,18 +184,14 @@ fn the_four_sections_share_one_row_of_the_aside() {
         .1;
     assert!(track.right() <= caption.right(), "{track:?} in {caption:?}");
     let cells = section_cells(&d);
-    assert!(cells.len() >= 4, "the four segments exist: {cells:?}");
-    for label in ["text", "button", "choice", "value"] {
+    assert!(cells.len() >= 5, "the five segments exist: {cells:?}");
+    for label in ["text", "button", "choice", "value", "label"] {
         d.harness().get_by_label(label);
     }
-    let top = cells[0].top();
     assert!(
-        cells
-            .iter()
-            .all(|cell| cell.top() == top && track.contains_rect(*cell)),
+        cells.iter().all(|cell| track.contains_rect(*cell)),
         "{cells:?} in {track:?}"
     );
-    assert!(track.height() < 50.0, "one row: {track:?}");
 }
 
 #[test]

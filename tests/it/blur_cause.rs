@@ -133,7 +133,7 @@ fn the_window_losing_focus_blurs_a_steppers_field_as_elsewhere() {
 }
 
 #[test]
-fn the_window_losing_focus_closes_a_sliders_readout_and_writes_nothing() {
+fn the_window_losing_focus_closes_a_sliders_readout_and_commits_what_was_typed() {
     let mut d = driver();
     d.frames(4);
     d.click(Target::suffix(READOUT)).frames(6);
@@ -150,7 +150,11 @@ fn the_window_losing_focus_closes_a_sliders_readout_and_writes_nothing() {
         !support::nodes(&d).iter().any(|(path, _)| *path == field),
         "the readout closed"
     );
-    assert!(d.app().levels.is_empty());
+    assert_eq!(
+        d.app().levels.len(),
+        1,
+        "leaving the field commits, as a click elsewhere does"
+    );
 }
 
 #[test]

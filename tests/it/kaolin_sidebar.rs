@@ -37,7 +37,7 @@ fn sidebar(styling: Styling, theme: Theme) -> (Vec<Rect>, Vec<Rect>) {
                     kaolin::window(b, selected, ImageSource::Uri("bytes://logo".into()));
                 })
                 .layout(area)
-                .draw(gallery, ui);
+                .draw(gallery, ui)
         },
     )
     .size(vec2(900.0, 700.0))

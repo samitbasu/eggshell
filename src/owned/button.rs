@@ -5,10 +5,11 @@ use std::fmt::Debug;
 use egui::{Context, Role};
 
 use super::Mark;
-use super::{Content, Enablement, OnResponse, TipContent, centered, described, tip};
+use super::{Enablement, Gate, IntoTip, OnResponse, centered, described, options};
 use crate::actions::Action;
 use crate::builder::Slot;
 use crate::contract::{Size, Variant};
+use crate::focus::{Autofocus, Select};
 use crate::{Builder, Icon, Scope, Tw, tw};
 
 /// Whether pressing a button shifts it down, as web buttons commonly do.
@@ -120,6 +121,15 @@ pub struct ButtonChain<'a, 'f, A> {
     on_response: OnResponse<A>,
     children: Option<Children<'a, 'f, A>>,
     action: Option<Action>,
+    autofocus: Autofocus,
+    closes: Closes,
+}
+
+/// What pressing a button does to the overlay it is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Closes {
+    Nothing,
+    Overlay,
 }
 
 type Children<'a, 'f, A> = Box<dyn for<'s> FnOnce(&mut Scope<'s, 'f, A>) + 'a>;
@@ -152,7 +162,7 @@ pub struct ButtonOptions {
     variant: Option<Variant>,
     size: Option<Size>,
     name: Option<String>,
-    tooltip: TipContent,
+    gate: Gate,
     enablement: Option<Enablement>,
     press: Option<Press>,
     classes: Tw,
@@ -172,7 +182,7 @@ impl ButtonOptions {
             variant: None,
             size: None,
             name: None,
-            tooltip: None,
+            gate: Gate::default(),
             enablement: None,
             press: None,
             classes: tw(),
@@ -187,7 +197,7 @@ impl ButtonOptions {
             variant: other.variant.or(self.variant),
             size: other.size.or(self.size),
             name: other.name.or(self.name),
-            tooltip: other.tooltip.or(self.tooltip),
+            gate: self.gate.merge(other.gate),
             enablement: other.enablement.or(self.enablement),
             press: other.press.or(self.press),
             classes: self.classes.merge(other.classes),
@@ -236,6 +246,14 @@ impl ButtonOptions {
         self
     }
 
+    /// Disabled while the options refuse the button.
+    pub(super) fn refusal(&self) -> Enablement {
+        match self.gate.refused() {
+            super::options::Refused::Yes => Enablement::Disabled,
+            super::options::Refused::No => Enablement::Enabled,
+        }
+    }
+
     /// The name assistive technology reads for a button showing `face`.
     pub(crate) fn name_or<'s>(&'s self, face: &'s Face) -> &'s str {
         self.name.as_deref().unwrap_or_else(|| face.name())
@@ -246,8 +264,8 @@ impl ButtonOptions {
     /// delay, at once when it has keyboard focus, and also when the control is
     /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
     }
 
@@ -255,6 +273,14 @@ impl ButtonOptions {
     pub fn enablement(mut self, enablement: impl Into<Enablement>) -> Self {
         let enablement = enablement.into();
         self.enablement = Some(enablement);
+        self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
         self
     }
 }
@@ -281,12 +307,20 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             on_response: OnResponse::default(),
             children: None,
             action: None,
+            autofocus: Autofocus::Never,
+            closes: Closes::Nothing,
         }
     }
 
     /// Makes the button a toggle that shows `mark`.
     pub(super) fn marked(mut self, mark: Mark) -> Self {
         self.toggle = Some(mark);
+        self
+    }
+
+    /// Asks for focus as `autofocus` says.
+    pub(super) fn autofocus(mut self, autofocus: Autofocus) -> Self {
+        self.autofocus = autofocus;
         self
     }
 
@@ -315,6 +349,52 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// first declared is the one.
     pub fn cancel_action(mut self) -> Self {
         self.action = Some(Action::Cancel);
+        self
+    }
+
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
+    /// Makes pressing the button dismiss the overlay it is in, after its own
+    /// handler has run: the overlay's
+    /// [`on_dismiss`](crate::overlay::OverlayChain::on_dismiss) is called, as
+    /// for a press outside or Esc, so the code that closes the overlay is
+    /// written once. The overlay is dismissed whatever its
+    /// [`DismissOn`](crate::overlay::DismissOn) says. A dialog's close
+    /// button, or a cancel button with no handler of its own:
+    ///
+    /// ```
+    /// use eggshell_ui::overlay::{Modal, Shown};
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// struct App { open: Shown }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.overlay("dialog")
+    ///         .modal(Modal::Center)
+    ///         .shown(app.open)
+    ///         .on_dismiss(|app: &mut App| app.open = Shown::Closed)
+    ///         .children(|s| {
+    ///             s.div(tw().p(6.0), |s| {
+    ///                 s.button("cancel", "Cancel").cancel_action().dismisses().add();
+    ///             });
+    ///         });
+    /// }
+    /// ```
+    ///
+    /// Outside an overlay it does nothing more than its handler.
+    pub fn dismisses(mut self) -> Self {
+        self.closes = Closes::Overlay;
         self
     }
 
@@ -365,7 +445,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
     /// delay, at once when it has keyboard focus, and also when the control is
     /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
         self.opts = self.opts.tooltip(text);
         self
     }
@@ -385,7 +465,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         mut self,
         build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
-        self.opts.tooltip = Some(Content::built(build));
+        self.opts.gate.tooltip_with(build);
         self
     }
 
@@ -401,6 +481,25 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
         let enablement = enablement.into();
         self.opts = self.opts.enablement(enablement);
         self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins. A [`command`](Self::command)'s button is disabled while its
+    /// command is, whatever this says.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.opts = self.opts.refused(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<T>(self, value: Option<T>, then: impl FnOnce(Self, T) -> Self) -> Self {
+        options::when_some(self, value, then)
     }
 
     /// Builds `body`'s nodes inside the button, after its icon and label, as
@@ -470,7 +569,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             self.opts.enablement = Some(Enablement::Disabled);
         }
         let (command, shell) = (bound.command, self.b.shell());
-        self.on_click(move |app| command.activate(app, &shell));
+        self.on_click(move |app| command.run(app, &shell));
     }
 
     /// Adds a button that does nothing when it is clicked: a placeholder, or
@@ -504,7 +603,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                     variant,
                     size,
                     name,
-                    tooltip,
+                    gate,
                     enablement,
                     press,
                     classes: caller,
@@ -512,11 +611,13 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             on_response,
             children,
             action,
+            autofocus,
+            closes,
         } = self;
         let name = name.unwrap_or(face_name);
-        let tooltip = tip(&mut b, slot.id, tooltip);
+        let (enablement, tooltip) =
+            gate.resolve(&mut b, slot.id, enablement.unwrap_or(Enablement::Enabled));
         let size = b.size_of(size);
-        let enablement = b.enablement_of(enablement.unwrap_or(Enablement::Enabled));
         let press = press.unwrap_or(Press::Shifts);
         let ctx = b.ctx();
         #[cfg(debug_assertions)]
@@ -578,15 +679,21 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 children(b);
             }
         });
-        let node = node.announces(role);
+        let node = node.announces(role).open_focus(autofocus.open_focus());
         let node = match action {
             Some(action) => node.action(action),
             None => node,
         };
         node.draw(move |app, ui| {
             let response = described(ui, role, selected, &name, &tooltip);
+            autofocus.apply(ui.ctx(), &response);
             if response.clicked() || crate::nav::take_activation(ui, response.id) {
                 on_click(app, ui.ctx());
+                if closes == Closes::Overlay
+                    && let Some(shell) = crate::shell::shell_or_report(ui, "a dismissing button")
+                {
+                    crate::actions::note_closer(ui.ctx(), &shell.kept, response.id);
+                }
             }
             on_response.run(app, &response);
         });

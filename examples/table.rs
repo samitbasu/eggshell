@@ -1,6 +1,6 @@
 //! TODO(prose): an invoices table with a checkbox column that selects a row,
 //! a status badge, a right-aligned amount, a footer total and a menu on each
-//! row.
+//! row; and the same invoices grouped by status, striped.
 //!
 //! F12 toggles the layout debug overlay and its frame-timing readout.
 
@@ -8,7 +8,7 @@
 mod common;
 
 use common::glyphs::{self, Glyph};
-use eggshell_ui::owned::{Align, Column};
+use eggshell_ui::owned::{Align, Column, Stripes};
 use eggshell_ui::{Builder, Track, tw};
 use eggshell_ui_shadcn::variant;
 
@@ -71,6 +71,7 @@ impl Default for Invoices {
 pub enum Part {
     Page,
     Invoices,
+    ByStatus,
     Pick,
     Menu,
     Copy,
@@ -182,10 +183,55 @@ pub fn layout(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
             if let Some(action) = &app.last_action {
                 b.text(tw().text(t.muted_foreground), action.clone());
             }
+            by_status(b, app);
         },
     );
 }
 
+/// ```html
+/// <table class="striped">
+///   <tbody><tr><th scope="rowgroup" colspan="3">Paid</th></tr> <tr>INV-001 Credit card $250.00</tr> … </tbody>
+///   <tbody><tr><th scope="rowgroup" colspan="3">Pending</th></tr> … </tbody>
+/// </table>
+/// ```
+fn by_status(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
+    b.table(Part::ByStatus)
+        .named("Invoices by status")
+        .columns([
+            Column::new(Track::auto()),
+            Column::new(Track::fr(1.0)),
+            Column::new(Track::auto()).align(Align::End),
+        ])
+        .stripes(Stripes::Alternate)
+        .header(|h| {
+            for heading in ["Invoice", "Method", "Amount"] {
+                h.cell_text(heading);
+            }
+        })
+        .rows_with(|rows| {
+            for status in [Status::Paid, Status::Pending, Status::Unpaid] {
+                rows.group(status.label());
+                for invoice in app
+                    .invoices
+                    .iter()
+                    .filter(|invoice| invoice.status == status)
+                {
+                    rows.row(invoice.id, |row| {
+                        row.cell_text(invoice.id);
+                        row.cell_text(invoice.method);
+                        row.cell_text(dollars(invoice.cents));
+                    });
+                }
+            }
+        });
+}
+
 fn main() -> eframe::Result {
-    common::run_app("table", Invoices::default(), layout)
+    common::run_app_sized(
+        "table",
+        egui::vec2(820.0, 1000.0),
+        Invoices::default(),
+        |_, _| {},
+        layout,
+    )
 }

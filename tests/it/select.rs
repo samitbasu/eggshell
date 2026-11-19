@@ -495,7 +495,7 @@ mod beside_another_frame {
                 .draw(app, ui);
             page.build(ui.ctx(), |b| view(b, &*app))
                 .layout(area)
-                .draw(app, ui);
+                .draw(app, ui)
         })
         .size(SCREEN)
         .base_text(base_text())

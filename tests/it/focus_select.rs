@@ -190,7 +190,13 @@ fn a_stepper_appearing_selecting_all_lets_typing_replace_its_value() {
     d.app_mut().shown = true;
     d.frames(4);
     d.event(Event::Text("7".into())).frames(3);
+    commit(&mut d);
     assert_eq!(d.app().count, 7.0);
+}
+
+/// Enter: the stepper commits what was typed.
+fn commit(d: &mut Driver<App>) {
+    d.press(egui::Key::Enter).frames(3);
 }
 
 #[test]
@@ -201,6 +207,7 @@ fn a_stepper_appearing_selecting_none_keeps_its_value_and_takes_the_typing() {
         d.app_mut().shown = true;
         d.frames(4);
         d.event(Event::Text("7".into())).frames(3);
+        commit(&mut d);
         assert_eq!(
             d.app().count,
             10.0,
@@ -235,5 +242,6 @@ fn a_double_click_in_a_stepper_field_selects_the_whole_value_not_the_word_under_
         std::time::Duration::from_millis(200),
     );
     d.event(Event::Text("7".into())).frames(3);
+    commit(&mut d);
     assert_eq!(d.app().count, 7.0);
 }

@@ -39,6 +39,7 @@ use crate::stack::Stack;
 use crate::text::{TextStyle, VAlign, WhiteSpace};
 use crate::tw::{
     BoxPaint, Focusability, Grouping, PointerEvents, RingPlacement, Sensing, Sides, Variants,
+    Visibility,
 };
 
 /// The kind of a node, for diagnostics.
@@ -110,6 +111,7 @@ pub(crate) struct Node {
     pub z: i16,
     pub inert: bool,
     pub pointer_events: PointerEvents,
+    pub(crate) visibility: Option<Visibility>,
     pub interaction: Interaction,
     /// For a region's leaf, the root of its content, once built.
     pub region: Option<NodeId>,
@@ -149,6 +151,7 @@ impl Node {
             z: 0,
             inert: false,
             pointer_events: PointerEvents::Auto,
+            visibility: None,
             interaction: Interaction::default(),
             region: None,
             collapse: None,
@@ -651,10 +654,6 @@ pub(crate) fn room_for(
 impl LayoutState {
     pub(crate) fn kept(&self) -> &Handle {
         &self.st.kept
-    }
-
-    pub(crate) fn scope(&self) -> Id {
-        self.st.scope
     }
 
     /// The id every node's path derives from.
@@ -1755,6 +1754,7 @@ fn collect(
         collapsible: node.collapse.is_some(),
         flight: node.collapse.and_then(|collapse| collapse.flight),
         pointer_events: node.pointer_events,
+        visibility: node.visibility,
         interaction: node.interaction,
         draw_kind: node.draw_kind,
         description: node.description.take(),
@@ -1894,6 +1894,7 @@ pub struct PlacedNode {
     pub(crate) collapsible: bool,
     flight: Option<Flight>,
     pointer_events: PointerEvents,
+    visibility: Option<Visibility>,
     pub(crate) interaction: Interaction,
     draw_kind: DrawKind,
     description: Option<Box<Description>>,
@@ -1938,6 +1939,7 @@ impl PlacedNode {
             collapsible: false,
             flight: None,
             pointer_events: PointerEvents::Auto,
+            visibility: None,
             interaction: Interaction::default(),
             draw_kind: DrawKind::Paint,
             description: None,
@@ -1969,6 +1971,11 @@ impl PlacedNode {
             Some(viewport) => inner.intersect(viewport),
             None => inner,
         }
+    }
+
+    /// The node's own visibility class; `None` inherits its parent's.
+    pub(crate) fn visibility(&self) -> Option<Visibility> {
+        self.visibility
     }
 
     /// Whether the node, by itself, lets the pointer through.

@@ -2,7 +2,7 @@
 //! what moves, through the real path (kittest pointer events, egui's hit test,
 //! the gesture, the layout and the draw).
 
-use eggshell_ui::testing::{Driver, Headless, assert_reported};
+use eggshell_ui::testing::{Driver, Headless, PlacedFrame, assert_reported};
 use eggshell_ui::{Builder, DragEnd, LayoutState, NodeUi as _, tw};
 use eggshell_ui::{Problem, Report};
 use egui::epaint::Shape;
@@ -99,12 +99,12 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) {
+fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) -> PlacedFrame {
     let area = ui.max_rect();
     layout
         .build(&ui.ctx().clone(), |b| view(b, app))
         .layout(area)
-        .draw(app, ui);
+        .draw(app, ui)
 }
 
 fn harness(lifts: Lifts) -> H {

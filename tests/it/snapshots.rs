@@ -1034,6 +1034,7 @@ owned_section_goldens! {
     controls_gallery_buttons_light, controls_gallery_buttons_dark: Buttons;
     controls_gallery_choices_light, controls_gallery_choices_dark: Choices;
     controls_gallery_values_light, controls_gallery_values_dark: Values;
+    controls_gallery_labels_light, controls_gallery_labels_dark: Labels;
 }
 
 /// The enabled stepper with its text field focused: the ring surrounds the
@@ -1306,6 +1307,7 @@ mod lyra {
         controls_gallery_lyra_buttons_light, controls_gallery_lyra_buttons_dark: Buttons;
         controls_gallery_lyra_choices_light, controls_gallery_lyra_choices_dark: Choices;
         controls_gallery_lyra_values_light, controls_gallery_lyra_values_dark: Values;
+        controls_gallery_lyra_labels_light, controls_gallery_lyra_labels_dark: Labels;
     }
 
     /// The text edits of the cells section, whose computed and drawn rects
@@ -1409,7 +1411,9 @@ fn dnd_gallery_in(name: &str, theme: egui::Theme) {
         Vec2::new(520.0, 400.0),
         common::base_text(theme),
         dnd_gallery::State::default(),
-        dnd_gallery::frame,
+        |ui, app, layout| {
+            dnd_gallery::frame(ui, app, layout);
+        },
     );
     harness.ctx.set_theme(theme);
     harness.run_steps(6);
@@ -1436,7 +1440,9 @@ fn dnd_gallery_chip_in(name: &str, theme: egui::Theme) {
         2.0,
         common::base_text(theme),
         state,
-        |ui, app, layout| dnd_gallery::window(ui, app, layout, &mut LayoutState::new()),
+        |ui, app, layout| {
+            dnd_gallery::window(ui, app, layout, &mut LayoutState::new());
+        },
     );
     harness.ctx.set_theme(theme);
     harness.run_steps(6);

@@ -5,7 +5,7 @@
 use eggshell_ui::overlay::{DismissOn, Modal, Shown, Side};
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::testing::{Driver, PlacedFrame, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Event, FontFamily, Key, Pos2, Role, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -887,7 +887,7 @@ mod two_frames {
         state: State,
     }
 
-    fn frame(ui: &mut Ui, shell: &mut Shell, page: &mut LayoutState) {
+    fn frame(ui: &mut Ui, shell: &mut Shell, page: &mut LayoutState) -> PlacedFrame {
         let area = ui.max_rect();
         let ctx = ui.ctx().clone();
         let top = egui::Rect::from_min_size(area.min, vec2(area.width(), 10.0));
@@ -901,7 +901,7 @@ mod two_frames {
         page.set_base_text(Some(common::base_text(egui::Theme::Light)));
         page.build(&ctx, |b| dialog::layout(b, &shell.state))
             .layout(area)
-            .draw(&mut shell.state, ui);
+            .draw(&mut shell.state, ui)
     }
 
     #[test]
@@ -1030,5 +1030,162 @@ mod keys_are_taken {
         let mut d = harness(App::default());
         d.press(Key::Enter).frames(11);
         assert_eq!(d.app().enters, 1);
+    }
+}
+
+/// Buttons that dismiss their overlay (`ButtonChain::dismisses`), and the
+/// accessible description of an overlay and of a node.
+mod closers {
+    use super::*;
+
+    #[derive(Clone, Copy, Debug, Hash)]
+    enum P {
+        Page,
+        Plain,
+        Dlg,
+        Box,
+        Close,
+        Cancel,
+        Note,
+        Pop,
+        PopClose,
+    }
+
+    #[derive(Default)]
+    struct App {
+        open: bool,
+        popover: bool,
+        dismiss_on: DismissOn,
+        log: Vec<String>,
+    }
+
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div_id(P::Page, tw().w_full().h_full().p(2.0), |s| {
+            s.button(P::Plain, "Plain")
+                .dismisses()
+                .on_click(|app: &mut App| app.log.push("plain".into()));
+        });
+        if app.open {
+            b.overlay(P::Dlg)
+                .modal(Modal::Center)
+                .dismiss_on(app.dismiss_on)
+                .role(Role::Dialog)
+                .named("Edit")
+                .description("Make your changes.")
+                .on_dismiss(|app: &mut App| {
+                    app.open = false;
+                    app.log.push("dismissed".into());
+                })
+                .children(|s| {
+                    s.div_id(
+                        P::Box,
+                        tw().flex()
+                            .flex_col()
+                            .gap(2.0)
+                            .w_px(300.0)
+                            .p(2.0)
+                            .bg(Color32::WHITE),
+                        |s| {
+                            s.div_id(P::Note, tw().sense_hover(), |_| {})
+                                .role(Role::Note)
+                                .named("Note")
+                                .description("Read me after the name.");
+                            s.button(P::Cancel, "Cancel")
+                                .cancel_action()
+                                .dismisses()
+                                .add();
+                            s.button(P::Close, "Close")
+                                .dismisses()
+                                .on_click(|app: &mut App| app.log.push("close".into()));
+                            if app.popover {
+                                let anchor = s.id_of(P::Close);
+                                s.overlay(P::Pop)
+                                    .anchor(eggshell_ui::overlay::Anchor::Node(anchor))
+                                    .on_dismiss(|app: &mut App| {
+                                        app.popover = false;
+                                        app.log.push("popover dismissed".into());
+                                    })
+                                    .children(|s| {
+                                        s.button(P::PopClose, "Done").dismisses().add();
+                                    });
+                            }
+                        },
+                    );
+                });
+        }
+    }
+
+    fn opened(app: App) -> Driver<App> {
+        let mut d = support::driver(
+            vec2(400.0, 400.0),
+            base_text(),
+            App { open: true, ..app },
+            view,
+        )
+        .build();
+        d.frames(12);
+        d
+    }
+
+    #[test]
+    fn a_closer_runs_its_handler_then_on_dismiss_once() {
+        let mut d = opened(App::default());
+        d.click(Target::suffix("/Dlg/Box/Close")).frames(12);
+        assert_eq!(d.app().log, ["close", "dismissed"]);
+        assert!(!d.app().open);
+    }
+
+    #[test]
+    fn esc_presses_a_handlerless_dismissing_cancel_which_runs_on_dismiss_once() {
+        let mut d = opened(App::default());
+        d.press(Key::Escape).frames(11);
+        assert_eq!(d.app().log, ["dismissed"]);
+        assert!(!d.app().open);
+    }
+
+    #[test]
+    fn a_closer_closes_a_modal_that_must_be_answered() {
+        let mut d = opened(App {
+            dismiss_on: DismissOn::Never,
+            ..App::default()
+        });
+        d.click(pos2(5.0, 5.0)).frames(12);
+        assert!(d.app().log.is_empty(), "precondition: held");
+        d.click(Target::suffix("/Dlg/Box/Close")).frames(12);
+        assert_eq!(d.app().log, ["close", "dismissed"]);
+    }
+
+    #[test]
+    fn a_closer_in_a_nested_overlay_closes_only_that_overlay() {
+        let mut d = opened(App {
+            popover: true,
+            ..App::default()
+        });
+        d.click(Target::suffix("/Dlg/Box/Pop/PopClose")).frames(12);
+        assert_eq!(d.app().log, ["popover dismissed"]);
+        assert!(d.app().open, "the dialog stays");
+    }
+
+    #[test]
+    fn a_closer_outside_any_overlay_only_runs_its_handler() {
+        let mut d = support::driver(vec2(400.0, 400.0), base_text(), App::default(), view).build();
+        d.frames(12);
+        d.click(Target::suffix("/Page/Plain")).frames(12);
+        assert_eq!(d.app().log, ["plain"]);
+    }
+
+    #[test]
+    fn an_overlay_and_a_node_carry_their_descriptions() {
+        let d = opened(App::default());
+        let dialog = d.harness().get_by_role_and_label(Role::Dialog, "Edit");
+        assert_eq!(
+            dialog.accesskit_node().data().description(),
+            Some("Make your changes.")
+        );
+        let note = d.harness().get_by_role_and_label(Role::Note, "Note");
+        assert_eq!(
+            note.accesskit_node().data().description(),
+            Some("Read me after the name.")
+        );
     }
 }

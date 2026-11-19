@@ -3,7 +3,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use eggshell_ui::testing::{Driver, Timeline};
+use eggshell_ui::testing::{Driver, PlacedFrame, Timeline};
 use eggshell_ui::{LayoutState, tw};
 use egui::epaint::Shape;
 use egui::{Color32, Event, Key, Pos2, Rect, Ui, vec2};
@@ -81,12 +81,12 @@ fn view(b: &mut eggshell_ui::Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) {
+fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) -> PlacedFrame {
     let area = ui.max_rect();
     layout
         .build(&ui.ctx().clone(), |b| view(b, app))
         .layout(area)
-        .draw(app, ui);
+        .draw(app, ui)
 }
 
 fn harness() -> Driver<App> {
