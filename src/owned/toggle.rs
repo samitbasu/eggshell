@@ -79,6 +79,19 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> ToggleChain<'a, 'f, A, T
 }
 
 impl<'a, 'f, A: 'static, T, V> ToggleChain<'a, 'f, A, T, V> {
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.button = self.button.focus_on_open();
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.button = self.button.focus_now();
+        self
+    }
+
     /// Applies shared `options`: what they set overrides what the chain has
     /// so far, and what is set after them overrides them.
     pub fn with_options(mut self, options: ButtonOptions) -> Self {

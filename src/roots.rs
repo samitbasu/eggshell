@@ -20,7 +20,7 @@ use crate::overlay::{
     Anchor, AnchorLookup, Anchored, Band, Behavior, Focus, MatchWidth, Modal, Outside, Placement,
     Side,
 };
-use crate::pipeline::{Placed, PlacedNode};
+use crate::pipeline::{PlacedFrame, PlacedNode};
 use crate::presence::Staged;
 use crate::scroll::Description;
 
@@ -362,7 +362,7 @@ pub(crate) fn stacked_top_down(roots: &[PlacedRoot], here: Here) -> Vec<usize> {
     found.into_iter().map(|(_, _, index)| index).collect()
 }
 
-impl<A> Placed<A> {
+impl PlacedFrame {
     /// The overlays on screen, the one opened first at the bottom: open, or
     /// still leaving after they closed ([`OverlayRef::is_exiting`]).
     pub fn overlays(&self) -> Vec<OverlayRef<'_>> {
@@ -528,6 +528,7 @@ mod tests {
     use egui::{pos2, vec2};
 
     use super::*;
+    use crate::pipeline::Placed;
     use crate::testing::Headless;
     use crate::tw;
 

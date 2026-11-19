@@ -119,7 +119,8 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
     /// An identified leaf that edits `text`, the string of the application's
     /// state as it is when the frame is built. The field edits a copy, which
     /// [`on_change`](TextFieldChain::on_change) hands back when it differs.
-    /// Assistive technology sees a `Role::TextInput`, named by
+    /// Assistive technology sees a `Role::TextInput`, unless
+    /// [`role`](TextFieldChain::role) says otherwise, named by
     /// [`named`](TextFieldChain::named).
     pub fn text_field<K: Key>(
         &mut self,
@@ -221,6 +222,20 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set, selecting as
+    /// `select` says.
+    pub fn focus_now(mut self, select: Select) -> Self {
+        self.autofocus = Autofocus::Now(select);
+        self
+    }
+
     /// TODO(prose): draws at the style's size `size`, over the one the subtree inherits.
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = Some(size);
@@ -304,6 +319,25 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
     /// The accessible name, the equivalent of `aria-label`.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.field = self.field.named(name);
+        self
+    }
+
+    /// TODO(prose): the role assistive technology sees, `Role::TextInput` unless set: a combobox's field says `Role::ComboBox`, a search box `Role::SearchInput`.
+    ///
+    /// ```
+    /// use eggshell_ui::Builder;
+    ///
+    /// struct App { query: String }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.text_field("search", &app.query)
+    ///         .role(egui::Role::SearchInput)
+    ///         .named("Search")
+    ///         .on_change(|app, query| app.query = query);
+    /// }
+    /// ```
+    pub fn role(mut self, role: egui::Role) -> Self {
+        self.field = self.field.role(role);
         self
     }
 
@@ -434,6 +468,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                         b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
                             measure(m, &measured)
                         })
+                        .open_focus(autofocus.open_focus())
                         .draw_widgets(move |app, ui| {
                             let mut edited = text;
                             let shown = show(ui, &mut edited, &field);
@@ -461,6 +496,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         };
         let classes = enablement.apply(classes, &style);
         b.leaf_with(&slot, classes, move |m| measure(m, &measured))
+            .open_focus(autofocus.open_focus())
             .draw_widgets(move |app, ui| {
                 let mut edited = text;
                 let shown = show(ui, &mut edited, &field);
