@@ -12,7 +12,7 @@
 //!
 //! The buttons, choices and values sections show every control built from
 //! eggshell nodes, which have no size computation to check, and the labels
-//! section the badges, chips and spinners of `eggshell-ui-extras`.
+//! section the badges, chips, spinners and skeletons of `eggshell-ui-extras`.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -26,6 +26,7 @@ use eggshell_ui::prim::text_field::{self, Field};
 use eggshell_ui::widget::{Lines, TextEdit};
 use eggshell_ui::{Builder, Icon, Progress, Scope, TextStyle, Tw, icons, tw};
 use eggshell_ui_extras::badge::BadgeExt;
+use eggshell_ui_extras::skeleton::SkeletonExt;
 use eggshell_ui_extras::spinner::SpinnerExt;
 use eggshell_ui_shadcn::{BaseColor, Palette, ThemeColor, size, variant};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
@@ -262,7 +263,7 @@ pub enum Section {
     Choices,
     /// The owned slider, select and stepper.
     Values,
-    /// The extras' badges, chips and spinners.
+    /// The extras' badges, chips, spinners and skeletons.
     Labels,
 }
 
@@ -1093,6 +1094,17 @@ fn labels_section(s: &mut S<'_, '_>, state: &State) {
                 b.div(tw().flex().items_center().gap(1.0), |b| {
                     b.spinner("syncing").named("Syncing").add();
                     b.badge("count", "3").variant(variant::SECONDARY).add();
+                });
+            });
+        });
+        // shadcn's Skeleton demo: `flex items-center space-x-4` of a
+        // `size-12 rounded-full` and two lines, `h-4 w-[250px]` and `w-[200px]`.
+        row_of(b, "skeleton", LABELS_COLUMN, |b| {
+            b.div(tw().flex().items_center().gap(4.0), |b| {
+                b.skeleton(tw().size_px(48.0).rounded_full());
+                b.div(tw().flex().flex_col().gap(2.0), |b| {
+                    b.skeleton(tw().h_px(16.0).w_px(250.0));
+                    b.skeleton(tw().h_px(16.0).w_px(200.0));
                 });
             });
         });

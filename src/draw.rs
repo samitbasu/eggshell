@@ -2078,6 +2078,12 @@ impl<A> Painting<A> {
         for (index, window) in natives {
             let builder = window::builder(&self.kept, &window);
             ctx.show_viewport_immediate(window.viewport(), builder, |ui, _| {
+                let _timer = Timer::window(
+                    ui.ctx(),
+                    Phase::Draw,
+                    self.page,
+                    (window.id, &window.window.title),
+                );
                 let here = Here::of(&self.roots, index);
                 let content = egui::CentralPanel::default()
                     .frame(egui::Frame::NONE)

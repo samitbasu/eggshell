@@ -1256,6 +1256,14 @@ fn place_window(
     } else {
         Presentation::Native
     };
+    let _timer = (presentation == Presentation::Native).then(|| {
+        Timer::window(
+            ctx,
+            Phase::Layout,
+            ctx.viewport_id(),
+            (decl.id, &decl.window.title),
+        )
+    });
     let mut style = st.tree.style(node).clone();
     let mut sized = |size: Option<Vec2>, available: AvailableSpace| {
         style.size = Size {
@@ -1296,7 +1304,8 @@ fn place_window(
                 let offset = chrome.map_or(Vec2::ZERO, |chrome| chrome.offset);
                 decl.window
                     .frame
-                    .map_or(area.center() - size / 2.0, |frame| frame.position + offset)
+                    .and_then(|frame| frame.position)
+                    .map_or(area.center() - size / 2.0, |position| position + offset)
             },
             |content| content.min,
         ),
