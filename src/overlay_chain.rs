@@ -125,6 +125,18 @@ pub struct OverlayChain<'b, 'f, A, State, Motion = Static> {
     motion: Motion,
 }
 
+impl<'b, 'f, A, State, Motion> OverlayChain<'b, 'f, A, State, Motion> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 /// What the chain said of the overlay's presence; the style fills in the
 /// rest.
 struct Presence<A> {
@@ -242,6 +254,13 @@ impl<A, State, M> OverlayChain<'_, '_, A, State, M> {
     /// The overlay's accessible name. Name every overlay that has a role.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.description.name = Some(name.into());
+        self
+    }
+
+    /// The overlay's accessible description, read after its name: a
+    /// dialog's explanatory sentence.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description.description = Some(description.into());
         self
     }
 
@@ -483,6 +502,13 @@ impl<'f, A, M> OverlayChain<'_, 'f, A, Floating, M> {
             },
             body,
         );
+    }
+}
+
+impl<A, M> OverlayChain<'_, '_, A, Modally, M> {
+    /// How the modal is presented: centred, or docked to which side.
+    pub fn presentation(&self) -> Modal {
+        self.state.modal
     }
 }
 

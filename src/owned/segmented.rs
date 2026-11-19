@@ -7,8 +7,9 @@ use egui::{Context, Role};
 
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
+use super::options::Refused;
 use super::{
-    Content, Enablement, OnResponse, Tip, TipContent, Tooltip, centered, described, tip,
+    Enablement, Gate, IntoTip, OnResponse, Tip, announce_group, centered, described, options,
     tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
@@ -72,7 +73,8 @@ pub struct SegmentedChain<'a, 'f, A, T> {
     rows: Rows,
     enablement: Enablement,
     size: Option<Size>,
-    tooltip: TipContent,
+    gate: Gate,
+    name: Option<String>,
     track: Tw,
     cells: Tw,
     custom: Option<Custom<'a>>,
@@ -102,7 +104,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             rows: Rows::One,
             enablement: Enablement::Enabled,
             size: None,
-            tooltip: None,
+            gate: Gate::default(),
+            name: None,
             track: tw(),
             cells: tw(),
             custom: None,
@@ -120,14 +123,20 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
     /// Classes merged over the styled ones of the track, such as `w_full()`
     /// to make it fill its row; the later class wins ([`Tw::merge`]).
     pub fn track(mut self, track: Tw) -> Self {
-        self.track = track;
+        self.track = self.track.merge(track);
         self
     }
 
     /// Classes merged over the styled ones of every cell, such as `flex_1()`
     /// to share the track equally; the later class wins ([`Tw::merge`]).
     pub fn cells(mut self, cells: Tw) -> Self {
-        self.cells = cells;
+        self.cells = self.cells.merge(cells);
+        self
+    }
+
+    /// The accessible name of the group, the equivalent of `aria-label`.
+    pub fn named(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
         self
     }
 
@@ -159,8 +168,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
     /// delay, at once when it has keyboard focus, and also when the control is
     /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it. A cell's own tooltip shows instead of it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
     }
 
@@ -172,7 +181,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
         mut self,
         build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
-        self.tooltip = Some(Content::built(build));
+        self.gate.tooltip_with(build);
         self
     }
 
@@ -187,6 +196,24 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
         let enablement = enablement.into();
         self.enablement = enablement;
         self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
     }
 
     /// Adds the control. `select` runs with the value of the chosen cell.
@@ -208,19 +235,27 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
             rows,
             enablement,
             size,
-            tooltip,
+            gate,
+            name,
             track,
             cells: caller,
             custom,
             on_response,
         } = self;
-        let tooltip = tip(&mut b, slot.id, tooltip);
-        let enablement = b.enablement_of(enablement);
+        let refused = gate.refused();
+        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
+        let group = Group {
+            current,
+            options,
+            enablement,
+            refused,
+            name,
+        };
         if let Some(Custom { track, cell }) = custom {
             cells_in(
                 b,
                 slot,
-                (current, options, enablement),
+                group,
                 (track, tooltip),
                 |state, enablement| {
                     let classes = cell(state);
@@ -283,7 +318,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
         cells_in(
             b,
             slot,
-            (current, options, enablement),
+            group,
             (container, tooltip),
             cell,
             icon,
@@ -296,12 +331,19 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
 fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
     mut b: Builder<'_, '_, A>,
     slot: Slot,
-    (current, options, group): (T, Vec<Choice<T>>, Enablement),
+    group: Group<T>,
     (container, tooltip): (Tw, Tip),
     cell: impl Fn(Cell, Enablement) -> Tw,
     icon_classes: Tw,
     (select, on_response): (Handler<A, T>, OnResponse<A>),
 ) {
+    let Group {
+        current,
+        options,
+        enablement,
+        refused,
+        name,
+    } = group;
     let container = if tooltip.is_some() {
         container.sense_hover()
     } else {
@@ -309,25 +351,19 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
     };
     let control_tip = tooltip.clone();
     let handle = b.div_id_with(&slot, container, |b| {
-        for (
-            index,
-            Choice {
-                value,
-                label,
-                icon,
-                tooltip,
-                enablement,
-            },
-        ) in options.into_iter().enumerate()
-        {
+        for (index, option) in options.into_iter().enumerate() {
+            let (enablement, tooltip) = option.gated(enablement, refused);
+            let Choice {
+                value, label, icon, ..
+            } = option;
             let state = if value == current {
                 Cell::Pressed
             } else {
                 Cell::Released
             };
-            let classes = cell(state, group.and(enablement)).sense_click();
+            let classes = cell(state, enablement).sense_click();
             let name = label.clone();
-            let tooltip = tooltip.map(Tooltip::text);
+
             let control_tip = control_tip.clone();
             let on_response = on_response.clone();
             let select = select.clone();
@@ -359,10 +395,17 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
             }
         }
     });
-    let handle = handle.tile_hits();
-    if tooltip.is_some() {
-        handle.draw(move |_, ui| {
-            tipped_whole(ui, &tooltip);
-        });
-    }
+    handle.tile_hits().draw(move |_, ui| {
+        tipped_whole(ui, &tooltip);
+        announce_group(ui, Role::RadioGroup, name.as_deref());
+    });
+}
+
+/// The options of a segmented control, as its chain left them.
+struct Group<T> {
+    current: T,
+    options: Vec<Choice<T>>,
+    enablement: Enablement,
+    refused: Refused,
+    name: Option<String>,
 }
