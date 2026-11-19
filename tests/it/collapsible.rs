@@ -8,9 +8,9 @@ use eggshell_ui::overlay::Shown;
 use eggshell_ui::testing::{Animation, Driver, Points, Target, Timeline, record};
 use eggshell_ui::{Builder, CollapseAxis, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui::{Easing, Progress};
-use egui::{Color32, Event, FontFamily, Modifiers, PointerButton, Pos2, pos2, vec2};
+use egui::{Color32, FontFamily, pos2, vec2};
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
 /// Frames are this far apart; the default motion lasts 20 of them.
 const STEP: Duration = Duration::from_millis(10);
@@ -149,19 +149,6 @@ fn settled_open(i: usize) -> Driver<App> {
     d.frames(40);
     assert_eq!(height(&d, &body(i)), FILL, "precondition: it is open");
     d
-}
-
-/// Presses and releases the primary button at `at`, a frame each, with no
-/// hover first.
-fn press_and_release<A>(d: &mut Driver<A>, at: Pos2) {
-    for pressed in [true, false] {
-        d.event(Event::PointerButton {
-            pos: at,
-            button: PointerButton::Primary,
-            pressed,
-            modifiers: Modifiers::NONE,
-        });
-    }
 }
 
 fn painted_top(d: &Driver<App>, fill: Color32) -> f32 {

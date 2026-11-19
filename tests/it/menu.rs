@@ -6,10 +6,10 @@ use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, NodeUi as _, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::{HasPopup, Toggled};
-use egui::{Color32, Event, FontFamily, Key, Modifiers, PointerButton, Role, vec2};
+use egui::{Color32, FontFamily, Key, Modifiers, PointerButton, Role, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, focused_path};
+use crate::support::{self, focused_path, press_and_release};
 
 const SCREEN: egui::Vec2 = vec2(500.0, 400.0);
 
@@ -134,19 +134,6 @@ fn open_file(d: &mut Driver<App>) {
 fn open_more(d: &mut Driver<App>) {
     d.click(Target::suffix(&item(MENU, r#""more""#))).frames(5);
     assert!(has(d, SUB), "precondition: the submenu is open");
-}
-
-/// Presses and releases the primary button at `at`, a frame each, with no
-/// hover first.
-fn press_and_release(d: &mut Driver<App>, at: egui::Pos2) {
-    for pressed in [true, false] {
-        d.event(Event::PointerButton {
-            pos: at,
-            button: PointerButton::Primary,
-            pressed,
-            modifiers: Modifiers::NONE,
-        });
-    }
 }
 
 #[test]

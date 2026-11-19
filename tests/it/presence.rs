@@ -9,9 +9,9 @@ use std::cell::Cell;
 use eggshell_ui::overlay::{Entrance, Modal, Shown, Side};
 use eggshell_ui::testing::{Driver, Motion, Target, Timeline, record};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
-use egui::{Color32, Event, FontFamily, Key, Modifiers, PointerButton, Pos2, pos2, vec2};
+use egui::{Color32, FontFamily, Key, Pos2, pos2, vec2};
 
-use crate::support::{self, focused_node, id_of};
+use crate::support::{self, focused_node, id_of, press_and_release};
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -150,19 +150,6 @@ fn harness(view: support::View<App>) -> Driver<App> {
         .build();
     d.frames(2);
     d
-}
-
-/// Presses and releases the primary button at `at`, a frame each, with no
-/// hover first.
-fn press_and_release<A>(d: &mut Driver<A>, at: Pos2) {
-    for pressed in [true, false] {
-        d.event(Event::PointerButton {
-            pos: at,
-            button: PointerButton::Primary,
-            pressed,
-            modifiers: Modifiers::NONE,
-        });
-    }
 }
 
 fn open(d: &mut Driver<App>) {

@@ -524,13 +524,7 @@ fn rich_harness() -> Driver<App> {
 }
 
 fn galley_of<'h>(d: &'h Driver<App>, text: &str) -> &'h egui::Galley {
-    support::shapes(d)
-        .into_iter()
-        .find_map(|shape| match shape {
-            Shape::Text(shape) if shape.galley.text() == text => Some(&*shape.galley),
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("{text:?} is painted"))
+    d.painted().expect(text).galley()
 }
 
 fn tooltip_ink(d: &Driver<App>) -> egui::Color32 {

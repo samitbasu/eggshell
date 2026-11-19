@@ -13,7 +13,7 @@ use egui::{
     Align, Color32, Event, FontFamily, Id, Modifiers, MouseWheelUnit, Pos2, Rect, Vec2, vec2,
 };
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
 const ROW: f32 = 30.0;
 const HEADER: f32 = 50.0;
@@ -230,19 +230,6 @@ fn inside(d: &H) -> Pos2 {
 fn scroll_down(d: &mut H, points: f32) {
     let at = inside(d);
     wheel(d, at, vec2(0.0, -points));
-}
-
-/// Presses and releases the primary button at `at`, a frame each, with no
-/// hover first.
-fn press_and_release<A>(d: &mut Driver<A>, at: Pos2) {
-    for pressed in [true, false] {
-        d.event(Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: Modifiers::NONE,
-        });
-    }
 }
 
 fn drawn(d: &mut H) -> Vec<u32> {
