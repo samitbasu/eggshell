@@ -631,7 +631,7 @@ impl<A: 'static> Driver<A> {
         button: PointerButton,
         modifiers: Modifiers,
     ) -> &mut Self {
-        let at = self.point(at.into());
+        let at = self.press_point(at.into());
         self.rest_on(at);
         self.press_and_release(at, button, modifiers);
         self.after()
@@ -641,7 +641,7 @@ impl<A: 'static> Driver<A> {
     /// default step.
     #[track_caller]
     pub fn double_click(&mut self, at: impl Into<Target>) -> &mut Self {
-        let at = self.point(at.into());
+        let at = self.press_point(at.into());
         self.rest_on(at);
         self.press_and_release(at, PointerButton::Primary, Modifiers::NONE);
         self.press_and_release(at, PointerButton::Primary, Modifiers::NONE);
@@ -652,7 +652,7 @@ impl<A: 'static> Driver<A> {
     /// without releasing it.
     #[track_caller]
     pub fn pointer_down(&mut self, at: impl Into<Target>) -> &mut Self {
-        let at = self.point(at.into());
+        let at = self.press_point(at.into());
         self.harness.hover_at(at);
         self.harness.run_steps(2);
         self.send([button(at, PointerButton::Primary, Modifiers::NONE, true)]);
@@ -671,7 +671,7 @@ impl<A: 'static> Driver<A> {
     /// midpoint and releases there; the pointer then leaves the window.
     #[track_caller]
     pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> &mut Self {
-        let from = self.point(from.into());
+        let from = self.press_point(from.into());
         let to = self.point(to.into());
         self.rest_on(from);
         for event in [
@@ -690,7 +690,7 @@ impl<A: 'static> Driver<A> {
     /// moves, without releasing: a drag lifted and held.
     #[track_caller]
     pub fn lift(&mut self, from: impl Into<Target>, past: Vec2) -> &mut Self {
-        let from = self.point(from.into());
+        let from = self.press_point(from.into());
         self.rest_on(from);
         self.send([button(from, PointerButton::Primary, Modifiers::NONE, true)]);
         self.send([Event::PointerMoved(from + past / 2.0)]);
@@ -732,11 +732,19 @@ impl<A: 'static> Driver<A> {
         }
     }
 
-    /// The point a pointer action on `target` uses: its centre, which must
-    /// be in the window.
+    /// The point a pointer action on `target` uses: its centre.
+    #[track_caller]
+    fn point(&self, target: Target) -> Pos2 {
+        self.rect(target).center()
+    }
+
+    /// The point a press on `target` uses: its centre, which must be in the
+    /// window, so a node scrolled or placed off screen is never pressed at a
+    /// point egui clips. A move or a release may go past the window's edge,
+    /// as a held drag does.
     #[track_caller]
     #[expect(clippy::panic, reason = "an assertion fails the test")]
-    fn point(&self, target: Target) -> Pos2 {
+    fn press_point(&self, target: Target) -> Pos2 {
         let rect = self.rect(target.clone());
         let at = rect.center();
         let window = self.harness.ctx.content_rect();
@@ -1256,7 +1264,7 @@ pub struct PaintedText<'d> {
     color: Color32,
 }
 
-impl PaintedText<'_> {
+impl<'d> PaintedText<'d> {
     /// TODO(prose): the text.
     pub fn text(&self) -> &str {
         self.galley.text()
@@ -1278,8 +1286,13 @@ impl PaintedText<'_> {
     }
 
     /// TODO(prose): the laid-out text.
-    pub fn galley(&self) -> &egui::Galley {
+    pub fn galley(&self) -> &'d egui::Galley {
         self.galley
+    }
+
+    /// TODO(prose): where the galley was painted: its origin, in screen points.
+    pub fn pos(&self) -> Pos2 {
+        self.pos
     }
 
     /// TODO(prose): how many rows the text was laid out in.
