@@ -3,9 +3,9 @@
 
 use eggshell_ui::owned::{Edit, Enablement, Step};
 use eggshell_ui::{Builder, TextStyle, tw};
-use egui::{Color32, Event, Key, Role, vec2};
+use egui::{Color32, Event, Key, Role, Shape, vec2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use crate::support::{self, Rig, click_node, focused_node, rect_of, text_color};
 
@@ -16,6 +16,7 @@ struct App {
     gain: f64,
     edits: Vec<Edit>,
     disabled: bool,
+    refusal: Option<&'static str>,
 }
 
 fn view(b: &mut Builder<'_, '_, App>, app: &App) {
@@ -26,6 +27,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .step(Step::new(0.5))
             .named("Gain")
             .enablement(Enablement::from(!app.disabled))
+            .when_some(app.refusal, |number, why| number.refused(why))
             .on_edit(|app: &mut App, edit| app.edits.push(edit))
             .on_change(|app: &mut App, value| app.gain = value);
         b.number("shown", 7.0, 0.0..=10.0)
@@ -120,4 +122,48 @@ fn a_disabled_one_does_not_open() {
     harness.run_steps(4);
     assert!(focused_node(&harness).is_none());
     assert!(harness.state().app.edits.is_empty());
+}
+
+fn painted(harness: &Harness<'_, Rig<App>>, text: &str) -> bool {
+    support::shapes(harness).iter().any(|shape| match shape {
+        Shape::Text(shape) => shape.galley.text() == text,
+        _ => false,
+    })
+}
+
+#[test]
+fn a_refused_one_is_disabled_and_a_press_shows_its_reason_without_opening() {
+    let mut harness = harness_with(App {
+        refusal: Some("Locked by the mixer"),
+        ..App::default()
+    });
+    let button = harness.get_by_role_and_label(Role::Button, "Edit Gain");
+    assert!(button.accesskit_node().is_disabled());
+    assert_eq!(
+        button
+            .accesskit_node()
+            .description()
+            .map(|text| text.to_string()),
+        Some("Locked by the mixer".to_owned())
+    );
+    assert!(!painted(&harness, "Locked by the mixer"));
+    click_node(&mut harness, GAIN);
+    harness.run_steps(4);
+    assert!(focused_node(&harness).is_none(), "nothing opens");
+    assert!(harness.state().app.edits.is_empty());
+    assert!(
+        painted(&harness, "Locked by the mixer"),
+        "the press shows it"
+    );
+}
+
+#[test]
+fn without_a_reason_it_is_not_refused() {
+    let mut harness = harness_with(App::default());
+    let button = harness.get_by_role_and_label(Role::Button, "Edit Gain");
+    assert!(!button.accesskit_node().is_disabled());
+    assert_eq!(button.accesskit_node().description(), None);
+    click_node(&mut harness, GAIN);
+    harness.run_steps(4);
+    assert_eq!(focused_node(&harness), Some(format!("{GAIN}/Field")));
 }
