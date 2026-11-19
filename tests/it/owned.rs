@@ -12,7 +12,7 @@ use egui::epaint::Shape;
 use egui::{Color32, Key, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, box_at, focused_path, ring_at, shapes};
+use crate::support::{self, box_at, focused_path, ring_at, shapes, text_color};
 
 const VARIANTS: [Variant; 5] = [
     variant::PRIMARY,
@@ -793,19 +793,4 @@ mod toggle_chain {
         d.hover(egui::pos2(290.0, 190.0)).frames(2);
         assert!(!d.app().hovered);
     }
-}
-
-/// The colour of the text `text` painted with its origin inside `inside`.
-fn text_color<A>(d: &Driver<A>, inside: egui::Rect, text: &str) -> egui::Color32 {
-    d.painted()
-        .all(text)
-        .into_iter()
-        .find(|painted| inside.contains(origin(painted)))
-        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
-        .color()
-}
-
-/// Where the galley of `painted` was placed.
-fn origin(painted: &eggshell_ui::testing::PaintedText<'_>) -> egui::Pos2 {
-    painted.rect().min - painted.galley().rect.min.to_vec2()
 }

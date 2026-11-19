@@ -10,7 +10,7 @@ use egui::epaint::Shape;
 use egui::{Key, KeyboardShortcut, Modifiers, Rect, Role, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, box_at, focused_path, ring_at, shapes};
+use crate::support::{self, box_at, focused_path, press_and_release, ring_at, shapes, text_color};
 
 const REGIONS: [(usize, &str); 3] = [(0, "Europe"), (1, "North America"), (2, "Asia Pacific")];
 
@@ -231,7 +231,7 @@ fn pressing_the_track_jumps_the_thumb_and_dragging_follows_the_pointer() {
 
     d.drag(at(0.2), at(1.0) + vec2(80.0, 40.0));
     assert_eq!(d.app().volume, 100.0, "clamped at the end");
-    drag_past_the_window(&mut d, at(1.0), at(0.0) - vec2(80.0, 0.0));
+    d.drag(at(1.0), at(0.0) - vec2(80.0, 0.0));
     assert_eq!(d.app().volume, 0.0, "clamped at the start");
     let thumb = d.rect(Target::suffix(THUMB));
     assert!((thumb.left() - track.left()).abs() < 0.6, "{thumb:?}");
@@ -910,45 +910,4 @@ fn the_select_list_is_as_wide_as_its_options_not_the_window() {
         option_width(400.0, "Europe"),
         option_width(1200.0, "Europe")
     );
-}
-
-/// A primary press and release at `at`, a frame each.
-fn press_and_release<A>(d: &mut Driver<A>, at: egui::Pos2) {
-    for pressed in [true, false] {
-        d.event(egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
-    }
-}
-
-/// The colour of the text `text` painted with its origin inside `inside`.
-fn text_color<A>(d: &Driver<A>, inside: egui::Rect, text: &str) -> egui::Color32 {
-    d.painted()
-        .all(text)
-        .into_iter()
-        .find(|painted| inside.contains(origin(painted)))
-        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
-        .color()
-}
-
-/// Where the galley of `painted` was placed.
-fn origin(painted: &eggshell_ui::testing::PaintedText<'_>) -> egui::Pos2 {
-    painted.rect().min - painted.galley().rect.min.to_vec2()
-}
-
-/// `Driver::drag` to a point outside the window, which the driver refuses:
-/// the same events, sent through the harness.
-fn drag_past_the_window<A>(d: &mut Driver<A>, from: egui::Pos2, to: egui::Pos2) {
-    d.hover(from);
-    d.harness().drag_at(from);
-    d.frames(1);
-    for at in [from.lerp(to, 0.5), to] {
-        d.harness().hover_at(at);
-        d.frames(1);
-    }
-    d.harness().drop_at(to);
-    d.frames(3);
 }

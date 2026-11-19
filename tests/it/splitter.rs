@@ -11,7 +11,7 @@ use egui::epaint::Shape;
 use egui::{Color32, CursorIcon, Key, Modifiers, Pos2, Role, Theme, Vec2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, focused_path};
+use crate::support::{self, focused_path, press_and_release};
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/split_panes.rs"]
@@ -539,17 +539,5 @@ mod example {
         for said in ["250 pt", "200 pt", "260 pt"] {
             d.harness().get_by_label(said);
         }
-    }
-}
-
-/// A primary press and release at `at`, a frame each.
-fn press_and_release<A>(d: &mut Driver<A>, at: egui::Pos2) {
-    for pressed in [true, false] {
-        d.event(egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
     }
 }

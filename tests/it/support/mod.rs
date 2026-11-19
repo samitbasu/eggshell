@@ -401,15 +401,53 @@ pub fn hover_over<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {
     harness.run_steps(3);
 }
 
-pub fn press_and_release<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {
+/// What a test steps, a rig's harness or a driver: one event in a frame
+/// of its own, or frames alone.
+pub trait Drives {
+    fn send(&mut self, event: Event);
+    fn run(&mut self, frames: usize);
+    fn frame_dt(&self) -> f32;
+}
+
+impl<A> Drives for Harness<'_, Rig<A>> {
+    fn send(&mut self, event: Event) {
+        self.event(event);
+        self.step();
+    }
+
+    fn run(&mut self, frames: usize) {
+        self.run_steps(frames);
+    }
+
+    fn frame_dt(&self) -> f32 {
+        self.ctx.input(|input| input.predicted_dt)
+    }
+}
+
+impl<A> Drives for Driver<A> {
+    fn send(&mut self, event: Event) {
+        self.event(event);
+    }
+
+    fn run(&mut self, frames: usize) {
+        self.frames(frames);
+    }
+
+    fn frame_dt(&self) -> f32 {
+        self.ctx().input(|input| input.predicted_dt)
+    }
+}
+
+/// A primary press and release at `at`, a frame each, without resting there
+/// first.
+pub fn press_and_release<D: Drives>(d: &mut D, at: Pos2) {
     for pressed in [true, false] {
-        harness.event(Event::PointerButton {
+        d.send(Event::PointerButton {
             pos: at,
             button: PointerButton::Primary,
             pressed,
             modifiers: Modifiers::NONE,
         });
-        harness.step();
     }
 }
 
@@ -469,21 +507,17 @@ pub fn rest_for_tooltip<A>(harness: &mut Harness<'_, Rig<A>>) {
 
 /// Clicks twice at `at`, one event a frame as a browser sends them, the
 /// releases `apart` apart.
-pub fn click_twice<A>(
-    harness: &mut Harness<'_, Rig<A>>,
-    at: egui::Pos2,
-    apart: std::time::Duration,
-) {
-    let frame = harness.ctx.input(|input| input.predicted_dt);
+pub fn click_twice<D: Drives>(harness: &mut D, at: egui::Pos2, apart: std::time::Duration) {
+    let frame = harness.frame_dt();
     let frames = (apart.as_secs_f32() / frame).round() as usize;
     assert!(
         frames >= 2,
         "precondition: a press and a release fit in {apart:?}"
     );
     press_and_release(harness, at);
-    harness.run_steps(frames - 2);
+    harness.run(frames - 2);
     press_and_release(harness, at);
-    harness.run_steps(6);
+    harness.run(6);
 }
 
 /// Clicks the centre of the node `path`.
@@ -580,8 +614,9 @@ pub fn ring_at<S: Seen>(seen: &S, rect: Rect) -> Option<RectShape> {
         .next_back()
 }
 
-pub fn text_color<A>(harness: &Harness<'_, Rig<A>>, inside: Rect, text: &str) -> Color32 {
-    shapes(harness)
+/// The colour of the text `text` painted with its origin inside `inside`.
+pub fn text_color<S: Seen>(seen: &S, inside: Rect, text: &str) -> Color32 {
+    shapes(seen)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => {

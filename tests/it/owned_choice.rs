@@ -13,7 +13,7 @@ use egui::{Key, KeyboardShortcut, Rect, Role, Theme, vec2};
 use eggshell_ui::testing::{Driver, Target};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, box_at, focused_path, ring_at, shapes};
+use crate::support::{self, box_at, focused_path, press_and_release, ring_at, shapes};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 enum Unit {
@@ -647,17 +647,5 @@ mod tiling {
         between_cells(&d, near_first);
         click(&mut d, near_first);
         assert_eq!(d.app().segment, Unit::Metric);
-    }
-}
-
-/// A primary press and release at `at`, a frame each.
-fn press_and_release<A>(d: &mut Driver<A>, at: egui::Pos2) {
-    for pressed in [true, false] {
-        d.event(egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
     }
 }

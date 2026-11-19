@@ -749,7 +749,7 @@ mod spacing {
         assert_ne!(padding, 3.0, "precondition");
         let body = cell(&d, "Row(1)", 1);
         assert!((body.height() - (LINE + 6.0)).abs() < 0.6, "{body:?}");
-        let at = origin(&d.painted().expect("beta"));
+        let at = d.painted().expect("beta").pos();
         let inset = at.x - body.left();
         assert!((inset - padding).abs() < 0.6, "beside: {inset}");
     }
@@ -767,8 +767,8 @@ mod spacing {
         let d = harness(|style| style.table.first_column_inset = Some(0.0));
         let padding = table(&d).cell_padding;
         let (first, second) = (cell(&d, "Row(1)", 0), cell(&d, "Row(1)", 1));
-        let alpha = origin(&d.painted().expect("alpha"));
-        let beta = origin(&d.painted().expect("beta"));
+        let alpha = d.painted().expect("alpha").pos();
+        let beta = d.painted().expect("beta").pos();
         assert!(
             (alpha.x - first.left()).abs() < 0.6,
             "flush: {alpha:?} in {first:?}"
@@ -777,7 +777,7 @@ mod spacing {
             (beta.x - second.left() - padding).abs() < 0.6,
             "padded: {beta:?}"
         );
-        let name = origin(&d.painted().expect("Name"));
+        let name = d.painted().expect("Name").pos();
         assert!(
             (name.x - cell(&d, "Header", 0).left()).abs() < 0.6,
             "the header too"
@@ -801,9 +801,4 @@ mod spacing {
         assert!(!rule(&harness(|_| {})), "open by default");
         assert!(rule(&harness(|style| style.table.rule_below_last = true)));
     }
-}
-
-/// Where the galley of `painted` was placed.
-fn origin(painted: &eggshell_ui::testing::PaintedText<'_>) -> egui::Pos2 {
-    painted.rect().min - painted.galley().rect.min.to_vec2()
 }

@@ -427,26 +427,8 @@ fn with_a_touch_screen_a_drag_on_painted_content_scrolls_the_area() {
     );
     touch_screen(&mut h);
     let panel = h.rect(Target::suffix("/\"list\"/\"panel\""));
-    drag_out(&mut h, panel.center(), panel.center() + vec2(0.0, -40.0));
+    h.drag(panel.center(), panel.center() + vec2(0.0, -40.0));
     assert!(scrolled(&h) > 10.0, "scrolled {}", scrolled(&h));
-}
-
-/// [`Driver::drag`]'s events, to a point above the window, which the driver
-/// refuses as a target.
-fn drag_out(h: &mut H, from: egui::Pos2, to: egui::Pos2) {
-    let button = |pos, pressed| egui::Event::PointerButton {
-        pos,
-        button: egui::PointerButton::Primary,
-        pressed,
-        modifiers: egui::Modifiers::NONE,
-    };
-    h.hover(from)
-        .event(button(from, true))
-        .event(egui::Event::PointerMoved(from.lerp(to, 0.5)))
-        .event(egui::Event::PointerMoved(to))
-        .event(button(to, false))
-        .event(egui::Event::PointerGone)
-        .frames(2);
 }
 
 /// ```html

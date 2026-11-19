@@ -9,7 +9,9 @@ use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Key, Theme, vec2};
 use std::time::Duration;
 
-use crate::support::{self, box_at, focused_node, ring_at};
+use crate::support::{
+    self, box_at, click_twice, focused_node, press_and_release, ring_at, text_color,
+};
 
 struct App {
     volume: f64,
@@ -505,7 +507,7 @@ fn the_readouts_digits_are_as_wide_as_each_other() {
 fn first_glyph(d: &Driver<App>, text: &str) -> egui::Pos2 {
     use egui::emath::GuiRounding as _;
     let painted = d.painted().expect(text);
-    let (galley, at) = (painted.galley(), origin(&painted));
+    let (galley, at) = (painted.galley(), painted.pos());
     assert!(
         d.ctx()
             .tessellation_options(|options| options.round_text_to_pixels),
@@ -588,46 +590,4 @@ fn return_after_typing_still_commits() {
     let app = &d.app();
     assert_eq!(app.current, 6.5);
     assert_eq!(app.current_changes, [6.5]);
-}
-
-/// The colour of the text `text` painted with its origin inside `inside`.
-fn text_color<A>(d: &Driver<A>, inside: egui::Rect, text: &str) -> egui::Color32 {
-    d.painted()
-        .all(text)
-        .into_iter()
-        .find(|painted| inside.contains(origin(painted)))
-        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
-        .color()
-}
-
-/// Where the galley of `painted` was placed.
-fn origin(painted: &eggshell_ui::testing::PaintedText<'_>) -> egui::Pos2 {
-    painted.rect().min - painted.galley().rect.min.to_vec2()
-}
-
-/// A primary press and release at `at`, a frame each.
-fn press_and_release<A>(d: &mut Driver<A>, at: egui::Pos2) {
-    for pressed in [true, false] {
-        d.event(egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::NONE,
-        });
-    }
-}
-
-/// Clicks twice at `at`, one event a frame as a browser sends them, the
-/// releases `apart` apart.
-fn click_twice<A>(d: &mut Driver<A>, at: egui::Pos2, apart: Duration) {
-    let frame = d.ctx().input(|input| input.predicted_dt);
-    let frames = (apart.as_secs_f32() / frame).round() as usize;
-    assert!(
-        frames >= 2,
-        "precondition: a press and a release fit in {apart:?}"
-    );
-    press_and_release(d, at);
-    d.frames(frames - 2);
-    press_and_release(d, at);
-    d.frames(6);
 }
