@@ -6,10 +6,12 @@
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, Chord, Command, Commands, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Modifiers, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, click_node, focused_path, rect_of};
+use eggshell_ui::testing::{Driver, Target};
+use egui::KeyboardShortcut;
+
+use crate::support::{self, focused_path};
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
@@ -205,7 +207,7 @@ fn base_text() -> TextStyle {
     )
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
+fn harness() -> Driver<App> {
     let app = App {
         rows: Rows {
             rows: (0..200).collect(),
@@ -213,38 +215,40 @@ fn harness() -> Harness<'static, Rig<App>> {
         },
         ..App::default()
     };
-    let mut harness = support::harness(vec2(480.0, 720.0), base_text(), app, view);
-    harness.run_steps(4);
-    harness
+    let mut d = support::driver(vec2(480.0, 720.0), base_text(), app, view).build();
+    d.frames(4);
+    d
 }
 
 fn path(parts: &[&str]) -> String {
     parts.iter().map(|part| format!("/{part}")).collect()
 }
 
-fn press(harness: &mut Harness<'_, Rig<App>>, modifiers: Modifiers, key: Key) {
-    harness.key_press_modifiers(modifiers, key);
-    harness.run_steps(4);
+/// Sends the modifiers' change events even for none, as kittest's
+/// `key_press_modifiers` does.
+fn press(d: &mut Driver<App>, modifiers: Modifiers, key: Key) {
+    d.harness().key_press_modifiers(modifiers, key);
+    d.frames(4);
 }
 
 #[test]
 fn a_mounted_control_changes_the_data_its_lens_reaches() {
-    let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Other", "Frame", "Add"]));
-    harness.run_steps(2);
-    let app = &harness.state().app;
+    let mut d = harness();
+    d.click(Target::suffix(&path(&["Page", "Other", "Frame", "Add"])));
+    d.frames(2);
+    let app = &d.app();
     assert_eq!((app.other.count, app.shared.count), (1, 0));
 }
 
 #[test]
 fn two_mounts_over_one_field_share_it() {
-    let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Left", "Frame", "Add"]));
-    click_node(&mut harness, &path(&["Page", "Right", "Frame", "Add"]));
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.shared.count, 2);
+    let mut d = harness();
+    d.click(Target::suffix(&path(&["Page", "Left", "Frame", "Add"])));
+    d.click(Target::suffix(&path(&["Page", "Right", "Frame", "Add"])));
+    d.frames(2);
+    assert_eq!(d.app().shared.count, 2);
     assert_eq!(
-        harness.query_all_by_label("Count 2").count(),
+        d.harness().query_all_by_label("Count 2").count(),
         2,
         "both mounts show the shared count"
     );
@@ -252,52 +256,55 @@ fn two_mounts_over_one_field_share_it() {
 
 #[test]
 fn a_mount_is_as_tall_as_its_content_unless_its_classes_say() {
-    let harness = harness();
-    let inset = eggshell_ui::Style::of(&harness.ctx).mount.bare_padding;
-    let mount = rect_of(&harness, &path(&["Page", "Other"]));
-    let add = rect_of(&harness, &path(&["Page", "Other", "Frame", "Add"]));
+    let d = harness();
+    let inset = eggshell_ui::Style::of(d.ctx()).mount.bare_padding;
+    let mount = d.rect(Target::suffix(&path(&["Page", "Other"])));
+    let add = d.rect(Target::suffix(&path(&["Page", "Other", "Frame", "Add"])));
     assert!(add.height() > 0.0, "precondition: the button is laid out");
     assert_eq!(mount.height(), add.height() + 2.0 * inset);
-    assert_eq!(rect_of(&harness, &path(&["Page", "Fixed"])).height(), 48.0);
+    assert_eq!(
+        d.rect(Target::suffix(&path(&["Page", "Fixed"]))).height(),
+        48.0
+    );
 }
 
 #[test]
 fn a_mounted_menu_item_changes_the_mounted_data() {
-    let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Other", "Frame", "Add"]));
-    click_node(&mut harness, &path(&["Page", "Other", "Frame", "More"]));
-    harness.run_steps(6);
-    harness.get_by_label("Reset").click();
-    harness.run_steps(6);
-    assert_eq!(harness.state().app.other.count, 0);
+    let mut d = harness();
+    d.click(Target::suffix(&path(&["Page", "Other", "Frame", "Add"])));
+    d.click(Target::suffix(&path(&["Page", "Other", "Frame", "More"])));
+    d.frames(6);
+    d.harness().get_by_label("Reset").click();
+    d.frames(6);
+    assert_eq!(d.app().other.count, 0);
     assert!(
-        harness.query_by_label("Reset").is_none(),
+        d.harness().query_by_label("Reset").is_none(),
         "the menu closed on its item"
     );
 }
 
 #[test]
 fn escape_closes_a_mounted_menu() {
-    let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Other", "Frame", "More"]));
-    harness.run_steps(6);
+    let mut d = harness();
+    d.click(Target::suffix(&path(&["Page", "Other", "Frame", "More"])));
+    d.frames(6);
     assert!(
-        harness.query_by_label("Reset").is_some(),
+        d.harness().query_by_label("Reset").is_some(),
         "precondition: open"
     );
-    press(&mut harness, Modifiers::NONE, Key::Escape);
-    harness.run_steps(6);
-    assert!(harness.query_by_label("Reset").is_none());
+    press(&mut d, Modifiers::NONE, Key::Escape);
+    d.frames(6);
+    assert!(d.harness().query_by_label("Reset").is_none());
 }
 
 #[test]
 fn a_mounted_virtual_list_builds_its_rows_under_the_mount() {
-    let mut harness = harness();
-    harness.get_by_label("Row 1").click();
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.rows.picked, Some(1));
+    let mut d = harness();
+    d.harness().get_by_label("Row 1").click();
+    d.frames(4);
+    assert_eq!(d.app().rows.picked, Some(1));
     assert!(
-        harness.query_by_label("Row 199").is_none(),
+        d.harness().query_by_label("Row 199").is_none(),
         "precondition: rows out of view are not built"
     );
 }
@@ -338,48 +345,47 @@ mod in_a_list {
             blocks: (0..50).collect(),
             counters: (0..50).map(|_| Counter::default()).collect(),
         };
-        let mut harness = support::harness(vec2(300.0, 300.0), base_text(), page, view);
-        harness.run_steps(4);
+        let mut d = support::driver(vec2(300.0, 300.0), base_text(), page, view).build();
+        d.frames(4);
         assert!(
-            harness.query_all_by_label("Add").count() < 10,
+            d.harness().query_all_by_label("Add").count() < 10,
             "precondition: only the rows near the viewport are built"
         );
-        click_node(&mut harness, "/List/<rows>/0/Row(0)/Frame/Add");
-        harness.run_steps(2);
-        assert_eq!(harness.state().app.counters[0].count, 1);
-        assert_eq!(harness.query_all_by_label("Count 1").count(), 1);
+        d.click(Target::suffix("/List/<rows>/0/Row(0)/Frame/Add"));
+        d.frames(2);
+        assert_eq!(d.app().counters[0].count, 1);
+        assert_eq!(d.harness().query_all_by_label("Count 1").count(), 1);
     }
 }
 
 #[test]
 fn a_mount_inside_a_mount_reaches_its_data_through_both_lenses() {
-    let mut harness = harness();
-    click_node(
-        &mut harness,
-        &path(&["Page", "Nest", "Frame", "Inner", "Frame", "Add"]),
-    );
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.nest.inner.count, 1);
+    let mut d = harness();
+    d.click(Target::suffix(&path(&[
+        "Page", "Nest", "Frame", "Inner", "Frame", "Add",
+    ])));
+    d.frames(2);
+    assert_eq!(d.app().nest.inner.count, 1);
 }
 
 #[test]
 fn typing_in_a_mounted_field_changes_the_mounted_data() {
-    let mut harness = harness();
-    click_node(&mut harness, &path(&["Page", "Notes", "Frame", "Note"]));
-    harness.run_steps(4);
-    harness.get_by_label("Note").type_text("hi");
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.notes.text, "hi");
+    let mut d = harness();
+    d.click(Target::suffix(&path(&["Page", "Notes", "Frame", "Note"])));
+    d.frames(4);
+    d.harness().get_by_label("Note").type_text("hi");
+    d.frames(4);
+    assert_eq!(d.app().notes.text, "hi");
 }
 
 mod commands {
     use super::*;
 
-    fn focus_the_note(harness: &mut Harness<'_, Rig<App>>) {
-        click_node(harness, &path(&["Page", "Notes", "Frame", "Note"]));
-        harness.run_steps(6);
+    fn focus_the_note(d: &mut Driver<App>) {
+        d.click(Target::suffix(&path(&["Page", "Notes", "Frame", "Note"])));
+        d.frames(6);
         assert_eq!(
-            focused_path(harness).as_deref(),
+            focused_path(d).as_deref(),
             Some("<widget>"),
             "precondition: the field has focus"
         );
@@ -387,10 +393,10 @@ mod commands {
 
     #[test]
     fn a_chord_both_have_goes_to_the_mount_while_focus_is_within_it() {
-        let mut harness = harness();
-        focus_the_note(&mut harness);
-        press(&mut harness, Modifiers::COMMAND, Key::K);
-        let app = &harness.state().app;
+        let mut d = harness();
+        focus_the_note(&mut d);
+        press(&mut d, Modifiers::COMMAND, Key::K);
+        let app = &d.app();
         assert_eq!(
             (app.notes.log.as_slice(), app.log.as_slice()),
             (&["notes k"][..], &[][..])
@@ -399,19 +405,19 @@ mod commands {
 
     #[test]
     fn a_chord_only_the_page_has_falls_through_from_the_mount() {
-        let mut harness = harness();
-        focus_the_note(&mut harness);
-        press(&mut harness, Modifiers::COMMAND, Key::J);
-        assert_eq!(harness.state().app.log, ["page j"]);
+        let mut d = harness();
+        focus_the_note(&mut d);
+        press(&mut d, Modifiers::COMMAND, Key::J);
+        assert_eq!(d.app().log, ["page j"]);
     }
 
     #[test]
     fn a_chord_both_have_goes_to_the_page_while_focus_is_outside_the_mount() {
-        let mut harness = harness();
-        click_node(&mut harness, &path(&["Page", "Before"]));
-        harness.run_steps(4);
-        press(&mut harness, Modifiers::COMMAND, Key::K);
-        let app = &harness.state().app;
+        let mut d = harness();
+        d.click(Target::suffix(&path(&["Page", "Before"])));
+        d.frames(4);
+        press(&mut d, Modifiers::COMMAND, Key::K);
+        let app = &d.app();
         assert_eq!(
             (app.notes.log.as_slice(), app.log.as_slice()),
             (&[][..], &["page k"][..])
@@ -421,12 +427,12 @@ mod commands {
 
 #[test]
 fn tab_moves_into_a_mount_and_out_of_it() {
-    let mut harness = harness();
-    support::past_bar(&mut harness);
+    let mut d = harness();
+    support::drive_past_bar(&mut d);
     let mut seen = Vec::new();
     for _ in 0..12 {
-        press(&mut harness, Modifiers::NONE, Key::Tab);
-        seen.extend(focused_path(&harness));
+        press(&mut d, Modifiers::NONE, Key::Tab);
+        seen.extend(focused_path(&d));
     }
     let at = |wanted: &str| seen.iter().position(|path| path == wanted);
     let before = at(&path(&["Page", "Before"])).expect("Tab reaches Before");
@@ -464,16 +470,16 @@ mod misuse {
 
     #[test]
     fn a_mount_key_used_twice_is_reported_and_each_mount_keeps_its_own_commands() {
-        let mut harness = support::harness(vec2(400.0, 300.0), base_text(), Two::default(), twice);
-        harness.run_steps(4);
-        assert_reported(&harness.ctx, Problem::DuplicateKey);
-        let fields: Vec<_> = harness.query_all_by_label("Note").collect();
+        let mut d = support::driver(vec2(400.0, 300.0), base_text(), Two::default(), twice).build();
+        d.frames(4);
+        assert_reported(d.ctx(), Problem::DuplicateKey);
+        let fields: Vec<_> = d.harness().query_all_by_label("Note").collect();
         assert_eq!(fields.len(), 2, "precondition: both mounts are built");
         fields[1].click();
-        harness.run_steps(6);
-        harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
-        harness.run_steps(4);
-        let two = &harness.state().app;
+        d.frames(6);
+        d.press(KeyboardShortcut::new(Modifiers::COMMAND, Key::K))
+            .frames(3);
+        let two = &d.app();
         assert_eq!(
             (two.first.log.as_slice(), two.second.log.as_slice()),
             (&[][..], &["notes k"][..])
@@ -525,19 +531,20 @@ mod misuse {
             b.mount("m", tw(), notes, |notes: &mut Notes| notes, notes_twice)
                 .add();
         }
-        let mut harness = support::harness(vec2(400.0, 300.0), base_text(), Notes::default(), view);
-        harness.run_steps(4);
+        let mut d =
+            support::driver(vec2(400.0, 300.0), base_text(), Notes::default(), view).build();
+        d.frames(4);
         assert!(
-            reports(&harness.ctx)
+            reports(d.ctx())
                 .iter()
                 .any(|report| report.problem == Problem::CommandsTwice),
             "reported"
         );
-        harness.get_by_label("Note").click();
-        harness.run_steps(6);
-        harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
-        harness.run_steps(4);
-        assert_eq!(harness.state().app.log, ["notes k"]);
+        d.harness().get_by_label("Note").click();
+        d.frames(6);
+        d.press(KeyboardShortcut::new(Modifiers::COMMAND, Key::K))
+            .frames(3);
+        assert_eq!(d.app().log, ["notes k"]);
     }
 }
 
@@ -549,8 +556,10 @@ mod paste {
     use eggshell_ui::testing::FakeClipboard;
     use eggshell_ui::{ClipboardError, Paste, Via};
     use egui::Event;
+    use egui_kittest::Harness;
 
     use super::*;
+    use crate::support::{Rig, click_node, focused_path};
 
     #[derive(Default)]
     struct Clip {
@@ -685,30 +694,32 @@ mod caption {
         style.install(ctx);
     }
 
-    fn harness() -> Harness<'static, Rig<Page>> {
-        let mut harness = support::harness_prepared(
+    fn harness() -> Driver<Page> {
+        let mut d = support::prepared_driver(
             vec2(480.0, 400.0),
             base_text(),
             Page::default(),
             view,
             prepare,
-        );
-        harness.run_steps(4);
-        harness
+        )
+        .build();
+        d.frames(4);
+        d
     }
 
     #[test]
     fn a_caption_sits_above_the_mount_framed_by_the_style() {
-        let harness = harness();
-        let look = Style::of(&harness.ctx).mount.clone();
-        let caption = rect_of(&harness, "/Page/Left/Caption");
-        let frame = rect_of(&harness, "/Page/Left/Frame");
-        let add = rect_of(&harness, "/Page/Left/Frame/Add");
+        let d = harness();
+        let look = Style::of(d.ctx()).mount.clone();
+        let caption = d.rect(Target::suffix("/Page/Left/Caption"));
+        let frame = d.rect(Target::suffix("/Page/Left/Frame"));
+        let add = d.rect(Target::suffix("/Page/Left/Frame/Add"));
         assert!(
             look.gap > 0.0 && look.padding > 0.0,
             "precondition: a style that shows it"
         );
-        let roles: Vec<_> = harness
+        let roles: Vec<_> = d
+            .harness()
             .query_all_by_label("Example: counter")
             .map(|node| node.accesskit_node().role())
             .collect();
@@ -724,7 +735,7 @@ mod caption {
             "the view inside the frame"
         );
         assert!(
-            support::shapes(&harness).iter().any(|shape| matches!(
+            support::shapes(&d).iter().any(|shape| matches!(
                 shape,
                 egui::Shape::Rect(rect)
                     if rect.rect == frame && rect.stroke.width == look.border_width
@@ -736,16 +747,16 @@ mod caption {
 
     #[test]
     fn a_mount_without_a_caption_is_inset_by_its_bare_padding_and_not_outlined() {
-        let harness = harness();
-        let inset = Style::of(&harness.ctx).mount.bare_padding;
+        let d = harness();
+        let inset = Style::of(d.ctx()).mount.bare_padding;
         assert!(inset > 0.0, "precondition: the style insets it");
-        let mount = rect_of(&harness, "/Page/Right");
-        let frame = rect_of(&harness, "/Page/Right/Frame");
-        let add = rect_of(&harness, "/Page/Right/Frame/Add");
+        let mount = d.rect(Target::suffix("/Page/Right"));
+        let frame = d.rect(Target::suffix("/Page/Right/Frame"));
+        let add = d.rect(Target::suffix("/Page/Right/Frame/Add"));
         assert_eq!(frame, mount);
         assert_eq!(add.min, frame.min + vec2(inset, inset));
         assert!(
-            support::shapes(&harness).iter().all(|shape| !matches!(
+            support::shapes(&d).iter().all(|shape| !matches!(
                 shape,
                 egui::Shape::Rect(rect) if rect.rect == frame && rect.stroke.width > 0.0
             )),
@@ -842,17 +853,16 @@ mod selection {
             });
     }
 
-    fn harness() -> Harness<'static, Rig<Page>> {
-        let mut harness = support::harness(vec2(480.0, 420.0), base_text(), Page::default(), view);
-        harness.run_steps(4);
-        harness
+    fn harness() -> Driver<Page> {
+        let mut d = support::driver(vec2(480.0, 420.0), base_text(), Page::default(), view).build();
+        d.frames(4);
+        d
     }
 
     /// The rect of the one node whose path ends with `suffix`.
-    fn rect_at(harness: &Harness<'_, Rig<Page>>, suffix: &str) -> Rect {
-        let found: Vec<_> = harness
-            .state()
-            .nodes
+    fn rect_at(d: &Driver<Page>, suffix: &str) -> Rect {
+        let nodes = support::nodes(d);
+        let found: Vec<_> = nodes
             .iter()
             .filter(|(path, _)| path.ends_with(suffix))
             .collect();
@@ -860,23 +870,30 @@ mod selection {
         found[0].1
     }
 
-    fn click(harness: &mut Harness<'_, Rig<Page>>, at: Pos2) {
-        support::hover_over(harness, at);
-        support::press_and_release(harness, at);
-        harness.run_steps(4);
+    fn click(d: &mut Driver<Page>, at: Pos2) {
+        d.hover(at);
+        for pressed in [true, false] {
+            d.event(Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            });
+        }
+        d.frames(4);
     }
 
-    fn click_on(harness: &mut Harness<'_, Rig<Page>>, suffix: &str) {
-        let at = rect_at(harness, suffix).center();
-        click(harness, at);
+    fn click_on(d: &mut Driver<Page>, suffix: &str) {
+        let at = rect_at(d, suffix).center();
+        click(d, at);
     }
 
     /// The groups selected, by name.
-    fn selected(harness: &Harness<'_, Rig<Page>>) -> Vec<String> {
+    fn selected(d: &Driver<Page>) -> Vec<String> {
         let mut names: Vec<String> = ["Example A", "Example notes", "Example rows", "Example nest"]
             .into_iter()
             .filter(|name| {
-                harness.query_all_by_label(name).any(|node| {
+                d.harness().query_all_by_label(name).any(|node| {
                     let node = node.accesskit_node();
                     node.role() == egui::accesskit::Role::Group && node.is_selected() == Some(true)
                 })
@@ -889,51 +906,40 @@ mod selection {
 
     #[test]
     fn a_press_selects_the_example_it_lands_in_and_no_other() {
-        let mut harness = harness();
-        assert!(selected(&harness).is_empty(), "precondition: none at first");
-        click_on(&mut harness, "/Left/Frame/Add");
-        assert_eq!(selected(&harness), ["Example A"]);
-        click_on(&mut harness, "/Notes/Frame/Note");
-        assert_eq!(selected(&harness), ["Example notes"]);
-        click_on(&mut harness, "/Left/Caption");
-        assert_eq!(
-            selected(&harness),
-            ["Example A"],
-            "its caption is in it too"
-        );
-        click_on(&mut harness, "/Before");
-        assert!(
-            selected(&harness).is_empty(),
-            "a press outside every example"
-        );
+        let mut d = harness();
+        assert!(selected(&d).is_empty(), "precondition: none at first");
+        click_on(&mut d, "/Left/Frame/Add");
+        assert_eq!(selected(&d), ["Example A"]);
+        click_on(&mut d, "/Notes/Frame/Note");
+        assert_eq!(selected(&d), ["Example notes"]);
+        click_on(&mut d, "/Left/Caption");
+        assert_eq!(selected(&d), ["Example A"], "its caption is in it too");
+        click_on(&mut d, "/Before");
+        assert!(selected(&d).is_empty(), "a press outside every example");
     }
 
     #[test]
     fn a_press_in_a_nested_example_selects_it_and_the_one_around_it() {
-        let mut harness = harness();
-        click_on(&mut harness, "/Nest/Frame/Inner/Frame/Add");
-        assert_eq!(selected(&harness), ["Example nest"]);
-        assert!(
-            harness.state().app.nest.inner.count == 1,
-            "the press activated too"
-        );
-        click_on(&mut harness, "/Left/Frame/Add");
-        assert_eq!(selected(&harness), ["Example A"]);
+        let mut d = harness();
+        click_on(&mut d, "/Nest/Frame/Inner/Frame/Add");
+        assert_eq!(selected(&d), ["Example nest"]);
+        assert!(d.app().nest.inner.count == 1, "the press activated too");
+        click_on(&mut d, "/Left/Frame/Add");
+        assert_eq!(selected(&d), ["Example A"]);
     }
 
     #[test]
     fn tab_selects_the_example_focus_lands_in_and_leaving_deselects() {
-        let mut harness = harness();
-        support::past_bar(&mut harness);
+        let mut d = harness();
+        support::drive_past_bar(&mut d);
         let mut seen = Vec::new();
         for _ in 0..80 {
-            harness.key_press(Key::Tab);
-            harness.run_steps(3);
-            let focused = support::focused_node(&harness);
+            d.press(Key::Tab).frames(2);
+            let focused = support::focused_node(&d);
             let done = focused
                 .as_deref()
                 .is_some_and(|path| path.ends_with("/After"));
-            seen.push((focused, selected(&harness)));
+            seen.push((focused, selected(&d)));
             if done {
                 break;
             }
@@ -980,118 +986,115 @@ mod selection {
 
     #[test]
     fn escape_closes_the_examples_menu_first_and_then_deselects_it() {
-        let mut harness = harness();
-        click_on(&mut harness, "/Left/Frame/More");
+        let mut d = harness();
+        click_on(&mut d, "/Left/Frame/More");
         assert!(
-            harness.query_by_label("Reset").is_some(),
+            d.harness().query_by_label("Reset").is_some(),
             "precondition: the menu is open"
         );
-        assert_eq!(selected(&harness), ["Example A"]);
-        harness.key_press(Key::Escape);
-        harness.run_steps(6);
-        assert!(harness.query_by_label("Reset").is_none(), "the menu closed");
+        assert_eq!(selected(&d), ["Example A"]);
+        d.press(Key::Escape).frames(5);
+        assert!(
+            d.harness().query_by_label("Reset").is_none(),
+            "the menu closed"
+        );
         assert_eq!(
-            selected(&harness),
+            selected(&d),
             ["Example A"],
             "and the example stays selected"
         );
-        harness.key_press(Key::Escape);
-        harness.run_steps(4);
-        assert!(selected(&harness).is_empty());
+        d.press(Key::Escape).frames(3);
+        assert!(selected(&d).is_empty());
     }
 
     #[test]
     fn a_press_in_the_examples_own_menu_keeps_it_selected() {
-        let mut harness = harness();
-        click_on(&mut harness, "/Left/Frame/Add");
-        click_on(&mut harness, "/Left/Frame/More");
-        let reset = harness.get_by_label("Reset").rect().center();
-        click(&mut harness, reset);
-        assert_eq!(harness.state().app.a.count, 0, "precondition: the item ran");
-        assert_eq!(selected(&harness), ["Example A"]);
+        let mut d = harness();
+        click_on(&mut d, "/Left/Frame/Add");
+        click_on(&mut d, "/Left/Frame/More");
+        let reset = d.harness().get_by_label("Reset").rect().center();
+        click(&mut d, reset);
+        assert_eq!(d.app().a.count, 0, "precondition: the item ran");
+        assert_eq!(selected(&d), ["Example A"]);
     }
 
     #[test]
     fn a_chord_reaches_the_selected_example_and_the_page_otherwise() {
-        let mut harness = harness();
-        click_on(&mut harness, "/Notes/Frame/Note");
-        harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
-        harness.run_steps(4);
-        click_on(&mut harness, "/Before");
-        harness.key_press_modifiers(Modifiers::COMMAND, Key::K);
-        harness.run_steps(4);
-        let page = &harness.state().app;
+        let mut d = harness();
+        click_on(&mut d, "/Notes/Frame/Note");
+        d.press(KeyboardShortcut::new(Modifiers::COMMAND, Key::K))
+            .frames(3);
+        click_on(&mut d, "/Before");
+        d.press(KeyboardShortcut::new(Modifiers::COMMAND, Key::K))
+            .frames(3);
+        let page = d.app();
         assert_eq!(
             (page.notes.log.as_slice(), page.log.as_slice()),
             (&["notes k"][..], &["page k"][..])
         );
     }
 
-    fn wheel(harness: &mut Harness<'_, Rig<Page>>, at: Pos2, times: usize) {
-        harness.hover_at(at);
-        harness.step();
+    fn wheel(d: &mut Driver<Page>, at: Pos2, times: usize) {
+        d.carry_to(at);
         for _ in 0..times {
-            harness.event(Event::MouseWheel {
+            d.event(Event::MouseWheel {
                 unit: MouseWheelUnit::Point,
                 delta: vec2(0.0, -120.0),
                 modifiers: Modifiers::NONE,
                 phase: egui::TouchPhase::Move,
                 source: egui::MouseWheelSource::Unknown,
-            });
-            harness.run_steps(10);
+            })
+            .frames(9);
         }
-        harness.run_steps(30);
+        d.frames(30);
     }
 
-    fn page_offset(harness: &Harness<'_, Rig<Page>>) -> f32 {
-        rect_at(harness, "/Before").min.y
+    fn page_offset(d: &Driver<Page>) -> f32 {
+        rect_at(d, "/Before").min.y
     }
 
-    fn list_offset(harness: &Harness<'_, Rig<Page>>) -> f32 {
-        rect_at(harness, "/Rows/Frame/List").min.y - rect_at(harness, "/Row(0)").min.y
+    fn list_offset(d: &Driver<Page>) -> f32 {
+        rect_at(d, "/Rows/Frame/List").min.y - rect_at(d, "/Row(0)").min.y
     }
 
     #[test]
     fn the_wheel_over_an_unselected_examples_list_scrolls_the_page() {
-        let mut harness = harness();
-        let list = rect_at(&harness, "/Rows/Frame/List");
-        let (page, rows) = (page_offset(&harness), list_offset(&harness));
-        wheel(&mut harness, list.center(), 1);
-        assert!(
-            selected(&harness).is_empty(),
-            "precondition: nothing selected"
-        );
-        assert_eq!(list_offset(&harness), rows, "the list stays put");
-        assert!(page_offset(&harness) < page, "the page scrolled");
+        let mut d = harness();
+        let list = rect_at(&d, "/Rows/Frame/List");
+        let (page, rows) = (page_offset(&d), list_offset(&d));
+        wheel(&mut d, list.center(), 1);
+        assert!(selected(&d).is_empty(), "precondition: nothing selected");
+        assert_eq!(list_offset(&d), rows, "the list stays put");
+        assert!(page_offset(&d) < page, "the page scrolled");
     }
 
     #[test]
     fn the_wheel_over_a_selected_examples_list_scrolls_it_and_stops_at_its_end() {
-        let mut harness = harness();
-        click_on(&mut harness, "/Row(0)");
-        assert_eq!(selected(&harness), ["Example rows"], "precondition");
-        let list = rect_at(&harness, "/Rows/Frame/List");
-        let page = page_offset(&harness);
-        wheel(&mut harness, list.center(), 1);
-        assert!(list_offset(&harness) > 0.0, "the list scrolled");
-        assert_eq!(page_offset(&harness), page, "the page did not");
-        wheel(&mut harness, list.center(), 20);
-        assert_eq!(page_offset(&harness), page, "nor past the list's end");
+        let mut d = harness();
+        click_on(&mut d, "/Row(0)");
+        assert_eq!(selected(&d), ["Example rows"], "precondition");
+        let list = rect_at(&d, "/Rows/Frame/List");
+        let page = page_offset(&d);
+        wheel(&mut d, list.center(), 1);
+        assert!(list_offset(&d) > 0.0, "the list scrolled");
+        assert_eq!(page_offset(&d), page, "the page did not");
+        wheel(&mut d, list.center(), 20);
+        assert_eq!(page_offset(&d), page, "nor past the list's end");
     }
 
     #[test]
     fn an_uncaptioned_examples_inset_keeps_a_focused_controls_ring_off_the_selected_ring() {
-        let mut harness = harness();
-        let style = eggshell_ui::Style::of(&harness.ctx);
-        let before = rect_at(&harness, "/Notes/Frame/Note");
-        click_on(&mut harness, "/Notes/Frame/Note");
-        assert_eq!(selected(&harness), ["Example notes"]);
+        let mut d = harness();
+        let style = eggshell_ui::Style::of(d.ctx());
+        let before = rect_at(&d, "/Notes/Frame/Note");
+        click_on(&mut d, "/Notes/Frame/Note");
+        assert_eq!(selected(&d), ["Example notes"]);
         assert!(
-            support::focused_node(&harness).is_some_and(|path| path.ends_with("/Notes/Frame/Note")),
+            support::focused_node(&d).is_some_and(|path| path.ends_with("/Notes/Frame/Note")),
             "precondition: the field has focus"
         );
-        let frame = rect_at(&harness, "/Notes/Frame");
-        let field = rect_at(&harness, "/Notes/Frame/Note");
+        let frame = rect_at(&d, "/Notes/Frame");
+        let field = rect_at(&d, "/Notes/Frame/Note");
         assert_eq!(field, before, "selecting moves nothing");
         let content = frame.shrink(style.mount.bare_padding);
         assert_eq!(
@@ -1109,13 +1112,13 @@ mod selection {
 
     #[test]
     fn a_captioned_examples_selected_ring_stays_off_its_caption() {
-        let mut harness = harness();
-        let style = eggshell_ui::Style::of(&harness.ctx);
-        let before = rect_at(&harness, "/Left/Caption");
-        click_on(&mut harness, "/Left/Frame/Add");
-        assert_eq!(selected(&harness), ["Example A"]);
-        let caption = rect_at(&harness, "/Left/Caption");
-        let frame = rect_at(&harness, "/Left/Frame");
+        let mut d = harness();
+        let style = eggshell_ui::Style::of(d.ctx());
+        let before = rect_at(&d, "/Left/Caption");
+        click_on(&mut d, "/Left/Frame/Add");
+        assert_eq!(selected(&d), ["Example A"]);
+        let caption = rect_at(&d, "/Left/Caption");
+        let frame = rect_at(&d, "/Left/Frame");
         assert_eq!(caption, before, "selecting moves nothing");
         assert!(
             caption.max.y <= frame.min.y && caption.x_range().intersects(frame.x_range()),

@@ -1,13 +1,12 @@
 //! The layout debug overlay through the real frame path, asserted on the
 //! shapes egui is handed, so no GPU is needed.
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Debug, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::{ClippedShape, Shape};
 use egui::{Color32, FontFamily, Pos2, Rect, Vec2};
-use egui_kittest::Harness;
 
 use crate::support;
-use support::Rig;
 
 const SIZE: Vec2 = Vec2::new(400.0, 300.0);
 
@@ -23,20 +22,20 @@ fn base() -> TextStyle {
     )
 }
 
-fn rig(view: support::View<()>) -> Harness<'static, Rig<()>> {
-    let mut harness = support::harness(SIZE, base(), (), view);
-    harness.state_mut().companion = support::Companion::Alone;
-    harness
+fn rig(view: support::View<()>) -> Driver<()> {
+    let d = support::driver(SIZE, base(), (), view).build();
+    support::set_companion(&d, support::Companion::Alone);
+    d
 }
 
-fn run(harness: &mut Harness<'_, Rig<()>>, mode: Debug) {
-    Debug::set(&harness.ctx, mode);
-    harness.run_steps(2);
+fn run(d: &mut Driver<()>, mode: Debug) {
+    Debug::set(d.ctx(), mode);
+    d.frames(2);
 }
 
 /// Every outline of the last frame, with its colour, in paint order.
-fn outlines(harness: &Harness<'_, Rig<()>>) -> Vec<(Rect, Color32)> {
-    harness
+fn outlines(d: &Driver<()>) -> Vec<(Rect, Color32)> {
+    d.harness()
         .output()
         .shapes
         .iter()
@@ -60,20 +59,18 @@ fn texts(shape: &Shape, into: &mut Vec<String>) {
     }
 }
 
-fn labels(harness: &Harness<'_, Rig<()>>) -> Vec<String> {
+fn labels(d: &Driver<()>) -> Vec<String> {
     let mut found = Vec::new();
-    for clipped in &harness.output().shapes {
+    for clipped in &d.harness().output().shapes {
         texts(&clipped.shape, &mut found);
     }
     found
 }
 
-fn paths(harness: &Harness<'_, Rig<()>>) -> Vec<String> {
-    harness
-        .state()
-        .nodes
-        .iter()
-        .map(|(path, _)| path.clone())
+fn paths(d: &Driver<()>) -> Vec<String> {
+    support::nodes(d)
+        .into_iter()
+        .map(|(path, _)| path)
         .collect()
 }
 
@@ -104,33 +101,33 @@ fn same(a: Rect, b: Rect) -> bool {
 
 #[test]
 fn off_emits_no_debug_shapes() {
-    let mut harness = rig(nested);
-    run(&mut harness, Debug::Off);
-    let off: Vec<ClippedShape> = harness.output().shapes.clone();
-    assert!(outlines(&harness).is_empty());
+    let mut d = rig(nested);
+    run(&mut d, Debug::Off);
+    let off: Vec<ClippedShape> = d.harness().output().shapes.clone();
+    assert!(outlines(&d).is_empty());
 
-    run(&mut harness, Debug::Outlines);
+    run(&mut d, Debug::Outlines);
     assert!(
-        !outlines(&harness).is_empty(),
+        !outlines(&d).is_empty(),
         "precondition: the overlay draws when on"
     );
     assert_eq!(
-        harness.output().shapes[..off.len()],
+        d.harness().output().shapes[..off.len()],
         off,
         "the frame itself is unchanged by the overlay"
     );
 
-    run(&mut harness, Debug::Off);
-    assert_eq!(harness.output().shapes, off);
+    run(&mut d, Debug::Off);
+    assert_eq!(d.harness().output().shapes, off);
 }
 
 #[test]
 fn outlines_one_hairline_per_node_at_its_rect() {
-    let mut harness = rig(nested);
-    run(&mut harness, Debug::Outlines);
-    let nodes = &harness.state().nodes;
+    let mut d = rig(nested);
+    run(&mut d, Debug::Outlines);
+    let nodes = &support::nodes(&d);
     assert!(nodes.len() >= 8, "precondition: a tree of many kinds");
-    let drawn = outlines(&harness);
+    let drawn = outlines(&d);
     assert_eq!(drawn.len(), nodes.len());
     for ((path, rect), (outline, _)) in nodes.iter().zip(&drawn) {
         assert!(
@@ -138,7 +135,8 @@ fn outlines_one_hairline_per_node_at_its_rect() {
             "{path}: {rect:?} vs {outline:?}"
         );
     }
-    let hairline = harness
+    let hairline = d
+        .harness()
         .output()
         .shapes
         .iter()
@@ -175,13 +173,13 @@ fn overflowing(b: &mut Builder<'_, '_, ()>, _: &()) {
     });
 }
 
-fn colour_of(harness: &Harness<'_, Rig<()>>, key: &str) -> Color32 {
-    let paths = paths(harness);
+fn colour_of(d: &Driver<()>, key: &str) -> Color32 {
+    let paths = paths(d);
     let index = paths
         .iter()
         .position(|path| path.ends_with(&format!("\"{key}\"")))
         .unwrap_or_else(|| panic!("no node {key}: {paths:?}"));
-    outlines(harness)[index].1
+    outlines(d)[index].1
 }
 
 #[test]
@@ -222,16 +220,16 @@ fn overflowing_needs_no_overlay() {
 
 #[test]
 fn nodes_whose_content_did_not_fit_are_red() {
-    let mut harness = rig(overflowing);
-    run(&mut harness, Debug::Outlines);
-    let node_rect = |key: &str| support::rect_of(&harness, &format!("/\"{key}\"")).size();
+    let mut d = rig(overflowing);
+    run(&mut d, Debug::Outlines);
+    let node_rect = |key: &str| d.rect(Target::suffix(&format!("/\"{key}\""))).size();
     assert!(
         node_rect("narrow").x <= 40.0 && node_rect("roomy").x >= 300.0,
         "precondition: the boxes are as declared"
     );
 
     for red in ["nowrap", "too tall", "spills"] {
-        assert_eq!(colour_of(&harness, red), Debug::OVERFLOW, "{red}");
+        assert_eq!(colour_of(&d, red), Debug::OVERFLOW, "{red}");
     }
     for fine in [
         "narrow",
@@ -244,37 +242,37 @@ fn nodes_whose_content_did_not_fit_are_red() {
         "wraps",
         "wrapping",
     ] {
-        assert_eq!(colour_of(&harness, fine), Debug::OUTLINE, "{fine}");
+        assert_eq!(colour_of(&d, fine), Debug::OUTLINE, "{fine}");
     }
 }
 
 #[test]
 fn hovering_labels_the_innermost_node() {
-    let mut harness = rig(nested);
-    run(&mut harness, Debug::Outlines);
+    let mut d = rig(nested);
+    run(&mut d, Debug::Outlines);
     let (inner, label) = ("/\"outer\"/\"inner\"", "/\"outer\"/\"inner\"/\"label\"");
     assert!(
-        !labels(&harness).iter().any(|text| text.contains(inner)),
+        !labels(&d).iter().any(|text| text.contains(inner)),
         "precondition: no label without a pointer"
     );
 
-    let label_rect = support::rect_of(&harness, label);
-    let inner_rect = support::rect_of(&harness, inner);
+    let label_rect = d.rect(Target::suffix(label));
+    let inner_rect = d.rect(Target::suffix(inner));
     assert!(
         inner_rect.contains(label_rect.center()) && inner_rect.max.x > label_rect.max.x + 4.0,
         "precondition: the label is inside the inner box, which has room beside it"
     );
 
-    support::hover_over(&mut harness, label_rect.center());
-    let shown = labels(&harness);
+    d.hover(label_rect.center());
+    let shown = labels(&d);
     assert!(
         shown.iter().any(|text| text.starts_with(label)),
         "{shown:?}"
     );
 
     let beside: Pos2 = inner_rect.max - Vec2::splat(2.0);
-    support::hover_over(&mut harness, beside);
-    let shown = labels(&harness);
+    d.hover(beside);
+    let shown = labels(&d);
     assert!(
         shown
             .iter()
@@ -286,8 +284,8 @@ fn hovering_labels_the_innermost_node() {
         "{shown:?}"
     );
 
-    run(&mut harness, Debug::Off);
-    assert!(!labels(&harness).iter().any(|text| text.contains(inner)));
+    run(&mut d, Debug::Off);
+    assert!(!labels(&d).iter().any(|text| text.contains(inner)));
 }
 
 #[test]
@@ -327,8 +325,8 @@ fn the_toggle_key_flips_the_mode_and_other_keys_do_not() {
     assert_eq!(pass(press(egui::Key::F12)), Debug::Off);
 }
 
-fn readouts(harness: &Harness<'_, Rig<()>>) -> Vec<String> {
-    labels(harness)
+fn readouts(d: &Driver<()>) -> Vec<String> {
+    labels(d)
         .into_iter()
         .filter(|text| text.contains("fps"))
         .collect()
@@ -336,17 +334,17 @@ fn readouts(harness: &Harness<'_, Rig<()>>) -> Vec<String> {
 
 #[test]
 fn the_readout_is_drawn_only_while_the_overlay_is_on() {
-    let mut harness = rig(nested);
-    run(&mut harness, Debug::Off);
-    assert!(readouts(&harness).is_empty());
+    let mut d = rig(nested);
+    run(&mut d, Debug::Off);
+    assert!(readouts(&d).is_empty());
 
-    run(&mut harness, Debug::Outlines);
-    let shown = readouts(&harness);
+    run(&mut d, Debug::Outlines);
+    let shown = readouts(&d);
     assert_eq!(shown.len(), 1, "one readout per frame: {shown:?}");
     assert!(shown[0].contains("ms"), "{}", shown[0]);
 
-    run(&mut harness, Debug::Off);
-    assert!(readouts(&harness).is_empty());
+    run(&mut d, Debug::Off);
+    assert!(readouts(&d).is_empty());
 }
 
 fn duplicated(b: &mut Builder<'_, '_, ()>, _: &()) {
@@ -356,9 +354,9 @@ fn duplicated(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn the_readout_lists_reports_with_their_counts() {
-    let mut harness = rig(nested);
-    run(&mut harness, Debug::Outlines);
-    let quiet = readouts(&harness);
+    let mut d = rig(nested);
+    run(&mut d, Debug::Outlines);
+    let quiet = readouts(&d);
     assert_eq!(quiet.len(), 1);
     assert!(
         !quiet[0].contains("reports"),
@@ -366,13 +364,13 @@ fn the_readout_lists_reports_with_their_counts() {
         quiet[0]
     );
 
-    let mut harness = rig(duplicated);
-    run(&mut harness, Debug::Outlines);
-    let reports = eggshell_ui::testing::reports(&harness.ctx);
+    let mut d = rig(duplicated);
+    run(&mut d, Debug::Outlines);
+    let reports = eggshell_ui::testing::reports(d.ctx());
     assert_eq!(reports.len(), 1, "{reports:?}");
     let count = reports[0].count;
     assert!(count > 1, "one report per frame is counted: {reports:?}");
-    let shown = readouts(&harness);
+    let shown = readouts(&d);
     assert_eq!(shown.len(), 1);
     assert!(shown[0].contains("reports"), "{}", shown[0]);
     assert!(
@@ -387,10 +385,10 @@ fn the_readout_lists_reports_with_their_counts() {
 #[test]
 fn the_smoothed_fps_follows_the_frame_time() {
     let dt = 0.05;
-    let mut harness = rig(nested);
-    Debug::set(&harness.ctx, Debug::Outlines);
-    harness.run_steps(40);
-    let text = readouts(&harness).remove(0);
+    let mut d = rig(nested);
+    Debug::set(d.ctx(), Debug::Outlines);
+    d.frames(40);
+    let text = readouts(&d).remove(0);
     let fps: f32 = text
         .split_whitespace()
         .rev()
@@ -407,11 +405,11 @@ fn the_smoothed_fps_follows_the_frame_time() {
 
 #[test]
 fn the_readout_does_not_take_part_in_layout_or_hit_testing() {
-    let mut harness = rig(nested);
-    run(&mut harness, Debug::Off);
-    let off = paths(&harness);
-    run(&mut harness, Debug::Outlines);
-    assert_eq!(paths(&harness), off);
+    let mut d = rig(nested);
+    run(&mut d, Debug::Off);
+    let off = paths(&d);
+    run(&mut d, Debug::Outlines);
+    assert_eq!(paths(&d), off);
 }
 
 mod scrolling {
@@ -435,8 +433,8 @@ mod scrolling {
     }
 
     /// Filled shapes of the overlay's gutter tint, by rect.
-    fn gutters(harness: &Harness<'_, Rig<()>>) -> Vec<Rect> {
-        support::shapes(harness)
+    fn gutters(d: &Driver<()>) -> Vec<Rect> {
+        support::shapes(d)
             .into_iter()
             .filter_map(|shape| match shape {
                 Shape::Rect(r) if r.fill == Debug::GUTTER => Some(r.rect),
@@ -445,8 +443,8 @@ mod scrolling {
             .collect()
     }
 
-    fn viewport_outlines(harness: &Harness<'_, Rig<()>>) -> Vec<Rect> {
-        support::shapes(harness)
+    fn viewport_outlines(d: &Driver<()>) -> Vec<Rect> {
+        support::shapes(d)
             .into_iter()
             .filter_map(|shape| match shape {
                 Shape::Rect(r) if r.stroke.color == Debug::VIEWPORT => Some(r.rect),
@@ -458,10 +456,10 @@ mod scrolling {
     #[test]
     fn the_overlay_shows_the_viewport_and_the_gutters_of_scroll_containers() {
         for axis in [Axis::Y, Axis::X, Axis::Both] {
-            let mut h = rig(scroller(axis));
-            run(&mut h, Debug::Outlines);
-            let pane = support::rect_of(&h, "/\"pane\"");
-            let tint = gutters(&h);
+            let mut d = rig(scroller(axis));
+            run(&mut d, Debug::Outlines);
+            let pane = d.rect(Target::suffix("/\"pane\""));
+            let tint = gutters(&d);
             let (right, bottom) = (
                 Rect::from_min_max(
                     Pos2::new(pane.max.x - GUTTER, pane.min.y),
@@ -501,7 +499,7 @@ mod scrolling {
                     },
             );
             assert!(
-                viewport_outlines(&h)
+                viewport_outlines(&d)
                     .iter()
                     .any(|got| support::same(*got, view)),
                 "{axis:?}: the viewport {view:?} is outlined"
@@ -511,10 +509,10 @@ mod scrolling {
 
     #[test]
     fn without_the_overlay_nothing_of_it_is_drawn() {
-        let mut h = rig(scroller(Axis::Both));
-        run(&mut h, Debug::Off);
-        assert!(gutters(&h).is_empty());
-        assert!(viewport_outlines(&h).is_empty());
+        let mut d = rig(scroller(Axis::Both));
+        run(&mut d, Debug::Off);
+        assert!(gutters(&d).is_empty());
+        assert!(viewport_outlines(&d).is_empty());
     }
 }
 
@@ -524,19 +522,19 @@ mod placement {
     use super::*;
 
     /// One node the size of the window, so the pointer is always over one.
-    fn page(size: Vec2) -> Harness<'static, Rig<()>> {
+    fn page(size: Vec2) -> Driver<()> {
         fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
             let size = b.ctx().content_rect().size();
             b.div_id("page", tw().w_px(size.x).h_px(size.y), |_| {});
         }
-        let mut harness = support::harness(size, base(), (), view);
-        harness.state_mut().companion = support::Companion::Alone;
-        run(&mut harness, Debug::Outlines);
-        harness
+        let mut d = support::driver(size, base(), (), view).build();
+        support::set_companion(&d, support::Companion::Alone);
+        run(&mut d, Debug::Outlines);
+        d
     }
 
     /// Every shape of the last frame, flattened, in paint order.
-    fn flat(harness: &Harness<'_, Rig<()>>) -> Vec<Shape> {
+    fn flat(d: &Driver<()>) -> Vec<Shape> {
         fn into(shape: &Shape, all: &mut Vec<Shape>) {
             match shape {
                 Shape::Vec(shapes) => shapes.iter().for_each(|shape| into(shape, all)),
@@ -544,7 +542,7 @@ mod placement {
             }
         }
         let mut all = Vec::new();
-        for clipped in &harness.output().shapes {
+        for clipped in &d.harness().output().shapes {
             into(&clipped.shape, &mut all);
         }
         all
@@ -552,8 +550,8 @@ mod placement {
 
     /// The paint position and box of the text containing `needle`, with the
     /// background drawn just before it.
-    fn boxed(harness: &Harness<'_, Rig<()>>, needle: &str) -> Option<(usize, Rect)> {
-        let all = flat(harness);
+    fn boxed(d: &Driver<()>, needle: &str) -> Option<(usize, Rect)> {
+        let all = flat(d);
         let at = all.iter().position(
             |shape| matches!(shape, Shape::Text(text) if text.galley.text().contains(needle)),
         )?;
@@ -563,19 +561,19 @@ mod placement {
         }
     }
 
-    fn readout(harness: &Harness<'_, Rig<()>>) -> (usize, Rect) {
-        boxed(harness, "fps").expect("the readout is drawn")
+    fn readout(d: &Driver<()>) -> (usize, Rect) {
+        boxed(d, "fps").expect("the readout is drawn")
     }
 
-    fn screen(harness: &Harness<'_, Rig<()>>) -> Rect {
-        harness.ctx.content_rect()
+    fn screen(d: &Driver<()>) -> Rect {
+        d.ctx().content_rect()
     }
 
     #[test]
     fn in_a_narrow_window_the_readout_stays_inside_it() {
-        let harness = page(Vec2::new(240.0, 300.0));
-        let (_, rect) = readout(&harness);
-        let screen = screen(&harness);
+        let d = page(Vec2::new(240.0, 300.0));
+        let (_, rect) = readout(&d);
+        let screen = screen(&d);
         assert!(
             screen.width() < 300.0,
             "precondition: narrower than the readout's longest line"
@@ -585,18 +583,21 @@ mod placement {
 
     #[test]
     fn near_the_top_right_the_label_is_drawn_above_the_readout() {
-        let mut harness = page(SIZE);
-        let page = support::rect_of(&harness, "/\"page\"");
+        let mut d = page(SIZE);
+        let page = d.rect(Target::suffix("/\"page\""));
         let at = page.right_top() + Vec2::new(-6.0, 6.0);
         assert!(
-            (at - screen(&harness).right_top()).length() < 30.0,
+            (at - screen(&d).right_top()).length() < 30.0,
             "precondition: the pointer is near the top right"
         );
-        support::hover_over(&mut harness, at);
-        let (readout_at, _) = readout(&harness);
-        let (label_at, label) = boxed(&harness, "\"page\"").expect("the page is labelled");
-        assert!(screen(&harness).contains_rect(label), "{label:?}");
-        let all = flat(&harness);
+        // The point is past the window's edge, where the driver does not
+        // point.
+        d.harness().hover_at(at);
+        d.frames(3);
+        let (readout_at, _) = readout(&d);
+        let (label_at, label) = boxed(&d, "\"page\"").expect("the page is labelled");
+        assert!(screen(&d).contains_rect(label), "{label:?}");
+        let all = flat(&d);
         assert!(
             label_at > readout_at,
             "the label is painted after the readout"
@@ -611,8 +612,8 @@ mod placement {
 
     #[test]
     fn the_readout_takes_the_corner_farthest_from_the_pointer() {
-        let mut harness = page(SIZE);
-        let screen = screen(&harness);
+        let mut d = page(SIZE);
+        let screen = screen(&d);
         let inset = Vec2::splat(20.0);
         let quadrants = [
             (screen.left_top() + inset, screen.right_bottom()),
@@ -627,8 +628,8 @@ mod placement {
             (screen.right_bottom() - inset, screen.left_top()),
         ];
         for (pointer, corner) in quadrants {
-            support::hover_over(&mut harness, pointer);
-            let (_, rect) = readout(&harness);
+            d.hover(pointer);
+            let (_, rect) = readout(&d);
             let nearest = [
                 rect.left_top(),
                 rect.right_top(),
@@ -647,26 +648,25 @@ mod placement {
 
     #[test]
     fn without_a_pointer_the_readout_stays_where_it_was() {
-        let mut harness = page(SIZE);
-        let screen = screen(&harness);
-        let (_, untouched) = readout(&harness);
+        let mut d = page(SIZE);
+        let screen = screen(&d);
+        let (_, untouched) = readout(&d);
         assert!(
             (untouched.right_top() - screen.right_top()).length() <= 8.0,
             "the readout starts in the top right: {untouched:?}"
         );
-        support::hover_over(&mut harness, screen.right_top() + Vec2::new(-20.0, 20.0));
-        let (_, moved) = readout(&harness);
+        d.hover(screen.right_top() + Vec2::new(-20.0, 20.0));
+        let (_, moved) = readout(&d);
         assert!(
             (moved.left_bottom() - screen.left_bottom()).length() <= 8.0,
             "precondition: the pointer moved it to the bottom left: {moved:?}"
         );
-        harness.event(egui::Event::PointerGone);
-        harness.run_steps(3);
+        d.event(egui::Event::PointerGone).frames(2);
         assert!(
-            harness.ctx.pointer_hover_pos().is_none(),
+            d.ctx().pointer_hover_pos().is_none(),
             "precondition: no pointer"
         );
-        let (_, gone) = readout(&harness);
+        let (_, gone) = readout(&d);
         assert!(support::same(gone, moved), "{gone:?} stayed at {moved:?}");
     }
 }
