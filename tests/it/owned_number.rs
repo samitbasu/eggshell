@@ -751,8 +751,11 @@ fn arrow_keys_in_the_field_step_the_value() {
     assert_eq!(harness.state().app.count, 10.0, "clamped");
 }
 
+/// Types a 7 and commits it with Enter.
 fn type_seven(harness: &mut Harness<'_, Rig<App>>) {
     harness.event(egui::Event::Text("7".into()));
+    harness.run_steps(3);
+    harness.key_press(Key::Enter);
     harness.run_steps(3);
 }
 
@@ -792,26 +795,27 @@ fn tab_into_the_stepper_field_selects_its_value_so_typing_replaces_it() {
 }
 
 #[test]
-fn typing_sets_the_value_clamps_it_and_snaps_when_the_field_is_left() {
+fn typing_commits_on_enter_or_leaving_clamped_and_snapped_and_escape_reverts() {
     let mut harness = harness(Theme::Light);
     click_node(&mut harness, FIELD);
     harness.run_steps(3);
     harness.key_press_modifiers(Modifiers::COMMAND, Key::A);
     harness.run_steps(2);
-    harness.event(egui::Event::Text("7".into()));
+    harness.event(egui::Event::Text("7.4".into()));
     harness.run_steps(3);
-    assert_eq!(harness.state().app.count, 7.0);
-    harness.event(egui::Event::Text(".4".into()));
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.count, 7.4, "applied as it parses");
-    assert!(shows(&harness, "7.4"), "and the text stays as typed");
+    assert_eq!(
+        harness.state().app.count,
+        3.0,
+        "nothing applies while typing"
+    );
+    assert!(shows(&harness, "7.4"), "the text stays as typed");
 
     harness.key_press(Key::Tab);
     harness.run_steps(4);
     assert_eq!(
         harness.state().app.count,
         7.0,
-        "snapped to the step on leaving"
+        "leaving commits, snapped to the step"
     );
     assert!(shows(&harness, "7"));
 
@@ -819,15 +823,30 @@ fn typing_sets_the_value_clamps_it_and_snaps_when_the_field_is_left() {
     harness.key_press_modifiers(Modifiers::COMMAND, Key::A);
     harness.event(egui::Event::Text("99".into()));
     harness.run_steps(3);
-    assert_eq!(harness.state().app.count, 10.0, "clamped");
+    harness.key_press(Key::Enter);
+    harness.run_steps(3);
+    assert_eq!(harness.state().app.count, 10.0, "Enter commits, clamped");
+
+    click_node(&mut harness, FIELD);
     harness.key_press_modifiers(Modifiers::COMMAND, Key::A);
     harness.event(egui::Event::Text("-".into()));
+    harness.run_steps(3);
+    harness.key_press(Key::Enter);
     harness.run_steps(3);
     assert_eq!(
         harness.state().app.count,
         10.0,
         "text that is not a number is ignored"
     );
+
+    click_node(&mut harness, FIELD);
+    harness.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    harness.event(egui::Event::Text("4".into()));
+    harness.run_steps(3);
+    harness.key_press(Key::Escape);
+    harness.run_steps(3);
+    assert_eq!(harness.state().app.count, 10.0, "Escape reverts");
+    assert!(shows(&harness, "10"), "and the field shows the value again");
 }
 
 #[test]

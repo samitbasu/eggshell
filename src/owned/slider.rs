@@ -8,6 +8,7 @@ use std::rc::Rc;
 use egui::{Key, Rect, Role, Ui, WidgetInfo};
 
 use super::number::{self, Edit, Edits, Step, ValueRange};
+use super::number_field::Session;
 use super::{
     Enablement, FieldBoxChain, Gate, IntoTip, OnResponse, described, options, painted, text_sized,
     tip_describes, tipped_whole,
@@ -508,7 +509,8 @@ impl Row {
             |format| format(value),
         );
         let editing = b.id_of(Part::Readout).with("editing");
-        let typed = b.ctx().data(|data| data.get_temp::<String>(editing));
+        let session = Session::of(editing);
+        let typed = session.typed(b.ctx());
         b.div_id(Part::Header, row, |b| {
             match &header.label {
                 Some(label_text) => {
@@ -532,16 +534,16 @@ impl Row {
                     let classes = enablement.apply(classes.sense_click(), &style);
                     let label = format!("Edit {name}");
                     let current = shown.clone();
+                    let open_edits = edits.clone();
                     b.div_id(Part::Readout, classes, |b| b.text(tw(), shown))
                         .announces(Role::Button)
-                        .draw(move |_, ui| {
+                        .draw(move |app, ui| {
                             let response = described(ui, Role::Button, None, label.trim(), &None);
                             let opened = response.clicked().then(|| {
                                 let width = response.rect.width();
                                 let opening = opening_of(ui, &response, &current);
+                                session.open(app, ui.ctx(), &current, &open_edits);
                                 ui.data_mut(|data| {
-                                    data.insert_temp(editing, current.clone());
-                                    data.insert_temp(editing.with("opened"), current.clone());
                                     data.insert_temp(editing.with("width"), width);
                                     data.insert_temp(editing.with("opening"), opening);
                                 });
@@ -588,9 +590,7 @@ impl Row {
                                 text_field::measure(m, &measured)
                             })
                             .draw_widgets(move |app, ui| {
-                                let mut text = ui
-                                    .data(|data| data.get_temp::<String>(editing))
-                                    .unwrap_or_default();
+                                let mut text = session.typed(ui.ctx()).unwrap_or_default();
                                 let response = text_field::show(ui, &mut text, &field);
                                 Autofocus::OnAppear(Select::None).apply(ui.ctx(), &response);
                                 let opening = response.gained_focus().then(|| {
@@ -611,19 +611,16 @@ impl Row {
                                     );
                                 }
                                 if response.changed() {
-                                    ui.data_mut(|data| data.insert_temp(editing, text.clone()));
+                                    session.keep(ui.ctx(), &text);
                                 }
                                 if response.lost_focus() {
-                                    let entered = ui.input(|input| input.key_pressed(Key::Enter));
-                                    let opened = ui.data_mut(|data| {
-                                        data.remove::<String>(editing);
-                                        data.remove_temp::<String>(editing.with("opened"))
-                                    });
-                                    let edited = opened.as_ref() != Some(&text);
-                                    if let Some(value) = accept(&text).filter(|_| entered && edited)
-                                    {
-                                        edits.once(app, |app| set(app, value));
-                                    }
+                                    session.close(
+                                        app,
+                                        ui,
+                                        (&text, value),
+                                        &accept,
+                                        (&edits, &*set),
+                                    );
                                 }
                             });
                         });
