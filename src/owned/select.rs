@@ -11,8 +11,9 @@ use egui::{Context, Id, Key, Role, WidgetInfo, vec2};
 use super::choice::{self, Choice, IntoChoice};
 use super::menu::Tone;
 use super::number::{hold_arrows, pressed};
+use super::options::Refused;
 use super::{
-    Chevron, Content, Enablement, Mark, OnResponse, TipContent, check, describe, tip, tipped,
+    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, tipped,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -82,7 +83,7 @@ pub struct SelectChain<'a, 'f, A, T> {
     options: Vec<Choice<T>>,
     name: Option<String>,
     offset: Option<Distance>,
-    tooltip: TipContent,
+    gate: Gate,
     classes: Tw,
     enablement: Enablement,
     size: Option<Size>,
@@ -105,7 +106,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             options: choice::collect(options),
             name: None,
             offset: None,
-            tooltip: None,
+            gate: Gate::default(),
             classes: tw(),
             enablement: Enablement::Enabled,
             size: None,
@@ -131,7 +132,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
     /// The style's state looks still apply over them in their states: see
     /// [the module docs](crate::owned#classes-and-the-styles-state-looks).
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
     }
 
@@ -140,8 +141,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
     /// delay, at once when it has keyboard focus, and also when the control is
     /// disabled, as an HTML `title` is. Rich text keeps egui's formatting. It adds to the control's accessible
     /// name and does not replace it.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
     }
 
@@ -153,7 +154,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         mut self,
         build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
     ) -> Self {
-        self.tooltip = Some(Content::built(build));
+        self.gate.tooltip_with(build);
         self
     }
 
@@ -177,6 +178,24 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         self
     }
 
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
+    }
+
     /// Adds the select. `choose` runs with the chosen value.
     #[track_caller]
     pub fn on_change(self, choose: impl Fn(&mut A, T) + 'static) {
@@ -195,14 +214,13 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             options,
             name,
             offset,
-            tooltip,
+            gate,
             classes: caller,
             enablement,
             size,
             on_response,
         } = self;
-        let tooltip = tip(&mut b, slot.id, tooltip);
-        let enablement = b.enablement_of(enablement);
+        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let ctx = b.ctx().clone();
         let trigger = slot.id;
         if enablement == Enablement::Disabled && Listing::of(&ctx, trigger) == Listing::Open {
@@ -353,9 +371,9 @@ impl<T: Copy + 'static> List<T> {
 
     fn rows<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
         let enabled = |at: usize| {
-            self.options
-                .get(at)
-                .is_some_and(|option| option.enablement == Enablement::Enabled)
+            self.options.get(at).is_some_and(|option| {
+                option.gated(Enablement::Enabled, Refused::No).0 == Enablement::Enabled
+            })
         };
         let start = self
             .current
@@ -367,7 +385,7 @@ impl<T: Copy + 'static> List<T> {
         }
         let ctx = s.ctx().clone();
         for (index, option) in self.options.iter().enumerate() {
-            let enablement = option.enablement;
+            let (enablement, tooltip) = option.gated(Enablement::Enabled, Refused::No);
             let marked = Some(index) == self.current;
             let (label, value) = (option.label.clone(), option.value);
             let side = self.style.select.chevron;
@@ -391,8 +409,8 @@ impl<T: Copy + 'static> List<T> {
                     &label,
                 );
             });
-            if let Some(tip) = &option.tooltip {
-                row = row.tooltip(tip.clone());
+            if let Some(tip) = tooltip {
+                row = row.tip(tip);
             }
             if enablement == Enablement::Enabled {
                 let (choose, close) = (Rc::clone(choose), ctx.clone());
