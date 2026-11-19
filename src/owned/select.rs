@@ -410,7 +410,7 @@ impl<T: Copy + 'static> List<T> {
                 );
             });
             if let Some(tip) = tooltip {
-                row = row.tooltip(tip);
+                row = row.tip(tip);
             }
             if enablement == Enablement::Enabled {
                 let (choose, close) = (Rc::clone(choose), ctx.clone());

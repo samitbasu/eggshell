@@ -9,8 +9,8 @@ use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::options::Refused;
 use super::{
-    Enablement, Gate, IntoTip, OnResponse, Tip, Tooltip, announce_group, centered, described,
-    options, tip_describes, tipped_whole,
+    Enablement, Gate, IntoTip, OnResponse, Tip, announce_group, centered, described, options,
+    tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -363,7 +363,7 @@ fn cells_in<A: 'static, T: Copy + PartialEq + 'static>(
             };
             let classes = cell(state, enablement).sense_click();
             let name = label.clone();
-            let tooltip = tooltip.map(Tooltip::text);
+
             let control_tip = control_tip.clone();
             let on_response = on_response.clone();
             let select = select.clone();

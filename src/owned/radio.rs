@@ -7,8 +7,8 @@ use egui::Role;
 use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{
-    Enablement, Gate, IntoTip, OnResponse, Tooltip, announce_group, choice_label, choice_row,
-    described, options, tip_describes, tipped_whole,
+    Enablement, Gate, IntoTip, OnResponse, announce_group, choice_label, choice_row, described,
+    options, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::Size;
@@ -166,7 +166,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                 let control = b.id_of(Part::Circle(index));
                 let (enablement, tooltip) = option.gated(enablement, refused);
                 let Choice { value, label, .. } = option;
-                let tooltip = tooltip.map(Tooltip::text);
+
                 let group_tip = group_tip.clone();
                 let chosen = value == current;
                 let look = if chosen { &radio.on } else { &radio.off };

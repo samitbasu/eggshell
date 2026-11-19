@@ -124,7 +124,7 @@ impl Gate {
         };
         let enablement = b.enablement_of(own.and(refused));
         let tip = match self.refusal {
-            Some(reason) => Some(Tooltip::text(reason)),
+            Some(reason) => Some(Tooltip::refusal(reason)),
             None => super::tip(b, trigger, self.tooltip),
         };
         (enablement, tip)

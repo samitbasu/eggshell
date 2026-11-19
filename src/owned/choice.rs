@@ -6,7 +6,7 @@ use std::fmt::Display;
 use egui::WidgetText;
 
 use super::options::Refused;
-use super::{Enablement, IntoTip};
+use super::{Enablement, IntoTip, Tooltip};
 use crate::Icon;
 
 /// One option of a radio group, a segmented control or a select: the `value`
@@ -87,14 +87,18 @@ impl<T> Choice<T> {
         &self,
         group: Enablement,
         refused: Refused,
-    ) -> (Enablement, Option<WidgetText>) {
+    ) -> (Enablement, Option<Tooltip>) {
         let own_refusal = match self.refusal {
             Some(_) => Enablement::Disabled,
             None => Enablement::Enabled,
         };
         let tooltip = match refused {
             Refused::Yes => None,
-            Refused::No => self.refusal.clone().or_else(|| self.tooltip.clone()),
+            Refused::No => match (&self.refusal, &self.tooltip) {
+                (Some(reason), _) => Some(Tooltip::refusal(reason.clone())),
+                (None, Some(text)) => Some(Tooltip::text(text.clone())),
+                (None, None) => None,
+            },
         };
         (group.and(self.enablement).and(own_refusal), tooltip)
     }

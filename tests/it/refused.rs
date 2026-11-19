@@ -95,6 +95,14 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
             .when(app.note, |chain| chain.tooltip("Noted"))
             .when_some(app.save, |chain, why| chain.refused(why))
             .add();
+        b.stepper("off", 3.0, 0.0..=9.0)
+            .named("Off")
+            .enablement(Enablement::Disabled)
+            .on_change(|_, _| {});
+        b.text_field("open", "Ok")
+            .named("Open")
+            .on_change(|_, _| {});
+        b.div_id("blank", tw().w_px(200.0).h_px(40.0), |_| {});
         b.dropdown_menu("menu", "More")
             .refused("Nothing to show")
             .items(|m| m.item("one", "One").on_click(|_| {}));
@@ -370,4 +378,80 @@ fn classes_set_twice_merge() {
     let row = rect_of(&harness, "/\"merged\"/<div>");
     assert_eq!(row.width(), 200.0, "the first call's width stays");
     assert_eq!(row.height(), 40.0, "the second call's height is added");
+}
+
+mod press {
+    use super::*;
+
+    fn press_away(harness: &mut Harness<'_, Rig<App>>) {
+        click_node(harness, "/\"blank\"");
+        harness.run_steps(6);
+    }
+
+    #[test]
+    fn a_click_on_a_refused_button_shows_its_reason_at_once_and_fires_nothing() {
+        let mut harness = harness_with(App {
+            save: Some("Nothing to save"),
+            ..App::default()
+        });
+        click_node(&mut harness, "/\"save\"");
+        harness.run_steps(3);
+        assert!(
+            painted(&harness, "Nothing to save"),
+            "shown without the delay"
+        );
+        assert_eq!(harness.state().app.saves, 0);
+        hover_node(&mut harness, "/\"blank\"");
+        harness.run_steps(12);
+        assert!(
+            painted(&harness, "Nothing to save"),
+            "it stays as the pointer leaves"
+        );
+        press_away(&mut harness);
+        assert!(
+            !painted(&harness, "Nothing to save"),
+            "a press elsewhere closes it"
+        );
+    }
+
+    #[test]
+    fn a_tap_on_a_refused_field_shows_its_reason_and_a_press_elsewhere_closes_it() {
+        let mut harness = harness();
+        click_node(&mut harness, "/\"name\"");
+        harness.run_steps(3);
+        assert!(painted(&harness, "Locked by an admin"));
+        assert_eq!(focused_path(&harness), None);
+        press_away(&mut harness);
+        assert!(!painted(&harness, "Locked by an admin"));
+    }
+
+    #[test]
+    fn a_tap_on_a_refused_choice_shows_its_reason() {
+        let mut harness = harness();
+        click_node(&mut harness, "/\"one\"/1");
+        harness.run_steps(3);
+        assert!(painted(&harness, "Delta is retired"));
+        assert!(harness.state().app.picked.is_empty());
+    }
+
+    #[test]
+    fn a_click_on_an_enabled_control_with_a_tooltip_shows_nothing() {
+        let mut harness = harness();
+        click_node(&mut harness, "/\"save\"");
+        harness.run_steps(3);
+        assert!(
+            !painted(&harness, "Saves the file"),
+            "a press still closes a tooltip"
+        );
+    }
+}
+
+#[test]
+fn a_refused_field_takes_the_disabled_look() {
+    let harness = harness();
+    let refused = support::text_color(&harness, rect_of(&harness, "/\"name\""), "Ada");
+    let enabled = support::text_color(&harness, rect_of(&harness, "/\"open\""), "Ok");
+    let disabled = support::text_color(&harness, rect_of(&harness, "/\"off\"/Box"), "3");
+    assert_ne!(refused, enabled, "not the enabled look");
+    assert_eq!(refused, disabled, "the disabled look the stepper has");
 }

@@ -409,7 +409,11 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 )
             });
         }
-        if field.is_single_line() && (leading.is_some() || trailing.is_some()) {
+        let icons = leading.is_some() || trailing.is_some();
+        let disabled_frame = enablement == Enablement::Disabled && !field.is_bare();
+        // A disabled field takes the input look's disabled colours through the
+        // field box, as the stepper's does; egui's own frame has none.
+        if field.is_single_line() && (icons || disabled_frame) {
             let metrics = *style.input.sizes.get(size);
             let (side, tint) = (metrics.icon_size, style.input.icon);
             let put = |s: &mut Scope<'_, '_, A>, part, icon| {
