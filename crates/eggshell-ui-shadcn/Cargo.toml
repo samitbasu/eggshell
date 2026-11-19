@@ -26,3 +26,7 @@ eggshell-ui-extras = { path = "../eggshell-ui-extras", version = "0.1.0", option
 
 [lints]
 workspace = true
+
+[[example]]
+name = "preset_dump"
+required-features = ["extras"]
