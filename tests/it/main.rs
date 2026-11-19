@@ -125,6 +125,7 @@ mod theme_toggle;
 mod todo_demo;
 mod toggle_group;
 mod tooltips;
+mod typed_range;
 mod typeset;
 mod underline;
 mod value_widgets;
