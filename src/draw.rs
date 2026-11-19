@@ -530,8 +530,23 @@ struct Pass {
     highlighted: Vec<Id>,
     /// Why a field losing focus in this pass does, told to its hooks.
     blur: Blur,
+    /// Each node that controls another, with the node it controls.
+    controls: Vec<(Id, Id)>,
     /// The items of groups on the page that are not their group's Tab stop.
     off_tab: std::collections::HashSet<Id>,
+}
+
+/// Announces each of `controls` whose two nodes are in this pass's
+/// accessibility tree: a relation to a node that is not there is dropped,
+/// since the platform adapters expect every node a relation names to exist.
+fn relate_controls(ctx: &egui::Context, controls: &[(Id, Id)]) {
+    for &(node, target) in controls {
+        if ctx.has_accesskit_node(node) && ctx.has_accesskit_node(target) {
+            ctx.accesskit_node_builder(node, |built| {
+                built.push_controlled(target.accesskit_id());
+            });
+        }
+    }
 }
 
 /// How an entering or leaving overlay is painted at one of its nodes.
@@ -619,11 +634,14 @@ impl<A> Walk<'_, A> {
             if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
                 plan.description
                     .announce(&own, ui.is_enabled().into(), Role::ScrollView);
-            } else if let Some(description) = node.description() {
+            } else if let Some(description) = node.description().filter(|d| d.is_set()) {
                 description.announce(&own, ui.is_enabled().into(), Role::GenericContainer);
             }
             own
         });
+        if let Some(target) = node.description().and_then(|d| d.controls) {
+            self.pass.controls.push((id, target));
+        }
         let merged = self.merge_hot(index, &mut response);
         let lost_focus = had_focus && !self.ui.ctx().memory(|memory| memory.has_focus(id));
         if lost_focus && merged == Merged::Bubbled && response.flags.intersects(Hot::PRESS) {
@@ -1961,6 +1979,7 @@ impl<A> Painting<A> {
             hot: hot_boxes(&ctx, nodes, &shared.box_ids),
             highlighted: nav::highlighted(kept),
             blur: Blur::Elsewhere,
+            controls: Vec::new(),
             off_tab: std::collections::HashSet::new(),
         };
         nav::activate_highlighted(&ctx, kept);
@@ -2002,6 +2021,7 @@ impl<A> Painting<A> {
         walk.visit(first, inherited);
         let embedded = walk.embedded_windows(here, kept.with(|kept| kept.chrome));
         let shown = walk.overlays(here);
+        relate_controls(&ctx, &pass.controls);
         stack::repair(&ctx, &shown, pressed);
         overlay_input::judge(
             overlay_input::Frame {
