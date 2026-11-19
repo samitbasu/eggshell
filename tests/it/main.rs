@@ -62,6 +62,7 @@ mod handlers;
 mod headless;
 mod hello;
 mod hit_route;
+mod hover_anchored;
 mod icons;
 mod inert_look;
 mod interaction;

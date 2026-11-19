@@ -80,6 +80,9 @@ pub enum Problem {
     NodeUiOutsideDraw,
     /// TODO(prose): a text colour on a surface under WCAG 2's AA contrast.
     LowContrast,
+    /// TODO(prose): a hover card declared inside another hover card's
+    /// content. It never opens.
+    NestedHoverCard,
     /// TODO(prose): an invariant of the library that did not hold, by name.
     Internal(&'static str),
 }

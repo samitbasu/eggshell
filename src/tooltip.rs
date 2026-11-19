@@ -16,6 +16,7 @@ use egui::{Context, Id, Key, Painter, Pos2, Rect, Shape, Ui, Vec2, WidgetText, p
 use crate::NodeUi as _;
 use crate::builder::{Builder, Surface};
 use crate::finite::clamp;
+use crate::hover::Quiet;
 use crate::intent::{Cause, FocusOpens, Intent, Interruption, Skip, Timing, Trigger, wanted};
 use crate::kept::Handle;
 use crate::overlay::{Anchor, Band, DismissOn, Distance, Focus, Placement};
@@ -109,8 +110,7 @@ impl Tooltip {
             Content::Built(_) => {
                 b.set_build_built(build_built::<A>);
                 Self {
-                    description: accesskit_is_on(b.ctx())
-                        .then(|| b.text_of(trigger, |b| content.build(b))),
+                    description: b.description_of(trigger, |b| content.build(b)),
                     content,
                     press: Press::Closes,
                 }
@@ -145,12 +145,6 @@ impl Tooltip {
             ..Self::text(reason)
         }
     }
-}
-
-/// egui has no public query for this; its root node is made only while
-/// accesskit is on.
-fn accesskit_is_on(ctx: &Context) -> bool {
-    ctx.has_accesskit_node(egui::accesskit_root_id())
 }
 
 /// What an open tooltip shows, and the style its trigger was built in,
@@ -265,11 +259,22 @@ pub(crate) fn interruption(ctx: &Context, drag: Drag) -> Option<Interruption> {
     .or((drag == Drag::Live).then_some(Interruption::Drag))
 }
 
-/// Ends the frame's collection: moves the state to this frame.
-pub(crate) fn end(ctx: &Context, kept: &Handle, interruption: Option<Interruption>) {
-    let triggers = kept.viewport(ctx.viewport_id(), |here| {
-        std::mem::take(&mut here.tooltips.requests)
-    });
+/// Ends the frame's collection: moves the state to this frame. A trigger
+/// inside a hover card's trigger, or around one the same cause wants, yields
+/// to the card ([`Quiet`]).
+pub(crate) fn end(
+    ctx: &Context,
+    kept: &Handle,
+    interruption: Option<Interruption>,
+    quiet: &Quiet<'_>,
+) {
+    let triggers: Vec<_> = kept
+        .viewport(ctx.viewport_id(), |here| {
+            std::mem::take(&mut here.tooltips.requests)
+        })
+        .into_iter()
+        .filter(|trigger| !quiet.holds(trigger.id))
+        .collect();
     let style = crate::Style::of(ctx);
     let timing = Timing {
         open: style.tooltip.delay,
@@ -277,9 +282,8 @@ pub(crate) fn end(ctx: &Context, kept: &Handle, interruption: Option<Interruptio
         skip: Skip::Grace(style.tooltip.grace),
         focus: FocusOpens::AtOnce,
     };
-    let now = Duration::try_from_secs_f64(ctx.input(|input| input.time).max(0.0))
-        .unwrap_or(Duration::MAX);
-    let wanted = wanted(triggers);
+    let now = crate::intent::now(ctx);
+    let wanted = wanted(triggers).filter(|trigger| !quiet.outranks(trigger.id, trigger.cause));
     let focused = ctx.memory(|memory| memory.focused());
     let (wait, changed) = kept.viewport(ctx.viewport_id(), |here| {
         let before = here.tooltips.open_triggers();
@@ -289,15 +293,7 @@ pub(crate) fn end(ctx: &Context, kept: &Handle, interruption: Option<Interruptio
             .tick(now, timing, wanted.as_ref(), interruption);
         (wait, here.tooltips.open_triggers() != before)
     });
-    if let Some(wait) = wait {
-        ctx.request_repaint_after(wait);
-    }
-    // The state moves at the end of the draw and the overlay is declared by
-    // the next build, which a reactive app (eframe, the browser) only runs
-    // when asked: without input, a tooltip that just opened would never show.
-    if changed {
-        ctx.request_repaint();
-    }
+    crate::intent::repaint(ctx, wait, changed);
 }
 
 #[derive(Clone, Copy, Hash)]
