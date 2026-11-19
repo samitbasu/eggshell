@@ -117,6 +117,16 @@ impl Tooltip {
         }
     }
 
+    /// The tooltip showing `text`, which says nothing its trigger's
+    /// accessible name does not.
+    pub(crate) fn undescribed(text: WidgetText) -> Self {
+        Self {
+            description: None,
+            content: Content::Text(text),
+            press: Press::Closes,
+        }
+    }
+
     /// The tooltip showing `text`.
     pub(crate) fn text(text: WidgetText) -> Self {
         Self {

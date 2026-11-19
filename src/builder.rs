@@ -2037,6 +2037,36 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self.tipped(Content::built(build))
     }
 
+    /// Shows the node's whole text in a tooltip while the node is hovered,
+    /// on the frames its text is drawn cut short, as
+    /// [`truncate`](crate::Tw::truncate) and
+    /// [`line_clamp`](crate::Tw::line_clamp) cut it. Text that fits shows
+    /// none. The node must be a text node, such as [`span`](Builder::span)
+    /// makes; it senses hover if it senses nothing else. Its accessible name
+    /// is its whole text already, so the tooltip does not describe it.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>) {
+    ///     b.div(tw().w_px(80.0), |b| {
+    ///         b.span("note", tw().truncate(), "A note longer than its box")
+    ///             .tooltip_when_truncated();
+    ///     });
+    /// }
+    /// ```
+    pub fn tooltip_when_truncated(mut self) -> Self {
+        self.senses_hover_for_tip();
+        self.draw(|_, ui| {
+            if let Some(text) = crate::draw::elided_text(ui) {
+                let tip = Some(Tooltip::undescribed(egui::WidgetText::from(&*text)));
+                crate::owned::tipped(ui, ui.node_response(), &tip);
+            }
+        })
+    }
+
     fn tipped(mut self, content: Content) -> Self {
         let tip = Tooltip::new(&mut self.b, self.node, content);
         self.tip(tip)
@@ -2044,6 +2074,14 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
 
     /// Shows `tip` on the node, as [`tooltip`](Self::tooltip) does.
     pub(crate) fn tip(mut self, tip: Tooltip) -> Self {
+        self.senses_hover_for_tip();
+        let tip = Some(tip);
+        self.draw(move |_, ui| {
+            crate::owned::tipped(ui, ui.node_response(), &tip);
+        })
+    }
+
+    fn senses_hover_for_tip(&mut self) {
         self.edit(|context| {
             let interaction = &mut context.interaction;
             if interaction.sensing == Sensing::None {
@@ -2051,10 +2089,6 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
             }
             interaction.sensing = interaction.sensing.or(Sensing::Hover);
         });
-        let tip = Some(tip);
-        self.draw(move |_, ui| {
-            crate::owned::tipped(ui, ui.node_response(), &tip);
-        })
     }
 
     /// Announces the node to assistive technology as a `role`. A node
