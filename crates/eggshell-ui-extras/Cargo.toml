@@ -15,6 +15,7 @@ badge = []
 form = []
 spinner = []
 skeleton = []
+tabs = []
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }
