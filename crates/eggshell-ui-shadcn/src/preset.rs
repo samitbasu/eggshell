@@ -853,6 +853,7 @@ impl Shadcn {
             self.markdown().install_for(ctx, self.theme);
             self.badge(&style).install_for(ctx, self.theme);
             self.form(&style).install_for(ctx, self.theme);
+            self.hover_card().install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
     }
@@ -1017,6 +1018,17 @@ impl Shadcn {
         form.value_color = t.muted_foreground;
         form.section_gap = if vega { 24.0 } else { 16.0 };
         form
+    }
+
+    /// TODO(prose): the hover card's look: shadcn's `HoverCardContent`
+    /// (`w-64 rounded-lg bg-popover p-4 shadow-md duration-100`, 4 pt below,
+    /// centred) in this preset's colours, with Radix's 700/300 ms delays.
+    #[cfg(feature = "extras")]
+    pub fn hover_card(&self) -> eggshell_ui_extras::hover_card::HoverCardStyle {
+        let mut card = eggshell_ui_extras::hover_card::HoverCardStyle::from_style(&self.style());
+        card.radius = self.tokens.radius;
+        card.transition = Duration::from_millis(100);
+        card
     }
 
     /// TODO(prose): the Markdown widget's look: shadcn/typeset at its

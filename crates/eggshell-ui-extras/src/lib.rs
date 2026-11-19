@@ -24,6 +24,8 @@
 pub mod badge;
 #[cfg(feature = "form")]
 pub mod form;
+#[cfg(feature = "hover-card")]
+pub mod hover_card;
 #[cfg(feature = "markdown")]
 pub mod markdown;
 #[cfg(feature = "spinner")]
