@@ -15,9 +15,9 @@ use super::{
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
 use crate::finite::clamp;
-use crate::focus::Autofocus;
+use crate::focus::{Autofocus, Select};
 use crate::input_trace::{self, Shown};
-use crate::prim::text_field::{self, Field};
+use crate::prim::text_field::{self, Field, Opening};
 use crate::{Builder, NodeUi as _, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -449,34 +449,19 @@ struct Row {
     size: Size,
 }
 
-/// How the readout's field opens: a click puts the caret where it landed;
-/// the keyboard selects the whole value, as tabbing into a field does.
-#[derive(Clone, Copy)]
-enum Opening {
-    All,
-    Caret(egui::text::CCursor),
-}
-
-impl Opening {
-    fn of(ui: &Ui, response: &egui::Response, shown: &str) -> Self {
-        let at = response
-            .interact_pointer_pos()
-            .filter(|_| response.clicked_by(egui::PointerButton::Primary));
-        let Some(at) = at else {
-            return Self::All;
-        };
-        let style = crate::draw::node_text(ui);
-        let leaf = crate::measure::TextLeaf::plain(ui.ctx(), shown, &style);
-        let galley = ui.ctx().fonts_mut(|fonts| leaf.editing_galley(fonts, None));
-        Self::Caret(galley.cursor_from_pos(at - response.rect.min))
-    }
-
-    fn range(self, text: &str) -> egui::text::CCursorRange {
-        match self {
-            Self::All => text_field::all(text),
-            Self::Caret(caret) => egui::text::CCursorRange::one(caret),
-        }
-    }
+/// Where a click on the readout puts the field's caret: where it landed.
+/// The keyboard opens it with the whole value selected, as Tab does.
+fn opening_of(ui: &Ui, response: &egui::Response, shown: &str) -> Opening {
+    let at = response
+        .interact_pointer_pos()
+        .filter(|_| response.clicked_by(egui::PointerButton::Primary));
+    let Some(at) = at else {
+        return Opening::All;
+    };
+    let style = crate::draw::node_text(ui);
+    let leaf = crate::measure::TextLeaf::plain(ui.ctx(), shown, &style);
+    let galley = ui.ctx().fonts_mut(|fonts| leaf.editing_galley(fonts, None));
+    Opening::Caret(galley.cursor_from_pos(at - response.rect.min))
 }
 
 impl Row {
@@ -536,7 +521,7 @@ impl Row {
                             let response = described(ui, Role::Button, None, label.trim(), &None);
                             let opened = response.clicked().then(|| {
                                 let width = response.rect.width();
-                                let opening = Opening::of(ui, &response, &current);
+                                let opening = opening_of(ui, &response, &current);
                                 ui.data_mut(|data| {
                                     data.insert_temp(editing, current.clone());
                                     data.insert_temp(editing.with("opened"), current.clone());
@@ -547,7 +532,7 @@ impl Row {
                             });
                             let decision = match opened {
                                 Some(Opening::All) => "open, select all",
-                                Some(Opening::Caret(_)) => "open, caret",
+                                Some(Opening::Caret(_) | Opening::Kept) => "open, caret",
                                 None => "none",
                             };
                             input_trace::pointer(
@@ -590,22 +575,13 @@ impl Row {
                                     .data(|data| data.get_temp::<String>(editing))
                                     .unwrap_or_default();
                                 let response = text_field::show(ui, &mut text, &field);
-                                Autofocus::OnAppear.apply(ui.ctx(), &response);
-                                let decision = if response.gained_focus() {
-                                    let opening = ui
-                                        .data(|data| data.get_temp(editing.with("opening")))
-                                        .unwrap_or(Opening::All);
-                                    text_field::select(ui, &response, opening.range(&text));
-                                    match opening {
-                                        Opening::All => "focus, select all",
-                                        Opening::Caret(_) => "focus, caret",
-                                    }
-                                } else if response.double_clicked() {
-                                    text_field::select(ui, &response, text_field::all(&text));
-                                    "double click, select all"
-                                } else {
-                                    "none"
-                                };
+                                Autofocus::OnAppear(Select::None).apply(ui.ctx(), &response);
+                                let opening = response.gained_focus().then(|| {
+                                    ui.data(|data| data.get_temp(editing.with("opening")))
+                                        .unwrap_or(Opening::All)
+                                });
+                                let decision =
+                                    text_field::select_number(ui, &response, &text, opening);
                                 if input_trace::enabled() {
                                     let label = format!("Edit {name}");
                                     input_trace::pointer(

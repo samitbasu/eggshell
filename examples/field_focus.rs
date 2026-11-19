@@ -3,11 +3,13 @@
 //! Type in the message field and press Enter: the message is sent and the
 //! field keeps focus, so you can type the next one. Click the Rename button:
 //! the name field takes focus (once per click), wherever it was.
+//!
+//! TODO(prose): Rename also selects the name, so typing replaces it.
 
 #[path = "common/mod.rs"]
 mod common;
 
-use eggshell_ui::prim::text_field::Enter;
+use eggshell_ui::prim::text_field::{Enter, Select};
 use eggshell_ui::{Builder, tw};
 
 /// The parts the layout names.
@@ -65,7 +67,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
             s.text_field(Part::Name, state.name.clone())
                 .named("Name")
                 .hint("Name")
-                .focus_on_change(state.focus_name)
+                .focus_on_change_selecting(state.focus_name, Select::All)
                 .classes(tw().w_px(160.0))
                 .on_change(|state, text| state.name = text);
             s.button(Part::Rename, "Rename")
