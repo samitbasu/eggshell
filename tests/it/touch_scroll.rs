@@ -219,7 +219,7 @@ fn letting_go_of_a_drag_coasts_on_in_its_direction() {
 }
 
 #[test]
-#[ignore = "the first touch of a session scrolls nothing: has_touch_screen is false until a Touch event has arrived"]
+#[ignore = "the first touch of a session scrolls nothing (#416)"]
 fn the_first_touch_of_a_session_scrolls() {
     for start in [
         Start::Background,
@@ -232,7 +232,7 @@ fn the_first_touch_of_a_session_scrolls() {
 }
 
 #[test]
-#[ignore = "a drag that starts on a slider is taken by the slider, so the container never scrolls"]
+#[ignore = "a drag that starts on a slider is taken by the slider, so the container never scrolls (#416)"]
 fn a_touch_drag_from_a_slider_moves_the_content_by_the_finger() {
     assert_follows_finger(Start::Slider, true);
 }
