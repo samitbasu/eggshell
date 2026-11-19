@@ -185,36 +185,107 @@ fn a_checked_command_says_so_and_a_disabled_one_is_passed_by() {
     assert!(!harness.state().app.palette, "Escape closes the palette");
 }
 
+fn combobox<'a>(harness: &'a Harness<'_, Rig<State>>) -> egui_kittest::Node<'a> {
+    harness.get_by_role_and_label(Role::ComboBox, "Framework")
+}
+
 #[test]
-fn the_combobox_opens_filters_and_picks() {
+fn the_combobox_is_a_field_that_opens_on_a_click_filters_as_typed_and_picks() {
     let mut harness = harness();
-    harness
-        .get_by_role_and_label(Role::ComboBox, "Framework")
-        .click();
+    combobox(&harness).click();
     harness.run_steps(20);
     assert_eq!(
         support::focused_path(&harness).as_deref(),
         Some("<widget>"),
-        "the popover's search field took the focus"
+        "the field itself has the focus"
     );
-    harness
-        .query_all_by_role_and_label(Role::ComboBox, "Framework")
-        .last()
-        .expect("the popover's field")
-        .type_text("sv");
+    assert_eq!(
+        options(&harness).len(),
+        example::FRAMEWORKS.len(),
+        "every option shows before anything is typed"
+    );
+    combobox(&harness).type_text("sv");
     step(&mut harness);
     assert_eq!(options(&harness), ["SvelteKit"]);
+    assert_eq!(
+        active(&harness, "Framework").as_deref(),
+        Some("SvelteKit"),
+        "the first match is highlighted"
+    );
     press(&mut harness, Key::Enter);
     harness.run_steps(20);
     assert_eq!(
         harness.state().app.framework,
         Some(example_framework("SvelteKit"))
     );
-    assert!(options(&harness).is_empty(), "a pick closes the popover");
-    let trigger = harness.get_by_role_and_label(Role::ComboBox, "Framework");
+    assert!(options(&harness).is_empty(), "a pick closes the list");
     assert_eq!(
-        trigger.accesskit_node().value().as_deref(),
-        Some("SvelteKit")
+        combobox(&harness).accesskit_node().value().as_deref(),
+        Some("SvelteKit"),
+        "the field shows the chosen label"
+    );
+}
+
+#[test]
+fn the_chevron_opens_the_list_and_gives_the_field_the_focus() {
+    let mut harness = harness();
+    harness
+        .get_by_role_and_label(Role::Button, "Show options")
+        .click();
+    harness.run_steps(20);
+    assert_eq!(options(&harness).len(), example::FRAMEWORKS.len());
+    assert_eq!(support::focused_path(&harness).as_deref(), Some("<widget>"));
+}
+
+#[test]
+fn escape_closes_the_list_and_puts_back_the_chosen_label() {
+    let mut harness = harness();
+    harness.state_mut().app.framework = Some(example_framework("SvelteKit"));
+    harness.run_steps(4);
+    combobox(&harness).click();
+    harness.run_steps(20);
+    combobox(&harness).type_text("x");
+    step(&mut harness);
+    harness.key_press(Key::Escape);
+    harness.run_steps(20);
+    assert!(options(&harness).is_empty(), "Escape closes the list");
+    assert_eq!(
+        combobox(&harness).accesskit_node().value().as_deref(),
+        Some("SvelteKit"),
+        "what was typed is dropped"
+    );
+}
+
+#[test]
+fn the_down_arrow_opens_a_closed_list() {
+    let mut harness = harness();
+    combobox(&harness).focus();
+    step(&mut harness);
+    assert!(options(&harness).is_empty(), "precondition: closed");
+    press(&mut harness, Key::ArrowDown);
+    harness.run_steps(10);
+    assert_eq!(options(&harness).len(), example::FRAMEWORKS.len());
+}
+
+#[test]
+fn a_chosen_value_can_be_cleared_with_the_clear_button() {
+    let mut harness = harness();
+    harness.state_mut().app.framework = Some(example_framework("SvelteKit"));
+    harness.run_steps(4);
+    assert!(
+        harness
+            .query_by_role_and_label(Role::Button, "Show options")
+            .is_none(),
+        "the clear button takes the chevron's place"
+    );
+    harness.get_by_role_and_label(Role::Button, "Clear").click();
+    harness.run_steps(20);
+    assert_eq!(harness.state().app.framework, None);
+    assert!(
+        harness
+            .query_by_role_and_label(Role::Button, "Show options")
+            .is_some(),
+        "the chevron is back"
     );
 }
 
@@ -294,4 +365,40 @@ fn escape_puts_the_suggestions_away_until_the_next_edit() {
         .type_text("e");
     step(&mut harness);
     assert_eq!(options(&harness), ["Berlin", "Bern"]);
+}
+
+fn results_height(harness: &Harness<'_, Rig<State>>) -> f32 {
+    harness
+        .state()
+        .nodes
+        .iter()
+        .find(|(path, _)| path.ends_with("/Results"))
+        .map_or(0.0, |(_, rect)| rect.height())
+}
+
+#[test]
+fn the_list_is_as_tall_as_its_rows_up_to_the_style_limit() {
+    let mut harness = harness();
+    combobox(&harness).click();
+    harness.run_steps(20);
+    let few = results_height(&harness);
+    let rows = example::FRAMEWORKS.len() as f32;
+    assert!(
+        (few - (rows * 32.0 + 8.0)).abs() < 1.0,
+        "{rows} rows of 32 and the list's padding: {few}"
+    );
+    combobox(&harness).type_text("sv");
+    step(&mut harness);
+    assert!(
+        results_height(&harness) < few,
+        "a narrower query shortens the list"
+    );
+    harness.key_press(Key::Escape);
+    harness.run_steps(10);
+    open_palette(&mut harness);
+    let height = results_height(&harness);
+    assert!(
+        (height - 288.0).abs() < 1.0,
+        "a long list stops at max-h-72: {height}"
+    );
 }

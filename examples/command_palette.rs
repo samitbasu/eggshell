@@ -1,6 +1,6 @@
 //! The command palette, a combobox and an autosuggest (#345): Ctrl+K (Cmd+K
 //! on macOS) opens a palette over the app's command table and a page list;
-//! the combobox picks a framework, the autosuggest a city as typed.
+//! the combobox (an input group: type in it, or press its chevron) picks a framework, the autosuggest a city as typed.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -125,6 +125,7 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, State>, state: &'f State) {
             .placeholder("Select framework…")
             .named("Framework")
             .classes(tw().w_px(200.0))
+            .on_clear(|state: &mut State| state.framework = None)
             .on_change(|state: &mut State, value| state.framework = Some(value));
             s.autosuggest(Part::City, &state.city, CITIES.map(str::to_owned))
                 .placeholder("City")

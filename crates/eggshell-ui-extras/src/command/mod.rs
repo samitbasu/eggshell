@@ -2,17 +2,20 @@
 
 mod filter;
 mod list;
+mod style;
 
 use std::rc::Rc;
 use std::sync::Arc;
 
 use eggshell_ui::overlay::{Anchor, Focus, MatchWidth, Modal, Placement};
 use eggshell_ui::owned::Mark;
-use eggshell_ui::{Builder, CommandState, Icon, Key, NodeUi as _, Scope, Tw, icons, tw};
+use eggshell_ui::prim::text_field::Select;
+use eggshell_ui::{Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
 use egui::{Id, Role};
 
 pub use filter::{Candidate, Score, word_prefix};
 pub use list::{ItemChain, Items};
+pub use style::CommandStyle;
 
 use list::{First, ListOptions, Query};
 
@@ -39,6 +42,7 @@ type Filter = Rc<dyn Fn(&str, Candidate<'_>) -> Option<Score>>;
 type Heard<A> = Rc<dyn Fn(&mut A, &str)>;
 type Empty<'f, A> = Box<dyn FnOnce(&mut Scope<'_, 'f, A>) + 'f>;
 type Typed<A> = Rc<dyn Fn(&mut A, String)>;
+type Cleared<A> = Rc<dyn Fn(&mut A)>;
 
 /// TODO(prose): the builder methods of this module.
 pub trait CommandExt<'b, 'f, A> {
@@ -89,7 +93,9 @@ impl From<bool> for Open {
 enum Part {
     Dialog,
     Box,
-    Trigger,
+    Group,
+    Chevron,
+    Clear,
     Popover,
     Field,
     Suggestions,
@@ -257,6 +263,7 @@ impl<'b, 'f, A: 'static> CommandExt<'b, 'f, A> for Builder<'b, 'f, A> {
             b: self,
             value,
             choices: options.into_iter().collect(),
+            clear: None,
             options: Options::default(),
         }
     }
@@ -277,17 +284,27 @@ impl<'b, 'f, A: 'static> CommandExt<'b, 'f, A> for Builder<'b, 'f, A> {
     }
 }
 
-/// Whether a combobox's popover is open: the widget's own state.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum Popover {
-    #[default]
-    Closed,
-    Open,
+/// A combobox's own state: whether its list is open, and what was typed since
+/// it opened. Until something is typed the field shows the chosen label and
+/// the list shows every option.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Typing {
+    open: bool,
+    query: Option<String>,
+    /// The field takes the focus on the next frame: a press on a button beside
+    /// it asked for it.
+    focus: bool,
 }
 
-impl Popover {
+impl Typing {
+    const CLOSED: Self = Self {
+        open: false,
+        query: None,
+        focus: false,
+    };
+
     fn id(combobox: Id) -> Id {
-        combobox.with("eggshell-ui-extras-popover")
+        combobox.with("eggshell-ui-extras-typing")
     }
 
     fn load(ctx: &egui::Context, combobox: Id) -> Self {
@@ -297,6 +314,21 @@ impl Popover {
 
     fn store(self, ctx: &egui::Context, combobox: Id) {
         ctx.data_mut(|data| data.insert_temp(Self::id(combobox), self));
+    }
+
+    fn opened() -> Self {
+        Self {
+            open: true,
+            query: None,
+            focus: false,
+        }
+    }
+
+    fn focusing(self) -> Self {
+        Self {
+            focus: true,
+            ..self
+        }
     }
 }
 
@@ -308,16 +340,17 @@ pub struct ComboboxChain<'s, 'b, 'f, A, V> {
     value: Option<V>,
     choices: Vec<(V, String)>,
     options: Options<'f, A>,
+    clear: Option<Cleared<A>>,
 }
 
 impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> {
-    /// TODO(prose): what the trigger says with no value, and the search field's hint.
+    /// TODO(prose): greyed text in the empty field.
     pub fn placeholder(mut self, text: impl Into<String>) -> Self {
         self.options.placeholder = Some(text.into());
         self
     }
 
-    /// TODO(prose): the accessible name of the trigger and of the list.
+    /// TODO(prose): the accessible name of the field and of the list.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.options.name = Some(name.into());
         self
@@ -338,9 +371,16 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
         self
     }
 
-    /// TODO(prose): classes of the trigger, such as its width.
+    /// TODO(prose): classes of the field's box, such as its width.
     pub fn classes(mut self, classes: Tw) -> Self {
         self.options.classes = classes;
+        self
+    }
+
+    /// TODO(prose): a clear button in place of the chevron while there is a
+    /// value; it runs `on_clear`.
+    pub fn on_clear(mut self, on_clear: impl Fn(&mut A) + 'static) -> Self {
+        self.clear = Some(Rc::new(on_clear));
         self
     }
 
@@ -352,52 +392,114 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             value,
             choices,
             mut options,
+            clear,
         } = self;
         let ctx = b.ctx().clone();
-        let popover = Popover::load(&ctx, key);
-        let shown = value
+        let state = Typing::load(&ctx, key);
+        let chosen = value
             .and_then(|value| choices.iter().find(|(v, _)| *v == value))
             .map(|(_, label)| label.clone());
-        let placeholder = options.placeholder.clone().unwrap_or_default();
-        let name = options.name.clone().unwrap_or_default();
-        let trigger_classes = std::mem::replace(&mut options.classes, tw());
-        let (open, toggle) = (ctx.clone(), popover);
-        let label = shown.clone().unwrap_or(placeholder);
+        let text = state
+            .query
+            .clone()
+            .unwrap_or_else(|| chosen.clone().unwrap_or_default());
         let style = Arc::clone(b.style());
-        let trigger_id = b.id_of((key, Part::Trigger));
-        let trigger = b
-            .div_id(
-                (key, Part::Trigger),
-                list::trigger_classes(&style).merge(trigger_classes),
-                |s| {
-                    s.div(tw().grow().min_w_0().truncate(), |s| s.text(tw(), label));
-                    s.glyph(
-                        list::chevron_classes(&style),
-                        Icon::new(icons::CHEVRON_DOWN),
-                    );
-                },
-            )
-            .role(Role::ComboBox)
-            .named(name)
-            .on_click(move |_| {
-                let next = match toggle {
-                    Popover::Open => Popover::Closed,
-                    Popover::Closed => Popover::Open,
-                };
-                next.store(&open, key);
-            });
-        let value_text = shown.unwrap_or_default();
-        trigger.draw(move |_, ui| {
-            let id = ui.node_response().id;
-            ui.ctx().accesskit_node_builder(id, |node| {
-                node.set_value(value_text.as_str());
-                node.set_has_popup(egui::accesskit::HasPopup::Dialog);
-                if popover == Popover::Closed {
-                    node.set_expanded(false);
+        let group_id = b.id_of((key, Part::Group));
+        let mut field_id = Id::NULL;
+        let group_classes =
+            list::group_classes(&style).merge(std::mem::replace(&mut options.classes, tw()));
+        let (placeholder, name) = (options.placeholder.clone(), options.name.clone());
+        let open = state.open;
+        let clearing = clear.filter(|_| value.is_some());
+        b.div_id((key, Part::Group), group_classes, |s| {
+            field_id = s.id_of((key, Part::Field));
+            let mut field = s
+                .text_field((key, Part::Field), text.clone())
+                .bare()
+                .role(Role::ComboBox)
+                .classes(tw().grow().min_w_0());
+            if let Some(placeholder) = placeholder {
+                field = field.hint(placeholder);
+            }
+            if let Some(name) = name {
+                field = field.named(name);
+            }
+            if state.focus {
+                Typing {
+                    focus: false,
+                    ..state.clone()
                 }
+                .store(&ctx, key);
+                field = field.focus_now(Select::None);
+            }
+            let (handled, shown) = (ctx.clone(), text.clone());
+            field = field.on_response(move |_, response| {
+                let (escape, down) = response.ctx.input(|input| {
+                    (
+                        input.key_pressed(egui::Key::Escape),
+                        input.key_pressed(egui::Key::ArrowDown),
+                    )
+                });
+                let focused = response.has_focus();
+                if escape && (focused || response.lost_focus()) {
+                    Typing::CLOSED.store(&handled, key);
+                } else if (down && focused && !open) || response.clicked() {
+                    Typing::opened().store(&handled, key);
+                }
+                response.ctx.accesskit_node_builder(response.id, |node| {
+                    node.set_has_popup(egui::accesskit::HasPopup::Listbox);
+                    node.set_expanded(open);
+                    node.set_value(shown.as_str());
+                });
             });
+            let typed = ctx.clone();
+            field.on_change(move |_, text| {
+                Typing {
+                    open: true,
+                    query: Some(text),
+                    focus: false,
+                }
+                .store(&typed, key);
+            });
+            let toggled = ctx.clone();
+            match clearing {
+                Some(clear) => {
+                    let cleared = ctx.clone();
+                    s.div_id((key, Part::Clear), list::end_button_classes(&style), |s| {
+                        s.glyph(list::end_glyph_classes(&style), Icon::new(icons::CLOSE));
+                    })
+                    .role(Role::Button)
+                    .named("Clear")
+                    .on_click(move |app| {
+                        clear(app);
+                        Typing::CLOSED.focusing().store(&cleared, key);
+                    });
+                }
+                None => {
+                    s.div_id(
+                        (key, Part::Chevron),
+                        list::end_button_classes(&style),
+                        |s| {
+                            s.glyph(
+                                list::end_glyph_classes(&style),
+                                Icon::new(icons::CHEVRON_DOWN),
+                            );
+                        },
+                    )
+                    .role(Role::Button)
+                    .named("Show options")
+                    .on_click(move |_| {
+                        let next = if open {
+                            Typing::CLOSED
+                        } else {
+                            Typing::opened()
+                        };
+                        next.focusing().store(&toggled, key);
+                    });
+                }
+            }
         });
-        if popover == Popover::Closed {
+        if !open {
             return;
         }
         let on_change = Rc::new(on_change);
@@ -410,17 +512,14 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 .state(CommandState::Checked(mark))
                 .on_pick(move |app| on_change(app, choice));
         }
-        let close = ctx.clone();
-        let after: Rc<dyn Fn(&mut A)> = Rc::new(move |_| Popover::Closed.store(&close, key));
-        let dismiss = ctx.clone();
-        let style = Arc::clone(b.style());
+        let (close, dismiss) = (ctx.clone(), ctx.clone());
+        let after: Rc<dyn Fn(&mut A)> = Rc::new(move |_| Typing::CLOSED.store(&close, key));
         b.overlay((key, Part::Popover))
-            .anchor(Anchor::Node(trigger_id))
-            .placement(Placement::below().gap(style.menu.offset))
+            .anchor(Anchor::Node(group_id))
+            .placement(Placement::below().gap(list::list_offset()))
             .match_width(MatchWidth::Anchor)
-            .focus(Focus::Enter)
-            .role(Role::Dialog)
-            .on_dismiss(move |_| Popover::Closed.store(&dismiss, key))
+            .focus(Focus::Stay)
+            .on_dismiss(move |_| Typing::CLOSED.store(&dismiss, key))
             .children(|s| {
                 s.div_id(Part::Box, list::popover_classes(&style), |s| {
                     list::show(
@@ -428,7 +527,14 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                         key,
                         items,
                         options,
-                        list::ListOptions::palette(Some(after)),
+                        ListOptions {
+                            first: First::Highlighted,
+                            after: Some(after),
+                            field: list::Field::Theirs {
+                                id: field_id,
+                                text: state.query.unwrap_or_default(),
+                            },
+                        },
                     );
                 });
             });

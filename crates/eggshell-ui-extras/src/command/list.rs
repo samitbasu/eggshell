@@ -207,6 +207,7 @@ impl<A> ListOptions<A> {
 
 #[derive(Clone, Copy, Debug, Hash)]
 enum Part {
+    Wrapper,
     Search,
     Query,
     Results,
@@ -312,40 +313,63 @@ pub(crate) fn popover_classes(style: &Style) -> Tw {
         .overflow_hidden()
 }
 
-/// The classes of a combobox's trigger: the select's.
-pub(crate) fn trigger_classes(style: &Style) -> Tw {
+/// The gap between a combobox's field and its list: shadcn's `sideOffset 6`.
+pub(crate) fn list_offset() -> eggshell_ui::overlay::Distance {
+    eggshell_ui::overlay::Distance::new(6.0)
+}
+
+/// The classes of a combobox's box, shadcn's input group: the select's box
+/// with the ring while the field inside has focus. The field's own padding
+/// is the box's left, and the end button sits close to its right.
+pub(crate) fn group_classes(style: &Style) -> Tw {
     let select = &style.select;
     let metrics = select.sizes.get(eggshell_ui::contract::Size::DEFAULT);
-    let rest = select.trigger.paint.states.rest;
-    let hover = select.trigger.paint.states.hover;
-    tw().flex()
+    let states = select.trigger.paint.states;
+    let classes = tw()
+        .flex()
         .items_center()
-        .justify_between()
-        .gap(metrics.gap / 4.0)
-        .px(metrics.padding_x / 4.0)
+        .pl(metrics.padding_x / 4.0)
+        .pr(1.0)
         .h_px(metrics.height)
         .rounded_px(f32::from(metrics.radius))
         .border(select.trigger.border_width)
-        .border_color(rest.border)
-        .bg(rest.fill)
-        .text(rest.text)
+        .border_color(states.rest.border)
+        .bg(states.rest.fill)
+        .text(states.rest.text)
         .role(style.role(&select.text).clone())
-        .sense_click()
-        .hover(|p| p.bg(hover.fill))
+        .focus_within(|p| {
+            p.border_color(states.focused.border)
+                .ring(style.focus.width, style.focus.color)
+        });
+    match select.trigger.paint.shadow {
+        Some(shadow) => classes.shadow(shadow),
+        None => classes,
+    }
 }
 
-/// The classes of a combobox trigger's chevron.
-pub(crate) fn chevron_classes(style: &Style) -> Tw {
-    let select = &style.select;
-    tw().size_px(select.chevron).shrink_0().text(
-        select
-            .trigger
-            .paint
-            .states
-            .rest
-            .text
-            .gamma_multiply(f32::from(select.chevron_opacity)),
-    )
+/// The classes of the button at the end of a combobox's box, shadcn's ghost
+/// `icon-xs`: the stepper's button.
+pub(crate) fn end_button_classes(style: &Style) -> Tw {
+    let stepper = &style.stepper;
+    let metrics = stepper.sizes.get(eggshell_ui::contract::Size::DEFAULT);
+    let states = stepper.button.paint.states;
+    tw().flex()
+        .items_center()
+        .justify_center()
+        .size_px(metrics.button_width)
+        .shrink_0()
+        .rounded_px(f32::from(style.menu.item_radius))
+        .bg(states.rest.fill)
+        .sense_click()
+        .focusable_none()
+        .hover(|p| p.bg(states.hover.fill))
+}
+
+/// The classes of the glyph in the end button: muted, `size-4`.
+pub(crate) fn end_glyph_classes(style: &Style) -> Tw {
+    tw().size_px(style.select.chevron)
+        .shrink_0()
+        .text(style.input.icon)
 }
 
 /// The classes of a command dialog's box.
@@ -380,6 +404,7 @@ pub(crate) fn show<'f, A: 'static>(
 ) {
     let style = Arc::clone(b.style());
     let ctx = b.ctx().clone();
+    let command = super::CommandStyle::of(&ctx);
     let (field, query) = match &shape.field {
         Field::Own => (None, Query::get(&ctx, key)),
         Field::Theirs { id, text } => (Some(*id), text.clone()),
@@ -418,10 +443,11 @@ pub(crate) fn show<'f, A: 'static>(
         }
         let text = style.role(&style.menu.text).clone();
         let row_height = style.menu.row_height(&text);
+        let height = list_height(&style, &command, &listing, row_height);
         let mut list = s
             .virtual_list(
                 Part::Results,
-                tw().max_h_px(300.0).p(style.menu.padding / 4.0),
+                tw().h_px(height).p(style.menu.padding / 4.0),
                 rows,
             )
             .nav(ListNav::Listbox)
@@ -442,6 +468,7 @@ pub(crate) fn show<'f, A: 'static>(
         let after = shape.after.clone();
         let rows_of = Rc::clone(&listing);
         let style_of = Arc::clone(&style);
+        let command_of = Arc::clone(&command);
         list.row_name(move |row| {
             labels
                 .entries
@@ -483,10 +510,29 @@ pub(crate) fn show<'f, A: 'static>(
                 });
             }
             if let Some(entry) = rows_of.entries.get(&row) {
-                item(s, &style_of, entry);
+                item(s, &style_of, &command_of, entry);
             }
         });
     });
+}
+
+/// How tall the rows are, up to the style's limit: a scroll container is as
+/// tall as it is told, so the list is told what its rows come to.
+fn list_height<A>(
+    style: &Style,
+    command: &super::CommandStyle,
+    listing: &Listing<A>,
+    row_height: f32,
+) -> f32 {
+    let heading = style
+        .role(&Some(style.menu.shortcut_text.clone()))
+        .line_height;
+    let headings: f32 = (0..listing.rows.len())
+        .filter(|&at| listing.heading(at).is_some())
+        .map(|at| heading + 12.0 + if at == 0 { 0.0 } else { 5.0 })
+        .sum();
+    let rows = listing.rows.len() as f32 * row_height;
+    (rows + headings + 2.0 * style.menu.padding).min(command.list_height)
 }
 
 fn search_field<A: 'static>(
@@ -500,39 +546,55 @@ fn search_field<A: 'static>(
 ) -> Id {
     let menu = &style.menu;
     let rest = menu.popup.paint.states.rest;
+    let tint = style
+        .input
+        .look
+        .paint
+        .states
+        .rest
+        .border
+        .gamma_multiply(0.3);
+    let wrapper = tw().p(1.0).pb(0.0);
     let classes = tw()
         .flex()
         .items_center()
         .gap(2.0)
-        .px(3.0)
-        .h_px(36.0)
-        .border_b(menu.popup.border_width)
-        .border_color(rest.border);
+        .pl(2.0)
+        .pr(2.5)
+        .h_px(32.0)
+        .rounded_px(f32::from(menu.radius) + 2.0)
+        .border(1.0)
+        .border_color(tint)
+        .bg(tint);
     let ctx = s.ctx().clone();
     let mut field = Id::NULL;
-    s.div_id(Part::Search, classes, |s| {
-        field = s.id_of(Part::Query);
-        s.icon(
-            "icon",
-            tw().size_px(16.0).shrink_0().text(menu.shortcut),
-            Icon::new(icons::SEARCH),
-        );
-        let mut chain = s
-            .text_field(Part::Query, query)
-            .bare()
-            .role(Role::ComboBox)
-            .classes(tw().grow().min_w_0());
-        if let Some(placeholder) = placeholder {
-            chain = chain.hint(placeholder);
-        }
-        if let Some(name) = name {
-            chain = chain.named(name);
-        }
-        chain.on_change(move |app, query| {
-            if let Some(on_query) = &on_query {
-                on_query(app, &query);
+    s.div_id(Part::Wrapper, wrapper, |s| {
+        s.div_id(Part::Search, classes, |s| {
+            field = s.id_of(Part::Query);
+            s.icon(
+                "icon",
+                tw().size_px(16.0)
+                    .shrink_0()
+                    .text(rest.text.gamma_multiply(0.5)),
+                Icon::new(icons::SEARCH),
+            );
+            let mut chain = s
+                .text_field(Part::Query, query)
+                .bare()
+                .role(Role::ComboBox)
+                .classes(tw().grow().min_w_0());
+            if let Some(placeholder) = placeholder {
+                chain = chain.hint(placeholder);
             }
-            Query::set(&ctx, list, query);
+            if let Some(name) = name {
+                chain = chain.named(name);
+            }
+            chain.on_change(move |app, query| {
+                if let Some(on_query) = &on_query {
+                    on_query(app, &query);
+                }
+                Query::set(&ctx, list, query);
+            });
         });
     });
     field
@@ -547,9 +609,9 @@ fn heading_classes(style: &Style, at: usize) -> Tw {
     let classes = tw()
         .px(menu.item_padding.x / 4.0)
         .py(1.5)
-        .role(style.role(&menu.text).clone())
+        .role(style.role(&Some(menu.shortcut_text.clone())).clone())
         .font_weight(menu.heading_weight)
-        .text(menu.heading);
+        .text(menu.shortcut);
     if at == 0 {
         classes
     } else {
@@ -557,7 +619,12 @@ fn heading_classes(style: &Style, at: usize) -> Tw {
     }
 }
 
-fn item<A: 'static>(s: &mut Scope<'_, '_, A>, style: &Style, entry: &Entry<A>) {
+fn item<A: 'static>(
+    s: &mut Scope<'_, '_, A>,
+    style: &Style,
+    command: &super::CommandStyle,
+    entry: &Entry<A>,
+) {
     let menu = &style.menu;
     let text = style.role(&menu.text);
     let states = menu.item.paint.states;
@@ -572,26 +639,20 @@ fn item<A: 'static>(s: &mut Scope<'_, '_, A>, style: &Style, entry: &Entry<A>) {
     let classes = match entry.enablement {
         Enablement::Disabled => base.text(states.disabled.text),
         Enablement::Enabled => {
-            let hover = states.hover;
+            let (fill, text) = (command.selected_fill, command.selected_text);
             base.bg(states.rest.fill)
                 .text(states.rest.text)
-                .group_hover(|p| p.bg(hover.fill).text(hover.text))
+                .group_hover(|p| p.bg(fill).text(text))
         }
     };
     let side = menu.indicator;
     s.div(classes, |s| {
-        match entry.state {
-            CommandState::Plain => {}
-            CommandState::Checked(Mark::On) | CommandState::Chosen(Mark::On) => {
-                s.glyph(tw().size_px(side).shrink_0(), Icon::new(icons::CHECK));
-            }
-            CommandState::Checked(Mark::Off) | CommandState::Chosen(Mark::Off) => {
-                s.div(tw().size_px(side).shrink_0(), |_| {});
-            }
-        }
         s.div(tw().grow().min_w_0(), |s| s.text(tw(), entry.label.clone()));
         if let Some(shortcut) = &entry.shortcut {
             s.text(tw().text(menu.shortcut).ml_auto(), shortcut.clone());
+        }
+        if let CommandState::Checked(Mark::On) | CommandState::Chosen(Mark::On) = entry.state {
+            s.glyph(tw().size_px(side).shrink_0(), Icon::new(icons::CHECK));
         }
     });
 }

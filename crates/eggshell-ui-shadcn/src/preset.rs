@@ -853,6 +853,7 @@ impl Shadcn {
             self.markdown().install_for(ctx, self.theme);
             self.badge(&style).install_for(ctx, self.theme);
             self.hover_card().install_for(ctx, self.theme);
+            self.command(&style).install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
     }
@@ -961,6 +962,17 @@ impl Shadcn {
         badge.remove.glyph = 12.0;
         badge.remove.padding_end = 6.0;
         badge
+    }
+
+    /// TODO(prose): the look of a command list's rows: shadcn's
+    /// `CommandItem`, `data-selected:bg-muted data-selected:text-foreground`,
+    /// and its list `max-h-72`.
+    #[cfg(feature = "extras")]
+    pub fn command(&self, style: &contract::Style) -> eggshell_ui_extras::command::CommandStyle {
+        let mut command = eggshell_ui_extras::command::CommandStyle::from_style(style);
+        command.selected_fill = self.tokens.muted;
+        command.selected_text = self.tokens.foreground;
+        command
     }
 
     /// TODO(prose): the hover card's look: shadcn's `HoverCardContent`
