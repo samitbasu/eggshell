@@ -124,14 +124,28 @@ struct PopOut {
     pane: Option<Id>,
 }
 
+/// How a harness shows its pop-outs, from its first frame on.
+#[derive(Clone, Copy)]
+enum Windows {
+    /// As native windows.
+    Native,
+    /// Embedded in the page, kittest's default.
+    Embedded,
+}
+
 /// A page whose only content is popped out into a window of `WINDOW`,
-/// filled with `FILL`.
-fn popped_out(scale: Scale) -> Harness<'static, PopOut> {
+/// filled with `FILL`. The presentation is set from the first frame, which
+/// kittest runs as it builds the harness: a window first drawn embedded is
+/// an `egui::Window`, whose title bar can widen its content, and a native
+/// window then opens at the size the window was last shown at.
+fn popped_out(scale: Scale, windows: Windows) -> Harness<'static, PopOut> {
     screenshot::builder(scale, Theme::Light)
         .expect("lavapipe is installed")
         .with_size(vec2(200.0, 150.0))
         .build_ui_state(
-            |ui, scene: &mut PopOut| {
+            move |ui, scene: &mut PopOut| {
+                ui.ctx()
+                    .set_embed_viewports(matches!(windows, Windows::Embedded));
                 let page = ui.max_rect();
                 let pane = &mut scene.pane;
                 scene
@@ -157,15 +171,11 @@ fn popped_out(scale: Scale) -> Harness<'static, PopOut> {
 #[test]
 fn screenshot_of_a_pop_out_is_its_native_window_at_both_scales() {
     for scale in Scale::ALL {
-        let mut harness = popped_out(scale);
+        let mut harness = popped_out(scale, Windows::Native);
         eggshell_ui::testing::record(&harness.ctx);
-        harness.ctx.set_embed_viewports(false);
         harness.run();
         let window = crate::support::layout_rect(&harness.ctx, "/\"pane\"").size();
-        assert!(
-            window.x >= WINDOW.x && window.y >= WINDOW.y,
-            "precondition: the window holds its content: {window:?}"
-        );
+        assert_eq!(window, WINDOW, "the window is its content's size");
         let page = screenshot::render(&mut harness).expect("renders");
         assert!(
             !page.pixels().any(|pixel| pixel.0 == FILL.to_array()),
@@ -196,7 +206,7 @@ fn screenshot_of_a_pop_out_is_its_native_window_at_both_scales() {
 
 #[test]
 fn screenshot_of_pop_outs_needs_native_windows() {
-    let mut harness = popped_out(Scale::X1);
+    let mut harness = popped_out(Scale::X1, Windows::Embedded);
     harness.run();
     assert!(
         harness.ctx.embed_viewports(),
