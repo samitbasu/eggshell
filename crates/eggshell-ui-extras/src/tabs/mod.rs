@@ -225,10 +225,6 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
                         let classes = style
                             .segmented_cell(&ctx, size, rows, cell, own)
                             .sense_click();
-                        let classes = match own {
-                            Enablement::Enabled => classes,
-                            Enablement::Disabled => classes.inert(),
-                        };
                         let icon = style.segmented_icon(&ctx, size);
                         let tab = match &option.icon {
                             None => b.span(Part::Tab(index), classes, option.label.clone()),

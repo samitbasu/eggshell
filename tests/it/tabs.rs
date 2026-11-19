@@ -44,6 +44,8 @@ enum Activation {
 struct App {
     page: Page,
     activation: Activation,
+    /// The whole control's enablement.
+    enablement: Enablement,
     disabled: Option<Page>,
     changes: Vec<Page>,
     /// Each page whose panel was built, a frame at a time.
@@ -56,6 +58,7 @@ impl App {
         Self {
             page,
             activation: Activation::OnFocus,
+            enablement: Enablement::Enabled,
             disabled: None,
             changes: Vec::new(),
             built: RefCell::new(Vec::new()),
@@ -89,7 +92,10 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 Enablement::Enabled
             })
         });
-        let tabs = b.tabs("lang", app.page, options).named("Language");
+        let tabs = b
+            .tabs("lang", app.page, options)
+            .named("Language")
+            .enablement(app.enablement);
         let tabs = match app.activation {
             Activation::OnFocus => tabs,
             Activation::OnEnter => tabs.activate_on_enter(),
@@ -205,6 +211,22 @@ mod pointer {
         let nodes = &harness.state().nodes;
         assert!(nodes.iter().any(|(path, _)| *path == panel(2)));
         assert!(!nodes.iter().any(|(path, _)| *path == panel(0)));
+    }
+
+    #[test]
+    fn disabled_tabs_take_no_click() {
+        let mut harness = harness(App {
+            enablement: Enablement::Disabled,
+            ..App::new(Page::Rust)
+        });
+        click_node(&mut harness, &tab(2));
+        harness.run_steps(4);
+        assert!(harness.state().app.changes.is_empty());
+        assert_eq!(
+            harness.get_all_by_role(Role::TabPanel).count(),
+            1,
+            "the selected panel still shows"
+        );
     }
 
     #[test]
