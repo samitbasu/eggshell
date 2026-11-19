@@ -80,6 +80,17 @@ pub(crate) struct Tooltip {
     content: Content,
     /// `None` where nothing reads it.
     description: Option<String>,
+    press: Press,
+}
+
+/// What a press on a tooltip's trigger does to it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Press {
+    /// Closes it, as any press does.
+    Closes,
+    /// Shows it at once and keeps it until the next press elsewhere: a
+    /// refused control's reason, which a touch screen reaches no other way.
+    Shows,
 }
 
 impl Tooltip {
@@ -100,6 +111,7 @@ impl Tooltip {
                     description: accesskit_is_on(b.ctx())
                         .then(|| b.text_of(trigger, |b| content.build(b))),
                     content,
+                    press: Press::Closes,
                 }
             }
         }
@@ -110,6 +122,16 @@ impl Tooltip {
         Self {
             description: Some(text.text().to_owned()),
             content: Content::Text(text),
+            press: Press::Closes,
+        }
+    }
+
+    /// The reason a control is refused: a tooltip that a press on the
+    /// control shows.
+    pub(crate) fn refusal(reason: WidgetText) -> Self {
+        Self {
+            press: Press::Shows,
+            ..Self::text(reason)
         }
     }
 }
@@ -127,6 +149,8 @@ pub(crate) enum Cause {
     Pointer,
     /// It has keyboard focus; the tooltip is shown at once.
     Focus,
+    /// It was pressed, and its tooltip shows on a press.
+    Pressed,
 }
 
 /// A trigger drawn this frame that wants its tooltip.
@@ -198,6 +222,9 @@ pub(crate) struct Tooltips {
     present: Vec<Present>,
     waiting: Option<Waiting>,
     latched: Option<Id>,
+    /// The trigger whose tooltip a press opened, kept open until the next
+    /// interruption.
+    pinned: Option<Id>,
     restored: Option<Restored>,
     closed_at: Option<Duration>,
     /// Where the trigger last opened is.
@@ -319,6 +346,24 @@ impl Tooltips {
         wanted: Option<&Trigger>,
         interruption: Option<Interruption>,
     ) -> Option<Duration> {
+        if let Some(trigger) = wanted.filter(|trigger| trigger.cause == Cause::Pressed) {
+            self.pinned = Some(trigger.id);
+            self.latched = None;
+            self.waiting = None;
+            self.open(trigger, now);
+            return None;
+        }
+        if let Some(pinned) = self.pinned {
+            let open = self
+                .present
+                .iter()
+                .any(|present| present.open && present.trigger == pinned);
+            if interruption.is_none() && open {
+                self.waiting = None;
+                return None;
+            }
+            self.pinned = None;
+        }
         if interruption.is_some() {
             self.latched = wanted.map(|trigger| trigger.id);
             self.waiting = None;
@@ -354,7 +399,7 @@ impl Tooltips {
             }
         };
         let delay = match trigger.cause {
-            Cause::Focus => Duration::ZERO,
+            Cause::Focus | Cause::Pressed => Duration::ZERO,
             Cause::Pointer if self.skips_delay(trigger, now, timing.grace) => Duration::ZERO,
             Cause::Pointer => timing.delay,
         };
@@ -380,7 +425,8 @@ pub(crate) fn begin(ctx: &Context, kept: &Handle) {
 pub(crate) fn register(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
     let focus = response.has_focus().then_some(Cause::Focus);
     let pointer = over(ui, response).then_some(Cause::Pointer);
-    request(ui, tip, [focus, pointer], response.rect);
+    let pressed = pressed(ui, response, tip);
+    request(ui, tip, [focus, pointer, pressed], response.rect);
     describes(ui, response, tip);
 }
 
@@ -391,8 +437,17 @@ pub(crate) fn register_whole(ui: &Ui, tip: &Tooltip) {
     let response = ui.node_response();
     let focus = ui.has_focus_within().then_some(Cause::Focus);
     let pointer = over(ui, &response).then_some(Cause::Pointer);
-    request(ui, tip, [focus, pointer], response.rect);
+    let pressed = pressed(ui, &response, tip);
+    request(ui, tip, [focus, pointer, pressed], response.rect);
     describes(ui, &response, tip);
+}
+
+/// [`Cause::Pressed`] when the pointer was pressed on `response`'s widget
+/// this frame and `tip` shows on a press. A disabled widget senses no click,
+/// so the press is read from the pointer.
+fn pressed(ui: &Ui, response: &egui::Response, tip: &Tooltip) -> Option<Cause> {
+    let pressed = ui.input(|input| input.pointer.primary_pressed());
+    (tip.press == Press::Shows && pressed && over(ui, response)).then_some(Cause::Pressed)
 }
 
 /// Whether the pointer is on `response`'s widget, inside its rect: egui also
@@ -417,7 +472,7 @@ pub(crate) fn describes(ui: &Ui, response: &egui::Response, tip: &Tooltip) {
 
 /// Pushes a trigger at `rect` for each of `causes`; focus counts only after
 /// a key.
-fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 2], rect: Rect) {
+fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 3], rect: Rect) {
     let id = crate::draw::node_id_or_report(ui, "a tooltip");
     let style = ui.node_style();
     let wants = |cause| {
@@ -437,7 +492,7 @@ fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 2], rect: Rect) {
     };
     let keyboard = crate::overlay_input::keyboard_was_last(ui.ctx());
     for cause in causes.into_iter().flatten() {
-        if cause == Cause::Pointer || keyboard {
+        if cause != Cause::Focus || keyboard {
             wants(cause);
         }
     }
@@ -446,10 +501,11 @@ fn request(ui: &Ui, tip: &Tooltip, causes: [Option<Cause>; 2], rect: Rect) {
 /// The triggers this frame, resolved: a pointer over a trigger beats focus
 /// on another, and the one drawn last (the deepest) wins.
 fn wanted(triggers: Vec<Trigger>) -> Option<Trigger> {
-    let pointer = triggers
-        .iter()
-        .rfind(|trigger| trigger.cause == Cause::Pointer);
-    pointer.or_else(|| triggers.iter().next_back()).cloned()
+    let of = |cause| triggers.iter().rfind(|trigger| trigger.cause == cause);
+    of(Cause::Pressed)
+        .or_else(|| of(Cause::Pointer))
+        .or_else(|| triggers.iter().next_back())
+        .cloned()
 }
 
 /// What the frame's input says of interruptions, read before the library
