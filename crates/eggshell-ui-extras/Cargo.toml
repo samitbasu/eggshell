@@ -12,6 +12,7 @@ repository = "https://github.com/samitbasu/eggshell"
 markdown = ["dep:pulldown-cmark"]
 hover-card = []
 badge = []
+form = []
 spinner = []
 skeleton = []
 
