@@ -329,3 +329,22 @@ fn painted_text_knows_its_parts() {
     assert!(part.width() < label.rect().width());
     assert_eq!(d.painted().all("Saved 0").len(), 1);
 }
+
+#[test]
+#[should_panic(expected = "is outside the window")]
+fn a_press_outside_the_window_fails() {
+    let mut d = driver();
+    d.click(egui::pos2(-20.0, 10.0));
+}
+
+#[test]
+fn a_held_drag_may_leave_the_window() {
+    let app = App {
+        sidebar: 150.0,
+        ..App::default()
+    };
+    let mut d = Driver::new(app, split).size(vec2(400.0, 300.0)).build();
+    let handle = d.rect(d.path(Part::Page).at(Part::Split)).center();
+    d.drag(handle, egui::pos2(-200.0, handle.y));
+    assert_eq!(d.app().sidebar, 100.0, "the sidebar stops at its least");
+}
