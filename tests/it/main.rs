@@ -90,6 +90,7 @@ mod responsive_example;
 mod screenshot;
 mod scroll;
 mod scroll_keys;
+mod segmented_classes;
 mod select;
 mod selection;
 mod shadow_pixels;
