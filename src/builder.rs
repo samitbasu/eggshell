@@ -2175,6 +2175,16 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
+    /// The node's accessible description, the `aria-description` of the
+    /// web: read after its name, such as a dialog's explanatory sentence.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        let description = description.into();
+        self.edit(|context| {
+            context.description.get_or_insert_default().description = Some(description);
+        });
+        self
+    }
+
     /// Runs `act` when the node is clicked. The node must sense clicks.
     #[track_caller]
     pub fn on_click(self, act: impl FnOnce(&mut A) + 'static) -> Self {

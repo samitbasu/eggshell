@@ -244,6 +244,13 @@ impl<A, State, M> OverlayChain<'_, '_, A, State, M> {
         self
     }
 
+    /// The overlay's accessible description, read after its name: a
+    /// dialog's explanatory sentence.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description.description = Some(description.into());
+        self
+    }
+
     /// What dismisses the overlay. [`DismissOn::Default`] unless set.
     pub fn dismiss_on(mut self, dismiss_on: DismissOn) -> Self {
         self.behavior.dismiss_on = dismiss_on;
@@ -418,6 +425,13 @@ impl<'f, A, M> OverlayChain<'_, 'f, A, Floating, M> {
             },
             body,
         );
+    }
+}
+
+impl<A, M> OverlayChain<'_, '_, A, Modally, M> {
+    /// How the modal is presented: centred, or docked to which side.
+    pub fn presentation(&self) -> Modal {
+        self.state.modal
     }
 }
 

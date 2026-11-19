@@ -418,7 +418,11 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
             edge,
             bars,
             focusable,
-            description: Description { role, name },
+            description: Description {
+                role,
+                name,
+                description: None,
+            },
         };
         b.scroll_with(&slot, classes, options, body)
     }
@@ -665,11 +669,31 @@ pub(crate) struct ScrollOptions {
 pub(crate) struct Description {
     pub(crate) role: Option<Role>,
     pub(crate) name: Option<String>,
+    /// The accessible description, read after the name.
+    pub(crate) description: Option<String>,
 }
 
 impl Description {
     pub(crate) fn is_set(&self) -> bool {
-        self.role.is_some() || self.name.is_some()
+        self.role.is_some() || self.name.is_some() || self.description.is_some()
+    }
+
+    /// Announces `response`'s widget as described, as a `fallback` when no
+    /// role is set.
+    pub(crate) fn announce(
+        &self,
+        response: &egui::Response,
+        enablement: crate::owned::Enablement,
+        fallback: Role,
+    ) {
+        let role = self.role.unwrap_or(fallback);
+        let name = self.name.as_deref().unwrap_or_default();
+        crate::owned::describe(response, enablement, role, None, name);
+        if let Some(description) = &self.description {
+            response.ctx.accesskit_node_builder(response.id, |node| {
+                node.set_description(description.as_str());
+            });
+        }
     }
 }
 

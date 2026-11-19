@@ -612,13 +612,10 @@ impl<A> Walk<'_, A> {
             |ui| {
                 let own = ui.interact(boxes.hit, id, sense);
                 if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
-                    let role = plan.description.role.unwrap_or(Role::ScrollView);
-                    let name = plan.description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
+                    plan.description
+                        .announce(&own, ui.is_enabled().into(), Role::ScrollView);
                 } else if let Some(description) = node.description() {
-                    let role = description.role.unwrap_or(Role::GenericContainer);
-                    let name = description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
+                    description.announce(&own, ui.is_enabled().into(), Role::GenericContainer);
                 }
                 own
             },
@@ -716,9 +713,7 @@ impl<A> Walk<'_, A> {
             |ui| {
                 let response = ui.interact(boxes.border, id, Sense::CLICK | Sense::DRAG);
                 if let Some(description) = described {
-                    let role = description.role.unwrap_or(Role::GenericContainer);
-                    let name = description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&response, ui.is_enabled().into(), role, None, name);
+                    description.announce(&response, ui.is_enabled().into(), Role::GenericContainer);
                 }
                 if modal {
                     ui.ctx()
