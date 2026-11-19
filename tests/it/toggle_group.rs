@@ -270,8 +270,8 @@ fn two_members_with_one_value_in_a_group_are_a_duplicate_path() {
         b.toggle_item(&tools, Tool::Pan, "Pan").add();
         b.toggle_item(&tools, Tool::Pan, "Pan again").add();
     }
-    let d = harness_of(twice);
-    let report = eggshell_ui::testing::assert_reported(d.ctx(), Problem::DuplicateKey);
+    let mut d = harness_of(twice);
+    let report = d.expect_reported(Problem::DuplicateKey);
     assert!(
         report.message.contains("duplicate key path /Tools=Pan"),
         "{}",

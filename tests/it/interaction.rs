@@ -4,7 +4,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::testing::{After, Driver, Reports, assert_reported};
+use eggshell_ui::testing::{After, Driver};
 use eggshell_ui::{Builder, Easing, Opacity, Problem, Progress, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::{ClippedShape, RectShape, Shape};
 use egui::{Color32, Event, FontFamily, Pos2, Rect, pos2, vec2};
@@ -32,7 +32,6 @@ fn harness_stepping<A: 'static>(app: A, view: View<A>, step: Duration) -> Driver
         .step(step)
         .after(After::Frames(0))
         .settle_within(step * 4)
-        .reports(Reports::Unchecked)
         .build()
 }
 
@@ -745,7 +744,7 @@ fn anonymous_hoverable(b: &mut Builder<'_, '_, ()>, _: &()) {
 #[test]
 fn variants_on_an_anonymous_node_are_ignored_and_reported() {
     let mut d = harness((), anonymous_hoverable);
-    let report = assert_reported(d.ctx(), Problem::NeedsIdentity);
+    let report = d.expect_reported(Problem::NeedsIdentity);
     assert!(
         report.message.contains("only identified nodes"),
         "{}",
@@ -812,7 +811,7 @@ fn anonymous_transition(b: &mut Builder<'_, '_, ()>, _: &()) {
 #[test]
 fn a_transition_on_an_anonymous_node_is_dropped_and_reported() {
     let mut d = harness((), anonymous_transition);
-    assert_reported(d.ctx(), Problem::NeedsIdentity);
+    d.expect_reported(Problem::NeedsIdentity);
     hover(&mut d, 80.0, 30.0);
     assert_eq!(
         fill_at(&d, 0.0, 0.0),
@@ -824,7 +823,7 @@ fn a_transition_on_an_anonymous_node_is_dropped_and_reported() {
 #[test]
 fn a_sense_on_anonymous_text_is_dropped_and_reported() {
     let mut d = harness((), |b, _| b.text(tw().sense_click(), "nope"));
-    assert_reported(d.ctx(), Problem::NeedsIdentity);
+    d.expect_reported(Problem::NeedsIdentity);
     hover(&mut d, 5.0, 5.0);
 }
 
@@ -854,7 +853,7 @@ fn unsensing_group(b: &mut Builder<'_, '_, ()>, _: &()) {
 #[test]
 fn a_group_that_senses_nothing_senses_hover_and_is_reported() {
     let mut d = harness((), unsensing_group);
-    assert_reported(d.ctx(), Problem::GroupSensesNothing);
+    d.expect_reported(Problem::GroupSensesNothing);
     hover(&mut d, 80.0, 30.0);
     assert_eq!(fill_at(&d, 0.0, 0.0), Some(LIT));
 }
@@ -875,7 +874,7 @@ fn orphan_group_hover(b: &mut Builder<'_, '_, ()>, _: &()) {
 #[test]
 fn a_group_hover_without_a_group_never_shows_and_is_reported() {
     let mut d = harness((), orphan_group_hover);
-    assert_reported(d.ctx(), Problem::GroupHoverWithoutGroup);
+    d.expect_reported(Problem::GroupHoverWithoutGroup);
     hover(&mut d, 10.0, 10.0);
     assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 }

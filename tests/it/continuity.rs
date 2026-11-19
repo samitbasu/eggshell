@@ -3,7 +3,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::testing::{After, Driver, Reports, Timeline, ViolationKind, record};
+use eggshell_ui::testing::{After, Driver, Timeline, ViolationKind, record};
 use eggshell_ui::{Builder, Opacity, Placed, tw};
 use egui::{Pos2, Rect, Vec2, vec2};
 
@@ -27,7 +27,6 @@ fn rig<A: 'static>(
     .step(step)
     .after(After::Frames(0))
     .settle_within(step * 4)
-    .reports(Reports::Unchecked)
     .build();
     record(d.ctx());
     d
