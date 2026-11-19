@@ -5,13 +5,13 @@
 use std::fmt;
 
 use eggshell_ui::owned::{Choice, Enablement};
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Icon, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Key, Role, Theme, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, click_node, focused_path};
+use crate::support::{self, focused_path};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 enum Dir {
@@ -118,50 +118,50 @@ fn forms(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(view: support::View<App>) -> Harness<'static, Rig<App>> {
+fn harness(view: support::View<App>) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 500.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
-    );
-    harness.ctx.set_theme(Theme::Light);
-    harness.run_steps(12);
-    harness
+    )
+    .build();
+    d.ctx().set_theme(Theme::Light);
+    d.frames(12);
+    d
 }
 
-fn press(harness: &mut Harness<'_, Rig<App>>, key: Key) {
-    harness.key_press(key);
-    harness.run_steps(4);
+fn press(d: &mut Driver<App>, key: Key) {
+    d.press(key).frames(3);
 }
 
-fn tab_to(harness: &mut Harness<'_, Rig<App>>, path: &str) {
+fn tab_to(d: &mut Driver<App>, path: &str) {
     for _ in 0..16 {
-        if focused_path(harness).as_deref() == Some(path) {
+        if focused_path(d).as_deref() == Some(path) {
             return;
         }
-        press(harness, Key::Tab);
+        press(d, Key::Tab);
     }
-    panic!("Tab never reached {path}: {:?}", focused_path(harness));
+    panic!("Tab never reached {path}: {:?}", focused_path(d));
 }
 
 #[test]
 fn every_form_of_option_builds_a_working_control() {
-    let mut harness = harness(forms);
+    let mut d = harness(forms);
     for form in 0..FORMS {
         for label in ["Alpha", "Beta", "Gamma"] {
             assert!(
-                harness
+                d.harness()
                     .query_all_by_role_and_label(Role::RadioButton, label)
                     .count()
                     >= FORMS,
                 "{label} is a cell of every control"
             );
         }
-        click_node(&mut harness, &format!("/\"f{form}\"/2"));
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.forms[form], Dir::C, "form {form}");
+        d.click(Target::suffix(&format!("/\"f{form}\"/2")));
+        d.frames(3);
+        assert_eq!(d.app().forms[form], Dir::C, "form {form}");
     }
 }
 
@@ -174,46 +174,46 @@ fn a_display_value_and_a_reference_to_one_label_a_radio_group_and_a_select() {
             .named("Pick")
             .on_change(|app: &mut App, dir| app.select = dir);
     }
-    let mut harness = harness(view);
-    click_node(&mut harness, "/\"r\"/Circle(1)");
-    assert_eq!(harness.state().app.radio, Dir::B);
+    let mut d = harness(view);
+    d.click(Target::suffix("/\"r\"/Circle(1)"));
+    assert_eq!(d.app().radio, Dir::B);
     assert!(
-        harness
+        d.harness()
             .query_by_role_and_label(Role::RadioButton, "Gamma")
             .is_some()
     );
-    click_node(&mut harness, "/\"p\"");
-    harness.run_steps(4);
-    let gamma = harness
+    d.click(Target::suffix("/\"p\""));
+    d.frames(4);
+    let gamma = d
+        .harness()
         .get_by_role_and_label(Role::ListBoxOption, "Gamma")
         .rect();
-    support::hover_over(&mut harness, gamma.center());
-    support::press_and_release(&mut harness, gamma.center());
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.select, Dir::C);
+    d.click(gamma.center());
+    d.frames(4);
+    assert_eq!(d.app().select, Dir::C);
 }
 
 #[test]
 fn a_disabled_option_is_announced_disabled_and_the_others_are_not() {
-    let mut harness = harness(disabled_option);
-    let radios = |harness: &Harness<'_, Rig<App>>, label: &str| {
-        harness
+    let mut d = harness(disabled_option);
+    let radios = |d: &Driver<App>, label: &str| {
+        d.harness()
             .get_all_by_role_and_label(Role::RadioButton, label)
             .map(|node| node.accesskit_node().is_disabled())
             .collect::<Vec<_>>()
     };
     for (label, disabled) in [("Alpha", false), ("Beta", true), ("Gamma", false)] {
         assert_eq!(
-            radios(&harness, label),
+            radios(&d, label),
             [disabled, disabled],
             "radio group and segmented cell: {label}"
         );
     }
-    click_node(&mut harness, "/\"p\"");
-    harness.run_steps(4);
+    d.click(Target::suffix("/\"p\""));
+    d.frames(4);
     for (label, disabled) in [("Alpha", false), ("Beta", true), ("Gamma", false)] {
         assert_eq!(
-            harness
+            d.harness()
                 .get_by_role_and_label(Role::ListBoxOption, label)
                 .accesskit_node()
                 .is_disabled(),
@@ -225,41 +225,41 @@ fn a_disabled_option_is_announced_disabled_and_the_others_are_not() {
 
 #[test]
 fn a_disabled_option_cannot_be_chosen_with_the_pointer() {
-    let mut harness = harness(disabled_option);
-    click_node(&mut harness, "/\"r\"/Circle(1)");
-    click_node(&mut harness, "/\"r\"/Label(1)");
-    click_node(&mut harness, "/\"s\"/1");
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.radio, Dir::A);
-    assert_eq!(harness.state().app.segmented, Dir::A);
+    let mut d = harness(disabled_option);
+    d.click(Target::suffix("/\"r\"/Circle(1)"));
+    d.click(Target::suffix("/\"r\"/Label(1)"));
+    d.click(Target::suffix("/\"s\"/1"));
+    d.frames(3);
+    assert_eq!(d.app().radio, Dir::A);
+    assert_eq!(d.app().segmented, Dir::A);
 
-    click_node(&mut harness, "/\"p\"");
-    harness.run_steps(4);
-    let beta = harness
+    d.click(Target::suffix("/\"p\""));
+    d.frames(4);
+    let beta = d
+        .harness()
         .get_by_role_and_label(Role::ListBoxOption, "Beta")
         .rect();
-    support::hover_over(&mut harness, beta.center());
-    support::press_and_release(&mut harness, beta.center());
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.select, Dir::A);
+    d.click(beta.center());
+    d.frames(4);
+    assert_eq!(d.app().select, Dir::A);
 }
 
 #[test]
 fn the_arrow_keys_skip_a_disabled_radio_option_and_tab_skips_a_disabled_cell() {
-    let mut harness = harness(disabled_option);
-    tab_to(&mut harness, "/\"r\"/Circle(0)");
-    press(&mut harness, Key::ArrowDown);
-    assert_eq!(harness.state().app.radio, Dir::C, "Beta is skipped");
-    assert_eq!(focused_path(&harness).as_deref(), Some("/\"r\"/Circle(2)"));
-    press(&mut harness, Key::ArrowDown);
-    assert_eq!(harness.state().app.radio, Dir::A, "and the group wraps");
-    press(&mut harness, Key::ArrowUp);
-    assert_eq!(harness.state().app.radio, Dir::C, "backwards too");
+    let mut d = harness(disabled_option);
+    tab_to(&mut d, "/\"r\"/Circle(0)");
+    press(&mut d, Key::ArrowDown);
+    assert_eq!(d.app().radio, Dir::C, "Beta is skipped");
+    assert_eq!(focused_path(&d).as_deref(), Some("/\"r\"/Circle(2)"));
+    press(&mut d, Key::ArrowDown);
+    assert_eq!(d.app().radio, Dir::A, "and the group wraps");
+    press(&mut d, Key::ArrowUp);
+    assert_eq!(d.app().radio, Dir::C, "backwards too");
 
     let mut visited = Vec::new();
     for _ in 0..8 {
-        press(&mut harness, Key::Tab);
-        visited.extend(focused_path(&harness));
+        press(&mut d, Key::Tab);
+        visited.extend(focused_path(&d));
     }
     assert!(
         visited.iter().any(|path| path == "/\"s\"/0"),
@@ -270,43 +270,39 @@ fn the_arrow_keys_skip_a_disabled_radio_option_and_tab_skips_a_disabled_cell() {
 
 #[test]
 fn the_arrow_keys_skip_a_disabled_select_option() {
-    let mut harness = harness(disabled_option);
-    tab_to(&mut harness, "/\"p\"");
-    press(&mut harness, Key::Space);
-    press(&mut harness, Key::ArrowDown);
-    press(&mut harness, Key::Enter);
-    assert_eq!(harness.state().app.select, Dir::C, "Beta is skipped");
+    let mut d = harness(disabled_option);
+    tab_to(&mut d, "/\"p\"");
+    press(&mut d, Key::Space);
+    press(&mut d, Key::ArrowDown);
+    press(&mut d, Key::Enter);
+    assert_eq!(d.app().select, Dir::C, "Beta is skipped");
 
-    press(&mut harness, Key::Space);
-    press(&mut harness, Key::Home);
-    press(&mut harness, Key::ArrowDown);
-    press(&mut harness, Key::ArrowDown);
-    press(&mut harness, Key::Enter);
-    assert_eq!(
-        harness.state().app.select,
-        Dir::C,
-        "and it is not passed on"
-    );
+    press(&mut d, Key::Space);
+    press(&mut d, Key::Home);
+    press(&mut d, Key::ArrowDown);
+    press(&mut d, Key::ArrowDown);
+    press(&mut d, Key::Enter);
+    assert_eq!(d.app().select, Dir::C, "and it is not passed on");
 }
 
 #[test]
 fn the_select_trigger_shows_the_label_of_the_current_value() {
-    let mut harness = harness(disabled_option);
-    let shown = |harness: &Harness<'_, Rig<App>>| {
-        harness
+    let mut d = harness(disabled_option);
+    let shown = |d: &Driver<App>| {
+        d.harness()
             .get_by_role_and_label(Role::ComboBox, "Pick")
             .accesskit_node()
             .value()
             .map(|value| value.to_string())
     };
-    assert_eq!(shown(&harness).as_deref(), Some("Alpha"));
-    tab_to(&mut harness, "/\"p\"");
-    press(&mut harness, Key::Space);
-    press(&mut harness, Key::ArrowDown);
-    press(&mut harness, Key::Enter);
-    assert_eq!(shown(&harness).as_deref(), Some("Gamma"));
+    assert_eq!(shown(&d).as_deref(), Some("Alpha"));
+    tab_to(&mut d, "/\"p\"");
+    press(&mut d, Key::Space);
+    press(&mut d, Key::ArrowDown);
+    press(&mut d, Key::Enter);
+    assert_eq!(shown(&d).as_deref(), Some("Gamma"));
     assert!(
-        harness
+        d.harness()
             .query_by_role_and_label(Role::ComboBox, "Pick")
             .is_some()
     );

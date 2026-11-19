@@ -2,8 +2,8 @@
 //! their items, and the controls and widgets inside them driven by pointer
 //! and keyboard events.
 
+use eggshell_ui::testing::{Driver, Target};
 use egui::{Rect, Vec2, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
 #[path = "../../examples/common/mod.rs"]
@@ -23,28 +23,18 @@ mod signup_form;
 
 use crate::support;
 
-use support::{Rig, click_node, drag, focused_node, rect_of};
+use support::focused_node;
 
-fn harness<A>(size: Vec2, app: A, view: support::View<A>) -> Harness<'static, Rig<A>> {
-    let mut harness = support::harness(size, common::base_text(egui::Theme::Light), app, view);
-    harness.run_steps(3);
-    harness
+fn harness<A: 'static>(size: Vec2, app: A, view: support::View<A>) -> Driver<A> {
+    let mut d = support::driver(size, common::base_text(egui::Theme::Light), app, view).build();
+    d.frames(3);
+    d
 }
 
-fn type_text<A>(harness: &mut Harness<'_, Rig<A>>, text: &str) {
-    harness.event(egui::Event::Text(text.to_owned()));
-    harness.run_steps(3);
-}
-
-fn painted_text<A>(harness: &Harness<'_, Rig<A>>) -> Vec<String> {
-    harness
-        .output()
-        .shapes
-        .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            egui::epaint::Shape::Text(text) => Some(text.galley.text().to_owned()),
-            _ => None,
-        })
+fn painted_text<A>(d: &Driver<A>) -> Vec<String> {
+    d.painted()
+        .texts()
+        .map(|text| text.text().to_owned())
         .collect()
 }
 
@@ -52,18 +42,18 @@ mod demos {
     use super::*;
     use flex_demos::{ALIGNS, Align, Direction, Part, State};
 
-    fn demos(state: State) -> Harness<'static, Rig<State>> {
+    fn demos(state: State) -> Driver<State> {
         harness(vec2(1280.0, 900.0), state, flex_demos::layout)
     }
 
-    fn rect(harness: &Harness<'_, Rig<State>>, part: Part) -> Rect {
-        rect_of(harness, &format!("/{part:?}"))
+    fn rect(d: &Driver<State>, part: Part) -> Rect {
+        d.rect(Target::suffix(&format!("/{part:?}")))
     }
 
     #[test]
     fn horizontal_items_sit_in_a_row_and_each_aligns_across_it() {
-        let harness = demos(State::default());
-        let [start, center, end, stretch] = ALIGNS.map(|a| rect(&harness, Part::Aligned(a)));
+        let d = demos(State::default());
+        let [start, center, end, stretch] = ALIGNS.map(|a| rect(&d, Part::Aligned(a)));
         assert!(
             start.max.x < center.min.x && center.max.x < end.min.x && end.max.x < stretch.min.x
         );
@@ -81,11 +71,10 @@ mod demos {
 
     #[test]
     fn the_vertical_direction_stacks_them_and_aligns_across_the_width() {
-        let mut harness = demos(State::default());
-        click_node(&mut harness, "/Direction/1");
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.direction, Direction::Vertical);
-        let [start, center, end, stretch] = ALIGNS.map(|a| rect(&harness, Part::Aligned(a)));
+        let mut d = demos(State::default());
+        d.click(Target::suffix("/Direction/1")).frames(3);
+        assert_eq!(d.app().direction, Direction::Vertical);
+        let [start, center, end, stretch] = ALIGNS.map(|a| rect(&d, Part::Aligned(a)));
         assert!(
             start.max.y < center.min.y && center.max.y < end.min.y && end.max.y < stretch.min.y
         );
@@ -99,30 +88,27 @@ mod demos {
 
     #[test]
     fn the_grow_checkbox_makes_the_items_fill_their_container() {
-        let mut harness = demos(State::default());
-        let before = rect(&harness, Part::Aligned(Align::Start)).width();
-        click_node(&mut harness, "/Grow/Box");
-        harness.run_steps(3);
-        assert!(harness.state().app.grow);
-        let after = rect(&harness, Part::Aligned(Align::Start)).width();
+        let mut d = demos(State::default());
+        let before = rect(&d, Part::Aligned(Align::Start)).width();
+        d.click(Target::suffix("/Grow/Box")).frames(3);
+        assert!(d.app().grow);
+        let after = rect(&d, Part::Aligned(Align::Start)).width();
         assert!(after > before + 5.0, "{before} -> {after}");
     }
 
     #[test]
     fn grow_factors_share_the_free_space_in_proportion() {
-        let harness = demos(State::default());
+        let d = demos(State::default());
         let widths: Vec<f32> = (0..4)
             .map(|factor| {
-                let font = common::base_text(egui::Theme::Light)
-                    .spec
-                    .font_id(&harness.ctx);
-                let digit = harness.ctx.fonts_mut(|fonts| {
+                let font = common::base_text(egui::Theme::Light).spec.font_id(d.ctx());
+                let digit = d.ctx().fonts_mut(|fonts| {
                     fonts
                         .layout_no_wrap(factor.to_string(), font, egui::Color32::WHITE)
                         .size()
                         .x
                 });
-                rect(&harness, Part::Growing(factor)).width() - digit
+                rect(&d, Part::Growing(factor)).width() - digit
             })
             .collect();
         let unit = widths[1] - widths[0];
@@ -139,9 +125,9 @@ mod demos {
 
     #[test]
     fn bases_set_the_starting_widths() {
-        let harness = demos(State::default());
+        let d = demos(State::default());
         let widths: Vec<f32> = (0..4)
-            .map(|index| rect(&harness, Part::Based(index)).width())
+            .map(|index| rect(&d, Part::Based(index)).width())
             .collect();
         assert!(
             widths.windows(2).all(|pair| pair[0] < pair[1]),
@@ -152,14 +138,14 @@ mod demos {
 
     #[test]
     fn the_select_moves_the_content_inside_each_item() {
-        let mut harness = demos(State::default());
+        let mut d = demos(State::default());
         let stretch = Part::SelfContent(Align::Stretch);
-        let content = |harness: &Harness<'_, Rig<State>>| {
-            let item = rect(harness, stretch);
-            let text = rect_of(harness, &format!("/{stretch:?}/<text>"));
+        let content = |d: &Driver<State>| {
+            let item = rect(d, stretch);
+            let text = d.rect(Target::suffix(&format!("/{stretch:?}/<text>")));
             (item, text)
         };
-        let (item, text) = content(&harness);
+        let (item, text) = content(&d);
         assert!(
             item.height() > text.height() + 30.0,
             "precondition: room to move"
@@ -169,14 +155,13 @@ mod demos {
             "left top: {item:?} {text:?}"
         );
 
-        click_node(&mut harness, "/Content");
-        harness.run_steps(3);
-        harness.get_by_label("Right bottom").scroll_to_me();
-        harness.run_steps(3);
-        harness.get_by_label("Right bottom").click();
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.anchor, 8);
-        let (item, text) = content(&harness);
+        d.click(Target::suffix("/Content")).frames(3);
+        d.harness().get_by_label("Right bottom").scroll_to_me();
+        d.frames(3);
+        d.harness().get_by_label("Right bottom").click();
+        d.frames(3);
+        assert_eq!(d.app().anchor, 8);
+        let (item, text) = content(&d);
         assert!(item.max.y - text.max.y < 10.0, "bottom: {item:?} {text:?}");
         assert!(item.max.x - text.max.x < 10.0, "right: {item:?} {text:?}");
     }
@@ -186,15 +171,13 @@ mod example {
     use super::*;
     use flex_example::State;
 
-    fn example(width: f32) -> Harness<'static, Rig<State>> {
+    fn example(width: f32) -> Driver<State> {
         harness(vec2(width, 700.0), State::default(), flex_example::layout)
     }
 
     /// The distinct tops of the boxes of the wrapping row.
-    fn lines(harness: &Harness<'_, Rig<State>>) -> Vec<i32> {
-        let mut tops: Vec<i32> = harness
-            .state()
-            .nodes
+    fn lines(d: &Driver<State>) -> Vec<i32> {
+        let mut tops: Vec<i32> = support::nodes(d)
             .iter()
             .filter(|(path, _)| path == "/<div>")
             .map(|(_, rect)| rect.min.y.round() as i32)
@@ -214,11 +197,9 @@ mod example {
 
     #[test]
     fn growing_items_reach_the_end_of_their_line() {
-        let harness = example(900.0);
-        let toggle = rect_of(&harness, "/Toggle");
-        let line: Vec<Rect> = harness
-            .state()
-            .nodes
+        let d = example(900.0);
+        let toggle = d.rect(Target::suffix("/Toggle"));
+        let line: Vec<Rect> = support::nodes(&d)
             .iter()
             .filter(|(path, rect)| path == "/<div>" && (rect.min.y - toggle.min.y).abs() < 1.0)
             .map(|(_, rect)| *rect)
@@ -231,43 +212,32 @@ mod example {
 
     #[test]
     fn the_toggle_button_changes_its_label_and_its_size() {
-        let mut harness = example(900.0);
-        let width = |harness: &Harness<'_, Rig<State>>| rect_of(harness, "/Toggle").width();
-        let before = width(&harness);
-        click_node(&mut harness, "/Toggle");
-        harness.run_steps(3);
-        assert!(harness.state().app.toggle);
-        assert_ne!(width(&harness), before, "the row re-wrapped around it");
+        let mut d = example(900.0);
+        let width = |d: &Driver<State>| d.rect(Target::suffix("/Toggle")).width();
+        let before = width(&d);
+        d.click(Target::suffix("/Toggle")).frames(3);
+        assert!(d.app().toggle);
+        assert_ne!(width(&d), before, "the row re-wrapped around it");
     }
 
     #[test]
     fn the_text_field_edits_and_the_slider_drags() {
-        let mut harness = example(900.0);
-        click_node(&mut harness, "/Text");
-        harness.run_steps(2);
-        type_text(&mut harness, "!!");
-        assert_eq!(harness.state().app.text, "Hello, world!!!");
+        let mut d = example(900.0);
+        d.click(Target::suffix("/Text")).frames(2);
+        d.type_text("!!").frames(2);
+        assert_eq!(d.app().text, "Hello, world!!!");
 
-        let rail = rect_of(&harness, "/Slider/Track");
+        let rail = d.rect(Target::suffix("/Slider/Track"));
         assert!(rail.width() > 60.0, "precondition: a real rail");
-        drag(
-            &mut harness,
-            rail.center(),
-            rail.right_center() + vec2(30.0, 0.0),
-        );
-        assert!(
-            harness.state().app.level > 900.0,
-            "{}",
-            harness.state().app.level
-        );
+        d.drag(rail.center(), rail.right_center() + vec2(30.0, 0.0));
+        assert!(d.app().level > 900.0, "{}", d.app().level);
     }
 
     #[test]
     fn a_checkbox_toggles() {
-        let mut harness = example(900.0);
-        click_node(&mut harness, "/Checkbox/Box");
-        harness.run_steps(2);
-        assert!(harness.state().app.checked);
+        let mut d = example(900.0);
+        d.click(Target::suffix("/Checkbox/Box")).frames(2);
+        assert!(d.app().checked);
     }
 }
 
@@ -275,14 +245,14 @@ mod signup {
     use super::*;
     use signup_form::{Part, Progress, State};
 
-    fn signup(width: f32) -> Harness<'static, Rig<State>> {
+    fn signup(width: f32) -> Driver<State> {
         harness(vec2(width, 900.0), State::default(), signup_form::layout)
     }
 
-    fn fill<A>(harness: &mut Harness<'_, Rig<A>>, part: Part, text: &str) {
-        click_node(harness, &format!("/Form/{part:?}"));
-        harness.run_steps(2);
-        type_text(harness, text);
+    fn fill<A>(d: &mut Driver<A>, part: Part, text: &str) {
+        d.click(Target::suffix(&format!("/Form/{part:?}")))
+            .frames(2);
+        d.type_text(text).frames(2);
     }
 
     /// Every field, required or not.
@@ -293,60 +263,53 @@ mod signup {
     }
 
     /// How far down the form the Submit button is.
-    fn height(harness: &Harness<'_, Rig<State>>) -> f32 {
-        rect_of(harness, "/Form/Submit").min.y
+    fn height(d: &Driver<State>) -> f32 {
+        d.rect(Target::suffix("/Form/Submit")).min.y
     }
 
-    fn fill_validly(harness: &mut Harness<'_, Rig<State>>) {
-        fill(harness, Part::FirstName, "Ada");
-        fill(harness, Part::LastName, "Lovelace");
-        fill(harness, Part::Email, "ada@example.com");
-        fill(harness, Part::Password, "Sup3r-secret");
-        fill(harness, Part::Repeat, "Sup3r-secret");
-        click_node(harness, "/Form/Terms/Box");
-        harness.run_steps(2);
-        click_node(harness, "/Form/Age/Box/Field");
-        harness.run_steps(2);
-        type_text(harness, "30");
-        harness.key_press(egui::Key::Enter);
-        harness.run_steps(2);
+    fn fill_validly(d: &mut Driver<State>) {
+        fill(d, Part::FirstName, "Ada");
+        fill(d, Part::LastName, "Lovelace");
+        fill(d, Part::Email, "ada@example.com");
+        fill(d, Part::Password, "Sup3r-secret");
+        fill(d, Part::Repeat, "Sup3r-secret");
+        d.click(Target::suffix("/Form/Terms/Box")).frames(2);
+        d.click(Target::suffix("/Form/Age/Box/Field")).frames(2);
+        d.type_text("30").frames(2);
+        d.press(egui::Key::Enter).frames(1);
     }
 
     #[test]
     fn errors_show_for_a_field_once_it_has_been_changed_without_moving_the_layout() {
-        let mut harness = signup(640.0);
+        let mut d = signup(640.0);
         for part in all_parts() {
-            assert_eq!(harness.state().app.visible_error(part), None, "{part:?}");
+            assert_eq!(d.app().visible_error(part), None, "{part:?}");
         }
-        let resting = height(&harness);
-        let password = rect_of(&harness, "/Form/Password").min.y;
+        let resting = height(&d);
+        let password = d.rect(Target::suffix("/Form/Password")).min.y;
 
-        fill(&mut harness, Part::Email, "x");
+        fill(&mut d, Part::Email, "x");
+        assert_eq!(d.app().visible_error(Part::Email), Some("Invalid email"));
+        assert_eq!(d.app().visible_error(Part::FirstName), None);
         assert_eq!(
-            harness.state().app.visible_error(Part::Email),
-            Some("Invalid email")
-        );
-        assert_eq!(harness.state().app.visible_error(Part::FirstName), None);
-        assert_eq!(
-            rect_of(&harness, "/Form/Password").min.y,
+            d.rect(Target::suffix("/Form/Password")).min.y,
             password,
             "a one-line error fills the line reserved for it, so the rows below stay put"
         );
-        assert_eq!(height(&harness), resting);
+        assert_eq!(height(&d), resting);
 
-        type_text(&mut harness, "@example.com");
-        assert_eq!(harness.state().app.visible_error(Part::Email), None);
-        assert_eq!(height(&harness), resting, "and clearing it changes nothing");
+        d.type_text("@example.com").frames(2);
+        assert_eq!(d.app().visible_error(Part::Email), None);
+        assert_eq!(height(&d), resting, "and clearing it changes nothing");
     }
 
     #[test]
     fn submitting_something_invalid_shows_every_error() {
-        let mut harness = signup(640.0);
-        click_node(&mut harness, "/Form/Submit");
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.progress, Progress::Rejected);
+        let mut d = signup(640.0);
+        d.click(Target::suffix("/Form/Submit")).frames(3);
+        assert_eq!(d.app().progress, Progress::Rejected);
         for part in all_parts() {
-            let shown = harness.state().app.visible_error(part);
+            let shown = d.app().visible_error(part);
             let required = signup_form::Fields::REQUIRED.contains(&part);
             assert_eq!(shown.is_some(), required, "{part:?}");
         }
@@ -354,51 +317,45 @@ mod signup {
 
     #[test]
     fn mismatched_passwords_are_reported() {
-        let mut harness = signup(640.0);
-        fill(&mut harness, Part::Password, "Sup3r-secret");
-        fill(&mut harness, Part::Repeat, "Sup3r-secreT");
+        let mut d = signup(640.0);
+        fill(&mut d, Part::Password, "Sup3r-secret");
+        fill(&mut d, Part::Repeat, "Sup3r-secreT");
         assert_eq!(
-            harness.state().app.visible_error(Part::Repeat),
+            d.app().visible_error(Part::Repeat),
             Some("Passwords do not match")
         );
-        assert_eq!(harness.state().app.visible_error(Part::Password), None);
+        assert_eq!(d.app().visible_error(Part::Password), None);
     }
 
     #[test]
     fn passwords_are_painted_as_dots() {
-        let mut harness = signup(640.0);
-        fill(&mut harness, Part::Password, "Sup3r-secret");
-        let painted = painted_text(&harness).concat();
+        let mut d = signup(640.0);
+        fill(&mut d, Part::Password, "Sup3r-secret");
+        let painted = painted_text(&d).concat();
         assert!(!painted.contains("Sup3r"), "{painted:?}");
         assert!(painted.contains('•'));
     }
 
     #[test]
     fn a_valid_form_submits_and_resets() {
-        let mut harness = signup(640.0);
-        fill_validly(&mut harness);
-        assert!(
-            harness.state().app.fields.is_valid(),
-            "{:?}",
-            harness.state().app.fields
-        );
-        assert!(harness.state().app.fields.age >= 18.0, "dragged an age");
+        let mut d = signup(640.0);
+        fill_validly(&mut d);
+        assert!(d.app().fields.is_valid(), "{:?}", d.app().fields);
+        assert!(d.app().fields.age >= 18.0, "dragged an age");
 
-        click_node(&mut harness, "/Form/Submit");
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.progress, Progress::Submitted);
-        click_node(&mut harness, "/Thanks/Reset");
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.progress, Progress::Editing);
-        assert!(harness.state().app.fields.first_name.is_empty());
+        d.click(Target::suffix("/Form/Submit")).frames(3);
+        assert_eq!(d.app().progress, Progress::Submitted);
+        d.click(Target::suffix("/Thanks/Reset")).frames(3);
+        assert_eq!(d.app().progress, Progress::Editing);
+        assert!(d.app().fields.first_name.is_empty());
     }
 
     #[test]
     fn the_age_shows_whole_numbers() {
-        let mut harness = signup(640.0);
-        harness.state_mut().app.fields.age = 42.7;
-        harness.run_steps(3);
-        let painted = painted_text(&harness);
+        let mut d = signup(640.0);
+        d.app_mut().fields.age = 42.7;
+        d.frames(3);
+        let painted = painted_text(&d);
         assert!(painted.iter().any(|text| text == "43"), "{painted:?}");
     }
 
@@ -406,29 +363,28 @@ mod signup {
     fn the_name_columns_stack_when_the_window_is_narrow() {
         let wide = signup(900.0);
         let (first, last) = (
-            rect_of(&wide, "/Form/FirstName"),
-            rect_of(&wide, "/Form/LastName"),
+            wide.rect(Target::suffix("/Form/FirstName")),
+            wide.rect(Target::suffix("/Form/LastName")),
         );
         assert_eq!(first.min.y, last.min.y, "side by side: {first:?} {last:?}");
         assert!(first.max.x < last.min.x);
 
         let narrow = signup(360.0);
         let (first, last) = (
-            rect_of(&narrow, "/Form/FirstName"),
-            rect_of(&narrow, "/Form/LastName"),
+            narrow.rect(Target::suffix("/Form/FirstName")),
+            narrow.rect(Target::suffix("/Form/LastName")),
         );
         assert!(last.min.y > first.max.y, "stacked: {first:?} {last:?}");
     }
 
     #[test]
     fn tab_walks_the_form_in_order() {
-        let mut harness = signup(640.0);
+        let mut d = signup(640.0);
         let mut order = Vec::new();
-        support::past_bar(&mut harness);
+        support::drive_past_bar(&mut d);
         for _ in 0..12 {
-            harness.key_press(egui::Key::Tab);
-            harness.run_steps(2);
-            let Some(stop) = focused_node(&harness) else {
+            d.press(egui::Key::Tab).frames(1);
+            let Some(stop) = focused_node(&d) else {
                 break;
             };
             order.push(stop);
