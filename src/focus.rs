@@ -15,6 +15,7 @@ use egui::{Context, Id, LayerId, SurrenderFocusOn};
 
 use crate::dismiss::FocusAt;
 use crate::kept::Handle;
+use crate::pipeline::OpenFocus;
 use crate::shell::Shell;
 use crate::stack::Open;
 
@@ -46,13 +47,18 @@ pub(crate) fn holds_focus(ctx: &Context, id: Id) -> bool {
     ctx.input(|input| input.focused) && ctx.memory(|memory| memory.has_focus(id))
 }
 
-/// Whether a field takes focus when it appears, and what it then selects.
+/// When a control asks for focus, and what a field then selects.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Autofocus {
     #[default]
     Never,
     OnAppear(Select),
     OnChange(Token, Select),
+    /// As the overlay it is in opens: the node is marked, and the overlay
+    /// gives it focus.
+    OnOverlayOpen,
+    /// On every frame it is set.
+    Now(Select),
 }
 
 /// TODO(prose): what a field selects when the application focuses it.
@@ -80,12 +86,26 @@ impl Token {
 }
 
 impl Autofocus {
+    /// Whether the node holding the control's widget is the one its overlay
+    /// opens on.
+    pub(crate) fn open_focus(self) -> OpenFocus {
+        if self == Self::OnOverlayOpen {
+            OpenFocus::Here
+        } else {
+            OpenFocus::Elsewhere
+        }
+    }
+
     /// Requests focus for `response`'s widget if this is the first frame it
-    /// is drawn after a frame in which it was not, or ever, or if its token
-    /// changed. Returns what to select when it did.
+    /// is drawn after a frame in which it was not, or ever, if its token
+    /// changed, or if it asks now. Returns what to select when it did.
     pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) -> Option<Select> {
         let (token, select) = match self {
-            Self::Never => return None,
+            Self::Never | Self::OnOverlayOpen => return None,
+            Self::Now(select) => {
+                response.request_focus();
+                return Some(select);
+            }
             Self::OnAppear(select) => (None, select),
             Self::OnChange(token, select) => (Some(token), select),
         };
@@ -310,7 +330,8 @@ pub(crate) fn restore(ctx: &Context, kept: &Handle, closed: &[Open]) {
             if ctx.memory(|memory| memory.is_above_modal_layer(response.layer_id)) {
                 ctx.memory_mut(|memory| memory.request_focus(target));
                 kept.viewport(ctx.viewport_id(), |here| {
-                    here.tooltips.focus_restored(target)
+                    here.tooltips.focus_restored(target);
+                    here.hover_cards.intent.focus_restored(target);
                 });
             } else {
                 returning.0.push(target);

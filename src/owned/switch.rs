@@ -14,6 +14,7 @@ use super::{
 };
 use crate::builder::Slot;
 use crate::contract::Size;
+use crate::focus::{Autofocus, Select};
 use crate::transition;
 use crate::{Builder, Easing, Progress, Tw, tw};
 
@@ -47,6 +48,7 @@ pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
     classes: Tw,
     enablement: Enablement,
     on_response: OnResponse<A>,
+    autofocus: Autofocus,
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T> {
@@ -69,6 +71,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             classes: tw(),
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
+            autofocus: Autofocus::Never,
         }
     }
 
@@ -87,6 +90,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             classes: self.classes,
             enablement: self.enablement,
             on_response: self.on_response,
+            autofocus: self.autofocus,
         }
     }
 }
@@ -154,6 +158,19 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
         self
     }
 
+    /// TODO(prose): takes focus as the overlay it is in opens, as
+    /// [`NodeHandle::focus_on_open`](crate::NodeHandle::focus_on_open) does.
+    pub fn focus_on_open(mut self) -> Self {
+        self.autofocus = Autofocus::OnOverlayOpen;
+        self
+    }
+
+    /// TODO(prose): takes focus on every frame this is set.
+    pub fn focus_now(mut self) -> Self {
+        self.autofocus = Autofocus::Now(Select::None);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -199,6 +216,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             classes: caller,
             enablement,
             on_response,
+            autofocus,
         } = self;
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let (mark, toggled) = flip([off, on_value], current);
@@ -269,8 +287,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                         );
                     });
                 })
+                .open_focus(autofocus.open_focus())
                 .draw(move |app, ui| {
                     let response = described(ui, Role::Switch, Some(mark), &name, &tooltip);
+                    autofocus.apply(ui.ctx(), &response);
                     if response.clicked() {
                         on_press(app);
                     }

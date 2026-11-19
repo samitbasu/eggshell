@@ -64,6 +64,16 @@ fn announce(response: &Response, name: Option<&str>) {
     }
 }
 
+/// Tells assistive technology the widget is a `role`, over the one egui's
+/// widget gave it.
+fn announce_role(response: &Response, role: Option<egui::Role>) {
+    if let Some(role) = role {
+        response
+            .ctx
+            .accesskit_node_builder(response.id, |node| node.set_role(role));
+    }
+}
+
 fn place(ui: &mut Ui, widget: impl egui::Widget) -> Response {
     ui.put(ui.max_rect(), widget)
 }
@@ -115,6 +125,7 @@ pub struct TextEdit {
     masked: bool,
     framing: Framing,
     name: Option<String>,
+    role: Option<egui::Role>,
     size: ControlSize,
     enter: Enter,
 }
@@ -134,6 +145,7 @@ impl TextEdit {
             masked: false,
             framing: Framing::Framed,
             name: None,
+            role: None,
             size: ControlSize::DEFAULT,
             enter: Enter::Submit,
         }
@@ -148,6 +160,7 @@ impl TextEdit {
             masked: false,
             framing: Framing::Framed,
             name: None,
+            role: None,
             size: ControlSize::DEFAULT,
             enter: Enter::Submit,
         }
@@ -197,6 +210,12 @@ impl TextEdit {
     /// The accessible name, the equivalent of `aria-label`.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// TODO(prose): the role assistive technology sees, `Role::TextInput` unless set.
+    pub fn role(mut self, role: egui::Role) -> Self {
+        self.role = Some(role);
         self
     }
 
@@ -330,6 +349,7 @@ impl TextEdit {
             _ => place(ui, edit),
         };
         announce(&response, self.name.as_deref());
+        announce_role(&response, self.role);
         if self.lines != Lines::Single
             && response.has_focus()
             && let Some(shell) = crate::shell::shell_or_report(ui, "multiline text-field focus")
