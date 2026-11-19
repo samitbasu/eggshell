@@ -338,6 +338,19 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// The same builder, borrowed for the life of a chain.
+    /// How many children this builder has added.
+    pub(crate) fn added(&self) -> usize {
+        self.kids.len()
+    }
+
+    /// Moves the child added last to `at` among its siblings, so that it is
+    /// painted and hit-tested before those added from `at` on.
+    pub(crate) fn move_last_to(&mut self, at: usize) {
+        if let Some(last) = self.kids.pop() {
+            self.kids.insert(at.min(self.kids.len()), last);
+        }
+    }
+
     pub(crate) fn reborrow(&mut self) -> Builder<'_, 'f, A> {
         Builder::new(
             self.st,
@@ -2098,6 +2111,13 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// [`named`](Self::named).
     pub fn role(mut self, role: egui::Role) -> Self {
         self.edit(|context| context.description.get_or_insert_default().role = Some(role));
+        self
+    }
+
+    /// Puts the node inside `parent` for assistive technology: a table's row
+    /// inside the table, or inside its row group.
+    pub(crate) fn accessibility_parent(mut self, parent: Id) -> Self {
+        self.edit(|context| context.description.get_or_insert_default().parent = Some(parent));
         self
     }
 

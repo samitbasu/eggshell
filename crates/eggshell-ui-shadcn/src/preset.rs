@@ -769,7 +769,14 @@ impl Shadcn {
         style.table.cell_padding = 8.0;
         style.table.rule = t.border;
         style.table.rule_width = 1.0;
-        style.table.stripe = clear;
+        style.table.stripe = t.muted.gamma_multiply(0.3);
+        style.table.group_fill = t.muted.gamma_multiply(0.5);
+        style.table.group_text = Some(t.muted_foreground);
+        style.table.group_text_size = Some(TextSize {
+            size: 12.0,
+            line_height: 16.0,
+        });
+        style.table.group_weight = Weight::Medium;
         style.table.hover = t.muted.gamma_multiply(0.5);
         style.table.selected = t.muted;
         style.table.footer_fill = t.muted.gamma_multiply(0.5);
@@ -778,6 +785,7 @@ impl Shadcn {
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);
+        style.tones = t.tones();
         // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
         // selects: `zoom-in-95 slide-in-from-*-2`. DialogContent:
         // `zoom-in-95 duration-200`. SheetContent:

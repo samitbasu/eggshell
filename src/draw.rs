@@ -606,22 +606,24 @@ impl<A> Walk<'_, A> {
             sense
         };
         let had_focus = self.ui.ctx().memory(|memory| memory.has_focus(id));
-        let mut response = node_ui(
-            self.ui,
-            UiBuilder::new().max_rect(boxes.hit),
-            inherited,
-            None,
-            |ui| {
-                let own = ui.interact(boxes.hit, id, sense);
-                if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
-                    plan.description
-                        .announce(&own, ui.is_enabled().into(), Role::ScrollView);
-                } else if let Some(description) = node.description() {
-                    description.announce(&own, ui.is_enabled().into(), Role::GenericContainer);
-                }
-                own
-            },
-        );
+        let builder = UiBuilder::new().max_rect(boxes.hit);
+        let builder = match node
+            .description()
+            .and_then(|description| description.parent)
+        {
+            Some(parent) => builder.accessibility_parent(parent),
+            None => builder,
+        };
+        let mut response = node_ui(self.ui, builder, inherited, None, |ui| {
+            let own = ui.interact(boxes.hit, id, sense);
+            if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
+                plan.description
+                    .announce(&own, ui.is_enabled().into(), Role::ScrollView);
+            } else if let Some(description) = node.description() {
+                description.announce(&own, ui.is_enabled().into(), Role::GenericContainer);
+            }
+            own
+        });
         let merged = self.merge_hot(index, &mut response);
         let lost_focus = had_focus && !self.ui.ctx().memory(|memory| memory.has_focus(id));
         if lost_focus && merged == Merged::Bubbled && response.flags.intersects(Hot::PRESS) {
