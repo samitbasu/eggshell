@@ -751,13 +751,43 @@ fn arrow_keys_in_the_field_step_the_value() {
     assert_eq!(harness.state().app.count, 10.0, "clamped");
 }
 
+fn type_seven(harness: &mut Harness<'_, Rig<App>>) {
+    harness.event(egui::Event::Text("7".into()));
+    harness.run_steps(3);
+}
+
 #[test]
-fn focusing_the_stepper_field_selects_its_value_so_typing_replaces_it() {
+fn a_click_into_the_stepper_field_places_the_caret_and_selects_nothing() {
     let mut harness = harness(Theme::Light);
     click_node(&mut harness, FIELD);
     harness.run_steps(3);
-    harness.event(egui::Event::Text("7".into()));
+    type_seven(&mut harness);
+    assert_eq!(
+        harness.state().app.count,
+        10.0,
+        "the 7 joins the 3, and 37 or 73 clamps to 10"
+    );
+}
+
+#[test]
+fn tab_into_the_stepper_field_selects_its_value_so_typing_replaces_it() {
+    let mut harness = harness(Theme::Light);
+    click_node(&mut harness, FIELD);
     harness.run_steps(3);
+    let field = harness.ctx.memory(|memory| memory.focused());
+    assert!(field.is_some(), "precondition: the click focused the field");
+    harness.key_press(Key::Tab);
+    harness.run_steps(3);
+    let next = harness.ctx.memory(|memory| memory.focused());
+    assert_ne!(next, field, "precondition: Tab left the field");
+    harness.key_press_modifiers(Modifiers::SHIFT, Key::Tab);
+    harness.run_steps(3);
+    assert_eq!(
+        harness.ctx.memory(|memory| memory.focused()),
+        field,
+        "precondition: Shift+Tab came back"
+    );
+    type_seven(&mut harness);
     assert_eq!(harness.state().app.count, 7.0);
 }
 
