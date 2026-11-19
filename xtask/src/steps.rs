@@ -137,6 +137,28 @@ pub fn fuzz(cases: u32) -> Step {
         &["test", "--test", "it", "fuzz::", "--profile", "fuzz"],
     )
     .with_env("PROPTEST_CASES", cases.to_string())
+    .expecting_tests()
+}
+
+/// The profile of the [`release`] step: dev without debug assertions.
+pub const RELEASE_GATES: &str = "release-gates";
+
+/// The tests of what a release build does (#336), in a build without debug
+/// assertions: the checks gated on them are proven off. They live in the
+/// integration tests' `release` module, which a debug build ignores.
+pub fn release() -> Step {
+    Step::cargo(
+        "release",
+        &[
+            "test",
+            "--test",
+            "it",
+            "release::",
+            "--profile",
+            RELEASE_GATES,
+        ],
+    )
+    .expecting_tests()
 }
 
 pub fn example(name: &str, profile: Profile) -> Step {
@@ -170,6 +192,16 @@ pub const WASM_TARGET: &str = "wasm32-unknown-unknown";
 /// lavapipe. The `snapshots` feature carries it, so the build is the test step's.
 #[cfg(target_os = "linux")]
 pub fn screenshots() -> Step {
+    Step::internal("screenshots", || {
+        screenshots_step(&snapshots::lavapipe_icd()?).run()
+    })
+}
+
+/// The child sees only the lavapipe driver, as the goldens' does: enumerating
+/// every adapter in-process loads the GPU's driver too, which can crash when
+/// runs overlap (#367).
+#[cfg(target_os = "linux")]
+fn screenshots_step(icd: &Path) -> Step {
     Step::cargo(
         "screenshots",
         &[
@@ -181,6 +213,7 @@ pub fn screenshots() -> Step {
             "screenshot",
         ],
     )
+    .on_lavapipe(icd)
     .expecting_tests()
 }
 
@@ -217,6 +250,7 @@ pub fn ci_steps() -> Vec<Step> {
             .with_env("RUSTDOCFLAGS", "-D warnings"),
         screenshots(),
         wasm(),
+        release(),
         fuzz(FUZZ_CASES),
     ]
 }
@@ -303,9 +337,22 @@ mod tests {
                 "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
                 screenshots().to_string().as_str(),
                 "cargo check --target wasm32-unknown-unknown --workspace --exclude xtask --lib --examples",
+                "cargo test --test it release:: --profile release-gates",
                 "PROPTEST_CASES=\"500\" cargo test --test it fuzz:: --profile fuzz",
             ]
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn screenshots_select_lavapipe_for_the_child() {
+        let step = screenshots_step(Path::new("/icd/lvp.json"));
+        assert_eq!(
+            step.to_string(),
+            "VK_ICD_FILENAMES=\"/icd/lvp.json\" VK_DRIVER_FILES=\"/icd/lvp.json\" \
+             cargo test --workspace --features eggshell-ui/snapshots -- screenshot"
+        );
+        assert_eq!(step.expect, Expect::SomeTestPassed);
     }
 
     #[test]
@@ -325,10 +372,17 @@ mod tests {
                 "test",
                 "doctest",
                 "rustdoc",
-                "screenshots"
+                "screenshots",
+                "release"
             ]
         );
         assert_eq!(ci_steps_skipping(&[]).unwrap().len(), ci_steps().len());
+    }
+
+    #[test]
+    fn the_release_and_fuzz_steps_fail_when_their_filters_match_no_test() {
+        assert_eq!(release().expect, Expect::SomeTestPassed);
+        assert_eq!(fuzz(FUZZ_CASES).expect, Expect::SomeTestPassed);
     }
 
     #[test]

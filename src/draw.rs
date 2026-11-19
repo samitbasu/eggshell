@@ -16,7 +16,7 @@ use egui::{
 };
 use taffy::Overflow;
 
-use crate::commands::Declared;
+use crate::commands::{Declared, Visit};
 use crate::continuity::{self, Motion, NodeFrame, OverlayFrame, RecordedPass};
 use crate::contract::{Selection, Style};
 use crate::debug::{self, Debug, Phase, Timer};
@@ -49,7 +49,7 @@ use crate::tooltip;
 use crate::transition::{self, LayoutAnimation};
 use crate::tw::{
     BoxPaint, Grouping, Look, Mirror, Opacity, PointerEvents, Presence, Progress, RingPlacement,
-    Sides, State,
+    Sides, State, Visibility,
 };
 use crate::window;
 
@@ -140,6 +140,7 @@ struct Inherited {
     clip: Rect,
     opacity: Opacity,
     inertness: Inertness,
+    visibility: Visibility,
     group: Option<Hovering>,
     /// A text colour a variant of an ancestor set, for descendants that
     /// inherit their colour.
@@ -169,6 +170,7 @@ impl Inherited {
             clip,
             opacity: Opacity::OPAQUE,
             inertness: Inertness::Live,
+            visibility: Visibility::Visible,
             group: None,
             text_color: None,
             interactive: Interactive::Outside,
@@ -530,6 +532,8 @@ struct Pass {
     blur: Blur,
     /// Each node that controls another, with the node it controls.
     controls: Vec<(Id, Id)>,
+    /// The items of groups on the page that are not their group's Tab stop.
+    off_tab: std::collections::HashSet<Id>,
 }
 
 /// Announces each of `controls` whose two nodes are in this pass's
@@ -625,13 +629,10 @@ impl<A> Walk<'_, A> {
             |ui| {
                 let own = ui.interact(boxes.hit, id, sense);
                 if let Some(plan) = node.scroll().filter(|_| !node.senses()) {
-                    let role = plan.description.role.unwrap_or(Role::ScrollView);
-                    let name = plan.description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
+                    plan.description
+                        .announce(&own, ui.is_enabled().into(), Role::ScrollView);
                 } else if let Some(description) = node.description().filter(|d| d.is_set()) {
-                    let role = description.role.unwrap_or(Role::GenericContainer);
-                    let name = description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&own, ui.is_enabled().into(), role, None, name);
+                    description.announce(&own, ui.is_enabled().into(), Role::GenericContainer);
                 }
                 own
             },
@@ -732,9 +733,7 @@ impl<A> Walk<'_, A> {
             |ui| {
                 let response = ui.interact(boxes.border, id, Sense::CLICK | Sense::DRAG);
                 if let Some(description) = described {
-                    let role = description.role.unwrap_or(Role::GenericContainer);
-                    let name = description.name.as_deref().unwrap_or_default();
-                    crate::owned::describe(&response, ui.is_enabled().into(), role, None, name);
+                    description.announce(&response, ui.is_enabled().into(), Role::GenericContainer);
                 }
                 if modal {
                     ui.ctx()
@@ -752,7 +751,12 @@ impl<A> Walk<'_, A> {
         let id = node.id()?;
         let sense = if node.senses() {
             let interaction = &node.interaction;
-            interaction.focusability.sense(interaction.sensing)
+            let sense = interaction.focusability.sense(interaction.sensing);
+            if self.pass.off_tab.contains(&id) {
+                sense - Sense::FOCUSABLE
+            } else {
+                sense
+            }
         } else if self.scroller_takes_focus(index) {
             Sense::focusable_noninteractive()
         } else {
@@ -783,7 +787,8 @@ impl<A> Walk<'_, A> {
         let ctx = self.ui.ctx();
         let descendants = self.nodes.descendants(index);
         let highlighted = node.id().is_some_and(|id| {
-            self.pass.highlighted.contains(&id) || (node.is_item() && focus::holds_focus(ctx, id))
+            self.pass.highlighted.contains(&id)
+                || (node.hovers_when_focused() && focus::holds_focus(ctx, id))
         });
         let by_rect = node.interaction.hover_by == crate::pipeline::HoverBy::Rect
             && ctx.rect_contains_pointer(self.ui.layer_id(), own.interact_rect);
@@ -921,18 +926,22 @@ impl<A> Walk<'_, A> {
             return;
         }
         let inertness = parent.inertness.or(node.is_inert().into());
+        let visibility = node.visibility().unwrap_or(parent.visibility);
         let hidden = Inherited {
             inertness,
+            visibility,
             opacity: Opacity::TRANSPARENT,
             ..parent
         };
         self.noting(index, |walk| {
             let boxes = Boxes::of(node, walk.grid);
-            if let Some(test) = walk.sense_of(index) {
-                walk.interact(index, node, test, &boxes, hidden);
-            }
-            if node.draws_widgets() {
-                walk.run_draw(index, &boxes, hidden, node.text(), None);
+            if visibility == Visibility::Visible {
+                if let Some(test) = walk.sense_of(index) {
+                    walk.interact(index, node, test, &boxes, hidden);
+                }
+                if node.draws_widgets() {
+                    walk.run_draw(index, &boxes, hidden, node.text(), (None, None));
+                }
             }
             for child in nodes.in_paint_order(index) {
                 walk.register_culled(child, hidden);
@@ -973,20 +982,27 @@ impl<A> Walk<'_, A> {
         }
         let boxes = Boxes::of(node, self.grid);
         let inertness = parent.inertness.or(node.is_inert().into());
+        let visibility = node.visibility().unwrap_or(parent.visibility);
+        let shown = visibility == Visibility::Visible;
+        if !shown && node.as_scroll().is_some() {
+            return;
+        }
         let interaction = &node.interaction;
 
         let pointer_events = parent.pointer_events.merge(node.pointer_events());
-        self.cover(
-            index,
-            &boxes,
-            Inherited {
-                inertness,
-                pointer_events,
-                ..parent
-            },
-        );
+        if shown {
+            self.cover(
+                index,
+                &boxes,
+                Inherited {
+                    inertness,
+                    pointer_events,
+                    ..parent
+                },
+            );
+        }
 
-        let (response, merged) = match self.sense_of(index) {
+        let (response, merged) = match self.sense_of(index).filter(|_| shown) {
             Some(test) => {
                 let (response, merged) = self.interact(
                     index,
@@ -1106,13 +1122,15 @@ impl<A> Walk<'_, A> {
         }
         let moved_from = (translate != Vec2::ZERO || lifted.is_some() || staged_scale != 1.0)
             .then(|| self.next_shape());
-        paint_box(
-            &self.painter(parent.clip, own_opacity),
-            &look.paint,
-            &boxes,
-            node.border,
-            self.grid,
-        );
+        if shown {
+            paint_box(
+                &self.painter(parent.clip, own_opacity),
+                &look.paint,
+                &boxes,
+                node.border,
+                self.grid,
+            );
+        }
 
         let painted_background = look.paint.background.map_or(Color32::TRANSPARENT, |fill| {
             fill.gamma_multiply(f32::from(opacity))
@@ -1125,6 +1143,7 @@ impl<A> Walk<'_, A> {
             clip: content_clip(parent.clip, boxes.padding, node.overflow),
             opacity,
             inertness,
+            visibility,
             pointer_events,
             drags: if interaction.sensing.drags()
                 || (node.scroll().is_some() && scroll::drag_scrolls(self.ui.ctx()))
@@ -1150,11 +1169,14 @@ impl<A> Walk<'_, A> {
                 parent.interactive
             },
         };
-        if let Some(prim) = self.shared.prims.get_mut(index).and_then(Option::take) {
-            self.paint_prim(prim, index, node, &text, &boxes, inherited);
+        let prim = self.shared.prims.get_mut(index).and_then(Option::take);
+        let elided = prim
+            .filter(|_| shown)
+            .and_then(|prim| self.paint_prim(prim, index, node, &text, &boxes, inherited));
+        if shown {
+            let bubbled = response.as_ref().filter(|_| merged == Merged::Bubbled);
+            self.run_draw(index, &boxes, inherited, &text, (bubbled, elided));
         }
-        let bubbled = response.as_ref().filter(|_| merged == Merged::Bubbled);
-        self.run_draw(index, &boxes, inherited, &text, bubbled);
 
         if let Some(scroll) = node.as_scroll() {
             self.scroll_content(index, scroll, &boxes, inherited);
@@ -1162,7 +1184,9 @@ impl<A> Walk<'_, A> {
             for child in nodes.in_paint_order(index) {
                 self.visit(child, inherited);
             }
-            self.paint_dividers(node, index, inherited);
+            if shown {
+                self.paint_dividers(node, index, inherited);
+            }
         }
         if self.scroller_takes_focus(index)
             && !interaction.variants.has_focus()
@@ -1192,7 +1216,7 @@ impl<A> Walk<'_, A> {
         boxes: &Boxes,
         inherited: Inherited,
         text: &TextStyle,
-        bubbled: Option<&Response>,
+        (bubbled, elided): (Option<&Response>, Option<Elided>),
     ) {
         let Some(node) = self.nodes.node(index) else {
             return;
@@ -1227,6 +1251,11 @@ impl<A> Walk<'_, A> {
                         data.insert_temp(scope, BubbledTag(response.clone()));
                     } else {
                         data.remove::<BubbledTag>(scope);
+                    }
+                    if let Some(elided) = elided {
+                        data.insert_temp(scope, elided);
+                    } else {
+                        data.remove::<Elided>(scope);
                     }
                 });
                 for draw in draws {
@@ -1394,11 +1423,10 @@ impl<A> Walk<'_, A> {
         text: &TextStyle,
         boxes: &Boxes,
         inherited: Inherited,
-    ) {
+    ) -> Option<Elided> {
         let content = boxes.content;
         if let Some(leaf) = TextLeaf::of(self.ui.ctx(), &prim, (text, &node.style.rich)) {
-            self.paint_text(&leaf, index, node, boxes, inherited);
-            return;
+            return self.paint_text(&leaf, index, node, boxes, inherited);
         }
         match prim {
             Prim::Icon(icon) => {
@@ -1412,6 +1440,7 @@ impl<A> Walk<'_, A> {
             ),
             Prim::Text(_) | Prim::Rich(_) | Prim::Spans(_) => {}
         }
+        None
     }
 
     fn paint_text(
@@ -1421,13 +1450,14 @@ impl<A> Walk<'_, A> {
         node: &PlacedNode,
         boxes: &Boxes,
         inherited: Inherited,
-    ) {
+    ) -> Option<Elided> {
         let content = boxes.content;
         let text = leaf.style;
         let (galley, underlines) = self
             .ui
             .ctx()
             .fonts_mut(|fonts| leaf.drawn_galley(fonts, boxes.wrap_width));
+        let elided = galley.elided.then(|| Elided(galley.text().into()));
         let top = node
             .text_valign()
             .offset(content.height() - galley.size().y);
@@ -1473,6 +1503,7 @@ impl<A> Walk<'_, A> {
         if let (Some(marks), Some(response), Some(node)) = (links, response, node.id()) {
             spans::follow(&response, &runs, marks, anchor, node);
         }
+        elided
     }
 
     fn sense_links(&mut self, id: Id, content: Rect, inherited: Inherited) -> Response {
@@ -1892,9 +1923,11 @@ impl<A> Painting<A> {
             highlighted: nav::highlighted(kept),
             blur: Blur::Elsewhere,
             controls: Vec::new(),
+            off_tab: std::collections::HashSet::new(),
         };
         nav::activate_highlighted(&ctx, kept);
         nav::apply_deferred(&ctx, kept);
+        pass.off_tab = crate::roving::settle(&ctx, kept, nodes);
         let keys = overlay_input::claim_keys(&ctx, kept, nodes, (roots, here), live);
         pass.blur = keys.blur;
         let shell = crate::Shell::new(&ctx, kept);
@@ -1904,7 +1937,12 @@ impl<A> Painting<A> {
             |root| roots.get(root).and_then(|root| root.parent),
             |root| roots.get(root).is_some_and(PlacedRoot::is_modal),
         );
-        crate::commands::dispatch_all(&ctx, &shell, typing, (commands, commanding), app);
+        let tables = (commands.as_slice(), commanding.as_slice());
+        crate::commands::visit_all(&ctx, &shell, typing, tables, app, &mut Visit::Fire);
+        let mut claimed = Vec::new();
+        let mut claim = Visit::Claim(&mut claimed);
+        crate::commands::visit_all(&ctx, &shell, typing, tables, app, &mut claim);
+        crate::web::ClaimedChords::of(&ctx).record(&ctx, claimed);
         scroll_keys::hold_arrows(&ctx, kept, nodes);
         let _drawing = crate::shell::Drawing::enter(&ctx, kept);
         let mut walk = Walk {
@@ -2111,6 +2149,18 @@ struct TextTag(TextStyle);
 
 #[derive(Clone)]
 struct StyleTag(Arc<Style>);
+
+/// The full text of the node's own text, which was drawn cut short.
+#[derive(Clone)]
+pub(crate) struct Elided(Arc<str>);
+
+/// The full text of the node whose draw closure is running, if its own text
+/// was drawn cut short this pass.
+pub(crate) fn elided_text(ui: &Ui) -> Option<Arc<str>> {
+    let scope = ui.unique_id();
+    ui.data(|data| data.get_temp::<Elided>(scope))
+        .map(|tag| tag.0)
+}
 
 /// The node's response with what its subtree's boxes won merged in, for
 /// [`NodeUi::node_response`].
