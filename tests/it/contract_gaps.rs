@@ -1029,7 +1029,6 @@ fn a_bare_icon_face_is_reported_unnamed() {
 #[test]
 fn an_icon_named_by_its_tuple_or_by_named_is_not_reported() {
     let d = harness(Theme::Light, named_icons);
-    eggshell_ui::testing::assert_no_reports(d.ctx());
     assert_eq!(read_name(&d, "/\"named\""), "Search");
 }
 
@@ -1051,10 +1050,9 @@ fn a_button_with_neither_label_nor_name_is_reported() {
 
 #[test]
 fn a_button_with_an_empty_label_and_a_name_is_not_reported() {
-    let d = harness(Theme::Light, |b, _| {
+    let _d = harness(Theme::Light, |b, _| {
         b.button("named", Face::Empty("Named".into())).add()
     });
-    eggshell_ui::testing::assert_no_reports(d.ctx());
 }
 
 /// ```html

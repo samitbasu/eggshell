@@ -864,7 +864,7 @@ mod open_query {
     use std::rc::Rc;
 
     use eggshell_ui::Placed;
-    use eggshell_ui::testing::{After, Reports};
+    use eggshell_ui::testing::After;
 
     use super::*;
 
@@ -897,7 +897,6 @@ mod open_query {
         .step(support::STEP)
         .after(After::Frames(0))
         .settle_within(support::STEP * 4)
-        .reports(Reports::Unchecked)
         .build();
         d.frames(4);
         (d, observer)

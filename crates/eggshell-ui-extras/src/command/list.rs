@@ -443,11 +443,10 @@ pub(crate) fn show<'f, A: 'static>(
         }
         let text = style.role(&style.menu.text).clone();
         let row_height = style.menu.row_height(&text);
-        let height = list_height(&style, &command, &listing, row_height);
         let mut list = s
             .virtual_list(
                 Part::Results,
-                tw().h_px(height)
+                tw().max_h_px(command.list_height)
                     .p(style.menu.padding / 4.0)
                     .scroll_py(1.0)
                     .scrollbar_none(),
@@ -517,25 +516,6 @@ pub(crate) fn show<'f, A: 'static>(
             }
         });
     });
-}
-
-/// How tall the rows are, up to the style's limit: a scroll container is as
-/// tall as it is told, so the list is told what its rows come to.
-fn list_height<A>(
-    style: &Style,
-    command: &super::CommandStyle,
-    listing: &Listing<A>,
-    row_height: f32,
-) -> f32 {
-    let heading = style
-        .role(&Some(style.menu.shortcut_text.clone()))
-        .line_height;
-    let headings: f32 = (0..listing.rows.len())
-        .filter(|&at| listing.heading(at).is_some())
-        .map(|at| heading + 12.0 + if at == 0 { 0.0 } else { 5.0 })
-        .sum();
-    let rows = listing.rows.len() as f32 * row_height;
-    (rows + headings + 2.0 * style.menu.padding).min(command.list_height)
 }
 
 fn search_field<A: 'static>(

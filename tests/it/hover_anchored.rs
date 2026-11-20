@@ -373,11 +373,7 @@ fn a_card_inside_a_card_is_reported_and_never_opens() {
             .any(|(path, _)| path.contains("\"inner\"/")),
         "the inner card never opens"
     );
-    assert!(
-        d.reports()
-            .iter()
-            .any(|report| report.problem == Problem::NestedHoverCard)
-    );
+    d.expect_reported(Problem::NestedHoverCard);
 }
 
 #[test]
