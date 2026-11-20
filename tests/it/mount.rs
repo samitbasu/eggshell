@@ -445,7 +445,7 @@ fn tab_moves_into_a_mount_and_out_of_it() {
 /// Misuse inside and around a mount is reported, and the frame goes on.
 mod misuse {
     use eggshell_ui::Problem;
-    use eggshell_ui::testing::{Headless, assert_reported, reports};
+    use eggshell_ui::testing::{Headless, assert_reported};
 
     use super::*;
 
@@ -472,7 +472,7 @@ mod misuse {
     fn a_mount_key_used_twice_is_reported_and_each_mount_keeps_its_own_commands() {
         let mut d = support::driver(vec2(400.0, 300.0), base_text(), Two::default(), twice).build();
         d.frames(4);
-        assert_reported(d.ctx(), Problem::DuplicateKey);
+        d.expect_reported(Problem::DuplicateKey);
         let fields: Vec<_> = d.harness().query_all_by_label("Note").collect();
         assert_eq!(fields.len(), 2, "precondition: both mounts are built");
         fields[1].click();
@@ -534,12 +534,7 @@ mod misuse {
         let mut d =
             support::driver(vec2(400.0, 300.0), base_text(), Notes::default(), view).build();
         d.frames(4);
-        assert!(
-            reports(d.ctx())
-                .iter()
-                .any(|report| report.problem == Problem::CommandsTwice),
-            "reported"
-        );
+        d.expect_reported(Problem::CommandsTwice);
         d.harness().get_by_label("Note").click();
         d.frames(6);
         d.press(KeyboardShortcut::new(Modifiers::COMMAND, Key::K))

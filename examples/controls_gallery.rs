@@ -327,17 +327,11 @@ pub fn prepare(ctx: &Context, state: &State) {
 }
 
 /// A toggle variant the preset does not define: solid when on, as a selected
-/// tool in a toolbar is. The style is installed every frame, which costs a
-/// comparison while it is unchanged.
+/// tool in a toolbar is. It is added to the style of the one row that uses it.
 const ARMED: Variant = Variant("armed");
 
-fn with_armed_toggle(ctx: &Context) {
-    let style = Style::of(ctx);
-    if style.button.toggle_on.keys().any(|key| key == ARMED) {
-        return;
-    }
-    let tokens = common::tokens(ctx);
-    let mut style = (*style).clone();
+/// `style` with the armed toggle variant, in the colours of `tokens`.
+fn add_armed_variant(style: &mut Style, tokens: &eggshell_ui_shadcn::Tokens) {
     let off = *style.button.toggle_off.get(Variant::DEFAULT);
     let on = Paint::new(States::still(
         Colors {
@@ -349,7 +343,6 @@ fn with_armed_toggle(ctx: &Context) {
     ));
     style.button.toggle_off.insert(ARMED, off);
     style.button.toggle_on.insert(ARMED, on);
-    style.install_for(ctx, ctx.theme());
 }
 
 /// The base text of the gallery's cells.
@@ -803,7 +796,6 @@ fn rows<'f>(b: &mut B<'_, 'f>, rows: impl FnOnce(&mut B<'_, 'f>)) {
 
 /// A row per button variant, enabled and disabled, then the toggle.
 fn buttons_section(s: &mut S<'_, '_>, state: &State) {
-    with_armed_toggle(s.ctx());
     rows(s, |b| {
         for enablement in ENABLEMENTS {
             for (name, variant) in VARIANTS {
@@ -820,9 +812,15 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
                 .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
         });
         row(b, "toggle, armed", |b| {
-            b.toggle("armed", "Armed", state.owned_toggled)
-                .variant(ARMED)
-                .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
+            let tokens = common::tokens(b.ctx());
+            b.styled(
+                |style| add_armed_variant(style, &tokens),
+                |b| {
+                    b.toggle("armed", "Armed", state.owned_toggled)
+                        .variant(ARMED)
+                        .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
+                },
+            );
         });
         row(b, "icon and label", |b| {
             let plus = glyphs::icon(b.ctx(), Glyph::Plus);

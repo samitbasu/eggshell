@@ -566,6 +566,7 @@ mod misuse {
             last.right(),
             d.rect(Target::suffix(&cell("Row(31)", 2))).right()
         );
+        d.expect_reported(eggshell_ui::Problem::TableShape);
     }
 }
 
@@ -713,8 +714,7 @@ mod shape {
 
     #[test]
     fn a_table_of_whole_rows_reports_nothing() {
-        let d = harness(Selection::Off);
-        eggshell_ui::testing::assert_no_reports(d.ctx());
+        let _d = harness(Selection::Off);
     }
 }
 

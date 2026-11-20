@@ -5,7 +5,7 @@ use core::time::Duration;
 
 use eggshell_ui::overlay::Modal;
 use eggshell_ui::owned::{Choice, Enablement};
-use eggshell_ui::testing::{After, Driver, Reports, Target};
+use eggshell_ui::testing::{After, Driver, Target};
 use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Role, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -502,7 +502,6 @@ mod beside_another_frame {
         .step(STEP)
         .after(After::Frames(0))
         .settle_within(STEP * 4)
-        .reports(Reports::Unchecked)
         .build();
         d.frames(4);
         d
