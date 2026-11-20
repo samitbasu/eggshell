@@ -3,12 +3,12 @@
 
 use eggshell_ui::contract::Disabled;
 use eggshell_ui::owned::{Enablement, Face};
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Opacity, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Color32, Rect, Theme, pos2, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, box_at, click_node, press, rect_of, shapes, text_color};
+use crate::support::{self, box_at, shapes, text_color};
 
 const BAR: Color32 = Color32::from_rgb(220, 20, 20);
 
@@ -76,13 +76,13 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(faded: bool) -> Harness<'static, Rig<App>> {
+fn driver(faded: bool) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
     let app = App {
         faded,
         ..App::default()
     };
-    let mut harness = support::harness_prepared(
+    let mut d = support::prepared_driver(
         vec2(500.0, 200.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         app,
@@ -94,14 +94,15 @@ fn harness(faded: bool) -> Harness<'static, Rig<App>> {
             }
             style.install(ctx);
         },
-    );
-    harness.ctx.set_theme(Theme::Light);
-    harness.run_steps(12);
-    harness
+    )
+    .build();
+    d.ctx().set_theme(Theme::Light);
+    d.frames(12);
+    d
 }
 
-fn label_rect(harness: &Harness<'_, Rig<App>>, inside: Rect, text: &str) -> Rect {
-    shapes(harness)
+fn label_rect(d: &Driver<App>, inside: Rect, text: &str) -> Rect {
+    shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             egui::Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => Some(
@@ -114,9 +115,9 @@ fn label_rect(harness: &Harness<'_, Rig<App>>, inside: Rect, text: &str) -> Rect
 
 #[test]
 fn an_absolute_child_is_placed_against_the_buttons_border_box() {
-    let harness = harness(false);
-    let button = rect_of(&harness, "/\"abs\"");
-    let bar = rect_of(&harness, "/\"abs\"/\"bar\"");
+    let d = driver(false);
+    let button = d.rect(Target::suffix("/\"abs\""));
+    let bar = d.rect(Target::suffix("/\"abs\"/\"bar\""));
     let style = Shadcn::for_theme(Theme::Light).style();
     assert_eq!(
         style
@@ -136,14 +137,14 @@ fn an_absolute_child_is_placed_against_the_buttons_border_box() {
 
 #[test]
 fn a_flow_child_follows_the_label_and_the_button_grows_to_fit_it() {
-    let harness = harness(false);
-    let button = rect_of(&harness, "/\"flow\"");
-    let tag = rect_of(&harness, "/\"flow\"/\"tag\"");
-    let label = label_rect(&harness, button, "Flow");
+    let d = driver(false);
+    let button = d.rect(Target::suffix("/\"flow\""));
+    let tag = d.rect(Target::suffix("/\"flow\"/\"tag\""));
+    let label = label_rect(&d, button, "Flow");
     assert!(tag.left() >= label.right(), "{tag:?} after {label:?}");
     assert!(button.contains_rect(tag), "{button:?} holds {tag:?}");
-    let alone = rect_of(&harness, "/\"other\"");
-    let alone_label = label_rect(&harness, alone, "Other");
+    let alone = d.rect(Target::suffix("/\"other\""));
+    let alone_label = label_rect(&d, alone, "Other");
     assert!(
         button.width() > label.width() + tag.width() - 0.01,
         "the button is wider than label and tag together (alone: {} for {})",
@@ -154,34 +155,34 @@ fn a_flow_child_follows_the_label_and_the_button_grows_to_fit_it() {
 
 #[test]
 fn children_move_with_the_press_shift() {
-    let mut harness = harness(false);
-    let bar = rect_of(&harness, "/\"abs\"/\"bar\"");
+    let mut d = driver(false);
+    let bar = d.rect(Target::suffix("/\"abs\"/\"bar\""));
+    assert_eq!(box_at(&d, bar).fill, BAR, "precondition: drawn at rest");
+    d.pointer_down(Target::suffix("/\"abs\"")).frames(11);
     assert_eq!(
-        box_at(&harness, bar).fill,
-        BAR,
-        "precondition: drawn at rest"
-    );
-    press(&mut harness, "/\"abs\"");
-    assert_eq!(
-        box_at(&harness, bar.translate(vec2(0.0, 1.0))).fill,
+        box_at(&d, bar.translate(vec2(0.0, 1.0))).fill,
         BAR,
         "the child is painted one point lower"
     );
-    assert_eq!(rect_of(&harness, "/\"abs\"/\"bar\""), bar, "layout stays");
+    assert_eq!(
+        d.rect(Target::suffix("/\"abs\"/\"bar\"")),
+        bar,
+        "layout stays"
+    );
 }
 
 #[test]
 fn a_disabled_buttons_children_fade_with_it_under_faded() {
-    let harness = harness(true);
-    let bar = rect_of(&harness, "/\"off\"/\"bar\"");
-    let enabled = rect_of(&harness, "/\"abs\"/\"bar\"");
-    assert_eq!(box_at(&harness, enabled).fill, BAR, "precondition");
-    let faded = box_at(&harness, bar).fill;
+    let d = driver(true);
+    let bar = d.rect(Target::suffix("/\"off\"/\"bar\""));
+    let enabled = d.rect(Target::suffix("/\"abs\"/\"bar\""));
+    assert_eq!(box_at(&d, enabled).fill, BAR, "precondition");
+    let faded = box_at(&d, bar).fill;
     assert_eq!(faded, BAR.gamma_multiply(0.4));
-    let off = rect_of(&harness, "/\"off\"");
+    let off = d.rect(Target::suffix("/\"off\""));
     assert_eq!(
-        text_color(&harness, off, "Off").a(),
-        text_color(&harness, rect_of(&harness, "/\"abs\""), "Save")
+        text_color(&d, off, "Off").a(),
+        text_color(&d, d.rect(Target::suffix("/\"abs\"")), "Save")
             .gamma_multiply(0.4)
             .a(),
         "the face fades by the same factor"
@@ -216,20 +217,22 @@ fn a_child_is_clipped_where_the_button_is() {
         );
     }
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(300.0, 100.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         clipped,
-    );
-    harness.run_steps(12);
-    let parent = rect_of(&harness, "/<div>");
-    let bar = rect_of(&harness, "/\"abs\"/\"bar\"");
+    )
+    .build();
+    d.frames(12);
+    let parent = d.rect(Target::suffix("/<div>"));
+    let bar = d.rect(Target::suffix("/\"abs\"/\"bar\""));
     assert!(
         bar.right() > parent.right(),
         "precondition: the bar overflows"
     );
-    let clip = harness
+    let clip = d
+        .harness()
         .output()
         .shapes
         .iter()
@@ -249,40 +252,40 @@ fn a_child_is_clipped_where_the_button_is() {
 
 #[test]
 fn a_click_on_an_absolute_childs_area_clicks_the_button() {
-    let mut harness = harness(false);
-    click_node(&mut harness, "/\"abs\"/\"bar\"");
-    assert_eq!(harness.state().app.clicks, ["abs"]);
+    let mut d = driver(false);
+    d.click(Target::suffix("/\"abs\"/\"bar\""));
+    assert_eq!(d.app().clicks, ["abs"]);
 }
 
 #[test]
 fn keyed_children_of_two_buttons_do_not_collide() {
-    let harness = harness(false);
-    let first = rect_of(&harness, "/\"abs\"/\"bar\"");
-    let second = rect_of(&harness, "/\"other\"/\"bar\"");
+    let d = driver(false);
+    let first = d.rect(Target::suffix("/\"abs\"/\"bar\""));
+    let second = d.rect(Target::suffix("/\"other\"/\"bar\""));
     assert_ne!(first, second);
 }
 
 #[test]
 fn a_toggle_with_children_draws_them_and_toggles() {
-    let mut harness = harness(false);
-    let bar = rect_of(&harness, "/\"tog\"/\"bar\"");
-    assert_eq!(box_at(&harness, bar).fill, BAR);
-    click_node(&mut harness, "/\"tog\"/\"bar\"");
-    harness.run_steps(2);
-    assert!(harness.state().app.toggled);
+    let mut d = driver(false);
+    let bar = d.rect(Target::suffix("/\"tog\"/\"bar\""));
+    assert_eq!(box_at(&d, bar).fill, BAR);
+    d.click(Target::suffix("/\"tog\"/\"bar\""));
+    d.frames(2);
+    assert!(d.app().toggled);
 }
 
 #[test]
 fn an_empty_face_with_children_and_a_name_draws_and_clicks() {
-    let mut harness = harness(false);
-    let card = rect_of(&harness, "/\"card\"");
-    let content = rect_of(&harness, "/\"card\"/\"box\"");
-    assert_eq!(box_at(&harness, content).fill, BAR);
+    let mut d = driver(false);
+    let card = d.rect(Target::suffix("/\"card\""));
+    let content = d.rect(Target::suffix("/\"card\"/\"box\""));
+    assert_eq!(box_at(&d, content).fill, BAR);
     assert!(
         card.width() >= content.width(),
         "{card:?} holds {content:?}"
     );
     assert!(card.contains_rect(content));
-    click_node(&mut harness, "/\"card\"/\"box\"");
-    assert_eq!(harness.state().app.clicks, ["card"]);
+    d.click(Target::suffix("/\"card\"/\"box\""));
+    assert_eq!(d.app().clicks, ["card"]);
 }

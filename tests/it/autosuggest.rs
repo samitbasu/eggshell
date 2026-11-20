@@ -2,11 +2,11 @@
 //! on the field (`Focus::Stay`), through the real path.
 
 use eggshell_ui::overlay::{Anchor, Focus, Nav, Wrap};
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Role, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node, focused_path, rect_of};
+use crate::support::{self, focused_path};
 
 const FIELD: &str = r#"/"Page"/"city""#;
 /// What `focused_path` reports for the text edit inside the field.
@@ -78,53 +78,51 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
-    let mut harness = support::harness(vec2(400.0, 300.0), base_text(), App::default(), view);
-    harness.run_steps(4);
-    click_node(&mut harness, FIELD);
-    harness.run_steps(6);
-    harness
+fn harness() -> Driver<App> {
+    let mut d = support::driver(vec2(400.0, 300.0), base_text(), App::default(), view).build();
+    d.frames(4);
+    d.click(Target::suffix(FIELD)).frames(6);
+    d
 }
 
 #[test]
 fn pressing_a_suggestion_does_not_take_focus_from_the_field() {
-    let mut harness = harness();
+    let mut d = harness();
     assert_eq!(
-        focused_path(&harness).as_deref(),
+        focused_path(&d).as_deref(),
         Some(TYPING),
         "precondition: the field has focus"
     );
     assert!(
-        rect_of(&harness, FIRST).height() > 0.0,
+        d.rect(Target::suffix(FIRST)).height() > 0.0,
         "precondition: the suggestions are showing"
     );
 
-    support::press(&mut harness, FIRST);
+    d.pointer_down(Target::suffix(FIRST)).frames(11);
     assert_eq!(
-        focused_path(&harness).as_deref(),
+        focused_path(&d).as_deref(),
         Some(TYPING),
         "the field keeps focus while the suggestion is held down"
     );
-    assert!(harness.state().app.log.is_empty());
+    assert!(d.app().log.is_empty());
 
-    support::release(&mut harness, FIRST);
+    d.pointer_up(Target::suffix(FIRST)).frames(11);
     assert_eq!(
-        harness.state().app.log,
+        d.app().log,
         ["pick Paris"],
         "the pick applies, and the field's blur handler never ran before it"
     );
-    assert_eq!(harness.state().app.city, "Paris");
-    assert_eq!(focused_path(&harness).as_deref(), Some(TYPING));
+    assert_eq!(d.app().city, "Paris");
+    assert_eq!(focused_path(&d).as_deref(), Some(TYPING));
 }
 
 #[test]
 fn a_press_outside_the_suggestions_still_takes_focus_from_the_field() {
-    let mut harness = harness();
-    click_node(&mut harness, r#"/"Page"/"zip""#);
-    harness.run_steps(6);
-    assert_eq!(harness.state().app.log, ["blur"]);
+    let mut d = harness();
+    d.click(Target::suffix(r#"/"Page"/"zip""#)).frames(6);
+    assert_eq!(d.app().log, ["blur"]);
     assert_eq!(
-        support::focused_node(&harness).as_deref(),
+        support::focused_node(&d).as_deref(),
         Some(r#"/"Page"/"zip""#),
         "focus went where the press was"
     );

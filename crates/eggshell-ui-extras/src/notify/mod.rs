@@ -36,18 +36,20 @@
 
 mod dwell;
 mod look;
+mod style;
 
 use core::time::Duration;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use eggshell_ui::overlay::{Align, Anchor, Band, DismissOn, Focus, Outside, Placement, Side};
-use eggshell_ui::{Boundary, Builder, Distance, Icon, Key, NodeUi as _, Scope, Sides, icons};
+use eggshell_ui::{Boundary, Builder, Distance, Icon, Key, NodeUi as _, Scope, Sides, icons, tw};
 use egui::accesskit::Live;
 use egui::{Context, Id, Modifiers, Role};
 
 use dwell::{Countdown, Dwell, Hold};
 use look::Look;
+pub use style::NotifyStyle;
 
 /// TODO(prose): the application's name for a notice. A notice with a new id
 /// is a new notice: its dwell starts afresh.
@@ -209,7 +211,7 @@ impl<'b, 'f, A: 'static> NotifyExt<'b, 'f, A> for Builder<'b, 'f, A> {
             key,
             items,
             anchor: ScreenAnchor::BottomRight,
-            inset: Distance::new(24.0),
+            inset: None,
             lifetime: Lifetime::UntilDismissed,
             close: CloseButton::Hidden,
             name: "Notifications".to_owned(),
@@ -230,7 +232,7 @@ pub struct Notifications<'s, 'b, 'f, A, K, Act> {
     key: K,
     items: &'s [Notice<Act>],
     anchor: ScreenAnchor,
-    inset: Distance,
+    inset: Option<Distance>,
     lifetime: Lifetime,
     close: CloseButton,
     name: String,
@@ -242,11 +244,11 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone, Act: Clone + 'static>
     Notifications<'s, 'b, 'f, A, K, Act>
 {
     /// TODO(prose): where the stack sits, `inset` from the window's edges.
-    /// [`ScreenAnchor::BottomRight`], 24 points in, unless set.
+    /// [`ScreenAnchor::BottomRight`], the style's `inset` in, unless set.
     pub fn at(self, anchor: ScreenAnchor, inset: Distance) -> Self {
         Self {
             anchor,
-            inset,
+            inset: Some(inset),
             ..self
         }
     }
@@ -323,7 +325,11 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone, Act: Clone + 'static>
             on_action,
             on_dismiss,
         };
-        let look = Look::of(b.style());
+        let look = Look::new(NotifyStyle::of(b.ctx()));
+        let inset = inset.unwrap_or(look.style.inset);
+        let items = items
+            .get(items.len().saturating_sub(look.style.visible)..)
+            .unwrap_or(items);
         let ids: Vec<NoticeId> = items.iter().map(|notice| notice.id).collect();
         let nearest_first = anchor.side() == Side::Top;
         b.overlay(key)
@@ -422,22 +428,31 @@ fn card<A: 'static, Act: Clone + 'static>(
         s.text(look.sentence(), notice.text.clone());
         for (at, action) in notice.actions.iter().enumerate() {
             let (act, on_action) = (action.act.clone(), handlers.on_action.clone());
-            s.button(("action", at), action.label.clone())
-                .on_click(move |app| {
-                    if let Some(on_action) = on_action {
-                        on_action(app, id, act);
-                    }
-                });
+            let label = action.label.clone();
+            s.div_id(("action", at), look.action(), |s| {
+                s.text(tw(), label.clone());
+            })
+            .role(Role::Button)
+            .named(label)
+            .on_click(move |app| {
+                if let Some(on_action) = on_action {
+                    on_action(app, id, act);
+                }
+            });
         }
         if close == CloseButton::Shown {
             let on_dismiss = handlers.on_dismiss.clone();
             let name = format!("Dismiss: {}", notice.text);
-            s.button("close", (Icon::new(icons::CLOSE), name))
-                .on_click(move |app| {
-                    if let Some(on_dismiss) = on_dismiss {
-                        on_dismiss(app, id, Dismissed::Closed);
-                    }
-                });
+            s.div_id("close", look.close(), |s| {
+                s.glyph(look.close_glyph(), Icon::new(icons::CLOSE));
+            })
+            .role(Role::Button)
+            .named(name)
+            .on_click(move |app| {
+                if let Some(on_dismiss) = on_dismiss {
+                    on_dismiss(app, id, Dismissed::Closed);
+                }
+            });
         }
     });
     if let Some(on_dismiss) = handlers.on_dismiss.clone() {

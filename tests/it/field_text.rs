@@ -4,9 +4,9 @@
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Rect, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, rect_of, shapes};
+use crate::support::{self, shapes};
+use eggshell_ui::testing::{Driver, Target};
 
 const FIELD: &str = r#"/"Page"/"field""#;
 const RED: Color32 = Color32::from_rgb(200, 30, 30);
@@ -37,14 +37,14 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     });
 }
 
-fn harness() -> Harness<'static, Rig<()>> {
-    let mut harness = support::harness(vec2(300.0, 100.0), base_text(), (), view);
-    harness.run_steps(4);
-    harness
+fn harness() -> Driver<()> {
+    let mut d = support::driver(vec2(300.0, 100.0), base_text(), (), view).build();
+    d.frames(4);
+    d
 }
 
-fn drawn(harness: &Harness<'_, Rig<()>>) -> (Color32, f32, Rect) {
-    shapes(harness)
+fn drawn(d: &Driver<()>) -> (Color32, f32, Rect) {
+    shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(text) if text.galley.text() == "42" => {
@@ -70,17 +70,17 @@ fn drawn(harness: &Harness<'_, Rig<()>>) -> (Color32, f32, Rect) {
 
 #[test]
 fn the_field_draws_in_its_nodes_colour_and_size() {
-    let harness = harness();
-    let (colour, size, _) = drawn(&harness);
+    let d = harness();
+    let (colour, size, _) = drawn(&d);
     assert_eq!(colour, RED);
     assert_eq!(size, 18.0);
 }
 
 #[test]
 fn text_right_aligns_the_text_to_the_fields_right_edge() {
-    let harness = harness();
-    let (_, _, text) = drawn(&harness);
-    let field = rect_of(&harness, FIELD);
+    let d = harness();
+    let (_, _, text) = drawn(&d);
+    let field = d.rect(Target::suffix(FIELD));
     assert!(
         field.right() - text.right() < 16.0,
         "the text ends at {} in a field ending at {}",
@@ -114,7 +114,7 @@ fn digits_view(b: &mut Builder<'_, '_, Digits>, app: &Digits) {
 }
 
 fn width_of(text: &'static str, tabular: bool) -> f32 {
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(300.0, 100.0),
         base_text(),
         Digits {
@@ -122,9 +122,10 @@ fn width_of(text: &'static str, tabular: bool) -> f32 {
             tabular,
         },
         digits_view,
-    );
-    harness.run_steps(4);
-    shapes(&harness)
+    )
+    .build();
+    d.frames(4);
+    shapes(&d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(shape) if shape.galley.text() == text => Some(shape.galley.rect.width()),
@@ -145,7 +146,7 @@ fn tabular_nums_make_every_digit_as_wide_as_the_widest() {
 
 #[test]
 fn a_tabular_field_still_edits() {
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(300.0, 100.0),
         base_text(),
         Digits {
@@ -153,14 +154,13 @@ fn a_tabular_field_still_edits() {
             tabular: true,
         },
         digits_view,
-    );
-    harness.run_steps(4);
-    support::click_node(&mut harness, FIELD);
-    harness.run_steps(6);
-    harness.event(egui::Event::Text("2".into()));
-    harness.run_steps(4);
+    )
+    .build();
+    d.frames(4);
+    d.click(Target::suffix(FIELD)).frames(6);
+    d.event(egui::Event::Text("2".into())).frames(3);
     assert!(
-        shapes(&harness).into_iter().any(|shape| matches!(
+        shapes(&d).into_iter().any(|shape| matches!(
             shape, Shape::Text(text) if text.galley.text() == "12" || text.galley.text() == "21")),
         "the typed digit is in the field"
     );
