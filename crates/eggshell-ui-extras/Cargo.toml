@@ -16,6 +16,7 @@ form = []
 spinner = []
 skeleton = []
 command = ["dep:unicode-normalization"]
+notify = []
 tabs = []
 
 [dependencies]
