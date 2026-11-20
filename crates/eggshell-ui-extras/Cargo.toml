@@ -17,6 +17,7 @@ spinner = []
 disclosure = []
 skeleton = []
 command = ["dep:unicode-normalization"]
+notify = []
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }

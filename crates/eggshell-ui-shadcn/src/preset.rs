@@ -990,15 +990,26 @@ impl Shadcn {
     }
 
     /// The section header and disclosure button look, after shadcn/ui's
-    /// Accordion in the preset's style (`cn-accordion-*` in `style-*.css`):
-    /// a trigger `py-4 text-sm font-medium hover:underline rounded-md` in
-    /// Vega and `py-2.5 text-xs rounded-none` in Lyra, with the base's
-    /// `border border-transparent focus-visible:border-ring` and the
-    /// style's ring, `disabled:opacity-50`; the icon `size-4
-    /// text-muted-foreground`, nudged `translate-y-0.5`; the content's inner
-    /// block `pb-4` in Vega and `pb-2.5` in Lyra; a tree's disclosure button
-    /// a 24 pt square (a row's height) with a `bg-accent` tint under the
-    /// pointer, which the user chose over a bare glyph's box (look 10c).
+    /// Accordion in the preset's style, from `ref/shadcn` (f50887a):
+    /// `style-vega.css` 3-17 (`cn-accordion-*`; Lyra's are
+    /// `style-lyra.css` 3-17) and `bases/radix/ui/accordion.tsx` 41-69:
+    /// - the trigger is `rounded-md py-4 text-sm font-medium hover:underline`
+    ///   in Vega and `rounded-none py-2.5 text-xs` in Lyra, with the base's
+    ///   `border border-transparent`, `focus-visible:border-ring` and the
+    ///   style's ring (`ring-3`, `ring-1` in Lyra), and
+    ///   `disabled:opacity-50`;
+    /// - the content's inner block is `pt-0 pb-4` in Vega and `pb-2.5` in
+    ///   Lyra;
+    /// - the icon is `size-4 ml-auto text-muted-foreground`.
+    ///
+    /// Three values here are the user's picks from the previous registry's
+    /// accordion, which the current source does not have: the icon turns
+    /// with the region's progress (the source swaps `chevron-down` for
+    /// `chevron-up` at once), it sits nudged `translate-y-0.5` (the source
+    /// has no nudge), and there are 16 pt between the title and the icon
+    /// (`gap-4`; the source's icon is `ml-auto`). A tree's disclosure button
+    /// is not shadcn's: a 24 pt square with a `bg-accent` tint under the
+    /// pointer, the user's pick (look 10c).
     ///
     /// TODO(prose)
     ///

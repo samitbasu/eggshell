@@ -12,10 +12,9 @@ const NAME: &str = "eggshell-symbols";
 ///
 /// egui adds a font only under a name it does not have yet, so each family
 /// gets the face under its own name; the bytes are shared.
-pub(crate) fn install(ctx: &Context) {
+pub(crate) fn install(ctx: &Context, faces: &crate::text::Faces) {
     let font = FontData::from_static(include_bytes!("fonts/DejaVuSans-symbols.ttf"));
-    let weighted = crate::Style::of(ctx)
-        .faces
+    let weighted = faces
         .iter()
         .map(|face| face.face.clone())
         .collect::<Vec<_>>();
