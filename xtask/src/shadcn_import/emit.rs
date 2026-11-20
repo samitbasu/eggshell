@@ -76,8 +76,9 @@ enum Leaf {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Translated {
     dark: bool,
-    /// The ARIA key of the rule it belongs to, as `Aria::Invalid`.
-    key: Option<&'static str>,
+    /// The keys of the rule it belongs to, as `When` methods:
+    /// `.aria(Aria::Invalid)`, `.not_attr("variant", "destructive")`.
+    keys: Vec<String>,
     wraps: Vec<Wrap>,
     leaf: Leaf,
     important: bool,
@@ -85,8 +86,9 @@ pub struct Translated {
 }
 
 /// `Aria` variants by their attribute.
-const ARIA: [(&str, &str); 8] = [
+const ARIA: [(&str, &str); 9] = [
     ("busy", "Aria::Busy"),
+    ("haspopup", "Aria::HasPopup"),
     ("checked", "Aria::Checked"),
     ("disabled", "Aria::Disabled"),
     ("expanded", "Aria::Expanded"),
@@ -117,8 +119,14 @@ fn color(paint: &Paint) -> String {
 /// The shadows the preset's tokens name.
 const SHADOWS: [&str; 3] = ["xs", "sm", "md"];
 
-/// `.h(9)` as `.h(9.0)`: `Tw` takes `f32`s.
+/// `Tw` methods whose argument is a count, not a length.
+const COUNTS: [&str; 1] = [".line_clamp("];
+
+/// `.h(9)` as `.h(9.0)`: `Tw` takes `f32`s, but for counts.
 fn floats(call: &str) -> String {
+    if COUNTS.iter().any(|m| call.starts_with(m)) {
+        return call.to_owned();
+    }
     match (call.find('('), call.rfind(')')) {
         (Some(open), Some(close)) if close == call.len() - 1 => {
             let arg = &call[open + 1..close];
@@ -133,25 +141,107 @@ fn floats(call: &str) -> String {
 }
 
 /// The match of a `[&…]`, `*` or `**` selector, with the method it scopes.
+/// `[&_svg:not([class*='size-'])]` is a plain `[&_svg]`: a node's own
+/// classes win over a rule anyway.
 fn selector(variant: &str) -> Option<(&'static str, &'static str)> {
     Some(match variant {
-        "[&_svg:not([class*='size-'])]" | "[&_svg]" => ("descendants", "Match::glyph()"),
-        "[&>svg]" => ("children", "Match::glyph()"),
+        v if v.starts_with("[&_svg") => ("descendants", "Match::glyph()"),
+        v if v.starts_with("[&>svg") => ("children", "Match::glyph()"),
         "*" => ("children", "Match::any()"),
         "**" => ("descendants", "Match::any()"),
         _ => return None,
     })
 }
 
-/// The match of a `has-…` variant.
+/// A `[data-slot=x]`, `[data-k=v]` or `[aria-x=true]` attribute selector as
+/// `Match` methods.
+fn attribute(selector: &str) -> Option<String> {
+    let inner = selector.strip_prefix('[')?.strip_suffix(']')?;
+    let (name, value) = inner.split_once('=')?;
+    if name.ends_with(['$', '^', '*', '~', '|']) {
+        return None;
+    }
+    let value = value.trim_matches(|c| c == '"' || c == '\'');
+    if name == "data-slot" {
+        return Some(format!(".slot({value:?})"));
+    }
+    if let Some(name) = name.strip_prefix("aria-") {
+        return (value == "true")
+            .then(|| aria(name))
+            .flatten()
+            .map(|a| format!(".aria({a})"));
+    }
+    let name = name.strip_prefix("data-")?;
+    Some(format!(".attr({name:?}, {value:?})"))
+}
+
+/// The match of a `has-…` variant: `has-aria-invalid`, `has-data-[k=v]`,
+/// `has-[[data-slot=x]:focus-visible]`, `has-[>[data-k=v]]`.
 fn has(variant: &str) -> Option<String> {
     let rest = variant.strip_prefix("has-")?;
+    match rest {
+        "[>svg]" | "[svg]" => return Some("Match::glyph()".to_owned()),
+        "disabled" => return Some("Match::any().aria(Aria::Disabled)".to_owned()),
+        _ => {}
+    }
     if let Some(name) = rest.strip_prefix("aria-") {
         return aria(name).map(|a| format!("Match::any().aria({a})"));
     }
-    let attr = rest.strip_prefix("data-[")?.strip_suffix(']')?;
-    let (name, value) = attr.split_once('=')?;
-    Some(format!("Match::any().attr({name:?}, {value:?})"))
+    if let Some(attr) = rest.strip_prefix("data-[") {
+        let (name, value) = attr.strip_suffix(']')?.split_once('=')?;
+        return Some(format!("Match::any().attr({name:?}, {value:?})"));
+    }
+    let inner = rest.strip_prefix('[')?.strip_suffix(']')?;
+    let inner = inner.strip_prefix('>').unwrap_or(inner);
+    let (attr, focus) = match inner.strip_suffix(":focus-visible") {
+        Some(attr) => (attr, ".focus_visible()"),
+        None => (inner, ""),
+    };
+    Some(format!("Match::any(){}{focus}", attribute(attr)?))
+}
+
+/// A variant on the node's own state as a `When` key: `aria-invalid`,
+/// `disabled`, `data-[size=sm]`, `data-inset`, and their `not-` forms.
+/// Base UI's `data-disabled`, `data-checked` and the like are their ARIA
+/// states, `data-open` is `aria-expanded`, `data-[size=…]` and
+/// `data-[variant=…]` are the widget's size and variant props, and a data
+/// attribute with no value
+/// is `"true"`. `data-highlighted` and `data-focused` (a list's current item)
+/// are left to each list's migration.
+fn own_key(variant: &str) -> Option<String> {
+    let (negated, v) = match variant.strip_prefix("not-") {
+        Some(v) => (true, v),
+        None => (false, variant),
+    };
+    let not = if negated { "not_" } else { "" };
+    if v == "disabled" {
+        return Some(format!(".{not}aria(Aria::Disabled)"));
+    }
+    if let Some(name) = v.strip_prefix("aria-") {
+        let name = name.trim_start_matches('[').trim_end_matches(']');
+        return aria(name).map(|a| format!(".{not}aria({a})"));
+    }
+    let data = v.strip_prefix("data-")?;
+    if let Some(attr) = data.strip_prefix('[') {
+        let (name, value) = attr.strip_suffix(']')?.split_once('=')?;
+        if name == "slot" || name.ends_with('$') || name.ends_with('^') {
+            return None;
+        }
+        return Some(match name {
+            "size" | "variant" => format!(".{not}{name}({value:?})"),
+            _ => format!(".{not}attr({name:?}, {value:?})"),
+        });
+    }
+    match data {
+        "open" => return Some(format!(".{not}aria(Aria::Expanded)")),
+        "closed" if !negated => return Some(".not_aria(Aria::Expanded)".to_owned()),
+        "highlighted" | "focused" | "closed" => return None,
+        _ => {}
+    }
+    match aria(data) {
+        Some(a) => Some(format!(".{not}aria({a})")),
+        None => Some(format!(".{not}attr({data:?}, \"true\")")),
+    }
 }
 
 /// A utility `Tw` spells otherwise, or that has nothing to do.
@@ -164,6 +254,8 @@ fn equivalent(utility: &str) -> Option<(Option<&'static str>, Kind)> {
             Kind::Equivalent,
         ),
         "pointer-events-none" => (Some(".pointer_events_none()"), Kind::Equivalent),
+        "translate-y-px" => (Some(".translate_y(1.0)"), Kind::Equivalent),
+        "shadow-none" => (Some(".shadow(Shadow::NONE)"), Kind::Equivalent),
         "outline-none" | "outline-hidden" => (None, Kind::NoOp),
         _ => return None,
     })
@@ -176,7 +268,7 @@ impl Classifier<'_> {
         let (variants, utility) = split_variants(class.trim_end_matches('!'));
         let mut t = Translated {
             dark: false,
-            key: None,
+            keys: Vec::new(),
             wraps: Vec::new(),
             leaf: Leaf::Call(String::new()),
             important,
@@ -187,30 +279,39 @@ impl Classifier<'_> {
             if variant == "dark" {
                 t.dark = true;
                 t.kinds.insert(Kind::DarkHalf);
-            } else if let Some(name) = variant
-                .strip_prefix("aria-")
-                .or((variant == "disabled").then_some("disabled"))
-                && t.wraps.is_empty()
-                && let Some(a) = aria(name)
+            } else if !t.wraps.iter().any(|w| matches!(w, Wrap::Rule { .. }))
+                && let Some(key) = own_key(variant)
             {
-                t.key = Some(a);
+                t.keys.push(key);
                 t.kinds.insert(Kind::Key);
             } else if let Some(method) = self.tw.variants.get(variant) {
+                if t.wraps.iter().any(|w| matches!(w, Wrap::Rule { .. })) {
+                    return Err(format!("a state (`{variant}:`) of another node"));
+                }
                 t.wraps.push(Wrap::Paint(method.clone()));
                 t.kinds.insert(Kind::DrawVariant);
             } else if let Some((method, base)) = selector(variant) {
+                if t.wraps.iter().any(|w| matches!(w, Wrap::Paint(_))) {
+                    return Err(format!("a rule (`{variant}:`) under a state of this node"));
+                }
                 let mut when = base.to_owned();
-                if let Some(slot) = variants
+                if variant == "*" && variants.peek() == Some(&"[svg]") {
+                    when = "Match::glyph()".to_owned();
+                    variants.next();
+                } else if let Some(attr) = variants
                     .peek()
-                    .and_then(|v| v.strip_prefix("data-[slot="))
-                    .and_then(|v| v.strip_suffix(']'))
+                    .filter(|v| v.starts_with("data-["))
+                    .and_then(|v| attribute(&format!("[data-{}", &v["data-[".len()..])))
                 {
-                    when = format!("{when}.slot({slot:?})");
+                    when = format!("{when}{attr}");
                     variants.next();
                 }
                 t.wraps.push(Wrap::Rule { method, when });
                 t.kinds.insert(Kind::Rule);
             } else if let Some(when) = has(variant) {
+                if t.wraps.iter().any(|w| matches!(w, Wrap::Paint(_))) {
+                    return Err(format!("a rule (`{variant}:`) under a state of this node"));
+                }
                 t.wraps.push(Wrap::Rule {
                     method: "has",
                     when,
@@ -245,6 +346,13 @@ impl Classifier<'_> {
         {
             kinds.insert(Kind::TwCall);
             return Ok(Leaf::RingWidth(width));
+        }
+        if let Some(z) = utility
+            .strip_prefix("z-")
+            .and_then(|z| z.parse::<i16>().ok())
+        {
+            kinds.insert(Kind::Equivalent);
+            return Ok(Leaf::Call(format!(".z({z})")));
         }
         if let Some(name) = utility.strip_prefix("shadow-") {
             return if SHADOWS.contains(&name) {
@@ -300,8 +408,9 @@ impl Classifier<'_> {
     }
 }
 
-/// One rule: its part's keys, then its pieces in source order.
+/// One rule: its part and keys, then its pieces in source order.
 struct Rule {
+    part: String,
     when: String,
     pieces: Vec<(Translated, String)>,
 }
@@ -424,7 +533,43 @@ fn when_of(origin: &Origin) -> Option<String> {
         Origin::Variant { variant, name, .. } if variant == "size" => {
             Some(format!("When::size({name:?})"))
         }
-        _ => None,
+        Origin::Variant { variant, name, .. } => {
+            Some(format!("When::always().attr({variant:?}, {name:?})"))
+        }
+        Origin::Slot { .. } => Some("When::always()".to_owned()),
+    }
+}
+
+/// `input-group-addon` as `InputGroupAddon`.
+fn pascal(slot: &str) -> String {
+    slot.split('-')
+        .map(|word| {
+            let mut chars = word.chars();
+            chars
+                .next()
+                .map(|c| c.to_ascii_uppercase().to_string() + chars.as_str())
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
+/// The part enum of a component: `SelectPart`.
+pub fn part_enum(component: &str) -> String {
+    format!("{}Part", pascal(component))
+}
+
+/// A part's variant: its slot without the component's name, `Root` for the
+/// component's own; a slot of another component keeps its whole name.
+fn part_variant(component: &str, slot: &str) -> String {
+    if slot == component || slot.is_empty() {
+        return "Root".to_owned();
+    }
+    match slot
+        .strip_prefix(component)
+        .and_then(|s| s.strip_prefix('-'))
+    {
+        Some(rest) => pascal(rest),
+        None => pascal(slot),
     }
 }
 
@@ -460,13 +605,12 @@ pub struct Emitted {
 /// `Tw` methods the emitter writes that `Tw` lacks today.
 const MISSING: [&str; 1] = [".text_size("];
 
-/// The rules of `component`'s rows, for its part `part` (`ButtonPart`).
+/// The rules of `component`'s rows, one per part and keys.
 pub fn emit(
     classifier: &Classifier<'_>,
     rows: &[Row],
     sources: &Sources,
     component: &str,
-    part: &str,
     style: &str,
 ) -> Emitted {
     let mut rules: Vec<Rule> = Vec::new();
@@ -480,7 +624,7 @@ pub fn emit(
         let source = source_of(row, sources);
         let Some(base) = when_of(&row.origin) else {
             *kinds.entry(Kind::Unmapped).or_insert(0) += 1;
-            unmapped.insert(source, "not on the root's cva table".to_owned());
+            unmapped.insert(source, "not a part's classes".to_owned());
             continue;
         };
         match classifier.translate(&row.class.text) {
@@ -500,13 +644,12 @@ pub fn emit(
                             .map(|m| m.trim_matches(|c| c == '.' || c == '(').to_owned()),
                     );
                 }
-                let when = match t.key {
-                    Some(key) => format!("{base}.aria({key})"),
-                    None => base,
-                };
-                match rules.iter_mut().find(|r| r.when == when) {
+                let when = format!("{base}{}", t.keys.concat());
+                let part = part_variant(component, &row.slot);
+                match rules.iter_mut().find(|r| r.part == part && r.when == when) {
                     Some(rule) => rule.pieces.push((t, source)),
                     None => rules.push(Rule {
+                        part,
                         when,
                         pieces: vec![(t, source)],
                     }),
@@ -522,19 +665,25 @@ pub fn emit(
     for half in ["light", "dark"] {
         let _ = writeln!(
             rust,
-            "\npub fn {component}_{half}(s: &mut Sheet, k: &Tokens) {{\n    use {part}::*;"
+            "\npub fn {}_{half}(s: &mut Sheet, k: &Tokens) {{\n    use {}::*;",
+            component.replace('-', "_"),
+            part_enum(component)
         );
-        let base = rules
-            .iter()
-            .find(|r| r.when == "When::always()")
-            .map(|r| ring_widths(&half_of(r, half)))
-            .unwrap_or_default();
         for rule in &rules {
             let pieces = half_of(rule, half);
             if pieces.is_empty() {
                 continue;
             }
-            let _ = writeln!(rust, "    s.rule(Root, {}, |t| {{\n        t", rule.when);
+            let base = rules
+                .iter()
+                .find(|r| r.part == rule.part && r.when == "When::always()")
+                .map(|r| ring_widths(&half_of(r, half)))
+                .unwrap_or_default();
+            let _ = writeln!(
+                rust,
+                "    s.rule({}, {}, |t| {{\n        t",
+                rule.part, rule.when
+            );
             for (call, sources) in calls(&pieces, &base) {
                 for source in &sources {
                     let _ = writeln!(rust, "            // {source}");
@@ -577,8 +726,12 @@ mod tests {
     pub fn hover(self, style: impl FnOnce(Paint) -> Paint) -> Self {
     /// `focus-visible:`. Keyboard focus.
     pub fn focus(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+    /// `active:`. Held.
+    pub fn active(self, style: impl FnOnce(Paint) -> Paint) -> Self {
     /// `shrink-0`.
     pub fn shrink_0(self) -> Self {
+    /// `line-clamp-<lines>`: at most so many lines.
+    pub fn line_clamp(self, lines: u32) -> Self {
 "#
         .to_owned()])
     }
@@ -665,14 +818,14 @@ mod tests {
                 .translate("dark:aria-invalid:border-destructive/50")
                 .unwrap();
             assert!(invalid.dark);
-            assert_eq!(invalid.key, Some("Aria::Invalid"));
+            assert_eq!(invalid.keys, [".aria(Aria::Invalid)"]);
             assert_eq!(
                 one(c, "hover:bg-primary/80"),
                 ".hover(|p| p.bg(k.primary.gamma_multiply(0.8)))"
             );
             assert_eq!(
-                c.translate("disabled:opacity-50").unwrap().key,
-                Some("Aria::Disabled")
+                c.translate("disabled:opacity-50").unwrap().keys,
+                [".aria(Aria::Disabled)"]
             );
         });
     }
@@ -718,6 +871,86 @@ mod tests {
         });
     }
 
+    fn keys(c: &Classifier<'_>, class: &str) -> Vec<String> {
+        c.translate(class)
+            .unwrap_or_else(|why| panic!("{class}: {why}"))
+            .keys
+    }
+
+    #[test]
+    fn own_state_variants_become_keys_wherever_they_are_written() {
+        with(|c| {
+            assert_eq!(keys(c, "data-[size=sm]:h-8"), [".size(\"sm\")"]);
+            assert_eq!(keys(c, "data-[side=top]:h-8"), [".attr(\"side\", \"top\")"]);
+            assert_eq!(keys(c, "data-inset:pl-8"), [".attr(\"inset\", \"true\")"]);
+            assert_eq!(
+                keys(c, "data-disabled:opacity-50"),
+                [".aria(Aria::Disabled)"]
+            );
+            assert_eq!(
+                keys(c, "not-data-[variant=destructive]:bg-muted"),
+                [".not_variant(\"destructive\")"]
+            );
+            assert_eq!(
+                keys(c, "active:not-aria-[haspopup]:translate-y-px"),
+                [".not_aria(Aria::HasPopup)"]
+            );
+            assert_eq!(keys(c, "aria-invalid:data-open:bg-muted").len(), 2);
+        });
+    }
+
+    #[test]
+    fn has_and_selector_forms_with_brackets() {
+        with(|c| {
+            assert_eq!(
+                one(
+                    c,
+                    "has-[[data-slot=input-group-control]:focus-visible]:border-ring"
+                ),
+                ".has(Match::any().slot(\"input-group-control\").focus_visible(), |b| b.border_color(k.ring))"
+            );
+            assert_eq!(
+                one(c, "has-[>[data-align=block-end]]:h-9"),
+                ".has(Match::any().attr(\"align\", \"block-end\"), |b| b.h(9.0))"
+            );
+            assert_eq!(
+                one(c, "has-[[aria-invalid=true]]:border-destructive"),
+                ".has(Match::any().aria(Aria::Invalid), |b| b.border_color(k.destructive))"
+            );
+            assert_eq!(
+                one(c, "[&_svg:not([class*='text-'])]:text-muted"),
+                ".descendants(Match::glyph(), |t| t.text(k.muted))"
+            );
+            assert_eq!(
+                one(c, "**:data-[variant=destructive]:text-muted"),
+                ".descendants(Match::any().attr(\"variant\", \"destructive\"), |t| t.text(k.muted))"
+            );
+            assert_eq!(
+                one(c, "has-[>svg]:pl-2"),
+                ".has(Match::glyph(), |b| b.pl(2.0))"
+            );
+            assert_eq!(
+                one(c, "has-disabled:opacity-50"),
+                ".has(Match::any().aria(Aria::Disabled), |b| b.opacity(Opacity::new(0.5)))"
+            );
+            assert_eq!(one(c, "shadow-none"), ".shadow(Shadow::NONE)");
+            assert_eq!(one(c, "z-50"), ".z(50)");
+            assert_eq!(one(c, "line-clamp-1"), ".line_clamp(1)");
+            assert_eq!(
+                one(c, "*:[svg]:size-4"),
+                ".children(Match::glyph(), |t| t.size(4.0))"
+            );
+        });
+    }
+
+    #[test]
+    fn parts_are_named_from_their_slot_within_the_component() {
+        assert_eq!(part_variant("select", "select"), "Root");
+        assert_eq!(part_variant("select", "select-trigger-icon"), "TriggerIcon");
+        assert_eq!(part_variant("combobox", "input-group"), "InputGroup");
+        assert_eq!(part_enum("input-group"), "InputGroupPart");
+    }
+
     #[test]
     fn what_has_no_form_yet_says_why() {
         with(|c| {
@@ -725,15 +958,20 @@ mod tests {
                 c.translate("in-data-[slot=button-group]:rounded-md")
                     .is_err()
             );
-            assert!(
-                c.translate("active:not-aria-[haspopup]:translate-y-px")
-                    .is_err()
-            );
             assert_eq!(
                 c.translate("has-data-[icon=inline-start]:text-primary"),
                 Err("`has-` sets box classes only, not inherited text".to_owned())
             );
             assert_eq!(c.translate("size-3!"), Err("`!` outside a rule".to_owned()));
+            for class in [
+                "group-data-[size=sm]/switch:h-4",
+                "not-last:border-b",
+                "has-[>textarea]:h-auto",
+                "focus:**:text-muted",
+                "**:data-[slot$=-item]:h-8",
+            ] {
+                assert!(c.translate(class).is_err(), "{class}");
+            }
         });
     }
 }

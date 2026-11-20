@@ -71,9 +71,27 @@ pub enum Origin {
     Slot { function: String },
 }
 
-/// A component's class strings, by where they come from.
+/// A component's class strings, by where they come from and the part
+/// (`data-slot`) they style.
 pub struct Component {
-    pub parts: Vec<(Origin, Vec<Class>)>,
+    pub parts: Vec<(Origin, String, Vec<Class>)>,
+}
+
+/// The part a class list styles: its `cn-*` class without the `cn-`, else
+/// the `data-slot` of the element it is written on (`at` lies inside it),
+/// else nothing.
+fn slot_of(classes: &[Class], text: &str, at: usize) -> String {
+    if let Some(cn) = classes.iter().find_map(|c| c.text.strip_prefix("cn-")) {
+        return cn.to_owned();
+    }
+    let open = text[..at].rfind('<').unwrap_or(0);
+    let close = at + text[at..].find('>').unwrap_or(text.len() - at);
+    text[open..close]
+        .split("data-slot=\"")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .unwrap_or_default()
+        .to_owned()
 }
 
 /// A JS string literal's content and the byte offset of its first character.
@@ -184,12 +202,16 @@ pub fn component(text: &str, file: FileId) -> Component {
             })
             .unwrap_or_default();
         let (base, after) = value(text, at);
+        let mut slot = String::new();
         if let Value::Str(s, offset) = base {
+            let classes = classes_of(s, file, offset);
+            slot = slot_of(&classes, "", 0);
             parts.push((
                 Origin::Base {
                     table: table.clone(),
                 },
-                classes_of(s, file, offset),
+                slot.clone(),
+                classes,
             ));
         }
         let comma = skip_space(text, after);
@@ -214,6 +236,7 @@ pub fn component(text: &str, file: FileId) -> Component {
                                     variant: variant.clone(),
                                     name,
                                 },
+                                slot.clone(),
                                 classes_of(s, file, offset),
                             ));
                         }
@@ -260,7 +283,8 @@ pub fn component(text: &str, file: FileId) -> Component {
             at
         };
         if !classes.is_empty() {
-            parts.push((Origin::Slot { function }, classes));
+            let slot = slot_of(&classes, text, at);
+            parts.push((Origin::Slot { function }, slot, classes));
         }
         search = end.max(at);
     }
@@ -319,9 +343,10 @@ mod tests {
   }
 )"#;
         let c = component(text, 0);
-        let origins: Vec<_> = c.parts.iter().map(|(o, _)| o.clone()).collect();
+        let origins: Vec<_> = c.parts.iter().map(|(o, _, _)| o.clone()).collect();
         assert_eq!(origins.len(), 4, "{origins:?}");
-        let (_, sm) = &c.parts[3];
+        assert!(c.parts.iter().all(|(_, slot, _)| slot == "button"));
+        let (_, _, sm) = &c.parts[3];
         assert_eq!(sm[1].text, "px-2.5");
         assert_eq!(&text[sm[1].span.clone()], "px-2.5");
         assert!(
@@ -339,7 +364,7 @@ mod tests {
         let names: Vec<_> = c
             .parts
             .iter()
-            .flat_map(|(_, cs)| cs.iter().map(|c| c.text.as_str()))
+            .flat_map(|(_, _, cs)| cs.iter().map(|c| c.text.as_str()))
             .collect();
         assert_eq!(
             names,
@@ -347,6 +372,27 @@ mod tests {
         );
         assert!(
             matches!(&c.parts[0].0, Origin::Slot { function } if function == "ComboboxTrigger")
+        );
+    }
+
+    #[test]
+    fn each_class_list_names_its_part_by_its_cn_class_else_its_data_slot() {
+        let text = r#"function SelectTrigger() {
+  return <Trigger data-slot="select-trigger" className={cn("cn-select-trigger", className)}>
+    <Icon className="cn-select-trigger-icon pointer-events-none" />
+  </Trigger>
+}
+function SelectLabel() {
+  return <Label data-slot="select-label" className={cn("px-2", className)} />
+}"#;
+        let slots: Vec<_> = component(text, 0)
+            .parts
+            .into_iter()
+            .map(|(_, slot, _)| slot)
+            .collect();
+        assert_eq!(
+            slots,
+            ["select-trigger", "select-trigger-icon", "select-label"]
         );
     }
 

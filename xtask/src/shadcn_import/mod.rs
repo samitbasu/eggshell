@@ -21,7 +21,17 @@ use classes::{Classifier, Fate, Gap, Radius, TwTable};
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 3] = ["button", "badge", "combobox"];
+const COMPONENTS: [&str; 6] = [
+    "button",
+    "badge",
+    "combobox",
+    "input",
+    "input-group",
+    "select",
+];
+
+/// The components whose `Sheet` rules are emitted.
+const SHEETS: [&str; 5] = ["button", "input", "input-group", "select", "combobox"];
 
 pub struct Plan {
     /// The shadcn checkout.
@@ -36,6 +46,8 @@ pub struct Plan {
 struct Row {
     component: &'static str,
     origin: Origin,
+    /// The part it styles, as shadcn's `data-slot` names it.
+    slot: String,
     /// The `cn-*` class it came from, if it came through the CSS.
     via: Option<String>,
     class: Class,
@@ -75,12 +87,13 @@ fn extract(
     for name in COMPONENTS {
         let text = read(&registry.join(format!("bases/radix/ui/{name}.tsx")))?;
         let file = sources.add(format!("registry/bases/radix/ui/{name}.tsx"), text.clone());
-        for (origin, classes) in source::component(&text, file).parts {
+        for (origin, slot, classes) in source::component(&text, file).parts {
             for class in classes {
                 match rules.get(&class.text) {
                     Some(applied) => rows.extend(applied.iter().map(|inner| Row {
                         component: name,
                         origin: origin.clone(),
+                        slot: slot.clone(),
                         via: Some(class.text.clone()),
                         fate: classifier.classify(&inner.text),
                         class: inner.clone(),
@@ -88,6 +101,7 @@ fn extract(
                     None => rows.push(Row {
                         component: name,
                         origin: origin.clone(),
+                        slot: slot.clone(),
                         via: None,
                         fate: classifier.classify(&class.text),
                         class,
@@ -159,11 +173,14 @@ pub fn run(plan: &Plan) -> Result<()> {
 "
         );
         compare::colours(&mut report, style, &rows, &dump);
-        let emitted = emit::emit(&classifier, &rows, &scratch, "button", "ButtonPart", style);
         let sheets = root.join(&plan.out).join("sheets").join(style);
         fs::create_dir_all(&sheets)?;
-        fs::write(sheets.join("button.rs"), &emitted.rust)?;
-        sheet_section(&mut report, style, &emitted);
+        for component in SHEETS {
+            let emitted = emit::emit(&classifier, &rows, &scratch, component, style);
+            let file = format!("{}.rs", component.replace('-', "_"));
+            fs::write(sheets.join(&file), &emitted.rust)?;
+            sheet_section(&mut report, style, component, &file, &emitted);
+        }
     }
     report.push_str(&listings(&rows));
     let out = root.join(&plan.out);
@@ -178,10 +195,17 @@ pub fn run(plan: &Plan) -> Result<()> {
 
 /// The report's account of a generated sheet: how each class got there,
 /// what is not there yet, and what `Tw` lacks for it.
-fn sheet_section(report: &mut String, style: &str, emitted: &emit::Emitted) {
+fn sheet_section(
+    report: &mut String,
+    style: &str,
+    component: &str,
+    file: &str,
+    emitted: &emit::Emitted,
+) {
     let _ = writeln!(
         report,
-        "### The `Sheet` rules for Button (`sheets/{style}/button.rs`)\n"
+        "### The `Sheet` rules for `{component}` (`sheets/{style}/{file}`, `{}`)\n",
+        emit::part_enum(component)
     );
     let _ = writeln!(report, "| mapping kind | classes |\n|---|---|");
     for (kind, count) in &emitted.kinds {
