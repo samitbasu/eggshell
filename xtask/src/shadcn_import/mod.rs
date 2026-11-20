@@ -6,6 +6,7 @@
 
 mod classes;
 mod compare;
+mod emit;
 mod source;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -158,6 +159,11 @@ pub fn run(plan: &Plan) -> Result<()> {
 "
         );
         compare::colours(&mut report, style, &rows, &dump);
+        let emitted = emit::emit(&classifier, &rows, &scratch, "button", "ButtonPart", style);
+        let sheets = root.join(&plan.out).join("sheets").join(style);
+        fs::create_dir_all(&sheets)?;
+        fs::write(sheets.join("button.rs"), &emitted.rust)?;
+        sheet_section(&mut report, style, &emitted);
     }
     report.push_str(&listings(&rows));
     let out = root.join(&plan.out);
@@ -168,6 +174,28 @@ pub fn run(plan: &Plan) -> Result<()> {
     println!("{}", summary_line(&rows));
     println!("report: {}", report_path.display());
     Ok(())
+}
+
+/// The report's account of a generated sheet: how each class got there,
+/// what is not there yet, and what `Tw` lacks for it.
+fn sheet_section(report: &mut String, style: &str, emitted: &emit::Emitted) {
+    let _ = writeln!(
+        report,
+        "### The `Sheet` rules for Button (`sheets/{style}/button.rs`)\n"
+    );
+    let _ = writeln!(report, "| mapping kind | classes |\n|---|---|");
+    for (kind, count) in &emitted.kinds {
+        let _ = writeln!(report, "| {} | {count} |", kind.label());
+    }
+    let _ = writeln!(report, "\nUnmapped, once each:\n");
+    for (source, why) in &emitted.unmapped {
+        let _ = writeln!(report, "- `{source}`: {why}");
+    }
+    if !emitted.needs.is_empty() {
+        let needs: Vec<_> = emitted.needs.iter().map(|n| format!("`Tw::{n}`")).collect();
+        let _ = writeln!(report, "\n`Tw` lacks: {}.", needs.join(", "));
+    }
+    let _ = writeln!(report);
 }
 
 fn is_clean(fate: &Fate) -> bool {

@@ -417,7 +417,7 @@ impl Classifier<'_> {
         Some((name.to_owned(), alpha))
     }
 
-    fn utility(&self, utility: &str) -> Fate {
+    pub(super) fn utility(&self, utility: &str) -> Fate {
         if utility.starts_with("cn-") || utility.starts_with("group/") {
             return Fate::Marker;
         }
