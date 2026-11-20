@@ -160,7 +160,7 @@ use crate::layout_tree::LayoutTree;
 use crate::nodes::Nodes;
 use crate::pipeline::{PlacedNode, ScrollMut, takes_tab};
 use crate::shell::Shell;
-use crate::tw::{Focusability, Scrollbar, Tw};
+use crate::tw::{Focusability, Scrollbar, Sides, Tw};
 
 /// Along which axes a scroll container scrolls.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -841,6 +841,8 @@ pub(crate) struct ScrollPlan {
     pub(crate) bars: Bars,
     pub(crate) tab: TabRule,
     pub(crate) description: Description,
+    /// How far scrolling into view keeps a node from the edges.
+    pub(crate) padding: Sides<f32>,
     /// The content root's size.
     pub(crate) content: Vec2,
     /// How far the content is scrolled.
@@ -998,14 +1000,20 @@ impl Settle {
                 request.applied = true;
                 if enabled.x {
                     want.x += reveal(
-                        (viewport.min.x, viewport.max.x),
+                        (
+                            viewport.min.x + plan.padding.left,
+                            viewport.max.x - plan.padding.right,
+                        ),
                         (item.min.x, item.max.x),
                         align,
                     );
                 }
                 if enabled.y {
                     want.y += reveal(
-                        (viewport.min.y, viewport.max.y),
+                        (
+                            viewport.min.y + plan.padding.top,
+                            viewport.max.y - plan.padding.bottom,
+                        ),
                         (item.min.y, item.max.y),
                         align,
                     );
