@@ -10,6 +10,7 @@
 //! `ch`, resolved when the builder knows the node's font. Layout methods take bare floats because the method
 //! name carries the unit, exactly as in Tailwind.
 
+mod boxed;
 mod ch;
 mod easing;
 mod grid;
@@ -26,6 +27,7 @@ use taffy::{Display, Style};
 use crate::contract::Size;
 use crate::text::TextClasses;
 
+pub use boxed::BoxTw;
 pub use ch::Reserve;
 pub(crate) use ch::{MinWidth, TextWidths};
 pub use easing::Easing;
@@ -33,7 +35,7 @@ pub use grid::Track;
 use merge::{Layout, Touched};
 pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
 pub use rules::{Aria, Match};
-pub(crate) use rules::{Link, Ruled, Rules};
+pub(crate) use rules::{Link, Observed, Ruled, Rules};
 pub use units::{Angle, Mirror, Opacity, Progress};
 pub use variants::Paint;
 pub(crate) use variants::{

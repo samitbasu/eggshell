@@ -4,7 +4,7 @@ use crate::finite::clamp;
 use egui::{Color32, CornerRadius, Shadow};
 
 use super::merge::Shape;
-use super::{Opacity, Tw};
+use super::{BoxTw, Opacity, Tw};
 
 /// A value for each side of a box.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -125,6 +125,110 @@ macro_rules! side_colors {
     )*};
 }
 
+/// The methods of `Tw` that are layout or box paint, once for `Tw` and once for
+/// [`BoxTw`], so that one list names them.
+macro_rules! paint_methods {
+    () => {
+            /// `bg-<color>`.
+            pub fn bg(self, color: impl Into<Color32>) -> Self {
+                self.painted(|p| p.background = Some(color.into()))
+            }
+
+            side_colors! {
+                border_color, "`border-<color>`: every side.", |p, c| p.border_colors = Sides { top: c, right: c, bottom: c, left: c };
+                border_x_color, "`border-x-<color>`: left and right.", |p, c| { p.border_colors.left = c; p.border_colors.right = c };
+                border_y_color, "`border-y-<color>`: top and bottom.", |p, c| { p.border_colors.top = c; p.border_colors.bottom = c };
+                border_t_color, "`border-t-<color>`.", |p, c| p.border_colors.top = c;
+                border_r_color, "`border-r-<color>`.", |p, c| p.border_colors.right = c;
+                border_b_color, "`border-b-<color>`.", |p, c| p.border_colors.bottom = c;
+                border_l_color, "`border-l-<color>`.", |p, c| p.border_colors.left = c;
+            }
+
+            /// `divide-x-<width>`: hairlines between children laid out in a row.
+            pub fn divide_x(self, width: f32, color: impl Into<Color32>) -> Self {
+                let color = color.into();
+                self.painted(|p| p.divide_x = Some(Divide { width, color }))
+            }
+
+            /// `divide-y-<width>`: hairlines between children laid out in a column.
+            pub fn divide_y(self, width: f32, color: impl Into<Color32>) -> Self {
+                let color = color.into();
+                self.painted(|p| p.divide_y = Some(Divide { width, color }))
+            }
+
+            rounded! {
+                rounded_none, "`rounded-none`.", 0;
+                rounded_sm, "`rounded-sm`: 2 points.", 2;
+                rounded, "`rounded`: 4 points.", 4;
+                rounded_md, "`rounded-md`: 6 points.", 6;
+                rounded_lg, "`rounded-lg`: 8 points.", 8;
+                rounded_xl, "`rounded-xl`: 12 points.", 12;
+                rounded_2xl, "`rounded-2xl`: 16 points.", 16;
+                rounded_3xl, "`rounded-3xl`: 24 points.", 24;
+                rounded_full, "`rounded-full`: as round as the box allows.", u8::MAX;
+            }
+
+            /// `rounded-[<r>px]`: corner radius in points, rounded to whole points.
+            pub fn rounded_px(self, points: f32) -> Self {
+                self.shaped(|p| p.set_radius(radius(clamp(points.round(), 0.0, 255.0) as u8)))
+            }
+
+            /// `rounded-tr-[<r>px]`: top-right corner radius in points, rounded to
+            /// whole points; the other corners keep theirs.
+            pub fn rounded_tr_px(self, points: f32) -> Self {
+                self.shaped(|p| *p.radius_ne() = clamp(points.round(), 0.0, 255.0) as u8)
+            }
+
+            /// `rounded-br-[<r>px]`: bottom-right corner radius in points, rounded to
+            /// whole points; the other corners keep theirs.
+            pub fn rounded_br_px(self, points: f32) -> Self {
+                self.shaped(|p| *p.radius_se() = clamp(points.round(), 0.0, 255.0) as u8)
+            }
+
+            /// `rounded-tl-[<r>px]`: top-left corner radius in points, rounded to
+            /// whole points; the other corners keep theirs.
+            pub fn rounded_tl_px(self, points: f32) -> Self {
+                self.shaped(|p| *p.radius_nw() = clamp(points.round(), 0.0, 255.0) as u8)
+            }
+
+            /// `rounded-bl-[<r>px]`: bottom-left corner radius in points, rounded to
+            /// whole points; the other corners keep theirs.
+            pub fn rounded_bl_px(self, points: f32) -> Self {
+                self.shaped(|p| *p.radius_sw() = clamp(points.round(), 0.0, 255.0) as u8)
+            }
+
+            /// `ring-<width>`: a ring outside the border box. It takes no space, like
+            /// CSS's `outline`, so a container that clips (a scroll container,
+            /// `overflow_hidden`) cuts off the ring of a child flush with its edge:
+            /// leave at least the ring's width as padding inside one.
+            pub fn ring(self, width: f32, color: impl Into<Color32>) -> Self {
+                let color = color.into();
+                self.painted(|p| p.ring = Some(Ring { width, color }))
+            }
+
+            /// `ring-inset`: the ring is drawn inside the border box, over the
+            /// border and the node's own edge, instead of outside it. It changes no
+            /// layout, and applies to the ring of any state.
+            ///
+            /// ```html
+            /// <div class="ring-2 ring-inset ring-blue-500"></div>
+            /// ```
+            pub fn ring_inset(self) -> Self {
+                self.painted(|p| p.ring_placement = RingPlacement::Inside)
+            }
+
+            /// `shadow-*`.
+            pub fn shadow(self, shadow: Shadow) -> Self {
+                self.painted(|p| p.shadow = Some(shadow))
+            }
+
+            /// `opacity-*`.
+            pub fn opacity(self, opacity: Opacity) -> Self {
+                self.shaped(|p| p.set_opacity(opacity))
+            }
+    };
+}
+
 impl Tw {
     fn painted(mut self, set: impl FnOnce(&mut BoxPaint)) -> Self {
         let mut after = self.paint;
@@ -140,103 +244,19 @@ impl Tw {
         self
     }
 
-    /// `bg-<color>`.
-    pub fn bg(self, color: impl Into<Color32>) -> Self {
-        self.painted(|p| p.background = Some(color.into()))
+    paint_methods!();
+}
+
+impl BoxTw {
+    fn painted(self, set: impl FnOnce(&mut BoxPaint)) -> Self {
+        Self(self.0.painted(set))
     }
 
-    side_colors! {
-        border_color, "`border-<color>`: every side.", |p, c| p.border_colors = Sides { top: c, right: c, bottom: c, left: c };
-        border_x_color, "`border-x-<color>`: left and right.", |p, c| { p.border_colors.left = c; p.border_colors.right = c };
-        border_y_color, "`border-y-<color>`: top and bottom.", |p, c| { p.border_colors.top = c; p.border_colors.bottom = c };
-        border_t_color, "`border-t-<color>`.", |p, c| p.border_colors.top = c;
-        border_r_color, "`border-r-<color>`.", |p, c| p.border_colors.right = c;
-        border_b_color, "`border-b-<color>`.", |p, c| p.border_colors.bottom = c;
-        border_l_color, "`border-l-<color>`.", |p, c| p.border_colors.left = c;
+    fn shaped(self, set: impl FnOnce(&mut Shape<'_>)) -> Self {
+        Self(self.0.shaped(set))
     }
 
-    /// `divide-x-<width>`: hairlines between children laid out in a row.
-    pub fn divide_x(self, width: f32, color: impl Into<Color32>) -> Self {
-        let color = color.into();
-        self.painted(|p| p.divide_x = Some(Divide { width, color }))
-    }
-
-    /// `divide-y-<width>`: hairlines between children laid out in a column.
-    pub fn divide_y(self, width: f32, color: impl Into<Color32>) -> Self {
-        let color = color.into();
-        self.painted(|p| p.divide_y = Some(Divide { width, color }))
-    }
-
-    rounded! {
-        rounded_none, "`rounded-none`.", 0;
-        rounded_sm, "`rounded-sm`: 2 points.", 2;
-        rounded, "`rounded`: 4 points.", 4;
-        rounded_md, "`rounded-md`: 6 points.", 6;
-        rounded_lg, "`rounded-lg`: 8 points.", 8;
-        rounded_xl, "`rounded-xl`: 12 points.", 12;
-        rounded_2xl, "`rounded-2xl`: 16 points.", 16;
-        rounded_3xl, "`rounded-3xl`: 24 points.", 24;
-        rounded_full, "`rounded-full`: as round as the box allows.", u8::MAX;
-    }
-
-    /// `rounded-[<r>px]`: corner radius in points, rounded to whole points.
-    pub fn rounded_px(self, points: f32) -> Self {
-        self.shaped(|p| p.set_radius(radius(clamp(points.round(), 0.0, 255.0) as u8)))
-    }
-
-    /// `rounded-tr-[<r>px]`: top-right corner radius in points, rounded to
-    /// whole points; the other corners keep theirs.
-    pub fn rounded_tr_px(self, points: f32) -> Self {
-        self.shaped(|p| *p.radius_ne() = clamp(points.round(), 0.0, 255.0) as u8)
-    }
-
-    /// `rounded-br-[<r>px]`: bottom-right corner radius in points, rounded to
-    /// whole points; the other corners keep theirs.
-    pub fn rounded_br_px(self, points: f32) -> Self {
-        self.shaped(|p| *p.radius_se() = clamp(points.round(), 0.0, 255.0) as u8)
-    }
-
-    /// `rounded-tl-[<r>px]`: top-left corner radius in points, rounded to
-    /// whole points; the other corners keep theirs.
-    pub fn rounded_tl_px(self, points: f32) -> Self {
-        self.shaped(|p| *p.radius_nw() = clamp(points.round(), 0.0, 255.0) as u8)
-    }
-
-    /// `rounded-bl-[<r>px]`: bottom-left corner radius in points, rounded to
-    /// whole points; the other corners keep theirs.
-    pub fn rounded_bl_px(self, points: f32) -> Self {
-        self.shaped(|p| *p.radius_sw() = clamp(points.round(), 0.0, 255.0) as u8)
-    }
-
-    /// `ring-<width>`: a ring outside the border box. It takes no space, like
-    /// CSS's `outline`, so a container that clips (a scroll container,
-    /// `overflow_hidden`) cuts off the ring of a child flush with its edge:
-    /// leave at least the ring's width as padding inside one.
-    pub fn ring(self, width: f32, color: impl Into<Color32>) -> Self {
-        let color = color.into();
-        self.painted(|p| p.ring = Some(Ring { width, color }))
-    }
-
-    /// `ring-inset`: the ring is drawn inside the border box, over the
-    /// border and the node's own edge, instead of outside it. It changes no
-    /// layout, and applies to the ring of any state.
-    ///
-    /// ```html
-    /// <div class="ring-2 ring-inset ring-blue-500"></div>
-    /// ```
-    pub fn ring_inset(self) -> Self {
-        self.painted(|p| p.ring_placement = RingPlacement::Inside)
-    }
-
-    /// `shadow-*`.
-    pub fn shadow(self, shadow: Shadow) -> Self {
-        self.painted(|p| p.shadow = Some(shadow))
-    }
-
-    /// `opacity-*`.
-    pub fn opacity(self, opacity: Opacity) -> Self {
-        self.shaped(|p| p.set_opacity(opacity))
-    }
+    paint_methods!();
 }
 
 #[cfg(test)]

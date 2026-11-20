@@ -1642,11 +1642,45 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// Adds a leaf to the current parent.
     fn leaf_node(&mut self, mut tw: Tw, parts: Parts) -> NodeId {
         self.apply_rules(&mut tw, parts.kind);
+        let observed = self.observation(&tw, &parts);
         let node = self.node(&tw, parts);
         let style = self.resolved_style(tw, &node);
         let id = self.st.tree.new_node(style, &[], node);
         self.kids.push(id);
+        self.observe(id, observed);
         id
+    }
+
+    /// `tw` as its `has` rules make it once the children `kids` are built.
+    fn closed(&mut self, tw: Tw, node: &mut Node, kids: &[NodeId]) -> Tw {
+        let applied = tw.with_has(kids.iter().filter_map(|kid| self.st.observed.get(kid)));
+        if !self.st.observed.is_empty() {
+            for kid in kids {
+                self.st.observed.remove(kid);
+            }
+        }
+        let Some(applied) = applied else {
+            return tw;
+        };
+        node.paint = applied.paint;
+        node.text_valign = VAlign::of(&applied.style);
+        applied
+    }
+
+    /// What the container these nodes are built in learns of the node a `tw`
+    /// and `parts` make, if it has `has` rules.
+    fn observation(&self, tw: &Tw, parts: &Parts) -> Option<crate::tw::Observed> {
+        self.ambient.rules.observed.then(|| crate::tw::Observed {
+            kind: parts.kind,
+            facts: tw.facts().clone(),
+            focused: parts.id.is_some_and(|id| self.shell().focus_within(id)),
+        })
+    }
+
+    fn observe(&mut self, node: NodeId, observed: Option<crate::tw::Observed>) {
+        if let Some(observed) = observed {
+            self.st.observed.insert(node, observed);
+        }
     }
 
     #[track_caller]
@@ -1807,8 +1841,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ) -> NodeId {
         self.apply_rules(&mut tw, parts.kind);
         let ambient = self.ambient_in(&tw);
-        let node = self.node(&tw, parts);
-        let style = self.resolved_style(tw, &node);
+        let observed = self.observation(&tw, &parts);
+        let mut node = self.node(&tw, parts);
         let text = node.text.clone();
         let mut kids = Vec::new();
         body(Builder::new(
@@ -1818,8 +1852,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut kids,
             (&text, ambient, self.style),
         ));
+        let tw = self.closed(tw, &mut node, &kids);
+        let style = self.resolved_style(tw, &node);
         let id = self.st.tree.new_node(style, &kids, node);
         self.kids.push(id);
+        self.observe(id, observed);
         id
     }
 }
