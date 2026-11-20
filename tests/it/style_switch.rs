@@ -51,6 +51,7 @@ fn context(theme: Theme, style: ShadcnStyle) -> Context {
 fn place<A>(ctx: &Context, build: impl for<'f> FnOnce(&mut Builder<'_, 'f, A>)) -> Placed<A> {
     LayoutState::new()
         .with_base_text(common::base_text_in(ctx))
+        .with_style(common::style(ctx))
         .build(ctx, build)
         .layout(AREA)
 }
@@ -63,6 +64,7 @@ fn place_borrowing<A>(
 ) -> Placed<A> {
     LayoutState::new()
         .with_base_text(common::base_text_in(ctx))
+        .with_style(common::style(ctx))
         .build(ctx, |b| build(b, app))
         .layout(AREA)
 }
@@ -101,13 +103,13 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
     for theme in [Theme::Light, Theme::Dark] {
         let ctx = context(theme, ShadcnStyle::Vega);
         let vega = place(&ctx, controls);
-        let vega_style = Style::of(&ctx);
+        let vega_style = common::style(&ctx).get(theme).clone();
         let vega_tokens = Tokens::for_theme(theme).in_style(ShadcnStyle::Vega);
 
         common::set_style(&ctx, ShadcnStyle::Lyra);
         common::use_preset(&ctx);
         let lyra = place(&ctx, controls);
-        let lyra_style = Style::of(&ctx);
+        let lyra_style = common::style(&ctx).get(theme).clone();
         let lyra_tokens = Tokens::for_theme(theme).in_style(ShadcnStyle::Lyra);
 
         assert_ne!(
@@ -165,7 +167,14 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
 
         common::set_style(&ctx, ShadcnStyle::Vega);
         common::use_preset(&ctx);
-        assert_eq!(*Style::of(&ctx), *vega_style, "and back again");
+        let again = place(&ctx, controls);
+        for path in ["/\"button\"", "/\"select\"", "/\"field\""] {
+            assert_eq!(
+                height_of(&again, path),
+                height_of(&vega, path),
+                "{theme:?} {path} and back again"
+            );
+        }
     }
 }
 

@@ -4,7 +4,7 @@
 //! width that makes text wrap.
 
 use eggshell_ui::widget::{Lines, Stock, TextEdit};
-use eggshell_ui::{NodeUi as _, TextSpec, TextStyle, Weight, Width};
+use eggshell_ui::{TextSpec, TextStyle, Weight, Width};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
 use egui::{
     Color32, Context, FontFamily, Rect, Response, Style, Theme, Ui, UiBuilder, Vec2, pos2, vec2,
@@ -100,7 +100,7 @@ const WIDTHS: [Option<f32>; 3] = [None, Some(150.0), Some(70.0)];
 /// What egui allocates for `add`, drawn in a `Ui` `width` wide with the
 /// node's font override, as the draw phase sets up its own.
 fn drawn(
-    ctx: &Context,
+    Tweaked { ctx, style }: &Tweaked,
     text: &TextStyle,
     width: Option<f32>,
     mut add: impl FnMut(&mut Ui) -> Response,
@@ -111,6 +111,7 @@ fn drawn(
             ui.style_mut().override_font_id = Some(text.spec.font_id(ui.ctx()));
             let room = Rect::from_min_size(pos2(0.0, 0.0), vec2(width.unwrap_or(5000.0), 5000.0));
             ui.scope_builder(UiBuilder::new().max_rect(room), |ui| {
+                style.map_input(ui.style_mut(), eggshell_ui::contract::Size::DEFAULT);
                 size = add(ui).rect.size();
             });
         });
@@ -119,34 +120,41 @@ fn drawn(
     size
 }
 
-/// Draws the field in the style the library gives its text edits: the input
-/// section of the contract, mapped onto the `Ui`.
-fn input_padded(ui: &mut Ui) {
-    ui.node_style()
-        .map_input(ui.style_mut(), eggshell_ui::contract::Size::DEFAULT);
+/// A context with a tweak applied and its fonts loaded, which sizes mean
+/// nothing without, and the style its widgets are estimated and drawn in.
+struct Tweaked {
+    ctx: Context,
+    style: std::sync::Arc<eggshell_ui::Style>,
 }
 
-/// A context with the tweak applied and its fonts loaded, which sizes mean
-/// nothing without.
-fn context(tweak: &Tweak) -> Context {
+/// The tweak's context and style: the preset's, else the one egui's tweaked
+/// style gives. A field is drawn with the style's input section mapped onto
+/// its `Ui`, as the library draws its text edits.
+fn context(tweak: &Tweak) -> Tweaked {
     let ctx = Context::default();
-    if let Some((theme, style)) = tweak.preset {
+    let preset = tweak.preset.map(|(theme, style)| {
         ctx.set_theme(theme);
-        Shadcn::for_theme(theme).with_style(style).apply(&ctx);
-    }
+        let preset = Shadcn::for_theme(theme).with_style(style);
+        preset.apply(&ctx);
+        preset.style()
+    });
     ctx.global_style_mut(tweak.apply);
     ctx.run_ui(egui::RawInput::default(), |_| {})
         .drop_without_applying_deltas();
-    ctx
+    let style = preset.unwrap_or_else(|| eggshell_ui::Style::from_egui(&ctx.global_style()));
+    Tweaked {
+        ctx,
+        style: std::sync::Arc::new(style),
+    }
 }
 
-fn estimate(ctx: &Context, text: &TextStyle, width: Option<f32>, widget: &impl Stock) -> Vec2 {
-    widget.size(
-        ctx,
-        text,
-        &eggshell_ui::Style::of(ctx),
-        width.map(Width::new),
-    )
+fn estimate(
+    Tweaked { ctx, style }: &Tweaked,
+    text: &TextStyle,
+    width: Option<f32>,
+    widget: &impl Stock,
+) -> Vec2 {
+    widget.size(ctx, text, style, width.map(Width::new))
 }
 
 type Add = Box<dyn Fn(&mut Ui, Option<f32>) -> Response>;
@@ -163,20 +171,20 @@ struct Case<W> {
 fn agrees<W: Stock>(cases: impl Fn(&str) -> Case<W>, labels: &[&str]) -> bool {
     let mut wrapped = false;
     for tweak in &TWEAKS {
-        let ctx = context(tweak);
+        let tweaked = context(tweak);
         for size in SIZES {
             let text = text_style(size);
             for width in WIDTHS {
                 for label in labels {
                     let case = cases(label);
-                    let expected = drawn(&ctx, &text, width, |ui| (case.add)(ui, width));
-                    let got = estimate(&ctx, &text, width, &case.widget);
+                    let expected = drawn(&tweaked, &text, width, |ui| (case.add)(ui, width));
+                    let got = estimate(&tweaked, &text, width, &case.widget);
                     assert_eq!(
                         got, expected,
                         "tweak {:?}, font {size}, width {width:?}, label {label:?}",
                         tweak.name
                     );
-                    let natural = estimate(&ctx, &text, None, &case.widget);
+                    let natural = estimate(&tweaked, &text, None, &case.widget);
                     wrapped |= got.y > natural.y;
                 }
             }
@@ -206,7 +214,6 @@ fn text_edit_case(text: &str, hint: Option<&'static str>, lines: Lines) -> Case<
     Case {
         widget,
         add: Box::new(move |ui, width| {
-            input_padded(ui);
             let mut buffer = text.clone();
             let mut edit = match lines {
                 Lines::Single => egui::TextEdit::singleline(&mut buffer),
@@ -244,7 +251,6 @@ fn a_masked_one_line_field_is_the_size_of_a_shown_one() {
             add: Box::new({
                 let text = text.to_owned();
                 move |ui, width| {
-                    input_padded(ui);
                     let mut buffer = text.clone();
                     let mut edit = egui::TextEdit::singleline(&mut buffer).password(true);
                     if let Some(width) = width {
@@ -267,7 +273,6 @@ fn bare_case(text: &str, lines: Lines) -> Case<TextEdit> {
     Case {
         widget: widget.hint("Reply").bare(),
         add: Box::new(move |ui, width| {
-            input_padded(ui);
             ui.spacing_mut().interact_size.y = 0.0;
             let role_line = ui.style().override_font_id.as_ref().map_or(0.0, |f| f.size) * 1.25;
             let mut buffer = text.clone();
@@ -298,11 +303,11 @@ fn bare_text_edits_have_no_margin() {
         wrapped |= agrees(|text| bare_case(text, lines), &TEXTS);
     }
     assert!(wrapped, "precondition: long text wraps in a narrow width");
-    let ctx = context(&TWEAKS[0]);
+    let tweaked = context(&TWEAKS[0]);
     let text = text_style(14.0);
-    let framed = estimate(&ctx, &text, Some(200.0), &TextEdit::multiline("x", 3));
+    let framed = estimate(&tweaked, &text, Some(200.0), &TextEdit::multiline("x", 3));
     let bare = estimate(
-        &ctx,
+        &tweaked,
         &text,
         Some(200.0),
         &TextEdit::multiline("x", 3).bare(),
@@ -331,18 +336,18 @@ fn multi_line_text_edit() {
 #[test]
 fn a_row_cap_stops_a_multi_line_field_growing() {
     let tweak = &TWEAKS[0];
-    let ctx = context(tweak);
+    let tweaked = context(tweak);
     let text = text_style(14.0);
     let long = "line\n".repeat(12);
-    let free = estimate(&ctx, &text, Some(200.0), &TextEdit::multiline(&long, 2));
+    let free = estimate(&tweaked, &text, Some(200.0), &TextEdit::multiline(&long, 2));
     let capped = estimate(
-        &ctx,
+        &tweaked,
         &text,
         Some(200.0),
         &TextEdit::multiline(&long, 2).max_rows(4),
     );
     let short = estimate(
-        &ctx,
+        &tweaked,
         &text,
         Some(200.0),
         &TextEdit::multiline("", 2).max_rows(4),
@@ -357,7 +362,7 @@ fn a_row_cap_stops_a_multi_line_field_growing() {
     );
     assert_eq!(capped.x, free.x);
     let one_more = estimate(
-        &ctx,
+        &tweaked,
         &text,
         Some(200.0),
         &TextEdit::multiline(&long, 2).max_rows(5),
