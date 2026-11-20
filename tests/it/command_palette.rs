@@ -226,6 +226,39 @@ fn the_combobox_is_a_field_that_opens_on_a_click_filters_as_typed_and_picks() {
     );
 }
 
+/// The rects painted with a stroke in the focus ring's color.
+fn ring_rects(harness: &Harness<'_, Rig<State>>) -> Vec<egui::Rect> {
+    let ring = eggshell_ui::Style::of(&harness.ctx).focus.color;
+    harness
+        .output()
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            egui::epaint::Shape::Rect(shape) if shape.stroke.color == ring => Some(shape.rect),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn the_combobox_box_wears_the_focus_ring_while_its_field_has_focus() {
+    let mut harness = harness();
+    assert!(
+        ring_rects(&harness).is_empty(),
+        "precondition: no focus, no ring"
+    );
+    combobox(&harness).focus();
+    harness.run_steps(6);
+    assert!(
+        support::focused_path(&harness).is_some(),
+        "precondition: the field has the focus"
+    );
+    assert!(
+        !ring_rects(&harness).is_empty(),
+        "the group's ring is drawn once the field has focus"
+    );
+}
+
 #[test]
 fn the_chevron_opens_the_list_and_gives_the_field_the_focus() {
     let mut harness = harness();
