@@ -4,13 +4,13 @@
 
 use core::time::Duration;
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::testing::{Points, Timeline, assert_reported, record};
 use eggshell_ui::{Builder, LayoutState, Problem, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, press_and_release, rect_of};
+use crate::support::{self, press_and_release};
 
 const SLIDE: Duration = Duration::from_millis(1000);
 const ROW: f32 = 30.0;
@@ -84,8 +84,8 @@ fn nested(b: &mut Builder<'_, '_, App>, app: &App) {
     );
 }
 
-fn harness(app: App, view: support::View<App>) -> Harness<'static, Rig<App>> {
-    let text = TextStyle::new(
+fn text() -> TextStyle {
+    TextStyle::new(
         TextSpec {
             size: 16.0,
             line_height: 20.0,
@@ -93,14 +93,17 @@ fn harness(app: App, view: support::View<App>) -> Harness<'static, Rig<App>> {
             weight: Weight::Normal,
         },
         Color32::BLACK,
-    );
-    let mut harness = support::harness(vec2(400.0, 300.0), text, app, view);
-    harness.run_steps(3);
-    harness
+    )
 }
 
-fn painted_top<A>(harness: &Harness<'_, Rig<A>>, fill: Color32) -> f32 {
-    support::shapes(harness)
+fn driver(app: App, view: support::View<App>) -> Driver<App> {
+    let mut d = support::driver(vec2(400.0, 300.0), text(), app, view).build();
+    d.frames(3);
+    d
+}
+
+fn painted_top<A>(d: &Driver<A>, fill: Color32) -> f32 {
+    support::shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Rect(rect) if rect.fill == fill => Some(rect.rect.min.y),
@@ -109,34 +112,34 @@ fn painted_top<A>(harness: &Harness<'_, Rig<A>>, fill: Color32) -> f32 {
         .unwrap_or_else(|| panic!("nothing is painted in {fill:?}"))
 }
 
-fn painted_offset(harness: &Harness<'_, Rig<App>>, fill: Color32, path: &str) -> f32 {
-    painted_top(harness, fill) - rect_of(harness, path).min.y
+fn painted_offset(d: &Driver<App>, fill: Color32, path: &str) -> f32 {
+    painted_top(d, fill) - d.rect(Target::suffix(path)).min.y
 }
 
-fn reverse(harness: &mut Harness<'_, Rig<App>>) {
-    harness.state_mut().app.order.reverse();
+fn reverse(d: &mut Driver<App>) {
+    d.app_mut().order.reverse();
 }
 
-fn requested_repaint<A>(harness: &Harness<'_, Rig<A>>) -> bool {
-    harness.ctx.has_requested_repaint()
+fn requested_repaint<A>(d: &Driver<A>) -> bool {
+    d.ctx().has_requested_repaint()
 }
 
 #[test]
 fn a_reordered_row_slides_from_its_old_place_to_its_new_one() {
-    let mut harness = harness(App::new(&[1, 2], &[1, 2]), rows);
-    let old = painted_top(&harness, color(1));
-    reverse(&mut harness);
-    harness.step();
-    let new = rect_of(&harness, "/1").min.y;
+    let mut d = driver(App::new(&[1, 2], &[1, 2]), rows);
+    let old = painted_top(&d, color(1));
+    reverse(&mut d);
+    d.frames(1);
+    let new = d.rect(Target::suffix("/1")).min.y;
     assert_ne!(new, old, "precondition: the reorder moved row 1");
 
-    let first = painted_top(&harness, color(1));
+    let first = painted_top(&d, color(1));
     assert!((first - old).abs() < 1.0, "painted at {first}, was {old}");
 
     let mut seen = vec![first];
     for _ in 0..9 {
-        harness.step();
-        seen.push(painted_top(&harness, color(1)));
+        d.frames(1);
+        seen.push(painted_top(&d, color(1)));
     }
     let midway = *seen.last().expect("steps ran");
     assert!(
@@ -149,64 +152,64 @@ fn a_reordered_row_slides_from_its_old_place_to_its_new_one() {
         "closer to the new place every frame: {seen:?}"
     );
 
-    harness.run_steps(12);
-    assert_eq!(painted_top(&harness, color(1)), new);
-    harness.step();
-    assert!(!requested_repaint(&harness), "settled");
+    d.frames(12);
+    assert_eq!(painted_top(&d, color(1)), new);
+    d.frames(1);
+    assert!(!requested_repaint(&d), "settled");
 }
 
 #[test]
 fn layout_and_hit_rects_are_final_on_the_first_frame() {
-    let mut harness = harness(App::new(&[1, 2], &[1, 2]), rows);
-    let old = rect_of(&harness, "/1");
-    reverse(&mut harness);
-    harness.step();
-    let new = rect_of(&harness, "/1");
+    let mut d = driver(App::new(&[1, 2], &[1, 2]), rows);
+    let old = d.rect(Target::suffix("/1"));
+    reverse(&mut d);
+    d.frames(1);
+    let new = d.rect(Target::suffix("/1"));
     assert_ne!(new, old, "precondition: the reorder moved row 1");
     assert!(
-        (painted_top(&harness, color(1)) - old.min.y).abs() < 1.0,
+        (painted_top(&d, color(1)) - old.min.y).abs() < 1.0,
         "precondition: it is still painted at the old place"
     );
 
     let at = new.center();
-    press_and_release(&mut harness, at);
-    assert_eq!(harness.state().app.clicked, Some(1));
+    press_and_release(&mut d, at);
+    assert_eq!(d.app().clicked, Some(1));
 }
 
 #[test]
 fn nodes_that_did_not_opt_in_move_at_once() {
-    let mut harness = harness(App::new(&[1, 2], &[1]), rows);
-    reverse(&mut harness);
-    harness.step();
+    let mut d = driver(App::new(&[1, 2], &[1]), rows);
+    reverse(&mut d);
+    d.frames(1);
     assert_eq!(
-        painted_top(&harness, color(2)),
-        rect_of(&harness, "/2").min.y
+        painted_top(&d, color(2)),
+        d.rect(Target::suffix("/2")).min.y
     );
     assert_ne!(
-        painted_top(&harness, color(1)),
-        rect_of(&harness, "/1").min.y,
+        painted_top(&d, color(1)),
+        d.rect(Target::suffix("/1")).min.y,
         "precondition: the animated row is still on its way"
     );
 }
 
 #[test]
 fn nothing_animates_or_repaints_when_nothing_moved() {
-    let mut harness = harness(App::new(&[1, 2], &[1, 2]), rows);
+    let mut d = driver(App::new(&[1, 2], &[1, 2]), rows);
     for _ in 0..3 {
-        harness.step();
-        assert_eq!(painted_offset(&harness, color(1), "/1"), 0.0);
-        assert_eq!(painted_offset(&harness, color(2), "/2"), 0.0);
-        assert!(!requested_repaint(&harness));
+        d.frames(1);
+        assert_eq!(painted_offset(&d, color(1), "/1"), 0.0);
+        assert_eq!(painted_offset(&d, color(2), "/2"), 0.0);
+        assert!(!requested_repaint(&d));
     }
 }
 
 #[test]
 fn a_child_does_not_animate_again_when_only_its_parent_moved() {
-    let mut harness = harness(App::new(&[], &[]), nested);
-    harness.state_mut().app.lead = 50.0;
-    harness.run_steps(8);
-    let parent = painted_offset(&harness, PARENT, "/\"parent\"");
-    let child = painted_offset(&harness, CHILD, "/\"parent\"/\"child\"");
+    let mut d = driver(App::new(&[], &[]), nested);
+    d.app_mut().lead = 50.0;
+    d.frames(8);
+    let parent = painted_offset(&d, PARENT, "/\"parent\"");
+    let child = painted_offset(&d, CHILD, "/\"parent\"/\"child\"");
     assert!(
         parent.abs() > 1.0,
         "precondition: the parent is part-way: {parent}"
@@ -219,23 +222,22 @@ fn a_child_does_not_animate_again_when_only_its_parent_moved() {
 
 #[test]
 fn a_reorder_on_a_resize_frame_still_slides() {
-    let mut harness = harness(App::new(&[1, 2], &[1, 2]), rows);
-    reverse(&mut harness);
-    harness.set_size(vec2(500.0, 300.0));
-    harness.step();
+    let mut d = driver(App::new(&[1, 2], &[1, 2]), rows);
+    reverse(&mut d);
+    d.resize(vec2(500.0, 300.0));
     assert_eq!(
-        harness.state().nodes.len(),
+        support::nodes(&d).len(),
         3,
         "precondition: the row layout is built"
     );
     for key in [1, 2] {
         assert_ne!(
-            painted_offset(&harness, color(key), &format!("/{key}")),
+            painted_offset(&d, color(key), &format!("/{key}")),
             0.0,
             "row {key} changed its place among its siblings"
         );
     }
-    assert!(requested_repaint(&harness));
+    assert!(requested_repaint(&d));
 }
 
 /// ```html
@@ -249,24 +251,22 @@ fn wrapping(b: &mut Builder<'_, '_, App>, app: &App) {
 
 #[test]
 fn a_resize_in_the_middle_of_a_slide_does_not_cut_it_short() {
-    let mut harness = harness(App::new(&[1, 2, 3], &[1, 2, 3]), wrapping);
-    harness.set_size(vec2(400.0, 300.0));
-    harness.run_steps(3);
-    record(&harness.ctx);
-    let old = rect_of(&harness, "/\"wrap\"/1");
-    reverse(&mut harness);
-    harness.run_steps(4);
-    let before = painted_top(&harness, color(1));
+    let mut d = driver(App::new(&[1, 2, 3], &[1, 2, 3]), wrapping);
+    d.resize(vec2(400.0, 300.0)).frames(2);
+    record(d.ctx());
+    let old = d.rect(Target::suffix("/\"wrap\"/1"));
+    reverse(&mut d);
+    d.frames(4);
+    let before = painted_top(&d, color(1));
     let per_frame = 100.0 * 0.05 / SLIDE.as_secs_f32();
 
-    harness.set_size(vec2(250.0, 300.0));
-    harness.step();
-    let moved = rect_of(&harness, "/\"wrap\"/1");
+    d.resize(vec2(250.0, 300.0));
+    let moved = d.rect(Target::suffix("/\"wrap\"/1"));
     assert!(
         moved.min.y > old.min.y,
         "precondition: the resize wrapped row 1 to a new line: {old:?} to {moved:?}"
     );
-    let painted = painted_top(&harness, color(1));
+    let painted = painted_top(&d, color(1));
     assert!(
         (painted - before).abs() <= per_frame + 0.5,
         "painted where the slide left it, not at the resize's place: {before} to {painted} (layout {})",
@@ -275,55 +275,53 @@ fn a_resize_in_the_middle_of_a_slide_does_not_cut_it_short() {
 
     let mut seen = vec![painted];
     for _ in 0..40 {
-        harness.step();
-        seen.push(painted_top(&harness, color(1)));
+        d.frames(1);
+        seen.push(painted_top(&d, color(1)));
     }
     assert!(
         seen.windows(2).all(|pair| pair[1] >= pair[0]),
         "heads for its new line monotonically: {seen:?}"
     );
     assert_eq!(*seen.last().expect("steps ran"), moved.min.y);
-    Timeline::recorded(&harness.ctx)
+    Timeline::recorded(d.ctx())
         .max_step(Points::new(per_frame * 2.0))
         .assert_continuous();
 }
 
 #[test]
 fn a_resize_alone_starts_no_slide() {
-    let mut harness = harness(App::new(&[1, 2, 3], &[1, 2, 3]), wrapping);
-    harness.set_size(vec2(400.0, 300.0));
-    harness.run_steps(3);
-    let old = rect_of(&harness, "/\"wrap\"/3");
-    harness.set_size(vec2(250.0, 300.0));
-    harness.step();
-    let moved = rect_of(&harness, "/\"wrap\"/3");
+    let mut d = driver(App::new(&[1, 2, 3], &[1, 2, 3]), wrapping);
+    d.resize(vec2(400.0, 300.0)).frames(2);
+    let old = d.rect(Target::suffix("/\"wrap\"/3"));
+    d.resize(vec2(250.0, 300.0));
+    let moved = d.rect(Target::suffix("/\"wrap\"/3"));
     assert_ne!(old.min, moved.min, "precondition: the resize moved row 3");
     assert_eq!(
-        painted_offset(&harness, color(3), "/\"wrap\"/3"),
+        painted_offset(&d, color(3), "/\"wrap\"/3"),
         0.0,
         "painted at its new place at once"
     );
-    assert!(!requested_repaint(&harness));
-    harness.step();
-    assert!(!requested_repaint(&harness));
+    assert!(!requested_repaint(&d));
+    d.frames(1);
+    assert!(!requested_repaint(&d));
 }
 
 #[test]
 fn a_move_interrupted_mid_flight_starts_from_where_the_row_is_painted() {
-    let mut harness = harness(App::new(&[1, 2], &[1, 2]), rows);
-    record(&harness.ctx);
-    let home = painted_top(&harness, color(1));
-    reverse(&mut harness);
-    harness.run_steps(8);
-    let before = painted_top(&harness, color(1));
+    let mut d = driver(App::new(&[1, 2], &[1, 2]), rows);
+    record(d.ctx());
+    let home = painted_top(&d, color(1));
+    reverse(&mut d);
+    d.frames(8);
+    let before = painted_top(&d, color(1));
     assert!(
         before > home + 5.0 && before < home + ROW - 5.0,
         "precondition: row 1 is part-way down from {home}: {before}"
     );
 
-    reverse(&mut harness);
-    harness.step();
-    let after = painted_top(&harness, color(1));
+    reverse(&mut d);
+    d.frames(1);
+    let after = painted_top(&d, color(1));
     let per_frame = ROW * 0.05 / SLIDE.as_secs_f32();
     assert!(
         (after - before).abs() <= per_frame * 1.5 + 0.5,
@@ -331,8 +329,8 @@ fn a_move_interrupted_mid_flight_starts_from_where_the_row_is_painted() {
     );
     let mut seen = vec![after];
     for _ in 0..30 {
-        harness.step();
-        seen.push(painted_top(&harness, color(1)));
+        d.frames(1);
+        seen.push(painted_top(&d, color(1)));
     }
     assert!(
         seen.windows(2).all(|pair| pair[1] <= pair[0]),
@@ -340,8 +338,8 @@ fn a_move_interrupted_mid_flight_starts_from_where_the_row_is_painted() {
     );
     assert_eq!(*seen.last().expect("steps ran"), home);
 
-    harness.run_steps(5);
-    Timeline::recorded(&harness.ctx)
+    d.frames(5);
+    Timeline::recorded(d.ctx())
         .max_step(Points::new(per_frame * 2.0))
         .assert_continuous();
 }
@@ -361,12 +359,17 @@ fn animating_an_anonymous_node_is_ignored_and_reported() {
 
 #[test]
 fn nodes_that_are_no_longer_built_are_forgotten() {
-    let mut harness = harness(App::new(&[1, 2, 3], &[1, 2, 3]), rows);
-    let tracked = |harness: &Harness<'_, Rig<App>>| {
-        eggshell_ui::tracked_layout_nodes(&harness.state().layout)
-    };
-    assert_eq!(tracked(&harness), 3);
-    harness.state_mut().app.order.truncate(1);
-    harness.step();
-    assert_eq!(tracked(&harness), 1);
+    let mut d = support::driver(
+        vec2(400.0, 300.0),
+        text(),
+        App::new(&[1, 2, 3], &[1, 2, 3]),
+        rows,
+    )
+    .build();
+    d.frames(3);
+    let tracked = |d: &Driver<App>| eggshell_ui::tracked_layout_nodes(d.layout());
+    assert_eq!(tracked(&d), 3);
+    d.app_mut().order.truncate(1);
+    d.frames(1);
+    assert_eq!(tracked(&d), 1);
 }

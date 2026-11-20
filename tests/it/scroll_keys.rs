@@ -8,10 +8,11 @@ use eggshell_ui::{Builder, Opacity, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::Role;
 use egui::epaint::{RectShape, Shape};
 use egui::{Color32, FontFamily, Id, Key, Modifiers, Rect, Vec2, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-use crate::support::{self, Rig, rect_of};
+use eggshell_ui::testing::{Driver, Target};
+
+use crate::support::{self, press_and_release};
 
 const ROW: f32 = 30.0;
 const VIEWPORT: f32 = 100.0;
@@ -189,12 +190,12 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-type H = Harness<'static, Rig<App>>;
+type H = Driver<App>;
 
 fn harness_with(app: App) -> H {
-    let mut h = support::harness(SIZE, base(), app, view);
-    h.run_steps(3);
-    support::past_bar(&mut h);
+    let mut h = support::driver(SIZE, base(), app, view).build();
+    h.frames(3);
+    support::drive_past_bar(&mut h);
     h
 }
 
@@ -207,9 +208,7 @@ fn id(h: &H, path: &str) -> Id {
 }
 
 fn viewport(h: &H, path: &str) -> scroll::Viewport {
-    crate::support::shell(h)
-        .viewport(id(h, path))
-        .expect("laid out")
+    h.shell().viewport(id(h, path)).expect("laid out")
 }
 
 fn offset(h: &H, path: &str) -> Vec2 {
@@ -217,13 +216,14 @@ fn offset(h: &H, path: &str) -> Vec2 {
 }
 
 fn press(h: &mut H, key: Key) {
-    h.key_press(key);
-    h.run_steps(3);
+    h.press(key).frames(2);
 }
 
+/// Sends the modifiers' change events even for none, as kittest's
+/// `key_press_modifiers` does.
 fn press_with(h: &mut H, modifiers: Modifiers, key: Key) {
-    h.key_press_modifiers(modifiers, key);
-    h.run_steps(3);
+    h.harness().key_press_modifiers(modifiers, key);
+    h.frames(3);
 }
 
 fn tab_to(h: &mut H, path: &str) {
@@ -295,15 +295,14 @@ fn a_text_field_in_a_container_keeps_its_keys() {
     let mut h = harness(Content::Field);
     press(&mut h, Key::Tab);
     assert!(
-        h.ctx.text_edit_focused(),
+        h.ctx().text_edit_focused(),
         "precondition: the field is focused"
     );
     assert!(
         viewport(&h, LIST).content.height() > 2.0 * VIEWPORT,
         "precondition: the container scrolls"
     );
-    h.event(egui::Event::Text("hello".to_owned()));
-    h.run_steps(3);
+    h.type_text("hello").frames(2);
     for key in [
         Key::ArrowDown,
         Key::ArrowLeft,
@@ -315,12 +314,8 @@ fn a_text_field_in_a_container_keeps_its_keys() {
         press(&mut h, key);
         assert_eq!(offset(&h, LIST), Vec2::ZERO, "{key:?} stays with the field");
     }
-    assert!(h.ctx.text_edit_focused(), "and the field kept the focus");
-    assert!(
-        h.state().app.text.starts_with("hello"),
-        "{:?}",
-        h.state().app.text
-    );
+    assert!(h.ctx().text_edit_focused(), "and the field kept the focus");
+    assert!(h.app().text.starts_with("hello"), "{:?}", h.app().text);
 }
 
 #[test]
@@ -328,8 +323,7 @@ fn the_focused_container_scrolls_not_the_one_under_the_pointer() {
     let mut h = harness(Content::Siblings);
     tab_to(&mut h, "/\"a\"");
     let over_b = viewport(&h, "/\"b\"").rect.center();
-    h.hover_at(over_b);
-    h.run_steps(2);
+    h.carry_to(over_b).frames(1);
     press(&mut h, Key::PageDown);
     let page = page(&h, "/\"a\"");
     assert_eq!(offset(&h, "/\"a\""), vec2(0.0, page), "the focused one");
@@ -341,9 +335,8 @@ fn a_container_last_pressed_in_takes_the_keys_when_nothing_is_focused() {
     let mut h = harness(Content::Siblings);
     let in_b = viewport(&h, "/\"b\"").rect.center();
     let away = viewport(&h, "/\"a\"").rect.center();
-    support::press_and_release(&mut h, in_b);
-    h.hover_at(away);
-    h.run_steps(2);
+    press_and_release(&mut h, in_b);
+    h.carry_to(away).frames(1);
     press(&mut h, Key::ArrowDown);
     assert_eq!(offset(&h, "/\"b\""), vec2(0.0, LINE), "the one pressed in");
     assert_eq!(offset(&h, "/\"a\""), Vec2::ZERO);
@@ -385,7 +378,7 @@ fn the_innermost_container_holding_the_focus_scrolls_and_the_keys_do_not_chain()
 }
 
 fn focus_rings(h: &H) -> Vec<Rect> {
-    let ring = eggshell_ui::contract::Style::of(&h.ctx).focus.color;
+    let ring = eggshell_ui::contract::Style::of(h.ctx()).focus.color;
     support::shapes(h)
         .into_iter()
         .filter_map(|shape| match shape {
@@ -405,7 +398,7 @@ fn a_container_without_focusable_content_is_a_tab_stop_with_a_focus_ring() {
     assert!(
         rings
             .iter()
-            .any(|ring| ring.contains_rect(rect_of(&h, "/\"a\""))),
+            .any(|ring| ring.contains_rect(h.rect(Target::suffix("/\"a\"")))),
         "a ring around the container: {rings:?}"
     );
     press(&mut h, Key::Tab);
@@ -441,14 +434,14 @@ fn tab_from_the_last_visible_control_reaches_a_culled_one_and_scrolls_it_into_vi
     let mut h = harness(Content::Buttons);
     let view = viewport(&h, LIST).rect;
     let last_visible = (0..20)
-        .rfind(|&i| rect_of(&h, &row_path(i)).intersects(view))
+        .rfind(|&i| h.rect(Target::suffix(&row_path(i))).intersects(view))
         .expect("some row is visible");
     let next = last_visible + 1;
     assert!(
-        rect_of(&h, &row_path(next)).min.y >= view.max.y,
+        h.rect(Target::suffix(&row_path(next))).min.y >= view.max.y,
         "precondition: row {next} is below the viewport"
     );
-    assert!(h.state().app.drawn.is_empty());
+    assert!(h.app().drawn.is_empty());
     tab_to(&mut h, &row_path(last_visible));
     press(&mut h, Key::Tab);
     assert_eq!(
@@ -459,9 +452,10 @@ fn tab_from_the_last_visible_control_reaches_a_culled_one_and_scrolls_it_into_vi
     let view = viewport(&h, LIST);
     assert!(view.offset().y > 0.0, "the list scrolled");
     assert!(
-        view.rect.contains_rect(rect_of(&h, &row_path(next))),
+        view.rect
+            .contains_rect(h.rect(Target::suffix(&row_path(next)))),
         "and shows row {next}: {:?} in {:?}",
-        rect_of(&h, &row_path(next)),
+        h.rect(Target::suffix(&row_path(next))),
         view.rect
     );
 }
@@ -473,7 +467,7 @@ fn tab_walks_a_long_list_row_by_row_and_back() {
         tab_to(&mut h, &row_path(i));
         let view = viewport(&h, LIST).rect;
         assert!(
-            view.contains_rect(rect_of(&h, &row_path(i))),
+            view.contains_rect(h.rect(Target::suffix(&row_path(i)))),
             "row {i} is shown when it has the focus"
         );
     }
@@ -488,10 +482,10 @@ fn the_accessibility_tree_has_a_scrolled_out_button_with_its_role_and_name() {
     let h = harness(Content::Buttons);
     let view = viewport(&h, LIST).rect;
     assert!(
-        !rect_of(&h, &row_path(15)).intersects(view),
+        !h.rect(Target::suffix(&row_path(15))).intersects(view),
         "precondition: row 15 is scrolled out"
     );
-    let button = h.get_by_role_and_label(Role::Button, "Row 15");
+    let button = h.harness().get_by_role_and_label(Role::Button, "Row 15");
     assert!(
         !button.rect().intersects(view) || button.rect().height() > 0.0,
         "it is at its real place"
@@ -501,9 +495,9 @@ fn the_accessibility_tree_has_a_scrolled_out_button_with_its_role_and_name() {
 #[test]
 fn the_draw_closures_of_culled_nodes_that_are_not_focusable_do_not_run() {
     let mut h = harness(Content::Painted);
-    h.state_mut().app.drawn.clear();
-    h.step();
-    let mut drawn = h.state().app.drawn.clone();
+    h.app_mut().drawn.clear();
+    h.frames(1);
+    let mut drawn = h.app().drawn.clone();
     drawn.sort_unstable();
     assert_eq!(
         drawn,
@@ -515,7 +509,7 @@ fn the_draw_closures_of_culled_nodes_that_are_not_focusable_do_not_run() {
 #[test]
 fn registering_a_culled_button_paints_nothing_of_it() {
     let h = harness(Content::Buttons);
-    let hidden = rect_of(&h, &row_path(15));
+    let hidden = h.rect(Target::suffix(&row_path(15)));
     assert!(
         !hidden.intersects(viewport(&h, LIST).rect),
         "precondition: row 15 is scrolled out"
@@ -535,8 +529,8 @@ fn registering_a_culled_button_paints_nothing_of_it() {
 fn keyboard_scrolling_is_continuous() {
     let mut h = harness(Content::Painted);
     tab_to(&mut h, LIST);
-    record(&h.ctx);
-    h.run_steps(2);
+    record(h.ctx());
+    h.frames(2);
     for key in [
         Key::ArrowDown,
         Key::PageDown,
@@ -553,7 +547,7 @@ fn keyboard_scrolling_is_continuous() {
         Vec2::ZERO,
         "precondition: it went there and back"
     );
-    Timeline::recorded(&h.ctx).assert_continuous();
+    Timeline::recorded(h.ctx()).assert_continuous();
 }
 
 #[test]
@@ -561,7 +555,7 @@ fn a_key_that_a_focused_button_uses_is_not_taken_for_scrolling() {
     let mut h = harness(Content::Buttons);
     tab_to(&mut h, &row_path(0));
     press(&mut h, Key::Space);
-    assert_eq!(h.state().app.pressed, vec![0], "Space presses the button");
+    assert_eq!(h.app().pressed, vec![0], "Space presses the button");
     assert_eq!(offset(&h, LIST), Vec2::ZERO, "and does not scroll");
 }
 
@@ -593,14 +587,14 @@ fn a_focused_always_container_scrolls_with_the_keys_and_a_focused_child_has_them
     press(&mut h, Key::Tab);
     assert_eq!(support::focused_path(&h), Some(row_path(0)), "precondition");
     press(&mut h, Key::Space);
-    assert_eq!(h.state().app.pressed, vec![0], "the button takes Space");
+    assert_eq!(h.app().pressed, vec![0], "the button takes Space");
     assert_eq!(offset(&h, LIST), Vec2::ZERO);
 }
 
 #[test]
 fn the_accessibility_tree_has_the_containers_role_and_name() {
     let h = harness(Content::Transcript);
-    let log = h.get_by_role_and_label(Role::Log, "Conversation");
+    let log = h.harness().get_by_role_and_label(Role::Log, "Conversation");
     assert!(log.rect().height() > 0.0);
 }
 
@@ -611,14 +605,14 @@ fn auto_is_no_stop_for_a_container_of_controls_and_no_role_unless_asked() {
         press(&mut h, Key::Tab);
         assert_ne!(support::focused_path(&h).as_deref(), Some(LIST));
     }
-    assert!(h.query_by_role(Role::Log).is_none());
+    assert!(h.harness().query_by_role(Role::Log).is_none());
 }
 
 #[test]
 fn a_focused_buttons_ring_is_still_outside() {
     let mut h = harness(Content::Buttons);
     press(&mut h, Key::Tab);
-    let row = rect_of(&h, &row_path(0));
+    let row = h.rect(Target::suffix(&row_path(0)));
     let ring = support::ring_at(&h, row).expect("a ring outside the button");
     assert_eq!(ring.stroke_kind, egui::StrokeKind::Outside);
 }
@@ -627,8 +621,8 @@ fn a_focused_buttons_ring_is_still_outside() {
 fn a_click_in_a_container_shows_no_ring_only_the_keyboard_does() {
     let mut h = harness(Content::Siblings);
     let at = viewport(&h, "/\"a\"").rect.center();
-    support::press_and_release(&mut h, at);
-    h.run_steps(3);
+    press_and_release(&mut h, at);
+    h.frames(3);
     assert_eq!(support::focused_path(&h), None, "a click does not focus it");
     assert!(focus_rings(&h).is_empty(), "and shows no ring");
 }
@@ -636,13 +630,13 @@ fn a_click_in_a_container_shows_no_ring_only_the_keyboard_does() {
 const FRAME: &str = "/\"list\"";
 
 fn focus_style(h: &H) -> eggshell_ui::contract::Focus {
-    eggshell_ui::contract::Style::of(&h.ctx).focus
+    eggshell_ui::contract::Style::of(h.ctx()).focus
 }
 
 /// Every shape of the last frame in paint order, with the clip it is painted in.
 fn painted(h: &H) -> Vec<(Rect, &Shape)> {
     let mut all = Vec::new();
-    for clipped in &h.output().shapes {
+    for clipped in &h.harness().output().shapes {
         let mut flat = Vec::new();
         support::flatten(&clipped.shape, &mut flat);
         all.extend(flat.into_iter().map(|shape| (clipped.clip_rect, shape)));
@@ -676,7 +670,7 @@ fn the_focus_ring_is_painted_after_all_content_bars_and_fade_inside_the_border_b
     press(&mut h, Key::PageDown);
     assert_eq!(support::focused_path(&h).as_deref(), Some(FRAME));
     assert!(offset(&h, FRAME).y > 0.0, "precondition: scrolled");
-    let border_box = rect_of(&h, FRAME);
+    let border_box = h.rect(Target::suffix(FRAME));
     let rings = ring_shapes(&h, border_box);
     assert_eq!(rings.len(), 1, "one ring: {rings:?}");
     let (at, clip, ring) = &rings[0];
@@ -714,7 +708,7 @@ fn the_ring_follows_the_containers_radius() {
         ..App::new(Content::Painted)
     });
     press(&mut h, Key::Tab);
-    let rings = ring_shapes(&h, rect_of(&h, FRAME));
+    let rings = ring_shapes(&h, h.rect(Target::suffix(FRAME)));
     assert_eq!(rings.len(), 1, "precondition: the ring is painted");
     assert_eq!(rings[0].2.corner_radius, egui::CornerRadius::same(12));
 }
@@ -731,20 +725,20 @@ fn a_focusable_container_lays_out_as_a_plain_one_and_focus_moves_nothing() {
     let plain = layout(Focusable::Auto, true);
     let mut stop = layout(Focusable::Always, false);
     assert_eq!(
-        plain.state().nodes,
-        stop.state().nodes,
+        support::nodes(&plain),
+        support::nodes(&stop),
         "a Tab stop and a container that is none have the same layout"
     );
     assert_eq!(viewport(&plain, FRAME), viewport(&stop, FRAME));
-    let at_rest = stop.state().nodes.clone();
-    record(&stop.ctx);
+    let at_rest = support::nodes(&stop);
+    record(stop.ctx());
     press(&mut stop, Key::Tab);
     assert_eq!(support::focused_path(&stop).as_deref(), Some(FRAME));
-    assert_eq!(stop.state().nodes, at_rest, "no rect moves on focus");
+    assert_eq!(support::nodes(&stop), at_rest, "no rect moves on focus");
     press(&mut stop, Key::Tab);
-    stop.run_steps(5);
-    assert_eq!(stop.state().nodes, at_rest, "nor when it is left");
-    Timeline::recorded(&stop.ctx).assert_continuous();
+    stop.frames(5);
+    assert_eq!(support::nodes(&stop), at_rest, "nor when it is left");
+    Timeline::recorded(stop.ctx()).assert_continuous();
 }
 
 #[test]
@@ -756,7 +750,7 @@ fn a_container_with_a_focus_look_of_its_own_gets_no_default_ring() {
     });
     press(&mut h, Key::Tab);
     assert_eq!(support::focused_path(&h).as_deref(), Some(FRAME));
-    assert!(ring_shapes(&h, rect_of(&h, FRAME)).is_empty());
+    assert!(ring_shapes(&h, h.rect(Target::suffix(FRAME))).is_empty());
 }
 
 fn is_stop(h: &mut H) -> bool {
@@ -770,8 +764,8 @@ fn is_stop(h: &mut H) -> bool {
 }
 
 fn grow_to(h: &mut H, rows: u32) {
-    h.state_mut().app.rows = rows;
-    h.run_steps(3);
+    h.app_mut().rows = rows;
+    h.frames(3);
 }
 
 #[test]
@@ -780,7 +774,7 @@ fn auto_is_a_stop_only_while_the_content_overflows_and_always_is_one_regardless(
         rows: 2,
         ..App::new(Content::Painted)
     });
-    record(&h.ctx);
+    record(h.ctx());
     let max = viewport(&h, FRAME).rect.height();
     assert!(
         viewport(&h, FRAME).content.height() <= max,
@@ -794,14 +788,14 @@ fn auto_is_a_stop_only_while_the_content_overflows_and_always_is_one_regardless(
     );
     assert!(is_stop(&mut h), "overflowing content is");
     grow_to(&mut h, 2);
-    h.run_steps(3);
+    h.frames(3);
     assert_ne!(
         support::focused_path(&h).as_deref(),
         Some(FRAME),
         "and not once it fits again"
     );
     assert!(!is_stop(&mut h));
-    Timeline::recorded(&h.ctx).assert_continuous();
+    Timeline::recorded(h.ctx()).assert_continuous();
 
     let mut always = harness_with(App {
         rows: 2,
@@ -851,11 +845,11 @@ fn scrolled_halfway(fade: Option<EdgeFade>) -> H {
 #[test]
 fn a_default_container_paints_no_fade_and_an_opted_in_one_does() {
     let plain = scrolled_halfway(None);
-    let area = rect_of(&plain, LIST);
+    let area = plain.rect(Target::suffix(LIST));
     assert_eq!(gradients_in(&plain, area), 0, "no fade by default");
     let faded = scrolled_halfway(Some(EdgeFade::new(Opacity::new(0.5), 20.0)));
     assert!(
-        gradients_in(&faded, rect_of(&faded, LIST)) >= 2,
+        gradients_in(&faded, faded.rect(Target::suffix(LIST))) >= 2,
         "a fade at the top and one at the bottom"
     );
 }

@@ -2,12 +2,12 @@
 //! and tinted with the node's text colour, through the real draw path, on a
 //! glyph, a button, a segmented cell and a menu item (#128, #253).
 
+use eggshell_ui::testing::{Driver, PixelsPerPoint, Target};
 use eggshell_ui::{Angle, Builder, Icon, Mirror, TextSpec, TextStyle, Weight, icons, tw};
 use egui::epaint::{Mesh, Shape};
 use egui::{Color32, FontFamily, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, shapes, textured, turn};
+use crate::support::{self, shapes, textured, turn};
 
 const RED: Color32 = Color32::from_rgb(210, 30, 30);
 
@@ -43,16 +43,16 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     });
 }
 
-fn harness() -> Harness<'static, Rig<()>> {
-    let mut harness = support::harness(vec2(300.0, 100.0), base_text(), (), view);
-    harness.run_steps(4);
-    harness
+fn driver() -> Driver<()> {
+    let mut d = support::driver(vec2(300.0, 100.0), base_text(), (), view).build();
+    d.frames(4);
+    d
 }
 
 /// The textured mesh painted inside the node at `path`.
-fn icon_in<'a>(harness: &'a Harness<'_, Rig<()>>, path: &str) -> &'a Mesh {
-    let rect = support::rect_of(harness, path);
-    let inside: Vec<_> = textured(harness)
+fn icon_in<'a>(d: &'a Driver<()>, path: &str) -> &'a Mesh {
+    let rect = d.rect(Target::suffix(path));
+    let inside: Vec<_> = textured(d)
         .into_iter()
         .filter(|mesh| rect.expand(0.5).contains_rect(mesh.calc_bounds()))
         .collect();
@@ -61,9 +61,8 @@ fn icon_in<'a>(harness: &'a Harness<'_, Rig<()>>, path: &str) -> &'a Mesh {
 }
 
 /// The size, in pixels, of the texture `mesh` is painted with.
-fn texture_size(harness: &Harness<'_, Rig<()>>, mesh: &Mesh) -> [usize; 2] {
-    harness
-        .ctx
+fn texture_size(d: &Driver<()>, mesh: &Mesh) -> [usize; 2] {
+    d.ctx()
         .tex_manager()
         .read()
         .meta(mesh.texture_id)
@@ -73,18 +72,18 @@ fn texture_size(harness: &Harness<'_, Rig<()>>, mesh: &Mesh) -> [usize; 2] {
 
 #[test]
 fn an_icon_is_tinted_with_the_nodes_text_colour() {
-    let harness = harness();
-    let mesh = icon_in(&harness, r#"/"Page"/"plain""#);
+    let d = driver();
+    let mesh = icon_in(&d, r#"/"Page"/"plain""#);
     assert!(mesh.vertices.iter().all(|vertex| vertex.color == RED));
 }
 
 #[test]
 fn rotation_turns_the_quad_and_mirroring_flips_its_texture() {
-    let harness = harness();
+    let d = driver();
     let (plain, turned, mirrored) = (
-        icon_in(&harness, r#"/"Page"/"plain""#),
-        icon_in(&harness, r#"/"Page"/"turned""#),
-        icon_in(&harness, r#"/"Page"/"mirrored""#),
+        icon_in(&d, r#"/"Page"/"plain""#),
+        icon_in(&d, r#"/"Page"/"turned""#),
+        icon_in(&d, r#"/"Page"/"mirrored""#),
     );
     assert_eq!(turn(plain).round(), 0.0);
     assert_eq!(turn(turned).round(), 90.0);
@@ -108,14 +107,15 @@ fn sizes(b: &mut Builder<'_, '_, ()>, _: &()) {
 #[test]
 fn an_icon_is_rasterised_at_its_drawn_size_times_the_scale() {
     for scale in [1.0, 2.0] {
-        let mut harness =
-            support::harness_scaled(vec2(300.0, 100.0), scale, base_text(), (), sizes, |_, _| {});
-        harness.run_steps(4);
+        let mut d = support::driver(vec2(300.0, 100.0), base_text(), (), sizes)
+            .pixels_per_point(PixelsPerPoint::new(scale))
+            .build();
+        d.frames(4);
         for side in [12, 24] {
-            let mesh = icon_in(&harness, &format!(r#"/"Page"/{side}"#));
+            let mesh = icon_in(&d, &format!(r#"/"Page"/{side}"#));
             let pixels = (side as f32 * scale) as usize;
             assert_eq!(
-                texture_size(&harness, mesh),
+                texture_size(&d, mesh),
                 [pixels, pixels],
                 "{side} pt at {scale}x"
             );
@@ -125,10 +125,10 @@ fn an_icon_is_rasterised_at_its_drawn_size_times_the_scale() {
 
 #[test]
 fn an_svg_image_draws_at_its_size() {
-    let mut harness = support::harness(vec2(300.0, 100.0), base_text(), (), sizes);
-    harness.run_steps(4);
-    let image = support::rect_of(&harness, r#"/"Page"/"image""#);
-    let texture = shapes(&harness)
+    let mut d = support::driver(vec2(300.0, 100.0), base_text(), (), sizes).build();
+    d.frames(4);
+    let image = d.rect(Target::suffix(r#"/"Page"/"image""#));
+    let texture = shapes(&d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Rect(rect) if support::same(rect.rect, image) => {
@@ -137,8 +137,8 @@ fn an_svg_image_draws_at_its_size() {
             _ => None,
         })
         .expect("the image's rect is filled with a texture");
-    let size = harness
-        .ctx
+    let size = d
+        .ctx()
         .tex_manager()
         .read()
         .meta(texture)
@@ -165,11 +165,11 @@ fn controls(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn an_icon_draws_in_a_button_and_a_segmented_cell() {
-    let mut harness = support::harness(vec2(300.0, 200.0), base_text(), (), controls);
-    harness.run_steps(4);
+    let mut d = support::driver(vec2(300.0, 200.0), base_text(), (), controls).build();
+    d.frames(4);
     for (path, count) in [(r#"/"Page"/"button""#, 1), (r#"/"Page"/"segmented""#, 2)] {
-        let rect = support::rect_of(&harness, path);
-        let icons = textured(&harness)
+        let rect = d.rect(Target::suffix(path));
+        let icons = textured(&d)
             .into_iter()
             .filter(|mesh| rect.contains_rect(mesh.calc_bounds()))
             .count();
@@ -191,22 +191,20 @@ fn menu(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn a_menu_item_with_an_icon_draws_it_before_its_label() {
-    let mut harness = support::harness(vec2(300.0, 200.0), base_text(), (), menu);
-    harness.run_steps(4);
-    support::click_node(&mut harness, r#"/"Page"/"file""#);
-    harness.run_steps(8);
+    let mut d = support::driver(vec2(300.0, 200.0), base_text(), (), menu).build();
+    d.frames(4);
+    d.click(Target::suffix(r#"/"Page"/"file""#));
+    d.frames(8);
     let item = |name: &str| {
-        harness
-            .state()
-            .nodes
-            .iter()
+        support::nodes(&d)
+            .into_iter()
             .find(|(path, _)| path.ends_with(&format!(r#"/"{name}""#)))
-            .unwrap_or_else(|| panic!("no item {name}: {:?}", harness.state().nodes))
+            .unwrap_or_else(|| panic!("no item {name}: {:?}", support::nodes(&d)))
             .1
     };
     let (open, save) = (item("open"), item("save"));
     let inside = |rect: egui::Rect| {
-        textured(&harness)
+        textured(&d)
             .into_iter()
             .filter(|mesh| rect.contains_rect(mesh.calc_bounds()))
             .count()
@@ -214,7 +212,7 @@ fn a_menu_item_with_an_icon_draws_it_before_its_label() {
     assert_eq!(inside(open), 1, "the icon is drawn in its item");
     assert_eq!(inside(save), 0, "an item without one draws none");
     let label_x = |rect: egui::Rect, text: &str| {
-        shapes(&harness)
+        shapes(&d)
             .into_iter()
             .find_map(|shape| match shape {
                 Shape::Text(t) if t.galley.text() == text && rect.expand(1.0).contains(t.pos) => {
@@ -229,19 +227,17 @@ fn a_menu_item_with_an_icon_draws_it_before_its_label() {
 
 #[test]
 fn an_inset_item_lines_its_label_up_with_an_item_that_has_an_icon() {
-    let mut harness = support::harness(vec2(300.0, 200.0), base_text(), (), menu);
-    harness.run_steps(4);
-    support::click_node(&mut harness, r#"/"Page"/"file""#);
-    harness.run_steps(8);
+    let mut d = support::driver(vec2(300.0, 200.0), base_text(), (), menu).build();
+    d.frames(4);
+    d.click(Target::suffix(r#"/"Page"/"file""#));
+    d.frames(8);
     let label_x = |name: &str, text: &str| {
-        let rect = harness
-            .state()
-            .nodes
-            .iter()
+        let rect = support::nodes(&d)
+            .into_iter()
             .find(|(path, _)| path.ends_with(&format!(r#"/"{name}""#)))
             .unwrap_or_else(|| panic!("no item {name}"))
             .1;
-        shapes(&harness)
+        shapes(&d)
             .into_iter()
             .find_map(|shape| match shape {
                 Shape::Text(t) if t.galley.text() == text && rect.expand(1.0).contains(t.pos) => {
@@ -266,23 +262,20 @@ mod demo;
 
 /// Every icon painted, as its quad's bounds: a brushed rect for an untinted
 /// image, a mesh for a tinted one.
-fn painted_icons(harness: &Harness<'_, Rig<()>>) -> Vec<egui::Rect> {
-    textured(harness)
-        .into_iter()
-        .map(Mesh::calc_bounds)
-        .collect()
+fn painted_icons(d: &Driver<()>) -> Vec<egui::Rect> {
+    textured(d).into_iter().map(Mesh::calc_bounds).collect()
 }
 
 #[test]
 fn icons_keep_their_aspect_in_a_narrow_portrait_window() {
-    let mut harness = support::harness(vec2(390.0, 844.0), base_text(), (), demo::layout);
-    harness.run_steps(4);
-    let row = support::rect_of(&harness, r#"/"Page"/24"#);
+    let mut d = support::driver(vec2(390.0, 844.0), base_text(), (), demo::layout).build();
+    d.frames(4);
+    let row = d.rect(Target::suffix(r#"/"Page"/24"#));
     assert!(
         row.width() < 16.0 * 24.0 + 15.0 * 12.0,
         "precondition: the 24 pt row is narrower than its icons want"
     );
-    let icons = painted_icons(&harness);
+    let icons = painted_icons(&d);
     assert!(
         icons.len() >= 64,
         "precondition: the rows' icons are painted"
@@ -305,10 +298,10 @@ fn squashed(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn an_icon_in_a_box_of_another_shape_meets_it_centred() {
-    let mut harness = support::harness(vec2(300.0, 100.0), base_text(), (), squashed);
-    harness.run_steps(4);
-    let node = support::rect_of(&harness, r#"/"Page"/"wide""#);
-    let icon = icon_in(&harness, r#"/"Page"/"wide""#).calc_bounds();
+    let mut d = support::driver(vec2(300.0, 100.0), base_text(), (), squashed).build();
+    d.frames(4);
+    let node = d.rect(Target::suffix(r#"/"Page"/"wide""#));
+    let icon = icon_in(&d, r#"/"Page"/"wide""#).calc_bounds();
     assert_eq!(
         node.size(),
         vec2(40.0, 20.0),

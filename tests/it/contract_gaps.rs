@@ -10,10 +10,11 @@ use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
 use egui::TextureId;
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, Rect, Role, Theme, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, box_at, click_node, hover_node, rect_of, shapes};
+use eggshell_ui::testing::{Driver, Target};
+
+use crate::support::{self, box_at, rect_of, shapes, text_color};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 enum Mode {
@@ -67,7 +68,7 @@ fn prepare(ctx: &egui::Context, app: &App) {
     app.style.clone().install(ctx);
 }
 
-type Harn = Harness<'static, Rig<App>>;
+type Harn = Driver<App>;
 
 fn harness_with(
     theme: Theme,
@@ -87,22 +88,23 @@ fn harness_with(
         clicks: 0,
         texture: None,
     };
-    let mut harness = support::harness_prepared(
+    let mut d = support::prepared_driver(
         vec2(520.0, 400.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         app,
         view,
         prepare,
-    );
-    harness.ctx.set_theme(theme);
-    let texture = harness.ctx.load_texture(
+    )
+    .build();
+    d.ctx().set_theme(theme);
+    let texture = d.ctx().load_texture(
         "icon",
         egui::ColorImage::filled([4, 4], Color32::WHITE),
         egui::TextureOptions::NEAREST,
     );
-    harness.state_mut().app.texture = Some(texture);
-    harness.run_steps(14);
-    harness
+    d.app_mut().texture = Some(texture);
+    d.frames(14);
+    d
 }
 
 fn harness(theme: Theme, view: support::View<App>) -> Harn {
@@ -121,8 +123,8 @@ fn cell_path(mode: Mode) -> String {
 }
 
 /// The box a text was painted in, if one was painted inside `inside`.
-fn text_box(harness: &Harn, inside: Rect, text: &str) -> Rect {
-    shapes(harness)
+fn text_box(d: &Harn, inside: Rect, text: &str) -> Rect {
+    shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(t) if t.galley.text() == text && inside.expand(1.0).contains(t.pos) => {
@@ -137,8 +139,8 @@ fn text_box(harness: &Harn, inside: Rect, text: &str) -> Rect {
 }
 
 /// The tint and box of the image painted inside `inside`.
-fn icon_in(harness: &Harn, inside: Rect) -> (Color32, Rect) {
-    shapes(harness)
+fn icon_in(d: &Harn, inside: Rect) -> (Color32, Rect) {
+    shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Mesh(mesh)
@@ -169,15 +171,15 @@ fn centred_cells(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn a_segmented_label_is_centred_in_a_cell_taller_than_it_at_any_height_and_size() {
     for (theme, shadcn) in COMBINATIONS {
-        let mut harness = harness_with(theme, shadcn, |_| {}, centred_cells);
+        let mut d = harness_with(theme, shadcn, |_| {}, centred_cells);
         for height in [64.0, 77.0, 120.0] {
             for font in [11.0, 14.0, 20.0, 28.0] {
-                harness.state_mut().app.height = height;
-                harness.state_mut().app.font = font;
-                harness.run_steps(4);
+                d.app_mut().height = height;
+                d.app_mut().font = font;
+                d.frames(4);
                 for (mode, label) in MODES {
-                    let cell = rect_of(&harness, &cell_path(mode));
-                    let text = text_box(&harness, cell, label);
+                    let cell = d.rect(Target::suffix(&cell_path(mode)));
+                    let text = text_box(&d, cell, label);
                     assert!(
                         cell.height() > text.height() + 8.0,
                         "precondition: the cell is taller than its text ({cell:?}, {text:?})"
@@ -227,12 +229,12 @@ fn alignments(b: &mut Builder<'_, '_, App>, app: &App) {
 
 #[test]
 fn a_text_leaf_places_its_line_by_its_own_vertical_alignment() {
-    let mut harness = harness(Theme::Light, alignments);
+    let mut d = harness(Theme::Light, alignments);
     for height in [30.0, 64.0, 100.0] {
         for font in [12.0, 16.0, 24.0] {
-            harness.state_mut().app.height = height;
-            harness.state_mut().app.font = font;
-            harness.run_steps(4);
+            d.app_mut().height = height;
+            d.app_mut().font = font;
+            d.frames(4);
             for (name, expected) in [
                 ("top", 0.0),
                 ("middle", 0.5),
@@ -242,8 +244,8 @@ fn a_text_leaf_places_its_line_by_its_own_vertical_alignment() {
                 ("grid", 0.5),
                 ("baseline", 0.0),
             ] {
-                let leaf = rect_of(&harness, &format!("/\"{name}\""));
-                let text = text_box(&harness, leaf, name);
+                let leaf = d.rect(Target::suffix(&format!("/\"{name}\"")));
+                let text = text_box(&d, leaf, name);
                 assert!(
                     leaf.height() >= text.height(),
                     "precondition: {name} fits its text at height {height}, font {font}"
@@ -279,7 +281,7 @@ fn icon_cells(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
     for (theme, shadcn) in COMBINATIONS {
-        let harness = harness_with(
+        let d = harness_with(
             theme,
             shadcn,
             |style| {
@@ -289,8 +291,8 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
             },
             icon_cells,
         );
-        let seg = harness.state().app.style.segmented.clone();
-        let cells = MODES.map(|(mode, _)| rect_of(&harness, &cell_path(mode)));
+        let seg = d.app().style.segmented.clone();
+        let cells = MODES.map(|(mode, _)| d.rect(Target::suffix(&cell_path(mode))));
         for pair in cells.windows(2) {
             assert!(
                 (pair[1].min.x - pair[0].max.x - 3.0).abs() < 0.01,
@@ -299,7 +301,7 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
         }
         for (index, (mode, label)) in MODES.into_iter().enumerate() {
             let cell = cells[index];
-            let text = text_box(&harness, cell, label);
+            let text = text_box(&d, cell, label);
             let selected = mode == Mode::Light;
             let colors = if selected {
                 seg.selected.states.rest
@@ -308,7 +310,7 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
             };
             if mode == Mode::System {
                 assert!(
-                    shapes(&harness).into_iter().all(|shape| !matches!(
+                    shapes(&d).into_iter().all(|shape| !matches!(
                         shape,
                         Shape::Mesh(mesh) if cell.contains_rect(mesh.calc_bounds())
                     )),
@@ -316,7 +318,7 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
                 );
                 continue;
             }
-            let (tint, icon) = icon_in(&harness, cell);
+            let (tint, icon) = icon_in(&d, cell);
             assert_eq!(icon.size(), vec2(18.0, 18.0), "icon_size");
             assert!(
                 (text.min.x - icon.max.x - 7.0).abs() < 0.75,
@@ -328,14 +330,14 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
                 "the icon is centred in the cell"
             );
         }
-        let (_, unselected_before) = icon_in(&harness, cells[1]);
+        let (_, unselected_before) = icon_in(&d, cells[1]);
         assert!(unselected_before.width() > 0.0);
     }
 }
 
 #[test]
 fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
-    let mut harness = harness_with(
+    let mut d = harness_with(
         Theme::Light,
         ShadcnStyle::Vega,
         |style| {
@@ -350,14 +352,15 @@ fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
         icon_cells,
     );
     let dark = cell_path(Mode::Dark);
-    hover_node(&mut harness, &dark);
-    harness.run_steps(12);
-    let (tint, _) = icon_in(&harness, rect_of(&harness, &dark));
+    d.hover(Target::suffix(&dark));
+    d.frames(12);
+    let (tint, _) = icon_in(&d, d.rect(Target::suffix(&dark)));
     assert_eq!(tint, Color32::from_rgb(200, 30, 30), "tinted by hover text");
-    click_node(&mut harness, &dark);
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.mode, Mode::Dark);
-    let label = harness
+    d.click(Target::suffix(&dark));
+    d.frames(2);
+    assert_eq!(d.app().mode, Mode::Dark);
+    let label = d
+        .harness()
         .get_by_role_and_label(Role::RadioButton, "Dark")
         .accesskit_node()
         .toggled();
@@ -382,35 +385,35 @@ fn merged_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
     for (theme, shadcn) in COMBINATIONS {
-        let mut harness = harness_with(theme, shadcn, |_| {}, merged_segmented);
-        let seg = harness.state().app.style.segmented.clone();
-        let track = rect_of(&harness, "/\"seg\"");
+        let mut d = harness_with(theme, shadcn, |_| {}, merged_segmented);
+        let seg = d.app().style.segmented.clone();
+        let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.width(), 400.0, "w_full replaced w_fit");
         assert_eq!(
             track.height(),
             seg.sizes.get(Size::DEFAULT).height,
             "the styled height stays"
         );
-        let cells = MODES.map(|(mode, _)| rect_of(&harness, &cell_path(mode)));
+        let cells = MODES.map(|(mode, _)| d.rect(Target::suffix(&cell_path(mode))));
         let widths: Vec<_> = cells.iter().map(|cell| cell.width()).collect();
         assert!(
             widths.windows(2).all(|w| (w[0] - w[1]).abs() < 0.01),
             "flex-1 shares the track equally: {widths:?}"
         );
         assert!(widths[0] > 100.0, "precondition: the cells are wide");
-        let selected = box_at(&harness, cells[0]);
+        let selected = box_at(&d, cells[0]);
         assert_eq!(selected.fill, seg.selected.states.rest.fill, "styled paint");
         for (mode, label) in MODES {
-            let cell = rect_of(&harness, &cell_path(mode));
-            let text = text_box(&harness, cell, label);
+            let cell = d.rect(Target::suffix(&cell_path(mode)));
+            let text = text_box(&d, cell, label);
             assert!(
                 (text.center().x - cell.center().x).abs() <= 0.75,
                 "{theme:?} {shadcn:?} {label}: centred across a wide cell"
             );
         }
-        click_node(&mut harness, &cell_path(Mode::System));
-        harness.run_steps(2);
-        assert_eq!(harness.state().app.mode, Mode::System, "still interactive");
+        d.click(Target::suffix(&cell_path(Mode::System)));
+        d.frames(2);
+        assert_eq!(d.app().mode, Mode::System, "still interactive");
     }
 }
 
@@ -449,8 +452,8 @@ fn classed(b: &mut Builder<'_, '_, App>, _: &App) {
 #[test]
 fn every_owned_widget_takes_caller_classes_over_its_own() {
     for (theme, shadcn) in COMBINATIONS {
-        let harness = harness_with(theme, shadcn, |_| {}, classed);
-        let style = &harness.state().app.style;
+        let d = harness_with(theme, shadcn, |_| {}, classed);
+        let style = &d.app().style;
         for path in [
             "/\"button\"",
             "/\"checkbox\"/<div>",
@@ -461,9 +464,9 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
             "/\"stepper\"/Box",
             "/\"segmented\"",
         ] {
-            assert_eq!(rect_of(&harness, path).width(), 321.0, "{path}");
+            assert_eq!(rect_of(&d, path).width(), 321.0, "{path}");
         }
-        let height = |path| rect_of(&harness, path).height();
+        let height = |path| d.rect(Target::suffix(path)).height();
         assert_eq!(
             height("/\"button\""),
             style.button.sizes.get(Size::DEFAULT).height
@@ -498,13 +501,13 @@ fn roles(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn size_of_text(harness: &Harn, inside: &str, text: &str) -> f32 {
-    shapes(harness)
+fn size_of_text(d: &Harn, inside: &str, text: &str) -> f32 {
+    shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(t)
                 if t.galley.text() == text
-                    && rect_of(harness, inside).expand(1.0).contains(t.pos) =>
+                    && d.rect(Target::suffix(inside)).expand(1.0).contains(t.pos) =>
             {
                 Some(t.galley.job.sections[0].format.font_id.size)
             }
@@ -517,7 +520,7 @@ fn size_of_text(harness: &Harn, inside: &str, text: &str) -> f32 {
 fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
     for (theme, shadcn) in COMBINATIONS {
         let plain = harness_with(theme, shadcn, |_| {}, roles);
-        let base = plain.state().app.style.text.size;
+        let base = plain.app().style.text.size;
         for (path, text) in [
             ("/\"button\"", "Save"),
             ("/\"seg\"/0", "Light"),
@@ -526,7 +529,7 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
         ] {
             assert_eq!(size_of_text(&plain, path, text), base, "{path}: default");
         }
-        let harness = harness_with(
+        let d = harness_with(
             theme,
             shadcn,
             |style| {
@@ -543,7 +546,7 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
             ("/\"select\"", "Light", 19.0),
             ("/\"check\"/<div>", "Agree", 23.0),
         ] {
-            assert_eq!(size_of_text(&harness, path, text), size, "{path}");
+            assert_eq!(size_of_text(&d, path, text), size, "{path}");
         }
         assert_ne!(
             base, 21.0,
@@ -610,7 +613,7 @@ fn toggles(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
     for theme in [Theme::Light, Theme::Dark] {
-        let mut harness = harness_with(
+        let mut d = harness_with(
             theme,
             ShadcnStyle::Vega,
             |style| {
@@ -627,11 +630,11 @@ fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
             },
             toggles,
         );
-        let style = harness.state().app.style.clone();
-        let plain = rect_of(&harness, "/\"plain\"");
-        let tool = rect_of(&harness, "/\"tool\"");
+        let style = d.app().style.clone();
+        let plain = d.rect(Target::suffix("/\"plain\""));
+        let tool = d.rect(Target::suffix("/\"tool\""));
         assert_eq!(
-            box_at(&harness, plain).fill,
+            box_at(&d, plain).fill,
             style
                 .button
                 .toggle_off
@@ -641,13 +644,13 @@ fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
                 .fill,
             "the default variant is the old toggle"
         );
-        assert_eq!(box_at(&harness, tool).fill, Color32::from_rgb(40, 40, 40));
-        click_node(&mut harness, "/\"tool\"");
-        harness.run_steps(14);
-        assert!(harness.state().app.on, "a toggle variant still toggles");
-        assert_eq!(box_at(&harness, tool).fill, Color32::from_rgb(10, 120, 60));
+        assert_eq!(box_at(&d, tool).fill, Color32::from_rgb(40, 40, 40));
+        d.click(Target::suffix("/\"tool\""));
+        d.frames(14);
+        assert!(d.app().on, "a toggle variant still toggles");
+        assert_eq!(box_at(&d, tool).fill, Color32::from_rgb(10, 120, 60));
         assert_eq!(
-            box_at(&harness, plain).fill,
+            box_at(&d, plain).fill,
             style
                 .button
                 .toggle_on
@@ -657,13 +660,13 @@ fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
                 .fill
         );
         assert_eq!(
-            support::text_color(&harness, tool, "Tool"),
+            text_color(&d, tool, "Tool"),
             Color32::WHITE,
             "the variant's text colour"
         );
         for name in ["Plain", "Tool"] {
             assert_eq!(
-                harness
+                d.harness()
                     .get_by_role_and_label(Role::Button, name)
                     .accesskit_node()
                     .toggled(),
@@ -694,13 +697,13 @@ fn disabled_row(b: &mut Builder<'_, '_, App>, _: &App) {
 fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
     for (theme, shadcn) in COMBINATIONS {
         let opacity = 0.4;
-        let mut harness = harness_with(
+        let mut d = harness_with(
             theme,
             shadcn,
             |style| style.disabled = Disabled::Faded(Opacity::new(opacity)),
             disabled_row,
         );
-        let style = harness.state().app.style.clone();
+        let style = d.app().style.clone();
         let rest = style
             .button
             .variants
@@ -708,10 +711,10 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
             .paint
             .states
             .rest;
-        let enabled = rect_of(&harness, "/(\"button\", Enabled)");
-        let disabled = rect_of(&harness, "/(\"button\", Disabled)");
-        assert_eq!(box_at(&harness, enabled).fill, rest.fill, "precondition");
-        let fill = box_at(&harness, disabled).fill;
+        let enabled = d.rect(Target::suffix("/(\"button\", Enabled)"));
+        let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
+        assert_eq!(box_at(&d, enabled).fill, rest.fill, "precondition");
+        let fill = box_at(&d, disabled).fill;
         assert_eq!(
             fill,
             rest.fill.gamma_multiply(opacity),
@@ -719,29 +722,29 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
         );
         assert!(fill.a() < 255 && fill.a() > 0);
         assert_eq!(
-            support::text_color(&harness, disabled, "Save"),
+            text_color(&d, disabled, "Save"),
             rest.text.gamma_multiply(opacity),
             "the label fades with its node"
         );
-        let label = rect_of(&harness, "/(\"check\", Disabled)/<div>");
+        let label = d.rect(Target::suffix("/(\"check\", Disabled)/<div>"));
         let enabled_label = style.label.rest.text;
         assert_eq!(
-            support::text_color(&harness, label, "Agree"),
+            text_color(&d, label, "Agree"),
             enabled_label.gamma_multiply(opacity),
             "a choice's label fades with its row"
         );
-        click_node(&mut harness, "/(\"button\", Disabled)");
-        click_node(&mut harness, "/(\"check\", Disabled)/<div>");
-        assert_eq!(harness.state().app.clicks, 0, "still inert");
-        click_node(&mut harness, "/(\"button\", Enabled)");
-        assert_eq!(harness.state().app.clicks, 1);
+        d.click(Target::suffix("/(\"button\", Disabled)"));
+        d.click(Target::suffix("/(\"check\", Disabled)/<div>"));
+        assert_eq!(d.app().clicks, 0, "still inert");
+        d.click(Target::suffix("/(\"button\", Enabled)"));
+        assert_eq!(d.app().clicks, 1);
     }
 }
 
 #[test]
 fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
     let translucent = Color32::from_rgba_unmultiplied(20, 20, 220, 128);
-    let mut harness = harness_with(
+    let mut d = harness_with(
         Theme::Light,
         ShadcnStyle::Vega,
         |style| {
@@ -755,28 +758,28 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
         },
         disabled_row,
     );
-    let disabled = rect_of(&harness, "/(\"button\", Disabled)");
-    let fill = box_at(&harness, disabled).fill;
+    let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
+    let fill = box_at(&d, disabled).fill;
     assert_eq!(fill, translucent.gamma_multiply(0.3));
     assert!(
         fill.a() < translucent.a(),
         "fainter than the enabled fill, so the surface shows through"
     );
-    harness.run_steps(1);
+    d.frames(1);
 }
 
 #[test]
 fn the_colors_form_still_draws_the_styles_disabled_colours() {
-    let harness = harness(Theme::Light, disabled_row);
-    let style = &harness.state().app.style;
+    let d = harness(Theme::Light, disabled_row);
+    let style = &d.app().style;
     assert_eq!(style.disabled, Disabled::Colors);
     let primary = style
         .button
         .variants
         .get(eggshell_ui_shadcn::variant::PRIMARY);
-    let disabled = rect_of(&harness, "/(\"button\", Disabled)");
+    let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
     assert_eq!(
-        box_at(&harness, disabled).fill,
+        box_at(&d, disabled).fill,
         primary.paint.states.disabled.fill
     );
 }
@@ -801,16 +804,16 @@ fn icon_buttons(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
     for (theme, shadcn) in COMBINATIONS {
-        let mut harness = harness_with(theme, shadcn, |_| {}, icon_buttons);
-        let style = harness.state().app.style.clone();
+        let mut d = harness_with(theme, shadcn, |_| {}, icon_buttons);
+        let style = d.app().style.clone();
         let metrics = *style.button.sizes.get(size::ICON);
-        let button = rect_of(&harness, "/\"icon\"");
+        let button = d.rect(Target::suffix("/\"icon\""));
         assert_eq!(
             button.size(),
             vec2(style.button.sizes.get(size::ICON).min_width, metrics.height),
             "{theme:?} {shadcn:?}: a square control"
         );
-        let (tint, glyph) = icon_in(&harness, button);
+        let (tint, glyph) = icon_in(&d, button);
         assert_eq!(glyph.size(), vec2(metrics.glyph, metrics.glyph));
         assert!(glyph.center().distance(button.center()) <= 0.75, "centred");
         let ghost = style
@@ -819,29 +822,29 @@ fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
             .get(eggshell_ui_shadcn::variant::GHOST);
         assert_eq!(tint, ghost.paint.states.rest.text);
 
-        hover_node(&mut harness, "/\"icon\"");
-        harness.run_steps(14);
-        let (hovered, _) = icon_in(&harness, button);
+        d.hover(Target::suffix("/\"icon\""));
+        d.frames(14);
+        let (hovered, _) = icon_in(&d, button);
         assert_eq!(hovered, ghost.paint.states.hover.text, "tinted per state");
 
-        let labelled = rect_of(&harness, "/\"labelled\"");
+        let labelled = d.rect(Target::suffix("/\"labelled\""));
         let default = style.button.sizes.get(Size::DEFAULT);
-        let (_, glyph) = icon_in(&harness, labelled);
+        let (_, glyph) = icon_in(&d, labelled);
         assert_eq!(glyph.size(), vec2(default.glyph, default.glyph));
-        let text = text_box(&harness, labelled, "Add");
+        let text = text_box(&d, labelled, "Add");
         assert!(
             (text.min.x - glyph.max.x - default.gap).abs() < 0.75,
             "icon, then the control gap, then the label"
         );
 
-        click_node(&mut harness, "/\"icon\"");
-        click_node(&mut harness, "/\"toggle\"");
-        harness.run_steps(2);
-        assert_eq!(harness.state().app.clicks, 1);
-        assert!(harness.state().app.on);
-        let _ = harness.get_by_role_and_label(Role::Button, "Search");
+        d.click(Target::suffix("/\"icon\""));
+        d.click(Target::suffix("/\"toggle\""));
+        d.frames(2);
+        assert_eq!(d.app().clicks, 1);
+        assert!(d.app().on);
+        let _ = d.harness().get_by_role_and_label(Role::Button, "Search");
         assert_eq!(
-            harness
+            d.harness()
                 .get_by_role_and_label(Role::Button, "Pin")
                 .accesskit_node()
                 .toggled(),
@@ -851,9 +854,10 @@ fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
 }
 
 /// The name assistive technology reads for the button drawn at `path`.
-fn read_name(harness: &Harn, path: &str) -> String {
-    let centre = rect_of(harness, path).center();
-    let mut found = harness
+fn read_name(d: &Harn, path: &str) -> String {
+    let centre = d.rect(Target::suffix(path)).center();
+    let mut found = d
+        .harness()
         .query_all_by_role(Role::Button)
         .filter(|node| node.rect().contains(centre));
     let node = found.next();
@@ -865,10 +869,10 @@ fn read_name(harness: &Harn, path: &str) -> String {
 
 #[test]
 fn an_icon_faces_name_is_what_assistive_technology_reads() {
-    let harness = harness(Theme::Light, icon_buttons);
-    assert_eq!(read_name(&harness, "/\"icon\""), "Search", "an icon button");
-    assert_eq!(read_name(&harness, "/\"toggle\""), "Pin", "an icon toggle");
-    assert_eq!(read_name(&harness, "/\"labelled\""), "Add", "a text face");
+    let d = harness(Theme::Light, icon_buttons);
+    assert_eq!(read_name(&d, "/\"icon\""), "Search", "an icon button");
+    assert_eq!(read_name(&d, "/\"toggle\""), "Pin", "an icon toggle");
+    assert_eq!(read_name(&d, "/\"labelled\""), "Add", "a text face");
 }
 
 fn icon_dropdown(b: &mut Builder<'_, '_, App>, app: &App) {
@@ -880,11 +884,11 @@ fn icon_dropdown(b: &mut Builder<'_, '_, App>, app: &App) {
 
 #[test]
 fn an_icon_dropdowns_name_names_its_trigger_and_its_menu() {
-    let mut harness = harness(Theme::Light, icon_dropdown);
-    assert_eq!(read_name(&harness, "/\"more\""), "More", "the trigger");
-    click_node(&mut harness, "/\"more\"");
-    harness.run_steps(4);
-    let menu = harness.get_by_role(Role::Menu);
+    let mut d = harness(Theme::Light, icon_dropdown);
+    assert_eq!(read_name(&d, "/\"more\""), "More", "the trigger");
+    d.click(Target::suffix("/\"more\""));
+    d.frames(4);
+    let menu = d.harness().get_by_role(Role::Menu);
     assert_eq!(
         menu.accesskit_node().label().as_deref(),
         Some("More"),
@@ -909,31 +913,31 @@ fn renamed_faces(b: &mut Builder<'_, '_, App>, app: &App) {
 
 #[test]
 fn a_text_face_with_a_name_is_read_by_the_name_and_shows_the_text() {
-    let harness = harness(Theme::Light, renamed_faces);
+    let d = harness(Theme::Light, renamed_faces);
     for (path, text, name) in [
         ("/\"role\"", "Viewer", "Role"),
         ("/\"bold\"", "B", "Bold"),
         ("/\"levels\"", "···", "The levels between"),
     ] {
-        let rect = rect_of(&harness, path);
-        let _ = text_box(&harness, rect, text);
-        assert_eq!(read_name(&harness, path), name, "{path}");
+        let rect = d.rect(Target::suffix(path));
+        let _ = text_box(&d, rect, text);
+        assert_eq!(read_name(&d, path), name, "{path}");
     }
 }
 
 #[test]
 fn a_renamed_dropdown_names_its_trigger_and_its_menu() {
-    let mut harness = harness(Theme::Light, renamed_faces);
-    click_node(&mut harness, "/\"levels\"");
-    harness.run_steps(4);
-    let menu = harness.get_by_role(Role::Menu);
+    let mut d = harness(Theme::Light, renamed_faces);
+    d.click(Target::suffix("/\"levels\""));
+    d.frames(4);
+    let menu = d.harness().get_by_role(Role::Menu);
     assert_eq!(
         menu.accesskit_node().label().as_deref(),
         Some("The levels between"),
         "the menu"
     );
     assert_eq!(
-        read_name(&harness, "/\"levels\""),
+        read_name(&d, "/\"levels\""),
         "The levels between",
         "the trigger"
     );
@@ -967,33 +971,25 @@ fn overridden_names(b: &mut Builder<'_, '_, App>, app: &App) {
 
 #[test]
 fn named_overrides_whatever_name_the_face_gives() {
-    let harness = harness(Theme::Light, overridden_names);
+    let d = harness(Theme::Light, overridden_names);
+    assert_eq!(read_name(&d, "/\"icon\""), "Find", "an icon face's tuple");
     assert_eq!(
-        read_name(&harness, "/\"icon\""),
-        "Find",
-        "an icon face's tuple"
-    );
-    assert_eq!(
-        read_name(&harness, "/\"empty\""),
+        read_name(&d, "/\"empty\""),
         "Open the card",
         "an empty face"
     );
+    assert_eq!(read_name(&d, "/\"options\""), "From options", "options");
     assert_eq!(
-        read_name(&harness, "/\"options\""),
-        "From options",
-        "options"
-    );
-    assert_eq!(
-        read_name(&harness, "/\"after\""),
+        read_name(&d, "/\"after\""),
         "From the chain",
         "set after options"
     );
     assert_eq!(
-        read_name(&harness, "/\"before\""),
+        read_name(&d, "/\"before\""),
         "From options",
         "options set after"
     );
-    let member = harness.get_by_label("The first");
+    let member = d.harness().get_by_label("The first");
     assert_eq!(
         member.accesskit_node().role(),
         Role::RadioButton,
@@ -1032,9 +1028,9 @@ fn a_bare_icon_face_is_reported_unnamed() {
 
 #[test]
 fn an_icon_named_by_its_tuple_or_by_named_is_not_reported() {
-    let harness = harness(Theme::Light, named_icons);
-    eggshell_ui::testing::assert_no_reports(&harness.ctx);
-    assert_eq!(read_name(&harness, "/\"named\""), "Search");
+    let d = harness(Theme::Light, named_icons);
+    eggshell_ui::testing::assert_no_reports(d.ctx());
+    assert_eq!(read_name(&d, "/\"named\""), "Search");
 }
 
 #[cfg(debug_assertions)]
@@ -1055,10 +1051,10 @@ fn a_button_with_neither_label_nor_name_is_reported() {
 
 #[test]
 fn a_button_with_an_empty_label_and_a_name_is_not_reported() {
-    let harness = harness(Theme::Light, |b, _| {
+    let d = harness(Theme::Light, |b, _| {
         b.button("named", Face::Empty("Named".into())).add()
     });
-    eggshell_ui::testing::assert_no_reports(&harness.ctx);
+    eggshell_ui::testing::assert_no_reports(d.ctx());
 }
 
 /// ```html
@@ -1073,13 +1069,13 @@ fn icon_toggle(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn a_toggle_paints_its_icon_before_its_label_in_its_on_and_off_looks() {
     for (theme, shadcn) in COMBINATIONS {
-        let mut harness = harness_with(theme, shadcn, |_| {}, icon_toggle);
-        let style = harness.state().app.style.clone();
-        let toggle = rect_of(&harness, "/\"toggle\"");
+        let mut d = harness_with(theme, shadcn, |_| {}, icon_toggle);
+        let style = d.app().style.clone();
+        let toggle = d.rect(Target::suffix("/\"toggle\""));
         let default = style.button.sizes.get(Size::DEFAULT);
-        let (tint, glyph) = icon_in(&harness, toggle);
+        let (tint, glyph) = icon_in(&d, toggle);
         assert_eq!(glyph.size(), vec2(default.glyph, default.glyph));
-        let text = text_box(&harness, toggle, "Pin");
+        let text = text_box(&d, toggle, "Pin");
         assert!(
             (text.min.x - glyph.max.x - default.gap).abs() < 0.75,
             "{theme:?} {shadcn:?}: icon, then the control gap, then the label"
@@ -1087,20 +1083,16 @@ fn a_toggle_paints_its_icon_before_its_label_in_its_on_and_off_looks() {
         let off = style.button.toggle_off.get(Variant::DEFAULT).states.rest;
         assert_eq!(tint, off.text, "{theme:?} {shadcn:?}: tinted off");
 
-        click_node(&mut harness, "/\"toggle\"");
-        support::hover_over(&mut harness, egui::pos2(510.0, 390.0));
-        harness.run_steps(14);
-        assert!(harness.state().app.on, "the click toggled it");
+        d.click(Target::suffix("/\"toggle\""));
+        d.hover(egui::pos2(510.0, 390.0));
+        d.frames(14);
+        assert!(d.app().on, "the click toggled it");
         let on = style.button.toggle_on.get(Variant::DEFAULT).states.rest;
-        assert_eq!(
-            box_at(&harness, toggle).fill,
-            on.fill,
-            "drawn in the on look"
-        );
-        let (tint, _) = icon_in(&harness, toggle);
+        assert_eq!(box_at(&d, toggle).fill, on.fill, "drawn in the on look");
+        let (tint, _) = icon_in(&d, toggle);
         assert_eq!(tint, on.text, "{theme:?} {shadcn:?}: tinted on");
         assert_eq!(
-            harness
+            d.harness()
                 .get_by_role_and_label(Role::Button, "Pin")
                 .accesskit_node()
                 .toggled(),
@@ -1119,12 +1111,12 @@ fn stepper(b: &mut Builder<'_, '_, App>, _: &App) {
 #[test]
 fn the_steppers_number_field_fits_inside_the_group_border() {
     for (theme, shadcn) in COMBINATIONS {
-        let harness = harness_with(theme, shadcn, |_| {}, stepper);
-        let style = &harness.state().app.style;
-        let group = rect_of(&harness, "/\"stepper\"/Box");
+        let d = harness_with(theme, shadcn, |_| {}, stepper);
+        let style = &d.app().style;
+        let group = d.rect(Target::suffix("/\"stepper\"/Box"));
         let inside = group.shrink(style.stepper.group.border_width);
-        let field_box = rect_of(&harness, "/\"stepper\"/Box/<div>");
-        let field = rect_of(&harness, "/\"stepper\"/Box/Field");
+        let field_box = d.rect(Target::suffix("/\"stepper\"/Box/<div>"));
+        let field = d.rect(Target::suffix("/\"stepper\"/Box/Field"));
         assert_eq!(
             group.height(),
             style.stepper.sizes.get(Size::DEFAULT).height,
@@ -1141,8 +1133,8 @@ fn the_steppers_number_field_fits_inside_the_group_border() {
     }
 }
 
-fn family_of(harness: &Harn, text: &str) -> egui::FontFamily {
-    shapes(harness)
+fn family_of(d: &Harn, text: &str) -> egui::FontFamily {
+    shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(shape) if shape.galley.text() == text => {
@@ -1165,7 +1157,7 @@ fn plain_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn the_selected_cell_draws_its_own_weight_and_the_others_keep_the_base() {
     let family = |selected_weight| {
-        let harness = harness_with(
+        let d = harness_with(
             Theme::Light,
             ShadcnStyle::default(),
             |style| {
@@ -1179,9 +1171,9 @@ fn the_selected_cell_draws_its_own_weight_and_the_others_keep_the_base() {
             plain_segmented,
         );
         (
-            family_of(&harness, "Light"),
-            family_of(&harness, "Dark"),
-            family_of(&harness, "System"),
+            family_of(&d, "Light"),
+            family_of(&d, "Dark"),
+            family_of(&d, "System"),
         )
     };
     let base = family(None);

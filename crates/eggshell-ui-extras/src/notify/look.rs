@@ -1,65 +1,85 @@
-//! What a notice looks like until the render round settles its style: the
-//! page's popover surface, at sonner's sizes.
+//! What a notice looks like: its card, its stack and its sentence, from the
+//! [`NotifyStyle`].
 
-use eggshell_ui::{Style, TextSpec, Tw, tw};
-use egui::epaint::Shadow;
+use std::sync::Arc;
+
+use eggshell_ui::{Tw, tw};
+
+use super::NotifyStyle;
 
 pub(super) struct Look {
-    fill: egui::Color32,
-    border: egui::Color32,
-    text: egui::Color32,
-    border_width: f32,
-    radius: u8,
-    shadow: Option<Shadow>,
-    role: TextSpec,
+    pub(super) style: Arc<NotifyStyle>,
 }
 
-const WIDTH: f32 = 356.0;
-/// Tailwind spacing units.
-const PADDING: f32 = 4.0;
-const INNER_GAP: f32 = 1.5;
-const STACK_GAP: f32 = 3.5;
-
 impl Look {
-    pub(super) fn of(style: &Style) -> Self {
-        let popup = &style.menu.popup;
-        let colors = popup.paint.states.rest;
-        Self {
-            fill: colors.fill,
-            border: colors.border,
-            text: colors.text,
-            border_width: popup.border_width,
-            radius: style.menu.radius,
-            shadow: popup.paint.shadow,
-            role: style
-                .menu
-                .text
-                .clone()
-                .unwrap_or_else(|| style.text.clone()),
-        }
+    pub(super) fn new(style: Arc<NotifyStyle>) -> Self {
+        Self { style }
     }
 
     pub(super) fn stack(&self) -> Tw {
-        tw().flex().flex_col().gap(STACK_GAP).sense_hover()
+        tw().flex()
+            .flex_col()
+            .gap(self.style.stack_gap / 4.0)
+            .sense_hover()
     }
 
     pub(super) fn card(&self) -> Tw {
+        let style = &self.style;
         let card = tw()
+            .relative()
             .flex()
             .items_center()
-            .gap(INNER_GAP)
-            .w_px(WIDTH)
-            .p(PADDING)
-            .border(self.border_width)
-            .border_color(self.border)
-            .bg(self.fill)
-            .text(self.text)
-            .rounded_px(f32::from(self.radius))
-            .role(self.role.clone());
-        match self.shadow {
+            .gap(style.gap / 4.0)
+            .w_px(style.width)
+            .p(style.padding / 4.0)
+            .border(style.border_width)
+            .border_color(style.border)
+            .bg(style.fill)
+            .text(style.text)
+            .rounded_px(f32::from(style.radius))
+            .role(style.role.clone());
+        match style.shadow {
             Some(shadow) => card.shadow(shadow),
             None => card,
         }
+    }
+
+    /// An action's button: filled, in the card's colours swapped.
+    pub(super) fn action(&self) -> Tw {
+        let action = &self.style.action;
+        tw().flex()
+            .items_center()
+            .shrink_0()
+            .h_px(action.height)
+            .px(action.padding_x / 4.0)
+            .rounded_px(f32::from(action.radius))
+            .bg(action.fill)
+            .text(action.text)
+            .role(action.role.clone())
+            .sense_click()
+    }
+
+    /// The × circle, half out over the card's top-left corner.
+    pub(super) fn close(&self) -> Tw {
+        let close = &self.style.close;
+        tw().absolute()
+            .top_px(-close.outset)
+            .left_px(-close.outset)
+            .flex()
+            .items_center()
+            .justify_center()
+            .size_px(close.size)
+            .rounded_full()
+            .border(1.0)
+            .border_color(close.border)
+            .bg(close.fill)
+            .text(close.text)
+            .sense_click()
+            .hover(|paint| paint.bg(close.hover_fill).border_color(close.hover_border))
+    }
+
+    pub(super) fn close_glyph(&self) -> Tw {
+        tw().size_px(self.style.close.glyph).shrink_0()
     }
 
     pub(super) fn sentence(&self) -> Tw {
