@@ -30,6 +30,8 @@ pub mod form;
 pub mod hover_card;
 #[cfg(feature = "markdown")]
 pub mod markdown;
+#[cfg(feature = "notify")]
+pub mod notify;
 #[cfg(feature = "skeleton")]
 pub mod skeleton;
 #[cfg(feature = "spinner")]
