@@ -20,6 +20,7 @@
 )]
 //! TODO(prose)
 
+// keep sorted
 #[cfg(feature = "badge")]
 pub mod badge;
 #[cfg(feature = "command")]
@@ -36,6 +37,7 @@ pub mod notify;
 pub mod skeleton;
 #[cfg(feature = "spinner")]
 pub mod spinner;
+// keep sorted
 #[cfg(any(
     feature = "badge",
     feature = "command",

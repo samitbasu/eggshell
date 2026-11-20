@@ -850,11 +850,12 @@ impl Shadcn {
         let style = self.style();
         #[cfg(feature = "extras")]
         {
-            self.markdown().install_for(ctx, self.theme);
+            // keep sorted
             self.badge(&style).install_for(ctx, self.theme);
+            self.command(&style).install_for(ctx, self.theme);
             self.form(&style).install_for(ctx, self.theme);
             self.hover_card().install_for(ctx, self.theme);
-            self.command(&style).install_for(ctx, self.theme);
+            self.markdown().install_for(ctx, self.theme);
             self.skeleton(&style).install_for(ctx, self.theme);
             self.notify(&style).install_for(ctx, self.theme);
         }
