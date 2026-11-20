@@ -2,14 +2,12 @@
 //! the library's computation, the draw phase places egui's widget in the
 //! leaf's rect, and pointer and keyboard events reach it.
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::widget::{Stock, TextEdit};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, Width, tw};
 use egui::{Color32, FontFamily, vec2};
-use egui_kittest::Harness;
 
 use crate::support;
-
-use support::{Rig, click_node, rect_of};
 
 fn base_text() -> TextStyle {
     TextStyle::new(
@@ -46,26 +44,24 @@ fn notes(b: &mut Builder<'_, '_, Notes>, app: &Notes) {
 
 #[test]
 fn a_leaf_is_as_large_as_the_size() {
-    let mut harness = support::harness(vec2(400.0, 100.0), base_text(), Notes::default(), notes);
-    harness.run();
+    let mut d = support::driver(vec2(400.0, 100.0), base_text(), Notes::default(), notes).build();
+    d.harness_mut().run();
     let size = TextEdit::singleline("").size(
-        &harness.ctx,
+        d.ctx(),
         &base_text(),
-        &eggshell_ui::Style::of(&harness.ctx),
+        &eggshell_ui::Style::of(d.ctx()),
         Some(Width::new(200.0)),
     );
-    assert_eq!(rect_of(&harness, "/\"notes\"").size(), size);
+    assert_eq!(d.rect(Target::suffix("/\"notes\"")).size(), size);
 }
 
 #[test]
 fn a_text_edit_takes_focus_and_edits() {
-    let mut harness = support::harness(vec2(400.0, 100.0), base_text(), Notes::default(), notes);
-    harness.run();
-    click_node(&mut harness, "/\"notes\"");
-    harness.run_steps(2);
-    harness.event(egui::Event::Text("hello".to_owned()));
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.text, "hello");
+    let mut d = support::driver(vec2(400.0, 100.0), base_text(), Notes::default(), notes).build();
+    d.harness_mut().run();
+    d.click(Target::suffix("/\"notes\"")).frames(2);
+    d.event(egui::Event::Text("hello".to_owned())).frames(2);
+    assert_eq!(d.app().text, "hello");
 }
 
 #[derive(Default)]
@@ -87,8 +83,8 @@ fn secret(b: &mut Builder<'_, '_, Secret>, app: &Secret) {
 }
 
 /// The text of every galley painted in the last frame.
-fn painted_text<A>(harness: &Harness<'_, Rig<A>>) -> Vec<String> {
-    harness
+fn painted_text<A>(d: &Driver<A>) -> Vec<String> {
+    d.harness()
         .output()
         .shapes
         .iter()
@@ -101,17 +97,15 @@ fn painted_text<A>(harness: &Harness<'_, Rig<A>>) -> Vec<String> {
 
 #[test]
 fn a_masked_field_edits_the_text_and_paints_dots() {
-    let mut harness = support::harness(vec2(300.0, 100.0), base_text(), Secret::default(), secret);
-    harness.run_steps(2);
-    let unmasked = rect_of(&harness, "/\"password\"");
-    click_node(&mut harness, "/\"password\"");
-    harness.run_steps(2);
-    harness.event(egui::Event::Text("hunter2".to_owned()));
-    harness.run_steps(3);
+    let mut d = support::driver(vec2(300.0, 100.0), base_text(), Secret::default(), secret).build();
+    d.frames(2);
+    let unmasked = d.rect(Target::suffix("/\"password\""));
+    d.click(Target::suffix("/\"password\"")).frames(2);
+    d.event(egui::Event::Text("hunter2".to_owned())).frames(2);
 
-    assert_eq!(harness.state().app.password, "hunter2");
-    let painted = painted_text(&harness).concat();
+    assert_eq!(d.app().password, "hunter2");
+    let painted = painted_text(&d).concat();
     assert!(!painted.contains("hunter2"), "painted {painted:?}");
     assert!(painted.contains('•'), "painted {painted:?}");
-    assert_eq!(rect_of(&harness, "/\"password\""), unmasked);
+    assert_eq!(d.rect(Target::suffix("/\"password\"")), unmasked);
 }

@@ -55,7 +55,18 @@ trybuild = "1"
 # eggshell's own tests drive views through `testing::Driver`.
 eggshell-ui = { path = ".", features = ["driver"] }
 eggshell-ui-shadcn = { path = "crates/eggshell-ui-shadcn", features = ["extras"] }
-eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = ["form", "hover-card", "markdown", "badge", "spinner", "skeleton", "command", "notify", "tabs"] }
+eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = [
+    # keep sorted
+    "badge",
+    "command",
+    "form",
+    "hover-card",
+    "markdown",
+    "notify",
+    "skeleton",
+    "spinner",
+    "tabs",
+] }
 
 # proptest's rng wants a getrandom backend that the browser build does not
 # select, and the fuzzers only run natively.

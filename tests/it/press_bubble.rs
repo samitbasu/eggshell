@@ -1,10 +1,11 @@
 //! A node that senses nothing and has no handler is transparent to presses:
 //! the nearest sensing ancestor gets them, whatever the leaf paints.
 
+use eggshell_ui::testing::Target;
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Pos2, vec2};
 
-use crate::support::{self, hover_over, press_and_release, rect_of};
+use crate::support;
 
 #[derive(Clone, Copy, Debug)]
 enum Leaf {
@@ -109,7 +110,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 fn a_press_on_any_non_sensing_leaf_reaches_the_sensing_parent() {
     let mut failed = Vec::new();
     for leaf in LEAVES {
-        let mut harness = support::harness(
+        let mut d = support::driver(
             vec2(400.0, 300.0),
             TextStyle::new(
                 TextSpec {
@@ -122,22 +123,19 @@ fn a_press_on_any_non_sensing_leaf_reaches_the_sensing_parent() {
             ),
             App { leaf, clicks: 0 },
             view,
-        );
-        harness.run();
-        let parent = rect_of(&harness, PARENT);
-        let first = harness
-            .state()
-            .nodes
-            .iter()
+        )
+        .build();
+        d.harness_mut().run();
+        let parent = d.rect(Target::suffix(PARENT));
+        let first = support::nodes(&d)
+            .into_iter()
             .skip_while(|(path, _)| path != PARENT)
             .nth(1)
             .expect("a leaf")
             .1;
         let at: Pos2 = first.center();
-        let covering: Vec<_> = harness
-            .state()
-            .nodes
-            .iter()
+        let covering: Vec<_> = support::nodes(&d)
+            .into_iter()
             .filter(|(path, rect)| {
                 path != PARENT && rect.contains(at) && parent.contains_rect(*rect)
             })
@@ -146,9 +144,8 @@ fn a_press_on_any_non_sensing_leaf_reaches_the_sensing_parent() {
             !covering.is_empty(),
             "{leaf:?}: a leaf inside the parent holds the press point"
         );
-        hover_over(&mut harness, at);
-        press_and_release(&mut harness, at);
-        if harness.state().app.clicks != 1 {
+        d.click(at);
+        if d.app().clicks != 1 {
             failed.push(leaf);
         }
     }
@@ -227,7 +224,7 @@ fn sheet(b: &mut Builder<'_, '_, Sheet>, _: &Sheet) {
 
 #[test]
 fn a_ringed_leaf_in_a_ringed_sheet_leaves_the_tile_its_press() {
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(500.0, 400.0),
         TextStyle::new(
             TextSpec {
@@ -240,20 +237,25 @@ fn a_ringed_leaf_in_a_ringed_sheet_leaves_the_tile_its_press() {
         ),
         Sheet::default(),
         sheet,
-    );
-    harness.run();
-    let tile = rect_of(&harness, TILE);
-    let leaf = harness
-        .state()
-        .nodes
-        .iter()
+    )
+    .build();
+    d.harness_mut().run();
+    let tile = d.rect(Target::suffix(TILE));
+    let leaf = support::nodes(&d)
+        .into_iter()
         .skip_while(|(path, _)| path != TILE)
         .nth(1)
         .expect("the leaf")
         .1;
     assert!(tile.contains_rect(leaf));
-    hover_over(&mut harness, leaf.center());
-    harness.run_steps(40);
-    press_and_release(&mut harness, leaf.center());
-    assert_eq!(harness.state().app.clicks, 1);
+    d.hover(leaf.center()).frames(40);
+    for pressed in [true, false] {
+        d.event(egui::Event::PointerButton {
+            pos: leaf.center(),
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    assert_eq!(d.app().clicks, 1);
 }

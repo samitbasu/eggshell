@@ -1192,166 +1192,159 @@ mod pointer_anchor {
 /// The `menu` example through the full path.
 mod menu_example {
     use super::*;
-    use crate::support::{self, Rig, click_node, rect_of};
+    use crate::support;
+    use eggshell_ui::testing::{Driver, Target};
+    use egui::KeyboardShortcut;
 
     use super::{common, menu};
     use menu::{ROW_HEIGHT, ROWS, State};
 
     const SIZE: Vec2 = vec2(600.0, 400.0);
 
-    fn menu() -> Harness<'static, Rig<State>> {
-        let mut harness = support::harness(
+    fn menu() -> Driver<State> {
+        let mut d = support::driver(
             SIZE,
             common::base_text(egui::Theme::Light),
             State::default(),
             menu::layout,
-        );
-        harness.run_steps(3);
-        harness
+        )
+        .build();
+        d.frames(3);
+        d
     }
 
-    fn has(harness: &Harness<'_, Rig<State>>, path: &str) -> bool {
-        harness
-            .state()
-            .nodes
+    fn has(d: &Driver<State>, path: &str) -> bool {
+        support::nodes(d)
             .iter()
             .any(|(candidate, _)| candidate == path)
     }
 
     #[test]
     fn show_grid_is_on_a_chord_no_browser_keeps_and_not_on_find_next() {
-        let mut harness = menu();
-        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::G);
-        harness.run_steps(3);
-        assert!(
-            !harness.state().app.grid,
-            "Ctrl+G is the browser's find next"
-        );
+        let mut d = menu();
+        d.press(KeyboardShortcut::new(
+            egui::Modifiers::COMMAND,
+            egui::Key::G,
+        ))
+        .frames(2);
+        assert!(!d.app().grid, "Ctrl+G is the browser's find next");
         let ctrl_alt = egui::Modifiers {
             alt: true,
             ..egui::Modifiers::COMMAND
         };
-        harness.key_press_modifiers(ctrl_alt, egui::Key::G);
-        harness.run_steps(3);
-        assert!(harness.state().app.grid);
+        d.press(KeyboardShortcut::new(ctrl_alt, egui::Key::G))
+            .frames(2);
+        assert!(d.app().grid);
     }
 
     #[test]
     fn the_popover_opens_under_its_button_and_the_button_closes_it() {
-        let mut harness = menu();
+        let mut d = menu();
         assert!(
-            !has(&harness, "/Page/Top/(PopoverButton, Menu)"),
+            !has(&d, "/Page/Top/(PopoverButton, Menu)"),
             "precondition: closed"
         );
-        click_node(&mut harness, "/Page/Top/PopoverButton");
-        harness.run_steps(3);
-        let button = rect_of(&harness, "/Page/Top/PopoverButton");
-        let popover = rect_of(&harness, "/Page/Top/(PopoverButton, Menu)");
+        d.click(Target::suffix("/Page/Top/PopoverButton")).frames(3);
+        let button = d.rect(Target::suffix("/Page/Top/PopoverButton"));
+        let popover = d.rect(Target::suffix("/Page/Top/(PopoverButton, Menu)"));
         assert_eq!(popover.min.x, button.min.x);
         assert_eq!(popover.min.y, button.max.y + 4.0);
-        click_node(&mut harness, "/Page/Top/PopoverButton");
-        harness.run_steps(8);
-        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
+        d.click(Target::suffix("/Page/Top/PopoverButton")).frames(8);
+        assert!(!has(&d, "/Page/Top/(PopoverButton, Menu)"));
     }
 
     #[test]
     fn choosing_an_item_closes_the_popover_and_reports_it() {
-        let mut harness = menu();
-        click_node(&mut harness, "/Page/Top/PopoverButton");
-        harness.run_steps(3);
-        click_node(
-            &mut harness,
+        let mut d = menu();
+        d.click(Target::suffix("/Page/Top/PopoverButton")).frames(3);
+        d.click(Target::suffix(
             "/Page/Top/(PopoverButton, Menu)/Box/Item(Copy)",
-        );
-        harness.run_steps(8);
-        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
-        assert_eq!(harness.state().app.chosen.as_deref(), Some("Copy"));
+        ))
+        .frames(8);
+        assert!(!has(&d, "/Page/Top/(PopoverButton, Menu)"));
+        assert_eq!(d.app().chosen.as_deref(), Some("Copy"));
     }
 
     #[test]
     fn the_submenu_is_nested_beside_the_item_it_opens_from() {
-        let mut harness = menu();
-        click_node(&mut harness, "/Page/Top/PopoverButton");
-        harness.run_steps(3);
+        let mut d = menu();
+        d.click(Target::suffix("/Page/Top/PopoverButton")).frames(3);
         assert!(
             !has(
-                &harness,
+                &d,
                 "/Page/Top/(PopoverButton, Menu)/Box/(Item(Arrange), Submenu)"
             ),
             "precondition: closed"
         );
-        click_node(
-            &mut harness,
+        d.click(Target::suffix(
             "/Page/Top/(PopoverButton, Menu)/Box/Item(Arrange)",
-        );
-        harness.run_steps(3);
-        let item = rect_of(
-            &harness,
+        ))
+        .frames(3);
+        let item = d.rect(Target::suffix(
             "/Page/Top/(PopoverButton, Menu)/Box/Item(Arrange)",
-        );
-        let submenu = rect_of(
-            &harness,
+        ));
+        let submenu = d.rect(Target::suffix(
             "/Page/Top/(PopoverButton, Menu)/Box/(Item(Arrange), Submenu)",
-        );
+        ));
         assert!(
             submenu.min.x > item.center().x && submenu.min.x < item.max.x,
             "beside the item, overlapping its edge: {submenu:?} against {item:?}"
         );
-        click_node(
-            &mut harness,
+        d.click(Target::suffix(
             "/Page/Top/(PopoverButton, Menu)/Box/(Item(Arrange), Submenu)/Box/Item(Back)",
-        );
-        harness.run_steps(8);
-        assert_eq!(harness.state().app.chosen.as_deref(), Some("Back"));
-        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
+        ))
+        .frames(8);
+        assert_eq!(d.app().chosen.as_deref(), Some("Back"));
+        assert!(!has(&d, "/Page/Top/(PopoverButton, Menu)"));
     }
 
     #[test]
     fn a_click_away_and_escape_close_the_menu() {
-        let mut harness = menu();
-        click_node(&mut harness, "/Page/Top/PopoverButton");
-        harness.run_steps(3);
+        let mut d = menu();
+        d.click(Target::suffix("/Page/Top/PopoverButton")).frames(3);
         let away = pos2(SIZE.x - 20.0, SIZE.y / 2.0);
         assert!(
-            !rect_of(&harness, "/Page/Top/(PopoverButton, Menu)").contains(away),
+            !d.rect(Target::suffix("/Page/Top/(PopoverButton, Menu)"))
+                .contains(away),
             "precondition: away from the menu"
         );
-        support::press_and_release(&mut harness, away);
-        harness.run_steps(8);
-        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
+        for pressed in [true, false] {
+            d.event(egui::Event::PointerButton {
+                pos: away,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            });
+        }
+        d.frames(8);
+        assert!(!has(&d, "/Page/Top/(PopoverButton, Menu)"));
 
-        click_node(&mut harness, "/Page/Top/PopoverButton");
-        harness.run_steps(3);
-        harness.key_press(egui::Key::Escape);
-        harness.run_steps(8);
-        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
+        d.click(Target::suffix("/Page/Top/PopoverButton")).frames(3);
+        d.press(egui::Key::Escape).frames(7);
+        assert!(!has(&d, "/Page/Top/(PopoverButton, Menu)"));
     }
 
     #[test]
     fn the_menu_is_usable_from_the_keyboard() {
-        let mut harness = menu();
-        click_node(&mut harness, "/Page/Top/PopoverButton");
-        harness.run_steps(3);
+        let mut d = menu();
+        d.click(Target::suffix("/Page/Top/PopoverButton")).frames(3);
         for _ in 0..2 {
-            harness.key_press(egui::Key::ArrowDown);
-            harness.run_steps(3);
+            d.press(egui::Key::ArrowDown).frames(2);
         }
-        harness.key_press(egui::Key::Enter);
-        harness.run_steps(8);
+        d.press(egui::Key::Enter).frames(7);
         assert!(
-            harness.state().app.grid,
+            d.app().grid,
             "opened with the pointer, the first Down goes to Copy and the second skips the disabled Paste to Show grid"
         );
-        assert!(!has(&harness, "/Page/Top/(PopoverButton, Menu)"));
+        assert!(!has(&d, "/Page/Top/(PopoverButton, Menu)"));
     }
 
     #[test]
     fn the_tall_list_flips_above_its_button_clamps_to_the_room_and_scrolls() {
-        let mut harness = menu();
-        click_node(&mut harness, "/Page/Bottom/ListButton");
-        harness.run_steps(3);
-        let button = rect_of(&harness, "/Page/Bottom/ListButton");
-        let list = rect_of(&harness, "/Page/Bottom/List");
+        let mut d = menu();
+        d.click(Target::suffix("/Page/Bottom/ListButton")).frames(3);
+        let button = d.rect(Target::suffix("/Page/Bottom/ListButton"));
+        let list = d.rect(Target::suffix("/Page/Bottom/List"));
         let wanted = ROWS as f32 * ROW_HEIGHT;
         assert!(
             wanted > SIZE.y,
@@ -1366,17 +1359,19 @@ mod menu_example {
             list.width() >= button.width(),
             "at least as wide as the button"
         );
-        let content = rect_of(&harness, "/Page/Bottom/List/Menu/Rows/<scrollcontent>");
+        let content = d.rect(Target::suffix(
+            "/Page/Bottom/List/Menu/Rows/<scrollcontent>",
+        ));
         assert_eq!(
             content.height(),
             wanted,
             "all the rows are in the scroll content"
         );
 
-        click_node(&mut harness, "/Page/Bottom/List/Menu/Rows/Row(2)");
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.chosen.as_deref(), Some("option 2"));
-        assert!(!has(&harness, "/Page/Bottom/List"));
+        d.click(Target::suffix("/Page/Bottom/List/Menu/Rows/Row(2)"))
+            .frames(3);
+        assert_eq!(d.app().chosen.as_deref(), Some("option 2"));
+        assert!(!has(&d, "/Page/Bottom/List"));
     }
 }
 

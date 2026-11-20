@@ -3,57 +3,38 @@
 
 use core::time::Duration;
 
-use eggshell_ui::testing::{Timeline, ViolationKind, record};
-use eggshell_ui::{Builder, LayoutState, Opacity, Placed, tw};
+use eggshell_ui::testing::{After, Driver, Reports, Timeline, ViolationKind, record};
+use eggshell_ui::{Builder, Opacity, Placed, tw};
 use egui::{Pos2, Rect, Vec2, vec2};
-use egui_kittest::Harness;
 
-/// A view, the area it is laid out in, and what it reads back from each
-/// laid-out frame to use in the next one: the last-frame state the bugs are
-/// made of.
-struct Fixture<A> {
+/// A driver for `view`, laid out in `area` of its app; `observe` reads back
+/// each laid-out frame to use in the next one: the last-frame state the bugs
+/// are made of.
+fn rig<A: 'static>(
     app: A,
     view: fn(&mut Builder<'_, '_, A>, &A),
     area: fn(&A) -> Vec2,
     observe: fn(&mut A, &Placed<A>),
-    layout: LayoutState,
+) -> Driver<A> {
+    let step = Duration::from_millis(50);
+    let d = Driver::whole_frame(app, move |ui, app, layout| {
+        let area = Rect::from_min_size(Pos2::ZERO, area(app));
+        let placed = layout.build(ui.ctx(), |b| view(b, &*app)).layout(area);
+        observe(app, &placed);
+        placed.draw(app, ui)
+    })
+    .size(vec2(4000.0, 400.0))
+    .step(step)
+    .after(After::Frames(0))
+    .settle_within(step * 4)
+    .reports(Reports::Unchecked)
+    .build();
+    record(d.ctx());
+    d
 }
 
-fn rig<A>(
-    app: A,
-    view: fn(&mut Builder<'_, '_, A>, &A),
-    area: fn(&A) -> Vec2,
-    observe: fn(&mut A, &Placed<A>),
-) -> Harness<'static, Fixture<A>> {
-    let fixture = Fixture {
-        app,
-        view,
-        area,
-        observe,
-        layout: LayoutState::new(),
-    };
-    let harness = Harness::builder()
-        .with_size(vec2(4000.0, 400.0))
-        .with_step_dt(0.05)
-        .build_ui_state(
-            |ui, fixture: &mut Fixture<A>| {
-                crate::support::full_motion(ui.ctx());
-                let area = Rect::from_min_size(Pos2::ZERO, (fixture.area)(&fixture.app));
-                let placed = fixture
-                    .layout
-                    .build(ui.ctx(), |b| (fixture.view)(b, &fixture.app))
-                    .layout(area);
-                (fixture.observe)(&mut fixture.app, &placed);
-                placed.draw(&mut fixture.app, ui);
-            },
-            fixture,
-        );
-    record(&harness.ctx);
-    harness
-}
-
-fn timeline<A>(harness: &Harness<'_, Fixture<A>>) -> Timeline {
-    Timeline::recorded(&harness.ctx)
+fn timeline<A>(d: &Driver<A>) -> Timeline {
+    Timeline::recorded(d.ctx())
 }
 
 fn kinds_at(timeline: &Timeline, path: &str) -> Vec<ViolationKind> {
@@ -110,7 +91,7 @@ mod stale_offset {
     }
 
     fn run(flaw: Flaw) -> (Timeline, Vec<f32>) {
-        let mut harness = rig(
+        let mut d = rig(
             Chase {
                 flaw,
                 lead: 0.0,
@@ -120,11 +101,10 @@ mod stale_offset {
             full_area,
             observe,
         );
-        harness.hover_at(Pos2::new(150.0, 20.0));
-        harness.run_steps(4);
-        harness.state_mut().app.lead = 100.0;
-        harness.run_steps(6);
-        let timeline = timeline(&harness);
+        d.carry_to(Pos2::new(150.0, 20.0)).frames(3);
+        d.app_mut().lead = 100.0;
+        d.frames(6);
+        let timeline = timeline(&d);
         let painted = (0..timeline.len())
             .filter_map(|k| {
                 let frame = timeline.frame(k)?;
@@ -206,7 +186,7 @@ mod area_feedback {
     }
 
     fn run(flaw: Flaw) -> Timeline {
-        let mut harness = rig(
+        let mut d = rig(
             List {
                 flaw,
                 order: vec![0, 1, 2],
@@ -216,12 +196,12 @@ mod area_feedback {
             area,
             observe,
         );
-        harness.run_steps(4);
-        let order = &mut harness.state_mut().app.order;
+        d.frames(4);
+        let order = &mut d.app_mut().order;
         order.reverse();
         order.push(3);
-        harness.run_steps(25);
-        timeline(&harness)
+        d.frames(25);
+        timeline(&d)
     }
 
     /// Before #80 this was a bug the checker caught: the area following the
@@ -294,7 +274,7 @@ mod blip {
     }
 
     fn run(stale: Stale, flaw: Flaw) -> Timeline {
-        let mut harness = rig(
+        let mut d = rig(
             Tile {
                 stale,
                 flaw,
@@ -304,10 +284,10 @@ mod blip {
             full_area,
             observe,
         );
-        harness.run_steps(3);
-        harness.state_mut().app.memo = 0.0;
-        harness.run_steps(5);
-        timeline(&harness)
+        d.frames(3);
+        d.app_mut().memo = 0.0;
+        d.frames(5);
+        timeline(&d)
     }
 
     #[test]
@@ -367,7 +347,7 @@ mod oscillation {
     }
 
     fn run(flaw: Flaw) -> Timeline {
-        let mut harness = rig(
+        let mut d = rig(
             Panel {
                 flaw,
                 last_width: 0.0,
@@ -376,8 +356,8 @@ mod oscillation {
             full_area,
             observe,
         );
-        harness.run_steps(12);
-        timeline(&harness)
+        d.frames(12);
+        timeline(&d)
     }
 
     #[test]
@@ -487,7 +467,7 @@ mod slide_path {
     }
 
     fn run(fault: Fault) -> Timeline {
-        let mut harness = rig(
+        let mut d = rig(
             Slider {
                 fault,
                 lead: 0.0,
@@ -498,13 +478,12 @@ mod slide_path {
             |_| vec2(4000.0, 400.0),
             observe,
         );
-        harness.hover_at(Pos2::new(DISTANCE + 150.0, 20.0));
-        harness.run_steps(3);
-        let app = &mut harness.state_mut().app;
+        d.carry_to(Pos2::new(DISTANCE + 150.0, 20.0)).frames(2);
+        let app = d.app_mut();
         app.lead = DISTANCE;
         app.moved_at = Some(app.frames);
-        harness.run_steps(14);
-        timeline(&harness)
+        d.frames(14);
+        timeline(&d)
     }
 
     fn painted_x(timeline: &Timeline) -> Vec<f32> {
@@ -604,16 +583,16 @@ mod long_grid_slide {
 
     #[test]
     fn three_columns_to_one_slides_thousands_of_points_without_an_allowance() {
-        let mut harness = rig(
+        let mut d = rig(
             Grid { columns: 3 },
             view,
             |_| vec2(4000.0, 400.0),
             |_, _| {},
         );
-        harness.run_steps(3);
-        harness.state_mut().app.columns = 1;
-        harness.run_steps(14);
-        let timeline = timeline(&harness);
+        d.frames(3);
+        d.app_mut().columns = 1;
+        d.frames(14);
+        let timeline = timeline(&d);
         let travelled: f32 = (0..timeline.len())
             .filter_map(|k| {
                 timeline
@@ -666,15 +645,14 @@ mod inside_a_slide {
     }
 
     fn run(hover_it_at_the_end: bool) -> Timeline {
-        let mut harness = rig(0.0, view, |_| vec2(4000.0, 400.0), |_, _| {});
-        harness.run_steps(3);
-        harness.state_mut().app = 3000.0;
-        harness.run_steps(16);
+        let mut d = rig(0.0, view, |_| vec2(4000.0, 400.0), |_, _| {});
+        d.frames(3);
+        *d.app_mut() = 3000.0;
+        d.frames(16);
         if hover_it_at_the_end {
-            harness.hover_at(Pos2::new(3010.0, 20.0));
-            harness.run_steps(3);
+            d.carry_to(Pos2::new(3010.0, 20.0)).frames(2);
         }
-        timeline(&harness)
+        timeline(&d)
     }
 
     #[test]

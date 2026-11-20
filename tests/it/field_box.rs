@@ -1,12 +1,12 @@
 //! A field box, and a text field with a leading or trailing icon (#245).
 
 use eggshell_ui::contract::Size;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, icons, tw};
 use eggshell_ui_shadcn::{Shadcn, size};
 use egui::{Color32, FontFamily, Theme, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, box_at, click_node, rect_of, ring_at};
+use crate::support::{self, box_at, ring_at};
 
 struct App {
     text: String,
@@ -57,9 +57,9 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     );
 }
 
-fn harness(size: Size) -> Harness<'static, Rig<App>> {
+fn driver(size: Size) -> Driver<App> {
     let tokens = Shadcn::for_theme(Theme::Light).tokens;
-    let mut harness = support::harness_prepared(
+    let mut d = support::prepared_driver(
         vec2(340.0, 360.0),
         TextStyle::new(
             TextSpec {
@@ -79,12 +79,13 @@ fn harness(size: Size) -> Harness<'static, Rig<App>> {
         |ctx, _| {
             Shadcn::apply_both(ctx);
         },
-    );
-    harness.state_mut().page = support::Page::Themed;
-    harness.state_mut().companion = support::Companion::Alone;
-    harness.ctx.set_theme(Theme::Light);
-    harness.run_steps(6);
-    harness
+    )
+    .build();
+    support::set_page(&d, support::Page::Themed);
+    support::set_companion(&d, support::Companion::Alone);
+    d.ctx().set_theme(Theme::Light);
+    d.frames(6);
+    d
 }
 
 const SEARCH: &str = r#"/"Page"/"sized"/"search""#;
@@ -98,13 +99,13 @@ fn input() -> eggshell_ui::contract::InputStyle {
 
 #[test]
 fn a_field_box_is_the_inputs_box_at_its_size() {
-    let harness = harness(Size::DEFAULT);
+    let d = driver(Size::DEFAULT);
     let input = input();
     let metrics = *input.sizes.get(size::SM);
-    let rect = rect_of(&harness, CUSTOM);
+    let rect = d.rect(Target::suffix(CUSTOM));
     assert_eq!(rect.height(), metrics.height);
     assert_eq!(rect.width(), 200.0);
-    let shape = box_at(&harness, rect);
+    let shape = box_at(&d, rect);
     assert_eq!(shape.fill, input.look.paint.states.rest.fill);
     assert_eq!(shape.stroke.color, input.look.paint.states.rest.border);
     assert_eq!(
@@ -115,26 +116,23 @@ fn a_field_box_is_the_inputs_box_at_its_size() {
 
 #[test]
 fn a_field_box_rings_while_a_field_inside_has_focus() {
-    let mut harness = harness(Size::DEFAULT);
-    let rect = rect_of(&harness, CUSTOM);
-    assert!(
-        ring_at(&harness, rect).is_none(),
-        "precondition: no ring at rest"
-    );
-    click_node(&mut harness, r#"/"Page"/"custom"/"inner""#);
-    harness.run_steps(6);
-    assert!(ring_at(&harness, rect).is_some());
+    let mut d = driver(Size::DEFAULT);
+    let rect = d.rect(Target::suffix(CUSTOM));
+    assert!(ring_at(&d, rect).is_none(), "precondition: no ring at rest");
+    d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
+    d.frames(6);
+    assert!(ring_at(&d, rect).is_some());
 }
 
 #[test]
 fn a_disabled_field_box_is_inert() {
-    let mut harness = harness(Size::DEFAULT);
-    harness.state_mut().app.disabled = true;
-    harness.run_steps(4);
-    let rect = rect_of(&harness, CUSTOM);
-    click_node(&mut harness, r#"/"Page"/"custom"/"inner""#);
-    harness.run_steps(6);
-    assert!(ring_at(&harness, rect).is_none());
+    let mut d = driver(Size::DEFAULT);
+    d.app_mut().disabled = true;
+    d.frames(4);
+    let rect = d.rect(Target::suffix(CUSTOM));
+    d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
+    d.frames(6);
+    assert!(ring_at(&d, rect).is_none());
 }
 
 #[test]
@@ -144,13 +142,13 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
         (size::SM, "sm"),
         (size::XS, "xs"),
     ] {
-        let harness = harness(size);
+        let d = driver(size);
         let metrics = *input().sizes.get(size);
         let border = input().look.border_width;
         let (boxed, icon, field) = (
-            rect_of(&harness, SEARCH),
-            rect_of(&harness, &format!("{SEARCH}/Leading")),
-            rect_of(&harness, &format!("{SEARCH}/Field")),
+            d.rect(Target::suffix(SEARCH)),
+            d.rect(Target::suffix(&format!("{SEARCH}/Leading"))),
+            d.rect(Target::suffix(&format!("{SEARCH}/Field"))),
         );
         assert_eq!(boxed.height(), metrics.height, "{label}");
         assert_eq!(
@@ -173,13 +171,13 @@ fn a_leading_icon_sits_inside_the_box_before_the_field() {
 
 #[test]
 fn a_trailing_icon_sits_inside_the_box_after_the_field() {
-    let harness = harness(Size::DEFAULT);
+    let d = driver(Size::DEFAULT);
     let metrics = *input().sizes.get(Size::DEFAULT);
     let border = input().look.border_width;
     let (boxed, icon, field) = (
-        rect_of(&harness, CLEAR),
-        rect_of(&harness, &format!("{CLEAR}/Trailing")),
-        rect_of(&harness, &format!("{CLEAR}/Field")),
+        d.rect(Target::suffix(CLEAR)),
+        d.rect(Target::suffix(&format!("{CLEAR}/Trailing"))),
+        d.rect(Target::suffix(&format!("{CLEAR}/Field"))),
     );
     assert!((boxed.right() - icon.right() - border - metrics.padding.x).abs() < 0.6);
     assert!((icon.left() - field.right() - metrics.icon_gap).abs() < 0.6);
@@ -187,11 +185,11 @@ fn a_trailing_icon_sits_inside_the_box_after_the_field() {
 
 #[test]
 fn a_field_may_have_both_icons() {
-    let harness = harness(Size::DEFAULT);
+    let d = driver(Size::DEFAULT);
     let (boxed, lead, trail) = (
-        rect_of(&harness, BOTH),
-        rect_of(&harness, &format!("{BOTH}/Leading")),
-        rect_of(&harness, &format!("{BOTH}/Trailing")),
+        d.rect(Target::suffix(BOTH)),
+        d.rect(Target::suffix(&format!("{BOTH}/Leading"))),
+        d.rect(Target::suffix(&format!("{BOTH}/Trailing"))),
     );
     assert!(lead.right() < trail.left());
     assert!(boxed.contains_rect(lead) && boxed.contains_rect(trail));
@@ -199,10 +197,10 @@ fn a_field_may_have_both_icons() {
 
 #[test]
 fn the_icons_are_drawn_in_the_styles_icon_colour() {
-    let harness = harness(Size::DEFAULT);
-    let boxed = rect_of(&harness, SEARCH);
+    let d = driver(Size::DEFAULT);
+    let boxed = d.rect(Target::suffix(SEARCH));
     let icon = input().icon;
-    let tinted = support::textured(&harness).into_iter().any(|mesh| {
+    let tinted = support::textured(&d).into_iter().any(|mesh| {
         boxed.contains_rect(mesh.calc_bounds())
             && mesh.vertices.iter().all(|vertex| vertex.color == icon)
     });
@@ -212,34 +210,33 @@ fn the_icons_are_drawn_in_the_styles_icon_colour() {
 
 #[test]
 fn typing_in_a_field_with_an_icon_changes_the_text() {
-    let mut harness = harness(Size::DEFAULT);
-    click_node(&mut harness, &format!("{SEARCH}/Field"));
-    harness.run_steps(4);
-    harness.event(egui::Event::Text("abc".into()));
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.text, "abc");
+    let mut d = driver(Size::DEFAULT);
+    d.click(Target::suffix(&format!("{SEARCH}/Field")));
+    d.frames(4);
+    d.type_text("abc").frames(3);
+    assert_eq!(d.app().text, "abc");
 }
 
 #[test]
 fn a_focused_field_with_an_icon_rings_its_box() {
-    let mut harness = harness(Size::DEFAULT);
-    let boxed = rect_of(&harness, SEARCH);
-    assert!(ring_at(&harness, boxed).is_none(), "precondition");
-    click_node(&mut harness, &format!("{SEARCH}/Field"));
-    harness.run_steps(6);
-    assert!(ring_at(&harness, boxed).is_some());
+    let mut d = driver(Size::DEFAULT);
+    let boxed = d.rect(Target::suffix(SEARCH));
+    assert!(ring_at(&d, boxed).is_none(), "precondition");
+    d.click(Target::suffix(&format!("{SEARCH}/Field")));
+    d.frames(6);
+    assert!(ring_at(&d, boxed).is_some());
 }
 
 #[test]
 fn a_field_without_icons_keeps_its_leaf() {
-    let harness = harness(Size::DEFAULT);
-    rect_of(&harness, r#"/"Page"/"sized"/"plain""#);
+    let d = driver(Size::DEFAULT);
+    d.rect(Target::suffix(r#"/"Page"/"sized"/"plain""#));
 }
 
 #[test]
 fn a_multiline_field_shows_no_icon_and_does_not_panic() {
     let tokens = Shadcn::for_theme(Theme::Light).tokens;
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(300.0, 200.0),
         TextStyle::new(
             TextSpec {
@@ -258,10 +255,11 @@ fn a_multiline_field_shows_no_icon_and_does_not_panic() {
                 .leading(Icon::new(icons::SEARCH))
                 .on_change(|_, _| {});
         },
-    );
-    harness.run_steps(2);
-    rect_of(&harness, r#"/"notes""#);
-    assert!(support::textured(&harness).is_empty(), "no icon is drawn");
+    )
+    .build();
+    d.frames(2);
+    d.rect(Target::suffix(r#"/"notes""#));
+    assert!(support::textured(&d).is_empty(), "no icon is drawn");
 }
 
 #[test]

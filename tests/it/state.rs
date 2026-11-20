@@ -1,13 +1,11 @@
 //! What a build reads at build time: egui's local state through
 //! `Builder::ctx`, and the base text, which follows egui unless overridden.
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, Context, FontFamily, Rect, Theme, pos2, vec2};
-use egui_kittest::Harness;
 
 use crate::support;
-
-use support::{Rig, rect_of};
 
 fn context(theme: Theme) -> Context {
     let ctx = Context::default();
@@ -105,25 +103,23 @@ fn fold(b: &mut Builder<'_, '_, Fold>, _: &Fold) {
 
 #[test]
 fn build_reads_the_state_a_draw_kept_through_the_builders_context() {
-    let mut harness: Harness<'static, Rig<Fold>> =
-        support::harness(vec2(100.0, 100.0), override_style(), Fold, fold);
-    let width = |harness: &Harness<'_, Rig<Fold>>| {
-        harness
-            .state()
-            .nodes
+    let mut d: Driver<Fold> =
+        support::driver(vec2(100.0, 100.0), override_style(), Fold, fold).build();
+    let width = |d: &Driver<Fold>| {
+        support::nodes(d)
             .iter()
             .find(|(path, _)| path.contains("rule"))
             .expect("the rule")
             .1
             .width()
     };
-    let before = width(&harness);
-    harness.step();
-    let after = width(&harness);
+    let before = width(&d);
+    d.frames(1);
+    let after = width(&d);
     assert_eq!(
         after,
         before + 1.0,
         "each build sees the previous draw's count"
     );
-    assert_eq!(rect_of(&harness, "/\"row\"").size(), vec2(50.0, 20.0));
+    assert_eq!(d.rect(Target::suffix("/\"row\"")).size(), vec2(50.0, 20.0));
 }
