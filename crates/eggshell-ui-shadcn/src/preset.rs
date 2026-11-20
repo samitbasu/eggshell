@@ -996,7 +996,9 @@ impl Shadcn {
     /// `border border-transparent focus-visible:border-ring` and the
     /// style's ring, `disabled:opacity-50`; the icon `size-4
     /// text-muted-foreground`, nudged `translate-y-0.5`; the content's inner
-    /// block `pb-4` in Vega and `pb-2.5` in Lyra.
+    /// block `pb-4` in Vega and `pb-2.5` in Lyra; a tree's disclosure button
+    /// a 24 pt square (a row's height) with a `bg-accent` tint under the
+    /// pointer, which the user chose over a bare glyph's box (look 10c).
     ///
     /// TODO(prose)
     ///
@@ -1028,7 +1030,8 @@ impl Shadcn {
         disclosure.header.text = t.text_role_at(Weight::Medium);
         disclosure.header.disabled = Opacity::new(0.5);
         disclosure.content_padding_bottom = if lyra { 10.0 } else { 16.0 };
-        disclosure.button = 16.0;
+        disclosure.button = 24.0;
+        disclosure.button_hover = Some(t.accent);
         disclosure
     }
 
