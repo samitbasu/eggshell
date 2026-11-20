@@ -129,6 +129,7 @@ mod segmented_classes;
 mod select;
 mod selection;
 mod shadow_pixels;
+mod sheet;
 mod sizing;
 mod skeleton;
 mod slider_header;

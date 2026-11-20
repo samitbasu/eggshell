@@ -125,21 +125,25 @@ fn full(line: &mut Line<GridPlacement>) {
 macro_rules! placement {
     ($($span:ident, $span_full:ident, $start:ident, $end:ident, $field:ident, $axis:literal;)*) => {$(
         #[doc = concat!("Spans `count` ", $axis, "s (`", stringify!($span), "-<count>`).")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $span(self, count: u16) -> Self {
             self.styled(|s| span(s.$field(), count))
         }
 
         #[doc = concat!("Spans every ", $axis, " of the explicit grid.")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $span_full(self) -> Self {
             self.styled(|s| full(s.$field()))
         }
 
         #[doc = concat!("Starts at grid line `line` (negative counts from the end).")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $start(self, line: i16) -> Self {
             self.styled(|s| s.$field().start = GridPlacement::from_line_index(line))
         }
 
         #[doc = concat!("Ends at grid line `line` (negative counts from the end).")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $end(self, line: i16) -> Self {
             self.styled(|s| s.$field().end = GridPlacement::from_line_index(line))
         }
@@ -151,36 +155,43 @@ macro_rules! placement {
 macro_rules! grid_methods {
     () => {
         /// `grid-cols-<count>`: `count` columns of `minmax(0, 1fr)`.
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn grid_cols(self, count: u16) -> Self {
             self.styled(|s| *s.grid_template_columns() = even(count))
         }
 
         /// `grid-rows-<count>`: `count` rows of `minmax(0, 1fr)`.
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn grid_rows(self, count: u16) -> Self {
             self.styled(|s| *s.grid_template_rows() = even(count))
         }
 
         /// An arbitrary column track list, as in `grid-cols-[48px_minmax(0,1fr)_...]`.
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn grid_cols_tracks(self, tracks: &[Track]) -> Self {
             self.styled(|s| *s.grid_template_columns() = template(tracks))
         }
 
         /// An arbitrary row track list.
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn grid_rows_tracks(self, tracks: &[Track]) -> Self {
             self.styled(|s| *s.grid_template_rows() = template(tracks))
         }
 
         /// `grid-flow-row`: auto-placed items fill rows.
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn grid_flow_row(self) -> Self {
             self.styled(|s| *s.grid_auto_flow() = taffy::GridAutoFlow::Row)
         }
 
         /// `grid-flow-col`: auto-placed items fill columns.
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn grid_flow_col(self) -> Self {
             self.styled(|s| *s.grid_auto_flow() = taffy::GridAutoFlow::Column)
         }
 
         /// `grid-flow-dense`: back-fills holes, keeping the flow direction.
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn grid_flow_dense(self) -> Self {
             self.styled(|s| {
                 let flow = s.grid_auto_flow();

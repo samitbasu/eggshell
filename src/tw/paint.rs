@@ -3,6 +3,8 @@
 use crate::finite::clamp;
 use egui::{Color32, CornerRadius, Shadow};
 
+#[cfg(debug_assertions)]
+use super::Property;
 use super::merge::Shape;
 use super::{BoxTw, Opacity, Tw};
 
@@ -103,6 +105,39 @@ impl BoxPaint {
     }
 }
 
+/// The properties `after` paints differently from `before`.
+#[cfg(debug_assertions)]
+fn changed_paint(before: &BoxPaint, after: &BoxPaint) -> impl Iterator<Item = Property> {
+    [
+        (before.background != after.background, Property::Background),
+        (
+            before.border_colors.top != after.border_colors.top,
+            Property::BorderColorTop,
+        ),
+        (
+            before.border_colors.right != after.border_colors.right,
+            Property::BorderColorRight,
+        ),
+        (
+            before.border_colors.bottom != after.border_colors.bottom,
+            Property::BorderColorBottom,
+        ),
+        (
+            before.border_colors.left != after.border_colors.left,
+            Property::BorderColorLeft,
+        ),
+        (
+            before.ring != after.ring || before.ring_placement != after.ring_placement,
+            Property::Ring,
+        ),
+        (before.shadow != after.shadow, Property::Shadow),
+        (before.divide_x != after.divide_x, Property::DivideX),
+        (before.divide_y != after.divide_y, Property::DivideY),
+    ]
+    .into_iter()
+    .filter_map(|(changed, property)| changed.then_some(property))
+}
+
 fn radius(points: u8) -> CornerRadius {
     CornerRadius::same(points)
 }
@@ -110,6 +145,7 @@ fn radius(points: u8) -> CornerRadius {
 macro_rules! rounded {
     ($($name:ident, $doc:literal, $points:expr;)*) => {$(
         #[doc = $doc]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $name(self) -> Self {
             self.shaped(|p| p.set_radius(radius($points)))
         }
@@ -119,6 +155,7 @@ macro_rules! rounded {
 macro_rules! side_colors {
     ($($name:ident, $doc:literal, |$p:ident, $c:ident| $set:expr;)*) => {$(
         #[doc = $doc]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $name(self, color: impl Into<Color32>) -> Self {
             self.painted(|$p| { let $c = Some(color.into()); $set })
         }
@@ -130,6 +167,7 @@ macro_rules! side_colors {
 macro_rules! paint_methods {
     () => {
             /// `bg-<color>`.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn bg(self, color: impl Into<Color32>) -> Self {
                 self.painted(|p| p.background = Some(color.into()))
             }
@@ -145,12 +183,14 @@ macro_rules! paint_methods {
             }
 
             /// `divide-x-<width>`: hairlines between children laid out in a row.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn divide_x(self, width: f32, color: impl Into<Color32>) -> Self {
                 let color = color.into();
                 self.painted(|p| p.divide_x = Some(Divide { width, color }))
             }
 
             /// `divide-y-<width>`: hairlines between children laid out in a column.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn divide_y(self, width: f32, color: impl Into<Color32>) -> Self {
                 let color = color.into();
                 self.painted(|p| p.divide_y = Some(Divide { width, color }))
@@ -169,30 +209,35 @@ macro_rules! paint_methods {
             }
 
             /// `rounded-[<r>px]`: corner radius in points, rounded to whole points.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_px(self, points: f32) -> Self {
                 self.shaped(|p| p.set_radius(radius(clamp(points.round(), 0.0, 255.0) as u8)))
             }
 
             /// `rounded-tr-[<r>px]`: top-right corner radius in points, rounded to
             /// whole points; the other corners keep theirs.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_tr_px(self, points: f32) -> Self {
                 self.shaped(|p| *p.radius_ne() = clamp(points.round(), 0.0, 255.0) as u8)
             }
 
             /// `rounded-br-[<r>px]`: bottom-right corner radius in points, rounded to
             /// whole points; the other corners keep theirs.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_br_px(self, points: f32) -> Self {
                 self.shaped(|p| *p.radius_se() = clamp(points.round(), 0.0, 255.0) as u8)
             }
 
             /// `rounded-tl-[<r>px]`: top-left corner radius in points, rounded to
             /// whole points; the other corners keep theirs.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_tl_px(self, points: f32) -> Self {
                 self.shaped(|p| *p.radius_nw() = clamp(points.round(), 0.0, 255.0) as u8)
             }
 
             /// `rounded-bl-[<r>px]`: bottom-left corner radius in points, rounded to
             /// whole points; the other corners keep theirs.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn rounded_bl_px(self, points: f32) -> Self {
                 self.shaped(|p| *p.radius_sw() = clamp(points.round(), 0.0, 255.0) as u8)
             }
@@ -201,6 +246,7 @@ macro_rules! paint_methods {
             /// CSS's `outline`, so a container that clips (a scroll container,
             /// `overflow_hidden`) cuts off the ring of a child flush with its edge:
             /// leave at least the ring's width as padding inside one.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn ring(self, width: f32, color: impl Into<Color32>) -> Self {
                 let color = color.into();
                 self.painted(|p| p.ring = Some(Ring { width, color }))
@@ -213,16 +259,19 @@ macro_rules! paint_methods {
             /// ```html
             /// <div class="ring-2 ring-inset ring-blue-500"></div>
             /// ```
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn ring_inset(self) -> Self {
                 self.painted(|p| p.ring_placement = RingPlacement::Inside)
             }
 
             /// `shadow-*`.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn shadow(self, shadow: Shadow) -> Self {
                 self.painted(|p| p.shadow = Some(shadow))
             }
 
             /// `opacity-*`.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn opacity(self, opacity: Opacity) -> Self {
                 self.shaped(|p| p.set_opacity(opacity))
             }
@@ -230,15 +279,24 @@ macro_rules! paint_methods {
 }
 
 impl Tw {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn painted(mut self, set: impl FnOnce(&mut BoxPaint)) -> Self {
         let mut after = self.paint;
         set(&mut after);
+        #[cfg(debug_assertions)]
+        let before = self.paint;
         self.paint = self.lengths.keep(self.paint, after, BoxPaint::is_finite);
+        #[cfg(debug_assertions)]
+        {
+            let changed: Vec<Property> = changed_paint(&before, &self.paint).collect();
+            self.note_all(changed);
+        }
         self
     }
 
     /// [`painted`](Self::painted) for the properties that merging tracks:
     /// the corner radii and the opacity.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn shaped(mut self, set: impl FnOnce(&mut Shape<'_>)) -> Self {
         self.write_shape(set);
         self
@@ -248,10 +306,12 @@ impl Tw {
 }
 
 impl BoxTw {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn painted(self, set: impl FnOnce(&mut BoxPaint)) -> Self {
         Self(self.0.painted(set))
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn shaped(self, set: impl FnOnce(&mut Shape<'_>)) -> Self {
         Self(self.0.shaped(set))
     }

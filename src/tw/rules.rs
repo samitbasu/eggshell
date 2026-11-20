@@ -5,9 +5,10 @@ use std::ops::Not;
 
 use super::{BoxTw, Tw};
 use crate::pipeline::NodeKind;
+use crate::sheet::Layer;
 
 /// An ARIA state a node can say of itself and a [`Match`] can ask for.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Aria {
     /// TODO(prose): `aria-busy`.
     Busy,
@@ -17,6 +18,8 @@ pub enum Aria {
     Disabled,
     /// TODO(prose): `aria-expanded`.
     Expanded,
+    /// TODO(prose): `aria-haspopup`.
+    HasPopup,
     /// TODO(prose): `aria-invalid`.
     Invalid,
     /// TODO(prose): `aria-pressed`.
@@ -83,6 +86,9 @@ pub(crate) struct Ruled {
     has: Vec<HasRule>,
     /// Whether the rule these classes are the body of wins over a node's own.
     important: bool,
+    /// The classes the node's sheet gave it, which the rules above go over
+    /// and the node's own classes go over them.
+    base: Option<Box<Tw>>,
 }
 
 impl Ruled {
@@ -91,6 +97,10 @@ impl Ruled {
         self.rules.extend(later.rules);
         self.has.extend(later.has);
         self.important |= later.important;
+        self.base = match (self.base, later.base) {
+            (Some(own), Some(later)) => Some(Box::new(own.merge(*later))),
+            (own, later) => later.or(own),
+        };
         self
     }
 }
@@ -357,38 +367,69 @@ impl Rules {
         self.top.is_none()
     }
 
-    /// `own` as the rules above give it its classes: the rules that match,
-    /// the farthest container's first, under `own`; the `important` ones
-    /// over it.
-    #[inline(never)]
-    pub(crate) fn apply(&self, links: &[Link], own: &Tw, kind: NodeKind) -> Tw {
+    /// The rules that match a node of `kind` with `facts`, the farthest
+    /// container's first.
+    fn matching<'a>(&self, links: &'a [Link], facts: &Facts, kind: NodeKind) -> Vec<&'a Rule> {
         let mut chain = Vec::new();
         let mut at = self.top;
         while let Some(link) = at.and_then(|at| links.get(at as usize)) {
             chain.push(link);
             at = link.above;
         }
-        let facts = own.rules.as_ref().map_or(&NO_FACTS, |ruled| &ruled.facts);
-        let matching: Vec<&Rule> = chain
+        let depth = self.depth;
+        chain
             .iter()
             .rev()
             .flat_map(|link| {
-                let direct = link.depth == self.depth;
+                let direct = link.depth == depth;
                 link.rules.iter().filter(move |rule| {
                     (direct || rule.reach == Reach::Descendants)
                         && rule.when.matches(kind, facts, false)
                 })
             })
-            .collect();
+            .collect()
+    }
+
+    /// `own` as the rules above give it its classes: the rules that match,
+    /// the farthest container's first, under `own`; the `important` ones
+    /// over it.
+    #[inline(never)]
+    pub(crate) fn apply(&self, links: &[Link], own: &Tw, kind: NodeKind) -> Tw {
+        let matching = self.matching(links, own.facts(), kind);
         let mut under = Tw::blank();
         for rule in matching.iter().filter(|rule| !rule.body.is_important()) {
-            under = under.merge(rule.body.clone());
+            under = under.merge(rule.body.clone().staged(Layer::Ancestor));
         }
         let mut applied = under.merge(own.clone());
         for rule in matching.iter().filter(|rule| rule.body.is_important()) {
-            applied = applied.merge(rule.body.clone());
+            applied = applied.merge(rule.body.clone().staged(Layer::Important));
         }
         applied
+    }
+
+    /// [`apply`](Self::apply) for a node with a sheet's classes: the rules
+    /// that match go over those and under the node's own.
+    #[inline(never)]
+    pub(crate) fn apply_layered(&self, links: &[Link], own: Tw, kind: NodeKind) -> Tw {
+        let (sheet, own) = own.split_sheet();
+        let flat;
+        let facts = match &sheet {
+            Some(sheet) => {
+                flat = sheet.facts().clone().merge(own.facts().clone());
+                &flat
+            }
+            None => own.facts(),
+        };
+        let matching = self.matching(links, facts, kind);
+        let mut under = sheet.unwrap_or_else(Tw::blank);
+        for rule in matching.iter().filter(|rule| !rule.body.is_important()) {
+            under = under.merge(rule.body.clone().staged(Layer::Ancestor));
+        }
+        let mut applied = under.merge(own);
+        for rule in matching.iter().filter(|rule| rule.body.is_important()) {
+            applied = applied.merge(rule.body.clone().staged(Layer::Important));
+        }
+        applied.without_sheet()
     }
 }
 
@@ -477,6 +518,40 @@ impl Tw {
         self
     }
 
+    /// Classes that say nothing, over the classes `sheet` gives a node: what
+    /// is merged into them goes over `sheet`, and the rules of the containers
+    /// above go between.
+    pub(crate) fn over_sheet(sheet: Tw) -> Tw {
+        let mut classes = Tw::blank();
+        classes.ruled().base = Some(Box::new(sheet));
+        classes
+    }
+
+    /// Whether the node's classes hold a sheet's, to go under its own.
+    #[inline(always)]
+    pub(crate) fn is_layered(&self) -> bool {
+        self.rules
+            .as_ref()
+            .is_some_and(|ruled| ruled.base.is_some())
+    }
+
+    /// The sheet's classes of the node and its own.
+    fn split_sheet(mut self) -> (Option<Tw>, Tw) {
+        let sheet = self
+            .rules
+            .as_mut()
+            .and_then(|ruled| ruled.base.take())
+            .map(|sheet| *sheet);
+        (sheet, self)
+    }
+
+    fn without_sheet(mut self) -> Tw {
+        if let Some(ruled) = self.rules.as_mut() {
+            ruled.base = None;
+        }
+        self
+    }
+
     fn is_important(&self) -> bool {
         self.rules.as_ref().is_some_and(|ruled| ruled.important)
     }
@@ -490,5 +565,74 @@ impl Tw {
 
     fn ruled(&mut self) -> &mut Ruled {
         self.rules.get_or_insert_with(Box::default)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tw::tw;
+
+    fn glyph_size(rules: &Rules, links: &[Link], own: Tw) -> taffy::Dimension {
+        rules
+            .apply_layered(links, own, NodeKind::Glyph)
+            .style
+            .size
+            .width
+    }
+
+    #[test]
+    fn rules_above_go_between_the_sheet_and_the_call_site() {
+        let mut links = Vec::new();
+        let above = tw().descendants(Match::glyph(), |t| t.size_px(12.0));
+        let rules = Rules::NONE.within(&above, &mut links);
+        let sheet = || tw().size_px(16.0).slot("icon");
+        let width = |points| taffy::Dimension::length(points);
+
+        let from_sheet = Tw::over_sheet(sheet());
+        assert_eq!(glyph_size(&rules, &links, from_sheet), width(12.0));
+
+        let called = Tw::over_sheet(sheet()).merge(tw().size_px(20.0));
+        assert_eq!(glyph_size(&rules, &links, called), width(20.0));
+
+        let nowhere = Tw::over_sheet(sheet());
+        assert_eq!(glyph_size(&Rules::NONE, &[], nowhere), width(16.0));
+    }
+
+    #[test]
+    fn rules_above_match_the_sheets_slot() {
+        let mut links = Vec::new();
+        let above = tw().children(Match::slot("icon"), |t| t.size_px(9.0));
+        let rules = Rules::NONE.within(&above, &mut links);
+        let matched = Tw::over_sheet(tw().size_px(16.0).slot("icon"));
+        let plain = Tw::over_sheet(tw().size_px(16.0));
+        let width = |points| taffy::Dimension::length(points);
+        assert_eq!(glyph_size(&rules, &links, matched), width(9.0));
+        assert_eq!(glyph_size(&rules, &links, plain), width(16.0));
+    }
+
+    #[test]
+    fn the_applied_classes_keep_no_sheet() {
+        let applied = Rules::NONE.apply_layered(&[], Tw::over_sheet(tw().px(1.0)), NodeKind::Div);
+        assert!(!applied.is_layered());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn each_property_keeps_the_layer_that_won_it() {
+        use crate::Property;
+        let mut links = Vec::new();
+        let above = tw()
+            .descendants(Match::glyph(), |t| t.size_px(12.0))
+            .descendants(Match::glyph(), |t| t.gap(2.0).important());
+        let rules = Rules::NONE.within(&above, &mut links);
+        let sheet = tw().size_px(16.0).m(1.0).gap(1.0).staged(Layer::Preset);
+        let own = Tw::over_sheet(sheet).merge(tw().p(3.0));
+        let applied = rules.apply_layered(&links, own, NodeKind::Glyph);
+        let layer = |property| applied.origin_of(property).map(|origin| origin.layer);
+        assert_eq!(layer(Property::width), Some(Layer::Ancestor));
+        assert_eq!(layer(Property::margin_left), Some(Layer::Preset));
+        assert_eq!(layer(Property::padding_left), Some(Layer::CallSite));
+        assert_eq!(layer(Property::gap_width), Some(Layer::Important));
     }
 }

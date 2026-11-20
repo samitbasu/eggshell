@@ -2,6 +2,8 @@
 
 use egui::{Color32, FontFamily};
 
+#[cfg(debug_assertions)]
+use super::Property;
 use super::Tw;
 use crate::text::{
     FontStyle, Numerals, TextAlign, TextCase, TextClasses, TextDecoration, TextSpec, Tracking,
@@ -11,27 +13,71 @@ use crate::text::{
 macro_rules! text_flags {
     ($($name:ident, $doc:literal, |$t:ident| $set:expr;)*) => {$(
         #[doc = $doc]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $name(self) -> Self {
             self.texted(|$t| $set)
         }
     )*};
 }
 
+/// The properties `after` sets differently from `before`.
+#[cfg(debug_assertions)]
+fn changed_text(before: &TextClasses, after: &TextClasses) -> Vec<Property> {
+    [
+        (before.size != after.size, Property::TextSize),
+        (
+            before.line_height != after.line_height,
+            Property::TextLineHeight,
+        ),
+        (before.family != after.family, Property::TextFamily),
+        (before.weight != after.weight, Property::TextWeight),
+        (before.color != after.color, Property::TextColor),
+        (
+            before.font_style != after.font_style,
+            Property::TextFontStyle,
+        ),
+        (
+            before.decoration != after.decoration,
+            Property::TextDecoration,
+        ),
+        (
+            before.white_space != after.white_space,
+            Property::TextWhiteSpace,
+        ),
+        (before.align != after.align, Property::TextAlign),
+        (before.tracking != after.tracking, Property::TextTracking),
+        (before.case != after.case, Property::TextCase),
+        (before.select != after.select, Property::TextSelect),
+        (before.numerals != after.numerals, Property::TextNumerals),
+    ]
+    .into_iter()
+    .filter_map(|(changed, property)| changed.then_some(property))
+    .collect()
+}
+
 impl Tw {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn texted(mut self, set: impl FnOnce(&mut TextClasses)) -> Self {
         let mut after = self.text.clone();
         set(&mut after);
         let before = std::mem::take(&mut self.text);
+        #[cfg(debug_assertions)]
+        let changed = changed_text(&before, &after);
         self.text = self.lengths.keep(before, after, |text| {
             [text.size, text.line_height]
                 .into_iter()
                 .flatten()
                 .all(f32::is_finite)
         });
+        #[cfg(debug_assertions)]
+        if self.lengths != super::Lengths::Rejected {
+            self.note_all(changed);
+        }
         self
     }
 
     /// The text role: size, line height, family and weight.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn role(self, spec: TextSpec) -> Self {
         self.texted(|t| {
             t.size = Some(spec.size);
@@ -42,21 +88,25 @@ impl Tw {
     }
 
     /// `font-normal`, `font-medium`, `font-semibold` or `font-bold`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn font_weight(self, weight: Weight) -> Self {
         self.texted(|t| t.weight = Some(weight))
     }
 
     /// `text-<color>`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn text(self, color: impl Into<Color32>) -> Self {
         self.texted(|t| t.color = Some(color.into()))
     }
 
     /// `font-<family>`: the family only, keeping the inherited size.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn font(self, family: FontFamily) -> Self {
         self.texted(|t| t.family = Some(family))
     }
 
     /// `tracking-*`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn tracking(self, tracking: Tracking) -> Self {
         self.texted(|t| t.tracking = Some(tracking))
     }
@@ -86,12 +136,14 @@ impl Tw {
 
     /// `line-clamp-<lines>`: wraps over at most `lines` lines (at least one),
     /// the last ending with an ellipsis where the text overflows.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn line_clamp(self, lines: u32) -> Self {
         self.texted(|t| t.white_space = Some(WhiteSpace::Clamp(lines.max(1))))
     }
 
     /// `truncate`: no wrapping, an ellipsis at the end, and `overflow-hidden`
     /// so the node may shrink below its text.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn truncate(self) -> Self {
         self.texted(|t| t.white_space = Some(WhiteSpace::Truncate))
             .overflow_x_hidden()

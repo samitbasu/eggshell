@@ -870,6 +870,7 @@ impl Shadcn {
             easing: Easing::InOut,
         };
         style.tokens = self.core_tokens();
+        style.sheet.as_preset();
         style
     }
 
