@@ -150,6 +150,7 @@ mod table_columns;
 mod tabs;
 mod tabular_nums;
 mod text_field_ring;
+mod text_size;
 mod theme_toggle;
 mod todo_demo;
 mod toggle_group;

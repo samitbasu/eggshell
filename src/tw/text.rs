@@ -41,6 +41,24 @@ impl Tw {
         })
     }
 
+    /// TODO(prose): `text-<size>/<line>`: the font size and line height in
+    /// points, as Tailwind's `text-xs` (12/16) or `text-sm/6` (14/24). The
+    /// family and weight stay those of the role.
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn fine_print(b: &mut Builder<'_, '_, ()>) {
+    ///     b.text(tw().text_size(12.0, 16.0), "Prices include tax.");
+    /// }
+    /// ```
+    pub fn text_size(self, size: f32, line_height: f32) -> Self {
+        self.texted(|t| {
+            t.size = Some(size);
+            t.line_height = Some(line_height);
+        })
+    }
+
     /// `font-normal`, `font-medium`, `font-semibold` or `font-bold`.
     pub fn font_weight(self, weight: Weight) -> Self {
         self.texted(|t| t.weight = Some(weight))
@@ -181,6 +199,35 @@ mod tests {
             resolved(tw().font_bold().role(role)).spec.weight,
             Weight::Medium
         );
+    }
+
+    #[test]
+    fn text_size_sets_size_and_line_height_and_keeps_family_and_weight() {
+        let got = resolved(tw().font_bold().text_size(12.0, 16.0));
+        assert_eq!((got.spec.size, got.spec.line_height), (12.0, 16.0));
+        assert_eq!(got.spec.family, base().spec.family);
+        assert_eq!(got.spec.weight, Weight::Bold);
+    }
+
+    #[test]
+    fn a_text_size_is_inherited_and_the_later_one_wins() {
+        let parent = resolved(tw().text_size(20.0, 28.0));
+        let child = tw().italic().text.over(&parent).spec;
+        assert_eq!((child.size, child.line_height), (20.0, 28.0));
+        let merged = resolved(tw().text_size(12.0, 16.0).merge(tw().text_size(20.0, 28.0)));
+        assert_eq!((merged.spec.size, merged.spec.line_height), (20.0, 28.0));
+        let kept = resolved(tw().text_size(12.0, 16.0).merge(tw().font_medium()));
+        assert_eq!((kept.spec.size, kept.spec.line_height), (12.0, 16.0));
+    }
+
+    #[test]
+    fn a_text_size_that_is_not_finite_is_rejected_and_the_last_one_stays() {
+        for (size, line) in [(f32::NAN, 16.0), (12.0, f32::INFINITY)] {
+            let classes = tw().text_size(14.0, 20.0).text_size(size, line);
+            assert_eq!(classes.lengths, super::super::Lengths::Rejected);
+            let got = resolved(classes);
+            assert_eq!((got.spec.size, got.spec.line_height), (14.0, 20.0));
+        }
     }
 
     #[test]
