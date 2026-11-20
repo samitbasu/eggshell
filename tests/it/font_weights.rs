@@ -2,7 +2,7 @@
 //! and widgets and weight classes draw with the face of their weight (#13).
 
 use eggshell_ui::testing::Driver;
-use eggshell_ui::{Builder, TextSpec, Weight, tw};
+use eggshell_ui::{Builder, Problem, TextSpec, Weight, tw};
 use eggshell_ui_shadcn::{FontSet, Shadcn};
 use egui::epaint::Shape;
 use egui::{FontFamily, Theme, Vec2};
@@ -81,7 +81,7 @@ fn a_shadcn_button_is_medium() {
 
 #[test]
 fn without_a_font_every_weight_draws_the_regular_family() {
-    let d = harness(|ctx, _| {
+    let mut d = harness(|ctx, _| {
         for theme in [Theme::Light, Theme::Dark] {
             Shadcn::for_theme(theme).with_fonts(None).apply(ctx);
         }
@@ -89,11 +89,12 @@ fn without_a_font_every_weight_draws_the_regular_family() {
     for text in ["Save", "medium", "bold"] {
         assert_eq!(family_of(&d, text), FontFamily::Proportional, "{text}");
     }
+    d.expect_reported(Problem::MissingFace);
 }
 
 #[test]
 fn a_set_without_semibold_draws_semibold_in_its_medium_face() {
-    let d = harness(|ctx, _| {
+    let mut d = harness(|ctx, _| {
         let font = egui::FontData::from_static(include_bytes!(
             "../../crates/eggshell-ui-shadcn/fonts/Geist-Variable.ttf"
         ));
@@ -114,6 +115,7 @@ fn a_set_without_semibold_draws_semibold_in_its_medium_face() {
         "lighter, never Bold"
     );
     assert_eq!(family_of(&d, "bold"), named(Weight::Bold));
+    d.expect_reported(Problem::MissingFace);
 }
 
 #[test]

@@ -260,6 +260,7 @@ fn a_multiline_field_shows_no_icon_and_does_not_panic() {
     d.frames(2);
     d.rect(Target::suffix(r#"/"notes""#));
     assert!(support::textured(&d).is_empty(), "no icon is drawn");
+    d.expect_reported(eggshell_ui::Problem::IgnoredIcons);
 }
 
 #[test]

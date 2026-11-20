@@ -8,7 +8,7 @@
 
 use core::time::Duration;
 
-use eggshell_ui::testing::{After, Driver, DriverBuilder, PlacedFrame, Reports};
+use eggshell_ui::testing::{After, Driver, DriverBuilder, PlacedFrame};
 use eggshell_ui::{Builder, LayoutState, Shell, TextStyle};
 use egui::epaint::{RectShape, Shape, StrokeKind};
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
@@ -777,7 +777,8 @@ pub const STEP: Duration = Duration::from_millis(50);
 /// A driver for `view` of `app` with what eggshell's own tests put around
 /// it: the shadcn style, a [`Bar`] above the window (see [`Companion`]), the
 /// [`Page`], and a style `prepare`d before each frame. It runs no frames
-/// after an action ([`After::Frames(0)`]) and leaves reports to the test.
+/// after an action ([`After::Frames(0)`]), and fails a test whose view
+/// reports a problem it does not claim.
 pub fn driver<A: 'static>(
     size: Vec2,
     base_text: TextStyle,
@@ -822,7 +823,6 @@ pub fn prepared_driver<A: 'static>(
     .step(STEP)
     .after(After::Frames(0))
     .settle_within(STEP * 4)
-    .reports(Reports::Unchecked)
 }
 
 /// A driver for a view that draws the whole frame itself (scroll areas,
@@ -851,7 +851,6 @@ pub fn frame_driver<A: 'static>(
     .step(step)
     .after(After::Frames(0))
     .settle_within(step * 4)
-    .reports(Reports::Unchecked)
 }
 
 /// Builds a [`frame_driver`] and starts recording, as the old frame rig did:

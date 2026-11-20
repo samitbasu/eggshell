@@ -438,7 +438,6 @@ mod access {
 
 mod misuse {
     use eggshell_ui::Problem;
-    use eggshell_ui::testing::{assert_no_reports, assert_reported};
 
     use super::*;
 
@@ -463,7 +462,7 @@ mod misuse {
         .build();
         d.frames(2);
         assert_eq!(d.harness().query_all_by_role(Role::Splitter).count(), 1);
-        let report = assert_reported(d.ctx(), Problem::MisplacedSplitter);
+        let report = d.expect_reported(Problem::MisplacedSplitter);
         assert!(report.message.contains("\"loose\""), "{}", report.message);
     }
 
@@ -494,7 +493,7 @@ mod misuse {
             (node.min_numeric_value(), node.max_numeric_value()),
             (Some(300.0), Some(300.0))
         );
-        let report = assert_reported(d.ctx(), Problem::BadRange);
+        let report = d.expect_reported(Problem::BadRange);
         assert!(
             report.message.contains("ends before it starts"),
             "{}",
@@ -506,7 +505,6 @@ mod misuse {
     fn splitters_in_flex_containers_with_ranges_report_nothing() {
         let mut d = harness();
         d.frames(2);
-        assert_no_reports(d.ctx());
     }
 }
 

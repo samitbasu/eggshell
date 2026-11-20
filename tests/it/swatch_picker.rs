@@ -4,7 +4,7 @@
 
 use eggshell_ui::Problem;
 use eggshell_ui::overlay::{Anchor, Nav};
-use eggshell_ui::testing::{Driver, Target, assert_no_reports, assert_reported};
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Key, Role, Theme, vec2};
@@ -175,13 +175,12 @@ fn a_grid_stops_at_its_last_cell() {
     assert_eq!(focused_cell(&d), Some(2), "precondition: on the last cell");
     d.press(Key::ArrowRight).frames(4);
     assert_eq!(focused_cell(&d), Some(2));
-    assert_no_reports(d.ctx());
 }
 
 #[test]
 fn of_two_nodes_marked_focus_on_open_the_first_takes_focus_and_it_is_reported() {
-    let d = plain_harness(|b, _| grid_overlay(b, &[2, 1]));
-    assert_reported(d.ctx(), Problem::FocusOnOpenTwice);
+    let mut d = plain_harness(|b, _| grid_overlay(b, &[2, 1]));
+    d.expect_reported(Problem::FocusOnOpenTwice);
     assert_eq!(focused_cell(&d), Some(1));
 }
 
