@@ -160,7 +160,7 @@ use crate::layout_tree::LayoutTree;
 use crate::nodes::Nodes;
 use crate::pipeline::{PlacedNode, ScrollMut, takes_tab};
 use crate::shell::Shell;
-use crate::tw::{Focusability, Tw};
+use crate::tw::{Focusability, Scrollbar, Sides, Tw};
 
 /// Along which axes a scroll container scrolls.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -424,7 +424,11 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
         if let Some(fade) = fade {
             style.fade = fade;
         }
-        let bars = Bars::new(style, axis);
+        let visibility = classes.scrollbar;
+        if visibility == Scrollbar::None {
+            style.width = 0.0;
+        }
+        let bars = Bars::new(style, axis, visibility);
         let options = ScrollOptions {
             axis,
             edge,
@@ -750,19 +754,25 @@ pub(crate) fn gutters(padding: Rect, gutter: Vec2) -> Vec<Rect> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Bars {
     pub(crate) style: ScrollStyle,
+    /// Whether the container shows its bars at all.
+    pub(crate) visibility: Scrollbar,
     /// What the bars take from the viewport: the width of the vertical bar
     /// and the height of the horizontal one.
     pub(crate) gutter: Vec2,
 }
 
 impl Bars {
-    fn new(style: ScrollStyle, axis: Axis) -> Self {
+    fn new(style: ScrollStyle, axis: Axis, visibility: Scrollbar) -> Self {
         let (width, enabled) = (style.gutter(), axis.enabled());
         let gutter = Vec2::new(
             if enabled.y { width } else { 0.0 },
             if enabled.x { width } else { 0.0 },
         );
-        Self { style, gutter }
+        Self {
+            style,
+            visibility,
+            gutter,
+        }
     }
 
     /// egui's scroll style for these bars beside a viewport of `viewport`:
@@ -831,6 +841,8 @@ pub(crate) struct ScrollPlan {
     pub(crate) bars: Bars,
     pub(crate) tab: TabRule,
     pub(crate) description: Description,
+    /// How far scrolling into view keeps a node from the edges.
+    pub(crate) padding: Sides<f32>,
     /// The content root's size.
     pub(crate) content: Vec2,
     /// How far the content is scrolled.
@@ -988,14 +1000,20 @@ impl Settle {
                 request.applied = true;
                 if enabled.x {
                     want.x += reveal(
-                        (viewport.min.x, viewport.max.x),
+                        (
+                            viewport.min.x + plan.padding.left,
+                            viewport.max.x - plan.padding.right,
+                        ),
                         (item.min.x, item.max.x),
                         align,
                     );
                 }
                 if enabled.y {
                     want.y += reveal(
-                        (viewport.min.y, viewport.max.y),
+                        (
+                            viewport.min.y + plan.padding.top,
+                            viewport.max.y - plan.padding.bottom,
+                        ),
                         (item.min.y, item.max.y),
                         align,
                     );

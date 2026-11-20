@@ -1300,7 +1300,7 @@ impl<A> Walk<'_, A> {
             .min_scrolled_width(0.0)
             .min_scrolled_height(0.0)
             .content_margin(egui::Margin::ZERO)
-            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
+            .scroll_bar_visibility(plan.bars.visibility.egui());
         let area = if plan.moved {
             area.scroll_offset(plan.offset)
         } else {

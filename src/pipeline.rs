@@ -260,6 +260,8 @@ pub(crate) struct ScrollNode {
     pub bars: Bars,
     pub tab: crate::scroll::TabRule,
     pub description: crate::scroll::Description,
+    /// How far scrolling into view keeps a node from the edges.
+    pub padding: crate::tw::Sides<f32>,
     /// The root of the content, laid out on its own.
     pub content: NodeId,
     /// The content root's size, once laid out.
@@ -716,6 +718,21 @@ impl LayoutState {
         self
     }
 
+    /// TODO(prose): builds with `style`, the half for the context's theme, in
+    /// place of the style installed in the context.
+    pub fn with_style(
+        mut self,
+        style: crate::contract::Themed<std::sync::Arc<crate::Style>>,
+    ) -> Self {
+        self.set_style(style);
+        self
+    }
+
+    /// TODO(prose): swaps this layout's style; the builds that follow use it.
+    pub fn set_style(&mut self, style: crate::contract::Themed<std::sync::Arc<crate::Style>>) {
+        self.st.kept.with(|kept| kept.style = Some(style));
+    }
+
     /// Uses `source` for the clipboard reads and writes of this layout, in
     /// place of the system's: a test's [`FakeClipboard`](crate::testing::FakeClipboard).
     pub fn with_clipboard(self, source: std::sync::Arc<dyn crate::ClipboardSource>) -> Self {
@@ -749,12 +766,18 @@ impl LayoutState {
         f: impl FnOnce(&mut Builder<'_, 'f, A>),
     ) -> Built<'f, A> {
         let _timer = Timer::start(ctx, Phase::Build);
-        crate::symbols::install(ctx);
+        let own = self.st.kept.with(|kept| kept.style.is_some());
+        let style = crate::Shell::new(ctx, &self.st.kept).style();
+        crate::text::apply_faces(ctx, &style.faces);
+        crate::symbols::install(ctx, &style.faces);
         crate::icons::install(ctx);
-        let base = self
-            .base_text
-            .clone()
-            .unwrap_or_else(|| TextStyle::default_for(ctx));
+        let base = self.base_text.clone().unwrap_or_else(|| {
+            if own {
+                TextStyle::of_style(ctx, &style)
+            } else {
+                TextStyle::default_for(ctx)
+            }
+        });
         let st = &mut self.st;
         st.built_at = std::panic::Location::caller();
         #[cfg(debug_assertions)]
@@ -766,7 +789,6 @@ impl LayoutState {
         st.names.clear();
         let mut frame = Frame::new(ctx);
         let mut kids = Vec::new();
-        let style = crate::Style::of(ctx);
         let mut builder = Builder::new(
             st,
             &mut frame,
@@ -1726,6 +1748,7 @@ fn collect(
                     bars: scroll.bars,
                     tab: scroll.tab,
                     description: scroll.description,
+                    padding: scroll.padding,
                     content: scroll.size,
                     offset,
                     moved: false,

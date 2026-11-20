@@ -1295,6 +1295,41 @@ impl Tones {
     }
 }
 
+/// TODO(prose): one value for each egui theme, such as a layout's style in light and dark.
+///
+/// ```
+/// use eggshell_ui::contract::Themed;
+///
+/// let gaps = Themed { light: 4.0, dark: 6.0 };
+/// assert_eq!(*gaps.get(egui::Theme::Dark), 6.0);
+/// assert_eq!(gaps.map(|gap| gap * 2.0).light, 8.0);
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Themed<T> {
+    /// TODO(prose): the value while the theme is light.
+    pub light: T,
+    /// TODO(prose): the value while the theme is dark.
+    pub dark: T,
+}
+
+impl<T> Themed<T> {
+    /// TODO(prose): the value for `theme`.
+    pub fn get(&self, theme: Theme) -> &T {
+        match theme {
+            Theme::Light => &self.light,
+            Theme::Dark => &self.dark,
+        }
+    }
+
+    /// TODO(prose): both values through `f`.
+    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Themed<U> {
+        Themed {
+            light: f(self.light),
+            dark: f(self.dark),
+        }
+    }
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]

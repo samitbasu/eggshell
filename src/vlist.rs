@@ -1089,7 +1089,10 @@ impl<'f, A> ListRun<'f, A> {
         {
             let tops = &self.plan.tops;
             let row = (view.top + tops.top(at), view.top + tops.top(at + 1));
-            let shown = (view.offset, view.offset + view.viewport.y);
+            let shown = (
+                view.offset + node.padding.top,
+                view.offset + view.viewport.y - node.padding.bottom,
+            );
             let reveal = scroll::reveal(shown, row, request.align);
             view.offset = clamp(view.offset + reveal, 0.0, view.limit());
             let rect = Rect::from_min_max(pos2(0.0, row.0), pos2(view.viewport.x, row.1));
