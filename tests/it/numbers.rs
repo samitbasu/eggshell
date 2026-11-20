@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use eggshell_ui::testing::{Driver, Headless, Target, assert_no_reports, assert_reported};
+use eggshell_ui::testing::{Driver, Headless, Target, assert_reported};
 use eggshell_ui::widget::Stock;
 use eggshell_ui::{Builder, Problem, Style, TextStyle, Width, tw};
 use eggshell_ui_shadcn::Tokens;
@@ -70,7 +70,7 @@ fn a_reversed_slider_range_is_swapped_and_reported() {
         },
         slider,
     );
-    let report = assert_reported(d.ctx(), Problem::BadRange);
+    let report = d.expect_reported(Problem::BadRange);
     assert!(report.message.contains("100.0..=0.0"), "{report:?}");
     assert_eq!(numeric_range(&d, Role::Slider), (Some(0.0), Some(100.0)));
     tab_to(&mut d, THUMB);
@@ -87,7 +87,7 @@ fn a_stepper_range_with_a_nan_end_ends_at_its_other_end() {
         },
         stepper,
     );
-    assert_reported(d.ctx(), Problem::BadRange);
+    d.expect_reported(Problem::BadRange);
     assert_eq!(numeric_range(&d, Role::SpinButton), (Some(0.0), Some(0.0)));
     d.harness().get_by_role(Role::SpinButton).focus();
     d.frames(2);
@@ -97,14 +97,14 @@ fn a_stepper_range_with_a_nan_end_ends_at_its_other_end() {
 
 #[test]
 fn an_infinite_stepper_end_is_mended_too() {
-    let d = harness(
+    let mut d = harness(
         App {
             value: 3.0,
             ends: (f64::NEG_INFINITY, 10.0),
         },
         stepper,
     );
-    assert_reported(d.ctx(), Problem::BadRange);
+    d.expect_reported(Problem::BadRange);
     assert_eq!(
         numeric_range(&d, Role::SpinButton),
         (Some(10.0), Some(10.0))
@@ -120,7 +120,7 @@ fn a_nan_slider_value_is_the_start_of_its_range() {
         },
         slider,
     );
-    assert_reported(d.ctx(), Problem::NanValue);
+    d.expect_reported(Problem::NanValue);
     let track = d.rect(Target::suffix("/\"s\"/Track"));
     let thumb = d.rect(Target::suffix(THUMB));
     assert!(thumb.is_finite(), "{thumb:?}");
@@ -132,14 +132,13 @@ fn a_nan_slider_value_is_the_start_of_its_range() {
 
 #[test]
 fn a_valid_range_and_value_report_nothing() {
-    let d = harness(
+    let _d = harness(
         App {
             value: 4.0,
             ends: (0.0, 10.0),
         },
         slider,
     );
-    assert_no_reports(d.ctx());
 }
 
 fn nan_lengths(b: &mut Builder<'_, '_, App>, _: &App) {
@@ -159,14 +158,14 @@ fn nan_lengths(b: &mut Builder<'_, '_, App>, _: &App) {
 
 #[test]
 fn a_length_that_is_not_finite_is_ignored_reported_and_drawn_without_a_panic() {
-    let d = harness(
+    let mut d = harness(
         App {
             value: 0.0,
             ends: (0.0, 1.0),
         },
         nan_lengths,
     );
-    let report = assert_reported(d.ctx(), Problem::NonFiniteLength);
+    let report = d.expect_reported(Problem::NonFiniteLength);
     assert!(report.message.contains("box"), "{report:?}");
     let rect = d.rect(Target::suffix("/\"box\""));
     assert!(rect.is_finite(), "{rect:?}");

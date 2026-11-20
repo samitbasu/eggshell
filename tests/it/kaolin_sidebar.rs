@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use eggshell_ui::testing::{After, Animation, Driver, Reports};
+use eggshell_ui::testing::{After, Animation, Driver};
 use egui::accesskit::Role;
 use egui::{ImageSource, Rect, Theme, vec2};
 use egui_kittest::kittest::Queryable as _;
@@ -47,7 +47,6 @@ fn sidebar(styling: Styling, theme: Theme) -> (Vec<Rect>, Vec<Rect>) {
     .settle_within(step * 4)
     .motion(Animation::Reduced)
     .after(After::Frames(0))
-    .reports(Reports::Unchecked)
     .build();
     d.frames(3);
 
