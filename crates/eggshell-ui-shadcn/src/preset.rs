@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use eggshell_ui::contract::{
-    self, Arrow, CheckboxMetrics, Colors, Em, Entry, Focus, InputMetrics, Keyed, KindMotion,
-    Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size, SliderMetrics,
-    SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
+    self, Arrow, CheckboxMetrics, Colors, Em, Entry, Focus, GroupEnd, InputMetrics, Keyed,
+    KindMotion, Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size,
+    SliderMetrics, SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
@@ -95,6 +95,33 @@ impl Shadcn {
         if Self::applied(ctx).as_ref() != Some(&current) {
             of(Self::light()).apply(ctx);
             of(Self::dark()).apply(ctx);
+        }
+    }
+
+    /// TODO(prose): this preset in `style` with `palette`, light and dark, as a layout's style.
+    ///
+    /// ```
+    /// use eggshell_ui::LayoutState;
+    /// use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
+    ///
+    /// let style = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
+    /// let _layout = LayoutState::new().with_style(style);
+    /// ```
+    pub fn themed(
+        style: ShadcnStyle,
+        palette: Palette,
+    ) -> eggshell_ui::contract::Themed<std::sync::Arc<contract::Style>> {
+        let half = |preset: Self| {
+            let preset = preset.with_style(style).with_palette(palette);
+            let mut core = preset.style();
+            if let Some(font) = &preset.tokens.font {
+                core.set_extension(contract::Fonts(font.inserts()));
+            }
+            std::sync::Arc::new(core)
+        };
+        eggshell_ui::contract::Themed {
+            light: half(Self::light()),
+            dark: half(Self::dark()),
         }
     }
 
@@ -326,7 +353,14 @@ impl Shadcn {
                     text: t.foreground,
                 }
             },
-            flat(clear, t.muted_foreground),
+            flat(
+                clear,
+                if dark {
+                    t.muted_foreground
+                } else {
+                    t.foreground.gamma_multiply(0.6)
+                },
+            ),
         );
         let input_rest = Colors {
             fill: self.input_fill(),
@@ -448,20 +482,31 @@ impl Shadcn {
             switch
         };
         style.segmented = {
+            const CELL_TRIM: f32 = 1.0;
             let mut segmented = style.segmented;
             segmented.text = Some(t.text_role_at(t.control_weight));
+            // The one exception to tabs.tsx, whose list is `bg-muted`: on a
+            // `muted` panel that fill is the panel's own colour and the track
+            // disappears, so the list keeps `input` (the user's pick, #346).
+            // Revisit once a cascade can give a track on a muted surface its
+            // own fill (#443).
             segmented.track_fill = t.input;
             let track_at = |height: f32, padding_x: f32, icon: f32, text| SegmentedMetrics {
                 track_radius: t.radius,
                 track_padding: t.list_padding,
                 height,
                 cell_radius: t.radius_md(),
-                cell_padding: vec2(padding_x, t.cell_padding.y),
+                // tabs.tsx, trigger: `px-2 py-1` in a box 1 px shorter than
+                // the list's inside, which overflows its `text-sm` by 1 px;
+                // the trimmed point comes out of the padding instead.
+                cell_padding: vec2(padding_x, t.cell_padding.y - CELL_TRIM / 2.0),
                 column_gap: 0.0,
                 row_gap: 2.0,
                 icon_size: icon,
                 icon_gap: 6.0,
                 text,
+                // tabs.tsx, trigger: `h-[calc(100%-1px)]`.
+                cell_trim: CELL_TRIM,
             };
             segmented.sizes = Keyed::new(
                 Size::DEFAULT,
@@ -485,7 +530,16 @@ impl Shadcn {
                 Paint::new(States::still(selected_cell, t.muted)),
                 t.shadow_sm,
             );
-            segmented.unselected = Paint::new(States::still(released_cell, t.muted));
+            // tabs.tsx, trigger: `text-foreground/60 hover:text-foreground`,
+            // `dark:text-muted-foreground dark:hover:text-foreground`.
+            segmented.unselected = Paint::new(States::new(
+                released_cell,
+                Colors {
+                    text: t.foreground,
+                    ..released_cell
+                },
+                t.muted,
+            ));
             segmented.transition = transition;
             segmented
         };
@@ -782,6 +836,7 @@ impl Shadcn {
         style.table.footer_fill = t.muted.gamma_multiply(0.5);
         style.table.footer_weight = Weight::Medium;
         style.table.transition = Duration::from_millis(150);
+        style.table.group_end = GroupEnd::Gap(12.0);
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);
@@ -814,7 +869,39 @@ impl Shadcn {
             exit: Duration::from_millis(300),
             easing: Easing::InOut,
         };
+        style.tokens = self.core_tokens();
         style
+    }
+
+    /// The preset's tokens as core's design-system-neutral set.
+    fn core_tokens(&self) -> contract::Tokens {
+        let t = &self.tokens;
+        let mut core = contract::Tokens::from_egui(&egui::Style::default());
+        core.background = t.background;
+        core.foreground = t.foreground;
+        core.card = t.card;
+        core.card_foreground = t.card_foreground;
+        core.popover = t.popover;
+        core.popover_foreground = t.popover_foreground;
+        core.primary = t.primary;
+        core.primary_foreground = t.primary_foreground;
+        core.secondary = t.secondary;
+        core.secondary_foreground = t.secondary_foreground;
+        core.muted = t.muted;
+        core.muted_foreground = t.muted_foreground;
+        core.accent = t.accent;
+        core.accent_foreground = t.accent_foreground;
+        core.destructive = t.destructive;
+        core.destructive_foreground = t.destructive_foreground;
+        core.border = t.border;
+        core.input = t.input;
+        core.ring = t.ring;
+        core.radius = t.radius;
+        core.control_height = t.control_height;
+        core.button_padding = t.button_padding;
+        core.text_size = t.text_size;
+        core.switch_thumb = t.switch_thumb;
+        core
     }
 
     /// This preset drawing its text in `font`, or with `None` in egui's
@@ -844,21 +931,93 @@ impl Shadcn {
         if let Some(font) = &self.tokens.font {
             font.install(ctx);
         }
-        let tokens = self.tokens.clone();
-        ctx.style_mut_of(self.theme, |style| tokens.set_style(self.theme, style));
-        ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
         let style = self.style();
+        ctx.style_mut_of(self.theme, |egui| style.egui_style(self.theme, egui));
+        ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
         #[cfg(feature = "extras")]
         {
-            self.markdown().install_for(ctx, self.theme);
+            // keep sorted
             self.badge(&style).install_for(ctx, self.theme);
+            self.command(&style).install_for(ctx, self.theme);
+            self.disclosure(&style).install_for(ctx, self.theme);
             self.form(&style).install_for(ctx, self.theme);
             self.hover_card().install_for(ctx, self.theme);
-            self.command(&style).install_for(ctx, self.theme);
+            self.markdown().install_for(ctx, self.theme);
+            self.notify(&style).install_for(ctx, self.theme);
             self.skeleton(&style).install_for(ctx, self.theme);
-            self.disclosure(&style).install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
+    }
+
+    /// TODO(prose): the look of a notification, shadcn's Sonner over sonner's
+    /// own sizes. From `ref/shadcn` (f50887a) and `ref/sonner` (v2.0.7,
+    /// `src/styles.css`):
+    /// - the card is `--normal-bg: popover`, `--normal-text:
+    ///   popover-foreground` and `--normal-border: border` (`bases/radix/ui/
+    ///   sonner.tsx` 69-71), 1 pt border, 16 pt padding, 6 pt between its
+    ///   parts, `font-size: 13px` (styles.css 96-106), 356 pt wide and 14 pt
+    ///   between cards, 3 shown, 24 pt from the window (`src/index.tsx`
+    ///   22-37);
+    /// - the shadow is `0 4px 12px rgba(0, 0, 0, 0.1)` (styles.css 101);
+    /// - the sentence is the toast's title: `font-weight: 500`,
+    ///   `line-height: 1.5` (styles.css 141-144);
+    /// - the corners are `cn-toast`'s `rounded-2xl` in Vega, 1.8 times
+    ///   `--radius`, and `rounded-none` in Lyra (`style-vega.css` 1246,
+    ///   `style-lyra.css` 1221);
+    /// - an action's button is sonner's `[data-button]`: filled with
+    ///   `--normal-text` under `--normal-bg`, 24 pt tall, `padding 0 8px`,
+    ///   4 pt corners, 12 px at weight 500 (styles.css 181-202);
+    /// - the × is sonner's `[data-close-button]`: a 20 pt circle with a 1 pt
+    ///   border on the card's top-left corner, moved out by 35 % of itself
+    ///   (styles.css 1-12, 219-246), in `gray12` over `gray4` and `gray2` /
+    ///   `gray5` under the pointer in the light theme (the gray scale, 3-25),
+    ///   and in `--normal-text` over `--normal-border`, with `hsl(0 0% 12%)`
+    ///   and `hsl(0 0% 25%)` under the pointer, in the dark (styles.css 520-
+    ///   536).
+    #[cfg(feature = "extras")]
+    pub fn notify(&self, style: &contract::Style) -> eggshell_ui_extras::notify::NotifyStyle {
+        let t = &self.tokens;
+        let mut notify = eggshell_ui_extras::notify::NotifyStyle::from_style(style);
+        notify.fill = t.popover;
+        notify.border = t.border;
+        notify.text = t.popover_foreground;
+        notify.border_width = 1.0;
+        notify.radius = match t.style {
+            ShadcnStyle::Vega => (f32::from(t.radius) * 1.8).round() as u8,
+            ShadcnStyle::Lyra => 0,
+        };
+        notify.shadow = Some(Shadow {
+            offset: [0, 4],
+            blur: 12,
+            spread: 0,
+            color: Color32::from_black_alpha(26),
+        });
+        notify.role = TextSpec {
+            size: 13.0,
+            line_height: 19.5,
+            ..t.text_role_at(Weight::Medium)
+        };
+        let dark = self.theme == Theme::Dark;
+        let gray = Color32::from_gray;
+        notify.action.fill = t.popover_foreground;
+        notify.action.text = t.popover;
+        notify.action.radius = 4;
+        notify.action.height = 24.0;
+        notify.action.padding_x = 8.0;
+        notify.action.role = TextSpec {
+            size: 12.0,
+            line_height: 16.0,
+            ..t.text_role_at(Weight::Medium)
+        };
+        notify.close.size = 20.0;
+        notify.close.outset = 7.0;
+        notify.close.glyph = 12.0;
+        notify.close.fill = t.popover;
+        notify.close.border = if dark { t.border } else { gray(237) };
+        notify.close.text = if dark { t.popover_foreground } else { gray(23) };
+        notify.close.hover_fill = if dark { gray(31) } else { gray(248) };
+        notify.close.hover_border = if dark { gray(64) } else { gray(232) };
+        notify
     }
 
     /// TODO(prose): the skeleton's look: shadcn's `Skeleton`, `bg-muted

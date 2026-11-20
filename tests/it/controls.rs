@@ -3,7 +3,6 @@
 //! state, and the demo follows.
 
 use egui::{Vec2, vec2};
-use egui_kittest::Harness;
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -30,118 +29,100 @@ mod grow;
 
 use crate::support;
 
-use support::{Rig, click_node, drag, rect_of};
+use eggshell_ui::testing::{Driver, Target};
 
 const WINDOW: Vec2 = vec2(1100.0, 700.0);
 
-fn harness<A>(app: A, view: support::View<A>) -> Harness<'static, Rig<A>> {
-    let mut harness = support::harness(WINDOW, common::base_text(egui::Theme::Light), app, view);
-    harness.run_steps(2);
-    harness
+fn harness<A>(app: A, view: support::View<A>) -> Driver<A> {
+    let mut d = support::driver(WINDOW, common::base_text(egui::Theme::Light), app, view).build();
+    d.frames(2);
+    d
 }
 
 /// Drags the slider leaf `path` from its middle to its right end.
-fn drag_to_the_end<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
-    let rail = rect_of(harness, path);
+fn drag_to_the_end<A>(d: &mut Driver<A>, path: &str) {
+    let rail = d.rect(Target::suffix(path));
     assert!(rail.width() > 100.0, "precondition: a real rail: {rail:?}");
-    drag(
-        harness,
-        rail.center(),
-        rail.right_center() + vec2(40.0, 0.0),
-    );
+    d.drag(rail.center(), rail.right_center() + vec2(40.0, 0.0));
 }
 
 #[test]
 fn a_slider_in_the_tree_drives_the_demo_it_sits_beside() {
-    let mut harness = harness(grow::State::default(), grow::layout);
-    let before = harness.state().app.gap;
-    let item = |harness: &Harness<'_, Rig<grow::State>>| {
-        harness
-            .state()
-            .nodes
+    let mut d = harness(grow::State::default(), grow::layout);
+    let before = d.app().gap;
+    let item = |d: &Driver<grow::State>| {
+        support::nodes(d)
             .iter()
             .filter(|(path, _)| path.contains("<div>"))
             .map(|(_, rect)| rect.min.y)
             .collect::<Vec<_>>()
     };
-    let positions = item(&harness);
+    let positions = item(&d);
 
-    drag_to_the_end(&mut harness, "/\"gap\"/Track");
-    assert!(harness.state().app.gap > before + 3.0);
-    assert_eq!(harness.state().app.gap, 12.0, "the end of the range");
-    assert_ne!(item(&harness), positions, "the demo re-laid out");
+    drag_to_the_end(&mut d, "/\"gap\"/Track");
+    assert!(d.app().gap > before + 3.0);
+    assert_eq!(d.app().gap, 12.0, "the end of the range");
+    assert_ne!(item(&d), positions, "the demo re-laid out");
 }
 
 #[test]
 fn the_box_size_slider_resizes_the_boxes() {
-    let mut harness = harness(
+    let mut d = harness(
         custom_background::State::default(),
         custom_background::layout,
     );
-    let before = harness.state().app.size;
-    drag_to_the_end(&mut harness, "/\"size\"/Track");
-    assert!(harness.state().app.size > before);
-    assert_eq!(harness.state().app.size, 300.0);
+    let before = d.app().size;
+    drag_to_the_end(&mut d, "/\"size\"/Track");
+    assert!(d.app().size > before);
+    assert_eq!(d.app().size, 300.0);
 }
 
 #[test]
 fn a_segmented_choice_changes_the_wrapping() {
-    let mut harness = harness(flex_wrap::State::default(), flex_wrap::layout);
-    let wraps = |harness: &Harness<'_, Rig<flex_wrap::State>>| {
-        let rows: Vec<f32> = harness
-            .state()
-            .nodes
+    let mut d = harness(flex_wrap::State::default(), flex_wrap::layout);
+    let wraps = |d: &Driver<flex_wrap::State>| {
+        let rows: Vec<f32> = support::nodes(d)
             .iter()
             .filter(|(path, _)| path.contains("<div>"))
             .map(|(_, rect)| rect.min.y.round())
             .collect();
         rows.windows(2).any(|pair| pair[1] > pair[0])
     };
-    assert_eq!(harness.state().app.wrapping, flex_wrap::Wrapping::Wrap);
+    assert_eq!(d.app().wrapping, flex_wrap::Wrapping::Wrap);
 
-    click_node(&mut harness, "/\"wrapping\"/1");
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.wrapping, flex_wrap::Wrapping::NoWrap);
-    click_node(&mut harness, "/\"wrapping\"/0");
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.wrapping, flex_wrap::Wrapping::Wrap);
-    assert!(wraps(&harness));
+    d.click(Target::suffix("/\"wrapping\"/1")).frames(3);
+    assert_eq!(d.app().wrapping, flex_wrap::Wrapping::NoWrap);
+    d.click(Target::suffix("/\"wrapping\"/0")).frames(3);
+    assert_eq!(d.app().wrapping, flex_wrap::Wrapping::Wrap);
+    assert!(wraps(&d));
 }
 
 #[test]
 fn the_reset_button_is_a_stock_widget_that_clears_the_demo() {
-    let mut harness = harness(button::State::default(), button::layout);
-    click_node(&mut harness, "/\"button\"");
-    click_node(&mut harness, "/\"selectable\"");
-    assert_eq!(harness.state().app.clicks, 1);
-    assert!(harness.state().app.selected);
+    let mut d = harness(button::State::default(), button::layout);
+    d.click(Target::suffix("/\"button\""));
+    d.click(Target::suffix("/\"selectable\""));
+    assert_eq!(d.app().clicks, 1);
+    assert!(d.app().selected);
 
-    click_node(&mut harness, "/\"reset\"");
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.clicks, 0);
-    assert!(!harness.state().app.selected);
+    d.click(Target::suffix("/\"reset\"")).frames(3);
+    assert_eq!(d.app().clicks, 0);
+    assert!(!d.app().selected);
 }
 
 #[test]
 fn the_guide_selector_switches_demo_and_value() {
-    let mut harness = harness(flexbox_guide::State::default(), flexbox_guide::layout);
-    assert_eq!(harness.state().app.demo, 0);
+    let mut d = harness(flexbox_guide::State::default(), flexbox_guide::layout);
+    assert_eq!(d.app().demo, 0);
 
-    click_node(&mut harness, "/\"flex-wrap\"");
-    harness.run_steps(3);
-    let state = &harness.state().app;
+    d.click(Target::suffix("/\"flex-wrap\"")).frames(3);
+    let state = d.app();
     assert_eq!(state.demos[state.demo].title, "flex-wrap");
     assert_eq!(state.choice, 0);
 
-    click_node(&mut harness, "/\"choices\"/2");
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.choice, 2);
+    d.click(Target::suffix("/\"choices\"/2")).frames(3);
+    assert_eq!(d.app().choice, 2);
 
-    click_node(&mut harness, "/\"flex-direction\"");
-    harness.run_steps(3);
-    assert_eq!(
-        harness.state().app.choice,
-        0,
-        "a new demo starts at its first value"
-    );
+    d.click(Target::suffix("/\"flex-direction\"")).frames(3);
+    assert_eq!(d.app().choice, 0, "a new demo starts at its first value");
 }

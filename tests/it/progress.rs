@@ -1,14 +1,14 @@
 //! `Builder::progress`: the style's progress track and range, announced as a
 //! progress indicator.
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Progress, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
 use egui::{Rect, Role, Theme, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, box_at, rect_of, shapes};
+use crate::support::{self, box_at, shapes};
 
 struct App {
     progress: Progress,
@@ -23,17 +23,18 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(progress: Progress) -> Harness<'static, Rig<App>> {
+fn harness(progress: Progress) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 100.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App { progress },
         view,
-    );
-    harness.ctx.set_theme(Theme::Light);
-    harness.run_steps(6);
-    harness
+    )
+    .build();
+    d.ctx().set_theme(Theme::Light);
+    d.frames(6);
+    d
 }
 
 fn style() -> Style {
@@ -42,15 +43,15 @@ fn style() -> Style {
 
 #[test]
 fn the_bar_is_the_styles_track_and_range_filled_to_the_fraction() {
-    let harness = harness(Progress::new(0.4));
+    let d = harness(Progress::new(0.4));
     let progress = style().progress;
-    let bar = rect_of(&harness, "/\"upload\"");
+    let bar = d.rect(Target::suffix("/\"upload\""));
     assert_eq!(progress.height, 8.0, "shadcn h-2");
     assert_ne!(progress.track.fill.a(), u8::MAX, "the track is translucent");
     assert_eq!(bar.width(), 200.0);
     assert_eq!(bar.height(), progress.height);
-    assert_eq!(box_at(&harness, bar).fill, progress.track.fill);
-    let fill = shapes(&harness)
+    assert_eq!(box_at(&d, bar).fill, progress.track.fill);
+    let fill = shapes(&d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Path(path) if path.fill == progress.range.fill => {
@@ -67,8 +68,10 @@ fn the_bar_is_the_styles_track_and_range_filled_to_the_fraction() {
 #[test]
 fn it_is_a_progress_indicator_with_the_percentage_as_its_value() {
     for (progress, percent) in [(0.0, 0.0), (0.4, 40.0), (1.0, 100.0), (7.0, 100.0)] {
-        let harness = harness(Progress::new(progress));
-        let node = harness.get_by_role_and_label(Role::ProgressIndicator, "Upload");
+        let d = harness(Progress::new(progress));
+        let node = d
+            .harness()
+            .get_by_role_and_label(Role::ProgressIndicator, "Upload");
         assert_eq!(node.accesskit_node().numeric_value(), Some(percent));
     }
 }

@@ -80,7 +80,7 @@ impl Move {
                 (Key::ArrowUp, Self::Line(Step::Previous)),
                 (Key::ArrowLeft, Self::Line(Step::Previous)),
             ],
-            Nav::None | Nav::Menu(_) | Nav::Submenu(_) | Nav::Listbox(_) => &[
+            Nav::None | Nav::Menu(_) | Nav::Submenu(_) | Nav::Listbox(_) | Nav::Column(_) => &[
                 (Key::ArrowDown, Self::Line(Step::Next)),
                 (Key::ArrowUp, Self::Line(Step::Previous)),
             ],
@@ -330,7 +330,12 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
     let mut dismiss = Vec::new();
     match menu.nav {
         Nav::None => {}
-        Nav::Menu(_) | Nav::Submenu(_) | Nav::Grid | Nav::Row(_) | Nav::Radio(_) => {
+        Nav::Menu(_)
+        | Nav::Submenu(_)
+        | Nav::Grid
+        | Nav::Row(_)
+        | Nav::Radio(_)
+        | Nav::Column(_) => {
             if matches!(menu.nav, Nav::Submenu(_))
                 && ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::ArrowLeft))
             {

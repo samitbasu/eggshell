@@ -2,12 +2,12 @@
 //! controls inside a `<fieldset disabled>` are.
 
 use eggshell_ui::owned::Enablement;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Theme, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node, shapes};
+use crate::support::{self, shapes};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Setup {
@@ -70,9 +70,9 @@ fn controls(b: &mut Builder<'_, '_, App>, app: &App) {
     );
 }
 
-fn harness(setup: Setup) -> Harness<'static, Rig<App>> {
+fn harness(setup: Setup) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 700.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App {
@@ -81,9 +81,10 @@ fn harness(setup: Setup) -> Harness<'static, Rig<App>> {
             ..App::default()
         },
         controls,
-    );
-    harness.run_steps(10);
-    harness
+    )
+    .build();
+    d.frames(10);
+    d
 }
 
 #[test]
@@ -103,7 +104,7 @@ fn controls_inside_an_inert_subtree_look_disabled() {
 
 #[test]
 fn and_stay_inert() {
-    let mut harness = harness(Setup::InsideInert);
+    let mut d = harness(Setup::InsideInert);
     for path in [
         "/\"button\"",
         "/\"check\"/Box",
@@ -112,9 +113,9 @@ fn and_stay_inert() {
         "/\"radio\"/Circle(1)",
         "/\"slider\"/Track",
     ] {
-        click_node(&mut harness, path);
+        d.click(Target::suffix(path));
     }
-    harness.run_steps(3);
-    let app = &harness.state().app;
+    d.frames(3);
+    let app = d.app();
     assert_eq!((app.clicks, app.slider), (0, 5.0));
 }

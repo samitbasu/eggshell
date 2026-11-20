@@ -653,6 +653,34 @@ pub(crate) fn room_for(
     }
 }
 
+/// Gives egui the look of the layout's own style, both themes and its
+/// fonts, when it differs from the one given last: egui's widgets read
+/// their visuals and fonts from the context.
+fn give_egui_its_look(ctx: &egui::Context, kept: &Handle) {
+    use std::sync::Arc;
+    let Some(style) = kept.with(|kept| kept.style.clone()) else {
+        return;
+    };
+    let given = kept.with(|kept| {
+        kept.egui_applied.as_ref().is_some_and(|applied| {
+            Arc::ptr_eq(&applied.light, &style.light) && Arc::ptr_eq(&applied.dark, &style.dark)
+        })
+    });
+    if given {
+        return;
+    }
+    for theme in [egui::Theme::Light, egui::Theme::Dark] {
+        let half = style.get(theme).clone();
+        ctx.style_mut_of(theme, |egui| half.egui_style(theme, egui));
+    }
+    for half in [&style.light, &style.dark] {
+        for font in &half.extension::<crate::contract::Fonts>().0 {
+            ctx.add_font(font.clone());
+        }
+    }
+    kept.with(|kept| kept.egui_applied = Some(style));
+}
+
 impl LayoutState {
     pub(crate) fn kept(&self) -> &Handle {
         &self.st.kept
@@ -767,6 +795,7 @@ impl LayoutState {
     ) -> Built<'f, A> {
         let _timer = Timer::start(ctx, Phase::Build);
         let own = self.st.kept.with(|kept| kept.style.is_some());
+        give_egui_its_look(ctx, &self.st.kept);
         let style = crate::Shell::new(ctx, &self.st.kept).style();
         crate::text::apply_faces(ctx, &style.faces);
         crate::symbols::install(ctx, &style.faces);
@@ -2190,9 +2219,11 @@ impl PlacedNode {
     /// Whether the node is an item of a menu, a listbox, a grid or a group: it
     /// has an item role.
     pub(crate) fn is_item(&self) -> bool {
-        self.description()
-            .and_then(|description| description.role)
-            .is_some_and(|role| {
+        let Some(description) = self.description() else {
+            return false;
+        };
+        description.member == crate::scroll::Member::Marked
+            || description.role.is_some_and(|role| {
                 matches!(
                     role,
                     Role::MenuItem

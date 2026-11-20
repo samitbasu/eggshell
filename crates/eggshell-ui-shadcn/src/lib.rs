@@ -103,7 +103,6 @@
 
 mod contrast;
 mod drag_chip;
-mod egui_map;
 mod fonts;
 mod palette;
 mod preset;

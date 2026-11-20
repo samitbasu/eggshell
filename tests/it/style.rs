@@ -6,11 +6,10 @@ use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Weight, Width, tw};
 use eggshell_ui_shadcn::{BaseColor, Palette, Shadcn, ThemeColor, Tokens, tokens};
 use egui::epaint::Shape;
 use egui::{Color32, Context, FontFamily, Rect, Theme, vec2};
-use egui_kittest::Harness;
 
 use crate::support;
 
-use support::{Rig, click_node, rect_of};
+use eggshell_ui::testing::{Driver, Target};
 
 fn base_text() -> TextStyle {
     TextStyle::new(
@@ -229,16 +228,17 @@ fn prepare_light(ctx: &Context, _: &App) {
     Shadcn::light().apply(ctx);
 }
 
-fn harness_of(view: support::View<App>) -> Harness<'static, Rig<App>> {
-    let mut harness = support::harness_prepared(
+fn harness_of(view: support::View<App>) -> Driver<App> {
+    let mut d = support::prepared_driver(
         vec2(400.0, 300.0),
         base_text(),
         App::default(),
         view,
         prepare_light,
-    );
-    harness.run_steps(3);
-    harness
+    )
+    .build();
+    d.frames(3);
+    d
 }
 
 fn switches(b: &mut Builder<'_, '_, App>, app: &App) {
@@ -259,8 +259,8 @@ fn switches(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn thumb_in(harness: &Harness<'_, Rig<App>>, rect: Rect) -> egui::epaint::CircleShape {
-    harness
+fn thumb_in(d: &Driver<App>, rect: Rect) -> egui::epaint::CircleShape {
+    d.harness()
         .output()
         .shapes
         .iter()
@@ -274,9 +274,9 @@ fn thumb_in(harness: &Harness<'_, Rig<App>>, rect: Rect) -> egui::epaint::Circle
 
 #[test]
 fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
-    let mut harness = harness_of(switches);
+    let mut d = harness_of(switches);
     let tokens = Tokens::light();
-    let default = rect_of(&harness, "/\"default\"/Track");
+    let default = d.rect(Target::suffix("/\"default\"/Track"));
     assert_eq!(default.width(), 32.0, "w-8");
     assert!((default.height() - 18.4).abs() < 0.01, "h-[1.15rem]");
 
@@ -287,7 +287,7 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
         ("tall", vec2(36.0 * 32.0 / 18.4, 36.0)),
     ];
     for (key, track) in cases {
-        let rect = rect_of(&harness, &format!("/{key:?}/Track"));
+        let rect = d.rect(Target::suffix(&format!("/{key:?}/Track")));
         assert!(
             (rect.size() - track).abs().max_elem() < 0.01,
             "{key}: leaf {rect:?} for track {track:?}"
@@ -295,11 +295,11 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
     }
 
     for on in [false, true] {
-        harness.state_mut().app.on = on;
-        harness.run_steps(8);
+        d.app_mut().on = on;
+        d.frames(8);
         for (key, track) in cases {
-            let rect = rect_of(&harness, &format!("/{key:?}/Track"));
-            let thumb = thumb_in(&harness, rect);
+            let rect = d.rect(Target::suffix(&format!("/{key:?}/Track")));
+            let thumb = thumb_in(&d, rect);
             let radius = tokens.switch_thumb_for(rect.size()) / 2.0;
             assert!(
                 (thumb.radius - radius).abs() < 0.25,
@@ -320,8 +320,8 @@ fn a_switch_follows_its_classes_and_the_thumb_and_travel_scale() {
             assert!((thumb.center.y - rect.center().y).abs() < 0.6);
         }
     }
-    let small = thumb_in(&harness, default).radius;
-    let big = thumb_in(&harness, rect_of(&harness, "/\"sized\"/Track")).radius;
+    let small = thumb_in(&d, default).radius;
+    let big = thumb_in(&d, d.rect(Target::suffix("/\"sized\"/Track"))).radius;
     assert!(
         big > small,
         "precondition: the larger track has a larger thumb"
@@ -335,11 +335,12 @@ fn segments(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn raised_cells(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
+fn raised_cells(d: &Driver<App>) -> Vec<Rect> {
     let tokens = Tokens::light();
     let raised = tokens.shadow_sm.color;
-    let window = harness.ctx.content_rect();
-    let shapes: Vec<_> = harness
+    let window = d.ctx().content_rect();
+    let shapes: Vec<_> = d
+        .harness()
         .output()
         .shapes
         .iter()
@@ -363,17 +364,22 @@ fn raised_cells(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
 
 #[test]
 fn the_shadcn_segmented_style_raises_exactly_the_selected_cell() {
-    let mut harness = harness_of(segments);
-    let track = rect_of(&harness, "/\"units\"");
+    let mut d = harness_of(segments);
+    let track = d.rect(Target::suffix("/\"units\""));
     assert_eq!(track.height(), 36.0, "h-9");
-    let metric = rect_of(&harness, "/\"units\"/0");
-    assert_eq!(metric.top() - track.top(), 3.0, "p-[3px]");
+    let metric = d.rect(Target::suffix("/\"units\"/0"));
     assert_eq!(
-        track.right() - rect_of(&harness, "/\"units\"/2").right(),
+        metric.top() - track.top(),
+        3.5,
+        "p-[3px], and the trigger's h-[calc(100%-1px)] centred"
+    );
+    assert_eq!(metric.height(), 29.0, "h-[calc(100%-1px)]");
+    assert_eq!(
+        track.right() - d.rect(Target::suffix("/\"units\"/2")).right(),
         3.0
     );
 
-    let cells = raised_cells(&harness);
+    let cells = raised_cells(&d);
     assert_eq!(cells.len(), 1, "one raised cell");
     assert!(
         cells[0].center().distance(metric.center()) < 1.0,
@@ -381,11 +387,11 @@ fn the_shadcn_segmented_style_raises_exactly_the_selected_cell() {
         cells[0]
     );
 
-    click_node(&mut harness, "/\"units\"/1");
-    harness.run_steps(3);
-    assert_eq!(harness.state().app.unit, Unit::Imperial, "precondition");
-    let cells = raised_cells(&harness);
-    let imperial = rect_of(&harness, "/\"units\"/1");
+    d.click(Target::suffix("/\"units\"/1"));
+    d.frames(3);
+    assert_eq!(d.app().unit, Unit::Imperial, "precondition");
+    let cells = raised_cells(&d);
+    let imperial = d.rect(Target::suffix("/\"units\"/1"));
     assert_eq!(cells.len(), 1, "still one");
     assert!(cells[0].center().distance(imperial.center()) < 1.0);
 }
@@ -402,10 +408,11 @@ fn a_text_field_under_the_preset_is_h9_with_px3() {
             },
         );
     }
-    let harness = harness_of(field);
-    let rect = rect_of(&harness, "/\"field\"");
+    let d = harness_of(field);
+    let rect = d.rect(Target::suffix("/\"field\""));
     assert_eq!(rect.size(), vec2(200.0, 36.0));
-    let hint = harness
+    let hint = d
+        .harness()
         .output()
         .shapes
         .iter()
@@ -637,9 +644,9 @@ fn many_segments(b: &mut Builder<'_, '_, App>, app: &App) {
 
 #[test]
 fn segmented_cells_fit_their_track_and_can_wrap() {
-    let harness = harness_of(segments);
-    let track = rect_of(&harness, "/\"units\"");
-    let cells = [0, 1, 2].map(|c| rect_of(&harness, &format!("/\"units\"/{c}")));
+    let d = harness_of(segments);
+    let track = d.rect(Target::suffix("/\"units\""));
+    let cells = [0, 1, 2].map(|c| d.rect(Target::suffix(&format!("/\"units\"/{c}"))));
     let widest_row = cells.iter().map(|c| c.width()).sum::<f32>() + 6.0;
     assert!(
         track.width() < 395.0,
@@ -651,9 +658,9 @@ fn segmented_cells_fit_their_track_and_can_wrap() {
         track.width()
     );
 
-    let harness = harness_of(many_segments);
-    let track = rect_of(&harness, "/\"wrapped\"");
-    let cells = [0, 1, 2].map(|c| rect_of(&harness, &format!("/\"wrapped\"/{c}")));
+    let d = harness_of(many_segments);
+    let track = d.rect(Target::suffix("/\"wrapped\""));
+    let cells = [0, 1, 2].map(|c| d.rect(Target::suffix(&format!("/\"wrapped\"/{c}"))));
     assert!(
         cells[2].top() > cells[0].top(),
         "precondition: the cells do not fit one row: {cells:?}"
