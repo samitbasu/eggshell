@@ -4,14 +4,14 @@
 use std::time::Duration;
 
 use eggshell_ui::owned::PaneSize;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::epaint::Shape;
 use egui::{Color32, CursorIcon, Key, Modifiers, Pos2, Role, Theme, Vec2, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, drag, focused_path, hover_over, rect_of};
+use crate::support::{self, focused_path, press_and_release};
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/split_panes.rs"]
@@ -83,17 +83,18 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
+fn harness() -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         WINDOW,
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
-    );
-    harness.ctx.set_theme(Theme::Light);
-    harness.run_steps(4);
-    harness
+    )
+    .build();
+    d.ctx().set_theme(Theme::Light);
+    d.frames(4);
+    d
 }
 
 const LEFT: &str = "/\"frame\"/\"left\"";
@@ -104,53 +105,52 @@ const INSPECTOR: &str = "/\"frame\"/\"inspector\"";
 const TERMINAL: &str = "/\"frame\"/\"editor\"/\"terminal\"";
 const EDITOR_PATH: &str = "/\"frame\"/\"editor\"";
 
-fn sidebar(harness: &Harness<'_, Rig<App>>) -> f32 {
-    harness.state().app.sidebar.into()
+fn sidebar(d: &Driver<App>) -> f32 {
+    d.app().sidebar.into()
 }
 
-fn inspector(harness: &Harness<'_, Rig<App>>) -> f32 {
-    harness.state().app.inspector.into()
+fn inspector(d: &Driver<App>) -> f32 {
+    d.app().inspector.into()
 }
 
-fn terminal(harness: &Harness<'_, Rig<App>>) -> f32 {
-    harness.state().app.terminal.into()
+fn terminal(d: &Driver<App>) -> f32 {
+    d.app().terminal.into()
 }
 
-fn centre(harness: &Harness<'_, Rig<App>>, path: &str) -> Pos2 {
-    rect_of(harness, path).center()
+fn centre(d: &Driver<App>, path: &str) -> Pos2 {
+    d.rect(Target::suffix(path)).center()
 }
 
 /// Presses at `from` and moves the pointer through `to`, one frame a point,
 /// without releasing.
-fn press_and_move(harness: &mut Harness<'_, Rig<App>>, from: Pos2, to: &[Pos2]) {
-    hover_over(harness, from);
-    harness.drag_at(from);
-    harness.step();
+fn press_and_move(d: &mut Driver<App>, from: Pos2, to: &[Pos2]) {
+    d.hover(from);
+    d.harness().drag_at(from);
+    d.frames(1);
     for &at in to {
-        harness.hover_at(at);
-        harness.step();
+        d.harness().hover_at(at);
+        d.frames(1);
     }
 }
 
-fn release(harness: &mut Harness<'_, Rig<App>>, at: Pos2) {
-    harness.drop_at(at);
-    harness.run_steps(3);
+fn release(d: &mut Driver<App>, at: Pos2) {
+    d.harness().drop_at(at);
+    d.frames(3);
 }
 
-fn tab_to(harness: &mut Harness<'_, Rig<App>>, path: &str) {
+fn tab_to(d: &mut Driver<App>, path: &str) {
     for _ in 0..12 {
-        if focused_path(harness).as_deref() == Some(path) {
+        if focused_path(d).as_deref() == Some(path) {
             return;
         }
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
+        d.press(Key::Tab).frames(1);
     }
-    panic!("Tab never reached {path}: {:?}", focused_path(harness));
+    panic!("Tab never reached {path}: {:?}", focused_path(d));
 }
 
-fn press(harness: &mut Harness<'_, Rig<App>>, modifiers: Modifiers, key: Key) {
-    harness.key_press_modifiers(modifiers, key);
-    harness.run_steps(3);
+fn press(d: &mut Driver<App>, modifiers: Modifiers, key: Key) {
+    d.harness().key_press_modifiers(modifiers, key);
+    d.frames(3);
 }
 
 mod pointer {
@@ -158,14 +158,18 @@ mod pointer {
 
     #[test]
     fn dragging_a_splitter_sizes_the_pane_before_it() {
-        let mut harness = harness();
-        assert_eq!(rect_of(&harness, SIDEBAR).width(), 240.0, "precondition");
-        let from = centre(&harness, LEFT);
-        drag(&mut harness, from, from + vec2(40.0, 0.0));
-        assert_eq!(sidebar(&harness), 280.0);
-        assert_eq!(rect_of(&harness, SIDEBAR).width(), 280.0);
+        let mut d = harness();
         assert_eq!(
-            rect_of(&harness, LEFT).center().x,
+            d.rect(Target::suffix(SIDEBAR)).width(),
+            240.0,
+            "precondition"
+        );
+        let from = centre(&d, LEFT);
+        d.drag(from, from + vec2(40.0, 0.0));
+        assert_eq!(sidebar(&d), 280.0);
+        assert_eq!(d.rect(Target::suffix(SIDEBAR)).width(), 280.0);
+        assert_eq!(
+            d.rect(Target::suffix(LEFT)).center().x,
             from.x + 40.0,
             "the handle follows"
         );
@@ -173,82 +177,82 @@ mod pointer {
 
     #[test]
     fn a_splitter_after_its_pane_grows_it_towards_the_start() {
-        let mut harness = harness();
-        let from = centre(&harness, RIGHT);
-        drag(&mut harness, from, from - vec2(50.0, 0.0));
-        assert_eq!(inspector(&harness), 250.0);
-        assert_eq!(rect_of(&harness, INSPECTOR).width(), 250.0);
+        let mut d = harness();
+        let from = centre(&d, RIGHT);
+        d.drag(from, from - vec2(50.0, 0.0));
+        assert_eq!(inspector(&d), 250.0);
+        assert_eq!(d.rect(Target::suffix(INSPECTOR)).width(), 250.0);
     }
 
     #[test]
     fn a_splitter_in_a_column_moves_vertically() {
-        let mut harness = harness();
-        let from = centre(&harness, BOTTOM);
-        drag(&mut harness, from, from - vec2(0.0, 30.0));
-        assert_eq!(terminal(&harness), 180.0);
-        assert_eq!(rect_of(&harness, TERMINAL).height(), 180.0);
+        let mut d = harness();
+        let from = centre(&d, BOTTOM);
+        d.drag(from, from - vec2(0.0, 30.0));
+        assert_eq!(terminal(&d), 180.0);
+        assert_eq!(d.rect(Target::suffix(TERMINAL)).height(), 180.0);
     }
 
     #[test]
     fn a_drag_past_the_range_clamps_and_coming_back_does_not_drift() {
-        let mut harness = harness();
-        let from = centre(&harness, LEFT);
+        let mut d = harness();
+        let from = centre(&d, LEFT);
         let far = from + vec2(600.0, 200.0);
-        press_and_move(&mut harness, from, &[far]);
+        press_and_move(&mut d, from, &[far]);
         assert!(
-            !rect_of(&harness, LEFT).contains(far),
+            !d.rect(Target::suffix(LEFT)).contains(far),
             "precondition: the pointer left the handle"
         );
-        assert_eq!(sidebar(&harness), 480.0, "held at the max");
+        assert_eq!(sidebar(&d), 480.0, "held at the max");
         let back = from + vec2(-500.0, 0.0);
-        harness.hover_at(back);
-        harness.step();
-        assert_eq!(sidebar(&harness), 160.0, "held at the min");
+        d.harness().hover_at(back);
+        d.frames(1);
+        assert_eq!(sidebar(&d), 160.0, "held at the min");
         let near = from + vec2(20.0, 0.0);
-        harness.hover_at(near);
-        harness.step();
-        release(&mut harness, near);
-        assert_eq!(sidebar(&harness), 260.0, "measured from the press");
+        d.harness().hover_at(near);
+        d.frames(1);
+        release(&mut d, near);
+        assert_eq!(sidebar(&d), 260.0, "measured from the press");
     }
 
     #[test]
     fn a_double_click_resets_the_pane() {
-        let mut harness = harness();
-        let from = centre(&harness, LEFT);
-        drag(&mut harness, from, from + vec2(100.0, 0.0));
-        assert_eq!(sidebar(&harness), 340.0, "precondition");
-        let at = centre(&harness, LEFT);
-        hover_over(&mut harness, at);
+        let mut d = harness();
+        let from = centre(&d, LEFT);
+        d.drag(from, from + vec2(100.0, 0.0));
+        assert_eq!(sidebar(&d), 340.0, "precondition");
+        let at = centre(&d, LEFT);
+        d.hover(at);
         for _ in 0..2 {
-            support::press_and_release(&mut harness, at);
+            press_and_release(&mut d, at);
         }
-        harness.run_steps(2);
-        assert_eq!(sidebar(&harness), 240.0);
+        d.frames(2);
+        assert_eq!(sidebar(&d), 240.0);
     }
 
     #[test]
     fn a_click_without_a_move_reports_nothing() {
-        let mut harness = harness();
-        let at = centre(&harness, LEFT);
-        hover_over(&mut harness, at);
-        support::press_and_release(&mut harness, at);
-        harness.run_steps(2);
-        assert_eq!(harness.state().app.resizes, 0);
+        let mut d = harness();
+        let at = centre(&d, LEFT);
+        d.hover(at);
+        press_and_release(&mut d, at);
+        d.frames(2);
+        assert_eq!(d.app().resizes, 0);
     }
 
     #[test]
     fn the_pointer_shows_a_resize_cursor_over_the_handle() {
-        let mut harness = harness();
-        let left = centre(&harness, LEFT);
-        hover_over(&mut harness, left);
+        let mut d = harness();
+        let left = centre(&d, LEFT);
+        d.hover(left);
         assert_eq!(
-            harness.output().platform_output.cursor_icon,
+            d.harness().output().platform_output.cursor_icon,
             CursorIcon::ResizeColumn
         );
-        let bottom = centre(&harness, BOTTOM);
-        hover_over(&mut harness, bottom);
+        let bottom = centre(&d, BOTTOM);
+        d.hover(bottom);
         assert_eq!(
-            harness.output().platform_output.cursor_icon,
+            d.harness().output().platform_output.cursor_icon,
             CursorIcon::ResizeRow
         );
     }
@@ -257,19 +261,19 @@ mod pointer {
     /// already, so it follows the handle frame by frame.
     #[test]
     fn a_drag_starts_no_slide_on_a_neighbour_that_animates_its_layout() {
-        let mut harness = harness();
-        let from = centre(&harness, LEFT);
+        let mut d = harness();
+        let from = centre(&d, LEFT);
         let steps: Vec<Pos2> = (1..=4).map(|i| from + vec2(20.0 * i as f32, 0.0)).collect();
-        press_and_move(&mut harness, from, &steps);
-        harness.step();
-        let laid = rect_of(&harness, EDITOR_PATH);
+        press_and_move(&mut d, from, &steps);
+        d.frames(1);
+        let laid = d.rect(Target::suffix(EDITOR_PATH));
         assert_ne!(laid.min.x, 241.0 + 6.0, "precondition: the editor moved");
-        assert_eq!(painted_left(&harness, EDITOR), laid.min.x);
-        release(&mut harness, *steps.last().expect("steps"));
+        assert_eq!(painted_left(&d, EDITOR), laid.min.x);
+        release(&mut d, *steps.last().expect("steps"));
     }
 
-    fn painted_left(harness: &Harness<'_, Rig<App>>, fill: Color32) -> f32 {
-        support::shapes(harness)
+    fn painted_left(d: &Driver<App>, fill: Color32) -> f32 {
+        support::shapes(d)
             .into_iter()
             .find_map(|shape| match shape {
                 Shape::Rect(rect) if rect.fill == fill => Some(rect.rect.min.x),
@@ -284,18 +288,18 @@ mod keys {
 
     #[test]
     fn tab_reaches_each_splitter() {
-        let mut harness = harness();
+        let mut d = harness();
         for path in [LEFT, BOTTOM, RIGHT] {
-            tab_to(&mut harness, path);
+            tab_to(&mut d, path);
         }
     }
 
     #[test]
     fn a_focused_splitter_shows_the_focus_ring_and_lights_its_band() {
-        let mut harness = harness();
-        let rect = rect_of(&harness, LEFT);
-        let ring_at = |harness: &Harness<'_, Rig<App>>| {
-            support::shapes(harness)
+        let mut d = harness();
+        let rect = d.rect(Target::suffix(LEFT));
+        let ring_at = |d: &Driver<App>| {
+            support::shapes(d)
                 .into_iter()
                 .find_map(|shape| match shape {
                     Shape::Rect(ring)
@@ -308,10 +312,10 @@ mod keys {
                     _ => None,
                 })
         };
-        assert!(ring_at(&harness).is_none(), "precondition: no ring at rest");
-        tab_to(&mut harness, LEFT);
-        harness.run_steps(12);
-        let ring = ring_at(&harness).expect("a ring inside the hit area");
+        assert!(ring_at(&d).is_none(), "precondition: no ring at rest");
+        tab_to(&mut d, LEFT);
+        d.frames(12);
+        let ring = ring_at(&d).expect("a ring inside the hit area");
         let focus = Shadcn::for_theme(Theme::Light).style().focus;
         assert_eq!(
             (ring.stroke.width, ring.stroke.color),
@@ -320,7 +324,7 @@ mod keys {
         let hot = Shadcn::for_theme(Theme::Light).style().splitter.hot.band;
         assert_ne!(hot, Color32::TRANSPARENT, "precondition: a band when hot");
         assert!(
-            support::shapes(&harness).into_iter().any(|shape| matches!(
+            support::shapes(&d).into_iter().any(|shape| matches!(
                 shape,
                 Shape::Rect(band) if band.rect == rect && band.fill == hot
             )),
@@ -330,22 +334,18 @@ mod keys {
 
     #[test]
     fn arrows_step_ten_points_and_shift_fifty() {
-        let mut harness = harness();
-        tab_to(&mut harness, LEFT);
-        press(&mut harness, Modifiers::NONE, Key::ArrowRight);
-        assert_eq!(sidebar(&harness), 250.0);
-        press(&mut harness, Modifiers::SHIFT, Key::ArrowRight);
-        assert_eq!(sidebar(&harness), 300.0);
-        press(&mut harness, Modifiers::NONE, Key::ArrowLeft);
-        assert_eq!(sidebar(&harness), 290.0);
-        press(&mut harness, Modifiers::NONE, Key::ArrowDown);
+        let mut d = harness();
+        tab_to(&mut d, LEFT);
+        press(&mut d, Modifiers::NONE, Key::ArrowRight);
+        assert_eq!(sidebar(&d), 250.0);
+        press(&mut d, Modifiers::SHIFT, Key::ArrowRight);
+        assert_eq!(sidebar(&d), 300.0);
+        press(&mut d, Modifiers::NONE, Key::ArrowLeft);
+        assert_eq!(sidebar(&d), 290.0);
+        press(&mut d, Modifiers::NONE, Key::ArrowDown);
+        assert_eq!(sidebar(&d), 290.0, "the other axis's arrows do nothing");
         assert_eq!(
-            sidebar(&harness),
-            290.0,
-            "the other axis's arrows do nothing"
-        );
-        assert_eq!(
-            focused_path(&harness).as_deref(),
+            focused_path(&d).as_deref(),
             Some(LEFT),
             "and do not move focus"
         );
@@ -353,34 +353,34 @@ mod keys {
 
     #[test]
     fn an_arrow_towards_a_pane_after_the_splitter_shrinks_it() {
-        let mut harness = harness();
-        tab_to(&mut harness, RIGHT);
-        press(&mut harness, Modifiers::NONE, Key::ArrowRight);
-        assert_eq!(inspector(&harness), 190.0);
-        tab_to(&mut harness, BOTTOM);
-        press(&mut harness, Modifiers::NONE, Key::ArrowUp);
-        assert_eq!(terminal(&harness), 160.0);
+        let mut d = harness();
+        tab_to(&mut d, RIGHT);
+        press(&mut d, Modifiers::NONE, Key::ArrowRight);
+        assert_eq!(inspector(&d), 190.0);
+        tab_to(&mut d, BOTTOM);
+        press(&mut d, Modifiers::NONE, Key::ArrowUp);
+        assert_eq!(terminal(&d), 160.0);
     }
 
     #[test]
     fn home_and_end_go_to_the_ends_of_the_range() {
-        let mut harness = harness();
-        tab_to(&mut harness, LEFT);
-        press(&mut harness, Modifiers::NONE, Key::End);
-        assert_eq!(sidebar(&harness), 480.0);
-        press(&mut harness, Modifiers::NONE, Key::Home);
-        assert_eq!(sidebar(&harness), 160.0);
+        let mut d = harness();
+        tab_to(&mut d, LEFT);
+        press(&mut d, Modifiers::NONE, Key::End);
+        assert_eq!(sidebar(&d), 480.0);
+        press(&mut d, Modifiers::NONE, Key::Home);
+        assert_eq!(sidebar(&d), 160.0);
     }
 
     #[test]
     fn end_does_nothing_without_a_max_and_home_goes_to_zero_without_a_min() {
-        let mut harness = harness();
-        tab_to(&mut harness, RIGHT);
-        press(&mut harness, Modifiers::NONE, Key::End);
-        assert_eq!(inspector(&harness), 200.0);
-        tab_to(&mut harness, BOTTOM);
-        press(&mut harness, Modifiers::NONE, Key::Home);
-        assert_eq!(terminal(&harness), 0.0);
+        let mut d = harness();
+        tab_to(&mut d, RIGHT);
+        press(&mut d, Modifiers::NONE, Key::End);
+        assert_eq!(inspector(&d), 200.0);
+        tab_to(&mut d, BOTTOM);
+        press(&mut d, Modifiers::NONE, Key::Home);
+        assert_eq!(terminal(&d), 0.0);
     }
 }
 
@@ -389,30 +389,34 @@ mod squeeze {
 
     #[test]
     fn a_narrow_window_squeezes_the_pane_and_keeps_its_size() {
-        let mut harness = harness();
-        harness.set_size(vec2(400.0, 600.0));
-        harness.run_steps(3);
-        let squeezed = rect_of(&harness, SIDEBAR).width();
+        let mut d = harness();
+        d.harness_mut().set_size(vec2(400.0, 600.0));
+        d.frames(3);
+        let squeezed = d.rect(Target::suffix(SIDEBAR)).width();
         assert!(squeezed < 240.0, "precondition: squeezed to {squeezed}");
-        assert_eq!(sidebar(&harness), 240.0, "the stored size stays");
-        harness.set_size(WINDOW);
-        harness.run_steps(3);
-        assert_eq!(rect_of(&harness, SIDEBAR).width(), 240.0, "and comes back");
+        assert_eq!(sidebar(&d), 240.0, "the stored size stays");
+        d.harness_mut().set_size(WINDOW);
+        d.frames(3);
+        assert_eq!(
+            d.rect(Target::suffix(SIDEBAR)).width(),
+            240.0,
+            "and comes back"
+        );
     }
 
     #[test]
     fn a_drag_on_a_squeezed_pane_starts_from_its_laid_out_size() {
-        let mut harness = harness();
-        harness.set_size(vec2(340.0, 600.0));
-        harness.run_steps(3);
-        let squeezed = rect_of(&harness, SIDEBAR).width();
+        let mut d = harness();
+        d.harness_mut().set_size(vec2(340.0, 600.0));
+        d.frames(3);
+        let squeezed = d.rect(Target::suffix(SIDEBAR)).width();
         assert!(
             (170.0..200.0).contains(&squeezed),
             "precondition: squeezed to {squeezed}, clear of the min"
         );
-        let from = centre(&harness, LEFT);
-        drag(&mut harness, from, from - vec2(10.0, 0.0));
-        assert_eq!(sidebar(&harness), squeezed - 10.0);
+        let from = centre(&d, LEFT);
+        d.drag(from, from - vec2(10.0, 0.0));
+        assert_eq!(sidebar(&d), squeezed - 10.0);
     }
 }
 
@@ -421,14 +425,14 @@ mod access {
 
     #[test]
     fn each_splitter_is_a_named_splitter_with_its_size_and_range() {
-        let harness = harness();
-        let node = harness.get_by_label("Sidebar");
+        let d = harness();
+        let node = d.harness().get_by_label("Sidebar");
         let node = node.accesskit_node();
         assert_eq!(node.role(), Role::Splitter);
         assert_eq!(node.numeric_value(), Some(240.0));
         assert_eq!(node.min_numeric_value(), Some(160.0));
         assert_eq!(node.max_numeric_value(), Some(480.0));
-        assert_eq!(harness.query_all_by_role(Role::Splitter).count(), 3);
+        assert_eq!(d.harness().query_all_by_role(Role::Splitter).count(), 3);
     }
 }
 
@@ -450,15 +454,16 @@ mod misuse {
     #[test]
     fn a_splitter_outside_a_flex_container_is_still_drawn() {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness(
+        let mut d = support::driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             App::default(),
             outside_flex,
-        );
-        harness.run_steps(2);
-        assert_eq!(harness.query_all_by_role(Role::Splitter).count(), 1);
-        let report = assert_reported(&harness.ctx, Problem::MisplacedSplitter);
+        )
+        .build();
+        d.frames(2);
+        assert_eq!(d.harness().query_all_by_role(Role::Splitter).count(), 1);
+        let report = assert_reported(d.ctx(), Problem::MisplacedSplitter);
         assert!(report.message.contains("\"loose\""), "{}", report.message);
     }
 
@@ -475,20 +480,21 @@ mod misuse {
     #[test]
     fn a_range_that_ends_before_it_starts_ends_at_its_start() {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness(
+        let mut d = support::driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             App::default(),
             backwards,
-        );
-        harness.run_steps(2);
-        let node = harness.get_by_role(Role::Splitter);
+        )
+        .build();
+        d.frames(2);
+        let node = d.harness().get_by_role(Role::Splitter);
         let node = node.accesskit_node();
         assert_eq!(
             (node.min_numeric_value(), node.max_numeric_value()),
             (Some(300.0), Some(300.0))
         );
-        let report = assert_reported(&harness.ctx, Problem::BadRange);
+        let report = assert_reported(d.ctx(), Problem::BadRange);
         assert!(
             report.message.contains("ends before it starts"),
             "{}",
@@ -498,9 +504,9 @@ mod misuse {
 
     #[test]
     fn splitters_in_flex_containers_with_ranges_report_nothing() {
-        let mut harness = harness();
-        harness.run_steps(2);
-        assert_no_reports(&harness.ctx);
+        let mut d = harness();
+        d.frames(2);
+        assert_no_reports(d.ctx());
     }
 }
 
@@ -510,27 +516,28 @@ mod example {
     #[test]
     fn the_example_resizes_all_three_panes_and_says_their_sizes() {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness(
+        let mut d = support::driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             split_panes::Panes::default(),
             split_panes::layout,
-        );
-        harness.run_steps(4);
+        )
+        .build();
+        d.frames(4);
         let moves = [
             ("/Frame/Left", vec2(30.0, 0.0)),
             ("/Frame/Editor/Bottom", vec2(0.0, -40.0)),
             ("/Frame/Right", vec2(-20.0, 0.0)),
         ];
         for (path, by) in moves {
-            let from = rect_of(&harness, path).center();
-            drag(&mut harness, from, from + by);
+            let from = d.rect(Target::suffix(path)).center();
+            d.drag(from, from + by);
         }
-        let panes = &harness.state().app;
+        let panes = &d.app();
         let sizes = [panes.sidebar, panes.terminal, panes.inspector].map(f32::from);
         assert_eq!(sizes, [250.0, 200.0, 260.0]);
         for said in ["250 pt", "200 pt", "260 pt"] {
-            harness.get_by_label(said);
+            d.harness().get_by_label(said);
         }
     }
 }

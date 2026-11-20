@@ -16,6 +16,7 @@ mod common;
 use core::time::Duration;
 
 use common::glyphs::{self, Glyph};
+use eggshell_ui::testing::PlacedFrame;
 use eggshell_ui::{File, Files, LayoutState, Opacity, tw};
 use eggshell_ui_shadcn::DragChip as _;
 use egui::{Context, Key, Ui, vec2};
@@ -316,7 +317,7 @@ pub fn layout(b: &mut B<'_, '_, State>, state: &State) {
 /// One frame: the build, layout and draw over the central area, then the
 /// reveal of a panel dropped with no position. Shared by `main` and the
 /// tests.
-pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) {
+pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) -> PlacedFrame {
     let ctx = ui.ctx().clone();
     let placed = layout_state
         .build(&ctx, |b| layout(b, app))
@@ -335,7 +336,7 @@ pub fn frame(ui: &mut Ui, app: &mut State, layout_state: &mut LayoutState) {
             app.reveal = Some(key);
         }
     }
-    placed.draw(app, ui);
+    placed.draw(app, ui)
 }
 
 /// The strip above the gallery: the column count, the drag image, where a
@@ -425,7 +426,7 @@ pub fn window(
     state: &mut State,
     gallery: &mut LayoutState,
     toolbar_layout: &mut LayoutState,
-) {
+) -> PlacedFrame {
     let ctx = ui.ctx().clone();
     shortcuts(&ctx, state);
     egui::Panel::top("gallery_toolbar")
@@ -442,7 +443,8 @@ pub fn window(
         });
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))
-        .show(ui, |ui| frame(ui, state, gallery));
+        .show(ui, |ui| frame(ui, state, gallery))
+        .inner
 }
 
 fn main() -> eframe::Result {

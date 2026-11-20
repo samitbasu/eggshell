@@ -260,6 +260,8 @@ pub(crate) struct ScrollNode {
     pub bars: Bars,
     pub tab: crate::scroll::TabRule,
     pub description: crate::scroll::Description,
+    /// How far scrolling into view keeps a node from the edges.
+    pub padding: crate::tw::Sides<f32>,
     /// The root of the content, laid out on its own.
     pub content: NodeId,
     /// The content root's size, once laid out.
@@ -654,6 +656,12 @@ pub(crate) fn room_for(
 impl LayoutState {
     pub(crate) fn kept(&self) -> &Handle {
         &self.st.kept
+    }
+
+    /// The id every node's path derives from.
+    #[cfg_attr(not(feature = "driver"), expect(dead_code))]
+    pub(crate) fn root(&self) -> Id {
+        self.st.root
     }
 
     /// This state, reached from where only `ctx` is at hand.
@@ -1250,6 +1258,14 @@ fn place_window(
     } else {
         Presentation::Native
     };
+    let _timer = (presentation == Presentation::Native).then(|| {
+        Timer::window(
+            ctx,
+            Phase::Layout,
+            ctx.viewport_id(),
+            (decl.id, &decl.window.title),
+        )
+    });
     let mut style = st.tree.style(node).clone();
     let mut sized = |size: Option<Vec2>, available: AvailableSpace| {
         style.size = Size {
@@ -1712,6 +1728,7 @@ fn collect(
                     bars: scroll.bars,
                     tab: scroll.tab,
                     description: scroll.description,
+                    padding: scroll.padding,
                     content: scroll.size,
                     offset,
                     moved: false,
