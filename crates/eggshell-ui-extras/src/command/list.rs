@@ -8,8 +8,8 @@ use std::sync::Arc;
 use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::vlist::ListNav;
 use eggshell_ui::{
-    Builder, Command, CommandState, Commands, Icon, Key, Scope, Shell, Style, Tw, child_id, icons,
-    tw,
+    Builder, Command, CommandState, Commands, Icon, Key, Match, Scope, Shell, Style, Tw, child_id,
+    icons, tw,
 };
 use egui::{Context, Id, Role};
 
@@ -337,8 +337,8 @@ pub(crate) fn group_classes(style: &Style) -> Tw {
         .bg(states.rest.fill)
         .text(states.rest.text)
         .role(style.role(&select.text).clone())
-        .focus_within(|p| {
-            p.border_color(states.focused.border)
+        .has(Match::focus_visible(), |b| {
+            b.border_color(states.focused.border)
                 .ring(style.focus.width, style.focus.color)
         });
     match select.trigger.paint.shadow {
