@@ -4,9 +4,9 @@
 use eggshell_ui::contract::{Metrics, Size, Style};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, rect_of};
+use crate::support;
+use eggshell_ui::testing::{Driver, Target};
 
 const SM: Size = Size("sm");
 const XS: Size = Size("xs");
@@ -51,27 +51,28 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     });
 }
 
-fn height(harness: &Harness<'_, Rig<()>>, path: &str) -> f32 {
-    rect_of(harness, path).height()
+fn height(d: &Driver<()>, path: &str) -> f32 {
+    d.rect(Target::suffix(path)).height()
 }
 
 #[test]
 fn a_control_takes_its_own_size_else_its_subtrees_else_the_default() {
-    let mut harness = support::harness_prepared(vec2(300.0, 300.0), base_text(), (), view, prepare);
-    harness.run_steps(4);
-    let default = height(&harness, r#"/"Page"/"outside""#);
-    let small = height(&harness, r#"/"Page"/"dense"/"inherits""#);
+    let mut d =
+        support::prepared_driver(vec2(300.0, 300.0), base_text(), (), view, prepare).build();
+    d.frames(4);
+    let default = height(&d, r#"/"Page"/"outside""#);
+    let small = height(&d, r#"/"Page"/"dense"/"inherits""#);
     assert!(
         small < default,
         "{small} is the inherited size, {default} the default"
     );
     assert_eq!(
-        height(&harness, r#"/"Page"/"dense"/"explicit""#),
+        height(&d, r#"/"Page"/"dense"/"explicit""#),
         default,
         "an explicit size beats the inherited one"
     );
     assert_eq!(
-        height(&harness, r#"/"Page"/"dense"/"nested"/"inner""#),
+        height(&d, r#"/"Page"/"dense"/"nested"/"inner""#),
         default,
         "a nearer scope beats a farther one"
     );
@@ -121,9 +122,9 @@ fn gallery(b: &mut Builder<'_, '_, Gallery>, app: &Gallery) {
 
 /// The height of each control's main box when built at `app`.
 fn heights(app: Gallery) -> Vec<(&'static str, f32)> {
-    let mut harness =
-        support::harness_prepared(vec2(400.0, 600.0), base_text(), app, gallery, |_, _| {});
-    harness.run_steps(4);
+    let mut d =
+        support::prepared_driver(vec2(400.0, 600.0), base_text(), app, gallery, |_, _| {}).build();
+    d.frames(4);
     [
         "button",
         "checkbox/Box",
@@ -149,7 +150,7 @@ fn heights(app: Gallery) -> Vec<(&'static str, f32)> {
             .replace(r#""Box""#, "Box")
             .replace(r#""Track""#, "Track")
             .replace(r#""Thumb""#, "Thumb");
-        (control, rect_of(&harness, &path).height())
+        (control, d.rect(Target::suffix(&path)).height())
     })
     .to_vec()
 }

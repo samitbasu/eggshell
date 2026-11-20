@@ -5,20 +5,18 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use egui::{Key, Rect, Role, Ui, WidgetInfo};
+use egui::{Key, Rect, Ui, WidgetInfo};
 
 use super::number::{self, Edit, Edits, Step, ValueRange};
-use super::number_field::Session;
+use super::readout::{Format, Parse, Readout, Set};
 use super::{
-    Enablement, FieldBoxChain, Gate, IntoTip, OnResponse, described, options, painted, text_sized,
-    tip_describes, tipped_whole,
+    Enablement, Gate, IntoTip, OnResponse, options, painted, text_sized, tip_describes,
+    tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
 use crate::finite::clamp;
 use crate::focus::{Autofocus, Select};
-use crate::input_trace::{self, Shown};
-use crate::prim::text_field::{self, Field, Opening};
 use crate::{Builder, NodeUi as _, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -26,8 +24,6 @@ enum Part {
     Box,
     Header,
     Label,
-    Readout,
-    Field,
     Track,
     Thumb,
 }
@@ -66,10 +62,6 @@ pub struct SliderChain<'a, 'f, A> {
     edits: Edits<A>,
     autofocus: Autofocus,
 }
-
-type Format = Rc<dyn Fn(f64) -> String>;
-type Parse = Rc<dyn Fn(&str) -> Option<f64>>;
-type Set<A> = Rc<dyn Fn(&mut A, f64)>;
 
 /// What a slider says above its track.
 #[derive(Clone, Default)]
@@ -501,8 +493,6 @@ impl Header {
     }
 }
 
-const MIN_READOUT: f32 = 48.0;
-
 /// The row above the track.
 struct Row {
     header: Header,
@@ -517,21 +507,6 @@ struct Row {
     size: Size,
 }
 
-/// Where a click on the readout puts the field's caret: where it landed.
-/// The keyboard opens it with the whole value selected, as Tab does.
-fn opening_of(ui: &Ui, response: &egui::Response, shown: &str) -> Opening {
-    let at = response
-        .interact_pointer_pos()
-        .filter(|_| response.clicked_by(egui::PointerButton::Primary));
-    let Some(at) = at else {
-        return Opening::All;
-    };
-    let style = crate::draw::node_text(ui);
-    let leaf = crate::measure::TextLeaf::plain(ui.ctx(), shown, &style);
-    let galley = ui.ctx().fonts_mut(|fonts| leaf.editing_galley(fonts, None));
-    Opening::Caret(galley.cursor_from_pos(at - response.rect.min))
-}
-
 impl Row {
     fn show<A: 'static>(self, b: &mut Builder<'_, '_, A>, set: Set<A>, edits: Edits<A>) {
         let Self {
@@ -539,7 +514,7 @@ impl Row {
             value,
             step,
             range,
-            typed: reach,
+            typed,
             name,
             enablement,
             colors: (label, readout),
@@ -548,20 +523,12 @@ impl Row {
         } = self;
         let style = b.style().clone();
         let input = *style.input.sizes.lookup(b.ctx(), size);
-        let border = style.input.look.border_width;
         let row = tw().flex().items_center().justify_between().w_full();
         let row = if header.parse.is_some() {
             row.min_h_px(input.height)
         } else {
             row
         };
-        let shown = header.readout.as_ref().map_or_else(
-            || format!("{value:.*}", step.decimals()),
-            |format| format(value),
-        );
-        let editing = b.id_of(Part::Readout).with("editing");
-        let session = Session::of(editing);
-        let typed = session.typed(b.ctx());
         b.div_id(Part::Header, row, |b| {
             match &header.label {
                 Some(label_text) => {
@@ -573,111 +540,21 @@ impl Row {
             if header.readout.is_none() && header.parse.is_none() {
                 return;
             }
-            let classes = painted(text.clone(), readout).tabular_nums().shrink_0();
-            let Some(parse) = header.parse else {
-                b.div_id(Part::Readout, classes, |b| b.text(tw(), shown));
-                return;
-            };
-            let accept = move |text: &str| {
-                parse(text).map(|number| step.snap_from(range.start(), reach.clamp(number), reach))
-            };
-            match typed {
-                None => {
-                    let classes = enablement.apply(classes.sense_click(), &style);
-                    let label = format!("Edit {name}");
-                    let current = shown.clone();
-                    let open_edits = edits.clone();
-                    b.div_id(Part::Readout, classes, |b| b.text(tw(), shown))
-                        .announces(Role::Button)
-                        .draw(move |app, ui| {
-                            let response = described(ui, Role::Button, None, label.trim(), &None);
-                            let opened = response.clicked().then(|| {
-                                let width = response.rect.width();
-                                let opening = opening_of(ui, &response, &current);
-                                session.open(app, ui.ctx(), &current, &open_edits);
-                                ui.data_mut(|data| {
-                                    data.insert_temp(editing.with("width"), width);
-                                    data.insert_temp(editing.with("opening"), opening);
-                                });
-                                opening
-                            });
-                            let decision = match opened {
-                                Some(Opening::All) => "open, select all",
-                                Some(Opening::Caret(_) | Opening::Kept) => "open, caret",
-                                None => "none",
-                            };
-                            input_trace::pointer(
-                                ui,
-                                editing,
-                                label.trim(),
-                                Shown::Text,
-                                &response,
-                                decision,
-                            );
-                        });
-                }
-                Some(_) => {
-                    let field = Field::singleline("").sized(size).inset();
-                    let measured = field.clone();
-                    let slot = b.slot(&Part::Readout);
-                    let shown_width = b
-                        .ctx()
-                        .data(|data| data.get_temp::<f32>(editing.with("width")))
-                        .unwrap_or(0.0);
-                    let outset = input.padding.x + border;
-                    let width = shown_width.max(MIN_READOUT) + 2.0 * outset;
-                    // The box grows past the row's edge so its text stays where the readout drew it.
-                    FieldBoxChain::new(b.reborrow(), slot)
-                        .size(size)
-                        .classes(
-                            tw().w_px(width)
-                                .mr(-outset / 4.0)
-                                .px(0.0)
-                                .shrink_0()
-                                .tabular_nums(),
-                        )
-                        .children(|s| {
-                            let leaf = tw().w_full().h_full().text_right();
-                            s.leaf(Part::Field, leaf, move |m| {
-                                text_field::measure(m, &measured)
-                            })
-                            .draw_widgets(move |app, ui| {
-                                let mut text = session.typed(ui.ctx()).unwrap_or_default();
-                                let response = text_field::show(ui, &mut text, &field);
-                                Autofocus::OnAppear(Select::None).apply(ui.ctx(), &response);
-                                let opening = response.gained_focus().then(|| {
-                                    ui.data(|data| data.get_temp(editing.with("opening")))
-                                        .unwrap_or(Opening::All)
-                                });
-                                let decision =
-                                    text_field::select_number(ui, &response, &text, opening);
-                                if input_trace::enabled() {
-                                    let label = format!("Edit {name}");
-                                    input_trace::pointer(
-                                        ui,
-                                        editing,
-                                        label.trim(),
-                                        Shown::Field,
-                                        &response,
-                                        decision,
-                                    );
-                                }
-                                if response.changed() {
-                                    session.keep(ui.ctx(), &text);
-                                }
-                                if response.lost_focus() {
-                                    session.close(
-                                        app,
-                                        ui,
-                                        (&text, value),
-                                        &accept,
-                                        (&edits, &*set),
-                                    );
-                                }
-                            });
-                        });
-                }
+            Readout {
+                value,
+                format: header.readout,
+                parse: header.parse,
+                step,
+                origin: range.start(),
+                reach: typed,
+                name,
+                enablement,
+                text,
+                paint: Some(readout),
+                size,
+                describes: None,
             }
+            .show(b, set, edits);
         });
     }
 }

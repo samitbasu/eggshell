@@ -3,14 +3,14 @@
 
 use std::sync::Arc;
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, FontStyle, Span, Spans, Style, Weight, tw};
 use egui::epaint::Shape;
 use egui::{
     Color32, CursorIcon, Event, FontFamily, Galley, OutputCommand, Pos2, Rect, Theme, pos2, vec2,
 };
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, drag, hover_over, press_and_release, rect_of};
+use crate::support::{self, press_and_release};
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -84,8 +84,8 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(select: Select) -> Harness<'static, Rig<App>> {
-    let mut harness = support::harness(
+fn driver(select: Select) -> Driver<App> {
+    let mut d = support::driver(
         vec2(520.0, 300.0),
         common::base_text(Theme::Light),
         App {
@@ -93,36 +93,45 @@ fn harness(select: Select) -> Harness<'static, Rig<App>> {
             ..App::default()
         },
         view,
-    );
-    harness.run_steps(4);
-    harness
+    )
+    .build();
+    d.frames(4);
+    d
 }
 
 /// The screen rect of `part` within the paragraph, which must sit on one row.
-fn rect_of_part(harness: &Harness<'_, Rig<App>>, part: &str) -> Rect {
-    support::part_rect(harness, &sample_text(), part)
+fn rect_of_part(d: &Driver<App>, part: &str) -> Rect {
+    d.painted()
+        .expect(&sample_text())
+        .part_rect(part)
+        .expect("the part is on one row")
 }
 
-fn galley_of(harness: &Harness<'_, Rig<App>>, text: &str) -> (Arc<Galley>, Pos2) {
-    support::galley_of(harness, text)
+fn galley_of(d: &Driver<App>, text: &str) -> (Arc<Galley>, Pos2) {
+    let shown = d.painted().expect(text);
+    let galley = shown.galley();
+    (
+        Arc::new(galley.clone()),
+        shown.rect().min - galley.rect.min.to_vec2(),
+    )
 }
 
 #[test]
 fn the_spans_are_one_galley_with_a_section_per_span() {
-    let harness = harness(Select::Auto);
-    let (galley, _) = galley_of(&harness, &sample_text());
+    let d = driver(Select::Auto);
+    let galley = d.painted().expect(&sample_text()).galley().clone();
     assert_eq!(galley.job.sections.len(), sample().len());
 }
 
 #[test]
 fn a_span_weight_draws_the_face_of_its_weight() {
-    let harness = harness(Select::Auto);
+    let d = driver(Select::Auto);
     let bold = FontFamily::Name(format!("Geist/{}", Weight::Bold.number()).into());
     assert!(
-        harness.ctx.fonts(|fonts| fonts.families().contains(&bold)),
+        d.ctx().fonts(|fonts| fonts.families().contains(&bold)),
         "precondition: the preset registered Geist Bold"
     );
-    let (galley, _) = galley_of(&harness, &sample_text());
+    let galley = d.painted().expect(&sample_text()).galley().clone();
     assert_eq!(support::section_of(&galley, BOLD).font_id.family, bold);
     assert_eq!(
         support::section_of(&galley, "Read").font_id.family,
@@ -133,17 +142,17 @@ fn a_span_weight_draws_the_face_of_its_weight() {
 
 #[test]
 fn a_link_takes_the_style_link_colour() {
-    let harness = harness(Select::Auto);
-    let (galley, _) = galley_of(&harness, &sample_text());
-    let link = Style::of(&harness.ctx).rich.link;
+    let d = driver(Select::Auto);
+    let galley = d.painted().expect(&sample_text()).galley().clone();
+    let link = Style::of(d.ctx()).rich.link;
     assert_eq!(support::section_of(&galley, LINK).color, link);
     assert_ne!(support::section_of(&galley, "Read").color, link);
 }
 
 /// The code tint painted over `glyphs`.
-fn tint_over(harness: &Harness<'_, Rig<App>>, glyphs: Rect) -> egui::epaint::RectShape {
-    let fill = Style::of(&harness.ctx).rich.code.fill;
-    support::shapes(harness)
+fn tint_over(d: &Driver<App>, glyphs: Rect) -> egui::epaint::RectShape {
+    let fill = Style::of(d.ctx()).rich.code.fill;
+    support::shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Rect(rect) if rect.fill == fill && rect.rect.intersects(glyphs) => {
@@ -156,16 +165,16 @@ fn tint_over(harness: &Harness<'_, Rig<App>>, glyphs: Rect) -> egui::epaint::Rec
 
 #[test]
 fn inline_code_is_monospace_on_a_rounded_tint_behind_its_glyphs() {
-    let harness = harness(Select::Auto);
-    let (galley, _) = galley_of(&harness, &sample_text());
+    let d = driver(Select::Auto);
+    let galley = d.painted().expect(&sample_text()).galley().clone();
     assert_eq!(
         support::section_of(&galley, CODE).font_id.family,
         FontFamily::Monospace
     );
-    let glyphs = rect_of_part(&harness, CODE);
-    let fill = Style::of(&harness.ctx).rich.code.fill;
+    let glyphs = rect_of_part(&d, CODE);
+    let fill = Style::of(d.ctx()).rich.code.fill;
     assert_ne!(fill, Color32::TRANSPARENT, "precondition: code has a tint");
-    let tint = tint_over(&harness, glyphs);
+    let tint = tint_over(&d, glyphs);
     assert!(
         tint.rect.min.x <= glyphs.min.x + 0.5
             && tint.rect.max.x >= glyphs.max.x - 0.5
@@ -182,8 +191,8 @@ fn inline_code_is_monospace_on_a_rounded_tint_behind_its_glyphs() {
 
 /// The screen rect of every glyph of the paragraph, in order; the paragraph
 /// has no line breaks.
-fn glyph_rects(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
-    let (galley, at) = galley_of(harness, &sample_text());
+fn glyph_rects(d: &Driver<App>) -> Vec<Rect> {
+    let (galley, at) = galley_of(d, &sample_text());
     galley
         .rows
         .iter()
@@ -201,9 +210,9 @@ fn glyph_rects(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
 
 #[test]
 fn the_code_tint_does_not_cover_its_neighbours() {
-    let harness = harness(Select::Auto);
+    let d = driver(Select::Auto);
     let text = sample_text();
-    let glyphs = glyph_rects(&harness);
+    let glyphs = glyph_rects(&d);
     assert_eq!(
         glyphs.len(),
         text.chars().count(),
@@ -213,7 +222,7 @@ fn the_code_tint_does_not_cover_its_neighbours() {
         .chars()
         .count();
     let (before, after) = (glyphs[first - 1], glyphs[first + CODE.chars().count()]);
-    let tint = tint_over(&harness, rect_of_part(&harness, CODE)).rect;
+    let tint = tint_over(&d, rect_of_part(&d, CODE)).rect;
     assert!(
         tint.min.x >= before.max.x - 0.5,
         "the tint {tint:?} starts after the glyph before it, {before:?}"
@@ -226,89 +235,84 @@ fn the_code_tint_does_not_cover_its_neighbours() {
 
 #[test]
 fn clicking_an_internal_link_calls_on_link_with_its_href() {
-    let mut harness = harness(Select::Auto);
-    let link = rect_of_part(&harness, LINK);
-    press_and_release(&mut harness, link.center());
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.followed, vec![HREF.to_owned()]);
+    let mut d = driver(Select::Auto);
+    let link = rect_of_part(&d, LINK);
+    press_and_release(&mut d, link.center());
+    d.frames(2);
+    assert_eq!(d.app().followed, vec![HREF.to_owned()]);
     assert!(
-        support::opened_urls(&harness).is_empty(),
+        support::opened_urls(&d).is_empty(),
         "an internal link opens nothing"
     );
 }
 
 #[test]
 fn clicking_an_external_link_opens_the_url_and_not_on_link() {
-    let mut harness = harness(Select::Auto);
-    let link = rect_of_part(&harness, EXTERNAL);
-    hover_over(&mut harness, link.center());
+    let mut d = driver(Select::Auto);
+    let link = rect_of_part(&d, EXTERNAL);
+    d.hover(link.center());
     let mut opened = Vec::new();
     for pressed in [true, false] {
-        harness.event(Event::PointerButton {
+        d.event(Event::PointerButton {
             pos: link.center(),
             button: egui::PointerButton::Primary,
             pressed,
             modifiers: egui::Modifiers::NONE,
         });
-        harness.step();
-        opened.extend(support::opened_urls(&harness));
+        opened.extend(support::opened_urls(&d));
     }
-    harness.run_steps(2);
+    d.frames(2);
     assert_eq!(opened, vec![URL.to_owned()]);
-    assert!(harness.state().app.followed.is_empty());
+    assert!(d.app().followed.is_empty());
 }
 
 #[test]
 fn clicking_beside_a_link_follows_nothing() {
-    let mut harness = harness(Select::Auto);
-    let plain = rect_of_part(&harness, "Read");
-    press_and_release(&mut harness, plain.center());
-    harness.run_steps(2);
-    assert!(harness.state().app.followed.is_empty());
+    let mut d = driver(Select::Auto);
+    let plain = rect_of_part(&d, "Read");
+    press_and_release(&mut d, plain.center());
+    d.frames(2);
+    assert!(d.app().followed.is_empty());
 }
 
 #[test]
 fn a_link_in_unselectable_text_still_follows() {
-    let mut harness = harness(Select::None);
-    let link = rect_of_part(&harness, LINK);
-    press_and_release(&mut harness, link.center());
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.followed, vec![HREF.to_owned()]);
+    let mut d = driver(Select::None);
+    let link = rect_of_part(&d, LINK);
+    press_and_release(&mut d, link.center());
+    d.frames(2);
+    assert_eq!(d.app().followed, vec![HREF.to_owned()]);
 }
 
 #[test]
 fn hovering_a_link_shows_the_pointing_hand() {
-    let mut harness = harness(Select::Auto);
-    let (link, plain) = (rect_of_part(&harness, LINK), rect_of_part(&harness, "Read"));
-    hover_over(&mut harness, link.center());
+    let mut d = driver(Select::Auto);
+    let (link, plain) = (rect_of_part(&d, LINK), rect_of_part(&d, "Read"));
+    d.hover(link.center());
     assert_eq!(
-        harness.output().platform_output.cursor_icon,
+        d.harness().output().platform_output.cursor_icon,
         CursorIcon::PointingHand
     );
-    hover_over(&mut harness, plain.center());
+    d.hover(plain.center());
     assert_ne!(
-        harness.output().platform_output.cursor_icon,
+        d.harness().output().platform_output.cursor_icon,
         CursorIcon::PointingHand
     );
 }
 
 #[test]
 fn dragging_from_a_link_selects_and_copies_the_plain_text() {
-    let mut harness = harness(Select::Auto);
-    let link = rect_of_part(&harness, LINK);
-    let paragraph = rect_of(&harness, "/\"para\"");
-    drag(
-        &mut harness,
+    let mut d = driver(Select::Auto);
+    let link = rect_of_part(&d, LINK);
+    let paragraph = d.rect(Target::suffix("/\"para\""));
+    d.drag(
         pos2(link.min.x + 1.0, link.center().y),
         pos2(paragraph.max.x - 1.0, link.center().y),
     );
-    assert!(
-        harness.state().app.followed.is_empty(),
-        "a drag is not a click"
-    );
-    harness.event(Event::Copy);
-    harness.step();
-    let copied = harness
+    assert!(d.app().followed.is_empty(), "a drag is not a click");
+    d.event(Event::Copy);
+    let copied = d
+        .harness()
         .output()
         .platform_output
         .commands
@@ -326,10 +330,10 @@ fn dragging_from_a_link_selects_and_copies_the_plain_text() {
 
 #[test]
 fn a_single_span_wraps_exactly_as_plain_text() {
-    let harness = harness(Select::Auto);
+    let d = driver(Select::Auto);
     let (spans, plain) = (
-        rect_of(&harness, "/\"spans\""),
-        rect_of(&harness, "/\"plain\""),
+        d.rect(Target::suffix("/\"spans\"")),
+        d.rect(Target::suffix("/\"plain\"")),
     );
     let line = common::base_text(Theme::Light).spec.line_height;
     assert!(spans.height() > 2.0 * line, "precondition: the text wraps");
@@ -338,25 +342,25 @@ fn a_single_span_wraps_exactly_as_plain_text() {
 
 #[test]
 fn the_example_width_slider_reflows_its_paragraphs() {
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(720.0, 600.0),
         common::base_text(Theme::Light),
         rich_text::State::default(),
         rich_text::layout,
-    );
-    harness.run_steps(4);
-    let paragraph =
-        |harness: &Harness<'_, Rig<rich_text::State>>| rect_of(harness, "/Article/Wrapping");
-    let before = paragraph(&harness);
-    let slider = rect_of(&harness, "/Width/Track");
-    press_and_release(&mut harness, pos2(slider.min.x + 1.0, slider.center().y));
-    harness.run_steps(3);
-    let width = harness.state().app.width;
+    )
+    .build();
+    d.frames(4);
+    let paragraph = |d: &Driver<rich_text::State>| d.rect(Target::suffix("/Article/Wrapping"));
+    let before = paragraph(&d);
+    let slider = d.rect(Target::suffix("/Width/Track"));
+    press_and_release(&mut d, pos2(slider.min.x + 1.0, slider.center().y));
+    d.frames(3);
+    let width = d.app().width;
     assert!(
         width < before.width() / 2.0,
         "pressing the track's start narrows the article, to {width}"
     );
-    let after = paragraph(&harness);
+    let after = paragraph(&d);
     assert!(
         (after.width() - width).abs() < 0.5,
         "{after:?} is {width} wide"

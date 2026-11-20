@@ -2,12 +2,12 @@
 //! frame, labels included, keeps its rectangle. Driven by real clicks, in both
 //! themes.
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Rect, Theme, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node};
+use crate::support;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 enum Unit {
@@ -42,25 +42,24 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(theme: Theme) -> Harness<'static, Rig<App>> {
+fn harness(theme: Theme) -> Driver<App> {
     let tokens = Tokens::for_theme(theme);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(500.0, 600.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
-    );
-    harness.ctx.set_theme(theme);
-    harness.run_steps(12);
-    harness
+    )
+    .build();
+    d.ctx().set_theme(theme);
+    d.frames(12);
+    d
 }
 
 /// The boxes and labels of the frame; the glyphs a state adds or removes come
 /// and go and are not part of the layout.
-fn nodes(harness: &Harness<'_, Rig<App>>) -> Vec<(String, Rect)> {
-    harness
-        .state()
-        .nodes
+fn nodes(d: &Driver<App>) -> Vec<(String, Rect)> {
+    support::nodes(d)
         .iter()
         .filter(|(path, _)| !path.ends_with("/<paint>") && !path.ends_with("/<glyph>"))
         .cloned()
@@ -109,19 +108,18 @@ const FLIPS: [Flip; 6] = [
 #[test]
 fn changing_a_widgets_state_moves_no_node() {
     for theme in [Theme::Light, Theme::Dark] {
-        let mut harness = harness(theme);
-        assert!(!nodes(&harness).is_empty(), "precondition: nodes exist");
+        let mut d = harness(theme);
+        assert!(!nodes(&d).is_empty(), "precondition: nodes exist");
         for flip in &FLIPS {
-            let before = nodes(&harness);
-            click_node(&mut harness, flip.click);
-            harness.run_steps(30);
+            let before = nodes(&d);
+            d.click(Target::suffix(flip.click)).frames(30);
             assert!(
-                (flip.changed)(&harness.state().app),
+                (flip.changed)(d.app()),
                 "precondition: clicking the {} changes it ({theme:?})",
                 flip.widget
             );
             assert_eq!(
-                nodes(&harness),
+                nodes(&d),
                 before,
                 "{} moved something in {theme:?}",
                 flip.widget

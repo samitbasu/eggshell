@@ -3,11 +3,11 @@
 
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::owned::Mark;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node, rect_of};
+use crate::support;
 
 #[derive(Default)]
 struct App {
@@ -53,18 +53,17 @@ fn offset_12(ctx: &egui::Context, _: &App) {
     style.install(ctx);
 }
 
-fn harness(app: App, prepare: fn(&egui::Context, &App)) -> Harness<'static, Rig<App>> {
-    let mut harness =
-        support::harness_prepared(vec2(400.0, 300.0), base_text(), app, view, prepare);
-    harness.run_steps(4);
-    harness
+fn harness(app: App, prepare: fn(&egui::Context, &App)) -> Driver<App> {
+    let mut d =
+        support::prepared_driver(vec2(400.0, 300.0), base_text(), app, view, prepare).build();
+    d.frames(4);
+    d
 }
 
-fn gap_below(harness: &mut Harness<'_, Rig<App>>, trigger: &str, list: &str) -> f32 {
-    click_node(harness, trigger);
-    harness.run_steps(5);
-    let trigger = rect_of(harness, trigger);
-    let list = rect_of(harness, list);
+fn gap_below(d: &mut Driver<App>, trigger: &str, list: &str) -> f32 {
+    d.click(Target::suffix(trigger)).frames(5);
+    let trigger = d.rect(Target::suffix(trigger));
+    let list = d.rect(Target::suffix(list));
     assert!(list.min.y > trigger.min.y, "precondition: it opened below");
     list.min.y - trigger.max.y
 }
@@ -76,18 +75,18 @@ const LIST: &str = r#"/("pick", List)/Box"#;
 
 #[test]
 fn by_default_both_open_four_points_below_their_trigger() {
-    let mut harness = harness(App::default(), |_, _| {});
-    assert_eq!(gap_below(&mut harness, FILE, MENU).round(), 4.0);
-    let mut harness = self::harness(App::default(), |_, _| {});
-    assert_eq!(gap_below(&mut harness, PICK, LIST).round(), 4.0);
+    let mut d = harness(App::default(), |_, _| {});
+    assert_eq!(gap_below(&mut d, FILE, MENU).round(), 4.0);
+    let mut d = self::harness(App::default(), |_, _| {});
+    assert_eq!(gap_below(&mut d, PICK, LIST).round(), 4.0);
 }
 
 #[test]
 fn the_style_offset_sets_the_gap_of_the_dropdown_and_the_select_list() {
-    let mut harness = harness(App::default(), offset_12);
-    assert_eq!(gap_below(&mut harness, FILE, MENU).round(), 12.0);
-    let mut harness = self::harness(App::default(), offset_12);
-    assert_eq!(gap_below(&mut harness, PICK, LIST).round(), 12.0);
+    let mut d = harness(App::default(), offset_12);
+    assert_eq!(gap_below(&mut d, FILE, MENU).round(), 12.0);
+    let mut d = self::harness(App::default(), offset_12);
+    assert_eq!(gap_below(&mut d, PICK, LIST).round(), 12.0);
 }
 
 #[test]
@@ -95,8 +94,8 @@ fn a_per_call_offset_wins_over_the_style() {
     let app = || App {
         per_call: Some(Distance::new(20.0)),
     };
-    let mut harness = harness(app(), offset_12);
-    assert_eq!(gap_below(&mut harness, FILE, MENU).round(), 20.0);
-    let mut harness = self::harness(app(), offset_12);
-    assert_eq!(gap_below(&mut harness, PICK, LIST).round(), 20.0);
+    let mut d = harness(app(), offset_12);
+    assert_eq!(gap_below(&mut d, FILE, MENU).round(), 20.0);
+    let mut d = self::harness(app(), offset_12);
+    assert_eq!(gap_below(&mut d, PICK, LIST).round(), 20.0);
 }
