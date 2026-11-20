@@ -239,17 +239,9 @@ pub fn full_motion(ctx: &egui::Context) {
     }
 }
 
-/// Whether a rig runs with the style's animation time at zero.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ReducedMotion {
-    No,
-    Yes,
-}
-
 pub struct Rig<A> {
     pub page: Page,
     pub companion: Companion,
-    pub reduced_motion: ReducedMotion,
     pub bar: Bar,
     pub layout: LayoutState,
     pub app: A,
@@ -317,7 +309,6 @@ fn harness_timed<A>(
     let rig = Rig {
         page: Page::default(),
         companion: Companion::default(),
-        reduced_motion: ReducedMotion::No,
         bar: Bar::new(base_text.clone()),
         layout: LayoutState::new().with_base_text(base_text),
         app,
@@ -337,7 +328,6 @@ fn harness_timed<A>(
                 let Rig {
                     page,
                     companion,
-                    reduced_motion,
                     bar,
                     layout,
                     app,
@@ -346,9 +336,7 @@ fn harness_timed<A>(
                     nodes,
                     ids,
                 } = rig;
-                if *reduced_motion == ReducedMotion::No {
-                    full_motion(ui.ctx());
-                }
+                full_motion(ui.ctx());
                 if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                     eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
                 }
