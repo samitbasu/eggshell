@@ -9,16 +9,17 @@ repository = "https://github.com/samitbasu/eggshell"
 
 [features]
 # Each widget is opt-in.
-markdown = ["dep:pulldown-cmark"]
-hover-card = []
-badge = []
-form = []
-spinner = []
-disclosure = []
+# keep sorted
 accordion = ["disclosure"]
-skeleton = []
+badge = []
 command = ["dep:unicode-normalization"]
+disclosure = []
+form = []
+hover-card = []
+markdown = ["dep:pulldown-cmark"]
 notify = []
+skeleton = []
+spinner = []
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }
