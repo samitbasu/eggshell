@@ -326,7 +326,14 @@ impl Shadcn {
                     text: t.foreground,
                 }
             },
-            flat(clear, t.muted_foreground),
+            flat(
+                clear,
+                if dark {
+                    t.muted_foreground
+                } else {
+                    t.foreground.gamma_multiply(0.6)
+                },
+            ),
         );
         let input_rest = Colors {
             fill: self.input_fill(),
@@ -448,20 +455,31 @@ impl Shadcn {
             switch
         };
         style.segmented = {
+            const CELL_TRIM: f32 = 1.0;
             let mut segmented = style.segmented;
             segmented.text = Some(t.text_role_at(t.control_weight));
+            // The one exception to tabs.tsx, whose list is `bg-muted`: on a
+            // `muted` panel that fill is the panel's own colour and the track
+            // disappears, so the list keeps `input` (the user's pick, #346).
+            // Revisit once a cascade can give a track on a muted surface its
+            // own fill (#443).
             segmented.track_fill = t.input;
             let track_at = |height: f32, padding_x: f32, icon: f32, text| SegmentedMetrics {
                 track_radius: t.radius,
                 track_padding: t.list_padding,
                 height,
                 cell_radius: t.radius_md(),
-                cell_padding: vec2(padding_x, t.cell_padding.y),
+                // tabs.tsx, trigger: `px-2 py-1` in a box 1 px shorter than
+                // the list's inside, which overflows its `text-sm` by 1 px;
+                // the trimmed point comes out of the padding instead.
+                cell_padding: vec2(padding_x, t.cell_padding.y - CELL_TRIM / 2.0),
                 column_gap: 0.0,
                 row_gap: 2.0,
                 icon_size: icon,
                 icon_gap: 6.0,
                 text,
+                // tabs.tsx, trigger: `h-[calc(100%-1px)]`.
+                cell_trim: CELL_TRIM,
             };
             segmented.sizes = Keyed::new(
                 Size::DEFAULT,
@@ -485,7 +503,16 @@ impl Shadcn {
                 Paint::new(States::still(selected_cell, t.muted)),
                 t.shadow_sm,
             );
-            segmented.unselected = Paint::new(States::still(released_cell, t.muted));
+            // tabs.tsx, trigger: `text-foreground/60 hover:text-foreground`,
+            // `dark:text-muted-foreground dark:hover:text-foreground`.
+            segmented.unselected = Paint::new(States::new(
+                released_cell,
+                Colors {
+                    text: t.foreground,
+                    ..released_cell
+                },
+                t.muted,
+            ));
             segmented.transition = transition;
             segmented
         };

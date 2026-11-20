@@ -559,8 +559,14 @@ pub fn turn(mesh: &egui::epaint::Mesh) -> f32 {
     edge.y.atan2(edge.x).to_degrees().rem_euclid(360.0)
 }
 
+/// Whether `a` and `b` are one rect, each edge within the half point a
+/// drawn rect is rounded by.
 pub fn same(a: Rect, b: Rect) -> bool {
-    (a.min - b.min).length() < 0.6 && (a.max - b.max).length() < 0.6
+    let near = |a: f32, b: f32| (a - b).abs() < 0.55;
+    near(a.min.x, b.min.x)
+        && near(a.min.y, b.min.y)
+        && near(a.max.x, b.max.x)
+        && near(a.max.y, b.max.y)
 }
 
 /// The last box painted over exactly `rect`, ring excluded.

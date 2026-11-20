@@ -579,6 +579,9 @@ pub struct SegmentedMetrics {
     pub icon_gap: f32,
     /// The cells' text size, or `None` for the text role's own.
     pub text: Option<TextSize>,
+    /// How much shorter than the inside of a track a cell is, split above
+    /// and below it; zero fills it.
+    pub cell_trim: f32,
 }
 
 /// Segmented controls: a track of cells, one of them selected.
@@ -1699,6 +1702,7 @@ impl Style {
                         icon_size: metrics.glyph,
                         icon_gap: s.icon_spacing,
                         text: None,
+                        cell_trim: 0.0,
                     },
                 ),
                 text: None,

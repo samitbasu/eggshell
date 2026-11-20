@@ -368,7 +368,12 @@ fn the_shadcn_segmented_style_raises_exactly_the_selected_cell() {
     let track = d.rect(Target::suffix("/\"units\""));
     assert_eq!(track.height(), 36.0, "h-9");
     let metric = d.rect(Target::suffix("/\"units\"/0"));
-    assert_eq!(metric.top() - track.top(), 3.0, "p-[3px]");
+    assert_eq!(
+        metric.top() - track.top(),
+        3.5,
+        "p-[3px], and the trigger's h-[calc(100%-1px)] centred"
+    );
+    assert_eq!(metric.height(), 29.0, "h-[calc(100%-1px)]");
     assert_eq!(
         track.right() - d.rect(Target::suffix("/\"units\"/2")).right(),
         3.0
