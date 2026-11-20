@@ -449,6 +449,7 @@ pub(crate) fn show<'f, A: 'static>(
                 Part::Results,
                 tw().h_px(height)
                     .p(style.menu.padding / 4.0)
+                    .scroll_py(1.0)
                     .scrollbar_none(),
                 rows,
             )
