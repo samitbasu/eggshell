@@ -50,6 +50,7 @@ mod number_field;
 pub(crate) mod options;
 mod progress;
 mod radio;
+mod readout;
 mod segmented;
 mod select;
 mod slider;
@@ -81,6 +82,7 @@ pub(crate) use options::Gate;
 pub use options::IntoTip;
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
+pub use readout::NumberChain;
 pub use segmented::{Cell, SegmentedChain, SegmentedRows};
 pub use select::SelectChain;
 pub use slider::SliderChain;
@@ -89,7 +91,7 @@ pub use splitter::{PaneSize, SplitterChain, SplitterStart};
 pub use stepper::StepperChain;
 pub use switch::SwitchChain;
 pub use table::{
-    Align, Cells, Column, Rows, Selectable, Selected, Stripes, TableChain, Unselectable,
+    Align, Cells, Column, Rows, RowsChain, Selectable, Selected, Stripes, TableChain, Unselectable,
 };
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};

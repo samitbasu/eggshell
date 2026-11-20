@@ -156,11 +156,12 @@ pub(crate) fn settle(ctx: &Context, kept: &Handle, nodes: &Nodes) -> HashSet<Id>
         .iter()
         .flat_map(|group| {
             let stop = group.stop(focused);
+            let roving = !matches!(group.group.nav, Nav::Column(_));
             group
                 .items
                 .iter()
                 .map(|item| item.id)
-                .filter(move |&id| Some(id) != stop)
+                .filter(move |&id| roving && Some(id) != stop)
         })
         .collect()
 }
