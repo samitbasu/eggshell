@@ -817,7 +817,7 @@ mod accents {
                 "the example's accent is blue"
             );
             let meter = d.rect(Target::suffix(
-                "/Frame/Details/\"Context\"/Fold(\"Context\")/Group/Row(\"Context window\")/Meter",
+                "/Frame/Details/\"Context\"/Region/Group/Row(\"Context window\")/Meter",
             ));
             assert!(meter.is_positive(), "precondition: the meter is laid out");
             assert!(
@@ -863,11 +863,11 @@ mod grouped_form {
             d.frames(3);
             let line = Theme::of(d.ctx())[Tok::Line];
             let group = d.rect(Target::suffix(
-                "/Frame/Details/\"Environment\"/Fold(\"Environment\")/Group",
+                "/Frame/Details/\"Environment\"/Region/Group",
             ));
             let rows = ["Branch", "Runtime", "Model"].map(|label| {
                 d.rect(Target::suffix(&format!(
-                    "/Frame/Details/\"Environment\"/Fold(\"Environment\")/Group/Row(\"{label}\")"
+                    "/Frame/Details/\"Environment\"/Region/Group/Row(\"{label}\")"
                 )))
             });
             assert!(
@@ -1231,8 +1231,8 @@ mod long_conversation {
 mod folding {
     use super::*;
 
-    const HEAD: &str = "/Frame/Details/\"Changes\"/Head(\"Changes\")";
-    const FOLD: &str = "/Frame/Details/\"Changes\"/Fold(\"Changes\")";
+    const HEAD: &str = "/Frame/Details/\"Changes\"/Header";
+    const FOLD: &str = "/Frame/Details/\"Changes\"/Region";
     const NEXT: &str = "/Frame/Details/\"Background tasks\"";
 
     #[test]

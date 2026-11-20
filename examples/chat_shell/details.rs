@@ -2,9 +2,9 @@
 
 use eggshell_ui::overlay::Shown;
 use eggshell_ui::{Builder, Scope, Tw, tw};
+use eggshell_ui_extras::disclosure::SectionExt;
 use egui::Color32;
 
-use super::common;
 use super::state::{App, MODELS, Pane};
 use super::theme::{Role, Theme, Tok};
 use super::view::Part;
@@ -66,50 +66,34 @@ fn section<'f>(
     title: &'static str,
     rows: impl FnOnce(&mut S<'_, 'f>),
 ) {
-    let open = !app.is_folded(title);
-    b.div_id(title, tw().flex().flex_col(), |b| {
-        b.collapsible(Part::Fold(title), Shown::from(open))
-            .children_with_header(
-                |b, progress| {
-                    b.div_id(
-                        Part::Head(title),
-                        tw().sense_click()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .role(k[Role::Meta].clone())
-                            .text(k[Tok::InkDim])
-                            .uppercase()
-                            .pb(2.0),
-                        |b| {
-                            b.text(tw(), title);
-                            b.glyph(
-                                tw().size_px(16.0).shrink_0().text(k[Tok::InkDim]),
-                                common::chevron(progress),
-                            );
-                        },
-                    )
-                    .role(egui::Role::Button)
-                    .named(title)
-                    .expanded(open)
-                    .on_click(move |app: &mut App| app.toggle_section(title));
-                },
-                |b| {
-                    b.div_id(
-                        Part::Group,
-                        tw().flex()
-                            .flex_col()
-                            .border(1.0)
-                            .border_color(k[Tok::Line])
-                            .rounded_lg()
-                            .bg(k[Tok::Ground])
-                            .divide_y(1.0, k[Tok::Line])
-                            .overflow_hidden(),
-                        rows,
-                    );
-                },
+    let (line, ground) = (k[Tok::Line], k[Tok::Ground]);
+    b.section(title, title, Shown::from(!app.is_folded(title)))
+        .classes(
+            tw().items_center()
+                .border(0.0)
+                .py(0.0)
+                .pb(2.0)
+                .role(k[Role::Meta].clone())
+                .text(k[Tok::InkDim])
+                .uppercase()
+                .hover(|paint| paint.no_underline()),
+        )
+        .content(tw().pb(0.0))
+        .on_change(move |app: &mut App, _| app.toggle_section(title))
+        .children(|b| {
+            b.div_id(
+                Part::Group,
+                tw().flex()
+                    .flex_col()
+                    .border(1.0)
+                    .border_color(line)
+                    .rounded_lg()
+                    .bg(ground)
+                    .divide_y(1.0, line)
+                    .overflow_hidden(),
+                rows,
             );
-    });
+        });
 }
 
 /// ```html

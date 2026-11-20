@@ -34,8 +34,6 @@ pub enum Part {
     Field,
     Meter,
     Group,
-    Head(&'static str),
-    Fold(&'static str),
     Row(&'static str),
 }
 
