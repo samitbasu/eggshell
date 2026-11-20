@@ -10,7 +10,7 @@ use eggshell_ui::{Builder, Distance, TextStyle, tw};
 use eggshell_ui_extras::notify::{Dismissed, Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
 use eggshell_ui_shadcn::Tokens;
 use egui::accesskit::{Live, Role};
-use egui::{Key, Rect, Theme, vec2};
+use egui::{Color32, Key, Rect, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -404,4 +404,89 @@ fn a_notice_floats_above_an_open_dialog_and_takes_the_pointer() {
         [(NoticeId::new(1), Dismissed::Closed)]
     );
     assert!(harness.state().app.dialog, "the press was the notice's");
+}
+
+#[test]
+fn the_preset_gives_sonners_notification_look() {
+    use eggshell_ui::Weight;
+    use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
+    let vega = Shadcn::light();
+    let notify = vega.notify(&vega.style());
+    assert_eq!(notify.fill, vega.tokens.popover, "--normal-bg");
+    assert_eq!(notify.border, vega.tokens.border, "--normal-border");
+    assert_eq!(notify.text, vega.tokens.popover_foreground, "--normal-text");
+    assert_eq!(notify.border_width, 1.0);
+    assert_eq!(notify.width, 356.0, "TOAST_WIDTH");
+    assert_eq!(notify.padding, 16.0);
+    assert_eq!(notify.gap, 6.0);
+    assert_eq!(notify.stack_gap, 14.0, "GAP");
+    assert_eq!(notify.visible, 3, "VISIBLE_TOASTS_AMOUNT");
+    assert_eq!(notify.inset, Distance::new(24.0), "VIEWPORT_OFFSET");
+    assert_eq!(notify.radius, 18, "rounded-2xl, 1.8 radii");
+    let shadow = notify.shadow.expect("a shadow");
+    assert_eq!(
+        (shadow.offset, shadow.blur, shadow.spread, shadow.color.a()),
+        ([0, 4], 12, 0, 26),
+        "0 4px 12px rgba(0, 0, 0, 0.1)"
+    );
+    assert_eq!((notify.role.size, notify.role.line_height), (13.0, 19.5));
+    assert_eq!(notify.role.weight, Weight::Medium, "data-title: 500");
+    assert_eq!(
+        notify.action.fill, vega.tokens.popover_foreground,
+        "--normal-text"
+    );
+    assert_eq!(notify.action.text, vega.tokens.popover, "--normal-bg");
+    assert_eq!(
+        (
+            notify.action.height,
+            notify.action.padding_x,
+            notify.action.radius
+        ),
+        (24.0, 8.0, 4)
+    );
+    assert_eq!(
+        (notify.action.role.size, notify.action.role.weight),
+        (12.0, Weight::Medium)
+    );
+    assert_eq!(
+        (notify.close.size, notify.close.outset, notify.close.glyph),
+        (20.0, 7.0, 12.0),
+        "20 pt, moved out 35 %"
+    );
+    assert_eq!(notify.close.border, Color32::from_gray(237), "gray4");
+    assert_eq!(notify.close.hover_fill, Color32::from_gray(248), "gray2");
+    let dark = Shadcn::dark();
+    let notify_dark = dark.notify(&dark.style());
+    assert_eq!(
+        notify_dark.close.border, dark.tokens.border,
+        "--normal-border"
+    );
+    assert_eq!(
+        notify_dark.close.hover_fill,
+        Color32::from_gray(31),
+        "hsl(0 0% 12%)"
+    );
+    let lyra = Shadcn::light().with_style(ShadcnStyle::Lyra);
+    assert_eq!(lyra.notify(&lyra.style()).radius, 0, "rounded-none");
+}
+
+#[test]
+fn a_card_is_the_styles_width_and_a_stack_shows_only_its_newest() {
+    let mut harness = harness(App {
+        notices: (1..=5).map(notice).collect(),
+        ..App::default()
+    });
+    wait(&mut harness, DWELL);
+    let shown = shown(&harness, NOTICES);
+    assert_eq!(shown.len(), 3, "3 visible: {shown:?}");
+    for newest in [5, 4, 3] {
+        let width = rect_of(&harness, &card(NOTICES, newest)).width();
+        assert!((width - 356.0).abs() < 0.5, "356 wide: {width}");
+    }
+    assert!(
+        shown
+            .iter()
+            .all(|path| !path.contains("NoticeId(1)") && !path.contains("NoticeId(2)")),
+        "the oldest two are not shown"
+    );
 }
