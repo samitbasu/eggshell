@@ -430,6 +430,9 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             leading,
             trailing,
         } = self;
+        // shadcn's Input: `min-w-0`, so a field shrinks below egui's
+        // text-edit width rather than out of a narrow row.
+        let classes = tw().min_w_0().merge(classes);
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let size = b.size_of(size);
         let field = field.sized(size);

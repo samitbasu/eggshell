@@ -471,8 +471,7 @@ mod modals {
     #[test]
     fn a_menu_in_a_dialog_does_not_offer_a_page_command_whose_chord_is_dead() {
         let mut d = open_dialog_menu(Cmd::Save);
-        let report =
-            eggshell_ui::testing::assert_reported(d.ctx(), eggshell_ui::Problem::UnknownCommand);
+        let report = d.expect_reported(eggshell_ui::Problem::UnknownCommand);
         assert!(report.message.contains("Save"), "{}", report.message);
         let item = d.harness().get_by_role_and_label(Role::MenuItem, "Save");
         assert!(item.accesskit_node().data().is_disabled());
@@ -851,7 +850,6 @@ mod command_items {
 
 mod validation {
     use eggshell_ui::Problem;
-    use eggshell_ui::testing::{assert_no_reports, assert_reported};
 
     use super::*;
 
@@ -866,12 +864,12 @@ mod validation {
 
     #[test]
     fn two_commands_on_one_chord_are_reported() {
-        let d = declared(|| {
+        let mut d = declared(|| {
             Commands::new()
                 .add(Cmd::Save, Command::new("Save", noop).shortcut(SAVE))
                 .add(Cmd::Copy, Command::new("Copy", noop).shortcut(SAVE))
         });
-        let report = assert_reported(d.ctx(), Problem::DuplicateChord);
+        let report = d.expect_reported(Problem::DuplicateChord);
         assert!(
             report.message.contains("bound to the same chord"),
             "{}",
@@ -881,12 +879,12 @@ mod validation {
 
     #[test]
     fn a_key_added_twice_is_reported() {
-        let d = declared(|| {
+        let mut d = declared(|| {
             Commands::new()
                 .add(Cmd::Save, Command::new("Save", noop))
                 .add(Cmd::Save, Command::new("Save again", noop))
         });
-        let report = assert_reported(d.ctx(), Problem::DuplicateCommand);
+        let report = d.expect_reported(Problem::DuplicateCommand);
         assert!(report.message.contains("added twice"), "{}", report.message);
     }
 
@@ -902,12 +900,11 @@ mod validation {
 
     #[test]
     fn a_valid_table_reports_nothing() {
-        let d = declared(|| {
+        let _d = declared(|| {
             Commands::new()
                 .add(Cmd::Save, Command::new("Save", noop).shortcut(SAVE))
                 .add(Cmd::Copy, Command::new("Copy", noop))
         });
-        assert_no_reports(d.ctx());
     }
 
     #[test]
@@ -917,7 +914,7 @@ mod validation {
             ..App::default()
         });
         d.click(Target::suffix(FILE)).frames(5);
-        let report = assert_reported(d.ctx(), Problem::UnknownCommand);
+        let report = d.expect_reported(Problem::UnknownCommand);
         assert!(report.message.contains("Copy"), "{}", report.message);
         let item = d.harness().get_by_role_and_label(Role::MenuItem, "Copy");
         assert!(item.accesskit_node().data().is_disabled());
@@ -930,7 +927,7 @@ mod validation {
             button: Some(Cmd::Copy),
             ..App::default()
         });
-        let report = assert_reported(d.ctx(), Problem::UnknownCommand);
+        let report = d.expect_reported(Problem::UnknownCommand);
         assert!(report.message.contains("Copy"), "{}", report.message);
         let button = d.harness().get_by_role_and_label(Role::Button, "Run");
         assert!(button.accesskit_node().data().is_disabled());
@@ -941,11 +938,11 @@ mod validation {
 
     #[test]
     fn declaring_commands_twice_in_a_root_is_reported() {
-        let d = harness_of(App {
+        let mut d = harness_of(App {
             twice: true,
             ..App::default()
         });
-        let report = assert_reported(d.ctx(), Problem::CommandsTwice);
+        let report = d.expect_reported(Problem::CommandsTwice);
         assert!(
             report.message.contains("declared twice in one root"),
             "{}",

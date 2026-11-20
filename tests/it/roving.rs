@@ -6,7 +6,6 @@
 use eggshell_ui::overlay::{Nav, Wrap};
 use eggshell_ui::owned::Mark;
 use eggshell_ui::testing::Driver;
-use eggshell_ui::testing::assert_reported;
 use eggshell_ui::{Builder, Problem, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Key, KeyboardShortcut, Modifiers, Role, Theme, vec2};
@@ -297,7 +296,7 @@ fn the_selected_tab_is_announced_as_selected() {
 #[test]
 fn a_listbox_nav_on_a_page_node_is_reported_and_makes_no_group() {
     let mut d = driver(App::new(Nav::Listbox(Wrap::Around), Follows::Focus));
-    assert_reported(d.ctx(), Problem::NavNeedsOverlay);
+    d.expect_reported(Problem::NavNeedsOverlay);
     enter_list(&mut d);
     assert_eq!(focused_path(&d), Some(tab(0)), "every tab is a Tab stop");
     d.press(Key::Tab).frames(3);
