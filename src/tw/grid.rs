@@ -6,7 +6,7 @@ use taffy::style_helpers::{
     TaffyAuto as _, TaffyMaxContent as _, TaffyMinContent as _, flex, fr, length, repeat,
 };
 
-use super::Tw;
+use super::{BoxTw, Tw};
 
 /// One grid track: `48`, `1fr`, `minmax(0, 1fr)`, ...
 ///
@@ -146,56 +146,68 @@ macro_rules! placement {
     )*};
 }
 
+/// The methods of `Tw` that are layout or box paint, once for `Tw` and once for
+/// [`BoxTw`], so that one list names them.
+macro_rules! grid_methods {
+    () => {
+        /// `grid-cols-<count>`: `count` columns of `minmax(0, 1fr)`.
+        pub fn grid_cols(self, count: u16) -> Self {
+            self.styled(|s| *s.grid_template_columns() = even(count))
+        }
+
+        /// `grid-rows-<count>`: `count` rows of `minmax(0, 1fr)`.
+        pub fn grid_rows(self, count: u16) -> Self {
+            self.styled(|s| *s.grid_template_rows() = even(count))
+        }
+
+        /// An arbitrary column track list, as in `grid-cols-[48px_minmax(0,1fr)_...]`.
+        pub fn grid_cols_tracks(self, tracks: &[Track]) -> Self {
+            self.styled(|s| *s.grid_template_columns() = template(tracks))
+        }
+
+        /// An arbitrary row track list.
+        pub fn grid_rows_tracks(self, tracks: &[Track]) -> Self {
+            self.styled(|s| *s.grid_template_rows() = template(tracks))
+        }
+
+        /// `grid-flow-row`: auto-placed items fill rows.
+        pub fn grid_flow_row(self) -> Self {
+            self.styled(|s| *s.grid_auto_flow() = taffy::GridAutoFlow::Row)
+        }
+
+        /// `grid-flow-col`: auto-placed items fill columns.
+        pub fn grid_flow_col(self) -> Self {
+            self.styled(|s| *s.grid_auto_flow() = taffy::GridAutoFlow::Column)
+        }
+
+        /// `grid-flow-dense`: back-fills holes, keeping the flow direction.
+        pub fn grid_flow_dense(self) -> Self {
+            self.styled(|s| {
+                let flow = s.grid_auto_flow();
+                *flow = match *flow {
+                    taffy::GridAutoFlow::Row | taffy::GridAutoFlow::RowDense => {
+                        taffy::GridAutoFlow::RowDense
+                    }
+                    taffy::GridAutoFlow::Column | taffy::GridAutoFlow::ColumnDense => {
+                        taffy::GridAutoFlow::ColumnDense
+                    }
+                }
+            })
+        }
+
+        placement! {
+            col_span, col_span_full, col_start, col_end, grid_column, "column";
+            row_span, row_span_full, row_start, row_end, grid_row, "row";
+        }
+    };
+}
+
 impl Tw {
-    /// `grid-cols-<count>`: `count` columns of `minmax(0, 1fr)`.
-    pub fn grid_cols(self, count: u16) -> Self {
-        self.styled(|s| *s.grid_template_columns() = even(count))
-    }
+    grid_methods!();
+}
 
-    /// `grid-rows-<count>`: `count` rows of `minmax(0, 1fr)`.
-    pub fn grid_rows(self, count: u16) -> Self {
-        self.styled(|s| *s.grid_template_rows() = even(count))
-    }
-
-    /// An arbitrary column track list, as in `grid-cols-[48px_minmax(0,1fr)_...]`.
-    pub fn grid_cols_tracks(self, tracks: &[Track]) -> Self {
-        self.styled(|s| *s.grid_template_columns() = template(tracks))
-    }
-
-    /// An arbitrary row track list.
-    pub fn grid_rows_tracks(self, tracks: &[Track]) -> Self {
-        self.styled(|s| *s.grid_template_rows() = template(tracks))
-    }
-
-    /// `grid-flow-row`: auto-placed items fill rows.
-    pub fn grid_flow_row(self) -> Self {
-        self.styled(|s| *s.grid_auto_flow() = taffy::GridAutoFlow::Row)
-    }
-
-    /// `grid-flow-col`: auto-placed items fill columns.
-    pub fn grid_flow_col(self) -> Self {
-        self.styled(|s| *s.grid_auto_flow() = taffy::GridAutoFlow::Column)
-    }
-
-    /// `grid-flow-dense`: back-fills holes, keeping the flow direction.
-    pub fn grid_flow_dense(self) -> Self {
-        self.styled(|s| {
-            let flow = s.grid_auto_flow();
-            *flow = match *flow {
-                taffy::GridAutoFlow::Row | taffy::GridAutoFlow::RowDense => {
-                    taffy::GridAutoFlow::RowDense
-                }
-                taffy::GridAutoFlow::Column | taffy::GridAutoFlow::ColumnDense => {
-                    taffy::GridAutoFlow::ColumnDense
-                }
-            }
-        })
-    }
-
-    placement! {
-        col_span, col_span_full, col_start, col_end, grid_column, "column";
-        row_span, row_span_full, row_start, row_end, grid_row, "row";
-    }
+impl BoxTw {
+    grid_methods!();
 }
 
 use taffy::style_helpers::TaffyGridLine as _;
