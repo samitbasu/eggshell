@@ -4,92 +4,64 @@
 
 use core::time::Duration;
 
-use eggshell_ui::testing::assert_reported;
-use eggshell_ui::{
-    Builder, Easing, LayoutState, Opacity, Problem, Progress, TextSpec, TextStyle, Weight, tw,
-};
+use eggshell_ui::testing::{After, Driver, Reports, assert_reported};
+use eggshell_ui::{Builder, Easing, Opacity, Problem, Progress, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::{ClippedShape, RectShape, Shape};
-use egui::{Color32, FontFamily, Pos2, Rect, pos2, vec2};
-use egui_kittest::Harness;
+use egui::{Color32, Event, FontFamily, Pos2, Rect, pos2, vec2};
 
 type View<A> = for<'b, 'f> fn(&mut Builder<'b, 'f, A>, &A);
 
-struct Rig<A> {
-    layout: LayoutState,
-    app: A,
-    view: View<A>,
-    origin: Pos2,
-}
+const STEP: Duration = Duration::from_millis(50);
 
-const STEP: f32 = 0.05;
-
-fn harness<A>(app: A, view: View<A>) -> Harness<'static, Rig<A>> {
+fn harness<A: 'static>(app: A, view: View<A>) -> Driver<A> {
     harness_stepping(app, view, STEP)
 }
 
-fn harness_stepping<A>(app: A, view: View<A>, step_dt: f32) -> Harness<'static, Rig<A>> {
-    let layout = LayoutState::new().with_base_text(TextStyle::new(
-        TextSpec {
-            size: 16.0,
-            line_height: 20.0,
-            family: FontFamily::Proportional,
-            weight: Weight::Normal,
-        },
-        Color32::BLACK,
-    ));
-    let rig = Rig {
-        layout,
-        app,
-        view,
-        origin: Pos2::ZERO,
-    };
-    Harness::builder()
-        .with_size(vec2(400.0, 300.0))
-        .with_step_dt(step_dt)
-        .build_ui_state(
-            |ui, rig: &mut Rig<A>| {
-                crate::support::full_motion(ui.ctx());
-                let area = ui.max_rect();
-                rig.origin = area.min;
-                let Rig {
-                    layout, app, view, ..
-                } = rig;
-                layout
-                    .build(ui.ctx(), |b| view(b, &*app))
-                    .layout(area)
-                    .draw(app, ui);
+fn harness_stepping<A: 'static>(app: A, view: View<A>, step: Duration) -> Driver<A> {
+    Driver::new(app, view)
+        .size(vec2(400.0, 300.0))
+        .base_text(TextStyle::new(
+            TextSpec {
+                size: 16.0,
+                line_height: 20.0,
+                family: FontFamily::Proportional,
+                weight: Weight::Normal,
             },
-            rig,
-        )
+            Color32::BLACK,
+        ))
+        .step(step)
+        .after(After::Frames(0))
+        .settle_within(step * 4)
+        .reports(Reports::Unchecked)
+        .build()
 }
 
-impl<A> Rig<A> {
-    fn at(&self, x: f32, y: f32) -> Pos2 {
-        self.origin + vec2(x, y)
-    }
+/// Where the layout starts: kittest's frame sets the window in by a margin.
+fn origin<A>(d: &Driver<A>) -> Pos2 {
+    d.frame()
+        .nodes()
+        .next()
+        .map_or(Pos2::ZERO, |root| root.rect().min)
 }
 
-fn point<A>(harness: &Harness<'_, Rig<A>>, x: f32, y: f32) -> Pos2 {
-    harness.state().at(x, y)
+fn point<A>(d: &Driver<A>, x: f32, y: f32) -> Pos2 {
+    origin(d) + vec2(x, y)
 }
 
-fn hover<A>(harness: &mut Harness<'_, Rig<A>>, x: f32, y: f32) {
-    let at = point(harness, x, y);
-    harness.hover_at(at);
-    harness.run_steps(3);
+fn hover<A>(d: &mut Driver<A>, x: f32, y: f32) {
+    let at = point(d, x, y);
+    d.hover(at);
 }
 
-fn click<A>(harness: &mut Harness<'_, Rig<A>>, x: f32, y: f32) {
-    hover(harness, x, y);
-    let at = point(harness, x, y);
-    harness.drag_at(at);
-    harness.step();
-    harness.drop_at(at);
-    harness.run_steps(2);
+/// A click whose release takes the pointer out of the window, as kittest's
+/// `drop_at` does.
+fn click<A>(d: &mut Driver<A>, x: f32, y: f32) {
+    let at = point(d, x, y);
+    d.click(at).event(Event::PointerGone).frames(1);
 }
 
-fn rects<A>(harness: &Harness<'_, Rig<A>>) -> Vec<RectShape> {
-    let shapes: &[ClippedShape] = &harness.output().shapes;
+fn rects<A>(d: &Driver<A>) -> Vec<RectShape> {
+    let shapes: &[ClippedShape] = &d.harness().output().shapes;
     shapes
         .iter()
         .filter_map(|clipped| match &clipped.shape {
@@ -100,9 +72,9 @@ fn rects<A>(harness: &Harness<'_, Rig<A>>) -> Vec<RectShape> {
 }
 
 /// The fill of the rect that starts `offset` from the layout's origin.
-fn fill_at<A>(harness: &Harness<'_, Rig<A>>, x: f32, y: f32) -> Option<Color32> {
-    let min = point(harness, x, y);
-    rects(harness)
+fn fill_at<A>(d: &Driver<A>, x: f32, y: f32) -> Option<Color32> {
+    let min = point(d, x, y);
+    rects(d)
         .into_iter()
         .rfind(|shape| (shape.rect.min - min).length() < 0.5)
         .map(|shape| shape.fill)
@@ -126,14 +98,14 @@ fn hoverable(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn hover_repaints_the_background() {
-    let mut harness = harness((), hoverable);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    let mut d = harness((), hoverable);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 
-    hover(&mut harness, 10.0, 10.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT));
+    hover(&mut d, 10.0, 10.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(LIT));
 
-    hover(&mut harness, 200.0, 200.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    hover(&mut d, 200.0, 200.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 }
 
 // ---------------------------------------------------------------------- click
@@ -160,32 +132,39 @@ fn counter(b: &mut Builder<'_, '_, Counts>, _: &Counts) {
 
 #[test]
 fn a_click_runs_the_draw_closures_mutation_of_the_application() {
-    let mut harness = harness(Counts::default(), counter);
-    click(&mut harness, 10.0, 10.0);
-    assert_eq!(harness.state().app.first, 1);
+    let mut d = harness(Counts::default(), counter);
+    click(&mut d, 10.0, 10.0);
+    assert_eq!(d.app().first, 1);
 
-    click(&mut harness, 300.0, 200.0);
-    assert_eq!(
-        harness.state().app.first,
-        1,
-        "a click elsewhere is not ours"
-    );
+    click(&mut d, 300.0, 200.0);
+    assert_eq!(d.app().first, 1, "a click elsewhere is not ours");
 }
 
 #[test]
 fn active_paints_while_the_button_is_held() {
-    let mut harness = harness(Counts::default(), counter);
-    hover(&mut harness, 10.0, 10.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    let mut d = harness(Counts::default(), counter);
+    hover(&mut d, 10.0, 10.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 
-    let at = point(&harness, 10.0, 10.0);
-    harness.drag_at(at);
-    harness.run_steps(3);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT));
+    let at = point(&d, 10.0, 10.0);
+    d.event(Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    })
+    .frames(2);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(LIT));
 
-    harness.drop_at(at);
-    harness.run_steps(3);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    d.event(Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    })
+    .event(Event::PointerGone)
+    .frames(1);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 }
 
 // ---------------------------------------------------------------------- inert
@@ -230,13 +209,13 @@ fn inert_blocks_clicks_and_hover_below_it() {
         "precondition: live nodes hover"
     );
     click(&mut live, 10.0, 10.0);
-    assert_eq!(live.state().app.first, 1, "precondition: live nodes click");
+    assert_eq!(live.app().first, 1, "precondition: live nodes click");
 
     let mut inert = harness(Counts::default(), inert);
     hover(&mut inert, 10.0, 10.0);
     assert_eq!(fill_at(&inert, 0.0, 0.0), Some(BASE));
     click(&mut inert, 10.0, 10.0);
-    assert_eq!(inert.state().app.first, 0);
+    assert_eq!(inert.app().first, 0);
 }
 
 // ------------------------------------------------------------------------ z
@@ -299,7 +278,7 @@ fn higher_z_wins_among_overlapping_siblings_and_ties_go_to_the_later_one() {
     let mut tied = harness(Counts::default(), tied);
     click(&mut tied, 40.0, 40.0);
     assert_eq!(
-        (tied.state().app.first, tied.state().app.second),
+        (tied.app().first, tied.app().second),
         (0, 1),
         "equal z: pre-order, so the later sibling is on top"
     );
@@ -307,7 +286,7 @@ fn higher_z_wins_among_overlapping_siblings_and_ties_go_to_the_later_one() {
     let mut raised = harness(Counts::default(), first_raised);
     click(&mut raised, 40.0, 40.0);
     assert_eq!(
-        (raised.state().app.first, raised.state().app.second),
+        (raised.app().first, raised.app().second),
         (1, 0),
         "z(5) on the earlier sibling puts it on top"
     );
@@ -330,13 +309,13 @@ fn row_with_button(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn a_row_stays_hovered_while_the_pointer_is_over_its_button() {
-    let mut harness = harness((), row_with_button);
-    hover(&mut harness, 150.0, 20.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT), "precondition: row");
-    hover(&mut harness, 10.0, 20.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT), "over the button");
-    hover(&mut harness, 300.0, 200.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    let mut d = harness((), row_with_button);
+    hover(&mut d, 150.0, 20.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(LIT), "precondition: row");
+    hover(&mut d, 10.0, 20.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(LIT), "over the button");
+    hover(&mut d, 300.0, 200.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 }
 
 // ---------------------------------------------------------------- group hover
@@ -371,26 +350,26 @@ fn revealing(b: &mut Builder<'_, '_, ()>, _: &()) {
 }
 
 /// The action paints only while it is not fully transparent.
-fn action_shown(harness: &Harness<'_, Rig<()>>) -> bool {
-    rects(harness).iter().any(|shape| shape.fill == LIT)
+fn action_shown(d: &Driver<()>) -> bool {
+    rects(d).iter().any(|shape| shape.fill == LIT)
 }
 
 #[test]
 fn group_hover_reveals_a_child_while_the_row_or_the_child_is_hovered() {
-    let mut harness = harness((), revealing);
-    assert!(!action_shown(&harness), "hidden until hovered");
+    let mut d = harness((), revealing);
+    assert!(!action_shown(&d), "hidden until hovered");
 
-    hover(&mut harness, 150.0, 20.0);
-    assert!(action_shown(&harness), "the row is hovered");
+    hover(&mut d, 150.0, 20.0);
+    assert!(action_shown(&d), "the row is hovered");
 
-    hover(&mut harness, 10.0, 20.0);
+    hover(&mut d, 10.0, 20.0);
     assert!(
-        action_shown(&harness),
+        action_shown(&d),
         "the child is hovered, and the group with it"
     );
 
-    hover(&mut harness, 300.0, 200.0);
-    assert!(!action_shown(&harness));
+    hover(&mut d, 300.0, 200.0);
+    assert!(!action_shown(&d));
 }
 
 // ----------------------------------------------------------------- text colour
@@ -408,9 +387,9 @@ fn colored_label(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn a_text_colour_variant_reaches_inheriting_descendants() {
-    let mut harness = harness((), colored_label);
-    let color = |harness: &Harness<'_, Rig<()>>| {
-        harness
+    let mut d = harness((), colored_label);
+    let color = |d: &Driver<()>| {
+        d.harness()
             .output()
             .shapes
             .iter()
@@ -419,9 +398,9 @@ fn a_text_colour_variant_reaches_inheriting_descendants() {
                 _ => None,
             })
     };
-    assert_eq!(color(&harness), Some(Color32::BLACK));
-    hover(&mut harness, 5.0, 5.0);
-    assert_eq!(color(&harness), Some(LIT));
+    assert_eq!(color(&d), Some(Color32::BLACK));
+    hover(&mut d, 5.0, 5.0);
+    assert_eq!(color(&d), Some(LIT));
 }
 
 // ------------------------------------------------------------------ transition
@@ -443,14 +422,11 @@ fn fading(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn a_transition_passes_through_colours_between_base_and_variant() {
-    let mut harness = harness((), fading);
-    let at = point(&harness, 10.0, 10.0);
-    harness.hover_at(at);
-    harness.step();
-    harness.step();
-    harness.step();
+    let mut d = harness((), fading);
+    let at = point(&d, 10.0, 10.0);
+    d.hover(at);
 
-    let Some(mid) = fill_at(&harness, 0.0, 0.0) else {
+    let Some(mid) = fill_at(&d, 0.0, 0.0) else {
         panic!("the box is painted")
     };
     assert!(
@@ -461,12 +437,12 @@ fn a_transition_passes_through_colours_between_base_and_variant() {
         LIT.r()
     );
 
-    harness.run_steps(20);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT));
+    d.frames(20);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(LIT));
 
-    hover(&mut harness, 300.0, 200.0);
-    harness.step();
-    let Some(back) = fill_at(&harness, 0.0, 0.0) else {
+    hover(&mut d, 300.0, 200.0);
+    d.frames(1);
+    let Some(back) = fill_at(&d, 0.0, 0.0) else {
         panic!("the box is painted")
     };
     assert!(back.r() < LIT.r() && back.r() > BASE.r(), "fading back");
@@ -491,15 +467,15 @@ fn fading_linearly(b: &mut Builder<'_, '_, ()>, _: &()) {
 /// The red channel's progress from `BASE` to `LIT`, sampled after each step
 /// of the 500ms transition, starting with the step that sees the hover.
 fn red_progress(view: View<()>) -> Vec<f32> {
-    let mut harness = harness((), view);
-    harness.run_steps(2);
-    let at = point(&harness, 10.0, 10.0);
-    harness.hover_at(at);
+    let mut d = harness((), view);
+    d.frames(2);
+    let at = point(&d, 10.0, 10.0);
+    d.harness().hover_at(at);
     let span = f32::from(LIT.r() - BASE.r());
     (0..10)
         .map(|_| {
-            harness.step();
-            let Some(fill) = fill_at(&harness, 0.0, 0.0) else {
+            d.frames(1);
+            let Some(fill) = fill_at(&d, 0.0, 0.0) else {
                 panic!("the box is painted")
             };
             f32::from(fill.r() - BASE.r()) / span
@@ -538,12 +514,11 @@ fn a_transition_follows_the_default_curve_not_the_linear_clock() {
 #[test]
 fn a_transition_arrives_exactly_at_the_end() {
     for view in [fading as View<()>, fading_linearly] {
-        let mut harness = harness((), view);
-        harness.run_steps(2);
-        let at = point(&harness, 10.0, 10.0);
-        harness.hover_at(at);
-        harness.run_steps(14);
-        assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT));
+        let mut d = harness((), view);
+        d.frames(2);
+        let at = point(&d, 10.0, 10.0);
+        d.carry_to(at).frames(13);
+        assert_eq!(fill_at(&d, 0.0, 0.0), Some(LIT));
     }
 }
 
@@ -565,8 +540,8 @@ fn quick(b: &mut Builder<'_, '_, ()>, _: &()) {
 }
 
 /// The red channel's progress from `BASE` to `LIT` as drawn.
-fn red<A>(harness: &Harness<'_, Rig<A>>) -> f32 {
-    let Some(fill) = fill_at(harness, 0.0, 0.0) else {
+fn red<A>(d: &Driver<A>) -> f32 {
+    let Some(fill) = fill_at(d, 0.0, 0.0) else {
         panic!("the box is painted")
     };
     f32::from(fill.r() - BASE.r()) / f32::from(LIT.r() - BASE.r())
@@ -574,14 +549,14 @@ fn red<A>(harness: &Harness<'_, Rig<A>>) -> f32 {
 
 #[test]
 fn a_transition_lasts_its_duration_however_slow_the_frames() {
-    let mut harness = harness_stepping((), quick, 0.2);
-    harness.run_steps(2);
-    let at = point(&harness, 10.0, 10.0);
-    harness.hover_at(at);
+    let mut d = harness_stepping((), quick, Duration::from_millis(200));
+    d.frames(2);
+    let at = point(&d, 10.0, 10.0);
+    d.harness().hover_at(at);
     let seen: Vec<f32> = (0..3)
         .map(|_| {
-            harness.step();
-            red(&harness)
+            d.frames(1);
+            red(&d)
         })
         .collect();
     assert!(
@@ -597,14 +572,14 @@ fn a_transition_lasts_its_duration_however_slow_the_frames() {
 
 #[test]
 fn fast_frames_pass_through_intermediate_values_to_the_end_on_time() {
-    let mut harness = harness_stepping((), quick, 0.016);
-    harness.run_steps(2);
-    let at = point(&harness, 10.0, 10.0);
-    harness.hover_at(at);
+    let mut d = harness_stepping((), quick, Duration::from_millis(16));
+    d.frames(2);
+    let at = point(&d, 10.0, 10.0);
+    d.harness().hover_at(at);
     let seen: Vec<f32> = (0..16)
         .map(|_| {
-            harness.step();
-            red(&harness)
+            d.frames(1);
+            red(&d)
         })
         .collect();
     assert!(seen.iter().filter(|r| **r > 0.0 && **r < 1.0).count() >= 5);
@@ -616,22 +591,21 @@ fn fast_frames_pass_through_intermediate_values_to_the_end_on_time() {
 
 #[test]
 fn a_reversal_mid_flight_starts_from_the_current_value_and_is_shortened() {
-    let mut harness = harness((), fading_linearly);
-    harness.run_steps(2);
-    let at = point(&harness, 10.0, 10.0);
-    harness.hover_at(at);
-    harness.run_steps(6);
-    let halfway = red(&harness);
+    let mut d = harness((), fading_linearly);
+    d.frames(2);
+    let at = point(&d, 10.0, 10.0);
+    d.carry_to(at).frames(5);
+    let halfway = red(&d);
     assert!(
         (0.3..0.7).contains(&halfway),
         "precondition: about halfway through the 500ms transition: {halfway}"
     );
 
-    hover(&mut harness, 300.0, 200.0);
+    hover(&mut d, 300.0, 200.0);
     let mut back = vec![halfway];
-    while red(&harness) > 0.0 && back.len() < 20 {
-        back.push(red(&harness));
-        harness.step();
+    while red(&d) > 0.0 && back.len() < 20 {
+        back.push(red(&d));
+        d.frames(1);
     }
     assert!(
         back.windows(2).all(|pair| pair[0] >= pair[1]),
@@ -641,7 +615,7 @@ fn a_reversal_mid_flight_starts_from_the_current_value_and_is_shortened() {
         back.iter().all(|r| *r <= halfway + 0.2),
         "it did not jump to the end first: {back:?}"
     );
-    let full = 500.0 / 1000.0 / STEP;
+    let full = 500.0 / 1000.0 / STEP.as_secs_f32();
     assert!(
         (back.len() as f32) < full * 0.8,
         "shortened in proportion to the distance left: {} frames of {full}",
@@ -651,24 +625,20 @@ fn a_reversal_mid_flight_starts_from_the_current_value_and_is_shortened() {
 
 #[test]
 fn repaints_are_requested_only_while_a_transition_is_in_flight() {
-    let mut harness = harness((), fading_linearly);
-    harness.run_steps(4);
-    harness.step();
-    assert!(!harness.ctx.has_requested_repaint(), "settled");
+    let mut d = harness((), fading_linearly);
+    d.frames(4);
+    d.frames(1);
+    assert!(!d.ctx().has_requested_repaint(), "settled");
 
-    let at = point(&harness, 10.0, 10.0);
-    harness.hover_at(at);
-    harness.run_steps(3);
-    assert!(
-        red(&harness) > 0.0 && red(&harness) < 1.0,
-        "precondition: in flight"
-    );
-    assert!(harness.ctx.has_requested_repaint(), "in flight");
+    let at = point(&d, 10.0, 10.0);
+    d.hover(at);
+    assert!(red(&d) > 0.0 && red(&d) < 1.0, "precondition: in flight");
+    assert!(d.ctx().has_requested_repaint(), "in flight");
 
-    harness.run_steps(14);
-    assert_eq!(red(&harness), 1.0, "precondition: arrived");
-    harness.step();
-    assert!(!harness.ctx.has_requested_repaint(), "settled again");
+    d.frames(14);
+    assert_eq!(red(&d), 1.0, "precondition: arrived");
+    d.frames(1);
+    assert!(!d.ctx().has_requested_repaint(), "settled again");
 }
 
 // ---------------------------------------------------------------------- reorder
@@ -696,22 +666,22 @@ fn keyed_rows(b: &mut Builder<'_, '_, Order>, order: &Order) {
 
 #[test]
 fn hover_state_follows_a_keyed_row_through_a_reorder() {
-    let mut harness = harness(Order(vec![1, 2]), keyed_rows);
-    harness.run_steps(2);
-    hover(&mut harness, 10.0, 10.0);
-    harness.run_steps(40);
+    let mut d = harness(Order(vec![1, 2]), keyed_rows);
+    d.frames(2);
+    hover(&mut d, 10.0, 10.0);
+    d.frames(40);
     assert_eq!(
-        fill_at(&harness, 0.0, 0.0),
+        fill_at(&d, 0.0, 0.0),
         Some(LIT),
         "precondition: row 1 is fully hovered at the top"
     );
-    assert_eq!(fill_at(&harness, 0.0, 30.0), Some(BASE));
+    assert_eq!(fill_at(&d, 0.0, 30.0), Some(BASE));
 
-    harness.state_mut().app.0.reverse();
-    harness.step();
+    d.app_mut().0.reverse();
+    d.frames(1);
 
-    let moved = fill_at(&harness, 0.0, 30.0).map(|c| c.r());
-    let arrived = fill_at(&harness, 0.0, 0.0).map(|c| c.r());
+    let moved = fill_at(&d, 0.0, 30.0).map(|c| c.r());
+    let arrived = fill_at(&d, 0.0, 0.0).map(|c| c.r());
     assert!(
         moved.is_some_and(|r| r > 200),
         "row 1 took its red to its new place: {moved:?}"
@@ -724,27 +694,22 @@ fn hover_state_follows_a_keyed_row_through_a_reorder() {
 
 #[test]
 fn a_transition_in_flight_follows_a_keyed_row_through_a_reorder() {
-    let mut harness = harness(Order(vec![1, 2]), keyed_rows);
-    harness.run_steps(2);
-    let at = point(&harness, 10.0, 10.0);
-    harness.hover_at(at);
-    harness.run_steps(6);
-    let before = red_of(&harness, 0.0);
+    let mut d = harness(Order(vec![1, 2]), keyed_rows);
+    d.frames(2);
+    let at = point(&d, 10.0, 10.0);
+    d.carry_to(at).frames(5);
+    let before = red_of(&d, 0.0);
     assert!(
         (0.1..0.9).contains(&before),
         "precondition: row 1 is mid-transition: {before}"
     );
-    assert_eq!(
-        red_of(&harness, 30.0),
-        0.0,
-        "precondition: row 2 is at rest"
-    );
+    assert_eq!(red_of(&d, 30.0), 0.0, "precondition: row 2 is at rest");
 
-    harness.state_mut().app.0.reverse();
-    harness.step();
+    d.app_mut().0.reverse();
+    d.frames(1);
 
-    let moved = red_of(&harness, 30.0);
-    let arrived = red_of(&harness, 0.0);
+    let moved = red_of(&d, 30.0);
+    let arrived = red_of(&d, 0.0);
     assert!(
         (moved - before).abs() < 0.25,
         "row 1 took its progress to its new place: {moved} from {before}"
@@ -752,8 +717,8 @@ fn a_transition_in_flight_follows_a_keyed_row_through_a_reorder() {
     assert!(arrived < 0.25, "row 2 did not inherit it: {arrived}");
 }
 
-fn red_of<A>(harness: &Harness<'_, Rig<A>>, y: f32) -> f32 {
-    let Some(fill) = fill_at(harness, 0.0, y) else {
+fn red_of<A>(d: &Driver<A>, y: f32) -> f32 {
+    let Some(fill) = fill_at(d, 0.0, y) else {
         panic!("the row is painted")
     };
     f32::from(fill.r() - BASE.r()) / f32::from(LIT.r() - BASE.r())
@@ -779,16 +744,16 @@ fn anonymous_hoverable(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn variants_on_an_anonymous_node_are_ignored_and_reported() {
-    let mut harness = harness((), anonymous_hoverable);
-    let report = assert_reported(&harness.ctx, Problem::NeedsIdentity);
+    let mut d = harness((), anonymous_hoverable);
+    let report = assert_reported(d.ctx(), Problem::NeedsIdentity);
     assert!(
         report.message.contains("only identified nodes"),
         "{}",
         report.message
     );
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
-    hover(&mut harness, 10.0, 10.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
+    hover(&mut d, 10.0, 10.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 }
 
 /// ```html
@@ -813,16 +778,16 @@ fn anonymous_child(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn an_anonymous_child_follows_its_groups_hover() {
-    let mut harness = harness((), anonymous_child);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
-    hover(&mut harness, 80.0, 30.0);
+    let mut d = harness((), anonymous_child);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
+    hover(&mut d, 80.0, 30.0);
     assert_eq!(
-        fill_at(&harness, 0.0, 0.0),
+        fill_at(&d, 0.0, 0.0),
         Some(LIT),
         "the child lights while the pointer is elsewhere in the group"
     );
-    hover(&mut harness, 300.0, 200.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    hover(&mut d, 300.0, 200.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 }
 
 /// An anonymous child that keeps its `group_hover` once its transition is
@@ -846,11 +811,11 @@ fn anonymous_transition(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn a_transition_on_an_anonymous_node_is_dropped_and_reported() {
-    let mut harness = harness((), anonymous_transition);
-    assert_reported(&harness.ctx, Problem::NeedsIdentity);
-    hover(&mut harness, 80.0, 30.0);
+    let mut d = harness((), anonymous_transition);
+    assert_reported(d.ctx(), Problem::NeedsIdentity);
+    hover(&mut d, 80.0, 30.0);
     assert_eq!(
-        fill_at(&harness, 0.0, 0.0),
+        fill_at(&d, 0.0, 0.0),
         Some(LIT),
         "the group_hover look is kept and shows at once"
     );
@@ -858,9 +823,9 @@ fn a_transition_on_an_anonymous_node_is_dropped_and_reported() {
 
 #[test]
 fn a_sense_on_anonymous_text_is_dropped_and_reported() {
-    let mut harness = harness((), |b, _| b.text(tw().sense_click(), "nope"));
-    assert_reported(&harness.ctx, Problem::NeedsIdentity);
-    hover(&mut harness, 5.0, 5.0);
+    let mut d = harness((), |b, _| b.text(tw().sense_click(), "nope"));
+    assert_reported(d.ctx(), Problem::NeedsIdentity);
+    hover(&mut d, 5.0, 5.0);
 }
 
 /// ```html
@@ -888,10 +853,10 @@ fn unsensing_group(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn a_group_that_senses_nothing_senses_hover_and_is_reported() {
-    let mut harness = harness((), unsensing_group);
-    assert_reported(&harness.ctx, Problem::GroupSensesNothing);
-    hover(&mut harness, 80.0, 30.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(LIT));
+    let mut d = harness((), unsensing_group);
+    assert_reported(d.ctx(), Problem::GroupSensesNothing);
+    hover(&mut d, 80.0, 30.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(LIT));
 }
 
 /// A `group_hover` with no group above it.
@@ -909,10 +874,10 @@ fn orphan_group_hover(b: &mut Builder<'_, '_, ()>, _: &()) {
 
 #[test]
 fn a_group_hover_without_a_group_never_shows_and_is_reported() {
-    let mut harness = harness((), orphan_group_hover);
-    assert_reported(&harness.ctx, Problem::GroupHoverWithoutGroup);
-    hover(&mut harness, 10.0, 10.0);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    let mut d = harness((), orphan_group_hover);
+    assert_reported(d.ctx(), Problem::GroupHoverWithoutGroup);
+    hover(&mut d, 10.0, 10.0);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 }
 
 // -------------------------------------------------------------- node handles
@@ -932,46 +897,42 @@ fn span_with_click(b: &mut Builder<'_, '_, Handled>, _: &Handled) {
 
 #[test]
 fn a_div_id_without_a_handler_builds_and_draws() {
-    let mut harness = harness((), hoverable);
-    harness.run_steps(2);
-    assert_eq!(fill_at(&harness, 0.0, 0.0), Some(BASE));
+    let mut d = harness((), hoverable);
+    d.frames(2);
+    assert_eq!(fill_at(&d, 0.0, 0.0), Some(BASE));
 }
 
 #[test]
 fn on_click_on_a_span_fires_once_per_click() {
-    let mut harness = harness(Handled::default(), span_with_click);
-    click(&mut harness, 10.0, 10.0);
-    assert_eq!(harness.state().app.clicks, 1);
+    let mut d = harness(Handled::default(), span_with_click);
+    click(&mut d, 10.0, 10.0);
+    assert_eq!(d.app().clicks, 1);
 
-    click(&mut harness, 10.0, 10.0);
-    assert_eq!(harness.state().app.clicks, 2);
+    click(&mut d, 10.0, 10.0);
+    assert_eq!(d.app().clicks, 2);
 
-    click(&mut harness, 300.0, 200.0);
-    assert_eq!(
-        harness.state().app.clicks,
-        2,
-        "a click elsewhere is not ours"
-    );
+    click(&mut d, 300.0, 200.0);
+    assert_eq!(d.app().clicks, 2, "a click elsewhere is not ours");
 }
 
 #[test]
 fn on_response_sees_hover() {
-    let mut harness = harness(Handled::default(), |b, _| {
+    let mut d = harness(Handled::default(), |b, _| {
         b.div_id("box", tw().sense_hover().w_px(100.0).h_px(40.0), |_| {})
             .on_response(|app: &mut Handled, response| app.hovered = response.hovered());
     });
-    assert!(!harness.state().app.hovered);
+    assert!(!d.app().hovered);
 
-    hover(&mut harness, 10.0, 10.0);
-    assert!(harness.state().app.hovered);
+    hover(&mut d, 10.0, 10.0);
+    assert!(d.app().hovered);
 
-    hover(&mut harness, 300.0, 200.0);
-    assert!(!harness.state().app.hovered);
+    hover(&mut d, 300.0, 200.0);
+    assert!(!d.app().hovered);
 }
 
 #[test]
 fn a_custom_nodes_on_response_sees_its_hover_and_click_before_its_ui_runs() {
-    let mut harness = harness(Handled::default(), |b, _| {
+    let mut d = harness(Handled::default(), |b, _| {
         b.custom("plot", tw().sense_click().w_px(100.0).h_px(40.0))
             .on_response(|app: &mut Handled, response| {
                 app.hovered = response.hovered();
@@ -980,41 +941,37 @@ fn a_custom_nodes_on_response_sees_its_hover_and_click_before_its_ui_runs() {
             })
             .ui(|app: &mut Handled, _| app.order.push("ui"));
     });
-    harness.run_steps(2);
-    let order = &harness.state().app.order;
+    d.frames(2);
+    let order = &d.app().order;
     assert!(!order.is_empty(), "precondition: frames were drawn");
     assert!(
         order.chunks(2).all(|frame| frame == ["response", "ui"]),
         "{order:?}"
     );
-    assert!(!harness.state().app.hovered);
+    assert!(!d.app().hovered);
 
-    hover(&mut harness, 10.0, 10.0);
-    assert!(harness.state().app.hovered);
-    assert_eq!(harness.state().app.clicks, 0);
+    hover(&mut d, 10.0, 10.0);
+    assert!(d.app().hovered);
+    assert_eq!(d.app().clicks, 0);
 
-    click(&mut harness, 10.0, 10.0);
-    assert_eq!(harness.state().app.clicks, 1);
+    click(&mut d, 10.0, 10.0);
+    assert_eq!(d.app().clicks, 1);
 
-    click(&mut harness, 300.0, 200.0);
-    assert_eq!(
-        harness.state().app.clicks,
-        1,
-        "a click elsewhere is not its"
-    );
-    assert!(!harness.state().app.hovered);
+    click(&mut d, 300.0, 200.0);
+    assert_eq!(d.app().clicks, 1, "a click elsewhere is not its");
+    assert!(!d.app().hovered);
 }
 
 #[test]
 fn draw_gets_the_nodes_own_ui_limited_to_its_content_rect() {
-    let mut harness = harness(Handled::default(), |b, _| {
+    let mut d = harness(Handled::default(), |b, _| {
         b.div_id("box", tw().p(2.0).w_px(100.0).h_px(40.0), |_| {})
             .draw(|app: &mut Handled, ui| app.content = Some(ui.max_rect()));
     });
-    harness.run_steps(2);
-    let origin = harness.state().origin;
+    d.frames(2);
+    let origin = origin(&d);
     assert_eq!(
-        harness.state().app.content,
+        d.app().content,
         Some(Rect::from_min_size(
             origin + vec2(8.0, 8.0),
             vec2(84.0, 24.0)
@@ -1024,24 +981,64 @@ fn draw_gets_the_nodes_own_ui_limited_to_its_content_rect() {
 
 #[test]
 fn handlers_compose_in_call_order() {
-    let mut harness = harness(Handled::default(), |b, _| {
+    let mut d = harness(Handled::default(), |b, _| {
         b.span("up", tw().sense_click().w_px(100.0).h_px(40.0), "Up")
             .draw(|app: &mut Handled, _| app.order.push("draw"))
             .on_response(|app: &mut Handled, _| app.order.push("response"))
             .on_click(|app: &mut Handled| app.order.push("click"));
     });
-    harness.run_steps(2);
-    let order = &harness.state().app.order;
+    d.frames(2);
+    let order = &d.app().order;
     assert!(!order.is_empty());
     assert!(
         order.chunks(2).all(|frame| frame == ["draw", "response"]),
         "{order:?}"
     );
 
-    click(&mut harness, 10.0, 10.0);
-    assert!(harness.state().app.order.contains(&"click"));
-    let order = &harness.state().app.order;
+    click(&mut d, 10.0, 10.0);
+    assert!(d.app().order.contains(&"click"));
+    let order = &d.app().order;
     let at = order.iter().position(|&step| step == "click").unwrap();
     assert_eq!(order[at - 1], "response", "{order:?}");
     assert_eq!(order[at - 2], "draw", "{order:?}");
+}
+
+#[test]
+fn a_live_node_is_announced_as_a_live_region() {
+    use egui::accesskit::{Live, Role};
+    use egui_kittest::kittest::{NodeT as _, Queryable as _};
+
+    let harness = crate::support::harness(
+        vec2(200.0, 100.0),
+        TextStyle::new(
+            TextSpec {
+                size: 16.0,
+                line_height: 20.0,
+                family: FontFamily::Proportional,
+                weight: Weight::Normal,
+            },
+            Color32::BLACK,
+        ),
+        (),
+        |b, _| {
+            b.div_id("status", tw().sense_hover().w_px(100.0).h_px(40.0), |s| {
+                s.text(tw(), "Saved");
+            })
+            .role(egui::Role::Status)
+            .named("Status")
+            .live(Live::Polite);
+            b.div_id("quiet", tw().sense_hover().w_px(100.0).h_px(40.0), |_| {})
+                .role(egui::Role::Status)
+                .named("Quiet");
+        },
+    );
+    let live = |name: &str| {
+        harness
+            .get_by_role_and_label(Role::Status, name)
+            .accesskit_node()
+            .data()
+            .live()
+    };
+    assert_eq!(live("Status"), Some(Live::Polite));
+    assert_eq!(live("Quiet"), None);
 }

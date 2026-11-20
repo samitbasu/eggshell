@@ -97,7 +97,9 @@ fn frame<A>(
             Phase::Layout => {
                 black_box(built.layout(ui.max_rect()));
             }
-            Phase::Draw => built.layout(ui.max_rect()).draw(app, ui),
+            Phase::Draw => {
+                built.layout(ui.max_rect()).draw(app, ui);
+            }
         }
     });
     output.textures_delta.clear();

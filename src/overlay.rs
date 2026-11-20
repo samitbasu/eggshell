@@ -73,6 +73,8 @@
 //!
 //! The design, with what was built, is in `docs/overlays.md`.
 
+use core::time::Duration;
+
 use crate::tw::Sides;
 use egui::{Id, Order, Pos2, Rect, Vec2, pos2, vec2};
 
@@ -190,7 +192,7 @@ pub enum Band {
     /// Popovers, menus, selects, dialogs and their scrims.
     #[default]
     Popup,
-    /// Tooltips and hover cards. Never sensing.
+    /// Tooltips. Never sensing.
     Tooltip,
 }
 
@@ -277,7 +279,9 @@ impl Outside {
     pub(crate) fn of(nav: Nav) -> Self {
         match nav {
             Nav::Menu(_) | Nav::Submenu(_) => Self::Swallow,
-            Nav::Listbox(_) | Nav::Grid | Nav::None => Self::PassThrough,
+            Nav::Listbox(_) | Nav::Grid | Nav::Row(_) | Nav::Radio(_) | Nav::None => {
+                Self::PassThrough
+            }
         }
     }
 }
@@ -297,10 +301,12 @@ pub enum Focus {
     None,
 }
 
-/// The keyboard pattern of an overlay's items. Items are the nodes with an
+/// The keyboard pattern of an overlay's items, or of a group's on the page
+/// ([`NodeHandle::nav`](crate::NodeHandle::nav)). Items are the nodes with an
 /// item role ([`NodeHandle::role`](crate::NodeHandle::role) with
-/// `MenuItem`, `MenuItemCheckbox`, `MenuItemRadio` or `ListBoxOption`) that
-/// can take focus; a disabled item is skipped.
+/// `MenuItem`, `MenuItemCheckbox`, `MenuItemRadio`, `ListBoxOption`,
+/// `GridCell`, `Tab` or `RadioButton`) that can take focus; a disabled item
+/// is skipped.
 ///
 /// ```
 /// use eggshell_ui::overlay::{Nav, Wrap};
@@ -338,6 +344,10 @@ pub enum Nav {
     /// first and last. The items are real focus targets, so the app declares
     /// no rows or columns: a colour-swatch picker.
     Grid,
+    /// TODO(prose): Left and Right move real focus between items, wrapping as the [`Wrap`] says, Home and End go to the ends, Up and Down do nothing: a tab list.
+    Row(Wrap),
+    /// TODO(prose): all four arrows move real focus between items (Down and Right forward), wrapping as the [`Wrap`] says, Home and End do nothing: a radio group.
+    Radio(Wrap),
 }
 
 impl Nav {
@@ -345,7 +355,11 @@ impl Nav {
     /// overlay with no navigation, stop.
     pub(crate) fn wrap(self) -> Wrap {
         match self {
-            Self::Menu(wrap) | Self::Submenu(wrap) | Self::Listbox(wrap) => wrap,
+            Self::Menu(wrap)
+            | Self::Submenu(wrap)
+            | Self::Listbox(wrap)
+            | Self::Row(wrap)
+            | Self::Radio(wrap) => wrap,
             Self::Grid | Self::None => Wrap::Stop,
         }
     }
@@ -356,6 +370,15 @@ impl Nav {
 
     pub(crate) fn is_listbox(self) -> bool {
         matches!(self, Self::Listbox(_))
+    }
+
+    /// Whether a group on the page can navigate so: a listbox's highlight
+    /// and a submenu's Left belong to an overlay.
+    pub(crate) fn on_page(self) -> bool {
+        match self {
+            Self::Menu(_) | Self::Grid | Self::Row(_) | Self::Radio(_) => true,
+            Self::None | Self::Submenu(_) | Self::Listbox(_) => false,
+        }
     }
 }
 
@@ -375,12 +398,57 @@ pub(crate) struct Behavior {
     pub(crate) outside: Option<Outside>,
     pub(crate) focus: Focus,
     pub(crate) nav: Nav,
+    /// The trigger of a hover card, which hover intent opens.
+    pub(crate) hover: Option<Id>,
 }
 
 impl Behavior {
     /// What a press outside the overlay does to the press.
     pub(crate) fn outside(self) -> Outside {
         self.outside.unwrap_or_else(|| Outside::of(self.nav))
+    }
+}
+
+/// How an overlay that [`hover_anchored`](OverlayChain::hover_anchored)
+/// opens: how long the pointer or the keyboard focus rests on the trigger
+/// before it opens, how long it stays once neither the trigger nor the box
+/// is hovered, and what it says of the trigger to assistive technology.
+///
+/// ```
+/// use core::time::Duration;
+/// use eggshell_ui::overlay::HoverIntent;
+///
+/// let intent = HoverIntent::new(Duration::from_millis(700), Duration::from_millis(300))
+///     .description("Profile of @nextjs");
+/// assert_eq!(intent.close, Duration::from_millis(300));
+/// ```
+#[non_exhaustive]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HoverIntent {
+    /// How long the pointer or focus rests on the trigger before it opens.
+    pub open: Duration,
+    /// How long it stays open once nothing holds it.
+    pub close: Duration,
+    /// The trigger's accessible description: the text of the content, which
+    /// a screen reader cannot reach by focus.
+    pub description: Option<String>,
+}
+
+impl HoverIntent {
+    /// Opens after `open` and closes `close` after the pointer leaves.
+    pub fn new(open: Duration, close: Duration) -> Self {
+        Self {
+            open,
+            close,
+            description: None,
+        }
+    }
+
+    /// Describes the trigger's widgets to assistive technology by `text`.
+    #[must_use]
+    pub fn description(mut self, text: impl Into<String>) -> Self {
+        self.description = Some(text.into());
+        self
     }
 }
 

@@ -335,3 +335,29 @@ fn an_unnamed_disclosure_button_is_reported() {
     harness.run_steps(2);
     eggshell_ui::testing::assert_reported(&harness.ctx, Problem::Unnamed);
 }
+
+#[test]
+fn the_disclosure_button_is_a_square_with_an_accent_tint_under_the_pointer() {
+    use eggshell_ui_shadcn::Shadcn;
+    use egui::epaint::Shape;
+    let mut harness = harness();
+    let rect = rect_of(&harness, r#"/"fold""#);
+    assert_eq!(
+        (rect.width(), rect.height()),
+        (24.0, 24.0),
+        "a 24 pt square"
+    );
+    let accent = Shadcn::of(&harness.ctx).tokens.accent;
+    let tinted = |harness: &Harness<'_, Rig<App>>| {
+        support::shapes(harness)
+            .into_iter()
+            .any(|shape| match shape {
+                Shape::Rect(shape) => support::same(shape.rect, rect) && shape.fill == accent,
+                _ => false,
+            })
+    };
+    assert!(!tinted(&harness), "precondition: no tint at rest");
+    support::hover_over(&mut harness, rect.center());
+    harness.run_steps(40);
+    assert!(tinted(&harness), "the accent tint under the pointer");
+}

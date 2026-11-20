@@ -5,15 +5,15 @@
 use eggshell_ui::overlay::{Anchor, Modal};
 use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::prim::text_field::Field;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{
     Builder, Chord, Command, CommandState, Commands, Icon, InText, Shell, TextSpec, TextStyle,
     Weight, tw,
 };
 use egui::{Color32, FontFamily, Key, Modifiers, Role, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, click_node, focused_path, rect_of};
+use crate::support::{self, focused_path};
 
 const NAME: &str = r#"/"Page"/"name""#;
 const FILE: &str = r#"/"Page"/"file""#;
@@ -254,33 +254,33 @@ fn icon() -> Icon {
     )))
 }
 
-fn harness_of(app: App) -> Harness<'static, Rig<App>> {
-    let mut harness = support::harness(vec2(500.0, 400.0), base_text(), app, view);
-    harness.run_steps(4);
-    harness
+fn harness_of(app: App) -> Driver<App> {
+    let mut d = support::driver(vec2(500.0, 400.0), base_text(), app, view).build();
+    d.frames(4);
+    d
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
+fn harness() -> Driver<App> {
     harness_of(App {
         can_save: true,
         ..App::default()
     })
 }
 
-fn press(harness: &mut Harness<'_, Rig<App>>, modifiers: Modifiers, key: Key) {
-    harness.key_press_modifiers(modifiers, key);
-    harness.run_steps(4);
+/// `key` with `modifiers` held, sent as a chord even with none held.
+fn press(d: &mut Driver<App>, modifiers: Modifiers, key: Key) {
+    d.harness().key_press_modifiers(modifiers, key);
+    d.frames(4);
 }
 
-fn log(harness: &Harness<'_, Rig<App>>) -> Vec<&'static str> {
-    harness.state().app.log.clone()
+fn log(d: &Driver<App>) -> Vec<&'static str> {
+    d.app().log.clone()
 }
 
-fn start_typing(harness: &mut Harness<'_, Rig<App>>) {
-    click_node(harness, NAME);
-    harness.run_steps(6);
+fn start_typing(d: &mut Driver<App>) {
+    d.click(Target::suffix(NAME)).frames(6);
     assert_eq!(
-        focused_path(harness).as_deref(),
+        focused_path(d).as_deref(),
         Some("<widget>"),
         "precondition: the field has focus"
     );
@@ -288,191 +288,240 @@ fn start_typing(harness: &mut Harness<'_, Rig<App>>) {
 
 #[test]
 fn a_chord_runs_its_command() {
-    let mut harness = harness();
-    press(&mut harness, Modifiers::COMMAND, Key::S);
-    assert_eq!(log(&harness), ["save"]);
+    let mut d = harness();
+    press(&mut d, Modifiers::COMMAND, Key::S);
+    assert_eq!(log(&d), ["save"]);
 }
 
 #[test]
 fn shift_command_s_does_not_run_the_command_bound_to_command_s() {
-    let mut harness = harness();
-    press(&mut harness, Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
-    assert!(log(&harness).is_empty(), "{:?}", log(&harness));
+    let mut d = harness();
+    press(&mut d, Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
+    assert!(log(&d).is_empty(), "{:?}", log(&d));
 }
 
 #[test]
 fn shift_command_s_runs_its_own_command_and_not_command_s() {
-    let mut harness = harness_of(App {
+    let mut d = harness_of(App {
         can_save: true,
         with_save_as: true,
         ..App::default()
     });
-    press(&mut harness, Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
-    assert_eq!(log(&harness), ["save as"]);
-    press(&mut harness, Modifiers::COMMAND, Key::S);
-    assert_eq!(log(&harness), ["save as", "save"]);
+    press(&mut d, Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
+    assert_eq!(log(&d), ["save as"]);
+    press(&mut d, Modifiers::COMMAND, Key::S);
+    assert_eq!(log(&d), ["save as", "save"]);
 }
 
 #[test]
 fn a_chord_a_command_takes_is_not_seen_by_a_custom_node() {
-    let mut harness = harness();
-    press(&mut harness, Modifiers::COMMAND, Key::S);
-    assert_eq!(log(&harness), ["save"], "precondition: the command ran");
-    assert_eq!(harness.state().app.canvas_saw_s, 0);
+    let mut d = harness();
+    press(&mut d, Modifiers::COMMAND, Key::S);
+    assert_eq!(log(&d), ["save"], "precondition: the command ran");
+    assert_eq!(d.app().canvas_saw_s, 0);
 }
 
 #[test]
 fn a_disabled_command_does_not_run_and_leaves_its_chord_to_the_rest() {
-    let mut harness = harness_of(App::default());
-    press(&mut harness, Modifiers::COMMAND, Key::S);
-    assert!(log(&harness).is_empty());
-    assert_eq!(
-        harness.state().app.canvas_saw_s,
-        1,
-        "the chord was not consumed"
-    );
+    let mut d = harness_of(App::default());
+    press(&mut d, Modifiers::COMMAND, Key::S);
+    assert!(log(&d).is_empty());
+    assert_eq!(d.app().canvas_saw_s, 1, "the chord was not consumed");
 }
 
 #[test]
 fn copy_is_a_press_of_command_c() {
-    let mut harness = harness();
-    harness.event(egui::Event::Copy);
-    harness.run_steps(4);
-    assert_eq!(log(&harness), ["copy"]);
+    let mut d = harness();
+    d.event(egui::Event::Copy).frames(3);
+    assert_eq!(log(&d), ["copy"]);
 }
 
 #[test]
 fn paste_is_a_press_of_command_v_where_it_fires_in_a_text_field() {
-    let mut harness = harness();
-    start_typing(&mut harness);
-    harness.event(egui::Event::Paste("text".into()));
-    harness.run_steps(4);
-    assert_eq!(log(&harness), ["paste"]);
+    let mut d = harness();
+    start_typing(&mut d);
+    d.event(egui::Event::Paste("text".into())).frames(3);
+    assert_eq!(log(&d), ["paste"]);
 }
 
 #[test]
 fn a_chord_that_is_not_pressed_exactly_does_not_run() {
-    let mut harness = harness();
-    press(&mut harness, Modifiers::NONE, Key::S);
-    press(&mut harness, Modifiers::ALT | Modifiers::COMMAND, Key::S);
-    assert!(log(&harness).is_empty(), "{:?}", log(&harness));
+    let mut d = harness();
+    press(&mut d, Modifiers::NONE, Key::S);
+    press(&mut d, Modifiers::ALT | Modifiers::COMMAND, Key::S);
+    assert!(log(&d).is_empty(), "{:?}", log(&d));
+}
+
+mod claimed {
+    use eggshell_ui::web::ClaimedChords;
+    use egui::KeyboardShortcut;
+
+    use super::*;
+
+    fn claims(d: &Driver<App>, modifiers: Modifiers, key: Key) -> bool {
+        ClaimedChords::of(d.ctx()).claims(KeyboardShortcut::new(modifiers, key))
+    }
+
+    #[test]
+    fn an_enabled_commands_chord_is_claimed_and_no_other() {
+        let d = harness();
+        assert!(claims(&d, Modifiers::COMMAND, Key::S));
+        assert!(claims(&d, Modifiers::MAC_CMD | Modifiers::COMMAND, Key::S));
+        assert!(!claims(&d, Modifiers::COMMAND, Key::G));
+        assert!(!claims(&d, Modifiers::COMMAND | Modifiers::SHIFT, Key::S));
+    }
+
+    #[test]
+    fn a_disabled_commands_chord_is_not_claimed() {
+        let mut d = harness();
+        assert!(
+            claims(&d, Modifiers::COMMAND, Key::S),
+            "precondition: claimed while enabled"
+        );
+        d.app_mut().can_save = false;
+        d.frames(2);
+        assert!(!claims(&d, Modifiers::COMMAND, Key::S));
+        assert!(claims(&d, Modifiers::COMMAND, Key::K));
+    }
+
+    #[test]
+    fn a_chord_that_yields_to_a_text_field_is_not_claimed_while_typing() {
+        let mut d = harness();
+        assert!(
+            claims(&d, Modifiers::COMMAND, Key::O),
+            "precondition: claimed before typing"
+        );
+        start_typing(&mut d);
+        assert!(!claims(&d, Modifiers::COMMAND, Key::O));
+        assert!(claims(&d, Modifiers::NONE, Key::J));
+    }
+
+    #[test]
+    fn copy_and_paste_are_left_to_the_browser() {
+        let d = harness();
+        assert!(!claims(&d, Modifiers::COMMAND, Key::C));
+        assert!(!claims(&d, Modifiers::COMMAND, Key::V));
+    }
+
+    #[test]
+    fn under_a_modal_only_its_own_chords_are_claimed() {
+        let mut d = harness();
+        d.app_mut().dialog = true;
+        d.frames(12);
+        assert!(claims(&d, Modifiers::COMMAND, Key::Enter));
+        assert!(!claims(&d, Modifiers::COMMAND, Key::S));
+    }
 }
 
 mod modals {
     use super::*;
 
-    fn opened() -> Harness<'static, Rig<App>> {
-        let mut harness = harness();
-        harness.state_mut().app.dialog = true;
-        harness.run_steps(12);
+    fn opened() -> Driver<App> {
+        let mut d = harness();
+        d.app_mut().dialog = true;
+        d.frames(12);
         assert!(
-            harness
-                .state()
-                .nodes
+            support::nodes(&d)
                 .iter()
                 .any(|(path, _)| path.starts_with(r#"/"dialog""#)),
             "precondition: the dialog is open"
         );
-        harness
+        d
     }
 
     #[test]
     fn a_page_command_does_not_run_under_a_modal() {
-        let mut harness = opened();
-        press(&mut harness, Modifiers::COMMAND, Key::S);
-        assert!(log(&harness).is_empty(), "{:?}", log(&harness));
+        let mut d = opened();
+        press(&mut d, Modifiers::COMMAND, Key::S);
+        assert!(log(&d).is_empty(), "{:?}", log(&d));
     }
 
     #[test]
     fn the_modals_own_commands_run() {
-        let mut harness = opened();
-        press(&mut harness, Modifiers::COMMAND, Key::Enter);
-        assert_eq!(log(&harness), ["confirm"]);
+        let mut d = opened();
+        press(&mut d, Modifiers::COMMAND, Key::Enter);
+        assert_eq!(log(&d), ["confirm"]);
     }
 
-    fn open_dialog_menu(item: Cmd) -> Harness<'static, Rig<App>> {
-        let mut harness = harness_of(App {
+    fn open_dialog_menu(item: Cmd) -> Driver<App> {
+        let mut d = harness_of(App {
             can_save: true,
             dialog: true,
             dialog_item: Some(item),
             ..App::default()
         });
-        harness.run_steps(12);
-        harness
+        d.frames(12);
+        d.harness()
             .get_by_role_and_label(Role::Button, "Dialog menu")
             .click();
-        harness.run_steps(6);
-        harness
+        d.frames(6);
+        d
     }
 
     #[test]
     fn a_menu_in_a_dialog_offers_the_dialogs_commands() {
-        let mut harness = open_dialog_menu(Cmd::Confirm);
-        harness
+        let mut d = open_dialog_menu(Cmd::Confirm);
+        d.harness()
             .get_by_role_and_label(Role::MenuItem, "Confirm")
             .click();
-        harness.run_steps(6);
-        assert_eq!(log(&harness), ["confirm"]);
+        d.frames(6);
+        assert_eq!(log(&d), ["confirm"]);
     }
 
     #[test]
     fn a_menu_in_a_dialog_does_not_offer_a_page_command_whose_chord_is_dead() {
-        let mut harness = open_dialog_menu(Cmd::Save);
-        let report = eggshell_ui::testing::assert_reported(
-            &harness.ctx,
-            eggshell_ui::Problem::UnknownCommand,
-        );
+        let mut d = open_dialog_menu(Cmd::Save);
+        let report =
+            eggshell_ui::testing::assert_reported(d.ctx(), eggshell_ui::Problem::UnknownCommand);
         assert!(report.message.contains("Save"), "{}", report.message);
-        let item = harness.get_by_role_and_label(Role::MenuItem, "Save");
+        let item = d.harness().get_by_role_and_label(Role::MenuItem, "Save");
         assert!(item.accesskit_node().data().is_disabled());
         item.click();
-        harness.run_steps(6);
-        assert!(log(&harness).is_empty(), "{:?}", log(&harness));
+        d.frames(6);
+        assert!(log(&d).is_empty(), "{:?}", log(&d));
     }
 
     #[test]
     fn the_modals_commands_do_not_run_once_it_is_closed() {
-        let mut harness = opened();
-        harness.state_mut().app.dialog = false;
-        harness.run_steps(30);
-        press(&mut harness, Modifiers::COMMAND, Key::Enter);
-        assert!(log(&harness).is_empty(), "{:?}", log(&harness));
-        press(&mut harness, Modifiers::COMMAND, Key::S);
-        assert_eq!(log(&harness), ["save"], "the page's commands are back");
+        let mut d = opened();
+        d.app_mut().dialog = false;
+        d.frames(30);
+        press(&mut d, Modifiers::COMMAND, Key::Enter);
+        assert!(log(&d).is_empty(), "{:?}", log(&d));
+        press(&mut d, Modifiers::COMMAND, Key::S);
+        assert_eq!(log(&d), ["save"], "the page's commands are back");
     }
 }
 
 mod popovers {
     use super::*;
 
-    fn opened() -> Harness<'static, Rig<App>> {
-        let mut harness = harness();
-        harness.state_mut().app.popover = true;
-        harness.run_steps(12);
+    fn opened() -> Driver<App> {
+        let mut d = harness();
+        d.app_mut().popover = true;
+        d.frames(12);
         assert!(
-            harness
-                .state()
-                .nodes
+            support::nodes(&d)
                 .iter()
                 .any(|(path, _)| path.starts_with(r#"/"popover""#)),
             "precondition: the popover is open"
         );
-        harness
+        d
     }
 
     #[test]
     fn a_popovers_commands_run_beside_the_pages() {
-        let mut harness = opened();
-        press(&mut harness, Modifiers::COMMAND, Key::L);
-        press(&mut harness, Modifiers::COMMAND, Key::S);
-        assert_eq!(log(&harness), ["local", "save"]);
+        let mut d = opened();
+        press(&mut d, Modifiers::COMMAND, Key::L);
+        press(&mut d, Modifiers::COMMAND, Key::S);
+        assert_eq!(log(&d), ["local", "save"]);
     }
 
     #[test]
     fn a_chord_in_both_tables_runs_the_nearest_command_only() {
-        let mut harness = opened();
-        press(&mut harness, Modifiers::COMMAND, Key::C);
-        assert_eq!(log(&harness), ["shadow"]);
+        let mut d = opened();
+        press(&mut d, Modifiers::COMMAND, Key::C);
+        assert_eq!(log(&d), ["shadow"]);
     }
 }
 
@@ -481,75 +530,72 @@ mod text_fields {
 
     #[test]
     fn a_command_chord_runs_in_a_text_field() {
-        let mut harness = harness();
-        start_typing(&mut harness);
-        press(&mut harness, Modifiers::COMMAND, Key::S);
-        assert_eq!(log(&harness), ["save"]);
+        let mut d = harness();
+        start_typing(&mut d);
+        press(&mut d, Modifiers::COMMAND, Key::S);
+        assert_eq!(log(&d), ["save"]);
     }
 
     #[test]
     fn a_chord_a_text_field_uses_does_not_run() {
-        let mut harness = harness();
-        start_typing(&mut harness);
-        press(&mut harness, Modifiers::COMMAND, Key::C);
-        assert!(log(&harness).is_empty(), "{:?}", log(&harness));
+        let mut d = harness();
+        start_typing(&mut d);
+        press(&mut d, Modifiers::COMMAND, Key::C);
+        assert!(log(&d).is_empty(), "{:?}", log(&d));
     }
 
     #[test]
     fn a_bare_key_does_not_run_while_typing_and_does_otherwise() {
-        let mut harness = harness();
-        start_typing(&mut harness);
-        press(&mut harness, Modifiers::NONE, Key::H);
-        assert!(log(&harness).is_empty(), "typing");
-        harness.key_press(Key::Escape);
-        harness.run_steps(6);
-        assert_eq!(focused_path(&harness), None, "precondition: no focus");
-        press(&mut harness, Modifiers::NONE, Key::H);
-        assert_eq!(log(&harness), ["help"]);
+        let mut d = harness();
+        start_typing(&mut d);
+        press(&mut d, Modifiers::NONE, Key::H);
+        assert!(log(&d).is_empty(), "typing");
+        d.press(Key::Escape).frames(5);
+        assert_eq!(focused_path(&d), None, "precondition: no focus");
+        press(&mut d, Modifiers::NONE, Key::H);
+        assert_eq!(log(&d), ["help"]);
     }
 
     #[test]
     fn fire_overrides_a_chord_a_text_field_uses() {
-        let mut harness = harness();
-        start_typing(&mut harness);
-        press(&mut harness, Modifiers::COMMAND, Key::V);
-        press(&mut harness, Modifiers::NONE, Key::J);
-        assert_eq!(log(&harness), ["paste", "jump"]);
+        let mut d = harness();
+        start_typing(&mut d);
+        press(&mut d, Modifiers::COMMAND, Key::V);
+        press(&mut d, Modifiers::NONE, Key::J);
+        assert_eq!(log(&d), ["paste", "jump"]);
     }
 
     #[test]
     fn yield_overrides_a_chord_a_text_field_leaves_alone() {
-        let mut harness = harness();
-        start_typing(&mut harness);
-        press(&mut harness, Modifiers::COMMAND, Key::O);
-        assert!(log(&harness).is_empty(), "typing");
-        harness.key_press(Key::Escape);
-        harness.run_steps(6);
-        press(&mut harness, Modifiers::COMMAND, Key::O);
-        assert_eq!(log(&harness), ["open"]);
+        let mut d = harness();
+        start_typing(&mut d);
+        press(&mut d, Modifiers::COMMAND, Key::O);
+        assert!(log(&d).is_empty(), "typing");
+        d.press(Key::Escape).frames(5);
+        press(&mut d, Modifiers::COMMAND, Key::O);
+        assert_eq!(log(&d), ["open"]);
     }
 }
 
 mod menus {
     use super::*;
 
-    fn open_file(harness: &mut Harness<'_, Rig<App>>) {
-        click_node(harness, FILE);
-        harness.run_steps(5);
+    fn open_file(d: &mut Driver<App>) {
+        d.click(Target::suffix(FILE)).frames(5);
         assert!(
-            harness.state().nodes.iter().any(|(path, _)| path == MENU),
+            support::nodes(d).iter().any(|(path, _)| path == MENU),
             "precondition: the menu is open"
         );
     }
 
     #[test]
     fn an_item_takes_its_title_and_the_shortcut_as_the_platform_writes_it() {
-        let mut harness = harness();
-        open_file(&mut harness);
-        harness.get_by_role_and_label(Role::MenuItem, "Save");
-        let written = harness.ctx.format_shortcut(&SAVE.into());
-        let menu = rect_of(&harness, MENU);
-        let shown = support::shapes(&harness).into_iter().any(|shape| {
+        let mut d = harness();
+        open_file(&mut d);
+        d.harness().get_by_role_and_label(Role::MenuItem, "Save");
+        let written = d.ctx().format_shortcut(&SAVE.into());
+        let menu = d.rect(Target::suffix(MENU));
+        let shown = support::shapes(&d).into_iter().any(|shape| {
             matches!(shape, egui::Shape::Text(text)
                 if text.galley.text() == written && menu.contains(text.pos))
         });
@@ -558,16 +604,16 @@ mod menus {
 
     #[test]
     fn a_menu_item_shows_on_a_mac_with_the_shortcut_in_symbols() {
-        let mut harness = harness();
-        harness.ctx.set_os(egui::os::OperatingSystem::Mac);
-        open_file(&mut harness);
-        let written = harness.ctx.format_shortcut(&SAVE.into());
+        let mut d = harness();
+        d.ctx().set_os(egui::os::OperatingSystem::Mac);
+        open_file(&mut d);
+        let written = d.ctx().format_shortcut(&SAVE.into());
         assert!(
             written.contains('\u{2318}'),
             "{written:?} is not in symbols"
         );
-        let menu = rect_of(&harness, MENU);
-        let shown = support::shapes(&harness).into_iter().any(|shape| {
+        let menu = d.rect(Target::suffix(MENU));
+        let shown = support::shapes(&d).into_iter().any(|shape| {
             matches!(shape, egui::Shape::Text(text)
                 if text.galley.text() == written && menu.contains(text.pos))
         });
@@ -577,12 +623,13 @@ mod menus {
     #[test]
     fn a_key_chip_draws_the_mac_modifier_symbols() {
         let chip = "\u{2318}\u{21e7}S";
-        let mut harness = support::harness(vec2(200.0, 60.0), base_text(), (), |b, _| {
+        let mut d = support::driver(vec2(200.0, 60.0), base_text(), (), |b, _| {
             b.kbd("\u{2318}\u{21e7}S")
-        });
-        harness.ctx.set_os(egui::os::OperatingSystem::Mac);
-        harness.run_steps(3);
-        let drawn = support::shapes(&harness)
+        })
+        .build();
+        d.ctx().set_os(egui::os::OperatingSystem::Mac);
+        d.frames(3);
+        let drawn = support::shapes(&d)
             .into_iter()
             .any(|shape| matches!(shape, egui::Shape::Text(text) if text.galley.text() == chip));
         assert!(drawn, "{chip:?} is not drawn");
@@ -590,13 +637,13 @@ mod menus {
 
     #[test]
     fn every_key_symbol_has_a_glyph_in_the_proportional_family() {
-        let harness = harness();
+        let d = harness();
         let missing: Vec<char> = "\u{2318}\u{21e7}\u{2325}\u{2303}\u{232b}\u{21b5}\u{21e5}\u{2190}\u{2191}\u{2192}\u{2193}\u{23ce}"
             .chars()
             .filter(|symbol| {
                 let font = egui::FontId::proportional(14.0);
-                !harness
-                    .ctx
+                !d
+                    .ctx()
                     .fonts_mut(|fonts| fonts.has_glyphs(&font, &symbol.to_string()))
             })
             .collect();
@@ -605,72 +652,62 @@ mod menus {
 
     #[test]
     fn an_item_is_disabled_with_its_command() {
-        let mut harness = harness_of(App::default());
-        open_file(&mut harness);
-        let disabled = |harness: &Harness<'_, Rig<App>>, label| {
-            harness
+        let mut d = harness_of(App::default());
+        open_file(&mut d);
+        let disabled = |d: &Driver<App>, label| {
+            d.harness()
                 .get_by_role_and_label(Role::MenuItem, label)
                 .accesskit_node()
                 .data()
                 .is_disabled()
         };
-        assert!(disabled(&harness, "Save"));
-        assert!(!disabled(&harness, "Copy"));
+        assert!(disabled(&d, "Save"));
+        assert!(!disabled(&d, "Copy"));
     }
 
     #[test]
     fn activating_an_item_runs_the_command() {
-        let mut harness = harness();
-        open_file(&mut harness);
-        click_node(&mut harness, &format!("{MENU}/Copy"));
-        harness.run_steps(5);
-        assert_eq!(log(&harness), ["copy"]);
+        let mut d = harness();
+        open_file(&mut d);
+        d.click(Target::suffix(&format!("{MENU}/Copy"))).frames(5);
+        assert_eq!(log(&d), ["copy"]);
     }
 
     #[test]
     fn a_chord_runs_its_command_under_an_open_menu() {
-        let mut harness = harness();
-        open_file(&mut harness);
-        press(&mut harness, Modifiers::COMMAND, Key::S);
-        assert_eq!(log(&harness), ["save"]);
+        let mut d = harness();
+        open_file(&mut d);
+        press(&mut d, Modifiers::COMMAND, Key::S);
+        assert_eq!(log(&d), ["save"]);
     }
 }
 
 mod command_items {
     use super::*;
 
-    fn open_view(app: App) -> Harness<'static, Rig<App>> {
-        let mut harness = harness_of(App {
+    fn open_view(app: App) -> Driver<App> {
+        let mut d = harness_of(App {
             view_menu: true,
             ..app
         });
-        click_node(&mut harness, VIEW);
-        harness.run_steps(5);
+        d.click(Target::suffix(VIEW)).frames(5);
         assert!(
-            harness
-                .state()
-                .nodes
-                .iter()
-                .any(|(path, _)| path == VIEW_MENU),
+            support::nodes(&d).iter().any(|(path, _)| path == VIEW_MENU),
             "precondition: the menu is open"
         );
-        harness
+        d
     }
 
-    fn toggled(
-        harness: &Harness<'_, Rig<App>>,
-        role: Role,
-        label: &str,
-    ) -> Option<egui::accesskit::Toggled> {
-        harness
+    fn toggled(d: &Driver<App>, role: Role, label: &str) -> Option<egui::accesskit::Toggled> {
+        d.harness()
             .get_by_role_and_label(role, label)
             .accesskit_node()
             .data()
             .toggled()
     }
 
-    fn disabled(harness: &Harness<'_, Rig<App>>, label: &str) -> bool {
-        harness
+    fn disabled(d: &Driver<App>, label: &str) -> bool {
+        d.harness()
             .query_by_label(label)
             .expect("the item is in the menu")
             .accesskit_node()
@@ -698,12 +735,12 @@ mod command_items {
 
     #[test]
     fn an_icon_does_not_replace_a_checked_commands_mark() {
-        let harness = open_view(App {
+        let d = open_view(App {
             grid: true,
             ..App::default()
         });
-        let item = rect_of(&harness, &format!("{VIEW_MENU}/Grid"));
-        let checks = support::shapes(&harness)
+        let item = d.rect(Target::suffix(&format!("{VIEW_MENU}/Grid")));
+        let checks = support::shapes(&d)
             .into_iter()
             .filter(|shape| item.contains_rect(shape.visual_bounding_rect()))
             .count();
@@ -721,72 +758,74 @@ mod command_items {
     #[test]
     fn a_chosen_commands_item_is_a_radio_with_the_dot_on_the_choice() {
         use egui::accesskit::Toggled;
-        let harness = open_view(App {
+        let d = open_view(App {
             size: Size::Large,
             ..App::default()
         });
         assert_eq!(
-            toggled(&harness, Role::MenuItemRadio, "Small"),
+            toggled(&d, Role::MenuItemRadio, "Small"),
             Some(Toggled::False)
         );
         assert_eq!(
-            toggled(&harness, Role::MenuItemRadio, "Large"),
+            toggled(&d, Role::MenuItemRadio, "Large"),
             Some(Toggled::True)
         );
     }
 
     #[test]
     fn activating_a_checked_commands_item_runs_the_command() {
-        let mut harness = open_view(App::default());
-        click_node(&mut harness, &format!("{VIEW_MENU}/Grid"));
-        harness.run_steps(5);
-        assert!(harness.state().app.grid);
+        let mut d = open_view(App::default());
+        d.click(Target::suffix(&format!("{VIEW_MENU}/Grid")))
+            .frames(5);
+        assert!(d.app().grid);
     }
 
     #[test]
     fn an_item_can_disable_an_enabled_command() {
-        let harness = open_view(App {
+        let d = open_view(App {
             can_save: true,
             ..App::default()
         });
         assert!(
-            !disabled(&harness, "Save"),
+            !disabled(&d, "Save"),
             "precondition: an enabled item is not disabled"
         );
-        assert!(disabled(&harness, "Copy"));
+        assert!(disabled(&d, "Copy"));
     }
 
     #[test]
     fn an_item_cannot_enable_a_disabled_command() {
-        let harness = open_view(App::default());
-        assert!(disabled(&harness, "Save"));
+        let d = open_view(App::default());
+        assert!(disabled(&d, "Save"));
     }
 
     #[test]
     fn the_shell_reaches_a_command_from_a_chord_an_item_and_a_button() {
-        let mut harness = harness();
-        press(&mut harness, Modifiers::COMMAND, Key::K);
-        assert_eq!(log(&harness), ["shelled"]);
-        let width = harness.ctx.content_rect().width();
-        assert_eq!(harness.state().app.shell_width, Some(width));
+        let mut d = harness();
+        press(&mut d, Modifiers::COMMAND, Key::K);
+        assert_eq!(log(&d), ["shelled"]);
+        let width = d.ctx().content_rect().width();
+        assert_eq!(d.app().shell_width, Some(width));
 
-        let mut harness = open_view(App::default());
-        click_node(&mut harness, &format!("{VIEW_MENU}/Shelled"));
-        harness.run_steps(5);
-        assert_eq!(log(&harness), ["shelled"]);
+        let mut d = open_view(App::default());
+        d.click(Target::suffix(&format!("{VIEW_MENU}/Shelled")))
+            .frames(5);
+        assert_eq!(log(&d), ["shelled"]);
 
-        let mut harness = harness_of(App {
+        let mut d = harness_of(App {
             button: Some(Cmd::Shelled),
             ..App::default()
         });
-        harness.get_by_role_and_label(Role::Button, "Run").click();
-        harness.run_steps(5);
-        assert_eq!(log(&harness), ["shelled"]);
+        d.harness()
+            .get_by_role_and_label(Role::Button, "Run")
+            .click();
+        d.frames(5);
+        assert_eq!(log(&d), ["shelled"]);
     }
 
     #[test]
     fn a_table_gives_a_command_by_its_key_and_its_shortcut_as_the_platform_writes_it() {
-        let harness = harness();
+        let d = harness();
         let app = App {
             grid: true,
             ..App::default()
@@ -795,8 +834,8 @@ mod command_items {
         let save = table.get(Cmd::Save).expect("Save is in the table");
         assert_eq!(save.title(), "Save");
         assert_eq!(
-            save.shortcut_text(&harness.ctx),
-            Some(harness.ctx.format_shortcut(&SAVE.into()))
+            save.shortcut_text(d.ctx()),
+            Some(d.ctx().format_shortcut(&SAVE.into()))
         );
         assert_eq!(
             table.get(Cmd::Grid).map(|grid| grid.state(&app)),
@@ -816,7 +855,7 @@ mod validation {
 
     use super::*;
 
-    fn declared(table: fn() -> Commands<App>) -> Harness<'static, Rig<App>> {
+    fn declared(table: fn() -> Commands<App>) -> Driver<App> {
         harness_of(App {
             table: Some(table),
             ..App::default()
@@ -827,12 +866,12 @@ mod validation {
 
     #[test]
     fn two_commands_on_one_chord_are_reported() {
-        let harness = declared(|| {
+        let d = declared(|| {
             Commands::new()
                 .add(Cmd::Save, Command::new("Save", noop).shortcut(SAVE))
                 .add(Cmd::Copy, Command::new("Copy", noop).shortcut(SAVE))
         });
-        let report = assert_reported(&harness.ctx, Problem::DuplicateChord);
+        let report = assert_reported(d.ctx(), Problem::DuplicateChord);
         assert!(
             report.message.contains("bound to the same chord"),
             "{}",
@@ -842,12 +881,12 @@ mod validation {
 
     #[test]
     fn a_key_added_twice_is_reported() {
-        let harness = declared(|| {
+        let d = declared(|| {
             Commands::new()
                 .add(Cmd::Save, Command::new("Save", noop))
                 .add(Cmd::Save, Command::new("Save again", noop))
         });
-        let report = assert_reported(&harness.ctx, Problem::DuplicateCommand);
+        let report = assert_reported(d.ctx(), Problem::DuplicateCommand);
         assert!(report.message.contains("added twice"), "{}", report.message);
     }
 
@@ -863,51 +902,50 @@ mod validation {
 
     #[test]
     fn a_valid_table_reports_nothing() {
-        let harness = declared(|| {
+        let d = declared(|| {
             Commands::new()
                 .add(Cmd::Save, Command::new("Save", noop).shortcut(SAVE))
                 .add(Cmd::Copy, Command::new("Copy", noop))
         });
-        assert_no_reports(&harness.ctx);
+        assert_no_reports(d.ctx());
     }
 
     #[test]
     fn a_menu_item_for_an_unknown_command_is_reported_and_disabled() {
-        let mut harness = harness_of(App {
+        let mut d = harness_of(App {
             table: Some(|| Commands::new().add(Cmd::Save, Command::new("Save", noop))),
             ..App::default()
         });
-        click_node(&mut harness, FILE);
-        harness.run_steps(5);
-        let report = assert_reported(&harness.ctx, Problem::UnknownCommand);
+        d.click(Target::suffix(FILE)).frames(5);
+        let report = assert_reported(d.ctx(), Problem::UnknownCommand);
         assert!(report.message.contains("Copy"), "{}", report.message);
-        let item = harness.get_by_role_and_label(Role::MenuItem, "Copy");
+        let item = d.harness().get_by_role_and_label(Role::MenuItem, "Copy");
         assert!(item.accesskit_node().data().is_disabled());
     }
 
     #[test]
     fn a_button_for_an_unknown_command_is_reported_and_disabled() {
-        let mut harness = harness_of(App {
+        let mut d = harness_of(App {
             table: Some(|| Commands::new().add(Cmd::Save, Command::new("Save", noop))),
             button: Some(Cmd::Copy),
             ..App::default()
         });
-        let report = assert_reported(&harness.ctx, Problem::UnknownCommand);
+        let report = assert_reported(d.ctx(), Problem::UnknownCommand);
         assert!(report.message.contains("Copy"), "{}", report.message);
-        let button = harness.get_by_role_and_label(Role::Button, "Run");
+        let button = d.harness().get_by_role_and_label(Role::Button, "Run");
         assert!(button.accesskit_node().data().is_disabled());
         button.click();
-        harness.run_steps(5);
-        assert!(log(&harness).is_empty(), "{:?}", log(&harness));
+        d.frames(5);
+        assert!(log(&d).is_empty(), "{:?}", log(&d));
     }
 
     #[test]
     fn declaring_commands_twice_in_a_root_is_reported() {
-        let harness = harness_of(App {
+        let d = harness_of(App {
             twice: true,
             ..App::default()
         });
-        let report = assert_reported(&harness.ctx, Problem::CommandsTwice);
+        let report = assert_reported(d.ctx(), Problem::CommandsTwice);
         assert!(
             report.message.contains("declared twice in one root"),
             "{}",

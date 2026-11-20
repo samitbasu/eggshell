@@ -12,7 +12,7 @@
 //!
 //! The buttons, choices and values sections show every control built from
 //! eggshell nodes, which have no size computation to check, and the labels
-//! section the badges, chips and spinners of `eggshell-ui-extras`.
+//! section the badges, chips, spinners and skeletons of `eggshell-ui-extras`.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -26,6 +26,7 @@ use eggshell_ui::prim::text_field::{self, Field};
 use eggshell_ui::widget::{Lines, TextEdit};
 use eggshell_ui::{Builder, Icon, Progress, Scope, TextStyle, Tw, icons, tw};
 use eggshell_ui_extras::badge::BadgeExt;
+use eggshell_ui_extras::skeleton::SkeletonExt;
 use eggshell_ui_extras::spinner::SpinnerExt;
 use eggshell_ui_shadcn::{BaseColor, Palette, ThemeColor, size, variant};
 use egui::{Color32, Context, Rect, Response, Stroke, StrokeKind, Ui, UiBuilder, vec2};
@@ -262,7 +263,7 @@ pub enum Section {
     Choices,
     /// The owned slider, select and stepper.
     Values,
-    /// The extras' badges, chips and spinners.
+    /// The extras' badges, chips, spinners and skeletons.
     Labels,
 }
 
@@ -845,6 +846,30 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
                     .on_change(|s: &mut State, toggled| s.owned_toggled = toggled);
             });
         });
+        tooltip_row(b, "Default tooltip");
+        let t = common::tokens(b.ctx());
+        b.styled(
+            |style| {
+                let tooltip = &mut style.tooltip;
+                tooltip.padding = vec2(24.0, 12.0);
+                tooltip.popup.paint.states.rest = Colors {
+                    fill: t.primary,
+                    border: t.primary,
+                    text: t.primary_foreground,
+                };
+            },
+            |b| tooltip_row(b, "Scoped tooltip"),
+        );
+    });
+}
+
+/// A row named `name` with a button whose tooltip is drawn in the style here.
+fn tooltip_row(b: &mut B<'_, '_>, name: &'static str) {
+    row(b, name, |b| {
+        b.button(("tooltip", name), "Hover me")
+            .variant(variant::OUTLINE)
+            .tooltip(name)
+            .on_click(|s: &mut State| s.owned_clicks += 1);
     });
 }
 
@@ -862,6 +887,11 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
                 .on_change(|s: &mut State, checked| s.owned_checked = checked);
             });
         }
+        row(b, "checkbox, refused", |b| {
+            b.checkbox("checkbox-refused", "Share usage data", state.owned_checked)
+                .refused("Your organisation decides this")
+                .on_change(|s: &mut State, checked| s.owned_checked = checked);
+        });
         row(b, "radio group", |b| {
             b.radio_group(
                 "radio",
@@ -915,6 +945,29 @@ fn choices_section(s: &mut S<'_, '_>, state: &State) {
             .cells(tw().flex_1())
             .on_change(|s: &mut State, unit| s.unit = unit);
         });
+        row(b, "segmented, refused", |b| {
+            b.segmented(
+                "segmented-refused",
+                state.unit,
+                [
+                    owned::Choice::new(Unit::Metric, "Metric"),
+                    owned::Choice::new(Unit::Imperial, "Imperial").tooltip("Feet and pounds"),
+                ],
+            )
+            .refused("Units follow the project")
+            .on_change(|s: &mut State, unit| s.unit = unit);
+        });
+        row(b, "choice, refused", |b| {
+            b.segmented(
+                "segmented-choice-refused",
+                state.unit,
+                [
+                    owned::Choice::new(Unit::Metric, "Metric"),
+                    owned::Choice::new(Unit::Imperial, "Imperial").refused("Not in this region"),
+                ],
+            )
+            .on_change(|s: &mut State, unit| s.unit = unit);
+        });
     });
 }
 
@@ -954,6 +1007,19 @@ fn values_section(s: &mut S<'_, '_>, state: &State) {
                     .on_change(|s: &mut State, value| s.owned_stepper = value);
             });
         }
+        row(b, "field, refused", |b| {
+            b.text_field("field-refused", "ada@example.com")
+                .named("Email")
+                .classes(tw().w_px(150.0))
+                .refused("Managed by your account")
+                .on_change(|_: &mut State, _| {});
+        });
+        row(b, "button, refused", |b| {
+            b.button("refused", "Publish")
+                .tooltip("Publishes the draft")
+                .refused("Nothing to publish yet")
+                .on_click(|s: &mut State| s.owned_clicks += 1);
+        });
     });
 }
 
@@ -1028,6 +1094,17 @@ fn labels_section(s: &mut S<'_, '_>, state: &State) {
                 b.div(tw().flex().items_center().gap(1.0), |b| {
                     b.spinner("syncing").named("Syncing").add();
                     b.badge("count", "3").variant(variant::SECONDARY).add();
+                });
+            });
+        });
+        // shadcn's Skeleton demo: `flex items-center space-x-4` of a
+        // `size-12 rounded-full` and two lines, `h-4 w-[250px]` and `w-[200px]`.
+        row_of(b, "skeleton", LABELS_COLUMN, |b| {
+            b.div(tw().flex().items_center().gap(4.0), |b| {
+                b.skeleton(tw().size_px(48.0).rounded_full());
+                b.div(tw().flex().flex_col().gap(2.0), |b| {
+                    b.skeleton(tw().h_px(16.0).w_px(250.0));
+                    b.skeleton(tw().h_px(16.0).w_px(200.0));
                 });
             });
         });

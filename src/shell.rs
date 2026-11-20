@@ -17,7 +17,7 @@ use crate::kept::Handle;
 ///
 /// From [`LayoutState::shell`](crate::LayoutState::shell),
 /// [`Builder::shell`](crate::Builder::shell),
-/// [`Placed::shell`](crate::Placed::shell) or, in a draw closure,
+/// [`Placed::shell`](crate::testing::PlacedFrame::shell) or, in a draw closure,
 /// [`ShellExt::try_shell`] on the `Ui`. Cloning is cheap and it outlives the
 /// borrow of the layout it came from.
 ///
@@ -34,6 +34,14 @@ pub struct Shell {
 }
 
 impl Shell {
+    /// TODO(prose): the style the layout builds with: its own for the context's theme, else the one installed in the context.
+    pub fn style(&self) -> std::sync::Arc<crate::Style> {
+        let theme = self.ctx.theme();
+        self.kept
+            .with(|kept| kept.style.as_ref().map(|style| style.get(theme).clone()))
+            .unwrap_or_else(|| crate::Style::of(&self.ctx))
+    }
+
     /// The egui context the layout is laid out in, for a handler that holds a
     /// `Shell` and needs the context too.
     pub fn ctx(&self) -> &Context {

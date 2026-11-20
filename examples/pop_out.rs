@@ -50,9 +50,13 @@ pub fn layout(b: &mut Builder<'_, '_, State>, state: &State) {
                 let said = frame.map_or_else(
                     || format!("{title}: not opened"),
                     |frame| {
+                        let at = frame.position.map_or_else(
+                            || "an unknown place".to_owned(),
+                            |at| format!("{:.0}, {:.0}", at.x, at.y),
+                        );
                         format!(
-                            "{title}: at {:.0}, {:.0}, {:.0} x {:.0}",
-                            frame.position.x, frame.position.y, frame.size.x, frame.size.y
+                            "{title}: at {at}, {:.0} x {:.0}",
+                            frame.size.x, frame.size.y
                         )
                     },
                 );

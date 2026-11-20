@@ -1139,8 +1139,20 @@ pub struct TableStyle {
     pub rule: Color32,
     /// The rule's width.
     pub rule_width: f32,
-    /// Behind every second body row, starting with the second.
+    /// TODO(prose): behind every second body row of a table with
+    /// [`Stripes::Alternate`](crate::owned::Stripes::Alternate), starting
+    /// with the second, and again after each group row.
     pub stripe: Color32,
+    /// TODO(prose): behind a group row.
+    pub group_fill: Color32,
+    /// TODO(prose): the colour of a group row's title; `None` keeps the
+    /// table's.
+    pub group_text: Option<Color32>,
+    /// TODO(prose): the size of a group row's title; `None` keeps the
+    /// table's.
+    pub group_text_size: Option<TextSize>,
+    /// TODO(prose): the weight of a group row's title.
+    pub group_weight: Weight,
     /// Behind a hovered body row.
     pub hover: Color32,
     /// Behind the selected row.
@@ -1169,12 +1181,148 @@ impl TableStyle {
             rule_below_last: false,
             rule: v.widgets.noninteractive.bg_stroke.color,
             rule_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
-            stripe: Color32::TRANSPARENT,
+            stripe: v.faint_bg_color,
+            group_fill: v.faint_bg_color,
+            group_text: None,
+            group_text_size: None,
+            group_weight: Weight::Normal,
             hover: v.widgets.hovered.weak_bg_fill,
             selected: v.selection.bg_fill,
             footer_fill: v.faint_bg_color,
             footer_weight: Weight::Normal,
             transition: Duration::from_millis(100),
+        }
+    }
+}
+
+/// TODO(prose): the severity of a status a control shows: a badge, an
+/// alert, a notification. Its colours come from [`Style::tones`].
+///
+/// ```
+/// use eggshell_ui::{Style, Tone};
+///
+/// let style = Style::from_egui(&egui::Style::default());
+/// for tone in Tone::ALL {
+///     let colours = style.tones.get(tone);
+///     assert_ne!(colours.tone, colours.foreground);
+/// }
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Tone {
+    /// TODO(prose): neutral news.
+    Info,
+    /// TODO(prose): a good outcome.
+    Success,
+    /// TODO(prose): a caution.
+    Warning,
+}
+
+impl Tone {
+    /// Every tone, least severe first.
+    pub const ALL: [Self; 3] = [Self::Info, Self::Success, Self::Warning];
+}
+
+/// TODO(prose): the colours of one tone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ToneColors {
+    /// TODO(prose): the tone itself: its text or icon on the page, a solid
+    /// fill, or the base of a tint.
+    pub tone: Color32,
+    /// TODO(prose): text on a solid fill of `tone`.
+    pub foreground: Color32,
+}
+
+/// TODO(prose): the colours of every tone, one entry each.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Tones {
+    /// TODO(prose)
+    pub info: ToneColors,
+    /// TODO(prose)
+    pub success: ToneColors,
+    /// TODO(prose)
+    pub warning: ToneColors,
+}
+
+impl Tones {
+    /// TODO(prose): the colours of `tone`.
+    pub fn get(&self, tone: Tone) -> ToneColors {
+        *self.slot(tone)
+    }
+
+    /// TODO(prose): sets the colours of `tone`.
+    pub fn set(&mut self, tone: Tone, colors: ToneColors) {
+        *self.slot_mut(tone) = colors;
+    }
+
+    fn slot(&self, tone: Tone) -> &ToneColors {
+        match tone {
+            Tone::Info => &self.info,
+            Tone::Success => &self.success,
+            Tone::Warning => &self.warning,
+        }
+    }
+
+    fn slot_mut(&mut self, tone: Tone) -> &mut ToneColors {
+        match tone {
+            Tone::Info => &mut self.info,
+            Tone::Success => &mut self.success,
+            Tone::Warning => &mut self.warning,
+        }
+    }
+
+    /// egui's warning colour, and Tailwind's sky and green for the tones
+    /// egui has none of, in `visuals`' theme: the 700 shades in light, the
+    /// 400 in dark.
+    fn from_egui(visuals: &egui::Visuals) -> Self {
+        let rgb = |hex: u32| Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8);
+        let on = |tone: Color32, foreground: Color32| ToneColors { tone, foreground };
+        let (light, dark) = (rgb(0xfafafa), rgb(0x0a0a0a));
+        match visuals.dark_mode {
+            false => Self {
+                info: on(rgb(0x0069a8), light),
+                success: on(rgb(0x008236), light),
+                warning: on(visuals.warn_fg_color, dark),
+            },
+            true => Self {
+                info: on(rgb(0x00bcff), dark),
+                success: on(rgb(0x05df72), dark),
+                warning: on(visuals.warn_fg_color, dark),
+            },
+        }
+    }
+}
+
+/// TODO(prose): one value for each egui theme, such as a layout's style in light and dark.
+///
+/// ```
+/// use eggshell_ui::contract::Themed;
+///
+/// let gaps = Themed { light: 4.0, dark: 6.0 };
+/// assert_eq!(*gaps.get(egui::Theme::Dark), 6.0);
+/// assert_eq!(gaps.map(|gap| gap * 2.0).light, 8.0);
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Themed<T> {
+    /// TODO(prose): the value while the theme is light.
+    pub light: T,
+    /// TODO(prose): the value while the theme is dark.
+    pub dark: T,
+}
+
+impl<T> Themed<T> {
+    /// TODO(prose): the value for `theme`.
+    pub fn get(&self, theme: Theme) -> &T {
+        match theme {
+            Theme::Light => &self.light,
+            Theme::Dark => &self.dark,
+        }
+    }
+
+    /// TODO(prose): both values through `f`.
+    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Themed<U> {
+        Themed {
+            light: f(self.light),
+            dark: f(self.dark),
         }
     }
 }
@@ -1237,6 +1385,8 @@ pub struct Style {
     pub scrim: Color32,
     /// How overlays that declare when they are shown enter and leave.
     pub motion: MotionStyle,
+    /// TODO(prose): the colours of each [`Tone`].
+    pub tones: Tones,
 }
 
 #[derive(Clone)]
@@ -1825,6 +1975,7 @@ impl Style {
             table: TableStyle::from_egui(egui),
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
+            tones: Tones::from_egui(v),
         }
     }
 

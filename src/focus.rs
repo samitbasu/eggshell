@@ -15,6 +15,7 @@ use egui::{Context, Id, LayerId, SurrenderFocusOn};
 
 use crate::dismiss::FocusAt;
 use crate::kept::Handle;
+use crate::pipeline::OpenFocus;
 use crate::shell::Shell;
 use crate::stack::Open;
 
@@ -46,13 +47,28 @@ pub(crate) fn holds_focus(ctx: &Context, id: Id) -> bool {
     ctx.input(|input| input.focused) && ctx.memory(|memory| memory.has_focus(id))
 }
 
-/// Whether a field takes focus when it appears.
+/// When a control asks for focus, and what a field then selects.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Autofocus {
     #[default]
     Never,
-    OnAppear,
-    OnChange(Token),
+    OnAppear(Select),
+    OnChange(Token, Select),
+    /// As the overlay it is in opens: the node is marked, and the overlay
+    /// gives it focus.
+    OnOverlayOpen,
+    /// On every frame it is set.
+    Now(Select),
+}
+
+/// TODO(prose): what a field selects when the application focuses it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Select {
+    /// TODO(prose): the whole text, so typing replaces it.
+    All,
+    /// TODO(prose): nothing; the caret stays where the field keeps it.
+    #[default]
+    None,
 }
 
 /// What an application hands a field to ask for its focus: hashed, so a field
@@ -70,30 +86,48 @@ impl Token {
 }
 
 impl Autofocus {
+    /// Whether the node holding the control's widget is the one its overlay
+    /// opens on.
+    pub(crate) fn open_focus(self) -> OpenFocus {
+        if self == Self::OnOverlayOpen {
+            OpenFocus::Here
+        } else {
+            OpenFocus::Elsewhere
+        }
+    }
+
     /// Requests focus for `response`'s widget if this is the first frame it
-    /// is drawn after a frame in which it was not, or ever.
-    pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) {
-        let token = match self {
-            Self::Never => return,
-            Self::OnAppear => None,
-            Self::OnChange(token) => Some(token),
-        };
-        if let Some(token) = token {
-            let slot = response.id.with("eggshell-token");
-            let last = ctx.data_mut(|data| data.get_temp::<Token>(slot));
-            ctx.data_mut(|data| data.insert_temp(slot, token));
-            if last.is_some_and(|last| last != token) {
+    /// is drawn after a frame in which it was not, or ever, if its token
+    /// changed, or if it asks now. Returns what to select when it did.
+    pub(crate) fn apply(self, ctx: &Context, response: &egui::Response) -> Option<Select> {
+        let (token, select) = match self {
+            Self::Never | Self::OnOverlayOpen => return None,
+            Self::Now(select) => {
                 response.request_focus();
+                return Some(select);
             }
-            return;
-        }
-        let seen = response.id.with("eggshell-seen");
-        let now = ctx.cumulative_frame_nr();
-        let last = ctx.data_mut(|data| data.get_temp::<u64>(seen));
-        ctx.data_mut(|data| data.insert_temp(seen, now));
-        if last.is_none_or(|last| last.saturating_add(1) < now) {
+            Self::OnAppear(select) => (None, select),
+            Self::OnChange(token, select) => (Some(token), select),
+        };
+        let asks = match token {
+            Some(token) => {
+                let slot = response.id.with("eggshell-token");
+                let last = ctx.data_mut(|data| data.get_temp::<Token>(slot));
+                ctx.data_mut(|data| data.insert_temp(slot, token));
+                last.is_some_and(|last| last != token)
+            }
+            None => {
+                let seen = response.id.with("eggshell-seen");
+                let now = ctx.cumulative_frame_nr();
+                let last = ctx.data_mut(|data| data.get_temp::<u64>(seen));
+                ctx.data_mut(|data| data.insert_temp(seen, now));
+                last.is_none_or(|last| last.saturating_add(1) < now)
+            }
+        };
+        asks.then(|| {
             response.request_focus();
-        }
+            select
+        })
     }
 }
 
@@ -296,7 +330,8 @@ pub(crate) fn restore(ctx: &Context, kept: &Handle, closed: &[Open]) {
             if ctx.memory(|memory| memory.is_above_modal_layer(response.layer_id)) {
                 ctx.memory_mut(|memory| memory.request_focus(target));
                 kept.viewport(ctx.viewport_id(), |here| {
-                    here.tooltips.focus_restored(target)
+                    here.tooltips.focus_restored(target);
+                    here.hover_cards.intent.focus_restored(target);
                 });
             } else {
                 returning.0.push(target);

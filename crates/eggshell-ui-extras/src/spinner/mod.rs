@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eggshell_ui::contract::{Keyed, Size};
-use eggshell_ui::{Angle, Builder, Icon, Key, NodeUi as _, Style, Tw, tw};
+use eggshell_ui::{Angle, Builder, Icon, Key, NodeUi as _, Style, Tw, cycle, tw};
 use egui::{Context, ImageSource, Role, Theme, WidgetInfo, include_image};
 
 /// Lucide's `loader-circle` (ISC, `LUCIDE-LICENSE` beside it), the icon of
@@ -161,44 +161,9 @@ impl<A: 'static, K: Key> SpinnerChain<'_, '_, '_, A, K> {
     }
 }
 
-/// How far a spinner has turned now, asking for the next frame while it
-/// turns: not at all under reduced motion, egui's `animation_time` of zero.
+/// How far a spinner has turned now: not at all under reduced motion.
 fn turned(ctx: &Context, period: Duration) -> Angle {
-    if ctx.global_style().animation_time == 0.0 {
-        return Angle::ZERO;
-    }
-    ctx.request_repaint();
-    turn_at(ctx.input(|input| input.time), period)
-}
-
-/// How far a spinner turning once a `period` has turned after `time` seconds.
-fn turn_at(time: f64, period: Duration) -> Angle {
-    let period = period.as_secs_f64();
-    if period <= 0.0 {
-        return Angle::ZERO;
-    }
-    let turns = (time / period).rem_euclid(1.0);
-    Angle::degrees((turns * 360.0) as f32)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn degrees(angle: Angle) -> f32 {
-        f32::from(angle).to_degrees()
-    }
-
-    #[test]
-    fn a_turn_takes_one_period() {
-        let period = Duration::from_millis(1000);
-        assert_eq!(degrees(turn_at(0.0, period)), 0.0);
-        assert!((degrees(turn_at(0.25, period)) - 90.0).abs() < 1e-3);
-        assert!((degrees(turn_at(1.5, period)) - 180.0).abs() < 1e-3);
-    }
-
-    #[test]
-    fn a_zero_period_stands_still() {
-        assert_eq!(degrees(turn_at(12.3, Duration::ZERO)), 0.0);
-    }
+    cycle(ctx, period).map_or(Angle::ZERO, |phase| {
+        Angle::degrees(f32::from(phase) * 360.0)
+    })
 }

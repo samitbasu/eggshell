@@ -30,10 +30,12 @@
 //! # Ok::<(), eggshell_ui::testing::screenshot::ScreenshotError>(())
 //! ```
 
+mod windows;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use egui::Theme;
+use egui::{Id, Theme};
 use egui_kittest::wgpu::WgpuTestRenderer;
 use egui_kittest::{Harness, HarnessBuilder};
 use egui_wgpu::wgpu;
@@ -75,6 +77,12 @@ pub enum ScreenshotError {
     NoLavapipe(String),
     /// TODO(prose): the renderer failed.
     Render(String),
+    /// TODO(prose): [`render_windows`] was given a harness that embeds its
+    /// windows on the page (egui's `embed_viewports`, on in kittest).
+    Embedded,
+    /// TODO(prose): [`render_windows`] was given a harness not on [`builder`]'s
+    /// renderer.
+    NotFromBuilder,
     /// TODO(prose): the image or its directory could not be written.
     Write {
         /// TODO(prose): the file or directory.
@@ -92,6 +100,14 @@ impl std::fmt::Display for ScreenshotError {
                 "no Mesa lavapipe Vulkan adapter (install mesa-vulkan-drivers); found: {found}"
             ),
             Self::Render(why) => write!(f, "rendering the screenshot failed: {why}"),
+            Self::Embedded => write!(
+                f,
+                "the harness embeds its pop-outs on the page: call `ctx.set_embed_viewports(false)` first"
+            ),
+            Self::NotFromBuilder => write!(
+                f,
+                "the harness was not built from `screenshot::builder`, whose renderer paints pop-outs"
+            ),
             Self::Write { path, why } => write!(f, "writing {} failed: {why}", path.display()),
         }
     }
@@ -101,6 +117,10 @@ impl std::error::Error for ScreenshotError {}
 
 /// TODO(prose): a kittest renderer on lavapipe, or why there is none.
 pub fn lavapipe() -> Result<WgpuTestRenderer, ScreenshotError> {
+    render_state().map(WgpuTestRenderer::from_render_state)
+}
+
+fn render_state() -> Result<egui_wgpu::RenderState, ScreenshotError> {
     let mut setup = egui_wgpu::WgpuSetupCreateNew::without_display_handle();
     setup.instance_descriptor.backends = wgpu::Backends::VULKAN;
     setup.native_adapter_selector = Some(Arc::new(|adapters, _surface| {
@@ -116,7 +136,7 @@ pub fn lavapipe() -> Result<WgpuTestRenderer, ScreenshotError> {
         wgpu_setup: setup,
         ..Default::default()
     };
-    let state = pollster::block_on(egui_wgpu::RenderState::create(
+    pollster::block_on(egui_wgpu::RenderState::create(
         &config,
         &instance,
         None,
@@ -127,8 +147,7 @@ pub fn lavapipe() -> Result<WgpuTestRenderer, ScreenshotError> {
             ScreenshotError::NoLavapipe(found)
         }
         other => ScreenshotError::Render(other.to_string()),
-    })?;
-    Ok(WgpuTestRenderer::from_render_state(state))
+    })
 }
 
 /// TODO(prose): whether `info` is the adapter of Mesa lavapipe, the renderer shots and goldens are drawn by.
@@ -153,12 +172,18 @@ fn describe(adapters: &[wgpu::Adapter]) -> String {
 }
 
 /// TODO(prose): a harness builder on lavapipe at `scale` in `theme`.
+///
+/// Its renderer also paints the harness's pop-outs for [`render_windows`]:
+/// building it shows the native windows of every harness on this thread
+/// through egui's immediate-viewport renderer.
 pub fn builder<State>(
     scale: Scale,
     theme: Theme,
 ) -> Result<HarnessBuilder<State>, ScreenshotError> {
+    let renderer = windows::Lavapipe::new(render_state()?);
+    windows::install();
     Ok(Harness::builder()
-        .renderer(lavapipe()?)
+        .renderer(renderer)
         .with_pixels_per_point(scale.pixels_per_point())
         .with_theme(theme))
 }
@@ -166,6 +191,27 @@ pub fn builder<State>(
 /// TODO(prose): the harness's last frame as an image.
 pub fn render<State>(harness: &mut Harness<'_, State>) -> Result<RgbaImage, ScreenshotError> {
     harness.render().map_err(ScreenshotError::Render)
+}
+
+/// TODO(prose): each native pop-out window of `harness`, by its pop-out's id,
+/// as the next step draws it, at its size and the harness's scale.
+///
+/// The harness comes from [`builder`] and shows its pop-outs as native
+/// windows: `harness.ctx.set_embed_viewports(false)`. This runs one step.
+pub fn render_windows<State>(
+    harness: &mut Harness<'_, State>,
+) -> Result<Vec<(Id, RgbaImage)>, ScreenshotError> {
+    if harness.ctx.embed_viewports() {
+        return Err(ScreenshotError::Embedded);
+    }
+    windows::capture(|| harness.step())
+        .ok_or(ScreenshotError::NotFromBuilder)?
+        .into_iter()
+        .map(|(id, shot)| {
+            shot.map(|image| (id, image))
+                .map_err(ScreenshotError::Render)
+        })
+        .collect()
 }
 
 /// TODO(prose): the file name of a shot, `<scene>-<theme>@<scale>x.png`.

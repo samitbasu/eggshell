@@ -5,19 +5,16 @@
 use core::time::Duration;
 
 use eggshell_ui::owned::{Choice, Enablement, Face};
-use eggshell_ui::testing::{Timeline, record};
+use eggshell_ui::testing::{Driver, Target, Timeline, record};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
-use egui::{Key, Rect, RichText, Shape, Theme, pos2, vec2};
-use egui_kittest::Harness;
+use egui::{Key, KeyboardShortcut, Rect, RichText, Shape, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, hover_node, rect_of};
+use crate::support;
 
 const DELAY: Duration = Duration::from_millis(500);
 const GRACE: Duration = Duration::from_millis(300);
-/// Frames are this far apart.
-const STEP: f32 = 0.05;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Pick {
@@ -53,55 +50,37 @@ fn prepare(ctx: &egui::Context, _: &App) {
     style.install(ctx);
 }
 
-fn harness_of(view: support::View<App>) -> Harness<'static, Rig<App>> {
+fn harness_of(view: support::View<App>) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness_scaled_stepped(
+    let mut d = support::prepared_driver(
         vec2(400.0, 600.0),
-        STEP,
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
         prepare,
-    );
-    harness.run_steps(12);
-    harness
+    )
+    .build();
+    d.frames(12);
+    d
 }
 
-fn frames(time: Duration) -> usize {
-    (time.as_secs_f32() / STEP).ceil() as usize
-}
-
-fn wait(harness: &mut Harness<'_, Rig<App>>, time: Duration) {
-    harness.run_steps(frames(time));
-}
-
-fn tooltip_nodes(harness: &Harness<'_, Rig<App>>) -> Vec<(String, Rect)> {
-    harness
-        .state()
-        .nodes
-        .iter()
+fn tooltip_nodes(d: &Driver<App>) -> Vec<(String, Rect)> {
+    support::nodes(d)
+        .into_iter()
         .filter(|(path, _)| path.contains("Tooltip("))
-        .cloned()
         .collect()
 }
 
-fn is_shown(harness: &Harness<'_, Rig<App>>) -> bool {
-    !tooltip_nodes(harness).is_empty()
+fn is_shown(d: &Driver<App>) -> bool {
+    !tooltip_nodes(d).is_empty()
 }
 
 /// The tooltip's box, if one is shown.
-fn tip_box(harness: &Harness<'_, Rig<App>>) -> Option<Rect> {
-    tooltip_nodes(harness)
+fn tip_box(d: &Driver<App>) -> Option<Rect> {
+    tooltip_nodes(d)
         .into_iter()
         .find(|(path, _)| path.ends_with("/\"Box\""))
         .map(|(_, rect)| rect)
-}
-
-fn painted(harness: &Harness<'_, Rig<App>>, text: &str) -> bool {
-    support::shapes(harness).iter().any(|shape| match shape {
-        Shape::Text(shape) => shape.galley.text() == text,
-        _ => false,
-    })
 }
 
 /// ```html
@@ -181,24 +160,24 @@ fn view(b: &mut Builder<'_, '_, App>, _: &App) {
     );
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
+fn driver() -> Driver<App> {
     harness_of(view)
 }
 
 fn hover_shows(path: &str, tip: &str) {
-    let mut harness = harness();
-    assert!(!is_shown(&harness), "precondition: nothing is shown yet");
-    hover_node(&mut harness, path);
-    wait(&mut harness, DELAY + GRACE);
-    assert!(is_shown(&harness), "hovering {path} opens a tooltip");
-    assert!(painted(&harness, tip), "hovering {path} shows {tip:?}");
+    let mut d = driver();
+    assert!(!is_shown(&d), "precondition: nothing is shown yet");
+    d.hover(Target::suffix(path));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "hovering {path} opens a tooltip");
+    assert!(d.painted().shows(tip), "hovering {path} shows {tip:?}");
 }
 
 #[test]
 fn a_button_shows_its_tooltip_and_keeps_its_accessible_name() {
     hover_shows("/\"undo\"", "Undo (Ctrl+Z)");
-    let harness = harness();
-    assert!(harness.query_by_label("Undo").is_some());
+    let d = driver();
+    assert!(d.harness().query_by_label("Undo").is_some());
 }
 
 #[test]
@@ -225,10 +204,10 @@ fn an_option_of_a_radio_group_or_segmented_control_shows_its_own() {
 
 #[test]
 fn only_the_option_with_a_tooltip_shows_one() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"radio\"/Circle(0)");
-    wait(&mut harness, DELAY + GRACE);
-    assert!(!is_shown(&harness));
+    let mut d = driver();
+    d.hover(Target::suffix("/\"radio\"/Circle(0)"));
+    d.advance(DELAY + GRACE);
+    assert!(!is_shown(&d));
 }
 
 #[test]
@@ -243,146 +222,150 @@ fn a_tooltip_composes_with_another_handler_on_the_same_node() {
 
 #[test]
 fn a_tooltip_waits_for_the_delay() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY - Duration::from_millis(150));
-    assert!(!is_shown(&harness), "not before the delay");
-    wait(&mut harness, Duration::from_millis(300));
-    assert!(is_shown(&harness), "after it");
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY - Duration::from_millis(150));
+    assert!(!is_shown(&d), "not before the delay");
+    d.advance(Duration::from_millis(300));
+    assert!(is_shown(&d), "after it");
 }
 
 #[test]
 fn leaving_the_trigger_hides_the_tooltip() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY + GRACE);
-    assert!(is_shown(&harness), "precondition");
-    harness.hover_at(pos2(390.0, 590.0));
-    wait(&mut harness, Duration::from_millis(400));
-    assert!(!is_shown(&harness));
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "precondition");
+    d.carry_to(pos2(390.0, 590.0))
+        .advance(Duration::from_millis(400) - support::STEP);
+    assert!(!is_shown(&d));
 }
 
 #[test]
 fn a_second_trigger_within_the_grace_opens_at_once() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY + GRACE);
-    assert!(is_shown(&harness), "precondition");
-    harness.hover_at(pos2(390.0, 590.0));
-    wait(&mut harness, Duration::from_millis(100));
-    hover_node(&mut harness, "/\"check\"/Box");
-    harness.run_steps(2);
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "precondition");
+    d.carry_to(pos2(390.0, 590.0))
+        .advance(Duration::from_millis(100) - support::STEP);
+    d.hover(Target::suffix("/\"check\"/Box"));
+    d.frames(2);
     assert!(
-        painted(&harness, "Tip for check"),
+        d.painted().shows("Tip for check"),
         "no delay within the grace"
     );
 }
 
 #[test]
 fn a_second_trigger_after_the_grace_waits_again() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY + GRACE);
-    harness.hover_at(pos2(390.0, 590.0));
-    wait(&mut harness, GRACE + Duration::from_millis(400));
-    assert!(!is_shown(&harness), "precondition: the first is gone");
-    hover_node(&mut harness, "/\"check\"/Box");
-    harness.run_steps(2);
-    assert!(!painted(&harness, "Tip for check"));
-    wait(&mut harness, DELAY);
-    assert!(painted(&harness, "Tip for check"));
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    d.carry_to(pos2(390.0, 590.0))
+        .advance(GRACE + Duration::from_millis(400) - support::STEP);
+    assert!(!is_shown(&d), "precondition: the first is gone");
+    d.hover(Target::suffix("/\"check\"/Box"));
+    d.frames(2);
+    assert!(!d.painted().shows("Tip for check"));
+    d.advance(DELAY);
+    assert!(d.painted().shows("Tip for check"));
 }
 
 #[test]
 fn moving_straight_to_another_trigger_swaps_tooltips_at_once() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY + GRACE);
-    hover_node(&mut harness, "/\"check\"/Box");
-    harness.run_steps(2);
-    assert!(painted(&harness, "Tip for check"));
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    d.hover(Target::suffix("/\"check\"/Box"));
+    d.frames(2);
+    assert!(d.painted().shows("Tip for check"));
 }
 
 #[test]
 fn a_press_hides_the_tooltip_until_the_trigger_is_left() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY + GRACE);
-    assert!(is_shown(&harness), "precondition");
-    let at = rect_of(&harness, "/\"undo\"").center();
-    support::press_and_release(&mut harness, at);
-    wait(&mut harness, Duration::from_millis(400));
-    assert!(!is_shown(&harness), "hidden by the press");
-    wait(&mut harness, DELAY + GRACE);
-    assert!(!is_shown(&harness), "and not shown again while still on it");
-    assert_eq!(harness.state().app.undone, 1);
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "precondition");
+    let at = d.rect(Target::suffix("/\"undo\"")).center();
+    for pressed in [true, false] {
+        d.event(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    d.advance(Duration::from_millis(400));
+    assert!(!is_shown(&d), "hidden by the press");
+    d.advance(DELAY + GRACE);
+    assert!(!is_shown(&d), "and not shown again while still on it");
+    assert_eq!(d.app().undone, 1);
 }
 
 #[test]
 fn escape_hides_the_tooltip() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY + GRACE);
-    assert!(is_shown(&harness), "precondition");
-    harness.key_press(Key::Escape);
-    wait(&mut harness, Duration::from_millis(400));
-    assert!(!is_shown(&harness));
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "precondition");
+    d.press(Key::Escape)
+        .advance(Duration::from_millis(400) - support::STEP);
+    assert!(!is_shown(&d));
 }
 
 #[test]
 fn keyboard_focus_shows_the_tooltip_at_once_and_losing_it_hides_it() {
-    let mut harness = harness();
-    harness.state_mut().companion = support::Companion::Alone;
-    harness.key_press(Key::Tab);
-    harness.run_steps(2);
+    let mut d = driver();
+    support::set_companion(&d, support::Companion::Alone);
+    d.press(Key::Tab).frames(1);
     assert_eq!(
-        support::focused_node(&harness).as_deref(),
+        support::focused_node(&d).as_deref(),
         Some("/\"undo\""),
         "precondition: Tab reached the first button"
     );
-    assert!(painted(&harness, "Undo (Ctrl+Z)"), "no delay for focus");
-    harness.key_press(Key::Tab);
-    wait(&mut harness, Duration::from_millis(400));
-    assert!(!painted(&harness, "Undo (Ctrl+Z)"));
+    assert!(d.painted().shows("Undo (Ctrl+Z)"), "no delay for focus");
+    d.press(Key::Tab)
+        .advance(Duration::from_millis(400) - support::STEP);
+    assert!(!d.painted().shows("Undo (Ctrl+Z)"));
 }
 
 #[test]
 fn a_tooltip_never_takes_the_pointer() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"save\"");
-    wait(&mut harness, DELAY + GRACE);
-    let tip = tip_box(&harness).expect("the tooltip is shown");
-    let undo = rect_of(&harness, "/\"undo\"");
+    let mut d = driver();
+    d.hover(Target::suffix("/\"save\""));
+    d.advance(DELAY + GRACE);
+    let tip = tip_box(&d).expect("the tooltip is shown");
+    let undo = d.rect(Target::suffix("/\"undo\""));
     assert!(
         tip.intersects(undo),
         "precondition: the tooltip {tip:?} covers the button {undo:?}"
     );
     let at = undo.intersect(tip).center();
-    support::hover_over(&mut harness, at);
-    support::press_and_release(&mut harness, at);
-    assert_eq!(
-        harness.state().app.undone,
-        1,
-        "the click reached the button"
-    );
+    d.click(at);
+    assert_eq!(d.app().undone, 1, "the click reached the button");
 }
 
 #[test]
 fn a_tooltip_sits_above_its_trigger_and_flips_below_at_the_top() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"save\"");
-    wait(&mut harness, DELAY + GRACE);
-    let above = tip_box(&harness).expect("shown");
-    assert!(above.max.y <= rect_of(&harness, "/\"save\"").min.y, "above");
+    let mut d = driver();
+    d.hover(Target::suffix("/\"save\""));
+    d.advance(DELAY + GRACE);
+    let above = tip_box(&d).expect("shown");
+    assert!(
+        above.max.y <= d.rect(Target::suffix("/\"save\"")).min.y,
+        "above"
+    );
 
-    let mut harness = harness_of(|b, _| {
+    let mut d = harness_of(|b, _| {
         b.button("top", "Top").tooltip("Below it").add();
     });
-    hover_node(&mut harness, "/\"top\"");
-    wait(&mut harness, DELAY + GRACE);
-    let below = tip_box(&harness).expect("shown");
+    d.hover(Target::suffix("/\"top\""));
+    d.advance(DELAY + GRACE);
+    let below = tip_box(&d).expect("shown");
     assert!(
-        below.min.y >= rect_of(&harness, "/\"top\"").max.y,
+        below.min.y >= d.rect(Target::suffix("/\"top\"")).max.y,
         "flipped below the trigger at the top of the window"
     );
 }
@@ -390,15 +373,15 @@ fn a_tooltip_sits_above_its_trigger_and_flips_below_at_the_top() {
 #[test]
 fn long_text_wraps_at_the_maximum_width() {
     const LONG: &str = "A tooltip that says a great deal more than will fit on a single line of the maximum width the style allows it";
-    let mut harness = harness_of(|b, _| {
+    let mut d = harness_of(|b, _| {
         b.div(tw().pt(10.0), |b| {
             b.button("long", "Long").tooltip(LONG).add();
         });
     });
-    hover_node(&mut harness, "/\"long\"");
-    wait(&mut harness, DELAY + GRACE);
-    let tip = tip_box(&harness).expect("shown");
-    let max = Style::of(&harness.ctx).tooltip.max_width;
+    d.hover(Target::suffix("/\"long\""));
+    d.advance(DELAY + GRACE);
+    let tip = tip_box(&d).expect("shown");
+    let max = Style::of(d.ctx()).tooltip.max_width;
     assert!(tip.width() <= max + 0.5, "{} is within {max}", tip.width());
     assert!(
         tip.width() >= max - 40.0,
@@ -409,8 +392,8 @@ fn long_text_wraps_at_the_maximum_width() {
 
 #[test]
 fn the_trigger_is_described_by_the_tooltip_text() {
-    let harness = harness();
-    let node = harness.get_by_label("Undo");
+    let d = driver();
+    let node = d.harness().get_by_label("Undo");
     assert_eq!(
         node.accesskit_node().description().as_deref(),
         Some("Undo (Ctrl+Z)")
@@ -419,15 +402,15 @@ fn the_trigger_is_described_by_the_tooltip_text() {
 
 #[test]
 fn a_tooltip_opening_swapping_and_closing_never_teleports() {
-    let mut harness = harness();
-    record(&harness.ctx);
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY + GRACE);
-    hover_node(&mut harness, "/\"check\"/Box");
-    wait(&mut harness, Duration::from_millis(400));
-    harness.hover_at(pos2(390.0, 590.0));
-    wait(&mut harness, Duration::from_millis(600));
-    let timeline = Timeline::recorded(&harness.ctx);
+    let mut d = driver();
+    record(d.ctx());
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    d.hover(Target::suffix("/\"check\"/Box"));
+    d.advance(Duration::from_millis(400));
+    d.carry_to(pos2(390.0, 590.0))
+        .advance(Duration::from_millis(600) - support::STEP);
+    let timeline = Timeline::recorded(d.ctx());
     assert!(timeline.len() > 20, "precondition: frames were recorded");
     timeline.assert_continuous();
 }
@@ -462,31 +445,28 @@ fn the_shadcn_tooltip_is_inverted_with_an_arrow() {
 
 /// Steps frames only while egui asks for one, as a reactive app (eframe, the
 /// browser) does when no input arrives: a resting pointer produces none.
-fn run_while_repainting(harness: &mut Harness<'_, Rig<App>>, limit: Duration) {
-    for _ in 0..frames(limit) {
-        if !harness.ctx.has_requested_repaint() {
+fn run_while_repainting(d: &mut Driver<App>, limit: Duration) {
+    for _ in 0..limit.as_nanos() / support::STEP.as_nanos() {
+        if !d.ctx().has_requested_repaint() {
             break;
         }
-        harness.step();
+        d.frames(1);
     }
 }
 
 #[test]
 fn a_resting_pointer_gets_its_tooltip_without_further_input() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    assert!(!is_shown(&d), "precondition: the delay has not run out yet");
+    run_while_repainting(&mut d, DELAY * 4);
     assert!(
-        !is_shown(&harness),
-        "precondition: the delay has not run out yet"
-    );
-    run_while_repainting(&mut harness, DELAY * 4);
-    assert!(
-        is_shown(&harness),
+        is_shown(&d),
         "the tooltip opens with no input after the hover, on repaints the library asks for"
     );
-    run_while_repainting(&mut harness, DELAY * 4);
+    run_while_repainting(&mut d, DELAY * 4);
     assert!(
-        !harness.ctx.has_requested_repaint(),
+        !d.ctx().has_requested_repaint(),
         "and the frames stop once it is shown"
     );
 }
@@ -539,30 +519,24 @@ fn rich_view(b: &mut Builder<'_, '_, App>, _: &App) {
     );
 }
 
-fn rich_harness() -> Harness<'static, Rig<App>> {
+fn rich_harness() -> Driver<App> {
     harness_of(rich_view)
 }
 
-fn galley_of<'h>(harness: &'h Harness<'_, Rig<App>>, text: &str) -> &'h egui::Galley {
-    support::shapes(harness)
-        .into_iter()
-        .find_map(|shape| match shape {
-            Shape::Text(shape) if shape.galley.text() == text => Some(&*shape.galley),
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("{text:?} is painted"))
+fn galley_of<'h>(d: &'h Driver<App>, text: &str) -> &'h egui::Galley {
+    d.painted().expect(text).galley()
 }
 
-fn tooltip_ink(harness: &Harness<'_, Rig<App>>) -> egui::Color32 {
-    Style::of(&harness.ctx).tooltip.popup.paint.states.rest.text
+fn tooltip_ink(d: &Driver<App>) -> egui::Color32 {
+    Style::of(d.ctx()).tooltip.popup.paint.states.rest.text
 }
 
 #[test]
 fn a_rich_text_tooltip_keeps_its_colour_and_font() {
-    let mut harness = rich_harness();
-    hover_node(&mut harness, "/\"rich\"");
-    wait(&mut harness, DELAY + GRACE);
-    let galley = galley_of(&harness, "Red mono");
+    let mut d = rich_harness();
+    d.hover(Target::suffix("/\"rich\""));
+    d.advance(DELAY + GRACE);
+    let galley = galley_of(&d, "Red mono");
     let format = &galley.job.sections[0].format;
     assert_eq!(format.color, RED);
     assert_eq!(format.font_id.family, egui::FontFamily::Monospace);
@@ -570,25 +544,25 @@ fn a_rich_text_tooltip_keeps_its_colour_and_font() {
 
 #[test]
 fn strong_rich_text_takes_the_tooltip_ink() {
-    let mut harness = rich_harness();
-    hover_node(&mut harness, "/\"strong\"");
-    wait(&mut harness, DELAY + GRACE);
-    let ink = tooltip_ink(&harness);
+    let mut d = rich_harness();
+    d.hover(Target::suffix("/\"strong\""));
+    d.advance(DELAY + GRACE);
+    let ink = tooltip_ink(&d);
     assert_ne!(
         ink,
-        harness.ctx.global_style().visuals.strong_text_color(),
+        d.ctx().global_style().visuals.strong_text_color(),
         "precondition: egui's strong colour is not the tooltip's ink"
     );
-    let galley = galley_of(&harness, "Strong words");
+    let galley = galley_of(&d, "Strong words");
     assert_eq!(galley.job.sections[0].format.color, ink);
 }
 
 #[test]
 fn a_plain_string_tooltip_still_takes_the_text_path() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY + GRACE);
-    let galley = galley_of(&harness, "Undo (Ctrl+Z)");
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    let galley = galley_of(&d, "Undo (Ctrl+Z)");
     assert_eq!(
         galley.job.sections[0].format.color,
         egui::Color32::PLACEHOLDER,
@@ -598,12 +572,12 @@ fn a_plain_string_tooltip_still_takes_the_text_path() {
 
 #[test]
 fn a_built_tooltip_shows_its_content_in_the_box() {
-    let mut harness = rich_harness();
-    hover_node(&mut harness, "/\"built\"");
-    wait(&mut harness, DELAY + GRACE);
-    let tip = tip_box(&harness).expect("the tooltip is shown");
+    let mut d = rich_harness();
+    d.hover(Target::suffix("/\"built\""));
+    d.advance(DELAY + GRACE);
+    let tip = tip_box(&d).expect("the tooltip is shown");
     for text in ["Save", "Ctrl+S"] {
-        let galley = support::shapes(&harness)
+        let galley = support::shapes(&d)
             .into_iter()
             .find_map(|shape| match shape {
                 Shape::Text(shape) if shape.galley.text() == text => Some(shape.pos),
@@ -619,27 +593,24 @@ fn a_built_tooltip_shows_its_content_in_the_box() {
 
 #[test]
 fn a_built_tooltip_opens_on_the_frames_the_library_asks_for() {
-    let mut harness = rich_harness();
-    hover_node(&mut harness, "/\"built\"");
+    let mut d = rich_harness();
+    d.hover(Target::suffix("/\"built\""));
+    assert!(!is_shown(&d), "precondition: the delay has not run out");
+    run_while_repainting(&mut d, DELAY * 4);
+    assert!(d.painted().shows("Ctrl+S"), "shown with no further input");
+    run_while_repainting(&mut d, DELAY * 4);
     assert!(
-        !is_shown(&harness),
-        "precondition: the delay has not run out"
-    );
-    run_while_repainting(&mut harness, DELAY * 4);
-    assert!(painted(&harness, "Ctrl+S"), "shown with no further input");
-    run_while_repainting(&mut harness, DELAY * 4);
-    assert!(
-        !harness.ctx.has_requested_repaint(),
+        !d.ctx().has_requested_repaint(),
         "and the frames stop once it is shown"
     );
 }
 
 #[test]
 fn a_disabled_trigger_shows_its_built_tooltip() {
-    let mut harness = rich_harness();
-    hover_node(&mut harness, "/\"off\"");
-    wait(&mut harness, DELAY + GRACE);
-    assert!(painted(&harness, "Cannot"));
+    let mut d = rich_harness();
+    d.hover(Target::suffix("/\"off\""));
+    d.advance(DELAY + GRACE);
+    assert!(d.painted().shows("Cannot"));
 }
 
 /// Content shared by a control on the page and one in a mount.
@@ -695,12 +666,12 @@ fn mount_only_view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
 }
 
 fn mount_hover_shows(view: support::View<App>, path: &str, tip: &str) {
-    let mut harness = harness_of(view);
-    assert!(!is_shown(&harness), "precondition: nothing is shown yet");
-    hover_node(&mut harness, path);
-    wait(&mut harness, DELAY + GRACE);
-    assert!(is_shown(&harness), "hovering {path} opens a tooltip");
-    assert!(painted(&harness, tip), "hovering {path} shows {tip:?}");
+    let mut d = harness_of(view);
+    assert!(!is_shown(&d), "precondition: nothing is shown yet");
+    d.hover(Target::suffix(path));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "hovering {path} opens a tooltip");
+    assert!(d.painted().shows(tip), "hovering {path} shows {tip:?}");
 }
 
 #[test]
@@ -725,16 +696,16 @@ fn one_content_helper_builds_a_tooltip_on_the_page_and_in_a_mount() {
 
 #[test]
 fn a_built_tooltip_never_takes_the_pointer() {
-    let mut harness = rich_harness();
-    hover_node(&mut harness, "/\"built\"");
-    wait(&mut harness, DELAY + GRACE);
-    let tip = tip_box(&harness).expect("the tooltip is shown");
-    let target = rect_of(&harness, "/\"target\"");
+    let mut d = rich_harness();
+    d.hover(Target::suffix("/\"built\""));
+    d.advance(DELAY + GRACE);
+    let tip = tip_box(&d).expect("the tooltip is shown");
+    let target = d.rect(Target::suffix("/\"target\""));
     assert!(
         tip.intersects(target),
         "precondition: the tooltip {tip:?} covers the button {target:?}"
     );
-    let inside = tooltip_nodes(&harness)
+    let inside = tooltip_nodes(&d)
         .into_iter()
         .find(|(path, _)| path.ends_with("\"inside\""))
         .map(|(_, rect)| rect)
@@ -744,9 +715,8 @@ fn a_built_tooltip_never_takes_the_pointer() {
         "precondition: the content's button {inside:?} covers the target {target:?}"
     );
     let at = inside.intersect(target).intersect(tip).center();
-    support::hover_over(&mut harness, at);
-    support::press_and_release(&mut harness, at);
-    let app = &harness.state().app;
+    d.click(at);
+    let app = &d.app();
     let inside = INSIDE.load(std::sync::atomic::Ordering::Relaxed);
     assert_eq!(inside, 0, "the content took nothing");
     assert_eq!(app.undone, 1, "the click reached the button beneath");
@@ -754,9 +724,9 @@ fn a_built_tooltip_never_takes_the_pointer() {
 
 #[test]
 fn a_built_tooltip_describes_its_trigger_with_its_text_while_closed() {
-    let harness = rich_harness();
-    assert!(!is_shown(&harness), "precondition: no tooltip is open");
-    let node = harness.get_by_label("Built");
+    let d = rich_harness();
+    assert!(!is_shown(&d), "precondition: no tooltip is open");
+    let node = d.harness().get_by_label("Built");
     assert_eq!(
         node.accesskit_node().description().as_deref(),
         Some("Save Ctrl+S Inside")
@@ -834,15 +804,15 @@ fn vanishing_view(b: &mut Builder<'_, '_, App>, app: &App) {
 /// Whether the first trigger's tooltip is still shown on the frame after its
 /// trigger stops being built.
 fn shown_after_its_trigger_goes(second: bool) -> bool {
-    let mut harness = harness_of(vanishing_view);
-    harness.state_mut().app.second = second;
-    harness.run_steps(2);
-    hover_node(&mut harness, "/\"first\"");
-    wait(&mut harness, DELAY + GRACE);
-    assert!(painted(&harness, "First tip"), "precondition: it is open");
-    harness.state_mut().app.gone = true;
-    harness.run_steps(1);
-    is_shown(&harness)
+    let mut d = harness_of(vanishing_view);
+    d.app_mut().second = second;
+    d.frames(2);
+    d.hover(Target::suffix("/\"first\""));
+    d.advance(DELAY + GRACE);
+    assert!(d.painted().shows("First tip"), "precondition: it is open");
+    d.app_mut().gone = true;
+    d.frames(1);
+    is_shown(&d)
 }
 
 #[test]
@@ -859,42 +829,40 @@ fn a_built_tooltip_whose_trigger_goes_leaves_only_while_it_can_be_built() {
 
 #[test]
 fn a_built_tooltip_follows_hover_intent() {
-    let mut harness = rich_harness();
-    hover_node(&mut harness, "/\"built\"");
-    wait(&mut harness, DELAY - Duration::from_millis(150));
-    assert!(!is_shown(&harness), "not before the delay");
-    wait(&mut harness, Duration::from_millis(300));
-    assert!(is_shown(&harness), "after it");
-    harness.key_press(Key::Escape);
-    wait(&mut harness, Duration::from_millis(400));
-    assert!(!is_shown(&harness), "Escape hides it");
-    wait(&mut harness, DELAY + GRACE);
-    assert!(!is_shown(&harness), "and keeps it hidden while still on it");
+    let mut d = rich_harness();
+    d.hover(Target::suffix("/\"built\""));
+    d.advance(DELAY - Duration::from_millis(150));
+    assert!(!is_shown(&d), "not before the delay");
+    d.advance(Duration::from_millis(300));
+    assert!(is_shown(&d), "after it");
+    d.press(Key::Escape)
+        .advance(Duration::from_millis(400) - support::STEP);
+    assert!(!is_shown(&d), "Escape hides it");
+    d.advance(DELAY + GRACE);
+    assert!(!is_shown(&d), "and keeps it hidden while still on it");
 }
 
 #[test]
 fn keyboard_focus_shows_a_built_tooltip_at_once() {
-    let mut harness = rich_harness();
-    harness.state_mut().companion = support::Companion::Alone;
+    let mut d = rich_harness();
+    support::set_companion(&d, support::Companion::Alone);
     for _ in 0..2 {
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
+        d.press(Key::Tab).frames(1);
     }
     assert_eq!(
-        support::focused_node(&harness).as_deref(),
+        support::focused_node(&d).as_deref(),
         Some("/\"built\""),
         "precondition: Tab reached the button with the built tooltip"
     );
-    assert!(painted(&harness, "Ctrl+S"), "no delay for focus");
+    assert!(d.painted().shows("Ctrl+S"), "no delay for focus");
     assert!(
-        tooltip_nodes(&harness)
+        tooltip_nodes(&d)
             .iter()
             .any(|(path, _)| path.ends_with("\"inside\"")),
         "precondition: the tooltip holds a button"
     );
-    harness.key_press(Key::Tab);
-    harness.run_steps(2);
-    let focused = support::focused_path(&harness);
+    d.press(Key::Tab).frames(1);
+    let focused = support::focused_path(&d);
     assert!(
         !focused
             .as_deref()
@@ -905,28 +873,21 @@ fn keyboard_focus_shows_a_built_tooltip_at_once() {
 
 #[test]
 fn a_kbd_takes_the_tooltip_look_inside_a_tooltip_and_its_own_on_the_page() {
-    let mut harness = rich_harness();
-    hover_node(&mut harness, "/\"built\"");
-    wait(&mut harness, DELAY + GRACE);
-    let kbd = Style::of(&harness.ctx).kbd.clone();
+    let mut d = rich_harness();
+    d.hover(Target::suffix("/\"built\""));
+    d.advance(DELAY + GRACE);
+    let kbd = Style::of(d.ctx()).kbd.clone();
     assert_ne!(
         kbd.page.text, kbd.tooltip.text,
         "precondition: the two looks differ"
     );
-    let everywhere = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 600.0));
-    assert_eq!(
-        support::text_color(&harness, everywhere, "K"),
-        kbd.page.text
-    );
-    assert_eq!(
-        support::text_color(&harness, everywhere, "Ctrl+S"),
-        kbd.tooltip.text
-    );
+    assert_eq!(d.painted().expect("K").color(), kbd.page.text);
+    assert_eq!(d.painted().expect("Ctrl+S").color(), kbd.tooltip.text);
 }
 
 /// The four corners of every filled four-point path painted in `fill`.
-fn diamonds(harness: &Harness<'_, Rig<App>>, fill: egui::Color32) -> Vec<Rect> {
-    support::shapes(harness)
+fn diamonds(d: &Driver<App>, fill: egui::Color32) -> Vec<Rect> {
+    support::shapes(d)
         .into_iter()
         .filter_map(|shape| match shape {
             Shape::Path(path) if path.points.len() == 4 && path.fill == fill => {
@@ -939,23 +900,23 @@ fn diamonds(harness: &Harness<'_, Rig<App>>, fill: egui::Color32) -> Vec<Rect> {
 
 #[test]
 fn the_arrow_is_painted_between_the_box_and_its_trigger() {
-    let mut harness = harness();
-    hover_node(&mut harness, "/\"undo\"");
-    wait(&mut harness, DELAY + GRACE);
-    let tip = tip_box(&harness).expect("precondition: the tooltip is shown");
-    let trigger = rect_of(&harness, "/\"undo\"");
+    let mut d = driver();
+    d.hover(Target::suffix("/\"undo\""));
+    d.advance(DELAY + GRACE);
+    let tip = tip_box(&d).expect("precondition: the tooltip is shown");
+    let trigger = d.rect(Target::suffix("/\"undo\""));
     assert!(
         tip.bottom() <= trigger.top(),
         "precondition: the tooltip sits above its trigger"
     );
-    let style = Style::of(&harness.ctx);
+    let style = Style::of(d.ctx());
     let size = style
         .tooltip
         .arrow
         .expect("precondition: the shadcn style has an arrow")
         .size;
     let fill = style.tooltip.popup.paint.states.rest.fill;
-    let arrows = diamonds(&harness, fill);
+    let arrows = diamonds(&d, fill);
     assert_eq!(arrows.len(), 1, "one arrow in the box's fill: {arrows:?}");
     let arrow = arrows[0];
     assert!(
@@ -1014,15 +975,15 @@ fn chain_view(b: &mut Builder<'_, '_, App>, _: &App) {
 /// Hovers `path` in [`chain_view`]: no tooltip before the delay, and after it
 /// each of `texts` is painted inside the tooltip's box.
 fn chain_hover_shows(path: &str, texts: &[&str]) {
-    let mut harness = harness_of(chain_view);
-    assert!(!is_shown(&harness), "precondition: nothing is shown yet");
-    hover_node(&mut harness, path);
-    harness.run_steps(1);
-    assert!(!is_shown(&harness), "{path}: not before the delay");
-    wait(&mut harness, DELAY + GRACE);
-    let tip = tip_box(&harness).unwrap_or_else(|| panic!("hovering {path} opens a tooltip"));
+    let mut d = harness_of(chain_view);
+    assert!(!is_shown(&d), "precondition: nothing is shown yet");
+    d.hover(Target::suffix(path));
+    d.frames(1);
+    assert!(!is_shown(&d), "{path}: not before the delay");
+    d.advance(DELAY + GRACE);
+    let tip = tip_box(&d).unwrap_or_else(|| panic!("hovering {path} opens a tooltip"));
     for text in texts {
-        let at = support::shapes(&harness)
+        let at = support::shapes(&d)
             .into_iter()
             .find_map(|shape| match shape {
                 Shape::Text(shape) if shape.galley.text() == *text => Some(shape.pos),
@@ -1125,11 +1086,10 @@ mod dismissed {
         super::prepare(ctx, &App::default());
     }
 
-    pub(super) fn harness(opens: Opens) -> Harness<'static, Rig<Host>> {
+    pub(super) fn driver(opens: Opens) -> Driver<Host> {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness_scaled_stepped(
+        let mut d = support::prepared_driver(
             vec2(400.0, 400.0),
-            STEP,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             Host {
                 opens,
@@ -1138,133 +1098,122 @@ mod dismissed {
             },
             view,
             prepare,
-        );
-        harness.run_steps(12);
-        harness
+        )
+        .build();
+        d.frames(12);
+        d
     }
 
-    fn tip_painted(harness: &Harness<'_, Rig<Host>>) -> bool {
-        support::shapes(harness).iter().any(|shape| match shape {
+    fn tip_painted(d: &Driver<Host>) -> bool {
+        support::shapes(d).iter().any(|shape| match shape {
             Shape::Text(shape) => shape.galley.text() == TIP,
             _ => false,
         })
     }
 
-    fn settle(harness: &mut Harness<'_, Rig<Host>>) {
-        harness.run_steps(frames(DELAY + GRACE));
+    fn settle(d: &mut Driver<Host>) {
+        d.advance(DELAY + GRACE);
+    }
+
+    /// Presses `key`, then waits out the tooltip's delay and grace.
+    fn press_and_settle(d: &mut Driver<Host>, key: Key) {
+        d.press(key).advance(DELAY + GRACE - support::STEP);
     }
 
     /// Tabs to the trigger, whose tooltip shows on that arrival, and opens
     /// the overlay from the keyboard, so that focus enters it.
-    fn open_from_the_keyboard(harness: &mut Harness<'_, Rig<Host>>) {
-        support::past_bar(harness);
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
+    fn open_from_the_keyboard(d: &mut Driver<Host>) {
+        support::drive_past_bar(d);
+        d.press(Key::Tab).frames(1);
         assert_eq!(
-            support::focused_node(harness).as_deref(),
+            support::focused_node(d).as_deref(),
             Some(TRIGGER),
             "precondition"
         );
         assert!(
-            tip_painted(harness),
+            tip_painted(d),
             "precondition: a keyboard arrival shows the tooltip"
         );
-        harness.key_press(Key::Enter);
-        settle(harness);
-        assert!(harness.state().app.open, "precondition: open");
+        press_and_settle(d, Key::Enter);
+        assert!(d.app().open, "precondition: open");
     }
 
-    fn assert_focus_back_without_its_tooltip(harness: &mut Harness<'_, Rig<Host>>) {
-        settle(harness);
-        assert!(!harness.state().app.open, "precondition: dismissed");
+    /// Presses `key`, which gives focus back to the trigger, and checks that
+    /// the tooltip does not come with it.
+    fn assert_focus_back_without_its_tooltip(d: &mut Driver<Host>, key: Key) {
+        press_and_settle(d, key);
+        assert!(!d.app().open, "precondition: dismissed");
         assert_eq!(
-            support::focused_node(harness).as_deref(),
+            support::focused_node(d).as_deref(),
             Some(TRIGGER),
             "precondition: focus came back"
         );
-        assert!(!tip_painted(harness), "focus given back is not an arrival");
+        assert!(!tip_painted(d), "focus given back is not an arrival");
     }
 
     #[test]
     fn escape_from_a_popover_gives_focus_back_without_the_tooltip() {
-        let mut harness = harness(Opens::Popover);
-        open_from_the_keyboard(&mut harness);
-        harness.key_press(Key::Escape);
-        assert_focus_back_without_its_tooltip(&mut harness);
+        let mut d = driver(Opens::Popover);
+        open_from_the_keyboard(&mut d);
+        assert_focus_back_without_its_tooltip(&mut d, Key::Escape);
     }
 
     #[test]
     fn escape_from_a_dialog_gives_focus_back_without_the_tooltip() {
-        let mut harness = harness(Opens::Dialog);
-        open_from_the_keyboard(&mut harness);
-        harness.key_press(Key::Escape);
-        assert_focus_back_without_its_tooltip(&mut harness);
+        let mut d = driver(Opens::Dialog);
+        open_from_the_keyboard(&mut d);
+        assert_focus_back_without_its_tooltip(&mut d, Key::Escape);
     }
 
     #[test]
     fn a_key_after_a_press_dismissed_the_popover_does_not_show_the_tooltip() {
-        let mut harness = harness(Opens::Popover);
-        open_from_the_keyboard(&mut harness);
+        let mut d = driver(Opens::Popover);
+        open_from_the_keyboard(&mut d);
         let outside = pos2(390.0, 390.0);
-        support::hover_over(&mut harness, outside);
-        support::press_and_release(&mut harness, outside);
-        settle(&mut harness);
-        harness.key_press(Key::ArrowDown);
-        assert_focus_back_without_its_tooltip(&mut harness);
+        d.click(outside);
+        settle(&mut d);
+        assert_focus_back_without_its_tooltip(&mut d, Key::ArrowDown);
     }
 
     #[test]
     fn leaving_and_coming_back_is_an_arrival_again() {
-        let mut harness = harness(Opens::Popover);
-        open_from_the_keyboard(&mut harness);
-        harness.key_press(Key::Escape);
-        assert_focus_back_without_its_tooltip(&mut harness);
-        harness.key_press(Key::Tab);
-        settle(&mut harness);
-        harness.key_press_modifiers(egui::Modifiers::SHIFT, Key::Tab);
-        harness.run_steps(2);
+        let mut d = driver(Opens::Popover);
+        open_from_the_keyboard(&mut d);
+        assert_focus_back_without_its_tooltip(&mut d, Key::Escape);
+        press_and_settle(&mut d, Key::Tab);
+        d.press(KeyboardShortcut::new(egui::Modifiers::SHIFT, Key::Tab))
+            .frames(1);
         assert_eq!(
-            support::focused_node(&harness).as_deref(),
+            support::focused_node(&d).as_deref(),
             Some(TRIGGER),
             "precondition"
         );
-        assert!(tip_painted(&harness), "Tabbing back to it shows it");
+        assert!(tip_painted(&d), "Tabbing back to it shows it");
     }
 
     #[test]
     fn a_tooltip_whose_trigger_goes_is_dropped_quietly() {
-        let mut harness = harness(Opens::Popover);
-        support::past_bar(&mut harness);
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
-        assert!(
-            tip_painted(&harness),
-            "precondition: open on the trigger's focus"
-        );
-        support::click_node(&mut harness, "/Remove");
-        settle(&mut harness);
-        assert!(
-            harness.state().app.gone,
-            "precondition: the trigger is gone"
-        );
-        assert!(!tip_painted(&harness));
-        assert!(!is_shown_in(&harness));
+        let mut d = driver(Opens::Popover);
+        support::drive_past_bar(&mut d);
+        d.press(Key::Tab).frames(1);
+        assert!(tip_painted(&d), "precondition: open on the trigger's focus");
+        d.click(Target::suffix("/Remove"));
+        settle(&mut d);
+        assert!(d.app().gone, "precondition: the trigger is gone");
+        assert!(!tip_painted(&d));
+        assert!(!is_shown_in(&d));
     }
 
     #[test]
     fn a_tooltip_shown_on_restored_focus_whose_trigger_goes_is_dropped_quietly() {
-        let mut harness = harness(Opens::Popover);
-        open_from_the_keyboard(&mut harness);
-        harness.key_press(Key::Escape);
-        harness.run_steps(4);
-        support::click_node(&mut harness, "/Remove");
-        settle(&mut harness);
-        assert!(
-            harness.state().app.gone,
-            "precondition: the trigger is gone"
-        );
-        assert!(!tip_painted(&harness));
-        assert!(!is_shown_in(&harness));
+        let mut d = driver(Opens::Popover);
+        open_from_the_keyboard(&mut d);
+        d.press(Key::Escape).frames(3);
+        d.click(Target::suffix("/Remove"));
+        settle(&mut d);
+        assert!(d.app().gone, "precondition: the trigger is gone");
+        assert!(!tip_painted(&d));
+        assert!(!is_shown_in(&d));
     }
 
     /// Removes the trigger after each of the first frames after Tab gives it
@@ -1274,24 +1223,23 @@ mod dismissed {
     fn a_tooltip_that_opens_as_its_trigger_goes_is_dropped_quietly() {
         let mut opened_in_time = false;
         for frames in 0..6 {
-            let mut harness = harness(Opens::Popover);
-            support::past_bar(&mut harness);
-            harness.event(egui::Event::Key {
+            let mut d = driver(Opens::Popover);
+            support::drive_past_bar(&mut d);
+            d.harness_mut().event(egui::Event::Key {
                 key: Key::Tab,
                 physical_key: None,
                 pressed: true,
                 repeat: false,
                 modifiers: egui::Modifiers::NONE,
             });
-            harness.step();
             for _ in 0..frames {
-                harness.step();
+                d.frames(1);
             }
-            opened_in_time |= !is_shown_in(&harness);
-            harness.state_mut().app.gone = true;
-            settle(&mut harness);
-            assert!(!tip_painted(&harness), "after {frames} frames");
-            assert!(!is_shown_in(&harness), "after {frames} frames");
+            opened_in_time |= !is_shown_in(&d);
+            d.app_mut().gone = true;
+            settle(&mut d);
+            assert!(!tip_painted(&d), "after {frames} frames");
+            assert!(!is_shown_in(&d), "after {frames} frames");
         }
         assert!(
             opened_in_time,
@@ -1299,10 +1247,8 @@ mod dismissed {
         );
     }
 
-    fn is_shown_in(harness: &Harness<'_, Rig<Host>>) -> bool {
-        harness
-            .state()
-            .nodes
+    fn is_shown_in(d: &Driver<Host>) -> bool {
+        support::nodes(d)
             .iter()
             .any(|(path, _)| path.contains("Tooltip("))
     }
@@ -1339,34 +1285,29 @@ mod segmented {
 
     #[test]
     fn the_controls_tooltip_is_one_and_stays_put_across_its_cells() {
-        let mut harness = harness_of(view);
-        let first = rect_of(&harness, "/\"axis\"/0");
-        let second = rect_of(&harness, "/\"axis\"/1");
+        let mut d = harness_of(view);
+        let first = d.rect(Target::suffix("/\"axis\"/0"));
+        let second = d.rect(Target::suffix("/\"axis\"/1"));
         assert!(
             first.max.x <= second.min.x,
             "precondition: cells side by side"
         );
-        stays_put(
-            &mut harness,
-            first.center(),
-            second.center(),
-            "Tip for axis",
-        );
+        stays_put(&mut d, first.center(), second.center(), "Tip for axis");
     }
 
     #[test]
     fn leaving_a_cell_with_its_own_tooltip_outward_never_shows_the_controls() {
-        let mut harness = harness_of(view);
-        let cell = rect_of(&harness, "/\"axis\"/2");
-        let control = rect_of(&harness, "/\"axis\"");
+        let mut d = harness_of(view);
+        let cell = d.rect(Target::suffix("/\"axis\"/2"));
+        let control = d.rect(Target::suffix("/\"axis\""));
         assert!(
             control.max.y > cell.max.y,
             "precondition: a band of the control below the cell"
         );
-        hover_node(&mut harness, "/\"axis\"/2");
-        wait(&mut harness, DELAY + GRACE);
+        d.hover(Target::suffix("/\"axis\"/2"));
+        d.advance(DELAY + GRACE);
         assert!(
-            painted(&harness, "Tip for current"),
+            d.painted().shows("Tip for current"),
             "precondition: it opened"
         );
         let x = cell.center().x;
@@ -1374,47 +1315,45 @@ mod segmented {
         let mut crossed = false;
         while y < control.max.y + 12.0 {
             y += 1.0;
-            harness.hover_at(pos2(x, y));
-            harness.step();
+            d.carry_to(pos2(x, y));
             crossed |= y > cell.max.y && y < control.max.y;
-            assert!(!painted(&harness, "Tip for axis"), "at y = {y}");
+            assert!(!d.painted().shows("Tip for axis"), "at y = {y}");
         }
         assert!(crossed, "precondition: the pointer crossed the band");
-        wait(&mut harness, DELAY + GRACE);
-        assert!(!painted(&harness, "Tip for axis"), "once outside");
+        d.advance(DELAY + GRACE);
+        assert!(!d.painted().shows("Tip for axis"), "once outside");
     }
 
     #[test]
     fn the_tracks_padding_beside_a_cell_shows_that_cells_tooltip() {
-        let mut harness = harness_of(view);
-        let control = rect_of(&harness, "/\"axis\"");
-        let cell = rect_of(&harness, "/\"axis\"/2");
+        let mut d = harness_of(view);
+        let control = d.rect(Target::suffix("/\"axis\""));
+        let cell = d.rect(Target::suffix("/\"axis\"/2"));
         let at = pos2((cell.max.x + control.max.x) / 2.0, cell.center().y);
         assert!(
             control.contains(at) && !cell.contains(at),
             "precondition: {at:?} is on the track beside the cell"
         );
-        harness.hover_at(at);
-        wait(&mut harness, DELAY + GRACE);
-        assert!(painted(&harness, "Tip for current"));
-        assert!(!painted(&harness, "Tip for axis"));
+        d.carry_to(at).advance(DELAY + GRACE - support::STEP);
+        assert!(d.painted().shows("Tip for current"));
+        assert!(!d.painted().shows("Tip for axis"));
     }
 
     #[test]
     fn a_cell_with_its_own_tooltip_shows_only_that_one() {
-        let mut harness = harness_of(view);
-        hover_node(&mut harness, "/\"axis\"/2");
-        wait(&mut harness, DELAY + GRACE);
-        wait(&mut harness, Duration::from_millis(400));
-        assert!(painted(&harness, "Tip for current"));
-        assert!(!painted(&harness, "Tip for axis"));
-        assert_eq!(boxes(&harness).len(), 1);
+        let mut d = harness_of(view);
+        d.hover(Target::suffix("/\"axis\"/2"));
+        d.advance(DELAY + GRACE);
+        d.advance(Duration::from_millis(400));
+        assert!(d.painted().shows("Tip for current"));
+        assert!(!d.painted().shows("Tip for axis"));
+        assert_eq!(boxes(&d).len(), 1);
     }
 }
 
 /// The tooltip boxes shown.
-fn boxes(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
-    tooltip_nodes(harness)
+fn boxes(d: &Driver<App>) -> Vec<Rect> {
+    tooltip_nodes(d)
         .into_iter()
         .filter(|(path, _)| path.ends_with("/\"Box\""))
         .map(|(_, rect)| rect)
@@ -1423,63 +1362,64 @@ fn boxes(harness: &Harness<'_, Rig<App>>) -> Vec<Rect> {
 
 /// Opens `tip` with the pointer at `from`, then moves it to `to` in steps:
 /// at each, the one tooltip shown is where it opened.
-fn stays_put(harness: &mut Harness<'_, Rig<App>>, from: egui::Pos2, to: egui::Pos2, tip: &str) {
-    harness.hover_at(from);
-    wait(harness, DELAY + GRACE);
-    assert!(painted(harness, tip), "precondition: {tip:?} opened");
-    let at = boxes(harness);
+fn stays_put(d: &mut Driver<App>, from: egui::Pos2, to: egui::Pos2, tip: &str) {
+    d.carry_to(from).advance(DELAY + GRACE - support::STEP);
+    assert!(d.painted().shows(tip), "precondition: {tip:?} opened");
+    let at = boxes(d);
     assert_eq!(at.len(), 1, "one tooltip");
     for step in 0..=10 {
         let pointer = from.lerp(to, step as f32 / 10.0);
-        harness.hover_at(pointer);
-        harness.run_steps(2);
-        assert_eq!(boxes(harness), at, "at {pointer:?}");
+        d.carry_to(pointer).frames(1);
+        assert_eq!(boxes(d), at, "at {pointer:?}");
     }
 }
 
 #[test]
 fn a_steppers_tooltip_stays_put_from_its_field_to_its_buttons() {
-    let mut harness = harness();
-    let field = rect_of(&harness, "/\"stepper\"/Box/Field").center();
-    let up = rect_of(&harness, "/\"stepper\"/Box/Buttons/Up").center();
-    let down = rect_of(&harness, "/\"stepper\"/Box/Buttons/Down").center();
-    stays_put(&mut harness, field, up, "Tip for stepper");
-    stays_put(&mut harness, up, down, "Tip for stepper");
+    let mut d = driver();
+    let field = d.rect(Target::suffix("/\"stepper\"/Box/Field")).center();
+    let up = d
+        .rect(Target::suffix("/\"stepper\"/Box/Buttons/Up"))
+        .center();
+    let down = d
+        .rect(Target::suffix("/\"stepper\"/Box/Buttons/Down"))
+        .center();
+    stays_put(&mut d, field, up, "Tip for stepper");
+    stays_put(&mut d, up, down, "Tip for stepper");
 }
 
 #[test]
 fn a_sliders_tooltip_stays_put_from_its_track_to_its_thumb() {
-    let mut harness = harness();
-    let track = rect_of(&harness, "/\"slider\"/Track");
-    let thumb = rect_of(&harness, "/\"slider\"/Track/Thumb");
+    let mut d = driver();
+    let track = d.rect(Target::suffix("/\"slider\"/Track"));
+    let thumb = d.rect(Target::suffix("/\"slider\"/Track/Thumb"));
     let start = pos2(track.min.x + 8.0, track.center().y);
     assert!(
         !thumb.contains(start),
         "precondition: the track, off the thumb"
     );
-    stays_put(&mut harness, start, thumb.center(), "Tip for slider");
+    stays_put(&mut d, start, thumb.center(), "Tip for slider");
 }
 
 #[test]
 fn keyboard_focus_on_a_part_shows_the_controls_tooltip_at_the_control() {
-    let mut harness = harness();
-    harness.state_mut().companion = support::Companion::Alone;
+    let mut d = driver();
+    support::set_companion(&d, support::Companion::Alone);
     let cell = "/\"segmented\"/0";
     for _ in 0..12 {
-        if support::focused_node(&harness).as_deref() == Some(cell) {
+        if support::focused_node(&d).as_deref() == Some(cell) {
             break;
         }
-        harness.key_press(Key::Tab);
-        harness.run_steps(2);
+        d.press(Key::Tab).frames(1);
     }
     assert_eq!(
-        support::focused_node(&harness).as_deref(),
+        support::focused_node(&d).as_deref(),
         Some(cell),
         "precondition: Tab reached the cell"
     );
-    assert!(painted(&harness, "Tip for segmented"), "no delay for focus");
-    let control = rect_of(&harness, "/\"segmented\"");
-    let shown = boxes(&harness);
+    assert!(d.painted().shows("Tip for segmented"), "no delay for focus");
+    let control = d.rect(Target::suffix("/\"segmented\""));
+    let shown = boxes(&d);
     assert_eq!(shown.len(), 1, "one tooltip");
     assert!(
         (shown[0].center().x - control.center().x).abs() < 1.0,
@@ -1489,9 +1429,9 @@ fn keyboard_focus_on_a_part_shows_the_controls_tooltip_at_the_control() {
 
 #[test]
 fn a_part_is_described_by_its_controls_tooltip() {
-    let harness = harness();
+    let d = driver();
     let described = |label: &str, tip: &str| {
-        harness
+        d.harness()
             .query_all_by_label(label)
             .any(|node| node.accesskit_node().description().as_deref() == Some(tip))
     };
@@ -1505,4 +1445,72 @@ fn a_part_is_described_by_its_controls_tooltip() {
         described("Increase Count", "Tip for stepper"),
         "the stepper's button"
     );
+}
+
+const LONG_NOTE: &str = "A note much longer than its narrow box";
+const SHORT_NOTE: &str = "Fits";
+
+/// ```html
+/// <div class="flex flex-col items-start gap-4 p-4">
+///   <div class="w-[80px]"><span class="truncate">A note much longer…</span></div>
+///   <div class="w-[80px]"><span class="truncate">Fits</span></div>
+/// </div>
+/// ```
+fn notes_view(b: &mut Builder<'_, '_, App>, _: &App) {
+    b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
+        for (key, note) in [("long", LONG_NOTE), ("short", SHORT_NOTE)] {
+            b.div(tw().w_px(80.0), |b| {
+                b.span(key, tw().truncate(), note).tooltip_when_truncated();
+            });
+        }
+    });
+}
+
+/// For each time `text` is drawn, whether it was cut short.
+fn drawn_elided(d: &Driver<App>, text: &str) -> Vec<bool> {
+    support::shapes(d)
+        .iter()
+        .filter_map(|shape| match shape {
+            Shape::Text(shape) if shape.galley.text() == text => Some(shape.galley.elided),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_truncated_span_shows_its_whole_text_and_one_that_fits_shows_none() {
+    let mut d = harness_of(notes_view);
+    assert_eq!(
+        drawn_elided(&d, LONG_NOTE),
+        [true],
+        "precondition: the long note is cut"
+    );
+    assert_eq!(
+        drawn_elided(&d, SHORT_NOTE),
+        [false],
+        "precondition: the short one fits"
+    );
+
+    d.hover(Target::suffix("/\"short\""));
+    d.advance(DELAY + GRACE);
+    assert!(!is_shown(&d), "text that fits has no tooltip");
+
+    d.hover(Target::suffix("/\"long\""));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "the cut note opens a tooltip");
+    assert_eq!(
+        drawn_elided(&d, LONG_NOTE),
+        [true, false],
+        "the tooltip draws the whole note over the cut one"
+    );
+}
+
+#[test]
+fn a_truncated_span_keeps_its_whole_text_as_its_name_and_no_description() {
+    let mut d = harness_of(notes_view);
+    d.hover(Target::suffix("/\"long\""));
+    d.advance(DELAY + GRACE);
+    assert!(is_shown(&d), "precondition: the tooltip is open");
+    let node = d.harness().get_by_label(LONG_NOTE);
+    assert_eq!(node.accesskit_node().description(), None);
 }
