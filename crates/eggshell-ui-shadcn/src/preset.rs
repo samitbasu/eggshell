@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use eggshell_ui::contract::{
-    self, Arrow, CheckboxMetrics, Colors, Em, Entry, Focus, InputMetrics, Keyed, KindMotion,
-    Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size, SliderMetrics,
-    SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
+    self, Arrow, CheckboxMetrics, Colors, Em, Entry, Focus, GroupEnd, InputMetrics, Keyed,
+    KindMotion, Look as BoxLook, Metrics, Paint, RadioMetrics, SegmentedMetrics, Size,
+    SliderMetrics, SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
 use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
@@ -782,6 +782,7 @@ impl Shadcn {
         style.table.footer_fill = t.muted.gamma_multiply(0.5);
         style.table.footer_weight = Weight::Medium;
         style.table.transition = Duration::from_millis(150);
+        style.table.group_end = GroupEnd::Gap(12.0);
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);

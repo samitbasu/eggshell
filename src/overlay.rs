@@ -279,9 +279,12 @@ impl Outside {
     pub(crate) fn of(nav: Nav) -> Self {
         match nav {
             Nav::Menu(_) | Nav::Submenu(_) => Self::Swallow,
-            Nav::Listbox(_) | Nav::Grid | Nav::Row(_) | Nav::Radio(_) | Nav::None => {
-                Self::PassThrough
-            }
+            Nav::Listbox(_)
+            | Nav::Grid
+            | Nav::Row(_)
+            | Nav::Radio(_)
+            | Nav::Column(_)
+            | Nav::None => Self::PassThrough,
         }
     }
 }
@@ -348,6 +351,8 @@ pub enum Nav {
     Row(Wrap),
     /// TODO(prose): all four arrows move real focus between items (Down and Right forward), wrapping as the [`Wrap`] says, Home and End do nothing: a radio group.
     Radio(Wrap),
+    /// TODO(prose): Up and Down move real focus between the items marked [`nav_item`](crate::NodeHandle::nav_item), wrapping as the [`Wrap`] says, Home and End go to the ends, and every item stays a Tab stop: an accordion's headers.
+    Column(Wrap),
 }
 
 impl Nav {
@@ -359,7 +364,8 @@ impl Nav {
             | Self::Submenu(wrap)
             | Self::Listbox(wrap)
             | Self::Row(wrap)
-            | Self::Radio(wrap) => wrap,
+            | Self::Radio(wrap)
+            | Self::Column(wrap) => wrap,
             Self::Grid | Self::None => Wrap::Stop,
         }
     }
@@ -376,7 +382,7 @@ impl Nav {
     /// and a submenu's Left belong to an overlay.
     pub(crate) fn on_page(self) -> bool {
         match self {
-            Self::Menu(_) | Self::Grid | Self::Row(_) | Self::Radio(_) => true,
+            Self::Menu(_) | Self::Grid | Self::Row(_) | Self::Radio(_) | Self::Column(_) => true,
             Self::None | Self::Submenu(_) | Self::Listbox(_) => false,
         }
     }

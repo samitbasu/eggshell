@@ -9,7 +9,7 @@ use std::rc::Rc;
 use egui::{Id, Role, Sense, Ui, UiBuilder, WidgetInfo};
 
 use crate::builder::Slot;
-use crate::contract::TableStyle;
+use crate::contract::{GroupEnd, TableStyle};
 use crate::{Builder, NodeUi as _, Reserve, Track, Tw, tw};
 
 /// TODO(prose): where a column's cells place their content.
@@ -182,7 +182,7 @@ type Build<'a, 'f, A> = Box<dyn FnOnce(&mut Cells<'_, 'f, A>) + 'a>;
 ///     b.table("t")
 ///         .columns([Column::new(Track::auto())])
 ///         .selected(*selected)
-///         .rows(&[1_u32], |n| *n, |row, n| row.cell_text(n.to_string()));
+///         .rows(&[1_u32], |n| *n, |row, n| row.cell_text(n.to_string())).add();
 /// }
 /// ```
 ///
@@ -215,10 +215,10 @@ type Build<'a, 'f, A> = Box<dyn FnOnce(&mut Cells<'_, 'f, A>) + 'a>;
 ///         .rows(&app.invoices, |invoice| invoice.id, |row, invoice| {
 ///             row.cell_text(format!("INV-{}", invoice.id));
 ///             row.cell_text(&invoice.amount);
-///         });
+///         }).add();
 /// }
 /// ```
-#[must_use = "a table is not added until you call `.rows(..)`"]
+#[must_use = "a table is not added until you call `.rows(..).add()`"]
 pub struct TableChain<'a, 'f, A, S = Unselectable> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
@@ -261,15 +261,21 @@ impl<'a, 'f, A: 'static> TableChain<'a, 'f, A> {
         self.with_selection(|_| Selected(current))
     }
 
-    /// TODO(prose): adds the table, a row per item of `items` under `key`.
-    #[track_caller]
-    pub fn rows<'i, T: 'i, K: crate::Key + Clone + PartialEq>(
+    /// TODO(prose): a row per item of `items` under `key`, its cells filled by
+    /// `body`. Add the table with [`add`](RowsChain::add), after
+    /// [`grouped_by`](RowsChain::grouped_by) if the rows are grouped.
+    pub fn rows<'i, T: 'i, K, Kf, B>(
         self,
         items: impl IntoIterator<Item = &'i T>,
-        key: impl Fn(&T) -> K,
-        body: impl FnMut(&mut Cells<'_, 'f, A>, &T),
-    ) {
-        self.rows_with(each_item(items, key, body));
+        key: Kf,
+        body: B,
+    ) -> RowsChain<'a, 'f, 'i, A, Unselectable, T, Kf, B>
+    where
+        K: crate::Key + Clone + PartialEq,
+        Kf: Fn(&T) -> K,
+        B: FnMut(&mut Cells<'_, 'f, A>, &T),
+    {
+        RowsChain::new(self, items, key, body)
     }
 
     /// TODO(prose): adds the table, with the rows and group rows `rows` adds
@@ -303,6 +309,136 @@ impl<'a, 'f, A: 'static> TableChain<'a, 'f, A> {
         rows: impl FnOnce(&mut Rows<'_, 'f, A, K>),
     ) {
         self.with_selection(|_| None).add(rows);
+    }
+}
+
+/// What groups a table's rows: the label of each item, `None` for one in no
+/// group.
+type Label<'i, T> = Box<dyn Fn(&T) -> Option<String> + 'i>;
+
+/// TODO(prose): a table's rows, a row per item, waiting to be added by
+/// [`add`](Self::add).
+#[must_use = "a table is not added until you call `.add()`"]
+pub struct RowsChain<'a, 'f, 'i, A, S, T, Kf, B> {
+    table: TableChain<'a, 'f, A, S>,
+    items: Vec<&'i T>,
+    key: Kf,
+    body: B,
+    label: Option<Label<'i, T>>,
+}
+
+impl<'a, 'f, 'i, A, S, T: 'i, Kf, B> RowsChain<'a, 'f, 'i, A, S, T, Kf, B> {
+    fn new(
+        table: TableChain<'a, 'f, A, S>,
+        items: impl IntoIterator<Item = &'i T>,
+        key: Kf,
+        body: B,
+    ) -> Self {
+        Self {
+            table,
+            items: items.into_iter().collect(),
+            key,
+            body,
+            label: None,
+        }
+    }
+
+    /// TODO(prose): groups the rows by `label`: a group row each time the
+    /// label changes, so that rows next to each other with one label share
+    /// it, and a group's end ([`Rows::end_group`]) before a row with no label.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, Track};
+    /// # use eggshell_ui::owned::Column;
+    /// struct Entry { id: u32, section: Option<&'static str>, name: &'static str }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>, entries: &[Entry]) {
+    ///     b.table("entries")
+    ///         .columns([Column::new(Track::fr(1.0))])
+    ///         .rows(entries, |entry| entry.id, |cells, entry| cells.cell_text(entry.name))
+    ///         .grouped_by(|entry| entry.section)
+    ///         .add();
+    /// }
+    /// ```
+    pub fn grouped_by<L: Into<String>>(mut self, label: impl Fn(&T) -> Option<L> + 'i) -> Self {
+        self.label = Some(Box::new(move |item| label(item).map(Into::into)));
+        self
+    }
+}
+
+impl<'a, 'f, 'i, A: 'static, T: 'i, K, Kf, B> RowsChain<'a, 'f, 'i, A, Unselectable, T, Kf, B>
+where
+    K: crate::Key + Clone + PartialEq,
+    Kf: Fn(&T) -> K,
+    B: FnMut(&mut Cells<'_, 'f, A>, &T),
+{
+    /// TODO(prose): adds the table.
+    #[track_caller]
+    pub fn add(self) {
+        let Self {
+            table,
+            items,
+            key,
+            body,
+            label,
+        } = self;
+        match label {
+            None => table.rows_with(each_item(items, key, body)),
+            Some(label) => table.rows_with(grouped_items(items, key, label, body)),
+        }
+    }
+}
+
+impl<'a, 'f, 'i, A: 'static, T: 'i, K, Kf, B> RowsChain<'a, 'f, 'i, A, Selectable<A, K>, T, Kf, B>
+where
+    K: crate::Key + Clone + PartialEq,
+    Kf: Fn(&T) -> K,
+    B: FnMut(&mut Cells<'_, 'f, A>, &T),
+{
+    /// TODO(prose): adds the table.
+    #[track_caller]
+    pub fn add(self) {
+        let Self {
+            table,
+            items,
+            key,
+            body,
+            label,
+        } = self;
+        match label {
+            None => table.rows_with(each_item(items, key, body)),
+            Some(label) => table.rows_with(grouped_items(items, key, label, body)),
+        }
+    }
+}
+
+/// A row per item of `items` under `key`, each filled by `body`, grouped
+/// by `label`: a group row each time the label changes, so that rows next
+/// to each other with one label share it, and a group's end before a row
+/// with no label.
+fn grouped_items<'i, 'f, A: 'static, T: 'i, K: crate::Key + Clone + PartialEq, L: Into<String>>(
+    items: impl IntoIterator<Item = &'i T>,
+    key: impl Fn(&T) -> K,
+    label: impl Fn(&T) -> Option<L>,
+    mut body: impl FnMut(&mut Cells<'_, 'f, A>, &T),
+) -> impl FnOnce(&mut Rows<'_, 'f, A, K>) {
+    move |rows| {
+        let mut current: Option<String> = None;
+        for item in items {
+            match label(item).map(Into::into) {
+                Some(label) if current.as_ref() != Some(&label) => {
+                    rows.group(label.clone());
+                    current = Some(label);
+                }
+                Some(_) => {}
+                None => {
+                    if current.take().is_some() {
+                        rows.end_group();
+                    }
+                }
+            }
+            rows.row(key(item), |cells| body(cells, item));
+        }
     }
 }
 
@@ -391,15 +527,19 @@ impl<'a, 'f, A: 'static, K> TableChain<'a, 'f, A, Selected<K>> {
 impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
     TableChain<'a, 'f, A, Selectable<A, K>>
 {
-    /// TODO(prose): adds the table, a row per item of `items` under `key`.
-    #[track_caller]
-    pub fn rows<'i, T: 'i>(
+    /// TODO(prose): a row per item of `items` under `key`, its cells filled by
+    /// `body`. Add the table with [`add`](RowsChain::add).
+    pub fn rows<'i, T: 'i, Kf, B>(
         self,
         items: impl IntoIterator<Item = &'i T>,
-        key: impl Fn(&T) -> K,
-        body: impl FnMut(&mut Cells<'_, 'f, A>, &T),
-    ) {
-        self.rows_with(each_item(items, key, body));
+        key: Kf,
+        body: B,
+    ) -> RowsChain<'a, 'f, 'i, A, Selectable<A, K>, T, Kf, B>
+    where
+        Kf: Fn(&T) -> K,
+        B: FnMut(&mut Cells<'_, 'f, A>, &T),
+    {
+        RowsChain::new(self, items, key, body)
     }
 
     /// TODO(prose): adds the table, with the rows and group rows `rows` adds
@@ -498,6 +638,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
                 parent: table_id,
                 index: 0,
                 bodies: 0,
+                spacers: 0,
                 groups: Vec::new(),
                 pending: None,
             };
@@ -575,6 +716,8 @@ pub struct Rows<'r, 'f, A, K> {
     index: usize,
     /// The body rows since the header or the last group row.
     bodies: usize,
+    /// The grid lines taken by group ends, which are not rows.
+    spacers: usize,
     groups: Vec<String>,
     /// The row whose cells are added and whose band is not: whether it is
     /// the last body row, which decides its rule, is known only once the
@@ -622,6 +765,32 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
         self.start(Band::Group(ordinal), None, |cells| cells.group_cell(title));
     }
 
+    /// TODO(prose): ends the group the last rows are in, so the rows that
+    /// follow are in none: the style's [`GroupEnd`](crate::contract::GroupEnd)
+    /// shows where it ends, and the stripes start afresh. Outside a group,
+    /// it does nothing.
+    pub fn end_group(&mut self) {
+        if self.parent == self.table_id {
+            return;
+        }
+        self.settle(Last::No);
+        let Ok(line) = i16::try_from(self.index + 1 + self.spacers) else {
+            return;
+        };
+        self.spacers += 1;
+        let classes = tw().col_span_full().row_start(line);
+        let classes = match self.table.group_end {
+            GroupEnd::Gap(points) => classes.h_px(points),
+            GroupEnd::Rule { width, color } => {
+                classes.h_px(0.0).border_t(width).border_t_color(color)
+            }
+        };
+        self.b
+            .div_id(("group end", self.groups.len()), classes, |_| {});
+        self.parent = self.table_id;
+        self.bodies = 0;
+    }
+
     /// Adds the band left waiting, then starts the row `band`: its cells now,
     /// its band once the next row starts.
     #[track_caller]
@@ -634,7 +803,7 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
         self.settle(Last::No);
         let index = self.index;
         self.index += 1;
-        let Ok(line) = i16::try_from(index + 1) else {
+        let Ok(line) = i16::try_from(index + 1 + self.spacers) else {
             crate::report::report(self.b.ctx(), crate::Problem::TableShape, None, || {
                 format!(
                     "a table of more than {} rows; the rest are dropped",
