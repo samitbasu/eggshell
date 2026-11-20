@@ -5,14 +5,14 @@
 
 use eggshell_ui::overlay::{Nav, Wrap};
 use eggshell_ui::owned::Mark;
+use eggshell_ui::testing::Driver;
 use eggshell_ui::testing::assert_reported;
 use eggshell_ui::{Builder, Problem, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
-use egui::{Key, Modifiers, Role, Theme, vec2};
-use egui_kittest::Harness;
+use egui::{Key, KeyboardShortcut, Modifiers, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, focused_path};
+use crate::support::{self, focused_path};
 
 const TABS: [&str; 4] = ["One", "Two", "Three", "Four"];
 
@@ -83,60 +83,52 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(app: App) -> Harness<'static, Rig<App>> {
+fn driver(app: App) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 300.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         app,
         view,
-    );
-    harness.ctx.set_theme(Theme::Light);
-    harness.run_steps(8);
-    harness
+    )
+    .build();
+    d.ctx().set_theme(Theme::Light);
+    d.frames(8);
+    d
 }
 
-fn row(follows: Follows) -> Harness<'static, Rig<App>> {
-    harness(App::new(Nav::Row(Wrap::Around), follows))
-}
-
-fn press(harness: &mut Harness<'_, Rig<App>>, key: Key) {
-    harness.key_press(key);
-    harness.run_steps(4);
+fn row(follows: Follows) -> Driver<App> {
+    driver(App::new(Nav::Row(Wrap::Around), follows))
 }
 
 fn tab(index: usize) -> String {
     format!("/\"tabs\"/{index}")
 }
 
-fn focused(harness: &Harness<'_, Rig<App>>) -> Option<String> {
-    focused_path(harness)
-}
-
 /// Tabs from the top of the page to the first tab of the list.
-fn enter_list(harness: &mut Harness<'_, Rig<App>>) {
+fn enter_list(d: &mut Driver<App>) {
     for _ in 0..8 {
-        press(harness, Key::Tab);
-        if focused(harness).is_some_and(|path| path.starts_with("/\"tabs\"/")) {
+        d.press(Key::Tab).frames(3);
+        if focused_path(d).is_some_and(|path| path.starts_with("/\"tabs\"/")) {
             return;
         }
     }
-    panic!("Tab never reached the list: {:?}", focused(harness));
+    panic!("Tab never reached the list: {:?}", focused_path(d));
 }
 
 #[test]
 fn the_list_is_one_tab_stop_on_the_selected_item() {
-    let mut harness = row(Follows::Focus);
-    enter_list(&mut harness);
+    let mut d = row(Follows::Focus);
+    enter_list(&mut d);
     assert_eq!(
-        focused(&harness),
+        focused_path(&d),
         Some(tab(1)),
         "Tab enters on the selected tab"
     );
     let mut visited = Vec::new();
     for _ in 0..8 {
-        press(&mut harness, Key::Tab);
-        visited.extend(focused(&harness));
+        d.press(Key::Tab).frames(3);
+        visited.extend(focused_path(&d));
     }
     assert!(
         visited.iter().any(|path| path.contains("after")),
@@ -156,80 +148,80 @@ fn with_nothing_selected_the_first_enabled_item_is_the_tab_stop() {
     let mut app = App::new(Nav::Row(Wrap::Around), Follows::Focus);
     app.selected = TABS.len();
     app.disabled = Some(0);
-    let mut harness = harness(app);
-    enter_list(&mut harness);
-    assert_eq!(focused(&harness), Some(tab(1)));
+    let mut d = driver(app);
+    enter_list(&mut d);
+    assert_eq!(focused_path(&d), Some(tab(1)));
 }
 
 #[test]
 fn left_and_right_move_the_focus_and_wrap_and_home_and_end_go_to_the_ends() {
-    let mut harness = row(Follows::Focus);
-    enter_list(&mut harness);
-    press(&mut harness, Key::ArrowRight);
-    assert_eq!(focused(&harness), Some(tab(2)));
-    press(&mut harness, Key::ArrowRight);
-    press(&mut harness, Key::ArrowRight);
-    assert_eq!(focused(&harness), Some(tab(0)), "Right wraps");
-    press(&mut harness, Key::ArrowLeft);
-    assert_eq!(focused(&harness), Some(tab(3)), "Left wraps");
-    press(&mut harness, Key::Home);
-    assert_eq!(focused(&harness), Some(tab(0)));
-    press(&mut harness, Key::End);
-    assert_eq!(focused(&harness), Some(tab(3)));
-    assert_eq!(harness.state().app.selected, 1, "the focus alone moves");
+    let mut d = row(Follows::Focus);
+    enter_list(&mut d);
+    d.press(Key::ArrowRight).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(2)));
+    d.press(Key::ArrowRight).frames(3);
+    d.press(Key::ArrowRight).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(0)), "Right wraps");
+    d.press(Key::ArrowLeft).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(3)), "Left wraps");
+    d.press(Key::Home).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(0)));
+    d.press(Key::End).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(3)));
+    assert_eq!(d.app().selected, 1, "the focus alone moves");
 }
 
 #[test]
 fn up_and_down_do_nothing_in_a_row() {
-    let mut harness = row(Follows::Focus);
-    enter_list(&mut harness);
-    press(&mut harness, Key::ArrowDown);
-    assert_eq!(focused(&harness), Some(tab(1)));
-    press(&mut harness, Key::ArrowUp);
-    assert_eq!(focused(&harness), Some(tab(1)));
+    let mut d = row(Follows::Focus);
+    enter_list(&mut d);
+    d.press(Key::ArrowDown).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(1)));
+    d.press(Key::ArrowUp).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(1)));
 }
 
 #[test]
 fn a_row_that_stops_stays_on_its_ends() {
-    let mut harness = harness(App::new(Nav::Row(Wrap::Stop), Follows::Focus));
-    enter_list(&mut harness);
-    press(&mut harness, Key::ArrowLeft);
-    press(&mut harness, Key::ArrowLeft);
-    assert_eq!(focused(&harness), Some(tab(0)));
-    press(&mut harness, Key::End);
-    press(&mut harness, Key::ArrowRight);
-    assert_eq!(focused(&harness), Some(tab(3)));
+    let mut d = driver(App::new(Nav::Row(Wrap::Stop), Follows::Focus));
+    enter_list(&mut d);
+    d.press(Key::ArrowLeft).frames(3);
+    d.press(Key::ArrowLeft).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(0)));
+    d.press(Key::End).frames(3);
+    d.press(Key::ArrowRight).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(3)));
 }
 
 #[test]
 fn the_arrows_skip_a_disabled_item() {
     let mut app = App::new(Nav::Row(Wrap::Around), Follows::Focus);
     app.disabled = Some(2);
-    let mut harness = harness(app);
-    enter_list(&mut harness);
-    press(&mut harness, Key::ArrowRight);
-    assert_eq!(focused(&harness), Some(tab(3)), "Three is skipped");
-    press(&mut harness, Key::ArrowLeft);
-    assert_eq!(focused(&harness), Some(tab(1)), "backwards too");
+    let mut d = driver(app);
+    enter_list(&mut d);
+    d.press(Key::ArrowRight).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(3)), "Three is skipped");
+    d.press(Key::ArrowLeft).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(1)), "backwards too");
 }
 
 #[test]
 fn tab_leaves_from_the_focused_item_and_comes_back_to_the_selected_one() {
-    let mut harness = row(Follows::Focus);
-    enter_list(&mut harness);
-    press(&mut harness, Key::ArrowRight);
-    press(&mut harness, Key::ArrowRight);
-    assert_eq!(focused(&harness), Some(tab(3)), "precondition");
-    press(&mut harness, Key::Tab);
+    let mut d = row(Follows::Focus);
+    enter_list(&mut d);
+    d.press(Key::ArrowRight).frames(3);
+    d.press(Key::ArrowRight).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(3)), "precondition");
+    d.press(Key::Tab).frames(3);
     assert!(
-        focused(&harness).is_some_and(|path| path.contains("after")),
+        focused_path(&d).is_some_and(|path| path.contains("after")),
         "Tab leaves the list: {:?}",
-        focused(&harness)
+        focused_path(&d)
     );
-    harness.key_press_modifiers(Modifiers::SHIFT, Key::Tab);
-    harness.run_steps(4);
+    d.press(KeyboardShortcut::new(Modifiers::SHIFT, Key::Tab))
+        .frames(3);
     assert_eq!(
-        focused(&harness),
+        focused_path(&d),
         Some(tab(1)),
         "Shift+Tab comes back to the selected tab"
     );
@@ -237,56 +229,56 @@ fn tab_leaves_from_the_focused_item_and_comes_back_to_the_selected_one() {
 
 #[test]
 fn enter_and_space_activate_the_focused_item() {
-    let mut harness = row(Follows::Focus);
-    enter_list(&mut harness);
-    press(&mut harness, Key::ArrowRight);
-    press(&mut harness, Key::Enter);
-    assert_eq!(harness.state().app.selected, 2);
-    press(&mut harness, Key::ArrowRight);
-    press(&mut harness, Key::Space);
-    assert_eq!(harness.state().app.selected, 3);
+    let mut d = row(Follows::Focus);
+    enter_list(&mut d);
+    d.press(Key::ArrowRight).frames(3);
+    d.press(Key::Enter).frames(3);
+    assert_eq!(d.app().selected, 2);
+    d.press(Key::ArrowRight).frames(3);
+    d.press(Key::Space).frames(3);
+    assert_eq!(d.app().selected, 3);
 }
 
 #[test]
 fn when_selection_follows_focus_an_arrow_activates_the_item_it_reaches() {
-    let mut harness = row(Follows::Selection);
-    enter_list(&mut harness);
-    assert_eq!(harness.state().app.clicks, 0, "entering activates nothing");
-    press(&mut harness, Key::ArrowRight);
-    assert_eq!(harness.state().app.selected, 2);
-    assert_eq!(focused(&harness), Some(tab(2)));
-    press(&mut harness, Key::End);
-    assert_eq!(harness.state().app.selected, 3);
-    press(&mut harness, Key::ArrowRight);
-    assert_eq!(harness.state().app.selected, 0, "and wraps");
-    assert_eq!(harness.state().app.clicks, 3, "one activation a key");
+    let mut d = row(Follows::Selection);
+    enter_list(&mut d);
+    assert_eq!(d.app().clicks, 0, "entering activates nothing");
+    d.press(Key::ArrowRight).frames(3);
+    assert_eq!(d.app().selected, 2);
+    assert_eq!(focused_path(&d), Some(tab(2)));
+    d.press(Key::End).frames(3);
+    assert_eq!(d.app().selected, 3);
+    d.press(Key::ArrowRight).frames(3);
+    assert_eq!(d.app().selected, 0, "and wraps");
+    assert_eq!(d.app().clicks, 3, "one activation a key");
 }
 
 #[test]
 fn a_radio_nav_moves_on_all_four_arrows_and_leaves_home_and_end_alone() {
-    let mut harness = harness(App::new(Nav::Radio(Wrap::Around), Follows::Focus));
-    enter_list(&mut harness);
-    press(&mut harness, Key::ArrowDown);
-    assert_eq!(focused(&harness), Some(tab(2)));
-    press(&mut harness, Key::ArrowRight);
-    assert_eq!(focused(&harness), Some(tab(3)));
-    press(&mut harness, Key::ArrowDown);
-    assert_eq!(focused(&harness), Some(tab(0)), "wraps");
-    press(&mut harness, Key::ArrowUp);
-    assert_eq!(focused(&harness), Some(tab(3)));
-    press(&mut harness, Key::ArrowLeft);
-    assert_eq!(focused(&harness), Some(tab(2)));
-    press(&mut harness, Key::Home);
-    assert_eq!(focused(&harness), Some(tab(2)), "Home is not the group's");
-    press(&mut harness, Key::End);
-    assert_eq!(focused(&harness), Some(tab(2)), "nor is End");
+    let mut d = driver(App::new(Nav::Radio(Wrap::Around), Follows::Focus));
+    enter_list(&mut d);
+    d.press(Key::ArrowDown).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(2)));
+    d.press(Key::ArrowRight).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(3)));
+    d.press(Key::ArrowDown).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(0)), "wraps");
+    d.press(Key::ArrowUp).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(3)));
+    d.press(Key::ArrowLeft).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(2)));
+    d.press(Key::Home).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(2)), "Home is not the group's");
+    d.press(Key::End).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(2)), "nor is End");
 }
 
 #[test]
 fn the_selected_tab_is_announced_as_selected() {
-    let harness = row(Follows::Focus);
+    let d = row(Follows::Focus);
     let selected = |label: &str| {
-        harness
+        d.harness()
             .get_by_role_and_label(Role::Tab, label)
             .accesskit_node()
             .is_selected()
@@ -294,7 +286,7 @@ fn the_selected_tab_is_announced_as_selected() {
     assert_eq!(selected("Two"), Some(true));
     assert_eq!(selected("One"), Some(false));
     assert_eq!(
-        harness
+        d.harness()
             .get_by_role_and_label(Role::TabList, "Pages")
             .accesskit_node()
             .role(),
@@ -304,12 +296,12 @@ fn the_selected_tab_is_announced_as_selected() {
 
 #[test]
 fn a_listbox_nav_on_a_page_node_is_reported_and_makes_no_group() {
-    let mut harness = harness(App::new(Nav::Listbox(Wrap::Around), Follows::Focus));
-    assert_reported(&harness.ctx, Problem::NavNeedsOverlay);
-    enter_list(&mut harness);
-    assert_eq!(focused(&harness), Some(tab(0)), "every tab is a Tab stop");
-    press(&mut harness, Key::Tab);
-    assert_eq!(focused(&harness), Some(tab(1)));
+    let mut d = driver(App::new(Nav::Listbox(Wrap::Around), Follows::Focus));
+    assert_reported(d.ctx(), Problem::NavNeedsOverlay);
+    enter_list(&mut d);
+    assert_eq!(focused_path(&d), Some(tab(0)), "every tab is a Tab stop");
+    d.press(Key::Tab).frames(3);
+    assert_eq!(focused_path(&d), Some(tab(1)));
 }
 
 /// A radio group inside a menu: the menu's Up and Down pass over the group's
@@ -356,32 +348,26 @@ mod in_a_menu {
     #[test]
     fn the_menus_arrows_pass_over_a_group_inside_it() {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness(
+        let mut d = support::driver(
             vec2(400.0, 300.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             Menu::default(),
             view,
-        );
-        harness.run_steps(12);
+        )
+        .build();
+        d.frames(12);
         let first = "/\"Page\"/\"menu\"/\"Box\"/\"first\"";
         let last = "/\"Page\"/\"menu\"/\"Box\"/\"last\"";
         for _ in 0..8 {
-            if focused_path(&harness).as_deref() == Some(first) {
+            if focused_path(&d).as_deref() == Some(first) {
                 break;
             }
-            harness.key_press(Key::Tab);
-            harness.run_steps(4);
+            d.press(Key::Tab).frames(3);
         }
-        assert_eq!(
-            focused_path(&harness).as_deref(),
-            Some(first),
-            "precondition"
-        );
-        harness.key_press(Key::ArrowDown);
-        harness.run_steps(4);
-        assert_eq!(focused_path(&harness).as_deref(), Some(last));
-        harness.key_press(Key::ArrowDown);
-        harness.run_steps(4);
-        assert_eq!(focused_path(&harness).as_deref(), Some(first), "and wraps");
+        assert_eq!(focused_path(&d).as_deref(), Some(first), "precondition");
+        d.press(Key::ArrowDown).frames(3);
+        assert_eq!(focused_path(&d).as_deref(), Some(last));
+        d.press(Key::ArrowDown).frames(3);
+        assert_eq!(focused_path(&d).as_deref(), Some(first), "and wraps");
     }
 }
