@@ -351,6 +351,7 @@ impl Tw {
         self.visibility = other.visibility.or(self.visibility);
         self.sensing = self.sensing.or(other.sensing);
         self.focusability = self.focusability.merge(other.focusability);
+        self.scrollbar = self.scrollbar.merge(other.scrollbar);
         self.grouping = self.grouping.merge(other.grouping);
         self.variants = self.variants.merge(other.variants);
         self.touched = self.touched | other.touched;
