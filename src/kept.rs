@@ -42,6 +42,9 @@ pub(crate) struct Kept {
     viewports: HashMap<ViewportId, Viewport>,
     /// Where clipboard reads and writes go; the system's when unset.
     pub(crate) clipboard: Option<std::sync::Arc<dyn crate::ClipboardSource>>,
+    /// The layout's own style, given to its state; the context's installed
+    /// one when unset.
+    pub(crate) style: Option<crate::contract::Themed<std::sync::Arc<crate::Style>>>,
 }
 
 impl Kept {

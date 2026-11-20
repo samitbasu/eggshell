@@ -275,7 +275,7 @@ pub(crate) fn end(
         .into_iter()
         .filter(|trigger| !quiet.holds(trigger.id))
         .collect();
-    let style = crate::Style::of(ctx);
+    let style = crate::Shell::new(ctx, kept).style();
     let timing = Timing {
         open: style.tooltip.delay,
         close: Duration::ZERO,

@@ -5,7 +5,7 @@
 
 use eggshell_ui::overlay::{Anchor, Placement};
 use eggshell_ui::window::{MinSize, Popped, Window, WindowFrame};
-use eggshell_ui::{Builder, Chord, Command, Commands, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::{Builder, Chord, Command, Commands, Debug, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Modifiers, Pos2, Vec2, vec2};
 use egui_kittest::kittest::Queryable as _;
 
@@ -22,9 +22,15 @@ const PANE: &str = "/\"pane\"";
 const PLACEHOLDER: &str = "/Placeholder(\"pane\")";
 const LIST: &str = "/\"pane\"/\"list\"";
 const ACT: &str = "/\"pane\"/\"act\"";
+const OPENS_AT_POSITION: Pos2 = Pos2::new(200.0, 80.0);
 const OPENS_AT: WindowFrame = WindowFrame {
-    position: Pos2::new(200.0, 80.0),
+    position: Some(OPENS_AT_POSITION),
     size: Vec2::new(220.0, 160.0),
+};
+/// A frame that gives only a size: the platform, or the page, places it.
+const SIZED: WindowFrame = WindowFrame {
+    position: None,
+    size: Vec2::new(260.0, 190.0),
 };
 
 fn base() -> TextStyle {
@@ -40,6 +46,7 @@ fn base() -> TextStyle {
 }
 
 struct App {
+    title: &'static str,
     popped: Popped,
     frame: Option<WindowFrame>,
     min_size: MinSize,
@@ -49,11 +56,13 @@ struct App {
     helps: u32,
     menu: bool,
     items: u32,
+    closure_title: bool,
 }
 
 impl Default for App {
     fn default() -> Self {
         Self {
+            title: "Pane",
             popped: Popped::In,
             frame: Some(OPENS_AT),
             min_size: MinSize::Points(vec2(80.0, 60.0)),
@@ -63,6 +72,7 @@ impl Default for App {
             helps: 0,
             menu: false,
             items: 0,
+            closure_title: false,
         }
     }
 }
@@ -88,7 +98,7 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
         b.pop_out("pane")
             .classes(tw().flex().flex_col().w_px(200.0).h_px(150.0))
             .popped(app.popped)
-            .window(Window::new("Pane").frame(app.frame).min_size(app.min_size))
+            .window(window(app))
             .on_close(|app: &mut App| {
                 app.closes += 1;
                 app.popped = Popped::In;
@@ -119,6 +129,17 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
     });
 }
 
+fn window(app: &App) -> Window {
+    let window = Window::new(app.title)
+        .frame(app.frame)
+        .min_size(app.min_size);
+    if app.closure_title {
+        window.viewport(|viewport| viewport.with_title("From the closure"))
+    } else {
+        window
+    }
+}
+
 type H = Driver<App>;
 
 fn harness(app: App) -> H {
@@ -139,6 +160,32 @@ fn offset(h: &H) -> Vec2 {
         .viewport(support::id_of(h, LIST))
         .expect("the list has a viewport")
         .offset()
+}
+
+/// The rows of the debug overlay's timing readout under the page's, one
+/// per native window.
+fn window_rows(h: &mut H) -> Vec<String> {
+    Debug::set(h.ctx(), Debug::Outlines);
+    h.frames(2);
+    let readout = support::shapes(h)
+        .into_iter()
+        .find_map(|shape| match shape {
+            egui::epaint::Shape::Text(text) if text.galley.text().contains("fps") => {
+                Some(text.galley.text().to_owned())
+            }
+            _ => None,
+        });
+    let readout = readout.expect("the readout is drawn");
+    let lines: Vec<&str> = readout.lines().collect();
+    let page = lines.iter().position(|line| line.starts_with("eggshell"));
+    let repaint = lines.iter().position(|line| line.starts_with("repaint"));
+    let (Some(page), Some(repaint)) = (page, repaint) else {
+        panic!("no page or repaint row in {readout}");
+    };
+    lines[page + 1..repaint]
+        .iter()
+        .map(|line| (*line).to_owned())
+        .collect()
 }
 
 #[test]
@@ -211,7 +258,8 @@ fn on_frame_runs_when_the_window_moves_and_not_while_it_stays() {
     h.frames(4);
     let frames = &h.app().frames;
     let last = frames.last().expect("the move was reported");
-    assert!(last.position.x > OPENS_AT.position.x + 30.0, "{frames:?}");
+    let moved_to = last.position.expect("an embedded window's place is known");
+    assert!(moved_to.x > OPENS_AT_POSITION.x + 30.0, "{frames:?}");
     let moved = frames.len();
     h.frames(6);
     assert_eq!(h.app().frames.len(), moved, "no report while it stays");
@@ -282,6 +330,46 @@ fn a_given_frame_wins_over_the_inline_size() {
 }
 
 #[test]
+fn a_frame_without_a_position_lays_out_its_first_frame_at_its_size_centred_on_the_page() {
+    let mut h = harness(App {
+        frame: Some(SIZED),
+        ..App::default()
+    });
+    assert_ne!(SIZED.size, INLINE, "precondition: they differ");
+    h.app_mut().popped = Popped::Out;
+    h.frames(1);
+    let first = h.rect(Target::suffix(PANE));
+    assert_eq!(first.size(), SIZED.size, "no correction frame");
+    assert_eq!(first.center(), (SIZE / 2.0).to_pos2());
+    h.frames(4);
+    assert_eq!(h.rect(Target::suffix(PANE)).size(), SIZED.size);
+}
+
+#[test]
+fn an_embedded_windows_title_follows_the_app_and_the_window_stays() {
+    let mut h = harness(App::default());
+    h.app_mut().popped = Popped::Out;
+    h.frames(4);
+    let before = h.harness().get_by_label("Pane").rect();
+    h.app_mut().title = "Renamed";
+    h.frames(2);
+    assert!(h.harness().query_by_label("Pane").is_none());
+    assert_eq!(h.harness().get_by_label("Renamed").rect(), before);
+}
+
+#[test]
+fn an_embedded_windows_time_is_in_its_pages_row() {
+    let mut h = harness(App::default());
+    h.app_mut().popped = Popped::Out;
+    h.frames(4);
+    assert!(
+        h.harness().query_by_label("Pane").is_some(),
+        "precondition: open"
+    );
+    assert_eq!(window_rows(&mut h), Vec::<String>::new());
+}
+
+#[test]
 fn popped_out_from_the_start_the_window_opens_at_the_max_content_size() {
     let h = harness(App {
         popped: Popped::Out,
@@ -311,7 +399,8 @@ mod native {
     /// What the window is like, and what it was told.
     struct Child {
         inner: Vec2,
-        position: Pos2,
+        /// `None` where the backend doesn't know it, as on Wayland.
+        position: Option<Pos2>,
         close: bool,
         events: Vec<Event>,
         shown: Vec<ViewportId>,
@@ -327,7 +416,7 @@ mod native {
     thread_local! {
         static CHILD: RefCell<Child> = const { RefCell::new(Child {
             inner: OPENS_AT.size,
-            position: OPENS_AT.position,
+            position: Some(OPENS_AT_POSITION),
             close: false,
             events: Vec::new(),
             shown: Vec::new(),
@@ -343,13 +432,13 @@ mod native {
             let input = CHILD.with_borrow_mut(|child| {
                 child.shown.push(id);
                 child.builders.push(viewport.builder.clone());
-                let outer = Rect::from_min_size(child.position, child.inner + vec2(0.0, TITLE));
                 let info = ViewportInfo {
-                    inner_rect: Some(Rect::from_min_size(
-                        child.position + vec2(0.0, TITLE),
-                        child.inner,
-                    )),
-                    outer_rect: Some(outer),
+                    inner_rect: child.position.map(|position| {
+                        Rect::from_min_size(position + vec2(0.0, TITLE), child.inner)
+                    }),
+                    outer_rect: child.position.map(|position| {
+                        Rect::from_min_size(position, child.inner + vec2(0.0, TITLE))
+                    }),
                     events: if std::mem::take(&mut child.close) {
                         vec![ViewportEvent::Close]
                     } else {
@@ -451,7 +540,7 @@ mod native {
         let mut h = harness_native();
         CHILD.with_borrow_mut(|child| {
             child.inner = vec2(300.0, 220.0);
-            child.position = pos2(260.0, 120.0);
+            child.position = Some(pos2(260.0, 120.0));
             child.commands.clear();
         });
         h.frames(4);
@@ -463,7 +552,7 @@ mod native {
         );
         let opened = &builders[0];
         assert_eq!(opened.inner_size, Some(OPENS_AT.size));
-        assert_eq!(opened.position, Some(OPENS_AT.position));
+        assert_eq!(opened.position, OPENS_AT.position);
     }
 
     #[test]
@@ -497,12 +586,12 @@ mod native {
         h.app_mut().frames.clear();
         h.frames(4);
         assert!(h.app().frames.is_empty(), "nothing while it stays");
-        CHILD.with_borrow_mut(|child| child.position = pos2(260.0, 120.0));
+        CHILD.with_borrow_mut(|child| child.position = Some(pos2(260.0, 120.0)));
         h.frames(4);
         assert_eq!(
             h.app().frames,
             vec![WindowFrame {
-                position: pos2(260.0, 120.0),
+                position: Some(pos2(260.0, 120.0)),
                 size: OPENS_AT.size,
             }]
         );
@@ -510,6 +599,127 @@ mod native {
         h.frames(4);
         assert_eq!(h.app().frames.len(), 2, "{:?}", h.app().frames);
         assert_eq!(h.app().frames[1].size, vec2(300.0, 220.0));
+    }
+
+    #[test]
+    fn a_frame_without_a_position_opens_at_its_size_where_the_platform_places_it() {
+        install();
+        let mut h = super::harness(App {
+            frame: Some(SIZED),
+            ..App::default()
+        });
+        h.ctx().set_embed_viewports(false);
+        CHILD.with_borrow_mut(|child| child.inner = SIZED.size);
+        h.app_mut().popped = Popped::Out;
+        h.frames(1);
+        assert_eq!(
+            h.rect(Target::suffix(PANE)),
+            Rect::from_min_size(Pos2::ZERO, SIZED.size),
+            "the first frame is laid out at the frame's size"
+        );
+        let opened = CHILD.with_borrow(|child| child.builders.first().cloned());
+        let opened = opened.expect("shown");
+        assert_eq!(opened.inner_size, Some(SIZED.size));
+        assert_eq!(opened.position, None);
+        h.frames(4);
+        assert!(
+            h.app().frames.iter().all(|frame| frame.size == SIZED.size),
+            "never corrected: {:?}",
+            h.app().frames
+        );
+    }
+
+    fn renamed(h: &mut H) -> Vec<ViewportCommand> {
+        h.frames(2);
+        let shown = CHILD.with_borrow(|child| child.builders.len());
+        h.app_mut().title = "Renamed";
+        h.frames(1);
+        let builders = CHILD.with_borrow(|child| child.builders[shown - 1..].to_vec());
+        assert_eq!(builders.len(), 2, "precondition: one frame each side");
+        let mut held = builders[0].clone();
+        let (commands, recreate) = held.patch(builders[1].clone());
+        assert!(!recreate);
+        commands
+    }
+
+    #[test]
+    fn a_title_change_sends_only_a_title_command() {
+        let mut h = harness_native();
+        assert_eq!(
+            renamed(&mut h),
+            vec![ViewportCommand::Title("Renamed".to_owned())]
+        );
+    }
+
+    #[test]
+    fn a_title_set_by_the_viewport_closure_gives_way_to_the_windows() {
+        install();
+        let mut h = super::harness(App::default());
+        h.ctx().set_embed_viewports(false);
+        h.app_mut().closure_title = true;
+        h.app_mut().popped = Popped::Out;
+        h.frames(4);
+        let builders = CHILD.with_borrow(|child| child.builders.clone());
+        assert!(!builders.is_empty(), "precondition: shown");
+        assert!(
+            builders
+                .iter()
+                .all(|builder| builder.title.as_deref() == Some("Pane")),
+            "{builders:?}"
+        );
+    }
+
+    #[test]
+    fn a_saved_frame_with_an_unknown_position_round_trips() {
+        install();
+        let mut h = super::harness(App {
+            frame: Some(SIZED),
+            ..App::default()
+        });
+        h.ctx().set_embed_viewports(false);
+        CHILD.with_borrow_mut(|child| {
+            child.inner = SIZED.size;
+            child.position = None;
+        });
+        h.app_mut().popped = Popped::Out;
+        h.frames(4);
+        CHILD.with_borrow_mut(|child| child.inner = vec2(300.0, 220.0));
+        h.frames(4);
+        let saved = *h.app().frames.last().expect("the resize was reported");
+        assert_eq!(
+            saved,
+            WindowFrame {
+                position: None,
+                size: vec2(300.0, 220.0),
+            }
+        );
+        h.app_mut().popped = Popped::In;
+        h.frames(4);
+        h.app_mut().frame = Some(saved);
+        h.app_mut().frames.clear();
+        CHILD.with_borrow_mut(|child| child.builders.clear());
+        h.app_mut().popped = Popped::Out;
+        h.frames(4);
+        let opened = CHILD.with_borrow(|child| child.builders.first().cloned());
+        let opened = opened.expect("shown again");
+        assert_eq!(opened.position, None);
+        assert_eq!(opened.inner_size, Some(saved.size));
+        assert!(
+            h.app().frames.is_empty(),
+            "reopened as saved: {:?}",
+            h.app().frames
+        );
+    }
+
+    #[test]
+    fn a_native_window_has_a_row_of_its_own_in_the_readout() {
+        let mut h = harness_native();
+        let rows = window_rows(&mut h);
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        let row = &rows[0];
+        assert!(row.trim_start().starts_with("Pane"), "{row}");
+        assert!(row.contains("layout") && row.contains("draw"), "{row}");
+        assert!(!row.contains("build"), "built in the page's view: {row}");
     }
 
     #[test]
