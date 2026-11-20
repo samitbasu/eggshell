@@ -1348,6 +1348,50 @@ impl<T> Themed<T> {
     }
 }
 
+/// TODO(prose): a widget's own look, kept in a [`Style`] beside the core-painted fields and scoped with it.
+///
+/// ```
+/// use eggshell_ui::Style;
+/// use eggshell_ui::contract::Extension;
+///
+/// #[derive(Clone)]
+/// struct Gap(f32);
+///
+/// impl Extension for Gap {
+///     fn derive(style: &Style) -> Self {
+///         Gap(style.table.cell_padding)
+///     }
+/// }
+///
+/// let mut style = Style::default();
+/// assert_eq!(style.extension::<Gap>().0, style.table.cell_padding);
+/// style.set_extension(Gap(12.0));
+/// assert_eq!(style.extension::<Gap>().0, 12.0);
+/// ```
+pub trait Extension: Clone + Send + Sync + 'static {
+    /// TODO(prose): the look a style that sets none gives the widget.
+    fn derive(style: &Style) -> Self;
+}
+
+/// The extensions of a style, by type. Clones compare equal; setting one
+/// makes a style unequal to every other, so the installed style's
+/// every-frame comparison stays cheap.
+#[derive(Clone, Debug, Default)]
+struct Extensions {
+    map: egui::util::IdTypeMap,
+    version: u64,
+}
+
+impl PartialEq for Extensions {
+    fn eq(&self, other: &Self) -> bool {
+        self.version == other.version
+    }
+}
+
+fn extensions_id() -> egui::Id {
+    crate::key::root_id().with("extensions")
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -1408,6 +1452,8 @@ pub struct Style {
     pub motion: MotionStyle,
     /// TODO(prose): the colours of each [`Tone`].
     pub tones: Tones,
+    /// The widgets' own looks, beside the core-painted fields.
+    extensions: Extensions,
 }
 
 #[derive(Clone)]
@@ -1438,6 +1484,23 @@ impl Style {
             },
             None => role,
         }
+    }
+
+    /// TODO(prose): the widget look `T` this style sets, else the one `T` derives from it.
+    pub fn extension<T: Extension>(&self) -> Arc<T> {
+        self.extensions
+            .map
+            .get_temp::<Arc<T>>(extensions_id())
+            .unwrap_or_else(|| Arc::new(T::derive(self)))
+    }
+
+    /// TODO(prose): sets the widget look `T`, in place of any set before.
+    pub fn set_extension<T: Extension>(&mut self, value: T) {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        self.extensions
+            .map
+            .insert_temp(extensions_id(), Arc::new(value));
+        self.extensions.version = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The text role of a widget section: its own, or [`Style::text`].
@@ -1998,6 +2061,7 @@ impl Style {
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
+            extensions: Extensions::default(),
         }
     }
 
