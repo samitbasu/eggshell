@@ -2,7 +2,7 @@
 //! shadcn preset the rig applies.
 
 use eggshell_ui::contract::Variant;
-use eggshell_ui::testing::{Animation, Driver, Target, assert_reported};
+use eggshell_ui::testing::{Animation, Driver, Target};
 use eggshell_ui::{Builder, Problem, TextStyle, tw};
 use eggshell_ui_extras::badge::{BadgeExt, BadgeStyle};
 use eggshell_ui_extras::spinner::SpinnerExt;
@@ -178,8 +178,8 @@ fn a_variant_the_style_lacks_is_reported_and_drawn_as_the_default() {
     fn view(b: &mut Builder<'_, '_, App>, _: &App) {
         b.badge("odd", "Odd").variant(Variant("missing")).add();
     }
-    let d = harness(view, App::default());
-    assert_reported(d.ctx(), Problem::MissingStyleEntry);
+    let mut d = harness(view, App::default());
+    d.expect_reported(Problem::MissingStyleEntry);
     let style = BadgeStyle::of(d.ctx());
     let default = style.variants.get(style.variants.default_key());
     let drawn = box_at(&d, d.rect(Target::suffix("/\"odd\"")));

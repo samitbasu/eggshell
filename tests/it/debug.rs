@@ -368,6 +368,7 @@ fn the_readout_lists_reports_with_their_counts() {
     run(&mut d, Debug::Outlines);
     let reports = eggshell_ui::testing::reports(d.ctx());
     assert_eq!(reports.len(), 1, "{reports:?}");
+    d.expect_reported(eggshell_ui::Problem::DuplicateKey);
     let count = reports[0].count;
     assert!(count > 1, "one report per frame is counted: {reports:?}");
     let shown = readouts(&d);
