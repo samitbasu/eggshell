@@ -112,6 +112,24 @@ impl<A> Seen for Driver<A> {
     }
 }
 
+impl<S: Seen> Seen for &S {
+    fn context(&self) -> &egui::Context {
+        (**self).context()
+    }
+
+    fn last_output(&self) -> &egui::FullOutput {
+        (**self).last_output()
+    }
+
+    fn placed(&self) -> Vec<(String, Rect, Option<egui::Id>)> {
+        (**self).placed()
+    }
+
+    fn view_shell(&self) -> Shell {
+        (**self).view_shell()
+    }
+}
+
 /// Every node of the last frame: its readable path and border box.
 pub fn nodes<S: Seen>(seen: &S) -> Vec<(String, Rect)> {
     seen.placed()
@@ -149,13 +167,16 @@ pub fn past_bar<S: Barred>(harness: &mut Harness<'_, S>) {
 
 /// [`past_bar`] for a driver.
 pub fn drive_past_bar<A>(d: &mut Driver<A>) {
-    let stop = d
-        .ctx()
-        .data(|data| data.get_temp::<egui::Id>(last_stop_id()));
-    if let Some(stop) = stop {
+    if let Some(stop) = bar_last_stop(d) {
         d.ctx().memory_mut(|memory| memory.request_focus(stop));
         d.frames(2);
     }
+}
+
+/// The bar's last Tab stop, once a frame has drawn the bar.
+pub fn bar_last_stop<A>(d: &Driver<A>) -> Option<egui::Id> {
+    d.ctx()
+        .data(|data| data.get_temp::<egui::Id>(last_stop_id()))
 }
 
 fn last_stop_id() -> egui::Id {
@@ -228,11 +249,10 @@ pub enum ReducedMotion {
 pub struct Rig<A> {
     pub page: Page,
     pub companion: Companion,
+    pub reduced_motion: ReducedMotion,
     pub bar: Bar,
     pub layout: LayoutState,
     pub app: A,
-    /// Whether the frame is built with the style's animation time at zero.
-    pub reduced_motion: ReducedMotion,
     view: View<A>,
     prepare: fn(&egui::Context, &A),
     /// Every node of the last frame: its readable path and border box.
@@ -277,6 +297,8 @@ pub fn harness_stepped<A>(
     harness_timed(size, 1.0, step_dt, base_text, app, view, |_, _| {})
 }
 
+/// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
+/// points.
 /// [`harness_prepared`] whose frames are `step_dt` seconds apart.
 pub fn harness_scaled_stepped<A>(
     size: Vec2,
@@ -289,8 +311,6 @@ pub fn harness_scaled_stepped<A>(
     harness_timed(size, 1.0, step_dt, base_text, app, view, prepare)
 }
 
-/// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
-/// points.
 pub fn harness_scaled<A>(
     size: Vec2,
     pixels_per_point: f32,
@@ -314,10 +334,10 @@ fn harness_timed<A>(
     let rig = Rig {
         page: Page::default(),
         companion: Companion::default(),
+        reduced_motion: ReducedMotion::No,
         bar: Bar::new(base_text.clone()),
         layout: LayoutState::new().with_base_text(base_text),
         app,
-        reduced_motion: ReducedMotion::No,
         view,
         prepare,
         nodes: Vec::new(),
@@ -335,10 +355,10 @@ fn harness_timed<A>(
                 let Rig {
                     page,
                     companion,
+                    reduced_motion,
                     bar,
                     layout,
                     app,
-                    reduced_motion,
                     view,
                     prepare,
                     nodes,
@@ -378,13 +398,15 @@ fn harness_timed<A>(
         )
 }
 
-pub fn rect_of<A>(harness: &Harness<'_, Rig<A>>, path: &str) -> Rect {
-    harness
-        .state()
-        .nodes
+/// The border box of the first node whose readable path is `path`: an
+/// anonymous path may repeat, which a driver's unique `Target::suffix`
+/// refuses.
+pub fn rect_of<S: Seen>(seen: &S, path: &str) -> Rect {
+    let nodes = nodes(seen);
+    nodes
         .iter()
         .find(|(candidate, _)| candidate == path)
-        .unwrap_or_else(|| panic!("no node {path}: {:?}", harness.state().nodes))
+        .unwrap_or_else(|| panic!("no node {path}: {nodes:?}"))
         .1
 }
 
@@ -394,6 +416,19 @@ pub fn id_of<S: Seen>(seen: &S, path: &str) -> egui::Id {
         .into_iter()
         .find_map(|(candidate, _, id)| (candidate == path).then_some(id).flatten())
         .unwrap_or_else(|| panic!("no identified node {path}"))
+}
+
+/// Presses at `from`, moves to `to` in two steps and releases there.
+pub fn drag<A>(harness: &mut Harness<'_, Rig<A>>, from: Pos2, to: Pos2) {
+    hover_over(harness, from);
+    harness.drag_at(from);
+    harness.step();
+    harness.hover_at(from.lerp(to, 0.5));
+    harness.step();
+    harness.hover_at(to);
+    harness.step();
+    harness.drop_at(to);
+    harness.run_steps(3);
 }
 
 pub fn hover_over<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {
@@ -451,19 +486,6 @@ pub fn press_and_release<D: Drives>(d: &mut D, at: Pos2) {
     }
 }
 
-/// Presses at `from`, moves to `to` in two steps and releases there.
-pub fn drag<A>(harness: &mut Harness<'_, Rig<A>>, from: Pos2, to: Pos2) {
-    hover_over(harness, from);
-    harness.drag_at(from);
-    harness.step();
-    harness.hover_at(from.lerp(to, 0.5));
-    harness.step();
-    harness.hover_at(to);
-    harness.step();
-    harness.drop_at(to);
-    harness.run_steps(3);
-}
-
 /// The fill of the last rect drawn at the top-left corner of the node `path`.
 pub fn fill_of<S: Seen>(seen: &S, path: &str) -> Option<Color32> {
     let min = seen
@@ -492,17 +514,17 @@ pub fn hover_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
 /// Leaves the pointer resting until a tooltip it opens has entered: the
 /// style's delay and entry motion as frame time, then a few frames for the
 /// overlay to be built and placed.
-pub fn rest_for_tooltip<A>(harness: &mut Harness<'_, Rig<A>>) {
-    let style = eggshell_ui::Style::of(&harness.ctx);
+pub fn rest_for_tooltip<D: Drives + Seen>(harness: &mut D) {
+    let style = eggshell_ui::Style::of(harness.context());
     let wait = (style.tooltip.delay + style.motion.tooltip.enter).as_secs_f64();
-    let start = harness.ctx.input(|input| input.time);
+    let start = harness.context().input(|input| input.time);
     for _ in 0..10_000 {
-        if harness.ctx.input(|input| input.time) - start >= wait {
+        if harness.context().input(|input| input.time) - start >= wait {
             break;
         }
-        harness.step();
+        harness.run(1);
     }
-    harness.run_steps(4);
+    harness.run(4);
 }
 
 /// Clicks twice at `at`, one event a frame as a browser sends them, the
@@ -627,30 +649,6 @@ pub fn text_color<S: Seen>(seen: &S, inside: Rect, text: &str) -> Color32 {
         .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
 }
 
-pub fn press<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
-    let at = rect_of(harness, path).center();
-    harness.hover_at(at);
-    harness.run_steps(2);
-    harness.event(Event::PointerButton {
-        pos: at,
-        button: PointerButton::Primary,
-        pressed: true,
-        modifiers: Modifiers::NONE,
-    });
-    harness.run_steps(12);
-}
-
-pub fn release<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
-    let at = rect_of(harness, path).center();
-    harness.event(Event::PointerButton {
-        pos: at,
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Modifiers::NONE,
-    });
-    harness.run_steps(12);
-}
-
 /// Records `harness` while a parameter steps over `values`: `apply` sets the
 /// parameter, one frame is run for it, and `idle` frames at the end let
 /// animations and the layout settle. `apply` is told the index of the frame
@@ -743,77 +741,11 @@ pub fn layout_rect(ctx: &egui::Context, path: &str) -> Rect {
         .unwrap_or_else(|| panic!("no node {path} was laid out"))
 }
 
-/// Every shape of the last frame, groups flattened, for any harness.
-pub fn flatten_all<'a, S>(harness: &'a Harness<'_, S>) -> Vec<&'a Shape> {
-    let mut all = Vec::new();
-    for clipped in &harness.output().shapes {
-        flatten(&clipped.shape, &mut all);
-    }
-    all
-}
-
 /// The shapes inside `shape`, groups flattened.
 pub fn flatten_all_of(shape: &Shape) -> Vec<&Shape> {
     let mut all = Vec::new();
     flatten(shape, &mut all);
     all
-}
-
-/// The galley painted with `text`, and where it was painted.
-pub fn galley_of<A>(
-    harness: &Harness<'_, Rig<A>>,
-    text: &str,
-) -> (std::sync::Arc<egui::Galley>, Pos2) {
-    placed_galleys(harness, text)
-        .into_iter()
-        .next()
-        .unwrap_or_else(|| panic!("{text:?} was painted as one galley"))
-}
-
-/// Every galley painted with `text`, in paint order.
-pub fn galleys_of<A>(
-    harness: &Harness<'_, Rig<A>>,
-    text: &str,
-) -> Vec<std::sync::Arc<egui::Galley>> {
-    placed_galleys(harness, text)
-        .into_iter()
-        .map(|(galley, _)| galley)
-        .collect()
-}
-
-fn placed_galleys<A>(
-    harness: &Harness<'_, Rig<A>>,
-    text: &str,
-) -> Vec<(std::sync::Arc<egui::Galley>, Pos2)> {
-    shapes(harness)
-        .into_iter()
-        .filter_map(|shape| match shape {
-            Shape::Text(shape) if shape.galley.text() == text => {
-                Some((shape.galley.clone(), shape.pos))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-/// The screen rect of `part` within the galley painted with `text`; `part`
-/// must sit on one row.
-pub fn part_rect<A>(harness: &Harness<'_, Rig<A>>, text: &str, part: &str) -> Rect {
-    let (galley, at) = galley_of(harness, text);
-    let start = text[..text.find(part).expect("part of the text")]
-        .chars()
-        .count();
-    let end = start + part.chars().count();
-    let first = galley.pos_from_cursor(egui::text::CCursor {
-        prefer_next_row: true,
-        ..egui::text::CCursor::new(start)
-    });
-    let last = galley.pos_from_cursor(egui::text::CCursor::new(end));
-    assert!(
-        (first.center().y - last.center().y).abs() < 0.5,
-        "precondition: {part:?} is on one row"
-    );
-    Rect::from_min_max(first.min, egui::pos2(last.max.x, first.max.y)).translate(at.to_vec2())
 }
 
 /// The format of the section of `galley` that `part` starts in.

@@ -1,11 +1,11 @@
 //! `line_clamp(n)`: wrapped text limited to n lines, ending in an ellipsis.
 
-use eggshell_ui::testing::Headless;
+use eggshell_ui::testing::{Headless, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{Color32, FontFamily, vec2};
 
-use crate::support::{self, rect_of, shapes};
+use crate::support::{self, shapes};
 
 const LINE: f32 = 20.0;
 const TEXT: &str =
@@ -63,9 +63,9 @@ fn the_drawn_text_ends_in_an_ellipsis() {
     fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
         clamped(Some(2))(b, &());
     }
-    let mut harness = support::harness(vec2(400.0, 400.0), body(), (), view);
-    harness.run_steps(3);
-    let galley = shapes(&harness)
+    let mut d = support::driver(vec2(400.0, 400.0), body(), (), view).build();
+    d.frames(3);
+    let galley = shapes(&d)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(text) if text.galley.text().starts_with("The quick") => {
@@ -80,5 +80,5 @@ fn the_drawn_text_ends_in_an_ellipsis() {
         .last()
         .and_then(|placed| placed.row.glyphs.last());
     assert_eq!(last.map(|glyph| glyph.chr), Some('…'));
-    assert_eq!(rect_of(&harness, "/\"text\"").height(), 2.0 * LINE);
+    assert_eq!(d.rect(Target::suffix("/\"text\"")).height(), 2.0 * LINE);
 }

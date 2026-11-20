@@ -1,10 +1,9 @@
 //! The todo example through the full path: pointer events, hit testing,
 //! group-hover reveal, reordering by data key.
 
-use eggshell_ui::testing::{Timeline, record};
+use eggshell_ui::testing::{Driver, Target, Timeline, record};
 use egui::epaint::Shape;
 use egui::vec2;
-use egui_kittest::Harness;
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -13,22 +12,23 @@ mod common;
 #[path = "../../examples/todo.rs"]
 mod todo;
 
-use crate::support;
+use crate::support::{self, press_and_release};
 
-use support::{Rig, fill_of, hover_over, press_and_release, rect_of};
+use support::fill_of;
 use todo::{ItemKey, State};
 
-fn harness() -> Harness<'static, Rig<State>> {
-    support::harness(
+fn harness() -> Driver<State> {
+    support::driver(
         vec2(520.0, 320.0),
         common::base_text(egui::Theme::Light),
         State::default(),
         todo::layout,
     )
+    .build()
 }
 
-fn keys(harness: &Harness<'_, Rig<State>>) -> Vec<ItemKey> {
-    harness.state().app.items.iter().map(|i| i.key).collect()
+fn keys(d: &Driver<State>) -> Vec<ItemKey> {
+    d.app().items.iter().map(|i| i.key).collect()
 }
 
 fn row_path(key: ItemKey) -> String {
@@ -39,17 +39,17 @@ fn button_path(key: ItemKey, button: &str) -> String {
     format!("/{key:?}/{button:?}")
 }
 
-fn click_button(harness: &mut Harness<'_, Rig<State>>, key: ItemKey, button: &str) {
-    let at = rect_of(harness, &button_path(key, button)).center();
-    press_and_release(harness, at);
+fn click_button(d: &mut Driver<State>, key: ItemKey, button: &str) {
+    let at = d.rect(Target::suffix(&button_path(key, button))).center();
+    press_and_release(d, at);
 }
 
 fn item(n: usize) -> ItemKey {
     State::default().items[n].key
 }
 
-fn remove_opacity(harness: &Harness<'_, Rig<State>>) -> Option<f32> {
-    harness
+fn remove_opacity(d: &Driver<State>) -> Option<f32> {
+    d.harness()
         .output()
         .shapes
         .iter()
@@ -61,89 +61,87 @@ fn remove_opacity(harness: &Harness<'_, Rig<State>>) -> Option<f32> {
 
 #[test]
 fn paths_are_what_the_tests_expect() {
-    let harness = harness();
+    let d = harness();
     let first = item(0);
-    assert_eq!(rect_of(&harness, &row_path(first)).height(), 40.0);
-    assert!(rect_of(&harness, &button_path(first, "down")).width() > 0.0);
+    assert_eq!(d.rect(Target::suffix(&row_path(first))).height(), 40.0);
+    assert!(d.rect(Target::suffix(&button_path(first, "down"))).width() > 0.0);
 }
 
 #[test]
 fn down_moves_a_row_and_up_moves_it_back() {
-    let mut harness = harness();
-    record(&harness.ctx);
-    let [first, second, ..] = keys(&harness)[..] else {
+    let mut d = harness();
+    record(d.ctx());
+    let [first, second, ..] = keys(&d)[..] else {
         panic!("precondition: at least two items")
     };
-    click_button(&mut harness, first, "down");
-    harness.run_steps(2);
-    assert_eq!(&keys(&harness)[..2], [second, first]);
+    click_button(&mut d, first, "down");
+    d.frames(2);
+    assert_eq!(&keys(&d)[..2], [second, first]);
 
-    click_button(&mut harness, first, "up");
-    harness.run_steps(2);
-    assert_eq!(&keys(&harness)[..2], [first, second]);
+    click_button(&mut d, first, "up");
+    d.frames(2);
+    assert_eq!(&keys(&d)[..2], [first, second]);
 
-    harness.run_steps(6);
-    Timeline::recorded(&harness.ctx).assert_continuous();
+    d.frames(6);
+    Timeline::recorded(d.ctx()).assert_continuous();
 }
 
 #[test]
 fn a_button_that_cannot_move_its_row_is_inert_and_does_not_highlight() {
-    let mut harness = harness();
-    let lit_by_hover = |harness: &mut Harness<'_, Rig<State>>, key: ItemKey| {
-        let at = rect_of(harness, &button_path(key, "up")).center();
-        hover_over(harness, at);
-        harness.run_steps(10);
-        fill_of(harness, &button_path(key, "up"))
+    let mut d = harness();
+    let lit_by_hover = |d: &mut Driver<State>, key: ItemKey| {
+        let at = d.rect(Target::suffix(&button_path(key, "up"))).center();
+        d.hover(at).frames(10);
+        fill_of(d, &button_path(key, "up"))
     };
-    let action_hover = common::ring(&common::tokens(&harness.ctx));
+    let action_hover = common::ring(&common::tokens(d.ctx()));
     assert_eq!(
-        lit_by_hover(&mut harness, item(1)),
+        lit_by_hover(&mut d, item(1)),
         Some(action_hover),
         "precondition: a live Up button highlights"
     );
-    assert_ne!(lit_by_hover(&mut harness, item(0)), Some(action_hover));
+    assert_ne!(lit_by_hover(&mut d, item(0)), Some(action_hover));
 }
 
 #[test]
 fn remove_is_revealed_by_hovering_its_row_and_removes_it() {
-    let mut harness = harness();
+    let mut d = harness();
     let first = item(0);
-    assert_eq!(remove_opacity(&harness), None, "hidden until hovered");
+    assert_eq!(remove_opacity(&d), None, "hidden until hovered");
 
-    let row = rect_of(&harness, &row_path(first));
-    let remove = rect_of(&harness, &button_path(first, "remove"));
+    let row = d.rect(Target::suffix(&row_path(first)));
+    let remove = d.rect(Target::suffix(&button_path(first, "remove")));
     assert!(
         !remove.contains(row.left_center() + vec2(10.0, 0.0)),
         "precondition: the pointer is on the row, not on Remove"
     );
-    hover_over(&mut harness, row.left_center() + vec2(10.0, 0.0));
-    assert_eq!(remove_opacity(&harness), Some(1.0));
+    d.hover(row.left_center() + vec2(10.0, 0.0));
+    assert_eq!(remove_opacity(&d), Some(1.0));
 
-    press_and_release(&mut harness, remove.center());
-    harness.run_steps(2);
-    assert!(!keys(&harness).contains(&first));
+    press_and_release(&mut d, remove.center());
+    d.frames(2);
+    assert!(!keys(&d).contains(&first));
 }
 
 #[test]
 fn a_hovered_row_keeps_its_highlight_when_it_moves() {
-    let mut harness = harness();
+    let mut d = harness();
     let first = item(0);
-    let down = rect_of(&harness, &button_path(first, "down")).center();
-    hover_over(&mut harness, down);
-    harness.run_steps(10);
+    let down = d.rect(Target::suffix(&button_path(first, "down"))).center();
+    d.hover(down).frames(10);
 
-    let base = fill_of(&harness, &row_path(item(1))).map(|c| c.r());
-    let lit = fill_of(&harness, &row_path(first)).map(|c| c.r());
+    let base = fill_of(&d, &row_path(item(1))).map(|c| c.r());
+    let lit = fill_of(&d, &row_path(first)).map(|c| c.r());
     assert!(
         lit < base,
         "precondition: the hovered row is darker than the rest: {lit:?} vs {base:?}"
     );
 
-    let old = rect_of(&harness, &row_path(first)).min;
-    press_and_release(&mut harness, down);
-    harness.step();
+    let old = d.rect(Target::suffix(&row_path(first))).min;
+    press_and_release(&mut d, down);
+    d.frames(1);
     let painted_there = |at: egui::Pos2| {
-        support::shapes(&harness)
+        support::shapes(&d)
             .into_iter()
             .filter_map(|shape| match shape {
                 Shape::Rect(rect) if (rect.rect.min - at).length() < 1.0 => Some(rect.fill.r()),
@@ -153,7 +151,8 @@ fn a_hovered_row_keeps_its_highlight_when_it_moves() {
     };
     let moved = painted_there(old);
     assert!(
-        rect_of(&harness, &row_path(first)).min.y > rect_of(&harness, &row_path(item(1))).min.y,
+        d.rect(Target::suffix(&row_path(first))).min.y
+            > d.rect(Target::suffix(&row_path(item(1)))).min.y,
         "precondition: the row moved below its neighbour"
     );
     assert_eq!(moved, lit, "the highlight moved with the row");
@@ -161,18 +160,16 @@ fn a_hovered_row_keeps_its_highlight_when_it_moves() {
 
 #[test]
 fn dragging_the_window_edge_keeps_every_row_continuous() {
-    let mut harness = harness();
+    let mut d = harness();
     let widths = (0..=320)
         .map(|k| 240.0 + 3.0 * k as f32)
         .chain((0..=320).rev().map(|k| 240.0 + 3.0 * k as f32));
-    let timeline = support::sweep(
-        &mut harness,
-        widths,
-        |harness, _, width| {
-            harness.set_size(vec2(width, 320.0));
-        },
-        12,
-    );
+    record(d.ctx());
+    for width in widths {
+        d.resize(vec2(width, 320.0));
+    }
+    d.frames(12);
+    let timeline = Timeline::recorded(d.ctx());
     assert!(timeline.len() > 600, "precondition: a long sweep");
     timeline.assert_continuous();
 }
@@ -181,24 +178,23 @@ fn dragging_the_window_edge_keeps_every_row_continuous() {
 /// frames resize the window.
 #[test]
 fn a_resize_mid_slide_does_not_snap_the_row() {
-    let mut harness = harness();
-    record(&harness.ctx);
-    let [first, second, ..] = keys(&harness)[..] else {
+    let mut d = harness();
+    record(d.ctx());
+    let [first, second, ..] = keys(&d)[..] else {
         panic!("precondition: at least two items")
     };
-    click_button(&mut harness, second, "up");
+    click_button(&mut d, second, "up");
     assert_eq!(
-        &keys(&harness)[..2],
+        &keys(&d)[..2],
         [second, first],
         "precondition: the rows swapped"
     );
-    harness.step();
+    d.frames(1);
     let mut width = 520.0;
     while width > 240.0 {
         width = (width - 12.0_f32).max(240.0);
-        harness.set_size(vec2(width, 320.0));
-        harness.step();
+        d.resize(vec2(width, 320.0));
     }
-    harness.run_steps(16);
-    Timeline::recorded(&harness.ctx).assert_continuous();
+    d.frames(16);
+    Timeline::recorded(d.ctx()).assert_continuous();
 }

@@ -264,15 +264,16 @@ fn every_example_lays_out_without_overflow_under_both_styles() {
 
 #[test]
 fn a_harness_switched_to_lyra_draws_lyra() {
-    let mut harness = crate::support::harness_prepared(
+    let mut d = crate::support::prepared_driver(
         controls_gallery::WINDOW,
         common::base_text_styled(Theme::Light, ShadcnStyle::Lyra),
         controls_gallery::State::default(),
         controls_gallery::layout,
         controls_gallery::prepare,
-    );
-    common::set_style(&harness.ctx, ShadcnStyle::Lyra);
-    harness.run_steps(4);
-    let style = Style::of(&harness.ctx);
+    )
+    .build();
+    common::set_style(d.ctx(), ShadcnStyle::Lyra);
+    d.frames(4);
+    let style = Style::of(d.ctx());
     assert_eq!(style.button.sizes.get(Size::DEFAULT).height, 32.0);
 }

@@ -71,8 +71,8 @@ fn headless_rects_match_the_support_harness() {
     let placed = Headless::new(SIZE - inset)
         .base_text(body())
         .layout(&(), view);
-    let mut harness = support::harness(SIZE, body(), (), view);
-    harness.run_steps(2);
+    let mut d = support::driver(SIZE, body(), (), view).build();
+    d.frames(2);
     let panel = placed.at(Region::Viewport).at(Part::Panel);
     let mono = panel.at(Pick::Mono);
     assert_eq!(
@@ -80,7 +80,7 @@ fn headless_rects_match_the_support_harness() {
         200.0,
         "precondition: the card is fixed width"
     );
-    let shift = rect_of(&harness, panel.path()).min - panel.rect().min;
+    let shift = rect_of(&d, panel.path()).min - panel.rect().min;
     assert!(
         shift.length() > 0.0,
         "precondition: the harness insets its page"
@@ -93,7 +93,7 @@ fn headless_rects_match_the_support_harness() {
     ] {
         assert_eq!(
             query.rect().translate(shift),
-            rect_of(&harness, query.path()),
+            rect_of(&d, query.path()),
             "headless and harness disagree on {}",
             query.path()
         );
@@ -447,15 +447,10 @@ fn shadcn_body() -> TextStyle {
 /// Every text leaf of the card, laid out headless at `scale`, lands where
 /// a frame drawn at that scale lays it out.
 fn text_agrees_at(scale: PixelsPerPoint) {
-    let mut harness = support::harness_scaled(
-        SIZE,
-        scale.into(),
-        shadcn_body(),
-        (),
-        wrapping_card,
-        |_, _| {},
-    );
-    harness.run_steps(2);
+    let mut d = support::driver(SIZE, shadcn_body(), (), wrapping_card)
+        .pixels_per_point(scale)
+        .build();
+    d.frames(2);
     let placed = Headless::new(SIZE)
         .pixels_per_point(scale)
         .base_text(shadcn_body())
@@ -463,7 +458,7 @@ fn text_agrees_at(scale: PixelsPerPoint) {
         .theme(Theme::Light)
         .layout(&(), wrapping_card);
     let card = placed.at(Region::Viewport).at(Part::Card);
-    let shift = rect_of(&harness, card.path()).min - card.rect().min;
+    let shift = rect_of(&d, card.path()).min - card.rect().min;
     let (title, body) = (card.text(CARD_TITLE), card.text(CARD_BODY));
     assert!(
         body.rect().height() > title.rect().height() * 2.0,
@@ -475,7 +470,7 @@ fn text_agrees_at(scale: PixelsPerPoint) {
     );
     for text in [title, body] {
         let laid = text.rect().translate(shift);
-        let drawn = rect_of(&harness, text.path());
+        let drawn = rect_of(&d, text.path());
         assert!(
             (laid.min - drawn.min).length() <= 0.5 && (laid.max - drawn.max).length() <= 0.5,
             "at {scale:?}, {}: headless {laid:?}, drawn {drawn:?}",
