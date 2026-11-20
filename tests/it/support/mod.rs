@@ -6,6 +6,9 @@
     reason = "each test crate that includes this module uses a subset of it"
 )]
 
+use core::time::Duration;
+
+use eggshell_ui::testing::{After, Driver, DriverBuilder, PlacedFrame, Reports};
 use eggshell_ui::{Builder, LayoutState, Shell, TextStyle};
 use egui::epaint::{RectShape, Shape, StrokeKind};
 use egui::{Color32, Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
@@ -53,6 +56,70 @@ pub fn shell<S: Shelled>(harness: &Harness<'_, S>) -> Shell {
     harness.state().layout_state().shell(&harness.ctx)
 }
 
+/// What a test reads of the last frame, from a rig's harness or a driver.
+pub trait Seen {
+    fn context(&self) -> &egui::Context;
+    fn last_output(&self) -> &egui::FullOutput;
+    /// Every node of the last frame: its readable path, border box and id.
+    fn placed(&self) -> Vec<(String, Rect, Option<egui::Id>)>;
+    fn view_shell(&self) -> Shell;
+}
+
+impl<A> Seen for Harness<'_, Rig<A>> {
+    fn context(&self) -> &egui::Context {
+        &self.ctx
+    }
+
+    fn last_output(&self) -> &egui::FullOutput {
+        self.output()
+    }
+
+    fn placed(&self) -> Vec<(String, Rect, Option<egui::Id>)> {
+        let ids = &self.state().ids;
+        self.state()
+            .nodes
+            .iter()
+            .map(|(path, rect)| {
+                let id = ids.iter().find(|(p, _)| p == path).map(|(_, id)| *id);
+                (path.clone(), *rect, id)
+            })
+            .collect()
+    }
+
+    fn view_shell(&self) -> Shell {
+        shell(self)
+    }
+}
+
+impl<A> Seen for Driver<A> {
+    fn context(&self) -> &egui::Context {
+        self.ctx()
+    }
+
+    fn last_output(&self) -> &egui::FullOutput {
+        self.harness().output()
+    }
+
+    fn placed(&self) -> Vec<(String, Rect, Option<egui::Id>)> {
+        self.frame()
+            .nodes()
+            .map(|node| (node.path().to_owned(), node.rect(), node.id()))
+            .collect()
+    }
+
+    fn view_shell(&self) -> Shell {
+        self.shell()
+    }
+}
+
+/// Every node of the last frame: its readable path and border box.
+pub fn nodes<S: Seen>(seen: &S) -> Vec<(String, Rect)> {
+    seen.placed()
+        .into_iter()
+        .map(|(path, rect, _)| (path, rect))
+        .collect()
+}
+
 /// A rig that carries a [`Bar`].
 pub trait Barred {
     fn bar(&self) -> &Bar;
@@ -80,6 +147,21 @@ pub fn past_bar<S: Barred>(harness: &mut Harness<'_, S>) {
     }
 }
 
+/// [`past_bar`] for a driver.
+pub fn drive_past_bar<A>(d: &mut Driver<A>) {
+    let stop = d
+        .ctx()
+        .data(|data| data.get_temp::<egui::Id>(last_stop_id()));
+    if let Some(stop) = stop {
+        d.ctx().memory_mut(|memory| memory.request_focus(stop));
+        d.frames(2);
+    }
+}
+
+fn last_stop_id() -> egui::Id {
+    egui::Id::NULL.with("support-bar-last-stop")
+}
+
 impl Bar {
     pub fn new(base_text: TextStyle) -> Self {
         Self {
@@ -105,6 +187,10 @@ impl Bar {
             })
             .layout(area);
         self.last_stop = placed.nodes().filter_map(|node| node.id()).last();
+        if let Some(stop) = self.last_stop {
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(last_stop_id(), stop));
+        }
         placed.draw(&mut (), ui);
     }
 }
@@ -303,14 +389,11 @@ pub fn rect_of<A>(harness: &Harness<'_, Rig<A>>, path: &str) -> Rect {
 }
 
 /// The egui id of the identified node `path`.
-pub fn id_of<A>(harness: &Harness<'_, Rig<A>>, path: &str) -> egui::Id {
-    harness
-        .state()
-        .ids
-        .iter()
-        .find(|(candidate, _)| candidate == path)
+pub fn id_of<S: Seen>(seen: &S, path: &str) -> egui::Id {
+    seen.placed()
+        .into_iter()
+        .find_map(|(candidate, _, id)| (candidate == path).then_some(id).flatten())
         .unwrap_or_else(|| panic!("no identified node {path}"))
-        .1
 }
 
 pub fn hover_over<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {
@@ -318,15 +401,53 @@ pub fn hover_over<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {
     harness.run_steps(3);
 }
 
-pub fn press_and_release<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {
+/// What a test steps, a rig's harness or a driver: one event in a frame
+/// of its own, or frames alone.
+pub trait Drives {
+    fn send(&mut self, event: Event);
+    fn run(&mut self, frames: usize);
+    fn frame_dt(&self) -> f32;
+}
+
+impl<A> Drives for Harness<'_, Rig<A>> {
+    fn send(&mut self, event: Event) {
+        self.event(event);
+        self.step();
+    }
+
+    fn run(&mut self, frames: usize) {
+        self.run_steps(frames);
+    }
+
+    fn frame_dt(&self) -> f32 {
+        self.ctx.input(|input| input.predicted_dt)
+    }
+}
+
+impl<A> Drives for Driver<A> {
+    fn send(&mut self, event: Event) {
+        self.event(event);
+    }
+
+    fn run(&mut self, frames: usize) {
+        self.frames(frames);
+    }
+
+    fn frame_dt(&self) -> f32 {
+        self.ctx().input(|input| input.predicted_dt)
+    }
+}
+
+/// A primary press and release at `at`, a frame each, without resting there
+/// first.
+pub fn press_and_release<D: Drives>(d: &mut D, at: Pos2) {
     for pressed in [true, false] {
-        harness.event(Event::PointerButton {
+        d.send(Event::PointerButton {
             pos: at,
             button: PointerButton::Primary,
             pressed,
             modifiers: Modifiers::NONE,
         });
-        harness.step();
     }
 }
 
@@ -344,10 +465,15 @@ pub fn drag<A>(harness: &mut Harness<'_, Rig<A>>, from: Pos2, to: Pos2) {
 }
 
 /// The fill of the last rect drawn at the top-left corner of the node `path`.
-pub fn fill_of<A>(harness: &Harness<'_, Rig<A>>, path: &str) -> Option<Color32> {
-    let min = rect_of(harness, path).min;
-    harness
-        .output()
+pub fn fill_of<S: Seen>(seen: &S, path: &str) -> Option<Color32> {
+    let min = seen
+        .placed()
+        .into_iter()
+        .find(|(candidate, _, _)| candidate == path)
+        .unwrap_or_else(|| panic!("no node {path}"))
+        .1
+        .min;
+    seen.last_output()
         .shapes
         .iter()
         .filter_map(|clipped| match &clipped.shape {
@@ -379,6 +505,21 @@ pub fn rest_for_tooltip<A>(harness: &mut Harness<'_, Rig<A>>) {
     harness.run_steps(4);
 }
 
+/// Clicks twice at `at`, one event a frame as a browser sends them, the
+/// releases `apart` apart.
+pub fn click_twice<D: Drives>(harness: &mut D, at: egui::Pos2, apart: std::time::Duration) {
+    let frame = harness.frame_dt();
+    let frames = (apart.as_secs_f32() / frame).round() as usize;
+    assert!(
+        frames >= 2,
+        "precondition: a press and a release fit in {apart:?}"
+    );
+    press_and_release(harness, at);
+    harness.run(frames - 2);
+    press_and_release(harness, at);
+    harness.run(6);
+}
+
 /// Clicks the centre of the node `path`.
 pub fn click_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
     let at = rect_of(harness, path).center();
@@ -388,27 +529,24 @@ pub fn click_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
 
 /// The deepest node that has keyboard focus or holds a widget that does: the
 /// leaf a `text_field` or `select` sits in, or a node that is itself focused.
-pub fn focused_node<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
-    let shell = shell(harness);
-    harness
-        .state()
-        .ids
-        .iter()
+pub fn focused_node<S: Seen>(seen: &S) -> Option<String> {
+    let shell = seen.view_shell();
+    seen.placed()
+        .into_iter()
+        .filter_map(|(path, _, id)| Some((path, id?)))
         .rfind(|(_, id)| shell.focus_within(*id))
-        .map(|(path, _)| path.clone())
+        .map(|(path, _)| path)
 }
 
 /// What has keyboard focus: the readable path of an identified node, or
 /// `<widget>` for an egui widget that is not a node (a text edit inside one).
-pub fn focused_path<A>(harness: &Harness<'_, Rig<A>>) -> Option<String> {
-    let focused = harness.ctx.memory(|memory| memory.focused())?;
+pub fn focused_path<S: Seen>(seen: &S) -> Option<String> {
+    let focused = seen.context().memory(|memory| memory.focused())?;
     Some(
-        harness
-            .state()
-            .ids
-            .iter()
-            .find(|(_, id)| *id == focused)
-            .map_or_else(|| "<widget>".to_owned(), |(path, _)| path.clone()),
+        seen.placed()
+            .into_iter()
+            .find(|(_, _, id)| *id == Some(focused))
+            .map_or_else(|| "<widget>".to_owned(), |(path, _, _)| path),
     )
 }
 
@@ -419,9 +557,9 @@ pub fn flatten<'a>(shape: &'a Shape, into: &mut Vec<&'a Shape>) {
     }
 }
 
-pub fn shapes<'a, A>(harness: &'a Harness<'_, Rig<A>>) -> Vec<&'a Shape> {
+pub fn shapes<S: Seen>(seen: &S) -> Vec<&Shape> {
     let mut all = Vec::new();
-    for clipped in &harness.output().shapes {
+    for clipped in &seen.last_output().shapes {
         flatten(&clipped.shape, &mut all);
     }
     all
@@ -429,8 +567,8 @@ pub fn shapes<'a, A>(harness: &'a Harness<'_, Rig<A>>) -> Vec<&'a Shape> {
 
 /// The meshes painted with a texture of their own, not the font atlas: the
 /// images and icons.
-pub fn textured<'a, A>(harness: &'a Harness<'_, Rig<A>>) -> Vec<&'a egui::epaint::Mesh> {
-    shapes(harness)
+pub fn textured<S: Seen>(seen: &S) -> Vec<&egui::epaint::Mesh> {
+    shapes(seen)
         .into_iter()
         .filter_map(|shape| match shape {
             Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default() => Some(&**mesh),
@@ -451,8 +589,8 @@ pub fn same(a: Rect, b: Rect) -> bool {
 }
 
 /// The last box painted over exactly `rect`, ring excluded.
-pub fn box_at<A>(harness: &Harness<'_, Rig<A>>, rect: Rect) -> RectShape {
-    shapes(harness)
+pub fn box_at<S: Seen>(seen: &S, rect: Rect) -> RectShape {
+    shapes(seen)
         .into_iter()
         .filter_map(|shape| match shape {
             Shape::Rect(r) if same(r.rect, rect) && r.stroke_kind == StrokeKind::Inside => {
@@ -464,8 +602,8 @@ pub fn box_at<A>(harness: &Harness<'_, Rig<A>>, rect: Rect) -> RectShape {
         .unwrap_or_else(|| panic!("no box painted at {rect:?}"))
 }
 
-pub fn ring_at<A>(harness: &Harness<'_, Rig<A>>, rect: Rect) -> Option<RectShape> {
-    shapes(harness)
+pub fn ring_at<S: Seen>(seen: &S, rect: Rect) -> Option<RectShape> {
+    shapes(seen)
         .into_iter()
         .filter_map(|shape| match shape {
             Shape::Rect(r) if same(r.rect, rect) && r.stroke_kind == StrokeKind::Outside => {
@@ -476,8 +614,9 @@ pub fn ring_at<A>(harness: &Harness<'_, Rig<A>>, rect: Rect) -> Option<RectShape
         .next_back()
 }
 
-pub fn text_color<A>(harness: &Harness<'_, Rig<A>>, inside: Rect, text: &str) -> Color32 {
-    shapes(harness)
+/// The colour of the text `text` painted with its origin inside `inside`.
+pub fn text_color<S: Seen>(seen: &S, inside: Rect, text: &str) -> Color32 {
+    shapes(seen)
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => {
@@ -690,9 +829,8 @@ pub fn section_of<'g>(galley: &'g egui::Galley, part: &str) -> &'g egui::TextFor
 }
 
 /// The URLs the last frame asked the platform to open.
-pub fn opened_urls<A>(harness: &Harness<'_, Rig<A>>) -> Vec<String> {
-    harness
-        .output()
+pub fn opened_urls<S: Seen>(seen: &S) -> Vec<String> {
+    seen.last_output()
         .platform_output
         .commands
         .iter()
@@ -701,4 +839,134 @@ pub fn opened_urls<A>(harness: &Harness<'_, Rig<A>>) -> Vec<String> {
             _ => None,
         })
         .collect()
+}
+
+// ------------------------------------------------------------- the driver
+
+/// What the support's frame draws around the view. It is kept in the
+/// context, not in the frame closure, so a test changes it between frames.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Surround {
+    page: Page,
+    companion: Companion,
+}
+
+fn surround_id() -> egui::Id {
+    egui::Id::NULL.with("support-surround")
+}
+
+fn surround(ctx: &egui::Context) -> Surround {
+    ctx.data(|data| data.get_temp(surround_id()))
+        .unwrap_or_default()
+}
+
+/// What the view under test is drawn beside from the next frame.
+pub fn set_companion<A>(d: &Driver<A>, companion: Companion) {
+    let ctx = d.ctx();
+    let changed = Surround {
+        companion,
+        ..surround(ctx)
+    };
+    ctx.data_mut(|data| data.insert_temp(surround_id(), changed));
+}
+
+/// What is painted under the view from the next frame.
+pub fn set_page<A>(d: &Driver<A>, page: Page) {
+    let ctx = d.ctx();
+    let changed = Surround {
+        page,
+        ..surround(ctx)
+    };
+    ctx.data_mut(|data| data.insert_temp(surround_id(), changed));
+}
+
+/// The step every support driver runs at unless told otherwise.
+pub const STEP: Duration = Duration::from_millis(50);
+
+/// A driver for `view` of `app` with what eggshell's own tests put around
+/// it: the shadcn style, a [`Bar`] above the window (see [`Companion`]), the
+/// [`Page`], and a style `prepare`d before each frame. It runs no frames
+/// after an action ([`After::Frames(0)`]) and leaves reports to the test.
+pub fn driver<A: 'static>(
+    size: Vec2,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+) -> DriverBuilder<A> {
+    prepared_driver(size, base_text, app, view, |_, _| {})
+}
+
+/// [`driver`] for an app that sets egui's style: `prepare` runs before every
+/// frame is built.
+pub fn prepared_driver<A: 'static>(
+    size: Vec2,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    prepare: fn(&egui::Context, &A),
+) -> DriverBuilder<A> {
+    let mut bar = Bar::new(base_text.clone());
+    Driver::whole_frame(app, move |ui, app, layout| {
+        let area = ui.max_rect();
+        let Surround { page, companion } = surround(ui.ctx());
+        if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
+            eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+        }
+        prepare(ui.ctx(), &*app);
+        if page == Page::Themed {
+            let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+            ui.painter()
+                .rect_filled(ui.ctx().content_rect(), 0.0, background);
+        }
+        if companion == Companion::Bar {
+            bar.show(ui);
+        }
+        layout
+            .build(ui.ctx(), |b| view(b, &*app))
+            .layout(area)
+            .draw(app, ui)
+    })
+    .size(size)
+    .base_text(base_text)
+    .step(STEP)
+    .after(After::Frames(0))
+    .settle_within(STEP * 4)
+    .reports(Reports::Unchecked)
+}
+
+/// A driver for a view that draws the whole frame itself (scroll areas,
+/// work after the draw), with the shadcn style, the themed page and a
+/// [`Bar`]; recording starts after the first frames.
+pub fn frame_driver<A: 'static>(
+    size: Vec2,
+    base_text: TextStyle,
+    app: A,
+    frame: fn(&mut egui::Ui, &mut A, &mut LayoutState) -> PlacedFrame,
+) -> DriverBuilder<A> {
+    let mut bar = Bar::new(base_text.clone());
+    let step = Duration::from_nanos(1_000_000_000 / 60);
+    Driver::whole_frame(app, move |ui, app, layout| {
+        if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
+            eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
+        }
+        let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
+        ui.painter()
+            .rect_filled(ui.ctx().content_rect(), 0.0, background);
+        bar.show(ui);
+        frame(ui, app, layout)
+    })
+    .size(size)
+    .base_text(base_text)
+    .step(step)
+    .after(After::Frames(0))
+    .settle_within(step * 4)
+    .reports(Reports::Unchecked)
+}
+
+/// Builds a [`frame_driver`] and starts recording, as the old frame rig did:
+/// after its first frames.
+pub fn recorded<A: 'static>(builder: DriverBuilder<A>) -> Driver<A> {
+    let d = builder.build();
+    eggshell_ui::testing::record(d.ctx());
+    d
 }

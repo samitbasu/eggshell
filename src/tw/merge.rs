@@ -15,7 +15,7 @@ use taffy::style::{
 };
 use taffy::{Line, Rect, Size, Style};
 
-use super::{BoxPaint, ChWidths, Opacity, Tw};
+use super::{BoxPaint, Opacity, Sides, TextWidths, Tw};
 
 /// The properties a class list has set: a bit for each layout property that
 /// can be merged on its own, then the corner radii and the opacity.
@@ -79,7 +79,7 @@ macro_rules! layout_properties {
                 $(
                     let mut style = Style::default();
                     let mut touched = Touched::default();
-                    Layout { style: &mut style, ch: &mut ChWidths::default(), touched: &mut touched }.$name();
+                    Layout { style: &mut style, ch: &mut TextWidths::default(), touched: &mut touched }.$name();
                     assert_eq!(
                         touched.0,
                         1 << Property::$name as u32,
@@ -153,11 +153,11 @@ layout_properties! {
 /// the accessor named for it, which records the write for [`Tw::merge`].
 pub(super) struct Layout<'a> {
     style: &'a mut Style,
-    pub(super) ch: &'a mut ChWidths,
+    pub(super) ch: &'a mut TextWidths,
     touched: &'a mut Touched,
 }
 
-impl ChWidths {
+impl TextWidths {
     /// A class that writes `property` in points or as a fraction replaces a
     /// width pending in `ch`.
     fn supersede(&mut self, property: Property) {
@@ -250,14 +250,14 @@ impl Shape<'_> {
 impl Tw {
     /// Writes layout with `set`, which records each property it writes.
     pub(super) fn write_layout(&mut self, set: impl FnOnce(&mut Layout<'_>)) {
-        let (style, ch) = (self.style.clone(), self.ch);
+        let (style, ch) = (self.style.clone(), self.ch.clone());
         let mut written = Touched::default();
         set(&mut Layout {
             style: &mut self.style,
             ch: &mut self.ch,
             touched: &mut written,
         });
-        if super::layout::is_finite(&self.style, self.ch) {
+        if super::layout::is_finite(&self.style, &self.ch) {
             self.touched = self.touched | written;
         } else {
             (self.style, self.ch) = (style, ch);
@@ -300,11 +300,6 @@ impl Tw {
         for (property, mine, theirs) in [
             (Property::width, &mut self.ch.width, other.ch.width),
             (
-                Property::min_width,
-                &mut self.ch.min_width,
-                other.ch.min_width,
-            ),
-            (
                 Property::max_width,
                 &mut self.ch.max_width,
                 other.ch.max_width,
@@ -313,6 +308,9 @@ impl Tw {
             if other.touched.has(property) {
                 *mine = theirs;
             }
+        }
+        if other.touched.has(Property::min_width) {
+            self.ch.min_width = other.ch.min_width.clone();
         }
         let (mine, theirs) = (&mut self.paint, &other.paint);
         let corners = |own: u8, over: u8, property| {
@@ -350,8 +348,18 @@ impl Tw {
         self.inert |= other.inert;
         self.control_size = other.control_size.or(self.control_size);
         self.pointer_events = self.pointer_events.merge(other.pointer_events);
+        self.visibility = other.visibility.or(self.visibility);
         self.sensing = self.sensing.or(other.sensing);
         self.focusability = self.focusability.merge(other.focusability);
+        self.scrollbar = self.scrollbar.merge(other.scrollbar);
+        let (mine, theirs) = (self.scroll_padding, other.scroll_padding);
+        let later = |before: f32, after: f32| if after == 0.0 { before } else { after };
+        self.scroll_padding = Sides {
+            top: later(mine.top, theirs.top),
+            right: later(mine.right, theirs.right),
+            bottom: later(mine.bottom, theirs.bottom),
+            left: later(mine.left, theirs.left),
+        };
         self.grouping = self.grouping.merge(other.grouping);
         self.variants = self.variants.merge(other.variants);
         self.touched = self.touched | other.touched;
@@ -479,6 +487,24 @@ mod tests {
         );
         assert_eq!(replaced.variants.easing, crate::tw::Easing::Out);
         assert_eq!(replaced.z, Some(0), "z(0) is still a z");
+    }
+
+    #[test]
+    fn the_later_visibility_class_wins_and_none_keeps_the_earlier() {
+        use crate::tw::Visibility;
+        assert_eq!(
+            tw().invisible().merge(tw().visible()).visibility,
+            Some(Visibility::Visible)
+        );
+        assert_eq!(
+            tw().visible().merge(tw().invisible()).visibility,
+            Some(Visibility::Hidden)
+        );
+        assert_eq!(
+            tw().invisible().merge(tw()).visibility,
+            Some(Visibility::Hidden)
+        );
+        assert_eq!(tw().merge(tw()).visibility, None);
     }
 
     #[test]

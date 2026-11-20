@@ -5,6 +5,14 @@
     clippy::duplicate_mod,
     reason = "each example includes the shared examples/common module"
 )]
+#![cfg_attr(
+    not(debug_assertions),
+    allow(
+        unused_imports,
+        dead_code,
+        reason = "the release step builds without the debug-only tests these serve"
+    )
+)]
 
 mod accordion_example;
 mod autosuggest;
@@ -19,6 +27,8 @@ mod choices;
 mod clipboard;
 mod clipboard_example;
 mod collapsible;
+mod combobox_parts;
+mod command_palette;
 mod commands;
 mod compile_fail;
 mod continuity;
@@ -35,6 +45,7 @@ mod dnd_reorder;
 mod dnd_zones;
 mod docs_embed;
 mod draw;
+mod driver;
 mod duplicate_key;
 mod edits;
 mod escape_field;
@@ -44,7 +55,10 @@ mod field_focus_example;
 mod field_text;
 mod focus;
 mod focus_on_appear;
+mod focus_options;
+mod focus_select;
 mod font_weights;
+mod form;
 mod form_demo;
 mod fractions;
 mod fuzz;
@@ -53,9 +67,12 @@ mod handlers;
 mod headless;
 mod hello;
 mod hit_route;
+mod hover_anchored;
+mod hover_card;
 mod icons;
 mod inert_look;
 mod interaction;
+mod invisible;
 mod kaolin_sidebar;
 mod known_gaps_demo;
 mod layout;
@@ -64,6 +81,7 @@ mod layout_dnd;
 mod layout_focus;
 mod layout_scroll;
 mod line_clamp;
+mod listbox_anchor;
 mod long_list_example;
 mod markdown;
 mod menu;
@@ -87,16 +105,24 @@ mod press_bubble;
 mod prims;
 mod progress;
 mod reduced_motion;
+mod refused;
 mod regions;
+mod release;
+mod reserve;
 mod responsive_example;
+mod roving;
 #[cfg(all(feature = "screenshots", target_os = "linux"))]
 mod screenshot;
 mod scroll;
 mod scroll_keys;
+mod scroll_padding;
+mod scrollbar_none;
+mod segmented_classes;
 mod select;
 mod selection;
 mod shadow_pixels;
 mod sizing;
+mod skeleton;
 mod slider_header;
 #[cfg(feature = "snapshots")]
 mod snapshots;
@@ -111,16 +137,21 @@ mod support;
 mod swatch_picker;
 mod sweep;
 mod table;
+mod table_columns;
 mod tabular_nums;
 mod text_field_ring;
 mod theme_toggle;
 mod todo_demo;
 mod toggle_group;
+mod tone;
 mod tooltips;
+mod touch_scroll;
+mod typed_range;
 mod typeset;
 mod underline;
 mod value_widgets;
 mod vlist;
+mod vlist_keys_from;
 mod vlist_nav;
 mod vlist_ports;
 mod widgets;

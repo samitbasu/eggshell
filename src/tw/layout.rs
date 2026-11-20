@@ -8,7 +8,7 @@ use taffy::style::{
 };
 use taffy::style_helpers::{FromLength, FromPercent, TaffyAuto, TaffyZero as _};
 
-use super::{ChWidths, SPACE_UNIT, Tw};
+use super::{MinWidth, Reserve, SPACE_UNIT, TextWidths, Tw};
 
 /// How far an inexact fraction is taken short: a millionth, under a
 /// thousandth of a point across any realistic container.
@@ -50,7 +50,7 @@ impl Len {
 }
 
 /// Whether every number `style` and `ch` hold is finite.
-pub(super) fn is_finite(style: &Style, ch: ChWidths) -> bool {
+pub(super) fn is_finite(style: &Style, ch: &TextWidths) -> bool {
     let finite = |length: CompactLength| length.value().is_finite();
     let sides = |rect: taffy::Rect<CompactLength>| {
         [rect.left, rect.right, rect.top, rect.bottom]
@@ -63,7 +63,7 @@ pub(super) fn is_finite(style: &Style, ch: ChWidths) -> bool {
     let numbers = [style.flex_grow, style.flex_shrink]
         .into_iter()
         .chain(style.aspect_ratio)
-        .chain([ch.width, ch.min_width, ch.max_width].into_iter().flatten());
+        .chain(ch.numbers());
     sides(style.inset.map(LengthPercentageAuto::into_raw))
         && sides(style.margin.map(LengthPercentageAuto::into_raw))
         && sides(style.padding.map(LengthPercentage::into_raw))
@@ -165,7 +165,20 @@ impl Tw {
     pub fn min_w_ch(self, n: f32) -> Self {
         self.styled(|s| {
             *s.min_width() = LengthPercentageAuto::AUTO;
-            s.ch.min_width = Some(n);
+            s.ch.min_width = Some(MinWidth::Ch(n));
+        })
+    }
+
+    /// TODO(prose): a minimum width that fits each of `reserve`'s templates
+    /// on one line, measured in the node's resolved text style with tabular
+    /// numerals, inside the node's padding and border. Text wider than that
+    /// grows the node, and is reported in debug builds as
+    /// [`OutgrewReserve`](crate::Problem::OutgrewReserve). The templates are
+    /// never shown or announced.
+    pub fn min_w_text(self, reserve: Reserve) -> Self {
+        self.styled(|s| {
+            *s.min_width() = LengthPercentageAuto::AUTO;
+            s.ch.min_width = Some(MinWidth::Text(reserve));
         })
     }
 

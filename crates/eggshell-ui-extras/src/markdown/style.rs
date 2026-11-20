@@ -107,7 +107,6 @@ impl MarkdownStyle {
             table.rule_below_last = true;
             for fill in [
                 &mut table.header_fill,
-                &mut table.stripe,
                 &mut table.hover,
                 &mut table.selected,
                 &mut table.footer_fill,

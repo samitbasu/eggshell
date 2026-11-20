@@ -59,10 +59,14 @@ pub(crate) struct Viewport {
     pub(crate) stack: Stack,
     pub(crate) typing: Typing,
     pub(crate) tooltips: Tooltips,
+    pub(crate) hover_cards: crate::hover::Cards,
     pub(crate) drags: crate::dnd::Drags,
     pub(crate) focus: crate::focus::Held,
     pub(crate) navigation: crate::nav::Navigation,
     pub(crate) scroll_keys: crate::scroll_keys::Keys,
+    /// The buttons that dismiss their overlay pressed this pass, until the
+    /// pass's dismissal takes them.
+    pub(crate) closers: Vec<egui::Id>,
     /// The area the last layout placed things in.
     pub(crate) area: Option<Rect>,
 }
