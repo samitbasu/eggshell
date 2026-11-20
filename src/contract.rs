@@ -1392,6 +1392,107 @@ fn extensions_id() -> egui::Id {
     crate::key::root_id().with("extensions")
 }
 
+/// TODO(prose): a design system's named values, neutral of any one: its colours and the few sizes egui's own widgets are given.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Tokens {
+    /// TODO(prose): the page.
+    pub background: Color32,
+    /// TODO(prose): text on the page.
+    pub foreground: Color32,
+    /// TODO(prose): a card's fill.
+    pub card: Color32,
+    /// TODO(prose): text on a card.
+    pub card_foreground: Color32,
+    /// TODO(prose): a popover's fill: menus, windows.
+    pub popover: Color32,
+    /// TODO(prose): text on a popover.
+    pub popover_foreground: Color32,
+    /// TODO(prose): the primary action's fill.
+    pub primary: Color32,
+    /// TODO(prose): text on the primary fill.
+    pub primary_foreground: Color32,
+    /// TODO(prose): a secondary action's fill.
+    pub secondary: Color32,
+    /// TODO(prose): text on the secondary fill.
+    pub secondary_foreground: Color32,
+    /// TODO(prose): a muted surface.
+    pub muted: Color32,
+    /// TODO(prose): muted text.
+    pub muted_foreground: Color32,
+    /// TODO(prose): a hovered or active item's fill.
+    pub accent: Color32,
+    /// TODO(prose): text on the accent fill.
+    pub accent_foreground: Color32,
+    /// TODO(prose): a destructive action's colour.
+    pub destructive: Color32,
+    /// TODO(prose): text on the destructive fill.
+    pub destructive_foreground: Color32,
+    /// TODO(prose): borders.
+    pub border: Color32,
+    /// TODO(prose): an input's border and fill tint.
+    pub input: Color32,
+    /// TODO(prose): the focus ring.
+    pub ring: Color32,
+    /// TODO(prose): the base corner radius.
+    pub radius: u8,
+    /// TODO(prose): a control's height.
+    pub control_height: f32,
+    /// TODO(prose): a button's padding.
+    pub button_padding: Vec2,
+    /// TODO(prose): the body text size.
+    pub text_size: f32,
+    /// TODO(prose): a switch's thumb, egui's checkbox and radio size.
+    pub switch_thumb: f32,
+}
+
+impl Tokens {
+    /// Tokens read off egui's own style.
+    pub fn from_egui(egui: &egui::Style) -> Self {
+        let v = &egui.visuals;
+        let w = &v.widgets;
+        Self {
+            background: v.panel_fill,
+            foreground: v.text_color(),
+            card: v.panel_fill,
+            card_foreground: v.text_color(),
+            popover: v.window_fill,
+            popover_foreground: v.text_color(),
+            primary: v.selection.bg_fill,
+            primary_foreground: v.selection.stroke.color,
+            secondary: w.inactive.weak_bg_fill,
+            secondary_foreground: w.inactive.fg_stroke.color,
+            muted: v.faint_bg_color,
+            muted_foreground: v.weak_text_color(),
+            accent: w.active.weak_bg_fill,
+            accent_foreground: w.active.fg_stroke.color,
+            destructive: v.error_fg_color,
+            destructive_foreground: v.text_color(),
+            border: v.window_stroke.color,
+            input: w.inactive.bg_stroke.color,
+            ring: w.active.bg_stroke.color,
+            radius: w.inactive.corner_radius.nw,
+            control_height: egui.spacing.interact_size.y,
+            button_padding: egui.spacing.button_padding,
+            text_size: egui
+                .text_styles
+                .get(&egui::TextStyle::Body)
+                .map_or(14.0, |font| font.size),
+            switch_thumb: egui.spacing.icon_width,
+        }
+    }
+}
+
+/// TODO(prose): the fonts a style is drawn in, added to egui as a layout first builds with the style.
+#[derive(Clone, Debug, Default)]
+pub struct Fonts(pub Vec<egui::FontInsert>);
+
+impl Extension for Fonts {
+    fn derive(_: &Style) -> Self {
+        Self::default()
+    }
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -1452,6 +1553,8 @@ pub struct Style {
     pub motion: MotionStyle,
     /// TODO(prose): the colours of each [`Tone`].
     pub tones: Tones,
+    /// TODO(prose): the design system's named values, from which egui's own look is set.
+    pub tokens: Tokens,
     /// The widgets' own looks, beside the core-painted fields.
     extensions: Extensions,
 }
@@ -2061,6 +2164,7 @@ impl Style {
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
+            tokens: Tokens::from_egui(egui),
             extensions: Extensions::default(),
         }
     }

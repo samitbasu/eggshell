@@ -113,7 +113,11 @@ impl Shadcn {
     ) -> eggshell_ui::contract::Themed<std::sync::Arc<contract::Style>> {
         let half = |preset: Self| {
             let preset = preset.with_style(style).with_palette(palette);
-            std::sync::Arc::new(preset.style())
+            let mut core = preset.style();
+            if let Some(font) = &preset.tokens.font {
+                core.set_extension(contract::Fonts(font.inserts()));
+            }
+            std::sync::Arc::new(core)
         };
         eggshell_ui::contract::Themed {
             light: half(Self::light()),
@@ -865,7 +869,39 @@ impl Shadcn {
             exit: Duration::from_millis(300),
             easing: Easing::InOut,
         };
+        style.tokens = self.core_tokens();
         style
+    }
+
+    /// The preset's tokens as core's design-system-neutral set.
+    fn core_tokens(&self) -> contract::Tokens {
+        let t = &self.tokens;
+        let mut core = contract::Tokens::from_egui(&egui::Style::default());
+        core.background = t.background;
+        core.foreground = t.foreground;
+        core.card = t.card;
+        core.card_foreground = t.card_foreground;
+        core.popover = t.popover;
+        core.popover_foreground = t.popover_foreground;
+        core.primary = t.primary;
+        core.primary_foreground = t.primary_foreground;
+        core.secondary = t.secondary;
+        core.secondary_foreground = t.secondary_foreground;
+        core.muted = t.muted;
+        core.muted_foreground = t.muted_foreground;
+        core.accent = t.accent;
+        core.accent_foreground = t.accent_foreground;
+        core.destructive = t.destructive;
+        core.destructive_foreground = t.destructive_foreground;
+        core.border = t.border;
+        core.input = t.input;
+        core.ring = t.ring;
+        core.radius = t.radius;
+        core.control_height = t.control_height;
+        core.button_padding = t.button_padding;
+        core.text_size = t.text_size;
+        core.switch_thumb = t.switch_thumb;
+        core
     }
 
     /// This preset drawing its text in `font`, or with `None` in egui's
@@ -895,10 +931,9 @@ impl Shadcn {
         if let Some(font) = &self.tokens.font {
             font.install(ctx);
         }
-        let tokens = self.tokens.clone();
-        ctx.style_mut_of(self.theme, |style| tokens.set_style(self.theme, style));
-        ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
         let style = self.style();
+        ctx.style_mut_of(self.theme, |egui| style.egui_style(self.theme, egui));
+        ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
         #[cfg(feature = "extras")]
         {
             // keep sorted
