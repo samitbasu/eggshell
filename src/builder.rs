@@ -194,18 +194,51 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
-    /// `own`, and disabled when the control is inside an
-    /// [`inert`](Tw::inert) subtree, as a `<fieldset disabled>` disables the
-    /// controls inside it.
+    /// `own`, and disabled where [`enablement`](Self::enablement) is.
     pub(crate) fn enablement_of(&self, own: Enablement) -> Enablement {
-        self.ambient.enablement.and(own)
+        self.enablement().and(own)
     }
 
-    /// The size a control draws at: its own, else the one its subtree
-    /// inherits from [`control_size`](Tw::control_size), else the style's
-    /// default.
+    /// The size a control draws at: its own, else [`control_size`](Self::control_size).
     pub(crate) fn size_of(&self, own: Option<ControlSize>) -> ControlSize {
-        own.or(self.ambient.size).unwrap_or(ControlSize::DEFAULT)
+        own.unwrap_or_else(|| self.control_size())
+    }
+
+    /// TODO(prose): the size a control built here draws at unless it sets
+    /// its own: the one its subtree inherits from
+    /// [`control_size`](Tw::control_size), else the style's default.
+    ///
+    /// ```
+    /// use eggshell_ui::contract::Size;
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::tw;
+    ///
+    /// const SM: Size = Size("sm");
+    /// Headless::new(egui::vec2(100.0, 100.0)).layout(&(), |b, _| {
+    ///     assert_eq!(b.control_size(), Size::DEFAULT);
+    ///     b.div(tw().control_size(SM), |b| assert_eq!(b.control_size(), SM));
+    /// });
+    /// ```
+    pub fn control_size(&self) -> ControlSize {
+        self.ambient.size.unwrap_or(ControlSize::DEFAULT)
+    }
+
+    /// TODO(prose): whether controls built here take input: disabled inside
+    /// an [`inert`](Tw::inert) subtree, as a `<fieldset disabled>` disables
+    /// the controls inside it.
+    ///
+    /// ```
+    /// use eggshell_ui::owned::Enablement;
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::tw;
+    ///
+    /// Headless::new(egui::vec2(100.0, 100.0)).layout(&(), |b, _| {
+    ///     assert_eq!(b.enablement(), Enablement::Enabled);
+    ///     b.div(tw().inert(), |b| assert_eq!(b.enablement(), Enablement::Disabled));
+    /// });
+    /// ```
+    pub fn enablement(&self) -> Enablement {
+        self.ambient.enablement
     }
 
     /// TODO(prose): the style the nodes built here are built, measured and
@@ -242,13 +275,21 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ) {
         let mut style = crate::Style::clone(self.style);
         edit(&mut style);
-        let style = Arc::new(style);
+        self.with_style(&Arc::new(style), body);
+    }
+
+    /// Builds `body` in place with `style` for this scope's.
+    pub(crate) fn with_style(
+        &mut self,
+        style: &Arc<crate::Style>,
+        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+    ) {
         body(&mut Builder::new(
             self.st,
             self.frame,
             self.path,
             self.kids,
-            (self.inherited, self.ambient, &style),
+            (self.inherited, self.ambient, style),
         ));
     }
 
@@ -297,6 +338,19 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// The same builder, borrowed for the life of a chain.
+    /// How many children this builder has added.
+    pub(crate) fn added(&self) -> usize {
+        self.kids.len()
+    }
+
+    /// Moves the child added last to `at` among its siblings, so that it is
+    /// painted and hit-tested before those added from `at` on.
+    pub(crate) fn move_last_to(&mut self, at: usize) {
+        if let Some(last) = self.kids.pop() {
+            self.kids.insert(at.min(self.kids.len()), last);
+        }
+    }
+
     pub(crate) fn reborrow(&mut self) -> Builder<'_, 'f, A> {
         Builder::new(
             self.st,
@@ -538,13 +592,13 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         &mut self,
         key: K,
         tw: Tw,
-        rows: &'f [R],
+        rows: impl Into<std::borrow::Cow<'f, [R]>>,
     ) -> crate::vlist::ListChain<'_, 'f, A, R>
     where
         A: 'static,
     {
         let slot = self.slot(&key);
-        crate::vlist::ListChain::new(self.reborrow(), slot, tw, rows)
+        crate::vlist::ListChain::new(self.reborrow(), slot, tw, rows.into())
     }
 
     /// Declares the rows of the virtual list `list`, built into `leaf` by
@@ -1140,6 +1194,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 bars,
                 tab,
                 description,
+                padding: classes.scroll_padding,
                 content,
                 size: egui::Vec2::ZERO,
             }),
@@ -1484,6 +1539,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             z: tw.z.unwrap_or(0),
             inert: tw.inert,
             pointer_events: tw.pointer_events,
+            visibility: tw.visibility,
             region: None,
             collapse: parts.collapse,
             description: None,
@@ -1491,6 +1547,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             action: None,
             open_focus: crate::pipeline::OpenFocus::Elsewhere,
             pane: None,
+            group: None,
+            selection: None,
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
@@ -1503,18 +1561,33 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
-    /// The node's layout style, its widths in `ch` measured in its resolved font.
+    /// The node's layout style, its widths in `ch` and its reservation
+    /// measured in its resolved text style.
     fn resolved_style(&self, tw: Tw, node: &Node) -> taffy::Style {
+        let ctx = self.frame.ctx;
         let mut style = tw.style;
-        let font = node.text.spec.font_id(self.frame.ctx);
-        tw.ch.resolve(&mut style, || {
-            self.frame.ctx.fonts_mut(|fonts| {
-                fonts
-                    .layout_no_wrap("0".to_owned(), font, Color32::PLACEHOLDER)
-                    .size()
-                    .x
-            })
-        });
+        let font = node.text.spec.font_id(ctx);
+        let mut reserved = None;
+        tw.ch.resolve(
+            &mut style,
+            || {
+                ctx.fonts_mut(|fonts| {
+                    fonts
+                        .layout_no_wrap("0".to_owned(), font, Color32::PLACEHOLDER)
+                        .size()
+                        .x
+                })
+            },
+            |reserve| {
+                let width = crate::measure::reserved_width(ctx, reserve, &node.text);
+                reserved = Some(width);
+                width
+            },
+        );
+        #[cfg(debug_assertions)]
+        if let (Some(reserve), Some(reserved)) = (tw.ch.reserve(), reserved) {
+            report_outgrown(ctx, node, reserve, reserved);
+        }
         style
     }
 
@@ -1582,9 +1655,6 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         ));
     }
 
-    /// The text `body` shows, its pieces joined by spaces, in the order
-    /// they are drawn. Its nodes are built under `salt` and left out of the
-    /// frame, so nothing is laid out or drawn.
     pub(crate) fn build_built(&self) -> Option<crate::tooltip::BuildBuilt<A>> {
         self.frame.build_built()
     }
@@ -1593,6 +1663,49 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.frame.set_build_built(build);
     }
 
+    /// Whether this builds inside a hover card's content, or inside an
+    /// overlay nested in one.
+    pub(crate) fn in_hover_card(&self) -> bool {
+        let layer = |at: usize| self.frame.roots.get(at)?.layer.as_ref();
+        std::iter::successors(layer(self.frame.current), |found| layer(found.parent)).any(|layer| {
+            match &layer.kind {
+                LayerKind::Overlay(decl) => decl.behavior.hover.is_some(),
+                LayerKind::Window(_) => false,
+            }
+        })
+    }
+
+    /// TODO(prose): while assistive technology is on, the text `body` shows,
+    /// its pieces joined by spaces in the order they are drawn: the
+    /// accessible description of content shown elsewhere, such as a hover
+    /// card's. `None` while it is off, without building `body`. Its nodes
+    /// are built under `salt` and left out of the frame, so nothing is laid
+    /// out or drawn, and no handler it registers runs.
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>) {
+    ///     let description = b.description_of("card", |c| {
+    ///         c.text(tw(), "@nextjs");
+    ///         c.text(tw(), "The React Framework");
+    ///     });
+    ///     if let Some(text) = description {
+    ///         assert_eq!(text, "@nextjs The React Framework");
+    ///     }
+    /// }
+    /// ```
+    pub fn description_of(
+        &mut self,
+        salt: impl std::hash::Hash + Debug,
+        body: impl FnOnce(&mut Builder<'_, 'f, A>),
+    ) -> Option<String> {
+        accesskit_is_on(self.ctx()).then(|| self.text_of(salt, body))
+    }
+
+    /// The text `body` shows, its pieces joined by spaces, in the order
+    /// they are drawn. Its nodes are built under `salt` and left out of the
+    /// frame, so nothing is laid out or drawn.
     pub(crate) fn text_of(
         &mut self,
         salt: impl std::hash::Hash + Debug,
@@ -1978,7 +2091,51 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self.tipped(Content::built(build))
     }
 
+    /// Shows the node's whole text in a tooltip while the node is hovered,
+    /// on the frames its text is drawn cut short, as
+    /// [`truncate`](crate::Tw::truncate) and
+    /// [`line_clamp`](crate::Tw::line_clamp) cut it. Text that fits shows
+    /// none. The node must be a text node, such as [`span`](Builder::span)
+    /// makes; it senses hover if it senses nothing else. Its accessible name
+    /// is its whole text already, so the tooltip does not describe it.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// fn view(b: &mut Builder<'_, '_, ()>) {
+    ///     b.div(tw().w_px(80.0), |b| {
+    ///         b.span("note", tw().truncate(), "A note longer than its box")
+    ///             .tooltip_when_truncated();
+    ///     });
+    /// }
+    /// ```
+    pub fn tooltip_when_truncated(mut self) -> Self {
+        self.senses_hover_for_tip();
+        self.draw(|_, ui| {
+            if let Some(text) = crate::draw::elided_text(ui) {
+                let tip = Some(Tooltip::undescribed(egui::WidgetText::from(&*text)));
+                crate::owned::tipped(ui, ui.node_response(), &tip);
+            }
+        })
+    }
+
     fn tipped(mut self, content: Content) -> Self {
+        let tip = Tooltip::new(&mut self.b, self.node, content);
+        self.tip(tip)
+    }
+
+    /// Shows `tip` on the node, as [`tooltip`](Self::tooltip) does.
+    pub(crate) fn tip(mut self, tip: Tooltip) -> Self {
+        self.senses_hover_for_tip();
+        let tip = Some(tip);
+        self.draw(move |_, ui| {
+            crate::owned::tipped(ui, ui.node_response(), &tip);
+        })
+    }
+
+    fn senses_hover_for_tip(&mut self) {
         self.edit(|context| {
             let interaction = &mut context.interaction;
             if interaction.sensing == Sensing::None {
@@ -1986,10 +2143,6 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
             }
             interaction.sensing = interaction.sensing.or(Sensing::Hover);
         });
-        let tip = Some(Tooltip::new(&mut self.b, self.node, content));
-        self.draw(move |_, ui| {
-            crate::owned::tipped(ui, ui.node_response(), &tip);
-        })
     }
 
     /// Announces the node to assistive technology as a `role`. A node
@@ -1999,6 +2152,13 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// [`named`](Self::named).
     pub fn role(mut self, role: egui::Role) -> Self {
         self.edit(|context| context.description.get_or_insert_default().role = Some(role));
+        self
+    }
+
+    /// Puts the node inside `parent` for assistive technology: a table's row
+    /// inside the table, or inside its row group.
+    pub(crate) fn accessibility_parent(mut self, parent: Id) -> Self {
+        self.edit(|context| context.description.get_or_insert_default().parent = Some(parent));
         self
     }
 
@@ -2019,7 +2179,7 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
     /// Gives the node focus as the overlay it is in opens, instead of the
     /// overlay's first focusable: the current colour of a swatch picker. For
     /// an overlay that takes focus in ([`Focus::Enter`](crate::overlay::Focus));
-    /// the node must take focus. If two nodes of one overlay are marked, the
+    /// the node, or a widget inside it, must take focus. If two nodes of one overlay are marked, the
     /// first takes focus and it is reported as
     /// [`FocusOnOpenTwice`](crate::Problem::FocusOnOpenTwice).
     pub fn focus_on_open(self) -> Self {
@@ -2097,10 +2257,125 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         })
     }
 
+    /// TODO(prose): makes the node a group of items the arrow keys move focus through as `nav` says, one Tab stop (the focused item, else the [`selected`](Self::selected) one, else the first enabled); a `Listbox` or `Submenu` nav is reported as [`NavNeedsOverlay`](crate::Problem::NavNeedsOverlay).
+    ///
+    /// ```
+    /// use eggshell_ui::overlay::{Nav, Wrap};
+    /// use eggshell_ui::owned::Mark;
+    /// use eggshell_ui::{Builder, tw};
+    /// use egui::Role;
+    ///
+    /// struct App { page: usize }
+    ///
+    /// fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+    ///     b.div_id("pages", tw().flex(), |b| {
+    ///         for (page, label) in ["One", "Two"].into_iter().enumerate() {
+    ///             b.div_id(page, tw().sense_click(), |b| b.text(tw(), label))
+    ///                 .role(Role::Tab)
+    ///                 .named(label)
+    ///                 .selected(Mark::from(app.page == page))
+    ///                 .on_click(move |app: &mut App| app.page = page);
+    ///         }
+    ///     })
+    ///     .role(Role::TabList)
+    ///     .named("Pages")
+    ///     .nav(Nav::Row(Wrap::Around))
+    ///     .selection_follows_focus();
+    /// }
+    /// ```
+    #[track_caller]
+    pub fn nav(mut self, nav: crate::overlay::Nav) -> Self {
+        if matches!(
+            nav,
+            crate::overlay::Nav::Listbox(_) | crate::overlay::Nav::Submenu(_)
+        ) {
+            let path = self.path();
+            crate::report::report_at(
+                self.b.frame.ctx,
+                crate::Problem::NavNeedsOverlay,
+                Some(self.id),
+                std::panic::Location::caller(),
+                || format!("{path}: nav({nav:?}) is an overlay's; the node is no group"),
+            );
+        }
+        let group = nav.on_page().then(|| crate::roving::Group::new(nav));
+        self.edit(|context| context.group = group);
+        self
+    }
+
+    /// TODO(prose): an arrow key that moves focus to an item of this [`nav`](Self::nav) group also activates it, as a click would.
+    pub fn selection_follows_focus(mut self) -> Self {
+        self.edit(|context| {
+            if let Some(group) = context.group.as_mut() {
+                group.follows = crate::roving::Follows::Selection;
+            }
+        });
+        self
+    }
+
+    /// TODO(prose): whether the node is the chosen item of its [`nav`](Self::nav) group, its Tab stop while focus is elsewhere; announced as selected, or as checked on a radio button.
+    pub fn selected(mut self, mark: crate::owned::Mark) -> Self {
+        self.edit(|context| context.selection = Some(mark));
+        self.draw(move |_, ui| {
+            let id = ui.node_response().id;
+            let on = mark == crate::owned::Mark::On;
+            ui.ctx()
+                .accesskit_node_builder(id, |node| match node.role() {
+                    egui::accesskit::Role::RadioButton => node.set_toggled(if on {
+                        egui::accesskit::Toggled::True
+                    } else {
+                        egui::accesskit::Toggled::False
+                    }),
+                    _ => node.set_selected(on),
+                });
+        })
+    }
+
+    /// Announces that the node controls the node `target`, the
+    /// `aria-controls` of the web: a section header the region it opens, a
+    /// tab its panel. `target` is that node's id, from
+    /// [`Builder::id_of`]. The node must sense; the relation is announced
+    /// only in a frame where `target` is in the accessibility tree too, which
+    /// a node that does not sense, or is not built, is not.
+    ///
+    /// ```
+    /// # use eggshell_ui::{Builder, tw};
+    /// # use eggshell_ui::overlay::Shown;
+    /// struct App { open: bool }
+    ///
+    /// fn item<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
+    ///     let region = b.id_of("details");
+    ///     b.div_id("head", tw().sense_click(), |b| b.text(tw(), "Details"))
+    ///         .role(egui::Role::Button)
+    ///         .expanded(app.open)
+    ///         .controls(region)
+    ///         .on_click(|app: &mut App| app.open = !app.open);
+    ///     b.collapsible("details", Shown::from(app.open))
+    ///         .classes(tw().sense_hover())
+    ///         .children(|b| b.text(tw(), "Only as tall as it needs"))
+    ///         .role(egui::Role::Region)
+    ///         .named("Details");
+    /// }
+    /// ```
+    pub fn controls(mut self, target: Id) -> Self {
+        self.edit(|context| context.description.get_or_insert_default().controls = Some(target));
+        self
+    }
+
     /// The node's accessible name, the `aria-label` of the web.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         let name = name.into();
         self.edit(|context| context.description.get_or_insert_default().name = Some(name));
+        self
+    }
+
+    /// The node's accessible description, the `aria-description` of the
+    /// web: read after its name, such as a dialog's explanatory sentence.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        let description = description.into();
+        self.edit(|context| {
+            context.description.get_or_insert_default().description = Some(description);
+        });
         self
     }
 
@@ -2296,4 +2571,41 @@ impl<A> DerefMut for Scope<'_, '_, A> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+/// egui has no public query for this; its root node is made only while
+/// accesskit is on.
+fn accesskit_is_on(ctx: &egui::Context) -> bool {
+    ctx.has_accesskit_node(egui::accesskit_root_id())
+}
+
+/// Reports a text leaf whose text is wider than the widest template it
+/// reserves, `reserved` points: the leaf grew past its reservation.
+#[cfg(debug_assertions)]
+fn report_outgrown(ctx: &egui::Context, node: &Node, reserve: &crate::Reserve, reserved: f32) {
+    let Some(prim) = &node.prim else {
+        return;
+    };
+    let Some(leaf) = crate::measure::TextLeaf::of(ctx, prim, (&node.text, &node.style.rich)) else {
+        return;
+    };
+    let galley = ctx.fonts_mut(|fonts| leaf.unwrapped(fonts));
+    let width = galley.size().x;
+    if width <= reserved + 0.5 {
+        return;
+    }
+    let subject = node
+        .identity
+        .id()
+        .unwrap_or_else(|| Id::NULL.with(&node.path));
+    crate::report::report(ctx, crate::Problem::OutgrewReserve, Some(subject), || {
+        let templates: Vec<_> = reserve.templates().map(|t| format!("{t:?}")).collect();
+        format!(
+            "{}: {:?} is {width:.1} points wide, wider than the {reserved:.1} its node reserves \
+             for the widest of [{}]; the node grew, so its neighbours moved",
+            node.path,
+            galley.text(),
+            templates.join(", ")
+        )
+    });
 }

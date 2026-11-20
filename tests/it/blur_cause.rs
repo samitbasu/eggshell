@@ -1,10 +1,11 @@
 //! `when_blurred` is told why the field lost focus, the frame it reports it.
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Blur, Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, vec2};
 use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node, focused_path};
+use crate::support::{self, focused_path};
 
 const FIELD: &str = r#"/"Page"/"name""#;
 const CANVAS: &str = r#"/"Page"/"canvas""#;
@@ -81,85 +82,86 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn typing() -> Harness<'static, Rig<App>> {
-    let mut harness = support::harness(vec2(400.0, 300.0), base_text(), App::default(), view);
-    harness.run_steps(4);
-    click_node(&mut harness, FIELD);
-    harness.run_steps(6);
+fn driver() -> Driver<App> {
+    support::driver(vec2(400.0, 300.0), base_text(), App::default(), view).build()
+}
+
+fn typing() -> Driver<App> {
+    let mut d = driver();
+    d.frames(4);
+    d.click(Target::suffix(FIELD)).frames(6);
     assert_eq!(
-        focused_path(&harness).as_deref(),
+        focused_path(&d).as_deref(),
         Some("<widget>"),
         "precondition: the field has focus"
     );
-    harness.event(egui::Event::Text("abc".into()));
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.draft, "abc", "precondition: typed");
-    harness
+    d.type_text("abc").frames(3);
+    assert_eq!(d.app().draft, "abc", "precondition: typed");
+    d
 }
 
-fn blur_the_window(harness: &mut Harness<'static, Rig<App>>) {
-    harness.event(egui::Event::WindowFocused(false));
-    harness.run_steps(6);
+/// Sends only the event, leaving `input.focused` set, unlike `Driver::window_focus`.
+fn blur_the_window(d: &mut Driver<App>) {
+    d.event(egui::Event::WindowFocused(false)).frames(5);
 }
 
 #[test]
 fn the_window_losing_focus_blurs_a_text_field_as_elsewhere() {
-    let mut harness = typing();
-    blur_the_window(&mut harness);
-    assert_eq!(focused_path(&harness), None, "the field gave up its focus");
-    let app = &harness.state().app;
+    let mut d = typing();
+    blur_the_window(&mut d);
+    assert_eq!(focused_path(&d), None, "the field gave up its focus");
+    let app = d.app();
     assert_eq!(app.causes, [Blur::Elsewhere]);
     assert_eq!(app.draft, "abc", "what was typed stays");
 }
 
 #[test]
 fn the_window_losing_focus_blurs_a_steppers_field_as_elsewhere() {
-    let mut harness = support::harness(vec2(400.0, 300.0), base_text(), App::default(), view);
-    harness.run_steps(4);
-    click_node(&mut harness, STEPPER);
-    harness.run_steps(6);
+    let mut d = driver();
+    d.frames(4);
+    d.click(Target::suffix(STEPPER)).frames(6);
     assert_eq!(
-        focused_path(&harness).as_deref(),
+        focused_path(&d).as_deref(),
         Some("<widget>"),
         "precondition: the stepper's field has focus"
     );
-    harness.event(egui::Event::Text("7".into()));
-    harness.run_steps(4);
-    blur_the_window(&mut harness);
-    assert_eq!(focused_path(&harness), None, "the field gave up its focus");
-    let app = &harness.state().app;
+    d.type_text("7").frames(3);
+    blur_the_window(&mut d);
+    assert_eq!(focused_path(&d), None, "the field gave up its focus");
+    let app = d.app();
     assert_eq!(app.count_causes, [Blur::Elsewhere]);
 }
 
 #[test]
-fn the_window_losing_focus_closes_a_sliders_readout_and_writes_nothing() {
-    let mut harness = support::harness(vec2(400.0, 300.0), base_text(), App::default(), view);
-    harness.run_steps(4);
-    click_node(&mut harness, READOUT);
-    harness.run_steps(6);
+fn the_window_losing_focus_closes_a_sliders_readout_and_commits_what_was_typed() {
+    let mut d = driver();
+    d.frames(4);
+    d.click(Target::suffix(READOUT)).frames(6);
     let field = format!("{READOUT}/Field");
     assert_eq!(
-        support::focused_node(&harness).as_deref(),
+        support::focused_node(&d).as_deref(),
         Some(field.as_str()),
         "precondition: the readout opened into a field with focus"
     );
-    harness.event(egui::Event::Text("9".into()));
-    harness.run_steps(4);
-    blur_the_window(&mut harness);
-    assert_eq!(focused_path(&harness), None, "the field gave up its focus");
+    d.type_text("9").frames(3);
+    blur_the_window(&mut d);
+    assert_eq!(focused_path(&d), None, "the field gave up its focus");
     assert!(
-        !harness.state().nodes.iter().any(|(path, _)| *path == field),
+        !support::nodes(&d).iter().any(|(path, _)| *path == field),
         "the readout closed"
     );
-    assert!(harness.state().app.levels.is_empty());
+    assert_eq!(
+        d.app().levels.len(),
+        1,
+        "leaving the field commits, as a click elsewhere does"
+    );
 }
 
 #[test]
 fn escape_blurs_as_escaped_and_the_node_beneath_sees_no_escape() {
-    let mut harness = typing();
-    harness.key_press(Key::Escape);
-    harness.run_steps(6);
-    let app = &harness.state().app;
+    let mut d = typing();
+    d.press(Key::Escape).frames(5);
+    let app = d.app();
     assert_eq!(app.causes, [Blur::Escaped]);
     assert_eq!(app.escapes, 0, "the Esc stayed the field's");
     assert_eq!(app.submitted, 0);
@@ -167,63 +169,53 @@ fn escape_blurs_as_escaped_and_the_node_beneath_sees_no_escape() {
 
 #[test]
 fn clicking_elsewhere_blurs_as_elsewhere() {
-    let mut harness = typing();
-    click_node(&mut harness, CANVAS);
-    harness.run_steps(6);
-    assert_eq!(harness.state().app.causes, [Blur::Elsewhere]);
+    let mut d = typing();
+    d.click(Target::suffix(CANVAS)).frames(6);
+    assert_eq!(d.app().causes, [Blur::Elsewhere]);
 }
 
 #[test]
 fn tab_blurs_as_elsewhere() {
-    let mut harness = typing();
-    harness.key_press(Key::Tab);
-    harness.run_steps(6);
-    assert_eq!(harness.state().app.causes, [Blur::Elsewhere]);
+    let mut d = typing();
+    d.press(Key::Tab).frames(5);
+    assert_eq!(d.app().causes, [Blur::Elsewhere]);
 }
 
 #[test]
 fn enter_submits_then_blurs_as_submitted() {
-    let mut harness = typing();
-    harness.key_press(Key::Enter);
-    harness.run_steps(6);
-    let app = &harness.state().app;
+    let mut d = typing();
+    d.press(Key::Enter).frames(5);
+    let app = d.app();
     assert_eq!(app.submitted, 1, "when_submitted fired");
     assert_eq!(app.causes, [Blur::Submitted]);
 }
 
 #[test]
 fn a_later_blur_is_not_remembered_as_the_earlier_escape() {
-    let mut harness = typing();
-    harness.key_press(Key::Escape);
-    harness.run_steps(6);
-    click_node(&mut harness, FIELD);
-    harness.run_steps(6);
-    click_node(&mut harness, CANVAS);
-    harness.run_steps(6);
-    assert_eq!(harness.state().app.causes, [Blur::Escaped, Blur::Elsewhere]);
+    let mut d = typing();
+    d.press(Key::Escape).frames(5);
+    d.click(Target::suffix(FIELD)).frames(6);
+    d.click(Target::suffix(CANVAS)).frames(6);
+    assert_eq!(d.app().causes, [Blur::Escaped, Blur::Elsewhere]);
 }
 
 #[test]
 fn escape_reverts_and_leaving_writes() {
-    let mut harness = typing();
-    harness.state_mut().app.revert_on_escape = true;
-    harness.key_press(Key::Escape);
-    harness.run_steps(6);
-    let app = &harness.state().app;
+    let mut d = typing();
+    d.app_mut().revert_on_escape = true;
+    d.press(Key::Escape).frames(5);
+    let app = d.app();
     assert_eq!(
         (app.draft.as_str(), app.saved.as_str()),
         ("", ""),
         "reverted"
     );
 
-    click_node(&mut harness, FIELD);
-    harness.run_steps(6);
-    harness.event(egui::Event::Text("xyz".into()));
-    harness.run_steps(4);
-    assert_eq!(harness.state().app.saved, "", "not written while editing");
-    click_node(&mut harness, CANVAS);
-    harness.run_steps(6);
-    let app = &harness.state().app;
+    d.click(Target::suffix(FIELD)).frames(6);
+    d.type_text("xyz").frames(3);
+    assert_eq!(d.app().saved, "", "not written while editing");
+    d.click(Target::suffix(CANVAS)).frames(6);
+    let app = d.app();
     assert_eq!((app.draft.as_str(), app.saved.as_str()), ("xyz", "xyz"));
 }
 

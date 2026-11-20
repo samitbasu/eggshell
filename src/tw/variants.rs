@@ -87,6 +87,41 @@ impl PointerEvents {
     }
 }
 
+/// Whether a node's subtree is shown, as CSS `visibility` says. It is
+/// inherited: a node without a class of its own takes its parent's.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Visibility {
+    #[default]
+    Visible,
+    Hidden,
+}
+
+/// Whether a scroll container shows a bar and reserves a gutter for it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Scrollbar {
+    #[default]
+    Gutter,
+    None,
+}
+
+impl Scrollbar {
+    pub(crate) fn merge(self, other: Self) -> Self {
+        if self == Self::None || other == Self::None {
+            Self::None
+        } else {
+            Self::Gutter
+        }
+    }
+
+    /// What egui's scroll area does with its bars.
+    pub(crate) fn egui(self) -> egui::scroll_area::ScrollBarVisibility {
+        match self {
+            Self::Gutter => egui::scroll_area::ScrollBarVisibility::AlwaysVisible,
+            Self::None => egui::scroll_area::ScrollBarVisibility::AlwaysHidden,
+        }
+    }
+}
+
 /// Whether a sensing node takes part in keyboard navigation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Focusability {
@@ -567,6 +602,97 @@ impl Tw {
     /// `focus` variants never apply to it.
     pub fn focusable_none(mut self) -> Self {
         self.focusability = Focusability::Skip;
+        self
+    }
+
+    /// Tailwind's `scroll-p-*`, in spacing units: scrolling a node into view
+    /// keeps this much between it and the edges of this scroll container. The
+    /// wheel, touch and drag are unaffected.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui::tw;
+    ///
+    /// let list = tw().max_h_px(288.0).scroll_py(1.0);
+    /// ```
+    pub fn scroll_p(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| *sides = Sides::all(points))
+    }
+
+    /// `scroll-px-*`: [`scroll_p`](Self::scroll_p) on the left and the right.
+    pub fn scroll_px(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| {
+            sides.left = points;
+            sides.right = points;
+        })
+    }
+
+    /// `scroll-py-*`: [`scroll_p`](Self::scroll_p) at the top and the bottom.
+    pub fn scroll_py(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| {
+            sides.top = points;
+            sides.bottom = points;
+        })
+    }
+
+    /// `scroll-pt-*`: [`scroll_p`](Self::scroll_p) at the top.
+    pub fn scroll_pt(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| sides.top = points)
+    }
+
+    /// `scroll-pr-*`: [`scroll_p`](Self::scroll_p) on the right.
+    pub fn scroll_pr(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| sides.right = points)
+    }
+
+    /// `scroll-pb-*`: [`scroll_p`](Self::scroll_p) at the bottom.
+    pub fn scroll_pb(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| sides.bottom = points)
+    }
+
+    /// `scroll-pl-*`: [`scroll_p`](Self::scroll_p) on the left.
+    pub fn scroll_pl(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| sides.left = points)
+    }
+
+    /// Sets the scroll padding as `set` says, to `units` of space as points;
+    /// a length that is not finite is ignored and noted, as the layout
+    /// classes' are.
+    fn scroll_padding_by(mut self, units: f32, set: impl FnOnce(&mut Sides<f32>, f32)) -> Self {
+        let before = self.scroll_padding;
+        let mut after = before;
+        set(&mut after, (units * super::SPACE_UNIT).max(0.0));
+        let finite = |sides: &Sides<f32>| {
+            [sides.top, sides.right, sides.bottom, sides.left]
+                .iter()
+                .all(|side| side.is_finite())
+        };
+        self.scroll_padding = self.lengths.keep(before, after, finite);
+        self
+    }
+
+    /// Tailwind's `no-scrollbar`: a scroll container shows no bar and
+    /// reserves no gutter, and still scrolls by the wheel, touch, the keys and
+    /// scrolling into view.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::{Builder, tw};
+    /// use egui::vec2;
+    ///
+    /// let placed = Headless::new(vec2(240.0, 100.0)).layout(&(), |b, _| {
+    ///     b.scroll("list", tw().w_px(200.0).h_px(100.0).scrollbar_none())
+    ///         .children(|s| {
+    ///             s.div_id("row", tw().w_full().h_px(300.0), |_| {});
+    ///         });
+    /// });
+    /// assert_eq!(placed.at("list").at("row").rect().width(), 200.0);
+    /// ```
+    pub fn scrollbar_none(mut self) -> Self {
+        self.scrollbar = Scrollbar::None;
         self
     }
 

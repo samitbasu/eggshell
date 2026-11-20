@@ -3,16 +3,15 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use eggshell_ui::testing::Timeline;
+use eggshell_ui::testing::{Driver, PlacedFrame, Timeline};
 use eggshell_ui::{LayoutState, tw};
 use egui::epaint::Shape;
-use egui::{Color32, Key, Pos2, Rect, Ui, vec2};
-use egui_kittest::Harness;
+use egui::{Color32, Event, Key, Pos2, Rect, Ui, vec2};
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
 
-use crate::support::{self, FrameRig};
+use crate::support;
 
 const PREVIEW_FILL: Color32 = Color32::from_rgb(200, 30, 30);
 const PREVIEW_SIZE: egui::Vec2 = vec2(60.0, 20.0);
@@ -25,8 +24,6 @@ struct App {
     /// How many times the preview closure ran.
     built: Rc<Cell<u32>>,
 }
-
-type H = Harness<'static, FrameRig<App>>;
 
 fn view(b: &mut eggshell_ui::Builder<'_, '_, App>, app: &App) {
     let carried = b.dragging::<Item>();
@@ -84,27 +81,27 @@ fn view(b: &mut eggshell_ui::Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) {
+fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) -> PlacedFrame {
     let area = ui.max_rect();
     layout
         .build(&ui.ctx().clone(), |b| view(b, app))
         .layout(area)
-        .draw(app, ui);
+        .draw(app, ui)
 }
 
-fn harness() -> H {
+fn harness() -> Driver<App> {
     let app = App {
         items: (0..8).collect(),
         built: Rc::new(Cell::new(0)),
     };
-    let mut h = support::frame_harness(
+    let mut d = support::recorded(support::frame_driver(
         vec2(460.0, 320.0),
         common::base_text(egui::Theme::Light),
         app,
         frame,
-    );
-    h.run_steps(4);
-    h
+    ));
+    d.frames(4);
+    d
 }
 
 fn item_path(key: u32) -> String {
@@ -112,10 +109,10 @@ fn item_path(key: u32) -> String {
 }
 
 /// The items in the order layout puts them.
-fn reading_order(h: &H) -> Vec<u32> {
+fn reading_order(d: &Driver<App>) -> Vec<u32> {
     let mut order: Vec<u32> = (0..8).collect();
     order.sort_by(|a, b| {
-        let (ra, rb) = (item_rect(h, *a), item_rect(h, *b));
+        let (ra, rb) = (item_rect(d, *a), item_rect(d, *b));
         ra.min
             .y
             .total_cmp(&rb.min.y)
@@ -124,30 +121,23 @@ fn reading_order(h: &H) -> Vec<u32> {
     order
 }
 
-fn item_rect(h: &H, key: u32) -> Rect {
-    support::layout_rect(&h.ctx, &item_path(key))
+fn item_rect(d: &Driver<App>, key: u32) -> Rect {
+    support::layout_rect(d.ctx(), &item_path(key))
 }
 
-fn layouts(h: &H) -> Vec<Rect> {
-    (0..8).map(|k| item_rect(h, k)).collect()
+fn layouts(d: &Driver<App>) -> Vec<Rect> {
+    (0..8).map(|k| item_rect(d, k)).collect()
 }
 
-fn lift(h: &mut H, key: u32) -> Pos2 {
-    let from = item_rect(h, key).center();
-    h.hover_at(from);
-    h.run_steps(3);
-    h.drag_at(from);
-    h.step();
-    h.hover_at(from + vec2(0.0, 6.0));
-    h.step();
-    h.hover_at(from + vec2(0.0, 12.0));
-    h.run_steps(3);
+fn lift(d: &mut Driver<App>, key: u32) -> Pos2 {
+    let from = item_rect(d, key).center();
+    d.lift(from, vec2(0.0, 12.0)).frames(2);
     from
 }
 
-fn preview_rects(h: &H) -> Vec<(Rect, usize, Rect)> {
+fn preview_rects(d: &Driver<App>) -> Vec<(Rect, usize, Rect)> {
     let mut found = Vec::new();
-    for (index, clipped) in h.output().shapes.iter().enumerate() {
+    for (index, clipped) in d.harness().output().shapes.iter().enumerate() {
         for shape in support::flatten_all_of(&clipped.shape) {
             if let Shape::Rect(r) = shape
                 && r.fill == PREVIEW_FILL
@@ -159,8 +149,8 @@ fn preview_rects(h: &H) -> Vec<(Rect, usize, Rect)> {
     found
 }
 
-fn preview_node(h: &H) -> bool {
-    let timeline = Timeline::recorded(&h.ctx);
+fn preview_node(d: &Driver<App>) -> bool {
+    let timeline = Timeline::recorded(d.ctx());
     timeline
         .frame(timeline.len() - 1)
         .expect("a recorded frame")
@@ -170,46 +160,41 @@ fn preview_node(h: &H) -> bool {
 
 #[test]
 fn the_preview_is_built_only_while_the_source_is_lifted() {
-    let mut h = harness();
-    assert_eq!(h.state().app.built.get(), 0, "nothing built at rest");
-    assert!(!preview_node(&h));
-    lift(&mut h, 2);
-    assert!(h.state().app.built.get() > 0, "built under a drag");
-    assert!(preview_node(&h));
+    let mut d = harness();
+    assert_eq!(d.app().built.get(), 0, "nothing built at rest");
+    assert!(!preview_node(&d));
+    lift(&mut d, 2);
+    assert!(d.app().built.get() > 0, "built under a drag");
+    assert!(preview_node(&d));
     assert_eq!(
-        preview_rects(&h).len(),
+        preview_rects(&d).len(),
         1,
         "only the lifted source's preview: the others built nothing"
     );
-    let builds = h.state().app.built.get();
-    h.run_steps(3);
+    let builds = d.app().built.get();
+    d.frames(3);
     assert_eq!(
-        h.state().app.built.get(),
+        d.app().built.get(),
         builds + 3,
         "one build a frame, for one source"
     );
-    let at = item_rect(&h, 2).center();
-    h.drop_at(at);
-    h.run_steps(4);
-    let after = h.state().app.built.get();
-    h.run_steps(4);
-    assert_eq!(
-        h.state().app.built.get(),
-        after,
-        "no build once it is dropped"
-    );
-    assert!(!preview_node(&h));
-    assert!(preview_rects(&h).is_empty());
+    let at = item_rect(&d, 2).center();
+    d.pointer_up(at).event(Event::PointerGone).frames(3);
+    let after = d.app().built.get();
+    d.frames(4);
+    assert_eq!(d.app().built.get(), after, "no build once it is dropped");
+    assert!(!preview_node(&d));
+    assert!(preview_rects(&d).is_empty());
 }
 
 #[test]
 fn the_preview_is_out_of_flow_so_no_sibling_moves() {
-    let mut h = harness();
-    let at_rest = layouts(&h);
-    lift(&mut h, 2);
-    assert!(preview_node(&h), "precondition: the preview is in the tree");
+    let mut d = harness();
+    let at_rest = layouts(&d);
+    lift(&mut d, 2);
+    assert!(preview_node(&d), "precondition: the preview is in the tree");
     assert_eq!(
-        layouts(&h),
+        layouts(&d),
         at_rest,
         "the same layout with the preview built"
     );
@@ -217,11 +202,12 @@ fn the_preview_is_out_of_flow_so_no_sibling_moves() {
 
 #[test]
 fn the_preview_is_on_the_drag_layer_anchored_under_the_pointer_every_frame() {
-    let mut h = harness();
-    let from = lift(&mut h, 2);
-    let grab = from - item_rect(&h, 2).min;
+    let mut d = harness();
+    let from = lift(&mut d, 2);
+    let grab = from - item_rect(&d, 2).min;
     assert!(grab.length() > 1.0, "precondition: grabbed off the corner");
-    let bottom = h
+    let bottom = d
+        .harness()
         .output()
         .shapes
         .iter()
@@ -231,15 +217,14 @@ fn the_preview_is_on_the_drag_layer_anchored_under_the_pointer_every_frame() {
     // Across the first row and onto the second, so the order changes.
     let mut at = from;
     for target in [
-        item_rect(&h, 0).center(),
-        item_rect(&h, 5).center(),
-        item_rect(&h, 3).center(),
+        item_rect(&d, 0).center(),
+        item_rect(&d, 5).center(),
+        item_rect(&d, 3).center(),
     ] {
         for step in 1..=10 {
             let here = at + (target - at) * (step as f32 / 10.0);
-            h.hover_at(here);
-            h.step();
-            let found = preview_rects(&h);
+            d.carry_to(here);
+            let found = preview_rects(&d);
             assert_eq!(found.len(), 1, "one preview at step {step}");
             let (rect, index, clip) = &found[0];
             assert!(
@@ -250,10 +235,10 @@ fn the_preview_is_on_the_drag_layer_anchored_under_the_pointer_every_frame() {
             );
             assert!(*index > bottom, "painted above the items");
             assert!(
-                clip.contains_rect(h.ctx.content_rect()),
+                clip.contains_rect(d.ctx().content_rect()),
                 "unclipped: {clip:?}"
             );
-            reordered |= reading_order(&h) != (0..8).collect::<Vec<u32>>();
+            reordered |= reading_order(&d) != (0..8).collect::<Vec<u32>>();
         }
         at = target;
     }
@@ -262,10 +247,10 @@ fn the_preview_is_on_the_drag_layer_anchored_under_the_pointer_every_frame() {
 
 #[test]
 fn an_animated_child_of_the_preview_keeps_animating() {
-    let mut h = harness();
-    lift(&mut h, 2);
-    let dot = |h: &H| -> Vec<Pos2> {
-        support::flatten_all(h)
+    let mut d = harness();
+    lift(&mut d, 2);
+    let dot = |d: &Driver<App>| -> Vec<Pos2> {
+        support::shapes(d)
             .into_iter()
             .filter_map(|s| match s {
                 Shape::Circle(c) if c.fill == Color32::WHITE => Some(c.center),
@@ -273,31 +258,27 @@ fn an_animated_child_of_the_preview_keeps_animating() {
             })
             .collect()
     };
-    let first = dot(&h);
+    let first = dot(&d);
     assert_eq!(first.len(), 1, "the dot is painted once, in the preview");
-    h.step();
-    h.step();
-    let second = dot(&h);
+    d.frames(1);
+    d.frames(1);
+    let second = dot(&d);
     assert_eq!(second.len(), 1);
     assert_ne!(first, second, "the dot moved between frames");
 }
 
 #[test]
 fn a_dragged_preview_is_continuous() {
-    let mut h = harness();
-    lift(&mut h, 2);
+    let mut d = harness();
+    lift(&mut d, 2);
     for key in [0, 5, 7, 1] {
-        let at = item_rect(&h, key).center();
-        h.hover_at(at);
-        h.run_steps(3);
+        let at = item_rect(&d, key).center();
+        d.hover(at);
     }
-    h.key_press(Key::Escape);
-    h.run_steps(20);
-    lift(&mut h, 4);
-    let at = item_rect(&h, 6).center();
-    h.hover_at(at);
-    h.run_steps(3);
-    h.drop_at(at);
-    h.run_steps(20);
-    Timeline::recorded(&h.ctx).assert_continuous();
+    d.press(Key::Escape).frames(19);
+    lift(&mut d, 4);
+    let at = item_rect(&d, 6).center();
+    d.hover(at);
+    d.pointer_up(at).event(Event::PointerGone).frames(19);
+    Timeline::recorded(d.ctx()).assert_continuous();
 }

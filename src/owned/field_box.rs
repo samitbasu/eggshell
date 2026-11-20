@@ -5,7 +5,7 @@ use crate::builder::{Scope, Slot};
 use crate::contract::Size;
 use crate::{Builder, Tw, tw};
 
-use super::{Enablement, field_box_classes, text_sized};
+use super::{Enablement, Gate, IntoTip, field_box_classes, options, text_sized, tipped_whole};
 
 /// A box in the style's input look. Start one with [`Builder::field_box`] and
 /// finish it with [`children`](Self::children).
@@ -15,6 +15,7 @@ pub struct FieldBoxChain<'a, 'f, A> {
     slot: Slot,
     classes: Tw,
     enablement: Enablement,
+    gate: Gate,
     size: Option<Size>,
 }
 
@@ -33,6 +34,7 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
             slot,
             classes: tw(),
             enablement: Enablement::Enabled,
+            gate: Gate::default(),
             size: None,
         }
     }
@@ -50,9 +52,27 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
+    }
+
     /// Classes merged over the styled ones, such as its width; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
-        self.classes = classes;
+        self.classes = self.classes.merge(classes);
         self
     }
 
@@ -64,10 +84,11 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
             slot,
             classes,
             enablement,
+            gate,
             size,
         } = self;
         let size = b.size_of(size);
-        let enablement = b.enablement_of(enablement);
+        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let style = b.style().clone();
         let metrics = *style.input.sizes.lookup(b.ctx(), size);
         let classes = field_box_classes(
@@ -83,6 +104,11 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
         .control_size(size)
         .merge(text_sized(&b, metrics.text))
         .merge(classes);
-        b.div_id_with(&slot, classes, body);
+        let classes = match tooltip {
+            Some(_) => classes.sense_hover(),
+            None => classes,
+        };
+        b.div_id_with(&slot, classes, body)
+            .draw(move |_, ui| tipped_whole(ui, &tooltip));
     }
 }

@@ -1,5 +1,5 @@
-//! Arrow-key navigation of an overlay's items: the keyboard patterns of
-//! [`Nav`].
+//! Arrow-key navigation of an overlay's items, and of a group's on the
+//! page ([`roving`](crate::roving)): the keyboard patterns of [`Nav`].
 //!
 //! A menu moves real focus between its items, in paint order. A grid moves
 //! it too, to the nearest item in the arrow's direction as laid out. A listbox leaves focus on its
@@ -14,6 +14,7 @@ use egui::{Align, Context, EventFilter, FocusDirection, Id, Key, Modifiers, Rect
 use crate::kept::Handle;
 use crate::overlay::{Nav, Wrap};
 use crate::plane::Axis;
+use crate::relation::Relation;
 use crate::shell::Shell;
 
 /// An open overlay with a keyboard pattern.
@@ -62,25 +63,34 @@ impl Move {
     /// frame it would also move focus itself, after the overlay has.
     fn of_key(ctx: &Context, nav: Nav, home_end: HomeEnd) -> Option<Self> {
         let pressed = |key| ctx.input_mut(|input| input.consume_key(Modifiers::NONE, key));
-        let arrows: &[(Key, Self)] = if nav == Nav::Grid {
-            &[
+        let arrows: &[(Key, Self)] = match nav {
+            Nav::Grid => &[
                 (Key::ArrowDown, Self::Toward(Direction::Down)),
                 (Key::ArrowUp, Self::Toward(Direction::Up)),
                 (Key::ArrowLeft, Self::Toward(Direction::Left)),
                 (Key::ArrowRight, Self::Toward(Direction::Right)),
-            ]
-        } else {
-            &[
+            ],
+            Nav::Row(_) => &[
+                (Key::ArrowRight, Self::Line(Step::Next)),
+                (Key::ArrowLeft, Self::Line(Step::Previous)),
+            ],
+            Nav::Radio(_) => &[
+                (Key::ArrowDown, Self::Line(Step::Next)),
+                (Key::ArrowRight, Self::Line(Step::Next)),
+                (Key::ArrowUp, Self::Line(Step::Previous)),
+                (Key::ArrowLeft, Self::Line(Step::Previous)),
+            ],
+            Nav::None | Nav::Menu(_) | Nav::Submenu(_) | Nav::Listbox(_) => &[
                 (Key::ArrowDown, Self::Line(Step::Next)),
                 (Key::ArrowUp, Self::Line(Step::Previous)),
-            ]
+            ],
         };
-        let ends: &[(Key, Self)] = match home_end {
-            HomeEnd::Ours => &[
+        let ends: &[(Key, Self)] = match (home_end, nav) {
+            (HomeEnd::Ours, Nav::Radio(_)) | (HomeEnd::Theirs, _) => &[],
+            (HomeEnd::Ours, _) => &[
                 (Key::Home, Self::Line(Step::First)),
                 (Key::End, Self::Line(Step::Last)),
             ],
-            HomeEnd::Theirs => &[],
         };
         if let Some((_, to)) = arrows.iter().find(|(key, _)| pressed(*key)) {
             ctx.memory_mut(|memory| memory.move_focus(FocusDirection::None));
@@ -189,8 +199,10 @@ pub(crate) enum ListMove {
 impl ListMove {
     /// The move of the frame's key, taking it. An arrow is taken from egui
     /// too, as for an overlay's listbox.
-    pub(crate) fn of_key(ctx: &Context) -> Option<Self> {
+    /// With `Keys::From` a text field has Home and End.
+    pub(crate) fn of_key(ctx: &Context, keys: Keys) -> Option<Self> {
         let pressed = |key| ctx.input_mut(|input| input.consume_key(Modifiers::NONE, key));
+        let field = matches!(keys, Keys::From(_));
         const KEYS: [(Key, ListMove); 6] = [
             (Key::ArrowDown, ListMove::Next),
             (Key::ArrowUp, ListMove::Previous),
@@ -201,6 +213,7 @@ impl ListMove {
         ];
         let to = KEYS
             .iter()
+            .filter(|(_, to)| !(field && matches!(to, Self::First | Self::Last)))
             .find(|(key, _)| pressed(*key))
             .map(|(_, to)| *to)?;
         ctx.memory_mut(|memory| memory.move_focus(FocusDirection::None));
@@ -234,6 +247,27 @@ impl ListMove {
             Self::PageUp => current.map_or(from(false), |at| at.saturating_sub(page)),
         };
         Some(to.min(last))
+    }
+}
+
+impl ListMove {
+    /// The row [`target`](Self::target) gives, or the nearest row past it
+    /// in the move's direction that is `enabled`; with none there, the
+    /// current row, if it is enabled.
+    pub(crate) fn target_enabled(
+        self,
+        current: Option<usize>,
+        len: usize,
+        page: usize,
+        visible: std::ops::Range<usize>,
+        enabled: impl Fn(usize) -> bool,
+    ) -> Option<usize> {
+        let to = self.target(current, len, page, visible)?;
+        let found = match self {
+            Self::Next | Self::PageDown | Self::First => (to..len).find(|&at| enabled(at)),
+            Self::Previous | Self::PageUp | Self::Last => (0..=to).rev().find(|&at| enabled(at)),
+        };
+        found.or_else(|| current.filter(|&at| enabled(at)))
     }
 }
 
@@ -296,7 +330,7 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
     let mut dismiss = Vec::new();
     match menu.nav {
         Nav::None => {}
-        Nav::Menu(_) | Nav::Submenu(_) | Nav::Grid => {
+        Nav::Menu(_) | Nav::Submenu(_) | Nav::Grid | Nav::Row(_) | Nav::Radio(_) => {
             if matches!(menu.nav, Nav::Submenu(_))
                 && ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::ArrowLeft))
             {
@@ -313,6 +347,21 @@ pub(crate) fn navigate(ctx: &Context, kept: &Handle, menus: &[Menu]) -> Vec<Id> 
         Nav::Listbox(_) => listbox(ctx, kept, menu, home_end),
     }
     dismiss
+}
+
+/// The item of a group on the page that the frame's key moves the focus to
+/// from `focused`, one of `items`, taking the key. A text field in a group
+/// keeps Home and End.
+pub(crate) fn rove(ctx: &Context, nav: Nav, items: &[(Id, Rect)], focused: Id) -> Option<Id> {
+    hold_arrows(ctx, focused);
+    let home_end = if ctx.text_edit_focused() {
+        HomeEnd::Theirs
+    } else {
+        HomeEnd::Ours
+    };
+    Move::of_key(ctx, nav, home_end)?
+        .target(items, Some(focused), nav.wrap())
+        .filter(|&to| to != focused)
 }
 
 /// Gives `to` the focus. With nothing focused before, egui has already read
@@ -397,9 +446,50 @@ pub(crate) struct Active(HashMap<Id, Highlight>);
 #[derive(Clone, Copy)]
 struct Highlight {
     item: Id,
-    anchor: Option<Id>,
-    /// Whether the listbox is a virtual list, which is no overlay.
-    list: bool,
+    owner: Owner,
+}
+
+/// What a listbox is, and so where its keys come from.
+#[derive(Clone, Copy)]
+enum Owner {
+    /// An overlay, keyed while the focus is in its anchor, or in the
+    /// overlay itself when it has none.
+    Overlay { anchor: Option<Id> },
+    /// A virtual list, which is no overlay.
+    List(Keys),
+}
+
+/// Where a virtual list's keys come from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Keys {
+    /// The list's own, while it holds the focus.
+    Own,
+    /// The node `field`'s, while the focus is in it: a search field over
+    /// its results.
+    From(Id),
+}
+
+impl Owner {
+    /// The node that has the focus while the listbox `listbox` takes keys.
+    fn holder(self, listbox: Id) -> Id {
+        match self {
+            Self::Overlay { anchor } => anchor.unwrap_or(listbox),
+            Self::List(Keys::Own) => listbox,
+            Self::List(Keys::From(field)) => field,
+        }
+    }
+
+    /// Whether the listbox `listbox` takes the frame's keys. A list that
+    /// keys itself takes them only while it holds the focus, not while a
+    /// widget in one of its rows does.
+    fn is_keyed(self, shell: &Shell, listbox: Id) -> bool {
+        match self {
+            Self::List(Keys::Own) => crate::focus::holds_focus(&shell.ctx, listbox),
+            Self::Overlay { .. } | Self::List(Keys::From(_)) => {
+                shell.focus_within(self.holder(listbox))
+            }
+        }
+    }
 }
 
 impl Active {
@@ -420,22 +510,21 @@ impl Active {
             listbox,
             Highlight {
                 item,
-                anchor,
-                list: false,
+                owner: Owner::Overlay { anchor },
             },
         );
     }
 }
 
-/// Highlights the row `item` of the virtual list `list`.
-pub(crate) fn highlight_row(kept: &Handle, list: Id, item: Id) {
+/// Highlights the row `item` of the virtual list `list`, which takes its
+/// keys as `keys` says.
+pub(crate) fn highlight_row(kept: &Handle, list: Id, item: Id, keys: Keys) {
     kept.with(|kept| {
         kept.listbox.0.insert(
             list,
             Highlight {
                 item,
-                anchor: Some(list),
-                list: true,
+                owner: Owner::List(keys),
             },
         );
     });
@@ -478,12 +567,37 @@ pub(crate) fn highlighted(kept: &Handle) -> Vec<Id> {
 pub(crate) fn forget_closed(kept: &Handle, open: &[Id]) {
     let mut active = Active::load(kept);
     let before = active.0.len();
-    active
-        .0
-        .retain(|listbox, highlight| highlight.list || open.contains(listbox));
+    active.0.retain(|listbox, highlight| match highlight.owner {
+        Owner::List(_) => true,
+        Owner::Overlay { .. } => open.contains(listbox),
+    });
     if active.0.len() != before {
         active.store(kept);
     }
+}
+
+/// The node that speaks for `owner`, the anchor of a listbox or the listbox
+/// itself: the focused widget inside it, such as a field's text edit, else
+/// `owner`.
+pub(crate) fn speaker(shell: &Shell, owner: Id) -> Id {
+    match shell.ctx.memory(|memory| memory.focused()) {
+        Some(focused) if shell.focus_within(owner) => focused,
+        _ => owner,
+    }
+}
+
+/// Each listbox's highlighted item, as the active descendant of the node
+/// that speaks for the listbox.
+pub(crate) fn relations(ctx: &Context, kept: &Handle) -> Vec<Relation> {
+    let shell = Shell::new(ctx, kept);
+    Active::load(kept)
+        .0
+        .iter()
+        .map(|(&listbox, highlight)| Relation::ActiveDescendant {
+            node: speaker(&shell, highlight.owner.holder(listbox)),
+            target: highlight.item,
+        })
+        .collect()
 }
 
 /// Turns Enter, and Space unless a text field is being typed in, into the
@@ -499,21 +613,14 @@ pub(crate) fn activate_highlighted(ctx: &Context, kept: &Handle) {
     let nothing_focused = ctx.memory(|memory| memory.focused()).is_none();
     let keyed = active
         .0
-        .values()
-        .find(|highlight| {
-            highlight.anchor.is_some_and(|anchor| {
-                if highlight.list {
-                    crate::focus::holds_focus(ctx, anchor)
-                } else {
-                    shell.focus_within(anchor)
-                }
-            })
-        })
+        .iter()
+        .find(|(listbox, highlight)| highlight.owner.is_keyed(&shell, **listbox))
+        .map(|(_, highlight)| highlight)
         .or_else(|| {
             active
                 .0
                 .values()
-                .find(|highlight| !highlight.list)
+                .find(|highlight| matches!(highlight.owner, Owner::Overlay { .. }))
                 .filter(|_| nothing_focused)
         });
     let Some(highlight) = keyed else {
@@ -604,6 +711,29 @@ mod tests {
         assert_eq!(row(ListMove::PageDown, None), Some(40));
         assert_eq!(row(ListMove::Previous, None), Some(51));
         assert_eq!(row(ListMove::PageUp, None), Some(51));
+    }
+
+    fn skipping(to: ListMove, current: Option<usize>, disabled: &[usize]) -> Option<usize> {
+        to.target_enabled(current, 10, 3, 0..10, |at| !disabled.contains(&at))
+    }
+
+    #[test]
+    fn steps_pass_disabled_rows_by() {
+        assert_eq!(skipping(ListMove::Next, Some(1), &[2, 3]), Some(4));
+        assert_eq!(skipping(ListMove::Previous, Some(4), &[2, 3]), Some(1));
+        assert_eq!(skipping(ListMove::First, Some(5), &[0]), Some(1));
+        assert_eq!(skipping(ListMove::Last, Some(5), &[9, 8]), Some(7));
+        assert_eq!(skipping(ListMove::PageDown, Some(0), &[3]), Some(4));
+    }
+
+    #[test]
+    fn with_only_disabled_rows_past_it_the_highlight_stays() {
+        assert_eq!(skipping(ListMove::Next, Some(7), &[8, 9]), Some(7));
+        assert_eq!(skipping(ListMove::Previous, Some(2), &[0, 1]), Some(2));
+        assert_eq!(
+            skipping(ListMove::Next, None, &(0..10).collect::<Vec<_>>()),
+            None
+        );
     }
 
     #[test]

@@ -168,11 +168,11 @@ impl Tokens {
         Self {
             destructive: rgb(0xe7000b),
             destructive_foreground: Color32::WHITE,
-            success: rgb(0x00a63e),
+            success: rgb(0x008236),
             success_foreground: rgb(0xfafafa),
-            warning: rgb(0xfe9a00),
-            warning_foreground: rgb(0x461901),
-            info: rgb(0x0084d1),
+            warning: rgb(0xbb4d00),
+            warning_foreground: rgb(0xfafafa),
+            info: rgb(0x0069a8),
             info_foreground: rgb(0xfafafa),
             ..Self::sizes()
         }
@@ -358,6 +358,16 @@ impl Tokens {
     /// the dark theme.
     pub fn input_30(&self) -> Color32 {
         self.input.gamma_multiply(0.3)
+    }
+
+    /// TODO(prose): the colours of each tone: the status tokens.
+    pub fn tones(&self) -> eggshell_ui::contract::Tones {
+        let on = |tone, foreground| eggshell_ui::contract::ToneColors { tone, foreground };
+        eggshell_ui::contract::Tones {
+            info: on(self.info, self.info_foreground),
+            success: on(self.success, self.success_foreground),
+            warning: on(self.warning, self.warning_foreground),
+        }
     }
 
     /// `input/50`: an outline button under the pointer in the dark theme.

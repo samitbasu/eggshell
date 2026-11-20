@@ -10,12 +10,19 @@ repository = "https://github.com/samitbasu/eggshell"
 [features]
 # Each widget is opt-in.
 markdown = ["dep:pulldown-cmark"]
+hover-card = []
+badge = []
+form = []
+spinner = []
+skeleton = []
+command = ["dep:unicode-normalization"]
 notify = []
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }
 egui = "0.37"
 pulldown-cmark = { version = "0.13.6", default-features = false, optional = true }
+unicode-normalization = { version = "0.1.25", optional = true }
 
 [package.metadata.docs.rs]
 all-features = true

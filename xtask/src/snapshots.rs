@@ -56,7 +56,8 @@ pub fn run(plan: &Plan) -> Result<()> {
 }
 
 fn check(plan: &Plan, golden_dir: &Path) -> Result<()> {
-    guarded(golden_dir, |icd| renderer_step(plan, icd))
+    let filters = test_filters(plan)?;
+    guarded(golden_dir, |icd| renderer_step(plan, icd, &filters))
 }
 
 /// Runs the step `renderer` makes and fails on any stray image it leaves.
@@ -82,7 +83,8 @@ fn guarded(golden_dir: &Path, renderer: impl FnOnce(&Path) -> Step) -> Result<()
 fn update(plan: &Plan, golden_dir: &Path) -> Result<()> {
     let icd = lavapipe_icd()?;
     clean(golden_dir)?;
-    renderer_step(plan, &icd).run()?;
+    let filters = test_filters(plan)?;
+    renderer_step(plan, &icd, &filters).run()?;
     clean(golden_dir)?;
     let changes = parse_changes(&process::git(&[
         "status",
@@ -101,7 +103,7 @@ fn update(plan: &Plan, golden_dir: &Path) -> Result<()> {
 }
 
 /// The test run, with the software renderer selected for the child only.
-fn renderer_step(plan: &Plan, icd: &Path) -> Step {
+fn renderer_step(plan: &Plan, icd: &Path, filters: &[String]) -> Step {
     let mut step = Step::cargo(
         "snapshots",
         &[
@@ -120,8 +122,47 @@ fn renderer_step(plan: &Plan, icd: &Path) -> Step {
     if plan.mode == Mode::Update {
         step = step.with_env("UPDATE_SNAPSHOTS", "1");
     }
-    step.args.push(snapshot_filter(plan.filter.as_deref()));
+    if plan.filter.is_some() {
+        step.args.push("--exact".to_owned());
+    }
+    step.args.extend(filters.iter().cloned());
     step
+}
+
+/// The libtest filters for `plan`: the whole `snapshots` module, or the exact
+/// paths of the goldens its filter selects among the tests of the `it` binary.
+fn test_filters(plan: &Plan) -> Result<Vec<String>> {
+    let Some(name) = plan.filter.as_deref() else {
+        return Ok(vec![MODULE.to_owned()]);
+    };
+    let (status, listing) = process::run_cargo(&list_args(), &[])?;
+    if !status.success() {
+        bail!("listing the snapshot tests failed: {status}");
+    }
+    let selected = selected_tests(&listing, name);
+    if selected.is_empty() {
+        bail!("no snapshot test matches `{name}`");
+    }
+    Ok(selected)
+}
+
+fn list_args() -> Vec<String> {
+    [
+        "test",
+        "--package",
+        "eggshell-ui",
+        "--features",
+        "snapshots",
+        "--test",
+        "it",
+        "--",
+        "--list",
+        "--format",
+        "terse",
+        MODULE,
+    ]
+    .map(str::to_owned)
+    .to_vec()
 }
 
 /// Every test of the workspace, the goldens among them, with the software
@@ -140,10 +181,32 @@ fn workspace_step(icd: &Path) -> Step {
     .on_lavapipe(icd)
 }
 
-/// The libtest filter selecting the `snapshots` module of the `it` binary,
-/// narrowed to the golden whose name starts with `name`.
-fn snapshot_filter(name: Option<&str>) -> String {
-    format!("snapshots::{}", name.unwrap_or_default())
+/// The libtest path of the module the goldens are tests of.
+const MODULE: &str = "snapshots::";
+
+/// The tests in a `--list --format terse` `listing` that `name` selects: those
+/// whose path, below [`MODULE`], contains `name`, or whose words (split at `_`
+/// and `::`) hold the words of `name` in order, so that `controls_gallery_buttons`
+/// reaches `controls_gallery_lyra_buttons_light` in a nested module too.
+fn selected_tests(listing: &str, name: &str) -> Vec<String> {
+    let words = |text: &str| -> Vec<String> {
+        text.split(['_', ':'])
+            .filter(|word| !word.is_empty())
+            .map(str::to_owned)
+            .collect()
+    };
+    let wanted = words(name);
+    listing
+        .lines()
+        .filter_map(|line| line.strip_suffix(": test"))
+        .filter(|path| path.starts_with(MODULE))
+        .filter(|path| {
+            let below = &path[MODULE.len()..];
+            let mut have = words(below).into_iter();
+            below.contains(name) || wanted.iter().all(|word| have.any(|other| other == *word))
+        })
+        .map(str::to_owned)
+        .collect()
 }
 
 /// What kittest leaves beside a golden: `.new.png` and `.diff.png` from a
@@ -234,7 +297,7 @@ fn parse_changes(porcelain: &str) -> Vec<Change> {
 }
 
 /// The lavapipe ICD manifest of this machine's architecture.
-fn lavapipe_icd() -> Result<PathBuf> {
+pub fn lavapipe_icd() -> Result<PathBuf> {
     let dirs = icd_dirs(std::env::var("XDG_DATA_DIRS").ok().as_deref());
     find_lavapipe_icd(&dirs, std::env::consts::ARCH).with_context(|| {
         format!(
@@ -282,7 +345,11 @@ mod tests {
 
     #[test]
     fn check_selects_lavapipe_and_does_not_update() {
-        let step = renderer_step(&plan(Mode::Check, None), Path::new("/icd/lvp.json"));
+        let step = renderer_step(
+            &plan(Mode::Check, None),
+            Path::new("/icd/lvp.json"),
+            &[MODULE.to_owned()],
+        );
         assert_eq!(
             step.to_string(),
             "VK_ICD_FILENAMES=\"/icd/lvp.json\" VK_DRIVER_FILES=\"/icd/lvp.json\" \
@@ -304,14 +371,53 @@ mod tests {
         let step = renderer_step(
             &plan(Mode::Update, Some("kaolin_nested")),
             Path::new("/i.json"),
+            &["snapshots::kaolin_nested".to_owned()],
         );
         assert!(step.env.contains(&("UPDATE_SNAPSHOTS", "1".to_owned())));
         assert_eq!(
             step.args.last().map(String::as_str),
             Some("snapshots::kaolin_nested")
         );
+        assert!(step.args.iter().any(|arg| arg == "--exact"));
         let separator = step.args.iter().position(|arg| arg == "--").unwrap();
         assert!(step.args.len() > separator + 1);
+    }
+
+    const LISTING: &str = "\
+snapshots::controls_gallery_buttons_dark: test
+snapshots::controls_gallery_buttons_light: test
+snapshots::lyra::controls_gallery_lyra_buttons_dark: test
+snapshots::lyra::controls_gallery_lyra_buttons_light: test
+snapshots::lyra::controls_gallery_lyra_choices_light: test
+snapshots::kaolin_nested_light: test
+other::controls_gallery_buttons_light: test
+snapshots::bench_like: benchmark
+";
+
+    #[test]
+    fn a_filter_reaches_nested_tests_and_variants_of_the_same_golden() {
+        assert_eq!(
+            selected_tests(LISTING, "controls_gallery_buttons"),
+            [
+                "snapshots::controls_gallery_buttons_dark",
+                "snapshots::controls_gallery_buttons_light",
+                "snapshots::lyra::controls_gallery_lyra_buttons_dark",
+                "snapshots::lyra::controls_gallery_lyra_buttons_light",
+            ]
+        );
+    }
+
+    #[test]
+    fn a_filter_naming_a_nested_golden_selects_it_alone() {
+        assert_eq!(
+            selected_tests(LISTING, "controls_gallery_lyra_choices"),
+            ["snapshots::lyra::controls_gallery_lyra_choices_light"]
+        );
+        assert_eq!(
+            selected_tests(LISTING, "kaolin_nested"),
+            ["snapshots::kaolin_nested_light"]
+        );
+        assert!(selected_tests(LISTING, "nothing_like_it").is_empty());
     }
 
     #[test]

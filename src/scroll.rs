@@ -160,7 +160,7 @@ use crate::layout_tree::LayoutTree;
 use crate::nodes::Nodes;
 use crate::pipeline::{PlacedNode, ScrollMut, takes_tab};
 use crate::shell::Shell;
-use crate::tw::{Focusability, Tw};
+use crate::tw::{Focusability, Scrollbar, Sides, Tw};
 
 /// Along which axes a scroll container scrolls.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -297,6 +297,18 @@ pub struct ScrollChain<'a, 'f, A> {
     name: Option<String>,
 }
 
+impl<'a, 'f, A> ScrollChain<'a, 'f, A> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
     pub(crate) fn new<K: Key>(b: Builder<'a, 'f, A>, key: K, classes: Tw) -> Self {
         let slot = b.slot(&key);
@@ -412,13 +424,23 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
         if let Some(fade) = fade {
             style.fade = fade;
         }
-        let bars = Bars::new(style, axis);
+        let visibility = classes.scrollbar;
+        if visibility == Scrollbar::None {
+            style.width = 0.0;
+        }
+        let bars = Bars::new(style, axis, visibility);
         let options = ScrollOptions {
             axis,
             edge,
             bars,
             focusable,
-            description: Description { role, name },
+            description: Description {
+                role,
+                name,
+                controls: None,
+                parent: None,
+                description: None,
+            },
         };
         b.scroll_with(&slot, classes, options, body)
     }
@@ -665,11 +687,36 @@ pub(crate) struct ScrollOptions {
 pub(crate) struct Description {
     pub(crate) role: Option<Role>,
     pub(crate) name: Option<String>,
+    /// The node it controls, announced only while that node is too.
+    pub(crate) controls: Option<egui::Id>,
+    /// The node assistive technology finds this one inside, in place of the
+    /// tree's root: the accesskit tree is otherwise flat.
+    pub(crate) parent: Option<egui::Id>,
+    /// The accessible description, read after the name.
+    pub(crate) description: Option<String>,
 }
 
 impl Description {
     pub(crate) fn is_set(&self) -> bool {
-        self.role.is_some() || self.name.is_some()
+        self.role.is_some() || self.name.is_some() || self.description.is_some()
+    }
+
+    /// Announces `response`'s widget as described, as a `fallback` when no
+    /// role is set.
+    pub(crate) fn announce(
+        &self,
+        response: &egui::Response,
+        enablement: crate::owned::Enablement,
+        fallback: Role,
+    ) {
+        let role = self.role.unwrap_or(fallback);
+        let name = self.name.as_deref().unwrap_or_default();
+        crate::owned::describe(response, enablement, role, None, name);
+        if let Some(description) = &self.description {
+            response.ctx.accesskit_node_builder(response.id, |node| {
+                node.set_description(description.as_str());
+            });
+        }
     }
 }
 
@@ -707,19 +754,25 @@ pub(crate) fn gutters(padding: Rect, gutter: Vec2) -> Vec<Rect> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Bars {
     pub(crate) style: ScrollStyle,
+    /// Whether the container shows its bars at all.
+    pub(crate) visibility: Scrollbar,
     /// What the bars take from the viewport: the width of the vertical bar
     /// and the height of the horizontal one.
     pub(crate) gutter: Vec2,
 }
 
 impl Bars {
-    fn new(style: ScrollStyle, axis: Axis) -> Self {
+    fn new(style: ScrollStyle, axis: Axis, visibility: Scrollbar) -> Self {
         let (width, enabled) = (style.gutter(), axis.enabled());
         let gutter = Vec2::new(
             if enabled.y { width } else { 0.0 },
             if enabled.x { width } else { 0.0 },
         );
-        Self { style, gutter }
+        Self {
+            style,
+            visibility,
+            gutter,
+        }
     }
 
     /// egui's scroll style for these bars beside a viewport of `viewport`:
@@ -788,6 +841,8 @@ pub(crate) struct ScrollPlan {
     pub(crate) bars: Bars,
     pub(crate) tab: TabRule,
     pub(crate) description: Description,
+    /// How far scrolling into view keeps a node from the edges.
+    pub(crate) padding: Sides<f32>,
     /// The content root's size.
     pub(crate) content: Vec2,
     /// How far the content is scrolled.
@@ -945,14 +1000,20 @@ impl Settle {
                 request.applied = true;
                 if enabled.x {
                     want.x += reveal(
-                        (viewport.min.x, viewport.max.x),
+                        (
+                            viewport.min.x + plan.padding.left,
+                            viewport.max.x - plan.padding.right,
+                        ),
                         (item.min.x, item.max.x),
                         align,
                     );
                 }
                 if enabled.y {
                     want.y += reveal(
-                        (viewport.min.y, viewport.max.y),
+                        (
+                            viewport.min.y + plan.padding.top,
+                            viewport.max.y - plan.padding.bottom,
+                        ),
                         (item.min.y, item.max.y),
                         align,
                     );

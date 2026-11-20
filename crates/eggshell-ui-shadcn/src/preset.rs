@@ -106,6 +106,23 @@ impl Shadcn {
         }
     }
 
+    /// `rest` with the focused border, `focus-visible:border-ring`.
+    fn focused(&self, rest: Colors) -> Colors {
+        Colors {
+            border: self.tokens.ring,
+            ..rest
+        }
+    }
+
+    /// A box's colours at rest and under the pointer, with the focused
+    /// border, over the page.
+    fn states(&self, rest: Colors, hover: Colors) -> States {
+        States {
+            focused: self.focused(rest),
+            ..States::new(rest, hover, self.tokens.background)
+        }
+    }
+
     /// This preset as the [`eggshell_ui::Style`] contract.
     pub fn style(&self) -> contract::Style {
         let t = &self.tokens;
@@ -115,19 +132,13 @@ impl Shadcn {
             width: t.ring_width,
             color: t.ring.gamma_multiply(0.5),
         };
-        let focused = |rest: Colors| Colors {
-            border: t.ring,
-            ..rest
-        };
+        let focused = |rest: Colors| self.focused(rest);
         let flat = |fill, text| Colors {
             fill,
             border: clear,
             text,
         };
-        let states = |rest: Colors, hover: Colors| States {
-            focused: focused(rest),
-            ..States::new(rest, hover, t.background)
-        };
+        let states = |rest: Colors, hover: Colors| self.states(rest, hover);
         let filled = |rest: Colors, hover: Colors| BoxLook::new(states(rest, hover));
         let raised = |paint: Paint, shadow: Shadow| Paint {
             shadow: t.elevation.shadow(shadow),
@@ -758,7 +769,14 @@ impl Shadcn {
         style.table.cell_padding = 8.0;
         style.table.rule = t.border;
         style.table.rule_width = 1.0;
-        style.table.stripe = clear;
+        style.table.stripe = t.muted.gamma_multiply(0.3);
+        style.table.group_fill = t.muted.gamma_multiply(0.5);
+        style.table.group_text = Some(t.muted_foreground);
+        style.table.group_text_size = Some(TextSize {
+            size: 12.0,
+            line_height: 16.0,
+        });
+        style.table.group_weight = Weight::Medium;
         style.table.hover = t.muted.gamma_multiply(0.5);
         style.table.selected = t.muted;
         style.table.footer_fill = t.muted.gamma_multiply(0.5);
@@ -767,6 +785,7 @@ impl Shadcn {
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);
+        style.tones = t.tones();
         // shadcn's `animate-in` (150 ms) for popovers, dropdown menus and
         // selects: `zoom-in-95 slide-in-from-*-2`. DialogContent:
         // `zoom-in-95 duration-200`. SheetContent:
@@ -830,8 +849,210 @@ impl Shadcn {
         ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
         let style = self.style();
         #[cfg(feature = "extras")]
-        self.markdown().install_for(ctx, self.theme);
+        {
+            self.markdown().install_for(ctx, self.theme);
+            self.badge(&style).install_for(ctx, self.theme);
+            self.form(&style).install_for(ctx, self.theme);
+            self.hover_card().install_for(ctx, self.theme);
+            self.command(&style).install_for(ctx, self.theme);
+            self.skeleton(&style).install_for(ctx, self.theme);
+        }
         style.install_for(ctx, self.theme);
+    }
+
+    /// TODO(prose): the skeleton's look: shadcn's `Skeleton`, `bg-muted
+    /// rounded-md animate-pulse`: the muted fill, the radius of its style
+    /// (square in Lyra) and Tailwind's two-second pulse down to half.
+    #[cfg(feature = "extras")]
+    pub fn skeleton(&self, style: &contract::Style) -> eggshell_ui_extras::skeleton::SkeletonStyle {
+        let mut skeleton = eggshell_ui_extras::skeleton::SkeletonStyle::from_style(style);
+        skeleton.fill = self.tokens.muted;
+        skeleton.radius = self.tokens.radius_md();
+        skeleton
+    }
+
+    /// The badge and chip look, after shadcn/ui's Badge in the preset's
+    /// style (`cn-badge` in `style-*.css`): `h-5 gap-1 border
+    /// border-transparent px-2 py-0.5 text-xs font-medium`, `pl-1.5` beside a
+    /// leading icon and `pr-1.5` before a trailing one, `[&>svg]:size-3`,
+    /// `rounded-4xl` in Vega and `rounded-none` in Lyra, and the base's
+    /// `focus-visible:border-ring focus-visible:ring-[3px] ring-ring/50`. A
+    /// chip's hover is the variant's `[a]:hover:` look.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui_shadcn::{Shadcn, variant};
+    ///
+    /// let shadcn = Shadcn::light();
+    /// let badge = shadcn.badge(&shadcn.style());
+    /// assert_eq!(badge.variants.default_key(), variant::PRIMARY);
+    /// assert_eq!(badge.height, 20.0);
+    /// ```
+    #[cfg(feature = "extras")]
+    pub fn badge(&self, style: &contract::Style) -> eggshell_ui_extras::badge::BadgeStyle {
+        let t = &self.tokens;
+        let dark = self.theme == Theme::Dark;
+        let clear = Color32::TRANSPARENT;
+        let flat = |fill, text| Colors {
+            fill,
+            border: clear,
+            text,
+        };
+        let ring = Focus {
+            width: 3.0,
+            color: t.ring.gamma_multiply(0.5),
+        };
+        let look = |rest: Colors, hover: Colors, focus: Focus| {
+            let mut look = BoxLook::new(self.states(rest, hover)).bordered(1.0);
+            look.paint.focus = Some(focus);
+            look
+        };
+        let tint = |light: f32, deep: f32| {
+            t.destructive
+                .gamma_multiply(if dark { deep } else { light })
+        };
+        let outline = Colors {
+            fill: clear,
+            border: t.border,
+            text: t.foreground,
+        };
+        let mut badge = eggshell_ui_extras::badge::BadgeStyle::from_style(style);
+        badge.variants = Keyed::new(
+            variant::PRIMARY,
+            look(
+                flat(t.primary, t.primary_foreground),
+                flat(t.primary.gamma_multiply(0.8), t.primary_foreground),
+                ring,
+            ),
+        )
+        .with(
+            variant::SECONDARY,
+            look(
+                flat(t.secondary, t.secondary_foreground),
+                flat(t.secondary.gamma_multiply(0.8), t.secondary_foreground),
+                ring,
+            ),
+        )
+        .with(
+            variant::OUTLINE,
+            look(
+                outline,
+                Colors {
+                    fill: t.muted,
+                    text: t.muted_foreground,
+                    ..outline
+                },
+                ring,
+            ),
+        )
+        .with(
+            variant::DESTRUCTIVE,
+            look(
+                flat(tint(0.1, 0.2), t.destructive),
+                flat(tint(0.2, 0.2), t.destructive),
+                Focus {
+                    color: tint(0.2, 0.4),
+                    ..ring
+                },
+            ),
+        );
+        badge.height = 20.0;
+        badge.padding_x = 8.0;
+        badge.icon_padding = 6.0;
+        badge.gap = 4.0;
+        badge.radius = match t.style {
+            ShadcnStyle::Vega => u8::MAX,
+            ShadcnStyle::Lyra => 0,
+        };
+        badge.glyph = 12.0;
+        badge.text = TextSpec {
+            size: 12.0,
+            line_height: 16.0,
+            ..t.text_role_at(Weight::Medium)
+        };
+        badge.transition = Duration::from_millis(150);
+        badge.remove.glyph = 12.0;
+        badge.remove.padding_end = 6.0;
+        badge
+    }
+
+    /// TODO(prose): the look of a command list's rows: shadcn's
+    /// `CommandItem`, `data-selected:bg-muted data-selected:text-foreground`,
+    /// and its list `max-h-72`.
+    #[cfg(feature = "extras")]
+    pub fn command(&self, style: &contract::Style) -> eggshell_ui_extras::command::CommandStyle {
+        let mut command = eggshell_ui_extras::command::CommandStyle::from_style(style);
+        command.selected_fill = self.tokens.muted;
+        command.selected_text = self.tokens.foreground;
+        command
+    }
+
+    /// TODO(prose): the form section and labelled row look. shadcn has no
+    /// grouped-form box, so the section is `FieldSet`'s semantics in `Card`'s
+    /// frame, with the looks the user chose on #370. From `ref/shadcn`
+    /// (f50887a), `registry/styles/style-{vega,lyra}.css`:
+    /// - the box is `cn-card`'s `bg-card`, `rounded-xl` in Vega and
+    ///   `rounded-none` in Lyra (vega 241, lyra 233). Its frame is a 1 pt
+    ///   `border`, not the card's `ring-1 ring-foreground/10`, and has no
+    ///   `shadow-xs`, as chosen;
+    /// - the title is `cn-field-legend`'s label variant: `font-medium`,
+    ///   `text-sm` and `mb-3` in Vega, `text-xs` and `mb-2.5` in Lyra
+    ///   (vega 624, lyra 599);
+    /// - a row is `cn-field`'s horizontal field: `gap-3` in Vega, `gap-2` in
+    ///   Lyra (vega 632, lyra 607), `items-center` (`bases/radix/ui/field.tsx`
+    ///   54);
+    /// - sections stack `cn-field-set`'s `gap-6` in Vega, `gap-4` in Lyra
+    ///   (vega 620, lyra 595);
+    /// - the rule is `divide-y` in `border`, edge to edge; the box is `py-2`
+    ///   and a row `px-4 py-2`, as chosen.
+    ///
+    /// ```
+    /// use eggshell_ui_shadcn::Shadcn;
+    ///
+    /// let shadcn = Shadcn::light();
+    /// let form = shadcn.form(&shadcn.style());
+    /// assert_eq!(form.fill, shadcn.tokens.card);
+    /// assert_eq!(form.radius, 14);
+    /// ```
+    #[cfg(feature = "extras")]
+    pub fn form(&self, style: &contract::Style) -> eggshell_ui_extras::form::FormStyle {
+        let t = &self.tokens;
+        let vega = t.style == ShadcnStyle::Vega;
+        let mut form = eggshell_ui_extras::form::FormStyle::from_style(style);
+        form.fill = t.card;
+        form.border = t.border;
+        form.border_width = 1.0;
+        form.radius = if vega { t.radius.saturating_add(4) } else { 0 };
+        form.padding_y = 8.0;
+        form.row_padding_x = 16.0;
+        form.row_padding_y = 8.0;
+        form.rule = t.border;
+        form.rule_width = 1.0;
+        form.title = TextSpec {
+            size: if vega { 14.0 } else { 12.0 },
+            line_height: if vega { 20.0 } else { 16.0 },
+            ..t.text_role_at(Weight::Medium)
+        };
+        form.title_color = t.foreground;
+        form.title_gap = if vega { 12.0 } else { 10.0 };
+        form.row_gap = if vega { 12.0 } else { 8.0 };
+        form.row_min_height = t.control_height;
+        form.label_color = t.foreground;
+        form.value_color = t.muted_foreground;
+        form.section_gap = if vega { 24.0 } else { 16.0 };
+        form
+    }
+
+    /// TODO(prose): the hover card's look: shadcn's `HoverCardContent`
+    /// (`w-64 rounded-lg bg-popover p-4 shadow-md duration-100`, 4 pt below,
+    /// centred) in this preset's colours, with Radix's 700/300 ms delays.
+    #[cfg(feature = "extras")]
+    pub fn hover_card(&self) -> eggshell_ui_extras::hover_card::HoverCardStyle {
+        let mut card = eggshell_ui_extras::hover_card::HoverCardStyle::from_style(&self.style());
+        card.radius = self.tokens.radius;
+        card.transition = Duration::from_millis(100);
+        card
     }
 
     /// TODO(prose): the Markdown widget's look: shadcn/typeset at its
