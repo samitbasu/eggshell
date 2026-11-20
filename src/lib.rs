@@ -443,6 +443,6 @@ pub use text::{
 #[doc(hidden)]
 pub use transition::{cycle, tracked_layout_nodes};
 pub use tw::{
-    Angle, BoxPaint, Divide, Easing, Mirror, Opacity, Paint, Progress, Reserve, Ring,
+    Angle, Aria, BoxPaint, Divide, Easing, Match, Mirror, Opacity, Paint, Progress, Reserve, Ring,
     RingPlacement, Sides, Track, Tw, tw,
 };

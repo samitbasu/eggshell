@@ -118,6 +118,7 @@ mod release;
 mod reserve;
 mod responsive_example;
 mod roving;
+mod rules;
 #[cfg(all(feature = "screenshots", target_os = "linux"))]
 mod screenshot;
 mod scroll;

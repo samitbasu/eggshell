@@ -1,5 +1,6 @@
 //! What a frame costs: build, layout and draw of plain trees at 100, 1,000
-//! and 5,000 nodes (#133), a virtual list's frame at 1,000 to 100,000 rows,
+//! and 5,000 nodes (#133), a page of buttons styled on each icon or by one
+//! rule on its container (#443), a virtual list's frame at 1,000 to 100,000 rows,
 //! and the js-framework-benchmark operations on a virtual list (#54).
 //!
 //! `cargo bench --bench frame`; one group with `cargo bench --bench frame --
@@ -13,7 +14,7 @@ use std::hint::black_box;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
-use eggshell_ui::{Builder, LayoutState, tw};
+use eggshell_ui::{Builder, Icon, LayoutState, Match, icons, tw};
 use egui::{Context, Id, RawInput, Rect, pos2, vec2};
 
 /// Counts allocations, for the allocations-per-frame figures.
@@ -181,6 +182,65 @@ fn trees(c: &mut Criterion) {
         }
         group.finish();
     }
+}
+
+/// Where a page of buttons says how its icons look.
+#[derive(Clone, Copy, Debug)]
+enum Styling {
+    /// On every icon.
+    Own,
+    /// In one rule on the container.
+    Rule,
+}
+
+impl Styling {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Own => "own classes",
+            Self::Rule => "rule",
+        }
+    }
+
+    /// `buttons` buttons, each an icon and a label.
+    fn build(self, b: &mut Builder<'_, '_, ()>, buttons: usize) {
+        let icon = || Icon::new(icons::CHEVRON_DOWN);
+        let page = match self {
+            Self::Own => tw(),
+            Self::Rule => tw().descendants(Match::glyph(), |t| t.size_px(16.0).shrink_0()),
+        }
+        .flex()
+        .flex_wrap()
+        .gap(1.0)
+        .p(2.0);
+        b.div(page, |b| {
+            for at in 0..buttons {
+                b.div(tw().flex().items_center().gap(1.0).px(2.0), |b| {
+                    match self {
+                        Self::Own => b.glyph(tw().size_px(16.0).shrink_0(), icon()),
+                        Self::Rule => b.glyph(tw(), icon()),
+                    }
+                    b.text(tw(), WORDS[at % WORDS.len()]);
+                });
+            }
+        });
+    }
+}
+
+fn rules(c: &mut Criterion) {
+    let ctx = context();
+    let mut group = c.benchmark_group("rules");
+    group.sample_size(30);
+    for styling in [Styling::Own, Styling::Rule] {
+        for buttons in [100, 1_000] {
+            let mut state = LayoutState::new();
+            let view = |b: &mut Builder<'_, '_, ()>, _: &()| styling.build(b, buttons);
+            frame(&ctx, &mut state, &mut (), Phase::Layout, view);
+            group.bench_function(BenchmarkId::new(styling.name(), buttons), |bench| {
+                bench.iter(|| frame(&ctx, &mut state, &mut (), Phase::Layout, view));
+            });
+        }
+    }
+    group.finish();
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -369,5 +429,5 @@ fn operations(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, trees, list, operations);
+criterion_group!(benches, trees, rules, list, operations);
 criterion_main!(benches);

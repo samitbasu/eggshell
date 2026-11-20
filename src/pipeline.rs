@@ -316,6 +316,11 @@ pub(crate) struct BuildState {
     pub kept: Handle,
     pub tree: LayoutTree,
     pub seen: Seen,
+    /// What the nodes built under a container with `has` rules say of
+    /// themselves, until it closes.
+    pub observed: std::collections::HashMap<NodeId, crate::tw::Observed>,
+    /// The rules containers declared this frame, by the index `Rules` holds.
+    pub links: Vec<crate::tw::Link>,
     pub names: ReadablePath,
     pub pass: Pass,
 }
@@ -341,6 +346,8 @@ impl BuildState {
             kept: Handle::default(),
             tree: self.tree.scratch(),
             seen: Seen::default(),
+            observed: std::collections::HashMap::new(),
+            links: Vec::new(),
             names: ReadablePath::default(),
             pass: Pass::Scratch,
         }
@@ -732,6 +739,8 @@ impl LayoutState {
                 kept: Handle::default(),
                 tree: LayoutTree::new(),
                 seen: Seen::default(),
+                observed: std::collections::HashMap::new(),
+                links: Vec::new(),
                 names: ReadablePath::default(),
                 pass: Pass::Live,
             },
@@ -815,6 +824,7 @@ impl LayoutState {
         }
         st.tree.reset(ctx);
         st.seen.clear();
+        st.links.clear();
         st.names.clear();
         let mut frame = Frame::new(ctx);
         let mut kids = Vec::new();

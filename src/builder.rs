@@ -157,14 +157,27 @@ pub(crate) struct Ambient {
     /// The direction of the flex container the nodes are built in, if it is
     /// one.
     pub(crate) flex: Option<taffy::FlexDirection>,
+    /// The rules of the containers above, for the nodes built here.
+    pub(crate) rules: crate::tw::Rules,
 }
 
 impl Ambient {
+    /// What a root of its own, an overlay or a window, takes from where it
+    /// is declared: the rules of the containers it is not inside do not
+    /// reach it.
+    pub(crate) fn cut(&self) -> Self {
+        Self {
+            rules: crate::tw::Rules::NONE,
+            ..*self
+        }
+    }
+
     pub(crate) const PAGE: Self = Self {
         enablement: Enablement::Enabled,
         surface: Surface::Page,
         size: None,
         flex: None,
+        rules: crate::tw::Rules::NONE,
     };
 }
 
@@ -1091,7 +1104,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             slot.id,
             &mut kids,
-            (&text, ambient, self.style),
+            (&text, ambient.cut(), self.style),
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
@@ -1167,7 +1180,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             slot.id,
             &mut kids,
-            (&text, self.ambient, self.style),
+            (&text, self.ambient.cut(), self.style),
         )));
         self.st.names.pop_to(mark);
         self.frame.current = parent;
@@ -1179,7 +1192,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub(crate) fn scroll_with<R>(
         mut self,
         slot: &Slot,
-        classes: Tw,
+        mut classes: Tw,
         options: ScrollOptions,
         body: impl FnOnce(&mut Scope<'_, 'f, A>) -> R,
     ) -> (NodeHandle<'b, 'f, A>, R) {
@@ -1192,6 +1205,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             description,
         } = options;
         let path = self.identify(slot);
+        self.apply_rules(&mut classes, NodeKind::Scroll);
         let parts = Parts {
             id: Some(slot.id),
             ..Parts::anonymous(NodeKind::Scroll, path)
@@ -1626,12 +1640,47 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// Adds a leaf to the current parent.
-    fn leaf_node(&mut self, tw: Tw, parts: Parts) -> NodeId {
+    fn leaf_node(&mut self, mut tw: Tw, parts: Parts) -> NodeId {
+        self.apply_rules(&mut tw, parts.kind);
+        let observed = self.observation(&tw, &parts);
         let node = self.node(&tw, parts);
         let style = self.resolved_style(tw, &node);
         let id = self.st.tree.new_node(style, &[], node);
         self.kids.push(id);
+        self.observe(id, observed);
         id
+    }
+
+    /// `tw` as its `has` rules make it once the children `kids` are built.
+    fn closed(&mut self, tw: Tw, node: &mut Node, kids: &[NodeId]) -> Tw {
+        let applied = tw.with_has(kids.iter().filter_map(|kid| self.st.observed.get(kid)));
+        if !self.st.observed.is_empty() {
+            for kid in kids {
+                self.st.observed.remove(kid);
+            }
+        }
+        let Some(applied) = applied else {
+            return tw;
+        };
+        node.paint = applied.paint;
+        node.text_valign = VAlign::of(&applied.style);
+        applied
+    }
+
+    /// What the container these nodes are built in learns of the node a `tw`
+    /// and `parts` make, if it has `has` rules.
+    fn observation(&self, tw: &Tw, parts: &Parts) -> Option<crate::tw::Observed> {
+        self.ambient.rules.observed.then(|| crate::tw::Observed {
+            kind: parts.kind,
+            facts: tw.facts().clone(),
+            focused: parts.id.is_some_and(|id| self.shell().focus_within(id)),
+        })
+    }
+
+    fn observe(&mut self, node: NodeId, observed: Option<crate::tw::Observed>) {
+        if let Some(observed) = observed {
+            self.st.observed.insert(node, observed);
+        }
     }
 
     #[track_caller]
@@ -1642,8 +1691,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .map_or_else(|| self.inherited.clone(), |node| node.text.clone())
     }
 
+    /// Gives `tw` the classes the rules of the containers above make it.
+    #[inline(always)]
+    fn apply_rules(&self, tw: &mut Tw, kind: NodeKind) {
+        if !self.ambient.rules.is_empty() {
+            *tw = self.ambient.rules.apply(&self.st.links, tw, kind);
+        }
+    }
+
     /// What the controls inside a node with `classes` inherit.
-    fn ambient_in(&self, classes: &Tw) -> Ambient {
+    fn ambient_in(&mut self, classes: &Tw) -> Ambient {
         Ambient {
             enablement: if classes.inert {
                 Enablement::Disabled
@@ -1653,6 +1710,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             size: classes.control_size.or(self.ambient.size),
             flex: (classes.style.display == taffy::Display::Flex)
                 .then_some(classes.style.flex_direction),
+            rules: self.ambient.rules.within(classes, &mut self.st.links),
             ..self.ambient
         }
     }
@@ -1776,14 +1834,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// path starts at `path`.
     fn container(
         &mut self,
-        tw: Tw,
+        mut tw: Tw,
         parts: Parts,
         path: Id,
         body: impl FnOnce(Builder<'_, 'f, A>),
     ) -> NodeId {
+        self.apply_rules(&mut tw, parts.kind);
         let ambient = self.ambient_in(&tw);
-        let node = self.node(&tw, parts);
-        let style = self.resolved_style(tw, &node);
+        let observed = self.observation(&tw, &parts);
+        let mut node = self.node(&tw, parts);
         let text = node.text.clone();
         let mut kids = Vec::new();
         body(Builder::new(
@@ -1793,8 +1852,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut kids,
             (&text, ambient, self.style),
         ));
+        let tw = self.closed(tw, &mut node, &kids);
+        let style = self.resolved_style(tw, &node);
         let id = self.st.tree.new_node(style, &kids, node);
         self.kids.push(id);
+        self.observe(id, observed);
         id
     }
 }
