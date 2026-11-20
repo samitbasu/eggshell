@@ -260,6 +260,8 @@ pub(crate) struct ScrollNode {
     pub bars: Bars,
     pub tab: crate::scroll::TabRule,
     pub description: crate::scroll::Description,
+    /// How far scrolling into view keeps a node from the edges.
+    pub padding: crate::tw::Sides<f32>,
     /// The root of the content, laid out on its own.
     pub content: NodeId,
     /// The content root's size, once laid out.
@@ -1746,6 +1748,7 @@ fn collect(
                     bars: scroll.bars,
                     tab: scroll.tab,
                     description: scroll.description,
+                    padding: scroll.padding,
                     content: scroll.size,
                     offset,
                     moved: false,

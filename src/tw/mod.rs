@@ -57,6 +57,8 @@ pub struct Tw {
     pub(crate) sensing: Sensing,
     pub(crate) focusability: Focusability,
     pub(crate) scrollbar: Scrollbar,
+    /// How far scrolling a node into view keeps it from the edges.
+    pub(crate) scroll_padding: Sides<f32>,
     pub(crate) grouping: Grouping,
     pub(crate) variants: Variants,
     pub(crate) lengths: Lengths,
@@ -106,6 +108,7 @@ pub fn tw() -> Tw {
         sensing: Sensing::None,
         focusability: Focusability::Tab,
         scrollbar: Scrollbar::Gutter,
+        scroll_padding: Sides::default(),
         grouping: Grouping::Ungrouped,
         variants: Variants::default(),
         lengths: Lengths::Finite,
