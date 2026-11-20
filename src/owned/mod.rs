@@ -91,7 +91,7 @@ pub use splitter::{PaneSize, SplitterChain, SplitterStart};
 pub use stepper::StepperChain;
 pub use switch::SwitchChain;
 pub use table::{
-    Align, Cells, Column, Rows, Selectable, Selected, Stripes, TableChain, Unselectable,
+    Align, Cells, Column, Rows, RowsChain, Selectable, Selected, Stripes, TableChain, Unselectable,
 };
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
