@@ -5,15 +5,15 @@
 use core::time::Duration;
 
 use eggshell_ui::scroll::{self, Axis};
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::testing::{Timeline, record};
 use eggshell_ui::{Builder, EdgeBand, EdgeScroll, ScrollSpeed, TextSpec, TextStyle, Weight, tw};
 use egui::epaint::Shape;
 use egui::{
     Align, Color32, Event, FontFamily, Id, Modifiers, MouseWheelUnit, Pos2, Rect, Vec2, vec2,
 };
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, rect_of};
+use crate::support::{self, press_and_release};
 
 const ROW: f32 = 30.0;
 const HEADER: f32 = 50.0;
@@ -169,15 +169,15 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-type H<'a> = Harness<'a, Rig<App>>;
+type H = Driver<App>;
 
-fn harness_with(app: App) -> H<'static> {
-    let mut h = support::harness(SIZE, base(), app, view);
-    h.step();
-    h
+fn harness_with(app: App) -> H {
+    let mut d = support::driver(SIZE, base(), app, view).build();
+    d.frames(1);
+    d
 }
 
-fn painted(rows: u32) -> H<'static> {
+fn painted(rows: u32) -> H {
     harness_with(App {
         rows,
         kind: Rows::Painted,
@@ -185,25 +185,25 @@ fn painted(rows: u32) -> H<'static> {
     })
 }
 
-fn harness(rows: u32) -> H<'static> {
+fn harness(rows: u32) -> H {
     harness_with(App {
         rows,
         ..App::default()
     })
 }
 
-fn list_id(h: &H<'_>) -> Id {
-    support::id_of(h, LIST)
+fn list_id(d: &H) -> Id {
+    support::id_of(d, LIST)
 }
 
-fn viewport(h: &H<'_>) -> scroll::Viewport {
-    crate::support::shell(h)
-        .viewport(list_id(h))
+fn viewport(d: &H) -> scroll::Viewport {
+    d.shell()
+        .viewport(list_id(d))
         .expect("the list was laid out")
 }
 
-fn offset(h: &H<'_>) -> Vec2 {
-    viewport(h).offset()
+fn offset(d: &H) -> Vec2 {
+    viewport(d).offset()
 }
 
 fn wheel_event(delta: Vec2) -> Event {
@@ -216,51 +216,42 @@ fn wheel_event(delta: Vec2) -> Event {
     }
 }
 
-fn wheel(h: &mut H<'_>, at: Pos2, delta: Vec2) {
-    h.hover_at(at);
-    h.step();
-    h.event(wheel_event(delta));
-    h.run_steps(SMOOTHING);
+fn wheel(d: &mut H, at: Pos2, delta: Vec2) {
+    d.carry_to(at);
+    d.event(wheel_event(delta)).frames(SMOOTHING - 1);
 }
 
 /// A point inside the list's viewport.
-fn inside(h: &H<'_>) -> Pos2 {
-    viewport(h).rect.center()
+fn inside(d: &H) -> Pos2 {
+    viewport(d).rect.center()
 }
 
 /// Scrolls the list down by `points` with the wheel.
-fn scroll_down(h: &mut H<'_>, points: f32) {
-    let at = inside(h);
-    wheel(h, at, vec2(0.0, -points));
+fn scroll_down(d: &mut H, points: f32) {
+    let at = inside(d);
+    wheel(d, at, vec2(0.0, -points));
 }
 
-fn drawn(h: &mut H<'_>) -> Vec<u32> {
-    h.state_mut().app.drawn.clear();
-    h.step();
-    let mut rows = h.state().app.drawn.clone();
+fn drawn(d: &mut H) -> Vec<u32> {
+    d.app_mut().drawn.clear();
+    d.frames(1);
+    let mut rows = d.app().drawn.clone();
     rows.sort_unstable();
     rows
 }
 
-fn lift_row(h: &mut H<'_>, row: u32) {
-    let from = rect_of(h, &row_path(row)).center();
-    h.hover_at(from);
-    h.run_steps(3);
-    h.drag_at(from);
-    h.step();
-    h.hover_at(from + vec2(0.0, 6.0));
-    h.step();
-    h.hover_at(from + vec2(0.0, 12.0));
-    h.run_steps(2);
+fn lift_row(d: &mut H, row: u32) {
+    let from = d.rect(Target::suffix(&row_path(row))).center();
+    d.lift(from, vec2(0.0, 12.0)).frames(1);
     assert!(
-        crate::support::shell(h).drag_pointer().is_some(),
+        d.shell().drag_pointer().is_some(),
         "precondition: row {row} is lifted"
     );
 }
 
 #[test]
 fn the_content_is_as_wide_as_the_viewport_and_as_tall_as_it_needs_on_the_first_frame() {
-    let mut h = support::harness(
+    let mut d = support::driver(
         SIZE,
         base(),
         App {
@@ -268,9 +259,13 @@ fn the_content_is_as_wide_as_the_viewport_and_as_tall_as_it_needs_on_the_first_f
             ..App::default()
         },
         view,
+    )
+    .build();
+    d.frames(1);
+    let (content, list) = (
+        d.rect(Target::suffix(CONTENT)),
+        d.rect(Target::suffix(LIST)),
     );
-    h.step();
-    let (content, list) = (rect_of(&h, CONTENT), rect_of(&h, LIST));
     assert_eq!(list.size(), vec2(200.0, VIEWPORT_HEIGHT));
     assert_eq!(content.width(), list.width() - GUTTER);
     assert_eq!(content.height(), 10.0 * ROW);
@@ -282,42 +277,42 @@ fn the_content_is_as_wide_as_the_viewport_and_as_tall_as_it_needs_on_the_first_f
 
 #[test]
 fn the_content_follows_the_viewports_width_in_the_frame_it_changes() {
-    let mut h = harness(10);
-    h.state_mut().app.width = 120.0;
-    h.step();
-    assert_eq!(rect_of(&h, LIST).width(), 120.0);
-    assert_eq!(rect_of(&h, CONTENT).width(), 120.0 - GUTTER);
-    assert_eq!(rect_of(&h, &row_path(3)).width(), 120.0 - GUTTER);
+    let mut d = harness(10);
+    d.app_mut().width = 120.0;
+    d.frames(1);
+    assert_eq!(d.rect(Target::suffix(LIST)).width(), 120.0);
+    assert_eq!(d.rect(Target::suffix(CONTENT)).width(), 120.0 - GUTTER);
+    assert_eq!(d.rect(Target::suffix(&row_path(3))).width(), 120.0 - GUTTER);
 }
 
 #[test]
 fn the_content_height_follows_the_rows_in_the_frame_they_change() {
-    let mut h = harness(10);
-    h.state_mut().app.rows = 25;
-    h.step();
-    assert_eq!(rect_of(&h, CONTENT).height(), 25.0 * ROW);
+    let mut d = harness(10);
+    d.app_mut().rows = 25;
+    d.frames(1);
+    assert_eq!(d.rect(Target::suffix(CONTENT)).height(), 25.0 * ROW);
 }
 
 #[test]
 fn content_shorter_than_the_viewport_is_laid_out_at_its_height() {
-    let h = harness(2);
+    let d = harness(2);
     const { assert!(2.0 * ROW < VIEWPORT_HEIGHT) };
     assert_eq!(
-        rect_of(&h, CONTENT).height(),
+        d.rect(Target::suffix(CONTENT)).height(),
         VIEWPORT_HEIGHT,
         "it fills the viewport"
     );
-    assert_eq!(rect_of(&h, &row_path(1)).height(), ROW);
+    assert_eq!(d.rect(Target::suffix(&row_path(1))).height(), ROW);
 }
 
 #[test]
 fn a_horizontal_container_is_as_tall_as_the_viewport_and_as_wide_as_it_needs() {
-    let h = harness_with(App {
+    let d = harness_with(App {
         axis: Axis::X,
         rows: 10,
         ..App::default()
     });
-    let content = rect_of(&h, CONTENT);
+    let content = d.rect(Target::suffix(CONTENT));
     assert_eq!(content.height(), VIEWPORT_HEIGHT - GUTTER);
     assert_eq!(content.width(), 10.0 * 80.0);
 }
@@ -339,9 +334,9 @@ fn a_container_that_scrolls_both_ways_is_as_large_as_it_needs_in_both() {
                 });
             });
     }
-    let mut h = support::harness(SIZE, base(), App::default(), grid);
-    h.step();
-    assert_eq!(rect_of(&h, CONTENT).size(), vec2(800.0, 300.0));
+    let mut d = support::driver(SIZE, base(), App::default(), grid).build();
+    d.frames(1);
+    assert_eq!(d.rect(Target::suffix(CONTENT)).size(), vec2(800.0, 300.0));
 }
 
 #[test]
@@ -362,12 +357,12 @@ fn padding_scrolls_with_the_content_and_the_border_stays_put() {
             }
         });
     }
-    let mut h = support::harness(SIZE, base(), App::default(), padded);
-    h.step();
+    let mut d = support::driver(SIZE, base(), App::default(), padded).build();
+    d.frames(1);
     let (list, content, first) = (
-        rect_of(&h, LIST),
-        rect_of(&h, CONTENT),
-        rect_of(&h, &row_path(0)),
+        d.rect(Target::suffix(LIST)),
+        d.rect(Target::suffix(CONTENT)),
+        d.rect(Target::suffix(&row_path(0))),
     );
     assert_eq!(content.min, list.min + vec2(2.0, 2.0), "inside the border");
     assert_eq!(
@@ -389,28 +384,27 @@ fn padding_scrolls_with_the_content_and_the_border_stays_put() {
 
 #[test]
 fn the_bar_appearing_does_not_change_the_content_width() {
-    let mut h = harness(10);
-    let first = rect_of(&h, CONTENT).width();
-    let at = inside(&h);
-    h.hover_at(at);
-    h.run_steps(8);
-    assert_eq!(rect_of(&h, CONTENT).width(), first);
-    assert_eq!(rect_of(&h, &row_path(0)).width(), first);
+    let mut d = harness(10);
+    let first = d.rect(Target::suffix(CONTENT)).width();
+    let at = inside(&d);
+    d.carry_to(at).frames(7);
+    assert_eq!(d.rect(Target::suffix(CONTENT)).width(), first);
+    assert_eq!(d.rect(Target::suffix(&row_path(0))).width(), first);
 }
 
 #[test]
 fn nodes_outside_the_viewport_are_not_drawn_and_their_closures_do_not_run() {
-    let mut h = painted(10);
+    let mut d = painted(10);
     assert!(
-        rect_of(&h, &row_path(8)).min.y > rect_of(&h, LIST).max.y,
+        d.rect(Target::suffix(&row_path(8))).min.y > d.rect(Target::suffix(LIST)).max.y,
         "precondition: row 8 is far below the viewport"
     );
     assert_eq!(
-        drawn(&mut h),
+        drawn(&mut d),
         vec![0, 1, 2, 3],
         "only the rows that reach it"
     );
-    let fills: Vec<Color32> = support::shapes(&h)
+    let fills: Vec<Color32> = support::shapes(&d)
         .into_iter()
         .filter_map(|shape| match shape {
             Shape::Rect(rect) => Some(rect.fill),
@@ -426,10 +420,10 @@ fn nodes_outside_the_viewport_are_not_drawn_and_their_closures_do_not_run() {
 
 #[test]
 fn scrolling_changes_which_nodes_are_drawn() {
-    let mut h = painted(10);
-    scroll_down(&mut h, 60.0);
-    assert_eq!(offset(&h), vec2(0.0, 60.0), "precondition: it scrolled");
-    let rows = drawn(&mut h);
+    let mut d = painted(10);
+    scroll_down(&mut d, 60.0);
+    assert_eq!(offset(&d), vec2(0.0, 60.0), "precondition: it scrolled");
+    let rows = drawn(&mut d);
     assert!(!rows.contains(&0), "row 0 is gone: {rows:?}");
     assert!(
         rows.starts_with(&[1, 2]) || rows.starts_with(&[2]),
@@ -443,23 +437,22 @@ fn scrolling_changes_which_nodes_are_drawn() {
 
 #[test]
 fn the_node_with_the_keyboard_focus_is_drawn_while_scrolled_out() {
-    let mut h = harness(10);
-    let id = support::id_of(&h, &row_path(0));
-    support::past_bar(&mut h);
-    h.key_press(egui::Key::Tab);
-    h.key_press(egui::Key::Tab);
-    h.run_steps(2);
+    let mut d = harness(10);
+    let id = support::id_of(&d, &row_path(0));
+    support::drive_past_bar(&mut d);
+    d.press(egui::Key::Tab);
+    d.press(egui::Key::Tab).frames(1);
     assert!(
-        h.ctx.memory(|memory| memory.has_focus(id)),
+        d.ctx().memory(|memory| memory.has_focus(id)),
         "precondition: row 0 has the focus"
     );
-    scroll_down(&mut h, 200.0);
+    scroll_down(&mut d, 200.0);
     assert!(
-        rect_of(&h, &row_path(0)).max.y < rect_of(&h, LIST).min.y,
+        d.rect(Target::suffix(&row_path(0))).max.y < d.rect(Target::suffix(LIST)).min.y,
         "precondition: row 0 is scrolled out"
     );
-    let fills = |h: &H<'_>| -> Vec<Color32> {
-        support::shapes(h)
+    let fills = |d: &H| -> Vec<Color32> {
+        support::shapes(d)
             .into_iter()
             .filter_map(|shape| match shape {
                 Shape::Rect(rect) => Some(rect.fill),
@@ -467,8 +460,8 @@ fn the_node_with_the_keyboard_focus_is_drawn_while_scrolled_out() {
             })
             .collect()
     };
-    h.run_steps(2);
-    let fills = fills(&h);
+    d.frames(2);
+    let fills = fills(&d);
     assert!(
         fills.contains(&color(0)),
         "the focused row is still painted"
@@ -481,45 +474,48 @@ fn the_node_with_the_keyboard_focus_is_drawn_while_scrolled_out() {
 
 #[test]
 fn the_offset_is_clamped_to_the_content() {
-    let mut h = harness(10);
-    scroll_down(&mut h, 5000.0);
-    assert_eq!(offset(&h).y, 10.0 * ROW - VIEWPORT_HEIGHT);
+    let mut d = harness(10);
+    scroll_down(&mut d, 5000.0);
+    assert_eq!(offset(&d).y, 10.0 * ROW - VIEWPORT_HEIGHT);
     assert_eq!(
-        rect_of(&h, &row_path(9)).max.y,
-        rect_of(&h, LIST).max.y,
+        d.rect(Target::suffix(&row_path(9))).max.y,
+        d.rect(Target::suffix(LIST)).max.y,
         "the last row ends at the bottom"
     );
 }
 
 #[test]
 fn the_offset_follows_a_shrinking_content_in_the_same_frame() {
-    let mut h = harness(20);
-    scroll_down(&mut h, 5000.0);
-    assert_eq!(offset(&h).y, 20.0 * ROW - VIEWPORT_HEIGHT, "precondition");
-    h.state_mut().app.rows = 5;
-    h.step();
-    assert_eq!(offset(&h).y, 5.0 * ROW - VIEWPORT_HEIGHT);
-    assert_eq!(rect_of(&h, &row_path(4)).max.y, rect_of(&h, LIST).max.y);
+    let mut d = harness(20);
+    scroll_down(&mut d, 5000.0);
+    assert_eq!(offset(&d).y, 20.0 * ROW - VIEWPORT_HEIGHT, "precondition");
+    d.app_mut().rows = 5;
+    d.frames(1);
+    assert_eq!(offset(&d).y, 5.0 * ROW - VIEWPORT_HEIGHT);
+    assert_eq!(
+        d.rect(Target::suffix(&row_path(4))).max.y,
+        d.rect(Target::suffix(LIST)).max.y
+    );
 }
 
 #[test]
 fn egui_keeps_the_scroll_state_through_rebuilds_and_absence() {
-    let mut h = harness(10);
-    scroll_down(&mut h, 80.0);
-    let scrolled = offset(&h);
+    let mut d = harness(10);
+    scroll_down(&mut d, 80.0);
+    let scrolled = offset(&d);
     assert_ne!(scrolled, Vec2::ZERO, "precondition");
-    h.run_steps(3);
+    d.frames(3);
     assert_eq!(
-        offset(&h),
+        offset(&d),
         scrolled,
         "frames rebuild the tree and keep the offset"
     );
-    h.state_mut().app.present = false;
-    h.run_steps(2);
-    h.state_mut().app.present = true;
-    h.step();
+    d.app_mut().present = false;
+    d.frames(2);
+    d.app_mut().present = true;
+    d.frames(1);
     assert_eq!(
-        offset(&h),
+        offset(&d),
         scrolled,
         "also for a container that was gone for a while"
     );
@@ -527,12 +523,12 @@ fn egui_keeps_the_scroll_state_through_rebuilds_and_absence() {
 
 #[test]
 fn scrolled_out_nodes_take_no_clicks() {
-    let mut h = harness(10);
-    scroll_down(&mut h, 60.0);
+    let mut d = harness(10);
+    scroll_down(&mut d, 60.0);
     let (list, row1, header) = (
-        rect_of(&h, LIST),
-        rect_of(&h, &row_path(1)),
-        rect_of(&h, "/\"header\""),
+        d.rect(Target::suffix(LIST)),
+        d.rect(Target::suffix(&row_path(1))),
+        d.rect(Target::suffix("/\"header\"")),
     );
     assert!(
         row1.max.y <= list.min.y,
@@ -542,80 +538,73 @@ fn scrolled_out_nodes_take_no_clicks() {
         header.contains(row1.center()),
         "precondition: row 1's layout rect is over the header"
     );
-    support::press_and_release(&mut h, row1.center());
-    h.run_steps(2);
-    assert_eq!(h.state().app.header_clicks, 1, "the header gets the click");
-    assert!(h.state().app.clicked.is_empty(), "the clipped row does not");
+    press_and_release(&mut d, row1.center());
+    d.frames(2);
+    assert_eq!(d.app().header_clicks, 1, "the header gets the click");
+    assert!(d.app().clicked.is_empty(), "the clipped row does not");
 }
 
 #[test]
 fn a_half_clipped_node_takes_clicks_only_on_its_visible_part() {
-    let mut h = harness(10);
-    scroll_down(&mut h, 15.0);
-    let (list, row0) = (rect_of(&h, LIST), rect_of(&h, &row_path(0)));
+    let mut d = harness(10);
+    scroll_down(&mut d, 15.0);
+    let (list, row0) = (
+        d.rect(Target::suffix(LIST)),
+        d.rect(Target::suffix(&row_path(0))),
+    );
     assert!(
         row0.min.y < list.min.y && row0.max.y > list.min.y,
         "precondition: row 0 is cut by the top of the viewport"
     );
-    support::press_and_release(&mut h, Pos2::new(row0.center().x, list.min.y + 3.0));
-    h.run_steps(2);
-    assert_eq!(
-        h.state().app.clicked,
-        vec![0],
-        "its visible part takes the click"
-    );
-    support::press_and_release(&mut h, Pos2::new(row0.center().x, list.min.y - 3.0));
-    h.run_steps(2);
-    assert_eq!(h.state().app.clicked, vec![0], "its clipped part does not");
-    assert_eq!(h.state().app.header_clicks, 1, "the header does");
+    press_and_release(&mut d, Pos2::new(row0.center().x, list.min.y + 3.0));
+    d.frames(2);
+    assert_eq!(d.app().clicked, vec![0], "its visible part takes the click");
+    press_and_release(&mut d, Pos2::new(row0.center().x, list.min.y - 3.0));
+    d.frames(2);
+    assert_eq!(d.app().clicked, vec![0], "its clipped part does not");
+    assert_eq!(d.app().header_clicks, 1, "the header does");
 }
 
 #[test]
 fn the_wheel_scrolls_while_another_widget_is_dragged() {
-    let mut h = harness_with(App {
+    let mut d = harness_with(App {
         kind: Rows::Sources,
         ..App::default()
     });
-    lift_row(&mut h, 1);
-    let at = h
-        .ctx
+    lift_row(&mut d, 1);
+    let at = d
+        .ctx()
         .input(|i| i.pointer.interact_pos())
         .expect("the pointer is down");
     assert!(
-        viewport(&h).rect.contains(at),
+        viewport(&d).rect.contains(at),
         "precondition: the pointer is over the viewport"
     );
-    h.event(wheel_event(vec2(0.0, -50.0)));
-    h.run_steps(SMOOTHING);
-    assert!(offset(&h).y > 20.0, "the wheel scrolled: {:?}", offset(&h));
-    assert!(
-        crate::support::shell(&h).drag_pointer().is_some(),
-        "and the drag goes on"
-    );
+    d.event(wheel_event(vec2(0.0, -50.0))).frames(SMOOTHING - 1);
+    assert!(offset(&d).y > 20.0, "the wheel scrolled: {:?}", offset(&d));
+    assert!(d.shell().drag_pointer().is_some(), "and the drag goes on");
 }
 
 #[test]
 fn scrolling_alone_starts_no_slide_and_the_timeline_is_continuous() {
-    let mut h = harness_with(App {
+    let mut d = harness_with(App {
         kind: Rows::Animated,
         rows: 20,
         ..App::default()
     });
-    record(&h.ctx);
-    h.run_steps(2);
-    let at = inside(&h);
-    h.hover_at(at);
-    h.step();
+    record(d.ctx());
+    d.frames(2);
+    let at = inside(&d);
+    d.carry_to(at);
     for delta in [-40.0, -40.0, 30.0, -90.0, 25.0] {
-        h.event(wheel_event(vec2(0.0, delta)));
-        h.run_steps(8);
+        d.event(wheel_event(vec2(0.0, delta))).frames(7);
     }
-    h.run_steps(30);
-    assert!(offset(&h).y > 0.0, "precondition: it scrolled");
-    Timeline::recorded(&h.ctx).assert_continuous();
+    d.frames(30);
+    assert!(offset(&d).y > 0.0, "precondition: it scrolled");
+    Timeline::recorded(d.ctx()).assert_continuous();
     let mut checked = 0;
     for i in 0..20 {
-        if let Some(node) = support::last_drawn(&h.ctx, &row_path(i)) {
+        if let Some(node) = support::last_drawn(d.ctx(), &row_path(i)) {
             checked += 1;
             assert!(
                 node.slide.is_none_or(|slide| slide.offset == Vec2::ZERO),
@@ -632,20 +621,20 @@ fn scrolling_alone_starts_no_slide_and_the_timeline_is_continuous() {
 
 #[test]
 fn rows_that_move_inside_a_scrolled_container_still_slide() {
-    let mut h = harness_with(App {
+    let mut d = harness_with(App {
         kind: Rows::Animated,
         rows: 20,
         ..App::default()
     });
-    record(&h.ctx);
-    scroll_down(&mut h, 60.0);
-    h.run_steps(20);
-    let row = |h: &H<'_>| support::last_drawn(&h.ctx, &row_path(4)).expect("row 4 is in view");
-    let rest = row(&h);
+    record(d.ctx());
+    scroll_down(&mut d, 60.0);
+    d.frames(20);
+    let row = |d: &H| support::last_drawn(d.ctx(), &row_path(4)).expect("row 4 is in view");
+    let rest = row(&d);
     assert_eq!(rest.painted_rect, rest.layout_rect, "precondition: at rest");
-    h.state_mut().app.lead = 30.0;
-    h.step();
-    let moved = row(&h);
+    d.app_mut().lead = 30.0;
+    d.frames(1);
+    let moved = row(&d);
     assert_eq!(
         moved.layout_rect.min.y,
         rest.layout_rect.min.y + 30.0,
@@ -657,26 +646,26 @@ fn rows_that_move_inside_a_scrolled_container_still_slide() {
         moved.painted_rect,
         moved.layout_rect
     );
-    h.run_steps(30);
-    let settled = row(&h);
+    d.frames(30);
+    let settled = row(&d);
     assert_eq!(settled.painted_rect, settled.layout_rect, "it arrives");
-    Timeline::recorded(&h.ctx).assert_continuous();
+    Timeline::recorded(d.ctx()).assert_continuous();
 }
 
 #[test]
 fn scroll_by_moves_the_viewport_and_stays_within_the_content() {
-    let mut h = harness(10);
-    let id = list_id(&h);
-    crate::support::shell(&h).scroll_by(id, vec2(0.0, 40.0));
-    h.step();
-    assert_eq!(offset(&h), vec2(0.0, 40.0));
-    crate::support::shell(&h).scroll_by(id, vec2(0.0, -100.0));
-    h.step();
-    assert_eq!(offset(&h), Vec2::ZERO, "not above the start");
-    crate::support::shell(&h).scroll_by(id, vec2(0.0, 1e6));
-    h.step();
+    let mut d = harness(10);
+    let id = list_id(&d);
+    d.shell().scroll_by(id, vec2(0.0, 40.0));
+    d.frames(1);
+    assert_eq!(offset(&d), vec2(0.0, 40.0));
+    d.shell().scroll_by(id, vec2(0.0, -100.0));
+    d.frames(1);
+    assert_eq!(offset(&d), Vec2::ZERO, "not above the start");
+    d.shell().scroll_by(id, vec2(0.0, 1e6));
+    d.frames(1);
     assert_eq!(
-        offset(&h).y,
+        offset(&d).y,
         10.0 * ROW - VIEWPORT_HEIGHT,
         "not past the end"
     );
@@ -684,18 +673,18 @@ fn scroll_by_moves_the_viewport_and_stays_within_the_content() {
 
 #[test]
 fn the_content_origin_and_viewport_are_readable() {
-    let mut h = harness(10);
-    crate::support::shell(&h).scroll_by(list_id(&h), vec2(0.0, 45.0));
-    h.step();
-    let v = viewport(&h);
-    let list = rect_of(&h, LIST);
+    let mut d = harness(10);
+    d.shell().scroll_by(list_id(&d), vec2(0.0, 45.0));
+    d.frames(1);
+    let v = viewport(&d);
+    let list = d.rect(Target::suffix(LIST));
     assert_eq!(
         v.rect,
         Rect::from_min_size(list.min, list.size() - vec2(GUTTER, 0.0))
     );
-    assert_eq!(v.content, rect_of(&h, CONTENT));
+    assert_eq!(v.content, d.rect(Target::suffix(CONTENT)));
     assert_eq!(v.content.min, v.rect.min - vec2(0.0, 45.0));
-    let row3 = rect_of(&h, &row_path(3));
+    let row3 = d.rect(Target::suffix(&row_path(3)));
     assert_eq!(
         v.to_content(row3),
         Rect::from_min_size(Pos2::new(0.0, 3.0 * ROW), vec2(200.0 - GUTTER, ROW))
@@ -705,107 +694,105 @@ fn the_content_origin_and_viewport_are_readable() {
 
 #[test]
 fn scroll_to_rect_aligns_a_rect_in_content_coordinates() {
-    let mut h = harness(10);
-    let id = list_id(&h);
+    let mut d = harness(10);
+    let id = list_id(&d);
     let row = Rect::from_min_size(Pos2::new(0.0, 6.0 * ROW), vec2(200.0, ROW));
-    crate::support::shell(&h).scroll_to_rect(id, row, Some(Align::Min));
-    h.step();
+    d.shell().scroll_to_rect(id, row, Some(Align::Min));
+    d.frames(1);
     assert_eq!(
-        rect_of(&h, &row_path(6)).min.y,
-        rect_of(&h, LIST).min.y,
+        d.rect(Target::suffix(&row_path(6))).min.y,
+        d.rect(Target::suffix(LIST)).min.y,
         "its top at the top"
     );
-    crate::support::shell(&h).scroll_to_rect(id, row, Some(Align::Max));
-    h.step();
+    d.shell().scroll_to_rect(id, row, Some(Align::Max));
+    d.frames(1);
     assert_eq!(
-        rect_of(&h, &row_path(6)).max.y,
-        rect_of(&h, LIST).max.y,
+        d.rect(Target::suffix(&row_path(6))).max.y,
+        d.rect(Target::suffix(LIST)).max.y,
         "its bottom at the bottom"
     );
-    crate::support::shell(&h).scroll_to_rect(id, row, Some(Align::Center));
-    h.step();
+    d.shell().scroll_to_rect(id, row, Some(Align::Center));
+    d.frames(1);
     assert!(
-        (rect_of(&h, &row_path(6)).center().y - rect_of(&h, LIST).center().y).abs() < 0.5,
+        (d.rect(Target::suffix(&row_path(6))).center().y - d.rect(Target::suffix(LIST)).center().y)
+            .abs()
+            < 0.5,
         "its centre in the middle"
     );
 }
 
 #[test]
 fn scroll_to_rect_without_alignment_moves_the_least() {
-    let mut h = harness(10);
-    let id = list_id(&h);
+    let mut d = harness(10);
+    let id = list_id(&d);
     let row = |n: u32| Rect::from_min_size(Pos2::new(0.0, n as f32 * ROW), vec2(200.0, ROW));
-    crate::support::shell(&h).scroll_to_rect(id, row(2), None);
-    h.step();
-    assert_eq!(offset(&h), Vec2::ZERO, "a rect in view does not move it");
-    crate::support::shell(&h).scroll_to_rect(id, row(6), None);
-    h.step();
+    d.shell().scroll_to_rect(id, row(2), None);
+    d.frames(1);
+    assert_eq!(offset(&d), Vec2::ZERO, "a rect in view does not move it");
+    d.shell().scroll_to_rect(id, row(6), None);
+    d.frames(1);
     assert_eq!(
-        rect_of(&h, &row_path(6)).max.y,
-        rect_of(&h, LIST).max.y,
+        d.rect(Target::suffix(&row_path(6))).max.y,
+        d.rect(Target::suffix(LIST)).max.y,
         "below: its bottom shows"
     );
-    crate::support::shell(&h).scroll_to_rect(id, row(0), None);
-    h.step();
-    assert_eq!(offset(&h), Vec2::ZERO, "above: its top shows");
+    d.shell().scroll_to_rect(id, row(0), None);
+    d.frames(1);
+    assert_eq!(offset(&d), Vec2::ZERO, "above: its top shows");
 }
 
 #[test]
 fn scroll_into_view_shows_a_node_the_same_frame_adds() {
-    let mut h = harness(10);
-    h.state_mut().app.rows = 30;
-    h.state_mut().app.reveal = Some(29);
-    h.step();
+    let mut d = harness(10);
+    d.app_mut().rows = 30;
+    d.app_mut().reveal = Some(29);
+    d.frames(1);
     assert_eq!(
-        rect_of(&h, &row_path(29)).max.y,
-        rect_of(&h, LIST).max.y,
+        d.rect(Target::suffix(&row_path(29))).max.y,
+        d.rect(Target::suffix(LIST)).max.y,
         "row 29 is in view in the frame that built it"
     );
 }
 
 #[test]
 fn a_drag_near_the_edge_scrolls_the_container_by_itself() {
-    let mut h = harness_with(App {
+    let mut d = harness_with(App {
         kind: Rows::Sources,
         rows: 20,
         ..App::default()
     });
-    lift_row(&mut h, 1);
-    let list = rect_of(&h, LIST);
-    h.hover_at(Pos2::new(list.center().x, list.max.y - 3.0));
-    h.run_steps(20);
-    assert!(offset(&h).y > 30.0, "scrolled down: {:?}", offset(&h));
-    h.hover_at(Pos2::new(list.center().x, list.min.y + 3.0));
-    h.run_steps(60);
-    assert!(offset(&h).y < 5.0, "and back up: {:?}", offset(&h));
-    assert!(
-        crate::support::shell(&h).drag_pointer().is_some(),
-        "the drag is still live"
-    );
+    lift_row(&mut d, 1);
+    let list = d.rect(Target::suffix(LIST));
+    d.carry_to(Pos2::new(list.center().x, list.max.y - 3.0))
+        .frames(19);
+    assert!(offset(&d).y > 30.0, "scrolled down: {:?}", offset(&d));
+    d.carry_to(Pos2::new(list.center().x, list.min.y + 3.0))
+        .frames(59);
+    assert!(offset(&d).y < 5.0, "and back up: {:?}", offset(&d));
+    assert!(d.shell().drag_pointer().is_some(), "the drag is still live");
 }
 
 #[test]
 fn the_drag_scrolls_at_the_speed_of_the_edge_scroll_and_requests_frames() {
-    let mut h = harness_with(App {
+    let mut d = harness_with(App {
         kind: Rows::Sources,
         rows: 40,
         ..App::default()
     });
-    lift_row(&mut h, 1);
-    let list = rect_of(&h, LIST);
-    h.hover_at(Pos2::new(list.center().x, list.max.y));
-    h.run_steps(2);
-    let before = offset(&h).y;
+    lift_row(&mut d, 1);
+    let list = d.rect(Target::suffix(LIST));
+    d.carry_to(Pos2::new(list.center().x, list.max.y)).frames(1);
+    let before = offset(&d).y;
     let steps = 12;
-    h.run_steps(steps);
-    let travelled = offset(&h).y - before;
+    d.frames(steps);
+    let travelled = offset(&d).y - before;
     let expected = 600.0 * steps as f32 * STEP_DT;
     assert!(
         (travelled - expected).abs() < expected * 0.35,
         "about 600 points per second at the edge: {travelled} vs {expected}"
     );
     assert!(
-        h.ctx.requested_repaint_last_pass(),
+        d.ctx().requested_repaint_last_pass(),
         "a frame is requested while it scrolls"
     );
 }
@@ -813,17 +800,17 @@ fn the_drag_scrolls_at_the_speed_of_the_edge_scroll_and_requests_frames() {
 #[test]
 fn the_edge_scroll_can_be_changed_or_turned_off() {
     let held_near_the_bottom = |edge: Edge| {
-        let mut h = harness_with(App {
+        let mut d = harness_with(App {
             kind: Rows::Sources,
             rows: 400,
             edge,
             ..App::default()
         });
-        lift_row(&mut h, 1);
-        let list = rect_of(&h, LIST);
-        h.hover_at(Pos2::new(list.center().x, list.max.y - 2.0));
-        h.run_steps(30);
-        offset(&h).y
+        lift_row(&mut d, 1);
+        let list = d.rect(Target::suffix(LIST));
+        d.carry_to(Pos2::new(list.center().x, list.max.y - 2.0))
+            .frames(29);
+        offset(&d).y
     };
     let default = held_near_the_bottom(Edge::Default);
     assert!(
@@ -848,11 +835,11 @@ fn the_edge_scroll_can_be_changed_or_turned_off() {
 
 #[test]
 fn without_a_drag_the_edge_does_not_scroll() {
-    let mut h = harness(40);
-    let list = rect_of(&h, LIST);
-    h.hover_at(Pos2::new(list.center().x, list.max.y - 2.0));
-    h.run_steps(30);
-    assert_eq!(offset(&h), Vec2::ZERO);
+    let mut d = harness(40);
+    let list = d.rect(Target::suffix(LIST));
+    d.carry_to(Pos2::new(list.center().x, list.max.y - 2.0))
+        .frames(29);
+    assert_eq!(offset(&d), Vec2::ZERO);
 }
 
 mod nested {
@@ -917,164 +904,162 @@ mod nested {
             });
     }
 
-    type P<'a> = Harness<'a, Rig<Page>>;
+    type P = Driver<Page>;
 
-    fn harness(inner: Inner) -> P<'static> {
+    fn harness(inner: Inner) -> P {
         harness_with(inner, TabStops::No, (160.0, 80.0))
     }
 
-    fn harness_with(inner: Inner, tab_stops: TabStops, heights: (f32, f32)) -> P<'static> {
+    fn harness_with(inner: Inner, tab_stops: TabStops, heights: (f32, f32)) -> P {
         let page = Page {
             inner,
             tab_stops,
             heights,
         };
-        let mut h = support::harness(SIZE, base(), page, page_view);
-        record(&h.ctx);
-        h.run_steps(2);
-        h
+        let mut d = support::driver(SIZE, base(), page, page_view).build();
+        record(d.ctx());
+        d.frames(2);
+        d
     }
 
-    fn offset_of(h: &P<'_>, path: &str) -> Vec2 {
-        let id = support::id_of(h, path);
-        crate::support::shell(h)
-            .viewport(id)
-            .expect("laid out")
-            .offset()
+    fn offset_of(d: &P, path: &str) -> Vec2 {
+        let id = support::id_of(d, path);
+        d.shell().viewport(id).expect("laid out").offset()
     }
 
-    fn wheel_over_inner(h: &mut P<'_>, delta: Vec2) {
-        let at = rect_of(h, INNER).center();
-        h.hover_at(at);
-        h.step();
-        h.event(wheel_event(delta));
-        h.run_steps(SMOOTHING);
+    /// Turns the wheel over the inner container's centre, which may have
+    /// scrolled past the window's edge, where the driver's pointer actions do
+    /// not go.
+    fn wheel_over_inner(d: &mut P, delta: Vec2) {
+        let at = d.rect(Target::suffix(INNER)).center();
+        d.harness_mut().hover_at(at);
+        d.frames(1);
+        d.event(wheel_event(delta)).frames(SMOOTHING - 1);
     }
 
     #[test]
     fn the_inner_container_is_laid_out_inside_the_outer_content() {
-        let h = harness(Inner::Vertical);
-        let (outer, inner) = (rect_of(&h, OUTER), rect_of(&h, INNER));
+        let d = harness(Inner::Vertical);
+        let (outer, inner) = (d.rect(Target::suffix(OUTER)), d.rect(Target::suffix(INNER)));
         assert_eq!(inner.min, outer.min + vec2(0.0, 40.0));
         assert_eq!(
-            rect_of(&h, &format!("{INNER}/<scrollcontent>")).height(),
+            d.rect(Target::suffix(&format!("{INNER}/<scrollcontent>")))
+                .height(),
             20.0 * 30.0
         );
         assert_eq!(
-            rect_of(&h, &format!("{OUTER}/<scrollcontent>")).height(),
+            d.rect(Target::suffix(&format!("{OUTER}/<scrollcontent>")))
+                .height(),
             40.0 + 80.0 + 400.0
         );
     }
 
     #[test]
     fn on_the_same_axis_the_inner_scrolls_first_then_the_outer_takes_over() {
-        let mut h = harness(Inner::Vertical);
-        wheel_over_inner(&mut h, vec2(0.0, -40.0));
-        assert_eq!(offset_of(&h, INNER).y, 40.0, "the inner moved");
-        assert_eq!(offset_of(&h, OUTER), Vec2::ZERO, "and the outer did not");
+        let mut d = harness(Inner::Vertical);
+        wheel_over_inner(&mut d, vec2(0.0, -40.0));
+        assert_eq!(offset_of(&d, INNER).y, 40.0, "the inner moved");
+        assert_eq!(offset_of(&d, OUTER), Vec2::ZERO, "and the outer did not");
         for _ in 0..8 {
-            wheel_over_inner(&mut h, vec2(0.0, -200.0));
+            wheel_over_inner(&mut d, vec2(0.0, -200.0));
         }
         assert_eq!(
-            offset_of(&h, INNER).y,
+            offset_of(&d, INNER).y,
             20.0 * 30.0 - 80.0,
             "the inner reached its end"
         );
         assert!(
-            offset_of(&h, OUTER).y > 0.0,
+            offset_of(&d, OUTER).y > 0.0,
             "and the outer scrolled on from there"
         );
     }
 
     #[test]
     fn a_horizontal_inner_container_takes_horizontal_gestures_and_leaves_vertical_ones() {
-        let mut h = harness(Inner::Horizontal);
-        wheel_over_inner(&mut h, vec2(-40.0, 0.0));
-        assert_eq!(offset_of(&h, INNER).x, 40.0, "the carousel moved sideways");
-        assert_eq!(offset_of(&h, OUTER), Vec2::ZERO, "the page did not");
-        wheel_over_inner(&mut h, vec2(0.0, -40.0));
+        let mut d = harness(Inner::Horizontal);
+        wheel_over_inner(&mut d, vec2(-40.0, 0.0));
+        assert_eq!(offset_of(&d, INNER).x, 40.0, "the carousel moved sideways");
+        assert_eq!(offset_of(&d, OUTER), Vec2::ZERO, "the page did not");
+        wheel_over_inner(&mut d, vec2(0.0, -40.0));
         assert_eq!(
-            offset_of(&h, INNER).y,
+            offset_of(&d, INNER).y,
             0.0,
             "a vertical gesture does not move the carousel"
         );
-        assert_eq!(offset_of(&h, OUTER).y, 40.0, "it moves the page");
+        assert_eq!(offset_of(&d, OUTER).y, 40.0, "it moves the page");
     }
 
     #[test]
     fn a_drag_scrolls_the_innermost_container_that_can_move() {
-        let mut h = harness(Inner::Vertical);
-        let inner = rect_of(&h, INNER);
-        h.input_mut().hovered_files = vec![egui::HoveredFile {
-            path: Some("a.png".into()),
-            mime: String::new(),
-        }];
-        h.hover_at(Pos2::new(inner.center().x, inner.max.y - 2.0));
-        h.run_steps(10);
+        let mut d = harness(Inner::Vertical);
+        let inner = d.rect(Target::suffix(INNER));
+        d.harness_mut()
+            .hover_at(Pos2::new(inner.center().x, inner.max.y - 2.0));
+        d.hover_files(&["a.png".into()]).frames(9);
         assert!(
-            offset_of(&h, INNER).y > 20.0,
+            offset_of(&d, INNER).y > 20.0,
             "the inner scrolled: {:?}",
-            offset_of(&h, INNER)
+            offset_of(&d, INNER)
         );
-        assert_eq!(offset_of(&h, OUTER), Vec2::ZERO, "the outer did not");
+        assert_eq!(offset_of(&d, OUTER), Vec2::ZERO, "the outer did not");
     }
 
     #[test]
     fn a_drag_at_the_end_of_the_inner_container_scrolls_the_outer_one() {
-        let mut h = harness(Inner::Vertical);
-        crate::support::shell(&h).scroll_by(support::id_of(&h, INNER), vec2(0.0, 1e6));
-        h.step();
+        let mut d = harness(Inner::Vertical);
+        d.shell()
+            .scroll_by(support::id_of(&d, INNER), vec2(0.0, 1e6));
+        d.frames(1);
         assert_eq!(
-            offset_of(&h, INNER).y,
+            offset_of(&d, INNER).y,
             20.0 * 30.0 - 80.0,
             "precondition: at its end"
         );
-        let inner = rect_of(&h, INNER);
-        h.input_mut().hovered_files = vec![egui::HoveredFile {
-            path: Some("a.png".into()),
-            mime: String::new(),
-        }];
-        h.hover_at(Pos2::new(inner.center().x, inner.max.y - 2.0));
-        h.run_steps(20);
-        assert!(offset_of(&h, OUTER).y > 10.0, "the outer took over");
+        let inner = d.rect(Target::suffix(INNER));
+        d.harness_mut()
+            .hover_at(Pos2::new(inner.center().x, inner.max.y - 2.0));
+        d.hover_files(&["a.png".into()]).frames(19);
+        assert!(offset_of(&d, OUTER).y > 10.0, "the outer took over");
     }
 
-    fn exact_end(inner: Inner, tab_stops: TabStops, request: impl Fn(&mut P<'_>)) {
-        let mut h = harness_with(inner, tab_stops, (100.0, 60.0));
-        let view = crate::support::shell(&h)
-            .viewport(support::id_of(&h, INNER))
+    fn exact_end(inner: Inner, tab_stops: TabStops, request: impl Fn(&mut P)) {
+        let mut d = harness_with(inner, tab_stops, (100.0, 60.0));
+        let view = d
+            .shell()
+            .viewport(support::id_of(&d, INNER))
             .expect("laid out");
         let along = |v: Vec2| if inner == Inner::Vertical { v.y } else { v.x };
         let max = along(view.content.size() - view.rect.size());
         assert!(max > 0.0, "precondition: the inner container scrolls");
-        request(&mut h);
+        request(&mut d);
         for frame in 0..11 {
-            let view = crate::support::shell(&h)
-                .viewport(support::id_of(&h, INNER))
+            let view = d
+                .shell()
+                .viewport(support::id_of(&d, INNER))
                 .expect("laid out");
             assert_eq!(
                 along(view.offset()),
                 max,
                 "{inner:?} {tab_stops:?}: frame {frame} after the request"
             );
-            let last = rect_of(&h, &format!("{INNER}/19"));
+            let last = d.rect(Target::suffix(&format!("{INNER}/19")));
             match inner {
                 Inner::Vertical => assert_eq!(last.max.y, view.rect.max.y, "frame {frame}"),
                 Inner::Horizontal => assert_eq!(last.max.x, view.rect.max.x, "frame {frame}"),
             }
-            h.step();
+            d.frames(1);
         }
-        Timeline::recorded(&h.ctx).assert_continuous();
+        Timeline::recorded(d.ctx()).assert_continuous();
     }
 
     #[test]
     fn scroll_by_reaches_the_end_of_a_nested_container_exactly_and_stays() {
         for inner in [Inner::Vertical, Inner::Horizontal] {
             for tab_stops in [TabStops::No, TabStops::Yes] {
-                exact_end(inner, tab_stops, |h| {
-                    crate::support::shell(h)
-                        .scroll_by(support::id_of(h, INNER), vec2(5000.0, 5000.0));
-                    h.step();
+                exact_end(inner, tab_stops, |d| {
+                    d.shell()
+                        .scroll_by(support::id_of(d, INNER), vec2(5000.0, 5000.0));
+                    d.frames(1);
                 });
             }
         }
@@ -1096,13 +1081,13 @@ mod nested {
             tab_stops: TabStops::No,
             heights: (50.0, 0.0),
         };
-        let mut h = support::harness(SIZE, base(), page, short_top_level);
-        h.run_steps(2);
-        let outer = support::id_of(&h, OUTER);
-        crate::support::shell(&h).scroll_by(outer, vec2(0.0, 1000.0));
+        let mut d = support::driver(SIZE, base(), page, short_top_level).build();
+        d.frames(2);
+        let outer = support::id_of(&d, OUTER);
+        d.shell().scroll_by(outer, vec2(0.0, 1000.0));
         for frame in 0..11 {
-            h.step();
-            let view = crate::support::shell(&h).viewport(outer).expect("laid out");
+            d.frames(1);
+            let view = d.shell().viewport(outer).expect("laid out");
             assert_eq!(view.offset().y, 600.0 - 50.0, "frame {frame}");
         }
     }
@@ -1111,12 +1096,11 @@ mod nested {
     fn the_end_key_reaches_the_end_of_a_nested_container_exactly_and_stays() {
         for inner in [Inner::Vertical, Inner::Horizontal] {
             for tab_stops in [TabStops::No, TabStops::Yes] {
-                exact_end(inner, tab_stops, |h| {
-                    let at = rect_of(h, INNER).center();
-                    support::press_and_release(h, at);
-                    h.run_steps(2);
-                    h.key_press(egui::Key::End);
-                    h.step();
+                exact_end(inner, tab_stops, |d| {
+                    let at = d.rect(Target::suffix(INNER)).center();
+                    press_and_release(d, at);
+                    d.frames(2);
+                    d.press(egui::Key::End);
                 });
             }
         }
@@ -1124,14 +1108,14 @@ mod nested {
 
     #[test]
     fn scroll_into_view_crosses_every_ancestor() {
-        let mut h = harness(Inner::Vertical);
-        let row = support::id_of(&h, &format!("{INNER}/15"));
-        crate::support::shell(&h).scroll_into_view(row, Some(Align::Min));
-        h.step();
+        let mut d = harness(Inner::Vertical);
+        let row = support::id_of(&d, &format!("{INNER}/15"));
+        d.shell().scroll_into_view(row, Some(Align::Min));
+        d.frames(1);
         let (row, inner, outer) = (
-            rect_of(&h, &format!("{INNER}/15")),
-            rect_of(&h, INNER),
-            rect_of(&h, OUTER),
+            d.rect(Target::suffix(&format!("{INNER}/15"))),
+            d.rect(Target::suffix(INNER)),
+            d.rect(Target::suffix(OUTER)),
         );
         assert_eq!(
             row.min.y, inner.min.y,
@@ -1148,9 +1132,9 @@ mod bars {
     use super::*;
     use eggshell_ui::contract::ScrollStyle;
 
-    fn bar_shapes(h: &H<'_>, color: Option<Color32>) -> usize {
-        let list = rect_of(h, LIST);
-        support::shapes(h)
+    fn bar_shapes(d: &H, color: Option<Color32>) -> usize {
+        let list = d.rect(Target::suffix(LIST));
+        support::shapes(d)
             .into_iter()
             .filter(|shape| match shape {
                 Shape::Rect(r) => {
@@ -1169,56 +1153,66 @@ mod bars {
         color(i)
     }
 
-    fn thumb(h: &H<'_>) -> Color32 {
-        eggshell_ui_shadcn::Shadcn::of(&h.ctx).tokens.border
+    fn thumb(d: &H) -> Color32 {
+        eggshell_ui_shadcn::Shadcn::of(d.ctx()).tokens.border
     }
 
     #[test]
     fn the_gutter_is_reserved_on_the_first_frame_whether_or_not_the_content_overflows() {
         for rows in [2, 10] {
-            let h = harness(rows);
-            assert_eq!(rect_of(&h, CONTENT).width(), 200.0 - GUTTER, "{rows} rows");
+            let d = harness(rows);
             assert_eq!(
-                rect_of(&h, &row_path(0)).width(),
+                d.rect(Target::suffix(CONTENT)).width(),
                 200.0 - GUTTER,
                 "{rows} rows"
             );
             assert_eq!(
-                rect_of(&h, LIST).width(),
+                d.rect(Target::suffix(&row_path(0))).width(),
+                200.0 - GUTTER,
+                "{rows} rows"
+            );
+            assert_eq!(
+                d.rect(Target::suffix(LIST)).width(),
                 200.0,
                 "the container is as asked"
             );
-            assert_eq!(viewport(&h).rect.width(), 200.0 - GUTTER);
+            assert_eq!(viewport(&d).rect.width(), 200.0 - GUTTER);
         }
         assert!(
-            rect_of(&harness(10), CONTENT).height() > VIEWPORT_HEIGHT,
+            harness(10).rect(Target::suffix(CONTENT)).height() > VIEWPORT_HEIGHT,
             "precondition: ten rows overflow"
         );
     }
 
     #[test]
     fn the_bar_is_drawn_only_when_the_content_overflows_and_appears_with_no_layout_change() {
-        let mut h = harness(2);
-        h.run_steps(5);
+        let mut d = harness(2);
+        d.frames(5);
         assert!(
-            rect_of(&h, CONTENT).height() <= VIEWPORT_HEIGHT,
+            d.rect(Target::suffix(CONTENT)).height() <= VIEWPORT_HEIGHT,
             "precondition: it fits"
         );
-        assert_eq!(bar_shapes(&h, Some(thumb(&h))), 0, "no bar when it fits");
-        let before = (rect_of(&h, CONTENT).width(), rect_of(&h, &row_path(0)));
-        h.state_mut().app.rows = 10;
-        h.run_steps(8);
+        assert_eq!(bar_shapes(&d, Some(thumb(&d))), 0, "no bar when it fits");
+        let before = (
+            d.rect(Target::suffix(CONTENT)).width(),
+            d.rect(Target::suffix(&row_path(0))),
+        );
+        d.app_mut().rows = 10;
+        d.frames(8);
         assert!(
-            rect_of(&h, CONTENT).height() > VIEWPORT_HEIGHT,
+            d.rect(Target::suffix(CONTENT)).height() > VIEWPORT_HEIGHT,
             "precondition: it overflows"
         );
         assert!(
-            bar_shapes(&h, Some(thumb(&h))) > 0,
+            bar_shapes(&d, Some(thumb(&d))) > 0,
             "the thumb is drawn: {:?}",
-            thumb(&h)
+            thumb(&d)
         );
         assert_eq!(
-            (rect_of(&h, CONTENT).width(), rect_of(&h, &row_path(0))),
+            (
+                d.rect(Target::suffix(CONTENT)).width(),
+                d.rect(Target::suffix(&row_path(0)))
+            ),
             before,
             "nothing moved"
         );
@@ -1226,39 +1220,40 @@ mod bars {
 
     #[test]
     fn a_horizontal_container_takes_its_gutter_from_the_height() {
-        let h = harness_with(App {
+        let d = harness_with(App {
             axis: Axis::X,
             ..App::default()
         });
-        assert_eq!(rect_of(&h, CONTENT).height(), VIEWPORT_HEIGHT - GUTTER);
-        assert_eq!(rect_of(&h, CONTENT).width(), 10.0 * 80.0);
+        assert_eq!(
+            d.rect(Target::suffix(CONTENT)).height(),
+            VIEWPORT_HEIGHT - GUTTER
+        );
+        assert_eq!(d.rect(Target::suffix(CONTENT)).width(), 10.0 * 80.0);
     }
 
     #[test]
     fn the_timeline_is_continuous_while_scrolling() {
-        let mut h = harness_with(App {
+        let mut d = harness_with(App {
             kind: Rows::Animated,
             rows: 20,
             ..App::default()
         });
-        record(&h.ctx);
-        h.run_steps(2);
-        let at = inside(&h);
-        h.hover_at(at);
-        h.step();
+        record(d.ctx());
+        d.frames(2);
+        let at = inside(&d);
+        d.carry_to(at);
         for delta in [-40.0, -90.0, 30.0, -25.0] {
-            h.event(wheel_event(vec2(0.0, delta)));
-            h.run_steps(8);
+            d.event(wheel_event(vec2(0.0, delta))).frames(7);
         }
-        h.run_steps(30);
-        assert!(offset(&h).y > 0.0, "precondition: it scrolled");
-        Timeline::recorded(&h.ctx).assert_continuous();
+        d.frames(30);
+        assert!(offset(&d).y > 0.0, "precondition: it scrolled");
+        Timeline::recorded(d.ctx()).assert_continuous();
     }
 
     #[test]
     fn a_container_style_changes_the_gutter_and_the_thumb() {
-        let own = |h: &H<'_>| {
-            let mut style = eggshell_ui::Style::of(&h.ctx).scroll;
+        let own = |d: &H| {
+            let mut style = eggshell_ui::Style::of(d.ctx()).scroll;
             style.width = 16.0;
             style.thumb = Color32::from_rgb(200, 30, 30);
             style
@@ -1275,18 +1270,18 @@ mod bars {
                 }
             });
         }
-        let mut h = support::harness(SIZE, base(), App::default(), styled);
-        h.step();
-        let style: ScrollStyle = own(&h);
-        h.state_mut().app.style = Some(style);
-        h.run_steps(8);
+        let mut d = support::driver(SIZE, base(), App::default(), styled).build();
+        d.frames(1);
+        let style: ScrollStyle = own(&d);
+        d.app_mut().style = Some(style);
+        d.frames(8);
         assert_eq!(
-            rect_of(&h, CONTENT).width(),
+            d.rect(Target::suffix(CONTENT)).width(),
             200.0 - 16.0,
             "the gutter is the style's"
         );
         assert!(
-            bar_shapes_with(&h, 16.0, Color32::from_rgb(200, 30, 30)) > 0,
+            bar_shapes_with(&d, 16.0, Color32::from_rgb(200, 30, 30)) > 0,
             "the thumb has the style's colour"
         );
     }
@@ -1308,24 +1303,24 @@ mod bars {
                 }
             });
         }
-        let mut h = support::harness(SIZE, base(), App::default(), styled);
-        h.step();
-        let mut style = eggshell_ui::Style::of(&h.ctx).scroll;
+        let mut d = support::driver(SIZE, base(), App::default(), styled).build();
+        d.frames(1);
+        let mut style = eggshell_ui::Style::of(d.ctx()).scroll;
         style.min_thumb_length = 150.0;
-        h.state_mut().app.style = Some(style);
-        h.run_steps(4);
-        let list = rect_of(&h, LIST);
+        d.app_mut().style = Some(style);
+        d.frames(4);
+        let list = d.rect(Target::suffix(LIST));
         assert!(
             list.height() < style.min_thumb_length,
             "precondition: the track is shorter than the shortest thumb"
         );
         let bar = list.max.x - style.width / 2.0;
-        support::press_and_release(&mut h, Pos2::new(bar, list.max.y - 2.0));
-        h.run_steps(4);
-        let bottom = offset(&h).y;
-        support::press_and_release(&mut h, Pos2::new(bar, list.min.y + 2.0));
-        h.run_steps(4);
-        let top = offset(&h).y;
+        press_and_release(&mut d, Pos2::new(bar, list.max.y - 2.0));
+        d.frames(4);
+        let bottom = offset(&d).y;
+        press_and_release(&mut d, Pos2::new(bar, list.min.y + 2.0));
+        d.frames(4);
+        let top = offset(&d).y;
         assert!(
             bottom > 0.0,
             "a press near the bottom scrolls down: {bottom}"
@@ -1336,9 +1331,9 @@ mod bars {
         );
     }
 
-    fn bar_shapes_with(h: &H<'_>, gutter: f32, color: Color32) -> usize {
-        let list = rect_of(h, LIST);
-        support::shapes(h)
+    fn bar_shapes_with(d: &H, gutter: f32, color: Color32) -> usize {
+        let list = d.rect(Target::suffix(LIST));
+        support::shapes(d)
             .into_iter()
             .filter(|shape| {
                 matches!(shape, Shape::Rect(r) if r.fill == color
@@ -1350,9 +1345,9 @@ mod bars {
     #[test]
     fn the_shadcn_thumb_is_the_border_token_in_both_themes() {
         for theme in [egui::Theme::Light, egui::Theme::Dark] {
-            let h = harness(10);
-            h.ctx.set_theme(theme);
-            let style = eggshell_ui_shadcn::Shadcn::of(&h.ctx).style().scroll;
+            let d = harness(10);
+            d.ctx().set_theme(theme);
+            let style = eggshell_ui_shadcn::Shadcn::of(d.ctx()).style().scroll;
             let tokens = eggshell_ui_shadcn::Tokens::for_theme(theme);
             assert_eq!(style.thumb, tokens.border, "{theme:?}");
             assert_eq!(style.width, 10.0);
@@ -1393,30 +1388,28 @@ mod clipping {
             });
     }
 
-    type G<'a> = Harness<'a, Rig<Grid>>;
+    type G = Driver<Grid>;
 
-    fn harness(axis: Axis, rows: u32, cols: u32) -> G<'static> {
-        let mut h = support::harness(SIZE, base(), Grid { axis, rows, cols }, grid);
-        h.run_steps(6);
-        h
+    fn harness(axis: Axis, rows: u32, cols: u32) -> G {
+        let mut d = support::driver(SIZE, base(), Grid { axis, rows, cols }, grid).build();
+        d.frames(6);
+        d
     }
 
-    fn viewport(h: &G<'_>) -> Rect {
-        let id = support::id_of(h, LIST);
-        crate::support::shell(h)
-            .viewport(id)
-            .expect("laid out")
-            .rect
+    fn viewport(d: &G) -> Rect {
+        let id = support::id_of(d, LIST);
+        d.shell().viewport(id).expect("laid out").rect
     }
 
     /// The painted cells' clips and rects against the viewport and the gutter.
-    fn assert_content_stays_in_the_viewport(h: &G<'_>, what: &str) {
-        let (view, list) = (viewport(h), rect_of(h, LIST));
+    fn assert_content_stays_in_the_viewport(d: &G, what: &str) {
+        let (view, list) = (viewport(d), d.rect(Target::suffix(LIST)));
         assert_eq!(
             view.min, list.min,
             "precondition: the viewport starts at the corner"
         );
-        let cells: Vec<_> = h
+        let cells: Vec<_> = d
+            .harness()
             .output()
             .shapes
             .iter()
@@ -1458,35 +1451,34 @@ mod clipping {
             (Axis::Both, 2, 2, "Both fitting"),
         ];
         for (axis, rows, cols, what) in cases {
-            let h = harness(axis, rows, cols);
-            assert_content_stays_in_the_viewport(&h, what);
+            let d = harness(axis, rows, cols);
+            assert_content_stays_in_the_viewport(&d, what);
         }
     }
 
     #[test]
     fn nothing_but_the_bar_is_drawn_over_the_gutter_on_every_axis_with_the_pointer_over() {
         for (axis, rows, cols) in [(Axis::Y, 10, 1), (Axis::X, 1, 10), (Axis::Both, 10, 10)] {
-            let mut h = harness(axis, rows, cols);
-            let at = rect_of(&h, LIST).center();
-            h.hover_at(at);
-            h.run_steps(5);
-            assert_content_stays_in_the_viewport(&h, &format!("{axis:?}"));
+            let mut d = harness(axis, rows, cols);
+            let at = d.rect(Target::suffix(LIST)).center();
+            d.carry_to(at).frames(4);
+            assert_content_stays_in_the_viewport(&d, &format!("{axis:?}"));
         }
     }
 
     #[test]
     fn scrolled_to_the_end_on_both_axes_the_last_cell_ends_at_the_gutter_edges() {
-        let mut h = harness(Axis::Both, 10, 10);
-        let id = support::id_of(&h, LIST);
-        crate::support::shell(&h).scroll_by(id, vec2(1e6, 1e6));
-        h.run_steps(6);
-        let view = viewport(&h);
-        let last = rect_of(&h, "/\"list\"/9/9");
+        let mut d = harness(Axis::Both, 10, 10);
+        let id = support::id_of(&d, LIST);
+        d.shell().scroll_by(id, vec2(1e6, 1e6));
+        d.frames(6);
+        let view = viewport(&d);
+        let last = d.rect(Target::suffix("/\"list\"/9/9"));
         assert_eq!(
             last.max, view.max,
             "the last cell ends at the viewport's corner"
         );
-        assert_content_stays_in_the_viewport(&h, "scrolled to the end");
+        assert_content_stays_in_the_viewport(&d, "scrolled to the end");
     }
 }
 
@@ -1506,26 +1498,22 @@ mod container_layout {
             });
     }
 
-    fn laid_out(
-        classes: eggshell_ui::Tw,
-        kids: u32,
-        kid: eggshell_ui::Tw,
-    ) -> Harness<'static, Rig<Spec>> {
-        let mut h = support::harness(SIZE, base(), (classes, kids, kid), spec_view);
-        h.step();
-        h
+    fn laid_out(classes: eggshell_ui::Tw, kids: u32, kid: eggshell_ui::Tw) -> Driver<Spec> {
+        let mut d = support::driver(SIZE, base(), (classes, kids, kid), spec_view).build();
+        d.frames(1);
+        d
     }
 
     #[test]
     fn flex_col_and_gap_on_the_container_stack_its_children_with_the_gap() {
-        let h = laid_out(
+        let d = laid_out(
             tw().w_px(WIDTH).h_px(70.0).flex().flex_col().gap(2.0),
             3,
             tw().h_px(20.0).shrink_0(),
         );
-        let content = rect_of(&h, CONTENT);
+        let content = d.rect(Target::suffix(CONTENT));
         for i in 0..3u32 {
-            let row = rect_of(&h, &row_path(i));
+            let row = d.rect(Target::suffix(&row_path(i)));
             assert_eq!(row.min.y - content.min.y, 28.0 * i as f32, "row {i}");
             assert_eq!(row.width(), WIDTH - GUTTER, "stretched across the column");
         }
@@ -1534,7 +1522,7 @@ mod container_layout {
 
     #[test]
     fn flex_row_wrap_wraps_inside_the_viewport_width_less_the_gutter() {
-        let h = laid_out(
+        let d = laid_out(
             tw().w_px(WIDTH)
                 .h_px(30.0)
                 .flex()
@@ -1544,7 +1532,7 @@ mod container_layout {
             4,
             tw().w_px(80.0).h_px(20.0).shrink_0(),
         );
-        let at = |i| rect_of(&h, &row_path(i));
+        let at = |i| d.rect(Target::suffix(&row_path(i)));
         assert_eq!(
             at(1).min.x - at(0).min.x,
             92.0,
@@ -1553,17 +1541,17 @@ mod container_layout {
         assert_eq!(at(0).min.y, at(1).min.y, "the first two share a line");
         assert_eq!(at(2).min.x, at(0).min.x, "the third wraps");
         assert_eq!(at(2).min.y, at(0).min.y + 20.0, "to the next line");
-        assert_eq!(rect_of(&h, CONTENT).width(), WIDTH - GUTTER);
+        assert_eq!(d.rect(Target::suffix(CONTENT)).width(), WIDTH - GUTTER);
     }
 
     #[test]
     fn a_grid_template_on_the_container_carries_over() {
-        let h = laid_out(
+        let d = laid_out(
             tw().w_px(WIDTH).h_px(40.0).grid().grid_cols(2).gap(0.0),
             4,
             tw().h_px(20.0),
         );
-        let at = |i| rect_of(&h, &row_path(i));
+        let at = |i| d.rect(Target::suffix(&row_path(i)));
         assert_eq!(at(0).width(), (WIDTH - GUTTER) / 2.0);
         assert_eq!(at(1).min.x, at(0).max.x, "the second column");
         assert_eq!(at(2).min.y, at(0).max.y, "the next row");
@@ -1571,7 +1559,7 @@ mod container_layout {
 
     #[test]
     fn alignment_on_the_container_places_the_children() {
-        let h = laid_out(
+        let d = laid_out(
             tw().w_px(WIDTH)
                 .h_px(100.0)
                 .flex()
@@ -1581,7 +1569,10 @@ mod container_layout {
             1,
             tw().w_px(50.0).h_px(20.0).shrink_0(),
         );
-        let (content, kid) = (rect_of(&h, CONTENT), rect_of(&h, &row_path(0)));
+        let (content, kid) = (
+            d.rect(Target::suffix(CONTENT)),
+            d.rect(Target::suffix(&row_path(0))),
+        );
         assert_eq!(kid.center().x, content.center().x, "centred across");
         assert_eq!(content.height(), 100.0);
         assert_eq!(kid.max.y, content.max.y, "pushed to the end");
@@ -1589,7 +1580,7 @@ mod container_layout {
 
     #[test]
     fn the_frame_keeps_its_border_and_background() {
-        let h = laid_out(
+        let d = laid_out(
             tw().w_px(WIDTH)
                 .h_px(100.0)
                 .flex()
@@ -1602,20 +1593,23 @@ mod container_layout {
             3,
             tw().h_px(20.0).shrink_0(),
         );
-        let (list, content) = (rect_of(&h, LIST), rect_of(&h, CONTENT));
+        let (list, content) = (
+            d.rect(Target::suffix(LIST)),
+            d.rect(Target::suffix(CONTENT)),
+        );
         assert_eq!(list.size(), vec2(WIDTH, 100.0), "the frame's size");
         assert_eq!(content.min, list.min + vec2(2.0, 2.0), "inside the border");
         assert_eq!(
-            rect_of(&h, &row_path(0)).min,
+            d.rect(Target::suffix(&row_path(0))).min,
             content.min + vec2(8.0, 8.0),
             "and the padding"
         );
-        assert_eq!(support::fill_of(&h, LIST), Some(Color32::GOLD));
+        assert_eq!(support::fill_of(&d, LIST), Some(Color32::GOLD));
     }
 
     #[test]
     fn a_hidden_container_stays_hidden() {
-        let h = laid_out(tw().w_px(WIDTH).h_px(100.0).hidden(), 1, tw().h_px(20.0));
-        assert_eq!(rect_of(&h, LIST).size(), Vec2::ZERO);
+        let d = laid_out(tw().w_px(WIDTH).h_px(100.0).hidden(), 1, tw().h_px(20.0));
+        assert_eq!(d.rect(Target::suffix(LIST)).size(), Vec2::ZERO);
     }
 }

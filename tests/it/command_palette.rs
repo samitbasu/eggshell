@@ -447,3 +447,45 @@ fn the_lists_have_no_scrollbar_so_their_rows_are_as_wide_as_the_box() {
         results.width()
     );
 }
+
+#[test]
+fn the_highlight_keeps_four_points_from_the_lists_edges_as_the_arrows_scroll_it() {
+    let mut harness = harness();
+    open_palette(&mut harness);
+    let results = |harness: &Harness<'_, Rig<State>>| {
+        harness
+            .state()
+            .nodes
+            .iter()
+            .find(|(path, _)| path.ends_with("/Results"))
+            .map(|(_, rect)| *rect)
+            .expect("the palette's list")
+    };
+    let highlighted = |harness: &Harness<'_, Rig<State>>| {
+        let label = active(harness, "Command palette").expect("a highlight");
+        harness
+            .get_by_role_and_label(Role::ListBoxOption, &label)
+            .rect()
+    };
+    let rows = options(&harness).len();
+    let mut nearest_below = f32::MAX;
+    let mut nearest_above = f32::MAX;
+    for _ in 0..rows + 3 {
+        press(&mut harness, Key::ArrowDown);
+        let (list, row) = (results(&harness), highlighted(&harness));
+        nearest_below = nearest_below.min(list.max.y - row.max.y);
+    }
+    for _ in 0..rows + 3 {
+        press(&mut harness, Key::ArrowUp);
+        let (list, row) = (results(&harness), highlighted(&harness));
+        nearest_above = nearest_above.min(row.min.y - list.min.y);
+    }
+    assert!(
+        nearest_below >= 3.5,
+        "going down, no highlighted row comes nearer the bottom than 4 pt: {nearest_below}"
+    );
+    assert!(
+        nearest_above >= 3.5,
+        "going up, no highlighted row comes nearer the top than 4 pt: {nearest_above}"
+    );
+}
