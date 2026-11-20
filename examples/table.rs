@@ -177,7 +177,8 @@ pub fn layout(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
                                 });
                         });
                     },
-                );
+                )
+                .add();
             let selected = app.selected.unwrap_or("none");
             b.text(
                 tw().text(t.muted_foreground),
@@ -194,8 +195,9 @@ pub fn layout(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
 
 /// ```html
 /// <table class="striped">
-///   <tbody><tr><th scope="rowgroup" colspan="3">Paid</th></tr> <tr>INV-001 Credit card $250.00</tr> … </tbody>
-///   <tbody><tr><th scope="rowgroup" colspan="3">Pending</th></tr> … </tbody>
+///   <tbody><tr><th scope="rowgroup" colspan="3">Pending</th></tr> <tr>INV-002 PayPal $150.00</tr> … </tbody>
+///   <tbody><tr><th scope="rowgroup" colspan="3">Unpaid</th></tr> … </tbody>
+///   <tbody class="mt-3"><tr>INV-001 Credit card $250.00</tr> … </tbody>
 /// </table>
 /// ```
 fn by_status(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
@@ -212,22 +214,29 @@ fn by_status(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
                 h.cell_text(heading);
             }
         })
-        .rows_with(|rows| {
-            for status in [Status::Paid, Status::Pending, Status::Unpaid] {
-                rows.group(status.label());
-                for invoice in app
-                    .invoices
-                    .iter()
-                    .filter(|invoice| invoice.status == status)
-                {
-                    rows.row(invoice.id, |row| {
-                        row.cell_text(invoice.id);
-                        row.cell_text(invoice.method);
-                        row.cell_text(dollars(invoice.cents));
-                    });
-                }
-            }
-        });
+        .rows(
+            &by_status_order(app),
+            |invoice| invoice.id,
+            |row, invoice| {
+                row.cell_text(invoice.id);
+                row.cell_text(invoice.method);
+                row.cell_text(dollars(invoice.cents));
+            },
+        )
+        .grouped_by(|invoice| (invoice.status != Status::Paid).then(|| invoice.status.label()))
+        .add();
+}
+
+/// The open invoices by status, then the paid ones.
+fn by_status_order(app: &Invoices) -> Vec<&Invoice> {
+    [Status::Pending, Status::Unpaid, Status::Paid]
+        .into_iter()
+        .flat_map(|status| {
+            app.invoices
+                .iter()
+                .filter(move |invoice| invoice.status == status)
+        })
+        .collect()
 }
 
 /// ```html
@@ -277,7 +286,8 @@ fn summary_table(b: &mut Builder<'_, '_, Invoices>, app: &Invoices) {
                 row.cell_text(count.to_string());
                 row.cell_text(*note);
             },
-        );
+        )
+        .add();
 }
 
 fn main() -> eframe::Result {

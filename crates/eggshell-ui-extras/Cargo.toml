@@ -20,6 +20,7 @@ markdown = ["dep:pulldown-cmark"]
 notify = []
 skeleton = []
 spinner = []
+tabs = []
 
 [dependencies]
 eggshell-ui = { path = "../..", version = "0.1.0" }

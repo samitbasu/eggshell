@@ -45,6 +45,8 @@ pub(crate) struct Kept {
     /// The layout's own style, given to its state; the context's installed
     /// one when unset.
     pub(crate) style: Option<crate::contract::Themed<std::sync::Arc<crate::Style>>>,
+    /// The layout's style as it was last given to egui.
+    pub(crate) egui_applied: Option<crate::contract::Themed<std::sync::Arc<crate::Style>>>,
 }
 
 impl Kept {

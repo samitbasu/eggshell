@@ -92,23 +92,30 @@ impl FontSet {
     /// named family, for the glyphs a weighted face lacks. Adding a face egui
     /// has under its name already does nothing.
     pub(crate) fn install(&self, ctx: &Context) {
+        for font in self.inserts() {
+            ctx.add_font(font);
+        }
+    }
+
+    /// The faces as egui font insertions: each weight's face first in its
+    /// own family, and the Normal face last in every weighted family.
+    pub(crate) fn inserts(&self) -> Vec<FontInsert> {
         let first = |family| InsertFontFamily {
             family,
             priority: FontPriority::Highest,
         };
-        for (weight, font) in &self.faces {
-            let mut families = vec![first(self.family(*weight))];
-            if *weight == Weight::Normal {
-                families.extend(self.weighted().map(|weighted| InsertFontFamily {
-                    family: self.family(weighted),
-                    priority: FontPriority::Lowest,
-                }));
-            }
-            ctx.add_font(FontInsert::new(
-                &self.face_name(*weight),
-                font.clone(),
-                families,
-            ));
-        }
+        self.faces
+            .iter()
+            .map(|(weight, font)| {
+                let mut families = vec![first(self.family(*weight))];
+                if *weight == Weight::Normal {
+                    families.extend(self.weighted().map(|weighted| InsertFontFamily {
+                        family: self.family(weighted),
+                        priority: FontPriority::Lowest,
+                    }));
+                }
+                FontInsert::new(&self.face_name(*weight), font.clone(), families)
+            })
+            .collect()
     }
 }

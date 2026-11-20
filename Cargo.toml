@@ -67,6 +67,7 @@ eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = [
     "notify",
     "skeleton",
     "spinner",
+    "tabs",
 ] }
 
 # proptest's rng wants a getrandom backend that the browser build does not

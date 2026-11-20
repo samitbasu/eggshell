@@ -10,7 +10,8 @@ use egui::{Key, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, ReducedMotion, Rig, rect_of};
+use crate::support::{self, Rig, rect_of};
+use eggshell_ui::testing::{Animation, Target};
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -231,18 +232,30 @@ fn the_chevron_turns_with_the_height_by_the_same_progress() {
 
 #[test]
 fn reduced_motion_snaps_the_height_and_the_chevron() {
-    let mut harness = harness();
-    harness.state_mut().reduced_motion = ReducedMotion::Yes;
-    harness
-        .ctx
-        .global_style_mut(|style| style.animation_time = 0.0);
-    harness.run_steps(2);
-    header(&harness).click();
-    harness.step();
-    harness.step();
-    assert_eq!(harness.state().app.env, Shown::Open, "precondition: opened");
-    assert!(region_height(&harness) > 20.0, "the height snapped open");
-    assert_eq!(chevron_degrees(&harness).round(), 180.0);
+    let mut d = support::driver(
+        vec2(400.0, 400.0),
+        common::base_text(egui::Theme::Light),
+        App::default(),
+        view,
+    )
+    .step(std::time::Duration::from_millis(10))
+    .motion(Animation::Reduced)
+    .build();
+    d.frames(4);
+    d.click(Target::role(AccessRole::Button, TITLE));
+    d.frames(2);
+    assert_eq!(d.app().env, Shown::Open, "precondition: opened");
+    assert!(
+        d.rect(Target::suffix("/Region")).height() > 20.0,
+        "the height snapped open"
+    );
+    let head = d.rect(Target::suffix("/Header"));
+    let icons: Vec<_> = support::textured(&d)
+        .into_iter()
+        .filter(|mesh| head.contains(mesh.calc_bounds().center()))
+        .collect();
+    assert_eq!(icons.len(), 1, "the header draws one chevron");
+    assert_eq!(support::turn(icons[0]).round(), 180.0);
 }
 
 #[test]
