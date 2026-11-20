@@ -10,7 +10,7 @@ use eggshell_ui::{Builder, Distance, TextStyle, tw};
 use eggshell_ui_extras::notify::{Dismissed, Lifetime, Notice, NoticeId, NotifyExt, ScreenAnchor};
 use eggshell_ui_shadcn::Tokens;
 use egui::accesskit::{Live, Role};
-use egui::{Key, Rect, Theme, vec2};
+use egui::{Color32, Key, Rect, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -409,7 +409,7 @@ fn a_notice_floats_above_an_open_dialog_and_takes_the_pointer() {
 #[test]
 fn the_preset_gives_sonners_notification_look() {
     use eggshell_ui::Weight;
-    use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, size, variant};
+    use eggshell_ui_shadcn::{Shadcn, ShadcnStyle};
     let vega = Shadcn::light();
     let notify = vega.notify(&vega.style());
     assert_eq!(notify.fill, vega.tokens.popover, "--normal-bg");
@@ -432,12 +432,39 @@ fn the_preset_gives_sonners_notification_look() {
     assert_eq!((notify.role.size, notify.role.line_height), (13.0, 19.5));
     assert_eq!(notify.role.weight, Weight::Medium, "data-title: 500");
     assert_eq!(
-        (notify.action_variant, notify.action_size),
-        (variant::OUTLINE, size::XS)
+        notify.action.fill, vega.tokens.popover_foreground,
+        "--normal-text"
+    );
+    assert_eq!(notify.action.text, vega.tokens.popover, "--normal-bg");
+    assert_eq!(
+        (
+            notify.action.height,
+            notify.action.padding_x,
+            notify.action.radius
+        ),
+        (24.0, 8.0, 4)
     );
     assert_eq!(
-        (notify.close_variant, notify.close_size),
-        (variant::GHOST, size::ICON_XS)
+        (notify.action.role.size, notify.action.role.weight),
+        (12.0, Weight::Medium)
+    );
+    assert_eq!(
+        (notify.close.size, notify.close.outset, notify.close.glyph),
+        (20.0, 7.0, 12.0),
+        "20 pt, moved out 35 %"
+    );
+    assert_eq!(notify.close.border, Color32::from_gray(237), "gray4");
+    assert_eq!(notify.close.hover_fill, Color32::from_gray(248), "gray2");
+    let dark = Shadcn::dark();
+    let notify_dark = dark.notify(&dark.style());
+    assert_eq!(
+        notify_dark.close.border, dark.tokens.border,
+        "--normal-border"
+    );
+    assert_eq!(
+        notify_dark.close.hover_fill,
+        Color32::from_gray(31),
+        "hsl(0 0% 12%)"
     );
     let lyra = Shadcn::light().with_style(ShadcnStyle::Lyra);
     assert_eq!(lyra.notify(&lyra.style()).radius, 0, "rounded-none");

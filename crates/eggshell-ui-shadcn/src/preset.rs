@@ -876,8 +876,16 @@ impl Shadcn {
     /// - the corners are `cn-toast`'s `rounded-2xl` in Vega, 1.8 times
     ///   `--radius`, and `rounded-none` in Lyra (`style-vega.css` 1246,
     ///   `style-lyra.css` 1221);
-    /// - an action's button is the 24 pt, 12 pt `xs` of sonner's
-    ///   `[data-button]` (styles.css 181-202), and the × a ghost `icon-xs`.
+    /// - an action's button is sonner's `[data-button]`: filled with
+    ///   `--normal-text` under `--normal-bg`, 24 pt tall, `padding 0 8px`,
+    ///   4 pt corners, 12 px at weight 500 (styles.css 181-202);
+    /// - the × is sonner's `[data-close-button]`: a 20 pt circle with a 1 pt
+    ///   border on the card's top-left corner, moved out by 35 % of itself
+    ///   (styles.css 1-12, 219-246), in `gray12` over `gray4` and `gray2` /
+    ///   `gray5` under the pointer in the light theme (the gray scale, 3-25),
+    ///   and in `--normal-text` over `--normal-border`, with `hsl(0 0% 12%)`
+    ///   and `hsl(0 0% 25%)` under the pointer, in the dark (styles.css 520-
+    ///   536).
     #[cfg(feature = "extras")]
     pub fn notify(&self, style: &contract::Style) -> eggshell_ui_extras::notify::NotifyStyle {
         let t = &self.tokens;
@@ -901,10 +909,26 @@ impl Shadcn {
             line_height: 19.5,
             ..t.text_role_at(Weight::Medium)
         };
-        notify.action_variant = variant::OUTLINE;
-        notify.action_size = size::XS;
-        notify.close_variant = variant::GHOST;
-        notify.close_size = size::ICON_XS;
+        let dark = self.theme == Theme::Dark;
+        let gray = Color32::from_gray;
+        notify.action.fill = t.popover_foreground;
+        notify.action.text = t.popover;
+        notify.action.radius = 4;
+        notify.action.height = 24.0;
+        notify.action.padding_x = 8.0;
+        notify.action.role = TextSpec {
+            size: 12.0,
+            line_height: 16.0,
+            ..t.text_role_at(Weight::Medium)
+        };
+        notify.close.size = 20.0;
+        notify.close.outset = 7.0;
+        notify.close.glyph = 12.0;
+        notify.close.fill = t.popover;
+        notify.close.border = if dark { t.border } else { gray(237) };
+        notify.close.text = if dark { t.popover_foreground } else { gray(23) };
+        notify.close.hover_fill = if dark { gray(31) } else { gray(248) };
+        notify.close.hover_border = if dark { gray(64) } else { gray(232) };
         notify
     }
 

@@ -43,7 +43,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use eggshell_ui::overlay::{Align, Anchor, Band, DismissOn, Focus, Outside, Placement, Side};
-use eggshell_ui::{Boundary, Builder, Distance, Icon, Key, NodeUi as _, Scope, Sides, icons};
+use eggshell_ui::{Boundary, Builder, Distance, Icon, Key, NodeUi as _, Scope, Sides, icons, tw};
 use egui::accesskit::Live;
 use egui::{Context, Id, Modifiers, Role};
 
@@ -428,26 +428,31 @@ fn card<A: 'static, Act: Clone + 'static>(
         s.text(look.sentence(), notice.text.clone());
         for (at, action) in notice.actions.iter().enumerate() {
             let (act, on_action) = (action.act.clone(), handlers.on_action.clone());
-            s.button(("action", at), action.label.clone())
-                .variant(look.style.action_variant)
-                .size(look.style.action_size)
-                .on_click(move |app| {
-                    if let Some(on_action) = on_action {
-                        on_action(app, id, act);
-                    }
-                });
+            let label = action.label.clone();
+            s.div_id(("action", at), look.action(), |s| {
+                s.text(tw(), label.clone());
+            })
+            .role(Role::Button)
+            .named(label)
+            .on_click(move |app| {
+                if let Some(on_action) = on_action {
+                    on_action(app, id, act);
+                }
+            });
         }
         if close == CloseButton::Shown {
             let on_dismiss = handlers.on_dismiss.clone();
             let name = format!("Dismiss: {}", notice.text);
-            s.button("close", (Icon::new(icons::CLOSE), name))
-                .variant(look.style.close_variant)
-                .size(look.style.close_size)
-                .on_click(move |app| {
-                    if let Some(on_dismiss) = on_dismiss {
-                        on_dismiss(app, id, Dismissed::Closed);
-                    }
-                });
+            s.div_id("close", look.close(), |s| {
+                s.glyph(look.close_glyph(), Icon::new(icons::CLOSE));
+            })
+            .role(Role::Button)
+            .named(name)
+            .on_click(move |app| {
+                if let Some(on_dismiss) = on_dismiss {
+                    on_dismiss(app, id, Dismissed::Closed);
+                }
+            });
         }
     });
     if let Some(on_dismiss) = handlers.on_dismiss.clone() {

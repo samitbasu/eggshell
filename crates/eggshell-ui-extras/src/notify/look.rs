@@ -26,6 +26,7 @@ impl Look {
     pub(super) fn card(&self) -> Tw {
         let style = &self.style;
         let card = tw()
+            .relative()
             .flex()
             .items_center()
             .gap(style.gap / 4.0)
@@ -41,6 +42,44 @@ impl Look {
             Some(shadow) => card.shadow(shadow),
             None => card,
         }
+    }
+
+    /// An action's button: filled, in the card's colours swapped.
+    pub(super) fn action(&self) -> Tw {
+        let action = &self.style.action;
+        tw().flex()
+            .items_center()
+            .shrink_0()
+            .h_px(action.height)
+            .px(action.padding_x / 4.0)
+            .rounded_px(f32::from(action.radius))
+            .bg(action.fill)
+            .text(action.text)
+            .role(action.role.clone())
+            .sense_click()
+    }
+
+    /// The × circle, half out over the card's top-left corner.
+    pub(super) fn close(&self) -> Tw {
+        let close = &self.style.close;
+        tw().absolute()
+            .top_px(-close.outset)
+            .left_px(-close.outset)
+            .flex()
+            .items_center()
+            .justify_center()
+            .size_px(close.size)
+            .rounded_full()
+            .border(1.0)
+            .border_color(close.border)
+            .bg(close.fill)
+            .text(close.text)
+            .sense_click()
+            .hover(|paint| paint.bg(close.hover_fill).border_color(close.hover_border))
+    }
+
+    pub(super) fn close_glyph(&self) -> Tw {
+        tw().size_px(self.style.close.glyph).shrink_0()
     }
 
     pub(super) fn sentence(&self) -> Tw {
