@@ -98,6 +98,29 @@ impl Shadcn {
         }
     }
 
+    /// TODO(prose): this preset in `style` with `palette`, light and dark, as a layout's style.
+    ///
+    /// ```
+    /// use eggshell_ui::LayoutState;
+    /// use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
+    ///
+    /// let style = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
+    /// let _layout = LayoutState::new().with_style(style);
+    /// ```
+    pub fn themed(
+        style: ShadcnStyle,
+        palette: Palette,
+    ) -> eggshell_ui::contract::Themed<std::sync::Arc<contract::Style>> {
+        let half = |preset: Self| {
+            let preset = preset.with_style(style).with_palette(palette);
+            std::sync::Arc::new(preset.style())
+        };
+        eggshell_ui::contract::Themed {
+            light: half(Self::light()),
+            dark: half(Self::dark()),
+        }
+    }
+
     /// The fill of an input-like box: `bg-background`, or `dark:bg-input/30`.
     fn input_fill(&self) -> Color32 {
         match self.theme {

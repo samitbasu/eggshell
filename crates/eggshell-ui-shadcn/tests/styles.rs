@@ -167,3 +167,16 @@ fn slider_and_segmented_tracks_read_on_a_muted_panel() {
         }
     }
 }
+
+#[test]
+fn each_themed_half_is_the_preset_s_style() {
+    for style in ShadcnStyle::ALL {
+        let pair = Shadcn::themed(style, Palette::new());
+        for (theme, half) in [(Theme::Light, &pair.light), (Theme::Dark, &pair.dark)] {
+            let preset = Shadcn::for_theme(theme)
+                .with_style(style)
+                .with_palette(Palette::new());
+            assert_eq!(**half, preset.style(), "{theme:?} {style:?}");
+        }
+    }
+}
