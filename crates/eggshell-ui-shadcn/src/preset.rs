@@ -857,8 +857,80 @@ impl Shadcn {
             self.hover_card().install_for(ctx, self.theme);
             self.markdown().install_for(ctx, self.theme);
             self.skeleton(&style).install_for(ctx, self.theme);
+            self.notify(&style).install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
+    }
+
+    /// TODO(prose): the look of a notification, shadcn's Sonner over sonner's
+    /// own sizes. From `ref/shadcn` (f50887a) and `ref/sonner` (v2.0.7,
+    /// `src/styles.css`):
+    /// - the card is `--normal-bg: popover`, `--normal-text:
+    ///   popover-foreground` and `--normal-border: border` (`bases/radix/ui/
+    ///   sonner.tsx` 69-71), 1 pt border, 16 pt padding, 6 pt between its
+    ///   parts, `font-size: 13px` (styles.css 96-106), 356 pt wide and 14 pt
+    ///   between cards, 3 shown, 24 pt from the window (`src/index.tsx`
+    ///   22-37);
+    /// - the shadow is `0 4px 12px rgba(0, 0, 0, 0.1)` (styles.css 101);
+    /// - the sentence is the toast's title: `font-weight: 500`,
+    ///   `line-height: 1.5` (styles.css 141-144);
+    /// - the corners are `cn-toast`'s `rounded-2xl` in Vega, 1.8 times
+    ///   `--radius`, and `rounded-none` in Lyra (`style-vega.css` 1246,
+    ///   `style-lyra.css` 1221);
+    /// - an action's button is sonner's `[data-button]`: filled with
+    ///   `--normal-text` under `--normal-bg`, 24 pt tall, `padding 0 8px`,
+    ///   4 pt corners, 12 px at weight 500 (styles.css 181-202);
+    /// - the × is sonner's `[data-close-button]`: a 20 pt circle with a 1 pt
+    ///   border on the card's top-left corner, moved out by 35 % of itself
+    ///   (styles.css 1-12, 219-246), in `gray12` over `gray4` and `gray2` /
+    ///   `gray5` under the pointer in the light theme (the gray scale, 3-25),
+    ///   and in `--normal-text` over `--normal-border`, with `hsl(0 0% 12%)`
+    ///   and `hsl(0 0% 25%)` under the pointer, in the dark (styles.css 520-
+    ///   536).
+    #[cfg(feature = "extras")]
+    pub fn notify(&self, style: &contract::Style) -> eggshell_ui_extras::notify::NotifyStyle {
+        let t = &self.tokens;
+        let mut notify = eggshell_ui_extras::notify::NotifyStyle::from_style(style);
+        notify.fill = t.popover;
+        notify.border = t.border;
+        notify.text = t.popover_foreground;
+        notify.border_width = 1.0;
+        notify.radius = match t.style {
+            ShadcnStyle::Vega => (f32::from(t.radius) * 1.8).round() as u8,
+            ShadcnStyle::Lyra => 0,
+        };
+        notify.shadow = Some(Shadow {
+            offset: [0, 4],
+            blur: 12,
+            spread: 0,
+            color: Color32::from_black_alpha(26),
+        });
+        notify.role = TextSpec {
+            size: 13.0,
+            line_height: 19.5,
+            ..t.text_role_at(Weight::Medium)
+        };
+        let dark = self.theme == Theme::Dark;
+        let gray = Color32::from_gray;
+        notify.action.fill = t.popover_foreground;
+        notify.action.text = t.popover;
+        notify.action.radius = 4;
+        notify.action.height = 24.0;
+        notify.action.padding_x = 8.0;
+        notify.action.role = TextSpec {
+            size: 12.0,
+            line_height: 16.0,
+            ..t.text_role_at(Weight::Medium)
+        };
+        notify.close.size = 20.0;
+        notify.close.outset = 7.0;
+        notify.close.glyph = 12.0;
+        notify.close.fill = t.popover;
+        notify.close.border = if dark { t.border } else { gray(237) };
+        notify.close.text = if dark { t.popover_foreground } else { gray(23) };
+        notify.close.hover_fill = if dark { gray(31) } else { gray(248) };
+        notify.close.hover_border = if dark { gray(64) } else { gray(232) };
+        notify
     }
 
     /// TODO(prose): the skeleton's look: shadcn's `Skeleton`, `bg-muted

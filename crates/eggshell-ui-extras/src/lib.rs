@@ -43,6 +43,7 @@ pub mod spinner;
     feature = "command",
     feature = "form",
     feature = "markdown",
+    feature = "notify",
     feature = "skeleton",
     feature = "spinner"
 ))]
