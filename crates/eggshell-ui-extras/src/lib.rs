@@ -45,6 +45,9 @@ pub mod spinner;
     feature = "markdown",
     feature = "notify",
     feature = "skeleton",
-    feature = "spinner"
+    feature = "spinner",
+    feature = "tabs"
 ))]
 mod styles;
+#[cfg(feature = "tabs")]
+pub mod tabs;

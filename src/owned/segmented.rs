@@ -448,7 +448,8 @@ impl Style {
             .flex()
             .items_center()
             .w_fit()
-            .p(metrics.track_padding / 4.0)
+            .px(metrics.track_padding / 4.0)
+            .py((metrics.track_padding + metrics.cell_trim / 2.0) / 4.0)
             .rounded_px(f32::from(metrics.track_radius))
             .bg(self.segmented.track_fill);
         let track = match rows {

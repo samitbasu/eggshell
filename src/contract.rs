@@ -579,6 +579,9 @@ pub struct SegmentedMetrics {
     pub icon_gap: f32,
     /// The cells' text size, or `None` for the text role's own.
     pub text: Option<TextSize>,
+    /// How much shorter than the inside of a track a cell is, split above
+    /// and below it; zero fills it.
+    pub cell_trim: f32,
 }
 
 /// Segmented controls: a track of cells, one of them selected.
@@ -1345,6 +1348,151 @@ impl<T> Themed<T> {
     }
 }
 
+/// TODO(prose): a widget's own look, kept in a [`Style`] beside the core-painted fields and scoped with it.
+///
+/// ```
+/// use eggshell_ui::Style;
+/// use eggshell_ui::contract::Extension;
+///
+/// #[derive(Clone)]
+/// struct Gap(f32);
+///
+/// impl Extension for Gap {
+///     fn derive(style: &Style) -> Self {
+///         Gap(style.table.cell_padding)
+///     }
+/// }
+///
+/// let mut style = Style::default();
+/// assert_eq!(style.extension::<Gap>().0, style.table.cell_padding);
+/// style.set_extension(Gap(12.0));
+/// assert_eq!(style.extension::<Gap>().0, 12.0);
+/// ```
+pub trait Extension: Clone + Send + Sync + 'static {
+    /// TODO(prose): the look a style that sets none gives the widget.
+    fn derive(style: &Style) -> Self;
+}
+
+/// The extensions of a style, by type. Clones compare equal; setting one
+/// makes a style unequal to every other, so the installed style's
+/// every-frame comparison stays cheap.
+#[derive(Clone, Debug, Default)]
+struct Extensions {
+    map: egui::util::IdTypeMap,
+    version: u64,
+}
+
+impl PartialEq for Extensions {
+    fn eq(&self, other: &Self) -> bool {
+        self.version == other.version
+    }
+}
+
+fn extensions_id() -> egui::Id {
+    crate::key::root_id().with("extensions")
+}
+
+/// TODO(prose): a design system's named values, neutral of any one: its colours and the few sizes egui's own widgets are given.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Tokens {
+    /// TODO(prose): the page.
+    pub background: Color32,
+    /// TODO(prose): text on the page.
+    pub foreground: Color32,
+    /// TODO(prose): a card's fill.
+    pub card: Color32,
+    /// TODO(prose): text on a card.
+    pub card_foreground: Color32,
+    /// TODO(prose): a popover's fill: menus, windows.
+    pub popover: Color32,
+    /// TODO(prose): text on a popover.
+    pub popover_foreground: Color32,
+    /// TODO(prose): the primary action's fill.
+    pub primary: Color32,
+    /// TODO(prose): text on the primary fill.
+    pub primary_foreground: Color32,
+    /// TODO(prose): a secondary action's fill.
+    pub secondary: Color32,
+    /// TODO(prose): text on the secondary fill.
+    pub secondary_foreground: Color32,
+    /// TODO(prose): a muted surface.
+    pub muted: Color32,
+    /// TODO(prose): muted text.
+    pub muted_foreground: Color32,
+    /// TODO(prose): a hovered or active item's fill.
+    pub accent: Color32,
+    /// TODO(prose): text on the accent fill.
+    pub accent_foreground: Color32,
+    /// TODO(prose): a destructive action's colour.
+    pub destructive: Color32,
+    /// TODO(prose): text on the destructive fill.
+    pub destructive_foreground: Color32,
+    /// TODO(prose): borders.
+    pub border: Color32,
+    /// TODO(prose): an input's border and fill tint.
+    pub input: Color32,
+    /// TODO(prose): the focus ring.
+    pub ring: Color32,
+    /// TODO(prose): the base corner radius.
+    pub radius: u8,
+    /// TODO(prose): a control's height.
+    pub control_height: f32,
+    /// TODO(prose): a button's padding.
+    pub button_padding: Vec2,
+    /// TODO(prose): the body text size.
+    pub text_size: f32,
+    /// TODO(prose): a switch's thumb, egui's checkbox and radio size.
+    pub switch_thumb: f32,
+}
+
+impl Tokens {
+    /// Tokens read off egui's own style.
+    pub fn from_egui(egui: &egui::Style) -> Self {
+        let v = &egui.visuals;
+        let w = &v.widgets;
+        Self {
+            background: v.panel_fill,
+            foreground: v.text_color(),
+            card: v.panel_fill,
+            card_foreground: v.text_color(),
+            popover: v.window_fill,
+            popover_foreground: v.text_color(),
+            primary: v.selection.bg_fill,
+            primary_foreground: v.selection.stroke.color,
+            secondary: w.inactive.weak_bg_fill,
+            secondary_foreground: w.inactive.fg_stroke.color,
+            muted: v.faint_bg_color,
+            muted_foreground: v.weak_text_color(),
+            accent: w.active.weak_bg_fill,
+            accent_foreground: w.active.fg_stroke.color,
+            destructive: v.error_fg_color,
+            destructive_foreground: v.text_color(),
+            border: v.window_stroke.color,
+            input: w.inactive.bg_stroke.color,
+            ring: w.active.bg_stroke.color,
+            radius: w.inactive.corner_radius.nw,
+            control_height: egui.spacing.interact_size.y,
+            button_padding: egui.spacing.button_padding,
+            text_size: egui
+                .text_styles
+                .get(&egui::TextStyle::Body)
+                .map_or(14.0, |font| font.size),
+            switch_thumb: egui.spacing.icon_width,
+        }
+    }
+}
+
+/// TODO(prose): the fonts a style is drawn in, added to egui as a layout first builds with the style.
+#[derive(Clone, Debug, Default)]
+pub struct Fonts(pub Vec<egui::FontInsert>);
+
+impl Extension for Fonts {
+    fn derive(_: &Style) -> Self {
+        Self::default()
+    }
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -1405,6 +1553,10 @@ pub struct Style {
     pub motion: MotionStyle,
     /// TODO(prose): the colours of each [`Tone`].
     pub tones: Tones,
+    /// TODO(prose): the design system's named values, from which egui's own look is set.
+    pub tokens: Tokens,
+    /// The widgets' own looks, beside the core-painted fields.
+    extensions: Extensions,
 }
 
 #[derive(Clone)]
@@ -1435,6 +1587,23 @@ impl Style {
             },
             None => role,
         }
+    }
+
+    /// TODO(prose): the widget look `T` this style sets, else the one `T` derives from it.
+    pub fn extension<T: Extension>(&self) -> Arc<T> {
+        self.extensions
+            .map
+            .get_temp::<Arc<T>>(extensions_id())
+            .unwrap_or_else(|| Arc::new(T::derive(self)))
+    }
+
+    /// TODO(prose): sets the widget look `T`, in place of any set before.
+    pub fn set_extension<T: Extension>(&mut self, value: T) {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        self.extensions
+            .map
+            .insert_temp(extensions_id(), Arc::new(value));
+        self.extensions.version = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The text role of a widget section: its own, or [`Style::text`].
@@ -1699,6 +1868,7 @@ impl Style {
                         icon_size: metrics.glyph,
                         icon_gap: s.icon_spacing,
                         text: None,
+                        cell_trim: 0.0,
                     },
                 ),
                 text: None,
@@ -1994,6 +2164,8 @@ impl Style {
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
+            tokens: Tokens::from_egui(egui),
+            extensions: Extensions::default(),
         }
     }
 

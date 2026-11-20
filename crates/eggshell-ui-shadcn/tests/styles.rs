@@ -1,7 +1,7 @@
 //! The shadcn styles as parameter sets: Vega is today's look, Lyra is
 //! `style-lyra.css`, and both fill the same contract.
 
-use eggshell_ui::contract::{Size, Style, Variant};
+use eggshell_ui::contract::{Fonts, Size, Style, Variant};
 use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
 use egui::{Color32, Theme, vec2};
 
@@ -164,6 +164,29 @@ fn slider_and_segmented_tracks_read_on_a_muted_panel() {
                 "{theme:?} {style:?}"
             );
             assert_ne!(s.segmented.track_fill, tokens.muted, "{theme:?} {style:?}");
+        }
+    }
+}
+
+#[test]
+fn each_themed_half_is_the_preset_s_style_with_its_fonts() {
+    for style in ShadcnStyle::ALL {
+        let pair = Shadcn::themed(style, Palette::new());
+        for (theme, half) in [(Theme::Light, &pair.light), (Theme::Dark, &pair.dark)] {
+            let preset = Shadcn::for_theme(theme)
+                .with_style(style)
+                .with_palette(Palette::new());
+            let core = preset.style();
+            let at = format!("{theme:?} {style:?}");
+            assert_eq!(half.tokens, core.tokens, "{at}");
+            assert_eq!(half.text, core.text, "{at}");
+            assert_eq!(half.button, core.button, "{at}");
+            assert_eq!(half.segmented, core.segmented, "{at}");
+            assert_eq!(half.menu, core.menu, "{at}");
+            let fonts = half.extension::<Fonts>();
+            assert!(preset.tokens.font.is_some(), "precondition: {at} has fonts");
+            assert!(!fonts.0.is_empty(), "{at}");
+            assert!(fonts.0.iter().all(|font| !font.families.is_empty()), "{at}");
         }
     }
 }
