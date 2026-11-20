@@ -10,9 +10,10 @@ use eggshell_ui::{
     Via, Weight, tw,
 };
 use egui::{Color32, ColorImage, Event, FontFamily, Key, Modifiers, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node};
+use eggshell_ui::testing::{Driver, Target};
+
+use crate::support;
 
 const FILE: &str = r#"/"Page"/"file""#;
 const ITEM: &str = r#"/"Page"/("file", Menu)/Box/Paste"#;
@@ -61,94 +62,85 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
     });
 }
 
-fn harness() -> (Harness<'static, Rig<App>>, FakeClipboard) {
+fn harness() -> (Driver<App>, FakeClipboard) {
     let fake = FakeClipboard::default();
-    let mut harness = support::harness(vec2(300.0, 200.0), base_text(), App::default(), view);
-    harness
-        .state()
-        .layout
-        .set_clipboard(Some(Arc::new(fake.clone())));
-    harness.run_steps(4);
-    (harness, fake)
+    let mut d = support::driver(vec2(300.0, 200.0), base_text(), App::default(), view).build();
+    d.layout().set_clipboard(Some(Arc::new(fake.clone())));
+    d.frames(4);
+    (d, fake)
 }
 
 fn pixel() -> ColorImage {
     ColorImage::example()
 }
 
-fn click_paste(harness: &mut Harness<'_, Rig<App>>) {
-    click_node(harness, FILE);
-    harness.run_steps(5);
-    click_node(harness, ITEM);
-    harness.run_steps(5);
+fn click_paste(d: &mut Driver<App>) {
+    d.click(Target::suffix(FILE)).frames(5);
+    d.click(Target::suffix(ITEM)).frames(5);
 }
 
-fn chord(harness: &mut Harness<'_, Rig<App>>, event: Event) {
-    harness.event(event);
-    harness.run_steps(4);
+fn chord(d: &mut Driver<App>, event: Event) {
+    d.event(event).frames(3);
 }
 
 #[test]
 fn a_menu_click_and_the_chord_paste_the_same_text() {
-    let (mut harness, fake) = harness();
+    let (mut d, fake) = harness();
     fake.set_text("hello");
-    click_paste(&mut harness);
-    chord(&mut harness, Event::Paste("hello".into()));
+    click_paste(&mut d);
+    chord(&mut d, Event::Paste("hello".into()));
     assert_eq!(
-        harness.state().app.pasted,
+        d.app().pasted,
         [Paste::Text("hello".into()), Paste::Text("hello".into())]
     );
-    assert_eq!(harness.state().app.via, [Via::Read, Via::Event]);
+    assert_eq!(d.app().via, [Via::Read, Via::Event]);
 }
 
 #[test]
 fn text_wins_over_an_image_on_a_click_as_on_the_chord() {
-    let (mut harness, fake) = harness();
+    let (mut d, fake) = harness();
     fake.set_text("hello");
     fake.set_image(pixel());
-    click_paste(&mut harness);
-    assert_eq!(harness.state().app.pasted, [Paste::Text("hello".into())]);
+    click_paste(&mut d);
+    assert_eq!(d.app().pasted, [Paste::Text("hello".into())]);
 }
 
 #[test]
 fn a_menu_click_and_the_chord_paste_the_same_image() {
-    let (mut harness, fake) = harness();
+    let (mut d, fake) = harness();
     fake.set_image(pixel());
-    click_paste(&mut harness);
-    chord(&mut harness, Event::PasteImage(Arc::new(pixel())));
+    click_paste(&mut d);
+    chord(&mut d, Event::PasteImage(Arc::new(pixel())));
     assert_eq!(
-        harness.state().app.pasted,
+        d.app().pasted,
         [Paste::Image(pixel()), Paste::Image(pixel())]
     );
 }
 
 #[test]
 fn an_empty_clipboard_pastes_nothing_on_a_click() {
-    let (mut harness, _fake) = harness();
-    click_paste(&mut harness);
-    assert_eq!(harness.state().app.pasted, [Paste::Nothing]);
+    let (mut d, _fake) = harness();
+    click_paste(&mut d);
+    assert_eq!(d.app().pasted, [Paste::Nothing]);
 }
 
 #[test]
 fn a_failed_read_does_not_run_the_command_and_is_heard() {
-    let (mut harness, fake) = harness();
+    let (mut d, fake) = harness();
     fake.set_text("hello");
     fake.refuse(Some(ClipboardError::Failed("denied".into())));
-    click_paste(&mut harness);
-    assert!(harness.state().app.pasted.is_empty());
-    assert_eq!(
-        harness.state().app.errors,
-        [ClipboardError::Failed("denied".into())]
-    );
+    click_paste(&mut d);
+    assert!(d.app().pasted.is_empty());
+    assert_eq!(d.app().errors, [ClipboardError::Failed("denied".into())]);
 }
 
 #[test]
 fn the_chord_pastes_the_events_text_whatever_the_clipboard_says() {
-    let (mut harness, fake) = harness();
+    let (mut d, fake) = harness();
     fake.refuse(Some(ClipboardError::Unavailable));
-    chord(&mut harness, Event::Paste("typed".into()));
-    assert_eq!(harness.state().app.pasted, [Paste::Text("typed".into())]);
-    assert!(harness.state().app.errors.is_empty());
+    chord(&mut d, Event::Paste("typed".into()));
+    assert_eq!(d.app().pasted, [Paste::Text("typed".into())]);
+    assert!(d.app().errors.is_empty());
 }
 
 #[test]

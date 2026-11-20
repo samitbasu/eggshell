@@ -9,9 +9,10 @@ use eggshell_ui::overlay::{Anchor, Shown};
 use eggshell_ui::{Builder, TextStyle, scroll, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Align, Id, Key, Rect, Theme, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, Rig, click_node, focused_node, rect_of};
+use eggshell_ui::testing::{Driver, Target};
+
+use crate::support::{self, focused_node};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 struct Row(u32);
@@ -161,33 +162,32 @@ fn row_cell(b: &mut Builder<'_, '_, App>, row: Row) -> Id {
     id.expect("the scope ran")
 }
 
-fn harness_of(app: App) -> Harness<'static, Rig<App>> {
+fn harness_of(app: App) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 600.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         app,
         view,
-    );
-    harness.run_steps(4);
-    harness
+    )
+    .build();
+    d.frames(4);
+    d
 }
 
-fn list_id(harness: &Harness<'_, Rig<App>>) -> Id {
-    support::id_of(harness, "/\"list\"")
+fn list_id(d: &Driver<App>) -> Id {
+    support::id_of(d, "/\"list\"")
 }
 
-fn viewport(harness: &Harness<'_, Rig<App>>) -> scroll::Viewport {
-    crate::support::shell(harness)
-        .viewport(list_id(harness))
+fn viewport(d: &Driver<App>) -> scroll::Viewport {
+    d.shell()
+        .viewport(list_id(d))
         .expect("the list was laid out")
 }
 
 /// The rows built in the last frame, in order.
-fn built_rows(harness: &Harness<'_, Rig<App>>) -> Vec<u32> {
-    let mut rows: Vec<u32> = harness
-        .state()
-        .nodes
+fn built_rows(d: &Driver<App>) -> Vec<u32> {
+    let mut rows: Vec<u32> = support::nodes(d)
         .iter()
         .filter_map(|(path, _)| {
             let last = path.rsplit('/').next()?;
@@ -198,77 +198,67 @@ fn built_rows(harness: &Harness<'_, Rig<App>>) -> Vec<u32> {
     rows
 }
 
-fn row_rect(harness: &Harness<'_, Rig<App>>, row: u32) -> Rect {
+fn row_rect(d: &Driver<App>, row: u32) -> Rect {
     let suffix = format!("/Row({row})");
-    harness
-        .state()
-        .nodes
+    support::nodes(d)
         .iter()
         .find(|(path, _)| path.ends_with(&suffix))
-        .unwrap_or_else(|| panic!("row {row} is built: {:?}", built_rows(harness)))
+        .unwrap_or_else(|| panic!("row {row} is built: {:?}", built_rows(d)))
         .1
 }
 
 /// Steps one frame and returns how many rows `item` built in it.
-fn step_counting(harness: &mut Harness<'_, Rig<App>>) -> usize {
-    harness.state().app.built.set(0);
-    harness.step();
-    harness.state().app.built.get()
+fn step_counting(d: &mut Driver<App>) -> usize {
+    d.app().built.set(0);
+    d.frames(1);
+    d.app().built.get()
 }
 
-fn scroll_by(harness: &mut Harness<'_, Rig<App>>, y: f32) {
-    crate::support::shell(harness).scroll_by(list_id(harness), vec2(0.0, y));
-    harness.run_steps(3);
+fn scroll_by(d: &mut Driver<App>, y: f32) {
+    d.shell().scroll_by(list_id(d), vec2(0.0, y));
+    d.frames(3);
 }
 
-fn run_while_repainting(harness: &mut Harness<'_, Rig<App>>, limit: usize) {
+fn run_while_repainting(d: &mut Driver<App>, limit: usize) {
     for _ in 0..limit {
-        if !harness.ctx.has_requested_repaint() {
+        if !d.ctx().has_requested_repaint() {
             break;
         }
-        harness.step();
+        d.frames(1);
     }
 }
 
 #[test]
 fn only_the_rows_in_the_viewport_and_the_overscan_are_built() {
-    let mut harness = harness_of(App::new(
+    let mut d = harness_of(App::new(
         1000,
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(20.0),
     ));
     let rows = 0..18;
     assert_eq!(
-        built_rows(&harness),
+        built_rows(&d),
         rows.clone().collect::<Vec<_>>(),
         "−50 to 350 at the top"
     );
-    assert_eq!(
-        step_counting(&mut harness),
-        rows.len(),
-        "and only they are built"
-    );
-    scroll_by(&mut harness, 2000.0);
-    assert_eq!(
-        viewport(&harness).offset().y,
-        2000.0,
-        "precondition: scrolled"
-    );
+    assert_eq!(step_counting(&mut d), rows.len(), "and only they are built");
+    scroll_by(&mut d, 2000.0);
+    assert_eq!(viewport(&d).offset().y, 2000.0, "precondition: scrolled");
     let rows = 97..118;
     assert_eq!(
-        built_rows(&harness),
+        built_rows(&d),
         rows.clone().collect::<Vec<_>>(),
         "1950 to 2350"
     );
-    assert_eq!(step_counting(&mut harness), rows.len());
+    assert_eq!(step_counting(&mut d), rows.len());
 }
 
 #[test]
 fn fixed_rows_build_the_same_rows_as_measured_ones() {
     let at = |list: VList, offset: f32| {
-        let mut harness = harness_of(App::new(1000, list, Rows::Tall(20.0)));
-        scroll_by(&mut harness, offset);
-        (viewport(&harness).offset().y, built_rows(&harness))
+        let mut d = harness_of(App::new(1000, list, Rows::Tall(20.0)));
+        scroll_by(&mut d, offset);
+        (viewport(&d).offset().y, built_rows(&d))
     };
     for offset in [0.0, 2000.0, 7013.0, 19_700.0, 50_000.0] {
         let measured = at(VList::estimated(20.0).overscan(50.0), offset);
@@ -282,14 +272,14 @@ fn fixed_rows_build_the_same_rows_as_measured_ones() {
 
 #[test]
 fn rows_not_yet_built_count_at_the_estimate_and_built_ones_as_measured() {
-    let harness = harness_of(App::new(
+    let d = harness_of(App::new(
         1000,
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(40.0),
     ));
     let measured = 18;
     assert_eq!(
-        viewport(&harness).content.height(),
+        viewport(&d).content.height(),
         measured as f32 * 40.0 + (1000 - measured) as f32 * 20.0,
         "the first frame built 18 rows at the estimate's offsets, and they measured 40"
     );
@@ -303,29 +293,29 @@ fn a_change_of_width_forgets_the_measured_heights() {
         Rows::TenthOfWidth,
     );
     app.width = 300.0;
-    let mut harness = harness_of(app);
-    let wide = viewport(&harness).rect.width() / 10.0;
+    let mut d = harness_of(app);
+    let wide = viewport(&d).rect.width() / 10.0;
     assert_eq!(
-        viewport(&harness).content.height(),
+        viewport(&d).content.height(),
         70.0 * wide + 930.0 * 5.0,
         "precondition: the 70 rows the estimate reaches to 350 are measured"
     );
-    scroll_by(&mut harness, 3000.0);
+    scroll_by(&mut d, 3000.0);
     assert!(
-        built_rows(&harness).iter().all(|&row| row > 70),
+        built_rows(&d).iter().all(|&row| row > 70),
         "precondition: rows further down are measured too"
     );
-    scroll_by(&mut harness, -100_000.0);
+    scroll_by(&mut d, -100_000.0);
     assert_eq!(
-        viewport(&harness).offset().y,
+        viewport(&d).offset().y,
         0.0,
         "precondition: back at the top"
     );
-    harness.state_mut().app.width = 200.0;
-    harness.run_steps(4);
-    let row = viewport(&harness).rect.width() / 10.0;
+    d.app_mut().width = 200.0;
+    d.frames(4);
+    let row = viewport(&d).rect.width() / 10.0;
     assert_eq!(
-        viewport(&harness).content.height(),
+        viewport(&d).content.height(),
         70.0 * row + 930.0 * 5.0,
         "the same 70 rows are measured anew; the rest are estimates again"
     );
@@ -333,22 +323,22 @@ fn a_change_of_width_forgets_the_measured_heights() {
 
 #[test]
 fn a_row_that_leaves_the_list_loses_its_height() {
-    let mut harness = harness_of(App::new(
+    let mut d = harness_of(App::new(
         10,
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(40.0),
     ));
     assert_eq!(
-        viewport(&harness).content.height(),
+        viewport(&d).content.height(),
         400.0,
         "precondition: all measured"
     );
-    harness.state_mut().app.rows.retain(|&row| row != Row(5));
-    harness.run_steps(2);
-    harness.state_mut().app.rows.push(Row(5));
-    harness.step();
+    d.app_mut().rows.retain(|&row| row != Row(5));
+    d.frames(2);
+    d.app_mut().rows.push(Row(5));
+    d.frames(1);
     assert_eq!(
-        viewport(&harness).content.height(),
+        viewport(&d).content.height(),
         9.0 * 40.0 + 20.0,
         "back, it is at the estimate until it is measured again"
     );
@@ -356,30 +346,30 @@ fn a_row_that_leaves_the_list_loses_its_height() {
 
 #[test]
 fn a_row_growing_above_the_viewport_leaves_the_first_visible_row_in_place() {
-    let mut harness = harness_of(App::new(
+    let mut d = harness_of(App::new(
         1000,
         VList::estimated(20.0).overscan(100.0),
         Rows::Tall(20.0),
     ));
-    scroll_by(&mut harness, 1000.0);
-    let top = viewport(&harness).rect.top();
-    let before = row_rect(&harness, 50);
+    scroll_by(&mut d, 1000.0);
+    let top = viewport(&d).rect.top();
+    let before = row_rect(&d, 50);
     assert_eq!(
         before.top(),
         top,
         "precondition: row 50 is the first visible row"
     );
     assert!(
-        row_rect(&harness, 48).bottom() <= top,
+        row_rect(&d, 48).bottom() <= top,
         "precondition: row 48 is above the viewport, and built"
     );
-    harness.state_mut().app.tall.insert(Row(48), 60.0);
-    harness.step();
-    assert_eq!(row_rect(&harness, 50).top(), top, "the frame it grew in");
-    run_while_repainting(&mut harness, 10);
-    assert_eq!(row_rect(&harness, 50).top(), top, "and after");
+    d.app_mut().tall.insert(Row(48), 60.0);
+    d.frames(1);
+    assert_eq!(row_rect(&d, 50).top(), top, "the frame it grew in");
+    run_while_repainting(&mut d, 10);
+    assert_eq!(row_rect(&d, 50).top(), top, "and after");
     assert!(
-        !harness.ctx.has_requested_repaint(),
+        !d.ctx().has_requested_repaint(),
         "the frames stop once it is settled"
     );
 }
@@ -392,39 +382,34 @@ fn a_field_keeps_its_focus_and_cursor_while_scrolled_away_and_back() {
         Rows::Tall(36.0),
     );
     app.fields = true;
-    let mut harness = harness_of(app);
-    let path = harness
-        .state()
-        .nodes
+    let mut d = harness_of(app);
+    let path = support::nodes(&d)
         .iter()
         .map(|(path, _)| path.clone())
         .find(|path| path.ends_with("Row(2)/\"field\""))
         .expect("row 2's field is built");
-    click_node(&mut harness, &path);
-    harness.event(egui::Event::Text("abcd".into()));
-    harness.run_steps(2);
-    harness.key_press(Key::ArrowLeft);
-    harness.key_press(Key::ArrowLeft);
-    harness.run_steps(2);
-    scroll_by(&mut harness, 5000.0);
-    let view = viewport(&harness).rect;
+    d.click(Target::suffix(&path));
+    d.type_text("abcd").frames(1);
+    d.press(Key::ArrowLeft);
+    d.press(Key::ArrowLeft).frames(1);
+    scroll_by(&mut d, 5000.0);
+    let view = viewport(&d).rect;
     assert!(
-        !built_rows(&harness)
+        !built_rows(&d)
             .iter()
             .filter(|&&row| row != 2)
             .any(|&row| row < 10),
         "precondition: the rows around row 2 are no longer built"
     );
     assert!(
-        !row_rect(&harness, 2).intersects(view),
+        !row_rect(&d, 2).intersects(view),
         "precondition: row 2 is out of view"
     );
-    scroll_by(&mut harness, -5000.0);
-    assert_eq!(focused_node(&harness).as_deref(), Some(path.as_str()));
-    harness.event(egui::Event::Text("X".into()));
-    harness.run_steps(2);
+    scroll_by(&mut d, -5000.0);
+    assert_eq!(focused_node(&d).as_deref(), Some(path.as_str()));
+    d.type_text("X").frames(1);
     assert_eq!(
-        harness.state().app.texts.get(&Row(2)).map(String::as_str),
+        d.app().texts.get(&Row(2)).map(String::as_str),
         Some("abXcd")
     );
 }
@@ -437,21 +422,17 @@ fn a_row_a_popup_is_anchored_to_stays_built_while_scrolled_away() {
         Rows::Tall(20.0),
     );
     app.menu_on = Some(Row(3));
-    let mut harness = harness_of(app);
+    let mut d = harness_of(app);
     assert!(
-        harness
-            .state()
-            .nodes
+        support::nodes(&d)
             .iter()
             .any(|(path, _)| path.contains("menu")),
         "precondition: the menu is open"
     );
-    scroll_by(&mut harness, 5000.0);
-    assert!(built_rows(&harness).contains(&3), "row 3 is still built");
+    scroll_by(&mut d, 5000.0);
+    assert!(built_rows(&d).contains(&3), "row 3 is still built");
     assert!(
-        harness
-            .state()
-            .nodes
+        support::nodes(&d)
             .iter()
             .any(|(path, _)| path.contains("menu")),
         "and the menu still open"
@@ -460,25 +441,26 @@ fn a_row_a_popup_is_anchored_to_stays_built_while_scrolled_away() {
 
 #[test]
 fn scroll_to_lands_the_row_in_view_after_one_correction() {
-    let mut harness = harness_of(App::new(
+    let mut d = harness_of(App::new(
         1000,
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(40.0),
     ));
     assert!(
-        !built_rows(&harness).contains(&500),
+        !built_rows(&d).contains(&500),
         "precondition: row 500 is far away"
     );
-    crate::support::shell(&harness).scroll_to_row(list_id(&harness), Row(500), Some(Align::Min));
-    harness.step();
-    let view = viewport(&harness).rect;
+    d.shell()
+        .scroll_to_row(list_id(&d), Row(500), Some(Align::Min));
+    d.frames(1);
+    let view = viewport(&d).rect;
     assert!(
-        row_rect(&harness, 500).intersects(view),
+        row_rect(&d, 500).intersects(view),
         "the frame of the request shows it"
     );
-    harness.step();
+    d.frames(1);
     assert_eq!(
-        row_rect(&harness, 500).top(),
+        row_rect(&d, 500).top(),
         view.top(),
         "and the next aligns it"
     );
@@ -486,9 +468,9 @@ fn scroll_to_lands_the_row_in_view_after_one_correction() {
 
 #[test]
 fn rows_are_built_under_the_list_by_their_own_key() {
-    let harness = harness_of(App::new(5, VList::estimated(20.0), Rows::Tall(20.0)));
-    rect_of(&harness, "/\"list\"");
-    assert_eq!(built_rows(&harness), vec![0, 1, 2, 3, 4]);
+    let d = harness_of(App::new(5, VList::estimated(20.0), Rows::Tall(20.0)));
+    d.rect(Target::suffix("/\"list\""));
+    assert_eq!(built_rows(&d), vec![0, 1, 2, 3, 4]);
 }
 
 #[test]
@@ -499,79 +481,61 @@ fn an_overlay_declared_in_a_row_stays_open_while_the_row_is_scrolled_away() {
         Rows::Tall(20.0),
     );
     app.menu_in = Some(Row(3));
-    let mut harness = harness_of(app);
-    let open = |harness: &Harness<'_, Rig<App>>| {
-        harness
-            .state()
-            .nodes
+    let mut d = harness_of(app);
+    let open = |d: &Driver<App>| {
+        support::nodes(d)
             .iter()
             .any(|(path, _)| path.contains("\"inner\""))
     };
-    assert!(open(&harness), "precondition: the overlay is open");
-    scroll_by(&mut harness, 5000.0);
-    assert!(built_rows(&harness).contains(&3), "row 3 is still built");
-    assert!(open(&harness), "and its overlay still open");
+    assert!(open(&d), "precondition: the overlay is open");
+    scroll_by(&mut d, 5000.0);
+    assert!(built_rows(&d).contains(&3), "row 3 is still built");
+    assert!(open(&d), "and its overlay still open");
 }
 
 #[test]
 fn rows_inserted_above_the_viewport_leave_the_first_visible_row_in_place() {
-    let mut harness = harness_of(App::new(
+    let mut d = harness_of(App::new(
         1000,
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(20.0),
     ));
-    scroll_by(&mut harness, 1000.0);
-    let top = viewport(&harness).rect.top();
-    assert_eq!(
-        row_rect(&harness, 50).top(),
-        top,
-        "precondition: row 50 is first"
-    );
+    scroll_by(&mut d, 1000.0);
+    let top = viewport(&d).rect.top();
+    assert_eq!(row_rect(&d, 50).top(), top, "precondition: row 50 is first");
     let new: Vec<Row> = (2000..2010).map(Row).collect();
-    harness.state_mut().app.rows.splice(10..10, new);
-    harness.step();
-    assert_eq!(
-        row_rect(&harness, 50).top(),
-        top,
-        "the frame they arrive in"
-    );
-    run_while_repainting(&mut harness, 10);
-    assert_eq!(row_rect(&harness, 50).top(), top, "and after");
-    harness.state_mut().app.rows.drain(5..15);
-    harness.step();
-    assert_eq!(row_rect(&harness, 50).top(), top, "and when rows above go");
+    d.app_mut().rows.splice(10..10, new);
+    d.frames(1);
+    assert_eq!(row_rect(&d, 50).top(), top, "the frame they arrive in");
+    run_while_repainting(&mut d, 10);
+    assert_eq!(row_rect(&d, 50).top(), top, "and after");
+    d.app_mut().rows.drain(5..15);
+    d.frames(1);
+    assert_eq!(row_rect(&d, 50).top(), top, "and when rows above go");
 }
 
 #[test]
 fn at_the_top_rows_inserted_above_show() {
-    let mut harness = harness_of(App::new(
+    let mut d = harness_of(App::new(
         1000,
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(20.0),
     ));
-    assert_eq!(
-        viewport(&harness).offset().y,
-        0.0,
-        "precondition: at the top"
-    );
-    harness.state_mut().app.rows.insert(0, Row(2000));
-    harness.run_steps(2);
-    assert_eq!(viewport(&harness).offset().y, 0.0);
-    assert_eq!(
-        row_rect(&harness, 2000).top(),
-        viewport(&harness).rect.top()
-    );
+    assert_eq!(viewport(&d).offset().y, 0.0, "precondition: at the top");
+    d.app_mut().rows.insert(0, Row(2000));
+    d.frames(2);
+    assert_eq!(viewport(&d).offset().y, 0.0);
+    assert_eq!(row_rect(&d, 2000).top(), viewport(&d).rect.top());
 }
 
 #[test]
 fn tab_goes_to_the_first_row_s_control_not_to_the_list() {
     let mut app = App::new(1000, VList::estimated(36.0), Rows::Tall(36.0));
     app.fields = true;
-    let mut harness = harness_of(app);
-    harness.state_mut().companion = support::Companion::Alone;
-    harness.key_press(Key::Tab);
-    harness.run_steps(2);
-    let focused = focused_node(&harness).expect("Tab focused something");
+    let mut d = harness_of(app);
+    support::set_companion(&d, support::Companion::Alone);
+    d.press(Key::Tab).frames(1);
+    let focused = focused_node(&d).expect("Tab focused something");
     assert!(
         focused.ends_with("Row(0)/\"field\""),
         "a list of controls is reached through them: {focused}"
@@ -582,8 +546,8 @@ fn tab_goes_to_the_first_row_s_control_not_to_the_list() {
 fn a_zero_or_unknown_estimate_still_builds_only_a_viewport_and_overscan() {
     for estimate in [0.0, f32::NAN] {
         let tokens = Tokens::for_theme(Theme::Light);
-        // Building the harness runs the first frame.
-        let mut harness = support::harness(
+        // Building the d runs the first frame.
+        let mut d = support::driver(
             vec2(400.0, 600.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             App::new(
@@ -592,43 +556,43 @@ fn a_zero_or_unknown_estimate_still_builds_only_a_viewport_and_overscan() {
                 Rows::Tall(20.0),
             ),
             view,
-        );
-        let built = harness.state().app.built.get();
+        )
+        .build();
+        let built = d.app().built.get();
         assert!(
             built > 0 && built <= (VIEWPORT + 2.0 * 50.0) as usize,
             "estimate {estimate}: {built} rows built in the first frame"
         );
-        harness.step();
+        d.frames(1);
     }
 }
 
 #[test]
 fn a_scroll_by_shows_rows_in_the_frame_it_is_applied() {
-    let mut harness = harness_of(App::new(
+    let mut d = harness_of(App::new(
         1000,
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(20.0),
     ));
-    crate::support::shell(&harness).scroll_by(list_id(&harness), vec2(0.0, 2000.0));
-    harness.step();
-    let view = viewport(&harness);
+    d.shell().scroll_by(list_id(&d), vec2(0.0, 2000.0));
+    d.frames(1);
+    let view = viewport(&d);
     assert_eq!(
         view.offset().y,
         2000.0,
         "precondition: applied in this frame"
     );
     assert!(
-        row_rect(&harness, 100).top() == view.rect.top(),
+        row_rect(&d, 100).top() == view.rect.top(),
         "the row at the new offset is built and shown: {:?}",
-        built_rows(&harness)
+        built_rows(&d)
     );
 }
 
-fn last_row_ends_the_viewport(harness: &Harness<'_, Rig<App>>) -> bool {
-    let last = harness.state().app.rows.last().expect("rows").0;
-    let view = viewport(harness).rect;
-    built_rows(harness).contains(&last)
-        && (row_rect(harness, last).bottom() - view.bottom()).abs() < 0.5
+fn last_row_ends_the_viewport(d: &Driver<App>) -> bool {
+    let last = d.app().rows.last().expect("rows").0;
+    let view = viewport(d).rect;
+    built_rows(d).contains(&last) && (row_rect(d, last).bottom() - view.bottom()).abs() < 0.5
 }
 
 #[test]
@@ -639,11 +603,11 @@ fn a_list_that_starts_at_its_end_opens_on_its_last_row() {
         Rows::Tall(40.0),
     );
     app.start_at_end = true;
-    let harness = harness_of(app);
+    let d = harness_of(app);
     assert!(
-        last_row_ends_the_viewport(&harness),
+        last_row_ends_the_viewport(&d),
         "the last row ends the viewport: built {:?}",
-        built_rows(&harness)
+        built_rows(&d)
     );
 }
 
@@ -655,16 +619,13 @@ fn a_row_added_at_the_end_shows_while_the_list_is_at_its_end() {
         Rows::Tall(40.0),
     );
     app.start_at_end = true;
-    let mut harness = harness_of(app);
+    let mut d = harness_of(app);
+    assert!(last_row_ends_the_viewport(&d), "precondition: at the end");
+    d.app_mut().rows.push(Row(5000));
+    d.frames(1);
+    run_while_repainting(&mut d, 10);
     assert!(
-        last_row_ends_the_viewport(&harness),
-        "precondition: at the end"
-    );
-    harness.state_mut().app.rows.push(Row(5000));
-    harness.step();
-    run_while_repainting(&mut harness, 10);
-    assert!(
-        last_row_ends_the_viewport(&harness),
+        last_row_ends_the_viewport(&d),
         "the new row ends the viewport"
     );
 }
@@ -677,30 +638,31 @@ fn a_row_added_at_the_end_leaves_a_list_scrolled_away_where_it_is() {
         Rows::Tall(40.0),
     );
     app.start_at_end = true;
-    let mut harness = harness_of(app);
-    scroll_by(&mut harness, -2000.0);
-    let offset = viewport(&harness).offset().y;
+    let mut d = harness_of(app);
+    scroll_by(&mut d, -2000.0);
+    let offset = viewport(&d).offset().y;
     assert!(
-        !last_row_ends_the_viewport(&harness),
+        !last_row_ends_the_viewport(&d),
         "precondition: scrolled away"
     );
-    harness.state_mut().app.rows.push(Row(5000));
-    harness.step();
-    run_while_repainting(&mut harness, 10);
-    assert_eq!(viewport(&harness).offset().y, offset);
+    d.app_mut().rows.push(Row(5000));
+    d.frames(1);
+    run_while_repainting(&mut d, 10);
+    assert_eq!(viewport(&d).offset().y, offset);
 }
 
 #[test]
 fn scroll_to_the_bottom_of_the_viewport_lands_there_as_rows_are_measured() {
-    let mut harness = harness_of(App::new(
+    let mut d = harness_of(App::new(
         1000,
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(40.0),
     ));
-    crate::support::shell(&harness).scroll_to_row(list_id(&harness), Row(500), Some(Align::Max));
-    harness.run_steps(4);
-    let view = viewport(&harness).rect;
-    let row = row_rect(&harness, 500);
+    d.shell()
+        .scroll_to_row(list_id(&d), Row(500), Some(Align::Max));
+    d.frames(4);
+    let view = viewport(&d).rect;
+    let row = row_rect(&d, 500);
     assert!(
         (row.bottom() - view.bottom()).abs() < 1.0,
         "row 500 {row:?} ends the viewport {view:?}"
@@ -709,34 +671,34 @@ fn scroll_to_the_bottom_of_the_viewport_lands_there_as_rows_are_measured() {
 
 #[test]
 fn a_row_whose_size_is_in_flight_counts_at_its_target_and_stays_built() {
-    let mut harness = harness_of(App::new(
+    let mut d = harness_of(App::new(
         1000,
         VList::estimated(20.0).overscan(50.0),
         Rows::Tall(20.0),
     ));
-    let rest = viewport(&harness).content.height();
-    harness.state_mut().app.opened = Some(Row(3));
-    harness.run_steps(2);
+    let rest = viewport(&d).content.height();
+    d.app_mut().opened = Some(Row(3));
+    d.frames(2);
     assert!(
-        harness.ctx.has_requested_repaint(),
+        d.ctx().has_requested_repaint(),
         "precondition: the collapsible is still opening"
     );
     assert_eq!(
-        viewport(&harness).content.height(),
+        viewport(&d).content.height(),
         rest + 200.0,
         "mid-flight, the content counts the row at where it is going"
     );
-    scroll_by(&mut harness, 5000.0);
+    scroll_by(&mut d, 5000.0);
     assert!(
-        built_rows(&harness).contains(&3),
+        built_rows(&d).contains(&3),
         "the row stays built while it moves, scrolled away"
     );
-    harness.run_steps(40);
+    d.frames(40);
     assert!(
-        !built_rows(&harness).contains(&3),
+        !built_rows(&d).contains(&3),
         "and is let go once it has landed"
     );
-    assert_eq!(viewport(&harness).content.height(), rest + 200.0);
+    assert_eq!(viewport(&d).content.height(), rest + 200.0);
 }
 
 mod query {

@@ -1,13 +1,13 @@
 //! `focus_on_appear`: a field that is built after not being built takes focus
 //! once, and not again while it stays.
 
+use eggshell_ui::testing::Driver;
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Theme, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-use crate::support::{self, Rig};
+use crate::support;
 
 #[derive(Default)]
 struct App {
@@ -41,61 +41,58 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     );
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
+fn harness() -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 300.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
-    );
-    harness.run_steps(6);
-    harness
+    )
+    .build();
+    d.frames(6);
+    d
 }
 
-fn focused_label(harness: &Harness<'_, Rig<App>>) -> Option<String> {
+fn focused_label(d: &Driver<App>) -> Option<String> {
     ["Other", "Name", "Count"].into_iter().find_map(|label| {
-        let node = harness.query_by_label(label)?;
+        let node = d.harness().query_by_label(label)?;
         egui_kittest::kittest::NodeT::accesskit_node(&node)
             .is_focused()
             .then(|| label.to_owned())
     })
 }
 
-fn show(harness: &mut Harness<'_, Rig<App>>, shown: bool) {
-    harness.state_mut().app.shown = shown;
-    harness.run_steps(4);
+fn show(d: &mut Driver<App>, shown: bool) {
+    d.app_mut().shown = shown;
+    d.frames(4);
 }
 
 #[test]
 fn a_field_that_appears_takes_focus_once() {
-    let mut harness = harness();
-    harness.get_by_label("Other").focus();
-    harness.run_steps(3);
-    assert_eq!(
-        focused_label(&harness).as_deref(),
-        Some("Other"),
-        "precondition"
-    );
+    let mut d = harness();
+    d.harness().get_by_label("Other").focus();
+    d.frames(3);
+    assert_eq!(focused_label(&d).as_deref(), Some("Other"), "precondition");
 
-    show(&mut harness, true);
-    let taken = focused_label(&harness);
+    show(&mut d, true);
+    let taken = focused_label(&d);
     assert!(
         matches!(taken.as_deref(), Some("Name" | "Count")),
         "an appearing field took focus: {taken:?}"
     );
 
-    harness.get_by_label("Other").focus();
-    harness.run_steps(6);
+    d.harness().get_by_label("Other").focus();
+    d.frames(6);
     assert_eq!(
-        focused_label(&harness).as_deref(),
+        focused_label(&d).as_deref(),
         Some("Other"),
         "a field that stays built does not take focus again"
     );
 
-    show(&mut harness, false);
-    show(&mut harness, true);
-    let again = focused_label(&harness);
+    show(&mut d, false);
+    show(&mut d, true);
+    let again = focused_label(&d);
     assert!(
         matches!(again.as_deref(), Some("Name" | "Count")),
         "it takes focus when it appears again: {again:?}"
@@ -115,15 +112,16 @@ fn without_the_option_an_appearing_field_leaves_focus_alone() {
         }
     }
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 300.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         plain,
-    );
-    harness.run_steps(4);
-    harness.get_by_label("Other").focus();
-    harness.run_steps(3);
-    show(&mut harness, true);
-    assert_eq!(focused_label(&harness).as_deref(), Some("Other"));
+    )
+    .build();
+    d.frames(4);
+    d.harness().get_by_label("Other").focus();
+    d.frames(3);
+    show(&mut d, true);
+    assert_eq!(focused_label(&d).as_deref(), Some("Other"));
 }
