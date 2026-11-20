@@ -2190,9 +2190,11 @@ impl PlacedNode {
     /// Whether the node is an item of a menu, a listbox, a grid or a group: it
     /// has an item role.
     pub(crate) fn is_item(&self) -> bool {
-        self.description()
-            .and_then(|description| description.role)
-            .is_some_and(|role| {
+        let Some(description) = self.description() else {
+            return false;
+        };
+        description.member == crate::scroll::Member::Marked
+            || description.role.is_some_and(|role| {
                 matches!(
                     role,
                     Role::MenuItem
