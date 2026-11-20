@@ -91,6 +91,7 @@ mod mount;
 mod named_layouts;
 mod nested_layouts;
 mod node_controls;
+mod notify;
 mod number_readout;
 mod numbers;
 mod overlay;
