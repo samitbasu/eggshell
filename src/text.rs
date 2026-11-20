@@ -34,12 +34,9 @@ impl TextSpec {
         if self.weight == Weight::Normal {
             return self.family.clone();
         }
-        let style = crate::Style::of(ctx);
+        let faces = applied(ctx);
         let registered = ctx.fonts(|fonts| fonts.families());
-        match style
-            .faces
-            .resolve(&self.family, self.weight, |face| registered.contains(face))
-        {
+        match faces.resolve(&self.family, self.weight, |face| registered.contains(face)) {
             Resolution::Face(face) | Resolution::Pending(face) => face,
             Resolution::Missing(face) => {
                 report_missing(ctx, &self.family, self.weight);
@@ -97,6 +94,22 @@ pub struct Face {
 pub struct Faces(Vec<Face>);
 
 /// How [`Faces`] resolved a weight.
+fn faces_id() -> egui::Id {
+    crate::key::root_id().with("applied-faces")
+}
+
+/// Makes `faces` the ones text is drawn in, as the build that uses them
+/// starts: the fonts they name are the context's, as egui's fonts are.
+pub(crate) fn apply_faces(ctx: &Context, faces: &Faces) {
+    ctx.data_mut(|data| data.insert_temp(faces_id(), std::sync::Arc::new(faces.clone())));
+}
+
+/// The faces the last build applied, else those of the installed style.
+fn applied(ctx: &Context) -> std::sync::Arc<Faces> {
+    ctx.data(|data| data.get_temp::<std::sync::Arc<Faces>>(faces_id()))
+        .unwrap_or_else(|| std::sync::Arc::new(crate::Style::of(ctx).faces.clone()))
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Resolution {
     /// The weight's own face.
@@ -426,9 +439,14 @@ impl TextStyle {
     /// text in egui's text colour, else egui's Body.
     pub(crate) fn default_for(ctx: &egui::Context) -> Self {
         match crate::Style::installed(ctx) {
-            Some(style) => Self::new(style.text.clone(), ctx.global_style().visuals.text_color()),
+            Some(style) => Self::of_style(ctx, &style),
             None => Self::from_egui(ctx),
         }
+    }
+
+    /// `style`'s text in egui's text colour.
+    pub(crate) fn of_style(ctx: &egui::Context, style: &crate::Style) -> Self {
+        Self::new(style.text.clone(), ctx.global_style().visuals.text_color())
     }
 
     /// The style egui itself would give body text: [`egui::TextStyle::Body`]'s
