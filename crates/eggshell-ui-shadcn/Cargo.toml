@@ -19,6 +19,7 @@ extras = [
     "eggshell-ui-extras/form",
     "eggshell-ui-extras/hover-card",
     "eggshell-ui-extras/markdown",
+    "eggshell-ui-extras/notify",
     "eggshell-ui-extras/skeleton",
 ]
 

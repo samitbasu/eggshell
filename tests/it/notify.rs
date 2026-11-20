@@ -405,3 +405,61 @@ fn a_notice_floats_above_an_open_dialog_and_takes_the_pointer() {
     );
     assert!(harness.state().app.dialog, "the press was the notice's");
 }
+
+#[test]
+fn the_preset_gives_sonners_notification_look() {
+    use eggshell_ui::Weight;
+    use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, size, variant};
+    let vega = Shadcn::light();
+    let notify = vega.notify(&vega.style());
+    assert_eq!(notify.fill, vega.tokens.popover, "--normal-bg");
+    assert_eq!(notify.border, vega.tokens.border, "--normal-border");
+    assert_eq!(notify.text, vega.tokens.popover_foreground, "--normal-text");
+    assert_eq!(notify.border_width, 1.0);
+    assert_eq!(notify.width, 356.0, "TOAST_WIDTH");
+    assert_eq!(notify.padding, 16.0);
+    assert_eq!(notify.gap, 6.0);
+    assert_eq!(notify.stack_gap, 14.0, "GAP");
+    assert_eq!(notify.visible, 3, "VISIBLE_TOASTS_AMOUNT");
+    assert_eq!(notify.inset, Distance::new(24.0), "VIEWPORT_OFFSET");
+    assert_eq!(notify.radius, 18, "rounded-2xl, 1.8 radii");
+    let shadow = notify.shadow.expect("a shadow");
+    assert_eq!(
+        (shadow.offset, shadow.blur, shadow.spread, shadow.color.a()),
+        ([0, 4], 12, 0, 26),
+        "0 4px 12px rgba(0, 0, 0, 0.1)"
+    );
+    assert_eq!((notify.role.size, notify.role.line_height), (13.0, 19.5));
+    assert_eq!(notify.role.weight, Weight::Medium, "data-title: 500");
+    assert_eq!(
+        (notify.action_variant, notify.action_size),
+        (variant::OUTLINE, size::XS)
+    );
+    assert_eq!(
+        (notify.close_variant, notify.close_size),
+        (variant::GHOST, size::ICON_XS)
+    );
+    let lyra = Shadcn::light().with_style(ShadcnStyle::Lyra);
+    assert_eq!(lyra.notify(&lyra.style()).radius, 0, "rounded-none");
+}
+
+#[test]
+fn a_card_is_the_styles_width_and_a_stack_shows_only_its_newest() {
+    let mut harness = harness(App {
+        notices: (1..=5).map(notice).collect(),
+        ..App::default()
+    });
+    wait(&mut harness, DWELL);
+    let shown = shown(&harness, NOTICES);
+    assert_eq!(shown.len(), 3, "3 visible: {shown:?}");
+    for newest in [5, 4, 3] {
+        let width = rect_of(&harness, &card(NOTICES, newest)).width();
+        assert!((width - 356.0).abs() < 0.5, "356 wide: {width}");
+    }
+    assert!(
+        shown
+            .iter()
+            .all(|path| !path.contains("NoticeId(1)") && !path.contains("NoticeId(2)")),
+        "the oldest two are not shown"
+    );
+}

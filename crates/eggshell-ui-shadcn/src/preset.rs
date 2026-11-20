@@ -856,8 +856,56 @@ impl Shadcn {
             self.hover_card().install_for(ctx, self.theme);
             self.command(&style).install_for(ctx, self.theme);
             self.skeleton(&style).install_for(ctx, self.theme);
+            self.notify(&style).install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
+    }
+
+    /// TODO(prose): the look of a notification, shadcn's Sonner over sonner's
+    /// own sizes. From `ref/shadcn` (f50887a) and `ref/sonner` (v2.0.7,
+    /// `src/styles.css`):
+    /// - the card is `--normal-bg: popover`, `--normal-text:
+    ///   popover-foreground` and `--normal-border: border` (`bases/radix/ui/
+    ///   sonner.tsx` 69-71), 1 pt border, 16 pt padding, 6 pt between its
+    ///   parts, `font-size: 13px` (styles.css 96-106), 356 pt wide and 14 pt
+    ///   between cards, 3 shown, 24 pt from the window (`src/index.tsx`
+    ///   22-37);
+    /// - the shadow is `0 4px 12px rgba(0, 0, 0, 0.1)` (styles.css 101);
+    /// - the sentence is the toast's title: `font-weight: 500`,
+    ///   `line-height: 1.5` (styles.css 141-144);
+    /// - the corners are `cn-toast`'s `rounded-2xl` in Vega, 1.8 times
+    ///   `--radius`, and `rounded-none` in Lyra (`style-vega.css` 1246,
+    ///   `style-lyra.css` 1221);
+    /// - an action's button is the 24 pt, 12 pt `xs` of sonner's
+    ///   `[data-button]` (styles.css 181-202), and the × a ghost `icon-xs`.
+    #[cfg(feature = "extras")]
+    pub fn notify(&self, style: &contract::Style) -> eggshell_ui_extras::notify::NotifyStyle {
+        let t = &self.tokens;
+        let mut notify = eggshell_ui_extras::notify::NotifyStyle::from_style(style);
+        notify.fill = t.popover;
+        notify.border = t.border;
+        notify.text = t.popover_foreground;
+        notify.border_width = 1.0;
+        notify.radius = match t.style {
+            ShadcnStyle::Vega => (f32::from(t.radius) * 1.8).round() as u8,
+            ShadcnStyle::Lyra => 0,
+        };
+        notify.shadow = Some(Shadow {
+            offset: [0, 4],
+            blur: 12,
+            spread: 0,
+            color: Color32::from_black_alpha(26),
+        });
+        notify.role = TextSpec {
+            size: 13.0,
+            line_height: 19.5,
+            ..t.text_role_at(Weight::Medium)
+        };
+        notify.action_variant = variant::OUTLINE;
+        notify.action_size = size::XS;
+        notify.close_variant = variant::GHOST;
+        notify.close_size = size::ICON_XS;
+        notify
     }
 
     /// TODO(prose): the skeleton's look: shadcn's `Skeleton`, `bg-muted
