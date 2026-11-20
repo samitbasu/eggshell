@@ -235,7 +235,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
     ///     b.text_field("query", &app.query)
     ///         .on_change(|app, query| app.query = query);
     ///     let field = b.id_of("query");
-    ///     b.virtual_list("results", tw().max_h_px(300.0), rows)
+    ///     b.virtual_list("results", tw().h_px(300.0), rows)
     ///         .keys_from(field)
     ///         .highlight_first()
     ///         .on_activate(|app: &mut App, row| app.picked = Some(row))
