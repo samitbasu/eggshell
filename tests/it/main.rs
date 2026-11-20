@@ -89,6 +89,7 @@ mod menu_offset;
 mod modal;
 mod mount;
 mod named_layouts;
+mod nav_column;
 mod nested_layouts;
 mod node_controls;
 mod notify;

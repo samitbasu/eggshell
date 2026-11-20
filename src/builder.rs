@@ -2303,6 +2303,14 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         self
     }
 
+    /// TODO(prose): makes the node an item of the [`nav`](Self::nav) group it is in whatever its role: a button that is one of an accordion's headers among the buttons in its content.
+    pub fn nav_item(mut self) -> Self {
+        self.edit(|context| {
+            context.description.get_or_insert_default().member = crate::scroll::Member::Marked;
+        });
+        self
+    }
+
     /// TODO(prose): an arrow key that moves focus to an item of this [`nav`](Self::nav) group also activates it, as a click would.
     pub fn selection_follows_focus(mut self) -> Self {
         self.edit(|context| {
