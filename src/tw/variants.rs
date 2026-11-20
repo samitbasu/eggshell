@@ -96,6 +96,32 @@ pub(crate) enum Visibility {
     Hidden,
 }
 
+/// Whether a scroll container shows a bar and reserves a gutter for it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Scrollbar {
+    #[default]
+    Gutter,
+    None,
+}
+
+impl Scrollbar {
+    pub(crate) fn merge(self, other: Self) -> Self {
+        if self == Self::None || other == Self::None {
+            Self::None
+        } else {
+            Self::Gutter
+        }
+    }
+
+    /// What egui's scroll area does with its bars.
+    pub(crate) fn egui(self) -> egui::scroll_area::ScrollBarVisibility {
+        match self {
+            Self::Gutter => egui::scroll_area::ScrollBarVisibility::AlwaysVisible,
+            Self::None => egui::scroll_area::ScrollBarVisibility::AlwaysHidden,
+        }
+    }
+}
+
 /// Whether a sensing node takes part in keyboard navigation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Focusability {
@@ -643,6 +669,30 @@ impl Tw {
                 .all(|side| side.is_finite())
         };
         self.scroll_padding = self.lengths.keep(before, after, finite);
+        self
+    }
+
+    /// Tailwind's `no-scrollbar`: a scroll container shows no bar and
+    /// reserves no gutter, and still scrolls by the wheel, touch, the keys and
+    /// scrolling into view.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui::testing::Headless;
+    /// use eggshell_ui::{Builder, tw};
+    /// use egui::vec2;
+    ///
+    /// let placed = Headless::new(vec2(240.0, 100.0)).layout(&(), |b, _| {
+    ///     b.scroll("list", tw().w_px(200.0).h_px(100.0).scrollbar_none())
+    ///         .children(|s| {
+    ///             s.div_id("row", tw().w_full().h_px(300.0), |_| {});
+    ///         });
+    /// });
+    /// assert_eq!(placed.at("list").at("row").rect().width(), 200.0);
+    /// ```
+    pub fn scrollbar_none(mut self) -> Self {
+        self.scrollbar = Scrollbar::None;
         self
     }
 

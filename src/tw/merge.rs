@@ -351,6 +351,7 @@ impl Tw {
         self.visibility = other.visibility.or(self.visibility);
         self.sensing = self.sensing.or(other.sensing);
         self.focusability = self.focusability.merge(other.focusability);
+        self.scrollbar = self.scrollbar.merge(other.scrollbar);
         let (mine, theirs) = (self.scroll_padding, other.scroll_padding);
         let later = |before: f32, after: f32| if after == 0.0 { before } else { after };
         self.scroll_padding = Sides {
