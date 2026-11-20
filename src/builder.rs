@@ -149,7 +149,7 @@ pub(crate) struct RowsLeaf {
 }
 
 /// What a subtree's nodes take from where it is built, beyond text.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct Ambient {
     pub(crate) enablement: Enablement,
     pub(crate) surface: Surface,
@@ -167,8 +167,8 @@ impl Ambient {
     /// reach it.
     pub(crate) fn cut(&self) -> Self {
         Self {
-            rules: self.rules.cut(),
-            ..self.clone()
+            rules: crate::tw::Rules::NONE,
+            ..*self
         }
     }
 
@@ -302,7 +302,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             self.path,
             self.kids,
-            (self.inherited, self.ambient.clone(), style),
+            (self.inherited, self.ambient, style),
         ));
     }
 
@@ -334,7 +334,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             parent,
             self.kids,
-            (self.inherited, self.ambient.clone(), self.style),
+            (self.inherited, self.ambient, self.style),
         )));
     }
 
@@ -345,7 +345,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             slot.id,
             self.kids,
-            (self.inherited, self.ambient.clone(), self.style),
+            (self.inherited, self.ambient, self.style),
         )));
         self.st.names.pop_to(mark);
     }
@@ -370,7 +370,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             self.path,
             self.kids,
-            (self.inherited, self.ambient.clone(), self.style),
+            (self.inherited, self.ambient, self.style),
         )
     }
 
@@ -565,7 +565,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut lensed,
             self.path,
             self.kids,
-            (self.inherited, self.ambient.clone(), self.style),
+            (self.inherited, self.ambient, self.style),
         ))
     }
 
@@ -858,7 +858,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut frame,
             self.path,
             &mut kids,
-            (self.inherited, self.ambient.clone(), self.style),
+            (self.inherited, self.ambient, self.style),
         ));
         let root = st.tree.new_node(
             overlay_style(),
@@ -1158,7 +1158,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     pub(crate) fn scroll_with<R>(
         mut self,
         slot: &Slot,
-        classes: Tw,
+        mut classes: Tw,
         options: ScrollOptions,
         body: impl FnOnce(&mut Scope<'_, 'f, A>) -> R,
     ) -> (NodeHandle<'b, 'f, A>, R) {
@@ -1171,7 +1171,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             description,
         } = options;
         let path = self.identify(slot);
-        let classes = self.ambient.rules.apply(classes, NodeKind::Scroll);
+        self.apply_rules(&mut classes, NodeKind::Scroll);
         let parts = Parts {
             id: Some(slot.id),
             ..Parts::anonymous(NodeKind::Scroll, path)
@@ -1606,8 +1606,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// Adds a leaf to the current parent.
-    fn leaf_node(&mut self, tw: Tw, parts: Parts) -> NodeId {
-        let tw = self.ambient.rules.apply(tw, parts.kind);
+    fn leaf_node(&mut self, mut tw: Tw, parts: Parts) -> NodeId {
+        self.apply_rules(&mut tw, parts.kind);
         let node = self.node(&tw, parts);
         let style = self.resolved_style(tw, &node);
         let id = self.st.tree.new_node(style, &[], node);
@@ -1623,8 +1623,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .map_or_else(|| self.inherited.clone(), |node| node.text.clone())
     }
 
+    /// Gives `tw` the classes the rules of the containers above make it.
+    #[inline(always)]
+    fn apply_rules(&self, tw: &mut Tw, kind: NodeKind) {
+        if !self.ambient.rules.is_empty() {
+            *tw = self.ambient.rules.apply(&self.st.links, tw, kind);
+        }
+    }
+
     /// What the controls inside a node with `classes` inherit.
-    fn ambient_in(&self, classes: &Tw) -> Ambient {
+    fn ambient_in(&mut self, classes: &Tw) -> Ambient {
         Ambient {
             enablement: if classes.inert {
                 Enablement::Disabled
@@ -1634,8 +1642,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             size: classes.control_size.or(self.ambient.size),
             flex: (classes.style.display == taffy::Display::Flex)
                 .then_some(classes.style.flex_direction),
-            rules: self.ambient.rules.within(classes),
-            ..self.ambient.clone()
+            rules: self.ambient.rules.within(classes, &mut self.st.links),
+            ..self.ambient
         }
     }
 
@@ -1664,7 +1672,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 self.inherited,
                 Ambient {
                     surface,
-                    ..self.ambient.clone()
+                    ..self.ambient
                 },
                 self.style,
             ),
@@ -1734,7 +1742,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             self.frame,
             self.path.with(("eggshell-text-of", salt)),
             &mut kids,
-            (self.inherited, self.ambient.clone(), self.style),
+            (self.inherited, self.ambient, self.style),
         ));
         self.st.names.pop_to(mark);
         let tree = &self.st.tree;
@@ -1758,12 +1766,12 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// path starts at `path`.
     fn container(
         &mut self,
-        tw: Tw,
+        mut tw: Tw,
         parts: Parts,
         path: Id,
         body: impl FnOnce(Builder<'_, 'f, A>),
     ) -> NodeId {
-        let tw = self.ambient.rules.apply(tw, parts.kind);
+        self.apply_rules(&mut tw, parts.kind);
         let ambient = self.ambient_in(&tw);
         let node = self.node(&tw, parts);
         let style = self.resolved_style(tw, &node);

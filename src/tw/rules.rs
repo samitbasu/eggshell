@@ -2,7 +2,6 @@
 //! and [`Tw::children`], and what they match on.
 
 use std::ops::Not;
-use std::rc::Rc;
 
 use super::Tw;
 use crate::pipeline::NodeKind;
@@ -81,12 +80,15 @@ impl Facts {
 pub(crate) struct Ruled {
     facts: Facts,
     rules: Vec<Rule>,
+    /// Whether the rule these classes are the body of wins over a node's own.
+    important: bool,
 }
 
 impl Ruled {
     pub(crate) fn merge(mut self, later: Self) -> Self {
         self.facts = self.facts.merge(later.facts);
         self.rules.extend(later.rules);
+        self.important |= later.important;
         self
     }
 }
@@ -222,67 +224,82 @@ impl Rule {
     }
 }
 
-/// The rules of the containers above a point of the build, the nearest
-/// first.
+/// The rules one container declares, and the link above it in the arena.
 #[derive(Debug)]
 pub(crate) struct Link {
-    above: Option<Rc<Link>>,
+    above: Option<u32>,
     rules: Vec<Rule>,
     /// The nesting depth of the declaring container's children.
     depth: u32,
 }
 
-/// The rules in force at a point of the build, and how deep it is.
-#[derive(Clone, Debug, Default)]
+/// The rules in force at a point of the build, as the nearest link of the
+/// frame's arena, and how deep the point is.
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct Rules {
-    chain: Option<Rc<Link>>,
+    top: Option<u32>,
     depth: u32,
 }
 
 impl Rules {
     pub(crate) const NONE: Self = Self {
-        chain: None,
+        top: None,
         depth: 0,
     };
 
-    /// The rules for the children of a container with `classes`.
-    pub(crate) fn within(&self, classes: &Tw) -> Self {
+    /// The rules for the children of a container with `classes`; a
+    /// container that declares some adds a link to `links`.
+    #[inline(always)]
+    pub(crate) fn within(&self, classes: &Tw, links: &mut Vec<Link>) -> Self {
         let depth = self.depth.saturating_add(1);
-        let declared = classes
-            .rules
-            .as_ref()
-            .filter(|ruled| !ruled.rules.is_empty());
-        let chain = match declared {
-            None => self.chain.clone(),
-            Some(ruled) => Some(Rc::new(Link {
-                above: self.chain.clone(),
-                rules: ruled.rules.clone(),
+        match &classes.rules {
+            None => Self {
+                top: self.top,
                 depth,
-            })),
-        };
-        Self { chain, depth }
+            },
+            Some(ruled) => self.declared(ruled, depth, links),
+        }
     }
 
-    /// Nothing above reaches what is built with the result.
-    pub(crate) fn cut(&self) -> Self {
-        Self::NONE
+    #[inline(never)]
+    fn declared(&self, ruled: &Ruled, depth: u32, links: &mut Vec<Link>) -> Self {
+        if ruled.rules.is_empty() {
+            return Self {
+                top: self.top,
+                depth,
+            };
+        }
+        let at = u32::try_from(links.len()).ok();
+        links.push(Link {
+            above: self.top,
+            rules: ruled.rules.clone(),
+            depth,
+        });
+        // TODO(#279): report a frame of more than 2^32 rules
+        Self {
+            top: at.or(self.top),
+            depth,
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.top.is_none()
     }
 
     /// `own` as the rules above give it its classes: the rules that match,
     /// the farthest container's first, under `own`; the `important` ones
     /// over it.
-    pub(crate) fn apply(&self, own: Tw, kind: NodeKind) -> Tw {
-        let Some(chain) = &self.chain else {
-            return own;
-        };
-        let mut links = Vec::new();
-        let mut at = Some(chain);
-        while let Some(link) = at {
-            links.push(link);
-            at = link.above.as_ref();
+    #[inline(never)]
+    pub(crate) fn apply(&self, links: &[Link], own: &Tw, kind: NodeKind) -> Tw {
+        let mut chain = Vec::new();
+        let mut at = self.top;
+        while let Some(link) = at.and_then(|at| links.get(at as usize)) {
+            chain.push(link);
+            at = link.above;
         }
         let facts = own.rules.as_ref().map_or(&NO_FACTS, |ruled| &ruled.facts);
-        let matching: Vec<&Rule> = links
+        let matching: Vec<&Rule> = chain
             .iter()
             .rev()
             .flat_map(|link| {
@@ -293,11 +310,11 @@ impl Rules {
             })
             .collect();
         let mut under = Tw::blank();
-        for rule in matching.iter().filter(|rule| !rule.body.important) {
+        for rule in matching.iter().filter(|rule| !rule.body.is_important()) {
             under = under.merge(rule.body.clone());
         }
         let mut applied = under.merge(own.clone());
-        for rule in matching.iter().filter(|rule| rule.body.important) {
+        for rule in matching.iter().filter(|rule| rule.body.is_important()) {
             applied = applied.merge(rule.body.clone());
         }
         applied
@@ -370,8 +387,12 @@ impl Tw {
     /// it applies to, as Tailwind's `!`.
     #[must_use]
     pub fn important(mut self) -> Self {
-        self.important = true;
+        self.ruled().important = true;
         self
+    }
+
+    fn is_important(&self) -> bool {
+        self.rules.as_ref().is_some_and(|ruled| ruled.important)
     }
 
     fn rule(mut self, reach: Reach, when: Match, body: impl FnOnce(Tw) -> Tw) -> Self {
