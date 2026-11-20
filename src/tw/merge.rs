@@ -15,7 +15,7 @@ use taffy::style::{
 };
 use taffy::{Line, Rect, Size, Style};
 
-use super::{BoxPaint, Opacity, TextWidths, Tw};
+use super::{BoxPaint, Opacity, Sides, TextWidths, Tw};
 
 /// The properties a class list has set: a bit for each layout property that
 /// can be merged on its own, then the corner radii and the opacity.
@@ -351,6 +351,14 @@ impl Tw {
         self.visibility = other.visibility.or(self.visibility);
         self.sensing = self.sensing.or(other.sensing);
         self.focusability = self.focusability.merge(other.focusability);
+        let (mine, theirs) = (self.scroll_padding, other.scroll_padding);
+        let later = |before: f32, after: f32| if after == 0.0 { before } else { after };
+        self.scroll_padding = Sides {
+            top: later(mine.top, theirs.top),
+            right: later(mine.right, theirs.right),
+            bottom: later(mine.bottom, theirs.bottom),
+            left: later(mine.left, theirs.left),
+        };
         self.grouping = self.grouping.merge(other.grouping);
         self.variants = self.variants.merge(other.variants);
         self.touched = self.touched | other.touched;

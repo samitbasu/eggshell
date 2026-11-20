@@ -579,6 +579,73 @@ impl Tw {
         self
     }
 
+    /// Tailwind's `scroll-p-*`, in spacing units: scrolling a node into view
+    /// keeps this much between it and the edges of this scroll container. The
+    /// wheel, touch and drag are unaffected.
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui::tw;
+    ///
+    /// let list = tw().max_h_px(288.0).scroll_py(1.0);
+    /// ```
+    pub fn scroll_p(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| *sides = Sides::all(points))
+    }
+
+    /// `scroll-px-*`: [`scroll_p`](Self::scroll_p) on the left and the right.
+    pub fn scroll_px(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| {
+            sides.left = points;
+            sides.right = points;
+        })
+    }
+
+    /// `scroll-py-*`: [`scroll_p`](Self::scroll_p) at the top and the bottom.
+    pub fn scroll_py(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| {
+            sides.top = points;
+            sides.bottom = points;
+        })
+    }
+
+    /// `scroll-pt-*`: [`scroll_p`](Self::scroll_p) at the top.
+    pub fn scroll_pt(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| sides.top = points)
+    }
+
+    /// `scroll-pr-*`: [`scroll_p`](Self::scroll_p) on the right.
+    pub fn scroll_pr(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| sides.right = points)
+    }
+
+    /// `scroll-pb-*`: [`scroll_p`](Self::scroll_p) at the bottom.
+    pub fn scroll_pb(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| sides.bottom = points)
+    }
+
+    /// `scroll-pl-*`: [`scroll_p`](Self::scroll_p) on the left.
+    pub fn scroll_pl(self, units: f32) -> Self {
+        self.scroll_padding_by(units, |sides, points| sides.left = points)
+    }
+
+    /// Sets the scroll padding as `set` says, to `units` of space as points;
+    /// a length that is not finite is ignored and noted, as the layout
+    /// classes' are.
+    fn scroll_padding_by(mut self, units: f32, set: impl FnOnce(&mut Sides<f32>, f32)) -> Self {
+        let before = self.scroll_padding;
+        let mut after = before;
+        set(&mut after, (units * super::SPACE_UNIT).max(0.0));
+        let finite = |sides: &Sides<f32>| {
+            [sides.top, sides.right, sides.bottom, sides.left]
+                .iter()
+                .all(|side| side.is_finite())
+        };
+        self.scroll_padding = self.lengths.keep(before, after, finite);
+        self
+    }
+
     /// `transition duration-*`: animates the node's variant changes over
     /// `duration` instead of switching, along Tailwind's default curve
     /// `cubic-bezier(0.4, 0, 0.2, 1)` unless an `ease_*` class picks another.

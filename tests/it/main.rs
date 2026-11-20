@@ -113,6 +113,7 @@ mod roving;
 mod screenshot;
 mod scroll;
 mod scroll_keys;
+mod scroll_padding;
 mod segmented_classes;
 mod select;
 mod selection;
