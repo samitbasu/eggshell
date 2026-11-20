@@ -160,3 +160,66 @@ fn a_draw_closure_reads_the_style_its_node_was_built_in() {
         Some(Style::of(&harness.ctx).table.cell_padding)
     );
 }
+
+const TIP_PADDING: Vec2 = vec2(40.0, 20.0);
+
+fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
+    fn tip(b: &mut Builder<'_, '_, ()>) {
+        b.span("tip", tw(), "Tip").draw(|_, ui| {
+            let padding = ui.node_style().tooltip.padding;
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(egui::Id::NULL.with("tip"), padding));
+        });
+    }
+    b.div(tw().flex().gap(16.0).p(16.0).pt(24.0), |b| {
+        b.button("outside", "Outside").tooltip_with(tip).add();
+        b.styled(
+            |style| style.tooltip.padding = TIP_PADDING,
+            |b| {
+                b.button("inside", "Inside").tooltip_with(tip).add();
+            },
+        );
+    });
+}
+
+/// The box of the one tooltip open after resting on `trigger`, the tooltip
+/// padding its content was drawn with, and the context's.
+fn tooltip_of(trigger: &str) -> (egui::Rect, Option<Vec2>, Vec2) {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut harness = support::harness(
+        WINDOW,
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        (),
+        tooltips,
+    );
+    harness.run_steps(3);
+    support::hover_node(&mut harness, &format!("/\"{trigger}\""));
+    support::rest_for_tooltip(&mut harness);
+    let boxes: Vec<egui::Rect> = harness
+        .state()
+        .nodes
+        .iter()
+        .filter(|(path, _)| path.contains("Tooltip(") && path.ends_with("/\"Box\""))
+        .map(|(_, rect)| *rect)
+        .collect();
+    assert_eq!(boxes.len(), 1, "precondition: one tooltip is open");
+    let seen = harness
+        .ctx
+        .data(|data| data.get_temp::<Vec2>(egui::Id::NULL.with("tip")));
+    (boxes[0], seen, Style::of(&harness.ctx).tooltip.padding)
+}
+
+#[test]
+fn a_tooltip_inside_styled_draws_with_the_override_and_one_outside_does_not() {
+    let (outside, outside_seen, global) = tooltip_of("outside");
+    let (inside, inside_seen, _) = tooltip_of("inside");
+    assert_eq!(outside_seen, Some(global), "the content outside");
+    assert_ne!(global, TIP_PADDING, "precondition: the override differs");
+    assert_eq!(inside_seen, Some(TIP_PADDING), "the content inside");
+    let grown = inside.size() - outside.size();
+    let expected = 2.0 * (TIP_PADDING - global);
+    assert!(
+        (grown - expected).length() < 0.6,
+        "the box grows by the padding: {grown:?} against {expected:?}"
+    );
+}

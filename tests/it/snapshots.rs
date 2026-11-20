@@ -63,6 +63,9 @@ mod control_sizes_example;
 #[path = "../../examples/field_icons.rs"]
 mod field_icons_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/form_sections.rs"]
+mod form_sections_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/icons.rs"]
 mod icons_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
@@ -74,6 +77,9 @@ mod slider_header_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/swatch_picker.rs"]
 mod swatch_picker;
+#[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/table.rs"]
+mod table_example;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/chat_shell/main.rs"]
@@ -1034,6 +1040,7 @@ owned_section_goldens! {
     controls_gallery_buttons_light, controls_gallery_buttons_dark: Buttons;
     controls_gallery_choices_light, controls_gallery_choices_dark: Choices;
     controls_gallery_values_light, controls_gallery_values_dark: Values;
+    controls_gallery_labels_light, controls_gallery_labels_dark: Labels;
 }
 
 /// The enabled stepper with its text field focused: the ring surrounds the
@@ -1306,6 +1313,7 @@ mod lyra {
         controls_gallery_lyra_buttons_light, controls_gallery_lyra_buttons_dark: Buttons;
         controls_gallery_lyra_choices_light, controls_gallery_lyra_choices_dark: Choices;
         controls_gallery_lyra_values_light, controls_gallery_lyra_values_dark: Values;
+        controls_gallery_lyra_labels_light, controls_gallery_lyra_labels_dark: Labels;
     }
 
     /// The text edits of the cells section, whose computed and drawn rects
@@ -1409,7 +1417,9 @@ fn dnd_gallery_in(name: &str, theme: egui::Theme) {
         Vec2::new(520.0, 400.0),
         common::base_text(theme),
         dnd_gallery::State::default(),
-        dnd_gallery::frame,
+        |ui, app, layout| {
+            dnd_gallery::frame(ui, app, layout);
+        },
     );
     harness.ctx.set_theme(theme);
     harness.run_steps(6);
@@ -1436,7 +1446,9 @@ fn dnd_gallery_chip_in(name: &str, theme: egui::Theme) {
         2.0,
         common::base_text(theme),
         state,
-        |ui, app, layout| dnd_gallery::window(ui, app, layout, &mut LayoutState::new()),
+        |ui, app, layout| {
+            dnd_gallery::window(ui, app, layout, &mut LayoutState::new());
+        },
     );
     harness.ctx.set_theme(theme);
     harness.run_steps(6);
@@ -2640,6 +2652,61 @@ fn slider_header_in(name: &str, theme: egui::Theme) {
     harness.ctx.set_theme(theme);
     harness.run_steps(3);
     harness.snapshot(name);
+}
+
+/// Form sections of labelled rows beside every control with a track (#370).
+fn form_sections_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(460.0, 600.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        form_sections_example::Settings::default(),
+        form_sections_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    harness.snapshot(name);
+}
+
+#[test]
+fn form_sections_light() {
+    form_sections_in("form_sections_light", egui::Theme::Light);
+}
+
+#[test]
+fn form_sections_dark() {
+    form_sections_in("form_sections_dark", egui::Theme::Dark);
+}
+
+/// The table example: selectable invoices, the same grouped and striped,
+/// and a key–value summary of row headers, a digit column and cut notes.
+fn table_in(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let mut harness = support::harness_prepared(
+        Vec2::new(820.0, 1160.0),
+        TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        table_example::Invoices::default(),
+        table_example::layout,
+        |ctx, _| common::use_preset(ctx),
+    );
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(3);
+    harness.snapshot(name);
+}
+
+#[test]
+fn table_example_light() {
+    table_in("table_example_light", egui::Theme::Light);
+}
+
+#[test]
+fn table_example_dark() {
+    table_in("table_example_dark", egui::Theme::Dark);
 }
 
 #[test]

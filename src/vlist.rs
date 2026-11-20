@@ -27,7 +27,9 @@
 //!
 //! Tab reaches the built rows only.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::hash::{Hash as _, Hasher as _};
 use std::ops::Range;
 
 use egui::{Align, Context, Id, IdSalt, Rect, Role, Vec2, pos2, vec2};
@@ -42,7 +44,8 @@ use crate::finite::clamp;
 use crate::kept::Handle;
 use crate::key::{Key, child_id};
 use crate::layout_tree::LayoutTree;
-use crate::nav::ListMove;
+use crate::nav::{Keys, ListMove};
+use crate::owned::{Enablement, Mark};
 use crate::scroll::{self, Axis, EdgeFade, Focusable, ScrollChain, ScrollStyle, TabRule};
 use crate::shell::Shell;
 use crate::tw::{Tw, tw};
@@ -53,8 +56,8 @@ pub(crate) struct VList {
     pub(crate) rows: RowHeights,
     pub(crate) overscan: f32,
     pub(crate) start: Start,
-    /// Whether the list navigates as a listbox.
-    pub(crate) listbox: bool,
+    /// Whether the list navigates as a listbox, and from where.
+    pub(crate) listbox: Option<Keys>,
 }
 
 /// Where a list opens the first time it is laid out.
@@ -162,9 +165,9 @@ pub enum ListNav {
 /// [`role`](Self::role), [`named`](Self::named) and the other options are
 /// [`ScrollChain`]'s, for the list's container. It scrolls vertically.
 #[must_use = "a virtual list is not added until you call `.items(..)`"]
-pub struct ListChain<'a, 'f, A, R> {
+pub struct ListChain<'a, 'f, A, R: Clone> {
     scroll: ScrollChain<'a, 'f, A>,
-    rows: &'f [R],
+    rows: Cow<'f, [R]>,
     heights: Option<RowHeights>,
     overscan: f32,
     start: Start,
@@ -172,12 +175,37 @@ pub struct ListChain<'a, 'f, A, R> {
     row_classes: Tw,
     on_activate: Option<Activate<A, R>>,
     row_name: Option<std::rc::Rc<dyn Fn(R) -> String>>,
+    keys: Keys,
+    first: FirstRow,
+    enablement: Option<RowEnablement<R>>,
+    mark: Option<RowMark<R>>,
+}
+
+impl<'a, 'f, A, R: Clone> ListChain<'a, 'f, A, R> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
 }
 
 type Activate<A, R> = std::rc::Rc<dyn Fn(&mut A, R)>;
+type RowEnablement<R> = std::rc::Rc<dyn Fn(R) -> Enablement>;
+type RowMark<R> = std::rc::Rc<dyn Fn(R) -> Option<Mark>>;
+
+/// Whether a listbox highlights its first row as its rows change.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FirstRow {
+    Left,
+    Highlighted,
+}
 
 impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
-    pub(crate) fn new(b: Builder<'a, 'f, A>, slot: Slot, classes: Tw, rows: &'f [R]) -> Self {
+    pub(crate) fn new(b: Builder<'a, 'f, A>, slot: Slot, classes: Tw, rows: Cow<'f, [R]>) -> Self {
         Self {
             scroll: ScrollChain::with_slot(b, slot, classes),
             rows,
@@ -188,7 +216,54 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             row_classes: tw(),
             on_activate: None,
             row_name: None,
+            keys: Keys::Own,
+            first: FirstRow::Left,
+            enablement: None,
+            mark: None,
         }
+    }
+
+    /// TODO(prose): a listbox whose keys come from the node `field` (from [`Builder::id_of`](crate::Builder::id_of)) while the focus is in it: a search field over its results. The arrows, Page Up and Down move the highlight and Enter activates it, the field keeps Home and End, and the field announces the list it controls and the highlighted row. The list is no Tab stop of its own.
+    ///
+    /// ```
+    /// use eggshell_ui::vlist::ListNav;
+    /// use eggshell_ui::{Builder, tw};
+    ///
+    /// struct App { query: String, picked: Option<u32> }
+    ///
+    /// fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App, rows: &'f [u32]) {
+    ///     b.text_field("query", &app.query)
+    ///         .on_change(|app, query| app.query = query);
+    ///     let field = b.id_of("query");
+    ///     b.virtual_list("results", tw().max_h_px(300.0), rows)
+    ///         .keys_from(field)
+    ///         .highlight_first()
+    ///         .on_activate(|app: &mut App, row| app.picked = Some(row))
+    ///         .items(|s, row| s.text(tw(), row.to_string()));
+    /// }
+    /// ```
+    pub fn keys_from(mut self, field: Id) -> Self {
+        self.nav = ListNav::Listbox;
+        self.keys = Keys::From(field);
+        self
+    }
+
+    /// TODO(prose): a listbox highlights its first enabled row when it is first laid out and each time its rows change, as a palette's first match is: Enter picks it at once.
+    pub fn highlight_first(mut self) -> Self {
+        self.first = FirstRow::Highlighted;
+        self
+    }
+
+    /// TODO(prose): whether each row of a listbox is enabled: a disabled row is announced disabled, and the keys, the pointer and activation pass it by.
+    pub fn row_enablement(mut self, enablement: impl Fn(R) -> Enablement + 'static) -> Self {
+        self.enablement = Some(std::rc::Rc::new(enablement));
+        self
+    }
+
+    /// TODO(prose): the check of each row of a listbox that has one, announced as checked or not: a chosen option, a setting that is on.
+    pub fn row_mark(mut self, mark: impl Fn(R) -> Option<Mark> + 'static) -> Self {
+        self.mark = Some(std::rc::Rc::new(mark));
+        self
     }
 
     /// TODO(prose): [`ListNav::Listbox`] makes the list one Tab stop with a virtual highlight moved by the arrow, Home, End and Page keys; [`ListNav::None`] is the default.
@@ -211,7 +286,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
 
     /// TODO(prose): classes of each row's wrapper, such as a `hover` look the highlighted row takes.
     pub fn row_classes(mut self, classes: Tw) -> Self {
-        self.row_classes = classes;
+        self.row_classes = self.row_classes.merge(classes);
         self
     }
 
@@ -305,12 +380,16 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             row_classes,
             on_activate,
             row_name,
+            keys,
+            first,
+            enablement,
+            mark,
         } = self;
-        let listbox = nav == ListNav::Listbox;
-        let scroll = if listbox {
-            scroll.focusable(Focusable::Always).role(Role::ListBox)
-        } else {
-            scroll
+        let listbox = (nav == ListNav::Listbox).then_some(keys);
+        let scroll = match listbox {
+            Some(Keys::Own) => scroll.focusable(Focusable::Always).role(Role::ListBox),
+            Some(Keys::From(_)) => scroll.role(Role::ListBox),
+            None => scroll,
         };
         let list = scroll.id();
         let kept = scroll.builder().kept().clone();
@@ -328,19 +407,27 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
                     start,
                     listbox,
                 },
-                rows,
+                &rows,
             );
             let leaf = s.rows_leaf(plan.total());
             (plan, leaf)
         });
         let scroll = handle.node();
         let mut b = handle.into_builder();
-        let behavior = listbox.then(|| Listbox {
+        let behavior = listbox.map(|keys| Listbox {
             list,
             kept: kept.clone(),
             on_activate,
             row_name,
+            keys,
+            enablement: enablement.clone(),
+            mark,
         });
+        if first == FirstRow::Highlighted
+            && let Some(keys) = listbox
+        {
+            highlight_first(&kept, list, &rows, keys, enablement.as_deref());
+        }
         b.list_region(
             leaf,
             list,
@@ -409,6 +496,13 @@ pub(crate) struct ListState {
     hold: Option<Hold>,
     /// The key of the highlighted row of a listbox.
     active: Option<IdSalt>,
+    /// Where a listbox takes its keys from.
+    keyed_by: Option<Keys>,
+    /// The widget last focused in the field a listbox takes its keys from,
+    /// which a click on a row gives the focus back to.
+    typing: Option<Id>,
+    /// The rows a listbox that highlights its first row last had.
+    rows_digest: Option<u64>,
     /// The part of the last frame's correction its content was too short to
     /// take: the content grows once the rows it measured count.
     owed: f32,
@@ -510,6 +604,8 @@ pub(crate) trait Rows<'f, A> {
     fn key(&self, at: usize) -> Option<IdSalt>;
     /// The id row `at` has when built under `base`.
     fn id(&self, base: Id, at: usize) -> Option<Id>;
+    /// Whether row `at` is there and enabled.
+    fn enabled(&self, at: usize) -> bool;
     /// Builds row `at` under its own key with `classes`, returning its id
     /// and node.
     fn build(&mut self, b: &mut Builder<'_, 'f, A>, at: usize, classes: Tw)
@@ -522,17 +618,33 @@ pub(crate) struct Listbox<A, R> {
     kept: Handle,
     on_activate: Option<Activate<A, R>>,
     row_name: Option<std::rc::Rc<dyn Fn(R) -> String>>,
+    keys: Keys,
+    enablement: Option<RowEnablement<R>>,
+    mark: Option<RowMark<R>>,
 }
 
-pub(crate) struct Items<'f, A, R, F> {
-    rows: &'f [R],
+impl<A, R: Copy> Listbox<A, R> {
+    fn enablement(&self, row: R) -> Enablement {
+        self.enablement
+            .as_ref()
+            .map_or(Enablement::Enabled, |enablement| enablement(row))
+    }
+}
+
+pub(crate) struct Items<'f, A, R: Clone, F> {
+    rows: Cow<'f, [R]>,
     item: F,
     classes: Tw,
     listbox: Option<Listbox<A, R>>,
 }
 
-impl<'f, A, R, F> Items<'f, A, R, F> {
-    pub(crate) fn new(rows: &'f [R], item: F, classes: Tw, listbox: Option<Listbox<A, R>>) -> Self {
+impl<'f, A, R: Clone, F> Items<'f, A, R, F> {
+    pub(crate) fn new(
+        rows: Cow<'f, [R]>,
+        item: F,
+        classes: Tw,
+        listbox: Option<Listbox<A, R>>,
+    ) -> Self {
         Self {
             rows,
             item,
@@ -557,6 +669,14 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
         self.rows.get(at).map(|row| child_id(base, row))
     }
 
+    fn enabled(&self, at: usize) -> bool {
+        match (&self.listbox, self.rows.get(at)) {
+            (Some(listbox), Some(&row)) => listbox.enablement(row) == Enablement::Enabled,
+            (None, Some(_)) => true,
+            (_, None) => false,
+        }
+    }
+
     fn build(
         &mut self,
         b: &mut Builder<'_, 'f, A>,
@@ -570,8 +690,10 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
             let handle = b.div_id(row, classes, |s| item(s, row));
             return Some((handle.id(), handle.node()));
         };
-        let (list, kept) = (listbox.list, listbox.kept.clone());
+        let (list, kept, keys) = (listbox.list, listbox.kept.clone(), listbox.keys);
         let on_activate = listbox.on_activate.clone();
+        let enablement = listbox.enablement(row);
+        let mark = listbox.mark.as_ref().and_then(|mark| mark(row));
         let handle = b
             .div_id(row, classes.sense_click().group().focusable_none(), |s| {
                 item(s, row)
@@ -585,23 +707,37 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
             let response = ui.node_response();
             let id = response.id;
             let moved = ui.input(|input| input.pointer.delta()) != Vec2::ZERO;
+            if let Some(mark) = mark {
+                let toggled = match mark {
+                    Mark::On => egui::accesskit::Toggled::True,
+                    Mark::Off => egui::accesskit::Toggled::False,
+                };
+                ui.ctx()
+                    .accesskit_node_builder(id, |node| node.set_toggled(toggled));
+            }
+            if enablement == Enablement::Disabled {
+                ui.ctx()
+                    .accesskit_node_builder(id, |node| node.set_disabled());
+                return;
+            }
             if response.hovered() && moved && !crate::nav::is_highlighted(&kept, id) {
-                select(&kept, list, row_key(&row), id);
+                select(&kept, list, row_key(&row), id, keys);
                 ui.ctx().request_repaint();
             }
             if response.clicked() {
-                select(&kept, list, row_key(&row), id);
-                ui.ctx().memory_mut(|memory| memory.request_focus(list));
+                select(&kept, list, row_key(&row), id, keys);
+                let focus = match keys {
+                    Keys::Own => Some(list),
+                    Keys::From(_) => kept.with(|kept| kept.lists.0.get(&list)?.typing),
+                };
+                if let Some(focus) = focus {
+                    ui.ctx().memory_mut(|memory| memory.request_focus(focus));
+                }
             }
             if (response.clicked() || crate::nav::take_activation(ui, id))
                 && let Some(on_activate) = &on_activate
             {
                 on_activate(app, row);
-            }
-            if crate::nav::is_highlighted(&kept, id) {
-                ui.ctx().accesskit_node_builder(list, |node| {
-                    node.set_active_descendant(id.accesskit_id());
-                });
             }
         });
         Some((handle.id(), handle.node()))
@@ -617,18 +753,89 @@ pub(crate) struct Plan {
     overscan: f32,
     tops: Tops,
     keys: Vec<IdSalt>,
-    /// Whether the list navigates as a listbox.
-    listbox: bool,
+    /// Whether the list navigates as a listbox, and from where.
+    listbox: Option<Keys>,
 }
 
 /// Highlights the row `key`, built as `id`, of the listbox `list`.
-fn select(kept: &Handle, list: Id, key: IdSalt, id: Id) {
-    crate::nav::highlight_row(kept, list, id);
+fn select(kept: &Handle, list: Id, key: IdSalt, id: Id, keys: Keys) {
+    crate::nav::highlight_row(kept, list, id, keys);
     kept.with(|kept| {
         if let Some(state) = kept.lists.0.get_mut(&list) {
             state.active = Some(key);
         }
     });
+}
+
+/// Highlights the first enabled row of the listbox `list` when its rows are
+/// not the ones it last had, and scrolls to it; with no row to highlight,
+/// forgets the highlight.
+fn highlight_first<R: Key + Copy>(
+    kept: &Handle,
+    list: Id,
+    rows: &[R],
+    keys: Keys,
+    enablement: Option<&dyn Fn(R) -> Enablement>,
+) {
+    let digest = {
+        let mut hasher = std::hash::DefaultHasher::new();
+        rows.hash(&mut hasher);
+        hasher.finish()
+    };
+    let changed = kept.with(|kept| {
+        let state = kept.lists.0.get_mut(&list)?;
+        let changed = state.rows_digest != Some(digest);
+        state.rows_digest = Some(digest);
+        Some(changed)
+    });
+    if changed != Some(true) {
+        return;
+    }
+    let enabled = |row: &&R| enablement.is_none_or(|of| of(**row) == Enablement::Enabled);
+    match rows.iter().find(enabled) {
+        Some(first) => {
+            let key = row_key(first);
+            select(kept, list, key, child_id(list, first), keys);
+            kept.with(|kept| {
+                kept.scrolls.rows.insert(
+                    list,
+                    ScrollTo {
+                        row: key,
+                        align: None,
+                    },
+                );
+            });
+        }
+        None => kept.with(|kept| {
+            crate::nav::forget_lists(kept, &[list]);
+            if let Some(state) = kept.lists.0.get_mut(&list) {
+                state.active = None;
+            }
+        }),
+    }
+}
+
+/// That each listbox laid out in the pass `pass` that takes its keys from a
+/// field is controlled by it: by the widget in it that has the focus.
+pub(crate) fn relations(kept: &Handle, shell: &Shell, pass: u64) -> Vec<crate::relation::Relation> {
+    let fields: Vec<(Id, Id)> = kept.with(|kept| {
+        kept.lists
+            .0
+            .iter()
+            .filter(|(_, state)| state.pass == pass)
+            .filter_map(|(&list, state)| match state.keyed_by {
+                Some(Keys::From(field)) => Some((list, field)),
+                _ => None,
+            })
+            .collect()
+    });
+    fields
+        .into_iter()
+        .map(|(list, field)| crate::relation::Relation::Controls {
+            node: crate::nav::speaker(shell, field),
+            target: list,
+        })
+        .collect()
 }
 
 impl Plan {
@@ -655,6 +862,7 @@ impl Plan {
                 ..ListState::default()
             });
             state.pass = pass;
+            state.keyed_by = listbox;
             match heights {
                 RowHeights::Fixed(height) => (
                     Tops::Fixed {
@@ -811,6 +1019,10 @@ impl<'f, R: 'static, S: 'static> Rows<'f, R> for Mounted<'f, R, S> {
         self.rows.id(base, at)
     }
 
+    fn enabled(&self, at: usize) -> bool {
+        self.rows.enabled(at)
+    }
+
     fn build(
         &mut self,
         b: &mut Builder<'_, 'f, R>,
@@ -877,7 +1089,10 @@ impl<'f, A> ListRun<'f, A> {
         {
             let tops = &self.plan.tops;
             let row = (view.top + tops.top(at), view.top + tops.top(at + 1));
-            let shown = (view.offset, view.offset + view.viewport.y);
+            let shown = (
+                view.offset + node.padding.top,
+                view.offset + view.viewport.y - node.padding.bottom,
+            );
             let reveal = scroll::reveal(shown, row, request.align);
             view.offset = clamp(view.offset + reveal, 0.0, view.limit());
             let rect = Rect::from_min_max(pos2(0.0, row.0), pos2(view.viewport.x, row.1));
@@ -896,9 +1111,9 @@ impl<'f, A> ListRun<'f, A> {
     /// asks for the row to be scrolled into view.
     fn navigate(&self, ctx: &Context, view: &View) {
         let list = self.plan.list;
-        if !self.plan.listbox {
+        let Some(keys) = self.plan.listbox else {
             return;
-        }
+        };
         let kept = &self.plan.kept;
         let len = self.rows.len();
         let current = self
@@ -906,17 +1121,31 @@ impl<'f, A> ListRun<'f, A> {
             .with_state(|state| state.active)
             .and_then(|key| self.find(key, 0));
         let visible = self.plan.tops.visible(view.span(0.0));
-        let to = if crate::focus::holds_focus(ctx, list) {
-            crate::nav::hold_arrows(ctx, list);
-            ListMove::of_key(ctx)
-                .and_then(|key| key.target(current, len, visible.len().max(1), visible))
-        } else {
-            None
+        let focused = match keys {
+            Keys::Own => crate::focus::holds_focus(ctx, list).then_some(list),
+            Keys::From(field) => {
+                let focused = ctx.memory(|memory| memory.focused());
+                let typing = focused.filter(|_| Shell::new(ctx, kept).focus_within(field));
+                if typing.is_some() {
+                    self.plan.with_state(|state| state.typing = typing);
+                }
+                typing
+            }
         };
+        let to = focused.and_then(|focused| {
+            crate::nav::hold_arrows(ctx, focused);
+            ListMove::of_key(ctx, keys)?.target_enabled(
+                current,
+                len,
+                visible.len().max(1),
+                visible,
+                |at| self.rows.enabled(at),
+            )
+        });
         if let Some(at) = to
             && let (Some(key), Some(id)) = (self.rows.key(at), self.rows.id(list, at))
         {
-            select(kept, list, key, id);
+            select(kept, list, key, id, keys);
             kept.with(|kept| {
                 kept.scrolls.rows.insert(
                     list,
@@ -989,7 +1218,7 @@ impl<'f, A> ListRun<'f, A> {
             .filter_map(|row| self.find(row.key, row.at))
             .filter(|at| !range.contains(at))
             .collect();
-        if self.plan.listbox
+        if self.plan.listbox.is_some()
             && let Some(at) = self
                 .plan
                 .with_state(|state| state.active)

@@ -42,6 +42,18 @@ pub struct MountChain<'a, 'f, A, S, L, V> {
     name: Option<String>,
 }
 
+impl<'a, 'f, A, S, L, V> MountChain<'a, 'f, A, S, L, V> {
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        crate::owned::options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        crate::owned::options::when_some(self, value, then)
+    }
+}
+
 impl<'a, 'f, A, S, L, V> MountChain<'a, 'f, A, S, L, V>
 where
     A: 'static,
@@ -197,12 +209,12 @@ impl<'f, R: 'static, S: 'static> Mount<'f, R, S> {
     fn lift_table(&self, table: Table<S>) -> Table<R> {
         let lens = self.lens();
         Table::Lifted(match table {
-            Table::Own(table) => Box::new(move |ctx, shell, typing, app| {
-                crate::commands::dispatch(ctx, shell, typing, &table, lens(app));
+            Table::Own(table) => Box::new(move |ctx, shell, typing, app, visit| {
+                table.visit(ctx, shell, typing, lens(app), visit);
             }),
-            Table::Lifted(dispatch) => {
-                Box::new(move |ctx, shell, typing, app| dispatch(ctx, shell, typing, lens(app)))
-            }
+            Table::Lifted(dispatch) => Box::new(move |ctx, shell, typing, app, visit| {
+                dispatch(ctx, shell, typing, lens(app), visit);
+            }),
         })
     }
 }

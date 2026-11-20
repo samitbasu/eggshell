@@ -5,7 +5,8 @@ use std::fmt::Display;
 
 use egui::WidgetText;
 
-use super::Enablement;
+use super::options::Refused;
+use super::{Enablement, IntoTip, Tooltip};
 use crate::Icon;
 
 /// One option of a radio group, a segmented control or a select: the `value`
@@ -30,6 +31,10 @@ pub struct Choice<T> {
     pub tooltip: Option<WidgetText>,
     /// Whether this option takes input, on top of its widget's own.
     pub enablement: Enablement,
+    /// TODO(prose): why the option is disabled, shown in place of its
+    /// tooltip and read as its accessible description; `None` while it is not
+    /// refused.
+    pub refusal: Option<WidgetText>,
 }
 
 impl<T> Choice<T> {
@@ -41,6 +46,7 @@ impl<T> Choice<T> {
             icon: None,
             tooltip: None,
             enablement: Enablement::Enabled,
+            refusal: None,
         }
     }
 
@@ -52,8 +58,8 @@ impl<T> Choice<T> {
     }
 
     /// Shows `text` while the pointer hovers the option.
-    pub fn tooltip(mut self, text: impl Into<WidgetText>) -> Self {
-        self.tooltip = Some(text.into());
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.tooltip = text.into_tip();
         self
     }
 
@@ -64,6 +70,37 @@ impl<T> Choice<T> {
         let enablement = enablement.into();
         self.enablement = enablement;
         self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason in
+    /// place of the option's tooltip and as its accessible description. `None`
+    /// clears it; the last call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.refusal = reason.into_tip();
+        self
+    }
+
+    /// The option's enablement within a group that is `group`, and the
+    /// tooltip it shows. A refused group's reason shows once, on the control,
+    /// so its options show none of their own.
+    pub(super) fn gated(
+        &self,
+        group: Enablement,
+        refused: Refused,
+    ) -> (Enablement, Option<Tooltip>) {
+        let own_refusal = match self.refusal {
+            Some(_) => Enablement::Disabled,
+            None => Enablement::Enabled,
+        };
+        let tooltip = match refused {
+            Refused::Yes => None,
+            Refused::No => match (&self.refusal, &self.tooltip) {
+                (Some(reason), _) => Some(Tooltip::refusal(reason.clone())),
+                (None, Some(text)) => Some(Tooltip::text(text.clone())),
+                (None, None) => None,
+            },
+        };
+        (group.and(self.enablement).and(own_refusal), tooltip)
     }
 }
 
@@ -109,6 +146,20 @@ impl<T> IntoChoice<T> for Choice<T> {
     fn into_choice(self) -> Choice<T> {
         self
     }
+}
+
+/// The option a group's focus goes to: the chosen one, or the first enabled
+/// one when no enabled option is chosen, as the group's Tab stop.
+pub(super) fn focus_target<T: PartialEq>(
+    options: &[Choice<T>],
+    current: &T,
+    group: Enablement,
+) -> Option<usize> {
+    let enabled = |option: &Choice<T>| option.gated(group, Refused::No).0 == Enablement::Enabled;
+    options
+        .iter()
+        .position(|option| option.value == *current && enabled(option))
+        .or_else(|| options.iter().position(enabled))
 }
 
 pub(super) fn collect<T, O: IntoChoice<T>>(options: impl IntoIterator<Item = O>) -> Vec<Choice<T>> {

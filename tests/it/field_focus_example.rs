@@ -58,3 +58,19 @@ fn rename_focuses_the_name_field_from_wherever_focus_was() {
     harness.run_steps(6);
     assert_eq!(focused_node(&harness).as_deref(), Some(NAME));
 }
+
+#[test]
+fn rename_selects_the_name_so_typing_replaces_it() {
+    let mut harness = harness();
+    harness.state_mut().app.name = "Item 1".to_owned();
+    click_node(&mut harness, RENAME);
+    harness.run_steps(6);
+    assert_eq!(
+        focused_node(&harness).as_deref(),
+        Some(NAME),
+        "precondition: Rename focused the name field"
+    );
+    harness.event(egui::Event::Text("Box".into()));
+    harness.run_steps(4);
+    assert_eq!(harness.state().app.name, "Box");
+}
