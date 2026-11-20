@@ -440,6 +440,7 @@ impl<'a, 'f, A: 'static> ScrollChain<'a, 'f, A> {
                 controls: None,
                 parent: None,
                 description: None,
+                member: Member::ByRole,
             },
         };
         b.scroll_with(&slot, classes, options, body)
@@ -694,11 +695,27 @@ pub(crate) struct Description {
     pub(crate) parent: Option<egui::Id>,
     /// The accessible description, read after the name.
     pub(crate) description: Option<String>,
+    /// Whether the node is an item of its group by what it declared rather
+    /// than by its role.
+    pub(crate) member: Member,
+}
+
+/// How a node comes to be an item of the group it is in.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Member {
+    /// By its role: a menu item, a tab, a radio button.
+    #[default]
+    ByRole,
+    /// By [`nav_item`](crate::NodeHandle::nav_item).
+    Marked,
 }
 
 impl Description {
     pub(crate) fn is_set(&self) -> bool {
-        self.role.is_some() || self.name.is_some() || self.description.is_some()
+        self.role.is_some()
+            || self.name.is_some()
+            || self.description.is_some()
+            || self.member == Member::Marked
     }
 
     /// Announces `response`'s widget as described, as a `fallback` when no

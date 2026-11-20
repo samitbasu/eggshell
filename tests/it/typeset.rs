@@ -198,7 +198,8 @@ fn rich_view<'f>(b: &mut Builder<'_, 'f, ()>, _: &'f ()) {
         b.table("outside")
             .columns([eggshell_ui::owned::Column::new(eggshell_ui::Track::auto())])
             .header(|h| h.cell_text("Head"))
-            .rows(&[1], |row| *row, |cells, _| cells.cell_text("Body"));
+            .rows(&[1], |row| *row, |cells, _| cells.cell_text("Body"))
+            .add();
     });
 }
 

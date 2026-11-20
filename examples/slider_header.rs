@@ -1,5 +1,7 @@
 //! Sliders with a label and a readout above the track, at the default, `sm`
-//! and `xs` sizes; each readout is edited as text.
+//! and `xs` sizes; each readout is edited as text. Then a slider whose
+//! readout types past its track, and a number edited the same way with no
+//! track.
 
 #[path = "common/mod.rs"]
 mod common;
@@ -12,6 +14,8 @@ pub struct Levels {
     pub volume: f64,
     pub brightness: f64,
     pub bass: f64,
+    pub gain: f64,
+    pub trim: f64,
 }
 
 impl Default for Levels {
@@ -20,6 +24,8 @@ impl Default for Levels {
             volume: 40.0,
             brightness: 75.0,
             bass: 20.0,
+            gain: -20.0,
+            trim: 0.0,
         }
     }
 }
@@ -61,6 +67,31 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, Levels>, levels: &'f Levels) {
                     .readout(|v| format!("{v:.0}"))
                     .editable(|text| text.trim().parse().ok())
                     .on_change(|app: &mut Levels, v| app.bass = v);
+            });
+            s.slider("gain", levels.gain, -60.0..=0.0)
+                .label("Gain")
+                .readout(|v| format!("{v:.0} dB"))
+                .editable(|text| text.trim().trim_end_matches("dB").trim().parse().ok())
+                .typed_range(-380.0..=380.0)
+                .on_change(|app: &mut Levels, v| app.gain = v);
+            s.div(tw().flex().items_center().justify_between(), |s| {
+                s.text(tw(), "Trim");
+                s.number("trim", levels.trim, -12.0..=12.0)
+                    .format(|v| format!("{v:+.1} dB"))
+                    .editable(|text| text.trim().trim_end_matches("dB").trim().parse().ok())
+                    .step(Step::new(0.5))
+                    .named("Trim")
+                    .on_change(|app: &mut Levels, v| app.trim = v);
+            });
+            s.div(tw().flex().items_center().justify_between(), |s| {
+                s.text(tw(), "Trim, refused");
+                s.number("trim_refused", levels.trim, -12.0..=12.0)
+                    .format(|v| format!("{v:+.1} dB"))
+                    .editable(|text| text.trim().trim_end_matches("dB").trim().parse().ok())
+                    .step(Step::new(0.5))
+                    .named("Trim, refused")
+                    .refused("Locked while the channel is linked")
+                    .on_change(|app: &mut Levels, v| app.trim = v);
             });
         },
     );
