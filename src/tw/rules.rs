@@ -3,7 +3,7 @@
 
 use std::ops::Not;
 
-use super::Tw;
+use super::{BoxTw, Tw};
 use crate::pipeline::NodeKind;
 
 /// An ARIA state a node can say of itself and a [`Match`] can ask for.
@@ -80,6 +80,7 @@ impl Facts {
 pub(crate) struct Ruled {
     facts: Facts,
     rules: Vec<Rule>,
+    has: Vec<HasRule>,
     /// Whether the rule these classes are the body of wins over a node's own.
     important: bool,
 }
@@ -88,8 +89,56 @@ impl Ruled {
     pub(crate) fn merge(mut self, later: Self) -> Self {
         self.facts = self.facts.merge(later.facts);
         self.rules.extend(later.rules);
+        self.has.extend(later.has);
         self.important |= later.important;
         self
+    }
+}
+
+/// A rule on a node about what it holds: the classes `body` when a child
+/// matches `when`.
+#[derive(Clone, Debug)]
+pub(crate) struct HasRule {
+    when: Match,
+    body: Tw,
+}
+
+/// What the parent of a node needs to know of it, for its `has` rules.
+#[derive(Clone, Debug)]
+pub(crate) struct Observed {
+    pub(crate) kind: NodeKind,
+    pub(crate) facts: Facts,
+    pub(crate) focused: bool,
+}
+
+/// What a node says of itself.
+impl Tw {
+    pub(crate) fn facts(&self) -> &Facts {
+        self.rules.as_ref().map_or(&NO_FACTS, |ruled| &ruled.facts)
+    }
+
+    /// `self` with the classes of its `has` rules that match a child of
+    /// `seen`, over its own; `None` if none match.
+    pub(crate) fn with_has<'a>(
+        &self,
+        mut seen: impl Iterator<Item = &'a Observed> + Clone,
+    ) -> Option<Self> {
+        let ruled = self.rules.as_ref().filter(|ruled| !ruled.has.is_empty())?;
+        let mut applied: Option<Self> = None;
+        for rule in &ruled.has {
+            if seen
+                .clone()
+                .any(|child| rule.when.matches(child.kind, &child.facts, child.focused))
+            {
+                applied = Some(
+                    applied
+                        .unwrap_or_else(|| self.clone())
+                        .merge(rule.body.clone()),
+                );
+            }
+        }
+        let _ = &mut seen;
+        applied
     }
 }
 
@@ -125,6 +174,7 @@ pub struct Match {
     slot: Option<&'static str>,
     attr: Option<(&'static str, &'static str)>,
     aria: Option<Aria>,
+    focus: bool,
     negated: bool,
 }
 
@@ -136,6 +186,7 @@ impl Match {
             slot: None,
             attr: None,
             aria: None,
+            focus: false,
             negated: false,
         }
     }
@@ -172,6 +223,16 @@ impl Match {
         }
     }
 
+    /// TODO(prose): a node that has keyboard focus, or has a widget inside it
+    /// that does, as of the last frame, so it is one frame late. Only a
+    /// [`has`](Tw::has) rule can see it.
+    pub const fn focus_visible() -> Self {
+        Self {
+            focus: true,
+            ..Self::any()
+        }
+    }
+
     /// Also a node with this [`attr`](Tw::attr).
     #[must_use]
     pub const fn attr(mut self, name: &'static str, value: &'static str) -> Self {
@@ -179,7 +240,7 @@ impl Match {
         self
     }
 
-    fn matches(&self, kind: NodeKind, facts: &Facts) -> bool {
+    fn matches(&self, kind: NodeKind, facts: &Facts, focused: bool) -> bool {
         let holds = self.kind.is_none_or(|want| Kind::of(kind) == Some(want))
             && self.slot.is_none_or(|want| facts.slot == Some(want))
             && self.attr.is_none_or(|(name, value)| {
@@ -188,7 +249,8 @@ impl Match {
                     .iter()
                     .any(|&(known, has)| known == name && has == value)
             })
-            && self.aria.is_none_or(|state| facts.aria & state.bit() != 0);
+            && self.aria.is_none_or(|state| facts.aria & state.bit() != 0)
+            && (focused || !self.focus);
         holds != self.negated
     }
 }
@@ -239,12 +301,16 @@ pub(crate) struct Link {
 pub(crate) struct Rules {
     top: Option<u32>,
     depth: u32,
+    /// Whether the container the nodes are built in has `has` rules, and so
+    /// needs to know what they are.
+    pub(crate) observed: bool,
 }
 
 impl Rules {
     pub(crate) const NONE: Self = Self {
         top: None,
         depth: 0,
+        observed: false,
     };
 
     /// The rules for the children of a container with `classes`; a
@@ -256,6 +322,7 @@ impl Rules {
             None => Self {
                 top: self.top,
                 depth,
+                observed: false,
             },
             Some(ruled) => self.declared(ruled, depth, links),
         }
@@ -263,10 +330,12 @@ impl Rules {
 
     #[inline(never)]
     fn declared(&self, ruled: &Ruled, depth: u32, links: &mut Vec<Link>) -> Self {
+        let observed = !ruled.has.is_empty();
         if ruled.rules.is_empty() {
             return Self {
                 top: self.top,
                 depth,
+                observed,
             };
         }
         let at = u32::try_from(links.len()).ok();
@@ -279,6 +348,7 @@ impl Rules {
         Self {
             top: at.or(self.top),
             depth,
+            observed,
         }
     }
 
@@ -305,7 +375,8 @@ impl Rules {
             .flat_map(|link| {
                 let direct = link.depth == self.depth;
                 link.rules.iter().filter(move |rule| {
-                    (direct || rule.reach == Reach::Descendants) && rule.when.matches(kind, facts)
+                    (direct || rule.reach == Reach::Descendants)
+                        && rule.when.matches(kind, facts, false)
                 })
             })
             .collect();
@@ -381,6 +452,21 @@ impl Tw {
     #[must_use]
     pub fn children(self, when: Match, body: impl FnOnce(Tw) -> Tw) -> Self {
         self.rule(Reach::Children, when, body)
+    }
+
+    /// TODO(prose): `body`'s box classes for this node while one of its
+    /// children matches `when`: Tailwind's `has-*`. The classes win over the
+    /// node's own, as a variant's do, and cannot touch text or behavior.
+    ///
+    /// ```
+    /// use eggshell_ui::{Aria, Match, tw};
+    /// let field = tw().has(Match::aria(Aria::Invalid), |b| b.px(2.0));
+    /// ```
+    #[must_use]
+    pub fn has(mut self, when: Match, body: impl FnOnce(BoxTw) -> BoxTw) -> Self {
+        let body = body(BoxTw::blank()).0;
+        self.ruled().has.push(HasRule { when, body });
+        self
     }
 
     /// TODO(prose): makes the rule it ends win over the classes of the nodes

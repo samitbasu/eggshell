@@ -174,3 +174,101 @@ fn a_rule_does_not_reach_into_an_overlay() {
         "the overlay is a root of its own"
     );
 }
+
+struct Held {
+    invalid: bool,
+}
+
+fn has(b: &mut Builder<'_, '_, Held>, held: &Held) {
+    b.div_id(
+        "host",
+        tw().flex()
+            .pl(1.0)
+            .has(Match::slot("icon").attr("side", "start"), |b| b.pl(10.0))
+            .has(Match::aria(Aria::Invalid), |b| b.pt(5.0)),
+        |b| {
+            let tint = if held.invalid {
+                tw().aria(Aria::Invalid)
+            } else {
+                tw()
+            };
+            b.icon("lead", tint.slot("icon").attr("side", "start"), chevron());
+        },
+    );
+    b.div_id(
+        "bare",
+        tw().flex()
+            .pl(1.0)
+            .has(Match::slot("icon").attr("side", "start"), |b| b.pl(10.0)),
+        |b| {
+            b.icon("other", tw().slot("icon").attr("side", "end"), chevron());
+        },
+    );
+}
+
+fn held_driver(invalid: bool) -> Driver<Held> {
+    let mut d = support::driver(vec2(300.0, 200.0), base_text(), Held { invalid }, has).build();
+    d.frames(4);
+    d
+}
+
+#[test]
+fn has_applies_its_box_classes_over_the_nodes_own_when_a_child_matches() {
+    let d = held_driver(false);
+    let host = d.rect(Target::suffix("\"host\""));
+    let lead = d.rect(Target::suffix("\"lead\""));
+    assert_eq!(
+        lead.min.x - host.min.x,
+        40.0,
+        "pl-10 from the matching child over its own pl-1"
+    );
+    let bare = d.rect(Target::suffix("\"bare\""));
+    let other = d.rect(Target::suffix("\"other\""));
+    assert_eq!(
+        other.min.x - bare.min.x,
+        4.0,
+        "no child matches: its own pl-1 stands"
+    );
+}
+
+#[test]
+fn has_rules_match_a_childs_aria_state_and_each_rule_is_its_own() {
+    let d = held_driver(true);
+    let host = d.rect(Target::suffix("\"host\""));
+    let lead = d.rect(Target::suffix("\"lead\""));
+    assert_eq!(lead.min.y - host.min.y, 20.0, "pt-5 from the invalid child");
+    assert_eq!(
+        lead.min.x - host.min.x,
+        40.0,
+        "and the slot rule still applies"
+    );
+}
+
+struct Field;
+
+fn field() -> Target {
+    Target::role(egui::accesskit::Role::TextInput, "Query")
+}
+
+fn focused(b: &mut Builder<'_, '_, Field>, _: &Field) {
+    b.div_id(
+        "group",
+        tw().flex().has(Match::focus_visible(), |b| b.pl(10.0)),
+        |b| {
+            b.text_field("query", String::new())
+                .named("Query")
+                .on_change(|_: &mut Field, _| {});
+        },
+    );
+}
+
+#[test]
+fn has_focus_visible_follows_the_focus_a_frame_late() {
+    let mut d = support::driver(vec2(300.0, 200.0), base_text(), Field, focused).build();
+    d.frames(4);
+    let at = |d: &Driver<Field>| d.rect(field()).min.x - d.rect(Target::suffix("\"group\"")).min.x;
+    assert_eq!(at(&d), 0.0, "precondition: nothing is focused");
+    d.click(field());
+    d.frames(4);
+    assert_eq!(at(&d), 40.0, "the group's pl-10 while its field has focus");
+}
