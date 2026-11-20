@@ -1194,6 +1194,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 bars,
                 tab,
                 description,
+                padding: classes.scroll_padding,
                 content,
                 size: egui::Vec2::ZERO,
             }),
@@ -2240,6 +2241,19 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
             let id = ui.node_response().id;
             ui.ctx()
                 .accesskit_node_builder(id, |node| node.set_expanded(open));
+        })
+    }
+
+    /// Makes the node a live region, the `aria-live` of the web: assistive
+    /// technology announces changes to its content, waiting for a pause in
+    /// speech when it is [`Polite`](egui::accesskit::Live::Polite). Give it a
+    /// [`role`](Self::role), such as [`Status`](egui::Role::Status), and a
+    /// name.
+    pub fn live(self, live: egui::accesskit::Live) -> Self {
+        self.draw(move |_, ui| {
+            let id = ui.node_response().id;
+            ui.ctx()
+                .accesskit_node_builder(id, |node| node.set_live(live));
         })
     }
 
