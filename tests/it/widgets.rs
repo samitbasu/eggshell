@@ -49,7 +49,7 @@ fn a_leaf_is_as_large_as_the_size() {
     let size = TextEdit::singleline("").size(
         d.ctx(),
         &base_text(),
-        &eggshell_ui::Style::of(d.ctx()),
+        &d.shell().style(),
         Some(Width::new(200.0)),
     );
     assert_eq!(d.rect(Target::suffix("/\"notes\"")).size(), size);

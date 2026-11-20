@@ -274,6 +274,6 @@ fn a_harness_switched_to_lyra_draws_lyra() {
     .build();
     common::set_style(d.ctx(), ShadcnStyle::Lyra);
     d.frames(4);
-    let style = Style::of(d.ctx());
+    let style = d.shell().style();
     assert_eq!(style.button.sizes.get(Size::DEFAULT).height, 32.0);
 }

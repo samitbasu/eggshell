@@ -489,7 +489,11 @@ mod tests {
             ..body_style()
         };
         let spans = Spans::from(vec![Span::new("ßß"), Span::new("x").code()]);
-        let (job, marks) = spans.laid_out(&ctx, &style, &crate::Style::of(&ctx).rich);
+        let (job, marks) = spans.laid_out(
+            &ctx,
+            &style,
+            &crate::Style::from_egui(&ctx.global_style()).rich,
+        );
         assert_eq!(job.text, "SSSSX", "precondition: casing lengthens the text");
         let galley = ctx.fonts_mut(|fonts| fonts.layout_job(job));
         let runs = runs(&galley, &marks);

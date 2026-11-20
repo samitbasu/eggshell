@@ -92,7 +92,7 @@ fn measured_size_equals_the_size_used() {
     let d = harness();
     let ctx = d.ctx().clone();
     let text = base_text();
-    let style = eggshell_ui::Style::of(&ctx);
+    let style = d.shell().style();
     let app = &d.app();
 
     for (name, measured) in [
@@ -245,7 +245,7 @@ fn a_multi_line_field_grows_with_its_content_up_to_its_cap() {
         .size(
             d.ctx(),
             &base_text(),
-            &eggshell_ui::Style::of(d.ctx()),
+            &d.shell().style(),
             Some(Width::new(220.0)),
         )
         .y;
@@ -556,7 +556,9 @@ fn a_bare_field_draws_its_widget_in_its_leaf_not_at_the_input_height() {
     )
     .build();
     let leaf = d.rect(Target::suffix("/\"box\"/\"bare\""));
-    let input_height = eggshell_ui::Style::of(d.ctx())
+    let input_height = d
+        .shell()
+        .style()
         .input
         .sizes
         .get(eggshell_ui::contract::Size::DEFAULT)

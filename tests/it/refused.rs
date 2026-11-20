@@ -37,10 +37,8 @@ struct App {
     note: bool,
 }
 
-fn prepare(ctx: &egui::Context, _: &App) {
-    let mut style = (*Style::of(ctx)).clone();
+fn quick_tooltips(style: &mut Style) {
     style.tooltip.delay = Duration::from_millis(100);
-    style.install(ctx);
 }
 
 fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
@@ -111,13 +109,13 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
 
 fn harness_with(app: App) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut d = support::prepared_driver(
+    let mut d = support::driver(
         vec2(400.0, 900.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         app,
         view,
-        prepare,
     )
+    .style(support::shadcn_with(quick_tooltips))
     .build();
     d.frames(8);
     d

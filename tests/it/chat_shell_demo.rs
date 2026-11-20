@@ -599,7 +599,7 @@ mod composer_growth {
         field.size(
             d.ctx(),
             &Theme::of(d.ctx()).base_text(),
-            &eggshell_ui::Style::of(d.ctx()),
+            &d.shell().style(),
             Some(Width::new(width)),
         )
     }

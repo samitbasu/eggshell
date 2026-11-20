@@ -1330,6 +1330,22 @@ pub struct Themed<T> {
     pub dark: T,
 }
 
+impl<T: Clone> Themed<T> {
+    /// TODO(prose): `value` in both themes.
+    ///
+    /// ```
+    /// use eggshell_ui::contract::Themed;
+    ///
+    /// assert_eq!(Themed::both(4.0), Themed { light: 4.0, dark: 4.0 });
+    /// ```
+    pub fn both(value: T) -> Self {
+        Self {
+            light: value.clone(),
+            dark: value,
+        }
+    }
+}
+
 impl<T> Themed<T> {
     /// TODO(prose): the value for `theme`.
     pub fn get(&self, theme: Theme) -> &T {

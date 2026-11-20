@@ -1253,7 +1253,7 @@ mod bars {
     #[test]
     fn a_container_style_changes_the_gutter_and_the_thumb() {
         let own = |d: &H| {
-            let mut style = eggshell_ui::Style::of(d.ctx()).scroll;
+            let mut style = d.shell().style().scroll;
             style.width = 16.0;
             style.thumb = Color32::from_rgb(200, 30, 30);
             style
@@ -1305,7 +1305,7 @@ mod bars {
         }
         let mut d = support::driver(SIZE, base(), App::default(), styled).build();
         d.frames(1);
-        let mut style = eggshell_ui::Style::of(d.ctx()).scroll;
+        let mut style = d.shell().style().scroll;
         style.min_thumb_length = 150.0;
         d.app_mut().style = Some(style);
         d.frames(4);

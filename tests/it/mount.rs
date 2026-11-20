@@ -257,7 +257,7 @@ fn two_mounts_over_one_field_share_it() {
 #[test]
 fn a_mount_is_as_tall_as_its_content_unless_its_classes_say() {
     let d = harness();
-    let inset = eggshell_ui::Style::of(d.ctx()).mount.bare_padding;
+    let inset = d.shell().style().mount.bare_padding;
     let mount = d.rect(Target::suffix(&path(&["Page", "Other"])));
     let add = d.rect(Target::suffix(&path(&["Page", "Other", "Frame", "Add"])));
     assert!(add.height() > 0.0, "precondition: the button is laid out");
@@ -672,24 +672,17 @@ mod caption {
     }
 
     /// A frame and a gap that show: every measure apart from the others.
-    fn prepare(ctx: &egui::Context, _: &Page) {
-        let mut style = (*Style::of(ctx)).clone();
+    fn framed(style: &mut Style) {
         style.mount.gap = 6.0;
         style.mount.padding = 10.0;
         style.mount.border_width = 2.0;
         style.mount.border = Color32::from_rgb(200, 20, 20);
-        style.install(ctx);
     }
 
     fn harness() -> Driver<Page> {
-        let mut d = support::prepared_driver(
-            vec2(480.0, 400.0),
-            base_text(),
-            Page::default(),
-            view,
-            prepare,
-        )
-        .build();
+        let mut d = support::driver(vec2(480.0, 400.0), base_text(), Page::default(), view)
+            .style(support::shadcn_with(framed))
+            .build();
         d.frames(4);
         d
     }
@@ -697,7 +690,7 @@ mod caption {
     #[test]
     fn a_caption_sits_above_the_mount_framed_by_the_style() {
         let d = harness();
-        let look = Style::of(d.ctx()).mount.clone();
+        let look = d.shell().style().mount.clone();
         let caption = d.rect(Target::suffix("/Page/Left/Caption"));
         let frame = d.rect(Target::suffix("/Page/Left/Frame"));
         let add = d.rect(Target::suffix("/Page/Left/Frame/Add"));
@@ -735,7 +728,7 @@ mod caption {
     #[test]
     fn a_mount_without_a_caption_is_inset_by_its_bare_padding_and_not_outlined() {
         let d = harness();
-        let inset = Style::of(d.ctx()).mount.bare_padding;
+        let inset = d.shell().style().mount.bare_padding;
         assert!(inset > 0.0, "precondition: the style insets it");
         let mount = d.rect(Target::suffix("/Page/Right"));
         let frame = d.rect(Target::suffix("/Page/Right/Frame"));
@@ -1072,7 +1065,7 @@ mod selection {
     #[test]
     fn an_uncaptioned_examples_inset_keeps_a_focused_controls_ring_off_the_selected_ring() {
         let mut d = harness();
-        let style = eggshell_ui::Style::of(d.ctx());
+        let style = d.shell().style();
         let before = rect_at(&d, "/Notes/Frame/Note");
         click_on(&mut d, "/Notes/Frame/Note");
         assert_eq!(selected(&d), ["Example notes"]);
@@ -1100,7 +1093,7 @@ mod selection {
     #[test]
     fn a_captioned_examples_selected_ring_stays_off_its_caption() {
         let mut d = harness();
-        let style = eggshell_ui::Style::of(d.ctx());
+        let style = d.shell().style();
         let before = rect_at(&d, "/Left/Caption");
         click_on(&mut d, "/Left/Frame/Add");
         assert_eq!(selected(&d), ["Example A"]);
