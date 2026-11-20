@@ -16,6 +16,7 @@ mod grid;
 mod layout;
 mod merge;
 mod paint;
+mod rules;
 mod text;
 mod units;
 mod variants;
@@ -31,6 +32,8 @@ pub use easing::Easing;
 pub use grid::Track;
 use merge::{Layout, Touched};
 pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
+pub use rules::{Aria, Match};
+pub(crate) use rules::{Link, Ruled, Rules};
 pub use units::{Angle, Mirror, Opacity, Progress};
 pub use variants::Paint;
 pub(crate) use variants::{
@@ -62,6 +65,9 @@ pub struct Tw {
     pub(crate) grouping: Grouping,
     pub(crate) variants: Variants,
     pub(crate) lengths: Lengths,
+    /// What the node says of itself and the rules it declares; `None` for
+    /// most nodes, which keeps a `Tw` small.
+    pub(crate) rules: Option<Box<Ruled>>,
     touched: Touched,
 }
 
@@ -112,11 +118,17 @@ pub fn tw() -> Tw {
         grouping: Grouping::Ungrouped,
         variants: Variants::default(),
         lengths: Lengths::Finite,
+        rules: None,
         touched: Touched::default(),
     }
 }
 
 impl Tw {
+    /// Classes that say nothing.
+    pub(crate) fn blank() -> Self {
+        tw()
+    }
+
     /// The layout style the classes have produced so far.
     pub fn style(&self) -> &Style {
         &self.style
