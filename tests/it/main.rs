@@ -54,6 +54,7 @@ mod field_box;
 mod field_focus;
 mod field_focus_example;
 mod field_text;
+mod field_width;
 mod focus;
 mod focus_on_appear;
 mod focus_options;
