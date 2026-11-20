@@ -3,7 +3,9 @@
 //! accessibility check the support harness switches on.
 
 use core::time::Duration;
-use eggshell_ui::contract::Size;
+use std::sync::Arc;
+
+use eggshell_ui::contract::{Size, Themed};
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
@@ -434,7 +436,7 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 }
 
 #[test]
-fn installing_a_modified_style_changes_every_owned_widget() {
+fn a_modified_style_changes_every_owned_widget() {
     let mut style = style(Theme::Light);
     let red = egui::Color32::from_rgb(200, 30, 30);
     style.switch.on.states.rest.fill = red;
@@ -442,7 +444,7 @@ fn installing_a_modified_style_changes_every_owned_widget() {
     style.radio.sizes.default_entry_mut().size = 24.0;
     style.segmented.track_fill = red;
     let mut d = harness(Theme::Light);
-    style.install(d.ctx());
+    d.set_style(Themed::both(Arc::new(style)));
     d.frames(4);
     d.click(Target::suffix("/\"air\"/Track")).frames(12);
     assert!(d.app().on, "precondition: the switch is on");
@@ -541,7 +543,7 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
     style.switch.off.states.hover.text = red;
     style.switch.off.states.pressed.text = red;
     let mut d = harness(Theme::Light);
-    style.clone().install(d.ctx());
+    d.set_style(Themed::both(Arc::new(style.clone())));
     d.frames(4);
     let rest = style.switch.off.states.rest.text;
     let (_, at_rest) = thumb(&d, "/\"air\"/Track");

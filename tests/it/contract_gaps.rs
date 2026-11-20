@@ -3,7 +3,9 @@
 //! toggle variants, node-opacity disabling and the cheap install. Pointer and
 //! key input goes through kittest's real events.
 
-use eggshell_ui::contract::{Disabled, Paint, Size, Variant};
+use std::sync::Arc;
+
+use eggshell_ui::contract::{Disabled, Paint, Size, Themed, Variant};
 use eggshell_ui::owned::{Choice, Enablement, Face};
 use eggshell_ui::{Builder, Icon, Opacity, Style, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::{Shadcn, ShadcnStyle, Tokens, size};
@@ -64,10 +66,6 @@ impl App {
     }
 }
 
-fn prepare(ctx: &egui::Context, app: &App) {
-    app.style.clone().install(ctx);
-}
-
 type Harn = Driver<App>;
 
 fn harness_with(
@@ -80,7 +78,7 @@ fn harness_with(
     edit(&mut style);
     let tokens = Tokens::for_theme(theme).in_style(shadcn);
     let app = App {
-        style,
+        style: style.clone(),
         mode: Mode::default(),
         height: 40.0,
         font: 14.0,
@@ -88,13 +86,13 @@ fn harness_with(
         clicks: 0,
         texture: None,
     };
-    let mut d = support::prepared_driver(
+    let mut d = support::driver(
         vec2(520.0, 400.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         app,
         view,
-        prepare,
     )
+    .style(Themed::both(Arc::new(style)))
     .build();
     d.ctx().set_theme(theme);
     let texture = d.ctx().load_texture(

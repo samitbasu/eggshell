@@ -4,7 +4,7 @@
 use eggshell_ui::contract::Size;
 use eggshell_ui::owned::Step;
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui::{Builder, Style, TextStyle, tw};
+use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Key, Theme, vec2};
 use std::time::Duration;
@@ -116,11 +116,7 @@ fn the_label_and_the_readout_share_a_row_above_the_track() {
     assert_eq!(label.left(), whole.left());
     assert_eq!(readout.right(), whole.right());
     assert!((label.center().y - readout.center().y).abs() < 0.6);
-    let gap = Style::of(d.ctx())
-        .slider
-        .sizes
-        .get(Size::DEFAULT)
-        .header_gap;
+    let gap = d.shell().style().slider.sizes.get(Size::DEFAULT).header_gap;
     let row = d.rect(Target::suffix("/\"volume\"/Box/Header"));
     assert!((track.min.y - row.max.y - gap).abs() < 0.6, "{gap}");
 }
@@ -177,7 +173,7 @@ fn the_readout_being_edited_is_drawn_in_the_inputs_box_with_its_ring() {
     assert!(ring_at(&d, before).is_none());
     open(&mut d);
     let rect = d.rect(Target::suffix(READOUT));
-    let input = Style::of(d.ctx()).input.clone();
+    let input = d.shell().style().input.clone();
     let height = input.sizes.get(Size::DEFAULT).height;
     assert!((rect.height() - height).abs() < 0.6, "{rect:?} {height}");
     assert_eq!(box_at(&d, rect).fill, input.look.paint.states.rest.fill);
@@ -240,7 +236,7 @@ fn on_the_last_digit(d: &Driver<App>) -> egui::Pos2 {
         .expect("precondition: the part is on one row");
     let at = egui::pos2(digit.right() - 1.0, digit.center().y);
     let readout = d.rect(Target::suffix(TINY));
-    let padding = Style::of(d.ctx()).input.sizes.get(size::XS).padding.x;
+    let padding = d.shell().style().input.sizes.get(size::XS).padding.x;
     assert!(
         readout.contains(at),
         "precondition: {at:?} is on the readout {readout:?}"
@@ -266,7 +262,7 @@ fn the_field_spans_its_box_and_its_text_keeps_the_inputs_padding() {
     open(&mut d);
     let boxed = d.rect(Target::suffix(READOUT));
     let field = d.rect(Target::suffix(&format!("{READOUT}/Field")));
-    let input = Style::of(d.ctx()).input.clone();
+    let input = d.shell().style().input.clone();
     let (border, padding) = (
         input.look.border_width,
         input.sizes.get(Size::DEFAULT).padding.x,
@@ -438,11 +434,7 @@ fn a_readout_that_is_not_editable_takes_no_focus() {
 fn dragging_the_thumb_of_a_slider_with_a_header_moves_the_value() {
     let mut d = harness();
     let track = d.rect(Target::suffix(TRACK));
-    let thumb = Style::of(d.ctx())
-        .slider
-        .sizes
-        .get(Size::DEFAULT)
-        .thumb_size;
+    let thumb = d.shell().style().slider.sizes.get(Size::DEFAULT).thumb_size;
     let start = egui::pos2(
         track.left() + thumb / 2.0 + 0.4 * (track.width() - thumb),
         track.center().y,
@@ -532,7 +524,7 @@ fn the_open_field_draws_the_value_where_the_readout_drew_it_at_every_size() {
         (SMALL, size::SM, "30.0 dB"),
         (TINY, size::XS, "30"),
     ];
-    let sizes: Vec<Size> = Style::of(harness().ctx()).slider.sizes.keys().collect();
+    let sizes: Vec<Size> = harness().shell().style().slider.sizes.keys().collect();
     assert!(
         sizes
             .iter()

@@ -23,8 +23,7 @@ fn base_text() -> TextStyle {
     )
 }
 
-fn prepare(ctx: &egui::Context, _: &()) {
-    let mut style = (*Style::of(ctx)).clone();
+fn small_buttons(style: &mut Style) {
     let default = *style.button.sizes.get(Size::DEFAULT);
     style.button.sizes = style.button.sizes.clone().with(
         SM,
@@ -33,7 +32,6 @@ fn prepare(ctx: &egui::Context, _: &()) {
             ..default
         },
     );
-    style.install_for(ctx, ctx.theme());
 }
 
 fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
@@ -57,8 +55,9 @@ fn height(d: &Driver<()>, path: &str) -> f32 {
 
 #[test]
 fn a_control_takes_its_own_size_else_its_subtrees_else_the_default() {
-    let mut d =
-        support::prepared_driver(vec2(300.0, 300.0), base_text(), (), view, prepare).build();
+    let mut d = support::driver(vec2(300.0, 300.0), base_text(), (), view)
+        .style(support::shadcn_with(small_buttons))
+        .build();
     d.frames(4);
     let default = height(&d, r#"/"Page"/"outside""#);
     let small = height(&d, r#"/"Page"/"dense"/"inherits""#);

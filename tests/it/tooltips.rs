@@ -43,22 +43,20 @@ struct Mounted {
 /// Clicks on the button inside a built tooltip's content.
 static INSIDE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
-fn prepare(ctx: &egui::Context, _: &App) {
-    let mut style = (*Style::of(ctx)).clone();
+fn timed(style: &mut Style) {
     style.tooltip.delay = DELAY;
     style.tooltip.grace = GRACE;
-    style.install(ctx);
 }
 
 fn harness_of(view: support::View<App>) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut d = support::prepared_driver(
+    let mut d = support::driver(
         vec2(400.0, 600.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
-        prepare,
     )
+    .style(support::shadcn_with(timed))
     .build();
     d.frames(12);
     d
@@ -381,7 +379,7 @@ fn long_text_wraps_at_the_maximum_width() {
     d.hover(Target::suffix("/\"long\""));
     d.advance(DELAY + GRACE);
     let tip = tip_box(&d).expect("shown");
-    let max = Style::of(d.ctx()).tooltip.max_width;
+    let max = d.shell().style().tooltip.max_width;
     assert!(tip.width() <= max + 0.5, "{} is within {max}", tip.width());
     assert!(
         tip.width() >= max - 40.0,
@@ -528,7 +526,7 @@ fn galley_of<'h>(d: &'h Driver<App>, text: &str) -> &'h egui::Galley {
 }
 
 fn tooltip_ink(d: &Driver<App>) -> egui::Color32 {
-    Style::of(d.ctx()).tooltip.popup.paint.states.rest.text
+    d.shell().style().tooltip.popup.paint.states.rest.text
 }
 
 #[test]
@@ -876,7 +874,7 @@ fn a_kbd_takes_the_tooltip_look_inside_a_tooltip_and_its_own_on_the_page() {
     let mut d = rich_harness();
     d.hover(Target::suffix("/\"built\""));
     d.advance(DELAY + GRACE);
-    let kbd = Style::of(d.ctx()).kbd.clone();
+    let kbd = d.shell().style().kbd.clone();
     assert_ne!(
         kbd.page.text, kbd.tooltip.text,
         "precondition: the two looks differ"
@@ -909,7 +907,7 @@ fn the_arrow_is_painted_between_the_box_and_its_trigger() {
         tip.bottom() <= trigger.top(),
         "precondition: the tooltip sits above its trigger"
     );
-    let style = Style::of(d.ctx());
+    let style = d.shell().style();
     let size = style
         .tooltip
         .arrow
@@ -1082,13 +1080,9 @@ mod dismissed {
         }
     }
 
-    fn prepare(ctx: &egui::Context, _: &Host) {
-        super::prepare(ctx, &App::default());
-    }
-
     pub(super) fn driver(opens: Opens) -> Driver<Host> {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut d = support::prepared_driver(
+        let mut d = support::driver(
             vec2(400.0, 400.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             Host {
@@ -1097,8 +1091,8 @@ mod dismissed {
                 gone: false,
             },
             view,
-            prepare,
         )
+        .style(support::shadcn_with(super::timed))
         .build();
         d.frames(12);
         d

@@ -5,7 +5,7 @@
 use core::time::Duration;
 
 use eggshell_ui::overlay::{Distance, HoverIntent, Placement};
-use eggshell_ui::testing::{Driver, Target};
+use eggshell_ui::testing::{Animation, Driver, Target};
 use eggshell_ui::{Builder, Problem, Style, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Event, Key, Pos2, Rect, Theme, pos2, vec2};
@@ -30,12 +30,8 @@ struct App {
     after: bool,
 }
 
-/// Motion off: a card that closes is gone in the same frame.
-fn prepare(ctx: &egui::Context, _: &App) {
-    ctx.global_style_mut(|style| style.animation_time = 0.0);
-    let mut style = (*Style::of(ctx)).clone();
+fn quick_tooltips(style: &mut Style) {
     style.tooltip.delay = TOOLTIP;
-    style.install(ctx);
 }
 
 /// ```html
@@ -88,13 +84,15 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 
 fn harness_with(app: App) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut d = support::prepared_driver(
+    let mut d = support::driver(
         vec2(400.0, 400.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         app,
         view,
-        prepare,
     )
+    .style(support::shadcn_with(quick_tooltips))
+    // Motion off: a card that closes is gone in the same frame.
+    .motion(Animation::Reduced)
     .build();
     d.frames(4);
     d
