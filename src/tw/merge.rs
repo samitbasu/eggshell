@@ -364,6 +364,11 @@ impl Tw {
         self.variants = self.variants.merge(other.variants);
         self.touched = self.touched | other.touched;
         self.lengths = self.lengths.or(other.lengths);
+        self.rules = match (self.rules, other.rules) {
+            (Some(own), Some(later)) => Some(Box::new(own.merge(*later))),
+            (own, later) => later.or(own),
+        };
+        self.important |= other.important;
         self
     }
 }
