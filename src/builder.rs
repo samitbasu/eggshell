@@ -666,8 +666,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
-    /// Sizes the scroll container `node` to its content, `rows` tall inside the content's padding, unless
-    /// its classes gave it a height: its own max height still caps it.
+    /// Sizes the scroll container `node` to its content, `rows` tall inside
+    /// the content's padding, unless its classes gave it a height, and no
+    /// taller than its max height: the container's parents measure it by this
+    /// height, not by the max.
     pub(crate) fn fit_height(&mut self, node: NodeId, rows: f32) {
         use taffy::{BoxSizing, CompactLength, Dimension};
         let mut style = self.st.tree.style(node).clone();
@@ -687,7 +689,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             BoxSizing::BorderBox => padding + border,
             BoxSizing::ContentBox => 0.0,
         };
-        style.size.height = Dimension::length(rows + insets);
+        let wanted = rows + insets;
+        let max = style.max_size.height.into_raw();
+        let capped = if max.tag() == CompactLength::LENGTH_TAG {
+            wanted.min(max.value())
+        } else {
+            wanted
+        };
+        style.size.height = Dimension::length(capped);
         self.st.tree.set_style(node, style);
     }
 
