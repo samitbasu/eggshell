@@ -2244,6 +2244,19 @@ impl<'b, 'f, A: 'static, K> NodeHandle<'b, 'f, A, K> {
         })
     }
 
+    /// Makes the node a live region, the `aria-live` of the web: assistive
+    /// technology announces changes to its content, waiting for a pause in
+    /// speech when it is [`Polite`](egui::accesskit::Live::Polite). Give it a
+    /// [`role`](Self::role), such as [`Status`](egui::Role::Status), and a
+    /// name.
+    pub fn live(self, live: egui::accesskit::Live) -> Self {
+        self.draw(move |_, ui| {
+            let id = ui.node_response().id;
+            ui.ctx()
+                .accesskit_node_builder(id, |node| node.set_live(live));
+        })
+    }
+
     /// TODO(prose): makes the node a group of items the arrow keys move focus through as `nav` says, one Tab stop (the focused item, else the [`selected`](Self::selected) one, else the first enabled); a `Listbox` or `Submenu` nav is reported as [`NavNeedsOverlay`](crate::Problem::NavNeedsOverlay).
     ///
     /// ```
