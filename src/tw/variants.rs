@@ -3,6 +3,7 @@
 //! with their transition.
 
 use core::time::Duration;
+use std::sync::Arc;
 
 use egui::{Color32, Sense, Shadow, Vec2};
 
@@ -405,9 +406,74 @@ pub(crate) struct Look {
     pub decoration: TextDecoration,
 }
 
-/// A node's state variants and how they transition.
+/// A node's state variants and how they transition: most nodes have none,
+/// so the data is behind a shared pointer and a [`Tw`] stays small.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Variants(Option<Arc<VariantData>>);
+
+impl Variants {
+    /// Whether a `focus:` look is set.
+    pub(crate) fn has_focus(&self) -> bool {
+        self.data().is_some_and(VariantData::has_focus)
+    }
+
+    /// These variants with `other`'s on top, state by state.
+    pub(crate) fn merge(self, other: Self) -> Self {
+        Self(match (self.0, other.0) {
+            (Some(ours), Some(theirs)) => Some(Arc::new(ours.merge(*theirs))),
+            (ours, theirs) => theirs.or(ours),
+        })
+    }
+
+    pub(crate) fn get(&self, state: State) -> Option<&Paint> {
+        self.data()?.get(state)
+    }
+
+    /// Whether any variant changes the text colour.
+    pub(crate) fn sets_text_color(&self) -> bool {
+        self.data().is_some_and(VariantData::sets_text_color)
+    }
+
+    /// `base` with every variant applied at its [`Presence`].
+    pub(crate) fn resolve(&self, base: Look, presence: Presence) -> Look {
+        self.data()
+            .map_or(base, |data| data.resolve(base, presence))
+    }
+
+    pub(crate) fn transition(&self) -> Option<Duration> {
+        self.data().and_then(|data| data.transition)
+    }
+
+    pub(crate) fn animate_layout(&self) -> Option<Duration> {
+        self.data().and_then(|data| data.animate_layout)
+    }
+
+    pub(crate) fn easing(&self) -> Easing {
+        self.data().map_or(Easing::Default, |data| data.easing)
+    }
+
+    /// Only the `group-hover:` look of these variants.
+    fn only_group_hover(&self) -> Self {
+        match self.data().and_then(|data| data.group_hover) {
+            None => Self::default(),
+            group_hover => Self(Some(Arc::new(VariantData {
+                group_hover,
+                ..VariantData::default()
+            }))),
+        }
+    }
+
+    fn data(&self) -> Option<&VariantData> {
+        self.0.as_deref()
+    }
+
+    fn edit(&mut self, set: impl FnOnce(&mut VariantData)) {
+        set(Arc::make_mut(self.0.get_or_insert_with(Arc::default)));
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct Variants {
+struct VariantData {
     hover: Option<Paint>,
     active: Option<Paint>,
     group_hover: Option<Paint>,
@@ -416,12 +482,12 @@ pub(crate) struct Variants {
     drag_accepts: Option<Paint>,
     drag_over: Option<Paint>,
     drag_lifted: Option<Paint>,
-    pub(crate) transition: Option<Duration>,
-    pub(crate) animate_layout: Option<Duration>,
-    pub(crate) easing: Easing,
+    transition: Option<Duration>,
+    animate_layout: Option<Duration>,
+    easing: Easing,
 }
 
-impl Variants {
+impl VariantData {
     /// Whether a `focus:` look is set.
     pub(crate) fn has_focus(&self) -> bool {
         self.focus.is_some()
@@ -486,12 +552,14 @@ impl Tw {
     /// gives it a length that is not finite.
     fn variant(
         mut self,
-        slot: fn(&mut Variants) -> &mut Option<Paint>,
+        slot: fn(&mut VariantData) -> &mut Option<Paint>,
         style: impl FnOnce(Paint) -> Paint,
     ) -> Self {
-        let before = slot(&mut self.variants).unwrap_or_default();
-        let after = self.lengths.keep(before, style(before), Paint::is_finite);
-        *slot(&mut self.variants) = Some(after);
+        let lengths = &mut self.lengths;
+        self.variants.edit(|data| {
+            let before = slot(data).unwrap_or_default();
+            *slot(data) = Some(lengths.keep(before, style(before), Paint::is_finite));
+        });
         self
     }
 
@@ -708,7 +776,8 @@ impl Tw {
     /// motion takes several frames to settle: see [the testing
     /// guide](crate::testing#a-harness) on `max_steps`.
     pub fn transition(mut self, duration: Duration) -> Self {
-        self.variants.transition = Some(duration);
+        self.variants
+            .edit(|variants| variants.transition = Some(duration));
         self
     }
 
@@ -727,7 +796,8 @@ impl Tw {
     /// motion takes several frames to settle: see [the testing
     /// guide](crate::testing#a-harness) on `max_steps`.
     pub fn animate_layout(mut self, duration: Duration) -> Self {
-        self.variants.animate_layout = Some(duration);
+        self.variants
+            .edit(|variants| variants.animate_layout = Some(duration));
         self
     }
 
@@ -771,7 +841,7 @@ impl Tw {
     }
 
     fn easing(mut self, easing: Easing) -> Self {
-        self.variants.easing = easing;
+        self.variants.edit(|variants| variants.easing = easing);
         self
     }
 
@@ -789,8 +859,8 @@ impl Tw {
             || self.variants.get(State::DragAccepts).is_some()
             || self.variants.get(State::DragOver).is_some()
             || self.variants.get(State::DragLifted).is_some()
-            || self.variants.transition.is_some()
-            || self.variants.animate_layout.is_some()
+            || self.variants.transition().is_some()
+            || self.variants.animate_layout().is_some()
     }
 
     /// The classes without what [`needs_identity`](Self::needs_identity)
@@ -799,10 +869,7 @@ impl Tw {
         Self {
             sensing: Sensing::None,
             grouping: Grouping::Ungrouped,
-            variants: Variants {
-                group_hover: self.variants.group_hover,
-                ..Variants::default()
-            },
+            variants: self.variants.only_group_hover(),
             ..self
         }
     }
@@ -923,8 +990,8 @@ mod tests {
             .hover(|p| p.bg(Color32::RED))
             .hover(|p| p.text(Color32::WHITE));
         assert_eq!(
-            styled.variants.hover,
-            Some(Paint::default().bg(Color32::RED).text(Color32::WHITE))
+            styled.variants.get(State::Hover),
+            Some(&Paint::default().bg(Color32::RED).text(Color32::WHITE))
         );
     }
 

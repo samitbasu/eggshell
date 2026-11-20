@@ -850,13 +850,13 @@ impl<A> Walk<'_, A> {
                 State::DragLifted => stakes.lifted,
             };
             let target = if on { Progress::END } else { Progress::START };
-            match (variants.transition, node.id()) {
+            match (variants.transition(), node.id()) {
                 (Some(duration), Some(id)) => transition::animate(
                     self.ui.ctx(),
                     id.with(("eggshell-state", state as u8)),
                     target,
                     duration,
-                    variants.easing,
+                    variants.easing(),
                 ),
                 _ => target,
             }
@@ -1072,12 +1072,12 @@ impl<A> Walk<'_, A> {
         let opacity = parent.opacity * look.paint.opacity;
         let own_opacity = opacity * scrim;
         let lifted = self.lift.filter(|lift| lift.index == index);
-        let slide = match (interaction.variants.animate_layout, node.id(), lifted) {
+        let slide = match (interaction.variants.animate_layout(), node.id(), lifted) {
             (Some(duration), Some(id), None) => self.pass.animation.offset(
                 id,
                 node.rect().min - parent.origin,
                 duration,
-                interaction.variants.easing,
+                interaction.variants.easing(),
             ),
             _ => Vec2::ZERO,
         };
@@ -1105,7 +1105,7 @@ impl<A> Walk<'_, A> {
                 },
                 scrolled: parent.scrolled,
                 opacity: own_opacity,
-                motion: match (interaction.variants.animate_layout, lifted, stage) {
+                motion: match (interaction.variants.animate_layout(), lifted, stage) {
                     (_, None, Some(_)) => Motion::Presents,
                     _ if node.collapsible => Motion::Resizes,
                     (Some(_), None, None) => Motion::Slides,
@@ -1114,7 +1114,7 @@ impl<A> Walk<'_, A> {
                 slide: self
                     .pass
                     .animation
-                    .slide(id, interaction.variants.easing, translate),
+                    .slide(id, interaction.variants.easing(), translate),
             });
         }
         let moved_from = (translate != Vec2::ZERO || lifted.is_some() || staged_scale != 1.0)
