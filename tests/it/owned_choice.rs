@@ -375,9 +375,10 @@ fn segmented_track_and_cells_are_the_styles() {
         assert_eq!(track.height(), seg.sizes.get(Size::DEFAULT).height);
         assert_eq!(box_at(&d, track).fill, seg.track_fill);
         let metric = d.rect(Target::suffix(&cell_path(Unit::Metric)));
+        let metrics = seg.sizes.get(Size::DEFAULT);
         assert_eq!(
             metric.top() - track.top(),
-            seg.sizes.get(Size::DEFAULT).track_padding
+            metrics.track_padding + metrics.cell_trim / 2.0
         );
         let selected = box_at(&d, metric);
         assert_eq!(selected.fill, seg.selected.states.rest.fill, "{theme:?}");

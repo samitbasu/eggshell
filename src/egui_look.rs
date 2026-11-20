@@ -1,12 +1,21 @@
+//! egui's own look from a [`Style`]'s tokens: the visuals, spacing and text
+//! sizes egui's widgets are drawn with outside eggshell's.
+
 use egui::{
-    Color32, CornerRadius, Margin, Shadow, Stroke, Style, TextStyle, Theme,
+    Color32, CornerRadius, Margin, Shadow, Stroke, TextStyle, Theme,
     style::{HandleShape, WidgetVisuals},
     vec2,
 };
 
-use crate::Tokens;
+use crate::Style;
+use crate::contract::Tokens;
 
 impl Tokens {
+    /// `rounded-md`: two points under the radius.
+    fn radius_md(&self) -> u8 {
+        self.radius.saturating_sub(2)
+    }
+
     fn widget(
         &self,
         weak_bg_fill: Color32,
@@ -23,11 +32,21 @@ impl Tokens {
             expansion: 0.0,
         }
     }
+}
 
-    /// Maps the tokens onto egui's visuals and spacing, for the egui widgets
-    /// an application draws outside eggshell.
-    pub(crate) fn set_style(&self, theme: Theme, style: &mut Style) {
-        let t = self;
+impl Style {
+    /// TODO(prose): writes this style's look into egui's `style` for `theme`: its visuals, spacing and text sizes, from the tokens. egui's own widgets get an approximation of the design system; eggshell's controls draw it exactly.
+    ///
+    /// ```
+    /// use eggshell_ui::Style;
+    ///
+    /// let mut egui = egui::Style::default();
+    /// let style = Style::default();
+    /// style.egui_style(egui::Theme::Light, &mut egui);
+    /// assert_eq!(egui.visuals.panel_fill, style.tokens.background);
+    /// ```
+    pub fn egui_style(&self, theme: Theme, style: &mut egui::Style) {
+        let t = &self.tokens;
         let v = &mut style.visuals;
         v.dark_mode = theme == Theme::Dark;
         v.override_text_color = None;
@@ -70,7 +89,7 @@ impl Tokens {
         v.extreme_bg_color = t.background;
         v.text_edit_bg_color = Some(match theme {
             Theme::Light => t.background,
-            Theme::Dark => t.input_30(),
+            Theme::Dark => t.input.gamma_multiply(0.3),
         });
         v.code_bg_color = t.muted;
         v.error_fg_color = t.destructive;
