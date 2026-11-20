@@ -2,12 +2,12 @@
 //! its content stops moving as its value changes.
 
 use eggshell_ui::testing::Headless;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Placed, TextSpec, Tw, tw};
 use egui::{Event, FontData, FontDefinitions, FontFamily, OutputCommand, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 
-use crate::support::{self, Rig, drag, rect_of};
+use crate::support;
 
 #[path = "../../examples/common/mod.rs"]
 mod common;
@@ -218,45 +218,44 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div_id("box", tw().p(4.0).tabular_nums(), |b| b.text(tw(), TEXT));
 }
 
-fn selectable() -> Harness<'static, Rig<()>> {
+fn selectable() -> Driver<()> {
     let tokens = eggshell_ui_shadcn::Tokens::light();
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(300.0, 100.0),
         eggshell_ui::TextStyle::new(tokens.text_role(), tokens.foreground),
         (),
         view,
-    );
-    harness.run_steps(6);
-    harness
+    )
+    .build();
+    d.frames(6);
+    d
 }
 
 #[test]
 fn selecting_and_copying_read_the_original_text() {
-    let mut harness = selectable();
-    let rect = rect_of(&harness, "/\"box\"/<text>");
+    let mut d = selectable();
+    let rect = d.rect(Target::suffix("/\"box\"/<text>"));
     assert!(rect.width() > 60.0);
-    drag(
-        &mut harness,
+    d.drag(
         rect.left_center() + vec2(1.0, 0.0),
         rect.right_center() - vec2(1.0, 0.0),
     );
-    harness.event(Event::Copy);
-    harness.step();
-    let copied =
-        harness
-            .output()
-            .platform_output
-            .commands
-            .iter()
-            .find_map(|command| match command {
-                OutputCommand::CopyText(text) => Some(text.clone()),
-                _ => None,
-            });
+    d.event(Event::Copy);
+    let copied = d
+        .harness()
+        .output()
+        .platform_output
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            OutputCommand::CopyText(text) => Some(text.clone()),
+            _ => None,
+        });
     assert_eq!(copied.as_deref(), Some(TEXT));
 }
 
 #[test]
 fn accessibility_reads_the_original_text() {
-    let harness = selectable();
-    let _ = harness.get_by_label(TEXT);
+    let d = selectable();
+    let _ = d.harness().get_by_label(TEXT);
 }
