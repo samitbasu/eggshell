@@ -368,7 +368,6 @@ impl Tw {
             (Some(own), Some(later)) => Some(Box::new(own.merge(*later))),
             (own, later) => later.or(own),
         };
-        self.important |= other.important;
         self
     }
 }

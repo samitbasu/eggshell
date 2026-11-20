@@ -255,7 +255,9 @@ fn focused(b: &mut Builder<'_, '_, Field>, _: &Field) {
         "group",
         tw().flex().has(Match::focus_visible(), |b| b.pl(10.0)),
         |b| {
-            b.text_field("query", String::new()).named("Query");
+            b.text_field("query", String::new())
+                .named("Query")
+                .on_change(|_: &mut Field, _| {});
         },
     );
 }
