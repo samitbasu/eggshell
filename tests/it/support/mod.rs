@@ -258,7 +258,12 @@ pub struct Rig<A> {
     /// Every node of the last frame: its readable path and border box.
     pub nodes: Vec<(String, Rect)>,
     ids: Vec<(String, egui::Id)>,
+    /// Sees each frame as it is placed, before it is drawn.
+    pub observe: Option<Observe<A>>,
 }
+
+/// What [`Rig::observe`] runs on a placed frame.
+pub type Observe<A> = Box<dyn FnMut(&eggshell_ui::Placed<A>)>;
 
 pub fn harness<A>(
     size: Vec2,
@@ -337,6 +342,7 @@ fn harness_timed<A>(
         prepare,
         nodes: Vec::new(),
         ids: Vec::new(),
+        observe: None,
     };
     Harness::builder()
         .with_size(size)
@@ -357,6 +363,7 @@ fn harness_timed<A>(
                     prepare,
                     nodes,
                     ids,
+                    observe,
                 } = rig;
                 if *reduced_motion == ReducedMotion::No {
                     full_motion(ui.ctx());
@@ -382,6 +389,9 @@ fn harness_timed<A>(
                     .nodes()
                     .filter_map(|node| Some((node.path().to_owned(), node.id()?)))
                     .collect();
+                if let Some(observe) = observe {
+                    observe(&placed);
+                }
                 placed.draw(app, ui);
             },
             rig,
