@@ -10,7 +10,8 @@ use egui::{Role, Ui};
 use super::number::{Edit, Edits, Step, ValueRange};
 use super::number_field::Session;
 use super::{
-    Content, Enablement, FieldBoxChain, TipContent, described, painted, tip, tipped_whole,
+    Enablement, FieldBoxChain, Gate, IntoTip, Tip, described, options, painted, tip_describes,
+    tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Colors, Size};
@@ -50,6 +51,9 @@ pub(super) struct Readout {
     pub(super) text: Tw,
     pub(super) paint: Option<Colors>,
     pub(super) size: Size,
+    /// The tooltip that describes its button, where the readout is the
+    /// whole control.
+    pub(super) describes: Tip,
 }
 
 impl Readout {
@@ -75,6 +79,7 @@ impl Readout {
             text,
             paint,
             size,
+            describes,
             ..
         } = self;
         let style = b.style().clone();
@@ -101,6 +106,7 @@ impl Readout {
                 .announces(Role::Button)
                 .draw(move |app, ui| {
                     let response = described(ui, Role::Button, None, label.trim(), &None);
+                    tip_describes(ui, &response, &describes);
                     let opened = response.clicked().then(|| {
                         let width = response.rect.width();
                         let opening = opening_of(ui, &response, &current);
@@ -230,7 +236,7 @@ pub struct NumberChain<'a, 'f, A> {
     format: Option<Format>,
     parse: Option<Parse>,
     name: Option<String>,
-    tooltip: TipContent,
+    gate: Gate,
     classes: Tw,
     enablement: Enablement,
     size: Option<Size>,
@@ -254,7 +260,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
             format: None,
             parse: None,
             name: None,
-            tooltip: None,
+            gate: Gate::default(),
             classes: tw(),
             enablement: Enablement::Enabled,
             size: None,
@@ -298,9 +304,36 @@ impl<A: 'static> NumberChain<'_, '_, A> {
     }
 
     /// Shown while the pointer hovers it, also when it is disabled.
-    pub fn tooltip(mut self, text: impl Into<egui::WidgetText>) -> Self {
-        self.tooltip = Some(Content::Text(text.into()));
+    pub fn tooltip(mut self, text: impl IntoTip) -> Self {
+        self.gate.tooltip(text);
         self
+    }
+
+    /// TODO(prose): a tooltip that `build` builds, as for a slider.
+    pub fn tooltip_with(
+        mut self,
+        build: impl Fn(&mut crate::Builder<'_, '_, ()>) + Send + Sync + 'static,
+    ) -> Self {
+        self.gate.tooltip_with(build);
+        self
+    }
+
+    /// TODO(prose): disabled while `reason` is `Some`, with the reason as
+    /// the tooltip and the accessible description. `None` clears it; the last
+    /// call wins.
+    pub fn refused(mut self, reason: impl IntoTip) -> Self {
+        self.gate.refuse(reason);
+        self
+    }
+
+    /// TODO(prose): the chain through `then`, when `condition` holds.
+    pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
+        options::when(self, condition, then)
+    }
+
+    /// TODO(prose): the chain through `then` with the value, when there is one.
+    pub fn when_some<U>(self, value: Option<U>, then: impl FnOnce(Self, U) -> Self) -> Self {
+        options::when_some(self, value, then)
     }
 
     /// Whether it takes input.
@@ -346,15 +379,14 @@ impl<A: 'static> NumberChain<'_, '_, A> {
             format,
             parse,
             name,
-            tooltip,
+            gate,
             classes,
             enablement,
             size,
             edits,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
-        let tooltip = tip(&mut b, slot.id, tooltip);
-        let enablement = b.enablement_of(enablement);
+        let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let readout = Readout {
             value,
             format,
@@ -367,6 +399,7 @@ impl<A: 'static> NumberChain<'_, '_, A> {
             text: tw(),
             paint: None,
             size: b.size_of(size),
+            describes: tooltip.clone(),
         };
         let style = b.style().clone();
         let wrapper = enablement

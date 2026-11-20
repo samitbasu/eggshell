@@ -552,6 +552,7 @@ impl Row {
                 text,
                 paint: Some(readout),
                 size,
+                describes: None,
             }
             .show(b, set, edits);
         });
