@@ -414,6 +414,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
         });
         let scroll = handle.node();
         let mut b = handle.into_builder();
+        b.fit_height(scroll, plan.total());
         let behavior = listbox.map(|keys| Listbox {
             list,
             kept: kept.clone(),

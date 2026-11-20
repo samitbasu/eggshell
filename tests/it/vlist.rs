@@ -76,6 +76,8 @@ struct App {
     start_at_end: bool,
     /// The row whose 200-point collapsible is open.
     opened: Option<Row>,
+    /// A cap on the height in place of the fixed viewport height.
+    max_height: Option<f32>,
 }
 
 impl App {
@@ -93,6 +95,7 @@ impl App {
             menu_in: None,
             start_at_end: false,
             opened: None,
+            max_height: None,
         }
     }
 
@@ -107,7 +110,11 @@ impl App {
 const VIEWPORT: f32 = 300.0;
 
 fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
-    let list = b.virtual_list("list", tw().w_px(app.width).h_px(VIEWPORT), &app.rows);
+    let height = match app.max_height {
+        Some(max) => tw().max_h_px(max),
+        None => tw().h_px(VIEWPORT),
+    };
+    let list = b.virtual_list("list", tw().w_px(app.width).merge(height), &app.rows);
     let list = match app.list {
         VList::Estimated { estimate, overscan } => list.estimate_px(estimate).overscan_px(overscan),
         VList::Fixed { height, overscan } => list.fixed_px(height).overscan_px(overscan),
@@ -251,6 +258,18 @@ fn only_the_rows_in_the_viewport_and_the_overscan_are_built() {
         "1950 to 2350"
     );
     assert_eq!(step_counting(&mut d), rows.len());
+}
+
+#[test]
+fn a_list_with_only_a_max_height_is_as_tall_as_its_rows_up_to_the_max() {
+    let height = |rows: u32| {
+        let mut app = App::new(rows, VList::fixed(20.0), Rows::Tall(20.0));
+        app.max_height = Some(VIEWPORT);
+        viewport(&harness_of(app)).rect.height()
+    };
+    assert_eq!(height(3), 60.0, "three rows of 20");
+    assert_eq!(height(10), 200.0, "ten rows of 20");
+    assert_eq!(height(1000), VIEWPORT, "more rows than fit stop at the max");
 }
 
 #[test]
