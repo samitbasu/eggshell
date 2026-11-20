@@ -3,15 +3,15 @@
 //! selection, and the accessibility tree.
 
 use eggshell_ui::owned::{Align, Column, Stripes};
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextStyle, Track, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::accesskit::Action;
 use egui::epaint::Shape;
 use egui::{Color32, Key, Modifiers, Rect, Role, Theme, Vec2, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, focused_path, hover_over, rect_of};
+use crate::support::{self, focused_path};
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/table.rs"]
@@ -130,16 +130,17 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn harness(selection: Selection) -> Harness<'static, Rig<App>> {
+fn harness(selection: Selection) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         WINDOW,
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::new(selection),
         view,
-    );
-    harness.run_steps(3);
-    harness
+    )
+    .build();
+    d.frames(3);
+    d
 }
 
 const TABLE: &str = "/Page/Invoices";
@@ -152,24 +153,20 @@ fn cell(band: &str, column: usize) -> String {
     format!("{TABLE}/({band}, {column})")
 }
 
-fn style(harness: &Harness<'_, Rig<App>>) -> eggshell_ui::contract::TableStyle {
-    Style::of(&harness.ctx).table.clone()
+fn style(d: &Driver<App>) -> eggshell_ui::contract::TableStyle {
+    Style::of(d.ctx()).table.clone()
 }
 
-fn settle(harness: &mut Harness<'_, Rig<App>>) {
-    harness.run_steps(12);
-}
-
-fn press<A>(harness: &mut Harness<'_, Rig<A>>, key: Key) {
-    harness.key_press_modifiers(Modifiers::NONE, key);
-    harness.run_steps(3);
+fn press<A>(d: &mut Driver<A>, key: Key) {
+    d.harness().key_press_modifiers(Modifiers::NONE, key);
+    d.frames(3);
 }
 
 /// The fill of the box last painted over the band `name`: the box, not the
 /// focus ring drawn over the same rect.
-fn fill_of(harness: &Harness<'_, Rig<App>>, name: &str) -> Option<Color32> {
-    let rect = rect_of(harness, &band(name));
-    support::shapes(harness)
+fn fill_of(d: &Driver<App>, name: &str) -> Option<Color32> {
+    let rect = d.rect(Target::suffix(&band(name)));
+    support::shapes(d)
         .into_iter()
         .filter_map(|shape| match shape {
             Shape::Rect(r) if support::same(r.rect, rect) && r.stroke.width == 0.0 => Some(r.fill),
@@ -179,24 +176,22 @@ fn fill_of(harness: &Harness<'_, Rig<App>>, name: &str) -> Option<Color32> {
 }
 
 /// Tabs into the view from past the rig's bar.
-fn tab_in<A>(harness: &mut Harness<'_, Rig<A>>) {
-    support::past_bar(harness);
-    press(harness, Key::Tab);
+fn tab_in<A>(d: &mut Driver<A>) {
+    support::drive_past_bar(d);
+    press(d, Key::Tab);
 }
 
 /// Whether a strip of `color` lies along the bottom edge of `rect`.
-fn rule_under(harness: &Harness<'_, Rig<App>>, rect: Rect, color: Color32) -> bool {
-    support::shapes(harness)
-        .into_iter()
-        .any(|shape| match shape {
-            Shape::Rect(r) => {
-                r.fill == color
-                    && (r.rect.bottom() - rect.bottom()).abs() < 0.6
-                    && r.rect.height() < 2.0
-                    && (r.rect.width() - rect.width()).abs() < 0.6
-            }
-            _ => false,
-        })
+fn rule_under(d: &Driver<App>, rect: Rect, color: Color32) -> bool {
+    support::shapes(d).into_iter().any(|shape| match shape {
+        Shape::Rect(r) => {
+            r.fill == color
+                && (r.rect.bottom() - rect.bottom()).abs() < 0.6
+                && r.rect.height() < 2.0
+                && (r.rect.width() - rect.width()).abs() < 0.6
+        }
+        _ => false,
+    })
 }
 
 mod layout {
@@ -204,14 +199,14 @@ mod layout {
 
     #[test]
     fn content_sized_columns_line_up_across_rows() {
-        let harness = harness(Selection::Off);
-        let header = rect_of(&harness, &cell("Header", 0));
+        let d = harness(Selection::Off);
+        let header = d.rect(Target::suffix(&cell("Header", 0)));
         let rows = ["Row(7)", "Row(1024)", "Row(31)", "Footer"]
-            .map(|band| rect_of(&harness, &cell(band, 0)));
+            .map(|band| d.rect(Target::suffix(&cell(band, 0))));
         for rect in rows {
             assert_eq!((rect.left(), rect.right()), (header.left(), header.right()));
         }
-        let narrow = support::shapes(&harness)
+        let narrow = support::shapes(&d)
             .into_iter()
             .find_map(|shape| match shape {
                 Shape::Text(t) if t.galley.text() == "INV-7" => Some(t.galley.rect.width()),
@@ -219,41 +214,41 @@ mod layout {
             })
             .expect("INV-7 is drawn");
         assert!(
-            header.width() > narrow + 2.0 * style(&harness).cell_padding,
+            header.width() > narrow + 2.0 * style(&d).cell_padding,
             "the column is as wide as its widest cell"
         );
     }
 
     #[test]
     fn the_header_is_the_style_height_and_bands_span_the_table() {
-        let harness = harness(Selection::Off);
-        let table = rect_of(&harness, TABLE);
-        let header = rect_of(&harness, &band("Header"));
-        assert!((header.height() - style(&harness).header_height).abs() < 0.6);
+        let d = harness(Selection::Off);
+        let table = d.rect(Target::suffix(TABLE));
+        let header = d.rect(Target::suffix(&band("Header")));
+        assert!((header.height() - style(&d).header_height).abs() < 0.6);
         for name in ["Header", "Row(7)", "Row(1024)", "Row(31)", "Footer"] {
-            let band = rect_of(&harness, &band(name));
+            let band = d.rect(Target::suffix(&band(name)));
             assert_eq!(
                 (band.left(), band.right()),
                 (table.left(), table.right()),
                 "{name}"
             );
         }
-        let first = rect_of(&harness, &cell("Row(7)", 0));
-        let row = rect_of(&harness, &band("Row(7)"));
+        let first = d.rect(Target::suffix(&cell("Row(7)", 0)));
+        let row = d.rect(Target::suffix(&band("Row(7)")));
         assert_eq!((first.top(), first.bottom()), (row.top(), row.bottom()));
     }
 
     #[test]
     fn an_end_column_aligns_header_and_body_text_to_its_end() {
-        let harness = harness(Selection::Off);
-        let padding = style(&harness).cell_padding;
+        let d = harness(Selection::Off);
+        let padding = style(&d).cell_padding;
         for (band, text) in [
             ("Header", "Amount"),
             ("Row(7)", "$250.00"),
             ("Footer", "$1,435.00"),
         ] {
-            let cell = rect_of(&harness, &cell(band, 2));
-            let right = support::shapes(&harness)
+            let cell = d.rect(Target::suffix(&cell(band, 2)));
+            let right = support::shapes(&d)
                 .into_iter()
                 .find_map(|shape| match shape {
                     Shape::Text(t) if t.galley.text() == text => {
@@ -271,17 +266,17 @@ mod layout {
 
     #[test]
     fn rows_are_ruled_except_the_last() {
-        let harness = harness(Selection::Off);
-        let rule = style(&harness).rule;
+        let d = harness(Selection::Off);
+        let rule = style(&d).rule;
         for name in ["Header", "Row(7)", "Row(1024)"] {
             assert!(
-                rule_under(&harness, rect_of(&harness, &band(name)), rule),
+                rule_under(&d, d.rect(Target::suffix(&band(name))), rule),
                 "{name}"
             );
         }
         assert!(!rule_under(
-            &harness,
-            rect_of(&harness, &band("Row(31)")),
+            &d,
+            d.rect(Target::suffix(&band("Row(31)"))),
             rule
         ));
     }
@@ -302,7 +297,7 @@ mod stripe {
 
     fn striped_fills(stripes: Stripes) -> [bool; 5] {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness_prepared(
+        let mut d = support::prepared_driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             App {
@@ -311,10 +306,11 @@ mod stripe {
             },
             view,
             striped,
-        );
-        harness.run_steps(3);
+        )
+        .build();
+        d.frames(3);
         ["Header", "Row(7)", "Row(1024)", "Row(31)", "Footer"]
-            .map(|name| fill_of(&harness, name) == Some(STRIPE))
+            .map(|name| fill_of(&d, name) == Some(STRIPE))
     }
 
     #[test]
@@ -336,39 +332,40 @@ mod hover {
 
     #[test]
     fn hovering_a_cell_fills_its_row() {
-        let mut harness = harness(Selection::Off);
-        let hover = style(&harness).hover;
-        assert_ne!(fill_of(&harness, "Row(1024)"), Some(hover));
-        let at = rect_of(&harness, &cell("Row(1024)", 0)).center();
-        hover_over(&mut harness, at);
-        settle(&mut harness);
-        assert_eq!(fill_of(&harness, "Row(1024)"), Some(hover));
-        assert_ne!(fill_of(&harness, "Row(7)"), Some(hover));
+        let mut d = harness(Selection::Off);
+        let hover = style(&d).hover;
+        assert_ne!(fill_of(&d, "Row(1024)"), Some(hover));
+        let at = d.rect(Target::suffix(&cell("Row(1024)", 0))).center();
+        d.hover(at);
+        d.frames(12);
+        assert_eq!(fill_of(&d, "Row(1024)"), Some(hover));
+        assert_ne!(fill_of(&d, "Row(7)"), Some(hover));
     }
 
     #[test]
     fn a_button_in_a_cell_keeps_its_row_hovered() {
-        let mut harness = harness(Selection::Off);
-        let hover = style(&harness).hover;
-        let button = rect_of(&harness, &format!("{TABLE}/(Row(1024), 1)/Archive"));
+        let mut d = harness(Selection::Off);
+        let hover = style(&d).hover;
+        let button = d.rect(Target::suffix(&format!("{TABLE}/(Row(1024), 1)/Archive")));
         assert!(
-            rect_of(&harness, &band("Row(1024)")).contains_rect(button),
+            d.rect(Target::suffix(&band("Row(1024)")))
+                .contains_rect(button),
             "the button lies over the row"
         );
-        hover_over(&mut harness, button.center());
-        settle(&mut harness);
-        assert_eq!(fill_of(&harness, "Row(1024)"), Some(hover));
+        d.hover(button.center());
+        d.frames(12);
+        assert_eq!(fill_of(&d, "Row(1024)"), Some(hover));
     }
 
     #[test]
     fn the_header_and_footer_do_not_hover() {
-        let mut harness = harness(Selection::Off);
+        let mut d = harness(Selection::Off);
         for name in ["Header", "Footer"] {
-            let resting = fill_of(&harness, name);
-            let at = rect_of(&harness, &band(name)).center();
-            hover_over(&mut harness, at);
-            settle(&mut harness);
-            assert_eq!(fill_of(&harness, name), resting, "{name}");
+            let resting = fill_of(&d, name);
+            let at = d.rect(Target::suffix(&band(name))).center();
+            d.hover(at);
+            d.frames(12);
+            assert_eq!(fill_of(&d, name), resting, "{name}");
         }
     }
 }
@@ -378,48 +375,48 @@ mod selection {
 
     #[test]
     fn clicking_a_row_selects_it_and_fills_it() {
-        let mut harness = harness(Selection::On);
-        support::click_node(&mut harness, &cell("Row(31)", 0));
-        settle(&mut harness);
-        assert_eq!(harness.state().app.selected, Some(31));
-        let selected = style(&harness).selected;
-        assert_eq!(fill_of(&harness, "Row(31)"), Some(selected));
+        let mut d = harness(Selection::On);
+        d.click(Target::suffix(&cell("Row(31)", 0)));
+        d.frames(12);
+        assert_eq!(d.app().selected, Some(31));
+        let selected = style(&d).selected;
+        assert_eq!(fill_of(&d, "Row(31)"), Some(selected));
     }
 
     #[test]
     fn a_button_in_a_row_does_not_select_it() {
-        let mut harness = harness(Selection::On);
-        support::click_node(&mut harness, &format!("{TABLE}/(Row(7), 1)/Archive"));
-        settle(&mut harness);
-        assert_eq!(harness.state().app.archived, vec![7]);
-        assert_eq!(harness.state().app.selections, Vec::<u32>::new());
+        let mut d = harness(Selection::On);
+        d.click(Target::suffix(&format!("{TABLE}/(Row(7), 1)/Archive")));
+        d.frames(12);
+        assert_eq!(d.app().archived, vec![7]);
+        assert_eq!(d.app().selections, Vec::<u32>::new());
     }
 
     #[test]
     fn tab_skips_the_rows_and_reaches_the_controls_in_their_cells() {
-        let mut harness = harness(Selection::On);
-        harness.state_mut().app.selected = Some(1024);
-        harness.run_steps(2);
+        let mut d = harness(Selection::On);
+        d.app_mut().selected = Some(1024);
+        d.frames(2);
         let archive = |row: &str| format!("{TABLE}/({row}, 1)/Archive");
         let stops = [archive("Row(7)"), archive("Row(1024)"), archive("Row(31)")];
-        tab_in(&mut harness);
+        tab_in(&mut d);
         for (index, stop) in stops.iter().enumerate() {
             if index > 0 {
-                press(&mut harness, Key::Tab);
+                press(&mut d, Key::Tab);
             }
-            assert_eq!(focused_path(&harness).as_deref(), Some(stop.as_str()));
+            assert_eq!(focused_path(&d).as_deref(), Some(stop.as_str()));
         }
     }
 
     #[test]
     fn a_clicked_row_takes_no_focus_and_draws_no_ring() {
-        let mut harness = harness(Selection::On);
-        support::click_node(&mut harness, &cell("Row(1024)", 0));
-        settle(&mut harness);
-        assert_eq!(harness.state().app.selected, Some(1024));
-        assert_eq!(focused_path(&harness), None);
-        let row = rect_of(&harness, &band("Row(1024)"));
-        let ringed = support::shapes(&harness)
+        let mut d = harness(Selection::On);
+        d.click(Target::suffix(&cell("Row(1024)", 0)));
+        d.frames(12);
+        assert_eq!(d.app().selected, Some(1024));
+        assert_eq!(focused_path(&d), None);
+        let row = d.rect(Target::suffix(&band("Row(1024)")));
+        let ringed = support::shapes(&d)
             .into_iter()
             .any(|shape| matches!(shape, Shape::Rect(r) if support::same(r.rect, row) && r.stroke.width > 0.0));
         assert!(!ringed, "no ring is drawn on the row");
@@ -427,13 +424,13 @@ mod selection {
 
     #[test]
     fn keys_do_not_move_the_selection() {
-        let mut harness = harness(Selection::On);
-        support::click_node(&mut harness, &cell("Row(7)", 0));
-        settle(&mut harness);
+        let mut d = harness(Selection::On);
+        d.click(Target::suffix(&cell("Row(7)", 0)));
+        d.frames(12);
         for key in [Key::ArrowDown, Key::End, Key::Space] {
-            press(&mut harness, key);
+            press(&mut d, key);
         }
-        assert_eq!(harness.state().app.selections, vec![7]);
+        assert_eq!(d.app().selections, vec![7]);
     }
 }
 
@@ -442,19 +439,20 @@ mod access {
 
     #[test]
     fn the_table_rows_and_cells_are_described() {
-        let harness = harness(Selection::On);
-        let table = harness.get_by_role(Role::Table);
+        let d = harness(Selection::On);
+        let table = d.harness().get_by_role(Role::Table);
         assert_eq!(table.accesskit_node().label().as_deref(), Some("Invoices"));
         assert_eq!(table.accesskit_node().data().row_count(), Some(5));
         assert_eq!(table.accesskit_node().data().column_count(), Some(3));
-        let rows: Vec<_> = harness.get_all_by_role(Role::Row).collect();
+        let rows: Vec<_> = d.harness().get_all_by_role(Role::Row).collect();
         assert_eq!(rows.len(), 5);
         let indices: Vec<_> = rows
             .iter()
             .map(|row| row.accesskit_node().data().row_index())
             .collect();
         assert_eq!(indices, [0, 1, 2, 3, 4].map(Some));
-        let headers: Vec<_> = harness
+        let headers: Vec<_> = d
+            .harness()
             .get_all_by_role(Role::ColumnHeader)
             .map(|header| {
                 (
@@ -468,7 +466,8 @@ mod access {
             [("Invoice", 0), ("Status", 1), ("Amount", 2)]
                 .map(|(name, index)| (Some(name.to_owned()), Some(index)))
         );
-        let amount = harness
+        let amount = d
+            .harness()
             .get_all_by_role(Role::Cell)
             .find(|cell| cell.accesskit_node().label().as_deref() == Some("$35.00"))
             .expect("the amount cell");
@@ -483,10 +482,11 @@ mod access {
 
     #[test]
     fn a_selectable_row_reports_whether_it_is_selected() {
-        let mut harness = harness(Selection::On);
-        harness.state_mut().app.selected = Some(1024);
-        harness.run_steps(2);
-        let selected: Vec<_> = harness
+        let mut d = harness(Selection::On);
+        d.app_mut().selected = Some(1024);
+        d.frames(2);
+        let selected: Vec<_> = d
+            .harness()
             .get_all_by_role(Role::Row)
             .map(|row| row.accesskit_node().is_selected())
             .collect();
@@ -495,8 +495,9 @@ mod access {
 
     #[test]
     fn a_selectable_row_is_not_focusable() {
-        let harness = harness(Selection::On);
-        let focusable: Vec<_> = harness
+        let d = harness(Selection::On);
+        let focusable: Vec<_> = d
+            .harness()
             .get_all_by_role(Role::Row)
             .map(|row| row.accesskit_node().data().supports_action(Action::Focus))
             .collect();
@@ -530,14 +531,15 @@ mod misuse {
     #[test]
     fn a_row_drops_cells_past_the_columns_and_leaves_missing_ones_blank() {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness(
+        let mut d = support::driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             App::new(Selection::Off),
             ragged,
-        );
-        harness.run_steps(3);
-        let nodes = &harness.state().nodes;
+        )
+        .build();
+        d.frames(3);
+        let nodes = &support::nodes(&d);
         let has =
             |band: &str, column: usize| nodes.iter().any(|(path, _)| *path == cell(band, column));
         assert!(has("Row(1024)", 2), "precondition: the long row is drawn");
@@ -546,17 +548,20 @@ mod misuse {
             (1..3).all(|column| !has("Row(7)", column)),
             "the short row has one cell"
         );
-        let table = rect_of(&harness, TABLE);
+        let table = d.rect(Target::suffix(TABLE));
         for name in ["Row(7)", "Row(1024)", "Row(31)"] {
-            let band = rect_of(&harness, &band(name));
+            let band = d.rect(Target::suffix(&band(name)));
             assert_eq!(
                 (band.left(), band.right()),
                 (table.left(), table.right()),
                 "{name}"
             );
         }
-        let last = rect_of(&harness, &cell("Row(1024)", 2));
-        assert_eq!(last.right(), rect_of(&harness, &cell("Row(31)", 2)).right());
+        let last = d.rect(Target::suffix(&cell("Row(1024)", 2)));
+        assert_eq!(
+            last.right(),
+            d.rect(Target::suffix(&cell("Row(31)", 2))).right()
+        );
     }
 }
 
@@ -583,24 +588,23 @@ mod preset {
 mod example {
     use super::*;
 
-    type Example = Harness<'static, Rig<table_example::Invoices>>;
+    type Example = Driver<table_example::Invoices>;
 
     fn example() -> Example {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness(
+        let mut d = support::driver(
             vec2(760.0, 520.0),
             TextStyle::new(tokens.text_role(), tokens.foreground),
             table_example::Invoices::default(),
             table_example::layout,
-        );
-        harness.run_steps(3);
-        harness
+        )
+        .build();
+        d.frames(3);
+        d
     }
 
-    fn path_ending(harness: &Example, end: &str) -> String {
-        harness
-            .state()
-            .nodes
+    fn path_ending(d: &Example, end: &str) -> String {
+        support::nodes(d)
             .iter()
             .find(|(path, _)| path.ends_with(end))
             .map(|(path, _)| path.clone())
@@ -609,39 +613,35 @@ mod example {
 
     #[test]
     fn a_click_on_a_row_selects_it() {
-        let mut harness = example();
-        let row = path_ending(&harness, "/Row(\"INV-003\")");
-        support::click_node(&mut harness, &row);
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.selected, Some("INV-003"));
+        let mut d = example();
+        let row = path_ending(&d, "/Row(\"INV-003\")");
+        d.click(Target::suffix(&row)).frames(3);
+        assert_eq!(d.app().selected, Some("INV-003"));
     }
 
     #[test]
     fn the_checkbox_selects_its_row_by_click_and_by_keys() {
-        let mut harness = example();
-        let pick = path_ending(&harness, "(Row(\"INV-004\"), 0)/Pick/Box");
-        support::click_node(&mut harness, &pick);
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.selected, Some("INV-004"));
-        support::click_node(&mut harness, &pick);
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.selected, None);
-        tab_in(&mut harness);
+        let mut d = example();
+        let pick = path_ending(&d, "(Row(\"INV-004\"), 0)/Pick/Box");
+        d.click(Target::suffix(&pick)).frames(3);
+        assert_eq!(d.app().selected, Some("INV-004"));
+        d.click(Target::suffix(&pick)).frames(3);
+        assert_eq!(d.app().selected, None);
+        tab_in(&mut d);
         assert_eq!(
-            focused_path(&harness),
-            Some(path_ending(&harness, "(Row(\"INV-001\"), 0)/Pick/Box"))
+            focused_path(&d),
+            Some(path_ending(&d, "(Row(\"INV-001\"), 0)/Pick/Box"))
         );
-        press(&mut harness, Key::Space);
-        assert_eq!(harness.state().app.selected, Some("INV-001"));
+        press(&mut d, Key::Space);
+        assert_eq!(d.app().selected, Some("INV-001"));
     }
 
     #[test]
     fn the_menu_button_does_not_select_its_row() {
-        let mut harness = example();
-        let menu = path_ending(&harness, "(Row(\"INV-002\"), 5)/Menu");
-        support::click_node(&mut harness, &menu);
-        harness.run_steps(3);
-        assert_eq!(harness.state().app.selected, None);
+        let mut d = example();
+        let menu = path_ending(&d, "(Row(\"INV-002\"), 5)/Menu");
+        d.click(Target::suffix(&menu)).frames(3);
+        assert_eq!(d.app().selected, None);
     }
 }
 
@@ -705,8 +705,8 @@ mod shape {
 
     #[test]
     fn a_table_of_whole_rows_reports_nothing() {
-        let harness = harness(Selection::Off);
-        eggshell_ui::testing::assert_no_reports(&harness.ctx);
+        let d = harness(Selection::Off);
+        eggshell_ui::testing::assert_no_reports(d.ctx());
     }
 }
 
@@ -737,55 +737,56 @@ mod spacing {
         });
     }
 
-    fn harness(edit: fn(&mut Style)) -> Harness<'static, Rig<fn(&mut Style)>> {
+    fn harness(edit: fn(&mut Style)) -> Driver<fn(&mut Style)> {
         let tokens = Tokens::for_theme(Theme::Light);
         let mut text = tokens.text_role();
         text.line_height = LINE;
-        let mut harness = support::harness(
+        let mut d = support::driver(
             WINDOW,
             TextStyle::new(text, tokens.foreground),
             edit,
             |b, edit| view(b, *edit),
-        );
-        harness.run_steps(3);
-        harness
+        )
+        .build();
+        d.frames(3);
+        d
     }
 
-    fn cell(harness: &Harness<'_, Rig<fn(&mut Style)>>, band: &str, column: usize) -> Rect {
-        rect_of(harness, &format!("/\"t\"/({band}, {column})"))
+    fn cell(d: &Driver<fn(&mut Style)>, band: &str, column: usize) -> Rect {
+        d.rect(Target::suffix(&format!("/\"t\"/({band}, {column})")))
     }
 
-    fn table(harness: &Harness<'_, Rig<fn(&mut Style)>>) -> eggshell_ui::contract::TableStyle {
-        Style::of(&harness.ctx).table.clone()
+    fn table(d: &Driver<fn(&mut Style)>) -> eggshell_ui::contract::TableStyle {
+        Style::of(d.ctx()).table.clone()
     }
 
     #[test]
     fn cell_padding_y_sets_a_body_cells_top_and_bottom_only() {
-        let harness = harness(|style| style.table.cell_padding_y = Some(3.0));
-        let padding = table(&harness).cell_padding;
+        let d = harness(|style| style.table.cell_padding_y = Some(3.0));
+        let padding = table(&d).cell_padding;
         assert_ne!(padding, 3.0, "precondition");
-        let body = cell(&harness, "Row(1)", 1);
+        let body = cell(&d, "Row(1)", 1);
         assert!((body.height() - (LINE + 6.0)).abs() < 0.6, "{body:?}");
-        let (_, at) = support::galley_of(&harness, "beta");
+        let at = d.painted().expect("beta").pos();
         let inset = at.x - body.left();
         assert!((inset - padding).abs() < 0.6, "beside: {inset}");
     }
 
     #[test]
     fn header_padding_y_sizes_the_header_by_its_text() {
-        let harness = harness(|style| style.table.header_padding_y = Some(5.0));
-        assert_ne!(table(&harness).header_height, LINE + 10.0, "precondition");
-        let header = cell(&harness, "Header", 0);
+        let d = harness(|style| style.table.header_padding_y = Some(5.0));
+        assert_ne!(table(&d).header_height, LINE + 10.0, "precondition");
+        let header = cell(&d, "Header", 0);
         assert!((header.height() - (LINE + 10.0)).abs() < 0.6, "{header:?}");
     }
 
     #[test]
     fn a_first_column_inset_moves_only_the_first_columns_text() {
-        let harness = harness(|style| style.table.first_column_inset = Some(0.0));
-        let padding = table(&harness).cell_padding;
-        let (first, second) = (cell(&harness, "Row(1)", 0), cell(&harness, "Row(1)", 1));
-        let (_, alpha) = support::galley_of(&harness, "alpha");
-        let (_, beta) = support::galley_of(&harness, "beta");
+        let d = harness(|style| style.table.first_column_inset = Some(0.0));
+        let padding = table(&d).cell_padding;
+        let (first, second) = (cell(&d, "Row(1)", 0), cell(&d, "Row(1)", 1));
+        let alpha = d.painted().expect("alpha").pos();
+        let beta = d.painted().expect("beta").pos();
         assert!(
             (alpha.x - first.left()).abs() < 0.6,
             "flush: {alpha:?} in {first:?}"
@@ -794,28 +795,26 @@ mod spacing {
             (beta.x - second.left() - padding).abs() < 0.6,
             "padded: {beta:?}"
         );
-        let (_, name) = support::galley_of(&harness, "Name");
+        let name = d.painted().expect("Name").pos();
         assert!(
-            (name.x - cell(&harness, "Header", 0).left()).abs() < 0.6,
+            (name.x - cell(&d, "Header", 0).left()).abs() < 0.6,
             "the header too"
         );
     }
 
     #[test]
     fn rule_below_last_rules_off_the_last_row() {
-        let rule = |harness: &Harness<'_, Rig<fn(&mut Style)>>| {
-            let last = rect_of(harness, "/\"t\"/Row(2)");
-            let color = table(harness).rule;
-            support::shapes(harness)
-                .into_iter()
-                .any(|shape| match shape {
-                    Shape::Rect(r) => {
-                        r.fill == color
-                            && (r.rect.bottom() - last.bottom()).abs() < 0.6
-                            && r.rect.height() < 2.0
-                    }
-                    _ => false,
-                })
+        let rule = |d: &Driver<fn(&mut Style)>| {
+            let last = d.rect(Target::suffix("/\"t\"/Row(2)"));
+            let color = table(d).rule;
+            support::shapes(d).into_iter().any(|shape| match shape {
+                Shape::Rect(r) => {
+                    r.fill == color
+                        && (r.rect.bottom() - last.bottom()).abs() < 0.6
+                        && r.rect.height() < 2.0
+                }
+                _ => false,
+            })
         };
         assert!(!rule(&harness(|_| {})), "open by default");
         assert!(rule(&harness(|style| style.table.rule_below_last = true)));
@@ -885,22 +884,23 @@ mod groups {
         }
     }
 
-    fn harness_of(app: App) -> Harness<'static, Rig<App>> {
+    fn harness_of(app: App) -> Driver<App> {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut harness = support::harness_prepared(
+        let mut d = support::prepared_driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             app,
             grouped,
             group_filled,
-        );
-        harness.run_steps(3);
-        harness
+        )
+        .build();
+        d.frames(3);
+        d
     }
 
-    fn group_fill(harness: &Harness<'_, Rig<App>>, name: &str) -> Option<Color32> {
-        let rect = rect_of(harness, &grouped_band(name));
-        support::shapes(harness)
+    fn group_fill(d: &Driver<App>, name: &str) -> Option<Color32> {
+        let rect = d.rect(Target::suffix(&grouped_band(name)));
+        support::shapes(d)
             .into_iter()
             .filter_map(|shape| match shape {
                 Shape::Rect(r) if support::same(r.rect, rect) && r.stroke.width == 0.0 => {
@@ -913,13 +913,13 @@ mod groups {
 
     #[test]
     fn a_group_row_spans_every_column() {
-        let harness = harness_of(App::new(Selection::Off));
+        let d = harness_of(App::new(Selection::Off));
         assert!(columns().len() > 1, "precondition: more than one column");
-        let title = rect_of(&harness, &grouped_cell("Group(1)", 0));
-        let first = rect_of(&harness, &grouped_cell("Row(1024)", 0));
-        let last = rect_of(&harness, &grouped_cell("Row(1024)", 2));
+        let title = d.rect(Target::suffix(&grouped_cell("Group(1)", 0)));
+        let first = d.rect(Target::suffix(&grouped_cell("Row(1024)", 0)));
+        let last = d.rect(Target::suffix(&grouped_cell("Row(1024)", 2)));
         assert_eq!((title.left(), title.right()), (first.left(), last.right()));
-        let band = rect_of(&harness, &grouped_band("Group(1)"));
+        let band = d.rect(Target::suffix(&grouped_band("Group(1)")));
         assert_eq!((title.top(), title.bottom()), (band.top(), band.bottom()));
         assert!(
             band.bottom() <= first.top() + 0.5,
@@ -929,24 +929,20 @@ mod groups {
 
     #[test]
     fn a_group_row_is_neither_selected_nor_hovered() {
-        let mut harness = harness_of(App::new(Selection::On));
+        let mut d = harness_of(App::new(Selection::On));
+        assert_eq!(group_fill(&d, "Group(0)"), Some(GROUP), "precondition");
+        d.click(Target::suffix(&grouped_cell("Group(0)", 0)));
+        d.frames(12);
+        assert_eq!(d.app().selected, None);
         assert_eq!(
-            group_fill(&harness, "Group(0)"),
-            Some(GROUP),
-            "precondition"
-        );
-        support::click_node(&mut harness, &grouped_cell("Group(0)", 0));
-        settle(&mut harness);
-        assert_eq!(harness.state().app.selected, None);
-        assert_eq!(
-            group_fill(&harness, "Group(0)"),
+            group_fill(&d, "Group(0)"),
             Some(GROUP),
             "the pointer on it does not hover it"
         );
-        support::click_node(&mut harness, &grouped_cell("Row(31)", 0));
-        settle(&mut harness);
+        d.click(Target::suffix(&grouped_cell("Row(31)", 0)));
+        d.frames(12);
         assert_eq!(
-            harness.state().app.selected,
+            d.app().selected,
             Some(31),
             "precondition: rows still select"
         );
@@ -954,19 +950,19 @@ mod groups {
 
     #[test]
     fn stripes_count_afresh_after_each_group_row() {
-        let mut harness = harness_of(App {
+        let mut d = harness_of(App {
             stripes: Stripes::Alternate,
             ..App::new(Selection::Off)
         });
-        harness.run_steps(3);
-        let stripe = style(&harness).stripe;
+        d.frames(3);
+        let stripe = style(&d).stripe;
         assert_ne!(
             stripe,
             Color32::TRANSPARENT,
             "precondition: the preset stripes"
         );
         let fills = ["Group(0)", "Row(7)", "Group(1)", "Row(1024)", "Row(31)"]
-            .map(|name| group_fill(&harness, name) == Some(stripe));
+            .map(|name| group_fill(&d, name) == Some(stripe));
         assert_eq!(fills, [false, false, false, false, true]);
     }
 
@@ -980,8 +976,9 @@ mod groups {
         roles
     }
 
-    fn row_named(harness: &Harness<'_, Rig<App>>, cell: &str) -> Vec<(Role, Option<String>)> {
-        let node = harness
+    fn row_named(d: &Driver<App>, cell: &str) -> Vec<(Role, Option<String>)> {
+        let node = d
+            .harness()
             .get_all_by_role(Role::Cell)
             .find(|node| node.accesskit_node().label().as_deref() == Some(cell))
             .unwrap_or_else(|| panic!("the cell {cell}"));
@@ -993,8 +990,9 @@ mod groups {
 
     #[test]
     fn a_group_row_is_a_row_header_spanning_the_table() {
-        let harness = harness_of(App::new(Selection::Off));
-        let headers: Vec<_> = harness
+        let d = harness_of(App::new(Selection::Off));
+        let headers: Vec<_> = d
+            .harness()
             .get_all_by_role(Role::RowHeader)
             .map(|header| {
                 let data = header.accesskit_node();
@@ -1013,20 +1011,21 @@ mod groups {
                 (Some("Open".to_owned()), Some(2), Some(0), Some(3)),
             ]
         );
-        let table = harness.get_by_role(Role::Table);
+        let table = d.harness().get_by_role(Role::Table);
         assert_eq!(table.accesskit_node().data().row_count(), Some(5));
     }
 
     #[test]
     fn each_group_s_rows_are_inside_a_row_group_named_by_its_title() {
-        let harness = harness_of(App::new(Selection::Off));
-        let groups: Vec<_> = harness
+        let d = harness_of(App::new(Selection::Off));
+        let groups: Vec<_> = d
+            .harness()
             .get_all_by_role(Role::RowGroup)
             .map(|group| group.accesskit_node().label())
             .collect();
         assert_eq!(groups, [Some("Paid".to_owned()), Some("Open".to_owned())]);
         let around = |cell: &str| -> Vec<(Role, Option<String>)> {
-            row_named(&harness, cell)
+            row_named(&d, cell)
                 .into_iter()
                 .take(3)
                 .map(|(role, label)| (role, label.filter(|_| role != Role::Row)))
@@ -1047,8 +1046,8 @@ mod groups {
 
     #[test]
     fn rows_outside_any_group_are_inside_the_table() {
-        let harness = harness(Selection::Off);
-        let around: Vec<Role> = row_named(&harness, "INV-7")
+        let d = harness(Selection::Off);
+        let around: Vec<Role> = row_named(&d, "INV-7")
             .into_iter()
             .take(2)
             .map(|(role, _)| role)

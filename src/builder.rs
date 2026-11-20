@@ -1194,6 +1194,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 bars,
                 tab,
                 description,
+                padding: classes.scroll_padding,
                 content,
                 size: egui::Vec2::ZERO,
             }),

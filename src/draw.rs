@@ -1300,7 +1300,7 @@ impl<A> Walk<'_, A> {
             .min_scrolled_width(0.0)
             .min_scrolled_height(0.0)
             .content_margin(egui::Margin::ZERO)
-            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
+            .scroll_bar_visibility(plan.bars.visibility.egui());
         let area = if plan.moved {
             area.scroll_offset(plan.offset)
         } else {
@@ -2078,6 +2078,12 @@ impl<A> Painting<A> {
         for (index, window) in natives {
             let builder = window::builder(&self.kept, &window);
             ctx.show_viewport_immediate(window.viewport(), builder, |ui, _| {
+                let _timer = Timer::window(
+                    ui.ctx(),
+                    Phase::Draw,
+                    self.page,
+                    (window.id, &window.window.title),
+                );
                 let here = Here::of(&self.roots, index);
                 let content = egui::CentralPanel::default()
                     .frame(egui::Frame::NONE)
