@@ -47,6 +47,7 @@ mod draw;
 mod driver;
 mod duplicate_key;
 mod edits;
+mod egui_look;
 mod escape_field;
 mod field_box;
 mod field_focus;
