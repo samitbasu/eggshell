@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 
 use crate::examples;
 use crate::loc;
+use crate::shadcn_import;
 use crate::snapshots::{self, Mode};
 use crate::steps::{self, FmtMode, Profile, ReportFormat, Step};
 use crate::web;
@@ -90,6 +91,20 @@ pub enum Command {
         #[arg(long)]
         filter: Option<String>,
     },
+    /// A spike: map shadcn's Button, Badge and Combobox onto eggshell and
+    /// write a report of what maps, what does not, and the generated values
+    /// against today's preset. Changes nothing
+    ShadcnImport {
+        /// The shadcn checkout to read
+        #[arg(long, default_value = "../ref/shadcn")]
+        reference: std::path::PathBuf,
+        /// The style, as in `style-<name>.css`
+        #[arg(long, default_value = "vega")]
+        style: String,
+        /// The directory the report is written to
+        #[arg(long, default_value = "target/shadcn-import")]
+        out: std::path::PathBuf,
+    },
 }
 
 impl Command {
@@ -138,6 +153,15 @@ impl Command {
                     Profile::Debug
                 },
                 port,
+            }),
+            Command::ShadcnImport {
+                reference,
+                style,
+                out,
+            } => shadcn_import::run(&shadcn_import::Plan {
+                reference,
+                style,
+                out,
             }),
             Command::Loc { roots } => loc::run(&roots),
             Command::Snapshots {

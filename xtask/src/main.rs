@@ -5,6 +5,7 @@ mod clock;
 mod examples;
 mod loc;
 mod process;
+mod shadcn_import;
 mod snapshots;
 mod steps;
 mod summary;
