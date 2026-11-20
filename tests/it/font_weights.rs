@@ -1,6 +1,9 @@
 //! Font weights through the real path: the shadcn preset registers its font,
 //! and widgets and weight classes draw with the face of their weight (#13).
 
+use std::sync::Arc;
+
+use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::Driver;
 use eggshell_ui::{Builder, Problem, TextSpec, Weight, tw};
 use eggshell_ui_shadcn::{FontSet, Shadcn};
@@ -29,14 +32,18 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     });
 }
 
-fn harness(prepare: fn(&egui::Context, &())) -> Driver<()> {
-    let mut d = support::prepared_driver(
+fn harness(fonts: impl Fn(Shadcn) -> Shadcn) -> Driver<()> {
+    let half = |preset: Shadcn| Arc::new(fonts(preset).layout_style());
+    let mut d = support::driver(
         Vec2::new(300.0, 300.0),
         common::base_text(Theme::Light),
         (),
         view,
-        prepare,
     )
+    .style(Themed {
+        light: half(Shadcn::light()),
+        dark: half(Shadcn::dark()),
+    })
     .build();
     d.frames(3);
     d
@@ -57,7 +64,7 @@ fn family_of(d: &Driver<()>, text: &str) -> FontFamily {
 
 #[test]
 fn each_weight_class_draws_the_face_of_its_weight() {
-    let d = harness(|_, _| {});
+    let d = harness(|preset| preset);
     assert!(
         d.ctx()
             .fonts(|fonts| fonts.families().contains(&geist(Weight::Bold))),
@@ -75,17 +82,13 @@ fn each_weight_class_draws_the_face_of_its_weight() {
 
 #[test]
 fn a_shadcn_button_is_medium() {
-    let d = harness(|_, _| {});
+    let d = harness(|preset| preset);
     assert_eq!(family_of(&d, "Save"), geist(Weight::Medium));
 }
 
 #[test]
 fn without_a_font_every_weight_draws_the_regular_family() {
-    let mut d = harness(|ctx, _| {
-        for theme in [Theme::Light, Theme::Dark] {
-            Shadcn::for_theme(theme).with_fonts(None).apply(ctx);
-        }
-    });
+    let mut d = harness(|preset| preset.with_fonts(None));
     for text in ["Save", "medium", "bold"] {
         assert_eq!(family_of(&d, text), FontFamily::Proportional, "{text}");
     }
@@ -94,20 +97,14 @@ fn without_a_font_every_weight_draws_the_regular_family() {
 
 #[test]
 fn a_set_without_semibold_draws_semibold_in_its_medium_face() {
-    let mut d = harness(|ctx, _| {
-        let font = egui::FontData::from_static(include_bytes!(
-            "../../crates/eggshell-ui-shadcn/fonts/Geist-Variable.ttf"
-        ));
-        let partial = FontSet::faces(
-            "partial",
-            [Weight::Normal, Weight::Medium, Weight::Bold].map(|weight| (weight, font.clone())),
-        );
-        for theme in [Theme::Light, Theme::Dark] {
-            Shadcn::for_theme(theme)
-                .with_fonts(Some(partial.clone()))
-                .apply(ctx);
-        }
-    });
+    let font = egui::FontData::from_static(include_bytes!(
+        "../../crates/eggshell-ui-shadcn/fonts/Geist-Variable.ttf"
+    ));
+    let partial = FontSet::faces(
+        "partial",
+        [Weight::Normal, Weight::Medium, Weight::Bold].map(|weight| (weight, font.clone())),
+    );
+    let mut d = harness(|preset| preset.with_fonts(Some(partial.clone())));
     let named = |weight: Weight| FontFamily::Name(format!("partial/{}", weight.number()).into());
     assert_eq!(
         family_of(&d, "semibold"),
@@ -120,7 +117,7 @@ fn a_set_without_semibold_draws_semibold_in_its_medium_face() {
 
 #[test]
 fn a_role_carries_its_weight() {
-    let d = harness(|_, _| {});
+    let d = harness(|preset| preset);
     let spec = TextSpec {
         weight: Weight::SemiBold,
         ..common::sized(14.0)
@@ -141,7 +138,7 @@ fn faces_for(d: &Driver<()>, family: &FontFamily, c: char) -> Vec<String> {
 
 #[test]
 fn geist_draws_its_own_key_symbols_and_the_symbol_face_comes_last() {
-    let d = harness(|_, _| {});
+    let d = harness(|preset| preset);
     for weight in Weight::ALL {
         let family = geist(weight);
         let shift = faces_for(&d, &family, '\u{21e7}');

@@ -1,7 +1,9 @@
 //! The owned slider, select and stepper, through kittest's real pointer and
 //! key events and the accessibility check the support harness switches on.
 
-use eggshell_ui::contract::Size;
+use std::sync::Arc;
+
+use eggshell_ui::contract::{Size, Themed};
 use eggshell_ui::owned::{Enablement, Step};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextStyle, tw};
@@ -819,7 +821,7 @@ fn a_stepper_is_a_spin_button_and_its_buttons_are_not_tab_stops() {
 }
 
 #[test]
-fn installing_a_modified_style_changes_the_new_widgets_with_no_code_change() {
+fn a_modified_style_changes_the_new_widgets_with_no_code_change() {
     let mut style = style(Theme::Light);
     let red = egui::Color32::from_rgb(200, 30, 30);
     style.slider.range.rest.fill = red;
@@ -830,7 +832,7 @@ fn installing_a_modified_style_changes_the_new_widgets_with_no_code_change() {
     style.stepper.group.paint.states.rest.fill = red;
     style.stepper.sizes.default_entry_mut().button_width = 40.0;
     let mut d = harness(Theme::Light);
-    style.install(d.ctx());
+    d.set_style(Themed::both(Arc::new(style)));
     d.frames(6);
 
     let track = d.rect(Target::suffix(TRACK));

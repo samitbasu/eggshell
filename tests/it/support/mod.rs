@@ -7,7 +7,9 @@
 )]
 
 use core::time::Duration;
+use std::sync::Arc;
 
+use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::{After, Driver, DriverBuilder, PlacedFrame};
 use eggshell_ui::{Builder, LayoutState, Shell, TextStyle};
 use egui::epaint::{RectShape, Shape, StrokeKind};
@@ -218,6 +220,24 @@ impl Bar {
 
 const BAR_HEIGHT: f32 = 44.0;
 
+/// The style a rig's layout builds with unless it `prepare`s its own: shadcn's
+/// default, light and dark.
+pub fn shadcn() -> Themed<Arc<eggshell_ui::Style>> {
+    eggshell_ui_shadcn::Shadcn::themed(
+        eggshell_ui_shadcn::ShadcnStyle::default(),
+        eggshell_ui_shadcn::Palette::new(),
+    )
+}
+
+/// [`shadcn`] with `edit` made to each half.
+pub fn shadcn_with(edit: impl Fn(&mut eggshell_ui::Style)) -> Themed<Arc<eggshell_ui::Style>> {
+    shadcn().map(|half| {
+        let mut style = (*half).clone();
+        edit(&mut style);
+        Arc::new(style)
+    })
+}
+
 pub type View<A> = for<'b, 'f> fn(&mut Builder<'b, 'f, A>, &'f A);
 
 /// What the rig paints under the layout.
@@ -258,7 +278,9 @@ pub fn harness<A>(
     app: A,
     view: View<A>,
 ) -> Harness<'static, Rig<A>> {
-    harness_prepared(size, base_text, app, view, |_, _| {})
+    let mut harness = harness_prepared(size, base_text, app, view, |_, _| {});
+    harness.state_mut().layout.set_style(shadcn());
+    harness
 }
 
 /// [`harness`] for an app that sets egui's style: `prepare` runs before
@@ -281,7 +303,9 @@ pub fn harness_stepped<A>(
     app: A,
     view: View<A>,
 ) -> Harness<'static, Rig<A>> {
-    harness_timed(size, 1.0, step_dt, base_text, app, view, |_, _| {})
+    let mut harness = harness_timed(size, 1.0, step_dt, base_text, app, view, |_, _| {});
+    harness.state_mut().layout.set_style(shadcn());
+    harness
 }
 
 /// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
@@ -468,7 +492,7 @@ pub fn hover_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
 /// style's delay and entry motion as frame time, then a few frames for the
 /// overlay to be built and placed.
 pub fn rest_for_tooltip<D: Drives + Seen>(harness: &mut D) {
-    let style = eggshell_ui::Style::of(harness.context());
+    let style = harness.view_shell().style();
     let wait = (style.tooltip.delay + style.motion.tooltip.enter).as_secs_f64();
     let start = harness.context().input(|input| input.time);
     for _ in 0..10_000 {
@@ -659,7 +683,9 @@ pub fn frame_harness_scaled<A: 'static>(
     let rig = FrameRig {
         app,
         bar: Bar::new(base_text.clone()),
-        layout: LayoutState::new().with_base_text(base_text),
+        layout: LayoutState::new()
+            .with_base_text(base_text)
+            .with_style(shadcn()),
     };
     let harness = Harness::builder()
         .with_size(size)
@@ -785,7 +811,7 @@ pub fn driver<A: 'static>(
     app: A,
     view: View<A>,
 ) -> DriverBuilder<A> {
-    prepared_driver(size, base_text, app, view, |_, _| {})
+    prepared_driver(size, base_text, app, view, |_, _| {}).style(shadcn())
 }
 
 /// [`driver`] for an app that sets egui's style: `prepare` runs before every
@@ -848,6 +874,7 @@ pub fn frame_driver<A: 'static>(
     })
     .size(size)
     .base_text(base_text)
+    .style(shadcn())
     .step(step)
     .after(After::Frames(0))
     .settle_within(step * 4)

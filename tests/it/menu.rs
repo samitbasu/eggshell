@@ -692,7 +692,7 @@ mod custom_item {
 
 mod trigger {
     use eggshell_ui::owned::Face;
-    use eggshell_ui::{Icon, Opacity, Style};
+    use eggshell_ui::{Icon, Opacity};
 
     use super::*;
 
@@ -776,10 +776,10 @@ mod trigger {
     fn the_chevron_takes_the_selects_size_and_tone_from_the_style() {
         let restyled = |chevron: f32, opacity: f32| {
             let mut d = opened(chevron_and_select);
-            let mut style = (*Style::of(d.ctx())).clone();
-            style.select.chevron = chevron;
-            style.select.chevron_opacity = Opacity::new(opacity);
-            style.install(d.ctx());
+            d.set_style(support::shadcn_with(|style| {
+                style.select.chevron = chevron;
+                style.select.chevron_opacity = Opacity::new(opacity);
+            }));
             d.frames(4);
             d
         };

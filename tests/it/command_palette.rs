@@ -12,7 +12,7 @@ use egui::{Color32, FontFamily, Key, Modifiers, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig};
+use crate::support::{self, Rig, Seen as _};
 use example::State;
 
 fn base_text() -> TextStyle {
@@ -228,7 +228,7 @@ fn the_combobox_is_a_field_that_opens_on_a_click_filters_as_typed_and_picks() {
 
 /// The rects painted with a stroke in the focus ring's color.
 fn ring_rects(harness: &Harness<'_, Rig<State>>) -> Vec<egui::Rect> {
-    let ring = eggshell_ui::Style::of(&harness.ctx).focus.color;
+    let ring = harness.view_shell().style().focus.color;
     harness
         .output()
         .shapes

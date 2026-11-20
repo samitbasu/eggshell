@@ -1,10 +1,12 @@
 //! `ToggleGroup`: exclusive toggles placed anywhere below the group's builder,
 //! driven through the real layout, event and draw path.
 
-use eggshell_ui::contract::{Keyed, Metrics, Size};
+use std::sync::Arc;
+
+use eggshell_ui::contract::{Keyed, Metrics, Size, Themed};
 use eggshell_ui::owned::{ButtonOptions, Face, ToggleGroup};
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui::{Builder, Problem, TextStyle, tw};
+use eggshell_ui::{Builder, Problem, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens, size};
 use egui::{Rect, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -76,18 +78,18 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 }
 
 fn harness_of(view: support::View<App>) -> Driver<App> {
-    harness_styled(view, |_, _| {})
+    harness_styled(view, support::shadcn())
 }
 
-fn harness_styled(view: support::View<App>, prepare: fn(&egui::Context, &App)) -> Driver<App> {
+fn harness_styled(view: support::View<App>, style: Themed<Arc<Style>>) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut d = support::prepared_driver(
+    let mut d = support::driver(
         vec2(500.0, 200.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
-        prepare,
     )
+    .style(style)
     .build();
     d.ctx().set_theme(Theme::Light);
     d.frames(6);
@@ -197,16 +199,14 @@ const TALL: f32 = 50.0;
 
 #[test]
 fn group_options_apply_to_every_member_and_a_members_own_override_it_alone() {
-    let d = harness_styled(options_view, |ctx, _| {
-        let mut style = Shadcn::for_theme(Theme::Light).style();
-        let tall = Metrics {
-            height: TALL,
-            ..*style.button.toggle_sizes.get(Size::DEFAULT)
-        };
-        style.button.toggle_sizes = Keyed::new(Size::DEFAULT, tall)
-            .with(size::ICON, *style.button.toggle_sizes.get(size::ICON));
-        style.install(ctx);
-    });
+    let mut style = Shadcn::for_theme(Theme::Light).style();
+    let tall = Metrics {
+        height: TALL,
+        ..*style.button.toggle_sizes.get(Size::DEFAULT)
+    };
+    style.button.toggle_sizes = Keyed::new(Size::DEFAULT, tall)
+        .with(size::ICON, *style.button.toggle_sizes.get(size::ICON));
+    let d = harness_styled(options_view, Themed::both(Arc::new(style)));
     let select = member_rect(&d, "Select");
     let pan = member_rect(&d, "Pan");
     let zoom = member_rect(&d, "Zoom");
