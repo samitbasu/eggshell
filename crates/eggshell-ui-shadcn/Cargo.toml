@@ -15,8 +15,10 @@ fonts = []
 extras = [
     "dep:eggshell-ui-extras",
     # keep sorted
+    "eggshell-ui-extras/accordion",
     "eggshell-ui-extras/badge",
     "eggshell-ui-extras/command",
+    "eggshell-ui-extras/disclosure",
     "eggshell-ui-extras/form",
     "eggshell-ui-extras/hover-card",
     "eggshell-ui-extras/markdown",
