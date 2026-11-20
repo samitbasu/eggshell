@@ -458,8 +458,12 @@ impl Shadcn {
             const CELL_TRIM: f32 = 1.0;
             let mut segmented = style.segmented;
             segmented.text = Some(t.text_role_at(t.control_weight));
-            // tabs.tsx, list: `bg-muted`.
-            segmented.track_fill = t.muted;
+            // The one exception to tabs.tsx, whose list is `bg-muted`: on a
+            // `muted` panel that fill is the panel's own colour and the track
+            // disappears, so the list keeps `input` (the user's pick, #346).
+            // Revisit once a cascade can give a track on a muted surface its
+            // own fill (#443).
+            segmented.track_fill = t.input;
             let track_at = |height: f32, padding_x: f32, icon: f32, text| SegmentedMetrics {
                 track_radius: t.radius,
                 track_padding: t.list_padding,
