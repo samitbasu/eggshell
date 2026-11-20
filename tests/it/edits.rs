@@ -2,13 +2,13 @@
 //! the values a gesture sets, through kittest's real pointer and key events.
 
 use eggshell_ui::owned::Edit;
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Event, Key, Theme, pos2, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-use crate::support::{self, Rig, click_node, drag, press_and_release, rect_of};
+use crate::support::{self, press_and_release};
 
 #[derive(Debug, PartialEq)]
 enum Logged {
@@ -48,24 +48,25 @@ fn view(b: &mut Builder<'_, '_, App>, _: &App) {
     );
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
+fn harness() -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(400.0, 300.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
-    );
-    harness.run_steps(8);
-    harness
+    )
+    .build();
+    d.frames(8);
+    d
 }
 
-fn log<'h>(harness: &'h Harness<'_, Rig<App>>) -> &'h [Logged] {
-    &harness.state().app.log
+fn log(d: &Driver<App>) -> &[Logged] {
+    &d.app().log
 }
 
-fn edits(harness: &Harness<'_, Rig<App>>) -> Vec<Edit> {
-    log(harness)
+fn edits(d: &Driver<App>) -> Vec<Edit> {
+    log(d)
         .iter()
         .filter_map(|logged| match logged {
             Logged::Edit(edit) => Some(*edit),
@@ -74,133 +75,117 @@ fn edits(harness: &Harness<'_, Rig<App>>) -> Vec<Edit> {
         .collect()
 }
 
-fn assert_bracketed(harness: &Harness<'_, Rig<App>>) {
-    let log = log(harness);
+fn assert_bracketed(d: &Driver<App>) {
+    let log = log(d);
     assert!(
         log.iter().any(|logged| matches!(logged, Logged::Value(_))),
         "precondition: the gesture set a value: {log:?}"
     );
-    assert_eq!(edits(harness), [Edit::Began, Edit::Ended], "{log:?}");
+    assert_eq!(edits(d), [Edit::Began, Edit::Ended], "{log:?}");
     assert_eq!(log.first(), Some(&Logged::Edit(Edit::Began)), "{log:?}");
     assert_eq!(log.last(), Some(&Logged::Edit(Edit::Ended)), "{log:?}");
 }
 
 #[test]
 fn dragging_the_thumb_is_one_edit() {
-    let mut harness = harness();
-    let thumb = rect_of(&harness, "/\"slider\"/Track/Thumb").center();
-    let track = rect_of(&harness, "/\"slider\"/Track");
-    drag(&mut harness, thumb, pos2(track.left() + 60.0, thumb.y));
-    assert_bracketed(&harness);
+    let mut d = harness();
+    let thumb = d.rect(Target::suffix("/\"slider\"/Track/Thumb")).center();
+    let track = d.rect(Target::suffix("/\"slider\"/Track"));
+    d.drag(thumb, pos2(track.left() + 60.0, thumb.y));
+    assert_bracketed(&d);
 }
 
 #[test]
 fn a_press_that_starts_on_the_track_and_drags_is_one_edit() {
-    let mut harness = harness();
-    let thumb = rect_of(&harness, "/\"slider\"/Track/Thumb");
-    let track = rect_of(&harness, "/\"slider\"/Track");
+    let mut d = harness();
+    let thumb = d.rect(Target::suffix("/\"slider\"/Track/Thumb"));
+    let track = d.rect(Target::suffix("/\"slider\"/Track"));
     let start = pos2(track.right() - 20.0, track.center().y);
     assert!(
         !thumb.contains(start),
         "precondition: the press misses the thumb"
     );
-    drag(&mut harness, start, pos2(track.left() + 80.0, start.y));
-    assert_bracketed(&harness);
+    d.drag(start, pos2(track.left() + 80.0, start.y));
+    assert_bracketed(&d);
 }
 
 #[test]
 fn a_click_on_the_track_is_one_edit() {
-    let mut harness = harness();
-    let track = rect_of(&harness, "/\"slider\"/Track");
-    press_and_release(&mut harness, pos2(track.left() + 30.0, track.center().y));
-    harness.run_steps(3);
-    assert_bracketed(&harness);
+    let mut d = harness();
+    let track = d.rect(Target::suffix("/\"slider\"/Track"));
+    press_and_release(&mut d, pos2(track.left() + 30.0, track.center().y));
+    d.frames(3);
+    assert_bracketed(&d);
 }
 
 #[test]
 fn each_key_press_is_one_edit() {
-    let mut harness = harness();
-    harness.get_by_label("Level").focus();
-    harness.run_steps(3);
-    assert!(edits(&harness).is_empty(), "focusing is not an edit");
+    let mut d = harness();
+    d.harness().get_by_label("Level").focus();
+    d.frames(3);
+    assert!(edits(&d).is_empty(), "focusing is not an edit");
     for _ in 0..2 {
-        harness.key_press(Key::ArrowRight);
-        harness.run_steps(3);
+        d.press(Key::ArrowRight).frames(2);
     }
     assert_eq!(
-        edits(&harness),
+        edits(&d),
         [Edit::Began, Edit::Ended, Edit::Began, Edit::Ended]
     );
 }
 
 #[test]
 fn stepper_buttons_are_one_edit_each() {
-    let mut harness = harness();
-    click_node(&mut harness, "/\"stepper\"/Box/Buttons/Up");
-    harness.run_steps(3);
-    assert_bracketed(&harness);
+    let mut d = harness();
+    d.click(Target::suffix("/\"stepper\"/Box/Buttons/Up"))
+        .frames(3);
+    assert_bracketed(&d);
 }
 
 #[test]
 fn typing_in_the_stepper_is_one_edit_until_the_field_loses_focus() {
-    let mut harness = harness();
-    click_node(&mut harness, "/\"stepper\"/Box/Field");
-    harness.run_steps(3);
-    assert!(edits(&harness).is_empty(), "focusing is not an edit");
+    let mut d = harness();
+    d.click(Target::suffix("/\"stepper\"/Box/Field")).frames(3);
+    assert!(edits(&d).is_empty(), "focusing is not an edit");
     for text in ["7", "8"] {
-        harness.event(Event::Text(text.to_owned()));
-        harness.run_steps(2);
+        d.event(Event::Text(text.to_owned())).frames(1);
     }
-    assert_eq!(edits(&harness), [Edit::Began], "{:?}", log(&harness));
-    harness.key_press(Key::Tab);
-    harness.run_steps(3);
-    assert_eq!(edits(&harness), [Edit::Began, Edit::Ended]);
+    assert_eq!(edits(&d), [Edit::Began], "{:?}", log(&d));
+    d.press(Key::Tab).frames(2);
+    assert_eq!(edits(&d), [Edit::Began, Edit::Ended]);
 }
 
 const READOUT: &str = r#"/"gain"/Box/Header/Readout"#;
 
 /// Clicks the readout open and selects what it shows.
-fn open_readout(harness: &mut Harness<'_, Rig<App>>) {
-    click_node(harness, READOUT);
-    harness.run_steps(4);
-    harness.key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
-    harness.run_steps(2);
+fn open_readout(d: &mut Driver<App>) {
+    d.click(Target::suffix(READOUT)).frames(4);
+    d.harness()
+        .key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
+    d.frames(2);
 }
 
 #[test]
 fn opening_the_readout_begins_an_edit_and_escape_ends_it_setting_nothing() {
-    let mut harness = harness();
-    open_readout(&mut harness);
+    let mut d = harness();
+    open_readout(&mut d);
+    assert_eq!(log(&d), [Logged::Edit(Edit::Began)], "open is the signal");
+    d.event(Event::Text("70".into())).frames(2);
+    d.press(Key::Escape).frames(3);
     assert_eq!(
-        log(&harness),
-        [Logged::Edit(Edit::Began)],
-        "open is the signal"
-    );
-    harness.event(Event::Text("70".into()));
-    harness.run_steps(3);
-    harness.key_press(Key::Escape);
-    harness.run_steps(4);
-    assert_eq!(
-        log(&harness),
+        log(&d),
         [Logged::Edit(Edit::Began), Logged::Edit(Edit::Ended)]
     );
 }
 
 #[test]
 fn a_readout_committed_by_enter_sets_its_value_inside_the_edit() {
-    let mut harness = harness();
-    open_readout(&mut harness);
-    harness.event(Event::Text("70".into()));
-    harness.run_steps(3);
+    let mut d = harness();
+    open_readout(&mut d);
+    d.event(Event::Text("70".into())).frames(2);
+    assert_eq!(log(&d), [Logged::Edit(Edit::Began)], "nothing while typing");
+    d.press(Key::Enter).frames(3);
     assert_eq!(
-        log(&harness),
-        [Logged::Edit(Edit::Began)],
-        "nothing while typing"
-    );
-    harness.key_press(Key::Enter);
-    harness.run_steps(4);
-    assert_eq!(
-        log(&harness),
+        log(&d),
         [
             Logged::Edit(Edit::Began),
             Logged::Value(70.0),
@@ -211,13 +196,11 @@ fn a_readout_committed_by_enter_sets_its_value_inside_the_edit() {
 
 #[test]
 fn a_readout_closed_unchanged_sets_nothing() {
-    let mut harness = harness();
-    click_node(&mut harness, READOUT);
-    harness.run_steps(4);
-    harness.key_press(Key::Enter);
-    harness.run_steps(4);
+    let mut d = harness();
+    d.click(Target::suffix(READOUT)).frames(4);
+    d.press(Key::Enter).frames(3);
     assert_eq!(
-        log(&harness),
+        log(&d),
         [Logged::Edit(Edit::Began), Logged::Edit(Edit::Ended)],
         "Enter on the text as it opened (50 for 50.4) commits nothing"
     );

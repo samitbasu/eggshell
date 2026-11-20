@@ -5,11 +5,11 @@
 use core::time::Duration;
 
 use eggshell_ui::overlay::{Entrance, Modal, Shown, Side};
+use eggshell_ui::testing::{Animation, Driver, Target};
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};
-use egui_kittest::Harness;
 
-use crate::support::{self, ReducedMotion, Rig, rect_of};
+use crate::support;
 
 const SLOW: Duration = Duration::from_millis(1000);
 const BASE: Color32 = Color32::from_rgb(20, 20, 20);
@@ -82,21 +82,21 @@ fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {
         });
 }
 
-fn harness(reduced: ReducedMotion) -> Harness<'static, Rig<App>> {
-    let mut harness =
-        support::harness_stepped(vec2(500.0, 400.0), 0.02, base_text(), App::default(), view);
-    harness.state_mut().reduced_motion = reduced;
-    if reduced == ReducedMotion::Yes {
-        harness
-            .ctx
-            .global_style_mut(|style| style.animation_time = 0.0);
+fn harness(reduced: Animation) -> Driver<App> {
+    let mut d = support::driver(vec2(500.0, 400.0), base_text(), App::default(), view)
+        .step(Duration::from_millis(20))
+        .settle_within(Duration::from_millis(80))
+        .build();
+    d.set_motion(reduced);
+    if reduced == Animation::Reduced {
+        d.ctx().global_style_mut(|style| style.animation_time = 0.0);
     }
-    harness.run_steps(4);
-    harness
+    d.frames(4);
+    d
 }
 
-fn painted_min(harness: &Harness<'_, Rig<App>>, fill: Color32) -> egui::Pos2 {
-    support::shapes(harness)
+fn painted_min(d: &Driver<App>, fill: Color32) -> egui::Pos2 {
+    support::shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
             egui::Shape::Rect(rect) if rect.fill == fill => Some(rect.rect.min),
@@ -107,26 +107,24 @@ fn painted_min(harness: &Harness<'_, Rig<App>>, fill: Color32) -> egui::Pos2 {
 
 #[test]
 fn a_state_transition_runs_unless_motion_is_reduced() {
-    for (reduced, lit_after_one_frame) in [(ReducedMotion::No, false), (ReducedMotion::Yes, true)] {
-        let mut harness = harness(reduced);
-        let at = rect_of(&harness, r#"/"page"/"hover""#).center();
-        assert_eq!(support::fill_of(&harness, r#"/"page"/"hover""#), Some(BASE));
-        harness.hover_at(at);
-        harness.step();
-        harness.step();
-        let fill = support::fill_of(&harness, r#"/"page"/"hover""#);
+    for (reduced, lit_after_one_frame) in [(Animation::Full, false), (Animation::Reduced, true)] {
+        let mut d = harness(reduced);
+        let at = d.rect(Target::suffix(r#"/"page"/"hover""#)).center();
+        assert_eq!(support::fill_of(&d, r#"/"page"/"hover""#), Some(BASE));
+        d.carry_to(at).frames(1);
+        let fill = support::fill_of(&d, r#"/"page"/"hover""#);
         assert_eq!(fill == Some(LIT), lit_after_one_frame, "{fill:?}");
     }
 }
 
 #[test]
 fn a_position_slide_runs_unless_motion_is_reduced() {
-    for (reduced, slides) in [(ReducedMotion::No, true), (ReducedMotion::Yes, false)] {
-        let mut harness = harness(reduced);
-        harness.state_mut().app.swapped = true;
-        harness.step();
-        let laid_out = rect_of(&harness, r#"/"page"/"first""#).min;
-        let painted = painted_min(&harness, FIRST);
+    for (reduced, slides) in [(Animation::Full, true), (Animation::Reduced, false)] {
+        let mut d = harness(reduced);
+        d.app_mut().swapped = true;
+        d.frames(1);
+        let laid_out = d.rect(Target::suffix(r#"/"page"/"first""#)).min;
+        let painted = painted_min(&d, FIRST);
         assert_eq!(
             (painted - laid_out).length() > 5.0,
             slides,
@@ -137,12 +135,12 @@ fn a_position_slide_runs_unless_motion_is_reduced() {
 
 #[test]
 fn an_overlay_enters_unless_motion_is_reduced() {
-    for (reduced, enters) in [(ReducedMotion::No, true), (ReducedMotion::Yes, false)] {
-        let mut harness = harness(reduced);
-        harness.state_mut().app.sheet = Shown::Open;
-        harness.step();
-        let laid_out = rect_of(&harness, r#"/"sheet"/"box""#).min;
-        let painted = painted_min(&harness, BOX);
+    for (reduced, enters) in [(Animation::Full, true), (Animation::Reduced, false)] {
+        let mut d = harness(reduced);
+        d.app_mut().sheet = Shown::Open;
+        d.frames(1);
+        let laid_out = d.rect(Target::suffix(r#"/"sheet"/"box""#)).min;
+        let painted = painted_min(&d, BOX);
         assert_eq!(
             (painted.x - laid_out.x) > 5.0,
             enters,
@@ -153,15 +151,13 @@ fn an_overlay_enters_unless_motion_is_reduced() {
 
 #[test]
 fn an_overlay_leaves_at_once_when_motion_is_reduced() {
-    let mut harness = harness(ReducedMotion::Yes);
-    harness.state_mut().app.sheet = Shown::Open;
-    harness.run_steps(3);
-    harness.state_mut().app.sheet = Shown::Closed;
-    harness.run_steps(2);
+    let mut d = harness(Animation::Reduced);
+    d.app_mut().sheet = Shown::Open;
+    d.frames(3);
+    d.app_mut().sheet = Shown::Closed;
+    d.frames(2);
     assert!(
-        !harness
-            .state()
-            .nodes
+        !support::nodes(&d)
             .iter()
             .any(|(path, _)| path.starts_with(r#"/"sheet""#)),
         "it is gone"

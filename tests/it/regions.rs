@@ -6,12 +6,12 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use eggshell_ui::overlay::Anchor;
-use eggshell_ui::testing::Headless;
+use eggshell_ui::testing::{Driver, Headless, Target};
 use eggshell_ui::{Builder, LayoutState, Placed, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Pos2, Rect, Vec2, pos2, vec2};
 use egui_kittest::Harness;
 
-use crate::support::{self, Companion, Rig, rect_of};
+use crate::support::{self, Companion};
 
 fn base() -> TextStyle {
     TextStyle::new(
@@ -407,60 +407,59 @@ fn canvas_view(b: &mut Builder<'_, '_, Canvas>, app: &Canvas) {
     });
 }
 
-fn canvas_harness(companion: Companion) -> Harness<'static, Rig<Canvas>> {
-    let mut harness = support::harness(vec2(500.0, 300.0), base(), Canvas::default(), canvas_view);
-    harness.state_mut().companion = companion;
-    harness.run_steps(3);
-    harness
+fn canvas_driver(companion: Companion) -> Driver<Canvas> {
+    let mut d = support::driver(vec2(500.0, 300.0), base(), Canvas::default(), canvas_view).build();
+    support::set_companion(&d, companion);
+    d.frames(3);
+    d
 }
 
-fn marker_corner(harness: &Harness<'_, Rig<Canvas>>) -> Pos2 {
-    rect_of(harness, "/\"canvas\"/\"marker\"").max
+fn marker_corner(d: &Driver<Canvas>) -> Pos2 {
+    d.rect(Target::suffix("/\"canvas\"/\"marker\"")).max
 }
 
-fn canvas_rect(harness: &Harness<'_, Rig<Canvas>>) -> Rect {
-    rect_of(harness, "/\"canvas\"")
+fn canvas_rect(d: &Driver<Canvas>) -> Rect {
+    d.rect(Target::suffix("/\"canvas\""))
 }
 
 #[test]
 fn the_first_frame_after_a_resize_places_children_against_the_new_size() {
-    let mut harness = canvas_harness(Companion::Alone);
-    let before = canvas_rect(&harness);
-    assert_eq!(marker_corner(&harness), before.max);
+    let mut d = canvas_driver(Companion::Alone);
+    let before = canvas_rect(&d);
+    assert_eq!(marker_corner(&d), before.max);
 
-    harness.set_size(vec2(640.0, 360.0));
-    harness.step();
+    d.resize(vec2(640.0, 360.0));
 
-    let canvas = canvas_rect(&harness);
+    let canvas = canvas_rect(&d);
     assert_eq!(
         canvas.size(),
         before.size() + vec2(140.0, 60.0),
         "precondition: the canvas follows the window"
     );
-    assert_eq!(marker_corner(&harness), canvas.max);
+    assert_eq!(marker_corner(&d), canvas.max);
     assert!(
-        !harness.ctx.requested_repaint_last_pass(),
+        !d.ctx().requested_repaint_last_pass(),
         "no second frame is needed"
     );
 }
 
 #[test]
 fn the_first_frame_after_a_sibling_opens_places_children_against_the_new_size() {
-    let mut harness = canvas_harness(Companion::Alone);
-    let before = canvas_rect(&harness);
+    let mut d = canvas_driver(Companion::Alone);
+    let before = canvas_rect(&d);
 
-    harness.state_mut().app.panel_open = true;
-    harness.step();
+    d.app_mut().panel_open = true;
+    d.frames(1);
 
-    let canvas = canvas_rect(&harness);
+    let canvas = canvas_rect(&d);
     assert_eq!(
         canvas.width(),
         before.width() - PANEL,
         "precondition: the panel took its width from the canvas"
     );
-    assert_eq!(marker_corner(&harness), canvas.max);
+    assert_eq!(marker_corner(&d), canvas.max);
     assert!(
-        !harness.ctx.requested_repaint_last_pass(),
+        !d.ctx().requested_repaint_last_pass(),
         "no second frame is needed"
     );
 }
@@ -472,14 +471,13 @@ fn regions_lay_out_beside_a_second_layout_state_in_the_context() {
         Companion::Bar,
         "precondition: the rig lays out a second LayoutState by default"
     );
-    let mut harness = canvas_harness(Companion::default());
-    let before = canvas_rect(&harness);
-    harness.state_mut().app.panel_open = true;
-    harness.set_size(vec2(600.0, 320.0));
-    harness.step();
-    let canvas = canvas_rect(&harness);
+    let mut d = canvas_driver(Companion::default());
+    let before = canvas_rect(&d);
+    d.app_mut().panel_open = true;
+    d.resize(vec2(600.0, 320.0));
+    let canvas = canvas_rect(&d);
     assert_eq!(canvas.width(), before.width() + 100.0 - PANEL);
-    assert_eq!(marker_corner(&harness), canvas.max);
+    assert_eq!(marker_corner(&d), canvas.max);
 }
 
 #[test]

@@ -157,21 +157,18 @@ fn claims_start_over_each_pass() {
 /// top-level key must still get an id of its own.
 #[test]
 fn a_view_may_reuse_the_rigs_bar_keys() {
-    let mut harness = support::harness(
+    let mut d = support::driver(
         vec2(200.0, 100.0),
         base_text(),
         (),
         |b: &mut Builder<'_, '_, ()>, _: &()| {
             b.button("bar-button", "View").on_click(|_: &mut ()| {});
         },
-    );
-    harness.run_steps(2);
-    let bar_button = harness
-        .state()
-        .bar
-        .last_stop
-        .expect("the bar has a Tab stop");
-    let view_button = support::id_of(&harness, "/\"bar-button\"");
+    )
+    .build();
+    d.frames(2);
+    let bar_button = support::bar_last_stop(&d).expect("the bar has a Tab stop");
+    let view_button = support::id_of(&d, "/\"bar-button\"");
     assert_ne!(bar_button, view_button);
 }
 
