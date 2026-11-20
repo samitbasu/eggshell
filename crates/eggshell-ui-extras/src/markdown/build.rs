@@ -271,7 +271,8 @@ fn table<'f, A: 'static>(
                 &rows,
                 |(index, _)| *index,
                 |cells, (_, cells_of)| row(cells, cells_of),
-            );
+            )
+            .add();
     });
 }
 

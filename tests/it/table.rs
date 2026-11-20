@@ -118,14 +118,15 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                 f.cell_text("$1,435.00");
             });
         match app.selection {
-            Selection::Off => table.rows(&app.invoices, |invoice| invoice.id, row),
+            Selection::Off => table.rows(&app.invoices, |invoice| invoice.id, row).add(),
             Selection::On => table
                 .selected(app.selected)
                 .on_select(|app: &mut App, id| {
                     app.selected = Some(id);
                     app.selections.push(id);
                 })
-                .rows(&app.invoices, |invoice| invoice.id, row),
+                .rows(&app.invoices, |invoice| invoice.id, row)
+                .add(),
         }
     });
 }
@@ -511,20 +512,23 @@ mod misuse {
     /// INV-7 has one cell and INV-1024 four, in a table of three columns.
     fn ragged(b: &mut Builder<'_, '_, App>, app: &App) {
         b.div_id(Part::Page, tw().p(4.0).w_full(), |b| {
-            b.table(Part::Invoices).columns(columns()).rows(
-                &app.invoices,
-                |invoice| invoice.id,
-                |row, invoice| {
-                    let cells = match invoice.id {
-                        7 => 1,
-                        1024 => 4,
-                        _ => 3,
-                    };
-                    for column in 0..cells {
-                        row.cell_text(format!("{}.{column}", invoice.id));
-                    }
-                },
-            );
+            b.table(Part::Invoices)
+                .columns(columns())
+                .rows(
+                    &app.invoices,
+                    |invoice| invoice.id,
+                    |row, invoice| {
+                        let cells = match invoice.id {
+                            7 => 1,
+                            1024 => 4,
+                            _ => 3,
+                        };
+                        for column in 0..cells {
+                            row.cell_text(format!("{}.{column}", invoice.id));
+                        }
+                    },
+                )
+                .add();
         });
     }
 
@@ -657,20 +661,24 @@ mod shape {
         let mut headless = Headless::new(vec2(400.0, 200.0));
         let rows = [1_u32, 2];
         let placed = headless.layout(&(), |b: &mut Builder<'_, '_, ()>, _| {
-            b.table("t").named("T").columns(columns()).rows(
-                &rows,
-                |row| *row,
-                |cells, row| {
-                    let texts: &[&str] = if *row == 1 {
-                        &["short"]
-                    } else {
-                        &["a", "b", "c", "extra"]
-                    };
-                    for text in texts {
-                        cells.cell_text(*text);
-                    }
-                },
-            );
+            b.table("t")
+                .named("T")
+                .columns(columns())
+                .rows(
+                    &rows,
+                    |row| *row,
+                    |cells, row| {
+                        let texts: &[&str] = if *row == 1 {
+                            &["short"]
+                        } else {
+                            &["a", "b", "c", "extra"]
+                        };
+                        for text in texts {
+                            cells.cell_text(*text);
+                        }
+                    },
+                )
+                .add();
         });
         let messages: Vec<String> = headless
             .reports()
@@ -733,7 +741,8 @@ mod spacing {
                         cells.cell_text("alpha");
                         cells.cell_text("beta");
                     },
-                );
+                )
+                .add();
         });
     }
 
@@ -1053,5 +1062,282 @@ mod groups {
             .map(|(role, _)| role)
             .collect();
         assert_eq!(around, [Role::Row, Role::Table]);
+    }
+
+    /// A group's end before rows in no group (#428), through `rows_with`.
+    mod ends {
+        use super::*;
+        use eggshell_ui::contract::GroupEnd;
+
+        const GAP: f32 = 20.0;
+
+        /// ```html
+        /// <table>
+        ///   <tbody><tr><th scope="rowgroup">Paid</th></tr> INV-7 </tbody>
+        ///   <!-- a gap --> INV-1024 INV-31
+        /// </table>
+        /// ```
+        fn ended(b: &mut Builder<'_, '_, App>, app: &App) {
+            table(b, app, |rows, app| {
+                rows.group("Paid");
+                body(rows, app, 7);
+                rows.end_group();
+                body(rows, app, 1024);
+                body(rows, app, 31);
+            });
+        }
+
+        /// `end_group` with no group open.
+        fn unopened(b: &mut Builder<'_, '_, App>, app: &App) {
+            table(b, app, |rows, app| {
+                body(rows, app, 7);
+                rows.end_group();
+                body(rows, app, 1024);
+            });
+        }
+
+        fn body(rows: &mut eggshell_ui::owned::Rows<'_, '_, App, u32>, app: &App, id: u32) {
+            if let Some(invoice) = app.invoices.iter().find(|invoice| invoice.id == id) {
+                rows.row(invoice.id, |cells| row(cells, invoice));
+            }
+        }
+
+        fn table(
+            b: &mut Builder<'_, '_, App>,
+            app: &App,
+            rows: impl FnOnce(&mut eggshell_ui::owned::Rows<'_, '_, App, u32>, &App),
+        ) {
+            b.div_id(Part::Page, tw().p(4.0).w_full(), |b| {
+                b.table("Grouped")
+                    .named("Grouped")
+                    .columns(columns())
+                    .stripes(app.stripes)
+                    .rows_with(|r| rows(r, app));
+            });
+        }
+
+        fn gapped(ctx: &egui::Context, _: &App) {
+            for theme in [Theme::Light, Theme::Dark] {
+                let mut style = Shadcn::for_theme(theme).style();
+                style.table.group_end = GroupEnd::Gap(GAP);
+                style.install_for(ctx, theme);
+            }
+        }
+
+        fn harness_with(app: App, view: support::View<App>) -> Driver<App> {
+            let tokens = Tokens::for_theme(Theme::Light);
+            let mut d = support::prepared_driver(
+                WINDOW,
+                TextStyle::new(tokens.text_role(), tokens.foreground),
+                app,
+                view,
+                gapped,
+            )
+            .build();
+            d.frames(3);
+            d
+        }
+
+        #[test]
+        fn rows_after_a_group_s_end_are_in_the_table_not_the_group() {
+            let d = harness_with(App::new(Selection::Off), ended);
+            let parent = |cell: &str| row_named(&d, cell).into_iter().nth(1);
+            assert_eq!(
+                parent("INV-7"),
+                Some((Role::RowGroup, Some("Paid".to_owned())))
+            );
+            for cell in ["INV-1024", "INV-31"] {
+                assert_eq!(
+                    parent(cell).map(|(role, _)| role),
+                    Some(Role::Table),
+                    "{cell}"
+                );
+            }
+        }
+
+        #[test]
+        fn a_group_s_end_is_no_row() {
+            let d = harness_with(App::new(Selection::Off), ended);
+            let table = d.harness().get_by_role(Role::Table);
+            assert_eq!(
+                table.accesskit_node().data().row_count(),
+                Some(4),
+                "the group row and three rows"
+            );
+            let index = |cell: &str| {
+                d.harness()
+                    .get_all_by_role(Role::Cell)
+                    .find(|node| node.accesskit_node().label().as_deref() == Some(cell))
+                    .and_then(|node| node.accesskit_node().data().row_index())
+            };
+            assert_eq!(
+                [index("INV-7"), index("INV-1024"), index("INV-31")],
+                [Some(1), Some(2), Some(3)]
+            );
+        }
+
+        #[test]
+        fn a_group_s_end_shows_as_the_style_s_gap() {
+            let d = harness_with(App::new(Selection::Off), ended);
+            let (last, next) = (
+                d.rect(Target::suffix(&grouped_band("Row(7)"))),
+                d.rect(Target::suffix(&grouped_band("Row(1024)"))),
+            );
+            assert!(
+                (next.top() - last.bottom() - GAP).abs() < 0.5,
+                "{last:?} then {next:?}"
+            );
+        }
+
+        #[test]
+        fn stripes_count_afresh_after_a_group_s_end() {
+            let d = harness_with(
+                App {
+                    stripes: Stripes::Alternate,
+                    ..App::new(Selection::Off)
+                },
+                ended,
+            );
+            let stripe = style(&d).stripe;
+            assert_ne!(
+                stripe,
+                Color32::TRANSPARENT,
+                "precondition: the preset stripes"
+            );
+            let fills = ["Row(1024)", "Row(31)"].map(|name| group_fill(&d, name) == Some(stripe));
+            assert_eq!(fills, [false, true]);
+        }
+
+        #[test]
+        fn ending_no_group_does_nothing() {
+            let d = harness_with(App::new(Selection::Off), unopened);
+            let (last, next) = (
+                d.rect(Target::suffix(&grouped_band("Row(7)"))),
+                d.rect(Target::suffix(&grouped_band("Row(1024)"))),
+            );
+            assert!(
+                (next.top() - last.bottom()).abs() < 0.5,
+                "{last:?} then {next:?}"
+            );
+        }
+    }
+
+    /// `grouped_by` (#428): group rows from a flat list's labels.
+    mod grouped_by {
+        use super::*;
+
+        /// Rows with labels A, A, B, none, none, A.
+        const ENTRIES: [(u32, Option<&str>, &str); 6] = [
+            (1, Some("A"), "a1"),
+            (2, Some("A"), "a2"),
+            (3, Some("B"), "b1"),
+            (4, None, "x1"),
+            (5, None, "x2"),
+            (6, Some("A"), "a3"),
+        ];
+
+        /// ```html
+        /// <table>
+        ///   <tbody><tr><th scope="rowgroup">A</th></tr> a1 a2 </tbody>
+        ///   <tbody><tr><th scope="rowgroup">B</th></tr> b1 </tbody>
+        ///   <!-- the group's end --> x1 x2
+        ///   <tbody><tr><th scope="rowgroup">A</th></tr> a3 </tbody>
+        /// </table>
+        /// ```
+        fn flat(b: &mut Builder<'_, '_, App>, _: &App) {
+            b.div_id(Part::Page, tw().p(4.0).w_full(), |b| {
+                b.table("Grouped")
+                    .named("Grouped")
+                    .columns(columns())
+                    .rows(
+                        &ENTRIES,
+                        |entry| entry.0,
+                        |cells, entry| {
+                            cells.cell_text(entry.2);
+                            cells.cell_text("");
+                            cells.cell_text("");
+                        },
+                    )
+                    .grouped_by(|entry| entry.1)
+                    .add();
+            });
+        }
+
+        fn harness() -> Driver<App> {
+            let tokens = Tokens::for_theme(Theme::Light);
+            let mut d = support::prepared_driver(
+                WINDOW,
+                TextStyle::new(tokens.text_role(), tokens.foreground),
+                App::new(Selection::Off),
+                flat,
+                |_, _| {},
+            )
+            .build();
+            d.frames(3);
+            d
+        }
+
+        #[test]
+        fn a_heading_each_time_the_label_changes_and_neighbours_share_one() {
+            let d = harness();
+            let headings: Vec<_> = d
+                .harness()
+                .get_all_by_role(Role::RowHeader)
+                .map(|header| header.accesskit_node().label())
+                .collect();
+            assert_eq!(
+                headings,
+                [
+                    Some("A".to_owned()),
+                    Some("B".to_owned()),
+                    Some("A".to_owned())
+                ],
+                "a label that recurs later gets a heading of its own"
+            );
+        }
+
+        #[test]
+        fn each_row_is_in_its_label_s_group_and_unlabelled_rows_in_the_table() {
+            let d = harness();
+            let parent = |cell: &str| {
+                row_named(&d, cell)
+                    .into_iter()
+                    .nth(1)
+                    .map(|(role, label)| (role, label.filter(|_| role == Role::RowGroup)))
+            };
+            let group = |name: &str| Some((Role::RowGroup, Some(name.to_owned())));
+            assert_eq!(parent("a1"), group("A"));
+            assert_eq!(parent("a2"), group("A"));
+            assert_eq!(parent("b1"), group("B"));
+            assert_eq!(parent("x1"), Some((Role::Table, None)));
+            assert_eq!(parent("x2"), Some((Role::Table, None)));
+            assert_eq!(parent("a3"), group("A"));
+        }
+
+        #[test]
+        fn a_group_ends_before_the_first_unlabelled_row() {
+            let d = harness();
+            let gap = match style(&d).group_end {
+                eggshell_ui::contract::GroupEnd::Gap(points) => points,
+                eggshell_ui::contract::GroupEnd::Rule { .. } => 0.0,
+            };
+            assert!(gap > 0.0, "precondition: the style ends a group with a gap");
+            let (last, first) = (
+                d.rect(Target::suffix(&grouped_band("Row(3)"))),
+                d.rect(Target::suffix(&grouped_band("Row(4)"))),
+            );
+            assert!(
+                (first.top() - last.bottom() - gap).abs() < 0.5,
+                "{last:?} then {first:?}"
+            );
+            let (x2, a3) = (
+                d.rect(Target::suffix(&grouped_band("Row(5)"))),
+                d.rect(Target::suffix(&grouped_band("Group(2)"))),
+            );
+            assert!(
+                (a3.top() - x2.bottom()).abs() < 0.5,
+                "a new group needs no end: {x2:?} then {a3:?}"
+            );
+        }
     }
 }

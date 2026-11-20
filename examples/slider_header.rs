@@ -83,6 +83,16 @@ pub fn layout<'f>(b: &mut Builder<'_, 'f, Levels>, levels: &'f Levels) {
                     .named("Trim")
                     .on_change(|app: &mut Levels, v| app.trim = v);
             });
+            s.div(tw().flex().items_center().justify_between(), |s| {
+                s.text(tw(), "Trim, refused");
+                s.number("trim_refused", levels.trim, -12.0..=12.0)
+                    .format(|v| format!("{v:+.1} dB"))
+                    .editable(|text| text.trim().trim_end_matches("dB").trim().parse().ok())
+                    .step(Step::new(0.5))
+                    .named("Trim, refused")
+                    .refused("Locked while the channel is linked")
+                    .on_change(|app: &mut Levels, v| app.trim = v);
+            });
         },
     );
 }

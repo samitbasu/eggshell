@@ -3,16 +3,15 @@
 
 use core::time::Duration;
 
+use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_extras::hover_card::{HoverCardExt as _, HoverCardStyle};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Theme, vec2};
-use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, hover_over, rect_of};
+use crate::support;
 
-const STEP: f32 = 0.05;
 const HANDLE: &str = "/\"nextjs\"/\"handle\"";
 const QUICK: &str = "/\"quick\"/\"handle\"";
 const FOLLOW: &str = "/\"nextjs\"/\"Card\"/\"Box\"/\"follow\"";
@@ -56,39 +55,29 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     );
 }
 
-fn harness() -> Harness<'static, Rig<App>> {
+fn harness() -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness_scaled_stepped(
+    let mut d = support::prepared_driver(
         vec2(500.0, 400.0),
-        STEP,
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App::default(),
         view,
         still,
-    );
-    harness.run_steps(4);
-    harness
+    )
+    .build();
+    d.frames(4);
+    d
 }
 
-fn wait(harness: &mut Harness<'_, Rig<App>>, time: Duration) {
-    harness.run_steps((time.as_secs_f32() / STEP).ceil() as usize);
-}
-
-fn shown(harness: &Harness<'_, Rig<App>>, card: &str) -> Option<egui::Rect> {
-    let path = format!("/\"{card}\"/\"Card\"/\"Box\"");
-    harness
-        .state()
-        .nodes
-        .iter()
-        .find(|(candidate, _)| *candidate == path)
-        .map(|(_, rect)| *rect)
+fn shown(d: &Driver<App>, card: &str) -> Option<egui::Rect> {
+    d.find(Target::suffix(&format!("/\"{card}\"/\"Card\"/\"Box\"")))
 }
 
 #[test]
 fn the_shadcn_preset_installs_shadcns_hover_card() {
-    let harness = harness();
-    let installed = HoverCardStyle::of(&harness.ctx);
-    let preset = Shadcn::of(&harness.ctx);
+    let d = harness();
+    let installed = HoverCardStyle::of(d.ctx());
+    let preset = Shadcn::of(d.ctx());
     assert_eq!(*installed, preset.hover_card());
     assert_eq!(installed.width, 256.0, "w-64");
     assert_eq!(installed.padding, 16.0, "p-4");
@@ -108,14 +97,13 @@ fn the_shadcn_preset_installs_shadcns_hover_card() {
 
 #[test]
 fn resting_on_the_trigger_opens_the_styled_box_below_it_and_its_button_clicks() {
-    let mut harness = harness();
-    let at = rect_of(&harness, HANDLE).center();
-    hover_over(&mut harness, at);
-    wait(&mut harness, Duration::from_millis(500));
-    assert!(shown(&harness, "nextjs").is_none(), "waits for 700 ms");
-    wait(&mut harness, Duration::from_millis(300));
-    let card = shown(&harness, "nextjs").expect("open");
-    let trigger = rect_of(&harness, "/\"nextjs\"");
+    let mut d = harness();
+    d.hover(Target::suffix(HANDLE))
+        .advance(Duration::from_millis(500));
+    assert!(shown(&d, "nextjs").is_none(), "waits for 700 ms");
+    d.advance(Duration::from_millis(300));
+    let card = shown(&d, "nextjs").expect("open");
+    let trigger = d.rect(Target::suffix("/\"nextjs\""));
     assert!((card.width() - 256.0).abs() < 0.5, "w-64: {}", card.width());
     assert!(
         (card.min.y - trigger.max.y - 4.0).abs() < 0.5,
@@ -129,28 +117,23 @@ fn resting_on_the_trigger_opens_the_styled_box_below_it_and_its_button_clicks() 
         (card.center().x - trigger.center().x).abs() < 0.5,
         "centred: {card:?} {trigger:?}"
     );
-    let follow = rect_of(&harness, FOLLOW).center();
-    harness.hover_at(follow);
-    harness.run_steps(2);
-    support::press_and_release(&mut harness, follow);
-    harness.run_steps(2);
-    assert_eq!(harness.state().app.follows, 1);
-    assert!(shown(&harness, "nextjs").is_some(), "the card stays");
+    d.click(Target::suffix(FOLLOW)).frames(2);
+    assert_eq!(d.app().follows, 1);
+    assert!(shown(&d, "nextjs").is_some(), "the card stays");
 }
 
 #[test]
 fn a_cards_own_open_delay_overrides_the_style() {
-    let mut harness = harness();
-    let at = rect_of(&harness, QUICK).center();
-    hover_over(&mut harness, at);
-    wait(&mut harness, Duration::from_millis(200));
-    assert!(shown(&harness, "quick").is_some());
+    let mut d = harness();
+    d.hover(Target::suffix(QUICK))
+        .advance(Duration::from_millis(200));
+    assert!(shown(&d, "quick").is_some());
 }
 
 #[test]
 fn the_cards_text_describes_the_trigger() {
-    let harness = harness();
-    let node = harness.get_by_label("@nextjs");
+    let d = harness();
+    let node = d.harness().get_by_label("@nextjs");
     assert_eq!(
         node.accesskit_node().description().as_deref(),
         Some("@nextjs 0 follows Follow")
@@ -160,15 +143,15 @@ fn the_cards_text_describes_the_trigger() {
 #[test]
 fn hovering_a_trigger_with_nothing_focusable_in_it_opens_the_card() {
     for (key, text) in [("link", "A link's card"), ("avatar", "An avatar's card")] {
-        let mut harness = harness();
-        let trigger = rect_of(&harness, &format!("/\"{key}\""));
+        let mut d = harness();
+        let trigger = d.rect(Target::suffix(&format!("/\"{key}\"")));
         assert!(
             trigger.width() > 0.0 && trigger.height() > 0.0,
             "precondition: {key} is laid out"
         );
-        hover_over(&mut harness, trigger.center());
-        wait(&mut harness, Duration::from_millis(800));
-        assert!(shown(&harness, key).is_some(), "{key}: the card opens");
-        harness.get_by_label(text);
+        d.hover(Target::suffix(&format!("/\"{key}\"")))
+            .advance(Duration::from_millis(800));
+        assert!(shown(&d, key).is_some(), "{key}: the card opens");
+        d.harness().get_by_label(text);
     }
 }
