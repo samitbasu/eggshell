@@ -481,15 +481,15 @@ mod tests {
         use std::time::Duration;
         let base = tw().transition(Duration::from_millis(100)).ease_in().z(2);
         let kept = base.clone().merge(tw());
-        assert_eq!(kept.variants.transition, Some(Duration::from_millis(100)));
-        assert_eq!(kept.variants.easing, crate::tw::Easing::In);
+        assert_eq!(kept.variants.transition(), Some(Duration::from_millis(100)));
+        assert_eq!(kept.variants.easing(), crate::tw::Easing::In);
         assert_eq!(kept.z, Some(2));
         let replaced = base.merge(tw().transition(Duration::from_millis(30)).ease_out().z(0));
         assert_eq!(
-            replaced.variants.transition,
+            replaced.variants.transition(),
             Some(Duration::from_millis(30))
         );
-        assert_eq!(replaced.variants.easing, crate::tw::Easing::Out);
+        assert_eq!(replaced.variants.easing(), crate::tw::Easing::Out);
         assert_eq!(replaced.z, Some(0), "z(0) is still a z");
     }
 

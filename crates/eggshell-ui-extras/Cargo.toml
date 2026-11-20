@@ -10,8 +10,10 @@ repository = "https://github.com/samitbasu/eggshell"
 [features]
 # Each widget is opt-in.
 # keep sorted
+accordion = ["disclosure"]
 badge = []
 command = ["dep:unicode-normalization"]
+disclosure = []
 form = []
 hover-card = []
 markdown = ["dep:pulldown-cmark"]

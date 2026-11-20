@@ -57,8 +57,10 @@ eggshell-ui = { path = ".", features = ["driver"] }
 eggshell-ui-shadcn = { path = "crates/eggshell-ui-shadcn", features = ["extras"] }
 eggshell-ui-extras = { path = "crates/eggshell-ui-extras", features = [
     # keep sorted
+    "accordion",
     "badge",
     "command",
+    "disclosure",
     "form",
     "hover-card",
     "markdown",

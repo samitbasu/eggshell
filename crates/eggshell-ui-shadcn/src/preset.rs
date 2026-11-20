@@ -939,11 +939,12 @@ impl Shadcn {
             // keep sorted
             self.badge(&style).install_for(ctx, self.theme);
             self.command(&style).install_for(ctx, self.theme);
+            self.disclosure(&style).install_for(ctx, self.theme);
             self.form(&style).install_for(ctx, self.theme);
             self.hover_card().install_for(ctx, self.theme);
             self.markdown().install_for(ctx, self.theme);
-            self.skeleton(&style).install_for(ctx, self.theme);
             self.notify(&style).install_for(ctx, self.theme);
+            self.skeleton(&style).install_for(ctx, self.theme);
         }
         style.install_for(ctx, self.theme);
     }
@@ -1145,6 +1146,64 @@ impl Shadcn {
         command.selected_fill = self.tokens.muted;
         command.selected_text = self.tokens.foreground;
         command
+    }
+
+    /// The section header and disclosure button look, after shadcn/ui's
+    /// Accordion in the preset's style, from `ref/shadcn` (f50887a):
+    /// `style-vega.css` 3-17 (`cn-accordion-*`; Lyra's are
+    /// `style-lyra.css` 3-17) and `bases/radix/ui/accordion.tsx` 41-69:
+    /// - the trigger is `rounded-md py-4 text-sm font-medium hover:underline`
+    ///   in Vega and `rounded-none py-2.5 text-xs` in Lyra, with the base's
+    ///   `border border-transparent`, `focus-visible:border-ring` and the
+    ///   style's ring (`ring-3`, `ring-1` in Lyra), and
+    ///   `disabled:opacity-50`;
+    /// - the content's inner block is `pt-0 pb-4` in Vega and `pb-2.5` in
+    ///   Lyra;
+    /// - the icon is `size-4 ml-auto text-muted-foreground`.
+    ///
+    /// Three values here are the user's picks from the previous registry's
+    /// accordion, which the current source does not have: the icon turns
+    /// with the region's progress (the source swaps `chevron-down` for
+    /// `chevron-up` at once), it sits nudged `translate-y-0.5` (the source
+    /// has no nudge), and there are 16 pt between the title and the icon
+    /// (`gap-4`; the source's icon is `ml-auto`). A tree's disclosure button
+    /// is not shadcn's: a 24 pt square with a `bg-accent` tint under the
+    /// pointer, the user's pick (look 10c).
+    ///
+    /// TODO(prose)
+    ///
+    /// ```
+    /// use eggshell_ui_shadcn::Shadcn;
+    ///
+    /// let shadcn = Shadcn::light();
+    /// let disclosure = shadcn.disclosure(&shadcn.style());
+    /// assert_eq!(disclosure.header.padding_y, 16.0);
+    /// ```
+    #[cfg(feature = "extras")]
+    pub fn disclosure(
+        &self,
+        style: &contract::Style,
+    ) -> eggshell_ui_extras::disclosure::DisclosureStyle {
+        let t = &self.tokens;
+        let lyra = t.style == ShadcnStyle::Lyra;
+        let mut disclosure = eggshell_ui_extras::disclosure::DisclosureStyle::from_style(style);
+        disclosure.section.size = 16.0;
+        disclosure.tree.size = 16.0;
+        disclosure.tone = Some(t.muted_foreground);
+        disclosure.tone_opacity = Opacity::new(1.0);
+        disclosure.nudge = 2.0;
+        disclosure.header.ring = style.focus;
+        disclosure.header.focus_border = Some(t.ring);
+        disclosure.header.radius = if lyra { 0 } else { t.radius_md() };
+        disclosure.header.padding_y = if lyra { 10.0 } else { 16.0 };
+        disclosure.header.gap = 16.0;
+        disclosure.header.text = t.text_role_at(Weight::Medium);
+        disclosure.header.disabled = Opacity::new(0.5);
+        disclosure.content_padding_bottom = if lyra { 10.0 } else { 16.0 };
+        disclosure.button = 24.0;
+        disclosure.button_hover = Some(t.accent);
+        disclosure.separator = Some(t.border);
+        disclosure
     }
 
     /// TODO(prose): the form section and labelled row look. shadcn has no

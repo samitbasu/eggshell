@@ -1601,7 +1601,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
                 grouping: tw.grouping,
-                variants: tw.variants,
+                variants: tw.variants.clone(),
                 color_source,
                 hover_by: crate::pipeline::HoverBy::Hit,
                 tiling: crate::tiling::Tiling::Untiled,

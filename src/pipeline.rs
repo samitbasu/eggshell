@@ -287,7 +287,7 @@ pub(crate) enum HoverBy {
 }
 
 /// What a node does when the pointer meets it.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Interaction {
     pub sensing: Sensing,
     pub focusability: Focusability,
@@ -1826,7 +1826,7 @@ fn collect(
         flight: node.collapse.and_then(|collapse| collapse.flight),
         pointer_events: node.pointer_events,
         visibility: node.visibility,
-        interaction: node.interaction,
+        interaction: node.interaction.clone(),
         draw_kind: node.draw_kind,
         description: node.description.take(),
         announced: node.announced,
