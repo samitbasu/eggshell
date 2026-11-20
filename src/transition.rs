@@ -181,7 +181,7 @@ fn ranks(nodes: &Nodes) -> HashMap<Id, usize> {
         while parents.last().is_some_and(|&(end, _)| end <= index) {
             parents.pop();
         }
-        if let (Some(_), Some(id)) = (node.interaction.variants.animate_layout, node.id())
+        if let (Some(_), Some(id)) = (node.interaction.variants.animate_layout(), node.id())
             && let Some((_, children)) = parents.last_mut()
         {
             ranks.insert(id, *children);
@@ -284,11 +284,11 @@ impl LayoutAnimation {
             }
             let min = node.rect().min;
             let variants = &node.interaction.variants;
-            if let (Some(_), Some(id)) = (variants.animate_layout, node.id())
+            if let (Some(_), Some(id)) = (variants.animate_layout(), node.id())
                 && let Some(previous) = self.previous.get(&id)
             {
                 let relative = min - parents.last().map_or(min, |&(_, parent)| parent);
-                let painted = previous.relative + previous.offset(self.now, variants.easing);
+                let painted = previous.relative + previous.offset(self.now, variants.easing());
                 reach = reach.max((painted - relative).length());
             }
             parents.push((node.end, min));
