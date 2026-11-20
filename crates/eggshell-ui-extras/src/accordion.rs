@@ -25,7 +25,7 @@
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use eggshell_ui::overlay::Shown;
+use eggshell_ui::overlay::{Nav, Shown, Wrap};
 use eggshell_ui::owned::{Enablement, Face};
 use eggshell_ui::{Builder, Key, Scope, Tw, tw};
 
@@ -228,7 +228,8 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
                 on_change,
                 value: PhantomData,
             });
-        });
+        })
+        .nav(Nav::Column(Wrap::Around));
     }
 }
 
@@ -264,6 +265,7 @@ impl<'i, 'b, 'f, A: 'static, M: Mode<T, Change = C>, T: Value, C: Clone + 'stati
                     on_change(app, change);
                 }
             });
+        let section = section.in_column();
         ItemChain {
             section: if pinned { section.pinned() } else { section },
         }

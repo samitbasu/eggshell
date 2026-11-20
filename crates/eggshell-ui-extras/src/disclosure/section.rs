@@ -33,6 +33,20 @@ enum Toggle {
     Pinned,
 }
 
+/// Whether the header is an item of a group of headers the arrow keys move
+/// between.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    not(feature = "accordion"),
+    expect(dead_code, reason = "only an accordion groups its headers")
+)]
+enum Membership {
+    /// A section of its own.
+    Alone,
+    /// One of an accordion's headers.
+    Item,
+}
+
 /// What builds the inside of a header after its face.
 type HeaderChildren<'f, A> = Box<dyn for<'s> FnOnce(&mut Builder<'s, 'f, A>) + 'f>;
 
@@ -55,6 +69,7 @@ pub struct SectionChain<'s, 'b, 'f, A, K, H> {
     content: Tw,
     enablement: Enablement,
     toggle: Toggle,
+    membership: Membership,
     header_children: Option<HeaderChildren<'f, A>>,
 }
 
@@ -70,6 +85,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> SectionChain<'s, 'b, 'f, A, K, Unset> {
             content: tw(),
             enablement: Enablement::Enabled,
             toggle: Toggle::Free,
+            membership: Membership::Alone,
             header_children: None,
         }
     }
@@ -91,6 +107,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> SectionChain<'s, 'b, 'f, A, K, Unset> {
             content: self.content,
             enablement: self.enablement,
             toggle: self.toggle,
+            membership: self.membership,
             header_children: self.header_children,
         }
     }
@@ -125,6 +142,13 @@ impl<'f, A: 'static, K: Key, H> SectionChain<'_, '_, 'f, A, K, H> {
         self
     }
 
+    /// Makes the header an item of the accordion's column.
+    #[cfg(feature = "accordion")]
+    pub(crate) fn in_column(mut self) -> Self {
+        self.membership = Membership::Item;
+        self
+    }
+
     /// TODO(prose): builds more into the header after the face and before
     /// the chevron, such as a count; with [`Face::Empty`] it is the whole
     /// title.
@@ -152,6 +176,7 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             content,
             enablement,
             toggle,
+            membership,
             header_children,
         } = self;
         let ctx = b.ctx().clone();
@@ -165,6 +190,7 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             classes,
             enablement,
             toggle,
+            membership,
             current,
             on_change,
         };
@@ -194,6 +220,7 @@ struct Header<'a, 'f, A> {
     classes: Tw,
     enablement: Enablement,
     toggle: Toggle,
+    membership: Membership,
     current: Shown,
     on_change: ChangeFn<A>,
 }
@@ -207,6 +234,7 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             classes,
             enablement,
             toggle,
+            membership,
             current,
             on_change,
         } = self;
@@ -252,6 +280,10 @@ impl<'f, A: 'static> Header<'_, 'f, A> {
             .role(Role::Button)
             .named(name)
             .expanded(current.is_open());
+        let handle = match membership {
+            Membership::Item => handle.nav_item(),
+            Membership::Alone => handle,
+        };
         let built = current.is_open() || f32::from(open) > 0.0;
         let handle = if built {
             handle.controls(region)

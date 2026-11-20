@@ -237,3 +237,91 @@ fn each_open_header_controls_its_own_region() {
         vec![vec![], vec![Some("Is it animated?".to_owned())], vec![]]
     );
 }
+
+fn focused_title(h: &Harness<'_, Rig<App>>) -> Option<&'static str> {
+    ITEMS.iter().map(|(_, title)| *title).find(|title| {
+        h.get_by_role_and_label(AccessRole::Button, title)
+            .accesskit_node()
+            .is_focused()
+    })
+}
+
+fn press(h: &mut Harness<'_, Rig<App>>, key: egui::Key) {
+    h.key_press(key);
+    h.run_steps(4);
+}
+
+fn focus_header(h: &mut Harness<'_, Rig<App>>, title: &str) {
+    h.get_by_role_and_label(AccessRole::Button, title).focus();
+    h.run_steps(4);
+}
+
+#[test]
+fn the_arrows_move_between_the_headers_and_pass_the_buttons_in_the_content() {
+    let mut harness = harness_of(App::of(Kind::Multiple));
+    for (_, title) in ITEMS {
+        harness
+            .get_by_role_and_label(AccessRole::Button, title)
+            .click();
+        harness.run_steps(30);
+    }
+    focus_header(&mut harness, ITEMS[0].1);
+    assert_eq!(focused_title(&harness), Some(ITEMS[0].1), "precondition");
+    press(&mut harness, egui::Key::ArrowDown);
+    assert_eq!(
+        focused_title(&harness),
+        Some(ITEMS[1].1),
+        "the content's button is passed by"
+    );
+    press(&mut harness, egui::Key::ArrowUp);
+    assert_eq!(focused_title(&harness), Some(ITEMS[0].1));
+}
+
+#[test]
+fn home_and_end_go_to_the_first_and_last_headers_and_the_ends_wrap() {
+    let mut harness = harness_of(App::of(Kind::Collapsible));
+    focus_header(&mut harness, ITEMS[1].1);
+    press(&mut harness, egui::Key::End);
+    assert_eq!(focused_title(&harness), Some(ITEMS[2].1));
+    press(&mut harness, egui::Key::ArrowDown);
+    assert_eq!(
+        focused_title(&harness),
+        Some(ITEMS[0].1),
+        "wraps to the first"
+    );
+    press(&mut harness, egui::Key::ArrowUp);
+    assert_eq!(focused_title(&harness), Some(ITEMS[2].1), "and to the last");
+    press(&mut harness, egui::Key::Home);
+    assert_eq!(focused_title(&harness), Some(ITEMS[0].1));
+}
+
+#[test]
+fn a_disabled_header_is_skipped_by_the_arrows() {
+    let mut harness = harness_of(App {
+        disabled: Some(Faq::Motion),
+        ..App::of(Kind::Collapsible)
+    });
+    focus_header(&mut harness, ITEMS[0].1);
+    press(&mut harness, egui::Key::ArrowDown);
+    assert_eq!(
+        focused_title(&harness),
+        Some(ITEMS[2].1),
+        "the second is passed by"
+    );
+}
+
+#[test]
+fn every_header_stays_a_tab_stop() {
+    let mut harness = harness_of(App::of(Kind::Collapsible));
+    focus_header(&mut harness, ITEMS[0].1);
+    let mut visited = vec![focused_title(&harness)];
+    for _ in 0..2 {
+        press(&mut harness, egui::Key::Tab);
+        visited.push(focused_title(&harness));
+    }
+    assert_eq!(
+        visited,
+        ITEMS.map(|(_, title)| Some(title)),
+        "Tab reaches each header, with no roving"
+    );
+}
