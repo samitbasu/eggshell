@@ -1113,6 +1113,21 @@ impl SplitterStyle {
     }
 }
 
+/// TODO(prose): what a table shows where a group ends and rows in no group
+/// follow.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum GroupEnd {
+    /// TODO(prose): an empty band this many points tall.
+    Gap(f32),
+    /// TODO(prose): a rule `width` points wide in `color`.
+    Rule {
+        /// TODO(prose)
+        width: f32,
+        /// TODO(prose)
+        color: Color32,
+    },
+}
+
 /// Tables: the header, the rule between rows, and a row's fills.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -1156,6 +1171,8 @@ pub struct TableStyle {
     pub group_text_size: Option<TextSize>,
     /// TODO(prose): the weight of a group row's title.
     pub group_weight: Weight,
+    /// TODO(prose): what shows where a group ends before rows in no group.
+    pub group_end: GroupEnd,
     /// Behind a hovered body row.
     pub hover: Color32,
     /// Behind the selected row.
@@ -1189,6 +1206,7 @@ impl TableStyle {
             group_text: None,
             group_text_size: None,
             group_weight: Weight::Normal,
+            group_end: GroupEnd::Gap(s.item_spacing.y * 3.0),
             hover: v.widgets.hovered.weak_bg_fill,
             selected: v.selection.bg_fill,
             footer_fill: v.faint_bg_color,

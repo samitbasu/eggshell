@@ -61,7 +61,8 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                     cells.cell_text(row.1.clone());
                     cells.cell_text(row.2);
                 },
-            );
+            )
+            .add();
     });
 }
 

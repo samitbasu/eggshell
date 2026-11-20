@@ -239,17 +239,9 @@ pub fn full_motion(ctx: &egui::Context) {
     }
 }
 
-/// Whether a rig runs with the style's animation time at zero.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ReducedMotion {
-    No,
-    Yes,
-}
-
 pub struct Rig<A> {
     pub page: Page,
     pub companion: Companion,
-    pub reduced_motion: ReducedMotion,
     pub bar: Bar,
     pub layout: LayoutState,
     pub app: A,
@@ -258,12 +250,7 @@ pub struct Rig<A> {
     /// Every node of the last frame: its readable path and border box.
     pub nodes: Vec<(String, Rect)>,
     ids: Vec<(String, egui::Id)>,
-    /// Sees each frame as it is placed, before it is drawn.
-    pub observe: Option<Observe<A>>,
 }
-
-/// What [`Rig::observe`] runs on a placed frame.
-pub type Observe<A> = Box<dyn FnMut(&eggshell_ui::Placed<A>)>;
 
 pub fn harness<A>(
     size: Vec2,
@@ -299,18 +286,6 @@ pub fn harness_stepped<A>(
 
 /// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
 /// points.
-/// [`harness_prepared`] whose frames are `step_dt` seconds apart.
-pub fn harness_scaled_stepped<A>(
-    size: Vec2,
-    step_dt: f32,
-    base_text: TextStyle,
-    app: A,
-    view: View<A>,
-    prepare: fn(&egui::Context, &A),
-) -> Harness<'static, Rig<A>> {
-    harness_timed(size, 1.0, step_dt, base_text, app, view, prepare)
-}
-
 pub fn harness_scaled<A>(
     size: Vec2,
     pixels_per_point: f32,
@@ -334,7 +309,6 @@ fn harness_timed<A>(
     let rig = Rig {
         page: Page::default(),
         companion: Companion::default(),
-        reduced_motion: ReducedMotion::No,
         bar: Bar::new(base_text.clone()),
         layout: LayoutState::new().with_base_text(base_text),
         app,
@@ -342,7 +316,6 @@ fn harness_timed<A>(
         prepare,
         nodes: Vec::new(),
         ids: Vec::new(),
-        observe: None,
     };
     Harness::builder()
         .with_size(size)
@@ -355,7 +328,6 @@ fn harness_timed<A>(
                 let Rig {
                     page,
                     companion,
-                    reduced_motion,
                     bar,
                     layout,
                     app,
@@ -363,11 +335,8 @@ fn harness_timed<A>(
                     prepare,
                     nodes,
                     ids,
-                    observe,
                 } = rig;
-                if *reduced_motion == ReducedMotion::No {
-                    full_motion(ui.ctx());
-                }
+                full_motion(ui.ctx());
                 if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                     eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
                 }
@@ -389,9 +358,6 @@ fn harness_timed<A>(
                     .nodes()
                     .filter_map(|node| Some((node.path().to_owned(), node.id()?)))
                     .collect();
-                if let Some(observe) = observe {
-                    observe(&placed);
-                }
                 placed.draw(app, ui);
             },
             rig,
@@ -416,19 +382,6 @@ pub fn id_of<S: Seen>(seen: &S, path: &str) -> egui::Id {
         .into_iter()
         .find_map(|(candidate, _, id)| (candidate == path).then_some(id).flatten())
         .unwrap_or_else(|| panic!("no identified node {path}"))
-}
-
-/// Presses at `from`, moves to `to` in two steps and releases there.
-pub fn drag<A>(harness: &mut Harness<'_, Rig<A>>, from: Pos2, to: Pos2) {
-    hover_over(harness, from);
-    harness.drag_at(from);
-    harness.step();
-    harness.hover_at(from.lerp(to, 0.5));
-    harness.step();
-    harness.hover_at(to);
-    harness.step();
-    harness.drop_at(to);
-    harness.run_steps(3);
 }
 
 pub fn hover_over<A>(harness: &mut Harness<'_, Rig<A>>, at: Pos2) {

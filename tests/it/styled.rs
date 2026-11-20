@@ -20,7 +20,8 @@ fn table(b: &mut Builder<'_, '_, ()>, key: &'static str) {
     b.table(key)
         .columns([Column::new(Track::auto())])
         .header(|h| h.cell_text("Head"))
-        .rows(&[1], |row| *row, |cells, _| cells.cell_text("Body"));
+        .rows(&[1], |row| *row, |cells, _| cells.cell_text("Body"))
+        .add();
 }
 
 fn spans() -> Spans {
