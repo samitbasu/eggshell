@@ -7,11 +7,11 @@ use std::rc::Rc;
 
 use egui::{Role, Vec2};
 
-use super::Mark;
 use super::{
     Enablement, Gate, IntoTip, OnResponse, Unset, choice_label, choice_row, described, flip,
     options,
 };
+use super::{Mark, SwitchPart};
 use crate::builder::Slot;
 use crate::contract::Size;
 use crate::focus::{Autofocus, Select};
@@ -223,16 +223,28 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = b.style().clone();
         let switch = &style.switch;
-        let metrics = *switch.sizes.lookup(b.ctx(), b.size_of(size));
-        let track = track.unwrap_or(metrics.track);
-        let on = mark == Mark::On;
+        let size = b.size_of(size);
+        let metrics = *switch.sizes.lookup(b.ctx(), size);
+        let size = switch.sizes.key_for(size);
+        let thumb_scale = track.map_or(1.0, |track| track.y / metrics.track.y);
+        let thumb = |b: &mut Builder<'_, '_, A>, mark| {
+            let classes =
+                b.resolved_part(SwitchPart::Thumb, &SwitchPart::keys(size, mark, enablement));
+            let diameter = classes.style().size.width.into_raw().value() * thumb_scale;
+            let fill = classes
+                .paint
+                .background
+                .unwrap_or(egui::Color32::TRANSPARENT);
+            (diameter, fill)
+        };
+        let ((thumb_off, fill_off), (thumb_on, fill_on)) =
+            (thumb(&mut b, Mark::Off), thumb(&mut b, Mark::On));
         let slide = switch.slide;
-        let target = if on { Progress::END } else { Progress::START };
-        let thumb_scale = track.y / metrics.track.y;
-        let (thumb_off, thumb_on) = (
-            metrics.thumb_off * thumb_scale,
-            metrics.thumb_on * thumb_scale,
-        );
+        let target = if mark == Mark::On {
+            Progress::END
+        } else {
+            Progress::START
+        };
         let name = name.unwrap_or_default();
         b.claim(&slot);
         b.scope_with(&slot, |b| {
@@ -244,23 +256,39 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 slide,
                 Easing::Default,
             );
-            let look = switch.off.towards(switch.on, tint);
-            let thumb_color = enablement.colors(look.states, &style).text;
-            let classes = look
-                .classes(
-                    switch.border_width,
-                    &style,
-                    u8::MAX,
-                    enablement,
-                    switch.transition,
-                )
-                .flex()
-                .items_center()
-                .shrink_0()
-                .w_px(track.x)
-                .h_px(track.y);
+            let own = match track {
+                Some(track) => tw().w_px(track.x).h_px(track.y),
+                None => tw(),
+            };
+            let own = match tint == target {
+                true => own,
+                false => {
+                    let [off, on] = [Mark::Off, Mark::On].map(|mark| {
+                        let classes = b.resolved_part(
+                            SwitchPart::Root,
+                            &SwitchPart::keys(size, mark, enablement),
+                        );
+                        (classes.paint.background, classes.paint.border_colors.top)
+                    });
+                    let t = f32::from(tint);
+                    let mix = |off: Option<egui::Color32>, on: Option<egui::Color32>| {
+                        let clear = egui::Color32::TRANSPARENT;
+                        off.unwrap_or(clear).lerp_to_gamma(on.unwrap_or(clear), t)
+                    };
+                    let (fill, border) = (mix(off.0, on.0), mix(off.1, on.1));
+                    own.bg(fill)
+                        .border_color(border)
+                        .hover(|p| p.bg(fill).border_color(border))
+                        .active(|p| p.bg(fill).border_color(border))
+                }
+            };
+            let classes = b.part(
+                SwitchPart::Root,
+                &SwitchPart::keys(size, mark, enablement),
+                own,
+            );
             let row = choice_row(
-                &style,
+                b,
                 &style.role_sized(&switch.text, metrics.text),
                 enablement,
                 switch.gap,
@@ -278,6 +306,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                             Easing::Default,
                         ));
                         let diameter = thumb_off + (thumb_on - thumb_off) * t;
+                        let thumb_color = fill_off.lerp_to_gamma(fill_on, t);
                         let inset = rect.height() / 2.0;
                         let x = egui::lerp(rect.left() + inset..=rect.right() - inset, t);
                         painter.circle_filled(

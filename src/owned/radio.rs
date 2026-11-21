@@ -4,12 +4,12 @@ use std::rc::Rc;
 
 use egui::Role;
 
-use super::Mark;
 use super::choice::{self, Choice, IntoChoice};
 use super::{
     Enablement, Gate, IntoTip, OnResponse, announce_group, choice_label, choice_row, described,
     options, tip_describes, tipped_whole,
 };
+use super::{Mark, RadioGroupPart};
 use crate::builder::Slot;
 use crate::contract::Size;
 use crate::focus::{Autofocus, Select};
@@ -171,8 +171,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
         let (enablement, group_tip) = gate.resolve(&mut b, slot.id, enablement);
         let style = b.style().clone();
         let radio = &style.radio;
-        let metrics = *radio.sizes.lookup(b.ctx(), b.size_of(size));
-        let group = tw().flex().flex_col().gap(3.0).merge(classes);
+        let size = b.size_of(size);
+        let metrics = *radio.sizes.lookup(b.ctx(), size);
+        let size = radio.sizes.key_for(size);
+        let group = b.part(RadioGroupPart::Root, &[], classes);
         let group = match &group_tip {
             Some(_) => group.sense_hover(),
             None => group,
@@ -192,59 +194,50 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
 
                 let group_tip = group_tip.clone();
                 let chosen = value == current;
-                let look = if chosen { &radio.on } else { &radio.off };
-                let circle = look.indicator(
-                    radio.border_width,
-                    &style,
-                    u8::MAX,
-                    enablement,
-                    radio.transition,
-                    metrics.size,
-                );
+                let keys = RadioGroupPart::item_keys(size, Mark::from(chosen), enablement);
+                let circle = b.part(RadioGroupPart::Item, &keys, tw());
                 let on_response = on_response.clone();
                 let (on_circle, on_label) = (select.clone(), select.clone());
-                let dot = metrics.dot;
-                b.div(
-                    choice_row(
-                        &style,
-                        &style.role_sized(&radio.text, metrics.text),
-                        enablement,
-                        metrics.gap,
-                    ),
-                    |b| {
-                        b.div_id(Part::Circle(index), circle, |b| {
-                            if chosen {
-                                b.paint(tw().size_px(dot), |painter, rect, color| {
-                                    painter.circle_filled(rect.center(), rect.width() / 2.0, color);
-                                });
-                            }
-                        })
-                        .role(Role::RadioButton)
-                        .open_focus(autofocus.open_focus())
-                        .draw(move |app, ui| {
-                            let response = described(ui, Role::RadioButton, None, "", &tooltip);
-                            autofocus.apply(ui.ctx(), &response);
-                            if tooltip.is_none() {
-                                tip_describes(ui, &response, &group_tip);
-                            }
-                            if response.clicked() || crate::nav::take_activation(ui, response.id) {
-                                on_circle(app, value);
-                            }
-                            on_response.run(app, &response);
-                        })
-                        .selected(Mark::from(chosen));
-                        choice_label(
-                            b,
-                            Part::Label(index),
-                            control,
-                            label,
-                            enablement,
-                            move |app| {
-                                on_label(app, value);
-                            },
-                        );
-                    },
+                let row = choice_row(
+                    b,
+                    &style.role_sized(&radio.text, metrics.text),
+                    enablement,
+                    metrics.gap,
                 );
+                b.div(row, |b| {
+                    b.div_id(Part::Circle(index), circle, |b| {
+                        if chosen {
+                            let dot = b.part(RadioGroupPart::Indicator, &keys, tw());
+                            b.paint(dot, |painter, rect, color| {
+                                painter.circle_filled(rect.center(), rect.width() / 2.0, color);
+                            });
+                        }
+                    })
+                    .role(Role::RadioButton)
+                    .open_focus(autofocus.open_focus())
+                    .draw(move |app, ui| {
+                        let response = described(ui, Role::RadioButton, None, "", &tooltip);
+                        autofocus.apply(ui.ctx(), &response);
+                        if tooltip.is_none() {
+                            tip_describes(ui, &response, &group_tip);
+                        }
+                        if response.clicked() || crate::nav::take_activation(ui, response.id) {
+                            on_circle(app, value);
+                        }
+                        on_response.run(app, &response);
+                    })
+                    .selected(Mark::from(chosen));
+                    choice_label(
+                        b,
+                        Part::Label(index),
+                        control,
+                        label,
+                        enablement,
+                        move |app| {
+                            on_label(app, value);
+                        },
+                    );
+                });
             }
         })
         .nav(Nav::Radio(Wrap::Around))
