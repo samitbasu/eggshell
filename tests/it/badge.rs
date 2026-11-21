@@ -116,7 +116,7 @@ fn backspace_does_nothing_to_a_chip_without_focus() {
 #[test]
 fn a_hovered_chip_takes_its_variants_hover_fill() {
     let mut d = harness(chips, App::default());
-    let style = BadgeStyle::of(d.ctx());
+    let style = d.shell().style().extension::<BadgeStyle>();
     let states = style
         .variants
         .get(style.variants.default_key())
@@ -149,7 +149,7 @@ fn badges(b: &mut Builder<'_, '_, App>, _: &App) {
 #[test]
 fn each_badge_variant_draws_its_styles_rest_colours() {
     let d = harness(badges, App::default());
-    let style = BadgeStyle::of(d.ctx());
+    let style = d.shell().style().extension::<BadgeStyle>();
     assert_eq!(style.height, 20.0, "precondition: the preset's style, h-5");
     for variant in VARIANTS {
         assert!(
@@ -180,7 +180,7 @@ fn a_variant_the_style_lacks_is_reported_and_drawn_as_the_default() {
     }
     let mut d = harness(view, App::default());
     d.expect_reported(Problem::MissingStyleEntry);
-    let style = BadgeStyle::of(d.ctx());
+    let style = d.shell().style().extension::<BadgeStyle>();
     let default = style.variants.get(style.variants.default_key());
     let drawn = box_at(&d, d.rect(Target::suffix("/\"odd\"")));
     assert_eq!(drawn.fill, default.paint.states.rest.fill);

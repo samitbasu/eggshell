@@ -179,8 +179,8 @@ impl<'f, A: 'static, K: Key> SectionChain<'_, '_, 'f, A, K, OnChange<A>> {
             membership,
             header_children,
         } = self;
-        let ctx = b.ctx().clone();
-        let style = DisclosureStyle::of(&ctx);
+        let _ctx = b.ctx().clone();
+        let style = b.style().extension::<DisclosureStyle>();
         let enablement = enablement_in(b, enablement);
         let name = name_of(&face).to_owned();
         let header = Header {

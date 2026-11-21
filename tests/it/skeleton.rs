@@ -89,7 +89,7 @@ fn the_preset_gives_the_skeleton_shadcns_look() {
 fn a_skeleton_pulses_from_full_fill_down_to_half() {
     let mut d = harness(App, Animation::Full);
     assert_eq!(
-        SkeletonStyle::of(d.ctx()).fill,
+        d.shell().style().extension::<SkeletonStyle>().fill,
         muted(),
         "precondition: the preset's"
     );

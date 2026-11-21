@@ -36,7 +36,7 @@ impl Default for Settings {
 /// </div>
 /// ```
 pub fn layout<'f>(b: &mut Builder<'_, 'f, Settings>, settings: &'f Settings) {
-    let gap = FormStyle::of(b.ctx()).section_gap;
+    let gap = b.style().extension::<FormStyle>().section_gap;
     b.div_id(
         "Page",
         tw().flex().flex_col().gap(gap / 4.0).p(4.0).w_px(420.0),

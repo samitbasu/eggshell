@@ -1,9 +1,7 @@
 //! How form sections and labelled rows look.
 
-use std::sync::Arc;
-
 use eggshell_ui::{Style, TextSpec, Weight};
-use egui::{Color32, Context, Theme};
+use egui::Color32;
 
 /// TODO(prose): the look of [`form_section`](super::FormExt::form_section)s
 /// and their [`labeled`](super::FormExt::labeled) rows. Lengths are in
@@ -12,11 +10,11 @@ use egui::{Color32, Context, Theme};
 /// ```
 /// use eggshell_ui_extras::form::FormStyle;
 ///
-/// let ctx = egui::Context::default();
-/// let mut style = (*FormStyle::of(&ctx)).clone();
-/// style.radius = 4;
-/// style.install_for(&ctx, ctx.theme());
-/// assert_eq!(FormStyle::of(&ctx).radius, 4);
+/// let mut style = eggshell_ui::Style::default();
+/// let mut look = (*style.extension::<FormStyle>()).clone();
+/// look.radius = 4;
+/// style.set_extension(look);
+/// assert_eq!(style.extension::<FormStyle>().radius, 4);
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -60,6 +58,12 @@ pub struct FormStyle {
     pub section_gap: f32,
 }
 
+impl eggshell_ui::contract::Extension for FormStyle {
+    fn derive(style: &Style) -> Self {
+        Self::from_style(style)
+    }
+}
+
 impl FormStyle {
     /// TODO(prose): a form in `style`'s colours: the menu's surface as the
     /// box, the table's rule as its border and rules, a control's height as
@@ -90,17 +94,5 @@ impl FormStyle {
             value_color: style.slider.readout.rest.text,
             section_gap: 24.0,
         }
-    }
-
-    /// TODO(prose): the form style installed for the context's theme, else
-    /// [`from_style`](Self::from_style) of its [`Style`].
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        crate::styles::of(ctx, Self::from_style)
-    }
-
-    /// TODO(prose): makes `self` the form style of `ctx` while its theme is
-    /// `theme`.
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        crate::styles::install_for(self, ctx, theme);
     }
 }

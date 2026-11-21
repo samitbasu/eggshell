@@ -1,11 +1,9 @@
 //! How badges and chips look.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use eggshell_ui::contract::{Keyed, Look, Variant};
 use eggshell_ui::{Opacity, Style, TextSpec, Weight};
-use egui::{Context, Theme};
 
 /// TODO(prose): the look of [`badge`](super::BadgeExt::badge)s and
 /// [`chip`](super::BadgeExt::chip)s, one visual family: a chip is a badge
@@ -14,11 +12,11 @@ use egui::{Context, Theme};
 /// ```
 /// use eggshell_ui_extras::badge::BadgeStyle;
 ///
-/// let ctx = egui::Context::default();
-/// let mut style = (*BadgeStyle::of(&ctx)).clone();
-/// style.height = 24.0;
-/// style.install_for(&ctx, ctx.theme());
-/// assert_eq!(BadgeStyle::of(&ctx).height, 24.0);
+/// let mut style = eggshell_ui::Style::default();
+/// let mut look = (*style.extension::<BadgeStyle>()).clone();
+/// look.height = 24.0;
+/// style.set_extension(look);
+/// assert_eq!(style.extension::<BadgeStyle>().height, 24.0);
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -61,6 +59,12 @@ pub struct RemoveStyle {
     pub hover: Opacity,
 }
 
+impl eggshell_ui::contract::Extension for BadgeStyle {
+    fn derive(style: &Style) -> Self {
+        Self::from_style(style)
+    }
+}
+
 impl BadgeStyle {
     /// TODO(prose): a badge in the style's default button look, in 12 pt
     /// medium text.
@@ -88,17 +92,5 @@ impl BadgeStyle {
                 hover: Opacity::new(1.0),
             },
         }
-    }
-
-    /// TODO(prose): the badge style installed for the context's theme, else
-    /// [`from_style`](Self::from_style) of its [`Style`].
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        crate::styles::of(ctx, Self::from_style)
-    }
-
-    /// TODO(prose): makes `self` the badge style of `ctx` while its theme is
-    /// `theme`.
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        crate::styles::install_for(self, ctx, theme);
     }
 }

@@ -1,11 +1,10 @@
 //! How section headers and disclosure buttons look.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use eggshell_ui::contract::Focus;
 use eggshell_ui::{Angle, Icon, Opacity, Style, TextSpec, Weight, icons};
-use egui::{Color32, Context, Theme};
+use egui::Color32;
 
 /// TODO(prose): the look of [`section`](super::SectionExt::section) headers
 /// and [`disclosure`](super::DisclosureExt::disclosure) buttons, one
@@ -15,11 +14,11 @@ use egui::{Color32, Context, Theme};
 /// ```
 /// use eggshell_ui_extras::disclosure::DisclosureStyle;
 ///
-/// let ctx = egui::Context::default();
-/// let mut style = (*DisclosureStyle::of(&ctx)).clone();
-/// style.header.padding_y = 8.0;
-/// style.install_for(&ctx, ctx.theme());
-/// assert_eq!(DisclosureStyle::of(&ctx).header.padding_y, 8.0);
+/// let mut style = eggshell_ui::Style::default();
+/// let mut look = (*style.extension::<DisclosureStyle>()).clone();
+/// look.header.padding_y = 8.0;
+/// style.set_extension(look);
+/// assert_eq!(style.extension::<DisclosureStyle>().header.padding_y, 8.0);
 /// ```
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -103,6 +102,12 @@ pub enum Hover {
     None,
 }
 
+impl eggshell_ui::contract::Extension for DisclosureStyle {
+    fn derive(style: &Style) -> Self {
+        Self::from_style(style)
+    }
+}
+
 impl DisclosureStyle {
     /// TODO(prose): headers in the style's text, medium, with a muted
     /// `chevron-down` that turns over trailing a section's title and a
@@ -134,17 +139,5 @@ impl DisclosureStyle {
             button_hover: None,
             separator: Some(style.table.rule),
         }
-    }
-
-    /// TODO(prose): the disclosure style installed for the context's theme,
-    /// else [`from_style`](Self::from_style) of its [`Style`].
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        crate::styles::of(ctx, Self::from_style)
-    }
-
-    /// TODO(prose): makes `self` the disclosure style of `ctx` while its
-    /// theme is `theme`.
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        crate::styles::install_for(self, ctx, theme);
     }
 }

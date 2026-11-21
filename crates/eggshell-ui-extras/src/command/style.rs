@@ -1,10 +1,8 @@
 //! How a command list, a combobox's list and an autosuggest's look beyond the
 //! menu they are built from.
 
-use std::sync::Arc;
-
 use eggshell_ui::Style;
-use egui::{Color32, Context, Theme};
+use egui::Color32;
 
 /// TODO(prose): the look of the rows and the box of a command list, and of
 /// the lists of a combobox and an autosuggest.
@@ -20,6 +18,12 @@ pub struct CommandStyle {
     pub list_height: f32,
 }
 
+impl eggshell_ui::contract::Extension for CommandStyle {
+    fn derive(style: &Style) -> Self {
+        Self::from_style(style)
+    }
+}
+
 impl CommandStyle {
     /// TODO(prose): the menu item's highlight, and a list `max-h-72` tall.
     pub fn from_style(style: &Style) -> Self {
@@ -29,17 +33,5 @@ impl CommandStyle {
             selected_text: hover.text,
             list_height: 288.0,
         }
-    }
-
-    /// TODO(prose): the command style installed for the context's theme, else
-    /// [`from_style`](Self::from_style) of its [`Style`].
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        crate::styles::of(ctx, Self::from_style)
-    }
-
-    /// TODO(prose): makes `self` the command style of `ctx` while its theme
-    /// is `theme`.
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        crate::styles::install_for(self, ctx, theme);
     }
 }

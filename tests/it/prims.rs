@@ -515,6 +515,7 @@ fn a_bare_field_is_as_tall_as_the_text_it_replaces() {
     let placed = Headless::new(vec2(400.0, 300.0))
         .theme(Theme::Light)
         .prepare(Shadcn::apply_both)
+        .style(crate::support::shadcn())
         .base_text(TextStyle::new(tokens.text_role(), tokens.foreground))
         .layout(&(), |b, _| {
             b.div(tw().flex().flex_col().w_px(120.0), |b| {

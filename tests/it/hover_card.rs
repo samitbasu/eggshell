@@ -74,22 +74,18 @@ fn shown(d: &Driver<App>, card: &str) -> Option<egui::Rect> {
 }
 
 #[test]
-fn the_shadcn_preset_installs_shadcns_hover_card() {
+fn the_shadcn_preset_gives_shadcns_hover_card() {
     let d = harness();
-    let installed = HoverCardStyle::of(d.ctx());
+    let given = d.shell().style().extension::<HoverCardStyle>();
     let preset = Shadcn::of(d.ctx());
-    assert_eq!(*installed, preset.hover_card());
-    assert_eq!(installed.width, 256.0, "w-64");
-    assert_eq!(installed.padding, 16.0, "p-4");
-    assert_eq!(installed.radius, preset.tokens.radius, "rounded-lg");
-    assert_eq!(
-        installed.transition,
-        Duration::from_millis(100),
-        "duration-100"
-    );
-    assert_eq!(installed.open_delay, Duration::from_millis(700));
-    assert_eq!(installed.close_delay, Duration::from_millis(300));
-    let colors = installed.look.paint.states.rest;
+    assert_eq!(*given, preset.hover_card());
+    assert_eq!(given.width, 256.0, "w-64");
+    assert_eq!(given.padding, 16.0, "p-4");
+    assert_eq!(given.radius, preset.tokens.radius, "rounded-lg");
+    assert_eq!(given.transition, Duration::from_millis(100), "duration-100");
+    assert_eq!(given.open_delay, Duration::from_millis(700));
+    assert_eq!(given.close_delay, Duration::from_millis(300));
+    let colors = given.look.paint.states.rest;
     assert_eq!(colors.fill, preset.tokens.popover);
     assert_eq!(colors.text, preset.tokens.popover_foreground);
     assert_eq!(colors.border, preset.tokens.border);
