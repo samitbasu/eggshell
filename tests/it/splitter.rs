@@ -316,7 +316,7 @@ mod keys {
         tab_to(&mut d, LEFT);
         d.frames(12);
         let ring = ring_at(&d).expect("a ring inside the hit area");
-        let focus = Shadcn::for_theme(Theme::Light).style().focus();
+        let focus = Shadcn::for_theme(Theme::Light).style().tokens.focus;
         assert_eq!(
             (ring.stroke.width, ring.stroke.color),
             (focus.width, focus.color)

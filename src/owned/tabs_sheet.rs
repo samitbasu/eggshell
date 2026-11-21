@@ -6,7 +6,7 @@
 //! shadcn's `cn-tabs*` replace them.
 
 use crate::TextSpec;
-use crate::contract::{Disabled, Focus, SegmentedStyle, Size, Variant};
+use crate::contract::{Disabled, SegmentedStyle, Size, Variant};
 use crate::sheet::{Key, Part, Sheet, When};
 use crate::{Aria, Builder, Match};
 
@@ -122,25 +122,21 @@ pub(crate) struct Roles {
 }
 
 /// Writes the rules that draw `segmented`'s look at the sheet's current layer.
-pub(crate) fn write_rules(
-    sheet: &mut Sheet,
-    segmented: &SegmentedStyle,
-    roles: Vec<Roles>,
-    (focus, disabled): (Focus, Disabled),
-) {
+pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle, roles: Vec<Roles>) {
     let wrapping = When::always().attr(WRAPPING.0, WRAPPING.1);
     let one_row = When::always().not_attr(WRAPPING.0, WRAPPING.1);
     sheet.rule(TabsPart::Root, |t, _| t.flex().flex_col().gap(2.0));
     sheet.rule(TabsPart::Content, |t, _| t.flex_1());
     sheet.rule_when(TabsPart::Trigger, one_row, |t, _| t.h_full());
     sheet.rule_when(TabsPart::Trigger, wrapping, |t, _| t.h_auto());
-    if let Disabled::Faded(opacity) = disabled {
-        sheet.rule_when(
-            TabsPart::List,
-            When::always().aria(Aria::Disabled),
-            move |t, _| t.opacity(opacity),
-        );
-    }
+    sheet.rule_when(
+        TabsPart::List,
+        When::always().aria(Aria::Disabled),
+        |t, k| match k.disabled {
+            Disabled::Faded(opacity) => t.opacity(opacity),
+            Disabled::Colors => t,
+        },
+    );
     let fill = segmented.track_fill;
     let (width, transition) = (segmented.cell_border_width, segmented.transition);
     for Roles {
@@ -180,10 +176,10 @@ pub(crate) fn write_rules(
                     Enablement::Disabled => when.aria(Aria::Disabled),
                 };
                 let role = role.clone();
-                sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
+                sheet.rule_when(TabsPart::Trigger, when, move |t, k| {
                     let look = paint.classes_in(
                         width,
-                        (focus, disabled),
+                        (k.focus, k.disabled),
                         metrics.cell_radius,
                         enablement,
                         transition,

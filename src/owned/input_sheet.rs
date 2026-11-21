@@ -7,7 +7,7 @@
 
 use egui::Color32;
 
-use crate::contract::{Colors, Disabled, Focus, InputStyle, Size};
+use crate::contract::{Colors, Disabled, InputStyle, Size, Tokens};
 use crate::sheet::{Key, Part, Sheet, When};
 use crate::{Aria, Tw};
 
@@ -76,12 +76,13 @@ fn painted(classes: Tw, colors: Colors) -> Tw {
 }
 
 /// Writes the rules that draw `input`'s look at the sheet's current layer.
-pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle, focus: Focus, disabled: Disabled) {
+pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle) {
     let look = input.look;
     let (states, shadow, width) = (look.paint.states, look.paint.shadow, look.border_width);
-    let ring = look.paint.focus.unwrap_or(focus);
+    let ring = move |k: &Tokens| look.paint.focus.unwrap_or(k.focus);
 
-    sheet.rule(InputPart::Root, move |t, _| {
+    sheet.rule(InputPart::Root, move |t, k| {
+        let ring = ring(k);
         painted(t.border(width), states.rest)
             .hover(|p| p.border_color(states.hover.border))
             .focus_within(|p| {
@@ -110,7 +111,8 @@ pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle, focus: Focus, d
     sheet.rule_when(
         InputGroupPart::Root,
         When::always().not_aria(Aria::Disabled),
-        move |t, _| {
+        move |t, k| {
+            let ring = ring(k);
             shadowed(painted(t, states.rest).focus_within(|p| {
                 p.border_color(states.focused.border)
                     .ring(ring.width, ring.color)
@@ -120,8 +122,8 @@ pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle, focus: Focus, d
     sheet.rule_when(
         InputGroupPart::Root,
         When::always().aria(Aria::Disabled),
-        move |t, _| {
-            let (colors, faded): (Colors, Option<crate::Opacity>) = match disabled {
+        move |t, k| {
+            let (colors, faded): (Colors, Option<crate::Opacity>) = match k.disabled {
                 Disabled::Colors => (states.disabled, None),
                 Disabled::Faded(opacity) => (states.rest, Some(opacity)),
             };
