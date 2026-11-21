@@ -2,7 +2,7 @@
 //!
 //! The build is `cargo build --target wasm32-unknown-unknown --example NAME`
 //! followed by the `wasm-bindgen` CLI (`--target web`), whose output plus a
-//! generated `index.html` land in `target/web/NAME/`. A std-only static
+//! generated `index.html` land in `web/NAME/` under cargo's target directory. A std-only static
 //! server, in this process, serves that directory until Ctrl+C. Nothing is
 //! spawned that outlives xtask, and the build children run in process groups
 //! it ends itself.
@@ -30,8 +30,8 @@ pub fn run(plan: &Plan) -> Result<()> {
     let root = process::workspace_root();
     ensure_example_exists(&root, &plan.example)?;
     ensure_wasm_bindgen(&root)?;
-    let out_dir = root.join("target/web").join(&plan.example);
-    build(&root, plan, &out_dir)?;
+    let out_dir = process::target_dir().join("web").join(&plan.example);
+    build(plan, &out_dir)?;
     serve(&out_dir, plan.port)
 }
 
@@ -77,7 +77,7 @@ fn ensure_wasm_bindgen(root: &Path) -> Result<()> {
     Ok(())
 }
 
-fn build(root: &Path, plan: &Plan, out_dir: &Path) -> Result<()> {
+fn build(plan: &Plan, out_dir: &Path) -> Result<()> {
     let (profile_flag, profile_dir) = match plan.profile {
         Profile::Debug => (None, "debug"),
         Profile::Release => (Some("--release"), "release"),
@@ -86,8 +86,7 @@ fn build(root: &Path, plan: &Plan, out_dir: &Path) -> Result<()> {
     args.extend(profile_flag);
     Step::cargo("wasm build", &args).run()?;
 
-    let wasm = root
-        .join("target")
+    let wasm = process::target_dir()
         .join(WASM_TARGET)
         .join(profile_dir)
         .join("examples")
