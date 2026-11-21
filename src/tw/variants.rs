@@ -550,6 +550,7 @@ impl VariantData {
 impl Tw {
     /// Sets the variant `slot` selects to `style` applied to it, unless that
     /// gives it a length that is not finite.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn variant(
         mut self,
         slot: fn(&mut VariantData) -> &mut Option<Paint>,
@@ -599,41 +600,60 @@ impl Tw {
     /// node above it, or over a sensing descendant, as `:hover` is in CSS.
     /// Implies [`sense_hover`](Self::sense_hover).
     /// `style` receives the paint set so far, so calls accumulate.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn hover(self, style: impl FnOnce(Paint) -> Paint) -> Self {
         let mut tw = self.variant(|variants| &mut variants.hover, style);
         tw.sensing = tw.sensing.or(Sensing::Hover);
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantHover);
         tw
     }
 
     /// `active:`. The primary button is held on the node. Implies at least
     /// [`sense_click`](Self::sense_click).
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn active(self, style: impl FnOnce(Paint) -> Paint) -> Self {
         let mut tw = self.variant(|variants| &mut variants.active, style);
         tw.sensing = tw.sensing.pressable();
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantActive);
         tw
     }
 
     /// `group-hover:`. The nearest ancestor marked [`group`](Self::group) is
     /// hovered.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn group_hover(self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variant(|variants| &mut variants.group_hover, style)
+        #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+        let mut tw = self.variant(|variants| &mut variants.group_hover, style);
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantGroupHover);
+        tw
     }
 
     /// `focus-visible:`. The node has keyboard focus. Implies at least
     /// [`sense_click`](Self::sense_click), which makes the node a Tab stop
     /// (see [`focusable_none`](Self::focusable_none)). egui does not give
     /// focus to a node on a click, so this is `focus-visible`, not `focus`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn focus(self, style: impl FnOnce(Paint) -> Paint) -> Self {
         let mut tw = self.variant(|variants| &mut variants.focus, style);
         tw.sensing = tw.sensing.pressable();
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantFocus);
         tw
     }
 
     /// `focus-within:`. The node, or a widget its draw closure or a
     /// descendant's registered, has keyboard focus. Needs an identified node
     /// but no sense. Widgets that appear this frame count from the next one.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn focus_within(self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variant(|variants| &mut variants.focus_within, style)
+        #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+        let mut tw = self.variant(|variants| &mut variants.focus_within, style);
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantFocusWithin);
+        tw
     }
 
     /// A drag that the node's [`drop_target`](crate::NodeHandle::drop_target)s
@@ -641,8 +661,13 @@ impl Tw {
     /// a drag light up. Known for in-app drags and, for files dragged in from
     /// outside, from the moment they hover over the window. Needs an
     /// identified node.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn drag_accepts(self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variant(|variants| &mut variants.drag_accepts, style)
+        #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+        let mut tw = self.variant(|variants| &mut variants.drag_accepts, style);
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantDragAccepts);
+        tw
     }
 
     /// [`drag_accepts`](Self::drag_accepts), and the drag is over this
@@ -651,8 +676,13 @@ impl Tw {
     /// the platform gives no pointer position (winit 0.30): nothing is shown
     /// as targeted on a guess. Of nested targets, only the innermost one that
     /// takes the drag is over.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn drag_over(self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variant(|variants| &mut variants.drag_over, style)
+        #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+        let mut tw = self.variant(|variants| &mut variants.drag_over, style);
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantDragOver);
+        tw
     }
 
     /// The node is the source of the drag in progress. With
@@ -661,8 +691,13 @@ impl Tw {
     /// is the look of the node in its slot. The slot of a live image is not
     /// painted by the node, since the node has left it: style a node around
     /// it from [`Builder::dragging`](crate::Builder::dragging).
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn drag_lifted(self, style: impl FnOnce(Paint) -> Paint) -> Self {
-        self.variant(|variants| &mut variants.drag_lifted, style)
+        #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+        let mut tw = self.variant(|variants| &mut variants.drag_lifted, style);
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantDragLifted);
+        tw
     }
 
     /// Leaves a sensing node out of keyboard navigation, like a splitter

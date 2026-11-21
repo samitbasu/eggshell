@@ -409,6 +409,9 @@ type Resolved = Vec<(Box<[Key]>, Tw)>;
 #[derive(Default)]
 pub(crate) struct Memo {
     sheets: HashMap<u64, HashMap<PartKey, Resolved>>,
+    /// Whether what is kept was resolved while tracing.
+    #[cfg(debug_assertions)]
+    traced: bool,
 }
 
 impl Memo {
@@ -417,6 +420,11 @@ impl Memo {
 
     /// [`Sheet::resolve`], and whether it was resolved now rather than found.
     pub(crate) fn resolve<P: Part>(&mut self, sheet: &Sheet, part: P, keys: &[Key]) -> (Tw, bool) {
+        #[cfg(debug_assertions)]
+        if self.traced != crate::tw::tracing() {
+            self.sheets.clear();
+            self.traced = crate::tw::tracing();
+        }
         if self.sheets.len() >= Self::SHEETS && !self.sheets.contains_key(&sheet.version) {
             self.sheets.clear();
         }

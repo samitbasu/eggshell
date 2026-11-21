@@ -993,6 +993,38 @@ impl<A: 'static> Driver<A> {
         }
     }
 
+    /// TODO(prose): why the node `target` names has the value it has for `property`:
+    /// the class that set it and the classes it beat. It pins the node and runs a
+    /// frame, so the build keeps what lost, then unpins it. `None` when no class set
+    /// the property. Debug builds only.
+    ///
+    /// # Panics
+    ///
+    /// If `target` is not one node.
+    #[cfg(debug_assertions)]
+    #[track_caller]
+    #[expect(clippy::panic, reason = "an assertion fails the test")]
+    pub fn why(
+        &mut self,
+        target: impl Into<Target>,
+        property: crate::Property,
+    ) -> Option<crate::Why> {
+        let target = target.into();
+        let path = match resolve_node(self.frame(), &target) {
+            Ok(index) => self
+                .frame()
+                .nodes
+                .get(index)
+                .map(|node| node.path().to_owned()),
+            Err(miss) => panic!("{miss}"),
+        }?;
+        crate::Debug::pin(self.ctx(), Some(path.clone()));
+        self.frames(1);
+        let why = self.frame().why(&path, property);
+        crate::Debug::pin(self.ctx(), None);
+        why
+    }
+
     /// TODO(prose): [`rect`](Self::rect), or `None` when no one node matches.
     pub fn find(&self, target: impl Into<Target>) -> Option<Rect> {
         self.resolve(&target.into()).ok()

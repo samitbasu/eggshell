@@ -128,6 +128,9 @@ pub(crate) struct Node {
     pub group: Option<crate::roving::Group>,
     /// For an item of a group, whether it is the chosen one.
     pub selection: Option<crate::owned::Mark>,
+    /// The class that set each of the node's properties, in debug builds.
+    #[cfg(debug_assertions)]
+    pub origins: Option<Box<crate::tw::Origins>>,
 }
 
 impl Node {
@@ -162,6 +165,8 @@ impl Node {
             pane: None,
             group: None,
             selection: None,
+            #[cfg(debug_assertions)]
+            origins: None,
         }
     }
 }
@@ -807,6 +812,8 @@ impl LayoutState {
         f: impl FnOnce(&mut Builder<'_, 'f, A>),
     ) -> Built<'f, A> {
         let _timer = Timer::start(ctx, Phase::Build);
+        #[cfg(debug_assertions)]
+        crate::tw::trace(crate::inspect::wants_trace(ctx));
         let own = self.st.kept.with(|kept| kept.style.is_some());
         give_egui_its_look(ctx, &self.st.kept);
         let style = crate::Shell::new(ctx, &self.st.kept).style();
@@ -1840,6 +1847,8 @@ fn collect(
         group: node.group,
         selection: node.selection,
         measured,
+        #[cfg(debug_assertions)]
+        origins: node.origins.take(),
     });
     let mut children = Vec::new();
     for child in tree.children(id) {
@@ -1983,6 +1992,9 @@ pub struct PlacedNode {
     /// width; recorded only while [`Debug::Outlines`] is set. The library's
     /// own leaves are measured when asked ([`PlacedFrame::overflowing`](crate::testing::PlacedFrame::overflowing)).
     pub(crate) measured: Option<egui::Vec2>,
+    /// The class that set each of the node's properties, in debug builds.
+    #[cfg(debug_assertions)]
+    origins: Option<Box<crate::tw::Origins>>,
 }
 
 impl PlacedNode {
@@ -2025,7 +2037,23 @@ impl PlacedNode {
             group: None,
             selection: None,
             measured: None,
+            #[cfg(debug_assertions)]
+            origins: None,
         }
+    }
+
+    /// TODO(prose): why the node has the value it has for `property`: the class that set it and, if the node was traced when it was built, those it beat. Debug builds only.
+    #[cfg(debug_assertions)]
+    pub fn why(&self, property: crate::Property) -> Option<crate::Why> {
+        self.origins.as_ref()?.get(property).cloned()
+    }
+
+    /// The properties with a recorded winner, in their own order.
+    #[cfg(debug_assertions)]
+    pub(crate) fn why_all(&self) -> Vec<(crate::Property, &crate::Why)> {
+        self.origins
+            .as_ref()
+            .map_or_else(Vec::new, |origins| origins.properties())
     }
 
     /// Moves the node by `by`: the content of a scroll container that was
@@ -2362,6 +2390,24 @@ impl PlacedFrame {
     /// The identified node with this id.
     pub fn node(&self, id: Id) -> Option<&PlacedNode> {
         self.nodes.get(*self.by_id.get(&id)?)
+    }
+
+    /// TODO(prose): why the node at the readable `path` has the value it has for `property`. The classes that lost are kept only for a node [pinned](crate::Debug::pin) the frame before. Debug builds only.
+    #[cfg(debug_assertions)]
+    pub fn why(&self, path: &str, property: crate::Property) -> Option<crate::Why> {
+        self.nodes
+            .iter()
+            .find(|node| node.path() == path)?
+            .why(property)
+    }
+
+    /// TODO(prose): the Computed-style table of the node at the readable `path`: each property a class set, the class that won it, and, for a node pinned the frame before, each it beat. It is what the debug overlay shows for a pinned node. Debug builds only.
+    #[cfg(debug_assertions)]
+    pub fn computed_style(&self, path: &str) -> Option<String> {
+        self.nodes
+            .iter()
+            .find(|node| node.path() == path)
+            .map(crate::inspect::table)
     }
 
     /// Every node, anonymous ones included, in pre-order.

@@ -1618,6 +1618,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             pane: None,
             group: None,
             selection: None,
+            #[cfg(debug_assertions)]
+            origins: tw.origins.clone(),
             interaction: Interaction {
                 sensing: tw.sensing,
                 focusability: tw.focusability,
@@ -1685,6 +1687,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         };
         node.paint = applied.paint;
         node.text_valign = VAlign::of(&applied.style);
+        #[cfg(debug_assertions)]
+        {
+            node.origins = applied.origins.clone();
+        }
         applied
     }
 
