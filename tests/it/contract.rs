@@ -68,7 +68,7 @@ fn a_layout_given_no_style_derives_one_from_egui_and_keeps_it() {
     let style = shell.style();
     let derived = Style::from_egui(&ctx.global_style());
     assert_eq!(style.button, derived.button);
-    assert_eq!(style.input, derived.input);
+    assert_eq!(style.input(), derived.input());
     assert_eq!(style.text, derived.text);
     assert_eq!(style.button, Style::default().button);
     assert!(Arc::ptr_eq(&style, &shell.style()), "no rebuild per call");
@@ -231,7 +231,7 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     use eggshell_ui::contract::{InputStyle, Look};
     let mut style = Style::default();
     let c = |n: u8| Color32::from_rgb(n, n, n);
-    let mut input = style.input.clone();
+    let mut input = style.input().clone();
     input.look = Look::new(eggshell_ui::contract::States {
         rest: eggshell_ui::contract::Colors {
             fill: c(10),
@@ -273,10 +273,10 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     );
     input.hint = Some(c(99));
     input.icon = c(55);
-    style.input = input;
+    style.set_input(input);
     style.selection.fill = c(77);
     style.selection.text = Some(c(88));
-    let _: &InputStyle = &style.input;
+    let _: &InputStyle = style.input();
 
     let mut egui_style = egui::Style::default();
     style.map_input(&mut egui_style, eggshell_ui::contract::Size::DEFAULT);
@@ -321,5 +321,25 @@ fn the_neutral_input_maps_to_egui_s_own_text_edit_style() {
     assert_eq!(
         original.spacing.interact_size.y,
         egui_style.spacing.interact_size.y
+    );
+}
+
+#[test]
+fn the_input_frame_is_drawn_from_the_sheets_rule() {
+    use eggshell_ui::owned::InputPart;
+    let mut style = Style::default();
+    style.sheet.as_app().rule(InputPart::Root, |t, _| {
+        t.bg(Color32::from_rgb(1, 2, 3))
+            .border_color(Color32::from_rgb(4, 5, 6))
+    });
+    let mut egui_style = egui::Style::default();
+    style.map_input(&mut egui_style, eggshell_ui::contract::Size::DEFAULT);
+    assert_eq!(
+        egui_style.visuals.text_edit_bg_color,
+        Some(Color32::from_rgb(1, 2, 3))
+    );
+    assert_eq!(
+        egui_style.visuals.widgets.inactive.bg_stroke.color,
+        Color32::from_rgb(4, 5, 6)
     );
 }

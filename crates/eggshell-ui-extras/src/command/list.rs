@@ -339,7 +339,7 @@ pub(crate) fn group_classes(style: &Style) -> Tw {
         .role(style.role(&select.text).clone())
         .has(Match::focus_visible(), |b| {
             b.border_color(states.focused.border)
-                .ring(style.focus.width, style.focus.color)
+                .ring(style.focus().width, style.focus().color)
         });
     match select.trigger.paint.shadow {
         Some(shadow) => classes.shadow(shadow),
@@ -369,7 +369,7 @@ pub(crate) fn end_button_classes(style: &Style) -> Tw {
 pub(crate) fn end_glyph_classes(style: &Style) -> Tw {
     tw().size_px(style.select.chevron)
         .shrink_0()
-        .text(style.input.icon)
+        .text(style.input().icon)
 }
 
 /// The classes of a command dialog's box.
@@ -530,7 +530,7 @@ fn search_field<A: 'static>(
     let menu = &style.menu;
     let rest = menu.popup.paint.states.rest;
     let tint = style
-        .input
+        .input()
         .look
         .paint
         .states

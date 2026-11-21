@@ -38,7 +38,7 @@ struct App {
 
 fn edit(style: &mut Style, ambient: Ambient) {
     if ambient == Ambient::InertFaded {
-        style.disabled = Disabled::Faded(Opacity::new(0.4));
+        style.set_disabled(Disabled::Faded(Opacity::new(0.4)));
     }
     let default = *style.segmented.sizes.get(Size::DEFAULT);
     style.segmented.sizes = style.segmented.sizes.clone().with(
