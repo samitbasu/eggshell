@@ -309,7 +309,7 @@ impl TextEdit {
                 edit = edit.margin(Margin::from(
                     Sizer::for_ui(ui)
                         .contract
-                        .input
+                        .input()
                         .sizes
                         .get(self.size)
                         .padding,
@@ -374,7 +374,7 @@ impl TextEdit {
     }
 
     fn inset_frame(sizer: &Sizer<'_>, size: ControlSize) -> Frame {
-        let padding = sizer.contract.input.sizes.get(size).padding;
+        let padding = sizer.contract.input().sizes.get(size).padding;
         Frame::NONE.inner_margin(Margin::from(vec2(padding.x, 0.0)))
     }
 
@@ -382,7 +382,7 @@ impl TextEdit {
     /// would be if the cap did not stop it.
     fn fit(&self, sizer: &Sizer<'_>, text: &str, width: Option<Width>) -> Fit {
         let spacing = &sizer.style.spacing;
-        let input = sizer.contract.input.sizes.get(self.size);
+        let input = sizer.contract.input().sizes.get(self.size);
         let (frame, floor) = match self.framing {
             Framing::Framed => (
                 Frame::new().inner_margin(Margin::from(input.padding)),
