@@ -1571,6 +1571,8 @@ pub struct Style {
     pub tones: Tones,
     /// TODO(prose): the design system's named values, from which egui's own look is set.
     pub tokens: Tokens,
+    /// TODO(prose): the classes of every widget's parts, by layer.
+    pub sheet: crate::sheet::Sheet,
     /// The widgets' own looks, beside the core-painted fields.
     extensions: Extensions,
 }
@@ -2181,6 +2183,7 @@ impl Style {
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
             tokens: Tokens::from_egui(egui),
+            sheet: crate::sheet::Sheet::defaults(),
             extensions: Extensions::default(),
         }
     }

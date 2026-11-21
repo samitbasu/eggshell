@@ -321,6 +321,8 @@ pub(crate) struct BuildState {
     pub observed: std::collections::HashMap<NodeId, crate::tw::Observed>,
     /// The rules containers declared this frame, by the index `Rules` holds.
     pub links: Vec<crate::tw::Link>,
+    /// What the style's sheet gave the parts built so far.
+    pub sheets: crate::sheet::Memo,
     pub names: ReadablePath,
     pub pass: Pass,
 }
@@ -348,6 +350,7 @@ impl BuildState {
             seen: Seen::default(),
             observed: std::collections::HashMap::new(),
             links: Vec::new(),
+            sheets: crate::sheet::Memo::default(),
             names: ReadablePath::default(),
             pass: Pass::Scratch,
         }
@@ -741,6 +744,7 @@ impl LayoutState {
                 seen: Seen::default(),
                 observed: std::collections::HashMap::new(),
                 links: Vec::new(),
+                sheets: crate::sheet::Memo::default(),
                 names: ReadablePath::default(),
                 pass: Pass::Live,
             },

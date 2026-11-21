@@ -1,6 +1,6 @@
 //! What a frame costs: build, layout and draw of plain trees at 100, 1,000
 //! and 5,000 nodes (#133), a page of buttons styled on each icon or by one
-//! rule on its container (#443), a virtual list's frame at 1,000 to 100,000 rows,
+//! rule on its container, or by a sheet (#443), a virtual list's frame at 1,000 to 100,000 rows,
 //! and the js-framework-benchmark operations on a virtual list (#54).
 //!
 //! `cargo bench --bench frame`; one group with `cargo bench --bench frame --
@@ -11,10 +11,13 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::{Cell, RefCell};
 use std::hint::black_box;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
-use eggshell_ui::{Builder, Icon, LayoutState, Match, icons, tw};
+use eggshell_ui::contract::Themed;
+use eggshell_ui::sheet::{Part, Sheet, When};
+use eggshell_ui::{Builder, Icon, LayoutState, Match, Style, icons, tw};
 use egui::{Context, Id, RawInput, Rect, pos2, vec2};
 
 /// Counts allocations, for the allocations-per-frame figures.
@@ -243,6 +246,80 @@ fn rules(c: &mut Criterion) {
     group.finish();
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct Button;
+
+impl Part for Button {
+    const SOURCE: &'static str = "button.tsx";
+
+    fn slot(self) -> &'static str {
+        "button"
+    }
+}
+
+fn button_classes() -> eggshell_ui::Tw {
+    tw().flex().items_center().gap(1.0).px(2.0)
+}
+
+/// Where a page of buttons keeps what every button shares.
+#[derive(Clone, Copy, Debug)]
+enum Keeping {
+    /// Built into each button's own classes.
+    Own,
+    /// In the style's sheet, resolved for each button.
+    Sheet,
+}
+
+impl Keeping {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Own => "own classes",
+            Self::Sheet => "sheet part",
+        }
+    }
+
+    fn style(self) -> Themed<Arc<Style>> {
+        let mut style = Style::default();
+        let mut sheet = Sheet::defaults();
+        sheet.rule(Button, When::always(), |_| button_classes());
+        style.sheet = sheet;
+        let style = Arc::new(style);
+        Themed {
+            light: style.clone(),
+            dark: style,
+        }
+    }
+
+    fn build(self, b: &mut Builder<'_, '_, ()>, buttons: usize) {
+        b.div(tw().flex().flex_wrap().gap(1.0).p(2.0), |b| {
+            for at in 0..buttons {
+                let classes = match self {
+                    Self::Own => button_classes(),
+                    Self::Sheet => b.part(Button, &[], tw()),
+                };
+                b.div(classes, |b| b.text(tw(), WORDS[at % WORDS.len()]));
+            }
+        });
+    }
+}
+
+fn sheets(c: &mut Criterion) {
+    let ctx = context();
+    let mut group = c.benchmark_group("sheet");
+    group.sample_size(30);
+    for keeping in [Keeping::Own, Keeping::Sheet] {
+        for buttons in [100, 1_000] {
+            let mut state = LayoutState::new().with_style(keeping.style());
+            let view = |b: &mut Builder<'_, '_, ()>, _: &()| keeping.build(b, buttons);
+            frame(&ctx, &mut state, &mut (), Phase::Layout, view);
+            group.bench_function(BenchmarkId::new(keeping.name(), buttons), |bench| {
+                bench.iter(|| frame(&ctx, &mut state, &mut (), Phase::Layout, view));
+            });
+        }
+    }
+    group.finish();
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 struct RowId(u32);
 
@@ -429,5 +506,5 @@ fn operations(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, trees, rules, list, operations);
+criterion_group!(benches, trees, rules, sheets, list, operations);
 criterion_main!(benches);

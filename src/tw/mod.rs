@@ -16,6 +16,7 @@ mod easing;
 mod grid;
 mod layout;
 mod merge;
+mod origin;
 mod paint;
 mod rules;
 mod text;
@@ -32,7 +33,12 @@ pub use ch::Reserve;
 pub(crate) use ch::{MinWidth, TextWidths};
 pub use easing::Easing;
 pub use grid::Track;
+#[cfg(debug_assertions)]
+pub use merge::Property;
 use merge::{Layout, Touched};
+#[cfg(debug_assertions)]
+pub(crate) use origin::Origins;
+pub use origin::{Origin, Source};
 pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
 pub use rules::{Aria, Match};
 pub(crate) use rules::{Link, Observed, Ruled, Rules};
@@ -71,6 +77,9 @@ pub struct Tw {
     /// most nodes, which keeps a `Tw` small.
     pub(crate) rules: Option<Box<Ruled>>,
     touched: Touched,
+    /// The class that set each property, in debug builds.
+    #[cfg(debug_assertions)]
+    origins: Option<Box<Origins>>,
 }
 
 /// Whether a class was ignored because a length it was given is infinite or
@@ -122,6 +131,8 @@ pub fn tw() -> Tw {
         lengths: Lengths::Finite,
         rules: None,
         touched: Touched::default(),
+        #[cfg(debug_assertions)]
+        origins: None,
     }
 }
 
@@ -226,6 +237,7 @@ impl Tw {
         self
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn styled(mut self, set: impl FnOnce(&mut Layout<'_>)) -> Self {
         self.write_layout(set);
         self
