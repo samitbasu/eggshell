@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use crate::contract::{Size, Variant};
+use crate::contract::{Size, Tokens, Variant};
 use crate::{Aria, Tw};
 
 /// TODO(prose): the anatomy of a widget: the nodes a [`Sheet`] styles.
@@ -171,7 +171,7 @@ impl When {
 /// What a part is named by: its widget's parts, and its slot.
 type PartKey = (TypeId, &'static str);
 
-type Body = Arc<dyn Fn(Tw) -> Tw + Send + Sync>;
+type Body = Arc<dyn Fn(Tw, &Tokens) -> Tw + Send + Sync>;
 
 #[derive(Clone)]
 struct Stored {
@@ -199,7 +199,7 @@ fn next_version() -> u64 {
 /// TODO(prose): the rules of a style: for each part of each widget, the classes it gets when its keys hold.
 ///
 /// ```
-/// use eggshell_ui::contract::Variant;
+/// use eggshell_ui::contract::{Tokens, Variant};
 /// use eggshell_ui::sheet::{Key, Part, Sheet, When};
 /// use eggshell_ui::tw;
 ///
@@ -214,11 +214,12 @@ fn next_version() -> u64 {
 ///     }
 /// }
 ///
+/// let tokens = Tokens::from_egui(&egui::Style::default());
 /// let mut sheet = Sheet::defaults();
 /// sheet
-///     .rule(Chip, When::always(), |t| t.px(2.0).rounded_md())
-///     .rule(Chip, When::always().variant(Variant("wide")), |t| t.px(4.0));
-/// let wide = sheet.resolve(Chip, &[Key::Variant(Variant("wide"))]);
+///     .rule(Chip, |t, _| t.px(2.0).rounded_md())
+///     .rule_when(Chip, When::always().variant(Variant("wide")), |t, _| t.px(4.0));
+/// let wide = sheet.resolve(Chip, &[Key::Variant(Variant("wide"))], &tokens);
 /// assert_eq!(wide.style(), tw().px(4.0).style());
 /// ```
 #[derive(Clone, Debug)]
@@ -277,12 +278,21 @@ impl Sheet {
         self.layer
     }
 
-    /// TODO(prose): adds the classes `body` writes for `part` while `when` holds, at this sheet's layer, after the rules it has.
+    /// TODO(prose): adds the classes `body` writes for every node of `part`, given the style's tokens, at this sheet's layer, after the rules it has.
     pub fn rule<P: Part>(
         &mut self,
         part: P,
+        body: impl Fn(Tw, &Tokens) -> Tw + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.add(part, When::always(), false, body)
+    }
+
+    /// TODO(prose): [`rule`](Self::rule) for the nodes of `part` while `when` holds.
+    pub fn rule_when<P: Part>(
+        &mut self,
+        part: P,
         when: When,
-        body: impl Fn(Tw) -> Tw + Send + Sync + 'static,
+        body: impl Fn(Tw, &Tokens) -> Tw + Send + Sync + 'static,
     ) -> &mut Self {
         self.add(part, when, false, body)
     }
@@ -290,8 +300,8 @@ impl Sheet {
     /// TODO(prose): [`rule`](Self::rule), but the part's classes start empty under it: every rule below that holds with it is dropped.
     ///
     /// ```
-    /// use eggshell_ui::contract::Variant;
-    /// use eggshell_ui::sheet::{Key, Part, Sheet, When};
+    /// use eggshell_ui::contract::Tokens;
+    /// use eggshell_ui::sheet::{Part, Sheet, When};
     /// use eggshell_ui::tw;
     ///
     /// #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -305,17 +315,27 @@ impl Sheet {
     ///     }
     /// }
     ///
+    /// let tokens = Tokens::from_egui(&egui::Style::default());
     /// let mut sheet = Sheet::defaults();
-    /// sheet.rule(Chip, When::always(), |t| t.px(2.0).gap(1.0));
-    /// sheet.as_app().replace(Chip, When::always(), |t| t.px(4.0));
-    /// let chip = sheet.resolve(Chip, &[]);
+    /// sheet.rule(Chip, |t, _| t.px(2.0).gap(1.0));
+    /// sheet.as_app().replace(Chip, |t, _| t.px(4.0));
+    /// let chip = sheet.resolve(Chip, &[], &tokens);
     /// assert_eq!(chip.style(), tw().px(4.0).style());
     /// ```
     pub fn replace<P: Part>(
         &mut self,
         part: P,
+        body: impl Fn(Tw, &Tokens) -> Tw + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.add(part, When::always(), true, body)
+    }
+
+    /// TODO(prose): [`replace`](Self::replace) for the nodes of `part` while `when` holds.
+    pub fn replace_when<P: Part>(
+        &mut self,
+        part: P,
         when: When,
-        body: impl Fn(Tw) -> Tw + Send + Sync + 'static,
+        body: impl Fn(Tw, &Tokens) -> Tw + Send + Sync + 'static,
     ) -> &mut Self {
         self.add(part, when, true, body)
     }
@@ -325,7 +345,7 @@ impl Sheet {
         part: P,
         when: When,
         replace: bool,
-        body: impl Fn(Tw) -> Tw + Send + Sync + 'static,
+        body: impl Fn(Tw, &Tokens) -> Tw + Send + Sync + 'static,
     ) -> &mut Self {
         let layer = self.layer;
         Arc::make_mut(&mut self.rules)
@@ -341,14 +361,14 @@ impl Sheet {
         self
     }
 
-    /// TODO(prose): the classes of `part` for a node with `keys`: the rules that hold, the lowest layer's first, each over the last. The node's `data-slot` is the part's.
+    /// TODO(prose): the classes of `part` for a node with `keys`: the rules that hold, the lowest layer's first, each over the last, their bodies given `tokens`. The node's `data-slot` is the part's.
     ///
     /// A builder keeps what it resolved, so this runs each rule's body: for a call outside a build, such as a test's.
-    pub fn resolve<P: Part>(&self, part: P, keys: &[Key]) -> Tw {
-        self.resolved(part, part_key(part), keys)
+    pub fn resolve<P: Part>(&self, part: P, keys: &[Key], tokens: &Tokens) -> Tw {
+        self.resolved(part, part_key(part), keys, tokens)
     }
 
-    fn resolved<P: Part>(&self, part: P, at: PartKey, keys: &[Key]) -> Tw {
+    fn resolved<P: Part>(&self, part: P, at: PartKey, keys: &[Key], tokens: &Tokens) -> Tw {
         let mut holding: Vec<&Stored> = self
             .rules
             .get(&at)
@@ -362,7 +382,7 @@ impl Sheet {
             .iter()
             .skip(from)
             .fold(Tw::blank(), |classes, rule| {
-                classes.merge((rule.body)(Tw::blank()).staged(rule.layer))
+                classes.merge((rule.body)(Tw::blank(), tokens).staged(rule.layer))
             })
             .slot(part.slot())
     }
@@ -412,7 +432,14 @@ type Resolved = Vec<(Box<[Key]>, Tw)>;
 /// the sheet, which a style shares between threads, cannot keep it.
 #[derive(Default)]
 pub(crate) struct Memo {
-    sheets: HashMap<u64, HashMap<PartKey, Resolved>>,
+    sheets: HashMap<u64, Kept>,
+}
+
+/// What was resolved for one sheet, and the tokens it was resolved with: a
+/// scope that changes the tokens and not the sheet resolves again.
+struct Kept {
+    tokens: Tokens,
+    parts: HashMap<PartKey, Resolved>,
 }
 
 impl Memo {
@@ -420,21 +447,30 @@ impl Memo {
     const SHEETS: usize = 16;
 
     /// [`Sheet::resolve`], and whether it was resolved now rather than found.
-    pub(crate) fn resolve<P: Part>(&mut self, sheet: &Sheet, part: P, keys: &[Key]) -> (Tw, bool) {
+    pub(crate) fn resolve<P: Part>(
+        &mut self,
+        sheet: &Sheet,
+        part: P,
+        keys: &[Key],
+        tokens: &Tokens,
+    ) -> (Tw, bool) {
         if self.sheets.len() >= Self::SHEETS && !self.sheets.contains_key(&sheet.version) {
             self.sheets.clear();
         }
         let at = part_key(part);
-        let known = self
-            .sheets
-            .entry(sheet.version)
-            .or_default()
-            .entry(at)
-            .or_default();
+        let kept = self.sheets.entry(sheet.version).or_insert_with(|| Kept {
+            tokens: *tokens,
+            parts: HashMap::new(),
+        });
+        if kept.tokens != *tokens {
+            kept.tokens = *tokens;
+            kept.parts.clear();
+        }
+        let known = kept.parts.entry(at).or_default();
         if let Some((_, resolved)) = known.iter().find(|(known, _)| **known == *keys) {
             return (resolved.clone(), false);
         }
-        let resolved = sheet.resolved(part, at, keys);
+        let resolved = sheet.resolved(part, at, keys, tokens);
         known.push((keys.into(), resolved.clone()));
         (resolved, true)
     }
@@ -466,30 +502,38 @@ mod tests {
         }
     }
 
+    fn tokens() -> Tokens {
+        Tokens::from_egui(&egui::Style::default())
+    }
+
     const WIDE: Variant = Variant("wide");
     const NARROW: Variant = Variant("narrow");
 
     fn sheet() -> Sheet {
         let mut sheet = Sheet::defaults();
         sheet
-            .rule(Test::Root, When::always(), |t| t.px(2.0).gap(1.0))
-            .rule(Test::Root, When::always().variant(WIDE), |t| t.px(4.0))
-            .rule(Test::Root, When::always().variant(NARROW), |t| t.px(1.0))
-            .rule(
+            .rule(Test::Root, |t, _| t.px(2.0).gap(1.0))
+            .rule_when(Test::Root, When::always().variant(WIDE), |t, _| t.px(4.0))
+            .rule_when(Test::Root, When::always().variant(NARROW), |t, _| t.px(1.0))
+            .rule_when(
                 Test::Root,
                 When::always().variant(WIDE).aria(Aria::Invalid),
-                |t| t.gap(3.0),
+                |t, _| t.gap(3.0),
             )
-            .rule(Test::Icon, When::always(), |t| t.size(4.0));
+            .rule(Test::Icon, |t, _| t.size(4.0));
         sheet
     }
 
     #[test]
     fn the_rules_that_hold_are_merged_in_order_later_winning_per_property() {
         let sheet = sheet();
-        let wide = sheet.resolve(Test::Root, &[Key::Variant(WIDE)]);
+        let wide = sheet.resolve(Test::Root, &[Key::Variant(WIDE)], &tokens());
         assert_eq!(wide.style(), tw().px(4.0).gap(1.0).style());
-        let invalid = sheet.resolve(Test::Root, &[Key::Variant(WIDE), Key::Aria(Aria::Invalid)]);
+        let invalid = sheet.resolve(
+            Test::Root,
+            &[Key::Variant(WIDE), Key::Aria(Aria::Invalid)],
+            &tokens(),
+        );
         assert_eq!(invalid.style(), tw().px(4.0).gap(3.0).style());
     }
 
@@ -497,33 +541,38 @@ mod tests {
     fn a_negated_key_holds_while_the_node_lacks_the_state() {
         let mut sheet = Sheet::defaults();
         sheet
-            .rule(Test::Root, When::always().not_aria(Aria::Disabled), |t| {
-                t.px(2.0)
-            })
-            .rule(Test::Root, When::always().not_attr("side", "top"), |t| {
-                t.py(3.0)
-            });
-        let free = sheet.resolve(Test::Root, &[]);
+            .rule_when(
+                Test::Root,
+                When::always().not_aria(Aria::Disabled),
+                |t, _| t.px(2.0),
+            )
+            .rule_when(
+                Test::Root,
+                When::always().not_attr("side", "top"),
+                |t, _| t.py(3.0),
+            );
+        let free = sheet.resolve(Test::Root, &[], &tokens());
         assert_eq!(free.style(), tw().px(2.0).py(3.0).style());
         let keys = [Key::Aria(Aria::Disabled), Key::Attr("side", "top")];
-        assert_eq!(sheet.resolve(Test::Root, &keys).style(), tw().style());
+        assert_eq!(
+            sheet.resolve(Test::Root, &keys, &tokens()).style(),
+            tw().style()
+        );
     }
 
     #[test]
     fn a_part_is_resolved_from_its_own_rules_only() {
-        let icon = sheet().resolve(Test::Icon, &[Key::Variant(WIDE)]);
+        let icon = sheet().resolve(Test::Icon, &[Key::Variant(WIDE)], &tokens());
         assert_eq!(icon.style(), tw().size(4.0).style());
     }
 
     #[test]
     fn a_later_layer_wins_whatever_the_order_the_rules_were_written_in() {
         let mut sheet = Sheet::defaults();
-        sheet
-            .as_app()
-            .rule(Test::Root, When::always(), |t| t.px(8.0));
+        sheet.as_app().rule(Test::Root, |t, _| t.px(8.0));
         sheet.layer = Layer::Defaults;
-        sheet.rule(Test::Root, When::always(), |t| t.px(2.0).gap(1.0));
-        let root = sheet.resolve(Test::Root, &[]);
+        sheet.rule(Test::Root, |t, _| t.px(2.0).gap(1.0));
+        let root = sheet.resolve(Test::Root, &[], &tokens());
         assert_eq!(root.style(), tw().px(8.0).gap(1.0).style());
     }
 
@@ -532,10 +581,10 @@ mod tests {
         let mut sheet = sheet();
         sheet
             .as_app()
-            .replace(Test::Root, When::always().variant(WIDE), |t| t.py(5.0));
-        let wide = sheet.resolve(Test::Root, &[Key::Variant(WIDE)]);
+            .replace_when(Test::Root, When::always().variant(WIDE), |t, _| t.py(5.0));
+        let wide = sheet.resolve(Test::Root, &[Key::Variant(WIDE)], &tokens());
         assert_eq!(wide.style(), tw().py(5.0).style());
-        let narrow = sheet.resolve(Test::Root, &[Key::Variant(NARROW)]);
+        let narrow = sheet.resolve(Test::Root, &[Key::Variant(NARROW)], &tokens());
         assert_eq!(narrow.style(), tw().px(1.0).gap(1.0).style());
     }
 
@@ -544,10 +593,10 @@ mod tests {
         let mut sheet = sheet();
         let clone = sheet.clone();
         assert_eq!(sheet, clone);
-        sheet.rule(Test::Root, When::always(), |t| t.px(9.0));
+        sheet.rule(Test::Root, |t, _| t.px(9.0));
         assert_ne!(sheet, clone);
         assert_eq!(
-            clone.resolve(Test::Root, &[]).style(),
+            clone.resolve(Test::Root, &[], &tokens()).style(),
             tw().px(2.0).gap(1.0).style(),
             "the clone keeps its rules"
         );

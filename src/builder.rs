@@ -269,8 +269,9 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         keys: &[crate::sheet::Key],
         call_site: Tw,
     ) -> Tw {
-        let sheet = &self.style.sheet;
-        let (classes, fresh) = self.st.sheets.resolve(sheet, part, keys);
+        let style = self.style;
+        let sheet = &style.sheet;
+        let (classes, fresh) = self.st.sheets.resolve(sheet, part, keys, &style.tokens);
         if fresh && let Some(missing) = sheet.unnamed(part, keys) {
             crate::report::report(
                 self.frame.ctx,
