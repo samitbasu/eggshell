@@ -6,7 +6,7 @@
 //! shadcn's `cn-tabs*` replace them.
 
 use crate::TextSpec;
-use crate::contract::{Disabled, Focus, SegmentedStyle, Size};
+use crate::contract::{Disabled, Focus, SegmentedStyle, Size, Variant};
 use crate::sheet::{Key, Part, Sheet, When};
 use crate::{Aria, Builder, Match};
 
@@ -15,7 +15,8 @@ use super::{Cell, Enablement, SegmentedRows, centered};
 /// TODO(prose): the anatomy of tabs: shadcn's `tabs`. A segmented control is
 /// a list of triggers alone.
 ///
-/// TODO(prose): the keys its rules see: the size, `aria-disabled`, a trigger's
+/// TODO(prose): the keys its rules see: the size, `aria-disabled`, a list's
+/// variant (shadcn's `default`, the only one eggshell draws), a trigger's
 /// `aria-selected` (shadcn's `data-active`), and `data-[rows=wrapping]` on a
 /// list and its triggers when they wrap, a key of eggshell's own: shadcn's
 /// lists do not wrap.
@@ -47,6 +48,18 @@ impl Part for TabsPart {
 /// The attribute of a list whose triggers wrap onto more rows.
 const WRAPPING: (&str, &str) = ("rows", "wrapping");
 
+/// The keys a list and its triggers share.
+fn shared_keys(size: Size, rows: SegmentedRows, enablement: Enablement) -> Vec<Key> {
+    let mut keys = vec![Key::Size(size)];
+    if rows == SegmentedRows::Wrapping {
+        keys.push(Key::Attr(WRAPPING.0, WRAPPING.1));
+    }
+    if enablement == Enablement::Disabled {
+        keys.push(Key::Aria(Aria::Disabled));
+    }
+    keys
+}
+
 impl TabsPart {
     /// TODO(prose): the size whose rules draw triggers of `size` here: `size`, or the style's default reported as missing.
     #[track_caller]
@@ -63,16 +76,11 @@ impl TabsPart {
     /// use eggshell_ui::owned::{Enablement, SegmentedRows, TabsPart};
     ///
     /// let keys = TabsPart::list_keys(Size::DEFAULT, SegmentedRows::One, Enablement::Enabled);
-    /// assert_eq!(keys.len(), 1);
+    /// assert_eq!(keys.len(), 2);
     /// ```
     pub fn list_keys(size: Size, rows: SegmentedRows, enablement: Enablement) -> Vec<Key> {
-        let mut keys = vec![Key::Size(size)];
-        if rows == SegmentedRows::Wrapping {
-            keys.push(Key::Attr(WRAPPING.0, WRAPPING.1));
-        }
-        if enablement == Enablement::Disabled {
-            keys.push(Key::Aria(Aria::Disabled));
-        }
+        let mut keys = shared_keys(size, rows, enablement);
+        keys.push(Key::Variant(Variant::DEFAULT));
         keys
     }
 
@@ -98,7 +106,7 @@ impl TabsPart {
         cell: Cell,
         enablement: Enablement,
     ) -> Vec<Key> {
-        let mut keys = Self::list_keys(size, rows, enablement);
+        let mut keys = shared_keys(size, rows, enablement);
         if cell == Cell::Pressed {
             keys.push(Key::Aria(Aria::Selected));
         }
