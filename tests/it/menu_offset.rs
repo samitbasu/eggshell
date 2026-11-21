@@ -47,15 +47,14 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     });
 }
 
-fn offset_12(ctx: &egui::Context, _: &App) {
-    let mut style = (*Style::of(ctx)).clone();
+fn offset_12(style: &mut Style) {
     style.menu.offset = Distance::new(12.0);
-    style.install(ctx);
 }
 
-fn harness(app: App, prepare: fn(&egui::Context, &App)) -> Driver<App> {
-    let mut d =
-        support::prepared_driver(vec2(400.0, 300.0), base_text(), app, view, prepare).build();
+fn harness(app: App, edit: fn(&mut Style)) -> Driver<App> {
+    let mut d = support::driver(vec2(400.0, 300.0), base_text(), app, view)
+        .style(support::shadcn_with(edit))
+        .build();
     d.frames(4);
     d
 }
@@ -75,9 +74,9 @@ const LIST: &str = r#"/("pick", List)/Box"#;
 
 #[test]
 fn by_default_both_open_four_points_below_their_trigger() {
-    let mut d = harness(App::default(), |_, _| {});
+    let mut d = harness(App::default(), |_| {});
     assert_eq!(gap_below(&mut d, FILE, MENU).round(), 4.0);
-    let mut d = self::harness(App::default(), |_, _| {});
+    let mut d = self::harness(App::default(), |_| {});
     assert_eq!(gap_below(&mut d, PICK, LIST).round(), 4.0);
 }
 

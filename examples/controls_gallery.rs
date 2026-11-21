@@ -493,7 +493,7 @@ const ONE_ROW: Lines = Lines::Multi { min: 1, max: None };
 /// Draws an input as the library does: with the style's input section mapped
 /// onto the `Ui`.
 fn input_padded(ui: &mut Ui) {
-    eggshell_ui::Style::of(ui.ctx())
+    eggshell_ui::NodeUi::node_style(ui)
         .map_input(ui.style_mut(), eggshell_ui::contract::Size::DEFAULT);
 }
 

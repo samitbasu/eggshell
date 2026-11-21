@@ -155,7 +155,7 @@ fn cell(band: &str, column: usize) -> String {
 }
 
 fn style(d: &Driver<App>) -> eggshell_ui::contract::TableStyle {
-    Style::of(d.ctx()).table.clone()
+    d.shell().style().table.clone()
 }
 
 fn press<A>(d: &mut Driver<A>, key: Key) {
@@ -288,17 +288,13 @@ mod stripe {
 
     const STRIPE: Color32 = Color32::from_rgb(200, 220, 240);
 
-    fn striped(ctx: &egui::Context, _: &App) {
-        for theme in [Theme::Light, Theme::Dark] {
-            let mut style = Shadcn::for_theme(theme).style();
-            style.table.stripe = STRIPE;
-            style.install_for(ctx, theme);
-        }
+    fn striped(style: &mut Style) {
+        style.table.stripe = STRIPE;
     }
 
     fn striped_fills(stripes: Stripes) -> [bool; 5] {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut d = support::prepared_driver(
+        let mut d = support::driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             App {
@@ -306,8 +302,8 @@ mod stripe {
                 ..App::new(Selection::Off)
             },
             view,
-            striped,
         )
+        .style(support::shadcn_with(striped))
         .build();
         d.frames(3);
         ["Header", "Row(7)", "Row(1024)", "Row(31)", "Footer"]
@@ -766,7 +762,7 @@ mod spacing {
     }
 
     fn table(d: &Driver<fn(&mut Style)>) -> eggshell_ui::contract::TableStyle {
-        Style::of(d.ctx()).table.clone()
+        d.shell().style().table.clone()
     }
 
     #[test]
@@ -885,23 +881,19 @@ mod groups {
     /// A group fill unlike any other fill of the preset.
     const GROUP: Color32 = Color32::from_rgb(220, 240, 200);
 
-    fn group_filled(ctx: &egui::Context, _: &App) {
-        for theme in [Theme::Light, Theme::Dark] {
-            let mut style = Shadcn::for_theme(theme).style();
-            style.table.group_fill = GROUP;
-            style.install_for(ctx, theme);
-        }
+    fn group_filled(style: &mut Style) {
+        style.table.group_fill = GROUP;
     }
 
     fn harness_of(app: App) -> Driver<App> {
         let tokens = Tokens::for_theme(Theme::Light);
-        let mut d = support::prepared_driver(
+        let mut d = support::driver(
             WINDOW,
             TextStyle::new(tokens.text_role(), tokens.foreground),
             app,
             grouped,
-            group_filled,
         )
+        .style(support::shadcn_with(group_filled))
         .build();
         d.frames(3);
         d
@@ -1116,23 +1108,19 @@ mod groups {
             });
         }
 
-        fn gapped(ctx: &egui::Context, _: &App) {
-            for theme in [Theme::Light, Theme::Dark] {
-                let mut style = Shadcn::for_theme(theme).style();
-                style.table.group_end = GroupEnd::Gap(GAP);
-                style.install_for(ctx, theme);
-            }
+        fn gapped(style: &mut Style) {
+            style.table.group_end = GroupEnd::Gap(GAP);
         }
 
         fn harness_with(app: App, view: support::View<App>) -> Driver<App> {
             let tokens = Tokens::for_theme(Theme::Light);
-            let mut d = support::prepared_driver(
+            let mut d = support::driver(
                 WINDOW,
                 TextStyle::new(tokens.text_role(), tokens.foreground),
                 app,
                 view,
-                gapped,
             )
+            .style(support::shadcn_with(gapped))
             .build();
             d.frames(3);
             d

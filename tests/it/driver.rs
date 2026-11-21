@@ -2,8 +2,10 @@
 //! names along the path a user's input takes, and each query answers from
 //! the frame the driver last drew.
 
+use std::sync::Arc;
 use std::time::Duration;
 
+use eggshell_ui::contract::Themed;
 use eggshell_ui::owned::PaneSize;
 use eggshell_ui::testing::{After, Animation, Driver, Focused, Reports, Target, WindowFocus};
 use eggshell_ui::{Builder, Problem, Style, tw};
@@ -173,9 +175,56 @@ fn a_tooltip_opens_after_its_delay_and_not_after_a_settle() {
         !d.painted().shows("More about this"),
         "a settle ends at the delay's repaint_after"
     );
-    let style = Style::of(d.ctx());
+    let style = d.shell().style();
     d.advance(style.tooltip.delay + style.motion.tooltip.enter + Duration::from_millis(100));
     assert!(d.painted().shows("More about this"));
+}
+
+/// Both halves of a style whose tooltips wait `delay`.
+fn waiting(delay: Duration) -> Themed<Arc<Style>> {
+    let mut style = Style::default();
+    style.tooltip.delay = delay;
+    Themed::both(Arc::new(style))
+}
+
+/// Whether the tooltip shows `wait` after the pointer reaches its trigger.
+fn shows_after(d: &mut Driver<App>, wait: Duration) -> bool {
+    d.hover(d.path(Part::Page).at(Part::Help));
+    d.advance(wait);
+    let shown = d.painted().shows("More about this");
+    d.hover(d.path(Part::Page).at(Part::Save));
+    d.advance(Duration::from_secs(1));
+    shown
+}
+
+#[test]
+fn a_driver_builds_with_the_style_it_is_given() {
+    let mut d = Driver::new(App::default(), view)
+        .size(vec2(400.0, 300.0))
+        .style(waiting(Duration::from_secs(3)))
+        .build();
+    let enter = d.shell().style().motion.tooltip.enter;
+    assert!(!shows_after(&mut d, Duration::from_secs(2)));
+    assert!(shows_after(
+        &mut d,
+        Duration::from_secs(3) + enter + Duration::from_millis(100)
+    ));
+}
+
+#[test]
+fn set_style_gives_the_layout_a_new_style_from_the_next_frame() {
+    let mut d = Driver::new(App::default(), view)
+        .size(vec2(400.0, 300.0))
+        .style(waiting(Duration::from_secs(3)))
+        .build();
+    let enter = d.shell().style().motion.tooltip.enter;
+    let quick = Duration::from_millis(200) + enter + Duration::from_millis(100);
+    assert!(
+        !shows_after(&mut d, quick),
+        "precondition: the first style waits"
+    );
+    d.set_style(waiting(Duration::from_millis(200)));
+    assert!(shows_after(&mut d, quick));
 }
 
 #[test]

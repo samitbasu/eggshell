@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui::{Builder, FontStyle, Span, Spans, Style, Weight, tw};
+use eggshell_ui::{Builder, FontStyle, Span, Spans, Weight, tw};
 use egui::epaint::Shape;
 use egui::{
     Color32, CursorIcon, Event, FontFamily, Galley, OutputCommand, Pos2, Rect, Theme, pos2, vec2,
@@ -144,14 +144,14 @@ fn a_span_weight_draws_the_face_of_its_weight() {
 fn a_link_takes_the_style_link_colour() {
     let d = driver(Select::Auto);
     let galley = d.painted().expect(&sample_text()).galley().clone();
-    let link = Style::of(d.ctx()).rich.link;
+    let link = d.shell().style().rich.link;
     assert_eq!(support::section_of(&galley, LINK).color, link);
     assert_ne!(support::section_of(&galley, "Read").color, link);
 }
 
 /// The code tint painted over `glyphs`.
 fn tint_over(d: &Driver<App>, glyphs: Rect) -> egui::epaint::RectShape {
-    let fill = Style::of(d.ctx()).rich.code.fill;
+    let fill = d.shell().style().rich.code.fill;
     support::shapes(d)
         .into_iter()
         .find_map(|shape| match shape {
@@ -172,7 +172,7 @@ fn inline_code_is_monospace_on_a_rounded_tint_behind_its_glyphs() {
         FontFamily::Monospace
     );
     let glyphs = rect_of_part(&d, CODE);
-    let fill = Style::of(d.ctx()).rich.code.fill;
+    let fill = d.shell().style().rich.code.fill;
     assert_ne!(fill, Color32::TRANSPARENT, "precondition: code has a tint");
     let tint = tint_over(&d, glyphs);
     assert!(

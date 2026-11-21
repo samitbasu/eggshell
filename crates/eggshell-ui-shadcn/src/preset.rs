@@ -112,17 +112,39 @@ impl Shadcn {
         palette: Palette,
     ) -> eggshell_ui::contract::Themed<std::sync::Arc<contract::Style>> {
         let half = |preset: Self| {
-            let preset = preset.with_style(style).with_palette(palette);
-            let mut core = preset.style();
-            if let Some(font) = &preset.tokens.font {
-                core.set_extension(contract::Fonts(font.inserts()));
-            }
-            std::sync::Arc::new(core)
+            std::sync::Arc::new(
+                preset
+                    .with_style(style)
+                    .with_palette(palette)
+                    .layout_style(),
+            )
         };
         eggshell_ui::contract::Themed {
             light: half(Self::light()),
             dark: half(Self::dark()),
         }
+    }
+
+    /// TODO(prose): this preset's style with its fonts, as one half of a layout's style.
+    ///
+    /// ```
+    /// use eggshell_ui::LayoutState;
+    /// use eggshell_ui::contract::Themed;
+    /// use eggshell_ui_shadcn::Shadcn;
+    /// use std::sync::Arc;
+    ///
+    /// let style = Themed {
+    ///     light: Arc::new(Shadcn::light().with_fonts(None).layout_style()),
+    ///     dark: Arc::new(Shadcn::dark().with_fonts(None).layout_style()),
+    /// };
+    /// let _layout = LayoutState::new().with_style(style);
+    /// ```
+    pub fn layout_style(&self) -> contract::Style {
+        let mut core = self.style();
+        if let Some(font) = &self.tokens.font {
+            core.set_extension(contract::Fonts(font.inserts()));
+        }
+        core
     }
 
     /// The fill of an input-like box: `bg-background`, or `dark:bg-input/30`.

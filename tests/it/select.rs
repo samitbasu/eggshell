@@ -6,7 +6,7 @@ use core::time::Duration;
 use eggshell_ui::overlay::Modal;
 use eggshell_ui::owned::{Choice, Enablement};
 use eggshell_ui::testing::{After, Driver, Target};
-use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, Role, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -159,7 +159,7 @@ fn tab_to(d: &mut Driver<App>, path: &str) {
 
 /// The rows, among `0..count` of `list`, drawn in the item's highlight colours.
 fn highlighted(d: &Driver<App>, list: &str, count: usize) -> Vec<usize> {
-    let hover = Style::of(d.ctx()).menu.item.paint.states.hover.fill;
+    let hover = d.shell().style().menu.item.paint.states.hover.fill;
     (0..count)
         .filter(|&index| support::fill_of(d, &row(list, index)) == Some(hover))
         .collect()
@@ -383,7 +383,7 @@ mod tall {
         d.press(Key::End).frames(4);
         assert!(visible(&d, 49), "End shows the last option");
         assert!(!visible(&d, 0));
-        let hover = Style::of(d.ctx()).menu.item.paint.states.hover.fill;
+        let hover = d.shell().style().menu.item.paint.states.hover.fill;
         assert_eq!(
             support::fill_of(&d, &tall_row(49)),
             Some(hover),
@@ -537,7 +537,7 @@ fn the_list_pops_in_with_the_styles_menu_motion_and_leaves_the_same_way() {
         .build();
     d.frames(4);
     record(d.ctx());
-    let motion = Style::of(d.ctx()).motion.menu;
+    let motion = d.shell().style().motion.menu;
     assert!(
         !motion.enter.is_zero(),
         "precondition: the shadcn preset moves menus"

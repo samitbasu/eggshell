@@ -418,7 +418,7 @@ fn a_fade_leaves_the_box_opaque_and_fades_only_the_scrim() {
             _ => None,
         })
         .expect("the scrim is painted");
-    let full = eggshell_ui::Style::of(d.ctx()).scrim.a();
+    let full = d.shell().style().scrim.a();
     assert!(
         scrim.a() > 0 && scrim.a() < full,
         "the scrim is part-way: {scrim:?} of {full}"
@@ -464,7 +464,9 @@ fn an_overlay_without_motion_in_the_style_appears_and_vanishes_at_once() {
             });
     }
     let mut d = harness(instant_view);
-    eggshell_ui::Style::default().install_for(d.ctx(), d.ctx().theme());
+    d.set_style(eggshell_ui::contract::Themed::both(std::sync::Arc::new(
+        eggshell_ui::Style::default(),
+    )));
     open(&mut d);
     assert_eq!(painted_offset(&d), 0.0);
     close(&mut d);

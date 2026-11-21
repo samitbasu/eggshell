@@ -36,9 +36,8 @@ struct App {
     rows: SegmentedRows,
 }
 
-fn prepare(ctx: &egui::Context, app: &App) {
-    let mut style = (*Style::of(ctx)).clone();
-    if app.ambient == Ambient::InertFaded {
+fn edit(style: &mut Style, ambient: Ambient) {
+    if ambient == Ambient::InertFaded {
         style.disabled = Disabled::Faded(Opacity::new(0.4));
     }
     let default = *style.segmented.sizes.get(Size::DEFAULT);
@@ -51,7 +50,6 @@ fn prepare(ctx: &egui::Context, app: &App) {
             ..default
         },
     );
-    style.install_for(ctx, ctx.theme());
 }
 
 /// The library's control, then the same one built from the public classes.
@@ -105,13 +103,16 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 
 fn harness(ambient: Ambient, rows: SegmentedRows) -> Harness<'static, Rig<App>> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let mut harness = support::harness_prepared(
+    let mut harness = support::harness(
         vec2(500.0, 300.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
         App { ambient, rows },
         view,
-        prepare,
     );
+    harness
+        .state_mut()
+        .layout
+        .set_style(support::shadcn_with(|style| edit(style, ambient)));
     harness.ctx.set_theme(Theme::Light);
     harness.run_steps(12);
     harness
