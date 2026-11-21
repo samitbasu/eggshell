@@ -2143,6 +2143,7 @@ impl Style {
             extensions: Extensions::default(),
         };
         style.write_input_rules();
+        style.write_segmented_rules();
         style
     }
 
@@ -2199,10 +2200,11 @@ impl Style {
         self.focus
     }
 
-    /// TODO(prose): sets the default focus indicator, and writes the input rules that use it at the sheet's current layer.
+    /// TODO(prose): sets the default focus indicator, and writes the input and segmented rules that use it at the sheet's current layer.
     pub fn set_focus(&mut self, focus: Focus) {
         self.focus = focus;
         self.write_input_rules();
+        self.write_segmented_rules();
     }
 
     /// How disabled controls are drawn.
@@ -2210,14 +2212,50 @@ impl Style {
         self.disabled
     }
 
-    /// TODO(prose): sets how disabled controls are drawn, and writes the input rules that use it at the sheet's current layer.
+    /// TODO(prose): sets how disabled controls are drawn, and writes the input and segmented rules that use it at the sheet's current layer.
     pub fn set_disabled(&mut self, disabled: Disabled) {
         self.disabled = disabled;
         self.write_input_rules();
+        self.write_segmented_rules();
     }
 
     fn write_input_rules(&mut self) {
         crate::owned::write_input_rules(&mut self.sheet, &self.input, self.focus, self.disabled);
+    }
+
+    /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the sheet's current layer.
+    pub fn set_segmented(&mut self, segmented: SegmentedStyle) {
+        self.segmented = segmented;
+        self.write_segmented_rules();
+    }
+
+    fn write_segmented_rules(&mut self) {
+        let seg = &self.segmented;
+        let roles = seg
+            .sizes
+            .keys()
+            .map(|size| {
+                let unselected = self.role_sized(&seg.text, seg.sizes.get(size).text);
+                let selected = match seg.selected_weight {
+                    Some(weight) => TextSpec {
+                        weight,
+                        ..unselected.clone()
+                    },
+                    None => unselected.clone(),
+                };
+                crate::owned::TabsRoles {
+                    size,
+                    unselected,
+                    selected,
+                }
+            })
+            .collect();
+        crate::owned::write_tabs_rules(
+            &mut self.sheet,
+            &self.segmented,
+            roles,
+            (self.focus, self.disabled),
+        );
     }
 }
 

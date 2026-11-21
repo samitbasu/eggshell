@@ -59,6 +59,7 @@ mod splitter;
 mod stepper;
 mod switch;
 mod table;
+mod tabs_sheet;
 mod toggle;
 mod toggle_group;
 
@@ -96,10 +97,12 @@ pub use switch::SwitchChain;
 pub use table::{
     Align, Cells, Column, Rows, RowsChain, Selectable, Selected, Stripes, TableChain, Unselectable,
 };
+pub use tabs_sheet::TabsPart;
+pub(crate) use tabs_sheet::{Roles as TabsRoles, write_rules as write_tabs_rules};
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
 
-use crate::contract::{Colors, Disabled, Look, Paint, Size, States, Style};
+use crate::contract::{Colors, Disabled, Focus, Look, Paint, Size, States, Style};
 pub(crate) use crate::tooltip::{Content, Tooltip};
 use crate::{Builder, Icon, NodeUi as _, TextSpec, Tw, icons, tw};
 
@@ -203,7 +206,13 @@ impl Enablement {
     /// The colours of `states` at rest, or the disabled ones if the style
     /// has them (a style that fades has the rest colours, faded by the root).
     fn colors(self, states: States, style: &Style) -> Colors {
-        match (self, style.disabled()) {
+        self.colors_in(states, style.disabled())
+    }
+
+    /// [`colors`](Self::colors) where disabled controls draw as `disabled`
+    /// says.
+    fn colors_in(self, states: States, disabled: Disabled) -> Colors {
+        match (self, disabled) {
             (Self::Disabled, Disabled::Colors) => states.disabled,
             _ => states.rest,
         }
@@ -483,6 +492,25 @@ impl Paint {
         enablement: Enablement,
         transition: Duration,
     ) -> Tw {
+        self.classes_in(
+            border_width,
+            (style.focus(), style.disabled()),
+            radius,
+            enablement,
+            transition,
+        )
+    }
+
+    /// [`classes`](Self::classes) with the style's focus ring and disabled
+    /// look given apart, for a sheet rule, which has no style to read.
+    pub(crate) fn classes_in(
+        &self,
+        border_width: f32,
+        (focus, disabled): (Focus, Disabled),
+        radius: u8,
+        enablement: Enablement,
+        transition: Duration,
+    ) -> Tw {
         let base = tw()
             .border(border_width)
             .rounded_px(f32::from(radius))
@@ -497,17 +525,17 @@ impl Paint {
         let states = self.states;
         match enablement {
             Enablement::Disabled => {
-                let fade = match style.disabled() {
+                let fade = match disabled {
                     Disabled::Colors => 0.5,
                     Disabled::Faded(_) => 1.0,
                 };
                 shadow(
-                    painted(base, enablement.colors(states, style)).inert(),
+                    painted(base, enablement.colors_in(states, disabled)).inert(),
                     fade,
                 )
             }
             Enablement::Enabled => {
-                let ring = self.focus.unwrap_or(style.focus());
+                let ring = self.focus.unwrap_or(focus);
                 let (rest, focused) = (states.rest, states.focused);
                 let halo = |p: crate::tw::Paint| match self.hover_ring {
                     Some(ring) => p.ring(ring.width, ring.color),

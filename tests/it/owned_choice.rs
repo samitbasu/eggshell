@@ -442,7 +442,9 @@ fn a_modified_style_changes_every_owned_widget() {
     style.switch.on.states.rest.fill = red;
     style.switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
     style.radio.sizes.default_entry_mut().size = 24.0;
-    style.segmented.track_fill = red;
+    let mut segmented = style.segmented.clone();
+    segmented.track_fill = red;
+    style.set_segmented(segmented);
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style)));
     d.frames(4);
