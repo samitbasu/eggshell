@@ -54,8 +54,8 @@
 //!
 //! A harness frame builds, lays out and draws a [`LayoutState`] as an app
 //! does. Set the context up in `with_context_setup`: kittest draws a first
-//! frame inside `build_ui_state`, so a style installed after it is missing
-//! from that frame, and recording started after it misses it.
+//! frame inside `build_ui_state`, so fonts set after it are missing from
+//! that frame, and recording started after it misses it.
 //!
 //! ```
 //! use eggshell_ui::{Builder, LayoutState, Style, tw};

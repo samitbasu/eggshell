@@ -1,6 +1,6 @@
 //! The contract gaps of issues #42 and #43: text placed in taller boxes, icon
 //! cells and buttons, caller classes merged over the styled ones, text roles,
-//! toggle variants, node-opacity disabling and the cheap install. Pointer and
+//! toggle variants and node-opacity disabling. Pointer and
 //! key input goes through kittest's real events.
 
 use std::sync::Arc;
@@ -555,37 +555,6 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
             "precondition: the roles differ from the default"
         );
     }
-}
-
-// ----- #43 item 7: install only when changed -----
-
-#[test]
-fn installing_an_unchanged_style_keeps_the_installed_one() {
-    let ctx = egui::Context::default();
-    let style = Shadcn::light().style();
-    style.clone().install(&ctx);
-    let first = Style::of(&ctx);
-    style.clone().install(&ctx);
-    assert!(
-        std::sync::Arc::ptr_eq(&first, &Style::of(&ctx)),
-        "same style"
-    );
-    let mut changed = style.clone();
-    changed.segmented.sizes.default_entry_mut().icon_gap += 1.0;
-    changed.clone().install(&ctx);
-    let second = Style::of(&ctx);
-    assert!(!std::sync::Arc::ptr_eq(&first, &second));
-    assert_eq!(*second, changed);
-    changed.clone().install_for(&ctx, Theme::Light);
-    assert!(
-        std::sync::Arc::ptr_eq(&second, &Style::of(&ctx)),
-        "per theme too"
-    );
-    style.clone().install_for(&ctx, Theme::Dark);
-    ctx.set_theme(Theme::Light);
-    assert_eq!(*Style::of(&ctx), changed);
-    ctx.set_theme(Theme::Dark);
-    assert_eq!(*Style::of(&ctx), style, "the other theme took its own");
 }
 
 // ----- #43 item 8: toggle looks keyed by variant -----

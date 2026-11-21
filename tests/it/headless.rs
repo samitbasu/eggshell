@@ -529,7 +529,7 @@ fn without_a_base_text_a_layout_reads_its_style() {
     let body = card_text_rects(Headless::new(SIZE));
     assert_ne!(
         given, body,
-        "precondition: the installed text lays out unlike egui's Body"
+        "precondition: the style's text lays out unlike egui's Body"
     );
     assert_eq!(defaulted, given);
 }

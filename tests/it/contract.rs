@@ -61,21 +61,21 @@ fn a_replaced_default_entry_is_what_unknown_keys_get() {
     assert!(keyed.get_mut(Size("sm")).is_none());
 }
 
-/// `a` is `b` but for its sheet, which two builds never share: what the sheets
-/// give is compared by what is drawn with them.
-fn assert_same_but_sheet(a: &Style, b: &Style) {
-    let mut b = b.clone();
-    b.sheet = a.sheet.clone();
-    assert_eq!(*a, b);
-}
-
 #[test]
-fn the_default_style_is_derived_from_egui_and_cached() {
+fn a_layout_given_no_style_derives_one_from_egui_and_keeps_it() {
     let ctx = Context::default();
-    let style = Style::of(&ctx);
-    assert_same_but_sheet(&style, &Style::from_egui(&ctx.global_style()));
-    assert_same_but_sheet(&style, &Style::default());
-    assert!(Arc::ptr_eq(&style, &Style::of(&ctx)), "no rebuild per call");
+    let shell = LayoutState::new().shell(&ctx);
+    let style = shell.style();
+    let derived = Style::from_egui(&ctx.global_style());
+    let button = |style: &Style| {
+        *crate::support::button::classes(style, Variant::DEFAULT, Size::DEFAULT).paint_classes()
+    };
+    assert_eq!(button(&style), button(&derived));
+    assert_eq!(style.toggle, derived.toggle);
+    assert_eq!(style.input, derived.input);
+    assert_eq!(style.text, derived.text);
+    assert_eq!(button(&style), button(&Style::default()));
+    assert!(Arc::ptr_eq(&style, &shell.style()), "no rebuild per call");
 
     let widgets = &ctx.global_style().visuals.widgets;
     let fill = |style: &Style| {
@@ -86,7 +86,7 @@ fn the_default_style_is_derived_from_egui_and_cached() {
     assert_eq!(fill(&style), Some(widgets.inactive.weak_bg_fill));
 
     ctx.all_styles_mut(|egui| egui.visuals.widgets.inactive.weak_bg_fill = Color32::RED);
-    let changed = Style::of(&ctx);
+    let changed = shell.style();
     assert!(!Arc::ptr_eq(&style, &changed));
     assert_eq!(
         fill(&changed),
@@ -96,41 +96,9 @@ fn the_default_style_is_derived_from_egui_and_cached() {
 }
 
 #[test]
-fn an_installed_style_is_shared_and_can_differ_per_theme() {
-    let ctx = Context::default();
-    let mut light = Style::default();
-    light.focus.width = 7.0;
-    let mut dark = Style::default();
-    dark.focus.width = 9.0;
-    light.install_for(&ctx, Theme::Light);
-    dark.install_for(&ctx, Theme::Dark);
-    ctx.set_theme(Theme::Light);
-    let seen = Style::of(&ctx);
-    assert_eq!(seen.focus.width, 7.0);
-    assert!(Arc::ptr_eq(&seen, &Style::of(&ctx)));
-    ctx.set_theme(Theme::Dark);
-    assert_eq!(Style::of(&ctx).focus.width, 9.0);
-
-    let mut both = Style::default();
-    both.focus.width = 4.0;
-    both.install(&ctx);
-    assert_eq!(Style::of(&ctx).focus.width, 4.0);
-    ctx.set_theme(Theme::Light);
-    assert_eq!(Style::of(&ctx).focus.width, 4.0);
-}
-
-#[test]
-fn applying_the_preset_installs_its_style() {
-    let ctx = Context::default();
-    ctx.set_theme(Theme::Dark);
-    Shadcn::dark().apply(&ctx);
-    assert_same_but_sheet(&Style::of(&ctx), &Shadcn::dark().style());
-}
-
-#[test]
 fn core_draws_a_button_with_no_preset() {
     let ctx = Context::default();
-    let expected = Style::of(&ctx);
+    let expected = Style::from_egui(&ctx.global_style());
     let mut layout = LayoutState::new().with_base_text(TextStyle::new(
         TextSpec {
             size: 14.0,

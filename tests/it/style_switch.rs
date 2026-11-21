@@ -187,14 +187,21 @@ fn style_and_theme_colour_are_chosen_independently() {
             .with_palette(Palette::new().theme(ThemeColor::Blue))
             .style()
     };
+    let primary = |style: &Style| {
+        *crate::support::button::classes(style, eggshell_ui_shadcn::variant::PRIMARY, Size::DEFAULT)
+            .paint_classes()
+    };
     for style in ShadcnStyle::ALL {
         assert_ne!(
-            neutral(style),
-            blue(style),
+            primary(&neutral(style)),
+            primary(&blue(style)),
             "{style:?} takes a theme colour"
         );
     }
-    assert_ne!(neutral(ShadcnStyle::Vega), neutral(ShadcnStyle::Lyra));
+    assert_ne!(
+        primary(&neutral(ShadcnStyle::Vega)),
+        primary(&neutral(ShadcnStyle::Lyra))
+    );
     assert_eq!(
         default_button(&blue(ShadcnStyle::Lyra)).style(),
         default_button(&neutral(ShadcnStyle::Lyra)).style(),
