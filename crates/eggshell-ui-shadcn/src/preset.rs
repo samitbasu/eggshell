@@ -911,6 +911,8 @@ impl Shadcn {
         };
         style.tokens = self.core_tokens();
         style.sheet.as_preset();
+        let input = style.input.clone();
+        style.set_input(input);
         style
     }
 

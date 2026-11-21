@@ -548,6 +548,16 @@ impl VariantData {
 }
 
 impl Tw {
+    /// The border colour the `state` variant gives, if it does.
+    pub(crate) fn variant_border(&self, state: State) -> Option<Color32> {
+        self.variants.get(state)?.border
+    }
+
+    /// The ring the `state` variant gives, if it does.
+    pub(crate) fn variant_ring(&self, state: State) -> Option<Ring> {
+        self.variants.get(state)?.ring
+    }
+
     /// Sets the variant `slot` selects to `style` applied to it, unless that
     /// gives it a length that is not finite.
     fn variant(

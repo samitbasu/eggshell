@@ -269,6 +269,16 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         keys: &[crate::sheet::Key],
         call_site: Tw,
     ) -> Tw {
+        Tw::over_sheet(self.resolved_part(part, keys)).merge(call_site)
+    }
+
+    /// What the style's sheet gives `part` for a node with `keys`, on its own.
+    #[track_caller]
+    pub(crate) fn resolved_part<P: crate::sheet::Part>(
+        &mut self,
+        part: P,
+        keys: &[crate::sheet::Key],
+    ) -> Tw {
         let style = self.style;
         let sheet = &style.sheet;
         let (classes, fresh) = self.st.sheets.resolve(sheet, part, keys, &style.tokens);
@@ -284,7 +294,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 },
             );
         }
-        Tw::over_sheet(classes).merge(call_site)
+        classes
     }
 
     /// TODO(prose): builds `body` in place with a style of its own: the style

@@ -495,7 +495,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         let classes = if field.is_bare() {
             classes
         } else {
-            crate::owned::text_field_classes(&style, size).merge(classes)
+            crate::owned::text_field_classes(&mut b, size).merge(classes)
         };
         let classes = enablement.apply(classes, &style);
         b.leaf_with(&slot, classes, move |m| measure(m, &measured))

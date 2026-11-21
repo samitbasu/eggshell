@@ -285,3 +285,59 @@ fn icons_on_a_multi_line_field_are_reported() {
     let report = assert_reported(multi.ctx(), Problem::IgnoredIcons);
     assert!(report.message.contains("\"notes\""), "{}", report.message);
 }
+
+fn restyled(b: &mut Builder<'_, '_, App>, _: &App) {
+    b.styled(
+        |style| {
+            style
+                .sheet
+                .as_app()
+                .rule(eggshell_ui::owned::InputGroupPart::Root, |t, _| {
+                    t.bg(Color32::from_rgb(200, 10, 10))
+                });
+        },
+        |s| {
+            s.field_box("custom")
+                .classes(tw().w_px(200.0))
+                .children(|s| {
+                    s.text_field("inner", "inside")
+                        .named("Inner")
+                        .bare()
+                        .on_change(|_: &mut App, _| {});
+                });
+        },
+    );
+}
+
+#[test]
+fn a_rule_on_the_input_group_part_restyles_the_box() {
+    let mut d = support::prepared_driver(
+        vec2(340.0, 120.0),
+        TextStyle::new(
+            TextSpec {
+                size: 14.0,
+                line_height: 20.0,
+                family: FontFamily::Proportional,
+                weight: Weight::Normal,
+            },
+            Color32::BLACK,
+        ),
+        App {
+            text: String::new(),
+            size: Size::DEFAULT,
+            disabled: false,
+        },
+        restyled,
+        |ctx, _| Shadcn::apply_both(ctx),
+    )
+    .build();
+    d.ctx().set_theme(Theme::Light);
+    d.frames(6);
+    let shape = box_at(&d, d.rect(Target::suffix(r#"/"custom""#)));
+    assert_eq!(shape.fill, Color32::from_rgb(200, 10, 10));
+    assert_eq!(
+        shape.stroke.color,
+        input().look.paint.states.rest.border,
+        "the preset's other properties stand"
+    );
+}

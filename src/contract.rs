@@ -95,6 +95,15 @@ impl<K: Ord + Copy + Debug, T> Keyed<K, T> {
         self.default_key
     }
 
+    /// `key` if the style defines it, else the key of the default entry.
+    pub fn key_for(&self, key: K) -> K {
+        if key == self.default_key || self.others.contains_key(&key) {
+            key
+        } else {
+            self.default_key
+        }
+    }
+
     /// The entry under `key`, or the default entry if there is none.
     pub fn get(&self, key: K) -> &T {
         if key == self.default_key {
@@ -1798,7 +1807,7 @@ impl Style {
             width: 2.0,
             color: v.selection.bg_fill,
         };
-        Self {
+        let mut style = Self {
             text,
             faces: Faces::default(),
             focus,
@@ -2197,7 +2206,9 @@ impl Style {
             tokens: Tokens::from_egui(egui),
             sheet: crate::sheet::Sheet::defaults(),
             extensions: Extensions::default(),
-        }
+        };
+        style.write_input_rules();
+        style
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
@@ -2205,28 +2216,46 @@ impl Style {
     /// draws as the style says, at `size`. See [`InputStyle`] for what is
     /// approximated.
     pub fn map_input(&self, egui: &mut egui::Style, size: Size) {
+        use crate::owned::{Frame, InputPart, input_keys};
         let input = &self.input;
+        let size = input.sizes.key_for(size);
         let metrics = input.sizes.get(size);
-        let states = &input.look.paint.states;
-        let width = input.look.border_width;
+        let classes = self
+            .sheet
+            .resolve(InputPart::Root, &input_keys(size, false), &self.tokens);
+        let frame = Frame::of(&classes);
         let v = &mut egui.visuals;
-        v.text_edit_bg_color = Some(states.rest.fill);
+        v.text_edit_bg_color = frame.fill;
         v.weak_text_color = input.hint;
-        let radius = egui::CornerRadius::same(metrics.radius);
+        let radius = egui::CornerRadius::same(frame.radius);
+        let clear = Color32::TRANSPARENT;
+        let width = frame.border_width;
         for (widget, border) in [
-            (&mut v.widgets.inactive, states.rest.border),
-            (&mut v.widgets.hovered, states.hover.border),
-            (&mut v.widgets.active, states.focused.border),
+            (&mut v.widgets.inactive, frame.rest),
+            (&mut v.widgets.hovered, frame.hover),
+            (&mut v.widgets.active, frame.focused),
         ] {
-            widget.bg_stroke = egui::Stroke::new(width, border);
-            widget.fg_stroke.color = states.rest.text;
+            widget.bg_stroke = egui::Stroke::new(width, border.unwrap_or(clear));
+            if let Some(text) = frame.text {
+                widget.fg_stroke.color = text;
+            }
             widget.corner_radius = radius;
             widget.expansion = 0.0;
         }
         v.selection.bg_fill = self.selection.fill;
-        v.selection.stroke = egui::Stroke::new(width.max(1.0), states.focused.border);
+        v.selection.stroke = egui::Stroke::new(width.max(1.0), frame.focused.unwrap_or(clear));
         egui.spacing.interact_size.y = metrics.height;
         egui.spacing.button_padding = metrics.padding;
+    }
+
+    /// TODO(prose): sets the input section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_input(&mut self, input: InputStyle) {
+        self.input = input;
+        self.write_input_rules();
+    }
+
+    fn write_input_rules(&mut self) {
+        crate::owned::write_input_rules(&mut self.sheet, &self.input, self.focus, self.disabled);
     }
 }
 

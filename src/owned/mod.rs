@@ -44,6 +44,7 @@ mod checkbox;
 mod choice;
 mod custom;
 mod field_box;
+mod input_sheet;
 mod menu;
 mod number;
 mod number_field;
@@ -75,6 +76,8 @@ pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
+pub(crate) use input_sheet::{Frame, keys as input_keys, write_rules as write_input_rules};
+pub use input_sheet::{InputGroupPart, InputPart};
 pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use number::{Edit, Step, ValueRange};
@@ -624,12 +627,17 @@ pub(crate) fn text_sized<A>(b: &Builder<'_, '_, A>, size: Option<crate::contract
 }
 
 /// The classes of a framed text field's leaf: the focus ring around the box the
-/// field's own frame draws. The frame's border is egui's, set by
-/// [`Style::map_input`].
-pub(crate) fn text_field_classes(style: &Style, size: Size) -> Tw {
-    let ring = field_ring(&style.input.look, style);
-    tw().rounded_px(f32::from(style.input.sizes.get(size).radius))
-        .focus_within(|p| p.ring(ring.width, ring.color))
+/// field's own frame draws, from the field's rules. The frame's border is
+/// egui's, set by [`Style::map_input`].
+pub(crate) fn text_field_classes<A: 'static>(b: &mut Builder<'_, '_, A>, size: Size) -> Tw {
+    let style = b.style().clone();
+    let keys = input_keys(style.input.sizes.key_for(size), false);
+    let root = b.resolved_part(InputPart::Root, &keys);
+    let leaf = tw().rounded_px(f32::from(root.paint.radius.nw));
+    match root.variant_ring(crate::tw::State::FocusWithin) {
+        Some(ring) => leaf.focus_within(|p| p.ring(ring.width, ring.color)),
+        None => leaf,
+    }
 }
 
 fn check() -> Icon {
