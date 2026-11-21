@@ -68,13 +68,13 @@ fn chip_rules(style: &mut eggshell_ui::Style) {
 
 fn parts(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(chip_rules, |b| {
-        let plain = b.part(Chip::Root, &[]);
+        let plain = b.part(Chip::Root, &[], tw());
         b.div_id("plain", plain, |_| {});
-        let wide = b.part(Chip::Root, &[Key::Variant(WIDE)]);
+        let wide = b.part(Chip::Root, &[Key::Variant(WIDE)], tw());
         b.div_id("wide", wide, |_| {});
-        let invalid = b.part(Chip::Root, &[Key::Aria(Aria::Invalid)]);
+        let invalid = b.part(Chip::Root, &[Key::Aria(Aria::Invalid)], tw());
         b.div_id("invalid", invalid, |_| {});
-        let called = b.part(Chip::Root, &[]).merge(tw().h_px(50.0));
+        let called = b.part(Chip::Root, &[], tw().h_px(50.0));
         b.div_id("called", called, |_| {});
     });
 }
@@ -99,15 +99,15 @@ fn the_call_site_wins_over_the_sheet_property_by_property() {
 
 fn icons_in_containers(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(chip_rules, |b| {
-        let alone = b.part(Chip::Icon, &[]);
+        let alone = b.part(Chip::Icon, &[], tw());
         b.icon("alone", alone, chevron());
         b.div_id(
             "container",
             tw().descendants(Match::glyph(), |t| t.size_px(12.0)),
             |b| {
-                let from_sheet = b.part(Chip::Icon, &[]);
+                let from_sheet = b.part(Chip::Icon, &[], tw());
                 b.icon("from-sheet", from_sheet, chevron());
-                let called = b.part(Chip::Icon, &[]).merge(tw().size_px(20.0));
+                let called = b.part(Chip::Icon, &[], tw().size_px(20.0));
                 b.icon("called", called, chevron());
             },
         );
@@ -136,7 +136,7 @@ fn slots(b: &mut Builder<'_, '_, ()>, _: &()) {
             "container",
             tw().children(Match::slot("chip-icon"), |t| t.size_px(9.0)),
             |b| {
-                let icon = b.part(Chip::Icon, &[]);
+                let icon = b.part(Chip::Icon, &[], tw());
                 b.icon("icon", icon, chevron());
                 b.icon("other", tw().size_px(16.0), chevron());
             },
@@ -164,7 +164,7 @@ fn layers(b: &mut Builder<'_, '_, ()>, _: &()) {
                 .rule(Chip::Root, When::always(), |t| t.w_px(100.0).h_px(30.0));
         },
         |b| {
-            let root = b.part(Chip::Root, &[]);
+            let root = b.part(Chip::Root, &[], tw());
             b.div_id("root", root, |_| {});
         },
     );
@@ -187,9 +187,9 @@ fn replaced(b: &mut Builder<'_, '_, ()>, _: &()) {
                 .replace(Chip::Root, When::always().variant(WIDE), |t| t.h_px(44.0));
         },
         |b| {
-            let wide = b.part(Chip::Root, &[Key::Variant(WIDE)]);
+            let wide = b.part(Chip::Root, &[Key::Variant(WIDE)], tw());
             b.div_id("wide", wide, |_| {});
-            let plain = b.part(Chip::Root, &[]);
+            let plain = b.part(Chip::Root, &[], tw());
             b.div_id("plain", plain, |_| {});
         },
     );
@@ -210,7 +210,7 @@ fn replace_discards_the_rules_below_it_where_it_holds() {
 
 fn unnamed(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(chip_rules, |b| {
-        let odd = b.part(Chip::Root, &[Key::Variant(Variant("missing"))]);
+        let odd = b.part(Chip::Root, &[Key::Variant(Variant("missing"))], tw());
         b.div_id("odd", odd, |_| {});
     });
 }
@@ -232,9 +232,9 @@ fn negated(b: &mut Builder<'_, '_, ()>, _: &()) {
                 });
         },
         |b| {
-            let free = b.part(Chip::Root, &[]);
+            let free = b.part(Chip::Root, &[], tw());
             b.div_id("free", free, |_| {});
-            let popup = b.part(Chip::Root, &[Key::Aria(Aria::HasPopup)]);
+            let popup = b.part(Chip::Root, &[Key::Aria(Aria::HasPopup)], tw());
             b.div_id("popup", popup, |_| {});
         },
     );
