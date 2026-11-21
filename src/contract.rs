@@ -2146,11 +2146,16 @@ impl Style {
             sheet,
             extensions: Extensions::default(),
         };
-        style.write_input_rules();
-        style.write_segmented_rules();
-        style.write_menu_rules();
-        style.write_choice_rules();
+        style.rewrite_rules();
         style
+    }
+
+    /// TODO(prose): writes every family's rules from its section, at the sheet's current layer. A preset calls this after `as_preset()`, then writes its own rules over them.
+    pub fn rewrite_rules(&mut self) {
+        self.write_input_rules();
+        self.write_segmented_rules();
+        self.write_menu_rules();
+        self.write_choice_rules();
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the

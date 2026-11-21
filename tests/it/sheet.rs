@@ -307,3 +307,80 @@ fn the_preset_fills_the_shadow_scale() {
     assert_ne!(tokens.shadow_xs, egui::Shadow::NONE);
     assert!(tokens.shadow_lg.offset[1] > tokens.shadow_md.offset[1]);
 }
+
+/// A preset writes every family's rules from its sections at its own layer,
+/// through the one list in `Style::rewrite_rules`, so nothing a preset draws
+/// resolves from the defaults under it.
+#[cfg(debug_assertions)]
+#[test]
+fn a_presets_family_rules_all_resolve_from_the_preset_layer() {
+    use eggshell_ui::owned::{ButtonPart, CheckboxPart, InputPart, MenuPart, TabsPart};
+    use eggshell_ui::sheet::Layer;
+    use eggshell_ui::{Property, Tw};
+
+    let style = eggshell_ui_shadcn::Shadcn::light().style();
+    let parts: [(&str, Tw); 6] = [
+        (
+            "button",
+            style.sheet.resolve(ButtonPart::Root, &[], &style.tokens),
+        ),
+        (
+            "input",
+            style.sheet.resolve(InputPart::Root, &[], &style.tokens),
+        ),
+        (
+            "menu content",
+            style.sheet.resolve(MenuPart::Content, &[], &style.tokens),
+        ),
+        (
+            "menu item",
+            style.sheet.resolve(
+                MenuPart::Item,
+                &[Key::Variant(Variant::DEFAULT)],
+                &style.tokens,
+            ),
+        ),
+        (
+            "tabs list",
+            style.sheet.resolve(
+                TabsPart::List,
+                &TabsPart::list_keys(
+                    eggshell_ui::contract::Size::DEFAULT,
+                    eggshell_ui::owned::SegmentedRows::One,
+                    eggshell_ui::owned::Enablement::Enabled,
+                ),
+                &style.tokens,
+            ),
+        ),
+        (
+            "checkbox",
+            style.sheet.resolve(
+                CheckboxPart::Root,
+                &CheckboxPart::keys(
+                    eggshell_ui::contract::Size::DEFAULT,
+                    eggshell_ui::owned::Mark::On,
+                    eggshell_ui::owned::Enablement::Enabled,
+                ),
+                &style.tokens,
+            ),
+        ),
+    ];
+    for (name, classes) in parts {
+        let set: Vec<_> = [
+            Property::Background,
+            Property::RadiusNw,
+            Property::TextColor,
+            Property::TextSize,
+            Property::TextLineHeight,
+            Property::VariantHover,
+            Property::VariantFocus,
+        ]
+        .into_iter()
+        .filter_map(|property| Some((property, classes.origin_of(property)?)))
+        .collect();
+        assert!(!set.is_empty(), "precondition: the {name} rules set paint");
+        for (property, origin) in set {
+            assert_eq!(origin.layer, Layer::Preset, "{name}: {property:?}");
+        }
+    }
+}
