@@ -913,6 +913,8 @@ impl Shadcn {
         style.sheet.as_preset();
         let input = style.input.clone();
         style.set_input(input);
+        let segmented = style.segmented.clone();
+        style.set_segmented(segmented);
         style
     }
 

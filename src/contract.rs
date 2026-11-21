@@ -2208,6 +2208,7 @@ impl Style {
             extensions: Extensions::default(),
         };
         style.write_input_rules();
+        style.write_segmented_rules();
         style
     }
 
@@ -2256,6 +2257,41 @@ impl Style {
 
     fn write_input_rules(&mut self) {
         crate::owned::write_input_rules(&mut self.sheet, &self.input, self.focus, self.disabled);
+    }
+
+    /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the sheet's current layer.
+    pub fn set_segmented(&mut self, segmented: SegmentedStyle) {
+        self.segmented = segmented;
+        self.write_segmented_rules();
+    }
+
+    fn write_segmented_rules(&mut self) {
+        let seg = &self.segmented;
+        let roles = seg
+            .sizes
+            .keys()
+            .map(|size| {
+                let unselected = self.role_sized(&seg.text, seg.sizes.get(size).text);
+                let selected = match seg.selected_weight {
+                    Some(weight) => TextSpec {
+                        weight,
+                        ..unselected.clone()
+                    },
+                    None => unselected.clone(),
+                };
+                crate::owned::TabsRoles {
+                    size,
+                    unselected,
+                    selected,
+                }
+            })
+            .collect();
+        crate::owned::write_tabs_rules(
+            &mut self.sheet,
+            &self.segmented,
+            roles,
+            (self.focus, self.disabled),
+        );
     }
 }
 

@@ -76,6 +76,10 @@ fn harness_with(
 ) -> Harn {
     let mut style = Shadcn::for_theme(theme).with_style(shadcn).style();
     edit(&mut style);
+    // An edit to the segmented section reaches its sheet rules as an app's
+    // `set_segmented` does.
+    let segmented = style.segmented.clone();
+    style.set_segmented(segmented);
     let tokens = Tokens::for_theme(theme).in_style(shadcn);
     let app = App {
         style: style.clone(),
