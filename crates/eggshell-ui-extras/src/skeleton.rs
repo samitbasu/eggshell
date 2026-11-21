@@ -44,7 +44,7 @@ impl SkeletonStyle {
     pub fn from_style(style: &Style) -> Self {
         Self {
             fill: Color32::from_gray(128).gamma_multiply(0.2),
-            radius: style.menu.radius,
+            radius: style.menu().radius,
             period: Duration::from_secs(2),
             low: Opacity::new(0.5),
         }

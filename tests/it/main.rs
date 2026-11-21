@@ -90,6 +90,7 @@ mod long_list_example;
 mod markdown;
 mod menu;
 mod menu_offset;
+mod menu_sheet;
 mod modal;
 mod mount;
 mod named_layouts;

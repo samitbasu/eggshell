@@ -170,7 +170,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
         let refused = gate.refused();
         let (enablement, group_tip) = gate.resolve(&mut b, slot.id, enablement);
         let style = b.style().clone();
-        let radio = &style.radio;
+        let radio = &style.radio();
         let size = b.size_of(size);
         let metrics = *radio.sizes.lookup(b.ctx(), size);
         let size = radio.sizes.key_for(size);

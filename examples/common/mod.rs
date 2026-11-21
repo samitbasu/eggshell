@@ -659,7 +659,7 @@ pub fn text_box<S, K>(
 
 /// The box of a hand-built list: the menu look.
 pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
-    let menu = &b.style().menu;
+    let menu = b.style().menu();
     let colors = menu.popup.paint.states.rest;
     let classes = tw()
         .flex()
@@ -679,7 +679,7 @@ pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
 
 /// An item of a hand-built list: the menu item look.
 pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
-    let menu = &b.style().menu;
+    let menu = b.style().menu();
     let hover = menu.item.paint.states.hover;
     tw().px(menu.item_padding.x / 4.0)
         .py(menu.item_padding.y / 4.0)

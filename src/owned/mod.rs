@@ -47,6 +47,7 @@ mod custom;
 mod field_box;
 mod input_sheet;
 mod menu;
+mod menu_sheet;
 mod number;
 mod number_field;
 pub(crate) mod options;
@@ -87,6 +88,8 @@ pub(crate) use input_sheet::{Frame, keys as input_keys, write_rules as write_inp
 pub use input_sheet::{InputGroupPart, InputPart};
 pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
+pub use menu_sheet::MenuPart;
+pub(crate) use menu_sheet::write_rules as write_menu_rules;
 pub use number::{Edit, Step, ValueRange};
 pub(crate) use options::Gate;
 pub use options::IntoTip;
@@ -491,7 +494,7 @@ impl Paint {
     ///
     /// fn cell(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let paint = style.checkbox.off;
+    ///     let paint = style.checkbox().off;
     ///     let classes = paint.classes(1.0, &style, 4, Enablement::Enabled, Duration::ZERO);
     ///     b.div_id("cell", classes.size_px(16.0), |_| {});
     /// }

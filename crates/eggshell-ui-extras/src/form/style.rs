@@ -71,7 +71,7 @@ impl FormStyle {
     pub fn from_style(style: &Style) -> Self {
         let buttons = &style.toggle.sizes;
         Self {
-            fill: style.menu.popup.paint.states.rest.fill,
+            fill: style.menu().popup.paint.states.rest.fill,
             border: style.table.rule,
             border_width: 1.0,
             radius: 12,
@@ -86,11 +86,11 @@ impl FormStyle {
                 weight: Weight::Medium,
                 ..style.text.clone()
             },
-            title_color: style.label.rest.text,
+            title_color: style.label().rest.text,
             title_gap: 12.0,
             row_gap: 12.0,
             row_min_height: buttons.get(buttons.default_key()).height,
-            label_color: style.label.rest.text,
+            label_color: style.label().rest.text,
             value_color: style.slider.readout.rest.text,
             section_gap: 24.0,
         }
