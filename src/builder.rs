@@ -34,7 +34,7 @@ use crate::scroll::{ScrollChain, ScrollOptions};
 use crate::sizing::Width;
 use crate::text::{TextStyle, VAlign};
 use crate::tooltip::{Content, Tooltip};
-use crate::tw::{Grouping, PointerEvents, Progress, Sensing, Tw, tw};
+use crate::tw::{Grouping, Observed, PointerEvents, Progress, Sensing, Tw, tw};
 use crate::widget::Stock;
 
 /// What a node is made of, besides its classes.
@@ -1686,20 +1686,22 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         let style = self.resolved_style(tw, &node);
         let id = self.st.tree.new_node(style, &[], node);
         self.kids.push(id);
-        self.observe(id, observed);
+        self.observe(id, observed, Vec::new());
         id
     }
 
-    /// `tw` as its `has` rules make it once the children `kids` are built.
-    fn closed(&mut self, tw: Tw, node: &mut Node, kids: &[NodeId]) -> Tw {
-        let applied = tw.with_has(kids.iter().filter_map(|kid| self.st.observed.get(kid)));
-        if !self.st.observed.is_empty() {
-            for kid in kids {
-                self.st.observed.remove(kid);
-            }
-        }
-        let Some(applied) = applied else {
-            return tw;
+    /// `tw` as its `has` rules make it once the children `kids` are built,
+    /// and what was observed of each child and what it holds.
+    fn closed(&mut self, tw: Tw, node: &mut Node, kids: &[NodeId]) -> (Tw, Vec<Vec<Observed>>) {
+        let seen: Vec<Vec<Observed>> = match self.st.observed.is_empty() {
+            true => Vec::new(),
+            false => kids
+                .iter()
+                .filter_map(|kid| self.st.observed.remove(kid))
+                .collect(),
+        };
+        let Some(applied) = tw.with_has(&seen) else {
+            return (tw, seen);
         };
         node.paint = applied.paint;
         node.text_valign = VAlign::of(&applied.style);
@@ -1707,22 +1709,26 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         {
             node.origins = applied.origins.clone();
         }
-        applied
+        (applied, seen)
     }
 
     /// What the container these nodes are built in learns of the node a `tw`
     /// and `parts` make, if it has `has` rules.
-    fn observation(&self, tw: &Tw, parts: &Parts) -> Option<crate::tw::Observed> {
-        self.ambient.rules.observed.then(|| crate::tw::Observed {
+    fn observation(&self, tw: &Tw, parts: &Parts) -> Option<Observed> {
+        self.ambient.rules.observed.then(|| Observed {
             kind: parts.kind,
             facts: tw.facts().clone(),
             focused: parts.id.is_some_and(|id| self.shell().focus_within(id)),
         })
     }
 
-    fn observe(&mut self, node: NodeId, observed: Option<crate::tw::Observed>) {
+    /// Keeps what is observed of `node` and what it holds, `below`, for the
+    /// containers above.
+    fn observe(&mut self, node: NodeId, observed: Option<Observed>, below: Vec<Vec<Observed>>) {
         if let Some(observed) = observed {
-            self.st.observed.insert(node, observed);
+            let mut seen = vec![observed];
+            seen.extend(below.into_iter().flatten());
+            self.st.observed.insert(node, seen);
         }
     }
 
@@ -1898,11 +1904,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             &mut kids,
             (&text, ambient, self.style),
         ));
-        let tw = self.closed(tw, &mut node, &kids);
+        let (tw, below) = self.closed(tw, &mut node, &kids);
         let style = self.resolved_style(tw, &node);
         let id = self.st.tree.new_node(style, &kids, node);
         self.kids.push(id);
-        self.observe(id, observed);
+        self.observe(id, observed, below);
         id
     }
 }

@@ -323,7 +323,7 @@ pub(crate) struct BuildState {
     pub seen: Seen,
     /// What the nodes built under a container with `has` rules say of
     /// themselves, until it closes.
-    pub observed: std::collections::HashMap<NodeId, crate::tw::Observed>,
+    pub observed: std::collections::HashMap<NodeId, Vec<crate::tw::Observed>>,
     /// The rules containers declared this frame, by the index `Rules` holds.
     pub links: Vec<crate::tw::Link>,
     /// What the style's sheet gave the parts built so far.
