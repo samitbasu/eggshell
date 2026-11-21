@@ -146,13 +146,38 @@ pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle) {
     );
 }
 
+/// Writes the input's recorded exceptions (#446) over the generated look,
+/// at the sheet's current layer: a disabled group fades as a whole, and the
+/// sizes other than the default keep their metrics.
+pub(crate) fn write_exceptions(sheet: &mut Sheet, input: &InputStyle) {
+    write_disabled_exception(sheet);
+    write_size_exceptions(sheet, input);
+}
+
+/// A refused or disabled field takes exactly the disabled look (#385): its
+/// whole group at half, as a disabled button is. shadcn fades only the
+/// control and the addon, so those take back their own fade inside it.
+fn write_disabled_exception(sheet: &mut Sheet) {
+    let disabled = When::always().aria(Aria::Disabled);
+    sheet.rule_when(InputGroupPart::Root, disabled, |t, _| {
+        t.opacity(crate::Opacity::new(0.5))
+    });
+    for part in [
+        InputGroupPart::Input,
+        InputGroupPart::Textarea,
+        InputGroupPart::Addon,
+    ] {
+        sheet.rule_when(part, disabled, |t, _| t.opacity(crate::Opacity::new(1.0)));
+    }
+}
+
 /// Writes `input`'s sizes other than its default as rules over the generated
 /// look: shadcn draws one field height per style, and eggshell's smaller
 /// fields are its own (a recorded exception, #446). The group's height and
 /// radius, its control's text, its addons' icons, the framed field's radius,
 /// and the spacing follow each size's metrics: `padding.x` between the border
 /// and what is next to it, `icon_gap` between an icon and the text.
-pub(crate) fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
+fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
     let default = input.sizes.default_key();
     // The default size keeps the generated look. Naming it says so, for the
     // check that a size its parts' rules leave out is a mistake.

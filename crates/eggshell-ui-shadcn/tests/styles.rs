@@ -36,7 +36,11 @@ fn vega_is_the_default_and_the_tokens_of_before() {
     let t = Tokens::light();
     assert_eq!(t.style, ShadcnStyle::Vega);
     assert_eq!((t.radius, t.text_size, t.control_height), (10, 14.0, 36.0));
-    assert_eq!(t.input_padding, vec2(12.0, 4.0));
+    assert_eq!(
+        t.input_padding,
+        vec2(10.0, 4.0),
+        "px-2.5 py-1, style-vega.css:678"
+    );
     assert_eq!(t.ring_width, 3.0);
 }
 
