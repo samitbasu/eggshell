@@ -1537,17 +1537,17 @@ pub struct Style {
     pub faces: Faces,
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
-    pub label: States,
+    label: States,
     /// Buttons and toggles.
     pub button: ButtonStyle,
     /// Checkboxes.
-    pub checkbox: CheckboxStyle,
+    checkbox: CheckboxStyle,
     /// Radio buttons.
-    pub radio: RadioStyle,
+    radio: RadioStyle,
     /// Switches.
-    pub switch: SwitchStyle,
+    switch: SwitchStyle,
     /// Segmented controls.
-    pub segmented: SegmentedStyle,
+    segmented: SegmentedStyle,
     /// Sliders.
     pub slider: SliderStyle,
     /// Progress bars.
@@ -2184,6 +2184,32 @@ impl Style {
         v.selection.stroke = egui::Stroke::new(width.max(1.0), frame.focused.unwrap_or(clear));
         egui.spacing.interact_size.y = metrics.height;
         egui.spacing.button_padding = metrics.padding;
+    }
+
+    /// The text beside a checkbox, radio button or switch; only `rest` and
+    /// `disabled` apply.
+    pub fn label(&self) -> States {
+        self.label
+    }
+
+    /// Checkboxes.
+    pub fn checkbox(&self) -> &CheckboxStyle {
+        &self.checkbox
+    }
+
+    /// Radio buttons.
+    pub fn radio(&self) -> &RadioStyle {
+        &self.radio
+    }
+
+    /// Switches.
+    pub fn switch(&self) -> &SwitchStyle {
+        &self.switch
+    }
+
+    /// Segmented controls, and the tabs' list and triggers.
+    pub fn segmented(&self) -> &SegmentedStyle {
+        &self.segmented
     }
 
     /// The input section: text fields and the boxes that hold them.

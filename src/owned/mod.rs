@@ -493,7 +493,7 @@ impl Paint {
     ///
     /// fn cell(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let paint = style.checkbox.off;
+    ///     let paint = style.checkbox().off;
     ///     let classes = paint.classes(1.0, &style, 4, Enablement::Enabled, Duration::ZERO);
     ///     b.div_id("cell", classes.size_px(16.0), |_| {});
     /// }

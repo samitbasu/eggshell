@@ -64,7 +64,7 @@ impl TabsPart {
     /// TODO(prose): the size whose rules draw triggers of `size` here: `size`, or the style's default reported as missing.
     #[track_caller]
     pub fn size_key<A>(b: &Builder<'_, '_, A>, size: Size) -> Size {
-        let sizes = &b.style().segmented.sizes;
+        let sizes = &b.style().segmented().sizes;
         sizes.lookup(b.ctx(), size);
         sizes.key_for(size)
     }

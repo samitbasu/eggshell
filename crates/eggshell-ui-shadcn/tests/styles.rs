@@ -37,7 +37,7 @@ fn lyra_values_are_style_lyra_css() {
         assert_eq!((button.height, button.radius, button.gap), (32.0, 0, 6.0));
         assert_eq!(style.tokens.focus.width, 1.0);
         assert_eq!(style.text.size, 12.0);
-        assert_eq!(style.checkbox.sizes.get(Size::DEFAULT).radius, 0);
+        assert_eq!(style.checkbox().sizes.get(Size::DEFAULT).radius, 0);
         assert_eq!(style.slider.sizes.get(Size::DEFAULT).radius, 0);
         assert_eq!(style.input().sizes.get(Size::DEFAULT).height, 32.0);
         assert_eq!(style.input().sizes.get(Size::DEFAULT).radius, 0);
@@ -162,12 +162,20 @@ fn slider_and_segmented_tracks_read_on_a_muted_panel() {
                 s.slider.track.rest.fill, tokens.input,
                 "{theme:?} {style:?}"
             );
-            assert_eq!(s.segmented.track_fill, tokens.input, "{theme:?} {style:?}");
+            assert_eq!(
+                s.segmented().track_fill,
+                tokens.input,
+                "{theme:?} {style:?}"
+            );
             assert_ne!(
                 s.slider.track.rest.fill, tokens.muted,
                 "{theme:?} {style:?}"
             );
-            assert_ne!(s.segmented.track_fill, tokens.muted, "{theme:?} {style:?}");
+            assert_ne!(
+                s.segmented().track_fill,
+                tokens.muted,
+                "{theme:?} {style:?}"
+            );
         }
     }
 }
@@ -185,8 +193,8 @@ fn each_themed_half_is_the_preset_s_style_with_its_fonts() {
             assert_eq!(half.tokens, core.tokens, "{at}");
             assert_eq!(half.text, core.text, "{at}");
             assert_eq!(half.button, core.button, "{at}");
-            assert_eq!(half.segmented, core.segmented, "{at}");
             assert_eq!(half.menu(), core.menu(), "{at}");
+            assert_eq!(half.segmented(), core.segmented(), "{at}");
             let fonts = half.extension::<Fonts>();
             assert!(preset.tokens.font.is_some(), "precondition: {at} has fonts");
             assert!(!fonts.0.is_empty(), "{at}");

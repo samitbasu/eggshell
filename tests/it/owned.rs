@@ -175,7 +175,7 @@ fn vega_values_are_shadcns() {
     );
     assert_eq!(
         light
-            .checkbox
+            .checkbox()
             .sizes
             .get(eggshell_ui::contract::Size::DEFAULT)
             .radius,
@@ -334,7 +334,7 @@ fn checkbox_box_and_glyph_are_the_styles() {
         let node = "/(\"check\", Enabled)/Box";
         let rect = d.rect(Target::suffix(node));
         let shape = box_at(&d, rect);
-        let unchecked = style.checkbox.off.states.rest;
+        let unchecked = style.checkbox().off.states.rest;
         assert_eq!(shape.fill, unchecked.fill, "{theme:?} unchecked");
         assert_eq!(shape.stroke.color, unchecked.border);
         assert_eq!(shape.corner_radius, egui::CornerRadius::same(4));
@@ -347,7 +347,7 @@ fn checkbox_box_and_glyph_are_the_styles() {
         );
         d.click(Target::suffix(node)).frames(12);
         assert!(d.app().checked);
-        let checked = style.checkbox.on.states.rest;
+        let checked = style.checkbox().on.states.rest;
         let shape = box_at(&d, rect);
         assert_eq!(shape.fill, checked.fill, "{theme:?} checked");
         assert_eq!(shape.stroke.color, checked.border);
