@@ -433,6 +433,9 @@ type Resolved = Vec<(Box<[Key]>, Tw)>;
 #[derive(Default)]
 pub(crate) struct Memo {
     sheets: HashMap<u64, Kept>,
+    /// Whether what is kept was resolved while tracing.
+    #[cfg(debug_assertions)]
+    traced: bool,
 }
 
 /// What was resolved for one sheet, and the tokens it was resolved with: a
@@ -454,6 +457,11 @@ impl Memo {
         keys: &[Key],
         tokens: &Tokens,
     ) -> (Tw, bool) {
+        #[cfg(debug_assertions)]
+        if self.traced != crate::tw::tracing() {
+            self.sheets.clear();
+            self.traced = crate::tw::tracing();
+        }
         if self.sheets.len() >= Self::SHEETS && !self.sheets.contains_key(&sheet.version) {
             self.sheets.clear();
         }
