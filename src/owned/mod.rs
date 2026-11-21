@@ -86,7 +86,11 @@ pub(crate) use choices_sheet::{
 };
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
-pub(crate) use input_sheet::{Frame, keys as input_keys, write_rules as write_input_rules};
+pub(crate) use input_sheet::{
+    Frame, keys as input_keys, write_rules as write_input_rules,
+    write_size_exceptions as write_input_size_exceptions,
+};
+pub(crate) use input_sheet::{INLINE_END, INLINE_START};
 pub use input_sheet::{InputGroupPart, InputPart};
 pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};

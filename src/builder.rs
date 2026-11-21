@@ -159,6 +159,8 @@ pub(crate) struct Ambient {
     pub(crate) flex: Option<taffy::FlexDirection>,
     /// The rules of the containers above, for the nodes built here.
     pub(crate) rules: crate::tw::Rules,
+    /// The slot of the nearest part the nodes are built inside.
+    pub(crate) part: Option<&'static str>,
 }
 
 impl Ambient {
@@ -168,6 +170,7 @@ impl Ambient {
     pub(crate) fn cut(&self) -> Self {
         Self {
             rules: crate::tw::Rules::NONE,
+            part: None,
             ..*self
         }
     }
@@ -178,6 +181,7 @@ impl Ambient {
         size: None,
         flex: None,
         rules: crate::tw::Rules::NONE,
+        part: None,
     };
 }
 
@@ -1775,8 +1779,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             flex: (classes.style.display == taffy::Display::Flex)
                 .then_some(classes.style.flex_direction),
             rules: self.ambient.rules.within(classes, &mut self.st.links),
+            part: classes.facts().said_slot().or(self.ambient.part),
             ..self.ambient
         }
+    }
+
+    /// The slot of the nearest part this builds inside: a field inside an
+    /// input group is its control.
+    pub(crate) fn within_part(&self) -> Option<&'static str> {
+        self.ambient.part
     }
 
     pub(crate) fn flex(&self) -> Option<taffy::FlexDirection> {

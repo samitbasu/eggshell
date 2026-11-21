@@ -430,7 +430,12 @@ fn a_refused_field_takes_the_disabled_look() {
     let d = harness();
     let refused = support::text_color(&d, d.rect(Target::suffix("/\"name\"")), "Ada");
     let enabled = support::text_color(&d, d.rect(Target::suffix("/\"open\"")), "Ok");
-    let disabled = support::text_color(&d, d.rect(Target::suffix("/\"off\"/Box")), "3");
     assert_ne!(refused, enabled, "not the enabled look");
-    assert_eq!(refused, disabled, "the disabled look the stepper has");
+    assert_eq!(
+        refused,
+        Tokens::for_theme(Theme::Light)
+            .foreground
+            .gamma_multiply(0.5),
+        "the input's disabled look, disabled:opacity-50"
+    );
 }

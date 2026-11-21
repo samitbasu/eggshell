@@ -91,10 +91,17 @@ pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle) {
             })
     });
     sheet.rule(InputGroupPart::Root, move |t, _| t.flex().border(width));
+    let icon = input.icon;
+    sheet.rule(InputGroupPart::Addon, move |t, _| {
+        t.flex().items_center().shrink_0().text(icon)
+    });
     for size in input.sizes.keys() {
         let metrics = *input.sizes.get(size);
         let radius = f32::from(metrics.radius);
         let when = When::always().size(size);
+        sheet.rule_when(InputGroupPart::Addon, when, move |t, _| {
+            t.children(Match::glyph(), |g| g.size_px(metrics.icon_size))
+        });
         sheet.rule_when(InputPart::Root, when, move |t, _| t.rounded_px(radius));
         sheet.rule_when(InputGroupPart::Root, when, move |t, _| {
             t.rounded_px(radius)
@@ -138,6 +145,63 @@ pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle) {
         },
     );
 }
+
+/// Writes `input`'s sizes other than its default as rules over the generated
+/// look: shadcn draws one field height per style, and eggshell's smaller
+/// fields are its own (a recorded exception, #446). The group's height and
+/// radius, its control's text, its addons' icons, the framed field's radius,
+/// and the spacing follow each size's metrics: `padding.x` between the border
+/// and what is next to it, `icon_gap` between an icon and the text.
+pub(crate) fn write_size_exceptions(sheet: &mut Sheet, input: &InputStyle) {
+    let default = input.sizes.default_key();
+    // The default size keeps the generated look. Naming it says so, for the
+    // check that a size its parts' rules leave out is a mistake.
+    let keeps = When::always().size(default);
+    sheet.rule_when(InputPart::Root, keeps, |t, _| t);
+    sheet.rule_when(InputGroupPart::Root, keeps, |t, _| t);
+    sheet.rule_when(InputGroupPart::Input, keeps, |t, _| t);
+    sheet.rule_when(InputGroupPart::Addon, keeps, |t, _| t);
+    for size in input.sizes.keys().filter(|size| *size != default) {
+        let m = *input.sizes.get(size);
+        let when = When::always().size(size);
+        let radius = f32::from(m.radius);
+        sheet.rule_when(InputPart::Root, when, move |t, _| t.rounded_px(radius));
+        sheet.rule_when(InputGroupPart::Root, when, move |t, _| {
+            t.h_px(m.height).rounded_px(radius)
+        });
+        sheet.rule_when(InputGroupPart::Input, when, move |t, _| {
+            let t = t.px(m.padding.x / 4.0);
+            match m.text {
+                Some(text) => t.text_size(text.size, text.line_height),
+                None => t,
+            }
+        });
+        sheet.rule_when(InputGroupPart::Addon, when, move |t, _| {
+            t.children(Match::glyph(), |g| g.size_px(m.icon_size))
+        });
+        let (edge, gap) = (m.padding.x / 4.0, m.icon_gap / 4.0);
+        for (side, pad) in [
+            (INLINE_START, Tw::pl as fn(Tw, f32) -> Tw),
+            (INLINE_END, Tw::pr),
+        ] {
+            sheet.rule_when(
+                InputGroupPart::Addon,
+                when.attr("align", side),
+                move |t, _| pad(t, edge),
+            );
+            sheet.rule_when(
+                InputGroupPart::Input,
+                when.attr("addon", side),
+                move |t, _| pad(t, gap),
+            );
+        }
+    }
+}
+
+/// Where an addon sits in its group, and so the side of the control it is
+/// on, as shadcn's `data-align` says.
+pub(crate) const INLINE_START: &str = "inline-start";
+pub(crate) const INLINE_END: &str = "inline-end";
 
 /// What a text field's own frame is drawn with, read from the sheet.
 pub(crate) struct Frame {

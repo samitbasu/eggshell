@@ -648,6 +648,17 @@ pub fn ring_at<S: Seen>(seen: &S, rect: Rect) -> Option<RectShape> {
         .next_back()
 }
 
+/// Where the text `text` painted with its origin inside `inside` starts.
+pub fn text_left<S: Seen>(seen: &S, inside: Rect, text: &str) -> f32 {
+    shapes(seen)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => Some(t.pos.x),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no text {text:?} in {inside:?}"))
+}
+
 /// The colour of the text `text` painted with its origin inside `inside`.
 pub fn text_color<S: Seen>(seen: &S, inside: Rect, text: &str) -> Color32 {
     shapes(seen)

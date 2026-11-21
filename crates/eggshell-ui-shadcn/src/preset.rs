@@ -857,6 +857,7 @@ impl Shadcn {
             });
         }
         crate::sheets::write(&mut style.sheet, t.style, self.theme);
+        style.write_input_size_exceptions();
         style
     }
 

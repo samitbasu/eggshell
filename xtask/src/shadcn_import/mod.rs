@@ -23,7 +23,7 @@ use classes::{Classifier, Fate, Gap, Radius, TwTable};
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 7] = [
+const COMPONENTS: [&str; 8] = [
     "button",
     "badge",
     "combobox",
@@ -31,6 +31,7 @@ const COMPONENTS: [&str; 7] = [
     "input-group",
     "select",
     "tabs",
+    "textarea",
 ];
 
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
@@ -47,6 +48,11 @@ const WIDGETS: [emit::Widget; 6] = [
         sizes: &[],
         facts: &[],
         parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
     },
     emit::Widget {
         component: "input",
@@ -55,14 +61,44 @@ const WIDGETS: [emit::Widget; 6] = [
         sizes: &[],
         facts: &[],
         parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
     },
     emit::Widget {
         component: "input-group",
-        checked_in: false,
+        checked_in: true,
         variants: &[],
         sizes: &[],
         facts: &[],
         parts: None,
+        bases: &[
+            emit::Base {
+                part: "Input",
+                component: "input",
+            },
+            emit::Base {
+                part: "Textarea",
+                component: "textarea",
+            },
+        ],
+        aliases: &[("input", "input-group-control")],
+        relations: &[
+            emit::Relation {
+                variants: "has-[>[data-align=inline-start]]:[&>input]",
+                part: "Input",
+                key: ("addon", "inline-start"),
+            },
+            emit::Relation {
+                variants: "has-[>[data-align=inline-end]]:[&>input]",
+                part: "Input",
+                key: ("addon", "inline-end"),
+            },
+        ],
+        slot_aliases: &[("input-group-control", &["input-group-textarea"])],
+        inherited: &[("group-data-[disabled=true]/input-group", "disabled")],
     },
     emit::Widget {
         component: "select",
@@ -71,6 +107,11 @@ const WIDGETS: [emit::Widget; 6] = [
         sizes: &[],
         facts: &[],
         parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
     },
     emit::Widget {
         component: "combobox",
@@ -79,6 +120,11 @@ const WIDGETS: [emit::Widget; 6] = [
         sizes: &[],
         facts: &[],
         parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
     },
     emit::Widget {
         component: "tabs",
@@ -87,6 +133,11 @@ const WIDGETS: [emit::Widget; 6] = [
         sizes: &[],
         facts: &TABS,
         parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
     },
 ];
 

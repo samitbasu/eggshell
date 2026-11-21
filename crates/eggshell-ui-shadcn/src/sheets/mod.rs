@@ -14,8 +14,10 @@ type Half = fn(&mut Sheet);
 
 mod vega_button;
 mod vega_input;
+mod vega_input_group;
 mod lyra_button;
 mod lyra_input;
+mod lyra_input_group;
 
 /// Writes the rules of `style` for `theme` into `sheet`. Their colours are
 /// the style's core tokens, which the sheet is resolved with.
@@ -24,10 +26,12 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
         ShadcnStyle::Vega => &[
             (vega_button::light, vega_button::dark),
             (vega_input::light, vega_input::dark),
+            (vega_input_group::light, vega_input_group::dark),
         ],
         ShadcnStyle::Lyra => &[
             (lyra_button::light, lyra_button::dark),
             (lyra_input::light, lyra_input::dark),
+            (lyra_input_group::light, lyra_input_group::dark),
         ],
     };
     for (light, dark) in halves {

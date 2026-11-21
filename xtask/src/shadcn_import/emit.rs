@@ -177,8 +177,6 @@ fn selector(variant: &str) -> Option<(&'static str, &'static str)> {
     })
 }
 
-/// A `[data-slot=x]`, `[data-k=v]` or `[aria-x=true]` attribute selector as
-/// `Match` methods.
 /// `[data-slot][aria-invalid=true]`: each attribute of a compound selector,
 /// in turn. A bare `[data-slot]` is any shadcn part, which says nothing more
 /// about an eggshell node.
@@ -191,6 +189,8 @@ fn attributes(selector: &str) -> Option<String> {
         .collect()
 }
 
+/// A `[data-slot=x]`, `[data-k=v]` or `[aria-x=true]` attribute selector as
+/// `Match` methods.
 fn attribute(selector: &str) -> Option<String> {
     let inner = selector.strip_prefix('[')?.strip_suffix(']')?;
     let (name, value) = inner.split_once('=')?;
@@ -349,6 +349,19 @@ impl Classifier<'_> {
             } else if let Some((method, base)) = selector(variant) {
                 if t.wraps.iter().any(|w| matches!(w, Wrap::Paint(_))) {
                     return Err(format!("a rule (`{variant}:`) under a state of this node"));
+                }
+                if t.wraps.iter().any(|w| {
+                    matches!(
+                        w,
+                        Wrap::Rule {
+                            method: "has" | "has_child",
+                            ..
+                        }
+                    )
+                }) {
+                    return Err(format!(
+                        "a rule (`{variant}:`) under `has`, which sets box classes only"
+                    ));
                 }
                 let mut when = base.to_owned();
                 if variant == "*" && variants.peek() == Some(&"[svg]") {
@@ -632,6 +645,56 @@ pub struct Widget {
     /// The part enum, where eggshell names it otherwise than the component
     /// (`dropdown-menu`'s parts are `MenuPart`).
     pub parts: Option<&'static str>,
+    /// Other components a part renders, whose root classes come first in
+    /// its rules: input-group's `Input` is an `Input`.
+    pub bases: &'static [Base],
+    /// Elements a selector names that are parts here, by slot:
+    /// input-group's `[&>input]` is its control.
+    pub aliases: &'static [(&'static str, &'static str)],
+    /// Rules of the root over one part beside another, as a key that part
+    /// carries.
+    pub relations: &'static [Relation],
+    /// Slots shadcn gives several parts that eggshell keeps apart, as the
+    /// slot and the others a rule over it also reaches: input-group's control
+    /// is its Input or its Textarea.
+    pub slot_aliases: &'static [(&'static str, &'static [&'static str])],
+    /// An ancestor's state a part carries as its own, as the variants that
+    /// ask for each: input-group's addon is disabled with its group.
+    pub inherited: &'static [(&'static str, &'static str)],
+}
+
+/// `has-[>[data-align=inline-end]]:[&>input]:pr-1.5` on the root: the
+/// control beside an inline-end addon. eggshell's control carries that as
+/// its own key, `attr("addon", "inline-end")`, so the class becomes a rule
+/// of the control's under that key.
+#[derive(Debug)]
+pub struct Relation {
+    /// The variants as shadcn writes them on the root, through the element.
+    pub variants: &'static str,
+    /// The part the classes go to, as its enum variant.
+    pub part: &'static str,
+    /// The key that part carries instead.
+    pub key: (&'static str, &'static str),
+}
+
+impl Widget {
+    /// `class` of the root, as the part and class it is under a relation.
+    fn relate(&self, class: &str) -> Option<(&'static str, String)> {
+        self.relations.iter().find_map(|r| {
+            let utility = class.strip_prefix(r.variants)?.strip_prefix(':')?;
+            let (name, value) = r.key;
+            Some((r.part, format!("data-[{name}={value}]:{utility}")))
+        })
+    }
+}
+
+/// A part that renders another component, whose root classes it takes first.
+#[derive(Debug)]
+pub struct Base {
+    /// The part, as its enum variant.
+    pub part: &'static str,
+    /// The component it renders.
+    pub component: &'static str,
 }
 
 /// The breakpoints every widget is drawn at: eggshell's responsiveness is
@@ -680,21 +743,74 @@ impl Widget {
     /// them; or the fact that `class` never applies.
     fn settle(&self, class: &str) -> Result<(String, Vec<&'static Assumed>), &'static Assumed> {
         let (variants, utility) = split_variants(class);
-        let mut kept = Vec::new();
+        let mut kept: Vec<String> = Vec::new();
         let mut held = Vec::new();
         for variant in variants {
+            if let Some((_, own)) = self.inherited.iter().find(|(group, _)| *group == variant) {
+                kept.push((*own).to_owned());
+                continue;
+            }
+            if let Some(slot) = self.alias(variant) {
+                kept.push(
+                    if variant.starts_with("[&>") {
+                        "*"
+                    } else {
+                        "**"
+                    }
+                    .to_owned(),
+                );
+                kept.push(format!("data-[slot={slot}]"));
+                continue;
+            }
             let (negated, v) = match variant.strip_prefix("not-") {
                 Some(v) => (true, v),
                 None => (false, variant),
             };
             match self.facts.iter().chain(&VIEWPORT).find(|f| f.variant == v) {
-                None => kept.push(variant),
+                None => kept.push(variant.to_owned()),
                 Some(fact) if (fact.fact == Fact::Holds) != negated => held.push(fact),
                 Some(fact) => return Err(fact),
             }
         }
-        kept.push(utility);
+        kept.push(utility.to_owned());
         Ok((kept.join(":"), held))
+    }
+
+    /// `t`, and a copy of it for each slot that aliases one its rules match.
+    fn over_aliases(&self, t: &Translated) -> Vec<Translated> {
+        let mut all = vec![t.clone()];
+        for (slot, others) in self.slot_aliases {
+            let named = format!(".with_slot({slot:?})");
+            if !t
+                .wraps
+                .iter()
+                .any(|w| matches!(w, Wrap::Rule { when, .. } if when.contains(&named)))
+            {
+                continue;
+            }
+            for other in *others {
+                let mut copy = t.clone();
+                for wrap in &mut copy.wraps {
+                    if let Wrap::Rule { when, .. } = wrap {
+                        *when = when.replace(&named, &format!(".with_slot({other:?})"));
+                    }
+                }
+                all.push(copy);
+            }
+        }
+        all
+    }
+
+    /// The slot of the element `[&>name]` or `[&_name]` selects, if it is
+    /// a part here.
+    fn alias(&self, variant: &str) -> Option<&'static str> {
+        let name = variant
+            .strip_prefix("[&>")
+            .or_else(|| variant.strip_prefix("[&_"))?
+            .strip_suffix(']')?;
+        self.aliases
+            .iter()
+            .find_map(|(element, slot)| (*element == name).then_some(*slot))
     }
 
     /// The enum the widget's parts are variants of.
@@ -821,13 +937,28 @@ pub fn emit(
     let mut unmapped = BTreeMap::new();
     let mut assumed = BTreeSet::new();
     let mut dropped = BTreeMap::new();
-    for row in rows.iter().filter(|r| r.component == component) {
+    let based = widget.bases.iter().flat_map(|base| {
+        rows.iter()
+            .filter(move |r| {
+                r.component == base.component && part_variant(base.component, &r.slot) == "Root"
+            })
+            .map(move |r| (r, base.part.to_owned()))
+    });
+    let own = rows
+        .iter()
+        .filter(|r| r.component == component)
+        .map(|r| (r, part_variant(component, &r.slot)));
+    for (row, part) in based.chain(own) {
         if matches!(row.fate, Fate::Marker) {
             continue;
         }
         let source = source_of(row, sources);
         let bases = when_of(&row.origin, widget);
-        let class = match widget.settle(&row.class.text) {
+        let (part, text) = match (part.as_str(), widget.relate(&row.class.text)) {
+            ("Root", Some((related, class))) => (related.to_owned(), class),
+            _ => (part, row.class.text.clone()),
+        };
+        let class = match widget.settle(&text) {
             Ok((class, held)) => {
                 assumed.extend(held.iter().map(|f| (f.variant, f.why)));
                 class
@@ -847,18 +978,19 @@ pub fn emit(
                 for kind in &t.kinds {
                     *kinds.entry(*kind).or_insert(0) += 1;
                 }
-                let part = part_variant(component, &row.slot);
                 let keys: Vec<String> = t.keys.iter().map(|key| widget.key(key)).collect();
                 for base in &bases {
                     let when = format!("{base}{}", keys.concat());
-                    let piece = (t.clone(), source.clone());
-                    match rules.iter_mut().find(|r| r.part == part && r.when == when) {
-                        Some(rule) => rule.pieces.push(piece),
-                        None => rules.push(Rule {
-                            part: part.clone(),
-                            when,
-                            pieces: vec![piece],
-                        }),
+                    for t in widget.over_aliases(&t) {
+                        let piece = (t, source.clone());
+                        match rules.iter_mut().find(|r| r.part == part && r.when == when) {
+                            Some(rule) => rule.pieces.push(piece),
+                            None => rules.push(Rule {
+                                part: part.clone(),
+                                when: when.clone(),
+                                pieces: vec![piece],
+                            }),
+                        }
                     }
                 }
             }
@@ -1326,6 +1458,15 @@ mod tests {
         variants: &[],
         sizes: &[],
         parts: None,
+        bases: &[],
+        aliases: &[("input", "input-group-control")],
+        relations: &[Relation {
+            variants: "has-[>[data-align=inline-end]]:[&>input]",
+            part: "Input",
+            key: ("addon", "inline-end"),
+        }],
+        slot_aliases: &[("input-group-control", &["input-group-textarea"])],
+        inherited: &[("group-data-[disabled=true]/input-group", "disabled")],
         facts: &[
             Assumed {
                 variant: "group-data-horizontal/tabs",
@@ -1358,6 +1499,93 @@ mod tests {
                 .settle("data-active:bg-background")
                 .map(|(class, held)| (class, held.len())),
             Ok(("data-active:bg-background".to_owned(), 0))
+        );
+    }
+
+    #[test]
+    fn a_groups_state_a_part_carries_is_its_own_key() {
+        let (class, _) = HORIZONTAL
+            .settle("group-data-[disabled=true]/input-group:opacity-50")
+            .expect("it maps");
+        assert_eq!(class, "disabled:opacity-50");
+        with(|c| {
+            assert_eq!(
+                c.translate(&class).map(|t| t.keys),
+                Ok(vec![".aria(Aria::Disabled)".to_owned()])
+            );
+        });
+    }
+
+    #[test]
+    fn a_rule_over_an_aliased_slot_reaches_each_part_that_has_it() {
+        with(|c| {
+            let t = c
+                .translate("has-[[data-slot=input-group-control]:focus-visible]:border-ring")
+                .expect("maps");
+            let all = HORIZONTAL.over_aliases(&t);
+            let whens: Vec<_> = all
+                .iter()
+                .flat_map(|t| &t.wraps)
+                .filter_map(|w| match w {
+                    Wrap::Rule { when, .. } => Some(when.as_str()),
+                    Wrap::Paint(_) => None,
+                })
+                .collect();
+            assert_eq!(
+                whens,
+                [
+                    "Match::any().with_slot(\"input-group-control\").with_focus_visible()",
+                    "Match::any().with_slot(\"input-group-textarea\").with_focus_visible()",
+                ]
+            );
+            let plain = c.translate("border-ring").expect("maps");
+            assert_eq!(HORIZONTAL.over_aliases(&plain).len(), 1, "no rule, no copy");
+        });
+    }
+
+    #[test]
+    fn a_root_rule_over_a_part_beside_another_is_the_parts_own_key() {
+        assert_eq!(
+            HORIZONTAL.relate("has-[>[data-align=inline-end]]:[&>input]:pr-1.5"),
+            Some(("Input", "data-[addon=inline-end]:pr-1.5".to_owned()))
+        );
+        assert_eq!(
+            HORIZONTAL.relate("has-[>[data-align=block-end]]:[&>input]:pt-3"),
+            None
+        );
+        with(|c| {
+            assert_eq!(
+                c.translate("data-[addon=inline-end]:pl-1.5")
+                    .map(|t| t.keys),
+                Ok(vec![".attr(\"addon\", \"inline-end\")".to_owned()])
+            );
+            assert!(
+                c.translate("has-[>[data-align=block-end]]:*:data-[slot=input-group-control]:pt-3")
+                    .is_err(),
+                "a rule under `has` is reported, not emitted"
+            );
+        });
+    }
+
+    #[test]
+    fn an_element_a_selector_names_is_its_part_by_slot() {
+        assert_eq!(
+            HORIZONTAL
+                .settle("has-[>[data-align=inline-start]]:[&>input]:pl-1.5")
+                .map(|(class, _)| class),
+            Ok(
+                "has-[>[data-align=inline-start]]:*:data-[slot=input-group-control]:pl-1.5"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            HORIZONTAL.settle("[&_input]:pl-1").map(|(class, _)| class),
+            Ok("**:data-[slot=input-group-control]:pl-1".to_owned())
+        );
+        assert_eq!(
+            HORIZONTAL.settle("[&>kbd]:pl-1").map(|(class, _)| class),
+            Ok("[&>kbd]:pl-1".to_owned()),
+            "an element that is no part here is left for translate"
         );
     }
 
