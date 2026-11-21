@@ -1,10 +1,8 @@
 //! How notifications look: the card, the stack and the buttons in it.
 
-use std::sync::Arc;
-
 use eggshell_ui::{Distance, Style, TextSpec, Weight};
+use egui::Color32;
 use egui::epaint::Shadow;
-use egui::{Color32, Context, Theme};
 
 /// TODO(prose): how a notice and its stack look, after sonner's toast and
 /// the shadcn skin of it.
@@ -85,6 +83,12 @@ pub struct CloseStyle {
     pub hover_border: Color32,
 }
 
+impl eggshell_ui::contract::Extension for NotifyStyle {
+    fn derive(style: &Style) -> Self {
+        Self::from_style(style)
+    }
+}
+
 impl NotifyStyle {
     /// TODO(prose): the page's popover surface, at sonner's sizes: 356 points
     /// wide, 16 points of padding, 6 between a card's parts, 14 between
@@ -134,17 +138,5 @@ impl NotifyStyle {
                 hover_border: colors.border,
             },
         }
-    }
-
-    /// TODO(prose): the notify style installed for the context's theme, else
-    /// [`from_style`](Self::from_style) of its [`Style`].
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        crate::styles::of(ctx, Self::from_style)
-    }
-
-    /// TODO(prose): makes `self` the notify style of `ctx` while its theme is
-    /// `theme`.
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        crate::styles::install_for(self, ctx, theme);
     }
 }

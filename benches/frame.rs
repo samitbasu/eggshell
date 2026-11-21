@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
 use eggshell_ui::contract::Themed;
-use eggshell_ui::sheet::{Part, Sheet, When};
+use eggshell_ui::sheet::{Part, Sheet};
 use eggshell_ui::{Builder, Icon, LayoutState, Match, Style, icons, tw};
 use egui::{Context, Id, RawInput, Rect, pos2, vec2};
 
@@ -281,7 +281,7 @@ impl Keeping {
     fn style(self) -> Themed<Arc<Style>> {
         let mut style = Style::default();
         let mut sheet = Sheet::defaults();
-        sheet.rule(Button, When::always(), |_| button_classes());
+        sheet.rule(Button, |_, _| button_classes());
         style.sheet = sheet;
         let style = Arc::new(style);
         Themed {
@@ -295,7 +295,7 @@ impl Keeping {
             for at in 0..buttons {
                 let classes = match self {
                     Self::Own => button_classes(),
-                    Self::Sheet => b.part(Button, &[]).merge(tw()),
+                    Self::Sheet => b.part(Button, &[], tw()),
                 };
                 b.div(classes, |b| b.text(tw(), WORDS[at % WORDS.len()]));
             }

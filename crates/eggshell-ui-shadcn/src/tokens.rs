@@ -148,6 +148,8 @@ pub struct Tokens {
     pub shadow_sm: Shadow,
     /// `shadow-md`, without its negative spread.
     pub shadow_md: Shadow,
+    /// `shadow-lg`, without its negative spread.
+    pub shadow_lg: Shadow,
     /// `--font-sans`: the font [`Shadcn::apply`](crate::Shadcn::apply)
     /// registers, or `None` to leave egui's fonts alone.
     pub font: Option<FontSet>,
@@ -284,6 +286,12 @@ impl Tokens {
             shadow_md: Shadow {
                 offset: [0, 4],
                 blur: 6,
+                spread: 0,
+                color: Color32::from_black_alpha(26),
+            },
+            shadow_lg: Shadow {
+                offset: [0, 10],
+                blur: 15,
                 spread: 0,
                 color: Color32::from_black_alpha(26),
             },

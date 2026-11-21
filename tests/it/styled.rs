@@ -4,7 +4,7 @@
 
 use eggshell_ui::owned::Column;
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui::{Builder, NodeUi as _, Span, Spans, Style, TextStyle, Track, tw};
+use eggshell_ui::{Builder, NodeUi as _, Span, Spans, TextStyle, Track, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Color32, Theme, Vec2, vec2};
 
@@ -99,7 +99,7 @@ fn body_cell(d: &Driver<()>, key: &str) -> f32 {
 #[test]
 fn a_table_inside_styled_takes_the_override_and_one_outside_does_not() {
     let d = harness();
-    let global = Style::of(d.ctx()).table.cell_padding;
+    let global = d.shell().style().table.cell_padding;
     assert_ne!(global, PADDING, "precondition: the override differs");
     let (plain, styled) = (body_cell(&d, "plain"), body_cell(&d, "styled"));
     assert!(
@@ -107,7 +107,7 @@ fn a_table_inside_styled_takes_the_override_and_one_outside_does_not() {
         "{styled} is {plain} with {PADDING} for {global} padding"
     );
     assert_eq!(
-        Style::of(d.ctx()).table.cell_padding,
+        d.shell().style().table.cell_padding,
         global,
         "the context's style is untouched"
     );
@@ -126,7 +126,7 @@ fn a_nested_scope_edits_the_style_of_the_one_around_it() {
 #[test]
 fn rich_text_inside_styled_is_measured_and_drawn_with_the_override() {
     let d = harness();
-    let global = Style::of(d.ctx()).rich.clone();
+    let global = d.shell().style().rich.clone();
     assert_ne!(global.code.padding_x, CODE_PADDING, "precondition");
     assert_ne!(global.link, LINK, "precondition");
     let (outside, inside) = (
@@ -159,7 +159,7 @@ fn a_draw_closure_reads_the_style_its_node_was_built_in() {
             .data(|data| data.get_temp::<f32>(egui::Id::NULL.with(at)))
     };
     assert_eq!(seen("inside"), Some(PADDING));
-    assert_eq!(seen("outside"), Some(Style::of(d.ctx()).table.cell_padding));
+    assert_eq!(seen("outside"), Some(d.shell().style().table.cell_padding));
 }
 
 const TIP_PADDING: Vec2 = vec2(40.0, 20.0);
@@ -206,7 +206,7 @@ fn tooltip_of(trigger: &str) -> (egui::Rect, Option<Vec2>, Vec2) {
     let seen = d
         .ctx()
         .data(|data| data.get_temp::<Vec2>(egui::Id::NULL.with("tip")));
-    (boxes[0], seen, Style::of(d.ctx()).tooltip.padding)
+    (boxes[0], seen, d.shell().style().tooltip.padding)
 }
 
 #[test]

@@ -188,7 +188,7 @@ impl<A: 'static, K: Key> BadgeChain<'_, '_, '_, A, K> {
     #[track_caller]
     pub fn add(self) {
         let Self { b, key, mut face } = self;
-        let style = BadgeStyle::of(b.ctx());
+        let style = b.style().extension::<BadgeStyle>();
         let look = face.look(b.ctx(), &style);
         let rest = look.paint.states.rest;
         let classes = face

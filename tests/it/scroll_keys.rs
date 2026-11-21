@@ -378,7 +378,7 @@ fn the_innermost_container_holding_the_focus_scrolls_and_the_keys_do_not_chain()
 }
 
 fn focus_rings(h: &H) -> Vec<Rect> {
-    let ring = eggshell_ui::contract::Style::of(h.ctx()).focus.color;
+    let ring = h.shell().style().focus.color;
     support::shapes(h)
         .into_iter()
         .filter_map(|shape| match shape {
@@ -630,7 +630,7 @@ fn a_click_in_a_container_shows_no_ring_only_the_keyboard_does() {
 const FRAME: &str = "/\"list\"";
 
 fn focus_style(h: &H) -> eggshell_ui::contract::Focus {
-    eggshell_ui::contract::Style::of(h.ctx()).focus
+    h.shell().style().focus
 }
 
 /// Every shape of the last frame in paint order, with the clip it is painted in.

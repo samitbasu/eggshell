@@ -196,6 +196,7 @@ fn main() -> eframe::Result {
         let ctx = ui.ctx().clone();
         common::use_preset(&ctx);
         theme_bar.show(ui);
+        layout_state.set_style(common::style(&ctx));
         layout_state.set_base_text(Some(common::base_text_in(&ctx)));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(common::tokens(&ctx).background))

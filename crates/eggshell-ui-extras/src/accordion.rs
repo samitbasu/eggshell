@@ -215,7 +215,7 @@ impl<'f, A: 'static, K: Key, M: Mode<T, Change = C>, T: Value, C: 'static>
             on_change,
             value: _,
         } = self;
-        let style = DisclosureStyle::of(b.ctx());
+        let style = b.style().extension::<DisclosureStyle>();
         let column = tw().flex().flex_col();
         let column = match style.separator {
             Some(line) => column.divide_y(1.0, line),

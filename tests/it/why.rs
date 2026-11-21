@@ -1,7 +1,7 @@
 //! Why a node has the value it has (#443): the class that won each property,
 //! and, for a pinned node, each class it beat.
 
-use eggshell_ui::sheet::{Layer, Part, When};
+use eggshell_ui::sheet::{Layer, Part};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Debug, Match, Property, Source, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, Key, vec2};
@@ -34,20 +34,17 @@ fn base_text() -> TextStyle {
 fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(
         |style| {
-            style.sheet.as_preset().rule(Chip, When::always(), |t| {
+            style.sheet.as_preset().rule(Chip, |t, _| {
                 t.w_px(100.0).h_px(30.0).hover(|p| p.bg(Color32::RED))
             });
-            style
-                .sheet
-                .as_app()
-                .rule(Chip, When::always(), |t| t.w_px(80.0));
+            style.sheet.as_app().rule(Chip, |t, _| t.w_px(80.0));
         },
         |b| {
             b.div_id(
                 "container",
                 tw().descendants(Match::slot("chip"), |t| t.w_px(60.0)),
                 |b| {
-                    let classes = b.part(Chip, &[]).merge(tw().w_px(50.0));
+                    let classes = b.part(Chip, &[], tw().w_px(50.0));
                     b.div_id("chip", classes, |_| {});
                 },
             );

@@ -11,11 +11,10 @@
 //! }
 //! ```
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use eggshell_ui::{Builder, Easing, Opacity, Progress, Style, Tw, cycle, tw};
-use egui::{Color32, Context, Theme};
+use egui::Color32;
 
 /// TODO(prose): how skeletons look: their fill, corners and pulse.
 #[derive(Clone, Debug, PartialEq)]
@@ -32,6 +31,12 @@ pub struct SkeletonStyle {
     pub low: Opacity,
 }
 
+impl eggshell_ui::contract::Extension for SkeletonStyle {
+    fn derive(style: &Style) -> Self {
+        Self::from_style(style)
+    }
+}
+
 impl SkeletonStyle {
     /// TODO(prose): a translucent grey over any ground, `rounded-md` of the
     /// style's menus, and Tailwind's `animate-pulse`: two seconds down to
@@ -43,18 +48,6 @@ impl SkeletonStyle {
             period: Duration::from_secs(2),
             low: Opacity::new(0.5),
         }
-    }
-
-    /// TODO(prose): the skeleton style installed for the context's theme,
-    /// else [`from_style`](Self::from_style) of its [`Style`].
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        crate::styles::of(ctx, Self::from_style)
-    }
-
-    /// TODO(prose): makes `self` the skeleton style of `ctx` while its theme
-    /// is `theme`.
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        crate::styles::install_for(self, ctx, theme);
     }
 }
 
@@ -68,7 +61,7 @@ pub trait SkeletonExt {
 
 impl<A: 'static> SkeletonExt for Builder<'_, '_, A> {
     fn skeleton(&mut self, classes: Tw) {
-        let style = SkeletonStyle::of(self.ctx());
+        let style = self.style().extension::<SkeletonStyle>();
         let opacity = cycle(self.ctx(), style.period)
             .map_or(Opacity::OPAQUE, |phase| pulse(phase, style.low));
         let styled = tw()

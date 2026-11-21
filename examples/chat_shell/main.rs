@@ -34,6 +34,7 @@ fn main() -> eframe::Result {
     common::launch("chat_shell", Some(egui::vec2(1280.0, 800.0)), move |ui| {
         common::toggle_debug(ui.ctx());
         view::prepare(ui.ctx(), &app);
+        layout_state.set_style(common::style(ui.ctx()));
         let k = Theme::of(ui.ctx());
         layout_state.set_base_text(Some(k.base_text()));
         egui::CentralPanel::default()

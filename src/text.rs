@@ -609,7 +609,7 @@ mod weight_tests {
         let mut style = crate::Style::from_egui(&ctx.global_style());
         style.faces =
             Faces::default().with(FontFamily::Proportional, Weight::Medium, named("medium"));
-        style.install(&ctx);
+        apply_faces(&ctx, &style.faces);
         ctx.run_ui(egui::RawInput::default(), |_| {})
             .drop_without_applying_deltas();
         ctx

@@ -1330,6 +1330,22 @@ pub struct Themed<T> {
     pub dark: T,
 }
 
+impl<T: Clone> Themed<T> {
+    /// TODO(prose): `value` in both themes.
+    ///
+    /// ```
+    /// use eggshell_ui::contract::Themed;
+    ///
+    /// assert_eq!(Themed::both(4.0), Themed { light: 4.0, dark: 4.0 });
+    /// ```
+    pub fn both(value: T) -> Self {
+        Self {
+            light: value.clone(),
+            dark: value,
+        }
+    }
+}
+
 impl<T> Themed<T> {
     /// TODO(prose): the value for `theme`.
     pub fn get(&self, theme: Theme) -> &T {
@@ -1444,6 +1460,14 @@ pub struct Tokens {
     pub text_size: f32,
     /// TODO(prose): a switch's thumb, egui's checkbox and radio size.
     pub switch_thumb: f32,
+    /// TODO(prose): the smallest shadow: a control at rest.
+    pub shadow_xs: Shadow,
+    /// TODO(prose): a small shadow: a slider's thumb, a tab.
+    pub shadow_sm: Shadow,
+    /// TODO(prose): a medium shadow: a menu, a popover.
+    pub shadow_md: Shadow,
+    /// TODO(prose): a large shadow: a dialog.
+    pub shadow_lg: Shadow,
 }
 
 impl Tokens {
@@ -1479,6 +1503,10 @@ impl Tokens {
                 .get(&egui::TextStyle::Body)
                 .map_or(14.0, |font| font.size),
             switch_thumb: egui.spacing.icon_width,
+            shadow_xs: Shadow::NONE,
+            shadow_sm: Shadow::NONE,
+            shadow_md: v.popup_shadow,
+            shadow_lg: v.window_shadow,
         }
     }
 }

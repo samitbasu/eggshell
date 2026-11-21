@@ -1,7 +1,10 @@
 //! `eggshell_ui::testing`: layout queries without a window, a GPU or a draw.
 
+use std::sync::Arc;
+
+use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::{Headless, PixelsPerPoint};
-use eggshell_ui::{Builder, Placed, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::{Builder, Placed, Style, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_shadcn::Shadcn;
 use egui::{Color32, FontFamily, TextStyle as EguiTextStyle, Theme, vec2};
 
@@ -297,6 +300,7 @@ fn themed_width(theme: Theme) -> f32 {
     let mut headless = Headless::new(SIZE)
         .base_text(body())
         .prepare(Shadcn::apply_both)
+        .style(crate::support::shadcn())
         .theme(theme);
     headless
         .layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
@@ -399,7 +403,9 @@ fn a_view_may_lend_the_app_to_its_nodes_for_the_frame() {
     let app = Labelled {
         label: "Telemetry".to_owned(),
     };
-    let mut headless = Headless::new(SIZE).prepare(Shadcn::apply_both);
+    let mut headless = Headless::new(SIZE)
+        .prepare(Shadcn::apply_both)
+        .style(crate::support::shadcn());
     let placed: eggshell_ui::testing::Placed<Labelled> =
         headless.layout(&app, |b, app| app.build(b));
     assert!(
@@ -455,6 +461,7 @@ fn text_agrees_at(scale: PixelsPerPoint) {
         .pixels_per_point(scale)
         .base_text(shadcn_body())
         .prepare(Shadcn::apply_both)
+        .style(crate::support::shadcn())
         .theme(Theme::Light)
         .layout(&(), wrapping_card);
     let card = placed.at(Region::Viewport).at(Part::Card);
@@ -497,10 +504,10 @@ fn large_role() -> TextSpec {
     }
 }
 
-fn install_large_text(ctx: &egui::Context) {
-    let mut style = (*eggshell_ui::Style::of(ctx)).clone();
+fn large_text() -> Themed<Arc<Style>> {
+    let mut style = Style::default();
     style.text = large_role();
-    style.install(ctx);
+    Themed::both(Arc::new(style))
 }
 
 fn card_text_rects(headless: Headless) -> Vec<egui::Rect> {
@@ -512,13 +519,13 @@ fn card_text_rects(headless: Headless) -> Vec<egui::Rect> {
 }
 
 #[test]
-fn without_a_base_text_a_layout_reads_the_installed_style() {
+fn without_a_base_text_a_layout_reads_its_style() {
     let given = card_text_rects(
         Headless::new(SIZE)
-            .prepare(install_large_text)
+            .style(large_text())
             .base_text(TextStyle::new(large_role(), Color32::BLACK)),
     );
-    let defaulted = card_text_rects(Headless::new(SIZE).prepare(install_large_text));
+    let defaulted = card_text_rects(Headless::new(SIZE).style(large_text()));
     let body = card_text_rects(Headless::new(SIZE));
     assert_ne!(
         given, body,

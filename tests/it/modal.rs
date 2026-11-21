@@ -525,7 +525,7 @@ mod example {
             boxed.width() <= 512.0 + 0.5 && boxed.width() > 400.0,
             "{boxed:?}"
         );
-        let scrim = eggshell_ui::Style::of(d.ctx()).scrim;
+        let scrim = d.shell().style().scrim;
         assert_eq!(
             support::fill_of(&d, "/Dialog"),
             Some(scrim),
@@ -550,6 +550,7 @@ mod example {
         use eggshell_ui::testing::Headless;
         let placed = Headless::new(SCREEN)
             .prepare(eggshell_ui_shadcn::Shadcn::apply_both)
+            .style(crate::support::shadcn())
             .layout(&State::default(), |b, _| {
                 let open = State {
                     dialog: Shown::Open,
@@ -779,13 +780,7 @@ mod example {
     }
 
     fn highlight(d: &Driver<State>) -> egui::Color32 {
-        eggshell_ui::Style::of(d.ctx())
-            .menu
-            .item
-            .paint
-            .states
-            .hover
-            .fill
+        d.shell().style().menu.item.paint.states.hover.fill
     }
 
     #[test]

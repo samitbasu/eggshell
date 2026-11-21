@@ -13,7 +13,9 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
+use std::sync::Arc;
 
+use eggshell_ui::contract::Themed;
 use eggshell_ui::owned::Cell;
 use eggshell_ui::prim::text_field::Field;
 use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Tw, Weight, tw};
@@ -100,6 +102,23 @@ pub fn style_of(ctx: &Context) -> ShadcnStyle {
 pub fn use_preset(ctx: &Context) {
     let Chosen { style, palette } = chosen(ctx);
     Shadcn::apply_both_with(ctx, style, palette);
+}
+
+/// The style the examples' layouts build with: the preset in the chosen style
+/// and palette. The same style is handed back until the choice changes, so a
+/// layout given it every frame keeps its look without rebuilding it.
+pub fn style(ctx: &Context) -> Themed<Arc<eggshell_ui::Style>> {
+    type Kept = ((ShadcnStyle, Palette), Themed<Arc<eggshell_ui::Style>>);
+    let Chosen { style, palette } = chosen(ctx);
+    let id = egui::Id::NULL.with("examples-style");
+    if let Some((key, themed)) = ctx.data(|data| data.get_temp::<Kept>(id))
+        && key == (style, palette)
+    {
+        return themed;
+    }
+    let themed = Shadcn::themed(style, palette);
+    ctx.data_mut(|data| data.insert_temp::<Kept>(id, ((style, palette), themed.clone())));
+    themed
 }
 
 /// [`use_preset`] with `palette`.
@@ -258,6 +277,7 @@ fn shell<S: 'static>(
         use_preset(&ctx);
         prepare(&ctx, &state);
         theme_bar.show(ui);
+        layout_state.set_style(style(&ctx));
         layout_state.set_base_text(Some(base_text_in(&ctx)));
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens(&ctx).background))
@@ -415,6 +435,7 @@ impl ThemeBar {
         let ctx = ui.ctx().clone();
         use_preset(&ctx);
         toggle_debug(&ctx);
+        self.layout.set_style(style(&ctx));
         self.layout.set_base_text(Some(base_text_in(&ctx)));
         let t = tokens(&ctx);
         egui::Panel::top("theme_bar")
@@ -638,7 +659,7 @@ pub fn text_box<S, K>(
 
 /// The box of a hand-built list: the menu look.
 pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
-    let menu = &eggshell_ui::Style::of(b.ctx()).menu;
+    let menu = &b.style().menu;
     let colors = menu.popup.paint.states.rest;
     let classes = tw()
         .flex()
@@ -658,7 +679,7 @@ pub fn popup_box<S>(b: &Builder<'_, '_, S>) -> Tw {
 
 /// An item of a hand-built list: the menu item look.
 pub fn popup_item<S>(b: &Builder<'_, '_, S>) -> Tw {
-    let menu = &eggshell_ui::Style::of(b.ctx()).menu;
+    let menu = &b.style().menu;
     let hover = menu.item.paint.states.hover;
     tw().px(menu.item_padding.x / 4.0)
         .py(menu.item_padding.y / 4.0)

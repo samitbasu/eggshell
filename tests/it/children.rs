@@ -1,7 +1,9 @@
 //! `.children(..)` on buttons and toggles: nodes built inside the button,
 //! after its face, through the real layout and draw path.
 
-use eggshell_ui::contract::Disabled;
+use std::sync::Arc;
+
+use eggshell_ui::contract::{Disabled, Themed};
 use eggshell_ui::owned::{Enablement, Face};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Opacity, TextStyle, tw};
@@ -16,7 +18,6 @@ const BAR: Color32 = Color32::from_rgb(220, 20, 20);
 struct App {
     clicks: Vec<&'static str>,
     toggled: bool,
-    faded: bool,
 }
 
 fn bar() -> eggshell_ui::Tw {
@@ -78,23 +79,17 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
 
 fn driver(faded: bool) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
-    let app = App {
-        faded,
-        ..App::default()
-    };
-    let mut d = support::prepared_driver(
+    let mut style = Shadcn::for_theme(Theme::Light).style();
+    if faded {
+        style.disabled = Disabled::Faded(Opacity::new(0.4));
+    }
+    let mut d = support::driver(
         vec2(500.0, 200.0),
         TextStyle::new(tokens.text_role(), tokens.foreground),
-        app,
+        App::default(),
         view,
-        |ctx, app| {
-            let mut style = Shadcn::for_theme(Theme::Light).style();
-            if app.faded {
-                style.disabled = Disabled::Faded(Opacity::new(0.4));
-            }
-            style.install(ctx);
-        },
     )
+    .style(Themed::both(Arc::new(style)))
     .build();
     d.ctx().set_theme(Theme::Light);
     d.frames(12);

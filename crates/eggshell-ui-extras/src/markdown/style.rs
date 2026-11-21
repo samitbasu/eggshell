@@ -1,10 +1,8 @@
 //! How the Markdown widget looks.
 
-use std::sync::Arc;
-
 use eggshell_ui::contract::Em;
 use eggshell_ui::{Style, TextSpec, Tracking, Weight};
-use egui::{Color32, Context, FontFamily, Theme};
+use egui::{Color32, FontFamily};
 
 use super::parse::Level;
 
@@ -90,6 +88,12 @@ pub struct RichLook {
     pub code_padding_x: f32,
     /// TODO(prose)
     pub code_padding_y: f32,
+}
+
+impl eggshell_ui::contract::Extension for MarkdownStyle {
+    fn derive(style: &Style) -> Self {
+        Self::from_style(style)
+    }
 }
 
 impl MarkdownStyle {
@@ -336,15 +340,5 @@ impl MarkdownStyle {
             Level::H5 => h5,
             Level::H6 => h6,
         }
-    }
-
-    /// TODO(prose)
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        crate::styles::of(ctx, Self::from_style)
-    }
-
-    /// TODO(prose)
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        crate::styles::install_for(self, ctx, theme);
     }
 }

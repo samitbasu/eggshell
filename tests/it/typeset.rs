@@ -5,7 +5,7 @@
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
 use eggshell_ui_extras::markdown::{Directives, MarkdownExt, MarkdownStyle, Typeset, TypesetInk};
-use egui::{Color32, FontFamily, Rect, Theme, vec2};
+use egui::{Color32, FontFamily, Rect, vec2};
 
 use crate::support;
 
@@ -47,12 +47,8 @@ fn ink() -> TypesetInk {
     }
 }
 
-fn install(ctx: &egui::Context, _: &()) {
-    for theme in [Theme::Light, Theme::Dark] {
-        Typeset::default()
-            .markdown_style(&ink())
-            .install_for(ctx, theme);
-    }
+fn typeset(style: &mut Style) {
+    style.set_extension(Typeset::default().markdown_style(&ink()));
 }
 
 fn view<'f>(b: &mut Builder<'_, 'f, ()>, app: &'f ()) {
@@ -65,17 +61,17 @@ fn view<'f>(b: &mut Builder<'_, 'f, ()>, app: &'f ()) {
 }
 
 fn driver() -> Driver<()> {
-    driver_installing(install)
+    driver_with(typeset)
 }
 
-fn driver_installing(install: fn(&egui::Context, &())) -> Driver<()> {
-    let mut d = support::prepared_driver(
+fn driver_with(edit: fn(&mut Style)) -> Driver<()> {
+    let mut d = support::driver(
         vec2(700.0, 600.0),
         TextStyle::new(PAGE_TEXT, Color32::BLACK),
         (),
         view,
-        install,
     )
+    .style(support::shadcn_with(edit))
     .build();
     d.frames(4);
     d
@@ -161,17 +157,16 @@ fn the_measure_is_its_width_in_ems_of_the_base() {
 }
 
 /// The style without a typeset, which rules an h2 off below.
-fn install_unset(ctx: &egui::Context, _: &()) {
-    for theme in [Theme::Light, Theme::Dark] {
-        MarkdownStyle::from_style(&Style::of(ctx)).install_for(ctx, theme);
-    }
+fn unset(style: &mut Style) {
+    let markdown = MarkdownStyle::from_style(style);
+    style.set_extension(markdown);
 }
 
 #[test]
 fn without_a_typeset_an_h2_is_ruled_off_below() {
-    let d = driver_installing(install_unset);
+    let d = driver_with(unset);
     let heading = block(&d, "Heading(\"section\")");
-    let rule = MarkdownStyle::of(d.ctx()).rule;
+    let rule = d.shell().style().extension::<MarkdownStyle>().rule;
     let ruled = support::shapes(&d).into_iter().any(|shape| match shape {
         egui::epaint::Shape::Rect(rect) => {
             rect.fill == rule
@@ -204,13 +199,13 @@ fn rich_view<'f>(b: &mut Builder<'_, 'f, ()>, _: &'f ()) {
 }
 
 fn rich_driver() -> Driver<()> {
-    let mut d = support::prepared_driver(
+    let mut d = support::driver(
         vec2(700.0, 600.0),
         TextStyle::new(PAGE_TEXT, Color32::BLACK),
         (),
         rich_view,
-        install,
     )
+    .style(support::shadcn_with(typeset))
     .build();
     d.frames(4);
     d
@@ -247,7 +242,7 @@ fn a_tables_cells_are_padded_in_ems_and_its_first_column_is_flush() {
 #[test]
 fn a_table_outside_the_document_keeps_the_pages_style() {
     let d = rich_driver();
-    let page = Style::of(d.ctx()).table.clone();
+    let page = d.shell().style().table.clone();
     let body = d.rect(Target::suffix("/\"outside\"/(Row(1), 0)"));
     let body_text = d.painted().expect("Body");
     let text = body_text.rect().min - body_text.galley().rect.min.to_vec2();

@@ -112,17 +112,57 @@ impl Shadcn {
         palette: Palette,
     ) -> eggshell_ui::contract::Themed<std::sync::Arc<contract::Style>> {
         let half = |preset: Self| {
-            let preset = preset.with_style(style).with_palette(palette);
-            let mut core = preset.style();
-            if let Some(font) = &preset.tokens.font {
-                core.set_extension(contract::Fonts(font.inserts()));
-            }
-            std::sync::Arc::new(core)
+            std::sync::Arc::new(
+                preset
+                    .with_style(style)
+                    .with_palette(palette)
+                    .layout_style(),
+            )
         };
         eggshell_ui::contract::Themed {
             light: half(Self::light()),
             dark: half(Self::dark()),
         }
+    }
+
+    /// TODO(prose): this preset's style with its fonts and the extras' looks, as one half of a layout's style.
+    ///
+    /// ```
+    /// use eggshell_ui::LayoutState;
+    /// use eggshell_ui::contract::Themed;
+    /// use eggshell_ui_shadcn::Shadcn;
+    /// use std::sync::Arc;
+    ///
+    /// let style = Themed {
+    ///     light: Arc::new(Shadcn::light().with_fonts(None).layout_style()),
+    ///     dark: Arc::new(Shadcn::dark().with_fonts(None).layout_style()),
+    /// };
+    /// let _layout = LayoutState::new().with_style(style);
+    /// ```
+    pub fn layout_style(&self) -> contract::Style {
+        let mut core = self.style();
+        if let Some(font) = &self.tokens.font {
+            core.set_extension(contract::Fonts(font.inserts()));
+        }
+        #[cfg(feature = "extras")]
+        {
+            // keep sorted
+            let badge = self.badge(&core);
+            let command = self.command(&core);
+            let disclosure = self.disclosure(&core);
+            let form = self.form(&core);
+            let notify = self.notify(&core);
+            let skeleton = self.skeleton(&core);
+            core.set_extension(badge);
+            core.set_extension(command);
+            core.set_extension(disclosure);
+            core.set_extension(form);
+            core.set_extension(self.hover_card());
+            core.set_extension(self.markdown());
+            core.set_extension(notify);
+            core.set_extension(skeleton);
+        }
+        core
     }
 
     /// The fill of an input-like box: `bg-background`, or `dark:bg-input/30`.
@@ -902,6 +942,10 @@ impl Shadcn {
         core.button_padding = t.button_padding;
         core.text_size = t.text_size;
         core.switch_thumb = t.switch_thumb;
+        core.shadow_xs = t.shadow_xs;
+        core.shadow_sm = t.shadow_sm;
+        core.shadow_md = t.shadow_md;
+        core.shadow_lg = t.shadow_lg;
         core
     }
 
@@ -935,18 +979,6 @@ impl Shadcn {
         let style = self.style();
         ctx.style_mut_of(self.theme, |egui| style.egui_style(self.theme, egui));
         ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
-        #[cfg(feature = "extras")]
-        {
-            // keep sorted
-            self.badge(&style).install_for(ctx, self.theme);
-            self.command(&style).install_for(ctx, self.theme);
-            self.disclosure(&style).install_for(ctx, self.theme);
-            self.form(&style).install_for(ctx, self.theme);
-            self.hover_card().install_for(ctx, self.theme);
-            self.markdown().install_for(ctx, self.theme);
-            self.notify(&style).install_for(ctx, self.theme);
-            self.skeleton(&style).install_for(ctx, self.theme);
-        }
         style.install_for(ctx, self.theme);
     }
 

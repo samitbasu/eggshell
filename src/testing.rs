@@ -59,7 +59,9 @@
 //!
 //! ```
 //! use eggshell_ui::{Builder, LayoutState, Style, tw};
+//! use eggshell_ui::contract::Themed;
 //! use egui_kittest::Harness;
+//! use std::sync::Arc;
 //! use egui_kittest::kittest::Queryable as _;
 //!
 //! #[derive(Default)]
@@ -73,16 +75,16 @@
 //!
 //! let mut harness = Harness::builder()
 //!     .with_size(egui::vec2(300.0, 200.0))
-//!     .with_context_setup(|ctx| {
-//!         Style::default().install(ctx);
-//!         eggshell_ui::testing::record(ctx);
-//!     })
+//!     .with_context_setup(eggshell_ui::testing::record)
 //!     .build_ui_state(
 //!         |ui, (layout, app): &mut (LayoutState, App)| {
 //!             let placed = layout.build(ui.ctx(), |b| view(b, app)).layout(ui.max_rect());
 //!             placed.draw(app, ui);
 //!         },
-//!         (LayoutState::new(), App::default()),
+//!         (
+//!             LayoutState::new().with_style(Themed::both(Arc::new(Style::default()))),
+//!             App::default(),
+//!         ),
 //!     );
 //!
 //! harness.get_by_role_and_label(egui::Role::Button, "Save").click();
@@ -141,18 +143,17 @@
 //!
 //! ```
 //! # use eggshell_ui::{Builder, LayoutState, Style, tw};
+//! # use eggshell_ui::contract::Themed;
 //! # use egui_kittest::Harness;
+//! # use std::sync::Arc;
 //! # let mut harness = Harness::builder()
-//! #     .with_context_setup(|ctx| {
-//! #         Style::default().install(ctx);
-//! #         eggshell_ui::testing::record(ctx);
-//! #     })
+//! #     .with_context_setup(eggshell_ui::testing::record)
 //! #     .build_ui_state(
 //! #         |ui, layout: &mut LayoutState| {
 //! #             let view = |b: &mut Builder<'_, '_, ()>| { b.div_id("card", tw().w_px(80.0).h_px(40.0), |_| {}); };
 //! #             layout.build(ui.ctx(), view).layout(ui.max_rect()).draw(&mut (), ui);
 //! #         },
-//! #         LayoutState::new(),
+//! #         LayoutState::new().with_style(Themed::both(Arc::new(Style::default()))),
 //! #     );
 //! harness.run_steps(10);
 //! eggshell_ui::testing::Timeline::recorded(&harness.ctx).assert_continuous();
@@ -186,6 +187,7 @@ pub use driver::{
 };
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use egui::{Id, Rect, Theme, Vec2};
 
@@ -193,12 +195,13 @@ pub use crate::continuity::{
     Interrupted, Motion, NodeFrame, NodeRef, OverlayFrame, Points, Slide, SlideId, Timeline,
     Violation, ViolationKind, laid_out_rect, leaves_bounds, record,
 };
+use crate::contract::Themed;
 use crate::key::{Key, child_id};
 use crate::nodes::Nodes;
 use crate::pipeline::{LayoutState, PlacedNode};
 pub use crate::pipeline::{Placed, PlacedFrame};
 use crate::prim::Prim;
-use crate::{Builder, OverlayRef, Problem, Report, TextStyle};
+use crate::{Builder, OverlayRef, Problem, Report, Style, TextStyle};
 
 type Prepare = Box<dyn FnOnce(&egui::Context)>;
 
@@ -227,6 +230,7 @@ pub struct Headless {
     ctx: egui::Context,
     size: Vec2,
     base_text: Option<TextStyle>,
+    style: Option<Themed<Arc<Style>>>,
     state: LayoutState,
     theme: Option<Theme>,
     pixels_per_point: PixelsPerPoint,
@@ -241,6 +245,7 @@ impl Headless {
             ctx: egui::Context::default(),
             size,
             base_text: None,
+            style: None,
             state: LayoutState::new(),
             theme: None,
             pixels_per_point: PixelsPerPoint::default(),
@@ -259,6 +264,12 @@ impl Headless {
     /// The root text style of every layout, as [`LayoutState::with_base_text`].
     pub fn base_text(mut self, base: TextStyle) -> Self {
         self.base_text = Some(base);
+        self
+    }
+
+    /// TODO(prose): the layout's style, as [`LayoutState::with_style`].
+    pub fn style(mut self, style: Themed<Arc<Style>>) -> Self {
+        self.style = Some(style);
         self
     }
 
@@ -313,11 +324,15 @@ impl Headless {
             ctx,
             size,
             base_text,
+            style,
             state,
             theme,
             pixels_per_point,
             ..
         } = self;
+        if let Some(style) = style.take() {
+            state.set_style(style);
+        }
         in_pass(ctx, *size, *theme, *pixels_per_point, |ctx| {
             state.set_base_text(base_text.clone());
             state.build(ctx, |b| view(b, app)).layout(area)

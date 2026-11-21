@@ -58,23 +58,25 @@ fn chevron() -> Icon {
 fn chip_rules(style: &mut eggshell_ui::Style) {
     style
         .sheet
-        .rule(Chip::Root, When::always(), |t| t.w_px(100.0).h_px(30.0))
-        .rule(Chip::Root, When::always().variant(WIDE), |t| t.w_px(160.0))
-        .rule(Chip::Root, When::always().aria(Aria::Invalid), |t| {
+        .rule(Chip::Root, |t, _| t.w_px(100.0).h_px(30.0))
+        .rule_when(Chip::Root, When::always().variant(WIDE), |t, _| {
+            t.w_px(160.0)
+        })
+        .rule_when(Chip::Root, When::always().aria(Aria::Invalid), |t, _| {
             t.h_px(36.0)
         })
-        .rule(Chip::Icon, When::always(), |t| t.size_px(16.0));
+        .rule(Chip::Icon, |t, _| t.size_px(16.0));
 }
 
 fn parts(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(chip_rules, |b| {
-        let plain = b.part(Chip::Root, &[]);
+        let plain = b.part(Chip::Root, &[], tw());
         b.div_id("plain", plain, |_| {});
-        let wide = b.part(Chip::Root, &[Key::Variant(WIDE)]);
+        let wide = b.part(Chip::Root, &[Key::Variant(WIDE)], tw());
         b.div_id("wide", wide, |_| {});
-        let invalid = b.part(Chip::Root, &[Key::Aria(Aria::Invalid)]);
+        let invalid = b.part(Chip::Root, &[Key::Aria(Aria::Invalid)], tw());
         b.div_id("invalid", invalid, |_| {});
-        let called = b.part(Chip::Root, &[]).merge(tw().h_px(50.0));
+        let called = b.part(Chip::Root, &[], tw().h_px(50.0));
         b.div_id("called", called, |_| {});
     });
 }
@@ -99,15 +101,15 @@ fn the_call_site_wins_over_the_sheet_property_by_property() {
 
 fn icons_in_containers(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(chip_rules, |b| {
-        let alone = b.part(Chip::Icon, &[]);
+        let alone = b.part(Chip::Icon, &[], tw());
         b.icon("alone", alone, chevron());
         b.div_id(
             "container",
             tw().descendants(Match::glyph(), |t| t.size_px(12.0)),
             |b| {
-                let from_sheet = b.part(Chip::Icon, &[]);
+                let from_sheet = b.part(Chip::Icon, &[], tw());
                 b.icon("from-sheet", from_sheet, chevron());
-                let called = b.part(Chip::Icon, &[]).merge(tw().size_px(20.0));
+                let called = b.part(Chip::Icon, &[], tw().size_px(20.0));
                 b.icon("called", called, chevron());
             },
         );
@@ -136,7 +138,7 @@ fn slots(b: &mut Builder<'_, '_, ()>, _: &()) {
             "container",
             tw().children(Match::slot("chip-icon"), |t| t.size_px(9.0)),
             |b| {
-                let icon = b.part(Chip::Icon, &[]);
+                let icon = b.part(Chip::Icon, &[], tw());
                 b.icon("icon", icon, chevron());
                 b.icon("other", tw().size_px(16.0), chevron());
             },
@@ -154,17 +156,14 @@ fn a_part_declares_its_slot_for_the_rules_that_match_one() {
 fn layers(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(
         |style| {
-            style
-                .sheet
-                .as_app()
-                .rule(Chip::Root, When::always(), |t| t.w_px(80.0));
+            style.sheet.as_app().rule(Chip::Root, |t, _| t.w_px(80.0));
             style
                 .sheet
                 .as_preset()
-                .rule(Chip::Root, When::always(), |t| t.w_px(100.0).h_px(30.0));
+                .rule(Chip::Root, |t, _| t.w_px(100.0).h_px(30.0));
         },
         |b| {
-            let root = b.part(Chip::Root, &[]);
+            let root = b.part(Chip::Root, &[], tw());
             b.div_id("root", root, |_| {});
         },
     );
@@ -184,12 +183,14 @@ fn replaced(b: &mut Builder<'_, '_, ()>, _: &()) {
             style
                 .sheet
                 .as_app()
-                .replace(Chip::Root, When::always().variant(WIDE), |t| t.h_px(44.0));
+                .replace_when(Chip::Root, When::always().variant(WIDE), |t, _| {
+                    t.h_px(44.0)
+                });
         },
         |b| {
-            let wide = b.part(Chip::Root, &[Key::Variant(WIDE)]);
+            let wide = b.part(Chip::Root, &[Key::Variant(WIDE)], tw());
             b.div_id("wide", wide, |_| {});
-            let plain = b.part(Chip::Root, &[]);
+            let plain = b.part(Chip::Root, &[], tw());
             b.div_id("plain", plain, |_| {});
         },
     );
@@ -210,7 +211,7 @@ fn replace_discards_the_rules_below_it_where_it_holds() {
 
 fn unnamed(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(chip_rules, |b| {
-        let odd = b.part(Chip::Root, &[Key::Variant(Variant("missing"))]);
+        let odd = b.part(Chip::Root, &[Key::Variant(Variant("missing"))], tw());
         b.div_id("odd", odd, |_| {});
     });
 }
@@ -225,16 +226,16 @@ fn a_variant_the_sheet_leaves_out_is_reported_and_drawn_without_it() {
 fn negated(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(
         |style| {
-            style
-                .sheet
-                .rule(Chip::Root, When::always().not_aria(Aria::HasPopup), |t| {
-                    t.w_px(70.0).h_px(20.0)
-                });
+            style.sheet.rule_when(
+                Chip::Root,
+                When::always().not_aria(Aria::HasPopup),
+                |t, _| t.w_px(70.0).h_px(20.0),
+            );
         },
         |b| {
-            let free = b.part(Chip::Root, &[]);
+            let free = b.part(Chip::Root, &[], tw());
             b.div_id("free", free, |_| {});
-            let popup = b.part(Chip::Root, &[Key::Aria(Aria::HasPopup)]);
+            let popup = b.part(Chip::Root, &[Key::Aria(Aria::HasPopup)], tw());
             b.div_id("popup", popup, |_| {});
         },
     );
@@ -260,4 +261,49 @@ fn a_preset_hands_out_the_sheet_of_each_theme_at_the_preset_layer() {
         eggshell_ui::Style::default().sheet.layer(),
         eggshell_ui::sheet::Layer::Defaults
     );
+}
+
+fn by_token(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.styled(
+        |style| {
+            style
+                .sheet
+                .rule(Chip::Root, |t, k| t.w_px(k.control_height).h_px(10.0));
+        },
+        |b| {
+            let before = b.part(Chip::Root, &[], tw());
+            b.div_id("before", before, |_| {});
+            b.styled(
+                |style| style.tokens.control_height = 77.0,
+                |b| {
+                    let scoped = b.part(Chip::Root, &[], tw());
+                    b.div_id("scoped", scoped, |_| {});
+                },
+            );
+            let after = b.part(Chip::Root, &[], tw());
+            b.div_id("after", after, |_| {});
+        },
+    );
+}
+
+#[test]
+fn a_rule_body_is_given_the_tokens_of_the_style_it_is_resolved_in() {
+    let d = driver(by_token);
+    let standard = size_of(&d, "\"before\"");
+    assert_ne!(standard.0, 77.0, "precondition");
+    assert_eq!(size_of(&d, "\"scoped\""), (77.0, 10.0));
+    assert_eq!(
+        size_of(&d, "\"after\""),
+        standard,
+        "the same sheet resolves again for other tokens, and back"
+    );
+}
+
+#[test]
+fn the_preset_fills_the_shadow_scale() {
+    use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
+    let themed = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
+    let tokens = themed.light.tokens;
+    assert_ne!(tokens.shadow_xs, egui::Shadow::NONE);
+    assert!(tokens.shadow_lg.offset[1] > tokens.shadow_md.offset[1]);
 }
