@@ -29,6 +29,7 @@ fn sidebar(styling: Styling, theme: Theme) -> (Vec<Rect>, Vec<Rect>) {
         move |ui, gallery: &mut kaolin::Gallery, layout| {
             if matches!(styling, Styling::Preset) {
                 common::use_preset(ui.ctx());
+                layout.set_style(common::style(ui.ctx()));
             }
             let area = ui.max_rect();
             let selected = gallery.selected;

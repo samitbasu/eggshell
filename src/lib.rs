@@ -118,7 +118,7 @@
 //! [`Tw::font_weight`] with a [`Weight`]. It is inherited like the other
 //! text classes.
 //!
-//! egui has no weights, so the installed [`Style`]'s [`Faces`] name the
+//! egui has no weights, so a layout's [`Style`]'s [`Faces`] name the
 //! registered family that draws each weight of a family; a family is its own
 //! normal face. A weight with no registered face is drawn by the nearest
 //! lighter one that has one, never by a heavier or synthesised face, and a
@@ -366,6 +366,8 @@ mod focus;
 mod hover;
 pub mod icons;
 mod input_trace;
+#[cfg(debug_assertions)]
+mod inspect;
 mod intent;
 mod kept;
 mod key;
@@ -443,9 +445,9 @@ pub use text::{
 };
 #[doc(hidden)]
 pub use transition::{cycle, tracked_layout_nodes};
-#[cfg(debug_assertions)]
-pub use tw::Property;
 pub use tw::{
     Angle, Aria, BoxPaint, Divide, Easing, Match, Mirror, Opacity, Origin, Paint, Progress,
     Reserve, Ring, RingPlacement, Sides, Source, Track, Tw, tw,
 };
+#[cfg(debug_assertions)]
+pub use tw::{Property, Step, Why};
