@@ -366,6 +366,8 @@ mod focus;
 mod hover;
 pub mod icons;
 mod input_trace;
+#[cfg(debug_assertions)]
+mod inspect;
 mod intent;
 mod kept;
 mod key;
@@ -443,9 +445,9 @@ pub use text::{
 };
 #[doc(hidden)]
 pub use transition::{cycle, tracked_layout_nodes};
-#[cfg(debug_assertions)]
-pub use tw::Property;
 pub use tw::{
     Angle, Aria, BoxPaint, Divide, Easing, Match, Mirror, Opacity, Origin, Paint, Progress,
     Reserve, Ring, RingPlacement, Sides, Source, Track, Tw, tw,
 };
+#[cfg(debug_assertions)]
+pub use tw::{Property, Step, Why};

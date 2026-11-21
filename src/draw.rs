@@ -1857,6 +1857,8 @@ impl<A> Placed<A> {
         }
         painting.record(ui.ctx());
         drop(timer);
+        #[cfg(debug_assertions)]
+        crate::inspect::dump_why(ui.ctx(), &painting.nodes);
         if let Some(overflow) = overflow {
             debug::paint(ui.ctx(), &painting.nodes, &overflow);
         }

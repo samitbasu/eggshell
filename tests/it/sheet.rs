@@ -58,12 +58,14 @@ fn chevron() -> Icon {
 fn chip_rules(style: &mut eggshell_ui::Style) {
     style
         .sheet
-        .rule(Chip::Root, When::always(), |t| t.w_px(100.0).h_px(30.0))
-        .rule(Chip::Root, When::always().variant(WIDE), |t| t.w_px(160.0))
-        .rule(Chip::Root, When::always().aria(Aria::Invalid), |t| {
+        .rule(Chip::Root, |t, _| t.w_px(100.0).h_px(30.0))
+        .rule_when(Chip::Root, When::always().variant(WIDE), |t, _| {
+            t.w_px(160.0)
+        })
+        .rule_when(Chip::Root, When::always().aria(Aria::Invalid), |t, _| {
             t.h_px(36.0)
         })
-        .rule(Chip::Icon, When::always(), |t| t.size_px(16.0));
+        .rule(Chip::Icon, |t, _| t.size_px(16.0));
 }
 
 fn parts(b: &mut Builder<'_, '_, ()>, _: &()) {
@@ -154,14 +156,11 @@ fn a_part_declares_its_slot_for_the_rules_that_match_one() {
 fn layers(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(
         |style| {
-            style
-                .sheet
-                .as_app()
-                .rule(Chip::Root, When::always(), |t| t.w_px(80.0));
+            style.sheet.as_app().rule(Chip::Root, |t, _| t.w_px(80.0));
             style
                 .sheet
                 .as_preset()
-                .rule(Chip::Root, When::always(), |t| t.w_px(100.0).h_px(30.0));
+                .rule(Chip::Root, |t, _| t.w_px(100.0).h_px(30.0));
         },
         |b| {
             let root = b.part(Chip::Root, &[], tw());
@@ -184,7 +183,9 @@ fn replaced(b: &mut Builder<'_, '_, ()>, _: &()) {
             style
                 .sheet
                 .as_app()
-                .replace(Chip::Root, When::always().variant(WIDE), |t| t.h_px(44.0));
+                .replace_when(Chip::Root, When::always().variant(WIDE), |t, _| {
+                    t.h_px(44.0)
+                });
         },
         |b| {
             let wide = b.part(Chip::Root, &[Key::Variant(WIDE)], tw());
@@ -225,11 +226,11 @@ fn a_variant_the_sheet_leaves_out_is_reported_and_drawn_without_it() {
 fn negated(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.styled(
         |style| {
-            style
-                .sheet
-                .rule(Chip::Root, When::always().not_aria(Aria::HasPopup), |t| {
-                    t.w_px(70.0).h_px(20.0)
-                });
+            style.sheet.rule_when(
+                Chip::Root,
+                When::always().not_aria(Aria::HasPopup),
+                |t, _| t.w_px(70.0).h_px(20.0),
+            );
         },
         |b| {
             let free = b.part(Chip::Root, &[], tw());
@@ -260,4 +261,49 @@ fn a_preset_hands_out_the_sheet_of_each_theme_at_the_preset_layer() {
         eggshell_ui::Style::default().sheet.layer(),
         eggshell_ui::sheet::Layer::Defaults
     );
+}
+
+fn by_token(b: &mut Builder<'_, '_, ()>, _: &()) {
+    b.styled(
+        |style| {
+            style
+                .sheet
+                .rule(Chip::Root, |t, k| t.w_px(k.control_height).h_px(10.0));
+        },
+        |b| {
+            let before = b.part(Chip::Root, &[], tw());
+            b.div_id("before", before, |_| {});
+            b.styled(
+                |style| style.tokens.control_height = 77.0,
+                |b| {
+                    let scoped = b.part(Chip::Root, &[], tw());
+                    b.div_id("scoped", scoped, |_| {});
+                },
+            );
+            let after = b.part(Chip::Root, &[], tw());
+            b.div_id("after", after, |_| {});
+        },
+    );
+}
+
+#[test]
+fn a_rule_body_is_given_the_tokens_of_the_style_it_is_resolved_in() {
+    let d = driver(by_token);
+    let standard = size_of(&d, "\"before\"");
+    assert_ne!(standard.0, 77.0, "precondition");
+    assert_eq!(size_of(&d, "\"scoped\""), (77.0, 10.0));
+    assert_eq!(
+        size_of(&d, "\"after\""),
+        standard,
+        "the same sheet resolves again for other tokens, and back"
+    );
+}
+
+#[test]
+fn the_preset_fills_the_shadow_scale() {
+    use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle};
+    let themed = Shadcn::themed(ShadcnStyle::Vega, Palette::new());
+    let tokens = themed.light.tokens;
+    assert_ne!(tokens.shadow_xs, egui::Shadow::NONE);
+    assert!(tokens.shadow_lg.offset[1] > tokens.shadow_md.offset[1]);
 }

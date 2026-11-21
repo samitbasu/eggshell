@@ -81,6 +81,10 @@ impl Debug {
     /// The tint of the gutter a scroll container reserves for its bars.
     pub const GUTTER: Color32 = Color32::from_rgba_premultiplied(0x3c, 0x2a, 0x00, 0x60);
 
+    /// The outline of the pinned node.
+    #[cfg(debug_assertions)]
+    pub const PINNED: Color32 = Color32::from_rgb(0xff, 0xb0, 0x20);
+
     /// The outline of a node whose content did not fit.
     pub const OVERFLOW: Color32 = Color32::from_rgb(0xff, 0x30, 0x30);
 
@@ -104,8 +108,27 @@ impl Debug {
         Self::set(ctx, flipped);
     }
 
+    /// TODO(prose): the node pinned with the overlay on, by its readable path: its Computed-style table is shown, and the classes it is built from keep every class that set a property, from the next frame. Debug builds only.
+    #[cfg(debug_assertions)]
+    pub fn pinned(ctx: &Context) -> Option<String> {
+        crate::inspect::pinned(ctx)
+    }
+
+    /// TODO(prose): pins the node at `path`, or with `None` unpins. Debug builds only.
+    #[cfg(debug_assertions)]
+    pub fn pin(ctx: &Context, path: Option<String>) {
+        crate::inspect::pin(ctx, path);
+    }
+
     /// [`toggle`](Self::toggle)s when `key` was pressed this pass, consuming it.
+    /// With Shift it prints the pinned node's Computed-style table to stderr
+    /// instead (debug builds).
     pub fn toggle_on(ctx: &Context, key: Key) {
+        if ctx.input_mut(|input| input.consume_key(egui::Modifiers::SHIFT, key)) {
+            #[cfg(debug_assertions)]
+            crate::inspect::print_pinned(ctx);
+            return;
+        }
         if ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, key)) {
             Self::toggle(ctx);
         }
@@ -565,6 +588,8 @@ pub(crate) fn paint(ctx: &Context, nodes: &Nodes, overflows: &[bool]) {
             StrokeKind::Inside,
         ));
     }
+    #[cfg(debug_assertions)]
+    let pane = pinned_pane(ctx, nodes, &painter, width);
     let label = ctx.pointer_hover_pos().and_then(|pointer| {
         let (index, node) = shown(nodes)
             .filter(|(_, node)| node.rect().contains(pointer))
@@ -581,7 +606,46 @@ pub(crate) fn paint(ctx: &Context, nodes: &Nodes, overflows: &[bool]) {
             },
         ))
     });
+    #[cfg(debug_assertions)]
+    let label = match (label, pane) {
+        (Some(label), Some(pane)) => Some(Shape::Vec(vec![pane, label])),
+        (label, pane) => label.or(pane),
+    };
     paint_topmost(ctx, &painter, label);
+}
+
+/// Pins the node under a click, unpins on Escape, and for the pinned node
+/// of this tree outlines it and gives its Computed-style pane.
+#[cfg(debug_assertions)]
+fn pinned_pane(ctx: &Context, nodes: &Nodes, painter: &Painter, width: f32) -> Option<Shape> {
+    use egui::Modifiers;
+    if ctx.input(|input| input.pointer.primary_clicked()) {
+        let at = ctx.pointer_interact_pos()?;
+        if let Some((_, node)) = shown(nodes)
+            .filter(|(_, node)| node.rect().contains(at))
+            .last()
+        {
+            crate::inspect::pin(ctx, Some(node.path().to_owned()));
+        }
+    }
+    let path = crate::inspect::pinned(ctx)?;
+    if ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape)) {
+        crate::inspect::pin(ctx, None);
+        return None;
+    }
+    let (_, node) = shown(nodes).find(|(_, node)| node.path() == path)?;
+    let grid = PixelGrid {
+        pixels_per_point: ctx.pixels_per_point(),
+    };
+    painter.add(Shape::rect_stroke(
+        grid.rect(node.rect()),
+        0.0,
+        Stroke::new(width * 3.0, Debug::PINNED),
+        StrokeKind::Inside,
+    ));
+    let table = crate::inspect::table(node);
+    crate::inspect::remember(ctx, table.clone());
+    Some(crate::inspect::pane(painter, ctx.content_rect(), table))
 }
 
 /// Whether a node's content fits it.
