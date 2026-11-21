@@ -116,7 +116,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
             title,
             rules,
         } = self;
-        let style = FormStyle::of(b.ctx());
+        let style = b.style().extension::<FormStyle>();
         let mut frame = tw()
             .flex()
             .flex_col()
@@ -168,7 +168,7 @@ impl<'b, 'f, A: 'static> FormExt<'b, 'f, A> for Builder<'b, 'f, A> {
 
     fn labeled_text(&mut self, label: impl Into<String>, text: impl Into<String>) {
         let text = text.into();
-        let color = FormStyle::of(self.ctx()).value_color;
+        let color = self.style().extension::<FormStyle>().value_color;
         let shown = text.clone();
         row(self, label.into(), Some(text), |b| {
             b.text(tw().text(color), shown)
@@ -185,7 +185,7 @@ fn row<'f, A: 'static>(
     description: Option<String>,
     value: impl FnOnce(&mut Builder<'_, 'f, A>),
 ) {
-    let style = FormStyle::of(b.ctx());
+    let style = b.style().extension::<FormStyle>();
     // The least height holds a control, inside the row's padding, so a
     // text row is as tall as a control row.
     let (classes, padding_y) = match depth(b.ctx()) {

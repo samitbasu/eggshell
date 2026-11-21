@@ -38,16 +38,13 @@
 //! technology.
 
 use core::time::Duration;
-use std::sync::Arc;
 
 use eggshell_ui::contract::Look;
 use eggshell_ui::overlay::{Align, Distance, HoverIntent, Placement};
 use eggshell_ui::{Builder, Key, Scope, Style, Tw, tw};
-use egui::{Context, Id, Theme};
 
-/// TODO(prose): how hover cards look and when they open. [`of`](Self::of)
-/// is the one installed for the context's theme, or one made from the
-/// page's [`Style`].
+/// TODO(prose): how hover cards look and when they open: a [`Style`]'s
+/// extension, else one made from it.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct HoverCardStyle {
@@ -71,6 +68,12 @@ pub struct HoverCardStyle {
     pub transition: Duration,
 }
 
+impl eggshell_ui::contract::Extension for HoverCardStyle {
+    fn derive(style: &Style) -> Self {
+        Self::from_style(style)
+    }
+}
+
 impl HoverCardStyle {
     /// TODO(prose): Radix's delays, and the box of `style`'s menus.
     pub fn from_style(style: &Style) -> Self {
@@ -84,17 +87,6 @@ impl HoverCardStyle {
             offset: style.menu.offset,
             transition: style.motion.popover.enter,
         }
-    }
-
-    /// TODO(prose)
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        ctx.data(|data| data.get_temp::<Arc<Self>>(id(ctx.theme())))
-            .unwrap_or_else(|| Arc::new(Self::from_style(&Style::of(ctx))))
-    }
-
-    /// TODO(prose)
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        ctx.data_mut(|data| data.insert_temp(id(theme), Arc::new(self)));
     }
 
     /// The classes of the card's box.
@@ -119,10 +111,6 @@ impl HoverCardStyle {
     fn placement(&self) -> Placement {
         Placement::below().align(Align::Center).gap(self.offset)
     }
-}
-
-fn id(theme: Theme) -> Id {
-    Id::NULL.with(("eggshell-ui-extras-hover-card-style", theme))
 }
 
 /// TODO(prose): adds [`hover_card`](Self::hover_card) to the builder.
@@ -226,7 +214,7 @@ where
             open_delay,
             close_delay,
         } = card;
-        let style = HoverCardStyle::of(b.ctx());
+        let style = b.style().extension::<HoverCardStyle>();
         let trigger = b.id_of(key.clone());
         let mut intent = HoverIntent::new(
             open_delay.unwrap_or(style.open_delay),

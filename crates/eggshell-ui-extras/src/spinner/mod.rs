@@ -11,12 +11,11 @@
 //! }
 //! ```
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use eggshell_ui::contract::{Keyed, Size};
 use eggshell_ui::{Angle, Builder, Icon, Key, NodeUi as _, Style, Tw, cycle, tw};
-use egui::{Context, ImageSource, Role, Theme, WidgetInfo, include_image};
+use egui::{Context, ImageSource, Role, WidgetInfo, include_image};
 
 /// Lucide's `loader-circle` (ISC, `LUCIDE-LICENSE` beside it), the icon of
 /// shadcn's `Loader2Icon`.
@@ -28,11 +27,11 @@ const LOADER: ImageSource<'static> = include_image!("loader-circle.svg");
 /// use std::time::Duration;
 /// use eggshell_ui_extras::spinner::SpinnerStyle;
 ///
-/// let ctx = egui::Context::default();
-/// let mut style = (*SpinnerStyle::of(&ctx)).clone();
-/// style.period = Duration::from_secs(2);
-/// style.install_for(&ctx, ctx.theme());
-/// assert_eq!(SpinnerStyle::of(&ctx).period, Duration::from_secs(2));
+/// let mut style = eggshell_ui::Style::default();
+/// let mut look = (*style.extension::<SpinnerStyle>()).clone();
+/// look.period = Duration::from_secs(2);
+/// style.set_extension(look);
+/// assert_eq!(style.extension::<SpinnerStyle>().period, Duration::from_secs(2));
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -41,6 +40,12 @@ pub struct SpinnerStyle {
     pub sizes: Keyed<Size, f32>,
     /// How long one turn takes.
     pub period: Duration,
+}
+
+impl eggshell_ui::contract::Extension for SpinnerStyle {
+    fn derive(style: &Style) -> Self {
+        Self::from_style(style)
+    }
 }
 
 impl SpinnerStyle {
@@ -59,18 +64,6 @@ impl SpinnerStyle {
             sizes,
             period: Duration::from_secs(1),
         }
-    }
-
-    /// TODO(prose): the spinner style installed for the context's theme,
-    /// else [`from_style`](Self::from_style) of its [`Style`].
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        crate::styles::of(ctx, Self::from_style)
-    }
-
-    /// TODO(prose): makes `self` the spinner style of `ctx` while its theme
-    /// is `theme`.
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        crate::styles::install_for(self, ctx, theme);
     }
 }
 
@@ -142,7 +135,7 @@ impl<A: 'static, K: Key> SpinnerChain<'_, '_, '_, A, K> {
             classes,
         } = self;
         let ctx = b.ctx().clone();
-        let style = SpinnerStyle::of(&ctx);
+        let style = b.style().extension::<SpinnerStyle>();
         let size = size.unwrap_or_else(|| b.control_size());
         let side = *crate::styles::entry(&ctx, &style.sizes, size);
         let name = name.unwrap_or_else(|| "Loading".to_owned());

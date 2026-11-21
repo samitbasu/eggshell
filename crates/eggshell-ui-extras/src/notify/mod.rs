@@ -325,7 +325,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key + Clone, Act: Clone + 'static>
             on_action,
             on_dismiss,
         };
-        let look = Look::new(NotifyStyle::of(b.ctx()));
+        let look = Look::new(b.style().extension::<NotifyStyle>());
         let inset = inset.unwrap_or(look.style.inset);
         let items = items
             .get(items.len().saturating_sub(look.style.visible)..)

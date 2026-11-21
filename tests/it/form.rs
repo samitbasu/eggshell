@@ -12,7 +12,7 @@ use egui::{Color32, Role, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, Rig, rect_of};
+use crate::support::{self, Rig, Seen as _, rect_of};
 
 #[derive(Default)]
 struct App {
@@ -87,7 +87,7 @@ fn a_text_row_is_as_tall_as_a_control_row() {
 #[test]
 fn a_row_in_a_section_is_inset_and_one_outside_is_not() {
     let harness = harness();
-    let style = FormStyle::of(&harness.ctx);
+    let style = harness.view_shell().style().extension::<FormStyle>();
     let frame = rect_of(&harness, BOX);
     let row = rect_of(&harness, RATE);
     let value = rect_of(&harness, &format!("{RATE}/\"Value\""));
