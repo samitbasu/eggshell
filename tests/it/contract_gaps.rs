@@ -76,10 +76,6 @@ fn harness_with(
 ) -> Harn {
     let mut style = Shadcn::for_theme(theme).with_style(shadcn).style();
     edit(&mut style);
-    // An edit to the segmented section reaches its sheet rules as an app's
-    // `set_segmented` does.
-    let segmented = style.segmented.clone();
-    style.set_segmented(segmented);
     let tokens = Tokens::for_theme(theme).in_style(shadcn);
     let app = App {
         style: style.clone(),
@@ -287,13 +283,16 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
             theme,
             shadcn,
             |style| {
-                style.segmented.sizes.default_entry_mut().icon_size = 18.0;
-                style.segmented.sizes.default_entry_mut().icon_gap = 7.0;
-                style.segmented.sizes.default_entry_mut().column_gap = 3.0;
+                let mut segmented = style.segmented().clone();
+                let metrics = segmented.sizes.default_entry_mut();
+                metrics.icon_size = 18.0;
+                metrics.icon_gap = 7.0;
+                metrics.column_gap = 3.0;
+                style.set_segmented(segmented);
             },
             icon_cells,
         );
-        let seg = d.app().style.segmented.clone();
+        let seg = d.app().style.segmented().clone();
         let cells = MODES.map(|(mode, _)| d.rect(Target::suffix(&cell_path(mode))));
         for pair in cells.windows(2) {
             assert!(
@@ -343,8 +342,10 @@ fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
         Theme::Light,
         ShadcnStyle::Vega,
         |style| {
-            let hover = style.segmented.unselected.states.hover;
-            style.segmented.unselected.states.hover.text = Color32::from_rgb(200, 30, 30);
+            let hover = style.segmented().unselected.states.hover;
+            let mut segmented = style.segmented().clone();
+            segmented.unselected.states.hover.text = Color32::from_rgb(200, 30, 30);
+            style.set_segmented(segmented);
             assert_ne!(
                 hover.text,
                 Color32::from_rgb(200, 30, 30),
@@ -388,7 +389,7 @@ fn merged_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
 fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
     for (theme, shadcn) in COMBINATIONS {
         let mut d = harness_with(theme, shadcn, |_| {}, merged_segmented);
-        let seg = d.app().style.segmented.clone();
+        let seg = d.app().style.segmented().clone();
         let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.width(), 400.0, "w_full replaced w_fit");
         assert_eq!(
@@ -483,7 +484,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         );
         assert_eq!(
             height("/\"segmented\""),
-            style.segmented.sizes.get(Size::DEFAULT).height
+            style.segmented().sizes.get(Size::DEFAULT).height
         );
     }
 }
@@ -536,9 +537,13 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
             shadcn,
             |style| {
                 style.button.text = Some(spec(21.0));
-                style.segmented.text = Some(spec(17.0));
+                let mut segmented = style.segmented().clone();
+                segmented.text = Some(spec(17.0));
+                style.set_segmented(segmented);
                 style.select.text = Some(spec(19.0));
-                style.checkbox.text = Some(spec(23.0));
+                let mut checkbox = style.checkbox().clone();
+                checkbox.text = Some(spec(23.0));
+                style.set_checkbox(checkbox);
             },
             roles,
         );
@@ -698,7 +703,7 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
             "the label fades with its node"
         );
         let label = d.rect(Target::suffix("/(\"check\", Disabled)/<div>"));
-        let enabled_label = style.label.rest.text;
+        let enabled_label = style.label().rest.text;
         assert_eq!(
             text_color(&d, label, "Agree"),
             enabled_label.gamma_multiply(opacity),
@@ -1130,12 +1135,14 @@ fn the_selected_cell_draws_its_own_weight_and_the_others_keep_the_base() {
             Theme::Light,
             ShadcnStyle::default(),
             |style| {
-                let text = style.role(&style.segmented.text).clone();
-                style.segmented.text = Some(TextSpec {
+                let text = style.role(&style.segmented().text).clone();
+                let mut segmented = style.segmented().clone();
+                segmented.text = Some(TextSpec {
                     weight: Weight::Medium,
                     ..text
                 });
-                style.segmented.selected_weight = selected_weight;
+                segmented.selected_weight = selected_weight;
+                style.set_segmented(segmented);
             },
             plain_segmented,
         );

@@ -134,7 +134,7 @@ fn circle_path(unit: Unit) -> String {
 fn radio_circles_and_dots_are_the_styles() {
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let radio = style(theme).radio;
+        let radio = style(theme).radio().clone();
         for (unit, _) in UNITS {
             let rect = d.rect(Target::suffix(&circle_path(unit)));
             assert_eq!(rect.size(), vec2(16.0, 16.0), "size-4");
@@ -277,7 +277,7 @@ fn thumb(d: &Driver<App>, path: &str) -> (Rect, CircleShape) {
 fn switch_track_and_thumb_are_the_styles_off_and_on() {
     for theme in [Theme::Light, Theme::Dark] {
         let mut d = harness(theme);
-        let switch = style(theme).switch;
+        let switch = style(theme).switch().clone();
         let metrics = *switch.sizes.get(Size::DEFAULT);
         for on in [false, true] {
             if on {
@@ -372,7 +372,7 @@ fn cell_path(unit: Unit) -> String {
 fn segmented_track_and_cells_are_the_styles() {
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let seg = style(theme).segmented;
+        let seg = style(theme).segmented().clone();
         let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.height(), seg.sizes.get(Size::DEFAULT).height);
         assert_eq!(box_at(&d, track).fill, seg.track_fill);
@@ -415,7 +415,7 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 
     tab_to(&mut d, &cell_path(Unit::Imperial));
     d.frames(12);
-    let seg = style(Theme::Light).segmented;
+    let seg = style(Theme::Light).segmented().clone();
     let ring = ring_at(&d, d.rect(Target::suffix(&cell_path(Unit::Imperial))))
         .expect("the focused cell has a ring");
     assert_eq!(ring.stroke.width, 3.0);
@@ -439,14 +439,14 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 fn a_modified_style_changes_every_owned_widget() {
     let mut style = style(Theme::Light);
     let red = egui::Color32::from_rgb(200, 30, 30);
-    let mut switch = style.switch.clone();
+    let mut switch = style.switch().clone();
     switch.on.states.rest.fill = red;
     switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
     style.set_switch(switch);
-    let mut radio = style.radio.clone();
+    let mut radio = style.radio().clone();
     radio.sizes.default_entry_mut().size = 24.0;
     style.set_radio(radio);
-    let mut segmented = style.segmented.clone();
+    let mut segmented = style.segmented().clone();
     segmented.track_fill = red;
     style.set_segmented(segmented);
     let mut d = harness(Theme::Light);
@@ -522,7 +522,7 @@ fn tab_enters_a_group_on_its_chosen_option_wherever_it_is() {
 #[test]
 fn the_switch_track_eases_to_its_new_colour() {
     let mut d = harness_stepping(Theme::Light, 0.016);
-    let switch = style(Theme::Light).switch;
+    let switch = style(Theme::Light).switch().clone();
     let (off, on) = (switch.off.states.rest.fill, switch.on.states.rest.fill);
     assert_ne!(off, on);
     let track = d.rect(Target::suffix("/\"air\"/Track"));
@@ -546,14 +546,14 @@ fn the_switch_track_eases_to_its_new_colour() {
 fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
     let red = egui::Color32::from_rgb(200, 30, 30);
     let mut style = style(Theme::Light);
-    let mut switch = style.switch.clone();
+    let mut switch = style.switch().clone();
     switch.off.states.hover.text = red;
     switch.off.states.pressed.text = red;
     style.set_switch(switch);
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style.clone())));
     d.frames(4);
-    let rest = style.switch.off.states.rest.text;
+    let rest = style.switch().off.states.rest.text;
     let (_, at_rest) = thumb(&d, "/\"air\"/Track");
     assert_eq!(at_rest.fill, rest);
     d.hover(Target::suffix("/\"air\"/Track")).frames(12);

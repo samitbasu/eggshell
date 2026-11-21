@@ -136,7 +136,7 @@ fn core_draws_a_button_with_no_preset() {
 }
 
 fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors)> {
-    let mut all = vec![("label".to_string(), style.label.disabled)];
+    let mut all = vec![("label".to_string(), style.label().disabled)];
     let mut look = |name: &str, paint: &eggshell_ui::contract::Paint| {
         all.push((name.to_string(), paint.states.disabled));
     };
@@ -158,14 +158,14 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
             style.button.toggle_on.get(key),
         );
     }
-    look("checkbox off", &style.checkbox.off);
-    look("checkbox on", &style.checkbox.on);
-    look("radio off", &style.radio.off);
-    look("radio on", &style.radio.on);
-    look("switch off", &style.switch.off);
-    look("switch on", &style.switch.on);
-    look("segmented selected", &style.segmented.selected);
-    look("segmented unselected", &style.segmented.unselected);
+    look("checkbox off", &style.checkbox().off);
+    look("checkbox on", &style.checkbox().on);
+    look("radio off", &style.radio().off);
+    look("radio on", &style.radio().on);
+    look("switch off", &style.switch().off);
+    look("switch on", &style.switch().on);
+    look("segmented selected", &style.segmented().selected);
+    look("segmented unselected", &style.segmented().unselected);
     look("slider thumb", &style.slider.thumb.paint);
     look("select trigger", &style.select.trigger.paint);
     look("menu popup", &style.menu.popup.paint);
