@@ -32,6 +32,8 @@ pub enum Kind {
     Rule,
     /// A state looked up at draw: `hover:`, `focus-visible:`.
     DrawVariant,
+    /// Of a state the widget never has: dropped.
+    Never,
     /// Nothing yet.
     Unmapped,
 }
@@ -48,6 +50,7 @@ impl Kind {
             Self::DarkHalf => "the dark half (`dark:`)",
             Self::Rule => "a rule (`[&_svg]`, `*:`, `has-`)",
             Self::DrawVariant => "a draw-time variant (`hover:`)",
+            Self::Never => "a state the widget never has (dropped)",
             Self::Unmapped => "unmapped",
         }
     }
@@ -224,7 +227,8 @@ fn has(variant: &str) -> Option<String> {
 /// A variant on the node's own state as a `When` key: `aria-invalid`,
 /// `disabled`, `data-[size=sm]`, `data-inset`, and their `not-` forms.
 /// Base UI's `data-disabled`, `data-checked` and the like are their ARIA
-/// states, `data-open` is `aria-expanded`, `data-[size=…]` and
+/// states, `data-open` is `aria-expanded`, `data-active` (the selected
+/// tab) is `aria-selected`, `data-[size=…]` and
 /// `data-[variant=…]` are the widget's size and variant props, and a data
 /// attribute with no value
 /// is `"true"`. `data-highlighted` and `data-focused` (a list's current item)
@@ -256,6 +260,7 @@ fn own_key(variant: &str) -> Option<String> {
     }
     match data {
         "open" => return Some(format!(".{not}aria(Aria::Expanded)")),
+        "active" => return Some(format!(".{not}aria(Aria::Selected)")),
         "closed" if !negated => return Some(".not_aria(Aria::Expanded)".to_owned()),
         "highlighted" | "focused" | "closed" => return None,
         _ => {}
@@ -264,6 +269,17 @@ fn own_key(variant: &str) -> Option<String> {
         Some(a) => Some(format!(".{not}aria({a})")),
         None => Some(format!(".{not}attr({data:?}, \"true\")")),
     }
+}
+
+/// `p-[3px]` as `p` and 0.75: padding or a gap in pixels, in the spacing
+/// scale's units of 4 px.
+fn spacing_px(utility: &str) -> Option<(&str, f32)> {
+    const SPACING: [&str; 10] = [
+        "p", "px", "py", "pt", "pr", "pb", "pl", "gap", "gap-x", "gap-y",
+    ];
+    let (name, value) = utility.strip_suffix("px]")?.split_once("-[")?;
+    let px: f32 = value.parse().ok()?;
+    SPACING.contains(&name).then_some((name, px / 4.0))
 }
 
 /// A utility `Tw` spells otherwise, or that has nothing to do.
@@ -362,10 +378,11 @@ impl Classifier<'_> {
             kinds.insert(kind);
             return Ok(Leaf::Call(call.unwrap_or_default().to_owned()));
         }
-        if let Some(width) = utility
-            .strip_prefix("ring-")
-            .and_then(|w| w.parse::<f32>().ok())
-        {
+        if let Some(width) = utility.strip_prefix("ring-").and_then(|w| {
+            w.parse::<f32>()
+                .ok()
+                .or_else(|| w.strip_prefix('[')?.strip_suffix("px]")?.parse().ok())
+        }) {
             kinds.insert(Kind::TwCall);
             return Ok(Leaf::RingWidth(width));
         }
@@ -394,6 +411,13 @@ impl Classifier<'_> {
         {
             kinds.insert(Kind::TwCall);
             return Ok(Leaf::Call(format!(".opacity(Opacity::new({}))", n / 100.0)));
+        }
+        if let Some((name, units)) = spacing_px(utility)
+            && let Fate::Tw { call } = self.utility(&format!("{name}-1"))
+            && let Some(method) = call.strip_suffix("(1)")
+        {
+            kinds.insert(Kind::Constant);
+            return Ok(Leaf::Call(format!("{method}({units:?})")));
         }
         match self.utility(utility) {
             Fate::Tw { call } => {
@@ -578,6 +602,26 @@ pub struct Widget {
     pub checked_in: bool,
     pub variants: &'static [(&'static str, &'static [&'static str])],
     pub sizes: &'static [(&'static str, &'static [&'static str])],
+    /// The states shadcn's source asks about that eggshell's widget always
+    /// or never has, so no key or rule asks for them.
+    pub facts: &'static [Assumed],
+}
+
+/// Whether eggshell's widget always or never has a state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fact {
+    Holds,
+    Never,
+}
+
+/// A state the emitter settles for a widget: a variant as shadcn writes it
+/// (`group-data-horizontal/tabs`, `data-horizontal`), whether it holds, and
+/// why, for the report.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Assumed {
+    pub variant: &'static str,
+    pub fact: Fact,
+    pub why: &'static str,
 }
 
 impl Widget {
@@ -586,6 +630,27 @@ impl Widget {
             Some((_, ours)) => ours.iter().map(|n| (*n).to_owned()).collect(),
             None => vec![name.to_owned()],
         }
+    }
+
+    /// `class` without the variants that hold, and the facts that settled
+    /// them; or the fact that `class` never applies.
+    fn settle(&self, class: &str) -> Result<(String, Vec<&'static Assumed>), &'static Assumed> {
+        let (variants, utility) = split_variants(class);
+        let mut kept = Vec::new();
+        let mut held = Vec::new();
+        for variant in variants {
+            let (negated, v) = match variant.strip_prefix("not-") {
+                Some(v) => (true, v),
+                None => (false, variant),
+            };
+            match self.facts.iter().find(|f| f.variant == v) {
+                None => kept.push(variant),
+                Some(fact) if (fact.fact == Fact::Holds) != negated => held.push(fact),
+                Some(fact) => return Err(fact),
+            }
+        }
+        kept.push(utility);
+        Ok((kept.join(":"), held))
     }
 
     fn variants_of(&self, name: &str) -> Vec<String> {
@@ -685,12 +750,11 @@ pub struct Emitted {
     pub kinds: BTreeMap<Kind, usize>,
     /// Each unmapped class, with why, once.
     pub unmapped: BTreeMap<String, String>,
-    /// `Tw` methods the rules call that `Tw` does not have yet.
-    pub needs: BTreeSet<String>,
+    /// Each state taken to hold, with why.
+    pub assumed: BTreeSet<(&'static str, &'static str)>,
+    /// Each class of a state the widget never has, with why, once.
+    pub dropped: BTreeMap<String, &'static str>,
 }
-
-/// `Tw` methods the emitter writes that `Tw` lacks today.
-const MISSING: [&str; 1] = [".text_size("];
 
 /// The rules of `component`'s rows, one per part and keys.
 pub fn emit(
@@ -704,14 +768,26 @@ pub fn emit(
     let mut rules: Vec<Rule> = Vec::new();
     let mut kinds = BTreeMap::new();
     let mut unmapped = BTreeMap::new();
-    let mut needs = BTreeSet::new();
+    let mut assumed = BTreeSet::new();
+    let mut dropped = BTreeMap::new();
     for row in rows.iter().filter(|r| r.component == component) {
         if matches!(row.fate, Fate::Marker) {
             continue;
         }
         let source = source_of(row, sources);
         let bases = when_of(&row.origin, widget);
-        match classifier.translate(&row.class.text) {
+        let class = match widget.settle(&row.class.text) {
+            Ok((class, held)) => {
+                assumed.extend(held.iter().map(|f| (f.variant, f.why)));
+                class
+            }
+            Err(never) => {
+                *kinds.entry(Kind::Never).or_insert(0) += 1;
+                dropped.entry(source).or_insert(never.why);
+                continue;
+            }
+        };
+        match classifier.translate(&class) {
             Err(why) => {
                 *kinds.entry(Kind::Unmapped).or_insert(0) += 1;
                 unmapped.entry(source).or_insert(why);
@@ -719,14 +795,6 @@ pub fn emit(
             Ok(t) => {
                 for kind in &t.kinds {
                     *kinds.entry(*kind).or_insert(0) += 1;
-                }
-                if let Leaf::Call(call) = &t.leaf {
-                    needs.extend(
-                        MISSING
-                            .iter()
-                            .filter(|m| call.contains(*m))
-                            .map(|m| m.trim_matches(|c| c == '.' || c == '(').to_owned()),
-                    );
                 }
                 let part = part_variant(component, &row.slot);
                 let keys: Vec<String> = t.keys.iter().map(|key| widget.key(key)).collect();
@@ -860,7 +928,8 @@ pub fn emit(
         rust,
         kinds,
         unmapped,
-        needs,
+        assumed,
+        dropped,
     }
 }
 
@@ -874,6 +943,7 @@ mod tests {
     spacing! {
         px, "`px-<units>`: left and right padding.", |s, v| {};
         pl, "`pl-<units>`: left padding.", |s, v| {};
+        p, "`p-<units>`: padding on every side.", |s, v| {};
     }
     lengths! {
         h, h_px, h_frac, h_full, h_auto, "the height", |s, l| {};
@@ -885,6 +955,8 @@ mod tests {
     pub fn focus(self, style: impl FnOnce(Paint) -> Paint) -> Self {
     /// `active:`. Held.
     pub fn active(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+    /// `gap-<units>`: spacing between children on both axes.
+    pub fn gap(self, units: f32) -> Self {
     /// `shrink-0`.
     pub fn shrink_0(self) -> Self {
     /// `line-clamp-<lines>`: at most so many lines.
@@ -939,6 +1011,16 @@ mod tests {
             assert_eq!(one(c, "border"), ".border(1.0)");
             assert_eq!(one(c, "shadow-xs"), ".shadow(k.shadow_xs)");
             assert!(c.translate("shadow-2xl").is_err());
+        });
+    }
+
+    #[test]
+    fn arbitrary_pixel_padding_and_gaps_are_their_spacing_units() {
+        with(|c| {
+            assert_eq!(one(c, "p-[3px]"), ".p(0.75)");
+            assert_eq!(one(c, "px-[10px]"), ".px(2.5)");
+            assert_eq!(one(c, "gap-[6px]"), ".gap(1.5)");
+            assert!(c.translate("p-[calc(100%-1px)]").is_err());
         });
     }
 
@@ -1005,6 +1087,10 @@ mod tests {
                 ".focus(|p| p.ring(3.0, k.ring.gamma_multiply(0.5)))"
             );
             assert_eq!(calls[0].1, ["a", "b"]);
+            assert!(matches!(
+                c.translate("focus-visible:ring-[3px]").map(|t| t.leaf),
+                Ok(Leaf::RingWidth(3.0))
+            ));
         });
     }
 
@@ -1058,6 +1144,15 @@ mod tests {
                 [".not_aria(Aria::HasPopup)"]
             );
             assert_eq!(keys(c, "aria-invalid:data-open:bg-muted").len(), 2);
+            assert_eq!(
+                keys(c, "data-active:bg-muted"),
+                [".aria(Aria::Selected)"],
+                "Base UI marks the selected tab `data-active`"
+            );
+            assert_eq!(
+                keys(c, "not-data-active:bg-muted"),
+                [".not_aria(Aria::Selected)"]
+            );
         });
     }
 
@@ -1142,5 +1237,65 @@ mod tests {
                 assert!(c.translate(class).is_err(), "{class}");
             }
         });
+    }
+
+    const HORIZONTAL: Widget = Widget {
+        component: "tabs",
+        checked_in: false,
+        variants: &[],
+        sizes: &[],
+        facts: &[
+            Assumed {
+                variant: "group-data-horizontal/tabs",
+                fact: Fact::Holds,
+                why: "horizontal only",
+            },
+            Assumed {
+                variant: "group-data-[variant=line]/tabs-list",
+                fact: Fact::Never,
+                why: "no line variant",
+            },
+        ],
+    };
+
+    #[test]
+    fn a_state_the_widget_always_has_is_dropped_from_the_class() {
+        let (class, held) = HORIZONTAL
+            .settle("group-data-horizontal/tabs:h-9")
+            .expect("it holds");
+        assert_eq!(class, "h-9");
+        assert_eq!(held.len(), 1);
+        assert_eq!(
+            HORIZONTAL
+                .settle("dark:group-data-horizontal/tabs:data-active:shadow-sm!")
+                .map(|(class, _)| class),
+            Ok("dark:data-active:shadow-sm!".to_owned())
+        );
+        assert_eq!(
+            HORIZONTAL
+                .settle("data-active:bg-background")
+                .map(|(class, held)| (class, held.len())),
+            Ok(("data-active:bg-background".to_owned(), 0))
+        );
+    }
+
+    #[test]
+    fn a_state_the_widget_never_has_drops_the_class() {
+        let never = HORIZONTAL
+            .settle("group-data-[variant=line]/tabs-list:data-active:bg-transparent")
+            .expect_err("it never holds");
+        assert_eq!(never.why, "no line variant");
+        assert!(
+            HORIZONTAL
+                .settle("not-group-data-horizontal/tabs:h-fit")
+                .is_err(),
+            "the negation of a state that holds never does"
+        );
+        assert_eq!(
+            HORIZONTAL
+                .settle("not-group-data-[variant=line]/tabs-list:bg-muted")
+                .map(|(class, _)| class),
+            Ok("bg-muted".to_owned())
+        );
     }
 }

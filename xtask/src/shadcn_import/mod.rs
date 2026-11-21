@@ -23,19 +23,20 @@ use classes::{Classifier, Fate, Gap, Radius, TwTable};
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 6] = [
+const COMPONENTS: [&str; 7] = [
     "button",
     "badge",
     "combobox",
     "input",
     "input-group",
     "select",
+    "tabs",
 ];
 
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 5] = [
+const WIDGETS: [emit::Widget; 6] = [
     emit::Widget {
         component: "button",
         checked_in: true,
@@ -44,32 +45,83 @@ const WIDGETS: [emit::Widget; 5] = [
             ("secondary", &["secondary", "default"]),
         ],
         sizes: &[],
+        facts: &[],
     },
     emit::Widget {
         component: "input",
         checked_in: false,
         variants: &[],
         sizes: &[],
+        facts: &[],
     },
     emit::Widget {
         component: "input-group",
         checked_in: false,
         variants: &[],
         sizes: &[],
+        facts: &[],
     },
     emit::Widget {
         component: "select",
         checked_in: false,
         variants: &[],
         sizes: &[],
+        facts: &[],
     },
     emit::Widget {
         component: "combobox",
         checked_in: false,
         variants: &[],
         sizes: &[],
+        facts: &[],
+    },
+    emit::Widget {
+        component: "tabs",
+        checked_in: false,
+        variants: &[],
+        sizes: &[],
+        facts: &TABS,
     },
 ];
+
+/// eggshell's tabs are horizontal, and their list has only the default look.
+const TABS: [emit::Assumed; 6] = {
+    use emit::{Assumed, Fact::*};
+    const HORIZONTAL: &str = "eggshell's tabs are horizontal only";
+    const DEFAULT: &str = "eggshell's tab list has only the default look";
+    [
+        Assumed {
+            variant: "data-horizontal",
+            fact: Holds,
+            why: HORIZONTAL,
+        },
+        Assumed {
+            variant: "data-vertical",
+            fact: Never,
+            why: HORIZONTAL,
+        },
+        Assumed {
+            variant: "group-data-horizontal/tabs",
+            fact: Holds,
+            why: HORIZONTAL,
+        },
+        Assumed {
+            variant: "group-data-vertical/tabs",
+            fact: Never,
+            why: HORIZONTAL,
+        },
+        Assumed {
+            variant: "group-data-[variant=default]/tabs-list",
+            fact: Holds,
+            why: DEFAULT,
+        },
+        Assumed {
+            variant: "group-data-[variant=line]/tabs-list",
+            fact: Never,
+            why: DEFAULT,
+        },
+    ]
+};
 
 /// Where a widget's checked-in rules for `style` live.
 fn checked_in(root: &Path, style: &str, component: &str) -> PathBuf {
@@ -322,7 +374,7 @@ pub fn run(plan: &Plan) -> Result<()> {
 }
 
 /// The report's account of a generated sheet: how each class got there,
-/// what is not there yet, and what `Tw` lacks for it.
+/// what it settles for the widget, and what is not there yet.
 fn sheet_section(
     report: &mut String,
     style: &str,
@@ -343,9 +395,20 @@ fn sheet_section(
     for (source, why) in &emitted.unmapped {
         let _ = writeln!(report, "- `{source}`: {why}");
     }
-    if !emitted.needs.is_empty() {
-        let needs: Vec<_> = emitted.needs.iter().map(|n| format!("`Tw::{n}`")).collect();
-        let _ = writeln!(report, "\n`Tw` lacks: {}.", needs.join(", "));
+    if !emitted.assumed.is_empty() {
+        let _ = writeln!(report, "\nTaken to hold:\n");
+        for (variant, why) in &emitted.assumed {
+            let _ = writeln!(report, "- `{variant}:`: {why}");
+        }
+    }
+    if !emitted.dropped.is_empty() {
+        let _ = writeln!(
+            report,
+            "\nDropped, a state the widget never has, once each:\n"
+        );
+        for (source, why) in &emitted.dropped {
+            let _ = writeln!(report, "- `{source}`: {why}");
+        }
     }
     let _ = writeln!(report);
 }
