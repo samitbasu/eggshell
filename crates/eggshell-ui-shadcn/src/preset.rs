@@ -924,6 +924,10 @@ impl Shadcn {
         core.button_padding = t.button_padding;
         core.text_size = t.text_size;
         core.switch_thumb = t.switch_thumb;
+        core.shadow_xs = t.shadow_xs;
+        core.shadow_sm = t.shadow_sm;
+        core.shadow_md = t.shadow_md;
+        core.shadow_lg = t.shadow_lg;
         core
     }
 
