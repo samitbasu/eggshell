@@ -121,7 +121,7 @@ impl DisclosureStyle {
             tone_opacity: style.select.chevron_opacity,
             nudge: 2.0,
             header: HeaderStyle {
-                ring: style.focus(),
+                ring: style.tokens.focus,
                 focus_border: None,
                 radius: 6,
                 padding_y: 16.0,

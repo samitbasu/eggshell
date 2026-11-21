@@ -1447,6 +1447,10 @@ pub struct Tokens {
     pub input: Color32,
     /// TODO(prose): the focus ring.
     pub ring: Color32,
+    /// TODO(prose): the keyboard focus indicator every control draws unless its look names its own.
+    pub focus: Focus,
+    /// TODO(prose): how disabled controls are drawn.
+    pub disabled: Disabled,
     /// TODO(prose): the base corner radius.
     pub radius: u8,
     /// TODO(prose): a control's height.
@@ -1492,6 +1496,11 @@ impl Tokens {
             border: v.window_stroke.color,
             input: w.inactive.bg_stroke.color,
             ring: w.active.bg_stroke.color,
+            focus: Focus {
+                width: 2.0,
+                color: v.selection.bg_fill,
+            },
+            disabled: Disabled::Colors,
             radius: w.inactive.corner_radius.nw,
             control_height: egui.spacing.interact_size.y,
             button_padding: egui.spacing.button_padding,
@@ -1526,10 +1535,6 @@ pub struct Style {
     pub text: TextSpec,
     /// The registered family that draws each weight of a family.
     pub faces: Faces,
-    /// The default focus indicator.
-    focus: Focus,
-    /// How disabled controls are drawn.
-    disabled: Disabled,
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
     pub label: States,
@@ -1738,15 +1743,10 @@ impl Style {
             ..metrics
         };
         let track = vec2(2.0 * s.icon_width, s.icon_width);
-        let focus = Focus {
-            width: 2.0,
-            color: v.selection.bg_fill,
-        };
+        let tokens = Tokens::from_egui(egui);
         let mut style = Self {
             text,
             faces: Faces::default(),
-            focus,
-            disabled: Disabled::Colors,
             label,
             button: ButtonStyle {
                 variants: Keyed::new(
@@ -2052,7 +2052,7 @@ impl Style {
                 border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
                 radius,
                 padding: f32::from(s.window_margin.left),
-                bare_padding: focus.clearance(),
+                bare_padding: tokens.focus.clearance(),
                 selected_ring: v.selection.stroke.color,
             },
             rich: RichTextStyle {
@@ -2138,7 +2138,7 @@ impl Style {
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
-            tokens: Tokens::from_egui(egui),
+            tokens,
             sheet: crate::sheet::Sheet::defaults(),
             extensions: Extensions::default(),
         };
@@ -2195,32 +2195,8 @@ impl Style {
         self.write_input_rules();
     }
 
-    /// The default focus indicator.
-    pub fn focus(&self) -> Focus {
-        self.focus
-    }
-
-    /// TODO(prose): sets the default focus indicator, and writes the input and segmented rules that use it at the sheet's current layer.
-    pub fn set_focus(&mut self, focus: Focus) {
-        self.focus = focus;
-        self.write_input_rules();
-        self.write_segmented_rules();
-    }
-
-    /// How disabled controls are drawn.
-    pub fn disabled(&self) -> Disabled {
-        self.disabled
-    }
-
-    /// TODO(prose): sets how disabled controls are drawn, and writes the input and segmented rules that use it at the sheet's current layer.
-    pub fn set_disabled(&mut self, disabled: Disabled) {
-        self.disabled = disabled;
-        self.write_input_rules();
-        self.write_segmented_rules();
-    }
-
     fn write_input_rules(&mut self) {
-        crate::owned::write_input_rules(&mut self.sheet, &self.input, self.focus, self.disabled);
+        crate::owned::write_input_rules(&mut self.sheet, &self.input);
     }
 
     /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the sheet's current layer.
@@ -2250,12 +2226,7 @@ impl Style {
                 }
             })
             .collect();
-        crate::owned::write_tabs_rules(
-            &mut self.sheet,
-            &self.segmented,
-            roles,
-            (self.focus, self.disabled),
-        );
+        crate::owned::write_tabs_rules(&mut self.sheet, &self.segmented, roles);
     }
 }
 
