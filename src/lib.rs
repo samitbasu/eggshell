@@ -118,7 +118,7 @@
 //! [`Tw::font_weight`] with a [`Weight`]. It is inherited like the other
 //! text classes.
 //!
-//! egui has no weights, so the installed [`Style`]'s [`Faces`] name the
+//! egui has no weights, so a layout's [`Style`]'s [`Faces`] name the
 //! registered family that draws each weight of a family; a family is its own
 //! normal face. A weight with no registered face is drawn by the nearest
 //! lighter one that has one, never by a heavier or synthesised face, and a

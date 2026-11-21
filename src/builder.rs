@@ -255,8 +255,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     }
 
     /// TODO(prose): the style the nodes built here are built, measured and
-    /// drawn with: the context's [`Style::of`](crate::Style::of), or that of
-    /// the [`styled`](Self::styled) scope around them.
+    /// drawn with: the layout's, or that of the [`styled`](Self::styled)
+    /// scope around them.
     pub fn style(&self) -> &Arc<crate::Style> {
         self.style
     }

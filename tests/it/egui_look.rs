@@ -67,11 +67,20 @@ fn a_layout_s_style_gives_egui_the_preset_s_look_in_both_themes() {
     }
 }
 
+/// The fonts in `faces` that are not eggshell's own symbol backings, which
+/// follow the faces a layout's style declares.
+fn added(faces: Vec<String>) -> Vec<String> {
+    faces
+        .into_iter()
+        .filter(|face| !face.starts_with("eggshell-symbols"))
+        .collect()
+}
+
 #[test]
 fn a_layout_s_style_gives_egui_the_preset_s_fonts() {
-    let (_, _, preset) = applied(ShadcnStyle::Vega);
-    let (_, _, layout) = themed(ShadcnStyle::Vega);
-    let plain = egui_after(|_| {}, Some(LayoutState::new())).2;
+    let preset = added(applied(ShadcnStyle::Vega).2);
+    let layout = added(themed(ShadcnStyle::Vega).2);
+    let plain = added(egui_after(|_| {}, Some(LayoutState::new())).2);
     assert_ne!(preset, plain, "precondition: the preset adds fonts");
     assert_eq!(layout, preset);
 }

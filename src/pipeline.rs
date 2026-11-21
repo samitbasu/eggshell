@@ -600,7 +600,7 @@ impl<'f, A> Sink<'f, A> for Frame<'f, A> {
 
 /// Owns the state a frame is built in; reuse one across frames.
 ///
-/// The root's text style defaults to the installed [`Style`](crate::Style)'s
+/// The root's text style defaults to the layout's own [`Style`](crate::Style)'s
 /// text, else [`TextStyle::from_egui`], recomputed on every build so theme
 /// changes apply. [`with_base_text`](Self::with_base_text)
 /// replaces it, and [`set_base_text`](Self::set_base_text) changes or clears
@@ -765,7 +765,7 @@ impl LayoutState {
     }
 
     /// TODO(prose): builds with `style`, the half for the context's theme, in
-    /// place of the style installed in the context.
+    /// place of the one derived from egui's.
     pub fn with_style(
         mut self,
         style: crate::contract::Themed<std::sync::Arc<crate::Style>>,
@@ -801,7 +801,7 @@ impl LayoutState {
     ///
     /// The root inherits the override from
     /// [`with_base_text`](Self::with_base_text) if set, else the text of the
-    /// [`Style`](crate::Style) installed in `ctx`, else
+    /// layout's own [`Style`](crate::Style), else
     /// [`TextStyle::from_egui`] of `ctx`. `ctx` is also used by
     /// [`Built::layout`] to measure text. `'f` covers this borrow, `ctx`, and
     /// the application data that the frame's measure closures capture.
@@ -824,7 +824,7 @@ impl LayoutState {
             if own {
                 TextStyle::of_style(ctx, &style)
             } else {
-                TextStyle::default_for(ctx)
+                TextStyle::from_egui(ctx)
             }
         });
         let st = &mut self.st;

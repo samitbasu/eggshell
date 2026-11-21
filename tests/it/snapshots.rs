@@ -1447,7 +1447,12 @@ fn dnd_gallery_chip_in(name: &str, theme: egui::Theme) {
         common::base_text(theme),
         state,
         |ui, app, layout| {
-            dnd_gallery::window(ui, app, layout, &mut LayoutState::new());
+            dnd_gallery::window(
+                ui,
+                app,
+                layout,
+                &mut LayoutState::new().with_style(support::shadcn()),
+            );
         },
     );
     harness.ctx.set_theme(theme);

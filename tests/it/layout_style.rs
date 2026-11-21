@@ -1,6 +1,5 @@
 //! A layout's own style (#435): given to the `LayoutState` as a light and
-//! dark pair and swapped through it, in place of the style installed in the
-//! context, for the build, the draw, the shell, tooltips, the base text and
+//! dark pair and swapped through it, in place of the one derived from egui's, for the build, the draw, the shell, tooltips, the base text and
 //! the faces text is drawn in.
 
 use std::sync::Arc;
@@ -12,7 +11,6 @@ use egui::{FontFamily, Theme, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
-const INSTALLED: f32 = 4.0;
 const LIGHT: f32 = 11.0;
 const DARK: f32 = 22.0;
 
@@ -69,20 +67,25 @@ fn harness(layout: LayoutState) -> Harness<'static, Scene> {
                 drawn: None,
             },
         );
-    padded(INSTALLED).as_ref().clone().install(&harness.ctx);
     harness.run_steps(2);
     harness
 }
 
-#[test]
-fn without_a_style_of_its_own_a_layout_builds_with_the_installed_one() {
-    let harness = harness(LayoutState::new());
-    assert_eq!(harness.state().built, Some(INSTALLED));
-    assert_eq!(harness.state().drawn, Some(INSTALLED));
+/// The cell padding of the style derived from egui's.
+fn derived() -> f32 {
+    Style::default().table.cell_padding
 }
 
 #[test]
-fn a_layout_s_own_style_wins_over_the_installed_one_at_build_and_draw() {
+fn without_a_style_of_its_own_a_layout_builds_with_one_derived_from_egui_s() {
+    let harness = harness(LayoutState::new());
+    assert_eq!(harness.state().built, Some(derived()));
+    assert_eq!(harness.state().drawn, Some(derived()));
+}
+
+#[test]
+fn a_layout_s_own_style_is_the_one_it_builds_and_draws_with() {
+    assert_ne!(derived(), LIGHT, "precondition");
     let harness = harness(LayoutState::new().with_style(pair()));
     assert_eq!(harness.state().built, Some(LIGHT));
     assert_eq!(harness.state().drawn, Some(LIGHT));
@@ -117,8 +120,8 @@ fn the_shell_reads_the_layout_s_style() {
     let plain = LayoutState::new();
     assert_eq!(
         plain.shell(&harness.ctx).style().table.cell_padding,
-        INSTALLED,
-        "without a style of its own, the installed one"
+        derived(),
+        "without a style of its own, the derived one"
     );
 }
 
@@ -181,16 +184,16 @@ fn a_tooltip_waits_as_the_layout_s_style_says() {
                 dark: delayed(std::time::Duration::ZERO),
             }),
         );
-    delayed(std::time::Duration::from_secs(60))
-        .as_ref()
-        .clone()
-        .install(&harness.ctx);
+    assert!(
+        Style::default().tooltip.delay > std::time::Duration::from_millis(300),
+        "precondition: the derived style would wait past the six steps"
+    );
     harness.run_steps(2);
     harness.get_by_label("Save").hover();
     harness.run_steps(6);
     assert!(
         harness.query_by_label("Saves it").is_some(),
-        "the layout's style opens it at once; the installed one would wait a minute"
+        "the layout's style opens it at once"
     );
 }
 

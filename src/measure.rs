@@ -37,9 +37,8 @@ impl<'a> Measure<'a> {
         }
     }
 
-    /// TODO(prose): the style the leaf is measured with: the context's
-    /// [`Style::of`](crate::Style::of), or that of the
-    /// [`styled`](crate::Builder::styled) scope it was built in.
+    /// TODO(prose): the style the leaf is measured with: the layout's, or that
+    /// of the [`styled`](crate::Builder::styled) scope it was built in.
     pub fn style(&self) -> &Arc<crate::Style> {
         self.style
     }

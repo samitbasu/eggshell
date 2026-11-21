@@ -189,12 +189,15 @@ fn style_and_theme_colour_are_chosen_independently() {
     };
     for style in ShadcnStyle::ALL {
         assert_ne!(
-            neutral(style),
-            blue(style),
+            neutral(style).button,
+            blue(style).button,
             "{style:?} takes a theme colour"
         );
     }
-    assert_ne!(neutral(ShadcnStyle::Vega), neutral(ShadcnStyle::Lyra));
+    assert_ne!(
+        neutral(ShadcnStyle::Vega).button,
+        neutral(ShadcnStyle::Lyra).button
+    );
     assert_eq!(
         blue(ShadcnStyle::Lyra).button.sizes.get(Size::DEFAULT),
         neutral(ShadcnStyle::Lyra).button.sizes.get(Size::DEFAULT),
