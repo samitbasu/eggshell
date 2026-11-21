@@ -3,7 +3,9 @@
 //! the support harness switches on.
 
 use eggshell_ui::Style;
-use eggshell_ui::contract::{Size, Variant};
+use std::sync::Arc;
+
+use eggshell_ui::contract::{Size, Themed, Variant};
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
@@ -531,7 +533,7 @@ fn a_changed_style_changes_the_drawing() {
     style.button.sizes.get_mut(Size::DEFAULT).unwrap().radius = 0;
     style.button.sizes.get_mut(Size::DEFAULT).unwrap().height = 40.0;
     let mut d = harness(Theme::Light);
-    style.install(d.ctx());
+    d.set_style(Themed::both(Arc::new(style)));
     d.frames(12);
     let rect = d.rect(Target::suffix(&path(variant::PRIMARY, Enablement::Enabled)));
     let shape = box_at(&d, rect);
@@ -694,7 +696,7 @@ fn a_style_without_press_shift_does_not_move_buttons() {
     let mut style = style(Theme::Light);
     style.button.press_shift = 0.0;
     let mut d = harness(Theme::Light);
-    style.install(d.ctx());
+    d.set_style(Themed::both(Arc::new(style)));
     d.frames(4);
     let rect = d.rect(Target::suffix(&path(variant::PRIMARY, Enablement::Enabled)));
     press_at(&mut d, rect.center());

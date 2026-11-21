@@ -2138,7 +2138,6 @@ mod tooltip_candidates {
     use super::*;
     use eggshell_ui::Style;
     use eggshell_ui::overlay::Distance;
-    use eggshell_ui_shadcn::Shadcn;
 
     fn out() -> std::path::PathBuf {
         let dir = std::env::var("EGGSHELL_TOOLTIP_DIR")
@@ -2147,40 +2146,29 @@ mod tooltip_candidates {
         dir.into()
     }
 
-    fn change(ctx: &egui::Context, edit: impl FnOnce(&mut Style)) {
-        let mut style = (*Style::of(ctx)).clone();
-        edit(&mut style);
-        style.install(ctx);
-    }
-
     /// (a) shadcn's TooltipContent: inverted, with its arrow.
-    fn inverted_with_arrow(_: &egui::Context, _: &()) {}
+    fn inverted_with_arrow(_: &Tokens, _: &mut Style) {}
 
     /// (b) the same without the arrow.
-    fn inverted_without_arrow(ctx: &egui::Context, _: &()) {
-        change(ctx, |style| {
-            style.tooltip.arrow = None;
-            style.tooltip.offset = Distance::new(4.0);
-        });
+    fn inverted_without_arrow(_: &Tokens, style: &mut Style) {
+        style.tooltip.arrow = None;
+        style.tooltip.offset = Distance::new(4.0);
     }
 
     /// (c) a popover: `bg-popover`, a border and `shadow-md`, no arrow.
-    fn popover(ctx: &egui::Context, _: &()) {
-        let tokens = Shadcn::of(ctx).tokens;
-        change(ctx, |style| {
-            let colors = eggshell_ui::contract::Colors {
-                fill: tokens.popover,
-                border: tokens.border,
-                text: tokens.popover_foreground,
-            };
-            style.tooltip.popup = eggshell_ui::contract::Look::new(
-                eggshell_ui::contract::States::still(colors, tokens.popover),
-            )
-            .bordered(1.0)
-            .shadowed(tokens.shadow_md);
-            style.tooltip.arrow = None;
-            style.tooltip.offset = Distance::new(4.0);
-        });
+    fn popover(tokens: &Tokens, style: &mut Style) {
+        let colors = eggshell_ui::contract::Colors {
+            fill: tokens.popover,
+            border: tokens.border,
+            text: tokens.popover_foreground,
+        };
+        style.tooltip.popup = eggshell_ui::contract::Look::new(
+            eggshell_ui::contract::States::still(colors, tokens.popover),
+        )
+        .bordered(1.0)
+        .shadowed(tokens.shadow_md);
+        style.tooltip.arrow = None;
+        style.tooltip.offset = Distance::new(4.0);
     }
 
     fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
@@ -2191,17 +2179,19 @@ mod tooltip_candidates {
         });
     }
 
-    fn render(name: &str, theme: egui::Theme, scale: f32, prepare: fn(&egui::Context, &())) {
+    fn render(name: &str, theme: egui::Theme, scale: f32, edit: fn(&Tokens, &mut Style)) {
         let tokens = Tokens::for_theme(theme);
-        let mut harness = support::harness_scaled(
+        let mut harness = support::harness_at(
             Vec2::new(240.0, 120.0),
             scale,
             TextStyle::new(layouts::BODY, tokens.foreground),
             (),
             view,
-            prepare,
         );
-        common::set_style(&harness.ctx, ShadcnStyle::Vega);
+        harness
+            .state_mut()
+            .layout
+            .set_style(support::shadcn_with(|style| edit(&tokens, style)));
         harness.state_mut().page = support::Page::Themed;
         harness.state_mut().companion = support::Companion::Alone;
         harness.ctx.set_theme(theme);
@@ -2309,7 +2299,6 @@ mod kbd_candidates {
     use super::*;
     use eggshell_ui::Style;
     use eggshell_ui::contract::Colors;
-    use eggshell_ui_shadcn::Shadcn;
 
     fn out() -> std::path::PathBuf {
         let dir = std::env::var("EGGSHELL_TOOLTIP_DIR")
@@ -2318,44 +2307,38 @@ mod kbd_candidates {
         dir.into()
     }
 
-    fn change(ctx: &egui::Context, edit: impl FnOnce(&mut Style)) {
-        let mut style = (*Style::of(ctx)).clone();
-        edit(&mut style);
-        style.install_for(ctx, ctx.theme());
-    }
-
     /// (a) shadcn's Kbd in a tooltip: `bg-background/20 text-background`,
     /// `/10` in the dark theme.
-    fn tinted(_: &egui::Context, _: &()) {}
+    fn tinted(_: &Tokens, _: &mut Style) {}
 
     /// (b) an outline: no fill, a 1 pt `background/40` border.
-    fn outlined(ctx: &egui::Context, _: &()) {
-        let tokens = Shadcn::of(ctx).tokens;
-        change(ctx, |style| {
-            style.kbd.tooltip = Colors {
-                fill: Color32::TRANSPARENT,
-                border: tokens.background.gamma_multiply(0.4),
-                text: tokens.background,
-            };
-            style.kbd.border_width = 1.0;
-        });
+    fn outlined(tokens: &Tokens, style: &mut Style) {
+        style.kbd.tooltip = Colors {
+            fill: Color32::TRANSPARENT,
+            border: tokens.background.gamma_multiply(0.4),
+            text: tokens.background,
+        };
+        style.kbd.border_width = 1.0;
     }
 
     /// (c) the page's chip as it is: `bg-muted text-muted-foreground`.
-    fn muted(ctx: &egui::Context, _: &()) {
-        change(ctx, |style| style.kbd.tooltip = style.kbd.page);
+    fn muted(_: &Tokens, style: &mut Style) {
+        style.kbd.tooltip = style.kbd.page;
     }
 
-    fn render(name: &str, theme: egui::Theme, scale: f32, prepare: fn(&egui::Context, &())) {
+    fn render(name: &str, theme: egui::Theme, scale: f32, edit: fn(&Tokens, &mut Style)) {
         let tokens = Tokens::for_theme(theme);
-        let mut harness = support::harness_scaled(
+        let mut harness = support::harness_at(
             Vec2::new(240.0, 120.0),
             scale,
             TextStyle::new(layouts::BODY, tokens.foreground),
             (),
             rich_tooltip_view,
-            prepare,
         );
+        harness
+            .state_mut()
+            .layout
+            .set_style(support::shadcn_with(|style| edit(&tokens, style)));
         rich_tooltip_open(&mut harness, theme);
         let label = if theme == egui::Theme::Light {
             "light"

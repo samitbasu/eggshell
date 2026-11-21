@@ -15,8 +15,9 @@ use egui_kittest::kittest::Queryable as _;
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::{PixelsPerPoint, PlacedFrame, list};
+use crate::contract::Themed;
 use crate::key::{Key, child_id};
-use crate::{Builder, Chord, LayoutState, Problem, Report, Shell, TextStyle};
+use crate::{Builder, Chord, LayoutState, Problem, Report, Shell, Style, TextStyle};
 
 /// egui's own animation time, which kittest sets to zero.
 const FULL_MOTION: f32 = 1.0 / 12.0;
@@ -69,7 +70,7 @@ type Setup = Box<dyn FnOnce(&egui::Context)>;
 ///
 /// ```
 /// # use eggshell_ui::testing::Driver;
-/// # use eggshell_ui::{Builder, Style, tw};
+/// # use eggshell_ui::{Builder, tw};
 /// # use std::time::Duration;
 /// let view = |b: &mut Builder<'_, '_, ()>, _: &()| {
 ///     b.div_id("help", tw().w_px(80.0).h_px(30.0), |_| {})
@@ -78,7 +79,7 @@ type Setup = Box<dyn FnOnce(&egui::Context)>;
 /// let mut d = Driver::new((), view).build();
 /// d.hover(d.path("help"));
 /// assert!(!d.painted().shows("More about this"));
-/// let style = Style::of(d.ctx());
+/// let style = d.shell().style();
 /// d.advance(style.tooltip.delay + style.motion.tooltip.enter + Duration::from_millis(100));
 /// assert!(d.painted().shows("More about this"));
 /// ```
@@ -314,6 +315,7 @@ impl<A: 'static> Driver<A> {
             step: Duration::from_nanos(1_000_000_000 / 60),
             motion: Animation::Full,
             base_text: None,
+            style: None,
             setup: None,
             after: After::Settle,
             cap: Duration::from_secs(2),
@@ -334,6 +336,7 @@ pub struct DriverBuilder<A: 'static> {
     step: Duration,
     motion: Animation,
     base_text: Option<TextStyle>,
+    style: Option<Themed<Arc<Style>>>,
     setup: Option<Setup>,
     after: After,
     cap: Duration,
@@ -376,6 +379,12 @@ impl<A: 'static> DriverBuilder<A> {
     /// TODO(prose): the root text style of the layout, as [`LayoutState::with_base_text`].
     pub fn base_text(mut self, base: TextStyle) -> Self {
         self.base_text = Some(base);
+        self
+    }
+
+    /// TODO(prose): the layout's style, as [`LayoutState::with_style`].
+    pub fn style(mut self, style: Themed<Arc<Style>>) -> Self {
+        self.style = Some(style);
         self
     }
 
@@ -433,6 +442,7 @@ impl<A: 'static> DriverBuilder<A> {
             step,
             motion,
             base_text,
+            style,
             setup,
             after,
             cap,
@@ -459,10 +469,13 @@ impl<A: 'static> DriverBuilder<A> {
         if let Some(setup) = setup {
             builder = builder.with_context_setup(setup);
         }
-        let layout = match base_text {
+        let mut layout = match base_text {
             Some(base) => LayoutState::new().with_base_text(base),
             None => LayoutState::new(),
         };
+        if let Some(style) = style {
+            layout.set_style(style);
+        }
         let stage = Stage {
             app,
             layout,
@@ -927,6 +940,12 @@ impl<A: 'static> Driver<A> {
     /// what it keeps.
     pub fn layout(&self) -> &LayoutState {
         &self.harness.state().layout
+    }
+
+    /// TODO(prose): swaps the layout's style, as [`LayoutState::set_style`]; the next frame uses it.
+    pub fn set_style(&mut self, style: Themed<Arc<Style>>) -> &mut Self {
+        self.harness.state_mut().layout.set_style(style);
+        self
     }
 
     /// TODO(prose): the egui context.

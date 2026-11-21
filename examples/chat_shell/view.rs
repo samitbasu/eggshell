@@ -1,7 +1,7 @@
 //! The three-pane frame and the splitters between the panes.
 
 use super::common;
-use eggshell_ui::{Builder, Style, tw};
+use eggshell_ui::{Builder, tw};
 
 use super::centre::{centre, centre_style};
 use super::details::{details, details_style};
@@ -56,12 +56,6 @@ fn splitter(b: &mut B<'_, '_>, app: &App, pane: Pane) {
 /// the preset's look.
 pub fn prepare(ctx: &egui::Context, app: &App) {
     common::use_theme_color(ctx, app.theme_color);
-    let k = Theme::of(ctx);
-    let mut style = (*Style::of(ctx)).clone();
-    style.splitter.rest.line = k[Tok::Line];
-    style.splitter.hot.line = k[Tok::Accent];
-    style.splitter.hot.band = k[Tok::Accent].gamma_multiply(0.15);
-    style.install_for(ctx, ctx.theme());
 }
 
 /// The three panes as far as the window leaves room for them: the region

@@ -429,10 +429,10 @@ impl Look {
     /// ```
     /// use std::time::Duration;
     /// use eggshell_ui::owned::Enablement;
-    /// use eggshell_ui::{Builder, Style};
+    /// use eggshell_ui::Builder;
     ///
     /// fn tile(b: &mut Builder<'_, '_, ()>) {
-    ///     let style = Style::of(b.ctx());
+    ///     let style = b.style().clone();
     ///     let look = style.button.variants.get(style.button.variants.default_key());
     ///     let classes = look.classes(&style, 6, b.enablement(), Duration::from_millis(150));
     ///     b.div_id("tile", classes.p(2.0), |b| b.text(eggshell_ui::tw(), "Tile"))
@@ -463,10 +463,10 @@ impl Paint {
     /// ```
     /// use std::time::Duration;
     /// use eggshell_ui::owned::Enablement;
-    /// use eggshell_ui::{Builder, Style};
+    /// use eggshell_ui::Builder;
     ///
     /// fn cell(b: &mut Builder<'_, '_, ()>) {
-    ///     let style = Style::of(b.ctx());
+    ///     let style = b.style().clone();
     ///     let paint = style.checkbox.off;
     ///     let classes = paint.classes(1.0, &style, 4, Enablement::Enabled, Duration::ZERO);
     ///     b.div_id("cell", classes.size_px(16.0), |_| {});
