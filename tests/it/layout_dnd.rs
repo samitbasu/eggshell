@@ -56,7 +56,7 @@ fn frame(ui: &mut Ui, app: &mut App, layout: &mut LayoutState) -> PlacedFrame {
 
 fn harness() -> Driver<App> {
     let app = App {
-        watcher: LayoutState::named("watcher"),
+        watcher: LayoutState::named("watcher").with_style(support::shadcn()),
         carried: None,
         watched: None,
     };

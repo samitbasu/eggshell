@@ -1,6 +1,8 @@
 //! A layout's own style (#435): given to the `LayoutState` as a light and
-//! dark pair and swapped through it, in place of the one derived from egui's, for the build, the draw, the shell, tooltips, the base text and
-//! the faces text is drawn in.
+//! dark pair and swapped through it, in place of the one derived from
+//! egui's, for the build, the draw, the shell, tooltips, the base text and
+//! the faces text is drawn in; and a layout left without one beside a styled
+//! layout is reported (#476).
 
 use std::sync::Arc;
 
@@ -264,4 +266,72 @@ fn the_symbol_face_backs_the_families_the_layout_s_style_declares() {
         dark: with_medium(),
     }));
     assert!(registered, "the build registers the symbol face under it");
+}
+
+/// A styled layout, then `second`, both built on one context for `frames`
+/// frames; the distinct reports of a layout built with no style.
+fn unstyled_reports(second: LayoutState, frames: usize) -> usize {
+    let mut harness = Harness::builder()
+        .with_size(vec2(300.0, 200.0))
+        .build_ui_state(
+            |ui, (first, second): &mut (LayoutState, LayoutState)| {
+                for layout in [first, second] {
+                    layout
+                        .build(ui.ctx(), |b: &mut Builder<'_, '_, ()>| {
+                            b.text(tw(), "x");
+                        })
+                        .layout(ui.max_rect())
+                        .draw(&mut (), ui);
+                }
+            },
+            (LayoutState::new().with_style(pair()), second),
+        );
+    harness.run_steps(frames);
+    reports(&harness.ctx)
+        .iter()
+        .filter(|report| report.problem == Problem::UnstyledLayout)
+        .count()
+}
+
+#[test]
+fn a_layout_with_no_style_beside_a_styled_one_is_reported_once() {
+    assert_eq!(unstyled_reports(LayoutState::new(), 2), 1);
+    assert_eq!(
+        unstyled_reports(LayoutState::new(), 6),
+        1,
+        "one report, however many frames"
+    );
+}
+
+#[test]
+fn layouts_that_all_have_a_style_are_not_reported() {
+    assert_eq!(
+        unstyled_reports(LayoutState::new().with_style(pair()), 4),
+        0
+    );
+}
+
+#[test]
+fn layouts_that_all_go_without_a_style_are_not_reported() {
+    let mut harness = Harness::builder()
+        .with_size(vec2(300.0, 200.0))
+        .build_ui_state(
+            |ui, layouts: &mut [LayoutState; 2]| {
+                for layout in layouts {
+                    layout
+                        .build(ui.ctx(), |b: &mut Builder<'_, '_, ()>| {
+                            b.text(tw(), "x");
+                        })
+                        .layout(ui.max_rect())
+                        .draw(&mut (), ui);
+                }
+            },
+            [LayoutState::new(), LayoutState::new()],
+        );
+    harness.run_steps(4);
+    assert!(
+        reports(&harness.ctx)
+            .iter()
+            .all(|report| report.problem != Problem::UnstyledLayout)
+    );
 }
