@@ -450,7 +450,7 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     d.click(Target::suffix(REGION)).frames(4);
     assert!(is_open(&d), "a click opens");
 
-    let list = style(Theme::Light).menu;
+    let list = style(Theme::Light).menu().clone();
     let colors = list.popup.paint.states.rest;
     assert!(
         shapes(&d).iter().any(|shape| matches!(

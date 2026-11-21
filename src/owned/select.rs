@@ -244,7 +244,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             Listing::Closed.store(&ctx, trigger);
         }
         let style = b.style().clone();
-        let offset = offset.unwrap_or(style.menu.offset);
+        let offset = offset.unwrap_or(style.menu().offset);
         let select = &style.select;
         let metrics = *select.sizes.lookup(b.ctx(), b.size_of(size));
         let classes = select
@@ -345,14 +345,14 @@ struct List<T> {
 impl<T: Copy + 'static> List<T> {
     fn row_height(&self) -> f32 {
         self.style
-            .menu
-            .row_height(self.style.role(&self.style.menu.text))
+            .menu()
+            .row_height(self.style.role(&self.style.menu().text))
     }
 
     /// The box around the rows.
     fn box_classes(&self) -> Tw {
-        let text = self.style.role(&self.style.menu.text);
-        self.style.menu.box_classes(text)
+        let text = self.style.role(&self.style.menu().text);
+        self.style.menu().box_classes(text)
     }
 
     /// Where the list goes: under the trigger, flipping above it for want of room.
@@ -362,16 +362,16 @@ impl<T: Copy + 'static> List<T> {
 
     /// One row: the highlighted one takes the item's `hover` colours.
     fn row_classes(&self, enablement: Enablement) -> Tw {
-        let text = self.style.role(&self.style.menu.text);
+        let text = self.style.role(&self.style.menu().text);
         self.style
-            .menu
+            .menu()
             .row_classes(Tone::Plain, enablement, text)
             .justify_between()
             .focusable_none()
     }
 
     fn show<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
-        let menu = &self.style.menu;
+        let menu = &self.style.menu();
         let rows = self.options.len() as f32 * self.row_height();
         let chrome = 2.0 * (menu.padding + menu.popup.border_width);
         let natural = vec2(0.0, rows + chrome);

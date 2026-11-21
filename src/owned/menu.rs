@@ -12,6 +12,7 @@ use egui::accesskit::HasPopup;
 use egui::{Color32, Context, EventFilter, Id, Key as EguiKey, Painter, Pos2, Rect, Role, Vec2};
 
 use super::button::{ButtonChain, ButtonOptions, Face};
+use super::menu_sheet::MenuPart;
 use super::{
     Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, painted, tipped,
 };
@@ -148,10 +149,6 @@ impl Shared {
 
     fn close(&self) {
         self.change(|menus| menus.close(self.root));
-    }
-
-    fn text(&self) -> &TextSpec {
-        self.style.role(&self.style.menu.text)
     }
 }
 
@@ -389,29 +386,13 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
 
     /// A line between groups of items.
     pub fn separator(&mut self) {
-        let menu = &self.shared.style.menu;
-        self.b.div(
-            tw().h_px(1.0)
-                .mx(-menu.padding / 4.0)
-                .my(menu.separator_margin / 4.0)
-                .shrink_0()
-                .bg(menu.separator),
-            |_| {},
-        );
+        let classes = self.b.part(MenuPart::Separator, &[], tw());
+        self.b.div(classes, |_| {});
     }
 
     /// A heading over a group of items. It takes no input.
     pub fn label(&mut self, text: impl Into<String>) {
-        let (menu, text_role) = (&self.shared.style.menu, self.shared.text());
-        let classes = tw()
-            .flex()
-            .items_center()
-            .px(menu.item_padding.x / 4.0)
-            .h_px(menu.row_height(text_role))
-            .text(menu.heading)
-            .font_weight(menu.heading_weight)
-            .select_none()
-            .whitespace_nowrap();
+        let classes = self.b.part(MenuPart::Label, &[], tw());
         let text = text.into();
         self.b.div(classes, |b| b.text(tw(), text));
     }
@@ -480,11 +461,16 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         } = row;
         let (enablement, tip) = gate.resolve(&mut self.b, slot.id, enablement);
         let shared = self.shared.clone();
-        let (text, menu) = (shared.text(), &shared.style.menu);
-        let classes = menu.row_classes(tone, enablement, text);
-        let (indicator, dot) = (menu.indicator, menu.dot);
-        let (shortcut_text, shortcut, tracking) =
-            (&menu.shortcut_text, menu.shortcut, menu.shortcut_tracking);
+        let dot = shared.style.menu().dot;
+        let part = match (&lead, &trail) {
+            (_, Trail::Chevron) => MenuPart::SubTrigger,
+            (Lead::Check(_), _) => MenuPart::CheckboxItem,
+            (Lead::Dot(_), _) => MenuPart::RadioItem,
+            _ => MenuPart::Item,
+        };
+        let classes = self
+            .b
+            .part(part, &MenuPart::item_keys(tone, enablement), tw());
         let shown = label.clone();
         let (root, depth, id) = (shared.root, self.depth, slot.id);
         let owns = match reaction {
@@ -501,35 +487,38 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                 match lead {
                     Lead::Nothing => {}
                     Lead::Icon(icon) => {
-                        b.icon("icon", tw().size_px(indicator).shrink_0(), icon);
+                        let classes = b.part(MenuPart::ItemIndicator, &[], tw());
+                        b.icon("icon", classes, icon);
                     }
                     Lead::Check(Mark::On) => {
-                        b.glyph(tw().size_px(indicator).shrink_0(), check());
+                        let classes = b.part(MenuPart::ItemIndicator, &[], tw());
+                        b.glyph(classes, check());
                     }
-                    Lead::Dot(Mark::On) => b.paint(
-                        tw().size_px(indicator).shrink_0(),
-                        move |painter: &Painter, rect: Rect, color: Color32| {
-                            painter.circle_filled(rect.center(), dot / 2.0, color);
-                        },
-                    ),
+                    Lead::Dot(Mark::On) => {
+                        let classes = b.part(MenuPart::ItemIndicator, &[], tw());
+                        b.paint(
+                            classes,
+                            move |painter: &Painter, rect: Rect, color: Color32| {
+                                painter.circle_filled(rect.center(), dot / 2.0, color);
+                            },
+                        );
+                    }
                     Lead::Inset | Lead::Check(Mark::Off) | Lead::Dot(Mark::Off) => {
-                        b.div(tw().size_px(indicator).shrink_0(), |_| {});
+                        let classes = b.part(MenuPart::ItemIndicator, &[], tw());
+                        b.div(classes, |_| {});
                     }
                 }
                 b.text(tw(), shown);
                 match trail {
                     Trail::Nothing => {}
-                    Trail::Shortcut(keys) => b.text(
-                        tw().ml_auto()
-                            .role(shortcut_text.clone())
-                            .text(shortcut)
-                            .tracking(tracking),
-                        keys,
-                    ),
-                    Trail::Chevron => b.glyph(
-                        tw().size_px(indicator).shrink_0().ml_auto(),
-                        Chevron::Right.icon(),
-                    ),
+                    Trail::Shortcut(keys) => {
+                        let classes = b.part(MenuPart::Shortcut, &[], tw());
+                        b.text(classes, keys);
+                    }
+                    Trail::Chevron => {
+                        let classes = b.part(MenuPart::ItemIndicator, &[], tw().ml_auto());
+                        b.glyph(classes, Chevron::Right.icon());
+                    }
                 }
             })
             .role(role)
@@ -590,11 +579,12 @@ fn menu_box<'f, A: 'static>(
     (depth, caller): (usize, Tw),
     items: impl for<'m> FnOnce(&mut Menu<'m, 'f, A>),
 ) {
-    let menu = &shared.style.menu;
-    let classes = menu
-        .box_classes(shared.text())
-        .min_w_px(menu.min_width)
-        .merge(caller);
+    let part = if depth == 0 {
+        MenuPart::Content
+    } else {
+        MenuPart::SubContent
+    };
+    let classes = s.reborrow().part(part, &[], caller);
     let shared = shared.clone();
     s.div_id(Part::Box, classes, |s| {
         items(&mut Menu {
@@ -1072,7 +1062,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         let close = shared.clone();
         OverlayChain::new(b.reborrow(), list)
             .anchor(Anchor::Node(trigger))
-            .placement(Placement::below().gap(offset.unwrap_or(shared.style.menu.offset)))
+            .placement(Placement::below().gap(offset.unwrap_or(shared.style.menu().offset)))
             .shown(if open { Shown::Open } else { Shown::Closed })
             .nav(Nav::Menu(Wrap::Around))
             .role(Role::Menu)
