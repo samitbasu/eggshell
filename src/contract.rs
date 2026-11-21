@@ -2145,6 +2145,7 @@ impl Style {
         style.write_input_rules();
         style.write_segmented_rules();
         style.write_menu_rules();
+        style.write_choice_rules();
         style
     }
 
@@ -2214,6 +2215,37 @@ impl Style {
 
     fn write_input_rules(&mut self) {
         crate::owned::write_input_rules(&mut self.sheet, &self.input);
+    }
+
+    /// TODO(prose): sets the colours of a choice control's label, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_label(&mut self, label: States) {
+        self.label = label;
+        crate::owned::write_field_rules(&mut self.sheet, self.label);
+    }
+
+    /// TODO(prose): sets the checkbox section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_checkbox(&mut self, checkbox: CheckboxStyle) {
+        self.checkbox = checkbox;
+        crate::owned::write_checkbox_rules(&mut self.sheet, &self.checkbox);
+    }
+
+    /// TODO(prose): sets the radio section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_radio(&mut self, radio: RadioStyle) {
+        self.radio = radio;
+        crate::owned::write_radio_rules(&mut self.sheet, &self.radio);
+    }
+
+    /// TODO(prose): sets the switch section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_switch(&mut self, switch: SwitchStyle) {
+        self.switch = switch;
+        crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
+    }
+
+    fn write_choice_rules(&mut self) {
+        crate::owned::write_field_rules(&mut self.sheet, self.label);
+        crate::owned::write_checkbox_rules(&mut self.sheet, &self.checkbox);
+        crate::owned::write_radio_rules(&mut self.sheet, &self.radio);
+        crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
     }
 
     /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the sheet's current layer.

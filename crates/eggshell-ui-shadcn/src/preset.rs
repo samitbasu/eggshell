@@ -916,6 +916,13 @@ impl Shadcn {
         style.set_input(input);
         let segmented = style.segmented.clone();
         style.set_segmented(segmented);
+        style.set_label(style.label);
+        let checkbox = style.checkbox.clone();
+        style.set_checkbox(checkbox);
+        let radio = style.radio.clone();
+        style.set_radio(radio);
+        let switch = style.switch.clone();
+        style.set_switch(switch);
         style
     }
 

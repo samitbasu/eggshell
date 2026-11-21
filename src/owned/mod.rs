@@ -42,6 +42,7 @@
 mod button;
 mod checkbox;
 mod choice;
+mod choices_sheet;
 mod custom;
 mod field_box;
 mod input_sheet;
@@ -76,6 +77,10 @@ use egui::{Id, Response, Role, Ui, WidgetInfo};
 pub use button::{ButtonChain, ButtonOptions, Face};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
+pub use choices_sheet::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
+pub(crate) use choices_sheet::{
+    write_checkbox_rules, write_field_rules, write_radio_rules, write_switch_rules,
+};
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
 pub(crate) use input_sheet::{Frame, keys as input_keys, write_rules as write_input_rules};
@@ -174,9 +179,15 @@ impl Enablement {
     /// controls, faded. Apply it to the root of a control: what is inside
     /// follows the root's opacity.
     pub(crate) fn apply(self, classes: Tw, style: &Style) -> Tw {
-        match self {
-            Self::Enabled => classes,
-            Self::Disabled => self.fade(classes.inert(), style),
+        self.apply_in(classes, style.tokens.disabled)
+    }
+
+    /// [`apply`](Self::apply) where disabled controls draw as `disabled` says.
+    fn apply_in(self, classes: Tw, disabled: Disabled) -> Tw {
+        match (self, disabled) {
+            (Self::Enabled, _) => classes,
+            (Self::Disabled, Disabled::Faded(opacity)) => classes.inert().opacity(opacity),
+            (Self::Disabled, Disabled::Colors) => classes.inert(),
         }
     }
 
@@ -584,24 +595,6 @@ impl Paint {
     }
 }
 
-impl Paint {
-    /// The classes of a checkbox box or radio circle: a `size` square that
-    /// keeps its size and centres what it holds.
-    fn indicator(
-        &self,
-        border_width: f32,
-        style: &Style,
-        radius: u8,
-        enablement: Enablement,
-        transition: Duration,
-        size: f32,
-    ) -> Tw {
-        centered(self.classes(border_width, style, radius, enablement, transition))
-            .shrink_0()
-            .size_px(size)
-    }
-}
-
 /// The ring a field shows while it has focus: the look's own, else the style's.
 fn field_ring(look: &Look, style: &Style) -> crate::contract::Focus {
     look.paint.focus.unwrap_or(style.tokens.focus)
@@ -695,18 +688,20 @@ impl Chevron {
 
 /// The classes of the row that holds a checkbox, radio button or switch and
 /// its label.
-fn choice_row(style: &Style, text: &TextSpec, enablement: Enablement, gap: f32) -> Tw {
-    let row = tw()
-        .flex()
-        .items_center()
-        .gap(gap / 4.0)
-        .role(TextSpec {
-            line_height: text.size,
-            ..text.clone()
-        })
-        .whitespace_nowrap()
-        .select_none();
-    enablement.apply(row, style)
+///
+/// TODO(#446): the gap and the text role are the control's own section's,
+/// given here until the field's rules hold them.
+fn choice_row<A>(
+    b: &mut Builder<'_, '_, A>,
+    text: &TextSpec,
+    enablement: Enablement,
+    gap: f32,
+) -> Tw {
+    let own = tw().gap(gap / 4.0).role(TextSpec {
+        line_height: text.size,
+        ..text.clone()
+    });
+    b.part(FieldPart::Field, &FieldPart::keys(enablement), own)
 }
 
 /// The visible label of the control `control`: clicking it runs `on_click`,
@@ -719,15 +714,17 @@ fn choice_label<A: 'static, K: crate::Key>(
     enablement: Enablement,
     on_click: impl FnOnce(&mut A) + 'static,
 ) {
-    let style = b.style().clone();
-    let color = enablement.colors(style.label, &style).text;
+    let classes = b.part(
+        FieldPart::Label,
+        &FieldPart::keys(enablement),
+        tw().sense_click().focusable_none(),
+    );
     let name = text.clone();
-    b.span(key, tw().text(color).sense_click().focusable_none(), text)
-        .draw(move |app, ui| {
-            if ui.label_for(control, &name) {
-                on_click(app);
-            }
-        });
+    b.span(key, classes, text).draw(move |app, ui| {
+        if ui.label_for(control, &name) {
+            on_click(app);
+        }
+    });
 }
 
 /// The owned controls, each shown under a key like [`div_id`](Builder::div_id)
