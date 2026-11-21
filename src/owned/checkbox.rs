@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use egui::Role;
 
-use super::Mark;
+use super::{CheckboxPart, Mark};
 use super::{
     Enablement, Gate, IntoTip, OnResponse, Unset, check, choice_label, choice_row, described, flip,
     options,
@@ -224,26 +224,16 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = b.style().clone();
         let checkbox = &style.checkbox;
-        let metrics = *checkbox.sizes.lookup(b.ctx(), b.size_of(size));
-        let look = match mark {
-            Mark::Off => &checkbox.off,
-            Mark::On => &checkbox.on,
-        };
-        let box_classes = look.indicator(
-            checkbox.border_width,
-            &style,
-            metrics.radius,
-            enablement,
-            checkbox.transition,
-            metrics.size,
-        );
-        let glyph = metrics.glyph;
+        let size = b.size_of(size);
+        let metrics = *checkbox.sizes.lookup(b.ctx(), size);
+        let keys = CheckboxPart::keys(checkbox.sizes.key_for(size), mark, enablement);
+        let box_classes = b.part(CheckboxPart::Root, &keys, tw());
         let name = name.unwrap_or_default();
         b.claim(&slot);
         b.scope_with(&slot, |b| {
             let control = b.id_of(Part::Box);
             let row = choice_row(
-                &style,
+                b,
                 &style.role_sized(&checkbox.text, metrics.text),
                 enablement,
                 metrics.gap,
@@ -253,7 +243,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             b.div(row, |b| {
                 b.div_id(Part::Box, box_classes, |b| {
                     if mark == Mark::On {
-                        b.glyph(tw().size_px(glyph), check());
+                        let glyph = b.part(CheckboxPart::Indicator, &keys, tw());
+                        b.glyph(glyph, check());
                     }
                 })
                 .open_focus(autofocus.open_focus())
