@@ -905,7 +905,7 @@ mod two_frames {
             SCREEN,
             common::base_text(egui::Theme::Light),
             Shell {
-                header: LayoutState::new(),
+                header: LayoutState::new().with_style(support::shadcn()),
                 state: State::default(),
             },
             frame,
