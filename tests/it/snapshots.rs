@@ -2156,8 +2156,10 @@ mod tooltip_candidates {
 
     /// (b) the same without the arrow.
     fn inverted_without_arrow(_: &Tokens, style: &mut Style) {
-        style.tooltip.arrow = None;
-        style.tooltip.offset = Distance::new(4.0);
+        let mut tooltip = style.tooltip().clone();
+        tooltip.arrow = None;
+        tooltip.offset = Distance::new(4.0);
+        style.set_tooltip(tooltip);
     }
 
     /// (c) a popover: `bg-popover`, a border and `shadow-md`, no arrow.
@@ -2167,13 +2169,16 @@ mod tooltip_candidates {
             border: tokens.border,
             text: tokens.popover_foreground,
         };
-        style.tooltip.popup = eggshell_ui::contract::Look::new(
-            eggshell_ui::contract::States::still(colors, tokens.popover),
-        )
+        let mut tooltip = style.tooltip().clone();
+        tooltip.popup = eggshell_ui::contract::Look::new(eggshell_ui::contract::States::still(
+            colors,
+            tokens.popover,
+        ))
         .bordered(1.0)
         .shadowed(tokens.shadow_md);
-        style.tooltip.arrow = None;
-        style.tooltip.offset = Distance::new(4.0);
+        tooltip.arrow = None;
+        tooltip.offset = Distance::new(4.0);
+        style.set_tooltip(tooltip);
     }
 
     fn view(b: &mut Builder<'_, '_, ()>, _: &()) {

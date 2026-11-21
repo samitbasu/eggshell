@@ -1379,12 +1379,12 @@ impl<T> Themed<T> {
 ///
 /// impl Extension for Gap {
 ///     fn derive(style: &Style) -> Self {
-///         Gap(style.table.cell_padding)
+///         Gap(style.table().cell_padding)
 ///     }
 /// }
 ///
 /// let mut style = Style::default();
-/// assert_eq!(style.extension::<Gap>().0, style.table.cell_padding);
+/// assert_eq!(style.extension::<Gap>().0, style.table().cell_padding);
 /// style.set_extension(Gap(12.0));
 /// assert_eq!(style.extension::<Gap>().0, 12.0);
 /// ```
@@ -1555,7 +1555,7 @@ pub struct Style {
     /// Menus, and the lists selects open.
     menu: MenuStyle,
     /// Tooltips.
-    pub tooltip: TooltipStyle,
+    tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
     /// TODO(prose)
@@ -1573,7 +1573,7 @@ pub struct Style {
     /// TODO(prose): splitters.
     pub splitter: SplitterStyle,
     /// Tables.
-    pub table: TableStyle,
+    table: TableStyle,
     /// What a modal overlay paints over the screen behind its box. Usually
     /// translucent.
     pub scrim: Color32,
@@ -2155,6 +2155,8 @@ impl Style {
         self.write_input_rules();
         self.write_segmented_rules();
         self.write_menu_rules();
+        self.write_tooltip_rules();
+        self.write_table_rules();
         self.write_choice_rules();
     }
 
@@ -2241,6 +2243,37 @@ impl Style {
     pub fn set_menu(&mut self, menu: MenuStyle) {
         self.menu = menu;
         self.write_menu_rules();
+    }
+
+    /// Tooltips.
+    pub fn tooltip(&self) -> &TooltipStyle {
+        &self.tooltip
+    }
+
+    /// TODO(prose): sets the tooltip section, and writes the rule that draws its box at the sheet's current layer.
+    pub fn set_tooltip(&mut self, tooltip: TooltipStyle) {
+        self.tooltip = tooltip;
+        self.write_tooltip_rules();
+    }
+
+    fn write_tooltip_rules(&mut self) {
+        let text = self.role(&self.tooltip.text).clone();
+        crate::owned::write_tooltip_rules(&mut self.sheet, &self.tooltip, &text);
+    }
+
+    /// Tables.
+    pub fn table(&self) -> &TableStyle {
+        &self.table
+    }
+
+    /// TODO(prose): sets the table section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_table(&mut self, table: TableStyle) {
+        self.table = table;
+        self.write_table_rules();
+    }
+
+    fn write_table_rules(&mut self) {
+        crate::owned::write_table_rules(&mut self.sheet, &self.table);
     }
 
     fn write_menu_rules(&mut self) {

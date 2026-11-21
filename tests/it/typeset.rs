@@ -242,7 +242,7 @@ fn a_tables_cells_are_padded_in_ems_and_its_first_column_is_flush() {
 #[test]
 fn a_table_outside_the_document_keeps_the_pages_style() {
     let d = rich_driver();
-    let page = d.shell().style().table.clone();
+    let page = d.shell().style().table().clone();
     let body = d.rect(Target::suffix("/\"outside\"/(Row(1), 0)"));
     let body_text = d.painted().expect("Body");
     let text = body_text.rect().min - body_text.galley().rect.min.to_vec2();

@@ -314,12 +314,14 @@ fn the_preset_fills_the_shadow_scale() {
 #[cfg(debug_assertions)]
 #[test]
 fn a_presets_family_rules_all_resolve_from_the_preset_layer() {
-    use eggshell_ui::owned::{ButtonPart, CheckboxPart, InputPart, MenuPart, TabsPart};
+    use eggshell_ui::owned::{
+        ButtonPart, CheckboxPart, InputPart, MenuPart, TablePart, TabsPart, TooltipPart,
+    };
     use eggshell_ui::sheet::Layer;
     use eggshell_ui::{Property, Tw};
 
     let style = eggshell_ui_shadcn::Shadcn::light().style();
-    let parts: [(&str, Tw); 6] = [
+    let parts: [(&str, Tw); 8] = [
         (
             "button",
             style.sheet.resolve(ButtonPart::Root, &[], &style.tokens),
@@ -351,6 +353,16 @@ fn a_presets_family_rules_all_resolve_from_the_preset_layer() {
                 ),
                 &style.tokens,
             ),
+        ),
+        (
+            "tooltip",
+            style
+                .sheet
+                .resolve(TooltipPart::Content, &[], &style.tokens),
+        ),
+        (
+            "table header",
+            style.sheet.resolve(TablePart::Header, &[], &style.tokens),
         ),
         (
             "checkbox",

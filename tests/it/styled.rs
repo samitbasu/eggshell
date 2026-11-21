@@ -37,7 +37,7 @@ fn spans() -> Spans {
 
 /// Notes the table padding a draw closure's node is drawn with.
 fn seen(ui: &egui::Ui, at: &'static str) {
-    let padding = ui.node_style().table.cell_padding;
+    let padding = ui.node_style().table().cell_padding;
     ui.ctx()
         .data_mut(|data| data.insert_temp(egui::Id::NULL.with(at), padding));
 }
@@ -46,11 +46,19 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
         table(b, "plain");
         b.styled(
-            |style| style.table.cell_padding = PADDING,
+            |style| {
+                let mut table = style.table().clone();
+                table.cell_padding = PADDING;
+                style.set_table(table);
+            },
             |b| {
                 table(b, "styled");
                 b.styled(
-                    |style| style.table.cell_padding += MORE,
+                    |style| {
+                        let mut table = style.table().clone();
+                        table.cell_padding += MORE;
+                        style.set_table(table);
+                    },
                     |b| table(b, "nested"),
                 );
             },
@@ -58,7 +66,11 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
         b.span("probe", tw(), "probe")
             .draw(|_, ui| seen(ui, "outside"));
         b.styled(
-            |style| style.table.cell_padding = PADDING,
+            |style| {
+                let mut table = style.table().clone();
+                table.cell_padding = PADDING;
+                style.set_table(table);
+            },
             |b| {
                 b.span("scoped probe", tw(), "probe")
                     .draw(|_, ui| seen(ui, "inside"));
@@ -99,7 +111,7 @@ fn body_cell(d: &Driver<()>, key: &str) -> f32 {
 #[test]
 fn a_table_inside_styled_takes_the_override_and_one_outside_does_not() {
     let d = harness();
-    let global = d.shell().style().table.cell_padding;
+    let global = d.shell().style().table().cell_padding;
     assert_ne!(global, PADDING, "precondition: the override differs");
     let (plain, styled) = (body_cell(&d, "plain"), body_cell(&d, "styled"));
     assert!(
@@ -107,7 +119,7 @@ fn a_table_inside_styled_takes_the_override_and_one_outside_does_not() {
         "{styled} is {plain} with {PADDING} for {global} padding"
     );
     assert_eq!(
-        d.shell().style().table.cell_padding,
+        d.shell().style().table().cell_padding,
         global,
         "the context's style is untouched"
     );
@@ -159,7 +171,10 @@ fn a_draw_closure_reads_the_style_its_node_was_built_in() {
             .data(|data| data.get_temp::<f32>(egui::Id::NULL.with(at)))
     };
     assert_eq!(seen("inside"), Some(PADDING));
-    assert_eq!(seen("outside"), Some(d.shell().style().table.cell_padding));
+    assert_eq!(
+        seen("outside"),
+        Some(d.shell().style().table().cell_padding)
+    );
 }
 
 const TIP_PADDING: Vec2 = vec2(40.0, 20.0);
@@ -167,7 +182,7 @@ const TIP_PADDING: Vec2 = vec2(40.0, 20.0);
 fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
     fn tip(b: &mut Builder<'_, '_, ()>) {
         b.span("tip", tw(), "Tip").draw(|_, ui| {
-            let padding = ui.node_style().tooltip.padding;
+            let padding = ui.node_style().tooltip().padding;
             ui.ctx()
                 .data_mut(|data| data.insert_temp(egui::Id::NULL.with("tip"), padding));
         });
@@ -175,7 +190,11 @@ fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div(tw().flex().gap(16.0).p(16.0).pt(24.0), |b| {
         b.button("outside", "Outside").tooltip_with(tip).add();
         b.styled(
-            |style| style.tooltip.padding = TIP_PADDING,
+            |style| {
+                let mut tooltip = style.tooltip().clone();
+                tooltip.padding = TIP_PADDING;
+                style.set_tooltip(tooltip);
+            },
             |b| {
                 b.button("inside", "Inside").tooltip_with(tip).add();
             },
@@ -206,7 +225,7 @@ fn tooltip_of(trigger: &str) -> (egui::Rect, Option<Vec2>, Vec2) {
     let seen = d
         .ctx()
         .data(|data| data.get_temp::<Vec2>(egui::Id::NULL.with("tip")));
-    (boxes[0], seen, d.shell().style().tooltip.padding)
+    (boxes[0], seen, d.shell().style().tooltip().padding)
 }
 
 #[test]
