@@ -312,7 +312,10 @@ fn paint_box(
     if uniform.is_none() {
         paint_side_borders(painter, boxes, paint.border_colors);
     }
-    if let Some(ring) = paint.ring {
+    if let Some(ring) = paint
+        .ring
+        .filter(|ring| ring.width > 0.0 && ring.color.a() > 0)
+    {
         painter.add(RectShape::stroke(
             border,
             paint.radius,
