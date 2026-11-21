@@ -46,6 +46,7 @@ const WIDGETS: [emit::Widget; 6] = [
         ],
         sizes: &[],
         facts: &[],
+        parts: None,
     },
     emit::Widget {
         component: "input",
@@ -53,6 +54,7 @@ const WIDGETS: [emit::Widget; 6] = [
         variants: &[],
         sizes: &[],
         facts: &[],
+        parts: None,
     },
     emit::Widget {
         component: "input-group",
@@ -60,6 +62,7 @@ const WIDGETS: [emit::Widget; 6] = [
         variants: &[],
         sizes: &[],
         facts: &[],
+        parts: None,
     },
     emit::Widget {
         component: "select",
@@ -67,6 +70,7 @@ const WIDGETS: [emit::Widget; 6] = [
         variants: &[],
         sizes: &[],
         facts: &[],
+        parts: None,
     },
     emit::Widget {
         component: "combobox",
@@ -74,6 +78,7 @@ const WIDGETS: [emit::Widget; 6] = [
         variants: &[],
         sizes: &[],
         facts: &[],
+        parts: None,
     },
     emit::Widget {
         component: "tabs",
@@ -81,6 +86,7 @@ const WIDGETS: [emit::Widget; 6] = [
         variants: &[],
         sizes: &[],
         facts: &TABS,
+        parts: None,
     },
 ];
 
@@ -359,7 +365,7 @@ pub fn run(plan: &Plan) -> Result<()> {
             let emitted = emit::emit(&classifier, &rows, &scratch, widget, style);
             let file = format!("{}.rs", widget.component.replace('-', "_"));
             fs::write(sheets.join(&file), &emitted.rust)?;
-            sheet_section(&mut report, style, widget.component, &file, &emitted);
+            sheet_section(&mut report, style, widget, &file, &emitted);
         }
     }
     report.push_str(&listings(&rows));
@@ -378,14 +384,15 @@ pub fn run(plan: &Plan) -> Result<()> {
 fn sheet_section(
     report: &mut String,
     style: &str,
-    component: &str,
+    widget: &emit::Widget,
     file: &str,
     emitted: &emit::Emitted,
 ) {
     let _ = writeln!(
         report,
-        "### The `Sheet` rules for `{component}` (`sheets/{style}/{file}`, `{}`)\n",
-        emit::part_enum(component)
+        "### The `Sheet` rules for `{}` (`sheets/{style}/{file}`, `{}`)\n",
+        widget.component,
+        widget.part_enum()
     );
     let _ = writeln!(report, "| mapping kind | classes |\n|---|---|");
     for (kind, count) in &emitted.kinds {

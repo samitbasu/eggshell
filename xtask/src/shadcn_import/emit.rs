@@ -605,6 +605,9 @@ pub struct Widget {
     /// The states shadcn's source asks about that eggshell's widget always
     /// or never has, so no key or rule asks for them.
     pub facts: &'static [Assumed],
+    /// The part enum, where eggshell names it otherwise than the component
+    /// (`dropdown-menu`'s parts are `MenuPart`).
+    pub parts: Option<&'static str>,
 }
 
 /// Whether eggshell's widget always or never has a state.
@@ -651,6 +654,13 @@ impl Widget {
         }
         kept.push(utility);
         Ok((kept.join(":"), held))
+    }
+
+    /// The enum the widget's parts are variants of.
+    pub fn part_enum(&self) -> String {
+        self.parts
+            .map(str::to_owned)
+            .unwrap_or_else(|| part_enum(self.component))
     }
 
     fn variants_of(&self, name: &str) -> Vec<String> {
@@ -819,7 +829,7 @@ pub fn emit(
         let _ = writeln!(
             body,
             "\n/// TODO(prose): shadcn's `{component}` in `style-{style}.css`, {half}.\npub(crate) fn {half}(s: &mut Sheet) {{\n    use {}::*;",
-            part_enum(component)
+            widget.part_enum()
         );
         for rule in &rules {
             let pieces = half_of(rule, half);
@@ -914,7 +924,7 @@ pub fn emit(
             contract.join(", ")
         );
     }
-    let _ = writeln!(rust, "use eggshell_ui::owned::{};", part_enum(component));
+    let _ = writeln!(rust, "use eggshell_ui::owned::{};", widget.part_enum());
     let _ = writeln!(rust, "use eggshell_ui::sheet::{{Sheet, When}};");
     if !core.is_empty() {
         let _ = writeln!(rust, "use eggshell_ui::{{{}}};", core.join(", "));
@@ -1213,6 +1223,17 @@ mod tests {
         assert_eq!(part_variant("select", "select-trigger-icon"), "TriggerIcon");
         assert_eq!(part_variant("combobox", "input-group"), "InputGroup");
         assert_eq!(part_enum("input-group"), "InputGroupPart");
+        assert_eq!(HORIZONTAL.part_enum(), "TabsPart");
+        let menu = Widget {
+            component: "dropdown-menu",
+            parts: Some("MenuPart"),
+            ..HORIZONTAL
+        };
+        assert_eq!(menu.part_enum(), "MenuPart");
+        assert_eq!(
+            part_variant("dropdown-menu", "dropdown-menu-sub-trigger"),
+            "SubTrigger"
+        );
     }
 
     #[test]
@@ -1244,6 +1265,7 @@ mod tests {
         checked_in: false,
         variants: &[],
         sizes: &[],
+        parts: None,
         facts: &[
             Assumed {
                 variant: "group-data-horizontal/tabs",
