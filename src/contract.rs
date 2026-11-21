@@ -277,7 +277,7 @@ pub struct Paint {
     pub states: States,
     /// Drop shadow at rest.
     pub shadow: Option<Shadow>,
-    /// This paint's own focus ring, where it is not [`Style::focus`].
+    /// This paint's own focus ring, where it is not [`Tokens::focus`].
     pub focus: Option<Focus>,
     /// A ring while the pointer is over the box or presses it, as the focus
     /// ring is drawn: shadcn's slider thumb halo.
