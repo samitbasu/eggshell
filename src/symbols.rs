@@ -7,7 +7,7 @@ use egui::{Context, FontData, FontFamily, FontInsert, FontPriority, InsertFontFa
 const NAME: &str = "eggshell-symbols";
 
 /// Adds the symbol face behind the faces of the proportional family and of
-/// every family the installed style draws a weight with. Cheap once it is
+/// every family the layout's style draws a weight with. Cheap once it is
 /// there, and puts it back if the host replaced the fonts.
 ///
 /// egui adds a font only under a name it does not have yet, so each family

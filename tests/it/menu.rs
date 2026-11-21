@@ -894,6 +894,7 @@ mod open_query {
         })
         .size(SCREEN)
         .base_text(base_text())
+        .style(support::shadcn())
         .step(support::STEP)
         .after(After::Frames(0))
         .settle_within(support::STEP * 4)

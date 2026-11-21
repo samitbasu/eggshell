@@ -33,32 +33,117 @@ pub struct Origin {
     pub source: Source,
 }
 
+/// TODO(prose): one class that set a property: its origin, and the value it gave while the node was traced.
+#[cfg(debug_assertions)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Step {
+    /// TODO(prose): who set it.
+    pub origin: Origin,
+    /// TODO(prose): the value it gave, written out; empty unless the node was traced.
+    pub value: String,
+}
+
+#[cfg(debug_assertions)]
+impl Step {
+    /// The layer and source of this step, as the Computed-style pane writes them.
+    pub fn describe(&self) -> String {
+        let at = match self.origin.source {
+            Source::Rust(at) => format!("{}:{}", at.file(), at.line()),
+            Source::Shadcn { file, line, class } => format!("{file}:{line}  {class}"),
+        };
+        format!("{:?}  {at}", self.origin.layer)
+    }
+}
+
+/// TODO(prose): why a node has the value it has for a property: the class that won it and, for a traced node, each it beat.
+#[cfg(debug_assertions)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Why {
+    /// TODO(prose): the class whose value the node has.
+    pub winner: Step,
+    /// TODO(prose): the classes it beat, in the order they were set. Empty unless the node was traced.
+    pub beaten: Vec<Step>,
+}
+
+#[cfg(debug_assertions)]
+thread_local! {
+    static TRACING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether the classes built now keep every class that set a property, with
+/// its value, and not only the winner.
+#[cfg(debug_assertions)]
+pub(crate) fn tracing() -> bool {
+    TRACING.with(std::cell::Cell::get)
+}
+
+/// Sets whether [`tracing`] holds, for the builds that follow.
+#[cfg(debug_assertions)]
+pub(crate) fn trace(on: bool) {
+    TRACING.with(|tracing| tracing.set(on));
+}
+
 /// The winner of each property a class list sets.
 #[cfg(debug_assertions)]
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Origins(Vec<(Property, Origin)>);
+pub(crate) struct Origins(Vec<(Property, Why)>);
 
 #[cfg(debug_assertions)]
 impl Origins {
-    fn set(&mut self, property: Property, origin: Origin) {
+    fn set(&mut self, property: Property, step: Step) {
+        let traced = tracing();
         match self.0.iter_mut().find(|(known, _)| *known == property) {
-            Some(known) => known.1 = origin,
-            None => self.0.push((property, origin)),
+            Some((_, known)) => {
+                let beaten = std::mem::replace(&mut known.winner, step);
+                if traced {
+                    known.beaten.push(beaten);
+                }
+            }
+            None => self.0.push((
+                property,
+                Why {
+                    winner: step,
+                    beaten: Vec::new(),
+                },
+            )),
         }
     }
 
-    fn get(&self, property: Property) -> Option<Origin> {
+    pub(crate) fn get(&self, property: Property) -> Option<&Why> {
         self.0
             .iter()
-            .find_map(|(known, origin)| (*known == property).then_some(*origin))
+            .find_map(|(known, why)| (*known == property).then_some(why))
+    }
+
+    /// The properties with a winner, in their own order.
+    pub(crate) fn properties(&self) -> Vec<(Property, &Why)> {
+        let mut all: Vec<(Property, &Why)> = self.0.iter().map(|(p, why)| (*p, why)).collect();
+        all.sort_by_key(|(property, _)| *property);
+        all
     }
 
     /// These origins with `later`'s over them, property by property.
     pub(crate) fn over(mut self, later: Self) -> Self {
-        for (property, origin) in later.0 {
-            self.set(property, origin);
+        let traced = tracing();
+        for (property, why) in later.0 {
+            match self.0.iter_mut().find(|(known, _)| *known == property) {
+                Some((_, known)) => {
+                    let beaten = std::mem::replace(&mut known.winner, why.winner);
+                    if traced {
+                        known.beaten.push(beaten);
+                        known.beaten.extend(why.beaten);
+                    }
+                }
+                None => self.0.push((property, why)),
+            }
         }
         self
+    }
+
+    fn steps_mut(&mut self) -> impl Iterator<Item = &mut Step> {
+        self.0
+            .iter_mut()
+            .flat_map(|(_, why)| std::iter::once(&mut why.winner).chain(&mut why.beaten))
     }
 }
 
@@ -66,19 +151,32 @@ impl Origins {
 impl Tw {
     /// TODO(prose): the origin of `property`'s value, if a class set one. Debug builds only.
     pub fn origin_of(&self, property: Property) -> Option<Origin> {
-        self.origins.as_ref()?.get(property)
+        Some(self.origins.as_ref()?.get(property)?.winner.origin)
+    }
+
+    /// TODO(prose): the winner of `property` and, if the classes were built while traced, what it beat. Debug builds only.
+    pub fn why_of(&self, property: Property) -> Option<Why> {
+        self.origins.as_ref()?.get(property).cloned()
     }
 
     /// Notes that the caller of the class method being run set `property`.
     #[track_caller]
     pub(super) fn note(&mut self, property: Property) {
-        let origin = Origin {
-            layer: Layer::CallSite,
-            source: Source::Rust(Location::caller()),
+        let value = if tracing() {
+            self.value_of(property)
+        } else {
+            String::new()
+        };
+        let step = Step {
+            origin: Origin {
+                layer: Layer::CallSite,
+                source: Source::Rust(Location::caller()),
+            },
+            value,
         };
         self.origins
             .get_or_insert_with(Box::default)
-            .set(property, origin);
+            .set(property, step);
     }
 
     /// Notes each of `properties` the caller set.
@@ -91,13 +189,13 @@ impl Tw {
 
     /// Gives the properties set so far by plain calls the layer `layer`.
     pub(crate) fn staged(mut self, layer: Layer) -> Self {
-        for (_, origin) in self
+        for step in self
             .origins
             .iter_mut()
-            .flat_map(|origins| origins.0.iter_mut())
+            .flat_map(|origins| origins.steps_mut())
         {
-            if origin.layer == Layer::CallSite {
-                origin.layer = layer;
+            if step.origin.layer == Layer::CallSite {
+                step.origin.layer = layer;
             }
         }
         self
@@ -106,13 +204,13 @@ impl Tw {
     /// TODO(prose): gives the properties set so far by plain Rust calls `source`: the class of a shadcn sheet they were written for. Nothing in release builds.
     #[must_use]
     pub fn sourced(mut self, source: Source) -> Self {
-        for (_, origin) in self
+        for step in self
             .origins
             .iter_mut()
-            .flat_map(|origins| origins.0.iter_mut())
+            .flat_map(|origins| origins.steps_mut())
         {
-            if matches!(origin.source, Source::Rust(_)) {
-                origin.source = source;
+            if matches!(step.origin.source, Source::Rust(_)) {
+                step.origin.source = source;
             }
         }
         self
@@ -247,5 +345,40 @@ mod tests {
             again.origin_of(Property::padding_top).map(|o| o.source),
             Some(Source::Shadcn { line: 183, .. })
         ));
+    }
+
+    #[test]
+    fn tracing_keeps_each_class_a_winner_beat_with_its_value() {
+        trace(true);
+        let classes = tw()
+            .px(2.0)
+            .staged(Layer::Preset)
+            .merge(tw().px(4.0).staged(Layer::App))
+            .merge(tw().px(6.0));
+        trace(false);
+        let why = classes.why_of(Property::padding_left).expect("set");
+        assert_eq!(why.winner.origin.layer, Layer::CallSite);
+        let beaten: Vec<Layer> = why.beaten.iter().map(|s| s.origin.layer).collect();
+        assert_eq!(beaten, [Layer::Preset, Layer::App]);
+        assert_eq!(why.winner.value, "24px");
+        assert_eq!(why.beaten[0].value, "8px");
+    }
+
+    #[test]
+    fn without_tracing_only_the_winner_is_kept() {
+        let classes = tw().px(2.0).merge(tw().px(4.0));
+        let why = classes.why_of(Property::padding_left).expect("set");
+        assert!(why.beaten.is_empty());
+        assert_eq!(why.winner.value, "");
+    }
+
+    #[test]
+    fn a_variant_notes_the_line_that_declared_it() {
+        let (classes, line) = (tw().hover(|p| p.bg(Color32::RED)), line!());
+        assert_eq!(
+            rust(classes.origin_of(Property::VariantHover)),
+            (Layer::CallSite, line)
+        );
+        assert_eq!(classes.origin_of(Property::VariantActive), None);
     }
 }

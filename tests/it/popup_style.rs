@@ -79,7 +79,10 @@ struct Pick(usize, LayoutState);
 
 impl Default for Pick {
     fn default() -> Self {
-        Self(0, LayoutState::new())
+        Self(
+            0,
+            LayoutState::new().with_style(Shadcn::themed(ShadcnStyle::Lyra, Palette::new())),
+        )
     }
 }
 
