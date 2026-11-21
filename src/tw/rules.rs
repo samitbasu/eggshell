@@ -51,6 +51,11 @@ pub(crate) struct Facts {
 }
 
 impl Facts {
+    /// The slot the node says it fills, if any.
+    pub(crate) fn said_slot(&self) -> Option<&'static str> {
+        self.slot
+    }
+
     pub(crate) fn slot(&mut self, slot: &'static str) {
         self.slot = Some(slot);
     }

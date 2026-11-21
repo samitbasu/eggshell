@@ -95,10 +95,14 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
             style.input().sizes.key_for(size),
             enablement == Enablement::Disabled,
         );
+        let own = match enablement {
+            Enablement::Enabled => tw(),
+            Enablement::Disabled => tw().inert(),
+        };
         let classes = b.part(
             InputGroupPart::Root,
             &keys,
-            tw().control_size(size)
+            own.control_size(size)
                 .merge(text_sized(&b, metrics.text))
                 .merge(classes),
         );

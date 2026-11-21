@@ -176,7 +176,11 @@ fn the_readout_being_edited_is_drawn_in_the_inputs_box_with_its_ring() {
     let input = d.shell().style().input().clone();
     let height = input.sizes.get(Size::DEFAULT).height;
     assert!((rect.height() - height).abs() < 0.6, "{rect:?} {height}");
-    assert_eq!(box_at(&d, rect).fill, input.look.paint.states.rest.fill);
+    assert_eq!(
+        box_at(&d, rect).fill,
+        egui::Color32::TRANSPARENT,
+        "cn-input-group: no fill in light"
+    );
     assert!(ring_at(&d, rect).is_some(), "ringed while it has focus");
 }
 
