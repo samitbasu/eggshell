@@ -827,8 +827,10 @@ fn a_modified_style_changes_the_new_widgets_with_no_code_change() {
     style.slider.range.rest.fill = red;
     style.slider.sizes.default_entry_mut().track_height = 10.0;
     style.slider.sizes.default_entry_mut().thumb_size = 24.0;
-    style.select.trigger.paint.states.rest.fill = red;
-    style.select.sizes.default_entry_mut().height = 44.0;
+    let mut select = style.select.clone();
+    select.trigger.paint.states.rest.fill = red;
+    select.sizes.default_entry_mut().height = 44.0;
+    style.set_select(select);
     style.stepper.group.paint.states.rest.fill = red;
     style.stepper.sizes.default_entry_mut().button_width = 40.0;
     let mut d = harness(Theme::Light);

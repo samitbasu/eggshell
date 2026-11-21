@@ -537,7 +537,9 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
                     |t, _| t.role(spec(21.0)),
                 );
                 style.segmented.text = Some(spec(17.0));
-                style.select.text = Some(spec(19.0));
+                let mut select = style.select.clone();
+                select.text = Some(spec(19.0));
+                style.set_select(select);
                 style.checkbox.text = Some(spec(23.0));
             },
             roles,

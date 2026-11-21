@@ -837,6 +837,8 @@ impl Shadcn {
         };
         style.tokens = self.core_tokens();
         style.sheet.as_preset();
+        let select = style.select.clone();
+        style.set_select(select);
         crate::sheets::write(&mut style.sheet, t.style, self.theme);
         style
     }

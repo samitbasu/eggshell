@@ -1809,7 +1809,7 @@ impl Style {
                 press_shift: 0.0,
             },
         );
-        Self {
+        let mut style = Self {
             text,
             faces: Faces::default(),
             focus,
@@ -2203,7 +2203,9 @@ impl Style {
             tokens: Tokens::from_egui(egui),
             sheet,
             extensions: Extensions::default(),
-        }
+        };
+        crate::owned::write_select_rules(&mut style);
+        style
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
@@ -2233,6 +2235,12 @@ impl Style {
         v.selection.stroke = egui::Stroke::new(width.max(1.0), states.focused.border);
         egui.spacing.interact_size.y = metrics.height;
         egui.spacing.button_padding = metrics.padding;
+    }
+
+    /// TODO(prose): sets the select section, and writes the rules that draw a select from it and the menu section at the sheet's current layer. A later change to either does not reach the select until this is called again.
+    pub fn set_select(&mut self, select: SelectStyle) {
+        self.select = select;
+        crate::owned::write_select_rules(self);
     }
 }
 
