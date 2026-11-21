@@ -149,7 +149,8 @@ pub mod size {
 
 /// The names of shadcn's button variants, as the preset's sheet names them
 /// for [`ButtonPart`](eggshell_ui::owned::ButtonPart). shadcn's `default` is
-/// [`PRIMARY`]; a button that names no variant is [`SECONDARY`].
+/// [`PRIMARY`](variant::PRIMARY); a button that names no variant is
+/// [`SECONDARY`](variant::SECONDARY).
 pub mod variant {
     use eggshell_ui::contract::Variant;
 
