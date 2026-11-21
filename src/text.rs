@@ -104,10 +104,10 @@ pub(crate) fn apply_faces(ctx: &Context, faces: &Faces) {
     ctx.data_mut(|data| data.insert_temp(faces_id(), std::sync::Arc::new(faces.clone())));
 }
 
-/// The faces the last build applied, else those of the installed style.
+/// The faces the last build applied, else those of the derived style.
 fn applied(ctx: &Context) -> std::sync::Arc<Faces> {
     ctx.data(|data| data.get_temp::<std::sync::Arc<Faces>>(faces_id()))
-        .unwrap_or_else(|| std::sync::Arc::new(crate::Style::of(ctx).faces.clone()))
+        .unwrap_or_else(|| std::sync::Arc::new(crate::Style::derived(ctx).faces.clone()))
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -432,15 +432,6 @@ impl TextStyle {
             case: TextCase::default(),
             select: UserSelect::default(),
             numerals: Numerals::default(),
-        }
-    }
-
-    /// The root text of a layout given none: the installed [`Style`](crate::Style)'s
-    /// text in egui's text colour, else egui's Body.
-    pub(crate) fn default_for(ctx: &egui::Context) -> Self {
-        match crate::Style::installed(ctx) {
-            Some(style) => Self::of_style(ctx, &style),
-            None => Self::from_egui(ctx),
         }
     }
 

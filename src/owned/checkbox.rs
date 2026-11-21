@@ -7,11 +7,11 @@ use std::rc::Rc;
 
 use egui::Role;
 
-use super::Mark;
 use super::{
-    Enablement, Gate, IntoTip, OnResponse, Unset, check, choice_label, choice_row, described, flip,
-    options,
+    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, check, choice_card, choice_label,
+    choice_row, described, flip, options,
 };
+use super::{CheckboxPart, Mark};
 use crate::builder::Slot;
 use crate::contract::Size;
 use crate::focus::{Autofocus, Select};
@@ -49,6 +49,8 @@ pub struct CheckboxChain<'a, 'f, A, T, V = Unset> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     label: Option<String>,
+    description: Option<String>,
+    form: Form,
     name: Option<String>,
     gate: Gate,
     current: T,
@@ -71,6 +73,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             slot: b.slot(&key),
             b,
             label,
+            description: None,
+            form: Form::Row,
             name: None,
             gate: Gate::default(),
             current,
@@ -90,6 +94,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             b: self.b,
             slot: self.slot,
             label: self.label,
+            description: self.description,
+            form: self.form,
             name: self.name,
             gate: self.gate,
             current: self.current,
@@ -107,6 +113,18 @@ impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
     /// The accessible name, when it is not the label.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// TODO(prose): draws the checkbox as a choice card: the label holds it, the box after the label and the description, and a click anywhere on the card toggles it.
+    pub fn card(mut self) -> Self {
+        self.form = Form::Card;
+        self
+    }
+
+    /// TODO(prose): the text under a card's label.
+    pub fn description(mut self, text: impl Into<String>) -> Self {
+        self.description = Some(text.into());
         self
     }
 
@@ -209,6 +227,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             mut b,
             slot,
             label,
+            description,
+            form,
             name,
             gate,
             current,
@@ -223,37 +243,32 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let (mark, toggled) = flip([off, on], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = b.style().clone();
-        let checkbox = &style.checkbox;
-        let metrics = *checkbox.sizes.lookup(b.ctx(), b.size_of(size));
-        let look = match mark {
-            Mark::Off => &checkbox.off,
-            Mark::On => &checkbox.on,
+        let checkbox = &style.checkbox();
+        let size = b.size_of(size);
+        let metrics = *checkbox.sizes.lookup(b.ctx(), size);
+        let keys = CheckboxPart::keys(checkbox.sizes.key_for(size), mark, enablement);
+        let box_classes = b.part(CheckboxPart::Root, &keys, tw());
+        // A card's label is drawn before the control it holds, so the
+        // control names itself by the card's title.
+        let name = match form {
+            Form::Row => name.unwrap_or_default(),
+            Form::Card => name.or_else(|| label.clone()).unwrap_or_default(),
         };
-        let box_classes = look.indicator(
-            checkbox.border_width,
-            &style,
-            metrics.radius,
-            enablement,
-            checkbox.transition,
-            metrics.size,
-        );
-        let glyph = metrics.glyph;
-        let name = name.unwrap_or_default();
         b.claim(&slot);
         b.scope_with(&slot, |b| {
             let control = b.id_of(Part::Box);
             let row = choice_row(
-                &style,
+                b,
                 &style.role_sized(&checkbox.text, metrics.text),
                 enablement,
                 metrics.gap,
-            )
-            .merge(caller);
+            );
             let on_press = on_toggle.clone();
-            b.div(row, |b| {
+            let build_box = move |b: &mut Builder<'_, '_, A>| {
                 b.div_id(Part::Box, box_classes, |b| {
                     if mark == Mark::On {
-                        b.glyph(tw().size_px(glyph), check());
+                        let glyph = b.part(CheckboxPart::Indicator, &keys, tw());
+                        b.glyph(glyph, check());
                     }
                 })
                 .open_focus(autofocus.open_focus())
@@ -265,12 +280,34 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
                     }
                     on_response.run(app, &response);
                 });
-                if let Some(label) = label {
-                    choice_label(b, Part::Label, control, label, enablement, move |app| {
-                        on_toggle(app)
-                    });
+            };
+            match form {
+                Form::Row => b.div(row.merge(caller), |b| {
+                    build_box(b);
+                    if let Some(label) = label {
+                        choice_label(b, Part::Label, control, label, enablement, move |app| {
+                            on_toggle(app)
+                        });
+                    }
+                }),
+                Form::Card => {
+                    let card = Card {
+                        control,
+                        title: label.unwrap_or_default(),
+                        description,
+                        enablement,
+                        classes: caller,
+                    };
+                    choice_card(
+                        b,
+                        Part::Label,
+                        card,
+                        row,
+                        move |app| on_toggle(app),
+                        build_box,
+                    );
                 }
-            });
+            }
         });
     }
 }

@@ -36,14 +36,16 @@ pub use grid::Track;
 #[cfg(debug_assertions)]
 pub use merge::Property;
 use merge::{Layout, Touched};
-#[cfg(debug_assertions)]
-pub(crate) use origin::Origins;
 pub use origin::{Origin, Source};
+#[cfg(debug_assertions)]
+pub(crate) use origin::{Origins, trace, tracing};
+#[cfg(debug_assertions)]
+pub use origin::{Step, Why};
 pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
 pub use rules::{Aria, Match};
 pub(crate) use rules::{Link, Observed, Ruled, Rules};
 pub use units::{Angle, Mirror, Opacity, Progress};
-pub use variants::Paint;
+pub use variants::{BoxState, Paint};
 pub(crate) use variants::{
     Focusability, Grouping, Look, PointerEvents, Presence, Scrollbar, Sensing, State, Variants,
     Visibility,
@@ -79,7 +81,7 @@ pub struct Tw {
     touched: Touched,
     /// The class that set each property, in debug builds.
     #[cfg(debug_assertions)]
-    origins: Option<Box<Origins>>,
+    pub(crate) origins: Option<Box<Origins>>,
 }
 
 /// Whether a class was ignored because a length it was given is infinite or

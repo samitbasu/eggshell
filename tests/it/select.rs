@@ -159,7 +159,7 @@ fn tab_to(d: &mut Driver<App>, path: &str) {
 
 /// The rows, among `0..count` of `list`, drawn in the item's highlight colours.
 fn highlighted(d: &Driver<App>, list: &str, count: usize) -> Vec<usize> {
-    let hover = d.shell().style().menu.item.paint.states.hover.fill;
+    let hover = d.shell().style().menu().item.paint.states.hover.fill;
     (0..count)
         .filter(|&index| support::fill_of(d, &row(list, index)) == Some(hover))
         .collect()
@@ -383,7 +383,7 @@ mod tall {
         d.press(Key::End).frames(4);
         assert!(visible(&d, 49), "End shows the last option");
         assert!(!visible(&d, 0));
-        let hover = d.shell().style().menu.item.paint.states.hover.fill;
+        let hover = d.shell().style().menu().item.paint.states.hover.fill;
         assert_eq!(
             support::fill_of(&d, &tall_row(49)),
             Some(hover),
@@ -481,7 +481,9 @@ mod beside_another_frame {
     const STEP: Duration = Duration::from_millis(250);
 
     fn harness() -> Driver<App> {
-        let mut bar = LayoutState::new().with_base_text(base_text());
+        let mut bar = LayoutState::new()
+            .with_base_text(base_text())
+            .with_style(support::shadcn());
         let mut d = Driver::whole_frame(App::default(), move |ui, app, page| {
             if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                 eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
@@ -499,6 +501,7 @@ mod beside_another_frame {
         })
         .size(SCREEN)
         .base_text(base_text())
+        .style(support::shadcn())
         .step(STEP)
         .after(After::Frames(0))
         .settle_within(STEP * 4)

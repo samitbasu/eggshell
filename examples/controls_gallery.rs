@@ -372,16 +372,17 @@ fn observed(
     control: Control,
     overflow: Overflow,
     show: impl FnOnce(&mut State, &mut Ui),
-    probe: impl FnOnce(&mut Ui, f32) -> Rect,
+    probe: impl FnOnce(&mut Ui, f32, &Style) -> Rect,
 ) {
     let computed = ui.max_rect();
+    let style = eggshell_ui::NodeUi::node_style(ui);
     show(state, ui);
     let offered = state.offered_width();
     let room = Rect::from_min_size(computed.min, vec2(offered, computed.height()));
     let natural = ui
         .scope_builder(
             UiBuilder::new().id_salt("probe").max_rect(room).invisible(),
-            |ui| probe(ui, offered),
+            |ui| probe(ui, offered, &style),
         )
         .inner;
     let drawn = match overflow {
@@ -426,7 +427,9 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                     |s, ui| {
                         w.show(ui, &mut s.single);
                     },
-                    |ui, width| natural_edit(ui, &text, Lines::Single, width, Some(label)).rect,
+                    |ui, width, style| {
+                        natural_edit(ui, style, &text, Lines::Single, width, Some(label)).rect
+                    },
                 );
             });
         }
@@ -442,7 +445,9 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                     |s, ui| {
                         w.show(ui, &mut s.multi);
                     },
-                    |ui, width| natural_edit(ui, &text, MULTI, width, Some(label)).rect,
+                    |ui, width, style| {
+                        natural_edit(ui, style, &text, MULTI, width, Some(label)).rect
+                    },
                 );
             });
         }
@@ -461,7 +466,9 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                         |s, ui| {
                             text_field::show(ui, &mut s.field_single, &field);
                         },
-                        |ui, width| natural_edit(ui, &text, Lines::Single, width, Some(label)).rect,
+                        |ui, width, style| {
+                            natural_edit(ui, style, &text, Lines::Single, width, Some(label)).rect
+                        },
                     );
                 });
         }
@@ -480,7 +487,9 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
                         |s, ui| {
                             text_field::show(ui, &mut s.field_multi, &field);
                         },
-                        |ui, width| natural_edit(ui, &text, ONE_ROW, width, None).rect,
+                        |ui, width, style| {
+                            natural_edit(ui, style, &text, ONE_ROW, width, None).rect
+                        },
                     );
                 });
         }
@@ -490,15 +499,16 @@ fn leaf(b: &mut B<'_, '_>, state: &State, control: Control) {
 const MULTI: Lines = Lines::Multi { min: 2, max: None };
 const ONE_ROW: Lines = Lines::Multi { min: 1, max: None };
 
-/// Draws an input as the library does: with the style's input section mapped
-/// onto the `Ui`.
-fn input_padded(ui: &mut Ui) {
-    eggshell_ui::NodeUi::node_style(ui)
-        .map_input(ui.style_mut(), eggshell_ui::contract::Size::DEFAULT);
-}
-
-/// A text edit as egui sizes it on its own, `width` wide.
-fn natural_edit(ui: &mut Ui, text: &str, lines: Lines, width: f32, hint: Option<&str>) -> Response {
+/// A text edit as egui sizes it on its own, `width` wide, with `style`'s
+/// input section mapped onto its `Ui` as the library maps it.
+fn natural_edit(
+    ui: &mut Ui,
+    style: &Style,
+    text: &str,
+    lines: Lines,
+    width: f32,
+    hint: Option<&str>,
+) -> Response {
     let mut buffer = text.to_owned();
     let mut edit = match lines {
         Lines::Single => egui::TextEdit::singleline(&mut buffer),
@@ -509,7 +519,7 @@ fn natural_edit(ui: &mut Ui, text: &str, lines: Lines, width: f32, hint: Option<
         edit = edit.hint_text(hint);
     }
     ui.scope(|ui| {
-        input_padded(ui);
+        style.map_input(ui.style_mut(), eggshell_ui::contract::Size::DEFAULT);
         ui.add(edit)
     })
     .inner
@@ -848,13 +858,14 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
         let t = common::tokens(b.ctx());
         b.styled(
             |style| {
-                let tooltip = &mut style.tooltip;
+                let mut tooltip = style.tooltip().clone();
                 tooltip.padding = vec2(24.0, 12.0);
                 tooltip.popup.paint.states.rest = Colors {
                     fill: t.primary,
                     border: t.primary,
                     text: t.primary_foreground,
                 };
+                style.set_tooltip(tooltip);
             },
             |b| tooltip_row(b, "Scoped tooltip"),
         );

@@ -312,7 +312,10 @@ fn paint_box(
     if uniform.is_none() {
         paint_side_borders(painter, boxes, paint.border_colors);
     }
-    if let Some(ring) = paint.ring {
+    if let Some(ring) = paint
+        .ring
+        .filter(|ring| ring.width > 0.0 && ring.color.a() > 0)
+    {
         painter.add(RectShape::stroke(
             border,
             paint.radius,
@@ -1194,7 +1197,7 @@ impl<A> Walk<'_, A> {
             && !interaction.variants.has_focus()
             && response.as_ref().is_some_and(Response::has_focus)
         {
-            let ring = node.style.focus;
+            let ring = node.style.tokens.focus;
             self.painter(parent.clip, opacity).add(RectShape::stroke(
                 boxes.border,
                 look.paint.radius,
@@ -1857,6 +1860,8 @@ impl<A> Placed<A> {
         }
         painting.record(ui.ctx());
         drop(timer);
+        #[cfg(debug_assertions)]
+        crate::inspect::dump_why(ui.ctx(), &painting.nodes);
         if let Some(overflow) = overflow {
             debug::paint(ui.ctx(), &painting.nodes, &overflow);
         }
@@ -2386,16 +2391,17 @@ pub trait NodeUi {
     /// ```
     fn node_id(&self) -> Option<egui::Id>;
 
-    /// TODO(prose): the style the node is drawn with: the context's
-    /// [`Style::of`], or that of the [`styled`](crate::Builder::styled)
-    /// scope the node was built in. On any other `Ui`, the context's.
+    /// TODO(prose): the style the node is drawn with: its layout's, or that of
+    /// the [`styled`](crate::Builder::styled) scope the node was built in. On
+    /// any other `Ui`, one derived from egui's.
     ///
     /// ```
     /// use eggshell_ui::{NodeUi as _, Style};
     ///
     /// let ctx = egui::Context::default();
     /// ctx.run_ui(Default::default(), |ui| {
-    ///     assert_eq!(*ui.node_style(), *Style::of(ui.ctx()));
+    ///     let derived = Style::from_egui(&ui.ctx().global_style());
+    ///     assert_eq!(ui.node_style().text, derived.text);
     /// })
     /// .drop_without_applying_deltas();
     /// ```
@@ -2429,7 +2435,7 @@ impl NodeUi for Ui {
     fn node_style(&self) -> Arc<Style> {
         let scope = self.unique_id();
         self.data(|data| data.get_temp::<StyleTag>(scope))
-            .map_or_else(|| Style::of(self.ctx()), |tag| tag.0)
+            .map_or_else(|| Style::derived(self.ctx()), |tag| tag.0)
     }
 
     #[track_caller]

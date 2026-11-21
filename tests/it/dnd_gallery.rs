@@ -58,7 +58,12 @@ pub fn window_frame(
     app: &mut State,
     layout: &mut eggshell_ui::LayoutState,
 ) -> eggshell_ui::testing::PlacedFrame {
-    gallery::window(ui, app, layout, &mut eggshell_ui::LayoutState::new())
+    gallery::window(
+        ui,
+        app,
+        layout,
+        &mut eggshell_ui::LayoutState::new().with_style(support::shadcn()),
+    )
 }
 
 fn harness(cols: usize) -> H {

@@ -69,10 +69,9 @@ impl SheetPart for SelectPart {
 /// `menu` looks, at the sheet's current layer. Each part's rules replace the
 /// lower layers' for it.
 pub(crate) fn write_select_rules(style: &mut Style) {
-    let select = style.select.clone();
-    let menu = style.menu.clone();
+    let select = style.select().clone();
+    let menu = style.menu().clone();
     let list_text = style.role(&menu.text).clone();
-    let form = (style.focus, style.disabled);
     let sizes: Vec<(Size, crate::contract::Metrics, crate::TextSpec)> = select
         .sizes
         .keys()
@@ -84,17 +83,16 @@ pub(crate) fn write_select_rules(style: &mut Style) {
     let radius = select.sizes.get(select.sizes.default_key()).radius;
     let trigger = select.trigger;
     let transition = select.transition;
-    let disabled = style.disabled;
     let sheet = &mut style.sheet;
     for enablement in [Enablement::Enabled, Enablement::Disabled] {
         let when = match enablement {
             Enablement::Enabled => When::always().not_aria(Aria::Disabled),
             Enablement::Disabled => When::always().aria(Aria::Disabled),
         };
-        sheet.replace_when(SelectPart::Trigger, when, move |t, _| {
-            let classes = t.merge(trigger.paint.classes_with(
+        sheet.replace_when(SelectPart::Trigger, when, move |t, k| {
+            let classes = t.merge(trigger.paint.classes_in(
                 trigger.border_width,
-                form,
+                (k.focus, k.disabled),
                 radius,
                 enablement,
                 transition,
@@ -105,7 +103,7 @@ pub(crate) fn write_select_rules(style: &mut Style) {
                 .justify_between()
                 .whitespace_nowrap()
                 .w_fit();
-            match (enablement, disabled) {
+            match (enablement, k.disabled) {
                 (Enablement::Disabled, Disabled::Faded(opacity)) => classes.opacity(opacity),
                 _ => classes,
             }
@@ -354,7 +352,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             Listing::Closed.store(&ctx, trigger);
         }
         let style = b.style().clone();
-        let offset = offset.unwrap_or(style.menu.offset);
+        let offset = offset.unwrap_or(style.menu().offset);
         let mut keys = vec![SheetKey::Size(b.size_of(size))];
         if enablement == Enablement::Disabled {
             keys.push(SheetKey::Aria(Aria::Disabled));
@@ -447,8 +445,8 @@ struct List<T> {
 impl<T: Copy + 'static> List<T> {
     fn row_height(&self) -> f32 {
         self.style
-            .menu
-            .row_height(self.style.role(&self.style.menu.text))
+            .menu()
+            .row_height(self.style.role(&self.style.menu().text))
     }
 
     /// Where the list goes: under the trigger, flipping above it for want of room.
@@ -457,7 +455,7 @@ impl<T: Copy + 'static> List<T> {
     }
 
     fn show<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
-        let menu = &self.style.menu;
+        let menu = &self.style.menu();
         let rows = self.options.len() as f32 * self.row_height();
         let chrome = 2.0 * (menu.padding + menu.popup.border_width);
         let natural = vec2(0.0, rows + chrome);

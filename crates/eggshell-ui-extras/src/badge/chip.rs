@@ -259,7 +259,7 @@ fn surrounds_focus(look: Look, core: &Style, style: &BadgeStyle, enablement: Ena
         .focusable_none();
     match enablement {
         Enablement::Enabled => {
-            let ring = look.paint.focus.unwrap_or(core.focus);
+            let ring = look.paint.focus.unwrap_or(core.tokens.focus);
             let border = look.paint.states.focused.border;
             classes.focus_within(|p| p.border_color(border).ring(ring.width, ring.color))
         }

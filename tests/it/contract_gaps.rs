@@ -1,6 +1,6 @@
 //! The contract gaps of issues #42 and #43: text placed in taller boxes, icon
 //! cells and buttons, caller classes merged over the styled ones, text roles,
-//! toggle variants, node-opacity disabling and the cheap install. Pointer and
+//! toggle variants and node-opacity disabling. Pointer and
 //! key input goes through kittest's real events.
 
 use std::sync::Arc;
@@ -283,13 +283,16 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
             theme,
             shadcn,
             |style| {
-                style.segmented.sizes.default_entry_mut().icon_size = 18.0;
-                style.segmented.sizes.default_entry_mut().icon_gap = 7.0;
-                style.segmented.sizes.default_entry_mut().column_gap = 3.0;
+                let mut segmented = style.segmented().clone();
+                let metrics = segmented.sizes.default_entry_mut();
+                metrics.icon_size = 18.0;
+                metrics.icon_gap = 7.0;
+                metrics.column_gap = 3.0;
+                style.set_segmented(segmented);
             },
             icon_cells,
         );
-        let seg = d.app().style.segmented.clone();
+        let seg = d.app().style.segmented().clone();
         let cells = MODES.map(|(mode, _)| d.rect(Target::suffix(&cell_path(mode))));
         for pair in cells.windows(2) {
             assert!(
@@ -339,8 +342,10 @@ fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
         Theme::Light,
         ShadcnStyle::Vega,
         |style| {
-            let hover = style.segmented.unselected.states.hover;
-            style.segmented.unselected.states.hover.text = Color32::from_rgb(200, 30, 30);
+            let hover = style.segmented().unselected.states.hover;
+            let mut segmented = style.segmented().clone();
+            segmented.unselected.states.hover.text = Color32::from_rgb(200, 30, 30);
+            style.set_segmented(segmented);
             assert_ne!(
                 hover.text,
                 Color32::from_rgb(200, 30, 30),
@@ -384,7 +389,7 @@ fn merged_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
 fn track_and_cell_classes_merge_over_the_styled_ones_and_keep_the_style() {
     for (theme, shadcn) in COMBINATIONS {
         let mut d = harness_with(theme, shadcn, |_| {}, merged_segmented);
-        let seg = d.app().style.segmented.clone();
+        let seg = d.app().style.segmented().clone();
         let track = d.rect(Target::suffix("/\"seg\""));
         assert_eq!(track.width(), 400.0, "w_full replaced w_fit");
         assert_eq!(
@@ -471,7 +476,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         );
         assert_eq!(
             height("/\"select\""),
-            style.select.sizes.get(Size::DEFAULT).height
+            style.select().sizes.get(Size::DEFAULT).height
         );
         assert_eq!(
             height("/\"stepper\"/Box"),
@@ -479,7 +484,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         );
         assert_eq!(
             height("/\"segmented\""),
-            style.segmented.sizes.get(Size::DEFAULT).height
+            style.segmented().sizes.get(Size::DEFAULT).height
         );
     }
 }
@@ -536,11 +541,15 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
                     eggshell_ui::sheet::When::always(),
                     |t, _| t.role(spec(21.0)),
                 );
-                style.segmented.text = Some(spec(17.0));
-                let mut select = style.select.clone();
+                let mut segmented = style.segmented().clone();
+                segmented.text = Some(spec(17.0));
+                style.set_segmented(segmented);
+                let mut select = style.select().clone();
                 select.text = Some(spec(19.0));
                 style.set_select(select);
-                style.checkbox.text = Some(spec(23.0));
+                let mut checkbox = style.checkbox().clone();
+                checkbox.text = Some(spec(23.0));
+                style.set_checkbox(checkbox);
             },
             roles,
         );
@@ -557,37 +566,6 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
             "precondition: the roles differ from the default"
         );
     }
-}
-
-// ----- #43 item 7: install only when changed -----
-
-#[test]
-fn installing_an_unchanged_style_keeps_the_installed_one() {
-    let ctx = egui::Context::default();
-    let style = Shadcn::light().style();
-    style.clone().install(&ctx);
-    let first = Style::of(&ctx);
-    style.clone().install(&ctx);
-    assert!(
-        std::sync::Arc::ptr_eq(&first, &Style::of(&ctx)),
-        "same style"
-    );
-    let mut changed = style.clone();
-    changed.segmented.sizes.default_entry_mut().icon_gap += 1.0;
-    changed.clone().install(&ctx);
-    let second = Style::of(&ctx);
-    assert!(!std::sync::Arc::ptr_eq(&first, &second));
-    assert_eq!(*second, changed);
-    changed.clone().install_for(&ctx, Theme::Light);
-    assert!(
-        std::sync::Arc::ptr_eq(&second, &Style::of(&ctx)),
-        "per theme too"
-    );
-    style.clone().install_for(&ctx, Theme::Dark);
-    ctx.set_theme(Theme::Light);
-    assert_eq!(*Style::of(&ctx), changed);
-    ctx.set_theme(Theme::Dark);
-    assert_eq!(*Style::of(&ctx), style, "the other theme took its own");
 }
 
 // ----- #43 item 8: toggle looks keyed by variant -----
@@ -692,12 +670,12 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
         let mut d = harness_with(
             theme,
             shadcn,
-            |style| {
-                style.disabled = Disabled::Faded(Opacity::new(0.4));
+            move |style| {
+                style.tokens.disabled = Disabled::Faded(Opacity::new(opacity));
                 style.sheet.as_app().rule_when(
                     eggshell_ui::owned::ButtonPart::Root,
                     eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
-                    |t, _| t.opacity(Opacity::new(0.4)),
+                    move |t, _| t.opacity(Opacity::new(opacity)),
                 );
             },
             disabled_row,
@@ -720,7 +698,7 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
             "the label fades with its node"
         );
         let label = d.rect(Target::suffix("/(\"check\", Disabled)/<div>"));
-        let enabled_label = style.label.rest.text;
+        let enabled_label = style.label().rest.text;
         assert_eq!(
             text_color(&d, label, "Agree"),
             enabled_label.gamma_multiply(opacity),
@@ -768,11 +746,11 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
 fn the_colors_form_still_draws_the_styles_disabled_colours() {
     let d = harness(Theme::Light, disabled_row);
     let style = &d.app().style;
-    assert_eq!(style.disabled, Disabled::Colors);
+    assert_eq!(style.tokens.disabled, Disabled::Colors);
     let checked = d.rect(Target::suffix("/(\"check\", Disabled)/Box"));
     assert_eq!(
         box_at(&d, checked).fill,
-        style.checkbox.on.states.disabled.fill,
+        style.checkbox().on.states.disabled.fill,
         "a checkbox still draws the style's disabled colours"
     );
 }
@@ -1148,12 +1126,14 @@ fn the_selected_cell_draws_its_own_weight_and_the_others_keep_the_base() {
             Theme::Light,
             ShadcnStyle::default(),
             |style| {
-                let text = style.role(&style.segmented.text).clone();
-                style.segmented.text = Some(TextSpec {
+                let text = style.role(&style.segmented().text).clone();
+                let mut segmented = style.segmented().clone();
+                segmented.text = Some(TextSpec {
                     weight: Weight::Medium,
                     ..text
                 });
-                style.segmented.selected_weight = selected_weight;
+                segmented.selected_weight = selected_weight;
+                style.set_segmented(segmented);
             },
             plain_segmented,
         );

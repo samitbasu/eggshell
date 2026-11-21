@@ -153,8 +153,8 @@ fn every_track_shows_on_a_section_at_least_as_well_as_on_the_page() {
                     );
                     let tracks = [
                         ("slider", style.slider.track.rest.fill),
-                        ("segmented", style.segmented.track_fill),
-                        ("switch off", style.switch.off.states.rest.fill),
+                        ("segmented", style.segmented().track_fill),
+                        ("switch off", style.switch().off.states.rest.fill),
                         ("progress", style.progress.track.fill),
                     ];
                     for (name, track) in tracks {

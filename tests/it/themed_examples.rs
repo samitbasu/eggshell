@@ -51,6 +51,7 @@ fn place<A>(
     let ctx = ctx_in(theme);
     let placed = LayoutState::new()
         .with_base_text(common::base_text(theme))
+        .with_style(crate::support::shadcn())
         .build(&ctx, build)
         .layout(AREA);
     (placed, Tokens::for_theme(theme))

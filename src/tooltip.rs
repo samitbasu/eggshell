@@ -22,6 +22,7 @@ use crate::kept::Handle;
 use crate::overlay::{Anchor, Band, DismissOn, Distance, Focus, Placement};
 use crate::overlay_chain::OverlayChain;
 use crate::overlay_input::Drag;
+use crate::owned::TooltipPart;
 use crate::presence::Shown;
 use crate::tw::tw;
 
@@ -277,9 +278,9 @@ pub(crate) fn end(
         .collect();
     let style = crate::Shell::new(ctx, kept).style();
     let timing = Timing {
-        open: style.tooltip.delay,
+        open: style.tooltip().delay,
         close: Duration::ZERO,
-        skip: Skip::Grace(style.tooltip.grace),
+        skip: Skip::Grace(style.tooltip().grace),
         focus: FocusOpens::AtOnce,
     };
     let now = crate::intent::now(ctx);
@@ -328,30 +329,18 @@ pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
         if !kept {
             continue;
         }
-        let tooltip = &style.tooltip;
+        let tooltip = style.tooltip();
         let arrow = tooltip.arrow;
         let gap = f32::from(tooltip.offset) + arrow.map_or(0.0, |arrow| arrow.size);
         let trigger = tip.trigger;
-        let text = style.role(&tooltip.text).clone();
-        let colors = tooltip.popup.paint.states.rest;
-        let classes = tw()
-            .flex()
-            .flex_col()
-            .max_w_px(tooltip.max_width)
-            .px(tooltip.padding.x / 4.0)
-            .py(tooltip.padding.y / 4.0)
-            .border(tooltip.popup.border_width)
-            .border_color(colors.border)
-            .bg(colors.fill)
-            .text(colors.text)
-            .rounded_px(f32::from(tooltip.radius))
-            .role(text);
-        let classes = match tooltip.popup.paint.shadow {
-            Some(shadow) => classes.shadow(shadow),
-            None => classes,
-        };
-        let border = Vec2::splat(tooltip.popup.border_width);
         b.with_style(style, |b| {
+            let classes = b.part(TooltipPart::Content, &[], tw());
+            let resolved = b.resolved_part(TooltipPart::Content, &[]);
+            let fill = resolved
+                .paint
+                .background
+                .unwrap_or(egui::Color32::TRANSPARENT);
+            let border = Vec2::splat(resolved.style().border.left.into_raw().value());
             OverlayChain::new(b.reborrow(), slot)
                 .band(Band::Tooltip)
                 .anchor(Anchor::Node(trigger))
@@ -365,7 +354,7 @@ pub(crate) fn declare<'f, A>(b: &mut Builder<'_, 'f, A>) {
                         if let Some(arrow) = arrow {
                             s.paint(
                                 tw().absolute().inset_px(0.0),
-                                arrow_painter(trigger, arrow.size, colors.fill, border),
+                                arrow_painter(trigger, arrow.size, fill, border),
                             );
                         }
                     });

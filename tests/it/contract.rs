@@ -61,21 +61,21 @@ fn a_replaced_default_entry_is_what_unknown_keys_get() {
     assert!(keyed.get_mut(Size("sm")).is_none());
 }
 
-/// `a` is `b` but for its sheet, which two builds never share: what the sheets
-/// give is compared by what is drawn with them.
-fn assert_same_but_sheet(a: &Style, b: &Style) {
-    let mut b = b.clone();
-    b.sheet = a.sheet.clone();
-    assert_eq!(*a, b);
-}
-
 #[test]
-fn the_default_style_is_derived_from_egui_and_cached() {
+fn a_layout_given_no_style_derives_one_from_egui_and_keeps_it() {
     let ctx = Context::default();
-    let style = Style::of(&ctx);
-    assert_same_but_sheet(&style, &Style::from_egui(&ctx.global_style()));
-    assert_same_but_sheet(&style, &Style::default());
-    assert!(Arc::ptr_eq(&style, &Style::of(&ctx)), "no rebuild per call");
+    let shell = LayoutState::new().shell(&ctx);
+    let style = shell.style();
+    let derived = Style::from_egui(&ctx.global_style());
+    let button = |style: &Style| {
+        *crate::support::button::classes(style, Variant::DEFAULT, Size::DEFAULT).paint_classes()
+    };
+    assert_eq!(button(&style), button(&derived));
+    assert_eq!(style.toggle, derived.toggle);
+    assert_eq!(style.input(), derived.input());
+    assert_eq!(style.text, derived.text);
+    assert_eq!(button(&style), button(&Style::default()));
+    assert!(Arc::ptr_eq(&style, &shell.style()), "no rebuild per call");
 
     let widgets = &ctx.global_style().visuals.widgets;
     let fill = |style: &Style| {
@@ -86,7 +86,7 @@ fn the_default_style_is_derived_from_egui_and_cached() {
     assert_eq!(fill(&style), Some(widgets.inactive.weak_bg_fill));
 
     ctx.all_styles_mut(|egui| egui.visuals.widgets.inactive.weak_bg_fill = Color32::RED);
-    let changed = Style::of(&ctx);
+    let changed = shell.style();
     assert!(!Arc::ptr_eq(&style, &changed));
     assert_eq!(
         fill(&changed),
@@ -96,41 +96,9 @@ fn the_default_style_is_derived_from_egui_and_cached() {
 }
 
 #[test]
-fn an_installed_style_is_shared_and_can_differ_per_theme() {
-    let ctx = Context::default();
-    let mut light = Style::default();
-    light.focus.width = 7.0;
-    let mut dark = Style::default();
-    dark.focus.width = 9.0;
-    light.install_for(&ctx, Theme::Light);
-    dark.install_for(&ctx, Theme::Dark);
-    ctx.set_theme(Theme::Light);
-    let seen = Style::of(&ctx);
-    assert_eq!(seen.focus.width, 7.0);
-    assert!(Arc::ptr_eq(&seen, &Style::of(&ctx)));
-    ctx.set_theme(Theme::Dark);
-    assert_eq!(Style::of(&ctx).focus.width, 9.0);
-
-    let mut both = Style::default();
-    both.focus.width = 4.0;
-    both.install(&ctx);
-    assert_eq!(Style::of(&ctx).focus.width, 4.0);
-    ctx.set_theme(Theme::Light);
-    assert_eq!(Style::of(&ctx).focus.width, 4.0);
-}
-
-#[test]
-fn applying_the_preset_installs_its_style() {
-    let ctx = Context::default();
-    ctx.set_theme(Theme::Dark);
-    Shadcn::dark().apply(&ctx);
-    assert_same_but_sheet(&Style::of(&ctx), &Shadcn::dark().style());
-}
-
-#[test]
 fn core_draws_a_button_with_no_preset() {
     let ctx = Context::default();
-    let expected = Style::of(&ctx);
+    let expected = Style::from_egui(&ctx.global_style());
     let mut layout = LayoutState::new().with_base_text(TextStyle::new(
         TextSpec {
             size: 14.0,
@@ -167,7 +135,7 @@ fn core_draws_a_button_with_no_preset() {
 }
 
 fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors)> {
-    let mut all = vec![("label".to_string(), style.label.disabled)];
+    let mut all = vec![("label".to_string(), style.label().disabled)];
     let mut look = |name: &str, paint: &eggshell_ui::contract::Paint| {
         all.push((name.to_string(), paint.states.disabled));
     };
@@ -177,18 +145,18 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     for key in style.toggle.on.keys() {
         look(&format!("toggle on {key:?}"), style.toggle.on.get(key));
     }
-    look("checkbox off", &style.checkbox.off);
-    look("checkbox on", &style.checkbox.on);
-    look("radio off", &style.radio.off);
-    look("radio on", &style.radio.on);
-    look("switch off", &style.switch.off);
-    look("switch on", &style.switch.on);
-    look("segmented selected", &style.segmented.selected);
-    look("segmented unselected", &style.segmented.unselected);
+    look("checkbox off", &style.checkbox().off);
+    look("checkbox on", &style.checkbox().on);
+    look("radio off", &style.radio().off);
+    look("radio on", &style.radio().on);
+    look("switch off", &style.switch().off);
+    look("switch on", &style.switch().on);
+    look("segmented selected", &style.segmented().selected);
+    look("segmented unselected", &style.segmented().unselected);
     look("slider thumb", &style.slider.thumb.paint);
-    look("select trigger", &style.select.trigger.paint);
-    look("menu popup", &style.menu.popup.paint);
-    look("menu item", &style.menu.item.paint);
+    look("select trigger", &style.select().trigger.paint);
+    look("menu popup", &style.menu().popup.paint);
+    look("menu item", &style.menu().item.paint);
     look("stepper group", &style.stepper.group.paint);
     look("stepper button", &style.stepper.button.paint);
     all.push(("slider track".to_string(), style.slider.track.disabled));
@@ -253,7 +221,7 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     use eggshell_ui::contract::{InputStyle, Look};
     let mut style = Style::default();
     let c = |n: u8| Color32::from_rgb(n, n, n);
-    let mut input = style.input.clone();
+    let mut input = style.input().clone();
     input.look = Look::new(eggshell_ui::contract::States {
         rest: eggshell_ui::contract::Colors {
             fill: c(10),
@@ -295,10 +263,10 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     );
     input.hint = Some(c(99));
     input.icon = c(55);
-    style.input = input;
+    style.set_input(input);
     style.selection.fill = c(77);
     style.selection.text = Some(c(88));
-    let _: &InputStyle = &style.input;
+    let _: &InputStyle = style.input();
 
     let mut egui_style = egui::Style::default();
     style.map_input(&mut egui_style, eggshell_ui::contract::Size::DEFAULT);
@@ -343,5 +311,25 @@ fn the_neutral_input_maps_to_egui_s_own_text_edit_style() {
     assert_eq!(
         original.spacing.interact_size.y,
         egui_style.spacing.interact_size.y
+    );
+}
+
+#[test]
+fn the_input_frame_is_drawn_from_the_sheets_rule() {
+    use eggshell_ui::owned::InputPart;
+    let mut style = Style::default();
+    style.sheet.as_app().rule(InputPart::Root, |t, _| {
+        t.bg(Color32::from_rgb(1, 2, 3))
+            .border_color(Color32::from_rgb(4, 5, 6))
+    });
+    let mut egui_style = egui::Style::default();
+    style.map_input(&mut egui_style, eggshell_ui::contract::Size::DEFAULT);
+    assert_eq!(
+        egui_style.visuals.text_edit_bg_color,
+        Some(Color32::from_rgb(1, 2, 3))
+    );
+    assert_eq!(
+        egui_style.visuals.widgets.inactive.bg_stroke.color,
+        Color32::from_rgb(4, 5, 6)
     );
 }

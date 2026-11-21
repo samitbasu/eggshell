@@ -21,17 +21,13 @@
 //! }
 //! ```
 
-mod style;
-
 use std::rc::Rc;
 
 use eggshell_ui::contract::Size;
 use eggshell_ui::overlay::{Nav, Wrap};
-use eggshell_ui::owned::{Cell, Choice, Enablement, IntoChoice, Mark, SegmentedRows};
+use eggshell_ui::owned::{Cell, Choice, Enablement, IntoChoice, Mark, SegmentedRows, TabsPart};
 use eggshell_ui::{Builder, Key, Tw, tw};
 use egui::Role;
-
-pub use style::TabsStyle;
 
 /// TODO(prose): adds [`tabs`](Self::tabs) to the builder.
 pub trait TabsExt<'b, 'f, A> {
@@ -197,19 +193,18 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
             panel,
             handler: Changes(on_change),
         } = self;
-        let style = b.style().clone();
-        let ctx = b.ctx().clone();
-        let size = size.unwrap_or(b.control_size());
+        let size = TabsPart::size_key(b, size.unwrap_or(b.control_size()));
         let enablement = enablement.and(b.enablement());
-        let gap = b.style().extension::<TabsStyle>().gap;
         let selected = options.iter().position(|option| option.value == current);
         let rows = SegmentedRows::One;
-        b.div_id(key, tw().flex().flex_col().gap(gap / 4.0), |b| {
+        let root = b.part(TabsPart::Root, &[], tw());
+        b.div_id(key, root, |b| {
             let panel_id = selected.map(|index| b.id_of(Part::Panel(index)));
-            let track = style
-                .segmented_track(&ctx, size, rows, enablement)
-                .sense_hover()
-                .merge(list);
+            let track = b.part(
+                TabsPart::List,
+                &TabsPart::list_keys(size, rows, enablement),
+                tw().sense_hover().merge(list),
+            );
             let tabs = b
                 .div_id(Part::List, track, |b| {
                     for (index, option) in options.iter().enumerate() {
@@ -222,14 +217,15 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
                         } else {
                             Cell::Released
                         };
-                        let classes = style
-                            .segmented_cell(&ctx, size, rows, cell, own)
-                            .sense_click();
-                        let icon = style.segmented_icon(&ctx, size);
+                        let classes = b.part(
+                            TabsPart::Trigger,
+                            &TabsPart::trigger_keys(size, rows, cell, own),
+                            tw().sense_click(),
+                        );
                         let tab = match &option.icon {
                             None => b.span(Part::Tab(index), classes, option.label.clone()),
                             Some(glyph) => b.div_id(Part::Tab(index), classes, |b| {
-                                b.glyph(icon, glyph.clone());
+                                b.glyph(tw(), glyph.clone());
                                 b.text(tw(), option.label.clone());
                             }),
                         };
@@ -264,13 +260,10 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
                     .get(index)
                     .map(|option| option.label.clone())
                     .unwrap_or_default();
-                b.div_id(
-                    Part::Panel(index),
-                    tw().flex_1().sense_hover().merge(panel),
-                    |b| build(b, current),
-                )
-                .role(Role::TabPanel)
-                .named(label);
+                let content = b.part(TabsPart::Content, &[], tw().sense_hover().merge(panel));
+                b.div_id(Part::Panel(index), content, |b| build(b, current))
+                    .role(Role::TabPanel)
+                    .named(label);
             }
         });
     }

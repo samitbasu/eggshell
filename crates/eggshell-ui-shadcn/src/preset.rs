@@ -6,7 +6,8 @@ use eggshell_ui::contract::{
     SliderMetrics, SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
-use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
+use eggshell_ui::owned::FieldPart;
+use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Tracking, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
 use crate::styles::{HoverSurface, ShadcnStyle};
@@ -372,8 +373,7 @@ impl Shadcn {
         let mut style = contract::Style::default();
         style.text = t.text_role();
         style.faces = t.font.as_ref().map(FontSet::declared).unwrap_or_default();
-        style.focus = ring;
-        style.label = States::still(flat(clear, t.foreground), t.background);
+        style.set_label(States::still(flat(clear, t.foreground), t.background));
         style.toggle = {
             let mut toggle = style.toggle;
             toggle.text = Some(t.text_role_at(t.control_weight));
@@ -391,8 +391,8 @@ impl Shadcn {
             toggle.transition = transition;
             toggle
         };
-        style.checkbox = {
-            let mut checkbox = style.checkbox;
+        let checkbox = {
+            let mut checkbox = style.checkbox().clone();
             checkbox.text = Some(t.text_role_at(t.label_weight));
             let box_at = |size: f32, glyph: f32, gap: f32, text| CheckboxMetrics {
                 size,
@@ -410,8 +410,9 @@ impl Shadcn {
             checkbox.transition = transition;
             checkbox
         };
-        style.radio = {
-            let mut radio = style.radio;
+        style.set_checkbox(checkbox);
+        let radio = {
+            let mut radio = style.radio().clone();
             radio.text = Some(t.text_role_at(t.label_weight));
             let circle = |size: f32, dot: f32, gap: f32, text| RadioMetrics {
                 size,
@@ -428,8 +429,9 @@ impl Shadcn {
             radio.transition = transition;
             radio
         };
-        style.switch = {
-            let mut switch = style.switch;
+        style.set_radio(radio);
+        let switch = {
+            let mut switch = style.switch().clone();
             switch.text = Some(t.text_role_at(t.label_weight));
             let switch_at = |scale: f32, text| SwitchMetrics {
                 track: t.switch_track * scale,
@@ -447,9 +449,10 @@ impl Shadcn {
             switch.transition = transition;
             switch
         };
-        style.segmented = {
+        style.set_switch(switch);
+        let segmented = {
             const CELL_TRIM: f32 = 1.0;
-            let mut segmented = style.segmented;
+            let mut segmented = style.segmented().clone();
             segmented.text = Some(t.text_role_at(t.control_weight));
             // The one exception to tabs.tsx, whose list is `bg-muted`: on a
             // `muted` panel that fill is the panel's own colour and the track
@@ -509,6 +512,7 @@ impl Shadcn {
             segmented.transition = transition;
             segmented
         };
+        style.set_segmented(segmented);
         style.slider = {
             let mut slider = style.slider;
             let slider_at = |track_height: f32,
@@ -556,8 +560,8 @@ impl Shadcn {
             progress.range = flat(t.primary, t.primary_foreground);
             progress
         };
-        style.select = {
-            let mut select = style.select;
+        style.set_select({
+            let mut select = style.select().clone();
             select.trigger = input_box;
             select.sizes = Keyed::new(Size::DEFAULT, control)
                 .with(size::SM, small(control))
@@ -566,11 +570,11 @@ impl Shadcn {
             select.chevron_opacity = Opacity::new(0.5);
             select.transition = transition;
             select
-        };
+        });
         // shadcn's DropdownMenu: `rounded-md border p-1 shadow-md min-w-[8rem]`,
         // items `rounded-sm px-2 py-1.5 gap-2`, `focus:bg-accent`.
-        style.menu = {
-            let mut menu = style.menu;
+        style.set_menu({
+            let mut menu = style.menu().clone();
             menu.popup = BoxLook::new(States::still(popup_colors, t.popover))
                 .bordered(1.0)
                 .shadowed(t.shadow_md);
@@ -607,11 +611,11 @@ impl Shadcn {
             menu.indicator = 16.0;
             menu.dot = 8.0;
             menu
-        };
+        });
         // shadcn's TooltipContent: `bg-foreground text-background rounded-md
         // px-3 py-1.5 text-xs` with a 10 pt arrow.
-        style.tooltip = {
-            let mut tooltip = style.tooltip;
+        style.set_tooltip({
+            let mut tooltip = style.tooltip().clone();
             tooltip.popup = BoxLook::new(States::still(
                 flat(t.foreground, t.background),
                 t.foreground,
@@ -633,7 +637,7 @@ impl Shadcn {
             tooltip.delay = Duration::from_millis(700);
             tooltip.grace = Duration::from_millis(300);
             tooltip
-        };
+        });
         // shadcn's Kbd: `bg-muted text-muted-foreground h-5 min-w-5 rounded-sm
         // px-1 text-xs font-medium`, and inside a tooltip
         // `bg-background/20 text-background` (`/10` in the dark theme).
@@ -710,8 +714,8 @@ impl Shadcn {
             stepper.transition = transition;
             stepper
         };
-        style.input = {
-            let mut input = style.input;
+        let input = {
+            let mut input = style.input().clone();
             input.look = field_look;
             let field_at =
                 |height: f32, padding: egui::Vec2, text, (icon_size, icon_gap): (f32, f32)| {
@@ -748,6 +752,7 @@ impl Shadcn {
             input.icon = t.muted_foreground;
             input
         };
+        style.set_input(input);
         style.selection = {
             let mut selection = style.selection;
             selection.fill = t.primary.gamma_multiply(0.3);
@@ -783,26 +788,28 @@ impl Shadcn {
         // `border-b` rows (none under the last), `hover:bg-muted/50`,
         // `data-[state=selected]:bg-muted`, a `bg-muted/50 font-medium` footer
         // and `transition-colors`.
-        style.table.header_fill = clear;
-        style.table.header_weight = Weight::Medium;
-        style.table.header_height = 40.0;
-        style.table.cell_padding = 8.0;
-        style.table.rule = t.border;
-        style.table.rule_width = 1.0;
-        style.table.stripe = t.muted.gamma_multiply(0.3);
-        style.table.group_fill = t.muted.gamma_multiply(0.5);
-        style.table.group_text = Some(t.muted_foreground);
-        style.table.group_text_size = Some(TextSize {
+        let mut table = style.table().clone();
+        table.header_fill = clear;
+        table.header_weight = Weight::Medium;
+        table.header_height = 40.0;
+        table.cell_padding = 8.0;
+        table.rule = t.border;
+        table.rule_width = 1.0;
+        table.stripe = t.muted.gamma_multiply(0.3);
+        table.group_fill = t.muted.gamma_multiply(0.5);
+        table.group_text = Some(t.muted_foreground);
+        table.group_text_size = Some(TextSize {
             size: 12.0,
             line_height: 16.0,
         });
-        style.table.group_weight = Weight::Medium;
-        style.table.hover = t.muted.gamma_multiply(0.5);
-        style.table.selected = t.muted;
-        style.table.footer_fill = t.muted.gamma_multiply(0.5);
-        style.table.footer_weight = Weight::Medium;
-        style.table.transition = Duration::from_millis(150);
-        style.table.group_end = GroupEnd::Gap(12.0);
+        table.group_weight = Weight::Medium;
+        table.hover = t.muted.gamma_multiply(0.5);
+        table.selected = t.muted;
+        table.footer_fill = t.muted.gamma_multiply(0.5);
+        table.footer_weight = Weight::Medium;
+        table.transition = Duration::from_millis(150);
+        table.group_end = GroupEnd::Gap(12.0);
+        style.set_table(table);
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);
@@ -836,9 +843,19 @@ impl Shadcn {
             easing: Easing::InOut,
         };
         style.tokens = self.core_tokens();
+        style.tokens.focus = ring;
         style.sheet.as_preset();
-        let select = style.select.clone();
-        style.set_select(select);
+        style.rewrite_rules();
+        if dark {
+            // field.tsx, a choice card's label: `dark:has-data-checked:bg-primary/10
+            // dark:has-data-checked:border-primary/20`.
+            style.sheet.rule(FieldPart::Label, |t, k| {
+                t.has(Match::aria(Aria::Checked), |b| {
+                    b.bg(k.primary.gamma_multiply(0.1))
+                        .border_color(k.primary.gamma_multiply(0.2))
+                })
+            });
+        }
         crate::sheets::write(&mut style.sheet, t.style, self.theme);
         style
     }
@@ -908,7 +925,6 @@ impl Shadcn {
         let style = self.style();
         ctx.style_mut_of(self.theme, |egui| style.egui_style(self.theme, egui));
         ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
-        style.install_for(ctx, self.theme);
     }
 
     /// TODO(prose): the look of a notification, shadcn's Sonner over sonner's
@@ -1154,7 +1170,7 @@ impl Shadcn {
         disclosure.tone = Some(t.muted_foreground);
         disclosure.tone_opacity = Opacity::new(1.0);
         disclosure.nudge = 2.0;
-        disclosure.header.ring = style.focus;
+        disclosure.header.ring = style.tokens.focus;
         disclosure.header.focus_border = Some(t.ring);
         disclosure.header.radius = if lyra { 0 } else { t.radius_md() };
         disclosure.header.padding_y = if lyra { 10.0 } else { 16.0 };

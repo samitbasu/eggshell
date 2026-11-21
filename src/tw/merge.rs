@@ -17,6 +17,66 @@ use taffy::{Line, Rect, Size, Style};
 
 use super::{BoxPaint, Opacity, Sides, TextWidths, Tw};
 
+/// A layout value as the Computed-style table writes it.
+#[cfg(debug_assertions)]
+trait Show {
+    fn show(&self) -> String;
+}
+
+#[cfg(debug_assertions)]
+macro_rules! show_debug {
+    ($($ty:ty),+ $(,)?) => {$(
+        impl Show for $ty {
+            fn show(&self) -> String {
+                format!("{self:?}")
+            }
+        }
+    )+};
+}
+
+#[cfg(debug_assertions)]
+show_debug!(
+    Display,
+    BoxSizing,
+    Overflow,
+    Position,
+    AlignItems,
+    Option<AlignItems>,
+    AlignContent,
+    FlexDirection,
+    FlexWrap,
+    GridAutoFlow,
+    Option<f32>,
+    f32,
+    Vec<GridTemplateComponent<String>>,
+    Line<GridPlacement<String>>,
+);
+
+#[cfg(debug_assertions)]
+fn length_text(raw: taffy::style::CompactLength) -> String {
+    use taffy::style::CompactLength;
+    match raw.tag() {
+        CompactLength::LENGTH_TAG => format!("{}px", raw.value()),
+        CompactLength::PERCENT_TAG => format!("{}%", raw.value() * 100.0),
+        _ if raw.is_auto() => "auto".to_owned(),
+        _ => format!("{raw:?}"),
+    }
+}
+
+#[cfg(debug_assertions)]
+macro_rules! show_length {
+    ($($ty:ty),+ $(,)?) => {$(
+        impl Show for $ty {
+            fn show(&self) -> String {
+                length_text(self.into_raw())
+            }
+        }
+    )+};
+}
+
+#[cfg(debug_assertions)]
+show_length!(Dimension, LengthPercentage, LengthPercentageAuto);
+
 /// The properties a class list has set: a bit for each layout property that
 /// can be merged on its own, then the corner radii and the opacity.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,7 +106,7 @@ impl Touched {
 macro_rules! layout_properties {
     ($($name:ident: $($field:ident).+ => $ty:ty),+ $(,)?) => {
         /// TODO(prose): a property of a class list, named for the style field it sets.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
         #[expect(non_camel_case_types, reason = "named for the style field they stand for")]
         #[cfg_attr(debug_assertions, expect(missing_docs, reason = "named for the style field they stand for"))]
         #[cfg_attr(not(debug_assertions), allow(dead_code))]
@@ -82,9 +142,26 @@ macro_rules! layout_properties {
             TextCase,
             TextSelect,
             TextNumerals,
+            VariantGroupHover,
+            VariantHover,
+            VariantFocusWithin,
+            VariantFocus,
+            VariantActive,
+            VariantDragAccepts,
+            VariantDragOver,
+            VariantDragLifted,
         }
 
         impl Property {
+            /// The value layout `style` has for the property, written out.
+            #[cfg(debug_assertions)]
+            fn layout_value(self, style: &Style) -> Option<String> {
+                match self {
+                    $(Property::$name => Some(Show::show(&style.$($field).+)),)+
+                    _ => None,
+                }
+            }
+
             /// Every property that [`Touched`] tracks.
             #[cfg(debug_assertions)]
             const TOUCHED: &[Property] = &[
@@ -285,6 +362,60 @@ impl Shape<'_> {
     pub(super) fn set_opacity(&mut self, opacity: Opacity) {
         self.touched.mark(Property::Opacity);
         self.paint.opacity = opacity;
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Tw {
+    /// The value the classes have for `property`, written out.
+    pub(super) fn value_of(&self, property: Property) -> String {
+        if let Some(value) = property.layout_value(&self.style) {
+            return value;
+        }
+        let paint = &self.paint;
+        let text = &self.text;
+        match property {
+            Property::RadiusNw => format!("{}", paint.radius.nw),
+            Property::RadiusNe => format!("{}", paint.radius.ne),
+            Property::RadiusSw => format!("{}", paint.radius.sw),
+            Property::RadiusSe => format!("{}", paint.radius.se),
+            Property::Opacity => format!("{:?}", paint.opacity),
+            Property::Background => format!("{:?}", paint.background),
+            Property::BorderColorTop => format!("{:?}", paint.border_colors.top),
+            Property::BorderColorRight => format!("{:?}", paint.border_colors.right),
+            Property::BorderColorBottom => format!("{:?}", paint.border_colors.bottom),
+            Property::BorderColorLeft => format!("{:?}", paint.border_colors.left),
+            Property::Ring => format!("{:?} {:?}", paint.ring, paint.ring_placement),
+            Property::Shadow => format!("{:?}", paint.shadow),
+            Property::DivideX => format!("{:?}", paint.divide_x),
+            Property::DivideY => format!("{:?}", paint.divide_y),
+            Property::TextSize => format!("{:?}", text.size),
+            Property::TextLineHeight => format!("{:?}", text.line_height),
+            Property::TextFamily => format!("{:?}", text.family),
+            Property::TextWeight => format!("{:?}", text.weight),
+            Property::TextColor => format!("{:?}", text.color),
+            Property::TextFontStyle => format!("{:?}", text.font_style),
+            Property::TextDecoration => format!("{:?}", text.decoration),
+            Property::TextWhiteSpace => format!("{:?}", text.white_space),
+            Property::TextAlign => format!("{:?}", text.align),
+            Property::TextTracking => format!("{:?}", text.tracking),
+            Property::TextCase => format!("{:?}", text.case),
+            Property::TextSelect => format!("{:?}", text.select),
+            Property::TextNumerals => format!("{:?}", text.numerals),
+            Property::VariantGroupHover => self.variant_value(super::State::GroupHover),
+            Property::VariantHover => self.variant_value(super::State::Hover),
+            Property::VariantFocusWithin => self.variant_value(super::State::FocusWithin),
+            Property::VariantFocus => self.variant_value(super::State::Focus),
+            Property::VariantActive => self.variant_value(super::State::Active),
+            Property::VariantDragAccepts => self.variant_value(super::State::DragAccepts),
+            Property::VariantDragOver => self.variant_value(super::State::DragOver),
+            Property::VariantDragLifted => self.variant_value(super::State::DragLifted),
+            _ => String::new(),
+        }
+    }
+
+    fn variant_value(&self, state: super::State) -> String {
+        format!("{:?}", self.variants.get(state))
     }
 }
 

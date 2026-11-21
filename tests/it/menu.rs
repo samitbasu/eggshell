@@ -777,7 +777,7 @@ mod trigger {
         let restyled = |chevron: f32, opacity: f32| {
             let mut d = opened(chevron_and_select);
             d.set_style(support::shadcn_with(|style| {
-                let mut select = style.select.clone();
+                let mut select = style.select().clone();
                 select.chevron = chevron;
                 select.chevron_opacity = Opacity::new(opacity);
                 style.set_select(select);
@@ -896,6 +896,7 @@ mod open_query {
         })
         .size(SCREEN)
         .base_text(base_text())
+        .style(support::shadcn())
         .step(support::STEP)
         .after(After::Frames(0))
         .settle_within(support::STEP * 4)

@@ -18,14 +18,16 @@ struct Probe {
 impl Extension for Probe {
     fn derive(style: &Style) -> Self {
         Self {
-            gap: style.table.cell_padding * 2.0,
+            gap: style.table().cell_padding * 2.0,
         }
     }
 }
 
 fn padded(padding: f32) -> Style {
     let mut style = Style::default();
-    style.table.cell_padding = padding;
+    let mut table = style.table().clone();
+    table.cell_padding = padding;
+    style.set_table(table);
     style
 }
 
@@ -41,16 +43,6 @@ fn a_set_extension_is_read_back_and_kept_by_a_clone() {
     assert_eq!(*style.extension::<Probe>(), Probe { gap: 3.0 });
     let copy = style.clone();
     assert_eq!(*copy.extension::<Probe>(), Probe { gap: 3.0 });
-    assert_eq!(copy, style, "a clone is the same style");
-}
-
-#[test]
-fn setting_an_extension_makes_another_style() {
-    let plain = padded(5.0);
-    let mut extended = plain.clone();
-    assert_eq!(extended, plain, "precondition: a clone");
-    extended.set_extension(Probe { gap: 3.0 });
-    assert_ne!(extended, plain);
 }
 
 fn probe_of(b: &Builder<'_, '_, ()>) -> f32 {

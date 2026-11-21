@@ -734,7 +734,7 @@ mod appearance {
             Some(
                 eggshell_ui_shadcn::Shadcn::light()
                     .style()
-                    .select
+                    .select()
                     .trigger
                     .paint
                     .states

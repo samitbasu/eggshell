@@ -405,7 +405,7 @@ fn chevron_in(d: &Driver<App>, rect: Rect) -> Option<egui::Color32> {
 fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let select = style(theme).select;
+        let select = style(theme).select().clone();
         let trigger = d.rect(Target::suffix(REGION));
         assert_eq!(trigger.size(), vec2(200.0, 36.0), "h-9");
         let shape = box_at(&d, trigger);
@@ -450,7 +450,7 @@ fn clicking_the_trigger_opens_the_list_and_clicking_an_option_chooses_it() {
     d.click(Target::suffix(REGION)).frames(4);
     assert!(is_open(&d), "a click opens");
 
-    let list = style(Theme::Light).menu;
+    let list = style(Theme::Light).menu().clone();
     let colors = list.popup.paint.states.rest;
     assert!(
         shapes(&d).iter().any(|shape| matches!(
@@ -827,7 +827,7 @@ fn a_modified_style_changes_the_new_widgets_with_no_code_change() {
     style.slider.range.rest.fill = red;
     style.slider.sizes.default_entry_mut().track_height = 10.0;
     style.slider.sizes.default_entry_mut().thumb_size = 24.0;
-    let mut select = style.select.clone();
+    let mut select = style.select().clone();
     select.trigger.paint.states.rest.fill = red;
     select.sizes.default_entry_mut().height = 44.0;
     style.set_select(select);

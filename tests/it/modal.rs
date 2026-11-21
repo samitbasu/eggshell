@@ -780,7 +780,7 @@ mod example {
     }
 
     fn highlight(d: &Driver<State>) -> egui::Color32 {
-        d.shell().style().menu.item.paint.states.hover.fill
+        d.shell().style().menu().item.paint.states.hover.fill
     }
 
     #[test]
@@ -905,7 +905,7 @@ mod two_frames {
             SCREEN,
             common::base_text(egui::Theme::Light),
             Shell {
-                header: LayoutState::new(),
+                header: LayoutState::new().with_style(support::shadcn()),
                 state: State::default(),
             },
             frame,
