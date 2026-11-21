@@ -85,6 +85,7 @@ fn main() -> eframe::Result {
         let ctx = ui.ctx().clone();
         common::use_preset(&ctx);
         theme_bar.show(ui);
+        layout.set_style(common::style(&ctx));
         layout.set_base_text(Some(TextStyle::new(
             layouts::BODY,
             common::tokens(&ctx).foreground,

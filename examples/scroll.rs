@@ -169,7 +169,7 @@ fn both(b: &mut B<'_, '_>) {
 /// ```
 fn styled(b: &mut B<'_, '_>) {
     let t = common::tokens(b.ctx());
-    let mut bar = eggshell_ui::Style::of(b.ctx()).scroll;
+    let mut bar = b.style().scroll;
     bar.width = 16.0;
     bar.thumb = t.primary;
     bar.thumb_hover = t.primary.gamma_multiply(0.8);

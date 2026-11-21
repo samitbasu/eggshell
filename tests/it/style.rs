@@ -191,12 +191,13 @@ fn the_preset_is_picked_by_theme_and_nothing_applies_unasked() {
 fn inputs_take_the_input_proportions() {
     for theme in [Theme::Light, Theme::Dark] {
         let ctx = context(theme);
-        Shadcn::for_theme(theme).apply(&ctx);
+        let preset = Shadcn::for_theme(theme);
+        preset.apply(&ctx);
         let text = base_text();
         let field = TextEdit::singleline("").size(
             &ctx,
             &text,
-            &eggshell_ui::Style::of(&ctx),
+            &std::sync::Arc::new(preset.style()),
             Some(Width::new(200.0)),
         );
         assert_eq!(field, vec2(200.0, 36.0), "{theme:?}");

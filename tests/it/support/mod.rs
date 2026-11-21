@@ -9,6 +9,9 @@
 use core::time::Duration;
 use std::sync::Arc;
 
+#[path = "../../../examples/common/mod.rs"]
+mod common;
+
 use eggshell_ui::contract::Themed;
 use eggshell_ui::testing::{After, Driver, DriverBuilder, PlacedFrame};
 use eggshell_ui::{Builder, LayoutState, Shell, TextStyle};
@@ -194,6 +197,7 @@ impl Bar {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        self.layout.set_style(common::style(ui.ctx()));
         let window = ui.max_rect();
         let area = Rect::from_min_size(
             Pos2::new(window.min.x, window.min.y - BAR_HEIGHT),
@@ -266,7 +270,10 @@ pub struct Rig<A> {
     pub layout: LayoutState,
     pub app: A,
     view: View<A>,
-    prepare: fn(&egui::Context, &A),
+    /// Sets egui's style before each frame is built, and with it the layout
+    /// takes the examples' chosen style; without one the layout keeps the
+    /// style it was given.
+    prepare: Option<fn(&egui::Context, &A)>,
     /// Every node of the last frame: its readable path and border box.
     pub nodes: Vec<(String, Rect)>,
     ids: Vec<(String, egui::Id)>,
@@ -278,13 +285,11 @@ pub fn harness<A>(
     app: A,
     view: View<A>,
 ) -> Harness<'static, Rig<A>> {
-    let mut harness = harness_prepared(size, base_text, app, view, |_, _| {});
-    harness.state_mut().layout.set_style(shadcn());
-    harness
+    harness_timed(size, 1.0, 0.05, base_text, app, view, None)
 }
 
 /// [`harness`] for an app that sets egui's style: `prepare` runs before
-/// every frame is built.
+/// every frame is built, and the layout takes the examples' chosen style.
 pub fn harness_prepared<A>(
     size: Vec2,
     base_text: TextStyle,
@@ -303,9 +308,18 @@ pub fn harness_stepped<A>(
     app: A,
     view: View<A>,
 ) -> Harness<'static, Rig<A>> {
-    let mut harness = harness_timed(size, 1.0, step_dt, base_text, app, view, |_, _| {});
-    harness.state_mut().layout.set_style(shadcn());
-    harness
+    harness_timed(size, 1.0, step_dt, base_text, app, view, None)
+}
+
+/// [`harness`] on a display of `pixels_per_point`; `size` is in points.
+pub fn harness_at<A>(
+    size: Vec2,
+    pixels_per_point: f32,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+) -> Harness<'static, Rig<A>> {
+    harness_timed(size, pixels_per_point, 0.05, base_text, app, view, None)
 }
 
 /// [`harness_prepared`] on a display of `pixels_per_point`; `size` is in
@@ -318,7 +332,15 @@ pub fn harness_scaled<A>(
     view: View<A>,
     prepare: fn(&egui::Context, &A),
 ) -> Harness<'static, Rig<A>> {
-    harness_timed(size, pixels_per_point, 0.05, base_text, app, view, prepare)
+    harness_timed(
+        size,
+        pixels_per_point,
+        0.05,
+        base_text,
+        app,
+        view,
+        Some(prepare),
+    )
 }
 
 fn harness_timed<A>(
@@ -328,13 +350,15 @@ fn harness_timed<A>(
     base_text: TextStyle,
     app: A,
     view: View<A>,
-    prepare: fn(&egui::Context, &A),
+    prepare: Option<fn(&egui::Context, &A)>,
 ) -> Harness<'static, Rig<A>> {
     let rig = Rig {
         page: Page::default(),
         companion: Companion::default(),
         bar: Bar::new(base_text.clone()),
-        layout: LayoutState::new().with_base_text(base_text),
+        layout: LayoutState::new()
+            .with_base_text(base_text)
+            .with_style(shadcn()),
         app,
         view,
         prepare,
@@ -364,7 +388,10 @@ fn harness_timed<A>(
                 if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
                     eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
                 }
-                prepare(ui.ctx(), &*app);
+                if let Some(prepare) = prepare {
+                    prepare(ui.ctx(), &*app);
+                    layout.set_style(common::style(ui.ctx()));
+                }
                 if *page == Page::Themed {
                     let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
                     ui.painter()
@@ -811,17 +838,28 @@ pub fn driver<A: 'static>(
     app: A,
     view: View<A>,
 ) -> DriverBuilder<A> {
-    prepared_driver(size, base_text, app, view, |_, _| {}).style(shadcn())
+    rig_driver(size, base_text, app, view, None).style(shadcn())
 }
 
 /// [`driver`] for an app that sets egui's style: `prepare` runs before every
-/// frame is built.
+/// frame is built, and the layout takes the examples' chosen style.
 pub fn prepared_driver<A: 'static>(
     size: Vec2,
     base_text: TextStyle,
     app: A,
     view: View<A>,
     prepare: fn(&egui::Context, &A),
+) -> DriverBuilder<A> {
+    rig_driver(size, base_text, app, view, Some(prepare))
+}
+
+/// A support driver; `prepare` as [`Rig`]'s.
+fn rig_driver<A: 'static>(
+    size: Vec2,
+    base_text: TextStyle,
+    app: A,
+    view: View<A>,
+    prepare: Option<fn(&egui::Context, &A)>,
 ) -> DriverBuilder<A> {
     let mut bar = Bar::new(base_text.clone());
     Driver::whole_frame(app, move |ui, app, layout| {
@@ -830,7 +868,10 @@ pub fn prepared_driver<A: 'static>(
         if eggshell_ui_shadcn::tokens(ui.ctx()).is_none() {
             eggshell_ui_shadcn::Shadcn::apply_both(ui.ctx());
         }
-        prepare(ui.ctx(), &*app);
+        if let Some(prepare) = prepare {
+            prepare(ui.ctx(), &*app);
+            layout.set_style(common::style(ui.ctx()));
+        }
         if page == Page::Themed {
             let background = eggshell_ui_shadcn::Shadcn::of(ui.ctx()).tokens.background;
             ui.painter()

@@ -1,9 +1,9 @@
 //! The preset's tones (#129): each is its status tokens, in both themes.
 
+use eggshell_ui::Tone;
 use eggshell_ui::contract::ToneColors;
-use eggshell_ui::{Style, Tone};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
-use egui::{Context, Theme};
+use egui::Theme;
 
 fn expected(t: &Tokens, tone: Tone) -> ToneColors {
     let (tone, foreground) = match tone {
@@ -15,13 +15,10 @@ fn expected(t: &Tokens, tone: Tone) -> ToneColors {
 }
 
 #[test]
-fn the_preset_installs_each_tone_from_its_tokens() {
+fn the_preset_s_style_takes_each_tone_from_its_tokens() {
     for theme in [Theme::Light, Theme::Dark] {
         let preset = Shadcn::for_theme(theme);
-        let ctx = Context::default();
-        ctx.set_theme(theme);
-        preset.apply(&ctx);
-        let style = Style::of(&ctx);
+        let style = preset.style();
         for tone in Tone::ALL {
             assert_eq!(
                 style.tones.get(tone),
