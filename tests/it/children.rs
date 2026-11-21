@@ -82,7 +82,7 @@ fn driver(faded: bool) -> Driver<App> {
     let tokens = Tokens::for_theme(Theme::Light);
     let mut style = Shadcn::for_theme(Theme::Light).style();
     if faded {
-        style.disabled = Disabled::Faded(Opacity::new(0.4));
+        style.set_disabled(Disabled::Faded(Opacity::new(0.4)));
         style.sheet.as_app().rule_when(
             ButtonPart::Root,
             When::always().aria(Aria::Disabled),

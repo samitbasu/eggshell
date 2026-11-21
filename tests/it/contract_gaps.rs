@@ -659,12 +659,12 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
         let mut d = harness_with(
             theme,
             shadcn,
-            |style| {
-                style.disabled = Disabled::Faded(Opacity::new(0.4));
+            move |style| {
+                style.set_disabled(Disabled::Faded(Opacity::new(opacity)));
                 style.sheet.as_app().rule_when(
                     eggshell_ui::owned::ButtonPart::Root,
                     eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
-                    |t, _| t.opacity(Opacity::new(0.4)),
+                    move |t, _| t.opacity(Opacity::new(opacity)),
                 );
             },
             disabled_row,
@@ -735,7 +735,7 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
 fn the_colors_form_still_draws_the_styles_disabled_colours() {
     let d = harness(Theme::Light, disabled_row);
     let style = &d.app().style;
-    assert_eq!(style.disabled, Disabled::Colors);
+    assert_eq!(style.disabled(), Disabled::Colors);
     let checked = d.rect(Target::suffix("/(\"check\", Disabled)/Box"));
     assert_eq!(
         box_at(&d, checked).fill,

@@ -372,7 +372,7 @@ impl Shadcn {
         let mut style = contract::Style::default();
         style.text = t.text_role();
         style.faces = t.font.as_ref().map(FontSet::declared).unwrap_or_default();
-        style.focus = ring;
+        style.set_focus(ring);
         style.label = States::still(flat(clear, t.foreground), t.background);
         style.toggle = {
             let mut toggle = style.toggle;
@@ -710,8 +710,8 @@ impl Shadcn {
             stepper.transition = transition;
             stepper
         };
-        style.input = {
-            let mut input = style.input;
+        let input = {
+            let mut input = style.input().clone();
             input.look = field_look;
             let field_at =
                 |height: f32, padding: egui::Vec2, text, (icon_size, icon_gap): (f32, f32)| {
@@ -748,6 +748,7 @@ impl Shadcn {
             input.icon = t.muted_foreground;
             input
         };
+        style.set_input(input);
         style.selection = {
             let mut selection = style.selection;
             selection.fill = t.primary.gamma_multiply(0.3);
@@ -837,6 +838,8 @@ impl Shadcn {
         };
         style.tokens = self.core_tokens();
         style.sheet.as_preset();
+        let input = style.input().clone();
+        style.set_input(input);
         crate::sheets::write(&mut style.sheet, t.style, self.theme);
         style
     }
@@ -1151,7 +1154,7 @@ impl Shadcn {
         disclosure.tone = Some(t.muted_foreground);
         disclosure.tone_opacity = Opacity::new(1.0);
         disclosure.nudge = 2.0;
-        disclosure.header.ring = style.focus;
+        disclosure.header.ring = style.focus();
         disclosure.header.focus_border = Some(t.ring);
         disclosure.header.radius = if lyra { 0 } else { t.radius_md() };
         disclosure.header.padding_y = if lyra { 10.0 } else { 16.0 };

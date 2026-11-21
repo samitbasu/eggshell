@@ -59,14 +59,14 @@ fn lyra_values_are_style_lyra_css() {
             (Some(32.0), 0),
             "h-8 rounded-none"
         );
-        assert_eq!(style.focus.width, 1.0);
+        assert_eq!(style.focus().width, 1.0);
         assert_eq!(style.text.size, 12.0);
         assert_eq!(style.checkbox.sizes.get(Size::DEFAULT).radius, 0);
         assert_eq!(style.slider.sizes.get(Size::DEFAULT).radius, 0);
-        assert_eq!(style.input.sizes.get(Size::DEFAULT).height, 32.0);
-        assert_eq!(style.input.sizes.get(Size::DEFAULT).radius, 0);
+        assert_eq!(style.input().sizes.get(Size::DEFAULT).height, 32.0);
+        assert_eq!(style.input().sizes.get(Size::DEFAULT).radius, 0);
         assert_eq!(
-            style.input.sizes.get(Size::DEFAULT).padding,
+            style.input().sizes.get(Size::DEFAULT).padding,
             vec2(10.0, 4.0)
         );
         assert!(
@@ -119,8 +119,8 @@ fn style_light_dark_and_theme_colour_vary_independently() {
             let s = preset.style();
             (
                 box_of(&s, Size::DEFAULT),
-                s.input.sizes.get(Size::DEFAULT).height,
-                s.focus.width,
+                s.input().sizes.get(Size::DEFAULT).height,
+                s.focus().width,
             )
         };
         let reference = sizes(Theme::Light, ThemeColor::Base);
@@ -156,8 +156,8 @@ fn the_ring_is_the_neutral_ring_under_every_theme_colour() {
                 preset.tokens.ring, neutral.tokens.ring,
                 "{theme:?} {color:?}: the registry's coloured themes leave `ring` to the base colour"
             );
-            let ring = preset.style().focus.color;
-            assert_eq!(ring, neutral.style().focus.color, "{theme:?} {color:?}");
+            let ring = preset.style().focus().color;
+            assert_eq!(ring, neutral.style().focus().color, "{theme:?} {color:?}");
         }
     }
 }
