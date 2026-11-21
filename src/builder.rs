@@ -261,9 +261,14 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.style
     }
 
-    /// TODO(prose): the classes the style's sheet gives `part` for a node with `keys`: merge the call site's over them, and the rules of the containers above come between. A variant or size the sheet leaves out is reported as [`Problem::MissingStyleEntry`](crate::Problem::MissingStyleEntry).
+    /// TODO(prose): the classes of `part` for a node with `keys`: the style's sheet's, with `call_site`'s over them and the rules of the containers above between. A variant or size the sheet leaves out is reported as [`Problem::MissingStyleEntry`](crate::Problem::MissingStyleEntry).
     #[track_caller]
-    pub fn part<P: crate::sheet::Part>(&mut self, part: P, keys: &[crate::sheet::Key]) -> Tw {
+    pub fn part<P: crate::sheet::Part>(
+        &mut self,
+        part: P,
+        keys: &[crate::sheet::Key],
+        call_site: Tw,
+    ) -> Tw {
         let sheet = &self.style.sheet;
         let (classes, fresh) = self.st.sheets.resolve(sheet, part, keys);
         if fresh && let Some(missing) = sheet.unnamed(part, keys) {
@@ -278,7 +283,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
                 },
             );
         }
-        Tw::over_sheet(classes)
+        Tw::over_sheet(classes).merge(call_site)
     }
 
     /// TODO(prose): builds `body` in place with a style of its own: the style

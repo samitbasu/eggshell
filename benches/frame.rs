@@ -295,7 +295,7 @@ impl Keeping {
             for at in 0..buttons {
                 let classes = match self {
                     Self::Own => button_classes(),
-                    Self::Sheet => b.part(Button, &[]).merge(tw()),
+                    Self::Sheet => b.part(Button, &[], tw()),
                 };
                 b.div(classes, |b| b.text(tw(), WORDS[at % WORDS.len()]));
             }

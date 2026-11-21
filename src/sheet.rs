@@ -225,7 +225,7 @@ fn next_version() -> u64 {
 pub struct Sheet {
     layer: Layer,
     rules: Arc<HashMap<PartKey, Vec<Stored>>>,
-    /// Changes with every edit, so that the installed style's every-frame comparison stays cheap.
+    /// Changes with every edit: what a build's memo is keyed by.
     version: u64,
 }
 
@@ -235,9 +235,13 @@ impl Default for Sheet {
     }
 }
 
+/// Two sheets are equal when they share their rules, or have none: a sheet is
+/// changed by an edit, never compared by what its rules would give.
 impl PartialEq for Sheet {
     fn eq(&self, other: &Self) -> bool {
-        self.version == other.version && self.layer == other.layer
+        self.layer == other.layer
+            && (Arc::ptr_eq(&self.rules, &other.rules)
+                || (self.rules.is_empty() && other.rules.is_empty()))
     }
 }
 
@@ -547,6 +551,14 @@ mod tests {
             tw().px(2.0).gap(1.0).style(),
             "the clone keeps its rules"
         );
+    }
+
+    #[test]
+    fn sheets_are_equal_when_they_share_rules_or_have_none() {
+        assert_eq!(Sheet::defaults(), Sheet::defaults());
+        let (one, other) = (sheet(), sheet());
+        assert_ne!(one, other, "built apart, whatever they would give");
+        assert_eq!(one, one.clone());
     }
 
     #[test]

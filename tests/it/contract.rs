@@ -61,12 +61,20 @@ fn a_replaced_default_entry_is_what_unknown_keys_get() {
     assert!(keyed.get_mut(Size("sm")).is_none());
 }
 
+/// `a` is `b` but for its sheet, which two builds never share: what the sheets
+/// give is compared by what is drawn with them.
+fn assert_same_but_sheet(a: &Style, b: &Style) {
+    let mut b = b.clone();
+    b.sheet = a.sheet.clone();
+    assert_eq!(*a, b);
+}
+
 #[test]
 fn the_default_style_is_derived_from_egui_and_cached() {
     let ctx = Context::default();
     let style = Style::of(&ctx);
-    assert_eq!(*style, Style::from_egui(&ctx.global_style()));
-    assert_eq!(*style, Style::default());
+    assert_same_but_sheet(&style, &Style::from_egui(&ctx.global_style()));
+    assert_same_but_sheet(&style, &Style::default());
     assert!(Arc::ptr_eq(&style, &Style::of(&ctx)), "no rebuild per call");
 
     let widgets = &ctx.global_style().visuals.widgets;
@@ -124,7 +132,7 @@ fn applying_the_preset_installs_its_style() {
     let ctx = Context::default();
     ctx.set_theme(Theme::Dark);
     Shadcn::dark().apply(&ctx);
-    assert_eq!(*Style::of(&ctx), Shadcn::dark().style());
+    assert_same_but_sheet(&Style::of(&ctx), &Shadcn::dark().style());
 }
 
 #[test]
