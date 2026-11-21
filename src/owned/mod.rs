@@ -177,7 +177,7 @@ impl Enablement {
     /// `classes` at the opacity the style gives a disabled control, if it
     /// fades them.
     fn fade(self, classes: Tw, style: &Style) -> Tw {
-        match (self, style.disabled) {
+        match (self, style.disabled()) {
             (Self::Disabled, Disabled::Faded(opacity)) => classes.opacity(opacity),
             _ => classes,
         }
@@ -203,7 +203,7 @@ impl Enablement {
     /// The colours of `states` at rest, or the disabled ones if the style
     /// has them (a style that fades has the rest colours, faded by the root).
     fn colors(self, states: States, style: &Style) -> Colors {
-        match (self, style.disabled) {
+        match (self, style.disabled()) {
             (Self::Disabled, Disabled::Colors) => states.disabled,
             _ => states.rest,
         }
@@ -497,7 +497,7 @@ impl Paint {
         let states = self.states;
         match enablement {
             Enablement::Disabled => {
-                let fade = match style.disabled {
+                let fade = match style.disabled() {
                     Disabled::Colors => 0.5,
                     Disabled::Faded(_) => 1.0,
                 };
@@ -507,7 +507,7 @@ impl Paint {
                 )
             }
             Enablement::Enabled => {
-                let ring = self.focus.unwrap_or(style.focus);
+                let ring = self.focus.unwrap_or(style.focus());
                 let (rest, focused) = (states.rest, states.focused);
                 let halo = |p: crate::tw::Paint| match self.hover_ring {
                     Some(ring) => p.ring(ring.width, ring.color),
@@ -573,7 +573,7 @@ impl Paint {
 
 /// The ring a field shows while it has focus: the look's own, else the style's.
 fn field_ring(look: &Look, style: &Style) -> crate::contract::Focus {
-    look.paint.focus.unwrap_or(style.focus)
+    look.paint.focus.unwrap_or(style.focus())
 }
 
 /// A box that holds a text field, drawn in `look`: it does not sense, and shows
@@ -631,7 +631,7 @@ pub(crate) fn text_sized<A>(b: &Builder<'_, '_, A>, size: Option<crate::contract
 /// egui's, set by [`Style::map_input`].
 pub(crate) fn text_field_classes<A: 'static>(b: &mut Builder<'_, '_, A>, size: Size) -> Tw {
     let style = b.style().clone();
-    let keys = input_keys(style.input.sizes.key_for(size), false);
+    let keys = input_keys(style.input().sizes.key_for(size), false);
     let root = b.resolved_part(InputPart::Root, &keys);
     let leaf = tw().rounded_px(f32::from(root.paint.radius.nw));
     match root.variant_ring(crate::tw::State::FocusWithin) {

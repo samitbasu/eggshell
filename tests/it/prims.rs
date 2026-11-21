@@ -560,7 +560,7 @@ fn a_bare_field_draws_its_widget_in_its_leaf_not_at_the_input_height() {
     let input_height = d
         .shell()
         .style()
-        .input
+        .input()
         .sizes
         .get(eggshell_ui::contract::Size::DEFAULT)
         .height;

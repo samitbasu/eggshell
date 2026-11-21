@@ -1539,9 +1539,9 @@ pub struct Style {
     /// The registered family that draws each weight of a family.
     pub faces: Faces,
     /// The default focus indicator.
-    pub focus: Focus,
+    focus: Focus,
     /// How disabled controls are drawn.
-    pub disabled: Disabled,
+    disabled: Disabled,
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
     pub label: States,
@@ -1574,7 +1574,7 @@ pub struct Style {
     /// Steppers.
     pub stepper: StepperStyle,
     /// Text fields.
-    pub input: InputStyle,
+    input: InputStyle,
     /// Selected text.
     pub selection: Selection,
     /// Scroll containers.
@@ -2248,9 +2248,36 @@ impl Style {
         egui.spacing.button_padding = metrics.padding;
     }
 
+    /// The input section: text fields and the boxes that hold them.
+    pub fn input(&self) -> &InputStyle {
+        &self.input
+    }
+
     /// TODO(prose): sets the input section, and writes the rules that draw it at the sheet's current layer.
     pub fn set_input(&mut self, input: InputStyle) {
         self.input = input;
+        self.write_input_rules();
+    }
+
+    /// The default focus indicator.
+    pub fn focus(&self) -> Focus {
+        self.focus
+    }
+
+    /// TODO(prose): sets the default focus indicator, and writes the input rules that use it at the sheet's current layer.
+    pub fn set_focus(&mut self, focus: Focus) {
+        self.focus = focus;
+        self.write_input_rules();
+    }
+
+    /// How disabled controls are drawn.
+    pub fn disabled(&self) -> Disabled {
+        self.disabled
+    }
+
+    /// TODO(prose): sets how disabled controls are drawn, and writes the input rules that use it at the sheet's current layer.
+    pub fn set_disabled(&mut self, disabled: Disabled) {
+        self.disabled = disabled;
         self.write_input_rules();
     }
 

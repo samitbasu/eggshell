@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use eggshell_ui::contract::{Keyed, Size, Variant};
+use eggshell_ui::contract::{Focus, Keyed, Size, Variant};
 use eggshell_ui::testing::{Headless, assert_no_reports, assert_reported};
 use eggshell_ui::{Builder, LayoutState, Problem, Style, TextSpec, TextStyle, Weight};
 use eggshell_ui_shadcn::Shadcn;
@@ -107,24 +107,36 @@ fn the_default_style_is_derived_from_egui_and_cached() {
 fn an_installed_style_is_shared_and_can_differ_per_theme() {
     let ctx = Context::default();
     let mut light = Style::default();
-    light.focus.width = 7.0;
+    let focus = light.focus();
+    light.set_focus(Focus {
+        width: 7.0,
+        ..focus
+    });
     let mut dark = Style::default();
-    dark.focus.width = 9.0;
+    let focus = dark.focus();
+    dark.set_focus(Focus {
+        width: 9.0,
+        ..focus
+    });
     light.install_for(&ctx, Theme::Light);
     dark.install_for(&ctx, Theme::Dark);
     ctx.set_theme(Theme::Light);
     let seen = Style::of(&ctx);
-    assert_eq!(seen.focus.width, 7.0);
+    assert_eq!(seen.focus().width, 7.0);
     assert!(Arc::ptr_eq(&seen, &Style::of(&ctx)));
     ctx.set_theme(Theme::Dark);
-    assert_eq!(Style::of(&ctx).focus.width, 9.0);
+    assert_eq!(Style::of(&ctx).focus().width, 9.0);
 
     let mut both = Style::default();
-    both.focus.width = 4.0;
+    let focus = both.focus();
+    both.set_focus(Focus {
+        width: 4.0,
+        ..focus
+    });
     both.install(&ctx);
-    assert_eq!(Style::of(&ctx).focus.width, 4.0);
+    assert_eq!(Style::of(&ctx).focus().width, 4.0);
     ctx.set_theme(Theme::Light);
-    assert_eq!(Style::of(&ctx).focus.width, 4.0);
+    assert_eq!(Style::of(&ctx).focus().width, 4.0);
 }
 
 #[test]
@@ -267,7 +279,7 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     use eggshell_ui::contract::{InputStyle, Look};
     let mut style = Style::default();
     let c = |n: u8| Color32::from_rgb(n, n, n);
-    let mut input = style.input.clone();
+    let mut input = style.input().clone();
     input.look = Look::new(eggshell_ui::contract::States {
         rest: eggshell_ui::contract::Colors {
             fill: c(10),
@@ -312,7 +324,7 @@ fn the_input_section_is_mapped_onto_the_nodes_egui_style() {
     style.set_input(input);
     style.selection.fill = c(77);
     style.selection.text = Some(c(88));
-    let _: &InputStyle = &style.input;
+    let _: &InputStyle = style.input();
 
     let mut egui_style = egui::Style::default();
     style.map_input(&mut egui_style, eggshell_ui::contract::Size::DEFAULT);

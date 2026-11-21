@@ -451,8 +451,8 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         // A disabled field takes the input look's disabled colours through the
         // field box, as the stepper's does; egui's own frame has none.
         if field.is_single_line() && (icons || disabled_frame) {
-            let metrics = *style.input.sizes.get(size);
-            let (side, tint) = (metrics.icon_size, style.input.icon);
+            let metrics = *style.input().sizes.get(size);
+            let (side, tint) = (metrics.icon_size, style.input().icon);
             let put = |s: &mut Scope<'_, '_, A>, part, icon| {
                 s.icon(part, tw().size_px(side).shrink_0().text(tint), icon);
             };
@@ -491,7 +491,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 });
             return;
         }
-        let classes = text_sized(&b, style.input.sizes.lookup(b.ctx(), size).text).merge(classes);
+        let classes = text_sized(&b, style.input().sizes.lookup(b.ctx(), size).text).merge(classes);
         let classes = if field.is_bare() {
             classes
         } else {
