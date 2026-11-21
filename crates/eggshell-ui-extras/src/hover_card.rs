@@ -80,11 +80,11 @@ impl HoverCardStyle {
         Self {
             open_delay: Duration::from_millis(700),
             close_delay: Duration::from_millis(300),
-            look: style.menu.popup,
-            radius: style.menu.radius,
+            look: style.menu().popup,
+            radius: style.menu().radius,
             padding: 16.0,
             width: 256.0,
-            offset: style.menu.offset,
+            offset: style.menu().offset,
             transition: style.motion.popover.enter,
         }
     }

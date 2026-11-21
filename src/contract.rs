@@ -436,28 +436,26 @@ pub enum Disabled {
     Faded(Opacity),
 }
 
-/// Buttons: open sets of variants and sizes, and the toggle form.
+/// TODO(prose): toggle buttons: their sizes and their looks off and on. A
+/// plain button's look is the [`sheet`](Style::sheet)'s
+/// ([`ButtonPart`](crate::owned::ButtonPart)); a toggle's moves there with
+/// its own shadcn source, `toggle.tsx`.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct ButtonStyle {
-    /// The variants the style defines. The default entry is the variant of
-    /// [`Builder::button`](crate::Builder::button).
-    pub variants: Keyed<Variant, Look>,
-    /// Metrics of a button per size.
-    pub sizes: Keyed<Size, Metrics>,
+pub struct ToggleStyle {
     /// Metrics of a toggle per size.
-    pub toggle_sizes: Keyed<Size, Metrics>,
+    pub sizes: Keyed<Size, Metrics>,
     /// Border width of a toggle, off or on.
-    pub toggle_border_width: f32,
+    pub border_width: f32,
     /// The looks of a toggle that is off, by variant. Variants are chosen
     /// with [`ButtonChain::variant`](crate::owned::ButtonChain::variant) for toggles as
     /// for buttons.
-    pub toggle_off: Keyed<Variant, Paint>,
+    pub off: Keyed<Variant, Paint>,
     /// The looks of a toggle that is on.
-    pub toggle_on: Keyed<Variant, Paint>,
-    /// The text role of buttons, or `None` for [`Style::text`].
+    pub on: Keyed<Variant, Paint>,
+    /// The text role of toggles, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
-    /// How far a pressed button moves down, in points; zero for none.
+    /// How far a pressed toggle moves down, in points; zero for none.
     pub press_shift: f32,
     /// How long state changes animate.
     pub transition: Duration,
@@ -1381,12 +1379,12 @@ impl<T> Themed<T> {
 ///
 /// impl Extension for Gap {
 ///     fn derive(style: &Style) -> Self {
-///         Gap(style.table.cell_padding)
+///         Gap(style.table().cell_padding)
 ///     }
 /// }
 ///
 /// let mut style = Style::default();
-/// assert_eq!(style.extension::<Gap>().0, style.table.cell_padding);
+/// assert_eq!(style.extension::<Gap>().0, style.table().cell_padding);
 /// style.set_extension(Gap(12.0));
 /// assert_eq!(style.extension::<Gap>().0, 12.0);
 /// ```
@@ -1538,8 +1536,8 @@ pub struct Style {
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
     label: States,
-    /// Buttons and toggles.
-    pub button: ButtonStyle,
+    /// TODO(prose): toggle buttons.
+    pub toggle: ToggleStyle,
     /// Checkboxes.
     checkbox: CheckboxStyle,
     /// Radio buttons.
@@ -1555,9 +1553,9 @@ pub struct Style {
     /// Select triggers.
     pub select: SelectStyle,
     /// Menus, and the lists selects open.
-    pub menu: MenuStyle,
+    menu: MenuStyle,
     /// Tooltips.
-    pub tooltip: TooltipStyle,
+    tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
     /// TODO(prose)
@@ -1575,7 +1573,7 @@ pub struct Style {
     /// TODO(prose): splitters.
     pub splitter: SplitterStyle,
     /// Tables.
-    pub table: TableStyle,
+    table: TableStyle,
     /// What a modal overlay paints over the screen behind its box. Usually
     /// translucent.
     pub scrim: Color32,
@@ -1744,19 +1742,25 @@ impl Style {
         };
         let track = vec2(2.0 * s.icon_width, s.icon_width);
         let tokens = Tokens::from_egui(egui);
+        let mut sheet = crate::sheet::Sheet::defaults();
+        crate::owned::button_defaults(
+            &mut sheet,
+            crate::owned::ButtonDefaults {
+                look: Look::new(button_states).bordered(border_width),
+                sizes: Keyed::new(Size::DEFAULT, metrics),
+                text: text.clone(),
+                transition,
+                press_shift: 0.0,
+            },
+        );
         let mut style = Self {
             text,
             faces: Faces::default(),
             label,
-            button: ButtonStyle {
-                variants: Keyed::new(
-                    Variant::DEFAULT,
-                    Look::new(button_states).bordered(border_width),
-                ),
-                sizes: Keyed::new(Size::DEFAULT, metrics),
-                toggle_sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
-                toggle_border_width: 0.0,
-                toggle_off: Keyed::new(
+            toggle: ToggleStyle {
+                sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
+                border_width: 0.0,
+                off: Keyed::new(
                     Variant::DEFAULT,
                     Paint::new(states(
                         Colors {
@@ -1768,7 +1772,7 @@ impl Style {
                         active,
                     )),
                 ),
-                toggle_on: Keyed::new(
+                on: Keyed::new(
                     Variant::DEFAULT,
                     Paint::new(states(selected, selected, selected)),
                 ),
@@ -2139,13 +2143,21 @@ impl Style {
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
             tokens,
-            sheet: crate::sheet::Sheet::defaults(),
+            sheet,
             extensions: Extensions::default(),
         };
-        style.write_input_rules();
-        style.write_segmented_rules();
-        style.write_choice_rules();
+        style.rewrite_rules();
         style
+    }
+
+    /// TODO(prose): writes every family's rules from its section, at the sheet's current layer. A preset calls this after `as_preset()`, then writes its own rules over them.
+    pub fn rewrite_rules(&mut self) {
+        self.write_input_rules();
+        self.write_segmented_rules();
+        self.write_menu_rules();
+        self.write_tooltip_rules();
+        self.write_table_rules();
+        self.write_choice_rules();
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
@@ -2220,6 +2232,53 @@ impl Style {
     pub fn set_input(&mut self, input: InputStyle) {
         self.input = input;
         self.write_input_rules();
+    }
+
+    /// Menus, and the lists selects open.
+    pub fn menu(&self) -> &MenuStyle {
+        &self.menu
+    }
+
+    /// TODO(prose): sets the menu section, and writes the rules that draw it, a menu's box, items and the rest, at the sheet's current layer.
+    pub fn set_menu(&mut self, menu: MenuStyle) {
+        self.menu = menu;
+        self.write_menu_rules();
+    }
+
+    /// Tooltips.
+    pub fn tooltip(&self) -> &TooltipStyle {
+        &self.tooltip
+    }
+
+    /// TODO(prose): sets the tooltip section, and writes the rule that draws its box at the sheet's current layer.
+    pub fn set_tooltip(&mut self, tooltip: TooltipStyle) {
+        self.tooltip = tooltip;
+        self.write_tooltip_rules();
+    }
+
+    fn write_tooltip_rules(&mut self) {
+        let text = self.role(&self.tooltip.text).clone();
+        crate::owned::write_tooltip_rules(&mut self.sheet, &self.tooltip, &text);
+    }
+
+    /// Tables.
+    pub fn table(&self) -> &TableStyle {
+        &self.table
+    }
+
+    /// TODO(prose): sets the table section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_table(&mut self, table: TableStyle) {
+        self.table = table;
+        self.write_table_rules();
+    }
+
+    fn write_table_rules(&mut self) {
+        crate::owned::write_table_rules(&mut self.sheet, &self.table);
+    }
+
+    fn write_menu_rules(&mut self) {
+        let text = self.role(&self.menu.text).clone();
+        crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
     }
 
     fn write_input_rules(&mut self) {

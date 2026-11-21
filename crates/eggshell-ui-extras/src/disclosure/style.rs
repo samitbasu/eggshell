@@ -132,12 +132,12 @@ impl DisclosureStyle {
                 },
                 hover: Hover::Underline,
                 disabled: Opacity::new(0.5),
-                transition: style.button.transition,
+                transition: style.toggle.transition,
             },
             content_padding_bottom: 16.0,
             button: glyph,
             button_hover: None,
-            separator: Some(style.table.rule),
+            separator: Some(style.table().rule),
         }
     }
 }

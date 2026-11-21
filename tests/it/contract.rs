@@ -67,34 +67,30 @@ fn a_layout_given_no_style_derives_one_from_egui_and_keeps_it() {
     let shell = LayoutState::new().shell(&ctx);
     let style = shell.style();
     let derived = Style::from_egui(&ctx.global_style());
-    assert_eq!(style.button, derived.button);
+    let button = |style: &Style| {
+        *crate::support::button::classes(style, Variant::DEFAULT, Size::DEFAULT).paint_classes()
+    };
+    assert_eq!(button(&style), button(&derived));
+    assert_eq!(style.toggle, derived.toggle);
     assert_eq!(style.input(), derived.input());
     assert_eq!(style.text, derived.text);
-    assert_eq!(style.button, Style::default().button);
+    assert_eq!(button(&style), button(&Style::default()));
     assert!(Arc::ptr_eq(&style, &shell.style()), "no rebuild per call");
 
     let widgets = &ctx.global_style().visuals.widgets;
-    let button = style.button.variants.get(Variant::DEFAULT);
-    assert_eq!(button.paint.states.rest.fill, widgets.inactive.weak_bg_fill);
-    assert_eq!(button.paint.states.hover.fill, widgets.hovered.weak_bg_fill);
-    assert_eq!(
-        button.paint.states.pressed.fill,
-        widgets.active.weak_bg_fill
-    );
+    let fill = |style: &Style| {
+        crate::support::button::classes(style, Variant::DEFAULT, Size::DEFAULT)
+            .paint_classes()
+            .background
+    };
+    assert_eq!(fill(&style), Some(widgets.inactive.weak_bg_fill));
 
     ctx.all_styles_mut(|egui| egui.visuals.widgets.inactive.weak_bg_fill = Color32::RED);
     let changed = shell.style();
     assert!(!Arc::ptr_eq(&style, &changed));
     assert_eq!(
-        changed
-            .button
-            .variants
-            .get(Variant::DEFAULT)
-            .paint
-            .states
-            .rest
-            .fill,
-        Color32::RED,
+        fill(&changed),
+        Some(Color32::RED),
         "the derived style follows egui's"
     );
 }
@@ -122,7 +118,10 @@ fn core_draws_a_button_with_no_preset() {
                 .draw(&mut (), ui);
         });
     harness.run_steps(3);
-    let button = expected.button.variants.get(Variant::DEFAULT);
+    let rest = crate::support::button::classes(&expected, Variant::DEFAULT, Size::DEFAULT)
+        .paint_classes()
+        .background
+        .expect("egui's button has a fill");
     let fills: Vec<_> = harness
         .output()
         .shapes
@@ -132,7 +131,7 @@ fn core_draws_a_button_with_no_preset() {
             _ => None,
         })
         .collect();
-    assert!(fills.contains(&button.paint.states.rest.fill), "{fills:?}");
+    assert!(fills.contains(&rest), "{fills:?}");
 }
 
 fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors)> {
@@ -140,23 +139,11 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     let mut look = |name: &str, paint: &eggshell_ui::contract::Paint| {
         all.push((name.to_string(), paint.states.disabled));
     };
-    for key in style.button.variants.keys() {
-        look(
-            &format!("button {key:?}"),
-            &style.button.variants.get(key).paint,
-        );
+    for key in style.toggle.off.keys() {
+        look(&format!("toggle off {key:?}"), style.toggle.off.get(key));
     }
-    for key in style.button.toggle_off.keys() {
-        look(
-            &format!("toggle off {key:?}"),
-            style.button.toggle_off.get(key),
-        );
-    }
-    for key in style.button.toggle_on.keys() {
-        look(
-            &format!("toggle on {key:?}"),
-            style.button.toggle_on.get(key),
-        );
+    for key in style.toggle.on.keys() {
+        look(&format!("toggle on {key:?}"), style.toggle.on.get(key));
     }
     look("checkbox off", &style.checkbox().off);
     look("checkbox on", &style.checkbox().on);
@@ -168,8 +155,8 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     look("segmented unselected", &style.segmented().unselected);
     look("slider thumb", &style.slider.thumb.paint);
     look("select trigger", &style.select.trigger.paint);
-    look("menu popup", &style.menu.popup.paint);
-    look("menu item", &style.menu.item.paint);
+    look("menu popup", &style.menu().popup.paint);
+    look("menu item", &style.menu().item.paint);
     look("stepper group", &style.stepper.group.paint);
     look("stepper button", &style.stepper.button.paint);
     all.push(("slider track".to_string(), style.slider.track.disabled));
@@ -190,7 +177,10 @@ fn disabled_colours_are_opaque_or_transparent_never_partly_faded() {
     }
     for (which, style) in styles {
         let all = disabled_colours(&style);
-        assert!(all.len() >= 20, "precondition: the walk reaches every look");
+        assert!(
+            all.len() >= 18,
+            "precondition: the walk reaches every look (a button's is the sheet's)"
+        );
         for (name, colors) in all {
             for (part, color) in [
                 ("fill", colors.fill),

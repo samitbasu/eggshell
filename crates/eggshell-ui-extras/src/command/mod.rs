@@ -673,7 +673,7 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
         options.empty = Some(Box::new(|_| {}));
         b.overlay((key, Part::Suggestions))
             .anchor(Anchor::Node(field_id))
-            .placement(Placement::below().gap(style.menu.offset))
+            .placement(Placement::below().gap(style.menu().offset))
             .match_width(MatchWidth::Anchor)
             .focus(Focus::Stay)
             .on_dismiss(move |_| Suggesting::Dismissed.store(&dismiss, field_id))

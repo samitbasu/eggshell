@@ -332,7 +332,7 @@ const ARMED: Variant = Variant("armed");
 
 /// `style` with the armed toggle variant, in the colours of `tokens`.
 fn add_armed_variant(style: &mut Style, tokens: &eggshell_ui_shadcn::Tokens) {
-    let off = *style.button.toggle_off.get(Variant::DEFAULT);
+    let off = *style.toggle.off.get(Variant::DEFAULT);
     let on = Paint::new(States::still(
         Colors {
             fill: tokens.primary,
@@ -341,8 +341,8 @@ fn add_armed_variant(style: &mut Style, tokens: &eggshell_ui_shadcn::Tokens) {
         },
         tokens.background,
     ));
-    style.button.toggle_off.insert(ARMED, off);
-    style.button.toggle_on.insert(ARMED, on);
+    style.toggle.off.insert(ARMED, off);
+    style.toggle.on.insert(ARMED, on);
 }
 
 /// The base text of the gallery's cells.
@@ -858,13 +858,14 @@ fn buttons_section(s: &mut S<'_, '_>, state: &State) {
         let t = common::tokens(b.ctx());
         b.styled(
             |style| {
-                let tooltip = &mut style.tooltip;
+                let mut tooltip = style.tooltip().clone();
                 tooltip.padding = vec2(24.0, 12.0);
                 tooltip.popup.paint.states.rest = Colors {
                     fill: t.primary,
                     border: t.primary,
                     text: t.primary_foreground,
                 };
+                style.set_tooltip(tooltip);
             },
             |b| tooltip_row(b, "Scoped tooltip"),
         );

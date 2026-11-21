@@ -10,7 +10,7 @@ use eggshell_ui::owned::FieldPart;
 use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Tracking, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
-use crate::styles::{DestructiveLook, HoverSurface, SecondaryHover, ShadcnStyle};
+use crate::styles::{HoverSurface, ShadcnStyle};
 use crate::{ContrastPair, FontSet, Palette, Tokens, size, variant};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
@@ -221,82 +221,10 @@ impl Shadcn {
             HoverSurface::Accent => (t.accent, t.accent_foreground, t.accent_50()),
             HoverSurface::Muted => (t.muted, t.foreground, t.muted_50()),
         };
-        let outline_rest = Colors {
-            fill: self.input_fill(),
-            border: t.input,
-            text: t.foreground,
-        };
-        let outline_hover = Colors {
-            fill: if dark { t.input_50() } else { hover_fill },
-            text: if dark { t.foreground } else { hover_text },
-            ..outline_rest
-        };
-        let destructive_ring = Focus {
-            color: t.destructive.gamma_multiply(if dark { 0.4 } else { 0.2 }),
-            ..ring
-        };
-        let destructive = match t.destructive_look {
-            DestructiveLook::Solid => filled(
-                flat(
-                    if dark {
-                        t.destructive_60()
-                    } else {
-                        t.destructive
-                    },
-                    t.destructive_foreground,
-                ),
-                flat(t.destructive_90(), t.destructive_foreground),
-            ),
-            DestructiveLook::Tinted => {
-                let tint = |light: f32, deep: f32| {
-                    t.destructive
-                        .gamma_multiply(if dark { deep } else { light })
-                };
-                filled(
-                    flat(tint(0.1, 0.2), t.destructive),
-                    flat(tint(0.2, 0.3), t.destructive),
-                )
-            }
-        };
-        let destructive = BoxLook {
-            paint: Paint {
-                focus: Some(destructive_ring),
-                ..destructive.paint
-            },
-            ..destructive
-        };
-        let outline_button = shadowed(
-            BoxLook::new(states(outline_rest, outline_hover)).bordered(1.0),
-            t.shadow_xs,
-        );
         let ghost_button = filled(
             flat(clear, t.foreground),
             flat(if dark { hover_fill_dark } else { hover_fill }, hover_text),
         );
-        let secondary_hover = match t.secondary_hover {
-            SecondaryHover::Fade(opacity) => t.secondary.gamma_multiply(opacity.into()),
-            SecondaryHover::Mix(share) => t.secondary.lerp_to_gamma(t.foreground, share.into()),
-        };
-        let variants = Keyed::new(
-            variant::SECONDARY,
-            filled(
-                flat(t.secondary, t.secondary_foreground),
-                flat(secondary_hover, t.secondary_foreground),
-            ),
-        )
-        .with(
-            variant::PRIMARY,
-            filled(
-                flat(t.primary, t.primary_foreground),
-                flat(
-                    t.primary.gamma_multiply(t.primary_hover.into()),
-                    t.primary_foreground,
-                ),
-            ),
-        )
-        .with(variant::DESTRUCTIVE, destructive)
-        .with(variant::OUTLINE, outline_button)
-        .with(variant::GHOST, ghost_button);
         let control = Metrics {
             height: t.control_height,
             min_width: 0.0,
@@ -334,7 +262,7 @@ impl Shadcn {
             text: xs_text,
             ..m
         };
-        let toggle = Metrics {
+        let toggle_metrics = Metrics {
             min_width: t.control_height,
             padding_x: t.toggle_padding_x,
             ..control
@@ -446,24 +374,22 @@ impl Shadcn {
         style.text = t.text_role();
         style.faces = t.font.as_ref().map(FontSet::declared).unwrap_or_default();
         style.set_label(States::still(flat(clear, t.foreground), t.background));
-        style.button = {
-            let mut button = style.button;
-            button.text = Some(t.text_role_at(t.control_weight));
-            button.variants = variants;
-            button.sizes = sized(control);
-            button.toggle_sizes = sized(toggle);
-            button.toggle_border_width = 0.0;
-            button.toggle_off = Keyed::new(
+        style.toggle = {
+            let mut toggle = style.toggle;
+            toggle.text = Some(t.text_role_at(t.control_weight));
+            toggle.sizes = sized(toggle_metrics);
+            toggle.border_width = 0.0;
+            toggle.off = Keyed::new(
                 Variant::DEFAULT,
                 Paint::new(states(
                     flat(clear, t.foreground),
                     flat(t.muted, t.muted_foreground),
                 )),
             );
-            button.toggle_on = Keyed::new(Variant::DEFAULT, Paint::new(states(accented, accented)));
-            button.press_shift = 1.0;
-            button.transition = transition;
-            button
+            toggle.on = Keyed::new(Variant::DEFAULT, Paint::new(states(accented, accented)));
+            toggle.press_shift = 1.0;
+            toggle.transition = transition;
+            toggle
         };
         let checkbox = {
             let mut checkbox = style.checkbox().clone();
@@ -647,8 +573,8 @@ impl Shadcn {
         };
         // shadcn's DropdownMenu: `rounded-md border p-1 shadow-md min-w-[8rem]`,
         // items `rounded-sm px-2 py-1.5 gap-2`, `focus:bg-accent`.
-        style.menu = {
-            let mut menu = style.menu;
+        style.set_menu({
+            let mut menu = style.menu().clone();
             menu.popup = BoxLook::new(States::still(popup_colors, t.popover))
                 .bordered(1.0)
                 .shadowed(t.shadow_md);
@@ -685,11 +611,11 @@ impl Shadcn {
             menu.indicator = 16.0;
             menu.dot = 8.0;
             menu
-        };
+        });
         // shadcn's TooltipContent: `bg-foreground text-background rounded-md
         // px-3 py-1.5 text-xs` with a 10 pt arrow.
-        style.tooltip = {
-            let mut tooltip = style.tooltip;
+        style.set_tooltip({
+            let mut tooltip = style.tooltip().clone();
             tooltip.popup = BoxLook::new(States::still(
                 flat(t.foreground, t.background),
                 t.foreground,
@@ -711,7 +637,7 @@ impl Shadcn {
             tooltip.delay = Duration::from_millis(700);
             tooltip.grace = Duration::from_millis(300);
             tooltip
-        };
+        });
         // shadcn's Kbd: `bg-muted text-muted-foreground h-5 min-w-5 rounded-sm
         // px-1 text-xs font-medium`, and inside a tooltip
         // `bg-background/20 text-background` (`/10` in the dark theme).
@@ -862,26 +788,28 @@ impl Shadcn {
         // `border-b` rows (none under the last), `hover:bg-muted/50`,
         // `data-[state=selected]:bg-muted`, a `bg-muted/50 font-medium` footer
         // and `transition-colors`.
-        style.table.header_fill = clear;
-        style.table.header_weight = Weight::Medium;
-        style.table.header_height = 40.0;
-        style.table.cell_padding = 8.0;
-        style.table.rule = t.border;
-        style.table.rule_width = 1.0;
-        style.table.stripe = t.muted.gamma_multiply(0.3);
-        style.table.group_fill = t.muted.gamma_multiply(0.5);
-        style.table.group_text = Some(t.muted_foreground);
-        style.table.group_text_size = Some(TextSize {
+        let mut table = style.table().clone();
+        table.header_fill = clear;
+        table.header_weight = Weight::Medium;
+        table.header_height = 40.0;
+        table.cell_padding = 8.0;
+        table.rule = t.border;
+        table.rule_width = 1.0;
+        table.stripe = t.muted.gamma_multiply(0.3);
+        table.group_fill = t.muted.gamma_multiply(0.5);
+        table.group_text = Some(t.muted_foreground);
+        table.group_text_size = Some(TextSize {
             size: 12.0,
             line_height: 16.0,
         });
-        style.table.group_weight = Weight::Medium;
-        style.table.hover = t.muted.gamma_multiply(0.5);
-        style.table.selected = t.muted;
-        style.table.footer_fill = t.muted.gamma_multiply(0.5);
-        style.table.footer_weight = Weight::Medium;
-        style.table.transition = Duration::from_millis(150);
-        style.table.group_end = GroupEnd::Gap(12.0);
+        table.group_weight = Weight::Medium;
+        table.hover = t.muted.gamma_multiply(0.5);
+        table.selected = t.muted;
+        table.footer_fill = t.muted.gamma_multiply(0.5);
+        table.footer_weight = Weight::Medium;
+        table.transition = Duration::from_millis(150);
+        table.group_end = GroupEnd::Gap(12.0);
+        style.set_table(table);
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);
@@ -917,11 +845,7 @@ impl Shadcn {
         style.tokens = self.core_tokens();
         style.tokens.focus = ring;
         style.sheet.as_preset();
-        let input = style.input().clone();
-        style.set_input(input);
-        let segmented = style.segmented().clone();
-        style.set_segmented(segmented);
-        style.set_label(style.label());
+        style.rewrite_rules();
         if dark {
             // field.tsx, a choice card's label: `dark:has-data-checked:bg-primary/10
             // dark:has-data-checked:border-primary/20`.
@@ -932,12 +856,7 @@ impl Shadcn {
                 })
             });
         }
-        let checkbox = style.checkbox().clone();
-        style.set_checkbox(checkbox);
-        let radio = style.radio().clone();
-        style.set_radio(radio);
-        let switch = style.switch().clone();
-        style.set_switch(switch);
+        crate::sheets::write(&mut style.sheet, t.style, self.theme);
         style
     }
 

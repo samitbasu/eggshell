@@ -2,8 +2,9 @@
 
 use std::time::Duration;
 
-use eggshell_ui::contract::{Keyed, Look, Variant};
+use eggshell_ui::contract::{Colors, Keyed, Look, States, Variant};
 use eggshell_ui::{Opacity, Style, TextSpec, Weight};
+use egui::Color32;
 
 /// TODO(prose): the look of [`badge`](super::BadgeExt::badge)s and
 /// [`chip`](super::BadgeExt::chip)s, one visual family: a chip is a badge
@@ -66,12 +67,22 @@ impl eggshell_ui::contract::Extension for BadgeStyle {
 }
 
 impl BadgeStyle {
-    /// TODO(prose): a badge in the style's default button look, in 12 pt
-    /// medium text.
+    /// TODO(prose): a badge in the style's secondary colours, the accent's
+    /// under the pointer, in 12 pt medium text.
     pub fn from_style(style: &Style) -> Self {
-        let buttons = &style.button.variants;
+        let t = &style.tokens;
+        let flat = |fill, text| Colors {
+            fill,
+            border: Color32::TRANSPARENT,
+            text,
+        };
+        let look = Look::new(States::new(
+            flat(t.secondary, t.secondary_foreground),
+            flat(t.accent, t.accent_foreground),
+            t.background,
+        ));
         Self {
-            variants: Keyed::new(Variant::DEFAULT, *buttons.get(buttons.default_key())),
+            variants: Keyed::new(Variant::DEFAULT, look),
             height: 20.0,
             padding_x: 8.0,
             icon_padding: 6.0,
@@ -84,7 +95,7 @@ impl BadgeStyle {
                 weight: Weight::Medium,
                 ..style.text.clone()
             },
-            transition: style.button.transition,
+            transition: style.toggle.transition,
             remove: RemoveStyle {
                 glyph: 12.0,
                 padding_end: 6.0,

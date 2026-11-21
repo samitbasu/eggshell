@@ -1,12 +1,33 @@
 //! The shadcn styles as parameter sets: Vega is today's look, Lyra is
 //! `style-lyra.css`, and both fill the same contract.
 
+use eggshell_ui::Tw;
 use eggshell_ui::contract::{Fonts, Size, Style, Variant};
+use eggshell_ui::owned::ButtonPart;
+use eggshell_ui::sheet::Key;
 use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens, variant};
-use egui::{Color32, Theme, vec2};
+use egui::{Theme, vec2};
 
 fn style_of(theme: Theme, style: ShadcnStyle) -> Style {
     Shadcn::for_theme(theme).with_style(style).style()
+}
+
+/// The classes `style`'s sheet gives a button of `variant` and `size`.
+fn button(style: &Style, variant: Variant, size: Size) -> Tw {
+    style.sheet.resolve(
+        ButtonPart::Root,
+        &[Key::Variant(variant), Key::Size(size)],
+        &style.tokens,
+    )
+}
+
+/// A button's height and corner radius.
+fn box_of(style: &Style, size: Size) -> (Option<f32>, u8) {
+    let classes = button(style, Variant::DEFAULT, size);
+    (
+        classes.style().size.height.into_option(),
+        classes.paint_classes().radius.nw,
+    )
 }
 
 #[test]
@@ -33,8 +54,11 @@ fn lyra_values_are_style_lyra_css() {
         assert_eq!((t.slider_track, t.slider_thumb), (4.0, 12.0), "h-1, size-3");
 
         let style = style_of(theme, ShadcnStyle::Lyra);
-        let button = style.button.sizes.get(Size::DEFAULT);
-        assert_eq!((button.height, button.radius, button.gap), (32.0, 0, 6.0));
+        assert_eq!(
+            box_of(&style, Size::DEFAULT),
+            (Some(32.0), 0),
+            "h-8 rounded-none"
+        );
         assert_eq!(style.tokens.focus.width, 1.0);
         assert_eq!(style.text.size, 12.0);
         assert_eq!(style.checkbox().sizes.get(Size::DEFAULT).radius, 0);
@@ -46,48 +70,42 @@ fn lyra_values_are_style_lyra_css() {
             vec2(10.0, 4.0)
         );
         assert!(
-            style
-                .button
-                .variants
-                .get(variant::OUTLINE)
-                .paint
+            button(&style, variant::OUTLINE, Size::DEFAULT)
+                .paint_classes()
                 .shadow
-                .is_none()
+                .is_none(),
+            "Lyra's outline has no shadow-xs"
         );
     }
 }
 
 #[test]
-fn lyra_tints_the_destructive_button_and_vega_fills_it() {
-    let fill = |style, theme| {
-        style_of(theme, style)
-            .button
-            .variants
-            .get(variant::DESTRUCTIVE)
-            .paint
-            .states
-            .rest
-    };
+fn both_styles_tint_the_destructive_button() {
     let t = Tokens::light();
-    assert_eq!(
-        fill(ShadcnStyle::Lyra, Theme::Light).fill,
-        t.destructive.gamma_multiply(0.1),
-        "bg-destructive/10"
-    );
-    assert_eq!(fill(ShadcnStyle::Lyra, Theme::Light).text, t.destructive);
-    assert_eq!(fill(ShadcnStyle::Vega, Theme::Light).fill, t.destructive);
-    assert_eq!(fill(ShadcnStyle::Vega, Theme::Light).text, Color32::WHITE);
+    for style in ShadcnStyle::ALL {
+        let classes = button(
+            &style_of(Theme::Light, style),
+            variant::DESTRUCTIVE,
+            Size::DEFAULT,
+        );
+        assert_eq!(
+            classes.paint_classes().background,
+            Some(t.destructive.gamma_multiply(0.1)),
+            "{style:?}: bg-destructive/10"
+        );
+    }
 }
 
 #[test]
-fn every_style_defines_the_same_variants_and_sizes() {
-    let keys = |style: &Style| -> Vec<Variant> { style.button.variants.keys().collect() };
+fn every_style_names_the_same_variants_and_sizes() {
+    let keys = |style: &Style| -> Vec<Key> { style.sheet.keys::<ButtonPart>().collect() };
     let vega = style_of(Theme::Light, ShadcnStyle::Vega);
     let lyra = style_of(Theme::Light, ShadcnStyle::Lyra);
     assert_eq!(keys(&vega), keys(&lyra));
-    assert_eq!(
-        vega.button.sizes.keys().collect::<Vec<_>>(),
-        lyra.button.sizes.keys().collect::<Vec<_>>()
+    assert!(keys(&vega).contains(&Key::Variant(variant::LINK)), "link");
+    assert!(
+        keys(&vega).contains(&Key::Size(eggshell_ui_shadcn::size::ICON_LG)),
+        "icon-lg"
     );
 }
 
@@ -100,7 +118,7 @@ fn style_light_dark_and_theme_colour_vary_independently() {
                 .with_palette(Palette::new().theme(color));
             let s = preset.style();
             (
-                *s.button.sizes.get(Size::DEFAULT),
+                box_of(&s, Size::DEFAULT),
                 s.input().sizes.get(Size::DEFAULT).height,
                 s.tokens.focus.width,
             )
@@ -192,9 +210,9 @@ fn each_themed_half_is_the_preset_s_style_with_its_fonts() {
             let at = format!("{theme:?} {style:?}");
             assert_eq!(half.tokens, core.tokens, "{at}");
             assert_eq!(half.text, core.text, "{at}");
-            assert_eq!(half.button, core.button, "{at}");
+            assert_eq!(half.toggle, core.toggle, "{at}");
             assert_eq!(half.segmented(), core.segmented(), "{at}");
-            assert_eq!(half.menu, core.menu, "{at}");
+            assert_eq!(half.menu(), core.menu(), "{at}");
             let fonts = half.extension::<Fonts>();
             assert!(preset.tokens.font.is_some(), "precondition: {at} has fonts");
             assert!(!fonts.0.is_empty(), "{at}");

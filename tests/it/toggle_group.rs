@@ -202,10 +202,10 @@ fn group_options_apply_to_every_member_and_a_members_own_override_it_alone() {
     let mut style = Shadcn::for_theme(Theme::Light).style();
     let tall = Metrics {
         height: TALL,
-        ..*style.button.toggle_sizes.get(Size::DEFAULT)
+        ..*style.toggle.sizes.get(Size::DEFAULT)
     };
-    style.button.toggle_sizes = Keyed::new(Size::DEFAULT, tall)
-        .with(size::ICON, *style.button.toggle_sizes.get(size::ICON));
+    style.toggle.sizes =
+        Keyed::new(Size::DEFAULT, tall).with(size::ICON, *style.toggle.sizes.get(size::ICON));
     let d = harness_styled(options_view, Themed::both(Arc::new(style)));
     let select = member_rect(&d, "Select");
     let pan = member_rect(&d, "Pan");
