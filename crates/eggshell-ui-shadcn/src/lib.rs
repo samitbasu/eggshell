@@ -106,6 +106,7 @@ mod drag_chip;
 mod fonts;
 mod palette;
 mod preset;
+#[rustfmt::skip]
 mod sheets;
 mod styles;
 mod theme_color;

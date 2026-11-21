@@ -398,7 +398,7 @@ fn the_shadcn_segmented_style_raises_exactly_the_selected_cell() {
 }
 
 #[test]
-fn a_text_field_under_the_preset_is_h9_with_px3() {
+fn a_text_field_under_the_preset_is_h9_with_px_2_5() {
     fn field(b: &mut Builder<'_, '_, App>, _: &App) {
         b.widget(
             "field",
@@ -422,7 +422,7 @@ fn a_text_field_under_the_preset_is_h9_with_px3() {
             _ => None,
         })
         .expect("the hint is painted");
-    assert_eq!(hint.x - rect.left(), 12.0, "px-3");
+    assert_eq!(hint.x - rect.left(), 10.0, "px-2.5 (style-vega.css:678)");
 }
 
 fn palette(base: BaseColor, theme_color: ThemeColor) -> Palette {

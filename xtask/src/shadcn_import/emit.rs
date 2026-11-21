@@ -199,13 +199,13 @@ fn attribute(selector: &str) -> Option<String> {
     }
     let value = value.trim_matches(|c| c == '"' || c == '\'');
     if name == "data-slot" {
-        return Some(format!(".slot({value:?})"));
+        return Some(format!(".with_slot({value:?})"));
     }
     if let Some(name) = name.strip_prefix("aria-") {
         return (value == "true")
             .then(|| aria(name))
             .flatten()
-            .map(|a| format!(".aria({a})"));
+            .map(|a| format!(".with_aria({a})"));
     }
     let name = name.strip_prefix("data-")?;
     Some(format!(".attr({name:?}, {value:?})"))
@@ -220,11 +220,11 @@ fn has(variant: &str) -> Option<(&'static str, String)> {
     match rest {
         "[>svg]" => return Some(("has_child", "Match::glyph()".to_owned())),
         "[svg]" => return any("Match::glyph()".to_owned()),
-        "disabled" => return any("Match::any().aria(Aria::Disabled)".to_owned()),
+        "disabled" => return any("Match::aria(Aria::Disabled)".to_owned()),
         _ => {}
     }
     if let Some(name) = rest.strip_prefix("aria-") {
-        return aria(name).and_then(|a| any(format!("Match::any().aria({a})")));
+        return aria(name).and_then(|a| any(format!("Match::aria({a})")));
     }
     if let Some(attr) = rest.strip_prefix("data-[") {
         let (name, value) = attr.strip_suffix(']')?.split_once('=')?;
@@ -236,7 +236,7 @@ fn has(variant: &str) -> Option<(&'static str, String)> {
         None => ("has", inner),
     };
     let (attr, focus) = match inner.strip_suffix(":focus-visible") {
-        Some(attr) => (attr, ".focus_visible()"),
+        Some(attr) => (attr, ".with_focus_visible()"),
         None => (inner, ""),
     };
     Some((method, format!("Match::any(){}{focus}", attributes(attr)?)))
@@ -1088,7 +1088,7 @@ mod tests {
             );
             assert_eq!(
                 one(c, "*:data-[slot=input-group]:h-8"),
-                ".children(Match::any().slot(\"input-group\"), |t| t.h(8.0))"
+                ".children(Match::any().with_slot(\"input-group\"), |t| t.h(8.0))"
             );
             assert_eq!(
                 one(c, "has-data-[icon=inline-start]:pl-2"),
@@ -1096,7 +1096,7 @@ mod tests {
             );
             assert_eq!(
                 one(c, "has-aria-invalid:border-destructive"),
-                ".has(Match::any().aria(Aria::Invalid), |b| b.border_color(k.destructive))"
+                ".has(Match::aria(Aria::Invalid), |b| b.border_color(k.destructive))"
             );
         });
     }
@@ -1215,7 +1215,7 @@ mod tests {
                     c,
                     "has-[[data-slot=input-group-control]:focus-visible]:border-ring"
                 ),
-                ".has(Match::any().slot(\"input-group-control\").focus_visible(), |b| b.border_color(k.ring))"
+                ".has(Match::any().with_slot(\"input-group-control\").with_focus_visible(), |b| b.border_color(k.ring))"
             );
             assert_eq!(
                 one(c, "has-[>[data-align=block-end]]:h-9"),
@@ -1232,7 +1232,7 @@ mod tests {
             );
             assert_eq!(
                 one(c, "has-[[data-slot][aria-invalid=true]]:border-destructive"),
-                ".has(Match::any().aria(Aria::Invalid), |b| b.border_color(k.destructive))",
+                ".has(Match::any().with_aria(Aria::Invalid), |b| b.border_color(k.destructive))",
                 "a compound selector: any part that is invalid"
             );
             assert!(
@@ -1242,7 +1242,7 @@ mod tests {
             );
             assert_eq!(
                 one(c, "has-[[aria-invalid=true]]:border-destructive"),
-                ".has(Match::any().aria(Aria::Invalid), |b| b.border_color(k.destructive))"
+                ".has(Match::any().with_aria(Aria::Invalid), |b| b.border_color(k.destructive))"
             );
             assert_eq!(
                 one(c, "[&_svg:not([class*='text-'])]:text-muted"),
@@ -1258,7 +1258,7 @@ mod tests {
             );
             assert_eq!(
                 one(c, "has-disabled:opacity-50"),
-                ".has(Match::any().aria(Aria::Disabled), |b| b.opacity(Opacity::new(0.5)))"
+                ".has(Match::aria(Aria::Disabled), |b| b.opacity(Opacity::new(0.5)))"
             );
             assert_eq!(one(c, "shadow-none"), ".shadow(Shadow::NONE)");
             assert_eq!(one(c, "z-50"), ".z(50)");

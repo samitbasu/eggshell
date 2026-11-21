@@ -50,7 +50,7 @@ const WIDGETS: [emit::Widget; 6] = [
     },
     emit::Widget {
         component: "input",
-        checked_in: false,
+        checked_in: true,
         variants: &[],
         sizes: &[],
         facts: &[],
@@ -129,6 +129,56 @@ const TABS: [emit::Assumed; 6] = {
     ]
 };
 
+/// The `sheets` module of the preset's crate: a module per migrated
+/// `component` and style, and `write`, which writes them all for a style and
+/// theme, in the order of `components`.
+fn index(components: &[&str]) -> String {
+    let module = |style: &str, component: &str| format!("{style}_{}", component.replace('-', "_"));
+    let mut out = String::from(
+        "//! The widgets' rules in each shadcn style, generated from the pinned shadcn\n\
+         //! source by `cargo xtask shadcn-import --write`; CI fails if they drift\n\
+         //! (`--check`). Each rule's classes carry the shadcn class they came from.\n\
+         //!\n\
+         //! This file is generated too. Do not edit.\n\n\
+         use eggshell_ui::sheet::Sheet;\n\
+         use egui::Theme;\n\n\
+         use crate::ShadcnStyle;\n\n\
+         /// One half of a widget's rules: its light or its dark theme.\n\
+         type Half = fn(&mut Sheet);\n",
+    );
+    for style in STYLES {
+        for component in components {
+            let _ = write!(out, "\nmod {};", module(style, component));
+        }
+    }
+    out.push_str(
+        "\n\n/// Writes the rules of `style` for `theme` into `sheet`. Their colours are\n\
+         /// the style's core tokens, which the sheet is resolved with.\n\
+         pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {\n\
+         \x20   let halves: &[(Half, Half)] = match style {\n",
+    );
+    for style in STYLES {
+        let variant = format!("{}{}", style[..1].to_uppercase(), &style[1..]);
+        let _ = writeln!(out, "        ShadcnStyle::{variant} => &[");
+        for component in components {
+            let m = module(style, component);
+            let _ = writeln!(out, "            ({m}::light, {m}::dark),");
+        }
+        out.push_str("        ],\n");
+    }
+    out.push_str(
+        "    };\n\
+         \x20   for (light, dark) in halves {\n\
+         \x20       match theme {\n\
+         \x20           Theme::Light => light(sheet),\n\
+         \x20           Theme::Dark => dark(sheet),\n\
+         \x20       }\n\
+         \x20   }\n\
+         }\n",
+    );
+    out
+}
+
 /// Where a widget's checked-in rules for `style` live.
 fn checked_in(root: &Path, style: &str, component: &str) -> PathBuf {
     root.join("crates/eggshell-ui-shadcn/src/sheets")
@@ -177,19 +227,30 @@ fn check_pin(root: &Path, reference: &Path) -> Result<()> {
 
 /// The migrated widgets' rules for every style, written or compared.
 fn sheets(root: &Path, registry: &Path, classifier: &Classifier<'_>, mode: Mode) -> Result<()> {
-    let mut stale = Vec::new();
+    let migrated: Vec<&str> = WIDGETS
+        .iter()
+        .filter(|w| w.checked_in)
+        .map(|w| w.component)
+        .collect();
+    let mut files = vec![(
+        root.join("crates/eggshell-ui-shadcn/src/sheets/mod.rs"),
+        index(&migrated),
+    )];
     for style in STYLES {
         let mut scratch = Sources::default();
         let (rows, _) = extract(registry, style, classifier, &mut scratch)?;
         for widget in WIDGETS.iter().filter(|w| w.checked_in) {
             let emitted = emit::emit(classifier, &rows, &scratch, widget, style);
-            let path = checked_in(root, style, widget.component);
-            match mode {
-                Mode::Write => fs::write(&path, &emitted.rust)?,
-                Mode::Check | Mode::Report => {
-                    if fs::read_to_string(&path).ok().as_deref() != Some(emitted.rust.as_str()) {
-                        stale.push(path.display().to_string());
-                    }
+            files.push((checked_in(root, style, widget.component), emitted.rust));
+        }
+    }
+    let mut stale = Vec::new();
+    for (path, rust) in files {
+        match mode {
+            Mode::Write => fs::write(&path, &rust)?,
+            Mode::Check | Mode::Report => {
+                if fs::read_to_string(&path).ok().as_deref() != Some(rust.as_str()) {
+                    stale.push(path.display().to_string());
                 }
             }
         }
@@ -599,4 +660,38 @@ fn listings(rows: &[Row]) -> String {
         }
     }
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_sheets_index_declares_and_writes_every_migrated_widget_in_each_style() {
+        let index = index(&["button", "input-group"]);
+        for module in [
+            "vega_button",
+            "vega_input_group",
+            "lyra_button",
+            "lyra_input_group",
+        ] {
+            assert!(index.contains(&format!("\nmod {module};")), "{module}");
+            assert!(
+                index.contains(&format!("({module}::light, {module}::dark),")),
+                "{module} is written"
+            );
+        }
+        let vega = index.find("ShadcnStyle::Vega => &[").expect("vega");
+        let lyra = index.find("ShadcnStyle::Lyra => &[").expect("lyra");
+        assert!(index[vega..lyra].contains("vega_input_group::light"));
+        assert!(
+            !index[vega..lyra].contains("lyra_"),
+            "each style writes its own"
+        );
+        assert!(
+            index.find("(vega_button::light").expect("button")
+                < index.find("(vega_input_group::light").expect("group"),
+            "in the table's order"
+        );
+    }
 }

@@ -9,7 +9,7 @@ use egui::Color32;
 
 use crate::contract::{Colors, Disabled, InputStyle, Size, Tokens};
 use crate::sheet::{Key, Part, Sheet, When};
-use crate::{Aria, Tw};
+use crate::{Aria, Match, Tw};
 
 /// TODO(prose): the anatomy of a text field: shadcn's `input`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -52,7 +52,7 @@ impl Part for InputGroupPart {
             Self::Addon => "input-group-addon",
             Self::Button => "input-group-button",
             Self::Text => "input-group-text",
-            Self::Input => "input-group-input",
+            Self::Input => "input-group-control",
             Self::Textarea => "input-group-textarea",
         }
     }
@@ -85,7 +85,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle) {
         let ring = ring(k);
         painted(t.border(width), states.rest)
             .hover(|p| p.border_color(states.hover.border))
-            .focus_within(|p| {
+            .focus(|p| {
                 p.border_color(states.focused.border)
                     .ring(ring.width, ring.color)
             })
@@ -113,10 +113,13 @@ pub(crate) fn write_rules(sheet: &mut Sheet, input: &InputStyle) {
         When::always().not_aria(Aria::Disabled),
         move |t, k| {
             let ring = ring(k);
-            shadowed(painted(t, states.rest).focus_within(|p| {
-                p.border_color(states.focused.border)
-                    .ring(ring.width, ring.color)
-            }))
+            shadowed(painted(t, states.rest).has(
+                Match::slot(InputGroupPart::Input.slot()).with_focus_visible(),
+                |b| {
+                    b.border_color(states.focused.border)
+                        .ring(ring.width, ring.color)
+                },
+            ))
         },
     );
     sheet.rule_when(
@@ -155,7 +158,7 @@ impl Frame {
             fill: classes.paint.background,
             rest: classes.paint.border_colors.top,
             hover: classes.variant_border(State::Hover),
-            focused: classes.variant_border(State::FocusWithin),
+            focused: classes.variant_border(State::Focus),
             text: classes.text.color,
             border_width: width.value(),
             radius: classes.paint.radius.nw,

@@ -54,6 +54,10 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                         .named("Inner")
                         .bare()
                         .on_change(|_: &mut App, _| {});
+                    s.button("addon", "Go")
+                        .variant(eggshell_ui_shadcn::variant::GHOST)
+                        .size(size::SM)
+                        .on_click(|_: &mut App| {});
                 });
         },
     );
@@ -124,6 +128,24 @@ fn a_field_box_rings_while_a_field_inside_has_focus() {
     d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
     d.frames(6);
     assert!(ring_at(&d, rect).is_some());
+}
+
+#[test]
+fn a_focused_addon_button_rings_itself_not_its_group() {
+    let mut d = driver(Size::DEFAULT);
+    let group = d.rect(Target::suffix(CUSTOM));
+    d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
+    d.frames(6);
+    assert!(
+        ring_at(&d, group).is_some(),
+        "precondition: the field rings it"
+    );
+    d.press(egui::Key::Tab).frames(6);
+    let addon = r#"/"Page"/"custom"/"addon""#;
+    assert_eq!(support::focused_path(&d).as_deref(), Some(addon));
+    let button = d.rect(Target::suffix(addon));
+    assert!(ring_at(&d, button).is_some(), "the button rings");
+    assert!(ring_at(&d, group).is_none(), "the group does not");
 }
 
 #[test]

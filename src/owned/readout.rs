@@ -155,7 +155,12 @@ impl Readout {
                     .tabular_nums(),
             )
             .children(|s| {
-                let leaf = tw().w_full().h_full().text_right();
+                let keys = super::input_keys(style.input().sizes.key_for(size), false);
+                let leaf = s.part(
+                    super::InputGroupPart::Input,
+                    &keys,
+                    tw().w_full().h_full().text_right(),
+                );
                 s.leaf(Part::Field, leaf, move |m| {
                     text_field::measure(m, &measured)
                 })
