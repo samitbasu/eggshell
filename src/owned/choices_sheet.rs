@@ -12,21 +12,31 @@ use core::time::Duration;
 
 use crate::contract::{CheckboxStyle, Paint, RadioStyle, Size, States, SwitchStyle, Tokens};
 use crate::sheet::{Key, Part, Sheet, When};
-use crate::{Aria, Tw};
+use crate::{Aria, Match, Tw, Weight};
+use egui::Color32;
 
 use super::{Enablement, Mark, centered};
 
 /// TODO(prose): the anatomy of a field: shadcn's `field`. A choice control
-/// is drawn in a horizontal field, beside its label.
+/// is drawn in a horizontal field, beside its label; a choice card is a label
+/// that holds the field, the control after the content's title and
+/// description.
 ///
 /// TODO(prose): the keys its rules see: `data-[orientation=horizontal]` on a
-/// field, and `aria-disabled`.
+/// field, and `aria-disabled`. shadcn's title shares the label's slot; here it
+/// has its own, as the sheet keeps a part's rules by its slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FieldPart {
-    /// TODO(prose): the field, holding a control and its label.
+    /// TODO(prose): the field, holding a control and its label or content.
     Field,
-    /// TODO(prose): the label, which names the control and toggles it.
+    /// TODO(prose): the label, which names the control and toggles it; a card when it holds the field.
     Label,
+    /// TODO(prose): a card's title and description.
+    Content,
+    /// TODO(prose): a card's title, which names the control.
+    Title,
+    /// TODO(prose): a card's description.
+    Description,
 }
 
 impl Part for FieldPart {
@@ -36,6 +46,9 @@ impl Part for FieldPart {
         match self {
             Self::Field => "field",
             Self::Label => "field-label",
+            Self::Content => "field-content",
+            Self::Title => "field-title",
+            Self::Description => "field-description",
         }
     }
 }
@@ -239,13 +252,21 @@ impl Painted {
     }
 }
 
+/// The controls a card holds, by slot.
+const CONTROLS: [&str; 3] = ["checkbox", "radio-group-item", "switch"];
+
 /// Writes the rules that draw a field and its label, in `label`'s colours,
-/// at the sheet's current layer.
+/// and a choice card, at the sheet's current layer.
 pub(crate) fn write_field_rules(sheet: &mut Sheet, label: States) {
     let horizontal = When::always().attr(HORIZONTAL.0, HORIZONTAL.1);
     sheet.rule_when(FieldPart::Field, horizontal, |t, _| {
-        t.flex().items_center().whitespace_nowrap().select_none()
+        t.flex()
+            .items_center()
+            .whitespace_nowrap()
+            .select_none()
+            .has_child(Match::slot(FieldPart::Content.slot()), |b| b.items_start())
     });
+    write_card_rules(sheet);
     sheet.rule_when(
         FieldPart::Field,
         When::always().aria(Aria::Disabled),
@@ -260,6 +281,71 @@ pub(crate) fn write_field_rules(sheet: &mut Sheet, label: States) {
             t.text(enablement.colors_in(label, k.disabled).text)
         });
     }
+}
+
+/// Writes the rules of a choice card, a label that holds its field, after
+/// shadcn's `cn-field-label`, `cn-field-content`, `cn-field-title` and
+/// `cn-field-description`.
+///
+/// TODO(#446): written from the tokens until the importer generates them.
+fn write_card_rules(sheet: &mut Sheet) {
+    let field = Match::slot(FieldPart::Field.slot());
+    sheet.rule(FieldPart::Label, move |t, k| {
+        let radius = f32::from(k.radius.saturating_sub(2));
+        let mut card = t
+            .has_child(field, |b| {
+                b.flex()
+                    .flex_col()
+                    .w_full()
+                    .rounded_px(radius)
+                    .border(1.0)
+                    .border_color(k.border)
+            })
+            .has(Match::aria(Aria::Checked), |b| {
+                b.bg(k.primary.gamma_multiply(0.05))
+                    .border_color(k.primary.gamma_multiply(0.3))
+            })
+            .has(Match::focus_visible(), |b| {
+                b.border_color(k.ring).ring(k.focus.width, k.focus.color)
+            })
+            .children(field, |t| t.p(3.0));
+        for control in CONTROLS {
+            card = card.descendants(Match::slot(control), |t| {
+                t.focus(|p| p.ring(0.0, Color32::TRANSPARENT).border_color(k.input))
+            });
+        }
+        for control in ["checkbox", "radio-group-item"] {
+            card = card
+                .descendants(Match::slot(control).with_aria(Aria::Checked), |t| {
+                    t.focus(|p| p.border_color(k.primary))
+                })
+                .descendants(Match::slot(control), |t| t.mt(0.25));
+        }
+        card.descendants(Match::slot("switch"), |t| {
+            t.focus(|p| p.border_color(Color32::TRANSPARENT))
+        })
+    });
+    sheet.rule_when(
+        FieldPart::Label,
+        When::always().not_aria(Aria::Disabled),
+        move |t, k| t.has_child(field, |b| b.hover(|p| p.bg(k.muted.gamma_multiply(0.5)))),
+    );
+    sheet.rule(FieldPart::Content, |t, _| {
+        t.flex().flex_1().flex_col().gap(1.0).whitespace_normal()
+    });
+    sheet.rule(FieldPart::Title, |t, k| {
+        t.flex()
+            .w_fit()
+            .items_center()
+            .gap(2.0)
+            .text_size(k.text_size, k.text_size * 1.375)
+            .font_weight(Weight::Medium)
+    });
+    sheet.rule(FieldPart::Description, |t, k| {
+        t.text_size(k.text_size, k.text_size * 1.5)
+            .font_weight(Weight::Normal)
+            .text(k.muted_foreground)
+    });
 }
 
 /// Writes the rules that draw `checkbox`'s look at the sheet's current layer.

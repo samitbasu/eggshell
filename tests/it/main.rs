@@ -24,6 +24,7 @@ mod button_options;
 mod ch;
 mod chat_shell_demo;
 mod children;
+mod choice_cards;
 mod choices;
 mod clipboard;
 mod clipboard_example;

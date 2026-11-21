@@ -8,8 +8,8 @@ use std::rc::Rc;
 use egui::{Role, Vec2};
 
 use super::{
-    Enablement, Gate, IntoTip, OnResponse, Unset, choice_label, choice_row, described, flip,
-    options,
+    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, choice_card, choice_label,
+    choice_row, described, flip, options,
 };
 use super::{Mark, SwitchPart};
 use crate::builder::Slot;
@@ -39,6 +39,8 @@ pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     label: Option<String>,
+    description: Option<String>,
+    form: Form,
     name: Option<String>,
     gate: Gate,
     current: T,
@@ -62,6 +64,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             slot: b.slot(&key),
             b,
             label,
+            description: None,
+            form: Form::Row,
             name: None,
             gate: Gate::default(),
             current,
@@ -81,6 +85,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             b: self.b,
             slot: self.slot,
             label: self.label,
+            description: self.description,
+            form: self.form,
             name: self.name,
             gate: self.gate,
             current: self.current,
@@ -111,6 +117,18 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
     /// Overrides the track's width and height, in points.
     pub fn track(mut self, track: Vec2) -> Self {
         self.track = Some(track);
+        self
+    }
+
+    /// TODO(prose): draws the switch as a choice card: the label holds it, the track after the label and the description, and a click anywhere on the card flips it.
+    pub fn card(mut self) -> Self {
+        self.form = Form::Card;
+        self
+    }
+
+    /// TODO(prose): the text under a card's label.
+    pub fn description(mut self, text: impl Into<String>) -> Self {
+        self.description = Some(text.into());
         self
     }
 
@@ -207,6 +225,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             mut b,
             slot,
             label,
+            description,
+            form,
             name,
             gate,
             current,
@@ -245,7 +265,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         } else {
             Progress::START
         };
-        let name = name.unwrap_or_default();
+        // A card's label is drawn before the control it holds, so the
+        // control names itself by the card's title.
+        let name = match form {
+            Form::Row => name.unwrap_or_default(),
+            Form::Card => name.or_else(|| label.clone()).unwrap_or_default(),
+        };
         b.claim(&slot);
         b.scope_with(&slot, |b| {
             let control = b.id_of(Part::Track);
@@ -292,10 +317,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 &style.role_sized(&switch.text, metrics.text),
                 enablement,
                 switch.gap,
-            )
-            .merge(caller);
+            );
             let on_press = on_toggle.clone();
-            b.div(row, |b| {
+            let build_track = move |b: &mut Builder<'_, '_, A>| {
                 b.div_id(Part::Track, classes, |b| {
                     b.paint(tw().w_full().h_full(), move |painter, rect, _| {
                         let t = f32::from(transition::animate(
@@ -325,12 +349,34 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                     }
                     on_response.run(app, &response);
                 });
-                if let Some(label) = label {
-                    choice_label(b, Part::Label, control, label, enablement, move |app| {
-                        on_toggle(app)
-                    });
+            };
+            match form {
+                Form::Row => b.div(row.merge(caller), |b| {
+                    build_track(b);
+                    if let Some(label) = label {
+                        choice_label(b, Part::Label, control, label, enablement, move |app| {
+                            on_toggle(app)
+                        });
+                    }
+                }),
+                Form::Card => {
+                    let card = Card {
+                        control,
+                        title: label.unwrap_or_default(),
+                        description,
+                        enablement,
+                        classes: caller,
+                    };
+                    choice_card(
+                        b,
+                        Part::Label,
+                        card,
+                        row,
+                        move |app| on_toggle(app),
+                        build_track,
+                    );
                 }
-            });
+            }
         });
     }
 }

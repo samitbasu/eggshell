@@ -251,6 +251,18 @@ impl Match {
         self
     }
 
+    /// TODO(prose): also a node in this [`aria`](Tw::aria) state.
+    ///
+    /// ```
+    /// use eggshell_ui::{Aria, Match, tw};
+    /// let card = tw().descendants(Match::slot("checkbox").with_aria(Aria::Checked), |t| t.mt(0.25));
+    /// ```
+    #[must_use]
+    pub const fn with_aria(mut self, state: Aria) -> Self {
+        self.aria = Some(state);
+        self
+    }
+
     fn matches(&self, kind: NodeKind, facts: &Facts, focused: bool) -> bool {
         let holds = self.kind.is_none_or(|want| Kind::of(kind) == Some(want))
             && self.slot.is_none_or(|want| facts.slot == Some(want))

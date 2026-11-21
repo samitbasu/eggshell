@@ -6,7 +6,8 @@ use eggshell_ui::contract::{
     SliderMetrics, SplitterColors, States, StepperMetrics, SwitchMetrics, TextSize, Variant,
 };
 use eggshell_ui::overlay::Distance;
-use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
+use eggshell_ui::owned::FieldPart;
+use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Tracking, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
 use crate::styles::{DestructiveLook, HoverSurface, SecondaryHover, ShadcnStyle};
@@ -921,6 +922,16 @@ impl Shadcn {
         let segmented = style.segmented().clone();
         style.set_segmented(segmented);
         style.set_label(style.label());
+        if dark {
+            // field.tsx, a choice card's label: `dark:has-data-checked:bg-primary/10
+            // dark:has-data-checked:border-primary/20`.
+            style.sheet.rule(FieldPart::Label, |t, k| {
+                t.has(Match::aria(Aria::Checked), |b| {
+                    b.bg(k.primary.gamma_multiply(0.1))
+                        .border_color(k.primary.gamma_multiply(0.2))
+                })
+            });
+        }
         let checkbox = style.checkbox().clone();
         style.set_checkbox(checkbox);
         let radio = style.radio().clone();

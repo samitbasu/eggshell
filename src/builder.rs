@@ -261,7 +261,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.style
     }
 
-    /// TODO(prose): the classes of `part` for a node with `keys`: the style's sheet's, with `call_site`'s over them and the rules of the containers above between. A variant or size the sheet leaves out is reported as [`Problem::MissingStyleEntry`](crate::Problem::MissingStyleEntry).
+    /// TODO(prose): the classes of `part` for a node with `keys`: the style's sheet's, with `call_site`'s over them and the rules of the containers above between; the node says its ARIA and attribute keys, for the rules that match it. A variant or size the sheet leaves out is reported as [`Problem::MissingStyleEntry`](crate::Problem::MissingStyleEntry).
     #[track_caller]
     pub fn part<P: crate::sheet::Part>(
         &mut self,
@@ -269,7 +269,15 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         keys: &[crate::sheet::Key],
         call_site: Tw,
     ) -> Tw {
-        Tw::over_sheet(self.resolved_part(part, keys)).merge(call_site)
+        let said = keys.iter().fold(
+            Tw::over_sheet(self.resolved_part(part, keys)),
+            |classes, key| match *key {
+                crate::sheet::Key::Aria(state) => classes.aria(state),
+                crate::sheet::Key::Attr(name, value) => classes.attr(name, value),
+                _ => classes,
+            },
+        );
+        said.merge(call_site)
     }
 
     /// What the style's sheet gives `part` for a node with `keys`, on its own.
