@@ -45,15 +45,56 @@ impl Touched {
 /// the one place that names them.
 macro_rules! layout_properties {
     ($($name:ident: $($field:ident).+ => $ty:ty),+ $(,)?) => {
-        #[derive(Clone, Copy)]
+        /// TODO(prose): a property of a class list, named for the style field it sets.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         #[expect(non_camel_case_types, reason = "named for the style field they stand for")]
-        enum Property {
+        #[cfg_attr(debug_assertions, expect(missing_docs, reason = "named for the style field they stand for"))]
+        #[cfg_attr(not(debug_assertions), allow(dead_code))]
+        pub enum Property {
             $($name,)+
             RadiusNw,
             RadiusNe,
             RadiusSw,
             RadiusSe,
             Opacity,
+            // The properties below are not merged through `Touched`: their
+            // classes are `Option`s, set or not. They are named so that a
+            // winner can be too.
+            Background,
+            BorderColorTop,
+            BorderColorRight,
+            BorderColorBottom,
+            BorderColorLeft,
+            Ring,
+            Shadow,
+            DivideX,
+            DivideY,
+            TextSize,
+            TextLineHeight,
+            TextFamily,
+            TextWeight,
+            TextColor,
+            TextFontStyle,
+            TextDecoration,
+            TextWhiteSpace,
+            TextAlign,
+            TextTracking,
+            TextCase,
+            TextSelect,
+            TextNumerals,
+        }
+
+        impl Property {
+            /// Every property that [`Touched`] tracks.
+            #[cfg(debug_assertions)]
+            const TOUCHED: &[Property] = &[
+                $(Property::$name,)+
+                Property::RadiusNw,
+                Property::RadiusNe,
+                Property::RadiusSw,
+                Property::RadiusSe,
+                Property::Opacity,
+            ];
         }
 
         #[expect(clippy::disallowed_macros, reason = "a const assertion fails the build, not a run")]
@@ -249,6 +290,7 @@ impl Shape<'_> {
 
 impl Tw {
     /// Writes layout with `set`, which records each property it writes.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub(super) fn write_layout(&mut self, set: impl FnOnce(&mut Layout<'_>)) {
         let (style, ch) = (self.style.clone(), self.ch.clone());
         let mut written = Touched::default();
@@ -259,6 +301,13 @@ impl Tw {
         });
         if super::layout::is_finite(&self.style, &self.ch) {
             self.touched = self.touched | written;
+            #[cfg(debug_assertions)]
+            self.note_all(
+                Property::TOUCHED
+                    .iter()
+                    .copied()
+                    .filter(|&p| written.has(p)),
+            );
         } else {
             (self.style, self.ch) = (style, ch);
             self.lengths = super::Lengths::Rejected;
@@ -266,11 +315,21 @@ impl Tw {
     }
 
     /// Writes the box paint that merging tracks with `set`.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub(super) fn write_shape(&mut self, set: impl FnOnce(&mut Shape<'_>)) {
+        let mut written = Touched::default();
         set(&mut Shape {
             paint: &mut self.paint,
-            touched: &mut self.touched,
+            touched: &mut written,
         });
+        self.touched = self.touched | written;
+        #[cfg(debug_assertions)]
+        self.note_all(
+            Property::TOUCHED
+                .iter()
+                .copied()
+                .filter(|&p| written.has(p)),
+        );
     }
 
     /// These classes with `other` applied on top, as `tailwind-merge` does:
@@ -364,6 +423,13 @@ impl Tw {
         self.variants = self.variants.merge(other.variants);
         self.touched = self.touched | other.touched;
         self.lengths = self.lengths.or(other.lengths);
+        #[cfg(debug_assertions)]
+        {
+            self.origins = match (self.origins, other.origins) {
+                (Some(own), Some(later)) => Some(Box::new(own.over(*later))),
+                (own, later) => later.or(own),
+            };
+        }
         self.rules = match (self.rules, other.rules) {
             (Some(own), Some(later)) => Some(Box::new(own.merge(*later))),
             (own, later) => later.or(own),

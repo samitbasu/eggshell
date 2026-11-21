@@ -261,6 +261,26 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         self.style
     }
 
+    /// TODO(prose): the classes the style's sheet gives `part` for a node with `keys`: merge the call site's over them, and the rules of the containers above come between. A variant or size the sheet leaves out is reported as [`Problem::MissingStyleEntry`](crate::Problem::MissingStyleEntry).
+    #[track_caller]
+    pub fn part<P: crate::sheet::Part>(&mut self, part: P, keys: &[crate::sheet::Key]) -> Tw {
+        let sheet = &self.style.sheet;
+        let (classes, fresh) = self.st.sheets.resolve(sheet, part, keys);
+        if fresh && let Some(missing) = sheet.unnamed(part, keys) {
+            crate::report::report(
+                self.frame.ctx,
+                crate::Problem::MissingStyleEntry,
+                Some(Id::NULL.with(("style-entry", format!("{part:?} {missing:?}")))),
+                || {
+                    format!(
+                        "the style's sheet names no {missing:?} for {part:?}; drawing without it"
+                    )
+                },
+            );
+        }
+        Tw::over_sheet(classes)
+    }
+
     /// TODO(prose): builds `body` in place with a style of its own: the style
     /// here, changed by `edit`. Every node `body` builds, and every control
     /// among them, is built, measured and drawn with it; nothing outside
@@ -287,6 +307,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         body: impl FnOnce(&mut Builder<'_, 'f, A>),
     ) {
         let mut style = crate::Style::clone(self.style);
+        style.sheet.as_scope();
         edit(&mut style);
         self.with_style(&Arc::new(style), body);
     }
@@ -1694,7 +1715,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     /// Gives `tw` the classes the rules of the containers above make it.
     #[inline(always)]
     fn apply_rules(&self, tw: &mut Tw, kind: NodeKind) {
-        if !self.ambient.rules.is_empty() {
+        if tw.is_layered() {
+            let own = std::mem::replace(tw, Tw::blank());
+            *tw = self.ambient.rules.apply_layered(&self.st.links, own, kind);
+        } else if !self.ambient.rules.is_empty() {
             *tw = self.ambient.rules.apply(&self.st.links, tw, kind);
         }
     }

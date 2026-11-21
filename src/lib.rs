@@ -390,6 +390,7 @@ mod roving;
 pub mod scroll;
 mod scroll_keys;
 mod shadow_corners;
+pub mod sheet;
 mod shell;
 mod sizing;
 mod spans;
@@ -442,7 +443,9 @@ pub use text::{
 };
 #[doc(hidden)]
 pub use transition::{cycle, tracked_layout_nodes};
+#[cfg(debug_assertions)]
+pub use tw::Property;
 pub use tw::{
-    Angle, Aria, BoxPaint, Divide, Easing, Match, Mirror, Opacity, Paint, Progress, Reserve, Ring,
-    RingPlacement, Sides, Track, Tw, tw,
+    Angle, Aria, BoxPaint, Divide, Easing, Match, Mirror, Opacity, Origin, Paint, Progress,
+    Reserve, Ring, RingPlacement, Sides, Source, Track, Tw, tw,
 };

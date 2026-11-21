@@ -92,6 +92,7 @@ fn space(units: f32) -> LengthPercentage {
 macro_rules! spacing {
     ($($name:ident, $doc:literal, |$s:ident, $v:ident| $set:expr;)*) => {$(
         #[doc = $doc]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $name(self, units: f32) -> Self {
             self.styled(|$s| { let $v = units * SPACE_UNIT; $set })
         }
@@ -101,6 +102,7 @@ macro_rules! spacing {
 macro_rules! auto_margins {
     ($($name:ident, $doc:literal, |$s:ident| $set:expr;)*) => {$(
         #[doc = $doc]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $name(self) -> Self {
             self.styled(|$s| $set)
         }
@@ -112,26 +114,31 @@ macro_rules! lengths {
     ($($name:ident, $px:ident, $frac:ident, $full:ident, $auto:ident, $what:literal,
        |$s:ident, $l:ident| $set:expr;)*) => {$(
         #[doc = concat!("Sets ", $what, " in spacing units.")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $name(self, units: f32) -> Self {
             self.styled(|$s| { let $l = Len::space(units); $set })
         }
 
         #[doc = concat!("Sets ", $what, " in points.")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $px(self, points: f32) -> Self {
             self.styled(|$s| { let $l = Len::Points(points); $set })
         }
 
         #[doc = concat!("Sets ", $what, " to the fraction `numerator / denominator` of the parent.")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $frac(self, numerator: f32, denominator: f32) -> Self {
             self.styled(|$s| { let $l = Len::fraction(numerator, denominator); $set })
         }
 
         #[doc = concat!("Sets ", $what, " to 100% of the parent.")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $full(self) -> Self {
             self.styled(|$s| { let $l = Len::Fraction(1.0); $set })
         }
 
         #[doc = concat!("Sets ", $what, " to `auto`.")]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $auto(self) -> Self {
             self.styled(|$s| { let $l = Len::Auto; $set })
         }
@@ -141,6 +148,7 @@ macro_rules! lengths {
 macro_rules! keywords {
     ($($name:ident, $doc:literal, |$s:ident| $set:expr;)*) => {$(
         #[doc = $doc]
+        #[cfg_attr(debug_assertions, track_caller)]
         pub fn $name(self) -> Self {
             self.styled(|$s| $set)
         }
@@ -157,6 +165,7 @@ macro_rules! layout_methods {
             /// ```html
             /// <span class="w-[6ch] font-mono text-right">-12.5</span>
             /// ```
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn w_ch(self, n: f32) -> Self {
                 self.styled(|s| {
                     *s.width() = Dimension::AUTO;
@@ -165,6 +174,7 @@ macro_rules! layout_methods {
             }
 
             /// `min-w-[<n>ch]`: the minimum width in `ch`. See [`w_ch`](Self::w_ch).
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn min_w_ch(self, n: f32) -> Self {
                 self.styled(|s| {
                     *s.min_width() = LengthPercentageAuto::AUTO;
@@ -178,6 +188,7 @@ macro_rules! layout_methods {
             /// grows the node, and is reported in debug builds as
             /// [`OutgrewReserve`](crate::Problem::OutgrewReserve). The templates are
             /// never shown or announced.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn min_w_text(self, reserve: Reserve) -> Self {
                 self.styled(|s| {
                     *s.min_width() = LengthPercentageAuto::AUTO;
@@ -186,6 +197,7 @@ macro_rules! layout_methods {
             }
 
             /// `max-w-[<n>ch]`: the maximum width in `ch`. See [`w_ch`](Self::w_ch).
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn max_w_ch(self, n: f32) -> Self {
                 self.styled(|s| {
                     *s.max_width() = LengthPercentageAuto::AUTO;
@@ -300,6 +312,7 @@ macro_rules! layout_methods {
             }
 
             /// `gap-<units>`: spacing between children on both axes.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn gap(self, units: f32) -> Self {
                 self.styled(|s| {
                     *s.gap_width() = space(units);
@@ -308,31 +321,37 @@ macro_rules! layout_methods {
             }
 
             /// `gap-x-<units>`: spacing between columns.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn gap_x(self, units: f32) -> Self {
                 self.styled(|s| *s.gap_width() = space(units))
             }
 
             /// `gap-y-<units>`: spacing between rows.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn gap_y(self, units: f32) -> Self {
                 self.styled(|s| *s.gap_height() = space(units))
             }
 
             /// `grow-<factor>`.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn grow_by(self, factor: f32) -> Self {
                 self.styled(|s| *s.flex_grow() = factor)
             }
 
             /// `aspect-[<ratio>]`: width divided by height.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn aspect(self, ratio: f32) -> Self {
                 self.styled(|s| *s.aspect_ratio() = Some(ratio))
             }
 
             /// `border-<width>`: border width in points on every side.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn border(self, points: f32) -> Self {
                 self.styled(|s| s.set_border(taffy::Rect::length(points)))
             }
 
             /// `border-x-<width>`: left and right border widths in points.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn border_x(self, points: f32) -> Self {
                 self.styled(|s| {
                     *s.border_left() = LengthPercentage::length(points);
@@ -341,6 +360,7 @@ macro_rules! layout_methods {
             }
 
             /// `border-y-<width>`: top and bottom border widths in points.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn border_y(self, points: f32) -> Self {
                 self.styled(|s| {
                     *s.border_top() = LengthPercentage::length(points);
@@ -349,46 +369,55 @@ macro_rules! layout_methods {
             }
 
             /// `border-t-<width>`: top border width in points.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn border_t(self, points: f32) -> Self {
                 self.styled(|s| *s.border_top() = LengthPercentage::length(points))
             }
 
             /// `border-r-<width>`: right border width in points.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn border_r(self, points: f32) -> Self {
                 self.styled(|s| *s.border_right() = LengthPercentage::length(points))
             }
 
             /// `border-b-<width>`: bottom border width in points.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn border_b(self, points: f32) -> Self {
                 self.styled(|s| *s.border_bottom() = LengthPercentage::length(points))
             }
 
             /// `border-l-<width>`: left border width in points.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn border_l(self, points: f32) -> Self {
                 self.styled(|s| *s.border_left() = LengthPercentage::length(points))
             }
 
             /// `basis-<units>`: flex basis in spacing units.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn basis(self, units: f32) -> Self {
                 self.styled(|s| *s.flex_basis() = Len::space(units).to())
             }
 
             /// `basis-px`: flex basis in points.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn basis_px(self, points: f32) -> Self {
                 self.styled(|s| *s.flex_basis() = Len::Points(points).to())
             }
 
             /// `basis-1/2`: flex basis as a fraction of the container.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn basis_frac(self, numerator: f32, denominator: f32) -> Self {
                 self.styled(|s| *s.flex_basis() = Len::fraction(numerator, denominator).to())
             }
 
             /// `basis-full`.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn basis_full(self) -> Self {
                 self.styled(|s| *s.flex_basis() = Len::Fraction(1.0).to())
             }
 
             /// `basis-auto`.
+            #[cfg_attr(debug_assertions, track_caller)]
             pub fn basis_auto(self) -> Self {
                 self.styled(|s| *s.flex_basis() = Dimension::AUTO)
             }
