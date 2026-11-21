@@ -861,26 +861,28 @@ impl Shadcn {
         // `border-b` rows (none under the last), `hover:bg-muted/50`,
         // `data-[state=selected]:bg-muted`, a `bg-muted/50 font-medium` footer
         // and `transition-colors`.
-        style.table.header_fill = clear;
-        style.table.header_weight = Weight::Medium;
-        style.table.header_height = 40.0;
-        style.table.cell_padding = 8.0;
-        style.table.rule = t.border;
-        style.table.rule_width = 1.0;
-        style.table.stripe = t.muted.gamma_multiply(0.3);
-        style.table.group_fill = t.muted.gamma_multiply(0.5);
-        style.table.group_text = Some(t.muted_foreground);
-        style.table.group_text_size = Some(TextSize {
+        let mut table = style.table().clone();
+        table.header_fill = clear;
+        table.header_weight = Weight::Medium;
+        table.header_height = 40.0;
+        table.cell_padding = 8.0;
+        table.rule = t.border;
+        table.rule_width = 1.0;
+        table.stripe = t.muted.gamma_multiply(0.3);
+        table.group_fill = t.muted.gamma_multiply(0.5);
+        table.group_text = Some(t.muted_foreground);
+        table.group_text_size = Some(TextSize {
             size: 12.0,
             line_height: 16.0,
         });
-        style.table.group_weight = Weight::Medium;
-        style.table.hover = t.muted.gamma_multiply(0.5);
-        style.table.selected = t.muted;
-        style.table.footer_fill = t.muted.gamma_multiply(0.5);
-        style.table.footer_weight = Weight::Medium;
-        style.table.transition = Duration::from_millis(150);
-        style.table.group_end = GroupEnd::Gap(12.0);
+        table.group_weight = Weight::Medium;
+        table.hover = t.muted.gamma_multiply(0.5);
+        table.selected = t.muted;
+        table.footer_fill = t.muted.gamma_multiply(0.5);
+        table.footer_weight = Weight::Medium;
+        table.transition = Duration::from_millis(150);
+        table.group_end = GroupEnd::Gap(12.0);
+        style.set_table(table);
         // shadcn's overlays are `bg-black/50`; with no backdrop blur (#40) the
         // scrim alone separates a dialog from the page, so it is darker.
         style.scrim = Color32::from_black_alpha(204);

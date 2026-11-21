@@ -155,7 +155,7 @@ fn cell(band: &str, column: usize) -> String {
 }
 
 fn style(d: &Driver<App>) -> eggshell_ui::contract::TableStyle {
-    d.shell().style().table.clone()
+    d.shell().style().table().clone()
 }
 
 fn press<A>(d: &mut Driver<A>, key: Key) {
@@ -289,7 +289,9 @@ mod stripe {
     const STRIPE: Color32 = Color32::from_rgb(200, 220, 240);
 
     fn striped(style: &mut Style) {
-        style.table.stripe = STRIPE;
+        let mut table = style.table().clone();
+        table.stripe = STRIPE;
+        style.set_table(table);
     }
 
     fn striped_fills(stripes: Stripes) -> [bool; 5] {
@@ -573,7 +575,7 @@ mod preset {
     fn shadcn_draws_its_table() {
         let preset = Shadcn::for_theme(Theme::Light);
         let t = &preset.tokens;
-        let table = preset.style().table;
+        let table = preset.style().table().clone();
         assert_eq!(table.header_fill, Color32::TRANSPARENT);
         assert_eq!(table.header_height, 40.0);
         assert_eq!(table.cell_padding, 8.0);
@@ -762,12 +764,16 @@ mod spacing {
     }
 
     fn table(d: &Driver<fn(&mut Style)>) -> eggshell_ui::contract::TableStyle {
-        d.shell().style().table.clone()
+        d.shell().style().table().clone()
     }
 
     #[test]
     fn cell_padding_y_sets_a_body_cells_top_and_bottom_only() {
-        let d = harness(|style| style.table.cell_padding_y = Some(3.0));
+        let d = harness(|style| {
+            let mut table = style.table().clone();
+            table.cell_padding_y = Some(3.0);
+            style.set_table(table);
+        });
         let padding = table(&d).cell_padding;
         assert_ne!(padding, 3.0, "precondition");
         let body = cell(&d, "Row(1)", 1);
@@ -779,7 +785,11 @@ mod spacing {
 
     #[test]
     fn header_padding_y_sizes_the_header_by_its_text() {
-        let d = harness(|style| style.table.header_padding_y = Some(5.0));
+        let d = harness(|style| {
+            let mut table = style.table().clone();
+            table.header_padding_y = Some(5.0);
+            style.set_table(table);
+        });
         assert_ne!(table(&d).header_height, LINE + 10.0, "precondition");
         let header = cell(&d, "Header", 0);
         assert!((header.height() - (LINE + 10.0)).abs() < 0.6, "{header:?}");
@@ -787,7 +797,11 @@ mod spacing {
 
     #[test]
     fn a_first_column_inset_moves_only_the_first_columns_text() {
-        let d = harness(|style| style.table.first_column_inset = Some(0.0));
+        let d = harness(|style| {
+            let mut table = style.table().clone();
+            table.first_column_inset = Some(0.0);
+            style.set_table(table);
+        });
         let padding = table(&d).cell_padding;
         let (first, second) = (cell(&d, "Row(1)", 0), cell(&d, "Row(1)", 1));
         let alpha = d.painted().expect("alpha").pos();
@@ -822,7 +836,11 @@ mod spacing {
             })
         };
         assert!(!rule(&harness(|_| {})), "open by default");
-        assert!(rule(&harness(|style| style.table.rule_below_last = true)));
+        assert!(rule(&harness(|style| {
+            let mut table = style.table().clone();
+            table.rule_below_last = true;
+            style.set_table(table);
+        })));
     }
 }
 
@@ -882,7 +900,9 @@ mod groups {
     const GROUP: Color32 = Color32::from_rgb(220, 240, 200);
 
     fn group_filled(style: &mut Style) {
-        style.table.group_fill = GROUP;
+        let mut table = style.table().clone();
+        table.group_fill = GROUP;
+        style.set_table(table);
     }
 
     fn harness_of(app: App) -> Driver<App> {
@@ -1109,7 +1129,9 @@ mod groups {
         }
 
         fn gapped(style: &mut Style) {
-            style.table.group_end = GroupEnd::Gap(GAP);
+            let mut table = style.table().clone();
+            table.group_end = GroupEnd::Gap(GAP);
+            style.set_table(table);
         }
 
         fn harness_with(app: App, view: support::View<App>) -> Driver<App> {

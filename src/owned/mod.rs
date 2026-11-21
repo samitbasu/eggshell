@@ -61,6 +61,7 @@ mod splitter;
 mod stepper;
 mod switch;
 mod table;
+mod table_sheet;
 mod tabs_sheet;
 mod toggle;
 mod toggle_group;
@@ -106,6 +107,8 @@ pub use switch::SwitchChain;
 pub use table::{
     Align, Cells, Column, Rows, RowsChain, Selectable, Selected, Stripes, TableChain, Unselectable,
 };
+pub use table_sheet::TablePart;
+pub(crate) use table_sheet::write_rules as write_table_rules;
 pub use tabs_sheet::TabsPart;
 pub(crate) use tabs_sheet::{Roles as TabsRoles, write_rules as write_tabs_rules};
 pub use toggle::{ToggleChain, ToggleItemChain};

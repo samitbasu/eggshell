@@ -72,14 +72,14 @@ impl FormStyle {
         let buttons = &style.button.sizes;
         Self {
             fill: style.menu().popup.paint.states.rest.fill,
-            border: style.table.rule,
+            border: style.table().rule,
             border_width: 1.0,
             radius: 12,
             padding_y: 8.0,
             row_padding_x: 16.0,
             row_padding_y: 8.0,
-            rule: style.table.rule,
-            rule_width: style.table.rule_width,
+            rule: style.table().rule,
+            rule_width: style.table().rule_width,
             title: TextSpec {
                 size: 14.0,
                 line_height: 20.0,

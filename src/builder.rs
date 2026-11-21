@@ -310,7 +310,11 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
     ///
     /// fn view(b: &mut Builder<'_, '_, ()>) {
     ///     b.styled(
-    ///         |style| style.table.cell_padding = 16.0,
+    ///         |style| {
+    ///             let mut table = style.table().clone();
+    ///             table.cell_padding = 16.0;
+    ///             style.set_table(table);
+    ///         },
     ///         |b| {
     ///             b.text(tw(), "Tables built here are roomier.");
     ///         },
