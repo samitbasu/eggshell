@@ -430,28 +430,26 @@ pub enum Disabled {
     Faded(Opacity),
 }
 
-/// Buttons: open sets of variants and sizes, and the toggle form.
+/// TODO(prose): toggle buttons: their sizes and their looks off and on. A
+/// plain button's look is the [`sheet`](Style::sheet)'s
+/// ([`ButtonPart`](crate::owned::ButtonPart)); a toggle's moves there with
+/// its own shadcn source, `toggle.tsx`.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct ButtonStyle {
-    /// The variants the style defines. The default entry is the variant of
-    /// [`Builder::button`](crate::Builder::button).
-    pub variants: Keyed<Variant, Look>,
-    /// Metrics of a button per size.
-    pub sizes: Keyed<Size, Metrics>,
+pub struct ToggleStyle {
     /// Metrics of a toggle per size.
-    pub toggle_sizes: Keyed<Size, Metrics>,
+    pub sizes: Keyed<Size, Metrics>,
     /// Border width of a toggle, off or on.
-    pub toggle_border_width: f32,
+    pub border_width: f32,
     /// The looks of a toggle that is off, by variant. Variants are chosen
     /// with [`ButtonChain::variant`](crate::owned::ButtonChain::variant) for toggles as
     /// for buttons.
-    pub toggle_off: Keyed<Variant, Paint>,
+    pub off: Keyed<Variant, Paint>,
     /// The looks of a toggle that is on.
-    pub toggle_on: Keyed<Variant, Paint>,
-    /// The text role of buttons, or `None` for [`Style::text`].
+    pub on: Keyed<Variant, Paint>,
+    /// The text role of toggles, or `None` for [`Style::text`].
     pub text: Option<TextSpec>,
-    /// How far a pressed button moves down, in points; zero for none.
+    /// How far a pressed toggle moves down, in points; zero for none.
     pub press_shift: f32,
     /// How long state changes animate.
     pub transition: Duration,
@@ -1536,8 +1534,8 @@ pub struct Style {
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
     pub label: States,
-    /// Buttons and toggles.
-    pub button: ButtonStyle,
+    /// TODO(prose): toggle buttons.
+    pub toggle: ToggleStyle,
     /// Checkboxes.
     pub checkbox: CheckboxStyle,
     /// Radio buttons.
@@ -1798,21 +1796,29 @@ impl Style {
             width: 2.0,
             color: v.selection.bg_fill,
         };
+        let mut sheet = crate::sheet::Sheet::defaults();
+        crate::owned::button_defaults(
+            &mut sheet,
+            crate::owned::ButtonDefaults {
+                look: Look::new(button_states).bordered(border_width),
+                sizes: Keyed::new(Size::DEFAULT, metrics),
+                text: text.clone(),
+                focus,
+                disabled: Disabled::Colors,
+                transition,
+                press_shift: 0.0,
+            },
+        );
         Self {
             text,
             faces: Faces::default(),
             focus,
             disabled: Disabled::Colors,
             label,
-            button: ButtonStyle {
-                variants: Keyed::new(
-                    Variant::DEFAULT,
-                    Look::new(button_states).bordered(border_width),
-                ),
-                sizes: Keyed::new(Size::DEFAULT, metrics),
-                toggle_sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
-                toggle_border_width: 0.0,
-                toggle_off: Keyed::new(
+            toggle: ToggleStyle {
+                sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
+                border_width: 0.0,
+                off: Keyed::new(
                     Variant::DEFAULT,
                     Paint::new(states(
                         Colors {
@@ -1824,7 +1830,7 @@ impl Style {
                         active,
                     )),
                 ),
-                toggle_on: Keyed::new(
+                on: Keyed::new(
                     Variant::DEFAULT,
                     Paint::new(states(selected, selected, selected)),
                 ),
@@ -2195,7 +2201,7 @@ impl Style {
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
             tokens: Tokens::from_egui(egui),
-            sheet: crate::sheet::Sheet::defaults(),
+            sheet,
             extensions: Extensions::default(),
         }
     }

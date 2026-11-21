@@ -70,7 +70,8 @@ use std::time::Duration;
 
 use egui::{Id, Response, Role, Ui, WidgetInfo};
 
-pub use button::{ButtonChain, ButtonOptions, Face};
+pub use button::{ButtonChain, ButtonOptions, ButtonPart, Face};
+pub(crate) use button::{ButtonDefaults, button_defaults};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use custom::CustomChain;
@@ -200,7 +201,11 @@ impl Enablement {
     /// The colours of `states` at rest, or the disabled ones if the style
     /// has them (a style that fades has the rest colours, faded by the root).
     fn colors(self, states: States, style: &Style) -> Colors {
-        match (self, style.disabled) {
+        self.colors_for(states, style.disabled)
+    }
+
+    fn colors_for(self, states: States, disabled: Disabled) -> Colors {
+        match (self, disabled) {
             (Self::Disabled, Disabled::Colors) => states.disabled,
             _ => states.rest,
         }
@@ -433,7 +438,7 @@ impl Look {
     ///
     /// fn tile(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let look = style.button.variants.get(style.button.variants.default_key());
+    ///     let look = style.select.trigger;
     ///     let classes = look.classes(&style, 6, b.enablement(), Duration::from_millis(150));
     ///     b.div_id("tile", classes.p(2.0), |b| b.text(eggshell_ui::tw(), "Tile"))
     ///         .role(egui::Role::Button)
@@ -480,6 +485,25 @@ impl Paint {
         enablement: Enablement,
         transition: Duration,
     ) -> Tw {
+        self.classes_with(
+            border_width,
+            (style.focus, style.disabled),
+            radius,
+            enablement,
+            transition,
+        )
+    }
+
+    /// [`classes`](Self::classes) with the style's focus ring and disabled
+    /// form given, for a sheet rule, which cannot hold the style.
+    pub(crate) fn classes_with(
+        &self,
+        border_width: f32,
+        (focus, disabled): (crate::contract::Focus, Disabled),
+        radius: u8,
+        enablement: Enablement,
+        transition: Duration,
+    ) -> Tw {
         let base = tw()
             .border(border_width)
             .rounded_px(f32::from(radius))
@@ -494,17 +518,17 @@ impl Paint {
         let states = self.states;
         match enablement {
             Enablement::Disabled => {
-                let fade = match style.disabled {
+                let fade = match disabled {
                     Disabled::Colors => 0.5,
                     Disabled::Faded(_) => 1.0,
                 };
                 shadow(
-                    painted(base, enablement.colors(states, style)).inert(),
+                    painted(base, enablement.colors_for(states, disabled)).inert(),
                     fade,
                 )
             }
             Enablement::Enabled => {
-                let ring = self.focus.unwrap_or(style.focus);
+                let ring = self.focus.unwrap_or(focus);
                 let (rest, focused) = (states.rest, states.focused);
                 let halo = |p: crate::tw::Paint| match self.hover_ring {
                     Some(ring) => p.ring(ring.width, ring.color),

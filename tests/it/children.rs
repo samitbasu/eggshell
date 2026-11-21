@@ -3,10 +3,11 @@
 
 use std::sync::Arc;
 
-use eggshell_ui::contract::{Disabled, Themed};
-use eggshell_ui::owned::{Enablement, Face};
+use eggshell_ui::contract::{Disabled, Size, Themed, Variant};
+use eggshell_ui::owned::{ButtonPart, Enablement, Face};
+use eggshell_ui::sheet::{Key, When};
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui::{Builder, Opacity, TextStyle, tw};
+use eggshell_ui::{Aria, Builder, Opacity, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
 use egui::{Color32, Rect, Theme, pos2, vec2};
 
@@ -82,6 +83,11 @@ fn driver(faded: bool) -> Driver<App> {
     let mut style = Shadcn::for_theme(Theme::Light).style();
     if faded {
         style.disabled = Disabled::Faded(Opacity::new(0.4));
+        style.sheet.as_app().rule_when(
+            ButtonPart::Root,
+            When::always().aria(Aria::Disabled),
+            |t, _| t.opacity(Opacity::new(0.4)),
+        );
     }
     let mut d = support::driver(
         vec2(500.0, 200.0),
@@ -109,22 +115,28 @@ fn label_rect(d: &Driver<App>, inside: Rect, text: &str) -> Rect {
 }
 
 #[test]
-fn an_absolute_child_is_placed_against_the_buttons_border_box() {
+fn an_absolute_child_is_placed_inside_the_buttons_border() {
     let d = driver(false);
     let button = d.rect(Target::suffix("/\"abs\""));
     let bar = d.rect(Target::suffix("/\"abs\"/\"bar\""));
     let style = Shadcn::for_theme(Theme::Light).style();
+    let border = style
+        .sheet
+        .resolve(
+            ButtonPart::Root,
+            &[Key::Variant(Variant::DEFAULT), Key::Size(Size::DEFAULT)],
+            &style.tokens,
+        )
+        .style()
+        .border
+        .bottom;
     assert_eq!(
-        style
-            .button
-            .variants
-            .get(style.button.variants.default_key())
-            .border_width,
-        0.0,
-        "precondition: no border, so border and padding boxes agree"
+        border,
+        taffy::LengthPercentage::length(1.0),
+        "precondition: the button's border, `border`"
     );
     let expected = Rect::from_min_size(
-        pos2(button.center().x - 8.0, button.bottom() - 2.0 - 4.0),
+        pos2(button.center().x - 8.0, button.bottom() - 1.0 - 2.0 - 4.0),
         vec2(16.0, 4.0),
     );
     assert_eq!(bar, expected);

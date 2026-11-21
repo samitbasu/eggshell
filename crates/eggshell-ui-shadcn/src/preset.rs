@@ -9,7 +9,7 @@ use eggshell_ui::overlay::Distance;
 use eggshell_ui::{Easing, Opacity, TextSpec, Tracking, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
-use crate::styles::{DestructiveLook, HoverSurface, SecondaryHover, ShadcnStyle};
+use crate::styles::{HoverSurface, ShadcnStyle};
 use crate::{ContrastPair, FontSet, Palette, Tokens, size, variant};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
@@ -220,82 +220,10 @@ impl Shadcn {
             HoverSurface::Accent => (t.accent, t.accent_foreground, t.accent_50()),
             HoverSurface::Muted => (t.muted, t.foreground, t.muted_50()),
         };
-        let outline_rest = Colors {
-            fill: self.input_fill(),
-            border: t.input,
-            text: t.foreground,
-        };
-        let outline_hover = Colors {
-            fill: if dark { t.input_50() } else { hover_fill },
-            text: if dark { t.foreground } else { hover_text },
-            ..outline_rest
-        };
-        let destructive_ring = Focus {
-            color: t.destructive.gamma_multiply(if dark { 0.4 } else { 0.2 }),
-            ..ring
-        };
-        let destructive = match t.destructive_look {
-            DestructiveLook::Solid => filled(
-                flat(
-                    if dark {
-                        t.destructive_60()
-                    } else {
-                        t.destructive
-                    },
-                    t.destructive_foreground,
-                ),
-                flat(t.destructive_90(), t.destructive_foreground),
-            ),
-            DestructiveLook::Tinted => {
-                let tint = |light: f32, deep: f32| {
-                    t.destructive
-                        .gamma_multiply(if dark { deep } else { light })
-                };
-                filled(
-                    flat(tint(0.1, 0.2), t.destructive),
-                    flat(tint(0.2, 0.3), t.destructive),
-                )
-            }
-        };
-        let destructive = BoxLook {
-            paint: Paint {
-                focus: Some(destructive_ring),
-                ..destructive.paint
-            },
-            ..destructive
-        };
-        let outline_button = shadowed(
-            BoxLook::new(states(outline_rest, outline_hover)).bordered(1.0),
-            t.shadow_xs,
-        );
         let ghost_button = filled(
             flat(clear, t.foreground),
             flat(if dark { hover_fill_dark } else { hover_fill }, hover_text),
         );
-        let secondary_hover = match t.secondary_hover {
-            SecondaryHover::Fade(opacity) => t.secondary.gamma_multiply(opacity.into()),
-            SecondaryHover::Mix(share) => t.secondary.lerp_to_gamma(t.foreground, share.into()),
-        };
-        let variants = Keyed::new(
-            variant::SECONDARY,
-            filled(
-                flat(t.secondary, t.secondary_foreground),
-                flat(secondary_hover, t.secondary_foreground),
-            ),
-        )
-        .with(
-            variant::PRIMARY,
-            filled(
-                flat(t.primary, t.primary_foreground),
-                flat(
-                    t.primary.gamma_multiply(t.primary_hover.into()),
-                    t.primary_foreground,
-                ),
-            ),
-        )
-        .with(variant::DESTRUCTIVE, destructive)
-        .with(variant::OUTLINE, outline_button)
-        .with(variant::GHOST, ghost_button);
         let control = Metrics {
             height: t.control_height,
             min_width: 0.0,
@@ -333,7 +261,7 @@ impl Shadcn {
             text: xs_text,
             ..m
         };
-        let toggle = Metrics {
+        let toggle_metrics = Metrics {
             min_width: t.control_height,
             padding_x: t.toggle_padding_x,
             ..control
@@ -446,24 +374,22 @@ impl Shadcn {
         style.faces = t.font.as_ref().map(FontSet::declared).unwrap_or_default();
         style.focus = ring;
         style.label = States::still(flat(clear, t.foreground), t.background);
-        style.button = {
-            let mut button = style.button;
-            button.text = Some(t.text_role_at(t.control_weight));
-            button.variants = variants;
-            button.sizes = sized(control);
-            button.toggle_sizes = sized(toggle);
-            button.toggle_border_width = 0.0;
-            button.toggle_off = Keyed::new(
+        style.toggle = {
+            let mut toggle = style.toggle;
+            toggle.text = Some(t.text_role_at(t.control_weight));
+            toggle.sizes = sized(toggle_metrics);
+            toggle.border_width = 0.0;
+            toggle.off = Keyed::new(
                 Variant::DEFAULT,
                 Paint::new(states(
                     flat(clear, t.foreground),
                     flat(t.muted, t.muted_foreground),
                 )),
             );
-            button.toggle_on = Keyed::new(Variant::DEFAULT, Paint::new(states(accented, accented)));
-            button.press_shift = 1.0;
-            button.transition = transition;
-            button
+            toggle.on = Keyed::new(Variant::DEFAULT, Paint::new(states(accented, accented)));
+            toggle.press_shift = 1.0;
+            toggle.transition = transition;
+            toggle
         };
         style.checkbox = {
             let mut checkbox = style.checkbox;
@@ -911,6 +837,7 @@ impl Shadcn {
         };
         style.tokens = self.core_tokens();
         style.sheet.as_preset();
+        crate::sheets::write(&mut style.sheet, t.style, self.theme);
         style
     }
 

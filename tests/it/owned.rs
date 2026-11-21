@@ -6,7 +6,9 @@ use eggshell_ui::Style;
 use std::sync::Arc;
 
 use eggshell_ui::contract::{Size, Themed, Variant};
+use eggshell_ui::owned::ButtonPart;
 use eggshell_ui::owned::Enablement;
+use eggshell_ui::sheet::{Key as Keyed, When};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens, variant};
@@ -14,6 +16,7 @@ use egui::epaint::Shape;
 use egui::{Color32, Key, Role, Theme, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
+use crate::support::button::look;
 use crate::support::{self, box_at, focused_path, ring_at, shapes, text_color};
 
 const VARIANTS: [Variant; 5] = [
@@ -91,128 +94,124 @@ fn move_away(d: &mut Driver<App>) {
 }
 
 #[test]
-fn every_variant_and_state_draws_the_styles_colours() {
+fn every_variant_and_state_draws_shadcns_classes() {
     for theme in [Theme::Light, Theme::Dark] {
-        let style = style(theme);
         let mut d = harness(theme);
         for name in VARIANTS {
-            let look = style.button.variants.get(name);
+            let look = look(theme, name);
             let node = path(name, Enablement::Enabled);
             let rect = d.rect(Target::suffix(&node));
-            let radius = f32::from(style.button.sizes.get(Size::DEFAULT).radius);
-            let rest = look.paint.states.rest;
             let shape = box_at(&d, rect);
-            assert_eq!(shape.fill, rest.fill, "{theme:?} {name} rest fill");
+            assert_eq!(shape.fill, look.fill, "{theme:?} {name} rest fill");
             assert_eq!(
                 shape.corner_radius,
-                egui::CornerRadius::same(style.button.sizes.get(Size::DEFAULT).radius),
-                "{theme:?} {name} radius {radius}"
+                egui::CornerRadius::same(8),
+                "{theme:?} {name}: rounded-md"
             );
-            assert_eq!(text_color(&d, rect, "Save"), rest.text);
-            if look.border_width > 0.0 {
-                assert_eq!(shape.stroke.color, rest.border, "{theme:?} {name} border");
-                assert_eq!(shape.stroke.width, look.border_width);
-            } else {
-                assert_eq!(shape.stroke.width, 0.0, "{theme:?} {name} has no border");
-            }
+            assert_eq!(text_color(&d, rect, "Save"), look.text);
+            assert_eq!(
+                (shape.stroke.color, shape.stroke.width),
+                (look.border, 1.0),
+                "{theme:?} {name}: border, transparent unless the variant colours it"
+            );
 
             d.hover(Target::suffix(&node)).frames(12);
             let shape = box_at(&d, rect);
-            assert_eq!(
-                shape.fill, look.paint.states.hover.fill,
-                "{theme:?} {name} hover fill"
-            );
-            assert_eq!(text_color(&d, rect, "Save"), look.paint.states.hover.text);
+            assert_eq!(shape.fill, look.hover_fill, "{theme:?} {name} hover fill");
+            assert_eq!(text_color(&d, rect, "Save"), look.hover_text);
 
             d.pointer_down(Target::suffix(&node)).frames(11);
             let shape = box_at(&d, rect.translate(vec2(0.0, 1.0)));
             assert_eq!(
-                shape.fill, look.paint.states.pressed.fill,
-                "{theme:?} {name} pressed"
+                shape.fill, look.hover_fill,
+                "{theme:?} {name}: pressed is hovered, moved down"
             );
             d.pointer_up(Target::suffix(&node)).frames(11);
             move_away(&mut d);
 
             let off = path(name, Enablement::Disabled);
             let off_rect = d.rect(Target::suffix(&off));
-            let shape = box_at(&d, off_rect);
             assert_eq!(
-                shape.fill, look.paint.states.disabled.fill,
-                "{theme:?} {name} disabled"
+                box_at(&d, off_rect).fill,
+                look.fill.gamma_multiply(0.5),
+                "{theme:?} {name}: disabled:opacity-50"
             );
             assert_eq!(
                 text_color(&d, off_rect, "Save"),
-                look.paint.states.disabled.text
-            );
-            assert_ne!(
-                look.paint.states.disabled, look.paint.states.rest,
-                "precondition: the disabled colours differ from rest"
+                look.text.gamma_multiply(0.5)
             );
         }
     }
 }
 
 #[test]
-fn vega_values_are_shadcns() {
-    let light = style(Theme::Light);
-    let primary = light.button.variants.get(variant::PRIMARY);
+fn the_sheet_holds_shadcns_classes_and_where_they_came_from() {
+    let primary = [Keyed::Variant(variant::PRIMARY), Keyed::Size(Size::DEFAULT)];
+    let light_style = style(Theme::Light);
+    let light = light_style
+        .sheet
+        .resolve(ButtonPart::Root, &primary, &light_style.tokens);
     assert_eq!(
-        primary.paint.states.rest.fill,
-        Color32::from_rgb(0x17, 0x17, 0x17)
+        light.paint_classes().background,
+        Some(Color32::from_rgb(0x17, 0x17, 0x17))
     );
     assert_eq!(
-        primary.paint.states.rest.text,
-        Color32::from_rgb(0xfa, 0xfa, 0xfa)
-    );
-    assert_eq!(
-        primary.paint.states.hover.fill,
-        Color32::from_rgb(0x17, 0x17, 0x17).gamma_multiply(0.9)
-    );
-    assert_eq!(
-        light.button.sizes.get(Size::DEFAULT).radius,
-        8,
+        light.paint_classes().radius,
+        egui::CornerRadius::same(8),
         "rounded-md is radius - 2px"
     );
+    #[cfg(debug_assertions)]
+    for (property, line, class) in [
+        (eggshell_ui::Property::Background, 150, "bg-primary"),
+        (eggshell_ui::Property::height, 182, "h-9"),
+        (eggshell_ui::Property::RadiusNw, 146, "rounded-md"),
+    ] {
+        assert_eq!(
+            light.origin_of(property),
+            Some(eggshell_ui::Origin {
+                layer: eggshell_ui::sheet::Layer::Preset,
+                source: eggshell_ui::Source::Shadcn {
+                    file: "registry/styles/style-vega.css",
+                    line,
+                    class,
+                },
+            }),
+            "{property:?}"
+        );
+    }
+    let outline = [Keyed::Variant(variant::OUTLINE), Keyed::Size(Size::DEFAULT)];
+    let dark_style = style(Theme::Dark);
+    let dark = dark_style
+        .sheet
+        .resolve(ButtonPart::Root, &outline, &dark_style.tokens);
     assert_eq!(
-        light
+        dark.paint_classes().background,
+        Some(Tokens::dark().input.gamma_multiply(0.3)),
+        "dark:bg-input/30"
+    );
+    assert_eq!(
+        style(Theme::Light)
             .checkbox
             .sizes
             .get(eggshell_ui::contract::Size::DEFAULT)
             .radius,
         4
     );
-    let dark = style(Theme::Dark);
-    let outline = dark.button.variants.get(variant::OUTLINE);
-    assert_eq!(
-        outline.paint.states.rest.fill,
-        Tokens::dark().input.gamma_multiply(0.3)
-    );
-    assert_eq!(
-        outline.paint.states.hover.fill,
-        Tokens::dark().input.gamma_multiply(0.5)
-    );
 }
 
 #[test]
-fn disabled_is_explicit_opaque_colours_not_alpha() {
+fn disabled_is_shadcns_half_opacity_with_no_focus_ring() {
     let d = harness(Theme::Light);
     let node = path(variant::PRIMARY, Enablement::Disabled);
     let rect = d.rect(Target::suffix(&node));
     let shape = box_at(&d, rect);
-    let rest = style(Theme::Light)
-        .button
-        .variants
-        .get(variant::PRIMARY)
-        .paint
-        .states
-        .rest;
-    let background = Tokens::light().background;
+    let rest = look(Theme::Light, variant::PRIMARY);
     assert_eq!(
         shape.fill,
-        rest.faded_over(eggshell_ui::Opacity::new(0.5), background)
-            .fill
+        rest.fill.gamma_multiply(0.5),
+        "disabled:opacity-50"
     );
-    assert_eq!(shape.fill.a(), 255, "opaque, so nothing shows through");
+    assert!(shape.fill.a() < 255, "the page shows through");
     assert!(
         ring_at(&d, rect).is_none(),
         "a disabled button never shows a focus ring"
@@ -237,10 +236,11 @@ fn the_focus_ring_is_shadcns_three_pixels_at_half_ring() {
             "ring-ring/50"
         );
         assert_eq!(ring.rect, box_at(&d, rect).rect, "no ring offset");
+        let border = box_at(&d, rect).stroke;
         assert_eq!(
-            box_at(&d, rect).stroke.width,
-            0.0,
-            "primary has no border to recolour"
+            (border.color, border.width),
+            (tokens.ring, 1.0),
+            "focus-visible:border-ring on the transparent border"
         );
 
         let outline = path(variant::OUTLINE, Enablement::Enabled);
@@ -281,8 +281,14 @@ fn destructive_has_its_own_focus_ring() {
 #[test]
 fn sizes_are_what_the_classes_imply() {
     let mut d = harness(Theme::Light);
-    let style = style(Theme::Light);
-    let font = style.role(&style.button.text).font_id(d.ctx());
+    let tokens = Tokens::light();
+    let font = eggshell_ui::TextSpec {
+        size: 14.0,
+        line_height: 20.0,
+        weight: eggshell_ui::Weight::Medium,
+        ..tokens.text_role()
+    }
+    .font_id(d.ctx());
     let text_width = |d: &Driver<App>, text: &str| {
         d.ctx().fonts_mut(|fonts| {
             fonts
@@ -294,18 +300,12 @@ fn sizes_are_what_the_classes_imply() {
     let save = text_width(&d, "Save");
     for name in VARIANTS {
         let rect = d.rect(Target::suffix(&path(name, Enablement::Enabled)));
-        let border = if name == variant::OUTLINE { 2.0 } else { 0.0 };
         assert_eq!(rect.height(), 36.0, "{name}: h-9");
         assert!(
-            (rect.width() - (save + 32.0 + border)).abs() < 0.01,
-            "{name}: px-4 around the text{}: {} vs {}",
-            if border > 0.0 {
-                " and a 1px border"
-            } else {
-                ""
-            },
+            (rect.width() - (save + 20.0 + 2.0)).abs() < 0.01,
+            "{name}: px-2.5 around the text in a 1px border: {} vs {}",
             rect.width(),
-            save + 32.0 + border
+            save + 22.0
         );
     }
     let toggle = d.rect(Target::suffix("/\"toggle\""));
@@ -525,13 +525,14 @@ fn accessibility_roles_labels_and_state() {
 }
 
 #[test]
-fn a_changed_style_changes_the_drawing() {
+fn an_app_rule_changes_the_drawing() {
     let mut style = style(Theme::Light);
     let red = Color32::from_rgb(200, 30, 30);
-    let look = style.button.variants.get_mut(variant::PRIMARY).unwrap();
-    look.paint.states.rest.fill = red;
-    style.button.sizes.get_mut(Size::DEFAULT).unwrap().radius = 0;
-    style.button.sizes.get_mut(Size::DEFAULT).unwrap().height = 40.0;
+    style.sheet.as_app().rule_when(
+        ButtonPart::Root,
+        When::always().variant(variant::PRIMARY),
+        move |t, _| t.bg(red).rounded_px(0.0).h_px(40.0),
+    );
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style)));
     d.frames(12);
@@ -569,25 +570,14 @@ fn a_pressed_button_is_painted_one_point_lower_and_nothing_else_moves() {
     let rect = d.rect(Target::suffix(&node));
     let rest_text = label_top(&d, rect);
     let nodes_before = support::nodes(&d).clone();
-    assert_eq!(
-        style(Theme::Light).button.press_shift,
-        1.0,
-        "precondition: vega shifts"
-    );
 
     press_at(&mut d, rect.center());
     d.frames(12);
     let moved = rect.translate(vec2(0.0, 1.0));
     assert_eq!(
         box_at(&d, moved).fill,
-        style(Theme::Light)
-            .button
-            .variants
-            .get(variant::PRIMARY)
-            .paint
-            .states
-            .pressed
-            .fill
+        look(Theme::Light, variant::PRIMARY).hover_fill,
+        "active:translate-y-px: the hovered look, a point lower"
     );
     assert_eq!(
         label_top(&d, moved) - rest_text,
@@ -679,29 +669,31 @@ fn a_button_that_opens_a_popup_stays_put_when_pressed() {
     d.frames(12);
     assert_eq!(
         box_at(&d, rect).fill,
-        style(Theme::Light)
-            .button
-            .variants
-            .get(variant::SECONDARY)
-            .paint
-            .states
-            .pressed
-            .fill,
-        "the box is pressed and at its layout rect"
+        look(Theme::Light, variant::SECONDARY).hover_fill,
+        "the box is pressed and at its layout rect: not-aria-[haspopup]"
     );
 }
 
 #[test]
-fn a_style_without_press_shift_does_not_move_buttons() {
+fn an_app_rule_can_take_the_press_shift_away() {
     let mut style = style(Theme::Light);
-    style.button.press_shift = 0.0;
+    style
+        .sheet
+        .as_app()
+        .rule_when(ButtonPart::Root, When::always(), |t, _| {
+            t.active(|p| p.translate_y(0.0))
+        });
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style)));
     d.frames(4);
     let rect = d.rect(Target::suffix(&path(variant::PRIMARY, Enablement::Enabled)));
     press_at(&mut d, rect.center());
     d.frames(12);
-    box_at(&d, rect);
+    assert_eq!(
+        box_at(&d, rect).rect.top(),
+        rect.top(),
+        "the pressed box stays put"
+    );
 }
 
 mod toggle_chain {

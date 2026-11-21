@@ -49,10 +49,10 @@ impl eggshell_ui::contract::Extension for SpinnerStyle {
 }
 
 impl SpinnerStyle {
-    /// TODO(prose): a spinner as large as a button's icon at each of the
+    /// TODO(prose): a spinner as large as a control's icon at each of the
     /// style's sizes, turning once a second, as Tailwind's `animate-spin`.
     pub fn from_style(style: &Style) -> Self {
-        let buttons = &style.button.sizes;
+        let buttons = &style.toggle.sizes;
         let mut sizes = Keyed::new(
             buttons.default_key(),
             buttons.get(buttons.default_key()).glyph,
