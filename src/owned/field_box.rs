@@ -90,9 +90,9 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
         let size = b.size_of(size);
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let style = b.style().clone();
-        let metrics = *style.input.sizes.lookup(b.ctx(), size);
+        let metrics = *style.input().sizes.lookup(b.ctx(), size);
         let keys = super::input_keys(
-            style.input.sizes.key_for(size),
+            style.input().sizes.key_for(size),
             enablement == Enablement::Disabled,
         );
         let classes = b.part(

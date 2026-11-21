@@ -359,8 +359,8 @@ fn a_focused_switch_shows_the_styles_ring() {
         d.frames(12);
         let rect = d.rect(Target::suffix("/\"air\"/Track"));
         let ring = ring_at(&d, rect).expect("a focus ring");
-        assert_eq!(ring.stroke.width, style.focus.width);
-        assert_eq!(ring.stroke.color, style.focus.color);
+        assert_eq!(ring.stroke.width, style.focus().width);
+        assert_eq!(ring.stroke.color, style.focus().color);
     }
 }
 

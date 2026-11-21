@@ -1194,7 +1194,7 @@ impl<A> Walk<'_, A> {
             && !interaction.variants.has_focus()
             && response.as_ref().is_some_and(Response::has_focus)
         {
-            let ring = node.style.focus;
+            let ring = node.style.focus();
             self.painter(parent.clip, opacity).add(RectShape::stroke(
                 boxes.border,
                 look.paint.radius,

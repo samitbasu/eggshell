@@ -94,7 +94,7 @@ const BOTH: &str = r#"/"Page"/"sized"/"both""#;
 const CUSTOM: &str = r#"/"Page"/"custom""#;
 
 fn input() -> eggshell_ui::contract::InputStyle {
-    Shadcn::for_theme(Theme::Light).style().input
+    Shadcn::for_theme(Theme::Light).style().input().clone()
 }
 
 #[test]

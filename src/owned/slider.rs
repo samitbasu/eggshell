@@ -522,7 +522,7 @@ impl Row {
             size,
         } = self;
         let style = b.style().clone();
-        let input = *style.input.sizes.lookup(b.ctx(), size);
+        let input = *style.input().sizes.lookup(b.ctx(), size);
         let row = tw().flex().items_center().justify_between().w_full();
         let row = if header.parse.is_some() {
             row.min_h_px(input.height)

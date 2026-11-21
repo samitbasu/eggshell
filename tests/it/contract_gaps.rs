@@ -671,7 +671,7 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
         let mut d = harness_with(
             theme,
             shadcn,
-            |style| style.disabled = Disabled::Faded(Opacity::new(opacity)),
+            |style| style.set_disabled(Disabled::Faded(Opacity::new(opacity))),
             disabled_row,
         );
         let style = d.app().style.clone();
@@ -719,7 +719,7 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
         Theme::Light,
         ShadcnStyle::Vega,
         |style| {
-            style.disabled = Disabled::Faded(Opacity::new(0.3));
+            style.set_disabled(Disabled::Faded(Opacity::new(0.3)));
             let look = style
                 .button
                 .variants
@@ -743,7 +743,7 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
 fn the_colors_form_still_draws_the_styles_disabled_colours() {
     let d = harness(Theme::Light, disabled_row);
     let style = &d.app().style;
-    assert_eq!(style.disabled, Disabled::Colors);
+    assert_eq!(style.disabled(), Disabled::Colors);
     let primary = style
         .button
         .variants
