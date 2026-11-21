@@ -842,17 +842,7 @@ impl Shadcn {
         style.tokens = self.core_tokens();
         style.tokens.focus = ring;
         style.sheet.as_preset();
-        let input = style.input().clone();
-        style.set_input(input);
-        let segmented = style.segmented().clone();
-        style.set_segmented(segmented);
-        style.set_label(style.label());
-        let checkbox = style.checkbox().clone();
-        style.set_checkbox(checkbox);
-        let radio = style.radio().clone();
-        style.set_radio(radio);
-        let switch = style.switch().clone();
-        style.set_switch(switch);
+        style.rewrite_rules();
         crate::sheets::write(&mut style.sheet, t.style, self.theme);
         style
     }
