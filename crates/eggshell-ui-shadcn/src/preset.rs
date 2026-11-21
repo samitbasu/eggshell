@@ -125,7 +125,7 @@ impl Shadcn {
         }
     }
 
-    /// TODO(prose): this preset's style with its fonts, as one half of a layout's style.
+    /// TODO(prose): this preset's style with its fonts and the extras' looks, as one half of a layout's style.
     ///
     /// ```
     /// use eggshell_ui::LayoutState;
@@ -143,6 +143,24 @@ impl Shadcn {
         let mut core = self.style();
         if let Some(font) = &self.tokens.font {
             core.set_extension(contract::Fonts(font.inserts()));
+        }
+        #[cfg(feature = "extras")]
+        {
+            // keep sorted
+            let badge = self.badge(&core);
+            let command = self.command(&core);
+            let disclosure = self.disclosure(&core);
+            let form = self.form(&core);
+            let notify = self.notify(&core);
+            let skeleton = self.skeleton(&core);
+            core.set_extension(badge);
+            core.set_extension(command);
+            core.set_extension(disclosure);
+            core.set_extension(form);
+            core.set_extension(self.hover_card());
+            core.set_extension(self.markdown());
+            core.set_extension(notify);
+            core.set_extension(skeleton);
         }
         core
     }
@@ -956,18 +974,6 @@ impl Shadcn {
         let style = self.style();
         ctx.style_mut_of(self.theme, |egui| style.egui_style(self.theme, egui));
         ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
-        #[cfg(feature = "extras")]
-        {
-            // keep sorted
-            self.badge(&style).install_for(ctx, self.theme);
-            self.command(&style).install_for(ctx, self.theme);
-            self.disclosure(&style).install_for(ctx, self.theme);
-            self.form(&style).install_for(ctx, self.theme);
-            self.hover_card().install_for(ctx, self.theme);
-            self.markdown().install_for(ctx, self.theme);
-            self.notify(&style).install_for(ctx, self.theme);
-            self.skeleton(&style).install_for(ctx, self.theme);
-        }
         style.install_for(ctx, self.theme);
     }
 

@@ -55,7 +55,7 @@ type ChangeFn<A> = Rc<dyn Fn(&mut A, Shown)>;
 /// use eggshell_ui::Progress;
 /// use eggshell_ui_extras::disclosure::{DisclosureStyle, chevron};
 ///
-/// let style = DisclosureStyle::of(&egui::Context::default());
+/// let style = DisclosureStyle::from_style(&eggshell_ui::Style::default());
 /// let open = chevron(&style.section, Progress::END);
 /// # let _ = open;
 /// ```
@@ -243,8 +243,8 @@ impl<A: 'static, K: Key> DisclosureChain<'_, '_, '_, A, K> {
             classes,
             enablement,
         } = self;
-        let ctx = b.ctx().clone();
-        let style = DisclosureStyle::of(&ctx);
+        let _ctx = b.ctx().clone();
+        let style = b.style().extension::<DisclosureStyle>();
         let enablement = enablement_in(b, enablement);
         let box_classes = box_classes(&style, enablement);
         let box_classes = match (style.button_hover, enablement) {

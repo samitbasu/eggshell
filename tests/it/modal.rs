@@ -550,6 +550,7 @@ mod example {
         use eggshell_ui::testing::Headless;
         let placed = Headless::new(SCREEN)
             .prepare(eggshell_ui_shadcn::Shadcn::apply_both)
+            .style(crate::support::shadcn())
             .layout(&State::default(), |b, _| {
                 let open = State {
                     dialog: Shown::Open,

@@ -201,7 +201,7 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
         let ctx = b.ctx().clone();
         let size = size.unwrap_or(b.control_size());
         let enablement = enablement.and(b.enablement());
-        let gap = TabsStyle::of(&ctx).gap;
+        let gap = b.style().extension::<TabsStyle>().gap;
         let selected = options.iter().position(|option| option.value == current);
         let rows = SegmentedRows::One;
         b.div_id(key, tw().flex().flex_col().gap(gap / 4.0), |b| {

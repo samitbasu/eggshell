@@ -194,7 +194,7 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
             name,
         } = self;
         let ctx = b.ctx().clone();
-        let (style, core) = (BadgeStyle::of(&ctx), Style::of(&ctx));
+        let (style, core) = (b.style().extension::<BadgeStyle>(), b.style().clone());
         let look = face.look(&ctx, &style);
         let name = name.unwrap_or_else(|| face.label.clone());
         #[cfg(debug_assertions)]

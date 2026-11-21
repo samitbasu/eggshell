@@ -300,6 +300,7 @@ fn themed_width(theme: Theme) -> f32 {
     let mut headless = Headless::new(SIZE)
         .base_text(body())
         .prepare(Shadcn::apply_both)
+        .style(crate::support::shadcn())
         .theme(theme);
     headless
         .layout(&(), |b: &mut Builder<'_, '_, ()>, _: &()| {
@@ -402,7 +403,9 @@ fn a_view_may_lend_the_app_to_its_nodes_for_the_frame() {
     let app = Labelled {
         label: "Telemetry".to_owned(),
     };
-    let mut headless = Headless::new(SIZE).prepare(Shadcn::apply_both);
+    let mut headless = Headless::new(SIZE)
+        .prepare(Shadcn::apply_both)
+        .style(crate::support::shadcn());
     let placed: eggshell_ui::testing::Placed<Labelled> =
         headless.layout(&app, |b, app| app.build(b));
     assert!(
@@ -458,6 +461,7 @@ fn text_agrees_at(scale: PixelsPerPoint) {
         .pixels_per_point(scale)
         .base_text(shadcn_body())
         .prepare(Shadcn::apply_both)
+        .style(crate::support::shadcn())
         .theme(Theme::Light)
         .layout(&(), wrapping_card);
     let card = placed.at(Region::Viewport).at(Part::Card);
