@@ -4,8 +4,9 @@
 
 use std::cell::RefCell;
 
-use eggshell_ui::owned::{Choice, Enablement};
-use eggshell_ui::{Builder, TextStyle, tw};
+use eggshell_ui::owned::{Choice, Enablement, TabsPart};
+use eggshell_ui::sheet::When;
+use eggshell_ui::{Aria, Builder, TextStyle, tw};
 use eggshell_ui_extras::tabs::TabsExt;
 use eggshell_ui_shadcn::Tokens;
 use egui::{Event, Key, Modifiers, MouseWheelUnit, Role, Theme, Vec2, vec2};
@@ -467,5 +468,53 @@ mod look {
                 "tab {index}"
             );
         }
+    }
+
+    const TRACK: egui::Color32 = egui::Color32::from_rgb(20, 40, 200);
+    const CHOSEN: egui::Color32 = egui::Color32::from_rgb(200, 10, 10);
+
+    /// An app's rules on the tabs' parts: the list, the selected trigger,
+    /// and the gap between the list and the panel.
+    fn restyled(style: &mut eggshell_ui::Style) {
+        style
+            .sheet
+            .as_app()
+            .rule(TabsPart::List, |t, _| t.bg(TRACK))
+            .rule_when(
+                TabsPart::Trigger,
+                When::always().aria(Aria::Selected),
+                |t, _| t.bg(CHOSEN),
+            )
+            .rule(TabsPart::Root, |t, _| t.gap(5.0));
+    }
+
+    #[test]
+    fn an_app_rule_on_a_tabs_part_restyles_the_tabs_and_the_segmented_control() {
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut harness = support::harness(
+            vec2(500.0, 300.0),
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            App::new(Page::Html),
+            side_by_side,
+        );
+        harness
+            .state_mut()
+            .layout
+            .set_style(support::shadcn_with(restyled));
+        harness.run_steps(4);
+        let fill = |path: &str| support::box_at(&harness, rect_of(&harness, path)).fill;
+        for list in ["/\"segmented\"".to_owned(), format!("{ROOT}/List")] {
+            assert_eq!(fill(&list), TRACK, "{list}");
+        }
+        assert_eq!(fill("/\"segmented\"/1"), CHOSEN);
+        assert_eq!(fill(&tab(1)), CHOSEN);
+        assert_ne!(
+            fill(&tab(0)),
+            CHOSEN,
+            "only the selected trigger: the preset's other rules stand"
+        );
+        let list = rect_of(&harness, &format!("{ROOT}/List"));
+        let panel = rect_of(&harness, &panel(1));
+        assert_eq!(panel.top() - list.bottom(), 20.0, "the root's gap");
     }
 }
