@@ -734,6 +734,74 @@ fn choice_label<A: 'static, K: crate::Key>(
     });
 }
 
+/// How a choice control is laid out with its label.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Form {
+    /// The control beside its label.
+    #[default]
+    Row,
+    /// A card: the label holds the field, the control after the title and
+    /// description, and the whole card toggles it.
+    Card,
+}
+
+/// What a choice card says of the control it holds.
+struct Card {
+    /// The control the card names and toggles.
+    control: Id,
+    title: String,
+    description: Option<String>,
+    enablement: Enablement,
+    /// The caller's classes, over the card's.
+    classes: Tw,
+}
+
+/// A choice card under `key`: a label that holds the field `row`, with the
+/// content and then what `build_control` builds. Clicking the card runs
+/// `on_click`.
+fn choice_card<A: 'static, K: crate::Key>(
+    b: &mut Builder<'_, '_, A>,
+    key: K,
+    card: Card,
+    row: Tw,
+    on_click: impl FnOnce(&mut A) + 'static,
+    build_control: impl FnOnce(&mut Builder<'_, '_, A>),
+) {
+    let Card {
+        control,
+        title,
+        description,
+        enablement,
+        classes,
+    } = card;
+    let keys = FieldPart::keys(enablement);
+    let own = match enablement {
+        Enablement::Enabled => tw().sense_click(),
+        Enablement::Disabled => tw().inert(),
+    };
+    let label = b.part(FieldPart::Label, &keys, own.focusable_none().merge(classes));
+    let name = title.clone();
+    b.div_id(key, label, |b| {
+        b.div(row, |b| {
+            let content = b.part(FieldPart::Content, &[], tw());
+            b.div(content, |b| {
+                let title_classes = b.part(FieldPart::Title, &[], tw());
+                b.text(title_classes, title);
+                if let Some(description) = description {
+                    let classes = b.part(FieldPart::Description, &[], tw());
+                    b.text(classes, description);
+                }
+            });
+            build_control(b);
+        });
+    })
+    .draw(move |app, ui| {
+        if ui.label_for(control, &name) {
+            on_click(app);
+        }
+    });
+}
+
 /// The owned controls, each shown under a key like [`div_id`](Builder::div_id)
 /// and [`widget`](Builder::widget).
 ///

@@ -6,8 +6,8 @@ use egui::Role;
 
 use super::choice::{self, Choice, IntoChoice};
 use super::{
-    Enablement, Gate, IntoTip, OnResponse, announce_group, choice_label, choice_row, described,
-    options, tip_describes, tipped_whole,
+    Card, Enablement, Form, Gate, IntoTip, OnResponse, announce_group, choice_card, choice_label,
+    choice_row, described, options, tip_describes, tipped_whole,
 };
 use super::{Mark, RadioGroupPart};
 use crate::builder::Slot;
@@ -36,6 +36,7 @@ pub struct RadioGroupChain<'a, 'f, A, T> {
     slot: Slot,
     current: T,
     options: Vec<Choice<T>>,
+    form: Form,
     classes: Tw,
     enablement: Enablement,
     gate: Gate,
@@ -58,6 +59,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             b,
             current,
             options: choice::collect(options),
+            form: Form::Row,
             classes: tw(),
             enablement: Enablement::Enabled,
             gate: Gate::default(),
@@ -66,6 +68,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             on_response: OnResponse::default(),
             autofocus: Autofocus::Never,
         }
+    }
+
+    /// TODO(prose): draws each option as a choice card: its label holds the circle, after the label and the option's [`description`](Choice::description), and a click anywhere on the card chooses it.
+    pub fn cards(mut self) -> Self {
+        self.form = Form::Card;
+        self
     }
 
     /// Classes merged over the styled ones of the whole group (a column with a gap of 12 points), such as its
@@ -159,6 +167,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             slot,
             current,
             options,
+            form,
             classes,
             enablement,
             gate,
@@ -190,7 +199,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                 };
                 let control = b.id_of(Part::Circle(index));
                 let (enablement, tooltip) = option.gated(enablement, refused);
-                let Choice { value, label, .. } = option;
+                let Choice {
+                    value,
+                    label,
+                    description,
+                    ..
+                } = option;
 
                 let group_tip = group_tip.clone();
                 let chosen = value == current;
@@ -204,7 +218,13 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                     enablement,
                     metrics.gap,
                 );
-                b.div(row, |b| {
+                // A card's label is drawn before the circle it holds, so the
+                // circle names itself by the card's title.
+                let circle_name = match form {
+                    Form::Row => String::new(),
+                    Form::Card => label.clone(),
+                };
+                let build_circle = move |b: &mut Builder<'_, '_, A>| {
                     b.div_id(Part::Circle(index), circle, |b| {
                         if chosen {
                             let dot = b.part(RadioGroupPart::Indicator, &keys, tw());
@@ -216,7 +236,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                     .role(Role::RadioButton)
                     .open_focus(autofocus.open_focus())
                     .draw(move |app, ui| {
-                        let response = described(ui, Role::RadioButton, None, "", &tooltip);
+                        let response =
+                            described(ui, Role::RadioButton, None, &circle_name, &tooltip);
                         autofocus.apply(ui.ctx(), &response);
                         if tooltip.is_none() {
                             tip_describes(ui, &response, &group_tip);
@@ -227,17 +248,33 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                         on_response.run(app, &response);
                     })
                     .selected(Mark::from(chosen));
-                    choice_label(
-                        b,
-                        Part::Label(index),
-                        control,
-                        label,
-                        enablement,
-                        move |app| {
-                            on_label(app, value);
-                        },
-                    );
-                });
+                };
+                match form {
+                    Form::Row => b.div(row, |b| {
+                        build_circle(b);
+                        choice_label(
+                            b,
+                            Part::Label(index),
+                            control,
+                            label,
+                            enablement,
+                            move |app| {
+                                on_label(app, value);
+                            },
+                        );
+                    }),
+                    Form::Card => {
+                        let card = Card {
+                            control,
+                            title: label,
+                            description,
+                            enablement,
+                            classes: tw(),
+                        };
+                        let on_card = move |app: &mut A| on_label(app, value);
+                        choice_card(b, Part::Label(index), card, row, on_card, build_circle);
+                    }
+                }
             }
         })
         .nav(Nav::Radio(Wrap::Around))

@@ -32,6 +32,9 @@ mod custom_background;
 #[path = "../../examples/button_children.rs"]
 mod button_children;
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/choice_cards.rs"]
+mod choice_cards;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/toggle_group.rs"]
 mod toggle_group;
 
@@ -685,6 +688,30 @@ fn toggle_group_in(name: &str, theme: egui::Theme) {
         (
             toggle_group::State::default(),
             toggle_group::layout,
+            TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
+        ),
+        None,
+        (theme, |_, _| {}),
+    );
+}
+
+#[test]
+fn choice_cards_light() {
+    choice_cards_in("choice_cards_light", egui::Theme::Light);
+}
+
+#[test]
+fn choice_cards_dark() {
+    choice_cards_in("choice_cards_dark", egui::Theme::Dark);
+}
+
+fn choice_cards_in(name: &str, theme: egui::Theme) {
+    snapshot_themed(
+        name,
+        Vec2::new(420.0, 560.0),
+        (
+            choice_cards::State::default(),
+            choice_cards::layout,
             TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground),
         ),
         None,
