@@ -99,7 +99,8 @@ pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
 pub use readout::NumberChain;
 pub use segmented::{Cell, SegmentedChain, SegmentedRows};
-pub use select::SelectChain;
+pub(crate) use select::write_select_rules;
+pub use select::{SelectChain, SelectPart};
 pub use slider::SliderChain;
 pub(crate) use splitter::Side;
 pub use splitter::{PaneSize, SplitterChain, SplitterStart};
@@ -466,7 +467,7 @@ impl Look {
     ///
     /// fn tile(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let look = style.select.trigger;
+    ///     let look = style.select().trigger;
     ///     let classes = look.classes(&style, 6, b.enablement(), Duration::from_millis(150));
     ///     b.div_id("tile", classes.p(2.0), |b| b.text(eggshell_ui::tw(), "Tile"))
     ///         .role(egui::Role::Button)

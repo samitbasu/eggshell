@@ -396,3 +396,29 @@ fn a_presets_family_rules_all_resolve_from_the_preset_layer() {
         }
     }
 }
+
+/// Without a preset, the select trigger's rules read the disabled token
+/// when they resolve, so changing it after the style is built reaches them.
+#[test]
+fn a_select_trigger_reads_the_disabled_token() {
+    use eggshell_ui::contract::Disabled;
+    use eggshell_ui::owned::SelectPart;
+
+    let mut style = eggshell_ui::Style::default();
+    style.tokens.disabled = Disabled::Faded(eggshell_ui::Opacity::new(0.4));
+    let disabled = style.sheet.resolve(
+        SelectPart::Trigger,
+        &[Key::Aria(Aria::Disabled)],
+        &style.tokens,
+    );
+    assert_eq!(
+        disabled.paint_classes().opacity,
+        eggshell_ui::Opacity::new(0.4)
+    );
+    let enabled = style.sheet.resolve(SelectPart::Trigger, &[], &style.tokens);
+    assert_eq!(
+        enabled.paint_classes().opacity,
+        eggshell_ui::Opacity::new(1.0),
+        "precondition: only the disabled trigger fades"
+    );
+}

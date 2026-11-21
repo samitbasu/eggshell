@@ -560,8 +560,8 @@ impl Shadcn {
             progress.range = flat(t.primary, t.primary_foreground);
             progress
         };
-        style.select = {
-            let mut select = style.select;
+        style.set_select({
+            let mut select = style.select().clone();
             select.trigger = input_box;
             select.sizes = Keyed::new(Size::DEFAULT, control)
                 .with(size::SM, small(control))
@@ -570,7 +570,7 @@ impl Shadcn {
             select.chevron_opacity = Opacity::new(0.5);
             select.transition = transition;
             select
-        };
+        });
         // shadcn's DropdownMenu: `rounded-md border p-1 shadow-md min-w-[8rem]`,
         // items `rounded-sm px-2 py-1.5 gap-2`, `focus:bg-accent`.
         style.set_menu({

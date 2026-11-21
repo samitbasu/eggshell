@@ -476,7 +476,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         );
         assert_eq!(
             height("/\"select\""),
-            style.select.sizes.get(Size::DEFAULT).height
+            style.select().sizes.get(Size::DEFAULT).height
         );
         assert_eq!(
             height("/\"stepper\"/Box"),
@@ -544,7 +544,9 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
                 let mut segmented = style.segmented().clone();
                 segmented.text = Some(spec(17.0));
                 style.set_segmented(segmented);
-                style.select.text = Some(spec(19.0));
+                let mut select = style.select().clone();
+                select.text = Some(spec(19.0));
+                style.set_select(select);
                 let mut checkbox = style.checkbox().clone();
                 checkbox.text = Some(spec(23.0));
                 style.set_checkbox(checkbox);

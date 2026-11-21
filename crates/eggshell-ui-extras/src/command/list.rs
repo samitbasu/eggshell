@@ -322,7 +322,7 @@ pub(crate) fn list_offset() -> eggshell_ui::overlay::Distance {
 /// with the ring while the field inside has focus. The field's own padding
 /// is the box's left, and the end button sits close to its right.
 pub(crate) fn group_classes(style: &Style) -> Tw {
-    let select = &style.select;
+    let select = style.select();
     let metrics = select.sizes.get(eggshell_ui::contract::Size::DEFAULT);
     let states = select.trigger.paint.states;
     let classes = tw()
@@ -367,7 +367,7 @@ pub(crate) fn end_button_classes(style: &Style) -> Tw {
 
 /// The classes of the glyph in the end button: muted, `size-4`.
 pub(crate) fn end_glyph_classes(style: &Style) -> Tw {
-    tw().size_px(style.select.chevron)
+    tw().size_px(style.select().chevron)
         .shrink_0()
         .text(style.input().icon)
 }

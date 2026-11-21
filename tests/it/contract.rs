@@ -154,7 +154,7 @@ fn disabled_colours(style: &Style) -> Vec<(String, eggshell_ui::contract::Colors
     look("segmented selected", &style.segmented().selected);
     look("segmented unselected", &style.segmented().unselected);
     look("slider thumb", &style.slider.thumb.paint);
-    look("select trigger", &style.select.trigger.paint);
+    look("select trigger", &style.select().trigger.paint);
     look("menu popup", &style.menu().popup.paint);
     look("menu item", &style.menu().item.paint);
     look("stepper group", &style.stepper.group.paint);

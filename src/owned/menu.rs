@@ -1017,7 +1017,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         }
         let open = shared.kept.with(|kept| kept.menus.is_open(trigger));
         let name = options.name_or(&face).to_owned();
-        let select = &shared.style.select;
+        let select = shared.style.select();
         let (chevron, opacity) = (select.chevron, select.chevron_opacity);
         let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)

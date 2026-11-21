@@ -1551,7 +1551,7 @@ pub struct Style {
     /// Progress bars.
     pub progress: ProgressStyle,
     /// Select triggers.
-    pub select: SelectStyle,
+    select: SelectStyle,
     /// Menus, and the lists selects open.
     menu: MenuStyle,
     /// Tooltips.
@@ -2158,6 +2158,7 @@ impl Style {
         self.write_tooltip_rules();
         self.write_table_rules();
         self.write_choice_rules();
+        crate::owned::write_select_rules(self);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
@@ -2195,6 +2196,17 @@ impl Style {
         v.selection.stroke = egui::Stroke::new(width.max(1.0), frame.focused.unwrap_or(clear));
         egui.spacing.interact_size.y = metrics.height;
         egui.spacing.button_padding = metrics.padding;
+    }
+
+    /// Selects: the trigger, and the list it opens.
+    pub fn select(&self) -> &SelectStyle {
+        &self.select
+    }
+
+    /// TODO(prose): sets the select section, and writes the rules that draw a select from it and the menu section at the sheet's current layer. A later change to either does not reach the select until this is called again.
+    pub fn set_select(&mut self, select: SelectStyle) {
+        self.select = select;
+        crate::owned::write_select_rules(self);
     }
 
     /// The text beside a checkbox, radio button or switch; only `rest` and
