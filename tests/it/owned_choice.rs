@@ -439,9 +439,13 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 fn a_modified_style_changes_every_owned_widget() {
     let mut style = style(Theme::Light);
     let red = egui::Color32::from_rgb(200, 30, 30);
-    style.switch.on.states.rest.fill = red;
-    style.switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
-    style.radio.sizes.default_entry_mut().size = 24.0;
+    let mut switch = style.switch.clone();
+    switch.on.states.rest.fill = red;
+    switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
+    style.set_switch(switch);
+    let mut radio = style.radio.clone();
+    radio.sizes.default_entry_mut().size = 24.0;
+    style.set_radio(radio);
     let mut segmented = style.segmented.clone();
     segmented.track_fill = red;
     style.set_segmented(segmented);
@@ -542,8 +546,10 @@ fn the_switch_track_eases_to_its_new_colour() {
 fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
     let red = egui::Color32::from_rgb(200, 30, 30);
     let mut style = style(Theme::Light);
-    style.switch.off.states.hover.text = red;
-    style.switch.off.states.pressed.text = red;
+    let mut switch = style.switch.clone();
+    switch.off.states.hover.text = red;
+    switch.off.states.pressed.text = red;
+    style.set_switch(switch);
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style.clone())));
     d.frames(4);
@@ -676,5 +682,85 @@ mod tiling {
         between_cells(&d, near_first);
         click(&mut d, near_first);
         assert_eq!(d.app().segment, Unit::Metric);
+    }
+}
+
+/// An app's rules on the choice controls' parts reach what they draw.
+mod app_rules {
+    use eggshell_ui::Aria;
+    use eggshell_ui::owned::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
+    use eggshell_ui::sheet::When;
+    use egui::Color32;
+
+    use super::*;
+    use crate::support::text_color;
+
+    const RED: Color32 = Color32::from_rgb(200, 30, 30);
+    const BLUE: Color32 = Color32::from_rgb(30, 30, 200);
+    const GREEN: Color32 = Color32::from_rgb(30, 160, 30);
+
+    /// ```html
+    /// <div class="flex flex-col items-start gap-4 p-4">
+    ///   <label><button role="checkbox" aria-checked="true"></button> Tick</label>
+    ///   <div role="radiogroup">Metric Imperial Nautical</div>
+    ///   <label><button role="switch" aria-checked="true"></button> Lit</label>
+    /// </div>
+    /// ```
+    fn view(b: &mut Builder<'_, '_, App>, app: &App) {
+        b.div(tw().flex().flex_col().items_start().gap(4.0).p(4.0), |b| {
+            b.checkbox("tick", "Tick", true)
+                .on_change(|_: &mut App, _| {});
+            b.radio_group("units", app.unit, UNITS)
+                .on_change(|app: &mut App, unit| app.unit = unit);
+            b.switch("lit", "Lit", true).on_change(|_: &mut App, _| {});
+        });
+    }
+
+    fn restyled() -> Style {
+        let mut style = style(Theme::Light);
+        let checked = When::always().aria(Aria::Checked);
+        style
+            .sheet
+            .as_app()
+            .rule_when(CheckboxPart::Root, checked, |t, _| t.bg(RED))
+            .rule_when(RadioGroupPart::Item, checked, |t, _| t.bg(RED))
+            .rule(RadioGroupPart::Indicator, |t, _| t.size_px(12.0))
+            .rule_when(SwitchPart::Root, checked, |t, _| t.bg(RED))
+            .rule_when(SwitchPart::Thumb, checked, |t, _| t.bg(BLUE))
+            .rule(FieldPart::Label, |t, _| t.text(GREEN));
+        style
+    }
+
+    #[test]
+    fn an_app_rule_on_a_choice_part_restyles_it() {
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut d = support::driver(
+            vec2(500.0, 400.0),
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            App::default(),
+            view,
+        )
+        .build();
+        d.ctx().set_theme(Theme::Light);
+        d.set_style(Themed::both(Arc::new(restyled())));
+        d.frames(12);
+
+        let tick = d.rect(Target::suffix("/\"tick\"/Box"));
+        assert_eq!(box_at(&d, tick).fill, RED, "the ticked box");
+        let chosen = d.rect(Target::suffix(&circle_path(Unit::Metric)));
+        assert_eq!(box_at(&d, chosen).fill, RED, "the chosen circle");
+        let dot = circle_in(&d, chosen).expect("a dot");
+        assert_eq!(dot.radius, 6.0, "the dot");
+        let unchosen = d.rect(Target::suffix(&circle_path(Unit::Imperial)));
+        assert_ne!(
+            box_at(&d, unchosen).fill,
+            RED,
+            "the preset's other rules stand"
+        );
+        let (track, thumb) = thumb(&d, "/\"lit\"/Track");
+        assert_eq!(box_at(&d, track).fill, RED, "the track");
+        assert_eq!(thumb.fill, BLUE, "the thumb");
+        let label = d.rect(Target::suffix("/\"tick\"/Label"));
+        assert_eq!(text_color(&d, label, "Tick"), GREEN, "the label");
     }
 }
