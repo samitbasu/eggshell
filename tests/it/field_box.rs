@@ -468,7 +468,7 @@ fn a_bare_field_is_the_groups_control_only_inside_an_input_group() {
 }
 
 #[test]
-fn a_disabled_groups_addon_fades_with_it() {
+fn a_disabled_group_fades_as_a_whole_and_its_addon_with_it() {
     use eggshell_ui::owned::InputGroupPart;
     use eggshell_ui::sheet::Key;
     let style = Shadcn::for_theme(Theme::Light).style();
@@ -483,10 +483,26 @@ fn a_disabled_groups_addon_fades_with_it() {
             .paint_classes()
             .opacity
     };
-    assert_eq!(addon(false), eggshell_ui::Opacity::new(1.0), "precondition");
+    let root = |keys: &[Key]| {
+        style
+            .sheet
+            .resolve(InputGroupPart::Root, keys, &style.tokens)
+            .paint_classes()
+            .opacity
+    };
+    let disabled = [
+        Key::Size(Size::DEFAULT),
+        Key::Aria(eggshell_ui::Aria::Disabled),
+    ];
+    assert_eq!(
+        root(&disabled),
+        eggshell_ui::Opacity::new(0.5),
+        "the whole group at half: the disabled look (#385)"
+    );
+    assert_eq!(root(&disabled[..1]), eggshell_ui::Opacity::new(1.0));
     assert_eq!(
         addon(true),
-        eggshell_ui::Opacity::new(0.5),
-        "group-data-[disabled=true]/input-group:opacity-50"
+        addon(false),
+        "the addon fades with its group, not again on its own"
     );
 }

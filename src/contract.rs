@@ -2293,9 +2293,9 @@ impl Style {
         crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
     }
 
-    /// TODO(prose): writes the input section's sizes other than its default over the rules at the sheet's current layer. A preset whose generated look has one field size calls this after it, so eggshell's smaller fields keep their metrics.
-    pub fn write_input_size_exceptions(&mut self) {
-        crate::owned::write_input_size_exceptions(&mut self.sheet, &self.input);
+    /// TODO(prose): writes the input's recorded exceptions over the rules at the sheet's current layer: a disabled group fades as a whole, and the sizes other than the default keep their metrics. A preset calls this after its generated look.
+    pub fn write_input_exceptions(&mut self) {
+        crate::owned::write_input_exceptions(&mut self.sheet, &self.input);
     }
 
     fn write_input_rules(&mut self) {

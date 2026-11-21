@@ -431,11 +431,30 @@ fn a_refused_field_takes_the_disabled_look() {
     let refused = support::text_color(&d, d.rect(Target::suffix("/\"name\"")), "Ada");
     let enabled = support::text_color(&d, d.rect(Target::suffix("/\"open\"")), "Ok");
     assert_ne!(refused, enabled, "not the enabled look");
+    let tokens = Tokens::for_theme(Theme::Light);
     assert_eq!(
         refused,
-        Tokens::for_theme(Theme::Light)
-            .foreground
-            .gamma_multiply(0.5),
-        "the input's disabled look, disabled:opacity-50"
+        tokens.foreground.gamma_multiply(0.5),
+        "the text at half, once: the group fades as a whole (#385)"
+    );
+    let style = d.shell().style();
+    let enabled_border = style
+        .sheet
+        .resolve(
+            eggshell_ui::owned::InputGroupPart::Root,
+            &[eggshell_ui::sheet::Key::Size(
+                eggshell_ui::contract::Size::DEFAULT,
+            )],
+            &style.tokens,
+        )
+        .paint_classes()
+        .border_colors
+        .top
+        .expect("the group has a border");
+    let rect = d.rect(Target::suffix("/\"name\""));
+    assert_eq!(
+        support::box_at(&d, rect).stroke.color,
+        enabled_border.gamma_multiply(0.5),
+        "the box fades with it, not only the text (#385)"
     );
 }
