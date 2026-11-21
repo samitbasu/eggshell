@@ -272,3 +272,84 @@ fn has_focus_visible_follows_the_focus_a_frame_late() {
     d.frames(4);
     assert_eq!(at(&d), 40.0, "the group's pl-10 while its field has focus");
 }
+
+/// ```html
+/// <div id="deep" class="flex pl-1 has-aria-checked:pl-10 has-[>[data-slot=field]]:pt-5">
+///   <div class="flex has-[[data-slot=nothing]]:pr-3">
+///     <svg id="checked" aria-checked="true" />
+///   </div>
+/// </div>
+/// <div id="bare" class="flex pl-1 has-aria-checked:pl-10 has-[>[data-slot=field]]:pt-5">
+///   <div class="flex"><svg id="under" aria-checked="true" /></div>
+/// </div>
+/// <div id="near" class="flex pl-1 has-aria-checked:pl-10 has-[>[data-slot=field]]:pt-5">
+///   <div data-slot="field" class="flex"><svg id="plain" /></div>
+/// </div>
+/// <div id="far" class="flex pl-1 has-aria-checked:pl-10 has-[>[data-slot=field]]:pt-5">
+///   <div class="flex"><div data-slot="field" class="flex"><svg id="nested" /></div></div>
+/// </div>
+/// ```
+fn depths(b: &mut Builder<'_, '_, ()>, _: &()) {
+    let host = || {
+        tw().flex()
+            .pl(1.0)
+            .has(Match::aria(Aria::Checked), |b| b.pl(10.0))
+            .has_child(Match::slot("field"), |b| b.pt(5.0))
+    };
+    b.div_id("deep", host(), |b| {
+        b.div(
+            tw().flex().has(Match::slot("nothing"), |b| b.pr(3.0)),
+            |b| {
+                b.icon("checked", tw().aria(Aria::Checked), chevron());
+            },
+        );
+    });
+    b.div_id("bare", host(), |b| {
+        b.div(tw().flex(), |b| {
+            b.icon("under", tw().aria(Aria::Checked), chevron());
+        });
+    });
+    b.div_id("near", host(), |b| {
+        b.div(tw().flex().slot("field"), |b| {
+            b.icon("plain", tw(), chevron());
+        });
+    });
+    b.div_id("far", host(), |b| {
+        b.div(tw().flex(), |b| {
+            b.div(tw().flex().slot("field"), |b| {
+                b.icon("nested", tw(), chevron());
+            });
+        });
+    });
+}
+
+#[test]
+fn has_matches_a_node_at_any_depth_and_has_child_only_a_child() {
+    let mut d = support::driver(vec2(300.0, 300.0), base_text(), (), depths).build();
+    d.frames(4);
+    let offset = |host: &str, leaf: &str| {
+        let host = d.rect(Target::suffix(&format!("\"{host}\"")));
+        let leaf = d.rect(Target::suffix(&format!("\"{leaf}\"")));
+        leaf.min - host.min
+    };
+    assert_eq!(
+        offset("deep", "checked"),
+        vec2(40.0, 0.0),
+        "a grandchild matches has, through a container with has rules of its own"
+    );
+    assert_eq!(
+        offset("bare", "under"),
+        vec2(40.0, 0.0),
+        "and through a container with no rules"
+    );
+    assert_eq!(
+        offset("near", "plain"),
+        vec2(4.0, 20.0),
+        "a child matches has_child"
+    );
+    assert_eq!(
+        offset("far", "nested"),
+        vec2(4.0, 0.0),
+        "a grandchild does not match has_child"
+    );
+}

@@ -256,6 +256,6 @@ fn an_infinite_egui_tooltip_delay_is_the_longest_duration() {
     egui.interaction.tooltip_delay = f32::INFINITY;
     egui.interaction.tooltip_grace_time = f32::NAN;
     let style = Style::from_egui(&egui);
-    assert_eq!(style.tooltip.delay, Duration::MAX);
-    assert_eq!(style.tooltip.grace, Duration::ZERO);
+    assert_eq!(style.tooltip().delay, Duration::MAX);
+    assert_eq!(style.tooltip().grace, Duration::ZERO);
 }

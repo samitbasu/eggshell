@@ -92,6 +92,15 @@ impl<K: Ord + Copy + Debug, T> Keyed<K, T> {
         self.default_key
     }
 
+    /// `key` if the style defines it, else the key of the default entry.
+    pub fn key_for(&self, key: K) -> K {
+        if key == self.default_key || self.others.contains_key(&key) {
+            key
+        } else {
+            self.default_key
+        }
+    }
+
     /// The entry under `key`, or the default entry if there is none.
     pub fn get(&self, key: K) -> &T {
         if key == self.default_key {
@@ -268,7 +277,7 @@ pub struct Paint {
     pub states: States,
     /// Drop shadow at rest.
     pub shadow: Option<Shadow>,
-    /// This paint's own focus ring, where it is not [`Style::focus`].
+    /// This paint's own focus ring, where it is not [`Tokens::focus`].
     pub focus: Option<Focus>,
     /// A ring while the pointer is over the box or presses it, as the focus
     /// ring is drawn: shadcn's slider thumb halo.
@@ -1370,12 +1379,12 @@ impl<T> Themed<T> {
 ///
 /// impl Extension for Gap {
 ///     fn derive(style: &Style) -> Self {
-///         Gap(style.table.cell_padding)
+///         Gap(style.table().cell_padding)
 ///     }
 /// }
 ///
 /// let mut style = Style::default();
-/// assert_eq!(style.extension::<Gap>().0, style.table.cell_padding);
+/// assert_eq!(style.extension::<Gap>().0, style.table().cell_padding);
 /// style.set_extension(Gap(12.0));
 /// assert_eq!(style.extension::<Gap>().0, 12.0);
 /// ```
@@ -1436,6 +1445,10 @@ pub struct Tokens {
     pub input: Color32,
     /// TODO(prose): the focus ring.
     pub ring: Color32,
+    /// TODO(prose): the keyboard focus indicator every control draws unless its look names its own.
+    pub focus: Focus,
+    /// TODO(prose): how disabled controls are drawn.
+    pub disabled: Disabled,
     /// TODO(prose): the base corner radius.
     pub radius: u8,
     /// TODO(prose): a control's height.
@@ -1481,6 +1494,11 @@ impl Tokens {
             border: v.window_stroke.color,
             input: w.inactive.bg_stroke.color,
             ring: w.active.bg_stroke.color,
+            focus: Focus {
+                width: 2.0,
+                color: v.selection.bg_fill,
+            },
+            disabled: Disabled::Colors,
             radius: w.inactive.corner_radius.nw,
             control_height: egui.spacing.interact_size.y,
             button_padding: egui.spacing.button_padding,
@@ -1515,33 +1533,29 @@ pub struct Style {
     pub text: TextSpec,
     /// The registered family that draws each weight of a family.
     pub faces: Faces,
-    /// The default focus indicator.
-    pub focus: Focus,
-    /// How disabled controls are drawn.
-    pub disabled: Disabled,
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
-    pub label: States,
+    label: States,
     /// TODO(prose): toggle buttons.
     pub toggle: ToggleStyle,
     /// Checkboxes.
-    pub checkbox: CheckboxStyle,
+    checkbox: CheckboxStyle,
     /// Radio buttons.
-    pub radio: RadioStyle,
+    radio: RadioStyle,
     /// Switches.
-    pub switch: SwitchStyle,
+    switch: SwitchStyle,
     /// Segmented controls.
-    pub segmented: SegmentedStyle,
+    segmented: SegmentedStyle,
     /// Sliders.
     pub slider: SliderStyle,
     /// Progress bars.
     pub progress: ProgressStyle,
     /// Select triggers.
-    pub select: SelectStyle,
+    select: SelectStyle,
     /// Menus, and the lists selects open.
-    pub menu: MenuStyle,
+    menu: MenuStyle,
     /// Tooltips.
-    pub tooltip: TooltipStyle,
+    tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
     /// TODO(prose)
@@ -1551,7 +1565,7 @@ pub struct Style {
     /// Steppers.
     pub stepper: StepperStyle,
     /// Text fields.
-    pub input: InputStyle,
+    input: InputStyle,
     /// Selected text.
     pub selection: Selection,
     /// Scroll containers.
@@ -1559,7 +1573,7 @@ pub struct Style {
     /// TODO(prose): splitters.
     pub splitter: SplitterStyle,
     /// Tables.
-    pub table: TableStyle,
+    table: TableStyle,
     /// What a modal overlay paints over the screen behind its box. Usually
     /// translucent.
     pub scrim: Color32,
@@ -1727,10 +1741,7 @@ impl Style {
             ..metrics
         };
         let track = vec2(2.0 * s.icon_width, s.icon_width);
-        let focus = Focus {
-            width: 2.0,
-            color: v.selection.bg_fill,
-        };
+        let tokens = Tokens::from_egui(egui);
         let mut sheet = crate::sheet::Sheet::defaults();
         crate::owned::button_defaults(
             &mut sheet,
@@ -1738,17 +1749,13 @@ impl Style {
                 look: Look::new(button_states).bordered(border_width),
                 sizes: Keyed::new(Size::DEFAULT, metrics),
                 text: text.clone(),
-                focus,
-                disabled: Disabled::Colors,
                 transition,
                 press_shift: 0.0,
             },
         );
-        Self {
+        let mut style = Self {
             text,
             faces: Faces::default(),
-            focus,
-            disabled: Disabled::Colors,
             label,
             toggle: ToggleStyle {
                 sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
@@ -2049,7 +2056,7 @@ impl Style {
                 border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
                 radius,
                 padding: f32::from(s.window_margin.left),
-                bare_padding: focus.clearance(),
+                bare_padding: tokens.focus.clearance(),
                 selected_ring: v.selection.stroke.color,
             },
             rich: RichTextStyle {
@@ -2135,10 +2142,23 @@ impl Style {
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
-            tokens: Tokens::from_egui(egui),
+            tokens,
             sheet,
             extensions: Extensions::default(),
-        }
+        };
+        style.rewrite_rules();
+        style
+    }
+
+    /// TODO(prose): writes every family's rules from its section, at the sheet's current layer. A preset calls this after `as_preset()`, then writes its own rules over them.
+    pub fn rewrite_rules(&mut self) {
+        self.write_input_rules();
+        self.write_segmented_rules();
+        self.write_menu_rules();
+        self.write_tooltip_rules();
+        self.write_table_rules();
+        self.write_choice_rules();
+        crate::owned::write_select_rules(self);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
@@ -2146,28 +2166,196 @@ impl Style {
     /// draws as the style says, at `size`. See [`InputStyle`] for what is
     /// approximated.
     pub fn map_input(&self, egui: &mut egui::Style, size: Size) {
+        use crate::owned::{Frame, InputPart, input_keys};
         let input = &self.input;
+        let size = input.sizes.key_for(size);
         let metrics = input.sizes.get(size);
-        let states = &input.look.paint.states;
-        let width = input.look.border_width;
+        let classes = self
+            .sheet
+            .resolve(InputPart::Root, &input_keys(size, false), &self.tokens);
+        let frame = Frame::of(&classes);
         let v = &mut egui.visuals;
-        v.text_edit_bg_color = Some(states.rest.fill);
+        v.text_edit_bg_color = frame.fill;
         v.weak_text_color = input.hint;
-        let radius = egui::CornerRadius::same(metrics.radius);
+        let radius = egui::CornerRadius::same(frame.radius);
+        let clear = Color32::TRANSPARENT;
+        let width = frame.border_width;
         for (widget, border) in [
-            (&mut v.widgets.inactive, states.rest.border),
-            (&mut v.widgets.hovered, states.hover.border),
-            (&mut v.widgets.active, states.focused.border),
+            (&mut v.widgets.inactive, frame.rest),
+            (&mut v.widgets.hovered, frame.hover),
+            (&mut v.widgets.active, frame.focused),
         ] {
-            widget.bg_stroke = egui::Stroke::new(width, border);
-            widget.fg_stroke.color = states.rest.text;
+            widget.bg_stroke = egui::Stroke::new(width, border.unwrap_or(clear));
+            if let Some(text) = frame.text {
+                widget.fg_stroke.color = text;
+            }
             widget.corner_radius = radius;
             widget.expansion = 0.0;
         }
         v.selection.bg_fill = self.selection.fill;
-        v.selection.stroke = egui::Stroke::new(width.max(1.0), states.focused.border);
+        v.selection.stroke = egui::Stroke::new(width.max(1.0), frame.focused.unwrap_or(clear));
         egui.spacing.interact_size.y = metrics.height;
         egui.spacing.button_padding = metrics.padding;
+    }
+
+    /// Selects: the trigger, and the list it opens.
+    pub fn select(&self) -> &SelectStyle {
+        &self.select
+    }
+
+    /// TODO(prose): sets the select section, and writes the rules that draw a select from it and the menu section at the sheet's current layer. A later change to either does not reach the select until this is called again.
+    pub fn set_select(&mut self, select: SelectStyle) {
+        self.select = select;
+        crate::owned::write_select_rules(self);
+    }
+
+    /// The text beside a checkbox, radio button or switch; only `rest` and
+    /// `disabled` apply.
+    pub fn label(&self) -> States {
+        self.label
+    }
+
+    /// Checkboxes.
+    pub fn checkbox(&self) -> &CheckboxStyle {
+        &self.checkbox
+    }
+
+    /// Radio buttons.
+    pub fn radio(&self) -> &RadioStyle {
+        &self.radio
+    }
+
+    /// Switches.
+    pub fn switch(&self) -> &SwitchStyle {
+        &self.switch
+    }
+
+    /// Segmented controls, and the tabs' list and triggers.
+    pub fn segmented(&self) -> &SegmentedStyle {
+        &self.segmented
+    }
+
+    /// The input section: text fields and the boxes that hold them.
+    pub fn input(&self) -> &InputStyle {
+        &self.input
+    }
+
+    /// TODO(prose): sets the input section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_input(&mut self, input: InputStyle) {
+        self.input = input;
+        self.write_input_rules();
+    }
+
+    /// Menus, and the lists selects open.
+    pub fn menu(&self) -> &MenuStyle {
+        &self.menu
+    }
+
+    /// TODO(prose): sets the menu section, and writes the rules that draw it, a menu's box, items and the rest, at the sheet's current layer.
+    pub fn set_menu(&mut self, menu: MenuStyle) {
+        self.menu = menu;
+        self.write_menu_rules();
+    }
+
+    /// Tooltips.
+    pub fn tooltip(&self) -> &TooltipStyle {
+        &self.tooltip
+    }
+
+    /// TODO(prose): sets the tooltip section, and writes the rule that draws its box at the sheet's current layer.
+    pub fn set_tooltip(&mut self, tooltip: TooltipStyle) {
+        self.tooltip = tooltip;
+        self.write_tooltip_rules();
+    }
+
+    fn write_tooltip_rules(&mut self) {
+        let text = self.role(&self.tooltip.text).clone();
+        crate::owned::write_tooltip_rules(&mut self.sheet, &self.tooltip, &text);
+    }
+
+    /// Tables.
+    pub fn table(&self) -> &TableStyle {
+        &self.table
+    }
+
+    /// TODO(prose): sets the table section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_table(&mut self, table: TableStyle) {
+        self.table = table;
+        self.write_table_rules();
+    }
+
+    fn write_table_rules(&mut self) {
+        crate::owned::write_table_rules(&mut self.sheet, &self.table);
+    }
+
+    fn write_menu_rules(&mut self) {
+        let text = self.role(&self.menu.text).clone();
+        crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
+    }
+
+    fn write_input_rules(&mut self) {
+        crate::owned::write_input_rules(&mut self.sheet, &self.input);
+    }
+
+    /// TODO(prose): sets the colours of a choice control's label, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_label(&mut self, label: States) {
+        self.label = label;
+        crate::owned::write_field_rules(&mut self.sheet, self.label);
+    }
+
+    /// TODO(prose): sets the checkbox section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_checkbox(&mut self, checkbox: CheckboxStyle) {
+        self.checkbox = checkbox;
+        crate::owned::write_checkbox_rules(&mut self.sheet, &self.checkbox);
+    }
+
+    /// TODO(prose): sets the radio section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_radio(&mut self, radio: RadioStyle) {
+        self.radio = radio;
+        crate::owned::write_radio_rules(&mut self.sheet, &self.radio);
+    }
+
+    /// TODO(prose): sets the switch section, and writes the rules that draw it at the sheet's current layer.
+    pub fn set_switch(&mut self, switch: SwitchStyle) {
+        self.switch = switch;
+        crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
+    }
+
+    fn write_choice_rules(&mut self) {
+        crate::owned::write_field_rules(&mut self.sheet, self.label);
+        crate::owned::write_checkbox_rules(&mut self.sheet, &self.checkbox);
+        crate::owned::write_radio_rules(&mut self.sheet, &self.radio);
+        crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
+    }
+
+    /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the sheet's current layer.
+    pub fn set_segmented(&mut self, segmented: SegmentedStyle) {
+        self.segmented = segmented;
+        self.write_segmented_rules();
+    }
+
+    fn write_segmented_rules(&mut self) {
+        let seg = &self.segmented;
+        let roles = seg
+            .sizes
+            .keys()
+            .map(|size| {
+                let unselected = self.role_sized(&seg.text, seg.sizes.get(size).text);
+                let selected = match seg.selected_weight {
+                    Some(weight) => TextSpec {
+                        weight,
+                        ..unselected.clone()
+                    },
+                    None => unselected.clone(),
+                };
+                crate::owned::TabsRoles {
+                    size,
+                    unselected,
+                    selected,
+                }
+            })
+            .collect();
+        crate::owned::write_tabs_rules(&mut self.sheet, &self.segmented, roles);
     }
 }
 

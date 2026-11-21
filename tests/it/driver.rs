@@ -176,14 +176,16 @@ fn a_tooltip_opens_after_its_delay_and_not_after_a_settle() {
         "a settle ends at the delay's repaint_after"
     );
     let style = d.shell().style();
-    d.advance(style.tooltip.delay + style.motion.tooltip.enter + Duration::from_millis(100));
+    d.advance(style.tooltip().delay + style.motion.tooltip.enter + Duration::from_millis(100));
     assert!(d.painted().shows("More about this"));
 }
 
 /// Both halves of a style whose tooltips wait `delay`.
 fn waiting(delay: Duration) -> Themed<Arc<Style>> {
     let mut style = Style::default();
-    style.tooltip.delay = delay;
+    let mut tooltip = style.tooltip().clone();
+    tooltip.delay = delay;
+    style.set_tooltip(tooltip);
     Themed::both(Arc::new(style))
 }
 

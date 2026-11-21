@@ -677,7 +677,7 @@ fn segmented_cells_fit_their_track_and_can_wrap() {
 fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varies() {
     for theme in [Theme::Light, Theme::Dark] {
         let style = Shadcn::for_theme(theme).style();
-        let seg = style.segmented;
+        let seg = style.segmented();
         let tokens = Tokens::for_theme(theme);
         assert_eq!(seg.cell_border_width, 1.0, "border, {theme:?}");
         assert_eq!(

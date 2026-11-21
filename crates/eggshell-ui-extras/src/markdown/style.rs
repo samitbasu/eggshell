@@ -100,7 +100,7 @@ impl MarkdownStyle {
     /// The page's style with this document's tables and rich text over it.
     pub(super) fn restyle(&self, style: &mut Style) {
         if let Some(look) = &self.table {
-            let table = &mut style.table;
+            let mut table = style.table().clone();
             table.cell_padding = look.padding_x;
             table.cell_padding_y = Some(look.padding_y);
             table.header_padding_y = Some(look.header_padding_y);
@@ -117,6 +117,7 @@ impl MarkdownStyle {
             ] {
                 *fill = Color32::TRANSPARENT;
             }
+            style.set_table(table);
         }
         if let Some(look) = &self.rich {
             let rich = &mut style.rich;
@@ -250,8 +251,8 @@ pub struct UnsupportedStyle {
 impl MarkdownStyle {
     /// TODO(prose)
     pub fn from_style(style: &Style) -> Self {
-        let border = style.input.look.paint.states.rest.border;
-        let muted = style.input.hint.unwrap_or(style.label.disabled.text);
+        let border = style.input().look.paint.states.rest.border;
+        let muted = style.input().hint.unwrap_or(style.label().disabled.text);
         let body = &style.text;
         let mono = |scale: f32| TextSpec {
             size: body.size * scale,
@@ -305,7 +306,7 @@ impl MarkdownStyle {
                 border,
                 border_width: 2.0,
                 padding: 6.0,
-                text: style.label.rest.text,
+                text: style.label().rest.text,
                 font_style: eggshell_ui::FontStyle::Italic,
             },
             code: CodeBlockStyle {

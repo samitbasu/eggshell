@@ -38,7 +38,9 @@ struct App {
 }
 
 fn quick_tooltips(style: &mut Style) {
-    style.tooltip.delay = Duration::from_millis(100);
+    let mut tooltip = style.tooltip().clone();
+    tooltip.delay = Duration::from_millis(100);
+    style.set_tooltip(tooltip);
 }
 
 fn view<'f>(b: &mut Builder<'_, 'f, App>, app: &'f App) {

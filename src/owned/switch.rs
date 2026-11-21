@@ -7,11 +7,11 @@ use std::rc::Rc;
 
 use egui::{Role, Vec2};
 
-use super::Mark;
 use super::{
-    Enablement, Gate, IntoTip, OnResponse, Unset, choice_label, choice_row, described, flip,
-    options,
+    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, choice_card, choice_label,
+    choice_row, described, flip, options,
 };
+use super::{Mark, SwitchPart};
 use crate::builder::Slot;
 use crate::contract::Size;
 use crate::focus::{Autofocus, Select};
@@ -39,6 +39,8 @@ pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
     b: Builder<'a, 'f, A>,
     slot: Slot,
     label: Option<String>,
+    description: Option<String>,
+    form: Form,
     name: Option<String>,
     gate: Gate,
     current: T,
@@ -62,6 +64,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             slot: b.slot(&key),
             b,
             label,
+            description: None,
+            form: Form::Row,
             name: None,
             gate: Gate::default(),
             current,
@@ -81,6 +85,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             b: self.b,
             slot: self.slot,
             label: self.label,
+            description: self.description,
+            form: self.form,
             name: self.name,
             gate: self.gate,
             current: self.current,
@@ -111,6 +117,18 @@ impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
     /// Overrides the track's width and height, in points.
     pub fn track(mut self, track: Vec2) -> Self {
         self.track = Some(track);
+        self
+    }
+
+    /// TODO(prose): draws the switch as a choice card: the label holds it, the track after the label and the description, and a click anywhere on the card flips it.
+    pub fn card(mut self) -> Self {
+        self.form = Form::Card;
+        self
+    }
+
+    /// TODO(prose): the text under a card's label.
+    pub fn description(mut self, text: impl Into<String>) -> Self {
+        self.description = Some(text.into());
         self
     }
 
@@ -207,6 +225,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             mut b,
             slot,
             label,
+            description,
+            form,
             name,
             gate,
             current,
@@ -222,18 +242,35 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         let (mark, toggled) = flip([off, on_value], current);
         let on_toggle = Rc::new(move |app: &mut A| on_change(app, toggled));
         let style = b.style().clone();
-        let switch = &style.switch;
-        let metrics = *switch.sizes.lookup(b.ctx(), b.size_of(size));
-        let track = track.unwrap_or(metrics.track);
-        let on = mark == Mark::On;
+        let switch = &style.switch();
+        let size = b.size_of(size);
+        let metrics = *switch.sizes.lookup(b.ctx(), size);
+        let size = switch.sizes.key_for(size);
+        let thumb_scale = track.map_or(1.0, |track| track.y / metrics.track.y);
+        let thumb = |b: &mut Builder<'_, '_, A>, mark| {
+            let classes =
+                b.resolved_part(SwitchPart::Thumb, &SwitchPart::keys(size, mark, enablement));
+            let diameter = classes.style().size.width.into_raw().value() * thumb_scale;
+            let fill = classes
+                .paint
+                .background
+                .unwrap_or(egui::Color32::TRANSPARENT);
+            (diameter, fill)
+        };
+        let ((thumb_off, fill_off), (thumb_on, fill_on)) =
+            (thumb(&mut b, Mark::Off), thumb(&mut b, Mark::On));
         let slide = switch.slide;
-        let target = if on { Progress::END } else { Progress::START };
-        let thumb_scale = track.y / metrics.track.y;
-        let (thumb_off, thumb_on) = (
-            metrics.thumb_off * thumb_scale,
-            metrics.thumb_on * thumb_scale,
-        );
-        let name = name.unwrap_or_default();
+        let target = if mark == Mark::On {
+            Progress::END
+        } else {
+            Progress::START
+        };
+        // A card's label is drawn before the control it holds, so the
+        // control names itself by the card's title.
+        let name = match form {
+            Form::Row => name.unwrap_or_default(),
+            Form::Card => name.or_else(|| label.clone()).unwrap_or_default(),
+        };
         b.claim(&slot);
         b.scope_with(&slot, |b| {
             let control = b.id_of(Part::Track);
@@ -244,30 +281,45 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 slide,
                 Easing::Default,
             );
-            let look = switch.off.towards(switch.on, tint);
-            let thumb_color = enablement.colors(look.states, &style).text;
-            let classes = look
-                .classes(
-                    switch.border_width,
-                    &style,
-                    u8::MAX,
-                    enablement,
-                    switch.transition,
-                )
-                .flex()
-                .items_center()
-                .shrink_0()
-                .w_px(track.x)
-                .h_px(track.y);
+            let own = match track {
+                Some(track) => tw().w_px(track.x).h_px(track.y),
+                None => tw(),
+            };
+            let own = match tint == target {
+                true => own,
+                false => {
+                    let [off, on] = [Mark::Off, Mark::On].map(|mark| {
+                        let classes = b.resolved_part(
+                            SwitchPart::Root,
+                            &SwitchPart::keys(size, mark, enablement),
+                        );
+                        (classes.paint.background, classes.paint.border_colors.top)
+                    });
+                    let t = f32::from(tint);
+                    let mix = |off: Option<egui::Color32>, on: Option<egui::Color32>| {
+                        let clear = egui::Color32::TRANSPARENT;
+                        off.unwrap_or(clear).lerp_to_gamma(on.unwrap_or(clear), t)
+                    };
+                    let (fill, border) = (mix(off.0, on.0), mix(off.1, on.1));
+                    own.bg(fill)
+                        .border_color(border)
+                        .hover(|p| p.bg(fill).border_color(border))
+                        .active(|p| p.bg(fill).border_color(border))
+                }
+            };
+            let classes = b.part(
+                SwitchPart::Root,
+                &SwitchPart::keys(size, mark, enablement),
+                own,
+            );
             let row = choice_row(
-                &style,
+                b,
                 &style.role_sized(&switch.text, metrics.text),
                 enablement,
                 switch.gap,
-            )
-            .merge(caller);
+            );
             let on_press = on_toggle.clone();
-            b.div(row, |b| {
+            let build_track = move |b: &mut Builder<'_, '_, A>| {
                 b.div_id(Part::Track, classes, |b| {
                     b.paint(tw().w_full().h_full(), move |painter, rect, _| {
                         let t = f32::from(transition::animate(
@@ -278,6 +330,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                             Easing::Default,
                         ));
                         let diameter = thumb_off + (thumb_on - thumb_off) * t;
+                        let thumb_color = fill_off.lerp_to_gamma(fill_on, t);
                         let inset = rect.height() / 2.0;
                         let x = egui::lerp(rect.left() + inset..=rect.right() - inset, t);
                         painter.circle_filled(
@@ -296,12 +349,34 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                     }
                     on_response.run(app, &response);
                 });
-                if let Some(label) = label {
-                    choice_label(b, Part::Label, control, label, enablement, move |app| {
-                        on_toggle(app)
-                    });
+            };
+            match form {
+                Form::Row => b.div(row.merge(caller), |b| {
+                    build_track(b);
+                    if let Some(label) = label {
+                        choice_label(b, Part::Label, control, label, enablement, move |app| {
+                            on_toggle(app)
+                        });
+                    }
+                }),
+                Form::Card => {
+                    let card = Card {
+                        control,
+                        title: label.unwrap_or_default(),
+                        description,
+                        enablement,
+                        classes: caller,
+                    };
+                    choice_card(
+                        b,
+                        Part::Label,
+                        card,
+                        row,
+                        move |app| on_toggle(app),
+                        build_track,
+                    );
                 }
-            });
+            }
         });
     }
 }

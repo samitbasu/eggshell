@@ -307,8 +307,8 @@ impl<A> Listing<A> {
 /// The classes of the box a combobox's or an autosuggest's list sits in.
 pub(crate) fn popover_classes(style: &Style) -> Tw {
     style
-        .menu
-        .box_classes(style.role(&style.menu.text))
+        .menu()
+        .box_classes(style.role(&style.menu().text))
         .p(0.0)
         .overflow_hidden()
 }
@@ -322,7 +322,7 @@ pub(crate) fn list_offset() -> eggshell_ui::overlay::Distance {
 /// with the ring while the field inside has focus. The field's own padding
 /// is the box's left, and the end button sits close to its right.
 pub(crate) fn group_classes(style: &Style) -> Tw {
-    let select = &style.select;
+    let select = style.select();
     let metrics = select.sizes.get(eggshell_ui::contract::Size::DEFAULT);
     let states = select.trigger.paint.states;
     let classes = tw()
@@ -339,7 +339,7 @@ pub(crate) fn group_classes(style: &Style) -> Tw {
         .role(style.role(&select.text).clone())
         .has(Match::focus_visible(), |b| {
             b.border_color(states.focused.border)
-                .ring(style.focus.width, style.focus.color)
+                .ring(style.tokens.focus.width, style.tokens.focus.color)
         });
     match select.trigger.paint.shadow {
         Some(shadow) => classes.shadow(shadow),
@@ -358,7 +358,7 @@ pub(crate) fn end_button_classes(style: &Style) -> Tw {
         .justify_center()
         .size_px(metrics.button_width)
         .shrink_0()
-        .rounded_px(f32::from(style.menu.item_radius))
+        .rounded_px(f32::from(style.menu().item_radius))
         .bg(states.rest.fill)
         .sense_click()
         .focusable_none()
@@ -367,14 +367,14 @@ pub(crate) fn end_button_classes(style: &Style) -> Tw {
 
 /// The classes of the glyph in the end button: muted, `size-4`.
 pub(crate) fn end_glyph_classes(style: &Style) -> Tw {
-    tw().size_px(style.select.chevron)
+    tw().size_px(style.select().chevron)
         .shrink_0()
-        .text(style.input.icon)
+        .text(style.input().icon)
 }
 
 /// The classes of a command dialog's box.
 pub(crate) fn dialog_classes(style: &Style) -> Tw {
-    let menu = &style.menu;
+    let menu = style.menu();
     let rest = menu.popup.paint.states.rest;
     let classes = tw()
         .flex()
@@ -441,13 +441,13 @@ pub(crate) fn show<'f, A: 'static>(
             }
             return;
         }
-        let text = style.role(&style.menu.text).clone();
-        let row_height = style.menu.row_height(&text);
+        let text = style.role(&style.menu().text).clone();
+        let row_height = style.menu().row_height(&text);
         let mut list = s
             .virtual_list(
                 Part::Results,
                 tw().max_h_px(command.list_height)
-                    .p(style.menu.padding / 4.0)
+                    .p(style.menu().padding / 4.0)
                     .scroll_py(1.0)
                     .scrollbar_none(),
                 rows,
@@ -527,10 +527,10 @@ fn search_field<A: 'static>(
     name: Option<String>,
     on_query: Option<super::Heard<A>>,
 ) -> Id {
-    let menu = &style.menu;
+    let menu = style.menu();
     let rest = menu.popup.paint.states.rest;
     let tint = style
-        .input
+        .input()
         .look
         .paint
         .states
@@ -584,11 +584,11 @@ fn search_field<A: 'static>(
 }
 
 fn note_classes(style: &Style) -> Tw {
-    tw().py(6.0).text_center().text(style.menu.shortcut)
+    tw().py(6.0).text_center().text(style.menu().shortcut)
 }
 
 fn heading_classes(style: &Style, at: usize) -> Tw {
-    let menu = &style.menu;
+    let menu = style.menu();
     let classes = tw()
         .px(menu.item_padding.x / 4.0)
         .py(1.5)
@@ -608,7 +608,7 @@ fn item<A: 'static>(
     command: &super::CommandStyle,
     entry: &Entry<A>,
 ) {
-    let menu = &style.menu;
+    let menu = style.menu();
     let text = style.role(&menu.text);
     let states = menu.item.paint.states;
     let base = tw()

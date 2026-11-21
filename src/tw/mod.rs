@@ -45,7 +45,7 @@ pub use paint::{BoxPaint, Divide, Ring, RingPlacement, Sides};
 pub use rules::{Aria, Match};
 pub(crate) use rules::{Link, Observed, Ruled, Rules};
 pub use units::{Angle, Mirror, Opacity, Progress};
-pub use variants::Paint;
+pub use variants::{BoxState, Paint};
 pub(crate) use variants::{
     Focusability, Grouping, Look, PointerEvents, Presence, Scrollbar, Sensing, State, Variants,
     Visibility,

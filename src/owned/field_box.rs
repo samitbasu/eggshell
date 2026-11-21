@@ -5,7 +5,7 @@ use crate::builder::{Scope, Slot};
 use crate::contract::Size;
 use crate::{Builder, Tw, tw};
 
-use super::{Enablement, Gate, IntoTip, field_box_classes, options, text_sized, tipped_whole};
+use super::{Enablement, Gate, InputGroupPart, IntoTip, options, text_sized, tipped_whole};
 
 /// A box in the style's input look. Start one with [`Builder::field_box`] and
 /// finish it with [`children`](Self::children).
@@ -90,20 +90,18 @@ impl<'a, 'f, A: 'static> FieldBoxChain<'a, 'f, A> {
         let size = b.size_of(size);
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let style = b.style().clone();
-        let metrics = *style.input.sizes.lookup(b.ctx(), size);
-        let classes = field_box_classes(
-            &style.input.look,
-            &style,
-            metrics.radius,
-            metrics.height,
-            enablement,
-        )
-        .items_center()
-        .gap(metrics.icon_gap / 4.0)
-        .px(metrics.padding.x / 4.0)
-        .control_size(size)
-        .merge(text_sized(&b, metrics.text))
-        .merge(classes);
+        let metrics = *style.input().sizes.lookup(b.ctx(), size);
+        let keys = super::input_keys(
+            style.input().sizes.key_for(size),
+            enablement == Enablement::Disabled,
+        );
+        let classes = b.part(
+            InputGroupPart::Root,
+            &keys,
+            tw().control_size(size)
+                .merge(text_sized(&b, metrics.text))
+                .merge(classes),
+        );
         let classes = match tooltip {
             Some(_) => classes.sense_hover(),
             None => classes,

@@ -9,7 +9,7 @@ use super::{Enablement, Gate, IntoTip, OnResponse, centered, described, options}
 use crate::Aria;
 use crate::actions::Action;
 use crate::builder::Slot;
-use crate::contract::{Disabled, Focus, Keyed, Look, Metrics, Size, Variant};
+use crate::contract::{Disabled, Keyed, Look, Metrics, Size, Variant};
 use crate::focus::{Autofocus, Select};
 use crate::sheet::{Key, Part, Sheet, When};
 use crate::text::TextSpec;
@@ -42,8 +42,6 @@ pub(crate) struct ButtonDefaults {
     pub look: Look,
     pub sizes: Keyed<Size, Metrics>,
     pub text: TextSpec,
-    pub focus: Focus,
-    pub disabled: Disabled,
     pub transition: std::time::Duration,
     pub press_shift: f32,
 }
@@ -55,20 +53,17 @@ pub(crate) fn button_defaults(sheet: &mut Sheet, defaults: ButtonDefaults) {
         look,
         sizes,
         text,
-        focus,
-        disabled,
         transition,
         press_shift,
     } = defaults;
     let radius = sizes.get(sizes.default_key()).radius;
-    let form = (focus, disabled);
     sheet.rule_when(
         ButtonPart::Root,
         When::always().not_aria(Aria::Disabled),
-        move |t, _| {
-            let classes = t.merge(look.paint.classes_with(
+        move |t, k| {
+            let classes = t.merge(look.paint.classes_in(
                 look.border_width,
-                form,
+                (k.focus, k.disabled),
                 radius,
                 Enablement::Enabled,
                 transition,
@@ -79,15 +74,15 @@ pub(crate) fn button_defaults(sheet: &mut Sheet, defaults: ButtonDefaults) {
     sheet.rule_when(
         ButtonPart::Root,
         When::always().aria(Aria::Disabled),
-        move |t, _| {
-            let classes = t.merge(look.paint.classes_with(
+        move |t, k| {
+            let classes = t.merge(look.paint.classes_in(
                 look.border_width,
-                form,
+                (k.focus, k.disabled),
                 radius,
                 Enablement::Disabled,
                 transition,
             ));
-            let classes = match disabled {
+            let classes = match k.disabled {
                 Disabled::Faded(opacity) => classes.opacity(opacity),
                 Disabled::Colors => classes,
             };

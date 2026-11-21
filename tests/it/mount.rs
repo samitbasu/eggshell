@@ -1081,8 +1081,8 @@ mod selection {
             field.min, content.min,
             "precondition: the field sits at the content's edge"
         );
-        let focus_ring = field.expand(style.focus.width);
-        let selected_ring = frame.expand(style.focus.width);
+        let focus_ring = field.expand(style.tokens.focus.width);
+        let selected_ring = frame.expand(style.tokens.focus.width);
         assert!(
             frame.contains_rect(focus_ring),
             "the focus ring {focus_ring:?} stays clear of the selected ring's band, \
@@ -1104,7 +1104,7 @@ mod selection {
             caption.max.y <= frame.min.y && caption.x_range().intersects(frame.x_range()),
             "precondition: the caption {caption:?} sits above the frame {frame:?}"
         );
-        let selected_ring = frame.expand(style.focus.width);
+        let selected_ring = frame.expand(style.tokens.focus.width);
         assert!(
             !selected_ring.intersects(caption),
             "the selected ring {selected_ring:?} stays clear of the caption {caption:?}"

@@ -365,7 +365,7 @@ impl<'a, 'f, A: 'static> SplitterChain<'a, 'f, A> {
         let travel = Travel::of(direction.unwrap_or(FlexDirection::Row), side);
         let (style, ring) = {
             let style = b.style().clone();
-            (style.splitter, style.focus)
+            (style.splitter, style.tokens.focus)
         };
         let thickness = style.thickness.max(0.0);
         let classes = match travel.axis {

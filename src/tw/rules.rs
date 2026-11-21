@@ -105,15 +105,17 @@ impl Ruled {
     }
 }
 
-/// A rule on a node about what it holds: the classes `body` when a child
-/// matches `when`.
+/// A rule on a node about what it holds: the classes `body` when a node
+/// `reach` below it matches `when`.
 #[derive(Clone, Debug)]
 pub(crate) struct HasRule {
+    reach: Reach,
     when: Match,
     body: Tw,
 }
 
-/// What the parent of a node needs to know of it, for its `has` rules.
+/// What the containers above a node need to know of it, for their `has`
+/// rules.
 #[derive(Clone, Debug)]
 pub(crate) struct Observed {
     pub(crate) kind: NodeKind,
@@ -127,19 +129,19 @@ impl Tw {
         self.rules.as_ref().map_or(&NO_FACTS, |ruled| &ruled.facts)
     }
 
-    /// `self` with the classes of its `has` rules that match a child of
-    /// `seen`, over its own; `None` if none match.
-    pub(crate) fn with_has<'a>(
-        &self,
-        mut seen: impl Iterator<Item = &'a Observed> + Clone,
-    ) -> Option<Self> {
+    /// `self` with the classes of its `has` rules that match what `seen`
+    /// holds, over its own; `None` if none match. Each child's observations
+    /// are its own first, then its descendants'.
+    pub(crate) fn with_has(&self, seen: &[Vec<Observed>]) -> Option<Self> {
         let ruled = self.rules.as_ref().filter(|ruled| !ruled.has.is_empty())?;
         let mut applied: Option<Self> = None;
         for rule in &ruled.has {
-            if seen
-                .clone()
-                .any(|child| rule.when.matches(child.kind, &child.facts, child.focused))
-            {
+            let matches = |node: &Observed| rule.when.matches(node.kind, &node.facts, node.focused);
+            let held = match rule.reach {
+                Reach::Children => seen.iter().filter_map(|child| child.first()).any(matches),
+                Reach::Descendants => seen.iter().flatten().any(matches),
+            };
+            if held {
                 applied = Some(
                     applied
                         .unwrap_or_else(|| self.clone())
@@ -147,7 +149,6 @@ impl Tw {
                 );
             }
         }
-        let _ = &mut seen;
         applied
     }
 }
@@ -250,6 +251,18 @@ impl Match {
         self
     }
 
+    /// TODO(prose): also a node in this [`aria`](Tw::aria) state.
+    ///
+    /// ```
+    /// use eggshell_ui::{Aria, Match, tw};
+    /// let card = tw().descendants(Match::slot("checkbox").with_aria(Aria::Checked), |t| t.mt(0.25));
+    /// ```
+    #[must_use]
+    pub const fn with_aria(mut self, state: Aria) -> Self {
+        self.aria = Some(state);
+        self
+    }
+
     fn matches(&self, kind: NodeKind, facts: &Facts, focused: bool) -> bool {
         let holds = self.kind.is_none_or(|want| Kind::of(kind) == Some(want))
             && self.slot.is_none_or(|want| facts.slot == Some(want))
@@ -311,8 +324,8 @@ pub(crate) struct Link {
 pub(crate) struct Rules {
     top: Option<u32>,
     depth: u32,
-    /// Whether the container the nodes are built in has `has` rules, and so
-    /// needs to know what they are.
+    /// Whether a container the nodes are built in, at any depth, has `has`
+    /// rules, and so needs to know what they are.
     pub(crate) observed: bool,
 }
 
@@ -332,7 +345,7 @@ impl Rules {
             None => Self {
                 top: self.top,
                 depth,
-                observed: false,
+                observed: self.observed,
             },
             Some(ruled) => self.declared(ruled, depth, links),
         }
@@ -340,7 +353,7 @@ impl Rules {
 
     #[inline(never)]
     fn declared(&self, ruled: &Ruled, depth: u32, links: &mut Vec<Link>) -> Self {
-        let observed = !ruled.has.is_empty();
+        let observed = self.observed || !ruled.has.is_empty();
         if ruled.rules.is_empty() {
             return Self {
                 top: self.top,
@@ -495,18 +508,35 @@ impl Tw {
         self.rule(Reach::Children, when, body)
     }
 
-    /// TODO(prose): `body`'s box classes for this node while one of its
-    /// children matches `when`: Tailwind's `has-*`. The classes win over the
-    /// node's own, as a variant's do, and cannot touch text or behavior.
+    /// TODO(prose): `body`'s box classes for this node while a node built
+    /// anywhere inside it matches `when`: Tailwind's `has-*`. The classes win
+    /// over the node's own, as a variant's do, and cannot touch text or
+    /// behavior.
     ///
     /// ```
     /// use eggshell_ui::{Aria, Match, tw};
     /// let field = tw().has(Match::aria(Aria::Invalid), |b| b.px(2.0));
     /// ```
     #[must_use]
-    pub fn has(mut self, when: Match, body: impl FnOnce(BoxTw) -> BoxTw) -> Self {
+    pub fn has(self, when: Match, body: impl FnOnce(BoxTw) -> BoxTw) -> Self {
+        self.has_at(Reach::Descendants, when, body)
+    }
+
+    /// TODO(prose): [`has`](Self::has) for the node's own children:
+    /// Tailwind's `has-[>*]`.
+    ///
+    /// ```
+    /// use eggshell_ui::{Match, tw};
+    /// let label = tw().has_child(Match::slot("field"), |b| b.border(1.0));
+    /// ```
+    #[must_use]
+    pub fn has_child(self, when: Match, body: impl FnOnce(BoxTw) -> BoxTw) -> Self {
+        self.has_at(Reach::Children, when, body)
+    }
+
+    fn has_at(mut self, reach: Reach, when: Match, body: impl FnOnce(BoxTw) -> BoxTw) -> Self {
         let body = body(BoxTw::blank()).0;
-        self.ruled().has.push(HasRule { when, body });
+        self.ruled().has.push(HasRule { reach, when, body });
         self
     }
 

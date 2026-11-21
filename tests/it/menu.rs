@@ -777,8 +777,10 @@ mod trigger {
         let restyled = |chevron: f32, opacity: f32| {
             let mut d = opened(chevron_and_select);
             d.set_style(support::shadcn_with(|style| {
-                style.select.chevron = chevron;
-                style.select.chevron_opacity = Opacity::new(opacity);
+                let mut select = style.select().clone();
+                select.chevron = chevron;
+                select.chevron_opacity = Opacity::new(opacity);
+                style.set_select(select);
             }));
             d.frames(4);
             d

@@ -53,12 +53,12 @@ fn main() {
                     badge.variants.get(variant),
                 );
             }
-            let input = core.input.sizes.get(core.input.sizes.default_key());
+            let input = core.input().sizes.get(core.input().sizes.default_key());
             println!(
                 "part {at} part=input height={} padding_x={} padding_y={} radius={}",
                 input.height, input.padding.x, input.padding.y, input.radius
             );
-            let menu = &core.menu;
+            let menu = core.menu();
             println!(
                 "part {at} part=content padding={} radius={}",
                 menu.padding, menu.radius

@@ -312,7 +312,10 @@ fn paint_box(
     if uniform.is_none() {
         paint_side_borders(painter, boxes, paint.border_colors);
     }
-    if let Some(ring) = paint.ring {
+    if let Some(ring) = paint
+        .ring
+        .filter(|ring| ring.width > 0.0 && ring.color.a() > 0)
+    {
         painter.add(RectShape::stroke(
             border,
             paint.radius,
@@ -1194,7 +1197,7 @@ impl<A> Walk<'_, A> {
             && !interaction.variants.has_focus()
             && response.as_ref().is_some_and(Response::has_focus)
         {
-            let ring = node.style.focus;
+            let ring = node.style.tokens.focus;
             self.painter(parent.clip, opacity).add(RectShape::stroke(
                 boxes.border,
                 look.paint.radius,

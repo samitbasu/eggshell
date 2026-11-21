@@ -1,6 +1,8 @@
 //! A layout's own style (#435): given to the `LayoutState` as a light and
-//! dark pair and swapped through it, in place of the one derived from egui's, for the build, the draw, the shell, tooltips, the base text and
-//! the faces text is drawn in.
+//! dark pair and swapped through it, in place of the one derived from
+//! egui's, for the build, the draw, the shell, tooltips, the base text and
+//! the faces text is drawn in; and a layout left without one beside a styled
+//! layout is reported (#476).
 
 use std::sync::Arc;
 
@@ -16,7 +18,9 @@ const DARK: f32 = 22.0;
 
 fn padded(padding: f32) -> Arc<Style> {
     let mut style = Style::default();
-    style.table.cell_padding = padding;
+    let mut table = style.table().clone();
+    table.cell_padding = padding;
+    style.set_table(table);
     Arc::new(style)
 }
 
@@ -36,9 +40,9 @@ struct Scene {
 }
 
 fn view(b: &mut Builder<'_, '_, ()>, built: &mut Option<f32>) {
-    *built = Some(b.style().table.cell_padding);
+    *built = Some(b.style().table().cell_padding);
     b.span("probe", tw(), "probe").draw(|_, ui| {
-        let padding = ui.node_style().table.cell_padding;
+        let padding = ui.node_style().table().cell_padding;
         ui.ctx()
             .data_mut(|data| data.insert_temp(egui::Id::NULL.with("drawn"), padding));
     });
@@ -73,7 +77,7 @@ fn harness(layout: LayoutState) -> Harness<'static, Scene> {
 
 /// The cell padding of the style derived from egui's.
 fn derived() -> f32 {
-    Style::default().table.cell_padding
+    Style::default().table().cell_padding
 }
 
 #[test]
@@ -116,10 +120,10 @@ fn set_style_swaps_the_style_from_the_next_build() {
 fn the_shell_reads_the_layout_s_style() {
     let harness = harness(LayoutState::new().with_style(pair()));
     let shell = harness.state().layout.shell(&harness.ctx);
-    assert_eq!(shell.style().table.cell_padding, LIGHT);
+    assert_eq!(shell.style().table().cell_padding, LIGHT);
     let plain = LayoutState::new();
     assert_eq!(
-        plain.shell(&harness.ctx).style().table.cell_padding,
+        plain.shell(&harness.ctx).style().table().cell_padding,
         derived(),
         "without a style of its own, the derived one"
     );
@@ -162,7 +166,9 @@ fn without_base_text_the_root_text_is_the_layout_s_style_text() {
 fn a_tooltip_waits_as_the_layout_s_style_says() {
     fn delayed(delay: std::time::Duration) -> Arc<Style> {
         let mut style = Style::default();
-        style.tooltip.delay = delay;
+        let mut tooltip = style.tooltip().clone();
+        tooltip.delay = delay;
+        style.set_tooltip(tooltip);
         Arc::new(style)
     }
     let mut harness = Harness::builder()
@@ -185,7 +191,7 @@ fn a_tooltip_waits_as_the_layout_s_style_says() {
             }),
         );
     assert!(
-        Style::default().tooltip.delay > std::time::Duration::from_millis(300),
+        Style::default().tooltip().delay > std::time::Duration::from_millis(300),
         "precondition: the derived style would wait past the six steps"
     );
     harness.run_steps(2);
@@ -264,4 +270,72 @@ fn the_symbol_face_backs_the_families_the_layout_s_style_declares() {
         dark: with_medium(),
     }));
     assert!(registered, "the build registers the symbol face under it");
+}
+
+/// A styled layout, then `second`, both built on one context for `frames`
+/// frames; the distinct reports of a layout built with no style.
+fn unstyled_reports(second: LayoutState, frames: usize) -> usize {
+    let mut harness = Harness::builder()
+        .with_size(vec2(300.0, 200.0))
+        .build_ui_state(
+            |ui, (first, second): &mut (LayoutState, LayoutState)| {
+                for layout in [first, second] {
+                    layout
+                        .build(ui.ctx(), |b: &mut Builder<'_, '_, ()>| {
+                            b.text(tw(), "x");
+                        })
+                        .layout(ui.max_rect())
+                        .draw(&mut (), ui);
+                }
+            },
+            (LayoutState::new().with_style(pair()), second),
+        );
+    harness.run_steps(frames);
+    reports(&harness.ctx)
+        .iter()
+        .filter(|report| report.problem == Problem::UnstyledLayout)
+        .count()
+}
+
+#[test]
+fn a_layout_with_no_style_beside_a_styled_one_is_reported_once() {
+    assert_eq!(unstyled_reports(LayoutState::new(), 2), 1);
+    assert_eq!(
+        unstyled_reports(LayoutState::new(), 6),
+        1,
+        "one report, however many frames"
+    );
+}
+
+#[test]
+fn layouts_that_all_have_a_style_are_not_reported() {
+    assert_eq!(
+        unstyled_reports(LayoutState::new().with_style(pair()), 4),
+        0
+    );
+}
+
+#[test]
+fn layouts_that_all_go_without_a_style_are_not_reported() {
+    let mut harness = Harness::builder()
+        .with_size(vec2(300.0, 200.0))
+        .build_ui_state(
+            |ui, layouts: &mut [LayoutState; 2]| {
+                for layout in layouts {
+                    layout
+                        .build(ui.ctx(), |b: &mut Builder<'_, '_, ()>| {
+                            b.text(tw(), "x");
+                        })
+                        .layout(ui.max_rect())
+                        .draw(&mut (), ui);
+                }
+            },
+            [LayoutState::new(), LayoutState::new()],
+        );
+    harness.run_steps(4);
+    assert!(
+        reports(&harness.ctx)
+            .iter()
+            .all(|report| report.problem != Problem::UnstyledLayout)
+    );
 }

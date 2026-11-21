@@ -1,6 +1,8 @@
 //! A field box, and a text field with a leading or trailing icon (#245).
 
-use eggshell_ui::contract::Size;
+use std::sync::Arc;
+
+use eggshell_ui::contract::{Focus, Size, Themed};
 use eggshell_ui::testing::{Driver, Target};
 use eggshell_ui::{Builder, Icon, TextSpec, TextStyle, Weight, icons, tw};
 use eggshell_ui_shadcn::{Shadcn, size};
@@ -94,7 +96,7 @@ const BOTH: &str = r#"/"Page"/"sized"/"both""#;
 const CUSTOM: &str = r#"/"Page"/"custom""#;
 
 fn input() -> eggshell_ui::contract::InputStyle {
-    Shadcn::for_theme(Theme::Light).style().input
+    Shadcn::for_theme(Theme::Light).style().input().clone()
 }
 
 #[test]
@@ -122,6 +124,37 @@ fn a_field_box_rings_while_a_field_inside_has_focus() {
     d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
     d.frames(6);
     assert!(ring_at(&d, rect).is_some());
+}
+
+#[test]
+fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus_set_after_the_preset() {
+    let ring = Focus {
+        width: 5.0,
+        color: Color32::from_rgb(200, 30, 30),
+    };
+    let mut style = Shadcn::for_theme(Theme::Light).style();
+    let mut input = style.input().clone();
+    input.look.paint.focus = None;
+    style.set_input(input);
+    style.tokens.focus = ring;
+    let mut d = support::driver(
+        vec2(340.0, 360.0),
+        TextStyle::new(style.text.clone(), style.tokens.foreground),
+        App {
+            text: String::new(),
+            size: Size::DEFAULT,
+            disabled: false,
+        },
+        view,
+    )
+    .build();
+    d.set_style(Themed::both(Arc::new(style)));
+    d.frames(6);
+    d.click(Target::suffix(r#"/"Page"/"custom"/"inner""#));
+    d.frames(6);
+    let drawn = ring_at(&d, d.rect(Target::suffix(CUSTOM))).expect("a focus ring");
+    assert_eq!(drawn.stroke.width, ring.width);
+    assert_eq!(drawn.stroke.color, ring.color);
 }
 
 #[test]
@@ -284,4 +317,60 @@ fn icons_on_a_multi_line_field_are_reported() {
     let multi = build(Some(3));
     let report = assert_reported(multi.ctx(), Problem::IgnoredIcons);
     assert!(report.message.contains("\"notes\""), "{}", report.message);
+}
+
+fn restyled(b: &mut Builder<'_, '_, App>, _: &App) {
+    b.styled(
+        |style| {
+            style
+                .sheet
+                .as_app()
+                .rule(eggshell_ui::owned::InputGroupPart::Root, |t, _| {
+                    t.bg(Color32::from_rgb(200, 10, 10))
+                });
+        },
+        |s| {
+            s.field_box("custom")
+                .classes(tw().w_px(200.0))
+                .children(|s| {
+                    s.text_field("inner", "inside")
+                        .named("Inner")
+                        .bare()
+                        .on_change(|_: &mut App, _| {});
+                });
+        },
+    );
+}
+
+#[test]
+fn a_rule_on_the_input_group_part_restyles_the_box() {
+    let mut d = support::prepared_driver(
+        vec2(340.0, 120.0),
+        TextStyle::new(
+            TextSpec {
+                size: 14.0,
+                line_height: 20.0,
+                family: FontFamily::Proportional,
+                weight: Weight::Normal,
+            },
+            Color32::BLACK,
+        ),
+        App {
+            text: String::new(),
+            size: Size::DEFAULT,
+            disabled: false,
+        },
+        restyled,
+        |ctx, _| Shadcn::apply_both(ctx),
+    )
+    .build();
+    d.ctx().set_theme(Theme::Light);
+    d.frames(6);
+    let shape = box_at(&d, d.rect(Target::suffix(r#"/"custom""#)));
+    assert_eq!(shape.fill, Color32::from_rgb(200, 10, 10));
+    assert_eq!(
+        shape.stroke.color,
+        input().look.paint.states.rest.border,
+        "the preset's other properties stand"
+    );
 }

@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use egui::{Id, Role, Sense, Ui, UiBuilder, WidgetInfo};
 
+use super::table_sheet::{RowState, TablePart};
 use crate::builder::Slot;
 use crate::contract::{GroupEnd, TableStyle};
 use crate::{Builder, NodeUi as _, Reserve, Track, Tw, tw};
@@ -620,11 +621,15 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
             stripes,
             selection,
         } = self;
-        let table = b.style().table.clone();
+        let table = b.style().table().clone();
         let tracks: Vec<Track> = columns.iter().map(|column| column.track).collect();
         let columns: Rc<[Column]> = columns.into();
         let column_count = columns.len();
-        let classes = tw().grid().grid_cols_tracks(&tracks).w_full().sense_hover();
+        let classes = b.part(
+            TablePart::Table,
+            &[],
+            tw().grid_cols_tracks(&tracks).sense_hover(),
+        );
         let table_id = slot.id;
         let mut built = Built::default();
         let handle = b.div_id_with(&slot, classes, |b| {
@@ -878,9 +883,26 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
         else {
             return;
         };
-        let classes = band_classes(&self.table, (part, last, stripe), picking.as_ref())
-            .col_span_full()
-            .row_start(line);
+        let (band, keys, behavior) = match part {
+            Part::Header => (TablePart::Header, Vec::new(), tw().sense_hover()),
+            Part::Group => (TablePart::Group, Vec::new(), tw().sense_hover()),
+            Part::Footer => (TablePart::Footer, Vec::new(), tw().sense_hover()),
+            Part::Body => (
+                TablePart::Row,
+                TablePart::row_keys(RowState {
+                    striped: stripe == Stripe::Striped,
+                    last: last == Last::Yes,
+                    selected: picking.as_ref().is_some_and(|picking| picking.selected),
+                }),
+                match picking {
+                    None => tw(),
+                    Some(_) => tw().sense_click().focusable_none(),
+                },
+            ),
+        };
+        let classes = self
+            .b
+            .part(band, &keys, behavior.col_span_full().row_start(line));
         let selectable = picking.as_ref().map(|picking| picking.selected);
         self.b
             .div_id_with(&slot, classes, |_| {})
@@ -902,48 +924,6 @@ impl<'f, A: 'static, K: crate::Key + Clone + PartialEq> Rows<'_, 'f, A, K> {
                 }
             });
         self.b.move_last_to(at);
-    }
-}
-
-/// The classes of a row's band: its rule, its fills and, in a selectable
-/// table, the clicks that select it, which take no focus.
-fn band_classes<A, K>(
-    table: &TableStyle,
-    (part, last, stripe): (Part, Last, Stripe),
-    picking: Option<&Picking<A, K>>,
-) -> Tw {
-    let ruled = |classes: Tw| {
-        classes
-            .border_b(table.rule_width)
-            .border_b_color(table.rule)
-    };
-    match part {
-        Part::Header => ruled(tw().bg(table.header_fill)).sense_hover(),
-        Part::Group => ruled(tw().bg(table.group_fill)).sense_hover(),
-        Part::Footer => tw()
-            .bg(table.footer_fill)
-            .border_t(table.rule_width)
-            .border_t_color(table.rule)
-            .sense_hover(),
-        Part::Body => {
-            let classes = match last {
-                Last::Yes if !table.rule_below_last => tw(),
-                Last::Yes | Last::No => ruled(tw()),
-            };
-            let classes = match stripe {
-                Stripe::Striped => classes.bg(table.stripe),
-                Stripe::Plain => classes,
-            };
-            let classes = match picking {
-                Some(picking) if picking.selected => classes.bg(table.selected),
-                _ => classes.hover(|p| p.bg(table.hover)),
-            };
-            let classes = classes.transition(table.transition);
-            match picking {
-                None => classes,
-                Some(_) => classes.sense_click().focusable_none(),
-            }
-        }
     }
 }
 
@@ -1005,14 +985,10 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
     #[track_caller]
     fn group_cell(&mut self, title: String) {
         self.count = self.columns.len();
-        let table = &self.style;
-        let classes = crate::owned::text_sized(&self.b, table.group_text_size)
+        // The text role laid here carries the inherited weight, so the group's is set after it.
+        let classes = crate::owned::text_sized(&self.b, self.style.group_text_size)
             .col_span_full()
-            .whitespace_nowrap();
-        let classes = match table.group_text {
-            Some(color) => classes.text(color),
-            None => classes,
-        };
+            .font_weight(self.style.group_weight);
         let shown = title.clone();
         let span = Span::Row(self.columns.len());
         self.place(classes, (0, span), Some(title), |b| b.text(tw(), shown));
@@ -1051,38 +1027,23 @@ impl<'f, A: 'static> Cells<'_, 'f, A> {
         name: Option<String>,
         body: impl FnOnce(&mut Builder<'_, 'f, A>),
     ) {
-        let table = &self.style;
-        let placed = classes.row_start(self.line).flex().items_center();
-        let placed = placed.px(table.cell_padding / 4.0);
-        let placed = match table.first_column_inset {
-            Some(inset) if column == 0 => placed.pl(inset / 4.0),
-            _ => placed,
-        };
-        let cell_y = table.cell_padding_y.unwrap_or(table.cell_padding) / 4.0;
-        let (classes, role) = match self.part {
-            Part::Header => {
-                let placed = match table.header_padding_y {
-                    Some(padding) => placed.py(padding / 4.0),
-                    None => placed.h_px(table.header_height),
-                };
-                (placed.font_weight(table.header_weight), Role::ColumnHeader)
-            }
+        let (part, role) = match self.part {
+            Part::Header => (TablePart::Head, Role::ColumnHeader),
             Part::Body => (
-                placed.py(cell_y),
+                TablePart::Cell,
                 match self.columns.get(column).map(|spec| spec.cells) {
                     Some(CellRole::RowHeader) => Role::RowHeader,
                     Some(CellRole::Data) | None => Role::Cell,
                 },
             ),
-            Part::Group => (
-                placed.py(cell_y).font_weight(table.group_weight),
-                Role::RowHeader,
-            ),
-            Part::Footer => (
-                placed.py(cell_y).font_weight(table.footer_weight),
-                Role::Cell,
-            ),
+            Part::Group => (TablePart::GroupCell, Role::RowHeader),
+            Part::Footer => (TablePart::FooterCell, Role::Cell),
         };
+        let classes = self.b.part(
+            part,
+            &TablePart::cell_keys(column == 0),
+            classes.row_start(self.line),
+        );
         let key = CellKey {
             band: &self.label,
             column,

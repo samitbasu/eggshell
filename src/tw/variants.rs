@@ -168,6 +168,52 @@ impl Grouping {
     }
 }
 
+/// TODO(prose): the paint a [`has`](Tw::has) rule's hover changes: the box's
+/// fill, border and ring, and nothing its children inherit.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct BoxState(Paint);
+
+impl BoxState {
+    /// `bg-<color>`.
+    #[must_use]
+    pub fn bg(self, color: impl Into<Color32>) -> Self {
+        Self(self.0.bg(color))
+    }
+
+    /// `border-<color>`.
+    #[must_use]
+    pub fn border_color(self, color: impl Into<Color32>) -> Self {
+        Self(self.0.border_color(color))
+    }
+
+    /// `ring-<width> ring-<color>`.
+    #[must_use]
+    pub fn ring(self, width: f32, color: impl Into<Color32>) -> Self {
+        Self(self.0.ring(width, color))
+    }
+}
+
+impl super::BoxTw {
+    /// TODO(prose): `hover:` inside a [`has`](Tw::has) rule: Tailwind's
+    /// `has-*:hover:*`. It paints the hover of a node that senses it and
+    /// makes none sense it.
+    ///
+    /// ```
+    /// use eggshell_ui::{Match, tw};
+    /// use egui::Color32;
+    /// let card = tw()
+    ///     .sense_click()
+    ///     .has_child(Match::slot("field"), |b| b.hover(|p| p.bg(Color32::GRAY)));
+    /// ```
+    #[must_use]
+    pub fn hover(self, style: impl FnOnce(BoxState) -> BoxState) -> Self {
+        Self(
+            self.0
+                .variant(|variants| &mut variants.hover, |p| style(BoxState(p)).0),
+        )
+    }
+}
+
 /// The paint a state variant changes: colours, opacity, underline, ring,
 /// shadow and translation. It has no layout or font-size methods on purpose,
 /// so a state change never needs another layout pass.
@@ -548,6 +594,16 @@ impl VariantData {
 }
 
 impl Tw {
+    /// The border colour the `state` variant gives, if it does.
+    pub(crate) fn variant_border(&self, state: State) -> Option<Color32> {
+        self.variants.get(state)?.border
+    }
+
+    /// The ring the `state` variant gives, if it does.
+    pub(crate) fn variant_ring(&self, state: State) -> Option<Ring> {
+        self.variants.get(state)?.ring
+    }
+
     /// Sets the variant `slot` selects to `style` applied to it, unless that
     /// gives it a length that is not finite.
     #[cfg_attr(debug_assertions, track_caller)]
