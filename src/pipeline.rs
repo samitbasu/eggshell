@@ -830,6 +830,8 @@ impl LayoutState {
         let st = &mut self.st;
         st.built_at = std::panic::Location::caller();
         #[cfg(debug_assertions)]
+        report_unstyled(ctx, st);
+        #[cfg(debug_assertions)]
         if st.name.is_some() {
             crate::key::claims::name(ctx, st.root, &st.claimant(), st.built_at);
         }
@@ -860,6 +862,32 @@ impl LayoutState {
             root,
         }
     }
+}
+
+/// Reports a layout built with no style of its own on a context where
+/// another layout has one: a forgotten `with_style`. A layout built before
+/// the first styled one is reported from its next build.
+#[cfg(debug_assertions)]
+fn report_unstyled(ctx: &egui::Context, st: &BuildState) {
+    let styled = root_id().with("a-layout-has-a-style");
+    if st.kept.with(|kept| kept.style.is_some()) {
+        ctx.data_mut(|data| data.insert_temp(styled, ()));
+        return;
+    }
+    if ctx.data(|data| data.get_temp::<()>(styled)).is_none() {
+        return;
+    }
+    crate::report::report_at(
+        ctx,
+        crate::Problem::UnstyledLayout,
+        Some(st.scope),
+        st.built_at,
+        || {
+            "a layout has no style of its own while another layout on this context has \
+             one, so it draws egui's look; give it one with `LayoutState::with_style`"
+                .to_owned()
+        },
+    );
 }
 
 /// A built frame, ready to be laid out.
