@@ -33,6 +33,25 @@ jobs:
           key: workspace-goldens-screenshots-clippy-release
       - name: Mesa lavapipe for the golden images and screenshots
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
+      # The generated shadcn sheets are checked against shadcn's registry at
+      # the commit in xtask/shadcn.pin, beside the checkout as ../ref/shadcn.
+      - name: shadcn pin
+        id: shadcn
+        run: echo "sha=$(cat xtask/shadcn.pin)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: shadcn-cache
+        with:
+          path: ${{ github.workspace }}/../ref/shadcn
+          key: shadcn-registry-${{ steps.shadcn.outputs.sha }}
+      - name: shadcn registry at the pin
+        if: steps.shadcn-cache.outputs.cache-hit != 'true'
+        run: |
+          git init -q ../ref/shadcn
+          cd ../ref/shadcn
+          git remote add origin https://github.com/shadcn-ui/ui
+          git sparse-checkout set apps/v4/registry
+          git fetch -q --depth 1 --filter=blob:none origin "${{ steps.shadcn.outputs.sha }}"
+          git checkout -q FETCH_HEAD
       # The fuzz step runs in the `fuzz` job, beside this one.
       - run: cargo xtask ci --skip fuzz
       - name: Disk usage

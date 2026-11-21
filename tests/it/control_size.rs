@@ -1,7 +1,9 @@
 //! Control sizes: a control draws at its own size, else the one its subtree
 //! inherits, else the default (#127).
 
-use eggshell_ui::contract::{Metrics, Size, Style};
+use eggshell_ui::contract::{Size, Style};
+use eggshell_ui::owned::ButtonPart;
+use eggshell_ui::sheet::When;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};
 
@@ -24,14 +26,12 @@ fn base_text() -> TextStyle {
 }
 
 fn small_buttons(style: &mut Style) {
-    let default = *style.button.sizes.get(Size::DEFAULT);
-    style.button.sizes = style.button.sizes.clone().with(
-        SM,
-        Metrics {
-            height: default.height / 2.0,
-            ..default
-        },
-    );
+    style
+        .sheet
+        .as_app()
+        .rule_when(ButtonPart::Root, When::always().size(SM), |t, _| {
+            t.h_px(18.0)
+        });
 }
 
 fn view(b: &mut Builder<'_, '_, ()>, _: &()) {

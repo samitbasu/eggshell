@@ -86,7 +86,7 @@ pub(crate) fn trace(on: bool) {
 /// The winner of each property a class list sets.
 #[cfg(debug_assertions)]
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Origins(Vec<(Property, Why)>);
+pub(crate) struct Origins(Vec<(Property, Why)>, Option<Source>);
 
 #[cfg(debug_assertions)]
 impl Origins {
@@ -159,7 +159,8 @@ impl Tw {
         self.origins.as_ref()?.get(property).cloned()
     }
 
-    /// Notes that the caller of the class method being run set `property`.
+    /// Notes that the caller of the class method being run set `property`,
+    /// or the class a [`from`](Self::from) before it named.
     #[track_caller]
     pub(super) fn note(&mut self, property: Property) {
         let value = if tracing() {
@@ -167,16 +168,23 @@ impl Tw {
         } else {
             String::new()
         };
+        let origins = self.origins.get_or_insert_with(Box::default);
         let step = Step {
             origin: Origin {
                 layer: Layer::CallSite,
-                source: Source::Rust(Location::caller()),
+                source: origins.1.unwrap_or(Source::Rust(Location::caller())),
             },
             value,
         };
-        self.origins
-            .get_or_insert_with(Box::default)
-            .set(property, step);
+        origins.set(property, step);
+    }
+
+    /// TODO(prose): the classes called after this, up to the next `from`, were written for `class` at `file:line` of a shadcn sheet. Nothing in release builds.
+    #[must_use]
+    pub fn from(mut self, file: &'static str, line: u32, class: &'static str) -> Self {
+        self.origins.get_or_insert_with(Box::default).1 =
+            Some(Source::Shadcn { file, line, class });
+        self
     }
 
     /// Notes each of `properties` the caller set.
@@ -230,6 +238,13 @@ impl Tw {
     pub fn sourced(self, _: Source) -> Self {
         self
     }
+
+    /// TODO(prose): the classes called after this, up to the next `from`, were written for `class` at `file:line` of a shadcn sheet. Nothing in release builds.
+    #[must_use]
+    #[inline(always)]
+    pub fn from(self, _: &'static str, _: u32, _: &'static str) -> Self {
+        self
+    }
 }
 
 #[cfg(all(test, debug_assertions))]
@@ -248,6 +263,45 @@ mod tests {
             return (Layer::Defaults, 0);
         };
         (layer, at.line())
+    }
+
+    fn shadcn(origin: Option<Origin>) -> Option<(u32, &'static str)> {
+        match origin?.source {
+            Source::Shadcn { line, class, .. } => Some((line, class)),
+            Source::Rust(_) => None,
+        }
+    }
+
+    #[test]
+    fn from_gives_the_classes_after_it_their_source_until_the_next() {
+        let classes = tw()
+            .gap(1.0)
+            .from("style.css", 3, "rounded-md")
+            .rounded_px(8.0)
+            .from("style.css", 4, "border px-2")
+            .border(1.0)
+            .px(2.0);
+        assert_eq!(
+            shadcn(classes.origin_of(Property::gap_width)),
+            None,
+            "before any"
+        );
+        assert_eq!(
+            shadcn(classes.origin_of(Property::RadiusNw)),
+            Some((3, "rounded-md"))
+        );
+        for property in [Property::border_left, Property::padding_left] {
+            assert_eq!(
+                shadcn(classes.origin_of(property)),
+                Some((4, "border px-2")),
+                "{property:?}"
+            );
+        }
+        assert_eq!(
+            classes.origin_of(Property::RadiusNw).map(|o| o.layer),
+            Some(Layer::CallSite),
+            "the layer is still the writer's"
+        );
     }
 
     #[test]

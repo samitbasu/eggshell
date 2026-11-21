@@ -6,11 +6,110 @@ use egui::{Context, Role};
 
 use super::Mark;
 use super::{Enablement, Gate, IntoTip, OnResponse, centered, described, options};
+use crate::Aria;
 use crate::actions::Action;
 use crate::builder::Slot;
-use crate::contract::{Size, Variant};
+use crate::contract::{Disabled, Keyed, Look, Metrics, Size, Variant};
 use crate::focus::{Autofocus, Select};
+use crate::sheet::{Key, Part, Sheet, When};
+use crate::text::TextSpec;
+use crate::tw::Match;
 use crate::{Builder, Icon, Scope, Tw, tw};
+
+/// TODO(prose): a button's anatomy for the [`Sheet`]: its box. shadcn styles
+/// the icons inside it from the box (`[&_svg]:size-4`), so an icon is not a
+/// part of its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ButtonPart {
+    /// TODO(prose): the button's box.
+    Root,
+}
+
+impl Part for ButtonPart {
+    const SOURCE: &'static str = "button.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Root => "button",
+        }
+    }
+}
+
+/// What a style without a preset draws buttons with: one look, its sizes,
+/// and how it focuses, fades and moves. [`button_defaults`] writes them as
+/// the sheet's defaults.
+pub(crate) struct ButtonDefaults {
+    pub look: Look,
+    pub sizes: Keyed<Size, Metrics>,
+    pub text: TextSpec,
+    pub transition: std::time::Duration,
+    pub press_shift: f32,
+}
+
+/// Writes `defaults` as Button's rules in `sheet`: the look of every
+/// variant, enabled and disabled, then each size.
+pub(crate) fn button_defaults(sheet: &mut Sheet, defaults: ButtonDefaults) {
+    let ButtonDefaults {
+        look,
+        sizes,
+        text,
+        transition,
+        press_shift,
+    } = defaults;
+    let radius = sizes.get(sizes.default_key()).radius;
+    sheet.rule_when(
+        ButtonPart::Root,
+        When::always().not_aria(Aria::Disabled),
+        move |t, k| {
+            let classes = t.merge(look.paint.classes_in(
+                look.border_width,
+                (k.focus, k.disabled),
+                radius,
+                Enablement::Enabled,
+                transition,
+            ));
+            centered(classes).role(text.clone()).whitespace_nowrap()
+        },
+    );
+    sheet.rule_when(
+        ButtonPart::Root,
+        When::always().aria(Aria::Disabled),
+        move |t, k| {
+            let classes = t.merge(look.paint.classes_in(
+                look.border_width,
+                (k.focus, k.disabled),
+                radius,
+                Enablement::Disabled,
+                transition,
+            ));
+            let classes = match k.disabled {
+                Disabled::Faded(opacity) => classes.opacity(opacity),
+                Disabled::Colors => classes,
+            };
+            centered(classes).whitespace_nowrap()
+        },
+    );
+    if press_shift != 0.0 {
+        sheet.rule_when(
+            ButtonPart::Root,
+            When::always()
+                .not_aria(Aria::Disabled)
+                .not_aria(Aria::HasPopup),
+            move |t, _| t.active(|p| p.translate_y(press_shift)),
+        );
+    }
+    for size in sizes.keys() {
+        let m = *sizes.get(size);
+        sheet.rule_when(ButtonPart::Root, When::always().size(size), move |t, _| {
+            t.h_px(m.height)
+                .min_w_px(m.min_width)
+                .px(m.padding_x / 4.0)
+                .gap(m.gap / 4.0)
+                .rounded_px(f32::from(m.radius))
+                .descendants(Match::glyph(), |g| g.size_px(m.glyph).shrink_0())
+        });
+    }
+}
 
 /// Whether pressing a button shifts it down, as web buttons commonly do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -630,49 +729,68 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             });
         }
         let style = b.style().clone();
-        let button = &style.button;
-        let variant = |keyed_default: Variant| variant.unwrap_or(keyed_default);
-        let (look, metrics, selected) = match toggle {
-            None => (
-                *button
-                    .variants
-                    .lookup(ctx, variant(button.variants.default_key())),
-                *button.sizes.lookup(ctx, size),
-                None,
-            ),
-            Some(mark) => {
-                let looks = match mark {
-                    Mark::Off => &button.toggle_off,
-                    Mark::On => &button.toggle_on,
-                };
+        let disabled = enablement == Enablement::Disabled;
+        let (classes, selected, glyph) = match toggle {
+            None => {
+                let mut keys = vec![
+                    Key::Variant(variant.unwrap_or(Variant::DEFAULT)),
+                    Key::Size(size),
+                ];
+                if disabled {
+                    keys.push(Key::Aria(Aria::Disabled));
+                }
+                if press == Press::Stays {
+                    keys.push(Key::Aria(Aria::HasPopup));
+                }
+                let own = tw().relative().sense_click();
+                let own = if disabled { own.inert() } else { own };
                 (
-                    looks
-                        .lookup(ctx, variant(looks.default_key()))
-                        .bordered(button.toggle_border_width),
-                    *button.toggle_sizes.lookup(ctx, size),
+                    b.part(ButtonPart::Root, &keys, own.merge(caller)),
+                    None,
+                    None,
+                )
+            }
+            Some(mark) => {
+                let toggles = &style.toggle;
+                let looks = match mark {
+                    Mark::Off => &toggles.off,
+                    Mark::On => &toggles.on,
+                };
+                let look = looks
+                    .lookup(ctx, variant.unwrap_or(looks.default_key()))
+                    .bordered(toggles.border_width);
+                let metrics = *toggles.sizes.lookup(ctx, size);
+                let mut classes =
+                    look.classes(&style, metrics.radius, enablement, toggles.transition);
+                if enablement == Enablement::Enabled && press == Press::Shifts {
+                    classes = classes.active(|p| p.translate_y(toggles.press_shift));
+                }
+                let classes = centered(classes)
+                    .relative()
+                    .h_px(metrics.height)
+                    .min_w_px(metrics.min_width)
+                    .px(metrics.padding_x / 4.0)
+                    .gap(metrics.gap / 4.0)
+                    .role(style.role(&toggles.text).clone())
+                    .whitespace_nowrap();
+                (
+                    enablement.fade(classes, &style).merge(caller),
                     Some(mark),
+                    Some(metrics.glyph),
                 )
             }
         };
-        let mut classes = look.classes(&style, metrics.radius, enablement, button.transition);
-        if enablement == Enablement::Enabled && press == Press::Shifts {
-            classes = classes.active(|p| p.translate_y(button.press_shift));
-        }
-        let classes = centered(classes)
-            .relative()
-            .h_px(metrics.height)
-            .min_w_px(metrics.min_width)
-            .px(metrics.padding_x / 4.0)
-            .gap(metrics.gap / 4.0)
-            .role(style.role(&button.text).clone())
-            .whitespace_nowrap();
-        let classes = enablement.fade(classes, &style).merge(caller);
-        let glyph = metrics.glyph;
+        let labelled = !label.is_empty();
         let node = b.div_id_with(&slot, classes, |b| {
             if let Some(icon) = icon {
-                b.glyph(tw().size_px(glyph).shrink_0(), icon);
+                let classes = match glyph {
+                    Some(glyph) => tw().size_px(glyph).shrink_0(),
+                    None if labelled => tw().attr("icon", "inline-start"),
+                    None => tw(),
+                };
+                b.glyph(classes, icon);
             }
-            if !label.is_empty() {
+            if labelled {
                 b.text(tw(), label);
             }
             if let Some(children) = children {

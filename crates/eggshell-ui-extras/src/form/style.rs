@@ -69,7 +69,7 @@ impl FormStyle {
     /// box, the table's rule as its border and rules, a control's height as
     /// a row's.
     pub fn from_style(style: &Style) -> Self {
-        let buttons = &style.button.sizes;
+        let buttons = &style.toggle.sizes;
         Self {
             fill: style.menu().popup.paint.states.rest.fill,
             border: style.table.rule,
