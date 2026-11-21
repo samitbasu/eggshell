@@ -666,7 +666,7 @@ pub(crate) fn text_field_classes<A: 'static>(b: &mut Builder<'_, '_, A>, size: S
     let keys = input_keys(style.input().sizes.key_for(size), false);
     let root = b.resolved_part(InputPart::Root, &keys);
     let leaf = tw().rounded_px(f32::from(root.paint.radius.nw));
-    match root.variant_ring(crate::tw::State::FocusWithin) {
+    match root.variant_ring(crate::tw::State::Focus) {
         Some(ring) => leaf.focus_within(|p| p.ring(ring.width, ring.color)),
         None => leaf,
     }

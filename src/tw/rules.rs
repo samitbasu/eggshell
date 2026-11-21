@@ -251,6 +251,31 @@ impl Match {
         self
     }
 
+    /// TODO(prose): also a node with this [`slot`](Tw::slot).
+    ///
+    /// ```
+    /// use eggshell_ui::{Match, tw};
+    /// let row = tw().children(Match::any().with_slot("input-group"), |t| t.h(8.0));
+    /// ```
+    #[must_use]
+    pub const fn with_slot(mut self, slot: &'static str) -> Self {
+        self.slot = Some(slot);
+        self
+    }
+
+    /// TODO(prose): also a node that has keyboard focus, or a widget inside it
+    /// that does, as [`focus_visible`](Self::focus_visible) says.
+    ///
+    /// ```
+    /// use eggshell_ui::{Match, tw};
+    /// let group = tw().has(Match::slot("input-group-control").with_focus_visible(), |b| b.ring(3.0, egui::Color32::BLUE));
+    /// ```
+    #[must_use]
+    pub const fn with_focus_visible(mut self) -> Self {
+        self.focus = true;
+        self
+    }
+
     /// TODO(prose): also a node in this [`aria`](Tw::aria) state.
     ///
     /// ```

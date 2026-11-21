@@ -16,7 +16,7 @@ use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
 use crate::owned::options::{self, Gate};
-use crate::owned::{Enablement, FieldBoxChain, IntoTip, text_sized, tipped};
+use crate::owned::{Enablement, FieldBoxChain, InputGroupPart, IntoTip, text_sized, tipped};
 use crate::widget::Stock as _;
 use crate::{Builder, Icon, Key, Measure, Tw, tw};
 
@@ -447,6 +447,10 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             });
         }
         let icons = leading.is_some() || trailing.is_some();
+        let control_keys = crate::owned::input_keys(
+            style.input().sizes.key_for(size),
+            enablement == Enablement::Disabled,
+        );
         let disabled_frame = enablement == Enablement::Disabled && !field.is_bare();
         // A disabled field takes the input look's disabled colours through the
         // field box, as the stepper's does; egui's own frame has none.
@@ -468,22 +472,22 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                         put(s, Part::Leading, icon);
                     }
                     s.div(tw().flex().items_center().grow().min_w_0().h_full(), |b| {
-                        b.leaf(Part::Field, tw().w_full().h_full(), move |m| {
-                            measure(m, &measured)
-                        })
-                        .open_focus(autofocus.open_focus())
-                        .draw_widgets(move |app, ui| {
-                            let mut edited = text;
-                            let shown = show(ui, &mut edited, &field);
-                            let response = tipped(ui, shown, &tip);
-                            if let Some(select) = autofocus.apply(ui.ctx(), &response) {
-                                Opening::from(select).open(ui, &response, &edited);
-                            }
-                            if response.changed() {
-                                on_change(app, edited);
-                            }
-                            hooks.run(app, ui, &response, field.enter());
-                        });
+                        let control =
+                            b.part(InputGroupPart::Input, &control_keys, tw().w_full().h_full());
+                        b.leaf(Part::Field, control, move |m| measure(m, &measured))
+                            .open_focus(autofocus.open_focus())
+                            .draw_widgets(move |app, ui| {
+                                let mut edited = text;
+                                let shown = show(ui, &mut edited, &field);
+                                let response = tipped(ui, shown, &tip);
+                                if let Some(select) = autofocus.apply(ui.ctx(), &response) {
+                                    Opening::from(select).open(ui, &response, &edited);
+                                }
+                                if response.changed() {
+                                    on_change(app, edited);
+                                }
+                                hooks.run(app, ui, &response, field.enter());
+                            });
                     });
                     if let Some(icon) = trailing {
                         put(s, Part::Trailing, icon);
@@ -493,7 +497,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         }
         let classes = text_sized(&b, style.input().sizes.lookup(b.ctx(), size).text).merge(classes);
         let classes = if field.is_bare() {
-            classes
+            b.part(InputGroupPart::Input, &control_keys, classes)
         } else {
             crate::owned::text_field_classes(&mut b, size).merge(classes)
         };

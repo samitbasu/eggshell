@@ -179,6 +179,18 @@ fn selector(variant: &str) -> Option<(&'static str, &'static str)> {
 
 /// A `[data-slot=x]`, `[data-k=v]` or `[aria-x=true]` attribute selector as
 /// `Match` methods.
+/// `[data-slot][aria-invalid=true]`: each attribute of a compound selector,
+/// in turn. A bare `[data-slot]` is any shadcn part, which says nothing more
+/// about an eggshell node.
+fn attributes(selector: &str) -> Option<String> {
+    let inner = selector.strip_prefix('[')?.strip_suffix(']')?;
+    inner
+        .split("][")
+        .filter(|group| *group != "data-slot")
+        .map(|group| attribute(&format!("[{group}]")))
+        .collect()
+}
+
 fn attribute(selector: &str) -> Option<String> {
     let inner = selector.strip_prefix('[')?.strip_suffix(']')?;
     let (name, value) = inner.split_once('=')?;
@@ -187,13 +199,13 @@ fn attribute(selector: &str) -> Option<String> {
     }
     let value = value.trim_matches(|c| c == '"' || c == '\'');
     if name == "data-slot" {
-        return Some(format!(".slot({value:?})"));
+        return Some(format!(".with_slot({value:?})"));
     }
     if let Some(name) = name.strip_prefix("aria-") {
         return (value == "true")
             .then(|| aria(name))
             .flatten()
-            .map(|a| format!(".aria({a})"));
+            .map(|a| format!(".with_aria({a})"));
     }
     let name = name.strip_prefix("data-")?;
     Some(format!(".attr({name:?}, {value:?})"))
@@ -201,27 +213,33 @@ fn attribute(selector: &str) -> Option<String> {
 
 /// The match of a `has-…` variant: `has-aria-invalid`, `has-data-[k=v]`,
 /// `has-[[data-slot=x]:focus-visible]`, `has-[>[data-k=v]]`.
-fn has(variant: &str) -> Option<String> {
+/// The rule method is `has_child` for `has-[>…]`, `has` otherwise.
+fn has(variant: &str) -> Option<(&'static str, String)> {
     let rest = variant.strip_prefix("has-")?;
+    let any = |m: String| Some(("has", m));
     match rest {
-        "[>svg]" | "[svg]" => return Some("Match::glyph()".to_owned()),
-        "disabled" => return Some("Match::any().aria(Aria::Disabled)".to_owned()),
+        "[>svg]" => return Some(("has_child", "Match::glyph()".to_owned())),
+        "[svg]" => return any("Match::glyph()".to_owned()),
+        "disabled" => return any("Match::aria(Aria::Disabled)".to_owned()),
         _ => {}
     }
     if let Some(name) = rest.strip_prefix("aria-") {
-        return aria(name).map(|a| format!("Match::any().aria({a})"));
+        return aria(name).and_then(|a| any(format!("Match::aria({a})")));
     }
     if let Some(attr) = rest.strip_prefix("data-[") {
         let (name, value) = attr.strip_suffix(']')?.split_once('=')?;
-        return Some(format!("Match::any().attr({name:?}, {value:?})"));
+        return any(format!("Match::any().attr({name:?}, {value:?})"));
     }
     let inner = rest.strip_prefix('[')?.strip_suffix(']')?;
-    let inner = inner.strip_prefix('>').unwrap_or(inner);
+    let (method, inner) = match inner.strip_prefix('>') {
+        Some(inner) => ("has_child", inner),
+        None => ("has", inner),
+    };
     let (attr, focus) = match inner.strip_suffix(":focus-visible") {
-        Some(attr) => (attr, ".focus_visible()"),
+        Some(attr) => (attr, ".with_focus_visible()"),
         None => (inner, ""),
     };
-    Some(format!("Match::any(){}{focus}", attribute(attr)?))
+    Some((method, format!("Match::any(){}{focus}", attributes(attr)?)))
 }
 
 /// A variant on the node's own state as a `When` key: `aria-invalid`,
@@ -346,14 +364,11 @@ impl Classifier<'_> {
                 }
                 t.wraps.push(Wrap::Rule { method, when });
                 t.kinds.insert(Kind::Rule);
-            } else if let Some(when) = has(variant) {
+            } else if let Some((method, when)) = has(variant) {
                 if t.wraps.iter().any(|w| matches!(w, Wrap::Paint(_))) {
                     return Err(format!("a rule (`{variant}:`) under a state of this node"));
                 }
-                t.wraps.push(Wrap::Rule {
-                    method: "has",
-                    when,
-                });
+                t.wraps.push(Wrap::Rule { method, when });
                 t.kinds.insert(Kind::Rule);
             } else {
                 return Err(format!("variant `{variant}:`"));
@@ -363,10 +378,15 @@ impl Classifier<'_> {
             return Err("`!` outside a rule".to_owned());
         }
         t.leaf = self.leaf(utility, &mut t.kinds)?;
-        let in_has = t
-            .wraps
-            .iter()
-            .any(|w| matches!(w, Wrap::Rule { method: "has", .. }));
+        let in_has = t.wraps.iter().any(|w| {
+            matches!(
+                w,
+                Wrap::Rule {
+                    method: "has" | "has_child",
+                    ..
+                }
+            )
+        });
         if in_has && matches!(&t.leaf, Leaf::Call(c) if c.starts_with(".text")) {
             return Err("`has-` sets box classes only, not inherited text".to_owned());
         }
@@ -473,7 +493,11 @@ fn render(wraps: &[Wrap], leaf: &str, important: bool) -> String {
             format!(".{method}(|p| p{})", render(rest, leaf, important))
         }
         Some((Wrap::Rule { method, when }, rest)) => {
-            let var = if *method == "has" { "b" } else { "t" };
+            let var = if matches!(*method, "has" | "has_child") {
+                "b"
+            } else {
+                "t"
+            };
             let imp = if important && rest.is_empty() {
                 ".important()"
             } else {
@@ -610,6 +634,23 @@ pub struct Widget {
     pub parts: Option<&'static str>,
 }
 
+/// The breakpoints every widget is drawn at: eggshell's responsiveness is
+/// regions measuring their width, not the viewport's, and shadcn's narrower
+/// classes are for phones (`text-base` under `md:`, so iOS does not zoom
+/// into a native input).
+const VIEWPORT: [Assumed; 2] = [
+    Assumed {
+        variant: "sm",
+        fact: Fact::Holds,
+        why: "drawn at desktop width (`sm:` holds)",
+    },
+    Assumed {
+        variant: "md",
+        fact: Fact::Holds,
+        why: "drawn at desktop width (`md:` holds)",
+    },
+];
+
 /// Whether eggshell's widget always or never has a state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fact {
@@ -646,7 +687,7 @@ impl Widget {
                 Some(v) => (true, v),
                 None => (false, variant),
             };
-            match self.facts.iter().find(|f| f.variant == v) {
+            match self.facts.iter().chain(&VIEWPORT).find(|f| f.variant == v) {
                 None => kept.push(variant),
                 Some(fact) if (fact.fact == Fact::Holds) != negated => held.push(fact),
                 Some(fact) => return Err(fact),
@@ -1047,7 +1088,7 @@ mod tests {
             );
             assert_eq!(
                 one(c, "*:data-[slot=input-group]:h-8"),
-                ".children(Match::any().slot(\"input-group\"), |t| t.h(8.0))"
+                ".children(Match::any().with_slot(\"input-group\"), |t| t.h(8.0))"
             );
             assert_eq!(
                 one(c, "has-data-[icon=inline-start]:pl-2"),
@@ -1055,7 +1096,7 @@ mod tests {
             );
             assert_eq!(
                 one(c, "has-aria-invalid:border-destructive"),
-                ".has(Match::any().aria(Aria::Invalid), |b| b.border_color(k.destructive))"
+                ".has(Match::aria(Aria::Invalid), |b| b.border_color(k.destructive))"
             );
         });
     }
@@ -1174,15 +1215,34 @@ mod tests {
                     c,
                     "has-[[data-slot=input-group-control]:focus-visible]:border-ring"
                 ),
-                ".has(Match::any().slot(\"input-group-control\").focus_visible(), |b| b.border_color(k.ring))"
+                ".has(Match::any().with_slot(\"input-group-control\").with_focus_visible(), |b| b.border_color(k.ring))"
             );
             assert_eq!(
                 one(c, "has-[>[data-align=block-end]]:h-9"),
-                ".has(Match::any().attr(\"align\", \"block-end\"), |b| b.h(9.0))"
+                ".has_child(Match::any().attr(\"align\", \"block-end\"), |b| b.h(9.0))",
+                "`>` is a child, not any descendant"
+            );
+            assert_eq!(
+                one(c, "has-[>svg]:h-9"),
+                ".has_child(Match::glyph(), |b| b.h(9.0))"
+            );
+            assert_eq!(
+                one(c, "has-[svg]:h-9"),
+                ".has(Match::glyph(), |b| b.h(9.0))"
+            );
+            assert_eq!(
+                one(c, "has-[[data-slot][aria-invalid=true]]:border-destructive"),
+                ".has(Match::any().with_aria(Aria::Invalid), |b| b.border_color(k.destructive))",
+                "a compound selector: any part that is invalid"
+            );
+            assert!(
+                c.translate("has-[>[data-align=block-end]]:text-muted")
+                    .is_err(),
+                "`has_child` sets box classes only, like `has`"
             );
             assert_eq!(
                 one(c, "has-[[aria-invalid=true]]:border-destructive"),
-                ".has(Match::any().aria(Aria::Invalid), |b| b.border_color(k.destructive))"
+                ".has(Match::any().with_aria(Aria::Invalid), |b| b.border_color(k.destructive))"
             );
             assert_eq!(
                 one(c, "[&_svg:not([class*='text-'])]:text-muted"),
@@ -1194,11 +1254,11 @@ mod tests {
             );
             assert_eq!(
                 one(c, "has-[>svg]:pl-2"),
-                ".has(Match::glyph(), |b| b.pl(2.0))"
+                ".has_child(Match::glyph(), |b| b.pl(2.0))"
             );
             assert_eq!(
                 one(c, "has-disabled:opacity-50"),
-                ".has(Match::any().aria(Aria::Disabled), |b| b.opacity(Opacity::new(0.5)))"
+                ".has(Match::aria(Aria::Disabled), |b| b.opacity(Opacity::new(0.5)))"
             );
             assert_eq!(one(c, "shadow-none"), ".shadow(Shadow::NONE)");
             assert_eq!(one(c, "z-50"), ".z(50)");
@@ -1298,6 +1358,22 @@ mod tests {
                 .settle("data-active:bg-background")
                 .map(|(class, held)| (class, held.len())),
             Ok(("data-active:bg-background".to_owned(), 0))
+        );
+    }
+
+    #[test]
+    fn the_desktop_breakpoints_always_hold() {
+        let (class, held) = HORIZONTAL.settle("md:text-sm").expect("it holds");
+        assert_eq!(class, "text-sm");
+        assert_eq!(held[0].variant, "md");
+        assert_eq!(
+            HORIZONTAL.settle("sm:max-w-lg").map(|(class, _)| class),
+            Ok("max-w-lg".to_owned())
+        );
+        assert_eq!(
+            HORIZONTAL.settle("lg:max-w-lg").map(|(class, _)| class),
+            Ok("lg:max-w-lg".to_owned()),
+            "`lg:` is left for translate to report"
         );
     }
 
