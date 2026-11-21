@@ -1557,7 +1557,7 @@ pub struct Style {
     /// Menus, and the lists selects open.
     menu: MenuStyle,
     /// Tooltips.
-    pub tooltip: TooltipStyle,
+    tooltip: TooltipStyle,
     /// Key chips.
     pub kbd: KbdStyle,
     /// TODO(prose)
@@ -2145,6 +2145,7 @@ impl Style {
         style.write_input_rules();
         style.write_segmented_rules();
         style.write_menu_rules();
+        style.write_tooltip_rules();
         style.write_choice_rules();
         style
     }
@@ -2232,6 +2233,22 @@ impl Style {
     pub fn set_menu(&mut self, menu: MenuStyle) {
         self.menu = menu;
         self.write_menu_rules();
+    }
+
+    /// Tooltips.
+    pub fn tooltip(&self) -> &TooltipStyle {
+        &self.tooltip
+    }
+
+    /// TODO(prose): sets the tooltip section, and writes the rule that draws its box at the sheet's current layer.
+    pub fn set_tooltip(&mut self, tooltip: TooltipStyle) {
+        self.tooltip = tooltip;
+        self.write_tooltip_rules();
+    }
+
+    fn write_tooltip_rules(&mut self) {
+        let text = self.role(&self.tooltip.text).clone();
+        crate::owned::write_tooltip_rules(&mut self.sheet, &self.tooltip, &text);
     }
 
     fn write_menu_rules(&mut self) {

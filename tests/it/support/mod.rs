@@ -520,7 +520,7 @@ pub fn hover_node<A>(harness: &mut Harness<'_, Rig<A>>, path: &str) {
 /// overlay to be built and placed.
 pub fn rest_for_tooltip<D: Drives + Seen>(harness: &mut D) {
     let style = harness.view_shell().style();
-    let wait = (style.tooltip.delay + style.motion.tooltip.enter).as_secs_f64();
+    let wait = (style.tooltip().delay + style.motion.tooltip.enter).as_secs_f64();
     let start = harness.context().input(|input| input.time);
     for _ in 0..10_000 {
         if harness.context().input(|input| input.time) - start >= wait {

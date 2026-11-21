@@ -687,8 +687,8 @@ impl Shadcn {
         });
         // shadcn's TooltipContent: `bg-foreground text-background rounded-md
         // px-3 py-1.5 text-xs` with a 10 pt arrow.
-        style.tooltip = {
-            let mut tooltip = style.tooltip;
+        style.set_tooltip({
+            let mut tooltip = style.tooltip().clone();
             tooltip.popup = BoxLook::new(States::still(
                 flat(t.foreground, t.background),
                 t.foreground,
@@ -710,7 +710,7 @@ impl Shadcn {
             tooltip.delay = Duration::from_millis(700);
             tooltip.grace = Duration::from_millis(300);
             tooltip
-        };
+        });
         // shadcn's Kbd: `bg-muted text-muted-foreground h-5 min-w-5 rounded-sm
         // px-1 text-xs font-medium`, and inside a tooltip
         // `bg-background/20 text-background` (`/10` in the dark theme).

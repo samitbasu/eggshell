@@ -31,7 +31,9 @@ struct App {
 }
 
 fn quick_tooltips(style: &mut Style) {
-    style.tooltip.delay = TOOLTIP;
+    let mut tooltip = style.tooltip().clone();
+    tooltip.delay = TOOLTIP;
+    style.set_tooltip(tooltip);
 }
 
 /// ```html

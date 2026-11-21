@@ -85,7 +85,7 @@ impl MenuPart {
 pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) {
     for part in [MenuPart::Content, MenuPart::SubContent] {
         let (menu, text) = (menu.clone(), text.clone());
-        sheet.rule(part, move |t, _| {
+        sheet.replace(part, move |t, _| {
             t.merge(menu.box_classes(&text).min_w_px(menu.min_width))
         });
     }
@@ -103,18 +103,18 @@ pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) 
                     Enablement::Disabled => when.aria(Aria::Disabled),
                 };
                 let (menu, text) = (menu.clone(), text.clone());
-                sheet.rule_when(part, when, move |t, _| {
+                sheet.replace_when(part, when, move |t, _| {
                     t.merge(menu.row_classes(tone, enablement, &text))
                 });
             }
         }
     }
     let indicator = menu.indicator;
-    sheet.rule(MenuPart::ItemIndicator, move |t, _| {
+    sheet.replace(MenuPart::ItemIndicator, move |t, _| {
         t.size_px(indicator).shrink_0()
     });
     let (padding, margin, separator) = (menu.padding, menu.separator_margin, menu.separator);
-    sheet.rule(MenuPart::Separator, move |t, _| {
+    sheet.replace(MenuPart::Separator, move |t, _| {
         t.h_px(1.0)
             .mx(-padding / 4.0)
             .my(margin / 4.0)
@@ -122,7 +122,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) 
             .bg(separator)
     });
     let (menu_label, text_label) = (menu.clone(), text.clone());
-    sheet.rule(MenuPart::Label, move |t, _| {
+    sheet.replace(MenuPart::Label, move |t, _| {
         t.flex()
             .items_center()
             .px(menu_label.item_padding.x / 4.0)
@@ -137,7 +137,7 @@ pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) 
         menu.shortcut,
         menu.shortcut_tracking,
     );
-    sheet.rule(MenuPart::Shortcut, move |t, _| {
+    sheet.replace(MenuPart::Shortcut, move |t, _| {
         t.ml_auto()
             .role(spec.clone())
             .text(color)

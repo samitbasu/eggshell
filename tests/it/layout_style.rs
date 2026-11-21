@@ -164,7 +164,9 @@ fn without_base_text_the_root_text_is_the_layout_s_style_text() {
 fn a_tooltip_waits_as_the_layout_s_style_says() {
     fn delayed(delay: std::time::Duration) -> Arc<Style> {
         let mut style = Style::default();
-        style.tooltip.delay = delay;
+        let mut tooltip = style.tooltip().clone();
+        tooltip.delay = delay;
+        style.set_tooltip(tooltip);
         Arc::new(style)
     }
     let mut harness = Harness::builder()
@@ -187,7 +189,7 @@ fn a_tooltip_waits_as_the_layout_s_style_says() {
             }),
         );
     assert!(
-        Style::default().tooltip.delay > std::time::Duration::from_millis(300),
+        Style::default().tooltip().delay > std::time::Duration::from_millis(300),
         "precondition: the derived style would wait past the six steps"
     );
     harness.run_steps(2);

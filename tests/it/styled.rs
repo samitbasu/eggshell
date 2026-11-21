@@ -167,7 +167,7 @@ const TIP_PADDING: Vec2 = vec2(40.0, 20.0);
 fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
     fn tip(b: &mut Builder<'_, '_, ()>) {
         b.span("tip", tw(), "Tip").draw(|_, ui| {
-            let padding = ui.node_style().tooltip.padding;
+            let padding = ui.node_style().tooltip().padding;
             ui.ctx()
                 .data_mut(|data| data.insert_temp(egui::Id::NULL.with("tip"), padding));
         });
@@ -175,7 +175,11 @@ fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
     b.div(tw().flex().gap(16.0).p(16.0).pt(24.0), |b| {
         b.button("outside", "Outside").tooltip_with(tip).add();
         b.styled(
-            |style| style.tooltip.padding = TIP_PADDING,
+            |style| {
+                let mut tooltip = style.tooltip().clone();
+                tooltip.padding = TIP_PADDING;
+                style.set_tooltip(tooltip);
+            },
             |b| {
                 b.button("inside", "Inside").tooltip_with(tip).add();
             },
@@ -206,7 +210,7 @@ fn tooltip_of(trigger: &str) -> (egui::Rect, Option<Vec2>, Vec2) {
     let seen = d
         .ctx()
         .data(|data| data.get_temp::<Vec2>(egui::Id::NULL.with("tip")));
-    (boxes[0], seen, d.shell().style().tooltip.padding)
+    (boxes[0], seen, d.shell().style().tooltip().padding)
 }
 
 #[test]
