@@ -444,7 +444,7 @@ impl Shadcn {
         let mut style = contract::Style::default();
         style.text = t.text_role();
         style.faces = t.font.as_ref().map(FontSet::declared).unwrap_or_default();
-        style.label = States::still(flat(clear, t.foreground), t.background);
+        style.set_label(States::still(flat(clear, t.foreground), t.background));
         style.button = {
             let mut button = style.button;
             button.text = Some(t.text_role_at(t.control_weight));
@@ -464,8 +464,8 @@ impl Shadcn {
             button.transition = transition;
             button
         };
-        style.checkbox = {
-            let mut checkbox = style.checkbox;
+        let checkbox = {
+            let mut checkbox = style.checkbox().clone();
             checkbox.text = Some(t.text_role_at(t.label_weight));
             let box_at = |size: f32, glyph: f32, gap: f32, text| CheckboxMetrics {
                 size,
@@ -483,8 +483,9 @@ impl Shadcn {
             checkbox.transition = transition;
             checkbox
         };
-        style.radio = {
-            let mut radio = style.radio;
+        style.set_checkbox(checkbox);
+        let radio = {
+            let mut radio = style.radio().clone();
             radio.text = Some(t.text_role_at(t.label_weight));
             let circle = |size: f32, dot: f32, gap: f32, text| RadioMetrics {
                 size,
@@ -501,8 +502,9 @@ impl Shadcn {
             radio.transition = transition;
             radio
         };
-        style.switch = {
-            let mut switch = style.switch;
+        style.set_radio(radio);
+        let switch = {
+            let mut switch = style.switch().clone();
             switch.text = Some(t.text_role_at(t.label_weight));
             let switch_at = |scale: f32, text| SwitchMetrics {
                 track: t.switch_track * scale,
@@ -520,9 +522,10 @@ impl Shadcn {
             switch.transition = transition;
             switch
         };
-        style.segmented = {
+        style.set_switch(switch);
+        let segmented = {
             const CELL_TRIM: f32 = 1.0;
-            let mut segmented = style.segmented;
+            let mut segmented = style.segmented().clone();
             segmented.text = Some(t.text_role_at(t.control_weight));
             // The one exception to tabs.tsx, whose list is `bg-muted`: on a
             // `muted` panel that fill is the panel's own colour and the track
@@ -582,6 +585,7 @@ impl Shadcn {
             segmented.transition = transition;
             segmented
         };
+        style.set_segmented(segmented);
         style.slider = {
             let mut slider = style.slider;
             let slider_at = |track_height: f32,
@@ -914,14 +918,14 @@ impl Shadcn {
         style.sheet.as_preset();
         let input = style.input().clone();
         style.set_input(input);
-        let segmented = style.segmented.clone();
+        let segmented = style.segmented().clone();
         style.set_segmented(segmented);
-        style.set_label(style.label);
-        let checkbox = style.checkbox.clone();
+        style.set_label(style.label());
+        let checkbox = style.checkbox().clone();
         style.set_checkbox(checkbox);
-        let radio = style.radio.clone();
+        let radio = style.radio().clone();
         style.set_radio(radio);
-        let switch = style.switch.clone();
+        let switch = style.switch().clone();
         style.set_switch(switch);
         style
     }
