@@ -183,7 +183,7 @@ impl Enablement {
     /// `classes` at the opacity the style gives a disabled control, if it
     /// fades them.
     fn fade(self, classes: Tw, style: &Style) -> Tw {
-        match (self, style.disabled()) {
+        match (self, style.tokens.disabled) {
             (Self::Disabled, Disabled::Faded(opacity)) => classes.opacity(opacity),
             _ => classes,
         }
@@ -209,7 +209,7 @@ impl Enablement {
     /// The colours of `states` at rest, or the disabled ones if the style
     /// has them (a style that fades has the rest colours, faded by the root).
     fn colors(self, states: States, style: &Style) -> Colors {
-        self.colors_in(states, style.disabled())
+        self.colors_in(states, style.tokens.disabled)
     }
 
     /// [`colors`](Self::colors) where disabled controls draw as `disabled`
@@ -497,7 +497,7 @@ impl Paint {
     ) -> Tw {
         self.classes_in(
             border_width,
-            (style.focus(), style.disabled()),
+            (style.tokens.focus, style.tokens.disabled),
             radius,
             enablement,
             transition,
@@ -604,7 +604,7 @@ impl Paint {
 
 /// The ring a field shows while it has focus: the look's own, else the style's.
 fn field_ring(look: &Look, style: &Style) -> crate::contract::Focus {
-    look.paint.focus.unwrap_or(style.focus())
+    look.paint.focus.unwrap_or(style.tokens.focus)
 }
 
 /// A box that holds a text field, drawn in `look`: it does not sense, and shows

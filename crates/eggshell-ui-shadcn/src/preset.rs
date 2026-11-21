@@ -444,7 +444,6 @@ impl Shadcn {
         let mut style = contract::Style::default();
         style.text = t.text_role();
         style.faces = t.font.as_ref().map(FontSet::declared).unwrap_or_default();
-        style.set_focus(ring);
         style.label = States::still(flat(clear, t.foreground), t.background);
         style.button = {
             let mut button = style.button;
@@ -911,6 +910,7 @@ impl Shadcn {
             easing: Easing::InOut,
         };
         style.tokens = self.core_tokens();
+        style.tokens.focus = ring;
         style.sheet.as_preset();
         let input = style.input().clone();
         style.set_input(input);
@@ -1229,7 +1229,7 @@ impl Shadcn {
         disclosure.tone = Some(t.muted_foreground);
         disclosure.tone_opacity = Opacity::new(1.0);
         disclosure.nudge = 2.0;
-        disclosure.header.ring = style.focus();
+        disclosure.header.ring = style.tokens.focus;
         disclosure.header.focus_border = Some(t.ring);
         disclosure.header.radius = if lyra { 0 } else { t.radius_md() };
         disclosure.header.padding_y = if lyra { 10.0 } else { 16.0 };
