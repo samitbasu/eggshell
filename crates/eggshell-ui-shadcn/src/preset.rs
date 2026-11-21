@@ -646,8 +646,8 @@ impl Shadcn {
         };
         // shadcn's DropdownMenu: `rounded-md border p-1 shadow-md min-w-[8rem]`,
         // items `rounded-sm px-2 py-1.5 gap-2`, `focus:bg-accent`.
-        style.menu = {
-            let mut menu = style.menu;
+        style.set_menu({
+            let mut menu = style.menu().clone();
             menu.popup = BoxLook::new(States::still(popup_colors, t.popover))
                 .bordered(1.0)
                 .shadowed(t.shadow_md);
@@ -684,7 +684,7 @@ impl Shadcn {
             menu.indicator = 16.0;
             menu.dot = 8.0;
             menu
-        };
+        });
         // shadcn's TooltipContent: `bg-foreground text-background rounded-md
         // px-3 py-1.5 text-xs` with a 10 pt arrow.
         style.tooltip = {

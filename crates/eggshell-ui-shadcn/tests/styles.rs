@@ -193,8 +193,8 @@ fn each_themed_half_is_the_preset_s_style_with_its_fonts() {
             assert_eq!(half.tokens, core.tokens, "{at}");
             assert_eq!(half.text, core.text, "{at}");
             assert_eq!(half.button, core.button, "{at}");
+            assert_eq!(half.menu(), core.menu(), "{at}");
             assert_eq!(half.segmented(), core.segmented(), "{at}");
-            assert_eq!(half.menu, core.menu, "{at}");
             let fonts = half.extension::<Fonts>();
             assert!(preset.tokens.font.is_some(), "precondition: {at} has fonts");
             assert!(!fonts.0.is_empty(), "{at}");

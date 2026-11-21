@@ -1555,7 +1555,7 @@ pub struct Style {
     /// Select triggers.
     pub select: SelectStyle,
     /// Menus, and the lists selects open.
-    pub menu: MenuStyle,
+    menu: MenuStyle,
     /// Tooltips.
     pub tooltip: TooltipStyle,
     /// Key chips.
@@ -2144,6 +2144,7 @@ impl Style {
         };
         style.write_input_rules();
         style.write_segmented_rules();
+        style.write_menu_rules();
         style.write_choice_rules();
         style
     }
@@ -2220,6 +2221,22 @@ impl Style {
     pub fn set_input(&mut self, input: InputStyle) {
         self.input = input;
         self.write_input_rules();
+    }
+
+    /// Menus, and the lists selects open.
+    pub fn menu(&self) -> &MenuStyle {
+        &self.menu
+    }
+
+    /// TODO(prose): sets the menu section, and writes the rules that draw it, a menu's box, items and the rest, at the sheet's current layer.
+    pub fn set_menu(&mut self, menu: MenuStyle) {
+        self.menu = menu;
+        self.write_menu_rules();
+    }
+
+    fn write_menu_rules(&mut self) {
+        let text = self.role(&self.menu.text).clone();
+        crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
     }
 
     fn write_input_rules(&mut self) {

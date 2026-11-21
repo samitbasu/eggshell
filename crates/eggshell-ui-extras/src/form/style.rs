@@ -71,7 +71,7 @@ impl FormStyle {
     pub fn from_style(style: &Style) -> Self {
         let buttons = &style.button.sizes;
         Self {
-            fill: style.menu.popup.paint.states.rest.fill,
+            fill: style.menu().popup.paint.states.rest.fill,
             border: style.table.rule,
             border_width: 1.0,
             radius: 12,
