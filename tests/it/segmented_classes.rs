@@ -1,10 +1,10 @@
-//! The segmented control's look as public classes: a track and cells built
-//! from `Style::segmented_track`, `segmented_cell` and `segmented_icon`
-//! draw exactly as `Builder::segmented` does, at the size and enablement a
+//! The segmented control's look as public parts: a track and cells built
+//! from `Builder::part` with `TabsPart::List` and `TabsPart::Trigger` and
+//! their keys draw exactly as `Builder::segmented` does, at the size and enablement a
 //! subtree gives them (`Builder::control_size`, `Builder::enablement`).
 
 use eggshell_ui::contract::{Disabled, SegmentedMetrics, Size, Style};
-use eggshell_ui::owned::{Cell, SegmentedRows};
+use eggshell_ui::owned::{Cell, SegmentedRows, TabsPart};
 use eggshell_ui::{Builder, Icon, Opacity, TextStyle, tw};
 use eggshell_ui_shadcn::Tokens;
 use egui::{Theme, vec2};
@@ -38,10 +38,11 @@ struct App {
 
 fn edit(style: &mut Style, ambient: Ambient) {
     if ambient == Ambient::InertFaded {
-        style.set_disabled(Disabled::Faded(Opacity::new(0.4)));
+        style.tokens.disabled = Disabled::Faded(Opacity::new(0.4));
     }
-    let default = *style.segmented.sizes.get(Size::DEFAULT);
-    style.segmented.sizes = style.segmented.sizes.clone().with(
+    let mut segmented = style.segmented.clone();
+    let default = *segmented.sizes.get(Size::DEFAULT);
+    segmented.sizes = segmented.sizes.clone().with(
         SM,
         SegmentedMetrics {
             height: default.height - 8.0,
@@ -50,6 +51,8 @@ fn edit(style: &mut Style, ambient: Ambient) {
             ..default
         },
     );
+    style.sheet.as_app();
+    style.set_segmented(segmented);
 }
 
 /// The library's control, then the same one built from the public classes.
@@ -75,28 +78,28 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             chain.on_change(|_: &mut App, _| {});
         });
         b.div(around, |b| {
-            let style = b.style().clone();
-            let ctx = b.ctx().clone();
-            let size = b.control_size();
+            let size = TabsPart::size_key(b, b.control_size());
             let enablement = b.enablement();
-            b.div_id(
-                "public",
-                style.segmented_track(&ctx, size, rows, enablement),
-                |b| {
-                    for (index, label) in LABELS.into_iter().enumerate() {
-                        let cell = if index == 1 {
-                            Cell::Pressed
-                        } else {
-                            Cell::Released
-                        };
-                        let classes = style.segmented_cell(&ctx, size, rows, cell, enablement);
-                        b.div_id(index, classes.sense_click(), |b| {
-                            b.glyph(style.segmented_icon(&ctx, size), icon());
-                            b.text(tw(), label);
-                        });
-                    }
-                },
+            let track = b.part(
+                TabsPart::List,
+                &TabsPart::list_keys(size, rows, enablement),
+                tw(),
             );
+            b.div_id("public", track, |b| {
+                for (index, label) in LABELS.into_iter().enumerate() {
+                    let cell = if index == 1 {
+                        Cell::Pressed
+                    } else {
+                        Cell::Released
+                    };
+                    let keys = TabsPart::trigger_keys(size, rows, cell, enablement);
+                    let classes = b.part(TabsPart::Trigger, &keys, tw().sense_click());
+                    b.div_id(index, classes, |b| {
+                        b.glyph(tw(), icon());
+                        b.text(tw(), label);
+                    });
+                }
+            });
         });
     });
 }

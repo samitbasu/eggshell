@@ -119,7 +119,7 @@ where
                 .p(look.padding / 4.0),
         };
         let frame = match selected {
-            Selected::Yes => frame.ring(style.focus().width, look.selected_ring),
+            Selected::Yes => frame.ring(style.tokens.focus.width, look.selected_ring),
             Selected::No => frame,
         };
         let label = caption.clone().or(name);

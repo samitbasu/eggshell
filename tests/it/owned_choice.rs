@@ -5,7 +5,7 @@
 use core::time::Duration;
 use std::sync::Arc;
 
-use eggshell_ui::contract::{Size, Themed};
+use eggshell_ui::contract::{Focus, Size, Themed};
 use eggshell_ui::owned::Enablement;
 use eggshell_ui::{Builder, Style, TextStyle, tw};
 use eggshell_ui_shadcn::{Shadcn, Tokens};
@@ -359,8 +359,8 @@ fn a_focused_switch_shows_the_styles_ring() {
         d.frames(12);
         let rect = d.rect(Target::suffix("/\"air\"/Track"));
         let ring = ring_at(&d, rect).expect("a focus ring");
-        assert_eq!(ring.stroke.width, style.focus().width);
-        assert_eq!(ring.stroke.color, style.focus().color);
+        assert_eq!(ring.stroke.width, style.tokens.focus.width);
+        assert_eq!(ring.stroke.color, style.tokens.focus.color);
     }
 }
 
@@ -442,7 +442,9 @@ fn a_modified_style_changes_every_owned_widget() {
     style.switch.on.states.rest.fill = red;
     style.switch.sizes.get_mut(Size::DEFAULT).unwrap().track = vec2(60.0, 30.0);
     style.radio.sizes.default_entry_mut().size = 24.0;
-    style.segmented.track_fill = red;
+    let mut segmented = style.segmented.clone();
+    segmented.track_fill = red;
+    style.set_segmented(segmented);
     let mut d = harness(Theme::Light);
     d.set_style(Themed::both(Arc::new(style)));
     d.frames(4);
@@ -553,6 +555,30 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
     d.pointer_down(Target::suffix("/\"air\"/Track")).frames(11);
     assert_eq!(thumb(&d, "/\"air\"/Track").1.fill, rest, "pressed");
     d.pointer_up(Target::suffix("/\"air\"/Track")).frames(11);
+}
+
+#[test]
+fn a_focus_ring_set_on_the_tokens_after_the_preset_is_the_one_drawn() {
+    let ring = Focus {
+        width: 5.0,
+        color: egui::Color32::from_rgb(200, 30, 30),
+    };
+    let mut style = style(Theme::Light);
+    assert_ne!(
+        style.tokens.focus, ring,
+        "precondition: the preset's ring is another"
+    );
+    style.tokens.focus = ring;
+    let mut d = harness(Theme::Light);
+    d.set_style(Themed::both(Arc::new(style)));
+    d.frames(4);
+    for path in ["/\"air\"/Track".to_owned(), cell_path(Unit::Metric)] {
+        tab_to(&mut d, &path);
+        d.frames(12);
+        let drawn = ring_at(&d, d.rect(Target::suffix(&path))).expect("a focus ring");
+        assert_eq!(drawn.stroke.width, ring.width, "{path}");
+        assert_eq!(drawn.stroke.color, ring.color, "{path}");
+    }
 }
 
 #[test]

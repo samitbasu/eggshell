@@ -339,7 +339,7 @@ pub(crate) fn group_classes(style: &Style) -> Tw {
         .role(style.role(&select.text).clone())
         .has(Match::focus_visible(), |b| {
             b.border_color(states.focused.border)
-                .ring(style.focus().width, style.focus().color)
+                .ring(style.tokens.focus.width, style.tokens.focus.color)
         });
     match select.trigger.paint.shadow {
         Some(shadow) => classes.shadow(shadow),

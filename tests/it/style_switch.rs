@@ -138,8 +138,8 @@ fn switching_the_style_at_run_time_resizes_the_controls_per_the_style() {
         assert_eq!(radius(&vega_style), vega_tokens.radius_md());
         assert_eq!(radius(&lyra_style), 0, "Lyra is square");
         assert!(radius(&vega_style) > 0, "precondition: Vega is rounded");
-        assert_eq!(vega_style.focus().width, 3.0);
-        assert_eq!(lyra_style.focus().width, 1.0);
+        assert_eq!(vega_style.tokens.focus.width, 3.0);
+        assert_eq!(lyra_style.tokens.focus.width, 1.0);
         assert_eq!(
             vega_style
                 .input()

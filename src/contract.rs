@@ -277,7 +277,7 @@ pub struct Paint {
     pub states: States,
     /// Drop shadow at rest.
     pub shadow: Option<Shadow>,
-    /// This paint's own focus ring, where it is not [`Style::focus`].
+    /// This paint's own focus ring, where it is not [`Tokens::focus`].
     pub focus: Option<Focus>,
     /// A ring while the pointer is over the box or presses it, as the focus
     /// ring is drawn: shadcn's slider thumb halo.
@@ -1445,6 +1445,10 @@ pub struct Tokens {
     pub input: Color32,
     /// TODO(prose): the focus ring.
     pub ring: Color32,
+    /// TODO(prose): the keyboard focus indicator every control draws unless its look names its own.
+    pub focus: Focus,
+    /// TODO(prose): how disabled controls are drawn.
+    pub disabled: Disabled,
     /// TODO(prose): the base corner radius.
     pub radius: u8,
     /// TODO(prose): a control's height.
@@ -1490,6 +1494,11 @@ impl Tokens {
             border: v.window_stroke.color,
             input: w.inactive.bg_stroke.color,
             ring: w.active.bg_stroke.color,
+            focus: Focus {
+                width: 2.0,
+                color: v.selection.bg_fill,
+            },
+            disabled: Disabled::Colors,
             radius: w.inactive.corner_radius.nw,
             control_height: egui.spacing.interact_size.y,
             button_padding: egui.spacing.button_padding,
@@ -1524,10 +1533,6 @@ pub struct Style {
     pub text: TextSpec,
     /// The registered family that draws each weight of a family.
     pub faces: Faces,
-    /// The default focus indicator.
-    focus: Focus,
-    /// How disabled controls are drawn.
-    disabled: Disabled,
     /// The text beside a checkbox, radio button or switch; only `rest` and
     /// `disabled` apply.
     pub label: States,
@@ -1736,10 +1741,7 @@ impl Style {
             ..metrics
         };
         let track = vec2(2.0 * s.icon_width, s.icon_width);
-        let focus = Focus {
-            width: 2.0,
-            color: v.selection.bg_fill,
-        };
+        let tokens = Tokens::from_egui(egui);
         let mut sheet = crate::sheet::Sheet::defaults();
         crate::owned::button_defaults(
             &mut sheet,
@@ -1747,8 +1749,6 @@ impl Style {
                 look: Look::new(button_states).bordered(border_width),
                 sizes: Keyed::new(Size::DEFAULT, metrics),
                 text: text.clone(),
-                focus,
-                disabled: Disabled::Colors,
                 transition,
                 press_shift: 0.0,
             },
@@ -1756,8 +1756,6 @@ impl Style {
         let mut style = Self {
             text,
             faces: Faces::default(),
-            focus,
-            disabled: Disabled::Colors,
             label,
             toggle: ToggleStyle {
                 sizes: Keyed::new(Size::DEFAULT, toggle_metrics),
@@ -2058,7 +2056,7 @@ impl Style {
                 border_width: v.widgets.noninteractive.bg_stroke.width.max(1.0),
                 radius,
                 padding: f32::from(s.window_margin.left),
-                bare_padding: focus.clearance(),
+                bare_padding: tokens.focus.clearance(),
                 selected_ring: v.selection.stroke.color,
             },
             rich: RichTextStyle {
@@ -2144,11 +2142,12 @@ impl Style {
             scrim: Color32::from_black_alpha(100),
             motion: MotionStyle::INSTANT,
             tones: Tones::from_egui(v),
-            tokens: Tokens::from_egui(egui),
+            tokens,
             sheet,
             extensions: Extensions::default(),
         };
         style.write_input_rules();
+        style.write_segmented_rules();
         style
     }
 
@@ -2200,30 +2199,38 @@ impl Style {
         self.write_input_rules();
     }
 
-    /// The default focus indicator.
-    pub fn focus(&self) -> Focus {
-        self.focus
-    }
-
-    /// TODO(prose): sets the default focus indicator, and writes the input rules that use it at the sheet's current layer.
-    pub fn set_focus(&mut self, focus: Focus) {
-        self.focus = focus;
-        self.write_input_rules();
-    }
-
-    /// How disabled controls are drawn.
-    pub fn disabled(&self) -> Disabled {
-        self.disabled
-    }
-
-    /// TODO(prose): sets how disabled controls are drawn, and writes the input rules that use it at the sheet's current layer.
-    pub fn set_disabled(&mut self, disabled: Disabled) {
-        self.disabled = disabled;
-        self.write_input_rules();
-    }
-
     fn write_input_rules(&mut self) {
-        crate::owned::write_input_rules(&mut self.sheet, &self.input, self.focus, self.disabled);
+        crate::owned::write_input_rules(&mut self.sheet, &self.input);
+    }
+
+    /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the sheet's current layer.
+    pub fn set_segmented(&mut self, segmented: SegmentedStyle) {
+        self.segmented = segmented;
+        self.write_segmented_rules();
+    }
+
+    fn write_segmented_rules(&mut self) {
+        let seg = &self.segmented;
+        let roles = seg
+            .sizes
+            .keys()
+            .map(|size| {
+                let unselected = self.role_sized(&seg.text, seg.sizes.get(size).text);
+                let selected = match seg.selected_weight {
+                    Some(weight) => TextSpec {
+                        weight,
+                        ..unselected.clone()
+                    },
+                    None => unselected.clone(),
+                };
+                crate::owned::TabsRoles {
+                    size,
+                    unselected,
+                    selected,
+                }
+            })
+            .collect();
+        crate::owned::write_tabs_rules(&mut self.sheet, &self.segmented, roles);
     }
 }
 
