@@ -76,7 +76,8 @@ use std::time::Duration;
 
 use egui::{Id, Response, Role, Ui, WidgetInfo};
 
-pub use button::{ButtonChain, ButtonOptions, Face};
+pub use button::{ButtonChain, ButtonOptions, ButtonPart, Face};
+pub(crate) use button::{ButtonDefaults, button_defaults};
 pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use choices_sheet::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
@@ -465,7 +466,7 @@ impl Look {
     ///
     /// fn tile(b: &mut Builder<'_, '_, ()>) {
     ///     let style = b.style().clone();
-    ///     let look = style.button.variants.get(style.button.variants.default_key());
+    ///     let look = style.select.trigger;
     ///     let classes = look.classes(&style, 6, b.enablement(), Duration::from_millis(150));
     ///     b.div_id("tile", classes.p(2.0), |b| b.text(eggshell_ui::tw(), "Tile"))
     ///         .role(egui::Role::Button)

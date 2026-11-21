@@ -383,6 +383,36 @@ mod selection {
     }
 
     #[test]
+    fn an_app_rule_on_the_selected_row_part_fills_the_selected_row() {
+        let tokens = Tokens::for_theme(Theme::Light);
+        let mut d = support::driver(
+            WINDOW,
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            App::new(Selection::On),
+            view,
+        )
+        .style(support::shadcn_with(|style| {
+            style.sheet.as_app().rule_when(
+                eggshell_ui::owned::TablePart::Row,
+                eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Selected),
+                |b, _| b.bg(Color32::RED),
+            );
+        }))
+        .build();
+        d.frames(3);
+        assert_ne!(fill_of(&d, "Row(31)"), Some(Color32::RED), "precondition");
+        d.click(Target::suffix(&cell("Row(31)", 0)));
+        d.frames(12);
+        assert_eq!(d.app().selected, Some(31));
+        assert_eq!(fill_of(&d, "Row(31)"), Some(Color32::RED));
+        assert_ne!(
+            fill_of(&d, "Row(7)"),
+            Some(Color32::RED),
+            "only the selected row"
+        );
+    }
+
+    #[test]
     fn a_button_in_a_row_does_not_select_it() {
         let mut d = harness(Selection::On);
         d.click(Target::suffix(&format!("{TABLE}/(Row(7), 1)/Archive")));

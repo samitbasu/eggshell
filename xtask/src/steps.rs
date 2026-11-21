@@ -244,6 +244,7 @@ pub fn ci_steps() -> Vec<Step> {
                 "warnings",
             ],
         ),
+        Step::internal("shadcn-sheets", crate::shadcn_import::check),
         Step::internal("test", snapshots::test_with_goldens),
         Step::cargo("doctest", &["test", "--workspace", "--doc"]),
         Step::cargo("rustdoc", &["doc", "--workspace", "--no-deps"])
@@ -332,6 +333,7 @@ mod tests {
                 "cargo fmt --all --check",
                 "built-in clock check",
                 "cargo clippy --workspace --all-targets --features eggshell-ui/snapshots -- -D warnings",
+                "built-in shadcn-sheets check",
                 "built-in test check",
                 "cargo test --workspace --doc",
                 "RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
@@ -369,6 +371,7 @@ mod tests {
                 "fmt",
                 "clock",
                 "clippy",
+                "shadcn-sheets",
                 "test",
                 "doctest",
                 "rustdoc",

@@ -6,6 +6,8 @@
     reason = "each test crate that includes this module uses a subset of it"
 )]
 
+pub mod button;
+
 use core::time::Duration;
 use std::sync::Arc;
 

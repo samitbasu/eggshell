@@ -472,7 +472,7 @@ fn every_owned_widget_takes_caller_classes_over_its_own() {
         let height = |path| d.rect(Target::suffix(path)).height();
         assert_eq!(
             height("/\"button\""),
-            style.button.sizes.get(Size::DEFAULT).height
+            support::button::height(style, Size::DEFAULT)
         );
         assert_eq!(
             height("/\"select\""),
@@ -536,7 +536,11 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
             theme,
             shadcn,
             |style| {
-                style.button.text = Some(spec(21.0));
+                style.sheet.as_app().rule_when(
+                    eggshell_ui::owned::ButtonPart::Root,
+                    eggshell_ui::sheet::When::always(),
+                    |t, _| t.role(spec(21.0)),
+                );
                 let mut segmented = style.segmented().clone();
                 segmented.text = Some(spec(17.0));
                 style.set_segmented(segmented);
@@ -601,8 +605,8 @@ fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
                     },
                     Color32::BLACK,
                 ));
-                style.button.toggle_off.insert(ARMED, off);
-                style.button.toggle_on.insert(ARMED, armed_paint());
+                style.toggle.off.insert(ARMED, off);
+                style.toggle.on.insert(ARMED, armed_paint());
             },
             toggles,
         );
@@ -611,13 +615,7 @@ fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
         let tool = d.rect(Target::suffix("/\"tool\""));
         assert_eq!(
             box_at(&d, plain).fill,
-            style
-                .button
-                .toggle_off
-                .get(Variant::DEFAULT)
-                .states
-                .rest
-                .fill,
+            style.toggle.off.get(Variant::DEFAULT).states.rest.fill,
             "the default variant is the old toggle"
         );
         assert_eq!(box_at(&d, tool).fill, Color32::from_rgb(40, 40, 40));
@@ -627,13 +625,7 @@ fn a_toggle_takes_its_off_and_on_looks_from_its_variant_and_keeps_toggling() {
         assert_eq!(box_at(&d, tool).fill, Color32::from_rgb(10, 120, 60));
         assert_eq!(
             box_at(&d, plain).fill,
-            style
-                .button
-                .toggle_on
-                .get(Variant::DEFAULT)
-                .states
-                .rest
-                .fill
+            style.toggle.on.get(Variant::DEFAULT).states.rest.fill
         );
         assert_eq!(
             text_color(&d, tool, "Tool"),
@@ -676,17 +668,18 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
         let mut d = harness_with(
             theme,
             shadcn,
-            |style| style.tokens.disabled = Disabled::Faded(Opacity::new(opacity)),
+            move |style| {
+                style.tokens.disabled = Disabled::Faded(Opacity::new(opacity));
+                style.sheet.as_app().rule_when(
+                    eggshell_ui::owned::ButtonPart::Root,
+                    eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
+                    move |t, _| t.opacity(Opacity::new(opacity)),
+                );
+            },
             disabled_row,
         );
         let style = d.app().style.clone();
-        let rest = style
-            .button
-            .variants
-            .get(eggshell_ui_shadcn::variant::PRIMARY)
-            .paint
-            .states
-            .rest;
+        let rest = support::button::look(theme, eggshell_ui_shadcn::variant::PRIMARY);
         let enabled = d.rect(Target::suffix("/(\"button\", Enabled)"));
         let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
         assert_eq!(box_at(&d, enabled).fill, rest.fill, "precondition");
@@ -724,13 +717,16 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
         Theme::Light,
         ShadcnStyle::Vega,
         |style| {
-            style.tokens.disabled = Disabled::Faded(Opacity::new(0.3));
-            let look = style
-                .button
-                .variants
-                .get_mut(eggshell_ui_shadcn::variant::PRIMARY)
-                .expect("primary");
-            look.paint.states.rest.fill = translucent;
+            style.sheet.as_app().rule_when(
+                eggshell_ui::owned::ButtonPart::Root,
+                eggshell_ui::sheet::When::always().variant(eggshell_ui_shadcn::variant::PRIMARY),
+                move |t, _| t.bg(translucent),
+            );
+            style.sheet.as_app().rule_when(
+                eggshell_ui::owned::ButtonPart::Root,
+                eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
+                |t, _| t.opacity(Opacity::new(0.3)),
+            );
         },
         disabled_row,
     );
@@ -749,14 +745,11 @@ fn the_colors_form_still_draws_the_styles_disabled_colours() {
     let d = harness(Theme::Light, disabled_row);
     let style = &d.app().style;
     assert_eq!(style.tokens.disabled, Disabled::Colors);
-    let primary = style
-        .button
-        .variants
-        .get(eggshell_ui_shadcn::variant::PRIMARY);
-    let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
+    let checked = d.rect(Target::suffix("/(\"check\", Disabled)/Box"));
     assert_eq!(
-        box_at(&d, disabled).fill,
-        primary.paint.states.disabled.fill
+        box_at(&d, checked).fill,
+        style.checkbox().on.states.disabled.fill,
+        "a checkbox still draws the style's disabled colours"
     );
 }
 
@@ -782,35 +775,31 @@ fn an_icon_button_is_a_glyph_in_the_size_and_named_for_assistive_technology() {
     for (theme, shadcn) in COMBINATIONS {
         let mut d = harness_with(theme, shadcn, |_| {}, icon_buttons);
         let style = d.app().style.clone();
-        let metrics = *style.button.sizes.get(size::ICON);
+        let side = support::button::height(&style, size::ICON);
         let button = d.rect(Target::suffix("/\"icon\""));
         assert_eq!(
             button.size(),
-            vec2(style.button.sizes.get(size::ICON).min_width, metrics.height),
-            "{theme:?} {shadcn:?}: a square control"
+            vec2(side, side),
+            "{theme:?} {shadcn:?}: a square control, size-9 or size-8"
         );
         let (tint, glyph) = icon_in(&d, button);
-        assert_eq!(glyph.size(), vec2(metrics.glyph, metrics.glyph));
+        assert_eq!(glyph.size(), vec2(16.0, 16.0), "[&_svg]:size-4");
         assert!(glyph.center().distance(button.center()) <= 0.75, "centred");
-        let ghost = style
-            .button
-            .variants
-            .get(eggshell_ui_shadcn::variant::GHOST);
-        assert_eq!(tint, ghost.paint.states.rest.text);
+        let ghost = support::button::look(theme, eggshell_ui_shadcn::variant::GHOST);
+        assert_eq!(tint, ghost.text);
 
         d.hover(Target::suffix("/\"icon\""));
         d.frames(14);
         let (hovered, _) = icon_in(&d, button);
-        assert_eq!(hovered, ghost.paint.states.hover.text, "tinted per state");
+        assert_eq!(hovered, ghost.hover_text, "tinted per state");
 
         let labelled = d.rect(Target::suffix("/\"labelled\""));
-        let default = style.button.sizes.get(Size::DEFAULT);
         let (_, glyph) = icon_in(&d, labelled);
-        assert_eq!(glyph.size(), vec2(default.glyph, default.glyph));
+        assert_eq!(glyph.size(), vec2(16.0, 16.0));
         let text = text_box(&d, labelled, "Add");
         assert!(
-            (text.min.x - glyph.max.x - default.gap).abs() < 0.75,
-            "icon, then the control gap, then the label"
+            (text.min.x - glyph.max.x - 6.0).abs() < 0.75,
+            "icon, then gap-1.5, then the label"
         );
 
         d.click(Target::suffix("/\"icon\""));
@@ -1046,7 +1035,7 @@ fn a_toggle_paints_its_icon_before_its_label_in_its_on_and_off_looks() {
         let mut d = harness_with(theme, shadcn, |_| {}, icon_toggle);
         let style = d.app().style.clone();
         let toggle = d.rect(Target::suffix("/\"toggle\""));
-        let default = style.button.sizes.get(Size::DEFAULT);
+        let default = style.toggle.sizes.get(Size::DEFAULT);
         let (tint, glyph) = icon_in(&d, toggle);
         assert_eq!(glyph.size(), vec2(default.glyph, default.glyph));
         let text = text_box(&d, toggle, "Pin");
@@ -1054,14 +1043,14 @@ fn a_toggle_paints_its_icon_before_its_label_in_its_on_and_off_looks() {
             (text.min.x - glyph.max.x - default.gap).abs() < 0.75,
             "{theme:?} {shadcn:?}: icon, then the control gap, then the label"
         );
-        let off = style.button.toggle_off.get(Variant::DEFAULT).states.rest;
+        let off = style.toggle.off.get(Variant::DEFAULT).states.rest;
         assert_eq!(tint, off.text, "{theme:?} {shadcn:?}: tinted off");
 
         d.click(Target::suffix("/\"toggle\""));
         d.hover(egui::pos2(510.0, 390.0));
         d.frames(14);
         assert!(d.app().on, "the click toggled it");
-        let on = style.button.toggle_on.get(Variant::DEFAULT).states.rest;
+        let on = style.toggle.on.get(Variant::DEFAULT).states.rest;
         assert_eq!(box_at(&d, toggle).fill, on.fill, "drawn in the on look");
         let (tint, _) = icon_in(&d, toggle);
         assert_eq!(tint, on.text, "{theme:?} {shadcn:?}: tinted on");

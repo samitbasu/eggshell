@@ -1,8 +1,8 @@
-use eggshell_ui::{Opacity, TextSpec, Weight};
+use eggshell_ui::{TextSpec, Weight};
 use egui::{Color32, Shadow, Theme, Vec2, vec2};
 
 use crate::palette::{Palette, Scheme};
-use crate::styles::{DestructiveLook, Elevation, HoverSurface, SecondaryHover, ShadcnStyle};
+use crate::styles::{Elevation, HoverSurface, ShadcnStyle};
 use crate::{ContrastPair, FontSet};
 
 /// A colour from `0xRRGGBB`.
@@ -116,14 +116,8 @@ pub struct Tokens {
     pub popup_padding: f32,
     /// The padding of an item in a popup.
     pub item_padding: Vec2,
-    /// How much of `primary` a primary button keeps under the pointer.
-    pub primary_hover: Opacity,
-    /// A secondary button under the pointer.
-    pub secondary_hover: SecondaryHover,
     /// The surface of a ghost or outline button under the pointer.
     pub hover_surface: HoverSurface,
-    /// How the destructive button is filled.
-    pub destructive_look: DestructiveLook,
     /// Whether controls are shadowed.
     pub elevation: Elevation,
     /// A switch's track (`h-[1.15rem] w-8`).
@@ -258,10 +252,7 @@ impl Tokens {
             cell_padding: Vec2::ZERO,
             popup_padding: 0.0,
             item_padding: Vec2::ZERO,
-            primary_hover: Opacity::OPAQUE,
-            secondary_hover: SecondaryHover::Fade(Opacity::OPAQUE),
             hover_surface: HoverSurface::Accent,
-            destructive_look: DestructiveLook::Solid,
             elevation: Elevation::Raised,
             switch_track: vec2(32.0, 18.4),
             switch_thumb: 16.0,
