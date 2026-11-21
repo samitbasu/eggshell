@@ -299,7 +299,7 @@ pub fn coverage(format: ReportFormat) -> Result<()> {
     let (args, report): (&[&str], PathBuf) = match format {
         ReportFormat::Html => (
             &["llvm-cov", "--workspace", "--html"],
-            root.join("target/llvm-cov/html/index.html"),
+            process::target_dir().join("llvm-cov/html/index.html"),
         ),
         ReportFormat::Lcov => (
             &[

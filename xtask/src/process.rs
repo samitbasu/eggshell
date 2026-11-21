@@ -18,6 +18,19 @@ pub fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// Where cargo builds: `CARGO_TARGET_DIR` if it is set, as cargo reads it
+/// (relative to the workspace), or the workspace's `target`.
+pub fn target_dir() -> PathBuf {
+    target_dir_from(&workspace_root(), std::env::var_os("CARGO_TARGET_DIR"))
+}
+
+fn target_dir_from(root: &Path, set: Option<std::ffi::OsString>) -> PathBuf {
+    match set.filter(|dir| !dir.is_empty()) {
+        Some(dir) => root.join(dir),
+        None => root.join("target"),
+    }
+}
+
 pub fn install_signal_handler() -> Result<()> {
     ctrlc::set_handler(|| {
         kill_running_groups();
@@ -179,3 +192,25 @@ fn put_in_own_process_group(_command: &mut std::process::Command) {}
 
 #[cfg(not(unix))]
 fn kill_group(_pgid: u32) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_target_dir_is_cargo_target_dir_when_set_and_target_otherwise() {
+        let root = Path::new("/work/eggshell");
+        assert_eq!(target_dir_from(root, None), root.join("target"));
+        assert_eq!(target_dir_from(root, Some("".into())), root.join("target"));
+        assert_eq!(
+            target_dir_from(root, Some("/shared/.target".into())),
+            Path::new("/shared/.target"),
+            "an absolute dir replaces the root"
+        );
+        assert_eq!(
+            target_dir_from(root, Some("build".into())),
+            root.join("build"),
+            "a relative one is the workspace's"
+        );
+    }
+}
