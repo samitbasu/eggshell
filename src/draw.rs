@@ -2386,16 +2386,17 @@ pub trait NodeUi {
     /// ```
     fn node_id(&self) -> Option<egui::Id>;
 
-    /// TODO(prose): the style the node is drawn with: the context's
-    /// [`Style::of`], or that of the [`styled`](crate::Builder::styled)
-    /// scope the node was built in. On any other `Ui`, the context's.
+    /// TODO(prose): the style the node is drawn with: its layout's, or that of
+    /// the [`styled`](crate::Builder::styled) scope the node was built in. On
+    /// any other `Ui`, one derived from egui's.
     ///
     /// ```
     /// use eggshell_ui::{NodeUi as _, Style};
     ///
     /// let ctx = egui::Context::default();
     /// ctx.run_ui(Default::default(), |ui| {
-    ///     assert_eq!(*ui.node_style(), *Style::of(ui.ctx()));
+    ///     let derived = Style::from_egui(&ui.ctx().global_style());
+    ///     assert_eq!(ui.node_style().text, derived.text);
     /// })
     /// .drop_without_applying_deltas();
     /// ```
@@ -2429,7 +2430,7 @@ impl NodeUi for Ui {
     fn node_style(&self) -> Arc<Style> {
         let scope = self.unique_id();
         self.data(|data| data.get_temp::<StyleTag>(scope))
-            .map_or_else(|| Style::of(self.ctx()), |tag| tag.0)
+            .map_or_else(|| Style::derived(self.ctx()), |tag| tag.0)
     }
 
     #[track_caller]

@@ -975,7 +975,6 @@ impl Shadcn {
         let style = self.style();
         ctx.style_mut_of(self.theme, |egui| style.egui_style(self.theme, egui));
         ctx.data_mut(|data| data.insert_temp(tokens_id(self.theme), self.tokens.clone()));
-        style.install_for(ctx, self.theme);
     }
 
     /// TODO(prose): the look of a notification, shadcn's Sonner over sonner's

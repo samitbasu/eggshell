@@ -1,17 +1,14 @@
 //! [`Style`]: everything the owned widgets draw with.
 //!
 //! Core defines what its widgets need and a preset (such as the `eggshell-ui-shadcn` crate) fills it, so a design
-//! system is data: an app installs a [`Style`] with [`Style::install`] and the
-//! widgets follow, with no code change. [`Style::default`] is derived from
-//! egui's visuals, so core looks coherent with no preset at all.
+//! system is data: an app gives a layout its [`Style`] with
+//! [`LayoutState::with_style`](crate::LayoutState::with_style) and the widgets
+//! follow, with no code change. [`Style::default`] is derived from egui's
+//! visuals, so core looks coherent with no preset at all.
 //!
 //! Every field is exact: the owned widgets draw exactly these values. Only the
 //! text input, which stays a wrapped egui `TextEdit`, is approximated (egui
 //! paints it from fixed widget slots): see [`InputStyle`].
-//!
-//! The style is one per context (per theme if installed with
-//! [`Style::install_for`]). Scoping a different style to a subtree is future
-//! work; [`Style::of`] is the single place that would change.
 
 use crate::overlay::Distance;
 use std::collections::BTreeMap;
@@ -1389,19 +1386,10 @@ pub trait Extension: Clone + Send + Sync + 'static {
     fn derive(style: &Style) -> Self;
 }
 
-/// The extensions of a style, by type. Clones compare equal; setting one
-/// makes a style unequal to every other, so the installed style's
-/// every-frame comparison stays cheap.
+/// The extensions of a style, by type.
 #[derive(Clone, Debug, Default)]
 struct Extensions {
     map: egui::util::IdTypeMap,
-    version: u64,
-}
-
-impl PartialEq for Extensions {
-    fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-    }
 }
 
 fn extensions_id() -> egui::Id {
@@ -1510,7 +1498,7 @@ impl Extension for Fonts {
 }
 
 /// The look of every widget eggshell draws.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Style {
     /// The text role of controls.
@@ -1583,10 +1571,6 @@ struct Cached {
     derived: Arc<Style>,
 }
 
-fn style_id(theme: Theme) -> Id {
-    crate::key::root_id().with(("style", theme))
-}
-
 /// A time egui gives in seconds: none when negative or NaN, and the longest
 /// duration when it is longer.
 fn seconds(seconds: f32) -> Duration {
@@ -1617,11 +1601,9 @@ impl Style {
 
     /// TODO(prose): sets the widget look `T`, in place of any set before.
     pub fn set_extension<T: Extension>(&mut self, value: T) {
-        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         self.extensions
             .map
             .insert_temp(extensions_id(), Arc::new(value));
-        self.extensions.version = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The text role of a widget section: its own, or [`Style::text`].
@@ -1629,15 +1611,9 @@ impl Style {
         section.as_ref().unwrap_or(&self.text)
     }
 
-    /// The style installed in `ctx` for its theme, else [`Style::from_egui`]
-    /// of the context's egui style.
-    ///
-    /// Cheap to call: the installed style is shared, and the derived one is
-    /// kept until the context's egui style changes.
-    pub fn of(ctx: &Context) -> Arc<Self> {
-        if let Some(style) = Self::installed(ctx) {
-            return style;
-        }
+    /// [`Style::from_egui`] of the context's egui style, kept until that
+    /// style changes: the style of a layout given none.
+    pub(crate) fn derived(ctx: &Context) -> Arc<Self> {
         let source = ctx.global_style();
         let id = crate::key::root_id().with("derived-style");
         match ctx.data(|data| data.get_temp::<Cached>(id)) {
@@ -1656,47 +1632,6 @@ impl Style {
                 derived
             }
         }
-    }
-
-    /// The style installed in `ctx` for its theme, if one is.
-    pub(crate) fn installed(ctx: &Context) -> Option<Arc<Self>> {
-        ctx.data(|data| data.get_temp::<Arc<Self>>(style_id(ctx.theme())))
-    }
-
-    /// Makes `self` the style of every eggshell widget in `ctx`, in both
-    /// themes.
-    ///
-    /// Installing a style equal to the installed one does nothing, so an app
-    /// may install its style every frame for the price of a comparison.
-    pub fn install(self, ctx: &Context) {
-        self.install_in(ctx, &[Theme::Light, Theme::Dark]);
-    }
-
-    /// Makes `self` the style of every eggshell widget in `ctx` while its
-    /// theme is `theme`, and like [`install`](Self::install) does nothing if
-    /// that is the installed style already.
-    pub fn install_for(self, ctx: &Context, theme: Theme) {
-        self.install_in(ctx, &[theme]);
-    }
-
-    fn install_in(self, ctx: &Context, themes: &[Theme]) {
-        ctx.data_mut(|data| {
-            let stale: Vec<Theme> = themes
-                .iter()
-                .copied()
-                .filter(|&theme| {
-                    data.get_temp::<Arc<Self>>(style_id(theme))
-                        .is_none_or(|installed| *installed != self)
-                })
-                .collect();
-            if stale.is_empty() {
-                return;
-            }
-            let shared = Arc::new(self);
-            for theme in stale {
-                data.insert_temp(style_id(theme), shared.clone());
-            }
-        });
     }
 
     /// A neutral style from egui's visuals and spacing.

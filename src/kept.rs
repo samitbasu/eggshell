@@ -42,8 +42,8 @@ pub(crate) struct Kept {
     viewports: HashMap<ViewportId, Viewport>,
     /// Where clipboard reads and writes go; the system's when unset.
     pub(crate) clipboard: Option<std::sync::Arc<dyn crate::ClipboardSource>>,
-    /// The layout's own style, given to its state; the context's installed
-    /// one when unset.
+    /// The layout's own style, given to its state; one derived from egui's
+    /// when unset.
     pub(crate) style: Option<crate::contract::Themed<std::sync::Arc<crate::Style>>>,
     /// The layout's style as it was last given to egui.
     pub(crate) egui_applied: Option<crate::contract::Themed<std::sync::Arc<crate::Style>>>,
