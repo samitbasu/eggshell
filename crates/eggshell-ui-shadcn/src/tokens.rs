@@ -93,6 +93,10 @@ pub struct Tokens {
     pub button_padding: Vec2,
     /// An input's and a select's padding (`px-3 py-1`).
     pub input_padding: Vec2,
+    /// TODO(prose): the inline padding of eggshell's own smaller fields, which
+    /// shadcn does not name: a `sm` field's and a stepper's value's, and 4
+    /// points more than an `xs` field's.
+    pub own_input_padding_x: f32,
     /// The gap between a control's children (`gap-2`).
     pub control_gap: f32,
     /// The side of an icon in a button or a segmented cell (`size-4`).
@@ -241,6 +245,7 @@ impl Tokens {
             control_height: 0.0,
             button_padding: Vec2::ZERO,
             input_padding: Vec2::ZERO,
+            own_input_padding_x: 0.0,
             control_gap: 0.0,
             icon_size: 0.0,
             toggle_padding_x: 0.0,

@@ -698,20 +698,30 @@ impl Shadcn {
         style.stepper = {
             let mut stepper = style.stepper;
             stepper.group = input_box;
-            let group_at = |height: f32, button_width: f32, glyph: f32, text| StepperMetrics {
-                height,
-                padding_x: t.input_padding.x,
-                radius: t.radius_md(),
-                button_width,
-                glyph,
-                text,
-            };
-            stepper.sizes = Keyed::new(Size::DEFAULT, group_at(t.control_height, 24.0, 12.0, None))
-                .with(size::SM, group_at(t.control_height - 4.0, 20.0, 12.0, None))
-                .with(
-                    size::XS,
-                    group_at(t.control_height - 12.0, 16.0, 10.0, xs_text),
-                );
+            let group_at =
+                |height: f32, (padding_x, button_width, glyph): (f32, f32, f32), text| {
+                    StepperMetrics {
+                        height,
+                        padding_x,
+                        radius: t.radius_md(),
+                        button_width,
+                        glyph,
+                        text,
+                    }
+                };
+            let own = t.own_input_padding_x;
+            stepper.sizes = Keyed::new(
+                Size::DEFAULT,
+                group_at(t.control_height, (t.input_padding.x, 24.0, 12.0), None),
+            )
+            .with(
+                size::SM,
+                group_at(t.control_height - 4.0, (own, 20.0, 12.0), None),
+            )
+            .with(
+                size::XS,
+                group_at(t.control_height - 12.0, (own, 16.0, 10.0), xs_text),
+            );
             stepper.button = ghost_button;
             stepper.divider = t.input;
             stepper.transition = transition;
@@ -737,14 +747,19 @@ impl Shadcn {
             )
             .with(
                 size::SM,
-                field_at(t.control_height - 4.0, t.input_padding, None, (14.0, 6.0)),
+                field_at(
+                    t.control_height - 4.0,
+                    vec2(t.own_input_padding_x, t.input_padding.y),
+                    None,
+                    (14.0, 6.0),
+                ),
             )
             .with(
                 size::XS,
                 field_at(
                     t.control_height - 12.0,
                     vec2(
-                        (t.input_padding.x - 4.0).max(0.0),
+                        (t.own_input_padding_x - 4.0).max(0.0),
                         t.input_padding.y.min(2.0),
                     ),
                     xs_text,

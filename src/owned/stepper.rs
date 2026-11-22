@@ -289,6 +289,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         let mut control_keys =
             super::input_keys(style.input().sizes.key_for(b.size_of(size)), false);
         control_keys.push(SheetKey::Attr("addon", "inline-end"));
+        control_keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
         let control = b.part(InputGroupPart::Input, &control_keys, tw().w_full().h_full());
         let inner_radius = f32::from(metrics.radius) - style.input().look.border_width;
         let button = |b: &mut Builder<'_, '_, A>, at_end: bool, corner: fn(Tw, f32) -> Tw| {
@@ -396,18 +397,30 @@ const STEPPER: (&str, &str) = ("stepper", "true");
 
 /// Writes the stepper's recorded exceptions over a preset's input group
 /// (#22, ed7ec6c): 1pt dividers between its field and its buttons and
-/// between the buttons, and its buttons stacked in a column that fills the
-/// group's height, where shadcn's addon is a padded row.
+/// between the buttons, its buttons stacked in a column that fills the
+/// group's height, where shadcn's addon is a padded row, its chevrons in its
+/// buttons' colour, where shadcn's addon is muted, and its value inset by
+/// its own metrics at each size (#446).
 pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, stepper: &StepperStyle) {
     use crate::sheet::When;
     let divider = stepper.divider;
+    let chevrons = stepper.button.paint.states.rest.text;
     let marked = || When::always().attr(STEPPER.0, STEPPER.1);
     sheet.rule_when(InputGroupPart::Root, marked(), move |t, _| {
         t.gap(1.0 / 4.0).divide_x(1.0, divider)
     });
     sheet.rule_when(InputGroupPart::Addon, marked(), move |t, _| {
-        t.p(0.0).gap(1.0 / 4.0).divide_y(1.0, divider)
+        t.p(0.0)
+            .gap(1.0 / 4.0)
+            .divide_y(1.0, divider)
+            .text(chevrons)
     });
+    for size in stepper.sizes.keys() {
+        let inset = stepper.sizes.get(size).padding_x / 4.0;
+        sheet.rule_when(InputGroupPart::Input, marked().size(size), move |t, _| {
+            t.pl(inset)
+        });
+    }
 }
 
 /// What a stepper's field and buttons act on.
