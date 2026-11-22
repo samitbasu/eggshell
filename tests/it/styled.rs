@@ -194,6 +194,13 @@ fn tooltips(b: &mut Builder<'_, '_, ()>, _: &()) {
                 let mut tooltip = style.tooltip().clone();
                 tooltip.padding = TIP_PADDING;
                 style.set_tooltip(tooltip);
+                // Under the preset, the section's padding is the widgets'
+                // default; the scope's rule restyles the box.
+                style
+                    .sheet
+                    .rule(eggshell_ui::owned::TooltipPart::Content, |t, _| {
+                        t.px(TIP_PADDING.x / 4.0).py(TIP_PADDING.y / 4.0)
+                    });
             },
             |b| {
                 b.button("inside", "Inside").tooltip_with(tip).add();

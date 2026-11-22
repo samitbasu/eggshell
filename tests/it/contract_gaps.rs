@@ -74,7 +74,29 @@ fn harness_with(
     edit: impl FnOnce(&mut Style),
     view: support::View<App>,
 ) -> Harn {
-    let mut style = Shadcn::for_theme(theme).with_style(shadcn).style();
+    let style = Shadcn::for_theme(theme).with_style(shadcn).style();
+    drive(theme, shadcn, style, edit, view)
+}
+
+/// [`harness_with`] on the preset's sections without its generated looks:
+/// what a section's contract draws.
+fn sections_with(
+    theme: Theme,
+    shadcn: ShadcnStyle,
+    edit: impl FnOnce(&mut Style),
+    view: support::View<App>,
+) -> Harn {
+    let style = support::sections_of(Shadcn::for_theme(theme).with_style(shadcn).style());
+    drive(theme, shadcn, style, edit, view)
+}
+
+fn drive(
+    theme: Theme,
+    shadcn: ShadcnStyle,
+    mut style: Style,
+    edit: impl FnOnce(&mut Style),
+    view: support::View<App>,
+) -> Harn {
     edit(&mut style);
     let tokens = Tokens::for_theme(theme).in_style(shadcn);
     let app = App {
@@ -298,7 +320,7 @@ fn icon_cells(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
     for (theme, shadcn) in COMBINATIONS {
-        let d = harness_with(
+        let d = sections_with(
             theme,
             shadcn,
             |style| {
@@ -357,7 +379,7 @@ fn an_icon_cell_has_the_styled_icon_gap_label_and_the_cells_text_colour() {
 
 #[test]
 fn an_icon_follows_the_hover_colour_and_clicking_the_cell_chooses_it() {
-    let mut d = harness_with(
+    let mut d = sections_with(
         Theme::Light,
         ShadcnStyle::Vega,
         |style| {
@@ -541,7 +563,7 @@ fn size_of_text(d: &Harn, inside: &str, text: &str) -> f32 {
 #[test]
 fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
     for (theme, shadcn) in COMBINATIONS {
-        let plain = harness_with(theme, shadcn, |_| {}, roles);
+        let plain = sections_with(theme, shadcn, |_| {}, roles);
         let base = plain.app().style.text.size;
         for (path, text) in [
             ("/\"button\"", "Save"),
@@ -551,7 +573,7 @@ fn a_widget_section_has_its_own_text_role_that_defaults_to_the_styles() {
         ] {
             assert_eq!(size_of_text(&plain, path, text), base, "{path}: default");
         }
-        let d = harness_with(
+        let d = sections_with(
             theme,
             shadcn,
             |style| {
@@ -1141,7 +1163,7 @@ fn plain_segmented(b: &mut Builder<'_, '_, App>, app: &App) {
 #[test]
 fn the_selected_cell_draws_its_own_weight_and_the_others_keep_the_base() {
     let family = |selected_weight| {
-        let d = harness_with(
+        let d = sections_with(
             Theme::Light,
             ShadcnStyle::default(),
             |style| {

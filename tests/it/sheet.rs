@@ -313,7 +313,7 @@ fn the_preset_fills_the_shadow_scale() {
 /// resolves from the defaults under it.
 #[cfg(debug_assertions)]
 #[test]
-fn a_presets_family_rules_all_resolve_from_the_preset_layer() {
+fn a_presets_generated_looks_resolve_from_the_preset_layer_and_sections_from_the_defaults() {
     use eggshell_ui::owned::{
         ButtonPart, CheckboxPart, InputPart, MenuPart, TablePart, TabsPart, TooltipPart,
     };
@@ -391,8 +391,14 @@ fn a_presets_family_rules_all_resolve_from_the_preset_layer() {
         .filter_map(|property| Some((property, classes.origin_of(property)?)))
         .collect();
         assert!(!set.is_empty(), "precondition: the {name} rules set paint");
+        // A family the preset has no generated look for yet is drawn from
+        // its section, whose rules are the widgets' defaults.
+        let layer = match name {
+            "table header" | "checkbox" => Layer::Defaults,
+            _ => Layer::Preset,
+        };
         for (property, origin) in set {
-            assert_eq!(origin.layer, Layer::Preset, "{name}: {property:?}");
+            assert_eq!(origin.layer, layer, "{name}: {property:?}");
         }
     }
 }

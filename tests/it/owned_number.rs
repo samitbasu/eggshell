@@ -845,7 +845,8 @@ fn a_stepper_is_a_spin_button_and_its_buttons_are_not_tab_stops() {
 
 #[test]
 fn a_modified_style_changes_the_new_widgets_with_no_code_change() {
-    let mut style = style(Theme::Light);
+    // The select's section draws it where no preset's look is over it.
+    let mut style = support::sections_of(style(Theme::Light));
     let red = egui::Color32::from_rgb(200, 30, 30);
     style.slider.range.rest.fill = red;
     style.slider.sizes.default_entry_mut().track_height = 10.0;

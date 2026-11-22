@@ -2147,15 +2147,32 @@ impl Style {
         style
     }
 
-    /// TODO(prose): writes every family's rules from its section, at the sheet's current layer. A preset calls this after `as_preset()`, then writes its own rules over them.
+    /// TODO(prose): writes every family's rules from its section, at the widgets' defaults layer, and the recorded exceptions again over a preset's look. A preset writes its own rules over them.
     pub fn rewrite_rules(&mut self) {
-        self.write_input_rules();
-        self.write_segmented_rules();
-        self.write_menu_rules();
-        self.write_tooltip_rules();
-        self.write_table_rules();
-        self.write_choice_rules();
-        crate::owned::write_select_rules(self);
+        self.restyle(|style| {
+            style.write_input_rules();
+            style.write_segmented_rules();
+            style.write_menu_rules();
+            style.write_tooltip_rules();
+            style.write_table_rules();
+            style.write_choice_rules();
+            crate::owned::write_select_rules(style);
+        });
+    }
+
+    /// Runs `write`, which writes a section's rules, at the widgets'
+    /// defaults layer, then writes the recorded exceptions again over a
+    /// preset's look, if a preset wrote one, so a changed section reaches
+    /// them. The sheet's layer is as it was after.
+    fn restyle(&mut self, write: impl FnOnce(&mut Self)) {
+        let layer = self.sheet.layer();
+        self.sheet.set_layer(crate::sheet::Layer::Defaults);
+        write(self);
+        if self.sheet.has_rules_at(crate::sheet::Layer::Preset) {
+            self.sheet.set_layer(crate::sheet::Layer::Preset);
+            self.write_exceptions();
+        }
+        self.sheet.set_layer(layer);
     }
 
     /// Writes the [`InputStyle`] and the selection colours into `egui`, the
@@ -2200,10 +2217,10 @@ impl Style {
         &self.select
     }
 
-    /// TODO(prose): sets the select section, and writes the rules that draw a select from it and the menu section at the sheet's current layer. A later change to either does not reach the select until this is called again.
+    /// TODO(prose): sets the select section, and writes the rules that draw a select from it and the menu section at the widgets' defaults layer, under a preset's look. A later change to either does not reach the select until this is called again.
     pub fn set_select(&mut self, select: SelectStyle) {
         self.select = select;
-        crate::owned::write_select_rules(self);
+        self.restyle(crate::owned::write_select_rules);
     }
 
     /// The text beside a checkbox, radio button or switch; only `rest` and
@@ -2237,10 +2254,10 @@ impl Style {
         &self.input
     }
 
-    /// TODO(prose): sets the input section, and writes the rules that draw it at the sheet's current layer.
+    /// TODO(prose): sets the input section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_input(&mut self, input: InputStyle) {
         self.input = input;
-        self.write_input_rules();
+        self.restyle(Self::write_input_rules);
     }
 
     /// Menus, and the lists selects open.
@@ -2248,10 +2265,10 @@ impl Style {
         &self.menu
     }
 
-    /// TODO(prose): sets the menu section, and writes the rules that draw it, a menu's box, items and the rest, at the sheet's current layer.
+    /// TODO(prose): sets the menu section, and writes the rules that draw it, a menu's box, items and the rest, at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_menu(&mut self, menu: MenuStyle) {
         self.menu = menu;
-        self.write_menu_rules();
+        self.restyle(Self::write_menu_rules);
     }
 
     /// Tooltips.
@@ -2259,10 +2276,10 @@ impl Style {
         &self.tooltip
     }
 
-    /// TODO(prose): sets the tooltip section, and writes the rule that draws its box at the sheet's current layer.
+    /// TODO(prose): sets the tooltip section, and writes the rule that draws its box at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_tooltip(&mut self, tooltip: TooltipStyle) {
         self.tooltip = tooltip;
-        self.write_tooltip_rules();
+        self.restyle(Self::write_tooltip_rules);
     }
 
     fn write_tooltip_rules(&mut self) {
@@ -2275,10 +2292,10 @@ impl Style {
         &self.table
     }
 
-    /// TODO(prose): sets the table section, and writes the rules that draw it at the sheet's current layer.
+    /// TODO(prose): sets the table section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_table(&mut self, table: TableStyle) {
         self.table = table;
-        self.write_table_rules();
+        self.restyle(Self::write_table_rules);
     }
 
     fn write_table_rules(&mut self) {
@@ -2302,28 +2319,28 @@ impl Style {
         crate::owned::write_input_rules(&mut self.sheet, &self.input);
     }
 
-    /// TODO(prose): sets the colours of a choice control's label, and writes the rules that draw it at the sheet's current layer.
+    /// TODO(prose): sets the colours of a choice control's label, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_label(&mut self, label: States) {
         self.label = label;
-        crate::owned::write_field_rules(&mut self.sheet, self.label);
+        self.restyle(|style| crate::owned::write_field_rules(&mut style.sheet, style.label));
     }
 
-    /// TODO(prose): sets the checkbox section, and writes the rules that draw it at the sheet's current layer.
+    /// TODO(prose): sets the checkbox section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_checkbox(&mut self, checkbox: CheckboxStyle) {
         self.checkbox = checkbox;
-        crate::owned::write_checkbox_rules(&mut self.sheet, &self.checkbox);
+        self.restyle(|style| crate::owned::write_checkbox_rules(&mut style.sheet, &style.checkbox));
     }
 
-    /// TODO(prose): sets the radio section, and writes the rules that draw it at the sheet's current layer.
+    /// TODO(prose): sets the radio section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_radio(&mut self, radio: RadioStyle) {
         self.radio = radio;
-        crate::owned::write_radio_rules(&mut self.sheet, &self.radio);
+        self.restyle(|style| crate::owned::write_radio_rules(&mut style.sheet, &style.radio));
     }
 
-    /// TODO(prose): sets the switch section, and writes the rules that draw it at the sheet's current layer.
+    /// TODO(prose): sets the switch section, and writes the rules that draw it at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_switch(&mut self, switch: SwitchStyle) {
         self.switch = switch;
-        crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
+        self.restyle(|style| crate::owned::write_switch_rules(&mut style.sheet, &style.switch));
     }
 
     fn write_choice_rules(&mut self) {
@@ -2333,10 +2350,10 @@ impl Style {
         crate::owned::write_switch_rules(&mut self.sheet, &self.switch);
     }
 
-    /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the sheet's current layer.
+    /// TODO(prose): sets the segmented section, and writes the rules that draw it, the tabs' list and triggers, at the widgets' defaults layer, under a preset's look; the recorded exceptions are written again over it.
     pub fn set_segmented(&mut self, segmented: SegmentedStyle) {
         self.segmented = segmented;
-        self.write_segmented_rules();
+        self.restyle(Self::write_segmented_rules);
     }
 
     fn write_segmented_rules(&mut self) {

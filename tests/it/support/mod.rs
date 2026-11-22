@@ -244,6 +244,14 @@ pub fn shadcn_with(edit: impl Fn(&mut eggshell_ui::Style)) -> Themed<Arc<eggshel
     })
 }
 
+/// `style` without its preset's generated looks: its sections, drawn by the
+/// widgets' own rules, which is what a change to a section restyles.
+pub fn sections_of(mut style: eggshell_ui::Style) -> eggshell_ui::Style {
+    style.sheet = eggshell_ui::sheet::Sheet::defaults();
+    style.rewrite_rules();
+    style
+}
+
 pub type View<A> = for<'b, 'f> fn(&mut Builder<'b, 'f, A>, &'f A);
 
 /// What the rig paints under the layout.
