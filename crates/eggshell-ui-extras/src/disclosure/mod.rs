@@ -81,6 +81,18 @@ impl eggshell_ui::sheet::Part for AccordionPart {
     }
 }
 
+/// TODO(prose): writes the looks the user chose where they differ from
+/// shadcn's accordion (#350, #384) over a preset's generated sheet: the
+/// header keeps its gap between the title and the chevron, and the chevron
+/// its nudge down to the title's line.
+pub fn write_exceptions(sheet: &mut eggshell_ui::sheet::Sheet, style: &DisclosureStyle) {
+    let (gap, nudge) = (style.header.gap, style.nudge);
+    sheet.rule(AccordionPart::Trigger, move |t, _| t.gap(gap / 4.0));
+    sheet.rule(AccordionPart::TriggerIcon, move |t, _| {
+        t.mt(nudge / 4.0).mb(-nudge / 4.0)
+    });
+}
+
 /// TODO(prose): `glyph`'s icon turned by its turn times `open`, zero closed
 /// and one open: the chevron of a section header and of a disclosure
 /// button, for an app that draws one of its own.

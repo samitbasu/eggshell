@@ -861,6 +861,11 @@ impl Shadcn {
         }
         crate::sheets::write(&mut style.sheet, t.style, self.theme);
         style.write_exceptions();
+        #[cfg(feature = "extras")]
+        {
+            let disclosure = style.extension::<eggshell_ui_extras::disclosure::DisclosureStyle>();
+            eggshell_ui_extras::disclosure::write_exceptions(&mut style.sheet, &disclosure);
+        }
         style
     }
 
