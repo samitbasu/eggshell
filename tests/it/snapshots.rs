@@ -2924,10 +2924,7 @@ mod child_rules {
     /// `**:data-[slot=accordion-trigger-icon]:text-muted-foreground size-4
     /// ml-auto`: the open section's chevron.
     fn accordion_open(theme: egui::Theme) {
-        let state = accordion_example::State {
-            open: Some(0),
-            ..Default::default()
-        };
+        let state = accordion_example::State { open: Some(0) };
         let mut h = harness(
             Vec2::new(380.0, 280.0),
             (state, accordion_example::layout),
