@@ -91,9 +91,9 @@ fn a_row_in_a_section_is_inset_and_one_outside_is_not() {
     let frame = rect_of(&harness, BOX);
     let row = rect_of(&harness, RATE);
     let value = rect_of(&harness, &format!("{RATE}/\"Value\""));
+    // The frame is shadcn's card, edged by a ring, which takes no room.
     assert!(
-        (row.left() - frame.left() - style.border_width).abs() < 0.5
-            && (frame.right() - row.right() - style.border_width).abs() < 0.5,
+        (row.left() - frame.left()).abs() < 0.5 && (frame.right() - row.right()).abs() < 0.5,
         "the row spans the box, so the rule above it does: {row:?} in {frame:?}"
     );
     assert!(
@@ -237,7 +237,31 @@ fn a_choice_field_fills_a_form_and_is_its_contents_width_inline() {
     let section = rect_of(&harness, r#"/"Page"/"audio"/"Box""#);
     let formed = field("formed");
     assert!(
-        (formed.width() - (section.width() - 2.0)).abs() < 0.5,
+        (formed.width() - section.width()).abs() < 0.5,
         "the form's line: {formed:?} in {section:?}"
+    );
+}
+
+/// A section's frame is shadcn's card (card.tsx: `ring-1 rounded-xl
+/// bg-card`), drawn from the style's sheet; as recorded, it keeps the
+/// section's own vertical padding, not the card's `py-6`.
+#[test]
+fn a_sections_frame_is_shadcns_card_with_the_sections_padding() {
+    let harness = harness();
+    let style = harness.view_shell().style().extension::<FormStyle>();
+    let frame = rect_of(&harness, BOX);
+    let drawn = support::box_at(&harness, frame);
+    assert_eq!(drawn.stroke.width, 0.0, "a ring, not a border");
+    assert_eq!(
+        drawn.corner_radius,
+        egui::CornerRadius::same(14),
+        "rounded-xl"
+    );
+    assert_eq!(drawn.fill, Tokens::for_theme(Theme::Light).card, "bg-card");
+    let first = rect_of(&harness, GAIN);
+    assert_eq!(
+        first.top() - frame.top(),
+        style.padding_y,
+        "the section's padding"
     );
 }
