@@ -28,7 +28,9 @@
 
 mod style;
 
-use eggshell_ui::{Builder, Key, tw};
+use eggshell_ui::owned::FieldPart;
+use eggshell_ui::sheet::Part as _;
+use eggshell_ui::{Builder, Key, Match, tw};
 use egui::{Context, Id, Role};
 
 pub use style::FormStyle;
@@ -124,7 +126,9 @@ impl<'s, 'b, 'f, A: 'static, K: Key> FormSectionChain<'s, 'b, 'f, A, K> {
             .border(style.border_width)
             .border_color(style.border)
             .rounded_px(f32::from(style.radius))
-            .py(style.padding_y / 4.0);
+            .py(style.padding_y / 4.0)
+            // A form's choice fields are shadcn's `Field`, `w-full`.
+            .descendants(Match::slot(FieldPart::Root.slot()), |t| t.w_full());
         if rules == Rules::Between {
             frame = frame.divide_y(style.rule_width, style.rule);
         }

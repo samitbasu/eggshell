@@ -190,3 +190,54 @@ fn the_example_passes_kittests_accessibility_check() {
     harness.state_mut().companion = support::Companion::Alone;
     harness.run();
 }
+
+/// A choice field fills a form's line, as shadcn's `Field` does, and is as
+/// wide as its content inline, beside a button in a row.
+#[test]
+fn a_choice_field_fills_a_form_and_is_its_contents_width_inline() {
+    fn view(b: &mut Builder<'_, '_, App>, _: &App) {
+        b.div_id(
+            "Page",
+            tw().flex().flex_col().gap(6.0).p(4.0).w_px(360.0),
+            |b| {
+                b.div_id(
+                    "Row",
+                    tw().flex().flex_wrap().items_center().gap(2.0),
+                    |b| {
+                        b.button("go", "Go").add();
+                        b.checkbox("inline", "Inline", false)
+                            .on_change(|_: &mut App, _| {});
+                    },
+                );
+                b.form_section("audio").children(|b| {
+                    b.checkbox("formed", "Formed", false)
+                        .on_change(|_: &mut App, _| {});
+                });
+            },
+        );
+    }
+    let mut harness = support::harness(vec2(420.0, 300.0), base(), App::default(), view);
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.run_steps(4);
+    let field = |key: &str| {
+        harness
+            .placed()
+            .into_iter()
+            .find(|(path, _, _)| path.contains(&format!("\"{key}\"")) && path.ends_with("<div>"))
+            .map(|(_, rect, _)| rect)
+            .expect("the field")
+    };
+    let (go, inline) = (rect_of(&harness, r#"/"Page"/"Row"/"go""#), field("inline"));
+    assert_eq!(
+        inline.center().y.round(),
+        go.center().y.round(),
+        "on the button's line"
+    );
+    assert!(inline.width() < 120.0, "as wide as its content: {inline:?}");
+    let section = rect_of(&harness, r#"/"Page"/"audio"/"Box""#);
+    let formed = field("formed");
+    assert!(
+        (formed.width() - (section.width() - 2.0)).abs() < 0.5,
+        "the form's line: {formed:?} in {section:?}"
+    );
+}

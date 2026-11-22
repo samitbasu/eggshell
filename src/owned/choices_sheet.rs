@@ -494,7 +494,10 @@ pub(crate) fn write_switch_rules(sheet: &mut Sheet, switch: &SwitchStyle) {
 /// unchecked too, so checking moves no node. A card's checkbox or radio sits a point
 /// down beside the card's content, field.tsx's
 /// `has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px`,
-/// whose selector list the importer does not split. A size the controls' rules leave out keeps
+/// whose selector list the importer does not split. A field is as wide as
+/// its content, not shadcn's `w-full`: a checkbox, radio or switch is often
+/// inline in a toolbar or a row. In a card, and in a form (whose section
+/// says so of its fields), it fills the line, as shadcn's `Field` does. A size the controls' rules leave out keeps
 /// its section's metrics: shadcn's checkbox and radio have one size, and
 /// its switch two.
 pub(crate) fn write_exceptions(
@@ -503,6 +506,7 @@ pub(crate) fn write_exceptions(
 ) {
     sheet.rule(RadioGroupPart::Indicator, |t, _| t.size_full());
     sheet.rule(CheckboxPart::Indicator, |t, _| centered(t.size_full()));
+    sheet.rule(FieldPart::Root, |t, _| t.w_auto());
     let card = When::always().attr(CARD.0, CARD.1);
     sheet.rule_when(FieldPart::Label, card, |t, _| {
         ["checkbox", "radio-group-item"]
@@ -510,6 +514,7 @@ pub(crate) fn write_exceptions(
             .fold(t, |t, control| {
                 t.descendants(Match::slot(control), |c| c.mt(0.25))
             })
+            .children(Match::slot(FieldPart::Root.slot()), |f| f.w_full())
     });
     sheet.rule(RadioGroupPart::IndicatorIcon, |t, _| t.relative());
     let default = checkbox.sizes.default_key();
