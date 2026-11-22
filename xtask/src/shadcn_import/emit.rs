@@ -696,6 +696,8 @@ fn when_of(origin: &Origin, widget: &Widget) -> Vec<String> {
 /// written under.
 pub struct Widget {
     pub component: &'static str,
+    /// Where the widget's part enum lives.
+    pub home: Home,
     /// Written into the preset's crate (`sheets/`), not only the report.
     pub checked_in: bool,
     pub variants: &'static [(&'static str, &'static [&'static str])],
@@ -728,6 +730,33 @@ pub struct Widget {
     /// Parts shadcn's component has that eggshell's widget does not draw,
     /// by slot, and why: their classes are dropped.
     pub absent: &'static [(&'static str, &'static str)],
+}
+
+/// Where a widget's part enum lives: core's `owned`, or an extension
+/// crate's module, whose rules the preset writes only with its `extras`
+/// feature.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Home {
+    Core,
+    Extension(&'static str),
+}
+
+impl Home {
+    /// The module that names the part enum.
+    fn module(self) -> &'static str {
+        match self {
+            Self::Core => "eggshell_ui::owned",
+            Self::Extension(module) => module,
+        }
+    }
+
+    /// The attribute an item of the preset's crate takes for it.
+    pub fn cfg(self) -> &'static str {
+        match self {
+            Self::Core => "",
+            Self::Extension(_) => "#[cfg(feature = \"extras\")] ",
+        }
+    }
 }
 
 /// `has-[>[data-align=inline-end]]:[&>input]:pr-1.5` on the root: the
@@ -1238,7 +1267,12 @@ pub fn emit(
             contract.join(", ")
         );
     }
-    let _ = writeln!(rust, "use eggshell_ui::owned::{};", widget.part_enum());
+    let _ = writeln!(
+        rust,
+        "use {}::{};",
+        widget.home.module(),
+        widget.part_enum()
+    );
     let sheet = match body.contains("When::") {
         true => "{Sheet, When}",
         false => "Sheet",
@@ -1648,6 +1682,7 @@ mod tests {
 
     const HORIZONTAL: Widget = Widget {
         component: "tabs",
+        home: Home::Core,
         checked_in: false,
         variants: &[],
         sizes: &[],

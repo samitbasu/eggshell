@@ -173,6 +173,7 @@ pub struct ListChain<'a, 'f, A, R: Clone> {
     start: Start,
     nav: ListNav,
     row_classes: Tw,
+    row_part: Option<RowPart<'f, A, R>>,
     on_activate: Option<Activate<A, R>>,
     row_name: Option<std::rc::Rc<dyn Fn(R) -> String>>,
     keys: Keys,
@@ -194,6 +195,7 @@ impl<'a, 'f, A, R: Clone> ListChain<'a, 'f, A, R> {
 }
 
 type Activate<A, R> = std::rc::Rc<dyn Fn(&mut A, R)>;
+type RowPart<'f, A, R> = Box<dyn FnMut(&mut Builder<'_, 'f, A>, R) -> Tw + 'f>;
 type RowEnablement<R> = std::rc::Rc<dyn Fn(R) -> Enablement>;
 type RowMark<R> = std::rc::Rc<dyn Fn(R) -> Option<Mark>>;
 
@@ -214,6 +216,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             start: Start::Top,
             nav: ListNav::None,
             row_classes: tw(),
+            row_part: None,
             on_activate: None,
             row_name: None,
             keys: Keys::Own,
@@ -287,6 +290,16 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
     /// TODO(prose): classes of each row's wrapper, such as a `hover` look the highlighted row takes.
     pub fn row_classes(mut self, classes: Tw) -> Self {
         self.row_classes = self.row_classes.merge(classes);
+        self
+    }
+
+    /// TODO(prose): classes of each row's wrapper that `classes` gives it as
+    /// it is built, under [`row_classes`](Self::row_classes): a sheet part's,
+    /// from [`Builder::part`](crate::Builder::part) with the row's own keys,
+    /// so that a listbox's row is the item its highlight and its disabled
+    /// state are said of.
+    pub fn row_part(mut self, classes: impl FnMut(&mut Builder<'_, 'f, A>, R) -> Tw + 'f) -> Self {
+        self.row_part = Some(Box::new(classes));
         self
     }
 
@@ -378,6 +391,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             start,
             nav,
             row_classes,
+            row_part,
             on_activate,
             row_name,
             keys,
@@ -432,7 +446,10 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
         b.list_region(
             leaf,
             list,
-            plan.run(scroll, Items::new(rows, item, row_classes, behavior)),
+            plan.run(
+                scroll,
+                Items::new(rows, item, (row_classes, row_part), behavior),
+            ),
         );
         b.into_handle(scroll, list)
     }
@@ -636,6 +653,7 @@ pub(crate) struct Items<'f, A, R: Clone, F> {
     rows: Cow<'f, [R]>,
     item: F,
     classes: Tw,
+    part: Option<RowPart<'f, A, R>>,
     listbox: Option<Listbox<A, R>>,
 }
 
@@ -643,13 +661,14 @@ impl<'f, A, R: Clone, F> Items<'f, A, R, F> {
     pub(crate) fn new(
         rows: Cow<'f, [R]>,
         item: F,
-        classes: Tw,
+        (classes, part): (Tw, Option<RowPart<'f, A, R>>),
         listbox: Option<Listbox<A, R>>,
     ) -> Self {
         Self {
             rows,
             item,
             classes,
+            part,
             listbox,
         }
     }
@@ -686,7 +705,11 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
     ) -> Option<(Id, NodeId)> {
         let row = *self.rows.get(at)?;
         let item = &mut self.item;
-        let classes = classes.merge(self.classes.clone());
+        let classes = match &mut self.part {
+            Some(part) => classes.merge(part(b, row)),
+            None => classes,
+        }
+        .merge(self.classes.clone());
         let Some(listbox) = &self.listbox else {
             let handle = b.div_id(row, classes, |s| item(s, row));
             return Some((handle.id(), handle.node()));

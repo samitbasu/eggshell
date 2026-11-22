@@ -20,6 +20,7 @@ use anyhow::{Context as _, Result};
 use miette::{GraphicalReportHandler, GraphicalTheme, LabeledSpan, MietteDiagnostic, NamedSource};
 
 use classes::{Classifier, Fate, Gap, Radius, TwTable};
+use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
@@ -47,6 +48,7 @@ const COMPONENTS: [&str; 15] = [
 const WIDGETS: [emit::Widget; 13] = [
     emit::Widget {
         component: "button",
+        home: Home::Core,
         checked_in: true,
         variants: &[
             ("default", &["primary"]),
@@ -65,6 +67,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "input",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -80,6 +83,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "input-group",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -115,6 +119,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "select",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -130,21 +135,26 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "combobox",
-        checked_in: false,
+        home: Home::Extension("eggshell_ui_extras::command"),
+        checked_in: true,
         variants: &[],
         sizes: &[],
-        facts: &[],
+        facts: &COMBOBOX,
         parts: None,
-        bases: &[],
+        bases: &[emit::Base {
+            part: "Input",
+            component: "input-group",
+        }],
         aliases: &[],
         relations: &[],
         slot_aliases: &[],
         inherited: &[],
-        absent: &[],
+        absent: &COMBOBOX_ABSENT,
         copies: &[],
     },
     emit::Widget {
         component: "dropdown-menu",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -160,6 +170,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "tooltip",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -178,6 +189,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "checkbox",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -201,6 +213,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "radio-group",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -223,6 +236,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "switch",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -247,6 +261,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "field",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -271,6 +286,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "table",
+        home: Home::Core,
         checked_in: true,
         variants: &[],
         sizes: &[],
@@ -289,6 +305,7 @@ const WIDGETS: [emit::Widget; 13] = [
     },
     emit::Widget {
         component: "tabs",
+        home: Home::Core,
         checked_in: true,
         variants: &[("line", &[])],
         sizes: &[],
@@ -315,6 +332,40 @@ const FIELD_ABSENT: [(&str, &str); 6] = {
         ("field-separator", UNGROUPED),
         ("field-separator-content", UNGROUPED),
         ("field-error", "eggshell's choice fields show no error"),
+    ]
+};
+
+/// eggshell's combobox says nothing matches only while nothing does.
+const COMBOBOX: [emit::Assumed; 1] = [emit::Assumed {
+    variant: "group-data-empty/combobox-content",
+    fact: emit::Fact::Holds,
+    why: "eggshell draws the empty note only while the list is empty",
+}];
+
+/// The parts of shadcn's combobox that eggshell's does not name: one value,
+/// no chips or groups, and its own end buttons.
+const COMBOBOX_ABSENT: [(&str, &str); 12] = {
+    const ONE: &str = "eggshell's combobox picks one value, shown in its field";
+    const BUTTON: &str = "shadcn's is an input-group button, whose look the combobox's sheet does not carry; the widget draws its own";
+    [
+        ("combobox-value", ONE),
+        ("combobox-chips", ONE),
+        ("combobox-chip", ONE),
+        ("combobox-chip-remove", ONE),
+        ("combobox-chip-input", ONE),
+        ("combobox-chip-indicator-icon", ONE),
+        ("input-group-button", BUTTON),
+        ("combobox-trigger", BUTTON),
+        ("combobox-clear", BUTTON),
+        (
+            "combobox-group",
+            "eggshell's combobox lists its options in one run",
+        ),
+        (
+            "combobox-separator",
+            "eggshell's combobox lists its options in one run",
+        ),
+        ("combobox-collection", "a list of the options, not drawn"),
     ]
 };
 
@@ -429,7 +480,7 @@ const TABS: [emit::Assumed; 7] = {
 /// The `sheets` module of the preset's crate: a module per migrated
 /// `component` and style, and `write`, which writes them all for a style and
 /// theme, in the order of `components`.
-fn index(components: &[&str]) -> String {
+fn index(components: &[(&str, Home)]) -> String {
     let module = |style: &str, component: &str| format!("{style}_{}", component.replace('-', "_"));
     let mut out = String::from(
         "//! The widgets' rules in each shadcn style, generated from the pinned shadcn\n\
@@ -444,8 +495,8 @@ fn index(components: &[&str]) -> String {
          type Half = fn(&mut Sheet);\n",
     );
     for style in STYLES {
-        for component in components {
-            let _ = write!(out, "\nmod {};", module(style, component));
+        for (component, home) in components {
+            let _ = write!(out, "\n{}mod {};", home.cfg(), module(style, component));
         }
     }
     out.push_str(
@@ -457,9 +508,9 @@ fn index(components: &[&str]) -> String {
     for style in STYLES {
         let variant = format!("{}{}", style[..1].to_uppercase(), &style[1..]);
         let _ = writeln!(out, "        ShadcnStyle::{variant} => &[");
-        for component in components {
+        for (component, home) in components {
             let m = module(style, component);
-            let _ = writeln!(out, "            ({m}::light, {m}::dark),");
+            let _ = writeln!(out, "            {}({m}::light, {m}::dark),", home.cfg());
         }
         out.push_str("        ],\n");
     }
@@ -524,10 +575,10 @@ fn check_pin(root: &Path, reference: &Path) -> Result<()> {
 
 /// The migrated widgets' rules for every style, written or compared.
 fn sheets(root: &Path, registry: &Path, classifier: &Classifier<'_>, mode: Mode) -> Result<()> {
-    let migrated: Vec<&str> = WIDGETS
+    let migrated: Vec<(&str, Home)> = WIDGETS
         .iter()
         .filter(|w| w.checked_in)
-        .map(|w| w.component)
+        .map(|w| (w.component, w.home))
         .collect();
     let mut files = vec![(
         root.join("crates/eggshell-ui-shadcn/src/sheets/mod.rs"),
@@ -973,7 +1024,17 @@ mod tests {
 
     #[test]
     fn the_sheets_index_declares_and_writes_every_migrated_widget_in_each_style() {
-        let index = index(&["button", "input-group"]);
+        let index = index(&[
+            ("button", Home::Core),
+            ("input-group", Home::Core),
+            ("combobox", Home::Extension("eggshell_ui_extras::command")),
+        ]);
+        assert!(index.contains("\n#[cfg(feature = \"extras\")] mod vega_combobox;"));
+        assert!(
+            index.contains(
+                "#[cfg(feature = \"extras\")] (vega_combobox::light, vega_combobox::dark),"
+            )
+        );
         for module in [
             "vega_button",
             "vega_input_group",
