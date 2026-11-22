@@ -51,6 +51,23 @@ use dwell::{Countdown, Dwell, Hold};
 use look::Look;
 pub use style::NotifyStyle;
 
+/// TODO(prose): a notice's anatomy for the style's sheet, as shadcn's
+/// `sonner.tsx` names it. shadcn's classes style over sonner's own
+/// stylesheet, which is the notice's look here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NotifyPart {
+    /// TODO(prose): a notice's card.
+    Toast,
+}
+
+impl eggshell_ui::sheet::Part for NotifyPart {
+    const SOURCE: &'static str = "sonner.tsx";
+
+    fn slot(self) -> &'static str {
+        "toast"
+    }
+}
+
 /// TODO(prose): the application's name for a notice. A notice with a new id
 /// is a new notice: its dwell starts afresh.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -424,7 +441,13 @@ fn card<A: 'static, Act: Clone + 'static>(
     handlers: &Handlers<A, Act>,
 ) {
     let id = notice.id;
-    let card = s.div_id(id, look.card(), |s| {
+    let classes = s.part_over(
+        NotifyPart::Toast,
+        &[],
+        eggshell_ui::sheet::Defaults(look.card()),
+        tw(),
+    );
+    let card = s.div_id(id, classes, |s| {
         s.text(look.sentence(), notice.text.clone());
         for (at, action) in notice.actions.iter().enumerate() {
             let (act, on_action) = (action.act.clone(), handlers.on_action.clone());

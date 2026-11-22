@@ -288,7 +288,37 @@ pub fn component(text: &str, file: FileId) -> Component {
         }
         search = end.max(at);
     }
+    parts.extend(class_names(text, file));
     Component { parts }
+}
+
+/// The class lists of a `classNames: { toast: "cn-toast", .. }` object
+/// (sonner's `toastOptions`), one element's each, named by its `cn-*` class.
+fn class_names(text: &str, file: FileId) -> Vec<(Origin, String, Vec<Class>)> {
+    let mut parts = Vec::new();
+    let mut search = 0;
+    while let Some(i) = text[search..].find("classNames:") {
+        let at = search + i + "classNames:".len();
+        let Some(open) = text[at..].find('{').map(|o| at + o) else {
+            break;
+        };
+        let close = text[open..].find('}').map_or(text.len(), |c| open + c);
+        let mut j = open;
+        while let Some(q) = text[j..close].find('"').map(|q| j + q) {
+            let Some((s, start, end)) = string_at(text, q) else {
+                break;
+            };
+            let classes = classes_of(s, file, start);
+            if !classes.is_empty() {
+                let slot = slot_of(&classes, text, q);
+                let function = function_at(text, q);
+                parts.push((Origin::Slot { function }, slot, classes));
+            }
+            j = end;
+        }
+        search = close.max(at);
+    }
+    parts
 }
 
 /// A style's `@apply` classes, by the `.cn-*` rule that applies them.
@@ -329,6 +359,34 @@ pub fn apply_rules(text: &str, file: FileId) -> Rules {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_class_names_object_gives_each_of_its_class_lists_a_part() {
+        let text = r#"const Toaster = () => (
+  <Sonner
+    className="toaster group"
+    toastOptions={{
+      classNames: {
+        toast: "cn-toast",
+      },
+    }}
+  />
+)"#;
+        let c = component(text, 0);
+        let toast: Vec<_> = c
+            .parts
+            .iter()
+            .filter(|(_, slot, _)| slot == "toast")
+            .collect();
+        assert_eq!(
+            toast.len(),
+            1,
+            "{:?}",
+            c.parts.iter().map(|p| &p.1).collect::<Vec<_>>()
+        );
+        assert_eq!(toast[0].2[0].text, "cn-toast");
+        assert_eq!(&text[toast[0].2[0].span.clone()], "cn-toast");
+    }
 
     #[test]
     fn a_cva_table_gives_its_base_and_each_variant_with_spans() {

@@ -723,6 +723,11 @@ fn when_of(origin: &Origin, widget: &Widget) -> Vec<String> {
     }
 }
 
+/// Components whose classes style over a library's own stylesheet
+/// (sonner's), which is the widget's look here: their base rules are rules
+/// over its defaults, not a replace of them.
+const OVER_A_LIBRARY: [&str; 1] = ["sonner"];
+
 /// How eggshell names a widget's shadcn variants and sizes, where it names
 /// them otherwise: each shadcn name, and the eggshell names its rules are
 /// written under.
@@ -1251,7 +1256,8 @@ pub fn emit(
                 constants.insert(constant, BORDER_BASE.0.to_owned());
             }
             let k = if calls_text.contains("k.") { "k" } else { "_" };
-            let (method, when) = match (first_base, rule.when.as_str()) {
+            let replaces = first_base && !OVER_A_LIBRARY.contains(&widget.component);
+            let (method, when) = match (replaces, rule.when.as_str()) {
                 (true, _) => ("replace".to_owned(), String::new()),
                 (false, "When::always()") => ("rule".to_owned(), String::new()),
                 (false, when) => ("rule_when".to_owned(), format!(", {when}")),

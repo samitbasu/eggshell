@@ -449,3 +449,36 @@ fn a_card_is_the_styles_width_and_a_stack_shows_only_its_newest() {
         "the oldest two are not shown"
     );
 }
+
+/// A notice's card draws from the style's sheet: shadcn's rounding is a
+/// rule over its look (vega `rounded-2xl`), and an App rule restyles it.
+#[test]
+fn a_notice_card_draws_from_the_sheet() {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut d = support::driver(
+        SIZE,
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App::default(),
+        view,
+    )
+    .style(support::shadcn_with(|style| {
+        style
+            .sheet
+            .as_app()
+            .rule(eggshell_ui_extras::notify::NotifyPart::Toast, |t, _| {
+                t.bg(egui::Color32::RED)
+            });
+    }))
+    .build();
+    d.frames(2);
+    d.app_mut().notices = vec![notice(1)];
+    d.frames(2);
+    let card = d.rect(Target::suffix(&card(NOTICES, 1)));
+    let drawn = support::box_at(&d, card);
+    assert_eq!(drawn.fill, egui::Color32::RED, "the App's rule");
+    assert_eq!(
+        drawn.corner_radius,
+        egui::CornerRadius::same(18),
+        "rounded-2xl"
+    );
+}
