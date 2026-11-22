@@ -152,6 +152,25 @@ fn icon_in(d: &Harn, inside: Rect) -> (Color32, Rect) {
         .unwrap_or_else(|| panic!("no image in {inside:?}"))
 }
 
+/// A wrapping control whose track has a definite width.
+fn wide_wrapping(b: &mut Builder<'_, '_, App>, app: &App) {
+    b.segmented("seg", app.mode, MODES)
+        .wrapping()
+        .track(tw().w_px(300.0))
+        .on_change(|app: &mut App, mode| app.mode = mode);
+}
+
+#[test]
+fn a_wrapping_lists_cells_keep_their_content_width_in_a_wide_track() {
+    let d = harness_with(Theme::Light, ShadcnStyle::Vega, |_| {}, wide_wrapping);
+    let width = |mode| d.rect(Target::suffix(&cell_path(mode))).width();
+    let (dark, system) = (width(Mode::Dark), width(Mode::System));
+    assert!(
+        system > dark + 4.0,
+        "each cell grows from its label's width: Dark {dark}, System {system}"
+    );
+}
+
 // ----- #42: text in a box taller than it -----
 
 /// ```html
