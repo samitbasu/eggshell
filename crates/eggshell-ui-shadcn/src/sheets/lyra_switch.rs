@@ -62,7 +62,7 @@ pub(crate) fn light(s: &mut Sheet) {
     s.rule_when(Root, When::always().attr("card", "true"), |t, k| {
         t
             .from(LYRA, 1226, "group-has-[:focus-visible]/field-label:ring-0")
-            .focus(|p| p.ring(0.0, k.ring) /* no ring colour */)
+            .focus(|p| p.ring(0.0, k.ring.gamma_multiply(0.5)))
             .from(LYRA, 1226, "group-has-[:focus-visible]/field-label:border-transparent")
             .focus(|p| p.border_color(Color32::TRANSPARENT))
     });
@@ -173,7 +173,7 @@ pub(crate) fn dark(s: &mut Sheet) {
     s.rule_when(Root, When::always().attr("card", "true"), |t, k| {
         t
             .from(LYRA, 1226, "group-has-[:focus-visible]/field-label:ring-0")
-            .focus(|p| p.ring(0.0, k.ring) /* no ring colour */)
+            .focus(|p| p.ring(0.0, k.ring.gamma_multiply(0.5)))
             .from(LYRA, 1226, "group-has-[:focus-visible]/field-label:border-transparent")
             .focus(|p| p.border_color(Color32::TRANSPARENT))
     });

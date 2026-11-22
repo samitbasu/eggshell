@@ -365,7 +365,7 @@ impl Shadcn {
         })
         .bordered(1.0);
         let thumb_colors = Colors {
-            fill: t.background,
+            fill: Color32::WHITE,
             border: t.primary,
             text: t.foreground,
         };

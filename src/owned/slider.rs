@@ -14,9 +14,10 @@ use super::{
     tipped_whole,
 };
 use crate::builder::Slot;
-use crate::contract::{Colors, Size};
+use crate::contract::{Colors, Size, SliderStyle};
 use crate::finite::clamp;
 use crate::focus::{Autofocus, Select};
+use crate::sheet::{Defaults, Key as SheetKey};
 use crate::{Builder, NodeUi as _, Tw, tw};
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -120,6 +121,59 @@ impl Scale {
             }
         }
     }
+}
+
+/// TODO(prose): a slider's anatomy for the [`Sheet`](crate::sheet::Sheet),
+/// as shadcn's `slider.tsx` names it.
+///
+/// TODO(prose): the keys its rules see: `aria-disabled`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SliderPart {
+    /// TODO(prose): the slider: the track and its thumb, the room the
+    /// pointer takes.
+    Root,
+    /// TODO(prose): the bar the thumb moves along.
+    Track,
+    /// TODO(prose): the filled part of the track, up to the value.
+    Range,
+    /// TODO(prose): the handle.
+    Thumb,
+}
+
+impl crate::sheet::Part for SliderPart {
+    const SOURCE: &'static str = "slider.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Root => "slider",
+            Self::Track => "slider-track",
+            Self::Range => "slider-range",
+            Self::Thumb => "slider-thumb",
+        }
+    }
+}
+
+/// Writes the slider's recorded exceptions over a preset's look:
+/// - its track is the style's, not `bg-muted`, which vanishes on a muted
+///   panel (#132);
+/// - a disabled slider does not fade at its root, as eggshell fades shape by
+///   shape (#479) and the thumb would show the track through it; its parts
+///   draw opaque blends instead (#40).
+pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, slider: &SliderStyle) {
+    use crate::sheet::When;
+    let rest = slider.track.rest;
+    sheet.rule(SliderPart::Track, move |t, _| t.bg(rest.fill));
+    let disabled = || When::always().aria(crate::Aria::Disabled);
+    let (track, range) = (slider.track.disabled, slider.range.disabled);
+    let thumb = slider.thumb.paint.states.disabled;
+    sheet.rule_when(SliderPart::Root, disabled(), |t, _| {
+        t.opacity(crate::Opacity::new(1.0))
+    });
+    sheet.rule_when(SliderPart::Track, disabled(), move |t, _| t.bg(track.fill));
+    sheet.rule_when(SliderPart::Range, disabled(), move |t, _| t.bg(range.fill));
+    sheet.rule_when(SliderPart::Thumb, disabled(), move |t, _| {
+        t.bg(thumb.fill).border_color(thumb.border)
+    });
 }
 
 /// The classes of a track `height` thick, filled with `colors`.
@@ -336,7 +390,13 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             0.0
         };
         let thumb = metrics.thumb_size;
-        let hit = tw()
+        let keys: &[SheetKey] = match enablement {
+            Enablement::Enabled => &[],
+            Enablement::Disabled => &[SheetKey::Aria(crate::Aria::Disabled)],
+        };
+        // The thickness of the track and the size of the thumb are the
+        // size's metrics: shadcn's slider has one size.
+        let own = tw()
             .relative()
             .flex()
             .items_center()
@@ -344,7 +404,12 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             .h_px(thumb)
             .sense_click_drag()
             .focusable_none();
-        let hit = enablement.apply(hit, &style);
+        let own = match enablement {
+            Enablement::Enabled => own,
+            Enablement::Disabled => own.inert(),
+        };
+        let faded = enablement.apply(tw(), &style);
+        let hit = b.part_over(SliderPart::Root, keys, Defaults(faded), own);
         let (bar, filled) = track_and_range(
             (metrics.track_height, metrics.radius),
             (
@@ -353,15 +418,36 @@ impl<'a, 'f, A: 'static> SliderChain<'a, 'f, A> {
             ),
             fraction,
         );
+        let bar = b.part_over(
+            SliderPart::Track,
+            keys,
+            Defaults(bar),
+            tw().w_full().h_px(metrics.track_height),
+        );
+        let filled = b.part_over(
+            SliderPart::Range,
+            keys,
+            Defaults(filled),
+            // eggshell clips to a rectangle, where CSS clips the range to the
+            // track's rounding: the range rounds itself as the track does.
+            tw().h_full()
+                .w_frac(fraction, 1.0)
+                .rounded_px(f32::from(metrics.radius)),
+        );
         let travel = tw().absolute().left_px(0.0).right_px(thumb).inset_y(0.0);
-        let knob = slider
+        let look = slider
             .thumb
-            .classes(&style, metrics.radius, enablement, slider.transition)
-            .absolute()
-            .top_px(0.0)
-            .left_frac(fraction, 1.0)
-            .size_px(thumb)
-            .sense_click_drag();
+            .classes(&style, metrics.radius, enablement, slider.transition);
+        let knob = b.part_over(
+            SliderPart::Thumb,
+            keys,
+            Defaults(look),
+            tw().absolute()
+                .top_px(0.0)
+                .left_frac(fraction, 1.0)
+                .size_px(thumb)
+                .sense_click_drag(),
+        );
         let scale = Scale {
             value,
             range,

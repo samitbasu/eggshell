@@ -2349,6 +2349,7 @@ impl Style {
         crate::owned::write_select_exceptions(&mut self.sheet, &self.select);
         crate::owned::write_tabs_exceptions(&mut self.sheet, &self.segmented);
         crate::owned::write_menu_exceptions(&mut self.sheet);
+        crate::owned::write_slider_exceptions(&mut self.sheet, &self.slider);
         crate::owned::write_table_exceptions(&mut self.sheet, &self.table);
         crate::owned::write_choice_exceptions(
             &mut self.sheet,

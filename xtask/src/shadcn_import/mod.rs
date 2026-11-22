@@ -24,7 +24,7 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 21] = [
+const COMPONENTS: [&str; 22] = [
     "alert-dialog",
     "button",
     "badge",
@@ -41,6 +41,7 @@ const COMPONENTS: [&str; 21] = [
     "radio-group",
     "select",
     "sheet",
+    "slider",
     "switch",
     "table",
     "tabs",
@@ -51,7 +52,7 @@ const COMPONENTS: [&str; 21] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 20] = [
+const WIDGETS: [emit::Widget; 21] = [
     emit::Widget {
         component: "button",
         home: Home::Core,
@@ -423,6 +424,22 @@ const WIDGETS: [emit::Widget; 20] = [
         copies: &[],
     },
     emit::Widget {
+        component: "slider",
+        home: Home::Core,
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &SLIDER,
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &[],
+        copies: &[],
+    },
+    emit::Widget {
         component: "tabs",
         home: Home::Core,
         checked_in: true,
@@ -558,6 +575,30 @@ const CARD_ABSENT: [(&str, &str); 6] = {
         ("card-action", ROWS),
         ("card-content", ROWS),
         ("card-footer", ROWS),
+    ]
+};
+
+/// eggshell's sliders are horizontal, and Radix's thumb is a `<span>`,
+/// which `:disabled` never matches: a disabled slider fades once, at its root.
+const SLIDER: [emit::Assumed; 3] = {
+    use emit::{Assumed, Fact::*};
+    const HORIZONTAL: &str = "eggshell's sliders are horizontal only";
+    [
+        Assumed {
+            variant: "disabled",
+            fact: Never,
+            why: "Radix's thumb is a span, which `:disabled` never matches",
+        },
+        Assumed {
+            variant: "data-horizontal",
+            fact: Holds,
+            why: HORIZONTAL,
+        },
+        Assumed {
+            variant: "data-vertical",
+            fact: Never,
+            why: HORIZONTAL,
+        },
     ]
 };
 

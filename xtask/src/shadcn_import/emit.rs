@@ -603,6 +603,17 @@ fn ring_widths(pieces: &[&(Translated, String)]) -> Vec<(Vec<Wrap>, f32)> {
         .collect()
 }
 
+/// The ring colours a rule's pieces set, under their closures.
+fn ring_colors(pieces: &[&(Translated, String)]) -> Vec<(Vec<Wrap>, String)> {
+    pieces
+        .iter()
+        .filter_map(|(t, _)| match &t.leaf {
+            Leaf::RingColor(c) => Some((t.wraps.clone(), c.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
 /// A ring's width and colour under one set of closures, gathered from
 /// separate classes, and where its call goes among the rule's calls.
 struct Ring {
@@ -613,13 +624,18 @@ struct Ring {
     at: usize,
 }
 
+/// The ring widths and colours a part's base rule sets, under their closures.
+type BaseRing<'a> = (&'a [(Vec<Wrap>, f32)], &'a [(Vec<Wrap>, String)]);
+
 /// The calls of one rule for one half: the ring's width and colour joined
 /// under the same closures, each call with its sources. A ring is one
 /// property in `Tw`, so a colour with no width here takes the width the base
-/// rule gives under the same closures (`base`), as CSS keeps it.
+/// rule gives under the same closures (`base`), and a width with no colour
+/// the colour the base rule gives under them or under none (`base_colors`:
+/// `ring-ring/50 hover:ring-4`), as CSS keeps them.
 fn calls(
     pieces: &[&(Translated, String)],
-    base: &[(Vec<Wrap>, f32)],
+    (base, base_colors): BaseRing<'_>,
 ) -> Vec<(String, Vec<String>)> {
     let mut out: Vec<(String, Vec<String>)> = Vec::new();
     let mut rings: Vec<Ring> = Vec::new();
@@ -667,6 +683,15 @@ fn calls(
             .rev()
             .find(|(w, _)| *w == wraps)
             .map(|(_, w)| *w);
+        let inherited_color = || {
+            base_colors
+                .iter()
+                .rev()
+                .find(|(w, _)| *w == wraps)
+                .or_else(|| base_colors.iter().rev().find(|(w, _)| w.is_empty()))
+                .map(|(_, c)| c.clone())
+        };
+        let color = color.or_else(inherited_color);
         let call = match (width.or(inherited), color) {
             (Some(w), Some(c)) => format!(".ring({w:?}, {c})"),
             (Some(w), None) => format!(".ring({w:?}, k.ring) /* no ring colour */"),
@@ -1175,13 +1200,17 @@ pub fn emit(
             if pieces.is_empty() {
                 continue;
             }
-            let base = rules
+            let base_rule = rules
                 .iter()
-                .find(|r| r.part == rule.part && r.when == "When::always()")
+                .find(|r| r.part == rule.part && r.when == "When::always()");
+            let base = base_rule
                 .map(|r| ring_widths(&half_of(r, half)))
                 .unwrap_or_default();
+            let base_colors = base_rule
+                .map(|r| ring_colors(&half_of(r, half)))
+                .unwrap_or_default();
             let mut calls_text = String::new();
-            for (call, sources) in calls(&pieces, &base) {
+            for (call, sources) in calls(&pieces, (&base, &base_colors)) {
                 if call.is_empty() {
                     for source in &sources {
                         let _ = writeln!(calls_text, "        // {source}: nothing to do");
@@ -1377,7 +1406,7 @@ mod tests {
             .unwrap_or_else(|why| panic!("{class}: {why}"));
         let pieces = [(t, String::new())];
         let refs: Vec<_> = pieces.iter().collect();
-        calls(&refs, &[])
+        calls(&refs, (&[], &[]))
             .into_iter()
             .map(|(call, _)| call)
             .collect()
@@ -1501,7 +1530,7 @@ mod tests {
                 ),
             ];
             let refs: Vec<_> = pieces.iter().collect();
-            let calls = calls(&refs, &[]);
+            let calls = calls(&refs, (&[], &[]));
             assert_eq!(calls.len(), 1);
             assert_eq!(
                 calls[0].0,
@@ -1527,10 +1556,24 @@ mod tests {
                 c.translate("focus-visible:ring-destructive/20").unwrap(),
                 "variant".to_owned(),
             )];
-            let calls = calls(&variant.iter().collect::<Vec<_>>(), &widths);
+            let calls = calls(&variant.iter().collect::<Vec<_>>(), (&widths, &[]));
             assert_eq!(
                 calls[0].0,
                 ".focus(|p| p.ring(3.0, k.destructive.gamma_multiply(0.2)))"
+            );
+        });
+    }
+
+    #[test]
+    fn a_ring_width_alone_keeps_the_base_rules_colour() {
+        with(|c| {
+            let base = [(c.translate("ring-ring/50").unwrap(), "base".to_owned())];
+            let colors = ring_colors(&base.iter().collect::<Vec<_>>());
+            let variant = [(c.translate("hover:ring-4").unwrap(), "variant".to_owned())];
+            let calls = calls(&variant.iter().collect::<Vec<_>>(), (&[], &colors));
+            assert_eq!(
+                calls[0].0,
+                ".hover(|p| p.ring(4.0, k.ring.gamma_multiply(0.5)))"
             );
         });
     }
