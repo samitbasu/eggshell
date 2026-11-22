@@ -410,6 +410,9 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             keys.push(SheetKey::Aria(Aria::Disabled));
         }
         keys.extend(validity.key(enablement));
+        keys.extend(super::expanded_key(
+            Listing::of(&ctx, trigger) == Listing::Open,
+        ));
         let own = tw().sense_click();
         let own = match enablement {
             Enablement::Enabled => own,

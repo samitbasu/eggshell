@@ -222,6 +222,8 @@ pub struct ButtonChain<'a, 'f, A> {
     action: Option<Action>,
     autofocus: Autofocus,
     closes: Closes,
+    /// The key of an open popup's trigger, while its popup is open.
+    expanded: Option<Key>,
 }
 
 /// What pressing a button does to the overlay it is in.
@@ -408,7 +410,15 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             action: None,
             autofocus: Autofocus::Never,
             closes: Closes::Nothing,
+            expanded: None,
         }
+    }
+
+    /// Says whether the popup the button opens is open, for the sheet's
+    /// `aria-expanded:` rules and its containers' `has-aria-expanded`.
+    pub(super) fn expanded(mut self, open: bool) -> Self {
+        self.expanded = super::expanded_key(open);
+        self
     }
 
     /// Makes the button a toggle that shows `mark`.
@@ -712,6 +722,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
             action,
             autofocus,
             closes,
+            expanded,
         } = self;
         let name = name.unwrap_or(face_name);
         let (enablement, tooltip) =
@@ -742,6 +753,7 @@ impl<'a, 'f, A: 'static> ButtonChain<'a, 'f, A> {
                 if press == Press::Stays {
                     keys.push(Key::Aria(Aria::HasPopup));
                 }
+                keys.extend(expanded);
                 let own = tw().relative().sense_click();
                 let own = if disabled { own.inert() } else { own };
                 (

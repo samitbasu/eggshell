@@ -655,6 +655,12 @@ pub(crate) fn text_sized<A>(b: &Builder<'_, '_, A>, size: Option<crate::contract
     }
 }
 
+/// The key of a trigger whose popup is `open`, the web's `aria-expanded`:
+/// for its own open look, and for its containers' `has-aria-expanded`.
+pub(crate) fn expanded_key(open: bool) -> Option<crate::sheet::Key> {
+    open.then_some(crate::sheet::Key::Aria(crate::Aria::Expanded))
+}
+
 /// The classes of a framed text field's leaf in the ARIA state `aria`, if
 /// any: the ring around the box the field's own frame draws, from the
 /// field's rules, at rest (an invalid field's) and on focus. The frame's
