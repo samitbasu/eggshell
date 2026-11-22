@@ -766,7 +766,8 @@ impl Shadcn {
                     (12.0, 6.0),
                 ),
             );
-            input.hint = None;
+            // input.tsx: `placeholder:text-muted-foreground`.
+            input.hint = Some(t.muted_foreground);
             input.icon = t.muted_foreground;
             input
         };

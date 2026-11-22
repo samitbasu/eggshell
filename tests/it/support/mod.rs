@@ -690,7 +690,17 @@ pub fn text_color<S: Seen>(seen: &S, inside: Rect, text: &str) -> Color32 {
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => {
-                Some(t.override_text_color.unwrap_or(t.fallback_color))
+                // As epaint paints it: the override, else the glyphs' own
+                // colour (egui's hint text has one, faded with the shape),
+                // else the fallback.
+                let glyph = t.galley.rows.iter().find_map(|placed| {
+                    let visuals = &placed.row.visuals;
+                    visuals.mesh.vertices.get(visuals.glyph_vertex_range.start)
+                });
+                let own = glyph
+                    .map(|vertex| vertex.color)
+                    .filter(|color| *color != Color32::PLACEHOLDER);
+                Some(t.override_text_color.or(own).unwrap_or(t.fallback_color))
             }
             _ => None,
         })

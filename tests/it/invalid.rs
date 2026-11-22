@@ -246,3 +246,56 @@ fn a_choices_field_label_turns_destructive_when_it_is_invalid() {
         );
     }
 }
+
+fn hinted(b: &mut Builder<'_, '_, ()>, _: &()) {
+    use eggshell_ui::owned::FieldPart;
+    use eggshell_ui::sheet::Key;
+    b.div_id(
+        "Page",
+        tw().flex().flex_col().gap(4.0).p(4.0).w_px(300.0),
+        |s| {
+            s.text_field("plain", "")
+                .named("Plain")
+                .hint("Ada")
+                .on_change(|_, _| {});
+            let field = s.part(FieldPart::Root, &[Key::Attr("invalid", "true")], tw());
+            s.div_id("field", field, |s| {
+                s.text_field("bad", "")
+                    .named("Bad")
+                    .hint("Lovelace")
+                    .invalid(ERROR)
+                    .on_change(|_, _| {});
+            });
+        },
+    );
+}
+
+/// input.tsx's `placeholder:text-muted-foreground`, in a valid field and in
+/// an invalid one inside a `data-invalid` Field, whose text is destructive.
+#[test]
+fn a_hint_is_muted_even_in_an_invalid_field() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let tokens = Tokens::for_theme(theme);
+        let mut d = support::driver(
+            vec2(400.0, 300.0),
+            TextStyle::new(tokens.text_role(), tokens.foreground),
+            (),
+            hinted,
+        )
+        .build();
+        d.ctx().set_theme(theme);
+        d.frames(4);
+        let plain = d.rect(Target::suffix(r#"/"plain""#));
+        let bad = d.rect(Target::suffix(r#"/"bad""#));
+        assert_eq!(
+            support::text_color(&d, plain, "Ada"),
+            tokens.muted_foreground,
+            "{theme:?}"
+        );
+        assert_eq!(
+            support::text_color(&d, bad, "Lovelace"),
+            tokens.muted_foreground,
+            "{theme:?}: not the Field's destructive"
+        );
+    }
+}
