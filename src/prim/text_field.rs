@@ -485,11 +485,8 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                         put(s, Part::Leading, INLINE_START, icon);
                     }
                     s.div(tw().flex().items_center().grow().min_w_0().h_full(), |b| {
-                        let control = b.part(
-                            InputGroupPart::Input,
-                            &control_keys,
-                            tw().w_full().h_full().focusable_none(),
-                        );
+                        let control =
+                            b.part(InputGroupPart::Input, &control_keys, tw().w_full().h_full());
                         b.leaf(Part::Field, control, move |m| measure(m, &measured))
                             .open_focus(autofocus.open_focus())
                             .draw_widgets(move |app, ui| {
@@ -518,7 +515,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 true => InputGroupPart::Input,
                 false => InputGroupPart::Textarea,
             };
-            b.part(control, &control_keys, classes.focusable_none())
+            b.part(control, &control_keys, classes)
         } else if field.is_bare() {
             classes
         } else {

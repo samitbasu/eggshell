@@ -730,9 +730,7 @@ fn search_field<A: 'static>(
             InputGroupPart::Input,
             &[SheetKey::Attr("addon", "inline-start")],
             Defaults(tw()),
-            // The text edit inside is the stop; the look's focus ring would
-            // make the wrapper one.
-            tw().grow().min_w_0().focusable_none(),
+            tw().grow().min_w_0(),
         )
         .merge(s.part_over(CommandPart::Input, &[], Defaults(tw()), tw()));
     let ctx = s.ctx().clone();

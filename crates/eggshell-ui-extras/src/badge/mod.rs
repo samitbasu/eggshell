@@ -158,14 +158,12 @@ impl Face {
         call_site: Tw,
     ) -> Tw {
         let mut keys = vec![SheetKey::Variant(self.drawn(style))];
-        // Only a chip that can be clicked is a Tab stop; the look's
-        // `focus-visible:` ring would make any badge one.
         let stop = match link {
             true => {
                 keys.push(SheetKey::Attr(LINK.0, LINK.1));
-                tw()
+                tw().sense_click()
             }
-            false => tw().focusable_none(),
+            false => tw(),
         };
         let caller = std::mem::replace(&mut self.options.classes, tw());
         b.part_over(

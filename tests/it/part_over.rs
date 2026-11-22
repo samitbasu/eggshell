@@ -99,3 +99,51 @@ fn the_inspector_shows_the_defaults_as_their_layer_at_the_widgets_lines() {
     };
     assert!(at.file().ends_with("part_over.rs"), "{at}");
 }
+
+/// Two nodes of the part, each with a focus look from the sheet: one that
+/// only shows it, and one whose widget senses clicks at its call site.
+fn stops(b: &mut Builder<'_, '_, ()>, _: &()) {
+    let look = || Defaults(tw().w_px(40.0).h_px(20.0).focus(|p| p.bg(Color32::RED)));
+    let shown = b.part_over(Chip, &[], look(), tw());
+    b.div_id("shown", shown, |_| {});
+    let pressed = b.part_over(Chip, &[], look(), tw().sense_click());
+    b.div_id("pressed", pressed, |_| {});
+}
+
+/// Whether a node can be focused is the widget's: a sheet's focus look,
+/// its defaults' or an App rule's, styles a node when it has the focus and
+/// never makes it a Tab stop.
+#[test]
+fn a_sheets_focus_look_makes_no_tab_stop() {
+    let text = TextStyle::new(
+        TextSpec {
+            size: 14.0,
+            line_height: 20.0,
+            family: FontFamily::Proportional,
+            weight: Weight::Normal,
+        },
+        Color32::BLACK,
+    );
+    let mut d = support::driver(vec2(200.0, 100.0), text, (), stops)
+        .style(support::shadcn_with(|style| {
+            style
+                .sheet
+                .as_app()
+                .rule(Chip, |t, _| t.focus(|p| p.bg(Color32::BLUE)));
+        }))
+        .build();
+    d.frames(3);
+    let mut stops = Vec::new();
+    for _ in 0..4 {
+        d.press(egui::Key::Tab).frames(2);
+        stops.extend(support::focused_path(&d));
+    }
+    assert!(
+        stops.iter().any(|path| path.ends_with("\"pressed\"")),
+        "precondition: the widget that senses clicks is a stop: {stops:?}"
+    );
+    assert!(
+        !stops.iter().any(|path| path.ends_with("\"shown\"")),
+        "the look alone makes none: {stops:?}"
+    );
+}

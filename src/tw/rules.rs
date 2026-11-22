@@ -455,6 +455,10 @@ impl Rules {
     #[inline(never)]
     pub(crate) fn apply_layered(&self, links: &[Link], own: Tw, kind: NodeKind) -> Tw {
         let (sheet, own) = own.split_sheet();
+        let sheet = sheet.map(|mut sheet| {
+            sheet.sensing = sheet.sensing.looks_only();
+            sheet
+        });
         let flat;
         let facts = match &sheet {
             Some(sheet) => {
