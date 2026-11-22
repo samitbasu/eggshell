@@ -403,43 +403,42 @@ fn chevron_in(d: &Driver<App>, rect: Rect) -> Option<egui::Color32> {
 
 #[test]
 fn select_trigger_is_an_input_like_box_with_a_value_and_a_chevron() {
+    // style-vega.css `.cn-select-trigger`, `.cn-select-trigger-icon`.
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
+        let t = Tokens::for_theme(theme);
         let select = style(theme).select().clone();
         let trigger = d.rect(Target::suffix(REGION));
         assert_eq!(trigger.size(), vec2(200.0, 36.0), "h-9");
         let shape = box_at(&d, trigger);
-        let look = select.trigger;
-        assert_eq!(shape.fill, look.paint.states.rest.fill, "{theme:?}");
-        assert_eq!(shape.stroke.color, look.paint.states.rest.border);
+        let fill = match theme {
+            Theme::Light => egui::Color32::TRANSPARENT,
+            Theme::Dark => t.input.gamma_multiply(0.3),
+        };
+        assert_eq!(
+            shape.fill, fill,
+            "bg-transparent dark:bg-input/30, {theme:?}"
+        );
+        assert_eq!(shape.stroke.color, t.input, "border-input");
         assert_eq!(shape.stroke.width, 1.0);
         assert_eq!(
             shape.corner_radius,
             egui::CornerRadius::same(select.sizes.get(Size::DEFAULT).radius)
         );
         let text = d.rect(Target::suffix("/\"region\"/<text>"));
-        assert_eq!(
-            text.left() - trigger.left(),
-            1.0 + select.sizes.get(Size::DEFAULT).padding_x
-        );
-        assert_eq!(
-            text_color(&d, trigger, "Europe"),
-            look.paint.states.rest.text
-        );
+        assert_eq!(text.left() - trigger.left(), 1.0 + 10.0, "pl-2.5");
+        assert_eq!(text_color(&d, trigger, "Europe"), t.foreground);
         let glyph = d.rect(Target::suffix("/\"region\"/<glyph>"));
         assert_eq!(glyph.size(), vec2(16.0, 16.0), "size-4");
-        assert_eq!(
-            trigger.right() - glyph.right(),
-            1.0 + select.sizes.get(Size::DEFAULT).padding_x
-        );
+        assert_eq!(trigger.right() - glyph.right(), 1.0 + 8.0, "pr-2");
         let chevron = chevron_in(&d, glyph).expect("a chevron");
-        assert_eq!(
-            chevron,
-            look.paint.states.rest.text.gamma_multiply(0.5),
-            "opacity-50"
-        );
+        assert_eq!(chevron, t.muted_foreground, "text-muted-foreground");
         let frozen = d.rect(Target::suffix("/\"frozen\""));
-        assert_eq!(box_at(&d, frozen).fill, look.paint.states.disabled.fill);
+        assert_eq!(
+            box_at(&d, frozen).fill,
+            fill.gamma_multiply(0.5),
+            "disabled:opacity-50"
+        );
     }
 }
 
@@ -523,6 +522,30 @@ fn select_keyboard_opens_moves_chooses_and_closes() {
     assert_eq!(d.app().region, 2, "Space chooses too");
     assert!(!is_open(&d));
     assert_eq!(focused_path(&d).as_deref(), Some(REGION));
+}
+
+#[test]
+fn the_highlighted_option_takes_the_accent_and_no_other_does() {
+    // style-vega.css `.cn-select-item`: `focus:bg-accent`.
+    for theme in [Theme::Light, Theme::Dark] {
+        let mut d = harness(theme);
+        let accent = Tokens::for_theme(theme).accent;
+        tab_to(&mut d, REGION);
+        d.press(Key::ArrowDown).frames(7);
+        assert!(is_open(&d), "precondition");
+        d.press(Key::ArrowDown).frames(7);
+        let row = |index: usize| {
+            support::nodes(&d)
+                .into_iter()
+                .map(|(path, _)| path)
+                .find(|path| path.ends_with(&format!("/Box/Group/Option({index})")))
+                .expect("the option's row")
+        };
+        let accented: Vec<usize> = (0..REGIONS.len())
+            .filter(|&index| support::fill_of(&d, &row(index)) == Some(accent))
+            .collect();
+        assert_eq!(accented, [1], "{theme:?}");
+    }
 }
 
 #[test]

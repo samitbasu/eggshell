@@ -2293,9 +2293,10 @@ impl Style {
         crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
     }
 
-    /// TODO(prose): writes the input's recorded exceptions over the rules at the sheet's current layer: a disabled group fades as a whole, and the sizes other than the default keep their metrics. A preset calls this after its generated look.
-    pub fn write_input_exceptions(&mut self) {
+    /// TODO(prose): writes the recorded exceptions over the rules at the sheet's current layer. The input's: a disabled group fades as a whole, and the sizes other than the default keep their metrics. The select's: a size the trigger's rules leave out keeps its metrics. A preset calls this after its generated look.
+    pub fn write_exceptions(&mut self) {
         crate::owned::write_input_exceptions(&mut self.sheet, &self.input);
+        crate::owned::write_select_exceptions(&mut self.sheet, &self.select);
     }
 
     fn write_input_rules(&mut self) {

@@ -289,6 +289,24 @@ fn own_key(variant: &str) -> Option<String> {
     }
 }
 
+/// `class` with an item's `focus:` read as `data-highlighted:`. A list item
+/// is focused when it is the list's current one (Radix moves focus to it,
+/// Base UI marks it highlighted); eggshell marks the current item the same
+/// way whether the keyboard or the pointer made it current. shadcn picks
+/// items out the same way, by a `data-slot` ending in `-item`.
+fn highlighted_on_items(slot: &str, class: &str) -> String {
+    if !slot.ends_with("-item") {
+        return class.to_owned();
+    }
+    let (variants, utility) = split_variants(class);
+    variants
+        .into_iter()
+        .map(|v| if v == "focus" { "data-highlighted" } else { v })
+        .chain([utility])
+        .collect::<Vec<_>>()
+        .join(":")
+}
+
 /// `p-[3px]` as `p` and 0.75: padding or a gap in pixels, in the spacing
 /// scale's units of 4 px.
 fn spacing_px(utility: &str) -> Option<(&str, f32)> {
@@ -661,6 +679,9 @@ pub struct Widget {
     /// An ancestor's state a part carries as its own, as the variants that
     /// ask for each: input-group's addon is disabled with its group.
     pub inherited: &'static [(&'static str, &'static str)],
+    /// Parts shadcn's component has that eggshell's widget does not draw,
+    /// by slot, and why: their classes are dropped.
+    pub absent: &'static [(&'static str, &'static str)],
 }
 
 /// `has-[>[data-align=inline-end]]:[&>input]:pr-1.5` on the root: the
@@ -953,6 +974,11 @@ pub fn emit(
             continue;
         }
         let source = source_of(row, sources);
+        if let Some(&(_, why)) = widget.absent.iter().find(|(slot, _)| *slot == row.slot) {
+            *kinds.entry(Kind::Never).or_insert(0) += 1;
+            dropped.entry(source).or_insert(why);
+            continue;
+        }
         let bases = when_of(&row.origin, widget);
         let (part, text) = match (part.as_str(), widget.relate(&row.class.text)) {
             ("Root", Some((related, class))) => (related.to_owned(), class),
@@ -969,7 +995,7 @@ pub fn emit(
                 continue;
             }
         };
-        match classifier.translate(&class) {
+        match classifier.translate(&highlighted_on_items(&row.slot, &class)) {
             Err(why) => {
                 *kinds.entry(Kind::Unmapped).or_insert(0) += 1;
                 unmapped.entry(source).or_insert(why);
@@ -1120,6 +1146,22 @@ pub fn emit(
 mod tests {
     use super::super::classes::{Radius, TwTable};
     use super::*;
+
+    #[test]
+    fn an_items_focus_is_its_highlight_and_nothing_elses_is() {
+        assert_eq!(
+            highlighted_on_items("select-item", "focus:bg-accent"),
+            "data-highlighted:bg-accent"
+        );
+        assert_eq!(
+            highlighted_on_items("select-item", "dark:focus:text-x!"),
+            "dark:data-highlighted:text-x!"
+        );
+        assert_eq!(
+            highlighted_on_items("select-trigger", "focus:bg-accent"),
+            "focus:bg-accent"
+        );
+    }
 
     fn table() -> TwTable {
         TwTable::read(&[r#"
@@ -1467,6 +1509,7 @@ mod tests {
         }],
         slot_aliases: &[("input-group-control", &["input-group-textarea"])],
         inherited: &[("group-data-[disabled=true]/input-group", "disabled")],
+        absent: &[],
         facts: &[
             Assumed {
                 variant: "group-data-horizontal/tabs",

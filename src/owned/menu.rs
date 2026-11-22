@@ -207,7 +207,7 @@ impl MenuStyle {
             Enablement::Enabled => {
                 let hover = states.hover;
                 painted(base.sense_click(), states.rest)
-                    .hover(|p| p.bg(hover.fill).text(hover.text))
+                    .highlighted(|p| p.bg(hover.fill).text(hover.text))
             }
         }
     }

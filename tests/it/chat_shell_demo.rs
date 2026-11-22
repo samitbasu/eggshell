@@ -731,17 +731,8 @@ mod appearance {
         assert_ne!(select_fill(&d), dark_select, "the select follows");
         assert_eq!(
             select_fill(&d),
-            Some(
-                eggshell_ui_shadcn::Shadcn::light()
-                    .style()
-                    .select()
-                    .trigger
-                    .paint
-                    .states
-                    .rest
-                    .fill
-            ),
-            "the select is drawn with the preset's light style"
+            Some(egui::Color32::TRANSPARENT),
+            "the select is drawn with the preset's light style: bg-transparent"
         );
 
         d.click(Target::suffix(DARK));
