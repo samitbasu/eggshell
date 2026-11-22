@@ -413,3 +413,30 @@ fn an_app_rule_restyles_a_sections_header() {
     let header = d.rect(Target::suffix(HEADER));
     assert_eq!(support::box_at(&d, header).fill, egui::Color32::RED);
 }
+
+/// The header's title and its chevron.
+fn title_and_chevron(d: &eggshell_ui::testing::Driver<App>) -> (egui::Rect, egui::Rect) {
+    (
+        rect_of(d, &format!("{HEADER}/<div>")),
+        rect_of(d, &format!("{HEADER}/<glyph>")),
+    )
+}
+
+/// Recorded exceptions to shadcn's accordion (#350, #384): the header keeps
+/// its gap between the title and the chevron, and the chevron its nudge
+/// down to the title's line.
+#[test]
+fn a_sections_header_keeps_its_gap_and_its_chevrons_nudge() {
+    let d = driver_with(|_| {});
+    let style = eggshell_ui_shadcn::Shadcn::for_theme(egui::Theme::Light)
+        .style()
+        .extension::<eggshell_ui_extras::disclosure::DisclosureStyle>();
+    let header = d.rect(Target::suffix(HEADER));
+    let (title, chevron) = title_and_chevron(&d);
+    assert_eq!(chevron.left() - title.right(), style.header.gap, "the gap");
+    assert_eq!(
+        chevron.top() - title.top(),
+        style.nudge,
+        "the nudge: {header:?} {title:?} {chevron:?}"
+    );
+}
