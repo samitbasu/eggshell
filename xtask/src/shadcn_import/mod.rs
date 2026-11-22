@@ -23,7 +23,7 @@ use classes::{Classifier, Fate, Gap, Radius, TwTable};
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 14] = [
+const COMPONENTS: [&str; 15] = [
     "button",
     "badge",
     "checkbox",
@@ -35,6 +35,7 @@ const COMPONENTS: [&str; 14] = [
     "radio-group",
     "select",
     "switch",
+    "table",
     "tabs",
     "textarea",
     "tooltip",
@@ -43,7 +44,7 @@ const COMPONENTS: [&str; 14] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 12] = [
+const WIDGETS: [emit::Widget; 13] = [
     emit::Widget {
         component: "button",
         checked_in: true,
@@ -60,6 +61,7 @@ const WIDGETS: [emit::Widget; 12] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &[],
+        copies: &[],
     },
     emit::Widget {
         component: "input",
@@ -74,6 +76,7 @@ const WIDGETS: [emit::Widget; 12] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &[],
+        copies: &[],
     },
     emit::Widget {
         component: "input-group",
@@ -108,6 +111,7 @@ const WIDGETS: [emit::Widget; 12] = [
         slot_aliases: &[("input-group-control", &["input-group-textarea"])],
         inherited: &[("group-data-[disabled=true]/input-group", "disabled")],
         absent: &[],
+        copies: &[],
     },
     emit::Widget {
         component: "select",
@@ -122,6 +126,7 @@ const WIDGETS: [emit::Widget; 12] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &SELECT_ABSENT,
+        copies: &[],
     },
     emit::Widget {
         component: "combobox",
@@ -136,6 +141,7 @@ const WIDGETS: [emit::Widget; 12] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &[],
+        copies: &[],
     },
     emit::Widget {
         component: "dropdown-menu",
@@ -150,6 +156,7 @@ const WIDGETS: [emit::Widget; 12] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &MENU_ABSENT,
+        copies: &[],
     },
     emit::Widget {
         component: "tooltip",
@@ -167,6 +174,7 @@ const WIDGETS: [emit::Widget; 12] = [
             "tooltip-arrow",
             "the overlay draws the arrow, filled like the content",
         )],
+        copies: &[],
     },
     emit::Widget {
         component: "checkbox",
@@ -189,6 +197,7 @@ const WIDGETS: [emit::Widget; 12] = [
             ("group-has-disabled/field", "disabled"),
         ],
         absent: &[],
+        copies: &[],
     },
     emit::Widget {
         component: "radio-group",
@@ -210,6 +219,7 @@ const WIDGETS: [emit::Widget; 12] = [
             ),
         ],
         absent: &[],
+        copies: &[],
     },
     emit::Widget {
         component: "switch",
@@ -233,6 +243,7 @@ const WIDGETS: [emit::Widget; 12] = [
             ("group-data-[size=sm]/switch", "data-[size=sm]"),
         ],
         absent: &[],
+        copies: &[],
     },
     emit::Widget {
         component: "field",
@@ -256,6 +267,25 @@ const WIDGETS: [emit::Widget; 12] = [
             ),
         ],
         absent: &FIELD_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
+        component: "table",
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[("table-cell", &["table-footer-cell"])],
+        inherited: &[("data-[state=selected]", "aria-selected")],
+        absent: &[
+            ("table-container", "the table scrolls in its own scroller"),
+            ("table-caption", "eggshell's table has no caption"),
+        ],
+        copies: &[("Cell", &["FooterCell"])],
     },
     emit::Widget {
         component: "tabs",
@@ -270,6 +300,7 @@ const WIDGETS: [emit::Widget; 12] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &[],
+        copies: &[],
     },
 ];
 

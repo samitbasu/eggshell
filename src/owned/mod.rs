@@ -117,7 +117,9 @@ pub use table::{
     Align, Cells, Column, Rows, RowsChain, Selectable, Selected, Stripes, TableChain, Unselectable,
 };
 pub use table_sheet::TablePart;
-pub(crate) use table_sheet::write_rules as write_table_rules;
+pub(crate) use table_sheet::{
+    write_exceptions as write_table_exceptions, write_rules as write_table_rules,
+};
 pub use tabs_sheet::TabsPart;
 pub(crate) use tabs_sheet::{
     Roles as TabsRoles, write_exceptions as write_tabs_exceptions, write_rules as write_tabs_rules,
