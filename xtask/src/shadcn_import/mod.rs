@@ -50,7 +50,7 @@ const COMPONENTS: [&str; 20] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 18] = [
+const WIDGETS: [emit::Widget; 19] = [
     emit::Widget {
         component: "button",
         home: Home::Core,
@@ -386,6 +386,23 @@ const WIDGETS: [emit::Widget; 18] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &POPOVER_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
+        component: "badge",
+        home: Home::Extension("eggshell_ui_extras::badge"),
+        checked_in: true,
+        variants: &[("default", &["primary"])],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        // A chip that can be clicked is shadcn's badge rendered as a link.
+        inherited: &[("[a]", "data-[link=true]")],
+        absent: &[],
         copies: &[],
     },
     emit::Widget {
