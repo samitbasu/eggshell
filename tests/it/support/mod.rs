@@ -632,6 +632,11 @@ pub fn same(a: Rect, b: Rect) -> bool {
 
 /// The last box painted over exactly `rect`, ring excluded.
 pub fn box_at<S: Seen>(seen: &S, rect: Rect) -> RectShape {
+    try_box_at(seen, rect).unwrap_or_else(|| panic!("no box painted at {rect:?}"))
+}
+
+/// [`box_at`], or `None` where nothing is painted.
+pub fn try_box_at<S: Seen>(seen: &S, rect: Rect) -> Option<RectShape> {
     shapes(seen)
         .into_iter()
         .filter_map(|shape| match shape {
@@ -641,7 +646,6 @@ pub fn box_at<S: Seen>(seen: &S, rect: Rect) -> RectShape {
             _ => None,
         })
         .next_back()
-        .unwrap_or_else(|| panic!("no box painted at {rect:?}"))
 }
 
 pub fn ring_at<S: Seen>(seen: &S, rect: Rect) -> Option<RectShape> {

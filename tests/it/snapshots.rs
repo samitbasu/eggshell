@@ -1844,7 +1844,7 @@ fn menu_after(
     report_renderer();
     let style = ShadcnStyle::Vega;
     let mut harness = support::harness_prepared(
-        Vec2::new(420.0, 400.0),
+        Vec2::new(420.0, 480.0),
         common::base_text_styled(theme, style),
         menu::State {
             grid: true,
@@ -1864,6 +1864,23 @@ fn menu_after(
 
 const ACTIONS: &str = "/Page/Top/(PopoverButton, Menu)/Box";
 
+/// Asserts that the node at `path` lies wholly inside the window, for a
+/// golden that exists to show it.
+fn assert_on_screen<A>(harness: &Harness<'static, support::Rig<A>>, path: &str) {
+    let window = harness.ctx.content_rect();
+    let rect = harness
+        .state()
+        .nodes
+        .iter()
+        .find(|(candidate, _)| candidate == path)
+        .unwrap_or_else(|| panic!("no node {path}"))
+        .1;
+    assert!(
+        window.contains_rect(rect),
+        "{path} {rect:?} is cut off by the window {window:?}"
+    );
+}
+
 /// The dropdown with its Arrange submenu open and the pointer on one of its
 /// items: shortcuts, a disabled item, headings, a checked box, the chosen
 /// radio, the chevron and the destructive item.
@@ -1880,6 +1897,7 @@ fn menu_open(name: &str, theme: egui::Theme) {
             harness.state().nodes.iter().any(|(path, _)| *path == front),
             "the submenu is open"
         );
+        assert_on_screen(harness, ACTIONS);
     });
 }
 
@@ -1948,6 +1966,7 @@ fn menu_destructive(name: &str, theme: egui::Theme) {
         harness.run_steps(8);
         support::hover_node(harness, &format!("{ACTIONS}/Item(Delete)"));
         harness.run_steps(8);
+        assert_on_screen(harness, &format!("{ACTIONS}/Item(Delete)"));
     });
 }
 
@@ -2119,7 +2138,7 @@ mod motion {
     fn menu_harness(theme: egui::Theme) -> Harness<'static, support::Rig<menu::State>> {
         let style = ShadcnStyle::Vega;
         let mut harness = support::harness_stepped(
-            Vec2::new(420.0, 400.0),
+            Vec2::new(420.0, 480.0),
             0.0375,
             common::base_text_styled(theme, style),
             menu::State {

@@ -12,7 +12,9 @@ use egui::epaint::Shape;
 use egui::{Key, KeyboardShortcut, Modifiers, Rect, Role, Theme, pos2, vec2};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use crate::support::{self, box_at, focused_path, press_and_release, ring_at, shapes, text_color};
+use crate::support::{
+    self, box_at, focused_path, press_and_release, ring_at, shapes, text_color, try_box_at,
+};
 
 const REGIONS: [(usize, &str); 3] = [(0, "Europe"), (1, "North America"), (2, "Asia Pacific")];
 
@@ -603,7 +605,7 @@ const DOWN: &str = "/\"count\"/Box/Buttons/Down";
 #[test]
 fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
     for theme in [Theme::Light, Theme::Dark] {
-        let d = harness(theme);
+        let mut d = harness(theme);
         let stepper = style(theme).stepper;
         let group = d.rect(Target::suffix("/\"count\"/Box"));
         assert_eq!(group.height(), stepper.sizes.get(Size::DEFAULT).height);
@@ -633,14 +635,19 @@ fn stepper_is_one_bordered_group_with_a_column_of_buttons() {
         assert_eq!(group.right() - up.right(), border);
         assert!(group.contains_rect(d.rect(Target::suffix(FIELD))));
         assert!(d.rect(Target::suffix(FIELD)).right() <= up.left() - 1.0);
-        assert_eq!(box_at(&d, up).fill, egui::Color32::TRANSPARENT, "ghost");
-        let inner = f32::from(stepper.sizes.get(Size::DEFAULT).radius) - border;
-        let (up_corners, down_corners) =
-            (box_at(&d, up).corner_radius, box_at(&d, down).corner_radius);
-        assert_eq!((up_corners.ne, up_corners.se), (inner as u8, 0));
-        assert_eq!((down_corners.ne, down_corners.se), (0, inner as u8));
+        assert!(
+            try_box_at(&d, up).is_none(),
+            "a ghost button with no border paints nothing at rest"
+        );
         assert!(chevron_in(&d, up).is_some());
         assert!(d.painted().shows("3"));
+        let inner = f32::from(stepper.sizes.get(Size::DEFAULT).radius) - border;
+        d.hover(Target::suffix(UP)).frames(8);
+        let up_corners = box_at(&d, up).corner_radius;
+        assert_eq!((up_corners.ne, up_corners.se), (inner as u8, 0));
+        d.hover(Target::suffix(DOWN)).frames(8);
+        let down_corners = box_at(&d, down).corner_radius;
+        assert_eq!((down_corners.ne, down_corners.se), (0, inner as u8));
     }
 }
 
@@ -720,10 +727,9 @@ fn the_buttons_step_the_value_and_disable_at_the_limits() {
             .is_disabled()
     );
     let stepper = style(Theme::Light).stepper;
-    assert_eq!(
-        box_at(&d, d.rect(Target::suffix(DOWN))).fill,
-        stepper.button.paint.states.disabled.fill
-    );
+    let fill = try_box_at(&d, d.rect(Target::suffix(DOWN)))
+        .map_or(egui::Color32::TRANSPARENT, |shape| shape.fill);
+    assert_eq!(fill, stepper.button.paint.states.disabled.fill);
     d.click(Target::suffix(DOWN));
     assert_eq!(d.app().count, 0.0);
 
