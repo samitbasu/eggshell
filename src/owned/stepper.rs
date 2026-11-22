@@ -9,8 +9,8 @@ use egui::{Key, Role, WidgetInfo};
 use super::number::{Edit, Edits, Step, ValueRange, pressed};
 use super::number_field::Session;
 use super::{
-    ButtonPart, Chevron, Enablement, FieldHooks, Gate, InputGroupPart, IntoTip, Tip, centered,
-    described, options, text_sized, tip_describes, tipped_whole,
+    ButtonPart, Chevron, Enablement, FieldHooks, Gate, InputGroupPart, IntoTip, Tip, Validity,
+    centered, described, options, text_sized, tip_describes, tipped_whole,
 };
 use crate::builder::Slot;
 use crate::contract::{Size, StepperStyle};
@@ -65,6 +65,7 @@ pub struct StepperChain<'a, 'f, A> {
     hooks: FieldHooks<A>,
     edits: Edits<A>,
     autofocus: Autofocus,
+    validity: Validity,
 }
 
 impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
@@ -89,6 +90,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             hooks: FieldHooks::default(),
             edits: Edits::default(),
             autofocus: Autofocus::Never,
+            validity: Validity::Valid,
         }
     }
 
@@ -210,6 +212,15 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         self
     }
 
+    /// TODO(prose): marks the stepper invalid while `error` is `Some`, as
+    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// does: its group's border and ring turn destructive, because its field
+    /// is invalid.
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.validity = Validity::of(error);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -238,6 +249,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             hooks,
             edits,
             autofocus,
+            validity,
         } = self;
         let value = range.checked(b.ctx(), slot.id, value);
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
@@ -245,7 +257,9 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
         let stepper = &style.stepper;
         let metrics = *stepper.sizes.lookup(b.ctx(), b.size_of(size));
         let (low, high) = (range.start(), range.end());
+        let invalid = validity.key(enablement);
         let spec = Spec {
+            validity,
             value,
             range,
             step,
@@ -290,6 +304,7 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
             super::input_keys(style.input().sizes.key_for(b.size_of(size)), false);
         control_keys.push(SheetKey::Attr("addon", "inline-end"));
         control_keys.push(SheetKey::Attr(STEPPER.0, STEPPER.1));
+        control_keys.extend(invalid);
         let control = b.part(InputGroupPart::Input, &control_keys, tw().w_full().h_full());
         let inner_radius = f32::from(metrics.radius) - style.input().look.border_width;
         let button = |b: &mut Builder<'_, '_, A>, at_end: bool, corner: fn(Tw, f32) -> Tw| {
@@ -425,6 +440,7 @@ pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, stepper: &Steppe
 
 /// What a stepper's field and buttons act on.
 struct Spec<A> {
+    validity: Validity,
     value: f64,
     range: ValueRange,
     step: Step,
@@ -438,6 +454,7 @@ struct Spec<A> {
 impl<A> Clone for Spec<A> {
     fn clone(&self) -> Self {
         Self {
+            validity: self.validity.clone(),
             value: self.value,
             range: self.range,
             step: self.step,
@@ -485,6 +502,7 @@ impl<A> Spec<A> {
         let mut text = typed.unwrap_or_else(|| format!("{value:.*}", self.step.decimals()));
         let response = text_field::show(ui, &mut text, field);
         tip_describes(ui, &response, &self.tooltip);
+        self.validity.describe(ui.ctx(), response.id);
         let asked = self.autofocus.apply(ui.ctx(), &response);
         let opening = text_field::Opening::of_number(&response, asked);
         text_field::select_number(ui, &response, &text, opening);

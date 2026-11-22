@@ -8,7 +8,7 @@ use std::rc::Rc;
 use egui::{Role, Vec2};
 
 use super::{
-    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, choice_card, choice_label,
+    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, Validity, choice_card, choice_label,
     choice_row, described, flip, options,
 };
 use super::{Mark, SwitchPart};
@@ -43,6 +43,7 @@ pub struct SwitchChain<'a, 'f, A, T, V = Unset> {
     form: Form,
     name: Option<String>,
     gate: Gate,
+    validity: Validity,
     current: T,
     values: V,
     size: Option<Size>,
@@ -76,6 +77,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             enablement: Enablement::Enabled,
             on_response: OnResponse::default(),
             autofocus: Autofocus::Never,
+            validity: Validity::Valid,
         }
     }
 
@@ -97,11 +99,20 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             enablement: self.enablement,
             on_response: self.on_response,
             autofocus: self.autofocus,
+            validity: self.validity,
         }
     }
 }
 
 impl<'a, 'f, A: 'static, T, V> SwitchChain<'a, 'f, A, T, V> {
+    /// TODO(prose): marks the switch invalid while `error` is `Some`, as
+    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// does: its track's border and ring turn destructive, and so does its field's label.
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.validity = Validity::of(error);
+        self
+    }
+
     /// The accessible name, when it is not the label.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
@@ -237,6 +248,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             enablement,
             on_response,
             autofocus,
+            validity,
         } = self;
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let (mark, toggled) = flip([off, on_value], current);
@@ -309,15 +321,13 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                         .active(|p| p.bg(fill).border_color(border))
                 }
             };
-            let classes = b.part(
-                SwitchPart::Root,
-                &form.keys(SwitchPart::keys(size, mark, enablement)),
-                own,
-            );
+            let mut keys = form.keys(SwitchPart::keys(size, mark, enablement));
+            keys.extend(validity.key(enablement));
+            let classes = b.part(SwitchPart::Root, &keys, own);
             let row = choice_row(
                 b,
                 &style.role_sized(&switch.text, metrics.text),
-                enablement,
+                (enablement, &validity),
                 switch.gap,
             );
             let on_press = on_toggle.clone();
@@ -345,6 +355,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 .open_focus(autofocus.open_focus())
                 .draw(move |app, ui| {
                     let response = described(ui, Role::Switch, Some(mark), &name, &tooltip);
+                    validity.describe(ui.ctx(), response.id);
                     autofocus.apply(ui.ctx(), &response);
                     if response.clicked() {
                         on_press(app);

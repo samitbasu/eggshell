@@ -2195,13 +2195,24 @@ impl Style {
     /// draws as the style says, at `size`. See [`InputStyle`] for what is
     /// approximated.
     pub fn map_input(&self, egui: &mut egui::Style, size: Size) {
+        self.map_input_as(egui, size, None);
+    }
+
+    /// [`map_input`](Self::map_input) for a field in the ARIA state `aria`,
+    /// such as an invalid one.
+    pub(crate) fn map_input_as(
+        &self,
+        egui: &mut egui::Style,
+        size: Size,
+        aria: Option<crate::Aria>,
+    ) {
         use crate::owned::{Frame, InputPart, input_keys};
         let input = &self.input;
         let size = input.sizes.key_for(size);
         let metrics = input.sizes.get(size);
-        let classes = self
-            .sheet
-            .resolve(InputPart::Root, &input_keys(size, false), &self.tokens);
+        let mut keys = input_keys(size, false);
+        keys.extend(aria.map(crate::sheet::Key::Aria));
+        let classes = self.sheet.resolve(InputPart::Root, &keys, &self.tokens);
         let frame = Frame::of(&classes);
         let v = &mut egui.visuals;
         v.text_edit_bg_color = frame.fill;

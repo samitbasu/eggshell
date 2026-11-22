@@ -100,8 +100,8 @@ pub(crate) use menu_sheet::{
     write_exceptions as write_menu_exceptions, write_rules as write_menu_rules,
 };
 pub use number::{Edit, Step, ValueRange};
-pub(crate) use options::Gate;
 pub use options::IntoTip;
+pub(crate) use options::{Gate, Validity};
 pub use progress::ProgressChain;
 pub use radio::RadioGroupChain;
 pub use readout::NumberChain;
@@ -655,14 +655,28 @@ pub(crate) fn text_sized<A>(b: &Builder<'_, '_, A>, size: Option<crate::contract
     }
 }
 
-/// The classes of a framed text field's leaf: the focus ring around the box the
-/// field's own frame draws, from the field's rules. The frame's border is
-/// egui's, set by [`Style::map_input`].
-pub(crate) fn text_field_classes<A: 'static>(b: &mut Builder<'_, '_, A>, size: Size) -> Tw {
+/// The classes of a framed text field's leaf in the ARIA state `aria`, if
+/// any: the ring around the box the field's own frame draws, from the
+/// field's rules, at rest (an invalid field's) and on focus. The frame's
+/// border is egui's, set by [`Style::map_input`].
+pub(crate) fn text_field_classes<A: 'static>(
+    b: &mut Builder<'_, '_, A>,
+    size: Size,
+    aria: Option<crate::Aria>,
+) -> Tw {
     let style = b.style().clone();
-    let keys = input_keys(style.input().sizes.key_for(size), false);
+    let mut keys = input_keys(style.input().sizes.key_for(size), false);
+    keys.extend(aria.map(crate::sheet::Key::Aria));
     let root = b.resolved_part(InputPart::Root, &keys);
     let leaf = tw().rounded_px(f32::from(root.paint.radius.nw));
+    let leaf = match aria {
+        Some(aria) => leaf.aria(aria),
+        None => leaf,
+    };
+    let leaf = match root.paint.ring {
+        Some(ring) => leaf.ring(ring.width, ring.color),
+        None => leaf,
+    };
     match root.variant_ring(crate::tw::State::Focus) {
         Some(ring) => leaf.focus_within(|p| p.ring(ring.width, ring.color)),
         None => leaf,
@@ -699,7 +713,7 @@ impl Chevron {
 fn choice_row<A>(
     b: &mut Builder<'_, '_, A>,
     text: &TextSpec,
-    enablement: Enablement,
+    (enablement, validity): (Enablement, &Validity),
     gap: f32,
 ) -> Tw {
     let own = tw().gap(gap / 4.0).role(TextSpec {
@@ -710,7 +724,9 @@ fn choice_row<A>(
         Enablement::Enabled => own,
         Enablement::Disabled => own.inert(),
     };
-    b.part(FieldPart::Root, &FieldPart::keys(enablement), own)
+    let mut keys = FieldPart::keys(enablement);
+    keys.extend(validity.field_key(enablement));
+    b.part(FieldPart::Root, &keys, own)
 }
 
 /// The visible label of the control `control`: clicking it runs `on_click`,

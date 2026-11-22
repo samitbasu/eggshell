@@ -78,6 +78,7 @@ mod hover_card;
 mod icons;
 mod inert_look;
 mod interaction;
+mod invalid;
 mod invisible;
 mod kaolin_sidebar;
 mod known_gaps_demo;

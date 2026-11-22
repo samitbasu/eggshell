@@ -510,6 +510,7 @@ pub(crate) fn show<'f, A: 'static>(
         on_query,
         empty,
         classes,
+        error: _,
     } = options;
     let listing = Rc::new(Listing::filtered(items, &query, filter.as_ref(), filtering));
     let looks = shape.looks;
