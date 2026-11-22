@@ -76,6 +76,16 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(LYRA, 1417, "disabled:bg-transparent")
             .bg(Color32::TRANSPARENT)
     });
+    s.rule_when(Input, When::always().attr("addon", "inline-end"), |t, _| {
+        t
+            .from(LYRA, 1369, "has-[>[data-align=inline-end]]:[&>input]:pr-1.5")
+            .pr(1.5)
+    });
+    s.rule_when(Input, When::always().attr("addon", "inline-start"), |t, _| {
+        t
+            .from(LYRA, 1369, "has-[>[data-align=inline-start]]:[&>input]:pl-1.5")
+            .pl(1.5)
+    });
     s.replace(Textarea, |t, k| {
         t
             .from(LYRA, 1309, "border-input")
@@ -295,16 +305,6 @@ pub(crate) fn light(s: &mut Sheet) {
             .items_center()
         // registry/bases/radix/ui/input-group.tsx:17  outline-none: nothing to do
     });
-    s.rule_when(Input, When::always().attr("addon", "inline-end"), |t, _| {
-        t
-            .from(LYRA, 1369, "has-[>[data-align=inline-end]]:[&>input]:pr-1.5")
-            .pr(1.5)
-    });
-    s.rule_when(Input, When::always().attr("addon", "inline-start"), |t, _| {
-        t
-            .from(LYRA, 1369, "has-[>[data-align=inline-start]]:[&>input]:pl-1.5")
-            .pl(1.5)
-    });
     s.replace(Text, |t, k| {
         t
             .from(LYRA, 1413, "text-muted-foreground")
@@ -431,6 +431,16 @@ pub(crate) fn dark(s: &mut Sheet) {
             .bg(k.input.gamma_multiply(0.8))
             .from(LYRA, 1417, "dark:disabled:bg-transparent")
             .bg(Color32::TRANSPARENT)
+    });
+    s.rule_when(Input, When::always().attr("addon", "inline-end"), |t, _| {
+        t
+            .from(LYRA, 1369, "has-[>[data-align=inline-end]]:[&>input]:pr-1.5")
+            .pr(1.5)
+    });
+    s.rule_when(Input, When::always().attr("addon", "inline-start"), |t, _| {
+        t
+            .from(LYRA, 1369, "has-[>[data-align=inline-start]]:[&>input]:pl-1.5")
+            .pl(1.5)
     });
     s.replace(Textarea, |t, k| {
         t
@@ -664,16 +674,6 @@ pub(crate) fn dark(s: &mut Sheet) {
             .bg(k.input.gamma_multiply(0.3))
             .from(LYRA, 1369, "dark:has-disabled:bg-input/80")
             .has(Match::aria(Aria::Disabled), |b| b.bg(k.input.gamma_multiply(0.8)))
-    });
-    s.rule_when(Input, When::always().attr("addon", "inline-end"), |t, _| {
-        t
-            .from(LYRA, 1369, "has-[>[data-align=inline-end]]:[&>input]:pr-1.5")
-            .pr(1.5)
-    });
-    s.rule_when(Input, When::always().attr("addon", "inline-start"), |t, _| {
-        t
-            .from(LYRA, 1369, "has-[>[data-align=inline-start]]:[&>input]:pl-1.5")
-            .pl(1.5)
     });
     s.replace(Text, |t, k| {
         t

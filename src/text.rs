@@ -369,27 +369,60 @@ pub enum Numerals {
     Tabular,
 }
 
-/// Extra space between letters, in points.
+/// Extra space between letters: in points, or in ems of the text's size,
+/// as Tailwind's `tracking-*` gives it.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Tracking(f32);
+pub struct Tracking(Spacing);
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Spacing {
+    Points(f32),
+    Em(f32),
+}
+
+impl Default for Spacing {
+    fn default() -> Self {
+        Self::Points(0.0)
+    }
+}
 
 impl Tracking {
     /// No extra space.
-    pub const ZERO: Self = Self(0.0);
+    pub const ZERO: Self = Self(Spacing::Points(0.0));
 
     /// Extra space of `points` between letters; non-finite input is no extra space.
     pub fn points(points: f32) -> Self {
         if points.is_finite() {
-            Self(points)
+            Self(Spacing::Points(points))
         } else {
             Self::ZERO
         }
     }
-}
 
-impl From<Tracking> for f32 {
-    fn from(tracking: Tracking) -> f32 {
-        tracking.0
+    /// TODO(prose): extra space of `em` times the text's size between
+    /// letters: `tracking-widest` is `em(0.1)`. Non-finite input is no extra
+    /// space.
+    ///
+    /// ```
+    /// use eggshell_ui::Tracking;
+    ///
+    /// assert_eq!(Tracking::em(0.1).at(12.0), 1.2);
+    /// assert_eq!(Tracking::points(2.0).at(12.0), 2.0);
+    /// ```
+    pub fn em(em: f32) -> Self {
+        if em.is_finite() {
+            Self(Spacing::Em(em))
+        } else {
+            Self::ZERO
+        }
+    }
+
+    /// TODO(prose): the extra space in points, for text of `size` points.
+    pub fn at(self, size: f32) -> f32 {
+        match self.0 {
+            Spacing::Points(points) => points,
+            Spacing::Em(em) => em * size,
+        }
     }
 }
 

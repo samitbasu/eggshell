@@ -293,9 +293,10 @@ fn own_key(variant: &str) -> Option<String> {
 /// is focused when it is the list's current one (Radix moves focus to it,
 /// Base UI marks it highlighted); eggshell marks the current item the same
 /// way whether the keyboard or the pointer made it current. shadcn picks
-/// items out the same way, by a `data-slot` ending in `-item`.
+/// items out the same way, by a `data-slot` ending in `-item`, and a
+/// submenu's trigger is an item of its menu.
 fn highlighted_on_items(slot: &str, class: &str) -> String {
-    if !slot.ends_with("-item") {
+    if !(slot.ends_with("-item") || slot.ends_with("-sub-trigger")) {
         return class.to_owned();
     }
     let (variants, utility) = split_variants(class);
@@ -330,6 +331,7 @@ fn equivalent(utility: &str) -> Option<(Option<&'static str>, Kind)> {
         "pointer-events-none" => (Some(".pointer_events_none()"), Kind::Equivalent),
         "translate-y-px" => (Some(".translate_y(1.0)"), Kind::Equivalent),
         "shadow-none" => (Some(".shadow(Shadow::NONE)"), Kind::Equivalent),
+        "tracking-widest" => (Some(".tracking(Tracking::em(0.1))"), Kind::Equivalent),
         "outline-none" | "outline-hidden" => (None, Kind::NoOp),
         _ => return None,
     })
@@ -425,6 +427,18 @@ impl Classifier<'_> {
     }
 
     fn leaf(&self, utility: &str, kinds: &mut BTreeSet<Kind>) -> Result<Leaf, String> {
+        const MARGINS: [&str; 7] = ["m-", "mx-", "my-", "mt-", "mr-", "mb-", "ml-"];
+        if let Some(margin) = utility
+            .strip_prefix('-')
+            .filter(|rest| MARGINS.iter().any(|m| rest.starts_with(m)))
+        {
+            return match self.leaf(margin, kinds)? {
+                Leaf::Call(call) if call.contains('(') && !call.contains("(-") => {
+                    Ok(Leaf::Call(call.replacen('(', "(-", 1)))
+                }
+                _ => Err(format!("no negative form of `{margin}`")),
+            };
+        }
         if let Some((call, kind)) = equivalent(utility) {
             kinds.insert(kind);
             return Ok(Leaf::Call(call.unwrap_or_default().to_owned()));
@@ -1022,6 +1036,25 @@ pub fn emit(
             }
         }
     }
+    // A part's base rule replaces the lower layers' rules for it, so it
+    // comes before the part's conditional rules, which it would otherwise
+    // cut off.
+    let first_seen: Vec<String> =
+        rules
+            .iter()
+            .map(|r| r.part.clone())
+            .fold(Vec::new(), |mut seen, part| {
+                if !seen.contains(&part) {
+                    seen.push(part);
+                }
+                seen
+            });
+    rules.sort_by_key(|r| {
+        (
+            first_seen.iter().position(|p| *p == r.part),
+            r.when != "When::always()",
+        )
+    });
     let mut body = String::new();
     let mut constants = BTreeMap::new();
     for half in ["light", "dark"] {
@@ -1104,6 +1137,7 @@ pub fn emit(
         ("Aria::", "Aria"),
         ("Match::", "Match"),
         ("Opacity::", "Opacity"),
+        ("Tracking::", "Tracking"),
     ] {
         if body.contains(needle) {
             core.push(name);
@@ -1161,6 +1195,10 @@ mod tests {
             highlighted_on_items("select-trigger", "focus:bg-accent"),
             "focus:bg-accent"
         );
+        assert_eq!(
+            highlighted_on_items("dropdown-menu-sub-trigger", "focus:bg-accent"),
+            "data-highlighted:bg-accent"
+        );
     }
 
     fn table() -> TwTable {
@@ -1169,6 +1207,7 @@ mod tests {
         px, "`px-<units>`: left and right padding.", |s, v| {};
         pl, "`pl-<units>`: left padding.", |s, v| {};
         p, "`p-<units>`: padding on every side.", |s, v| {};
+        mx, "`mx-<units>`: left and right margin.", |s, v| {};
     }
     lengths! {
         h, h_px, h_frac, h_full, h_auto, "the height", |s, l| {};
@@ -1236,6 +1275,9 @@ mod tests {
             assert_eq!(one(c, "border"), ".border(1.0)");
             assert_eq!(one(c, "shadow-xs"), ".shadow(k.shadow_xs)");
             assert!(c.translate("shadow-2xl").is_err());
+            assert_eq!(one(c, "-mx-1"), ".mx(-1.0)", "a negative margin");
+            assert!(c.translate("-px-1").is_err(), "padding is never negative");
+            assert_eq!(one(c, "tracking-widest"), ".tracking(Tracking::em(0.1))");
         });
     }
 

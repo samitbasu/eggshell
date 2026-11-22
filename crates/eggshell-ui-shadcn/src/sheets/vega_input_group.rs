@@ -74,6 +74,16 @@ pub(crate) fn light(s: &mut Sheet) {
             .from(INPUT, 10, "disabled:opacity-50")
             .opacity(Opacity::new(0.5))
     });
+    s.rule_when(Input, When::always().attr("addon", "inline-end"), |t, _| {
+        t
+            .from(VEGA, 1398, "has-[>[data-align=inline-end]]:[&>input]:pr-1.5")
+            .pr(1.5)
+    });
+    s.rule_when(Input, When::always().attr("addon", "inline-start"), |t, _| {
+        t
+            .from(VEGA, 1398, "has-[>[data-align=inline-start]]:[&>input]:pl-1.5")
+            .pl(1.5)
+    });
     s.replace(Textarea, |t, k| {
         t
             .from(VEGA, 1338, "border-input")
@@ -280,16 +290,6 @@ pub(crate) fn light(s: &mut Sheet) {
             .items_center()
         // registry/bases/radix/ui/input-group.tsx:17  outline-none: nothing to do
     });
-    s.rule_when(Input, When::always().attr("addon", "inline-end"), |t, _| {
-        t
-            .from(VEGA, 1398, "has-[>[data-align=inline-end]]:[&>input]:pr-1.5")
-            .pr(1.5)
-    });
-    s.rule_when(Input, When::always().attr("addon", "inline-start"), |t, _| {
-        t
-            .from(VEGA, 1398, "has-[>[data-align=inline-start]]:[&>input]:pl-1.5")
-            .pl(1.5)
-    });
     s.replace(Text, |t, k| {
         t
             .from(VEGA, 1438, "text-muted-foreground")
@@ -412,6 +412,16 @@ pub(crate) fn dark(s: &mut Sheet) {
             .pointer_events_none()
             .from(INPUT, 10, "disabled:opacity-50")
             .opacity(Opacity::new(0.5))
+    });
+    s.rule_when(Input, When::always().attr("addon", "inline-end"), |t, _| {
+        t
+            .from(VEGA, 1398, "has-[>[data-align=inline-end]]:[&>input]:pr-1.5")
+            .pr(1.5)
+    });
+    s.rule_when(Input, When::always().attr("addon", "inline-start"), |t, _| {
+        t
+            .from(VEGA, 1398, "has-[>[data-align=inline-start]]:[&>input]:pl-1.5")
+            .pl(1.5)
     });
     s.replace(Textarea, |t, k| {
         t
@@ -626,16 +636,6 @@ pub(crate) fn dark(s: &mut Sheet) {
         // registry/bases/radix/ui/input-group.tsx:17  outline-none: nothing to do
             .from(VEGA, 1398, "dark:bg-input/30")
             .bg(k.input.gamma_multiply(0.3))
-    });
-    s.rule_when(Input, When::always().attr("addon", "inline-end"), |t, _| {
-        t
-            .from(VEGA, 1398, "has-[>[data-align=inline-end]]:[&>input]:pr-1.5")
-            .pr(1.5)
-    });
-    s.rule_when(Input, When::always().attr("addon", "inline-start"), |t, _| {
-        t
-            .from(VEGA, 1398, "has-[>[data-align=inline-start]]:[&>input]:pl-1.5")
-            .pl(1.5)
     });
     s.replace(Text, |t, k| {
         t

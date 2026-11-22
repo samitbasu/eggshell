@@ -9,10 +9,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use egui::accesskit::HasPopup;
-use egui::{Color32, Context, EventFilter, Id, Key as EguiKey, Painter, Pos2, Rect, Role, Vec2};
+use egui::{Context, EventFilter, Id, Key as EguiKey, Pos2, Role, Vec2};
 
 use super::button::{ButtonChain, ButtonOptions, Face};
-use super::menu_sheet::MenuPart;
+use super::menu_sheet::{INSET, MenuPart};
 use super::{
     Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, painted, tipped,
 };
@@ -24,6 +24,7 @@ use crate::kept::Handle;
 use crate::overlay::{Anchor, Distance, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::pipeline::OpenFocus;
+use crate::sheet::Key;
 use crate::{Builder, CommandState, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
 
 /// The parts of a menu.
@@ -461,16 +462,21 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         } = row;
         let (enablement, tip) = gate.resolve(&mut self.b, slot.id, enablement);
         let shared = self.shared.clone();
-        let dot = shared.style.menu().dot;
         let part = match (&lead, &trail) {
             (_, Trail::Chevron) => MenuPart::SubTrigger,
             (Lead::Check(_), _) => MenuPart::CheckboxItem,
             (Lead::Dot(_), _) => MenuPart::RadioItem,
             _ => MenuPart::Item,
         };
-        let classes = self
-            .b
-            .part(part, &MenuPart::item_keys(tone, enablement), tw());
+        let mut keys = MenuPart::item_keys(tone, enablement);
+        if matches!(lead, Lead::Inset) {
+            keys.push(Key::Attr(INSET.0, INSET.1));
+        }
+        let own = match enablement {
+            Enablement::Enabled => tw().sense_click(),
+            Enablement::Disabled => tw().inert(),
+        };
+        let classes = self.b.part(part, &keys, own);
         let shown = label.clone();
         let (root, depth, id) = (shared.root, self.depth, slot.id);
         let owns = match reaction {
@@ -485,27 +491,17 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         self.b
             .div_id_with(&slot, classes, |b| {
                 match lead {
-                    Lead::Nothing => {}
+                    Lead::Nothing | Lead::Inset => {}
                     Lead::Icon(icon) => {
-                        let classes = b.part(MenuPart::ItemIndicator, &[], tw());
-                        b.icon("icon", classes, icon);
+                        b.icon("icon", tw(), icon);
                     }
-                    Lead::Check(Mark::On) => {
+                    Lead::Check(mark) | Lead::Dot(mark) => {
                         let classes = b.part(MenuPart::ItemIndicator, &[], tw());
-                        b.glyph(classes, check());
-                    }
-                    Lead::Dot(Mark::On) => {
-                        let classes = b.part(MenuPart::ItemIndicator, &[], tw());
-                        b.paint(
-                            classes,
-                            move |painter: &Painter, rect: Rect, color: Color32| {
-                                painter.circle_filled(rect.center(), dot / 2.0, color);
-                            },
-                        );
-                    }
-                    Lead::Inset | Lead::Check(Mark::Off) | Lead::Dot(Mark::Off) => {
-                        let classes = b.part(MenuPart::ItemIndicator, &[], tw());
-                        b.div(classes, |_| {});
+                        b.div(classes, |b| {
+                            if mark == Mark::On {
+                                b.glyph(tw(), check());
+                            }
+                        });
                     }
                 }
                 b.text(tw(), shown);
@@ -516,8 +512,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
                         b.text(classes, keys);
                     }
                     Trail::Chevron => {
-                        let classes = b.part(MenuPart::ItemIndicator, &[], tw().ml_auto());
-                        b.glyph(classes, Chevron::Right.icon());
+                        b.glyph(tw().ml_auto(), Chevron::Right.icon());
                     }
                 }
             })
