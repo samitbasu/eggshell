@@ -2,9 +2,9 @@
 //! `Builder::part_over`: the widgets' defaults, under every layer of the
 //! sheet, and cut by a rule that replaces the part's lower layers.
 
-use eggshell_ui::sheet::{Defaults, Layer, Part};
+use eggshell_ui::sheet::{Defaults, Part};
 use eggshell_ui::testing::{Driver, Target};
-use eggshell_ui::{Builder, Property, Source, Style, TextSpec, TextStyle, Weight, tw};
+use eggshell_ui::{Builder, Style, TextSpec, TextStyle, Weight, tw};
 use egui::{Color32, FontFamily, vec2};
 
 use crate::support;
@@ -84,8 +84,11 @@ fn a_rule_that_replaces_the_part_cuts_its_defaults() {
     );
 }
 
+#[cfg(debug_assertions)]
 #[test]
 fn the_inspector_shows_the_defaults_as_their_layer_at_the_widgets_lines() {
+    use eggshell_ui::sheet::Layer;
+    use eggshell_ui::{Property, Source};
     let mut d = driver(|_| {});
     let height = d
         .why(Target::suffix("\"chip\""), Property::height)

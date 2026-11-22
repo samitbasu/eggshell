@@ -50,9 +50,9 @@ mod typeset;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/command_palette.rs"]
-#[allow(dead_code)]
 mod command_palette;
 
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/dialog.rs"]
 mod dialog;
 
