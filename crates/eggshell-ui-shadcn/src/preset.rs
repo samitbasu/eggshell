@@ -11,7 +11,9 @@ use eggshell_ui::{Aria, Easing, Match, Opacity, TextSpec, Tracking, Weight};
 use egui::{Color32, Context, Id, Shadow, Theme, vec2};
 
 use crate::styles::{HoverSurface, ShadcnStyle};
-use crate::{ContrastPair, FontSet, Palette, Tokens, size, variant};
+#[cfg(feature = "extras")]
+use crate::variant;
+use crate::{ContrastPair, FontSet, Palette, Tokens, size};
 
 /// The shadcn/ui preset: [`Tokens`] for one egui theme.
 #[derive(Clone, Debug, PartialEq)]

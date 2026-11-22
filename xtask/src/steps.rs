@@ -225,6 +225,25 @@ pub fn screenshots() -> Step {
     })
 }
 
+/// The crates with optional features, built with none of them: what is
+/// gated on a feature must build, and lint, without it.
+pub fn features() -> Step {
+    Step::cargo(
+        "features",
+        &[
+            "clippy",
+            "-p",
+            "eggshell-ui-shadcn",
+            "-p",
+            "eggshell-ui-extras",
+            "--no-default-features",
+            "--",
+            "-D",
+            "warnings",
+        ],
+    )
+}
+
 /// What CI runs, in order. The test step carries the golden check, which needs
 /// Mesa lavapipe, locally and on the runner alike.
 pub fn ci_steps() -> Vec<Step> {
@@ -244,6 +263,7 @@ pub fn ci_steps() -> Vec<Step> {
                 "warnings",
             ],
         ),
+        features(),
         Step::internal("shadcn-sheets", crate::shadcn_import::check),
         Step::internal("test", snapshots::test_with_goldens),
         Step::cargo("doctest", &["test", "--workspace", "--doc"]),
@@ -333,6 +353,7 @@ mod tests {
                 "cargo fmt --all --check",
                 "built-in clock check",
                 "cargo clippy --workspace --all-targets --features eggshell-ui/snapshots -- -D warnings",
+                "cargo clippy -p eggshell-ui-shadcn -p eggshell-ui-extras --no-default-features -- -D warnings",
                 "built-in shadcn-sheets check",
                 "built-in test check",
                 "cargo test --workspace --doc",
@@ -371,6 +392,7 @@ mod tests {
                 "fmt",
                 "clock",
                 "clippy",
+                "features",
                 "shadcn-sheets",
                 "test",
                 "doctest",
