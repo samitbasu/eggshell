@@ -53,7 +53,20 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             s.overlay(P::Pop)
                 .anchor(Anchor::Node(trigger))
                 .on_dismiss(|app: &mut App| app.open = Shown::Closed)
-                .popover(|s| s.text(tw(), "A popover"));
+                .popover(|s| {
+                    s.text(tw().font_medium(), "Dimensions");
+                    s.text(tw(), "Set the dimensions for the layer.");
+                    // shadcn's demo: `grid grid-cols-3 items-center gap-4`,
+                    // a label and an input `col-span-2`.
+                    for key in ["width", "height"] {
+                        s.div(tw().flex().items_center().gap(4.0), |row| {
+                            row.text(tw().w_px(80.0).shrink_0(), key);
+                            row.text_field_with(key, Field::singleline(&app.name).named(key))
+                                .classes(tw().flex_1())
+                                .on_change(|_: &mut App, _| {});
+                        });
+                    }
+                });
         }
     });
     let close = |app: &mut App| {
@@ -334,4 +347,33 @@ fn the_popover_box_is_the_styles() {
         log(&harness)
     );
     assert_eq!(rect_of(&harness, "/Page/Pop/Box").width(), 288.0);
+}
+
+/// What a popover holds stays inside its box: a field's natural width
+/// (egui's 280 px) is more than the room its row leaves it, and it shrinks
+/// to fit, shadcn's Input's `min-w-0` (#411's render round showed the rows'
+/// fields spilling out).
+#[test]
+fn a_popovers_field_stays_inside_its_box() {
+    let mut harness = harness(App {
+        kind: Kind::Popover,
+        ..App::default()
+    });
+    click_node(&mut harness, "/Page/Trigger");
+    settle(&mut harness);
+    let popover = rect_of(&harness, "/Page/Pop/Box");
+    let inside: Vec<(String, egui::Rect)> = support::nodes(&harness)
+        .into_iter()
+        .filter(|(path, _)| path.starts_with("/Page/Pop/Box/"))
+        .collect();
+    assert!(
+        inside.iter().any(|(path, _)| path.contains("width")),
+        "precondition: the field is in the popover: {inside:?}"
+    );
+    for (path, rect) in inside {
+        assert!(
+            popover.shrink(16.0 - 0.5).contains_rect(rect),
+            "{path} {rect:?} is inside the box's padding, {popover:?}"
+        );
+    }
 }
