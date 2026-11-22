@@ -308,8 +308,11 @@ impl<'a, 'f, A: 'static> StepperChain<'a, 'f, A> {
                 .button
                 .classes(&style, 0, enablement, stepper.transition);
             // shadcn's `InputGroupButton` is a ghost `Button`; the stepper's
-            // buttons share its column's height, each rounding its outer corner.
+            // buttons fill its column, without a button's padding and border,
+            // each rounding its outer corner.
             let own = centered(tw())
+                .p(0.0)
+                .border(0.0)
                 .sense_click()
                 .focusable_none()
                 .grow()

@@ -180,3 +180,28 @@ fn a_control_that_asks_for_a_size_ignores_the_one_its_subtree_inherits() {
     });
     assert_eq!(own, sm);
 }
+
+fn stepper_at(b: &mut Builder<'_, '_, Size>, size: &Size) {
+    b.div_id("Page", tw().flex().flex_col().p(2.0).control_size(*size), |s| {
+        s.stepper("stepper", 3.0, 0.0..=9.0)
+            .named("Stepper")
+            .on_change(|_, _| {});
+    });
+}
+
+#[test]
+fn a_steppers_buttons_fit_inside_its_group_at_every_size() {
+    for size in [Size::DEFAULT, SM, XS] {
+        let d = support::driver(vec2(300.0, 300.0), base_text(), size, stepper_at).build();
+        let group = d.rect(Target::suffix("/\"stepper\"/Box"));
+        let column = d.rect(Target::suffix("/\"stepper\"/Box/Buttons"));
+        assert!(group.contains_rect(column), "{size:?}: {column:?} outside {group:?}");
+        for button in ["Up", "Down"] {
+            let rect = d.rect(Target::suffix(&format!("/\"stepper\"/Box/Buttons/{button}")));
+            assert!(
+                column.contains_rect(rect),
+                "{size:?}: {button} {rect:?} outside its column {column:?}"
+            );
+        }
+    }
+}
