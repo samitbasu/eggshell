@@ -56,6 +56,16 @@ impl Sensing {
     pub(crate) fn is_none(self) -> bool {
         self == Self::None
     }
+
+    /// What a style's sheet may make a node sense: what its looks need to
+    /// show (the pointer over it), never clicks or drags, which would make
+    /// it a Tab stop. Whether a node is pressed or focused is the widget's.
+    pub(crate) fn looks_only(self) -> Self {
+        match self {
+            Self::None => Self::None,
+            Self::Hover | Self::Click | Self::Drag | Self::ClickDrag => Self::Hover,
+        }
+    }
 }
 
 impl From<Sensing> for Sense {

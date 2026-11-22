@@ -218,9 +218,7 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
         };
         let paint = match stop {
             Stop::Chip => look.classes(&core, style.radius, enablement, style.transition),
-            Stop::Remove => still(look)
-                .classes(&core, style.radius, enablement, style.transition)
-                .focusable_none(),
+            Stop::Remove => still(look).classes(&core, style.radius, enablement, style.transition),
         };
         // The ring while the × has the focus is the chip's own, not a look.
         let ring = match stop {

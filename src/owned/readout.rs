@@ -161,7 +161,7 @@ impl Readout {
                     &keys,
                     // The field is inset by egui's margin already, so its
                     // text stays where the readout drew it.
-                    tw().w_full().h_full().p(0.0).text_right().focusable_none(),
+                    tw().w_full().h_full().p(0.0).text_right(),
                 );
                 s.leaf(Part::Field, leaf, move |m| {
                     text_field::measure(m, &measured)
