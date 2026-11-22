@@ -109,6 +109,7 @@ pub use segmented::{Cell, SegmentedChain, SegmentedRows};
 pub use select::{SelectChain, SelectPart};
 pub(crate) use select::{write_select_exceptions, write_select_rules};
 pub(crate) use slider::write_exceptions as write_slider_exceptions;
+pub(crate) use stepper::write_exceptions as write_stepper_exceptions;
 
 /// Writes the recorded exception of the tracks over a preset's look (#132):
 /// a slider's and a progress bar's track are the style's fill (the input
@@ -640,49 +641,6 @@ impl Paint {
             }
         }
     }
-}
-
-/// The ring a field shows while it has focus: the look's own, else the style's.
-fn field_ring(look: &Look, style: &Style) -> crate::contract::Focus {
-    look.paint.focus.unwrap_or(style.tokens.focus)
-}
-
-/// A box that holds a text field, drawn in `look`: it does not sense, and shows
-/// the focus ring while a widget inside has focus.
-fn field_classes(look: &Look, style: &Style, radius: u8, enablement: Enablement) -> Tw {
-    let base = tw().border(look.border_width).rounded_px(f32::from(radius));
-    let (states, shadow) = (look.paint.states, look.paint.shadow);
-    let classes = match enablement {
-        Enablement::Disabled => painted(base, enablement.colors(states, style)).inert(),
-        Enablement::Enabled => {
-            let ring = field_ring(look, style);
-            painted(base, states.rest).focus_within(|p| {
-                p.border_color(states.focused.border)
-                    .ring(ring.width, ring.color)
-            })
-        }
-    };
-    match shadow {
-        Some(shadow) => classes.shadow(shadow),
-        None => classes,
-    }
-}
-
-/// A box in `look` of `radius` and `height` that holds a row: the frame of a
-/// field and of what sits beside it.
-pub(crate) fn field_box_classes(
-    look: &Look,
-    style: &Style,
-    radius: u8,
-    height: f32,
-    enablement: Enablement,
-) -> Tw {
-    enablement.fade(
-        field_classes(look, style, radius, enablement)
-            .flex()
-            .h_px(height),
-        style,
-    )
 }
 
 /// `size`'s text laid over the role the subtree inherits.

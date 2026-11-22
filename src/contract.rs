@@ -2352,6 +2352,7 @@ impl Style {
         // A disabled slider's blends go over its track's.
         crate::owned::write_track_exceptions(&mut self.sheet, (&self.slider, &self.progress));
         crate::owned::write_slider_exceptions(&mut self.sheet, &self.slider);
+        crate::owned::write_stepper_exceptions(&mut self.sheet, &self.stepper);
         crate::owned::write_table_exceptions(&mut self.sheet, &self.table);
         crate::owned::write_choice_exceptions(
             &mut self.sheet,
