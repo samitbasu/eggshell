@@ -692,3 +692,67 @@ fn shadcn_segmented_cells_all_carry_a_one_point_border_and_only_its_colour_varie
         assert_eq!(seg.selected.states.rest.border, selected, "{theme:?}");
     }
 }
+
+/// A section set after the preset changes what the widget reads of it and
+/// keeps the preset's look: its rules are the widgets' defaults, under the
+/// preset's.
+#[test]
+fn a_section_set_after_the_preset_keeps_the_presets_look() {
+    use eggshell_ui::owned::TooltipPart;
+    let mut style = Shadcn::for_theme(Theme::Light).style();
+    let before = style
+        .sheet
+        .resolve(TooltipPart::Content, &[], &style.tokens)
+        .style()
+        .clone();
+    let mut tooltip = style.tooltip().clone();
+    tooltip.delay = core::time::Duration::from_millis(123);
+    style.set_tooltip(tooltip);
+    assert_eq!(
+        style.tooltip().delay,
+        core::time::Duration::from_millis(123)
+    );
+    let after = style
+        .sheet
+        .resolve(TooltipPart::Content, &[], &style.tokens)
+        .style()
+        .clone();
+    assert_eq!(after, before, "the preset's look");
+    assert_eq!(
+        style.sheet.layer(),
+        eggshell_ui::sheet::Layer::Preset,
+        "the layer is kept"
+    );
+}
+
+/// A metric the preset's recorded exceptions read, changed after the preset,
+/// lands: the exceptions are written again over its look.
+#[test]
+fn a_section_metric_an_exception_reads_lands_after_the_preset() {
+    use eggshell_ui::contract::Size;
+    use eggshell_ui::owned::{Enablement, SegmentedRows, TabsPart};
+    let mut style = Shadcn::for_theme(Theme::Light).style();
+    let sm = Size("sm");
+    let height = |style: &eggshell_ui::Style| {
+        style
+            .sheet
+            .resolve(
+                TabsPart::List,
+                &TabsPart::list_keys(sm, SegmentedRows::One, Enablement::Enabled),
+                &style.tokens,
+            )
+            .style()
+            .size
+            .height
+    };
+    let mut segmented = style.segmented().clone();
+    assert!(
+        segmented.sizes.keys().any(|size| size == sm),
+        "precondition: the preset has a small size"
+    );
+    let mut metrics = *segmented.sizes.get(sm);
+    metrics.height = 50.0;
+    segmented.sizes = segmented.sizes.clone().with(sm, metrics);
+    style.set_segmented(segmented);
+    assert_eq!(height(&style), tw().h_px(50.0).style().size.height);
+}

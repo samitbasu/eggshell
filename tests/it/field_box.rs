@@ -166,12 +166,12 @@ fn a_focused_addon_button_rings_itself_not_its_group() {
 }
 
 #[test]
-fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus_set_after_the_preset() {
+fn a_field_box_without_a_ring_of_its_own_rings_in_the_tokens_focus() {
     let ring = Focus {
         width: 5.0,
         color: Color32::from_rgb(200, 30, 30),
     };
-    let mut style = Shadcn::for_theme(Theme::Light).style();
+    let mut style = support::sections_of(Shadcn::for_theme(Theme::Light).style());
     let mut input = style.input().clone();
     input.look.paint.focus = None;
     style.set_input(input);

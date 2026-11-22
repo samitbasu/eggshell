@@ -278,6 +278,18 @@ impl Sheet {
         self.layer
     }
 
+    pub(crate) fn set_layer(&mut self, layer: Layer) {
+        self.layer = layer;
+    }
+
+    /// Whether any rule was written at `layer`.
+    pub(crate) fn has_rules_at(&self, layer: Layer) -> bool {
+        self.rules
+            .values()
+            .flatten()
+            .any(|rule| rule.layer == layer)
+    }
+
     /// TODO(prose): adds the classes `body` writes for every node of `part`, given the style's tokens, at this sheet's layer, after the rules it has.
     pub fn rule<P: Part>(
         &mut self,

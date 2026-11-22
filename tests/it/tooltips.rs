@@ -482,7 +482,7 @@ const RED: egui::Color32 = egui::Color32::from_rgb(200, 20, 20);
 ///   <span title="Red mono">Rich</span>
 ///   <span title="Strong words">Strong</span>
 ///   <button>Target</button>
-///   <button>Built</button>  <!-- tooltip: Save <kbd>Ctrl+S</kbd> -->
+///   <button>Built</button>  <!-- tooltip: <button>Inside</button> Save <kbd>Ctrl+S</kbd> -->
 ///   <button disabled>Off</button>  <!-- tooltip: Cannot <kbd>Ctrl+S</kbd> -->
 ///   <kbd>K</kbd>
 /// </div>
@@ -504,11 +504,11 @@ fn rich_view(b: &mut Builder<'_, '_, App>, _: &App) {
                 .on_click(|app: &mut App| app.undone += 1);
             b.button("built", "Built")
                 .tooltip_with(|s| {
-                    s.text(tw(), "Save");
-                    s.kbd("Ctrl+S");
                     s.button("inside", "Inside").on_click(|_| {
                         INSIDE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     });
+                    s.text(tw(), "Save");
+                    s.kbd("Ctrl+S");
                 })
                 .add();
             b.button("off", "Off")
@@ -733,7 +733,7 @@ fn a_built_tooltip_describes_its_trigger_with_its_text_while_closed() {
     let node = d.harness().get_by_label("Built");
     assert_eq!(
         node.accesskit_node().description().as_deref(),
-        Some("Save Ctrl+S Inside")
+        Some("Inside Save Ctrl+S")
     );
 }
 
@@ -1542,30 +1542,29 @@ fn a_truncated_span_keeps_its_whole_text_as_its_name_and_no_description() {
 /// tooltip.tsx): `bg-foreground text-background px-3 py-1.5 rounded-md`, and
 /// `has-data-[slot=kbd]:pr-1.5` with `**:data-[slot=kbd]:rounded-sm`.
 #[test]
-fn the_tooltip_is_shadcns_and_reaches_its_kbd_chip() {
-    // Not `harness_of`: `set_tooltip` there rewrites the section's rules over
-    // the preset's.
-    let mut d = harness_styled(
-        |b, _| {
-            b.div(
-                tw().pt(10.0).gap(4.0).flex().flex_col().items_start(),
-                |b| {
-                    b.button("plain", "Plain").tooltip("Plain words").add();
-                    b.button("keyed", "Keyed")
-                        .tooltip_with(|s| {
-                            s.text(tw(), "Save");
-                            s.kbd("Ctrl+S");
-                        })
-                        .add();
-                },
-            );
-        },
-        |_| {},
+fn the_tooltip_is_shadcns_after_a_section_change_and_reaches_its_kbd_chip() {
+    // `harness_of` sets the tooltip section's delay after the preset, which
+    // keeps the preset's look.
+    let mut d = harness_of(|b, _| {
+        b.div(
+            tw().pt(10.0).gap(4.0).flex().flex_col().items_start(),
+            |b| {
+                b.button("plain", "Plain").tooltip("Plain words").add();
+                b.button("keyed", "Keyed")
+                    .tooltip_with(|s| {
+                        s.text(tw(), "Save");
+                        s.kbd("Ctrl+S");
+                    })
+                    .add();
+            },
+        );
+    });
+    assert_eq!(
+        d.shell().style().tooltip().delay,
+        DELAY,
+        "precondition: the delay is the one set after the preset"
     );
-    let wait = {
-        let tooltip = d.shell().style().tooltip().clone();
-        tooltip.delay + tooltip.grace
-    };
+    let wait = DELAY + GRACE;
     let t = Tokens::for_theme(d.ctx().theme());
     d.hover(Target::suffix("/\"plain\""));
     d.advance(wait);

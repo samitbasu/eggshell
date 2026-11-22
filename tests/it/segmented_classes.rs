@@ -37,6 +37,10 @@ struct App {
 }
 
 fn edit(style: &mut Style, ambient: Ambient) {
+    // The disabled token reaches the section's look, not the preset's.
+    if matches!(ambient, Ambient::Inert | Ambient::InertFaded) {
+        *style = support::sections_of(style.clone());
+    }
     if ambient == Ambient::InertFaded {
         style.tokens.disabled = Disabled::Faded(Opacity::new(0.4));
     }
