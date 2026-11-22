@@ -69,6 +69,24 @@ fn paint_fill(painter: &Painter, track: Rect, radius: f32, value: Progress, colo
     }
 }
 
+/// TODO(prose): a progress bar's anatomy for the
+/// [`Sheet`](crate::sheet::Sheet), as shadcn's `progress.tsx` names it. Its
+/// fill is painted, to end straight at the value and follow the track's
+/// rounded end, in the style's range colour.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ProgressPart {
+    /// TODO(prose): the track.
+    Root,
+}
+
+impl crate::sheet::Part for ProgressPart {
+    const SOURCE: &'static str = "progress.tsx";
+
+    fn slot(self) -> &'static str {
+        "progress"
+    }
+}
+
 /// A bar filled to `progress`, drawn from the [`Style`](crate::Style)'s progress entry, and
 /// announced to assistive technology as a progress indicator whose value is
 /// the percentage. The fill ends in a straight edge at the value and follows
@@ -157,7 +175,12 @@ impl<'a, 'f, A: 'static> ProgressChain<'a, 'f, A> {
         let (_, tooltip) = gate.resolve(&mut b, slot.id, super::Enablement::Enabled);
         let style = b.style().clone();
         let bar = &style.progress;
-        let track = track_classes((bar.height, bar.radius), bar.track).merge(classes);
+        let track = b.part_over(
+            ProgressPart::Root,
+            &[],
+            crate::sheet::Defaults(track_classes((bar.height, bar.radius), bar.track)),
+            classes,
+        );
         let (radius, fill) = (f32::from(bar.radius), bar.range.fill);
         let percent = f64::from(f32::from(progress) * 100.0);
         let name = name.unwrap_or_default();

@@ -24,7 +24,7 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 25] = [
+const COMPONENTS: [&str; 28] = [
     "accordion",
     "alert-dialog",
     "button",
@@ -50,12 +50,15 @@ const COMPONENTS: [&str; 25] = [
     "tabs",
     "textarea",
     "tooltip",
+    "skeleton",
+    "spinner",
+    "progress",
 ];
 
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 24] = [
+const WIDGETS: [emit::Widget; 27] = [
     emit::Widget {
         component: "button",
         home: Home::Core,
@@ -496,6 +499,57 @@ const WIDGETS: [emit::Widget; 24] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &[],
+        copies: &[],
+    },
+    emit::Widget {
+        component: "skeleton",
+        home: Home::Extension("eggshell_ui_extras::skeleton"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &[],
+        copies: &[],
+    },
+    emit::Widget {
+        component: "spinner",
+        home: Home::Extension("eggshell_ui_extras::spinner"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &[],
+        copies: &[],
+    },
+    emit::Widget {
+        component: "progress",
+        home: Home::Core,
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &[(
+            "progress-indicator",
+            "eggshell paints the fill, to end straight at the value and follow the track's rounded end, in the style's range colour",
+        )],
         copies: &[],
     },
     emit::Widget {

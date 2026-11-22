@@ -558,9 +558,9 @@ impl Shadcn {
         };
         style.progress = {
             let mut progress = style.progress;
-            progress.height = 8.0;
+            progress.height = 6.0;
             progress.radius = u8::MAX;
-            progress.track = flat(t.primary.gamma_multiply(0.2), t.foreground);
+            progress.track = flat(t.input, t.foreground);
             progress.range = flat(t.primary, t.primary_foreground);
             progress
         };
