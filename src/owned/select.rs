@@ -491,11 +491,11 @@ impl<T: Copy + 'static> List<T> {
         let content = s.part(SelectPart::Content, &[], tw().flex().flex_col().min_h_0());
         let group = s.part(SelectPart::Group, &[], tw().flex().flex_col());
         super::fitted_box(s, fit, (Part::Box, Part::Rows), content, |s| {
-            s.div_id(Part::Group, group, |s| self.rows(s, choose));
+            s.div_id(Part::Group, group, |s| self.rows(s, choose, fit));
         });
     }
 
-    fn rows<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
+    fn rows<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>, fit: Fit) {
         let enabled = |at: usize| {
             self.options.get(at).is_some_and(|option| {
                 option.gated(Enablement::Enabled, Refused::No).0 == Enablement::Enabled
@@ -505,7 +505,8 @@ impl<T: Copy + 'static> List<T> {
             .current
             .filter(|&at| enabled(at))
             .or_else(|| (0..self.options.len()).find(|&at| enabled(at)));
-        if let Some(at) = start {
+        // Scrolled to once the list is drawn, in the container it is drawn in.
+        if let Some(at) = start.filter(|_| fit != Fit::Measuring) {
             let item = s.id_of(Part::Option(at));
             nav::highlight_initially(s.ctx(), s.kept(), self.list, item, self.trigger);
         }
