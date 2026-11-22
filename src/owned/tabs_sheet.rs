@@ -197,3 +197,48 @@ pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle, roles: 
         }
     }
 }
+
+/// Writes the tabs' recorded exceptions over the rules at the sheet's current
+/// layer: the list's track keeps `segmented`'s fill, which shadcn's `bg-muted`
+/// would lose on a muted panel (#346); a trigger's `h-[calc(100%-1px)]` is
+/// the list's full height inside a list padded half a point more, with the
+/// point its `text-sm` would overflow taken out of its own padding; the sizes other than the default keep their metrics;
+/// and wrapping lists, eggshell's own, keep their rows.
+pub(crate) fn write_exceptions(sheet: &mut Sheet, segmented: &SegmentedStyle) {
+    let fill = segmented.track_fill;
+    sheet.rule(TabsPart::List, move |t, _| t.bg(fill));
+    let one_row = When::always().not_attr(WRAPPING.0, WRAPPING.1);
+    let wrapping = When::always().attr(WRAPPING.0, WRAPPING.1);
+    let default = segmented.sizes.default_key();
+    for size in segmented.sizes.keys() {
+        let m = *segmented.sizes.get(size);
+        let when = When::always().size(size);
+        sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
+            t.py(m.cell_padding.y / 4.0)
+        });
+        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, _| {
+            t.py((m.track_padding + m.cell_trim / 2.0) / 4.0)
+        });
+        sheet.rule_when(TabsPart::List, wrapping.size(size), move |t, _| {
+            t.flex_wrap().h_auto().gap(m.row_gap / 4.0)
+        });
+        if size == default {
+            sheet.rule_when(TabsPart::List, when, |t, _| t);
+            continue;
+        }
+        sheet.rule_when(TabsPart::List, one_row.size(size), move |t, _| {
+            t.h_px(m.height)
+        });
+        sheet.rule_when(TabsPart::Trigger, when, move |t, _| {
+            let t = t
+                .px(m.cell_padding.x / 4.0)
+                .descendants(Match::glyph(), |g| g.size_px(m.icon_size));
+            match m.text {
+                Some(text) => t.text_size(text.size, text.line_height),
+                None => t,
+            }
+        });
+    }
+    sheet.rule_when(TabsPart::Trigger, one_row, |t, _| t.h_full());
+    sheet.rule_when(TabsPart::Trigger, wrapping, |t, _| t.h_auto());
+}

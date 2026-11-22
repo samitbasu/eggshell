@@ -564,7 +564,7 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
 }
 
 #[test]
-fn a_focus_ring_set_on_the_tokens_after_the_preset_is_the_one_drawn() {
+fn the_tokens_ring_is_drawn_over_the_preset_by_the_slider_and_by_the_mechanisms_cells() {
     let ring = Focus {
         width: 5.0,
         color: egui::Color32::from_rgb(200, 30, 30),
@@ -575,10 +575,17 @@ fn a_focus_ring_set_on_the_tokens_after_the_preset_is_the_one_drawn() {
         "precondition: the preset's ring is another"
     );
     style.tokens.focus = ring;
-    let mut d = harness(Theme::Light);
-    d.set_style(Themed::both(Arc::new(style)));
-    d.frames(4);
-    for path in ["/\"air\"/Track".to_owned(), cell_path(Unit::Metric)] {
+    // The preset's cells take shadcn's `focus-visible:ring-[3px]`; the
+    // tokens' ring is the mechanism's.
+    let mut bare = Style::default();
+    bare.tokens.focus = ring;
+    for (style, path) in [
+        (style, "/\"air\"/Track".to_owned()),
+        (bare, cell_path(Unit::Metric)),
+    ] {
+        let mut d = harness(Theme::Light);
+        d.set_style(Themed::both(Arc::new(style)));
+        d.frames(4);
         tab_to(&mut d, &path);
         d.frames(12);
         let drawn = ring_at(&d, d.rect(Target::suffix(&path))).expect("a focus ring");

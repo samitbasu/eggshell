@@ -220,7 +220,10 @@ impl<'s, 'b, 'f, A: 'static, K: Key, T: Copy + PartialEq + 'static>
                         let classes = b.part(
                             TabsPart::Trigger,
                             &TabsPart::trigger_keys(size, rows, cell, own),
-                            tw().sense_click(),
+                            match own {
+                                Enablement::Enabled => tw().sense_click().text_center(),
+                                Enablement::Disabled => tw().sense_click().text_center().inert(),
+                            },
                         );
                         let tab = match &option.icon {
                             None => b.span(Part::Tab(index), classes, option.label.clone()),
