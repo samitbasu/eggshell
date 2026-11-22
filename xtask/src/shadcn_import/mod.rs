@@ -24,10 +24,11 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 20] = [
+const COMPONENTS: [&str; 21] = [
     "alert-dialog",
     "button",
     "badge",
+    "card",
     "checkbox",
     "combobox",
     "dialog",
@@ -50,7 +51,7 @@ const COMPONENTS: [&str; 20] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 19] = [
+const WIDGETS: [emit::Widget; 20] = [
     emit::Widget {
         component: "button",
         home: Home::Core,
@@ -406,6 +407,22 @@ const WIDGETS: [emit::Widget; 19] = [
         copies: &[],
     },
     emit::Widget {
+        component: "card",
+        home: Home::Extension("eggshell_ui_extras::form"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &CARD_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
         component: "tabs",
         home: Home::Core,
         checked_in: true,
@@ -527,6 +544,20 @@ const POPOVER_ABSENT: [(&str, &str); 3] = {
         ("popover-header", BODY),
         ("popover-title", BODY),
         ("popover-description", BODY),
+    ]
+};
+
+/// The parts of shadcn's card a form section does not draw: the section's
+/// rows and title are its own.
+const CARD_ABSENT: [(&str, &str); 6] = {
+    const ROWS: &str = "a form section's rows and title are its own";
+    [
+        ("card-header", ROWS),
+        ("card-title", ROWS),
+        ("card-description", ROWS),
+        ("card-action", ROWS),
+        ("card-content", ROWS),
+        ("card-footer", ROWS),
     ]
 };
 
