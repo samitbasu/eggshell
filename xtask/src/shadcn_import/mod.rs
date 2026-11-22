@@ -24,13 +24,14 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 15] = [
+const COMPONENTS: [&str; 16] = [
     "button",
     "badge",
     "checkbox",
     "combobox",
     "dropdown-menu",
     "field",
+    "hover-card",
     "input",
     "input-group",
     "radio-group",
@@ -45,7 +46,7 @@ const COMPONENTS: [&str; 15] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 13] = [
+const WIDGETS: [emit::Widget; 14] = [
     emit::Widget {
         component: "button",
         home: Home::Core,
@@ -302,6 +303,22 @@ const WIDGETS: [emit::Widget; 13] = [
             ("table-caption", "eggshell's table has no caption"),
         ],
         copies: &[("Cell", &["FooterCell"])],
+    },
+    emit::Widget {
+        component: "hover-card",
+        home: Home::Extension("eggshell_ui_extras::hover_card"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &[],
+        copies: &[],
     },
     emit::Widget {
         component: "tabs",
