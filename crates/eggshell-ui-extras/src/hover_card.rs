@@ -41,7 +41,29 @@ use core::time::Duration;
 
 use eggshell_ui::contract::Look;
 use eggshell_ui::overlay::{Align, Distance, HoverIntent, Placement};
+use eggshell_ui::sheet::{Defaults, Part};
 use eggshell_ui::{Builder, Key, Scope, Style, Tw, tw};
+
+/// TODO(prose): the anatomy of a hover card for the style's sheet: shadcn's
+/// `hover-card`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum HoverCardPart {
+    /// TODO(prose): what the pointer or the focus rests on to open the card.
+    Trigger,
+    /// TODO(prose): the card's box.
+    Content,
+}
+
+impl Part for HoverCardPart {
+    const SOURCE: &'static str = "hover-card.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Trigger => "hover-card-trigger",
+            Self::Content => "hover-card-content",
+        }
+    }
+}
 
 /// TODO(prose): how hover cards look and when they open: a [`Style`]'s
 /// extension, else one made from it.
@@ -89,12 +111,10 @@ impl HoverCardStyle {
         }
     }
 
-    /// The classes of the card's box.
+    /// The look of the card's box, the widget's own.
     fn classes(&self) -> Tw {
         let colors = self.look.paint.states.rest;
         let classes = tw()
-            .flex()
-            .flex_col()
             .w_px(self.width)
             .p(self.padding / 4.0)
             .border(self.look.border_width)
@@ -224,6 +244,7 @@ where
             intent = intent.description(text);
         }
         let placement = placement.unwrap_or_else(|| style.placement());
+        let classes = b.part(HoverCardPart::Trigger, &[], classes);
         b.div_id(key, classes, |t| {
             body(t);
             t.overlay("Card")
@@ -232,7 +253,13 @@ where
                 .exit_transition(style.transition)
                 .placement(placement)
                 .children(|c| {
-                    c.div_id("Box", style.classes(), |c| content(c));
+                    let card = c.part_over(
+                        HoverCardPart::Content,
+                        &[],
+                        Defaults(style.classes()),
+                        tw().flex().flex_col(),
+                    );
+                    c.div_id("Box", card, |c| content(c));
                 });
         });
     }
