@@ -248,8 +248,10 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
         let size = switch.sizes.key_for(size);
         let thumb_scale = track.map_or(1.0, |track| track.y / metrics.track.y);
         let thumb = |b: &mut Builder<'_, '_, A>, mark| {
-            let classes =
-                b.resolved_part(SwitchPart::Thumb, &SwitchPart::keys(size, mark, enablement));
+            let classes = b.resolved_part(
+                SwitchPart::Thumb,
+                &form.keys(SwitchPart::keys(size, mark, enablement)),
+            );
             let diameter = classes.style().size.width.into_raw().value() * thumb_scale;
             let fill = classes
                 .paint
@@ -282,8 +284,8 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                 Easing::Default,
             );
             let own = match track {
-                Some(track) => tw().w_px(track.x).h_px(track.y),
-                None => tw(),
+                Some(track) => enablement.senses().w_px(track.x).h_px(track.y),
+                None => enablement.senses(),
             };
             let own = match tint == target {
                 true => own,
@@ -291,7 +293,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
                     let [off, on] = [Mark::Off, Mark::On].map(|mark| {
                         let classes = b.resolved_part(
                             SwitchPart::Root,
-                            &SwitchPart::keys(size, mark, enablement),
+                            &form.keys(SwitchPart::keys(size, mark, enablement)),
                         );
                         (classes.paint.background, classes.paint.border_colors.top)
                     });
@@ -309,7 +311,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SwitchChain<'a, 'f, A, T
             };
             let classes = b.part(
                 SwitchPart::Root,
-                &SwitchPart::keys(size, mark, enablement),
+                &form.keys(SwitchPart::keys(size, mark, enablement)),
                 own,
             );
             let row = choice_row(

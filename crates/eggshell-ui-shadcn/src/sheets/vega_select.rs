@@ -7,6 +7,7 @@ use eggshell_ui::owned::SelectPart;
 use eggshell_ui::sheet::{Sheet, When};
 use eggshell_ui::{Aria, Match, Opacity};
 
+const REGISTRY: &str = "registry/bases/radix/registry.ts";
 const SELECT: &str = "registry/bases/radix/ui/select.tsx";
 const VEGA: &str = "registry/styles/style-vega.css";
 
@@ -20,6 +21,8 @@ pub(crate) fn light(s: &mut Sheet) {
     });
     s.replace(Trigger, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 1004, "border-input")
             .border_color(k.input)
             .from(VEGA, 1004, "focus-visible:border-ring")
@@ -225,6 +228,8 @@ pub(crate) fn dark(s: &mut Sheet) {
     });
     s.replace(Trigger, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 1004, "border-input")
             .border_color(k.input)
             .from(VEGA, 1004, "focus-visible:border-ring")

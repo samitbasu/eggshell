@@ -544,10 +544,7 @@ impl<T: Copy + 'static> List<T> {
                 Enablement::Enabled => &[],
                 Enablement::Disabled => &[SheetKey::Aria(Aria::Disabled)],
             };
-            let own = match enablement {
-                Enablement::Enabled => tw().sense_click(),
-                Enablement::Disabled => tw().inert(),
-            };
+            let own = enablement.senses();
             let item = s.part(SelectPart::Item, keys, own.focusable_none());
             let indicator = s.part(SelectPart::ItemIndicator, &[], tw());
             let mark = s.part(SelectPart::ItemIndicatorIcon, &[], tw());

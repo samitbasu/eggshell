@@ -10,6 +10,7 @@ use eggshell_ui::sheet::{Sheet, When};
 use eggshell_ui::{Aria, Match, Opacity};
 
 const BUTTON: &str = "registry/bases/radix/ui/button.tsx";
+const REGISTRY: &str = "registry/bases/radix/registry.ts";
 const VEGA: &str = "registry/styles/style-vega.css";
 
 /// TODO(prose): shadcn's `button` in `style-vega.css`, light.
@@ -17,6 +18,8 @@ pub(crate) fn light(s: &mut Sheet) {
     use ButtonPart::*;
     s.replace(Root, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 146, "focus-visible:border-ring")
             .focus(|p| p.border_color(k.ring))
             .from(VEGA, 146, "focus-visible:ring-ring/50 focus-visible:ring-3")
@@ -267,6 +270,8 @@ pub(crate) fn dark(s: &mut Sheet) {
     use ButtonPart::*;
     s.replace(Root, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 146, "focus-visible:border-ring")
             .focus(|p| p.border_color(k.ring))
             .from(VEGA, 146, "focus-visible:ring-ring/50 focus-visible:ring-3")

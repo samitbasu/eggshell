@@ -226,6 +226,15 @@ fn has(variant: &str) -> Option<(&'static str, String)> {
     if let Some(name) = rest.strip_prefix("aria-") {
         return aria(name).and_then(|a| any(format!("Match::aria({a})")));
     }
+    if rest == "[:focus-visible]" {
+        return any("Match::focus_visible()".to_owned());
+    }
+    if let Some(name) = rest
+        .strip_prefix("data-")
+        .filter(|name| !name.starts_with('['))
+    {
+        return aria(name).and_then(|a| any(format!("Match::aria({a})")));
+    }
     if let Some(attr) = rest.strip_prefix("data-[") {
         return any(format!(
             "Match::any(){}",
@@ -282,7 +291,8 @@ fn own_key(variant: &str) -> Option<String> {
         "open" => return Some(format!(".{not}aria(Aria::Expanded)")),
         "active" => return Some(format!(".{not}aria(Aria::Selected)")),
         "closed" if !negated => return Some(".not_aria(Aria::Expanded)".to_owned()),
-        "highlighted" | "focused" | "closed" => return None,
+        "unchecked" if !negated => return Some(".not_aria(Aria::Checked)".to_owned()),
+        "highlighted" | "focused" | "closed" | "unchecked" => return None,
         _ => {}
     }
     match aria(data) {
@@ -334,6 +344,7 @@ fn equivalent(utility: &str) -> Option<(Option<&'static str>, Kind)> {
         "translate-y-px" => (Some(".translate_y(1.0)"), Kind::Equivalent),
         "shadow-none" => (Some(".shadow(Shadow::NONE)"), Kind::Equivalent),
         "max-w-xs" => (Some(".max_w_px(320.0)"), Kind::Equivalent),
+        "font-normal" => (Some(".font_weight(Weight::Normal)"), Kind::Equivalent),
         "tracking-widest" => (Some(".tracking(Tracking::em(0.1))"), Kind::Equivalent),
         "outline-none" | "outline-hidden" => (None, Kind::NoOp),
         _ => return None,
@@ -488,6 +499,9 @@ impl Classifier<'_> {
             return Ok(Leaf::Call(format!("{method}({units:?})")));
         }
         match self.utility(utility) {
+            Fate::Tw { call } if call.contains("(/*") => {
+                Err(format!("no value of `{utility}` for its `Tw` method"))
+            }
             Fate::Tw { call } => {
                 kinds.insert(Kind::TwCall);
                 Ok(Leaf::Call(floats(&call)))
@@ -891,6 +905,19 @@ fn file_constant(file: &str) -> String {
         .to_uppercase()
 }
 
+/// shadcn's base layer, `* { @apply border-border }`: every element's border
+/// colour, under the classes that name one.
+const BORDER_BASE: (&str, u32) = ("registry/bases/radix/registry.ts", 24);
+
+/// Whether a rule of `part` in `half` gives it a border width.
+fn draws_a_border(rules: &[Rule], part: &str, half: &str) -> bool {
+    rules
+        .iter()
+        .filter(|r| r.part == part)
+        .flat_map(|r| half_of(r, half))
+        .any(|(t, _)| matches!(&t.leaf, Leaf::Call(call) if call.starts_with(".border(")))
+}
+
 /// A class's source, as `source_of` writes it: its file, line and class.
 fn parse_source(source: &str) -> (&str, &str, &str) {
     let (file, rest) = source.split_once(':').unwrap_or((source, ""));
@@ -991,6 +1018,13 @@ pub fn emit(
             continue;
         }
         let source = source_of(row, sources);
+        if row.slot.is_empty() {
+            *kinds.entry(Kind::Never).or_insert(0) += 1;
+            dropped
+                .entry(source)
+                .or_insert("an element of another component, which names no part here");
+            continue;
+        }
         if let Some(&(_, why)) = widget.absent.iter().find(|(slot, _)| *slot == row.slot) {
             *kinds.entry(Kind::Never).or_insert(0) += 1;
             dropped.entry(source).or_insert(why);
@@ -1100,13 +1134,24 @@ pub fn emit(
             if !calls_text.contains(".from(") {
                 continue;
             }
-            let k = if calls_text.contains("k.") { "k" } else { "_" };
             let first_base = rule.when == "When::always()"
                 && rules
                     .iter()
                     .find(|r| r.part == rule.part)
                     .map(|r| r.when.as_str())
                     == Some("When::always()");
+            if first_base && draws_a_border(&rules, &rule.part, half) {
+                let constant = file_constant(BORDER_BASE.0);
+                calls_text.insert_str(
+                    0,
+                    &format!(
+                        "            .from({constant}, {}, \"border-border\")\n            .border_color(k.border)\n",
+                        BORDER_BASE.1
+                    ),
+                );
+                constants.insert(constant, BORDER_BASE.0.to_owned());
+            }
+            let k = if calls_text.contains("k.") { "k" } else { "_" };
             let (method, when) = match (first_base, rule.when.as_str()) {
                 (true, _) => ("replace".to_owned(), String::new()),
                 (false, "When::always()") => ("rule".to_owned(), String::new()),
@@ -1141,6 +1186,7 @@ pub fn emit(
         ("Match::", "Match"),
         ("Opacity::", "Opacity"),
         ("Tracking::", "Tracking"),
+        ("Weight::", "Weight"),
     ] {
         if body.contains(needle) {
             core.push(name);
@@ -1230,6 +1276,8 @@ mod tests {
     pub fn gap(self, units: f32) -> Self {
     /// `shrink-0`.
     pub fn shrink_0(self) -> Self {
+    /// `translate-x-*`.
+    pub fn translate_x(self, x: f32) -> Self {
     /// `line-clamp-<lines>`: at most so many lines.
     pub fn line_clamp(self, lines: u32) -> Self {
 "#
@@ -1282,8 +1330,13 @@ mod tests {
             assert_eq!(one(c, "border"), ".border(1.0)");
             assert_eq!(one(c, "shadow-xs"), ".shadow(k.shadow_xs)");
             assert!(c.translate("shadow-2xl").is_err());
+            assert!(
+                c.translate("translate-x-0").is_err(),
+                "a value the method has no spelling of"
+            );
             assert_eq!(one(c, "-mx-1"), ".mx(-1.0)", "a negative margin");
             assert_eq!(one(c, "max-w-xs"), ".max_w_px(320.0)", "20rem");
+            assert_eq!(one(c, "font-normal"), ".font_weight(Weight::Normal)");
             assert!(c.translate("-px-1").is_err(), "padding is never negative");
             assert_eq!(one(c, "tracking-widest"), ".tracking(Tracking::em(0.1))");
         });
@@ -1317,6 +1370,14 @@ mod tests {
             assert_eq!(
                 one(c, "has-data-[icon=inline-start]:pl-2"),
                 ".has(Match::any().attr(\"icon\", \"inline-start\"), |b| b.pl(2.0))"
+            );
+            assert_eq!(
+                one(c, "has-data-checked:pl-2"),
+                ".has(Match::aria(Aria::Checked), |b| b.pl(2.0))"
+            );
+            assert_eq!(
+                one(c, "has-[:focus-visible]:pl-2"),
+                ".has(Match::focus_visible(), |b| b.pl(2.0))"
             );
             assert_eq!(
                 one(c, "has-data-[slot=kbd]:pl-2"),

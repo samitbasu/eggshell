@@ -472,10 +472,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
         if matches!(lead, Lead::Inset) {
             keys.push(Key::Attr(INSET.0, INSET.1));
         }
-        let own = match enablement {
-            Enablement::Enabled => tw().sense_click(),
-            Enablement::Disabled => tw().inert(),
-        };
+        let own = enablement.senses();
         let classes = self.b.part(part, &keys, own);
         let shown = label.clone();
         let (root, depth, id) = (shared.root, self.depth, slot.id);

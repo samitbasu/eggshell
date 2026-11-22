@@ -394,7 +394,7 @@ fn a_presets_generated_looks_resolve_from_the_preset_layer_and_sections_from_the
         // A family the preset has no generated look for yet is drawn from
         // its section, whose rules are the widgets' defaults.
         let layer = match name {
-            "table header" | "checkbox" => Layer::Defaults,
+            "table header" => Layer::Defaults,
             _ => Layer::Preset,
         };
         for (property, origin) in set {

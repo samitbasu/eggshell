@@ -7,6 +7,7 @@ use eggshell_ui::sheet::{Sheet, When};
 use eggshell_ui::{Aria, Opacity};
 
 const INPUT: &str = "registry/bases/radix/ui/input.tsx";
+const REGISTRY: &str = "registry/bases/radix/registry.ts";
 const VEGA: &str = "registry/styles/style-vega.css";
 
 /// TODO(prose): shadcn's `input` in `style-vega.css`, light.
@@ -14,6 +15,8 @@ pub(crate) fn light(s: &mut Sheet) {
     use InputPart::*;
     s.replace(Root, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 678, "border-input")
             .border_color(k.input)
             .from(VEGA, 678, "focus-visible:border-ring")
@@ -75,6 +78,8 @@ pub(crate) fn dark(s: &mut Sheet) {
     use InputPart::*;
     s.replace(Root, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 678, "border-input")
             .border_color(k.input)
             .from(VEGA, 678, "focus-visible:border-ring")

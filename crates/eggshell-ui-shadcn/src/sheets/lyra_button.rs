@@ -11,12 +11,15 @@ use eggshell_ui::{Aria, Match, Opacity};
 
 const BUTTON: &str = "registry/bases/radix/ui/button.tsx";
 const LYRA: &str = "registry/styles/style-lyra.css";
+const REGISTRY: &str = "registry/bases/radix/registry.ts";
 
 /// TODO(prose): shadcn's `button` in `style-lyra.css`, light.
 pub(crate) fn light(s: &mut Sheet) {
     use ButtonPart::*;
     s.replace(Root, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(LYRA, 146, "focus-visible:border-ring")
             .focus(|p| p.border_color(k.ring))
             .from(LYRA, 146, "focus-visible:ring-ring/50 focus-visible:ring-1")
@@ -262,6 +265,8 @@ pub(crate) fn dark(s: &mut Sheet) {
     use ButtonPart::*;
     s.replace(Root, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(LYRA, 146, "focus-visible:border-ring")
             .focus(|p| p.border_color(k.ring))
             .from(LYRA, 146, "focus-visible:ring-ring/50 focus-visible:ring-1")

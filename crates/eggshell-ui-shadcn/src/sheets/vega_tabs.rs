@@ -9,6 +9,7 @@ use eggshell_ui::owned::TabsPart;
 use eggshell_ui::sheet::{Sheet, When};
 use eggshell_ui::{Aria, Match, Opacity};
 
+const REGISTRY: &str = "registry/bases/radix/registry.ts";
 const TABS: &str = "registry/bases/radix/ui/tabs.tsx";
 const VEGA: &str = "registry/styles/style-vega.css";
 
@@ -50,6 +51,8 @@ pub(crate) fn light(s: &mut Sheet) {
     });
     s.replace(Trigger, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 1325, "gap-1.5")
             .gap(1.5)
             .from(VEGA, 1325, "rounded-md")
@@ -173,6 +176,8 @@ pub(crate) fn dark(s: &mut Sheet) {
     });
     s.replace(Trigger, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 1325, "gap-1.5")
             .gap(1.5)
             .from(VEGA, 1325, "rounded-md")

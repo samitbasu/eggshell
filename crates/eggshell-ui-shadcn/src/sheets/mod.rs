@@ -18,6 +18,10 @@ mod vega_input_group;
 mod vega_select;
 mod vega_dropdown_menu;
 mod vega_tooltip;
+mod vega_checkbox;
+mod vega_radio_group;
+mod vega_switch;
+mod vega_field;
 mod vega_tabs;
 mod lyra_button;
 mod lyra_input;
@@ -25,6 +29,10 @@ mod lyra_input_group;
 mod lyra_select;
 mod lyra_dropdown_menu;
 mod lyra_tooltip;
+mod lyra_checkbox;
+mod lyra_radio_group;
+mod lyra_switch;
+mod lyra_field;
 mod lyra_tabs;
 
 /// Writes the rules of `style` for `theme` into `sheet`. Their colours are
@@ -38,6 +46,10 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             (vega_select::light, vega_select::dark),
             (vega_dropdown_menu::light, vega_dropdown_menu::dark),
             (vega_tooltip::light, vega_tooltip::dark),
+            (vega_checkbox::light, vega_checkbox::dark),
+            (vega_radio_group::light, vega_radio_group::dark),
+            (vega_switch::light, vega_switch::dark),
+            (vega_field::light, vega_field::dark),
             (vega_tabs::light, vega_tabs::dark),
         ],
         ShadcnStyle::Lyra => &[
@@ -47,6 +59,10 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             (lyra_select::light, lyra_select::dark),
             (lyra_dropdown_menu::light, lyra_dropdown_menu::dark),
             (lyra_tooltip::light, lyra_tooltip::dark),
+            (lyra_checkbox::light, lyra_checkbox::dark),
+            (lyra_radio_group::light, lyra_radio_group::dark),
+            (lyra_switch::light, lyra_switch::dark),
+            (lyra_field::light, lyra_field::dark),
             (lyra_tabs::light, lyra_tabs::dark),
         ],
     };

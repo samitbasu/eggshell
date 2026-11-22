@@ -246,8 +246,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let checkbox = &style.checkbox();
         let size = b.size_of(size);
         let metrics = *checkbox.sizes.lookup(b.ctx(), size);
-        let keys = CheckboxPart::keys(checkbox.sizes.key_for(size), mark, enablement);
-        let box_classes = b.part(CheckboxPart::Root, &keys, tw());
+        let keys = form.keys(CheckboxPart::keys(
+            checkbox.sizes.key_for(size),
+            mark,
+            enablement,
+        ));
+        let box_classes = b.part(CheckboxPart::Root, &keys, enablement.senses());
         // A card's label is drawn before the control it holds, so the
         // control names itself by the card's title.
         let name = match form {
@@ -266,10 +270,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             let on_press = on_toggle.clone();
             let build_box = move |b: &mut Builder<'_, '_, A>| {
                 b.div_id(Part::Box, box_classes, |b| {
-                    if mark == Mark::On {
-                        let glyph = b.part(CheckboxPart::Indicator, &keys, tw());
-                        b.glyph(glyph, check());
-                    }
+                    let indicator = b.part(CheckboxPart::Indicator, &keys, tw());
+                    b.div(indicator, |b| {
+                        if mark == Mark::On {
+                            b.glyph(tw(), check());
+                        }
+                    });
                 })
                 .open_focus(autofocus.open_focus())
                 .draw(move |app, ui| {

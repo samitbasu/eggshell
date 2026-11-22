@@ -721,7 +721,6 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
             },
             disabled_row,
         );
-        let style = d.app().style.clone();
         let rest = support::button::look(theme, eggshell_ui_shadcn::variant::PRIMARY);
         let enabled = d.rect(Target::suffix("/(\"button\", Enabled)"));
         let disabled = d.rect(Target::suffix("/(\"button\", Disabled)"));
@@ -738,12 +737,15 @@ fn a_faded_disabled_control_is_node_opacity_over_its_rest_colours() {
             rest.text.gamma_multiply(opacity),
             "the label fades with its node"
         );
+        // Under the preset a choice's label fades as shadcn's field label
+        // does, `group-data-[disabled=true]/field:opacity-50`, whatever the
+        // token says.
         let label = d.rect(Target::suffix("/(\"check\", Disabled)/<div>"));
-        let enabled_label = style.label().rest.text;
+        let foreground = Tokens::for_theme(theme).in_style(shadcn).foreground;
         assert_eq!(
             text_color(&d, label, "Agree"),
-            enabled_label.gamma_multiply(opacity),
-            "a choice's label fades with its row"
+            foreground.gamma_multiply(0.5),
+            "a choice's label fades with its field"
         );
         d.click(Target::suffix("/(\"button\", Disabled)"));
         d.click(Target::suffix("/(\"check\", Disabled)/<div>"));
@@ -785,7 +787,7 @@ fn a_faded_control_on_a_translucent_surface_lets_the_surface_through() {
 
 #[test]
 fn the_colors_form_still_draws_the_styles_disabled_colours() {
-    let d = harness(Theme::Light, disabled_row);
+    let d = sections_with(Theme::Light, ShadcnStyle::Vega, |_| {}, disabled_row);
     let style = &d.app().style;
     assert_eq!(style.tokens.disabled, Disabled::Colors);
     let checked = d.rect(Target::suffix("/(\"check\", Disabled)/Box"));
