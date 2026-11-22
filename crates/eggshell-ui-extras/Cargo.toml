@@ -13,6 +13,7 @@ repository = "https://github.com/samitbasu/eggshell"
 accordion = ["disclosure"]
 badge = []
 command = ["dep:unicode-normalization"]
+dialog = []
 disclosure = []
 form = []
 hover-card = []

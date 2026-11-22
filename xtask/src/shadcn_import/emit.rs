@@ -355,7 +355,14 @@ fn equivalent(utility: &str) -> Option<(Option<&'static str>, Kind)> {
         "pointer-events-none" => (Some(".pointer_events_none()"), Kind::Equivalent),
         "translate-y-px" => (Some(".translate_y(1.0)"), Kind::Equivalent),
         "shadow-none" => (Some(".shadow(Shadow::NONE)"), Kind::Equivalent),
+        // Tailwind's container widths, in rem of 16 points.
         "max-w-xs" => (Some(".max_w_px(320.0)"), Kind::Equivalent),
+        "max-w-sm" => (Some(".max_w_px(384.0)"), Kind::Equivalent),
+        "max-w-md" => (Some(".max_w_px(448.0)"), Kind::Equivalent),
+        "max-w-lg" => (Some(".max_w_px(512.0)"), Kind::Equivalent),
+        "w-3/4" => (Some(".w_frac(3.0, 4.0)"), Kind::Equivalent),
+        "border-l" => (Some(".border_l(1.0)"), Kind::Equivalent),
+        "border-r" => (Some(".border_r(1.0)"), Kind::Equivalent),
         "font-normal" => (Some(".font_weight(Weight::Normal)"), Kind::Equivalent),
         "tracking-widest" => (Some(".tracking(Tracking::em(0.1))"), Kind::Equivalent),
         "outline-none" | "outline-hidden" => (None, Kind::NoOp),
@@ -961,7 +968,9 @@ fn draws_a_border(rules: &[Rule], part: &str, half: &str) -> bool {
         .flat_map(|r| half_of(r, half))
         .any(|(t, _)| {
             matches!(&t.leaf, Leaf::Call(call)
-                if [".border(", ".border_t(", ".border_b("].iter().any(|width| call.starts_with(width)))
+                if [".border(", ".border_t(", ".border_b(", ".border_l(", ".border_r("]
+                    .iter()
+                    .any(|width| call.starts_with(width)))
         })
 }
 
@@ -1403,6 +1412,7 @@ mod tests {
             assert_eq!(one(c, "-mx-1"), ".mx(-1.0)", "a negative margin");
             assert_eq!(one(c, "max-w-xs"), ".max_w_px(320.0)", "20rem");
             assert_eq!(one(c, "border-b"), ".border_b(1.0)");
+            assert_eq!(one(c, "max-w-md"), ".max_w_px(448.0)", "28rem");
             assert_eq!(
                 one(c, "[&:has([role=checkbox])]:pl-2"),
                 ".has(Match::slot(\"checkbox\"), |b| b.pl(2.0))"

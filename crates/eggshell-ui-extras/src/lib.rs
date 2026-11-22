@@ -27,6 +27,8 @@ pub mod accordion;
 pub mod badge;
 #[cfg(feature = "command")]
 pub mod command;
+#[cfg(feature = "dialog")]
+pub mod dialog;
 #[cfg(feature = "disclosure")]
 pub mod disclosure;
 #[cfg(feature = "form")]

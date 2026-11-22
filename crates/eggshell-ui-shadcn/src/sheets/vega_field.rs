@@ -61,6 +61,8 @@ pub(crate) fn light(s: &mut Sheet) {
             .flex_1()
             .from(FIELD, 85, "flex-col")
             .flex_col()
+            .from(FIELD, 85, "leading-snug")
+            .leading_snug()
     });
     s.replace(Label, |t, k| {
         t
@@ -72,6 +74,8 @@ pub(crate) fn light(s: &mut Sheet) {
             .has(Match::aria(Aria::Checked), |b| b.border_color(k.primary.gamma_multiply(0.3)))
             .from(VEGA, 640, "gap-2")
             .gap(2.0)
+            .from(VEGA, 640, "leading-snug")
+            .leading_snug()
             .from(VEGA, 640, "*:data-[slot=field]:p-3")
             .children(Match::any().with_slot("field"), |t| t.p(3.0))
             .from(FIELD, 101, "flex")
@@ -108,6 +112,8 @@ pub(crate) fn light(s: &mut Sheet) {
         t
             .from(VEGA, 648, "gap-2")
             .gap(2.0)
+            .from(VEGA, 648, "leading-snug")
+            .leading_snug()
             .from(VEGA, 648, "text-sm")
             .text_size(14.0, 20.0)
             .from(VEGA, 648, "font-medium")
@@ -132,12 +138,13 @@ pub(crate) fn light(s: &mut Sheet) {
             .text_left()
             .from(VEGA, 652, "text-sm")
             .text_size(14.0, 20.0)
+            .from(FIELD, 125, "leading-normal")
+            .leading_normal()
             .from(FIELD, 125, "font-normal")
             .font_weight(Weight::Normal)
     });
     // unmapped: registry/bases/radix/ui/field.tsx:101  peer/field-label (no `Tw` method for `peer/field-label`)
     // unmapped: registry/bases/radix/ui/field.tsx:125  group-has-data-horizontal/field:text-balance (variant `group-has-data-horizontal/field:`)
-    // unmapped: registry/bases/radix/ui/field.tsx:125  leading-normal (no `Tw` method for `leading-normal`)
     // unmapped: registry/bases/radix/ui/field.tsx:126  last:mt-0 (variant `last:`)
     // unmapped: registry/bases/radix/ui/field.tsx:126  nth-last-2:-mt-1 (variant `nth-last-2:`)
     // unmapped: registry/bases/radix/ui/field.tsx:127  [&>a:hover]:text-primary (variant `[&>a:hover]:`)
@@ -152,9 +159,6 @@ pub(crate) fn light(s: &mut Sheet) {
     // unmapped: registry/bases/radix/ui/field.tsx:56  @md/field-group:has-[>[data-slot=field-content]]:items-start (variant `@md/field-group:`)
     // unmapped: registry/bases/radix/ui/field.tsx:56  @md/field-group:items-center (variant `@md/field-group:`)
     // unmapped: registry/bases/radix/ui/field.tsx:56  [&>.sr-only]:w-auto (variant `[&>.sr-only]:`)
-    // unmapped: registry/bases/radix/ui/field.tsx:85  leading-snug (no `Tw` method for `leading-snug`)
-    // unmapped: registry/styles/style-vega.css:640  leading-snug (no `Tw` method for `leading-snug`)
-    // unmapped: registry/styles/style-vega.css:648  leading-snug (no `Tw` method for `leading-snug`)
     // unmapped: registry/styles/style-vega.css:652  [[data-variant=legend]+&]:-mt-1.5 (variant `[[data-variant=legend]+&]:`)
 }
 
@@ -210,6 +214,8 @@ pub(crate) fn dark(s: &mut Sheet) {
             .flex_1()
             .from(FIELD, 85, "flex-col")
             .flex_col()
+            .from(FIELD, 85, "leading-snug")
+            .leading_snug()
     });
     s.replace(Label, |t, k| {
         t
@@ -221,6 +227,8 @@ pub(crate) fn dark(s: &mut Sheet) {
             .has(Match::aria(Aria::Checked), |b| b.border_color(k.primary.gamma_multiply(0.3)))
             .from(VEGA, 640, "gap-2")
             .gap(2.0)
+            .from(VEGA, 640, "leading-snug")
+            .leading_snug()
             .from(VEGA, 640, "*:data-[slot=field]:p-3")
             .children(Match::any().with_slot("field"), |t| t.p(3.0))
             .from(FIELD, 101, "flex")
@@ -261,6 +269,8 @@ pub(crate) fn dark(s: &mut Sheet) {
         t
             .from(VEGA, 648, "gap-2")
             .gap(2.0)
+            .from(VEGA, 648, "leading-snug")
+            .leading_snug()
             .from(VEGA, 648, "text-sm")
             .text_size(14.0, 20.0)
             .from(VEGA, 648, "font-medium")
@@ -285,12 +295,13 @@ pub(crate) fn dark(s: &mut Sheet) {
             .text_left()
             .from(VEGA, 652, "text-sm")
             .text_size(14.0, 20.0)
+            .from(FIELD, 125, "leading-normal")
+            .leading_normal()
             .from(FIELD, 125, "font-normal")
             .font_weight(Weight::Normal)
     });
     // unmapped: registry/bases/radix/ui/field.tsx:101  peer/field-label (no `Tw` method for `peer/field-label`)
     // unmapped: registry/bases/radix/ui/field.tsx:125  group-has-data-horizontal/field:text-balance (variant `group-has-data-horizontal/field:`)
-    // unmapped: registry/bases/radix/ui/field.tsx:125  leading-normal (no `Tw` method for `leading-normal`)
     // unmapped: registry/bases/radix/ui/field.tsx:126  last:mt-0 (variant `last:`)
     // unmapped: registry/bases/radix/ui/field.tsx:126  nth-last-2:-mt-1 (variant `nth-last-2:`)
     // unmapped: registry/bases/radix/ui/field.tsx:127  [&>a:hover]:text-primary (variant `[&>a:hover]:`)
@@ -305,8 +316,5 @@ pub(crate) fn dark(s: &mut Sheet) {
     // unmapped: registry/bases/radix/ui/field.tsx:56  @md/field-group:has-[>[data-slot=field-content]]:items-start (variant `@md/field-group:`)
     // unmapped: registry/bases/radix/ui/field.tsx:56  @md/field-group:items-center (variant `@md/field-group:`)
     // unmapped: registry/bases/radix/ui/field.tsx:56  [&>.sr-only]:w-auto (variant `[&>.sr-only]:`)
-    // unmapped: registry/bases/radix/ui/field.tsx:85  leading-snug (no `Tw` method for `leading-snug`)
-    // unmapped: registry/styles/style-vega.css:640  leading-snug (no `Tw` method for `leading-snug`)
-    // unmapped: registry/styles/style-vega.css:648  leading-snug (no `Tw` method for `leading-snug`)
     // unmapped: registry/styles/style-vega.css:652  [[data-variant=legend]+&]:-mt-1.5 (variant `[[data-variant=legend]+&]:`)
 }
