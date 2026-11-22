@@ -25,7 +25,30 @@ mod chip;
 mod style;
 
 use eggshell_ui::contract::{Look, Variant};
+use eggshell_ui::sheet::{Defaults, Key as SheetKey, Part};
 use eggshell_ui::{Builder, Icon, Key, Tw, tw};
+
+/// TODO(prose): a badge's anatomy for the style's sheet: shadcn's `badge`.
+/// A chip is a badge too, one that can be clicked or removed.
+///
+/// TODO(prose): the keys its rules see: the variant, and `data-[link=true]`
+/// on a chip that can be clicked, shadcn's badge rendered as a link (`[a]`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BadgePart {
+    /// TODO(prose): the badge.
+    Root,
+}
+
+impl Part for BadgePart {
+    const SOURCE: &'static str = "badge.tsx";
+
+    fn slot(self) -> &'static str {
+        "badge"
+    }
+}
+
+/// The attribute of a chip that can be clicked: shadcn's badge as a link.
+const LINK: (&str, &str) = ("link", "true");
 
 pub use chip::{ChipChain, Handler, Unset};
 pub use style::{BadgeStyle, RemoveStyle};
@@ -111,8 +134,46 @@ impl Face {
     /// The look of the face's variant, else the style's default.
     #[track_caller]
     fn look(&self, ctx: &egui::Context, style: &BadgeStyle) -> Look {
-        let variant = self.options.variant.unwrap_or(style.variants.default_key());
-        *crate::styles::entry(ctx, &style.variants, variant)
+        *crate::styles::entry(ctx, &style.variants, self.variant(style))
+    }
+
+    fn variant(&self, style: &BadgeStyle) -> Variant {
+        self.options.variant.unwrap_or(style.variants.default_key())
+    }
+
+    /// The variant the style draws for the badge's: a variant it lacks is
+    /// drawn as its default.
+    fn drawn(&self, style: &BadgeStyle) -> Variant {
+        style.variants.key_for(self.variant(style))
+    }
+
+    /// The badge's classes: `own`, its look, as the defaults of its part,
+    /// under the style's sheet, then `call_site` and the caller's over them.
+    #[track_caller]
+    fn part<A>(
+        &mut self,
+        b: &mut Builder<'_, '_, A>,
+        style: &BadgeStyle,
+        (own, link): (Tw, bool),
+        call_site: Tw,
+    ) -> Tw {
+        let mut keys = vec![SheetKey::Variant(self.drawn(style))];
+        // Only a chip that can be clicked is a Tab stop; the look's
+        // `focus-visible:` ring would make any badge one.
+        let stop = match link {
+            true => {
+                keys.push(SheetKey::Attr(LINK.0, LINK.1));
+                tw()
+            }
+            false => tw().focusable_none(),
+        };
+        let caller = std::mem::replace(&mut self.options.classes, tw());
+        b.part_over(
+            BadgePart::Root,
+            &keys,
+            Defaults(own),
+            stop.merge(call_site).merge(caller),
+        )
     }
 
     /// The classes that size and lay out the face's box, before its colours.
@@ -143,7 +204,12 @@ impl Face {
     /// Builds the icon and the label.
     fn content<A>(self, b: &mut Builder<'_, '_, A>, style: &BadgeStyle) {
         if let Some(icon) = self.options.icon {
-            b.glyph(tw().size_px(style.glyph).shrink_0(), icon);
+            b.glyph(
+                tw().size_px(style.glyph)
+                    .shrink_0()
+                    .attr("icon", "inline-start"),
+                icon,
+            );
         }
         b.text(tw(), self.label);
     }
@@ -191,13 +257,13 @@ impl<A: 'static, K: Key> BadgeChain<'_, '_, '_, A, K> {
         let style = b.style().extension::<BadgeStyle>();
         let look = face.look(b.ctx(), &style);
         let rest = look.paint.states.rest;
-        let classes = face
+        let own = face
             .frame(&style, End::Label)
             .border(look.border_width)
             .bg(rest.fill)
             .border_color(rest.border)
-            .text(rest.text)
-            .merge(std::mem::replace(&mut face.options.classes, tw()));
+            .text(rest.text);
+        let classes = face.part(b, &style, (own, false), tw());
         b.div_id(key, classes, |s| face.content(s, &style));
     }
 }

@@ -218,10 +218,21 @@ impl<A: 'static, K: Key> Parts<'_, '_, '_, A, K> {
         };
         let paint = match stop {
             Stop::Chip => look.classes(&core, style.radius, enablement, style.transition),
-            Stop::Remove => surrounds_focus(still(look), &core, &style, enablement),
+            Stop::Remove => still(look)
+                .classes(&core, style.radius, enablement, style.transition)
+                .focusable_none(),
         };
-        let caller = std::mem::replace(&mut face.options.classes, tw());
-        let classes = face.frame(&style, end).merge(paint).merge(caller);
+        // The ring while the × has the focus is the chip's own, not a look.
+        let ring = match stop {
+            Stop::Chip => tw(),
+            Stop::Remove => focus_ring(look, &core, enablement),
+        };
+        let classes = face.part(
+            b,
+            &style,
+            (face.frame(&style, end).merge(paint), stop == Stop::Chip),
+            ring,
+        );
         let removes = remove.map(|Handler(remove)| remove);
         let node = b.div_id(key, classes, |s| {
             face.content(s, &style);
@@ -251,19 +262,15 @@ fn still(mut look: Look) -> Look {
     look
 }
 
-/// The classes of a chip whose × is its Tab stop: `look`'s, with the focus
-/// ring shown while the × has focus.
-fn surrounds_focus(look: Look, core: &Style, style: &BadgeStyle, enablement: Enablement) -> Tw {
-    let classes = look
-        .classes(core, style.radius, enablement, style.transition)
-        .focusable_none();
+/// The ring of a chip whose × is its Tab stop, shown while the × has focus.
+fn focus_ring(look: Look, core: &Style, enablement: Enablement) -> Tw {
     match enablement {
         Enablement::Enabled => {
             let ring = look.paint.focus.unwrap_or(core.tokens.focus);
             let border = look.paint.states.focused.border;
-            classes.focus_within(|p| p.border_color(border).ring(ring.width, ring.color))
+            tw().focus_within(|p| p.border_color(border).ring(ring.width, ring.color))
         }
-        Enablement::Disabled => classes,
+        Enablement::Disabled => tw(),
     }
 }
 
@@ -284,7 +291,8 @@ fn remove_button<A: 'static>(
         .sense_click()
         .opacity(looks.rest)
         .hover(|p| p.opacity(looks.hover))
-        .transition(style.transition);
+        .transition(style.transition)
+        .attr("icon", "inline-end");
     let classes = match stop {
         Stop::Chip => classes.focusable_none(),
         Stop::Remove => classes,
