@@ -24,7 +24,8 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 22] = [
+const COMPONENTS: [&str; 23] = [
+    "accordion",
     "alert-dialog",
     "button",
     "badge",
@@ -52,7 +53,7 @@ const COMPONENTS: [&str; 22] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 21] = [
+const WIDGETS: [emit::Widget; 22] = [
     emit::Widget {
         component: "button",
         home: Home::Core,
@@ -440,6 +441,22 @@ const WIDGETS: [emit::Widget; 21] = [
         copies: &[],
     },
     emit::Widget {
+        component: "accordion",
+        home: Home::Extension("eggshell_ui_extras::disclosure"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &ACCORDION,
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &[],
+        copies: &[],
+    },
+    emit::Widget {
         component: "tabs",
         home: Home::Core,
         checked_in: true,
@@ -601,6 +618,13 @@ const SLIDER: [emit::Assumed; 3] = {
         },
     ]
 };
+
+/// eggshell turns the accordion's one chevron rather than hiding it.
+const ACCORDION: [emit::Assumed; 1] = [emit::Assumed {
+    variant: "group-aria-expanded/accordion-trigger",
+    fact: emit::Fact::Never,
+    why: "eggshell turns the accordion's one chevron, never hides it",
+}];
 
 /// eggshell draws an open menu only: a closed one is gone.
 const MENU: [emit::Assumed; 1] = [emit::Assumed {
@@ -906,6 +930,9 @@ fn extract(
         let text = read(&registry.join(format!("bases/radix/ui/{name}.tsx")))?;
         let file = sources.add(format!("registry/bases/radix/ui/{name}.tsx"), text.clone());
         for (origin, slot, classes) in source::component(&text, file).parts {
+            if is_hidden_twin(name, &slot, &classes) {
+                continue;
+            }
             for class in classes {
                 if OFF_BY_DEFAULT.contains(&class.text.as_str()) {
                     continue;
@@ -932,6 +959,17 @@ fn extract(
         }
     }
     Ok((rows, rules))
+}
+
+/// Slots shadcn renders twice, the second `hidden` until a state shows it
+/// in place of the first, where eggshell draws one element and turns it:
+/// accordion's up chevron is its down chevron turned. The hidden twin's
+/// classes are dropped.
+const TURNED_TWINS: [(&str, &str); 1] = [("accordion", "accordion-trigger-icon")];
+
+/// Whether an element of `component` is the hidden twin of a turned slot.
+fn is_hidden_twin(component: &str, slot: &str, classes: &[source::Class]) -> bool {
+    TURNED_TWINS.contains(&(component, slot)) && classes.iter().any(|c| c.text == "hidden")
 }
 
 /// `--check` with the defaults, for `cargo xtask ci`.
