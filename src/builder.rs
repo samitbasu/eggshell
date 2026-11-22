@@ -1304,6 +1304,7 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         } = options;
         let path = self.identify(slot);
         self.apply_rules(&mut classes, NodeKind::Scroll);
+        let bars = bars.settled(classes.scrollbar);
         let parts = Parts {
             id: Some(slot.id),
             ..Parts::anonymous(NodeKind::Scroll, path)

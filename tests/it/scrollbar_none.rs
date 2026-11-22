@@ -16,6 +16,20 @@ const CONTENT: f32 = 400.0;
 enum Bar {
     Default,
     None,
+    /// `scrollbar_none` from a style's sheet, as a part's look.
+    FromSheet,
+}
+
+/// A part whose look says `no-scrollbar`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct Lane;
+
+impl eggshell_ui::sheet::Part for Lane {
+    const SOURCE: &'static str = "lane.tsx";
+
+    fn slot(self) -> &'static str {
+        "lane"
+    }
 }
 
 struct App {
@@ -39,6 +53,12 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
     let classes = match app.bar {
         Bar::Default => classes,
         Bar::None => classes.scrollbar_none(),
+        Bar::FromSheet => b.part_over(
+            Lane,
+            &[],
+            eggshell_ui::sheet::Defaults(tw().scrollbar_none()),
+            classes,
+        ),
     };
     b.scroll("list", classes).children(|s| {
         s.div_id(
@@ -88,6 +108,17 @@ fn a_container_reserves_a_gutter_unless_it_has_no_scrollbar() {
     );
     assert_eq!(
         without, WIDTH,
+        "no gutter: the content is as wide as the box"
+    );
+}
+
+/// A sheet's `no-scrollbar` is the container's, as its own is: the sheet is
+/// applied before the bars are laid out.
+#[test]
+fn a_container_whose_sheet_says_no_scrollbar_reserves_no_gutter() {
+    let from_sheet = rect_of(&harness(Bar::FromSheet), "/\"list\"/\"row\"").width();
+    assert_eq!(
+        from_sheet, WIDTH,
         "no gutter: the content is as wide as the box"
     );
 }
