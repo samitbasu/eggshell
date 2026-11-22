@@ -244,19 +244,6 @@ fn themed_at(size: Size, theme: egui::Theme) -> Driver<Size> {
     d
 }
 
-/// The colour of the glyph drawn in `rect`.
-fn glyph_color(d: &Driver<Size>, rect: egui::Rect) -> Color32 {
-    support::shapes(d)
-        .into_iter()
-        .find_map(|shape| match shape {
-            egui::epaint::Shape::Mesh(mesh) if rect.contains_rect(shape.visual_bounding_rect()) => {
-                mesh.vertices.first().map(|vertex| vertex.color)
-            }
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("no glyph in {rect:?}"))
-}
-
 #[test]
 fn a_steppers_value_and_chevrons_keep_its_own_metrics_and_colour_at_every_size() {
     for theme in [egui::Theme::Light, egui::Theme::Dark] {
@@ -277,7 +264,7 @@ fn a_steppers_value_and_chevrons_keep_its_own_metrics_and_colour_at_every_size()
                     "/\"stepper\"/Box/Buttons/{button}/<glyph>"
                 )));
                 assert_eq!(
-                    glyph_color(&d, glyph.expand(0.5)),
+                    support::glyph_color(&d, glyph),
                     stepper.button.paint.states.rest.text,
                     "{theme:?} {size:?}: the {button} chevron's colour"
                 );

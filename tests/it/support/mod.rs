@@ -630,6 +630,19 @@ pub fn same(a: Rect, b: Rect) -> bool {
         && near(a.max.y, b.max.y)
 }
 
+/// The colour of the glyph drawn inside `rect`.
+pub fn glyph_color<S: Seen>(seen: &S, rect: Rect) -> Color32 {
+    shapes(seen)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Mesh(mesh) if rect.expand(0.5).contains_rect(shape.visual_bounding_rect()) => {
+                mesh.vertices.first().map(|vertex| vertex.color)
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no glyph in {rect:?}"))
+}
+
 /// The last box painted over exactly `rect`, ring excluded.
 pub fn box_at<S: Seen>(seen: &S, rect: Rect) -> RectShape {
     try_box_at(seen, rect).unwrap_or_else(|| panic!("no box painted at {rect:?}"))

@@ -61,6 +61,9 @@ mod dialog;
 mod menu;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/accordion.rs"]
+mod accordion_example;
+#[allow(dead_code, reason = "the example's main is not run here")]
 #[path = "../../examples/clipboard.rs"]
 mod clipboard_example;
 #[allow(dead_code, reason = "the example's main is not run here")]
@@ -538,6 +541,23 @@ fn snapshot_themed<A>(
     snapshot_themed_in(ShadcnStyle::Vega, name, size, app, pointer, prepare);
 }
 
+/// A harness for a golden of `view` in `style` and `theme`, settled.
+fn themed_harness<A>(
+    style: ShadcnStyle,
+    size: Vec2,
+    (app, view, base_text): (A, support::View<A>, TextStyle),
+    (theme, prepare): (egui::Theme, fn(&egui::Context, &A)),
+) -> Harness<'static, support::Rig<A>> {
+    report_renderer();
+    let mut harness = support::harness_prepared(size, base_text, app, view, prepare);
+    common::set_style(&harness.ctx, style);
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(2);
+    harness
+}
+
 /// [`snapshot_themed`] with the examples switched to `style`.
 fn snapshot_themed_in<A>(
     style: ShadcnStyle,
@@ -547,13 +567,7 @@ fn snapshot_themed_in<A>(
     pointer: Option<egui::Pos2>,
     (theme, prepare): (egui::Theme, fn(&egui::Context, &A)),
 ) {
-    report_renderer();
-    let mut harness = support::harness_prepared(size, base_text, app, view, prepare);
-    common::set_style(&harness.ctx, style);
-    harness.state_mut().page = support::Page::Themed;
-    harness.state_mut().companion = support::Companion::Alone;
-    harness.ctx.set_theme(theme);
-    harness.run_steps(2);
+    let mut harness = themed_harness(style, size, (app, view, base_text), (theme, prepare));
     if let Some(pointer) = pointer {
         harness.hover_at(pointer);
         harness.run_steps(12);
@@ -2875,4 +2889,250 @@ fn palette_open_light() {
 #[test]
 fn palette_open_dark() {
     palette_open("palette_open_dark", egui::Theme::Dark);
+}
+
+/// Goldens that show the generated sheets' child-influenced rules in effect
+/// (`has-`, `group-`, `*:`, `**:`, `[&_svg]`), each with an assertion that
+/// the rule drew. The inventory is in PHASE2-AUDIT.md.
+mod child_rules {
+    use super::*;
+    use eggshell_ui::{Icon, icons};
+    use eggshell_ui_extras::badge::BadgeExt as _;
+    use eggshell_ui_extras::command::CommandExt as _;
+
+    fn suffix(theme: egui::Theme) -> &'static str {
+        match theme {
+            egui::Theme::Light => "light",
+            egui::Theme::Dark => "dark",
+        }
+    }
+
+    fn harness<A>(
+        size: Vec2,
+        (app, view): (A, support::View<A>),
+        theme: egui::Theme,
+    ) -> Harness<'static, support::Rig<A>> {
+        let base = TextStyle::new(layouts::BODY, Tokens::for_theme(theme).foreground);
+        themed_harness(
+            ShadcnStyle::Vega,
+            size,
+            (app, view, base),
+            (theme, |_, _| {}),
+        )
+    }
+
+    /// `**:data-[slot=accordion-trigger-icon]:text-muted-foreground size-4
+    /// ml-auto`: the open section's chevron.
+    fn accordion_open(theme: egui::Theme) {
+        let state = accordion_example::State { open: Some(0) };
+        let mut h = harness(
+            Vec2::new(380.0, 280.0),
+            (state, accordion_example::layout),
+            theme,
+        );
+        h.run_steps(12);
+        let header = support::rect_of(&h, "/Page/Accordion/0/Header");
+        let icon = support::rect_of(&h, "/Page/Accordion/0/Header/<glyph>");
+        assert_eq!(icon.size(), Vec2::splat(16.0), "size-4");
+        assert!(
+            header.max.x - icon.max.x <= 1.0,
+            "ml-auto: at the trigger's end"
+        );
+        assert_eq!(
+            support::glyph_color(&h, icon),
+            Tokens::for_theme(theme).muted_foreground,
+            "text-muted-foreground"
+        );
+        h.snapshot(format!("accordion_open_{}", suffix(theme)));
+    }
+
+    #[test]
+    fn accordion_open_light() {
+        accordion_open(egui::Theme::Light);
+    }
+
+    #[test]
+    fn accordion_open_dark() {
+        accordion_open(egui::Theme::Dark);
+    }
+
+    fn menu_with_icons(b: &mut Builder<'_, '_, ()>, _: &()) {
+        b.div_id("Page", tw().p(4.0), |b| {
+            b.dropdown_menu("menu", "Actions").items(|m| {
+                m.item("search", "Search")
+                    .icon(Icon::new(icons::SEARCH))
+                    .on_click(|_| {});
+                m.item("delete", "Delete")
+                    .icon(Icon::new(icons::CLOSE))
+                    .destructive()
+                    .on_click(|_| {});
+            });
+        });
+    }
+
+    /// `data-[variant=destructive]:*:[svg]:text-destructive`: a destructive
+    /// item's icon.
+    fn menu_destructive_icon(theme: egui::Theme) {
+        let mut h = harness(Vec2::new(260.0, 200.0), ((), menu_with_icons), theme);
+        support::click_node(&mut h, r#"/"Page"/"menu""#);
+        h.run_steps(8);
+        let tokens = Tokens::for_theme(theme);
+        let delete = support::rect_of(&h, r#"/"Page"/("menu", Menu)/Box/"delete""#);
+        let search = support::rect_of(&h, r#"/"Page"/("menu", Menu)/Box/"search""#);
+        assert_eq!(support::glyph_color(&h, delete), tokens.destructive);
+        assert_ne!(support::glyph_color(&h, search), tokens.destructive);
+        h.snapshot(format!("menu_destructive_icon_{}", suffix(theme)));
+    }
+
+    #[test]
+    fn menu_destructive_icon_light() {
+        menu_destructive_icon(egui::Theme::Light);
+    }
+
+    #[test]
+    fn menu_destructive_icon_dark() {
+        menu_destructive_icon(egui::Theme::Dark);
+    }
+
+    fn badges(b: &mut Builder<'_, '_, ()>, _: &()) {
+        b.div_id("Page", tw().flex().gap(2.0).p(4.0), |b| {
+            b.badge("plain", "Badge").add();
+            b.badge("icon", "Search")
+                .icon(Icon::new(icons::SEARCH))
+                .add();
+        });
+    }
+
+    /// `has-data-[icon=inline-start]:pl-1.5`, `[&>svg]:size-3!`: a badge with
+    /// a leading icon.
+    fn badge_icon(theme: egui::Theme) {
+        let mut h = harness(Vec2::new(240.0, 60.0), ((), badges), theme);
+        let plain = support::rect_of(&h, r#"/"Page"/"plain""#);
+        let plain_text = support::rect_of(&h, r#"/"Page"/"plain"/<text>"#);
+        let badge = support::rect_of(&h, r#"/"Page"/"icon""#);
+        let icon = support::rect_of(&h, r#"/"Page"/"icon"/<glyph>"#);
+        assert_eq!(icon.size(), Vec2::splat(12.0), "size-3");
+        assert_eq!(plain_text.min.x - plain.min.x, 9.0, "px-2 and the border");
+        assert_eq!(icon.min.x - badge.min.x, 7.0, "pl-1.5 and the border");
+        h.snapshot(format!("badge_icon_{}", suffix(theme)));
+    }
+
+    #[test]
+    fn badge_icon_light() {
+        badge_icon(egui::Theme::Light);
+    }
+
+    #[test]
+    fn badge_icon_dark() {
+        badge_icon(egui::Theme::Dark);
+    }
+
+    /// `has-[>[data-slot=field]]:has-[:focus-visible]:border-ring ring-3`: a
+    /// choice card whose control has keyboard focus.
+    fn choice_card_focused(theme: egui::Theme) {
+        let mut h = harness(
+            Vec2::new(420.0, 560.0),
+            (choice_cards::State::default(), choice_cards::layout),
+            theme,
+        );
+        h.key_press(egui::Key::Tab);
+        h.run_steps(8);
+        let rings: Vec<_> = h
+            .state()
+            .nodes
+            .iter()
+            .filter(|(_, rect)| support::ring_at(&h, *rect).is_some())
+            .map(|(path, _)| path.clone())
+            .collect();
+        assert_eq!(rings.len(), 1, "one node is ringed: {rings:?}");
+        assert!(
+            !rings[0].contains("Circle") && !rings[0].ends_with("/Box"),
+            "the card is ringed, not the control in it: {rings:?}"
+        );
+        h.snapshot(format!("choice_card_focused_{}", suffix(theme)));
+    }
+
+    #[test]
+    fn choice_card_focused_light() {
+        choice_card_focused(egui::Theme::Light);
+    }
+
+    #[test]
+    fn choice_card_focused_dark() {
+        choice_card_focused(egui::Theme::Dark);
+    }
+
+    fn invalid_controls(b: &mut Builder<'_, '_, ()>, _: &()) {
+        let error = Some("Required");
+        b.div_id(
+            "Page",
+            tw().flex().flex_col().gap(3.0).p(4.0).w_px(260.0),
+            |s| {
+                s.text_field("name", "Ada")
+                    .named("Name")
+                    .invalid(error)
+                    .on_change(|_, _| {});
+                s.text_field("search", "")
+                    .named("Search")
+                    .hint("Search")
+                    .leading(Icon::new(icons::SEARCH))
+                    .invalid(error)
+                    .on_change(|_, _| {});
+                s.stepper("age", 17.0, 0.0..=150.0)
+                    .named("Age")
+                    .invalid(error)
+                    .on_change(|_, _| {});
+                s.select("role", 0, [(0, "Viewer"), (1, "Editor")])
+                    .named("Role")
+                    .invalid(error)
+                    .on_change(|_, _| {});
+                s.combobox("fruit", None::<u8>, [(0u8, "Apple".to_owned())])
+                    .named("Fruit")
+                    .placeholder("Pick a fruit")
+                    .invalid(error)
+                    .on_change(|_, _| {});
+                s.checkbox("terms", "I agree", false)
+                    .invalid(error)
+                    .on_change(|_, _| {});
+                s.radio_group("plan", 0, [(0, "Free"), (1, "Pro")])
+                    .named("Plan")
+                    .invalid(error)
+                    .on_change(|_, _| {});
+                s.switch("news", "Newsletter", false)
+                    .invalid(error)
+                    .on_change(|_, _| {});
+            },
+        );
+    }
+
+    /// Every control `.invalid`: its own `aria-invalid:` rules, and the
+    /// input group's and the combobox's `has-[[aria-invalid=true]]`, which
+    /// turn the box because its field is invalid.
+    fn invalid_controls_every_control(theme: egui::Theme) {
+        let mut h = harness(Vec2::new(300.0, 460.0), ((), invalid_controls), theme);
+        let destructive = Tokens::for_theme(theme).destructive;
+        for path in [r#"/"Page"/"search""#, r#"/"Page"/"age"/Box"#] {
+            let border = support::box_at(&h, support::rect_of(&h, path)).stroke.color;
+            assert_eq!(border, destructive, "{path}: the group turns by its child");
+        }
+        let combobox = h
+            .state()
+            .nodes
+            .iter()
+            .find(|(path, _)| path.ends_with("\"fruit\")), Group)"))
+            .map(|(_, rect)| *rect)
+            .expect("the combobox's box");
+        assert_eq!(support::box_at(&h, combobox).stroke.color, destructive);
+        h.snapshot(format!("invalid_controls_{}", suffix(theme)));
+    }
+
+    #[test]
+    fn invalid_controls_every_control_light() {
+        invalid_controls_every_control(egui::Theme::Light);
+    }
+
+    #[test]
+    fn invalid_controls_every_control_dark() {
+        invalid_controls_every_control(egui::Theme::Dark);
+    }
 }
