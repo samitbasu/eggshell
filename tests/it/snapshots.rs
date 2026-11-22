@@ -49,6 +49,10 @@ mod markdown;
 mod typeset;
 
 #[allow(dead_code, reason = "the example's main is not run here")]
+#[path = "../../examples/command_palette.rs"]
+#[allow(dead_code)]
+mod command_palette;
+
 #[path = "../../examples/dialog.rs"]
 mod dialog;
 
@@ -2771,4 +2775,48 @@ fn list_nav_light() {
 #[test]
 fn list_nav_dark() {
     list_nav_in("list_nav_dark", egui::Theme::Dark);
+}
+
+/// The command palette example's combobox with its list open: the
+/// combobox's parts, shadcn's under the preset.
+fn combobox_open(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let style = ShadcnStyle::Vega;
+    let mut harness = support::harness(
+        Vec2::new(800.0, 700.0),
+        common::base_text_styled(theme, style),
+        command_palette::State::default(),
+        command_palette::layout,
+    );
+    common::set_style(&harness.ctx, style);
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(12);
+    let chevron = harness
+        .state()
+        .nodes
+        .iter()
+        .map(|(path, _)| path.clone())
+        .find(|path| path.ends_with("Chevron)"))
+        .expect("the combobox's chevron");
+    support::click_node(&mut harness, &chevron);
+    harness.run_steps(20);
+    let open = harness
+        .state()
+        .nodes
+        .iter()
+        .any(|(path, _)| path.contains("Popover") && path.contains("Results"));
+    assert!(open, "the list is open");
+    harness.snapshot(name);
+}
+
+#[test]
+fn combobox_open_light() {
+    combobox_open("combobox_open_light", egui::Theme::Light);
+}
+
+#[test]
+fn combobox_open_dark() {
+    combobox_open("combobox_open_dark", egui::Theme::Dark);
 }

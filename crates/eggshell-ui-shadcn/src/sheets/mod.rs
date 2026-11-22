@@ -16,6 +16,7 @@ mod vega_button;
 mod vega_input;
 mod vega_input_group;
 mod vega_select;
+#[cfg(feature = "extras")] mod vega_combobox;
 mod vega_dropdown_menu;
 mod vega_tooltip;
 mod vega_checkbox;
@@ -28,6 +29,7 @@ mod lyra_button;
 mod lyra_input;
 mod lyra_input_group;
 mod lyra_select;
+#[cfg(feature = "extras")] mod lyra_combobox;
 mod lyra_dropdown_menu;
 mod lyra_tooltip;
 mod lyra_checkbox;
@@ -46,6 +48,7 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             (vega_input::light, vega_input::dark),
             (vega_input_group::light, vega_input_group::dark),
             (vega_select::light, vega_select::dark),
+            #[cfg(feature = "extras")] (vega_combobox::light, vega_combobox::dark),
             (vega_dropdown_menu::light, vega_dropdown_menu::dark),
             (vega_tooltip::light, vega_tooltip::dark),
             (vega_checkbox::light, vega_checkbox::dark),
@@ -60,6 +63,7 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             (lyra_input::light, lyra_input::dark),
             (lyra_input_group::light, lyra_input_group::dark),
             (lyra_select::light, lyra_select::dark),
+            #[cfg(feature = "extras")] (lyra_combobox::light, lyra_combobox::dark),
             (lyra_dropdown_menu::light, lyra_dropdown_menu::dark),
             (lyra_tooltip::light, lyra_tooltip::dark),
             (lyra_checkbox::light, lyra_checkbox::dark),

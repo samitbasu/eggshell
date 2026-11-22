@@ -30,6 +30,7 @@ mod clipboard;
 mod clipboard_example;
 mod collapsible;
 mod combobox_parts;
+mod combobox_sheet;
 mod command_palette;
 mod commands;
 mod compile_fail;

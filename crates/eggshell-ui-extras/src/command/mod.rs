@@ -2,6 +2,7 @@
 
 mod filter;
 mod list;
+mod parts;
 mod style;
 
 use std::rc::Rc;
@@ -10,11 +11,13 @@ use std::sync::Arc;
 use eggshell_ui::overlay::{Anchor, Focus, MatchWidth, Modal, Placement};
 use eggshell_ui::owned::Mark;
 use eggshell_ui::prim::text_field::Select;
+use eggshell_ui::sheet::Defaults;
 use eggshell_ui::{Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
 use egui::{Id, Role};
 
 pub use filter::{Candidate, Score, word_prefix};
 pub use list::{ItemChain, Items};
+pub use parts::ComboboxPart;
 pub use style::CommandStyle;
 
 use list::{First, ListOptions, Query};
@@ -406,8 +409,13 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
         let style = Arc::clone(b.style());
         let group_id = b.id_of((key, Part::Group));
         let mut field_id = Id::NULL;
-        let group_classes =
-            list::group_classes(&style).merge(std::mem::replace(&mut options.classes, tw()));
+        let caller = std::mem::replace(&mut options.classes, tw());
+        let group_classes = b.part_over(
+            ComboboxPart::Input,
+            &[],
+            Defaults(list::group_classes(&style)),
+            caller,
+        );
         let (placeholder, name) = (options.placeholder.clone(), options.name.clone());
         let open = state.open;
         let clearing = clear.filter(|_| value.is_some());
@@ -467,8 +475,14 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             match clearing {
                 Some(clear) => {
                     let cleared = ctx.clone();
+                    let icon = s.part_over(
+                        ComboboxPart::ClearIcon,
+                        &[],
+                        Defaults(list::end_glyph_classes(&style)),
+                        tw(),
+                    );
                     s.div_id((key, Part::Clear), list::end_button_classes(&style), |s| {
-                        s.glyph(list::end_glyph_classes(&style), Icon::new(icons::CLOSE));
+                        s.glyph(icon, Icon::new(icons::CLOSE));
                     })
                     .role(Role::Button)
                     .named("Clear")
@@ -478,15 +492,16 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                     });
                 }
                 None => {
+                    let icon = s.part_over(
+                        ComboboxPart::TriggerIcon,
+                        &[],
+                        Defaults(list::end_glyph_classes(&style)),
+                        tw(),
+                    );
                     s.div_id(
                         (key, Part::Chevron),
                         list::end_button_classes(&style),
-                        |s| {
-                            s.glyph(
-                                list::end_glyph_classes(&style),
-                                Icon::new(icons::CHEVRON_DOWN),
-                            );
-                        },
+                        |s| s.glyph(icon, Icon::new(icons::CHEVRON_DOWN)),
                     )
                     .role(Role::Button)
                     .named("Show options")
@@ -523,13 +538,20 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             .focus(Focus::Stay)
             .on_dismiss(move |_| Typing::CLOSED.store(&dismiss, key))
             .children(|s| {
-                s.div_id(Part::Box, list::popover_classes(&style), |s| {
+                let content = s.part_over(
+                    ComboboxPart::Content,
+                    &[],
+                    Defaults(list::popover_classes(&style)),
+                    tw().flex().flex_col().min_h_0(),
+                );
+                s.div_id(Part::Box, content, |s| {
                     list::show(
                         s,
                         key,
                         items,
                         options,
                         ListOptions {
+                            looks: list::Looks::Combobox,
                             first: First::Highlighted,
                             after: Some(after),
                             field: list::Field::Theirs {
@@ -685,6 +707,7 @@ impl<'f, A: 'static> AutosuggestChain<'_, '_, 'f, A> {
                         items,
                         options,
                         list::ListOptions {
+                            looks: list::Looks::Own,
                             first: First::Left,
                             after: Some(after),
                             field: list::Field::Theirs { id: field_id, text },

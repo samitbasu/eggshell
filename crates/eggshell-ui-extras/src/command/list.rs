@@ -6,12 +6,15 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use eggshell_ui::owned::{Enablement, Mark};
+use eggshell_ui::sheet::{Defaults, Key as SheetKey};
 use eggshell_ui::vlist::ListNav;
 use eggshell_ui::{
     Builder, Command, CommandState, Commands, Icon, Key, Match, Scope, Shell, Style, Tw, child_id,
     icons, tw,
 };
 use egui::{Context, Id, Role};
+
+use super::ComboboxPart;
 
 use super::{Filter, Filtering, Options, Pending, filter};
 
@@ -180,11 +183,38 @@ pub(crate) enum First {
 
 /// How the list shows for its shape.
 pub(crate) struct ListOptions<A> {
+    /// Whose parts the list draws.
+    pub(crate) looks: Looks,
     pub(crate) first: First,
     /// What runs after an item's own pick: closing what holds the list.
     pub(crate) after: Option<Pick<A>>,
     /// The search field, or the app's own field, and what typing in it does.
     pub(crate) field: Field,
+}
+
+/// Whose parts a list draws: a combobox's, from the style's sheet with its
+/// own look as their defaults, or the command list's own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Looks {
+    Combobox,
+    Own,
+}
+
+impl Looks {
+    /// The classes of `part` for a node with `keys`: `own` as the part's
+    /// defaults, under the sheet, for a combobox; `own` alone otherwise.
+    pub(crate) fn part<A>(
+        self,
+        b: &mut Builder<'_, '_, A>,
+        (part, keys): (ComboboxPart, &[SheetKey]),
+        own: Tw,
+        call_site: Tw,
+    ) -> Tw {
+        match self {
+            Self::Combobox => b.part_over(part, keys, Defaults(own), call_site),
+            Self::Own => own.merge(call_site),
+        }
+    }
 }
 
 /// Where the query comes from.
@@ -198,6 +228,7 @@ pub(crate) enum Field {
 impl<A> ListOptions<A> {
     pub(crate) fn palette(after: Option<Pick<A>>) -> Self {
         Self {
+            looks: Looks::Own,
             first: First::Highlighted,
             after,
             field: Field::Own,
@@ -419,6 +450,7 @@ pub(crate) fn show<'f, A: 'static>(
         classes,
     } = options;
     let listing = Rc::new(Listing::filtered(items, &query, filter.as_ref(), filtering));
+    let looks = shape.looks;
     b.div_id(key, tw().flex().flex_col().min_h_0().merge(classes), |s| {
         let field = match field {
             Some(field) => field,
@@ -433,7 +465,9 @@ pub(crate) fn show<'f, A: 'static>(
                     });
                 }
                 Filtering::App(Pending::Settled) | Filtering::Ours => {
-                    s.div_id(Part::Empty, note_classes(&style), |s| match empty {
+                    let classes =
+                        looks.part(s, (ComboboxPart::Empty, &[]), note_classes(&style), tw());
+                    s.div_id(Part::Empty, classes, |s| match empty {
                         Some(empty) => empty(s),
                         None => s.text(tw(), "No results found."),
                     });
@@ -443,20 +477,40 @@ pub(crate) fn show<'f, A: 'static>(
         }
         let text = style.role(&style.menu().text).clone();
         let row_height = style.menu().row_height(&text);
+        let list_classes = looks.part(
+            s,
+            (ComboboxPart::List, &[]),
+            tw().p(style.menu().padding / 4.0)
+                .scroll_py(1.0)
+                .scrollbar_none(),
+            tw().max_h_px(command.list_height),
+        );
         let mut list = s
-            .virtual_list(
-                Part::Results,
-                tw().max_h_px(command.list_height)
-                    .p(style.menu().padding / 4.0)
-                    .scroll_py(1.0)
-                    .scrollbar_none(),
-                rows,
-            )
+            .virtual_list(Part::Results, list_classes, rows)
             .nav(ListNav::Listbox)
             .keys_from(field)
             .estimate_px(row_height);
         if shape.first == First::Highlighted {
             list = list.highlight_first();
+        }
+        if looks == Looks::Combobox {
+            let (rows_of, style_of) = (Rc::clone(&listing), Arc::clone(&style));
+            list = list.row_part(move |b, row| {
+                let enablement = rows_of
+                    .entries
+                    .get(&row)
+                    .map_or(Enablement::Disabled, |entry| entry.enablement);
+                let keys: &[SheetKey] = match enablement {
+                    Enablement::Enabled => &[],
+                    Enablement::Disabled => &[SheetKey::Aria(eggshell_ui::Aria::Disabled)],
+                };
+                b.part_over(
+                    ComboboxPart::Item,
+                    keys,
+                    Defaults(item_look(&style_of, enablement)),
+                    tw(),
+                )
+            });
         }
         if let Some(name) = name {
             list = list.named(name);
@@ -507,12 +561,19 @@ pub(crate) fn show<'f, A: 'static>(
         .items(move |s, row| {
             let at = rows_of.rows.iter().position(|&r| r == row).unwrap_or(0);
             if let Some(heading) = rows_of.heading(at) {
-                s.div(heading_classes(&style_of, at), |s| {
-                    s.text(tw(), heading.to_owned())
-                });
+                let classes = looks.part(
+                    s,
+                    (ComboboxPart::Label, &[]),
+                    heading_classes(&style_of, at),
+                    tw(),
+                );
+                s.div(classes, |s| s.text(tw(), heading.to_owned()));
             }
             if let Some(entry) = rows_of.entries.get(&row) {
-                item(s, &style_of, &command_of, entry);
+                match looks {
+                    Looks::Combobox => combobox_item(s, entry),
+                    Looks::Own => item(s, &style_of, &command_of, entry),
+                }
             }
         });
     });
@@ -599,6 +660,53 @@ fn heading_classes(style: &Style, at: usize) -> Tw {
         classes
     } else {
         classes.mt(1.0).border_t(1.0).border_color(menu.separator)
+    }
+}
+
+/// A combobox's option, in a row that is its `ComboboxPart::Item`: its
+/// label, its shortcut and the room for its check, shadcn's item indicator.
+fn combobox_item<A: 'static>(s: &mut Scope<'_, '_, A>, entry: &Entry<A>) {
+    s.div(tw().grow().min_w_0(), |s| s.text(tw(), entry.label.clone()));
+    if let Some(shortcut) = &entry.shortcut {
+        s.text(tw().ml_auto(), shortcut.clone());
+    }
+    let side = s.style().menu().indicator;
+    let indicator = s.part_over(
+        ComboboxPart::ItemIndicator,
+        &[],
+        Defaults(tw().size_px(side).shrink_0()),
+        tw(),
+    );
+    let check = s.part_over(ComboboxPart::ItemIndicatorIcon, &[], Defaults(tw()), tw());
+    s.div(indicator, |s| {
+        if let CommandState::Checked(Mark::On) | CommandState::Chosen(Mark::On) = entry.state {
+            s.glyph(check, Icon::new(icons::CHECK));
+        }
+    });
+}
+
+/// The look of a combobox's option row in `enablement`, the widget's own:
+/// the menu item's, highlighted as the menu's are.
+fn item_look(style: &Style, enablement: Enablement) -> Tw {
+    let menu = style.menu();
+    let text = style.role(&menu.text);
+    let states = menu.item.paint.states;
+    let base = tw()
+        .flex()
+        .items_center()
+        .gap(menu.item_gap / 4.0)
+        .px(menu.item_padding.x / 4.0)
+        .h_px(menu.row_height(text))
+        .rounded_px(f32::from(menu.item_radius))
+        .whitespace_nowrap();
+    match enablement {
+        Enablement::Disabled => base.text(states.disabled.text),
+        Enablement::Enabled => {
+            let hover = states.hover;
+            base.bg(states.rest.fill)
+                .text(states.rest.text)
+                .highlighted(|p| p.bg(hover.fill).text(hover.text))
+        }
     }
 }
 
