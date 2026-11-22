@@ -150,12 +150,14 @@ fn slider_track_range_and_thumb_are_the_styles() {
         );
         assert_eq!(bar.width(), track.width());
         let bar_shape = box_at(&d, bar);
-        assert_eq!(bar_shape.fill, slider.track.rest.fill, "{theme:?}");
+        let tokens = Tokens::for_theme(theme);
+        // Recorded exception (#132): the input token, not `bg-muted`.
+        assert_eq!(bar_shape.fill, tokens.input, "{theme:?}: the input token");
         assert_eq!(bar_shape.corner_radius, egui::CornerRadius::same(u8::MAX));
 
         let range = range(&d, "volume");
         assert!((range.width() - 0.4 * bar.width()).abs() < 0.6, "{range:?}");
-        assert_eq!(box_at(&d, range).fill, slider.range.rest.fill);
+        assert_eq!(box_at(&d, range).fill, tokens.primary, "bg-primary");
 
         let thumb = d.rect(Target::suffix(THUMB));
         assert_eq!(thumb.size(), vec2(16.0, 16.0), "size-4");
@@ -163,12 +165,10 @@ fn slider_track_range_and_thumb_are_the_styles() {
         assert!((thumb.center().x - centre).abs() < 0.6, "{thumb:?}");
         assert!((thumb.center().y - track.center().y).abs() < 0.6);
         let shape = box_at(&d, thumb);
-        let look = slider.thumb;
-        assert_eq!(shape.fill, look.paint.states.rest.fill);
-        assert_eq!(shape.stroke.color, look.paint.states.rest.border);
+        assert_eq!(shape.fill, egui::Color32::WHITE, "{theme:?}: bg-white");
+        assert_eq!(shape.stroke.color, tokens.primary, "border-primary");
         assert_eq!(shape.stroke.width, 1.0);
         assert_eq!(shape.corner_radius, egui::CornerRadius::same(u8::MAX));
-        assert_ne!(slider.range.rest.fill, slider.track.rest.fill);
     }
 }
 
@@ -354,6 +354,7 @@ fn a_disabled_slider_ignores_the_pointer_and_the_keyboard() {
             "not a Tab stop"
         );
     }
+    // Recorded exception (#40): opaque blends, not the root's opacity-50.
     let slider = style(Theme::Light).slider;
     let bar = bar(&d, "locked");
     assert_eq!(box_at(&d, bar).fill, slider.track.disabled.fill);
@@ -952,4 +953,53 @@ fn the_select_list_is_as_wide_as_its_options_not_the_window() {
         option_width(400.0, "Europe"),
         option_width(1200.0, "Europe")
     );
+}
+
+/// The slider draws from the style's sheet: an App rule restyles its range.
+#[test]
+fn an_app_rule_restyles_a_sliders_range() {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut d = support::driver(
+        vec2(400.0, 500.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App::default(),
+        view,
+    )
+    .style(support::shadcn_with(|style| {
+        style
+            .sheet
+            .as_app()
+            .rule(eggshell_ui::owned::SliderPart::Range, |t, _| {
+                t.bg(egui::Color32::RED)
+            });
+    }))
+    .build();
+    d.frames(12);
+    let range = range(&d, "volume");
+    assert!(range.width() > 0.0, "precondition: a range is drawn");
+    assert_eq!(box_at(&d, range).fill, egui::Color32::RED);
+}
+
+/// A disabled slider's colours are on the sheet, recorded exception and all:
+/// an App rule restyles its thumb.
+#[test]
+fn an_app_rule_restyles_a_disabled_sliders_thumb() {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut d = support::driver(
+        vec2(400.0, 500.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App::default(),
+        view,
+    )
+    .style(support::shadcn_with(|style| {
+        style.sheet.as_app().rule_when(
+            eggshell_ui::owned::SliderPart::Thumb,
+            eggshell_ui::sheet::When::always().aria(eggshell_ui::Aria::Disabled),
+            |t, _| t.bg(egui::Color32::RED),
+        );
+    }))
+    .build();
+    d.frames(12);
+    let thumb = d.rect(Target::suffix("/\"locked\"/Track/Thumb"));
+    assert_eq!(box_at(&d, thumb).fill, egui::Color32::RED);
 }
