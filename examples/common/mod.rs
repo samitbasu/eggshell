@@ -18,7 +18,7 @@ use std::sync::Arc;
 use eggshell_ui::contract::Themed;
 use eggshell_ui::owned::Cell;
 use eggshell_ui::prim::text_field::Field;
-use eggshell_ui::{Builder, LayoutState, TextSpec, TextStyle, Tw, Weight, tw};
+use eggshell_ui::{Aria, Builder, LayoutState, Match, TextSpec, TextStyle, Tw, Weight, tw};
 use eggshell_ui_shadcn::{Palette, Shadcn, ShadcnStyle, ThemeColor, Tokens};
 use egui::{Color32, Context, FontFamily, Key, Role, Theme, ThemePreference, WidgetInfo};
 
@@ -611,19 +611,23 @@ pub fn choice<S, K, T>(
 /// A frameless text field filling its row, in shadcn's input box: `h-9`,
 /// bordered, with a ring while the field has focus; the box is the field's
 /// only frame. `name` is its accessible name. The box is the node `key`; the
-/// leaf inside it is `"field"`.
+/// leaf inside it is `"field"`. While `error` is `Some` the field is invalid,
+/// and the box turns destructive because its child is, as shadcn's input
+/// group does.
 ///
 /// ```html
 /// <div class="flex items-center w-full min-h-9 px-3 py-1 border border-input rounded-md shadow-xs bg-background dark:bg-input/30
-///   focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
-///   <input class="w-full bg-transparent outline-none" placeholder="Your name">
+///   focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50
+///   has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-[3px]
+///   has-[[aria-invalid=true]]:ring-destructive/20 dark:has-[[aria-invalid=true]]:ring-destructive/40">
+///   <input class="w-full bg-transparent outline-none" placeholder="Your name" aria-invalid="true">
 /// </div>
 /// ```
 pub fn text_box<S, K>(
     b: &mut Builder<'_, '_, S>,
     key: K,
     (name, role): (&'static str, Role),
-    field: Field,
+    (field, error): (Field, Option<&str>),
     lens: fn(&mut S) -> &mut String,
 ) where
     S: 'static,
@@ -632,6 +636,10 @@ pub fn text_box<S, K>(
     let t = tokens(b.ctx());
     let fill = b.ctx().global_style().visuals.text_edit_bg_color();
     let field = field.bare();
+    let invalid_ring = match b.ctx().theme() {
+        Theme::Light => t.destructive.gamma_multiply(0.2),
+        Theme::Dark => t.destructive.gamma_multiply(0.4),
+    };
     b.div_id(
         key,
         tw().flex()
@@ -645,9 +653,13 @@ pub fn text_box<S, K>(
             .rounded_px(f32::from(t.radius_md()))
             .bg(fill)
             .shadow(t.control_shadow())
-            .focus_within(|p| p.border_color(t.ring).ring(t.ring_width, ring(&t))),
+            .focus_within(|p| p.border_color(t.ring).ring(t.ring_width, ring(&t)))
+            .has(Match::aria(Aria::Invalid), |p| {
+                p.border_color(t.destructive).ring(3.0, invalid_ring)
+            }),
         |b| {
             b.text_field_with("field", field)
+                .invalid(error)
                 .classes(tw().w_full().min_h_px(t.control_height))
                 .on_response(move |_, response| {
                     response.widget_info(|| WidgetInfo::labeled(role, response.enabled(), name));
