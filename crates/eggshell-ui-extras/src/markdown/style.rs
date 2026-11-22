@@ -117,7 +117,7 @@ impl MarkdownStyle {
             ] {
                 *fill = Color32::TRANSPARENT;
             }
-            style.set_table_over(table);
+            style.at_current_layer(|style| style.set_table(table));
         }
         if let Some(look) = &self.rich {
             let rich = &mut style.rich;
