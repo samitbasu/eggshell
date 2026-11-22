@@ -1875,7 +1875,10 @@ fn assert_on_screen<A>(harness: &Harness<'static, support::Rig<A>>, path: &str) 
         .find(|(candidate, _)| candidate == path)
         .unwrap_or_else(|| panic!("no node {path}"))
         .1;
-    assert!(window.contains_rect(rect), "{path} {rect:?} is cut off by the window {window:?}");
+    assert!(
+        window.contains_rect(rect),
+        "{path} {rect:?} is cut off by the window {window:?}"
+    );
 }
 
 /// The dropdown with its Arrange submenu open and the pointer on one of its
