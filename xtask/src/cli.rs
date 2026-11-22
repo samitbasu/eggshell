@@ -19,8 +19,9 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Run everything CI runs, in CI's order, and list the failed steps at
-    /// the end: fmt --check, the no-wall-clock check, clippy -D warnings,
-    /// clippy of the crates with features with none of them, tests, doctests, rustdoc -D warnings, screenshots (Linux), wasm32 check,
+    /// the end: fmt --check, the no-wall-clock check, clippy -D warnings
+    /// (also of the crates with features, with none of them), tests,
+    /// doctests, rustdoc -D warnings, screenshots (Linux), wasm32 check,
     /// fuzz
     Ci {
         /// Leave out the step of this name; repeatable. CI runs `fuzz` as a
@@ -28,6 +29,9 @@ pub enum Command {
         #[arg(long, value_name = "STEP")]
         skip: Vec<String>,
     },
+    /// Run CI's steps but its slowest (the wasm32 check and fuzz), in CI's
+    /// order: the check before an item is integrated
+    Integrate,
     /// Format the workspace with `cargo fmt --all`
     Fmt {
         /// Verify formatting without writing
@@ -118,6 +122,7 @@ impl Command {
     pub fn run(self) -> Result<()> {
         match self {
             Command::Ci { skip } => steps::run_all(&steps::ci_steps_skipping(&skip)?),
+            Command::Integrate => steps::run_all(&steps::integrate_steps()),
             Command::Fmt { check } => {
                 let mode = if check {
                     FmtMode::Check
@@ -220,6 +225,11 @@ mod tests {
             panic!("expected ci")
         };
         assert_eq!(skip, ["fuzz", "wasm"]);
+    }
+
+    #[test]
+    fn integrate_parses() {
+        assert!(matches!(parse(&["integrate"]), Command::Integrate));
     }
 
     #[test]
