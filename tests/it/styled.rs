@@ -49,7 +49,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
             |style| {
                 let mut table = style.table().clone();
                 table.cell_padding = PADDING;
-                style.set_table(table);
+                style.set_table_over(table);
             },
             |b| {
                 table(b, "styled");
@@ -57,7 +57,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
                     |style| {
                         let mut table = style.table().clone();
                         table.cell_padding += MORE;
-                        style.set_table(table);
+                        style.set_table_over(table);
                     },
                     |b| table(b, "nested"),
                 );
@@ -69,7 +69,7 @@ fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
             |style| {
                 let mut table = style.table().clone();
                 table.cell_padding = PADDING;
-                style.set_table(table);
+                style.set_table_over(table);
             },
             |b| {
                 b.span("scoped probe", tw(), "probe")

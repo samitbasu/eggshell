@@ -215,6 +215,10 @@ fn attribute(selector: &str) -> Option<String> {
 /// `has-[[data-slot=x]:focus-visible]`, `has-[>[data-k=v]]`.
 /// The rule method is `has_child` for `has-[>…]`, `has` otherwise.
 fn has(variant: &str) -> Option<(&'static str, String)> {
+    // `[&:has([role=checkbox])]`: eggshell's checkbox says its slot.
+    if variant == "[&:has([role=checkbox])]" {
+        return Some(("has", "Match::slot(\"checkbox\")".to_owned()));
+    }
     let rest = variant.strip_prefix("has-")?;
     let any = |m: String| Some(("has", m));
     match rest {
@@ -336,10 +340,18 @@ fn equivalent(utility: &str) -> Option<(Option<&'static str>, Kind)> {
     Some(match utility {
         "border" => (Some(".border(1.0)"), Kind::Equivalent),
         "inline-flex" => (Some(".flex()"), Kind::Equivalent),
-        "transition-all" => (
+        "transition-all" | "transition-colors" => (
             Some(".transition(Duration::from_millis(150))"),
             Kind::Equivalent,
         ),
+        "border-0" => (Some(".border(0.0)"), Kind::Equivalent),
+        "border-t" => (Some(".border_t(1.0)"), Kind::Equivalent),
+        "border-b" => (Some(".border_b(1.0)"), Kind::Equivalent),
+        "border-b-0" => (Some(".border_b(0.0)"), Kind::Equivalent),
+        // A table cell's `vertical-align: middle`: eggshell's cells are
+        // flex boxes.
+        "align-middle" => (Some(".flex().items_center()"), Kind::Equivalent),
+        "caption-bottom" => (None, Kind::NoOp),
         "pointer-events-none" => (Some(".pointer_events_none()"), Kind::Equivalent),
         "translate-y-px" => (Some(".translate_y(1.0)"), Kind::Equivalent),
         "shadow-none" => (Some(".shadow(Shadow::NONE)"), Kind::Equivalent),
@@ -710,6 +722,9 @@ pub struct Widget {
     /// An ancestor's state a part carries as its own, as the variants that
     /// ask for each: input-group's addon is disabled with its group.
     pub inherited: &'static [(&'static str, &'static str)],
+    /// Parts that draw as another part, by its enum variant: table.tsx's
+    /// footer cells are its `TableCell`s, which eggshell names apart.
+    pub copies: &'static [(&'static str, &'static [&'static str])],
     /// Parts shadcn's component has that eggshell's widget does not draw,
     /// by slot, and why: their classes are dropped.
     pub absent: &'static [(&'static str, &'static str)],
@@ -915,7 +930,10 @@ fn draws_a_border(rules: &[Rule], part: &str, half: &str) -> bool {
         .iter()
         .filter(|r| r.part == part)
         .flat_map(|r| half_of(r, half))
-        .any(|(t, _)| matches!(&t.leaf, Leaf::Call(call) if call.starts_with(".border(")))
+        .any(|(t, _)| {
+            matches!(&t.leaf, Leaf::Call(call)
+                if [".border(", ".border_t(", ".border_b("].iter().any(|width| call.starts_with(width)))
+        })
 }
 
 /// A class's source, as `source_of` writes it: its file, line and class.
@@ -1072,6 +1090,20 @@ pub fn emit(
                 }
             }
         }
+    }
+    for &(from, to) in widget.copies {
+        let copied: Vec<Rule> = rules
+            .iter()
+            .filter(|r| r.part == from)
+            .flat_map(|r| {
+                to.iter().map(|part| Rule {
+                    part: (*part).to_owned(),
+                    when: r.when.clone(),
+                    pieces: r.pieces.clone(),
+                })
+            })
+            .collect();
+        rules.extend(copied);
     }
     // A part's base rule replaces the lower layers' rules for it, so it
     // comes before the part's conditional rules, which it would otherwise
@@ -1336,6 +1368,11 @@ mod tests {
             );
             assert_eq!(one(c, "-mx-1"), ".mx(-1.0)", "a negative margin");
             assert_eq!(one(c, "max-w-xs"), ".max_w_px(320.0)", "20rem");
+            assert_eq!(one(c, "border-b"), ".border_b(1.0)");
+            assert_eq!(
+                one(c, "[&:has([role=checkbox])]:pl-2"),
+                ".has(Match::slot(\"checkbox\"), |b| b.pl(2.0))"
+            );
             assert_eq!(one(c, "font-normal"), ".font_weight(Weight::Normal)");
             assert!(c.translate("-px-1").is_err(), "padding is never negative");
             assert_eq!(one(c, "tracking-widest"), ".tracking(Tracking::em(0.1))");
@@ -1625,6 +1662,7 @@ mod tests {
         slot_aliases: &[("input-group-control", &["input-group-textarea"])],
         inherited: &[("group-data-[disabled=true]/input-group", "disabled")],
         absent: &[],
+        copies: &[],
         facts: &[
             Assumed {
                 variant: "group-data-horizontal/tabs",

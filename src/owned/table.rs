@@ -626,9 +626,9 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone + PartialEq>
         let columns: Rc<[Column]> = columns.into();
         let column_count = columns.len();
         let classes = b.part(
-            TablePart::Table,
+            TablePart::Root,
             &[],
-            tw().grid_cols_tracks(&tracks).sense_hover(),
+            tw().grid().grid_cols_tracks(&tracks).sense_hover(),
         );
         let table_id = slot.id;
         let mut built = Built::default();

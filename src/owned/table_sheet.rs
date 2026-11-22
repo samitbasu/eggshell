@@ -20,7 +20,7 @@ use crate::sheet::{Key, Part, Sheet, When};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TablePart {
     /// TODO(prose): the grid that holds the bands.
-    Table,
+    Root,
     /// TODO(prose): the band of column headings.
     Header,
     /// TODO(prose): a body row.
@@ -44,7 +44,7 @@ impl Part for TablePart {
 
     fn slot(self) -> &'static str {
         match self {
-            Self::Table => "table",
+            Self::Root => "table",
             Self::Header => "table-header",
             Self::Row => "table-row",
             Self::Group => "table-group",
@@ -96,7 +96,7 @@ impl TablePart {
 
 /// Writes the rules that draw `table`'s look at the sheet's current layer.
 pub(crate) fn write_rules(sheet: &mut Sheet, table: &TableStyle) {
-    sheet.replace(TablePart::Table, |t, _| t.grid().w_full());
+    sheet.replace(TablePart::Root, |t, _| t.grid().w_full());
     let t = table.clone();
     sheet.replace(TablePart::Header, move |b, _| {
         b.bg(t.header_fill)
@@ -195,6 +195,41 @@ pub(crate) fn write_rules(sheet: &mut Sheet, table: &TableStyle) {
             TablePart::FooterCell,
         ] {
             sheet.rule_when(part, first, move |b, _| b.pl(inset / 4.0));
+        }
+    }
+}
+
+/// Writes the table's recorded rules over a preset's generated look, at the
+/// sheet's current layer.
+///
+/// eggshell's header is a band, its own row, drawn from the section, which
+/// rules it as table.tsx's `[&_tr]:border-b` does; its body rows say which
+/// is last, for the body's `[&_tr:last-child]:border-0`, unless the section
+/// keeps a rule below it. A selected row keeps its fill under the pointer, as
+/// `data-[state=selected]:` follows `hover:` in Tailwind's order. Stripes
+/// and the first column's inset are eggshell's own, from the section.
+pub(crate) fn write_exceptions(sheet: &mut Sheet, table: &TableStyle) {
+    let last = if table.rule_below_last { 1.0 } else { 0.0 };
+    sheet.rule_when(
+        TablePart::Row,
+        When::always().attr(POSITION.0, POSITION.1),
+        move |t, _| t.border_b(last),
+    );
+    sheet.rule_when(
+        TablePart::Row,
+        When::always().aria(Aria::Selected),
+        |t, k| t.hover(|p| p.bg(k.muted)),
+    );
+    let stripe = table.stripe;
+    sheet.rule_when(
+        TablePart::Row,
+        When::always().attr(STRIPE.0, STRIPE.1),
+        move |t, _| t.bg(stripe),
+    );
+    if let Some(inset) = table.first_column_inset {
+        let first = When::always().attr(COLUMN.0, COLUMN.1);
+        for part in [TablePart::Head, TablePart::Cell, TablePart::FooterCell] {
+            sheet.rule_when(part, first, move |t, _| t.pl(inset / 4.0));
         }
     }
 }

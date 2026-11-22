@@ -2298,6 +2298,16 @@ impl Style {
         self.restyle(Self::write_table_rules);
     }
 
+    /// TODO(prose): sets the table section and writes the rules that draw it
+    /// at the sheet's current layer, a scope's or the application's, over a
+    /// preset's look: how a scope restyles its tables from a section, as a
+    /// document's typesetting does. [`set_table`](Self::set_table) writes
+    /// the widgets' defaults, under a preset's look.
+    pub fn set_table_over(&mut self, table: TableStyle) {
+        self.table = table;
+        self.write_table_rules();
+    }
+
     fn write_table_rules(&mut self) {
         crate::owned::write_table_rules(&mut self.sheet, &self.table);
     }
@@ -2307,12 +2317,13 @@ impl Style {
         crate::owned::write_menu_rules(&mut self.sheet, &self.menu, &text);
     }
 
-    /// TODO(prose): writes the recorded exceptions over the rules at the sheet's current layer. The input's: a disabled group fades as a whole, and the sizes other than the default keep their metrics. The select's: a size the trigger's rules leave out keeps its metrics. The tabs': the track keeps its fill, the trigger's 1 px trim comes out of its padding, the sizes other than the default keep their metrics, and wrapping lists keep their rows. The menu's: an item of the default variant keeps the generated look. The choice controls': a radio's dot is centred in its circle, and a size their rules leave out keeps its metrics. A preset calls this after its generated look.
+    /// TODO(prose): writes the recorded exceptions over the rules at the sheet's current layer. The input's: a disabled group fades as a whole, and the sizes other than the default keep their metrics. The select's: a size the trigger's rules leave out keeps its metrics. The tabs': the track keeps its fill, the trigger's 1 px trim comes out of its padding, the sizes other than the default keep their metrics, and wrapping lists keep their rows. The menu's: an item of the default variant keeps the generated look. The table's: its bands' borders, the last row's, a selected row's fill under the pointer, stripes and the first column's inset. The choice controls': a radio's dot is centred in its circle, and a size their rules leave out keeps its metrics. A preset calls this after its generated look.
     pub fn write_exceptions(&mut self) {
         crate::owned::write_input_exceptions(&mut self.sheet, &self.input);
         crate::owned::write_select_exceptions(&mut self.sheet, &self.select);
         crate::owned::write_tabs_exceptions(&mut self.sheet, &self.segmented);
         crate::owned::write_menu_exceptions(&mut self.sheet);
+        crate::owned::write_table_exceptions(&mut self.sheet, &self.table);
         crate::owned::write_choice_exceptions(
             &mut self.sheet,
             (&self.checkbox, &self.radio, &self.switch),

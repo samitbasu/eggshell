@@ -402,7 +402,8 @@ mod selection {
         d.frames(3);
         assert_ne!(fill_of(&d, "Row(31)"), Some(Color32::RED), "precondition");
         d.click(Target::suffix(&cell("Row(31)", 0)));
-        d.frames(12);
+        // Off the row: the preset's hover paints over any row's fill.
+        d.hover(egui::pos2(1.0, 1.0)).frames(12);
         assert_eq!(d.app().selected, Some(31));
         assert_eq!(fill_of(&d, "Row(31)"), Some(Color32::RED));
         assert_ne!(
@@ -802,7 +803,7 @@ mod spacing {
         let d = harness(|style| {
             let mut table = style.table().clone();
             table.cell_padding_y = Some(3.0);
-            style.set_table(table);
+            style.set_table_over(table);
         });
         let padding = table(&d).cell_padding;
         assert_ne!(padding, 3.0, "precondition");
@@ -818,7 +819,7 @@ mod spacing {
         let d = harness(|style| {
             let mut table = style.table().clone();
             table.header_padding_y = Some(5.0);
-            style.set_table(table);
+            style.set_table_over(table);
         });
         assert_ne!(table(&d).header_height, LINE + 10.0, "precondition");
         let header = cell(&d, "Header", 0);
@@ -830,7 +831,7 @@ mod spacing {
         let d = harness(|style| {
             let mut table = style.table().clone();
             table.first_column_inset = Some(0.0);
-            style.set_table(table);
+            style.set_table_over(table);
         });
         let padding = table(&d).cell_padding;
         let (first, second) = (cell(&d, "Row(1)", 0), cell(&d, "Row(1)", 1));
@@ -869,7 +870,7 @@ mod spacing {
         assert!(rule(&harness(|style| {
             let mut table = style.table().clone();
             table.rule_below_last = true;
-            style.set_table(table);
+            style.set_table_over(table);
         })));
     }
 }
@@ -1380,4 +1381,29 @@ mod groups {
             );
         }
     }
+}
+
+/// table.tsx in `style-vega.css`: `h-10` heads, `border-b` rows in the base
+/// layer's `border-border`, `data-[state=selected]:bg-muted`, and, as
+/// recorded, the header band's own rule, none under the last body row, and
+/// a selected row's fill kept under the pointer.
+#[test]
+fn the_table_is_shadcns_with_its_bands_ruled() {
+    let mut d = harness(Selection::On);
+    let t = Tokens::for_theme(d.ctx().theme());
+    let head = d.rect(Target::suffix(&cell("Header", 0)));
+    assert_eq!(head.height(), 40.0, "h-10");
+    let header = d.rect(Target::suffix(&band("Header")));
+    assert!(rule_under(&d, header, t.border), "the header band's rule");
+    let first = d.rect(Target::suffix(&band("Row(7)")));
+    assert!(rule_under(&d, first, t.border), "a body row's border-b");
+    let last = d.rect(Target::suffix(&band("Row(31)")));
+    assert!(!rule_under(&d, last, t.border), "none under the last");
+    d.click(Target::suffix(&cell("Row(1024)", 0))).frames(12);
+    assert_eq!(d.app().selected, Some(1024), "precondition");
+    assert_eq!(
+        fill_of(&d, "Row(1024)"),
+        Some(t.muted),
+        "selected, under the pointer"
+    );
 }

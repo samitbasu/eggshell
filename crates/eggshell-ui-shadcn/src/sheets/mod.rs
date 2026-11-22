@@ -22,6 +22,7 @@ mod vega_checkbox;
 mod vega_radio_group;
 mod vega_switch;
 mod vega_field;
+mod vega_table;
 mod vega_tabs;
 mod lyra_button;
 mod lyra_input;
@@ -33,6 +34,7 @@ mod lyra_checkbox;
 mod lyra_radio_group;
 mod lyra_switch;
 mod lyra_field;
+mod lyra_table;
 mod lyra_tabs;
 
 /// Writes the rules of `style` for `theme` into `sheet`. Their colours are
@@ -50,6 +52,7 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             (vega_radio_group::light, vega_radio_group::dark),
             (vega_switch::light, vega_switch::dark),
             (vega_field::light, vega_field::dark),
+            (vega_table::light, vega_table::dark),
             (vega_tabs::light, vega_tabs::dark),
         ],
         ShadcnStyle::Lyra => &[
@@ -63,6 +66,7 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             (lyra_radio_group::light, lyra_radio_group::dark),
             (lyra_switch::light, lyra_switch::dark),
             (lyra_field::light, lyra_field::dark),
+            (lyra_table::light, lyra_table::dark),
             (lyra_tabs::light, lyra_tabs::dark),
         ],
     };
