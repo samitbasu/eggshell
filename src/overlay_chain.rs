@@ -6,8 +6,8 @@ use egui::{Id, Role};
 
 use crate::builder::{Builder, Scope, Slot};
 use crate::overlay::{
-    Anchor, Band, Behavior, DismissOn, Focus, HoverIntent, MatchWidth, Modal, Nav, Outside,
-    Placement,
+    Anchor, Band, Behavior, DismissOn, Fit, Focus, HoverIntent, MatchWidth, Modal, Nav, Outside,
+    Placement, Showing,
 };
 use crate::pipeline::DismissFn;
 use crate::presence::{Entrance, ExitedFn, Motion, Shown, Staged};
@@ -454,7 +454,11 @@ impl<A, M> OverlayChain<'_, '_, A, Floating, M> {
 }
 
 impl<'f, A, State, M> OverlayChain<'_, 'f, A, State, M> {
-    fn declare(self, presentation: Presentation, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
+    fn declare(
+        self,
+        (presentation, showing): (Presentation, Showing),
+        body: impl FnOnce(&mut Scope<'_, 'f, A>),
+    ) {
         let Self {
             b,
             slot,
@@ -476,6 +480,7 @@ impl<'f, A, State, M> OverlayChain<'_, 'f, A, State, M> {
             behavior,
             declared_at,
             staged: Staged::STEADY,
+            showing,
         };
         b.overlay_with(&slot, decl, on_dismiss, (motion, presence.on_exited), body);
     }
@@ -489,19 +494,36 @@ impl<'f, A, M> OverlayChain<'_, 'f, A, Floating, M> {
     /// Declare the overlay every frame it is open. It closes when a frame
     /// does not declare it; the library holds no open state of its own.
     pub fn children(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
+        self.floating(Showing::Drawn, body);
+    }
+
+    /// [`children`](Self::children), told what the last layout found of the
+    /// overlay's room, for content that scrolls only when it is cut short.
+    /// Until the overlay has been laid out once it is measured and not shown.
+    pub(crate) fn children_fitted(self, body: impl FnOnce(&mut Scope<'_, 'f, A>, Fit)) {
+        let fit = self
+            .b
+            .kept()
+            .viewport(self.b.viewport(), |here| here.stack.fit_of(self.slot.id));
+        let showing = match fit {
+            Fit::Measuring => Showing::Measuring,
+            Fit::Fits | Fit::Short { .. } => Showing::Drawn,
+        };
+        self.floating(showing, move |s| body(s, fit));
+    }
+
+    fn floating(self, showing: Showing, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         let Floating {
             anchor,
             placement,
             match_width,
         } = self.state;
-        self.declare(
-            Presentation::Floating {
-                anchor,
-                placement,
-                match_width,
-            },
-            body,
-        );
+        let presentation = Presentation::Floating {
+            anchor,
+            placement,
+            match_width,
+        };
+        self.declare((presentation, showing), body);
     }
 }
 
@@ -522,7 +544,7 @@ impl<'f, A, M> OverlayChain<'_, 'f, A, Modally, M> {
     /// no input until it closes.
     pub fn children(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         let Modally { modal } = self.state;
-        self.declare(Presentation::Modal(modal), body);
+        self.declare((Presentation::Modal(modal), Showing::Drawn), body);
     }
 }
 

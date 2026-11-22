@@ -20,7 +20,7 @@ use crate::focus::{self, PointerOn};
 use crate::kept::Handle;
 use crate::nav::{self, Menu};
 use crate::nodes::Nodes;
-use crate::overlay::{Anchor, AnchorLookup, Anchored, Behavior, Focus, Nav, Outside};
+use crate::overlay::{Anchor, AnchorLookup, Anchored, Behavior, Focus, Nav, Outside, Showing};
 use crate::pipeline::{DismissFn, PlacedNode};
 use crate::relation::Relation;
 use crate::roots::{
@@ -256,9 +256,10 @@ fn layers_of(
                 focus_before,
                 lookup: overlay.lookup,
                 focus_now,
-                seen: match overlay.anchored {
-                    Anchored::Attached => Seen::Drawn,
-                    Anchored::Detached => Seen::Hidden,
+                seen: match (overlay.anchored, overlay.showing) {
+                    (Anchored::Detached, _) => Seen::Hidden,
+                    (Anchored::Attached, Showing::Measuring) => Seen::Measured,
+                    (Anchored::Attached, Showing::Drawn) => Seen::Drawn,
                 },
                 window_focus,
                 closer: closer_of(nodes, roots.get(open.root), closers),

@@ -11,7 +11,7 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use crate::support::{self, focused_path, press_and_release};
 
-const SCREEN: egui::Vec2 = vec2(500.0, 400.0);
+const SCREEN: egui::Vec2 = vec2(500.0, 640.0);
 
 const FILE: &str = r#"/"Page"/"Top"/"file""#;
 const MENU: &str = r#"/"Page"/"Top"/("file", Menu)/Box"#;

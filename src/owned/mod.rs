@@ -1017,3 +1017,39 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
         StepperChain::new(self.reborrow(), key, value, range.into())
     }
 }
+
+/// Builds an open overlay's rows in a box of `classes` under `key`. When the
+/// last layout cut the overlay short, the rows are in a scroll container
+/// under `scroller`, as tall as they want, which the box shrinks to its
+/// room: shadcn's `max-h-(--available-height) overflow-y-auto`, with the
+/// gutter only when it scrolls.
+pub(crate) fn fitted_box<'f, A: 'static>(
+    s: &mut crate::builder::Scope<'_, 'f, A>,
+    fit: crate::overlay::Fit,
+    (key, scroller): (impl crate::Key, impl crate::Key),
+    classes: Tw,
+    rows: impl FnOnce(&mut crate::builder::Scope<'_, 'f, A>),
+) {
+    use crate::overlay::Fit;
+    use crate::scroll::{Axis, Focusable};
+    match fit {
+        Fit::Short { natural } => {
+            let height = natural.y - crate::builder::block_insets(classes.style());
+            s.div_id(key, classes.flex().flex_col().min_h_0(), |s| {
+                let viewport = tw()
+                    .flex()
+                    .flex_col()
+                    .h_px(height)
+                    .min_h_0()
+                    .focusable_none();
+                s.scroll(scroller, viewport)
+                    .axis(Axis::Y)
+                    .focusable(Focusable::Auto)
+                    .children(rows);
+            });
+        }
+        Fit::Measuring | Fit::Fits => {
+            s.div_id(key, classes, rows);
+        }
+    }
+}

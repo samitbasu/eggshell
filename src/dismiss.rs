@@ -62,12 +62,14 @@ impl Trigger {
     }
 }
 
-/// Whether an open overlay is drawn, or hidden because its anchor left the
-/// window.
+/// Whether an open overlay is drawn, hidden because its anchor left the
+/// window, or measured in its first frame and shown in the next.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Seen {
     Drawn,
     Hidden,
+    /// Opening, but taking no press and no focus until it is drawn.
+    Measured,
 }
 
 /// Whether the window has had the keyboard focus in a frame an open overlay
@@ -192,7 +194,8 @@ impl Found {
 ///    says: the press is the application's own request.
 /// 7. An overlay opening while a swallowing overlay is open, that is not
 ///    nested in it, dismisses the swallowing one, drawn or hidden: menus are
-///    exclusive. Tooltips and hidden overlays do not count as opening.
+///    exclusive. Tooltips and hidden overlays do not count as opening; one
+///    measured in its first frame does.
 ///
 /// Presses and Esc pass hidden overlays by: only focus and exclusivity reach
 /// them, so scrolling an anchor out of view and back never closes one.
@@ -308,7 +311,7 @@ fn press_outside(layers: &[Layer], press: Pos2, found: &mut Found) {
     let mut swallowed_by = None;
     for (at, layer) in layers.iter().enumerate().rev() {
         if layer.lookup == AnchorLookup::Missing
-            || layer.seen == Seen::Hidden
+            || layer.seen != Seen::Drawn
             || !layer.band.senses_input()
         {
             continue;
@@ -339,7 +342,7 @@ fn exclusive(layers: &[Layer], found: &mut Found) {
         layer.opening == Opening::Opened
             && layer.band != Band::Tooltip
             && layer.lookup == AnchorLookup::Found
-            && layer.seen == Seen::Drawn
+            && matches!(layer.seen, Seen::Drawn | Seen::Measured)
     });
     for (opened, _) in opening {
         for (below, layer) in layers.iter().enumerate().take(opened) {
@@ -769,6 +772,33 @@ mod tests {
             ..blur
         };
         assert_eq!(closed(&[popover(0.0)], &live), vec![0], "even in a drag");
+    }
+
+    #[test]
+    fn an_overlay_measured_in_its_first_frame_counts_as_opening_but_takes_no_press() {
+        let measured = Layer {
+            opening: Opening::Opened,
+            seen: Seen::Measured,
+            ..menu(150.0)
+        };
+        assert_eq!(
+            closed(&[menu(0.0), measured], &Input::default()),
+            vec![0],
+            "menus are exclusive from the frame one opens"
+        );
+        let press = Input {
+            press: Some(pos2(500.0, 500.0)),
+            ..Input::default()
+        };
+        let open = Layer {
+            opening: Opening::Open,
+            ..measured
+        };
+        assert_eq!(
+            closed(&[open], &press),
+            Vec::<usize>::new(),
+            "no press reaches it"
+        );
     }
 
     #[test]

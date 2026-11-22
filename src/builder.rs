@@ -486,23 +486,6 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         }
     }
 
-    /// Whether an overlay `natural` points big, anchored to the node `anchor`
-    /// and placed by `placement`, has the room it wants.
-    pub(crate) fn room_for(
-        &self,
-        anchor: Id,
-        placement: &crate::overlay::Placement,
-        natural: egui::Vec2,
-    ) -> crate::pipeline::Room {
-        crate::pipeline::room_for(
-            self.frame.ctx,
-            (&self.st.kept, self.viewport()),
-            anchor,
-            placement,
-            natural,
-        )
-    }
-
     pub(crate) fn kept(&self) -> &crate::kept::Handle {
         &self.st.kept
     }
@@ -787,15 +770,10 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
         if style.size.height != Dimension::auto() {
             return;
         }
-        let length = |side: CompactLength| match side {
-            side if side.tag() == CompactLength::LENGTH_TAG => side.value(),
-            _ => 0.0,
-        };
         let padding = self.st.tree.scroll(node).map_or(0.0, |scroll| {
-            let padding = self.st.tree.style(scroll.content).padding;
-            length(padding.top.into_raw()) + length(padding.bottom.into_raw())
+            block_padding(self.st.tree.style(scroll.content))
         });
-        let border = length(style.border.top.into_raw()) + length(style.border.bottom.into_raw());
+        let border = block_border(&style);
         let insets = match style.box_sizing {
             BoxSizing::BorderBox => padding + border,
             BoxSizing::ContentBox => 0.0,
@@ -2834,4 +2812,28 @@ fn report_outgrown(ctx: &egui::Context, node: &Node, reserve: &crate::Reserve, r
             templates.join(", ")
         )
     });
+}
+
+/// The points `side` is, when it is a length; a percentage or `auto` counts
+/// as none.
+fn length_px(side: taffy::CompactLength) -> f32 {
+    match side {
+        side if side.tag() == taffy::CompactLength::LENGTH_TAG => side.value(),
+        _ => 0.0,
+    }
+}
+
+/// A box's top and bottom padding, in points.
+fn block_padding(style: &taffy::Style) -> f32 {
+    length_px(style.padding.top.into_raw()) + length_px(style.padding.bottom.into_raw())
+}
+
+/// A box's top and bottom border, in points.
+fn block_border(style: &taffy::Style) -> f32 {
+    length_px(style.border.top.into_raw()) + length_px(style.border.bottom.into_raw())
+}
+
+/// What a box's padding and border take of its height, in points.
+pub(crate) fn block_insets(style: &taffy::Style) -> f32 {
+    block_padding(style) + block_border(style)
 }

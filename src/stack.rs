@@ -12,7 +12,7 @@ use egui::{Context, Id, LayerId, Pos2, ViewportId};
 
 use crate::dismiss::{FocusAt, Opening, WindowFocus};
 use crate::kept::Handle;
-use crate::overlay::Band;
+use crate::overlay::{Band, Fit};
 
 /// An open overlay.
 #[derive(Clone, Debug, PartialEq)]
@@ -30,6 +30,8 @@ pub(crate) struct Open {
     /// Where focus was at the end of the last frame the overlay was drawn.
     pub(crate) focus: FocusAt,
     pub(crate) window_focus: WindowFocus,
+    /// What the last layout found of its room.
+    pub(crate) fit: Fit,
 }
 
 impl Open {
@@ -42,6 +44,7 @@ impl Open {
             entered: false,
             focus: FocusAt::Nowhere,
             window_focus: WindowFocus::NotYet,
+            fit: Fit::Measuring,
         }
     }
 }
@@ -89,6 +92,15 @@ impl Stack {
 
     pub(crate) fn get_mut(&mut self, id: Id) -> Option<&mut Open> {
         self.opens.iter_mut().find(|open| open.id == id)
+    }
+
+    /// What the last layout found of the room of the open overlay `id`; an
+    /// overlay that is not open yet is measured first.
+    pub(crate) fn fit_of(&self, id: Id) -> Fit {
+        self.opens
+            .iter()
+            .find(|open| open.id == id)
+            .map_or(Fit::Measuring, |open| open.fit)
     }
 
     pub(crate) fn index_of(&self, id: Id) -> Option<usize> {

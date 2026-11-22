@@ -1710,6 +1710,11 @@ impl<A> Walk<'_, A> {
             if staged.is_exiting() {
                 inherited.inertness = Inertness::Inert;
             }
+            if overlay.showing == crate::overlay::Showing::Measuring {
+                inherited.visibility = Visibility::Hidden;
+                inherited.inertness = Inertness::Inert;
+                ctx.request_repaint();
+            }
             egui::Area::new(layer.id)
                 .order(layer.order)
                 .fixed_pos(rect.min)

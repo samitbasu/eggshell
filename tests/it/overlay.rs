@@ -1199,7 +1199,7 @@ mod menu_example {
     use super::{common, menu};
     use menu::{ROW_HEIGHT, ROWS, State};
 
-    const SIZE: Vec2 = vec2(600.0, 400.0);
+    const SIZE: Vec2 = vec2(600.0, 480.0);
 
     fn menu() -> Driver<State> {
         let mut d = support::driver(
