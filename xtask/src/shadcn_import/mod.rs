@@ -23,10 +23,11 @@ use classes::{Classifier, Fate, Gap, Radius, TwTable};
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 8] = [
+const COMPONENTS: [&str; 9] = [
     "button",
     "badge",
     "combobox",
+    "dropdown-menu",
     "input",
     "input-group",
     "select",
@@ -37,7 +38,7 @@ const COMPONENTS: [&str; 8] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 6] = [
+const WIDGETS: [emit::Widget; 7] = [
     emit::Widget {
         component: "button",
         checked_in: true,
@@ -132,6 +133,20 @@ const WIDGETS: [emit::Widget; 6] = [
         absent: &[],
     },
     emit::Widget {
+        component: "dropdown-menu",
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &MENU,
+        parts: Some("MenuPart"),
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &MENU_ABSENT,
+    },
+    emit::Widget {
         component: "tabs",
         checked_in: true,
         variants: &[("line", &[])],
@@ -146,6 +161,19 @@ const WIDGETS: [emit::Widget; 6] = [
         absent: &[],
     },
 ];
+
+/// eggshell draws an open menu only: a closed one is gone.
+const MENU: [emit::Assumed; 1] = [emit::Assumed {
+    variant: "data-[state=closed]",
+    fact: emit::Fact::Never,
+    why: "eggshell draws a menu only while it is open",
+}];
+
+/// The parts of shadcn's dropdown menu that eggshell's does not name.
+const MENU_ABSENT: [(&str, &str); 1] = [(
+    "rtl-flip",
+    "a submenu's chevron is a glyph of its trigger, last in the row",
+)];
 
 /// eggshell's select opens its list below the trigger and keeps it off the
 /// trigger by the menu's offset, as Radix's `popper` position does.

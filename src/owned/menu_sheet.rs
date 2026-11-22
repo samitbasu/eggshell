@@ -7,7 +7,7 @@
 
 use crate::contract::{MenuStyle, Variant};
 use crate::sheet::{Key, Part, Sheet, When};
-use crate::{Aria, TextSpec};
+use crate::{Aria, Match, TextSpec};
 
 use super::Enablement;
 use super::menu::Tone;
@@ -62,6 +62,10 @@ impl Part for MenuPart {
 
 const DESTRUCTIVE: Variant = Variant("destructive");
 
+/// The attribute of an item whose label lines up with its neighbours' past
+/// their marks: shadcn's `data-inset`.
+pub(crate) const INSET: (&str, &str) = ("inset", "true");
+
 fn variant(tone: Tone) -> Variant {
     match tone {
         Tone::Plain => Variant::DEFAULT,
@@ -110,6 +114,20 @@ pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) 
         }
     }
     let indicator = menu.indicator;
+    let inset = (menu.item_padding.x + indicator + menu.item_gap) / 4.0;
+    for part in [
+        MenuPart::Item,
+        MenuPart::CheckboxItem,
+        MenuPart::RadioItem,
+        MenuPart::SubTrigger,
+    ] {
+        sheet.rule(part, move |t, _| {
+            t.descendants(Match::glyph(), |g| g.size_px(indicator).shrink_0())
+        });
+        sheet.rule_when(part, When::always().attr(INSET.0, INSET.1), move |t, _| {
+            t.pl(inset)
+        });
+    }
     sheet.replace(MenuPart::ItemIndicator, move |t, _| {
         t.size_px(indicator).shrink_0()
     });
@@ -143,4 +161,16 @@ pub(crate) fn write_rules(sheet: &mut Sheet, menu: &MenuStyle, text: &TextSpec) 
             .text(color)
             .tracking(tracking)
     });
+}
+
+/// Writes the menu's names over the rules at the sheet's current layer: an
+/// item of the default variant keeps the generated look, which names only
+/// the destructive one. Naming it says so, for the check that a variant its
+/// parts' rules leave out is a mistake.
+pub(crate) fn write_exceptions(sheet: &mut Sheet) {
+    sheet.rule_when(
+        MenuPart::Item,
+        When::always().variant(Variant::DEFAULT),
+        |t, _| t,
+    );
 }

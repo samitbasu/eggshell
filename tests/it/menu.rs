@@ -84,7 +84,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
                         m.submenu("export", "Export", |m| {
                             m.item("pdf", "PDF").on_click(say("pdf"));
                         });
-                        m.item("plain", "Plain").on_click(say("plain"));
+                        m.item("plain", "Plain").inset().on_click(say("plain"));
                         m.separator();
                         m.item("delete", "Delete")
                             .destructive()
@@ -986,5 +986,69 @@ mod open_query {
         assert!(last(&frames));
         d.press(Key::Escape).frames(4);
         assert!(!last(&frames));
+    }
+}
+
+mod look {
+    //! shadcn's dropdown-menu, as the preset draws it (`style-vega.css`).
+    use super::*;
+    use eggshell_ui_shadcn::Tokens;
+
+    fn tokens(d: &Driver<App>) -> Tokens {
+        Tokens::for_theme(d.ctx().theme())
+    }
+
+    fn glyph_in(d: &Driver<App>, row: &str) -> Option<egui::Rect> {
+        support::nodes(d)
+            .into_iter()
+            .find(|(path, _)| path.contains(&format!("{row}/")) && path.ends_with("<glyph>"))
+            .map(|(_, rect)| rect)
+    }
+
+    #[test]
+    fn a_chosen_checkbox_or_radio_item_shows_a_check_at_the_rows_right() {
+        let mut d = harness();
+        open_file(&mut d);
+        let small = item(MENU, r#"("size", 0)"#);
+        let row = d.rect(Target::suffix(&small));
+        let check = glyph_in(&d, &small).expect("the chosen one's check");
+        assert_eq!(check.width(), 16.0, "size-4");
+        assert_eq!(row.right() - check.right(), 8.0, "absolute right-2");
+        assert_eq!(
+            glyph_in(&d, &item(MENU, r#"("size", 1)"#)),
+            None,
+            "the other has none"
+        );
+    }
+
+    #[test]
+    fn an_inset_item_starts_its_label_past_the_marks() {
+        let mut d = harness();
+        open_file(&mut d);
+        let row = d.rect(Target::suffix(&item(MENU, r#""plain""#)));
+        let label = support::text_left(&d, row, "Plain");
+        assert_eq!(label - row.left(), 32.0, "data-inset:pl-8");
+    }
+
+    #[test]
+    fn the_highlighted_item_takes_the_accent_and_a_destructive_one_its_tint() {
+        let mut d = harness();
+        open_file(&mut d);
+        let t = tokens(&d);
+        for (key, fill) in [
+            (r#""copy""#, t.accent),
+            (r#""more""#, t.accent),
+            (
+                r#""delete""#,
+                match d.ctx().theme() {
+                    egui::Theme::Light => t.destructive.gamma_multiply(0.1),
+                    egui::Theme::Dark => t.destructive.gamma_multiply(0.2),
+                },
+            ),
+        ] {
+            let path = item(MENU, key);
+            d.hover(Target::suffix(&path)).frames(5);
+            assert_eq!(support::fill_of(&d, &path), Some(fill), "{key}");
+        }
     }
 }

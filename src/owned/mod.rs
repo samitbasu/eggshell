@@ -95,7 +95,9 @@ pub use input_sheet::{InputGroupPart, InputPart};
 pub use menu::{Action, Checkbox, CommandItem, DropdownChain, ItemChain, Menu, Radio};
 pub(crate) use menu::{Menus, context, open_on_secondary_click};
 pub use menu_sheet::MenuPart;
-pub(crate) use menu_sheet::write_rules as write_menu_rules;
+pub(crate) use menu_sheet::{
+    write_exceptions as write_menu_exceptions, write_rules as write_menu_rules,
+};
 pub use number::{Edit, Step, ValueRange};
 pub(crate) use options::Gate;
 pub use options::IntoTip;

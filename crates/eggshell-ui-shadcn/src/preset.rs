@@ -609,7 +609,6 @@ impl Shadcn {
             };
             menu.shortcut_tracking = Tracking::points(1.2);
             menu.indicator = 16.0;
-            menu.dot = 8.0;
             menu
         });
         // shadcn's TooltipContent: `bg-foreground text-background rounded-md
