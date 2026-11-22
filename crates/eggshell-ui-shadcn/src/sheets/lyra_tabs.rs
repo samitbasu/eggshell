@@ -10,6 +10,7 @@ use eggshell_ui::sheet::{Sheet, When};
 use eggshell_ui::{Aria, Match, Opacity};
 
 const LYRA: &str = "registry/styles/style-lyra.css";
+const REGISTRY: &str = "registry/bases/radix/registry.ts";
 const TABS: &str = "registry/bases/radix/ui/tabs.tsx";
 
 /// TODO(prose): shadcn's `tabs` in `style-lyra.css`, light.
@@ -50,6 +51,8 @@ pub(crate) fn light(s: &mut Sheet) {
     });
     s.replace(Trigger, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(LYRA, 1300, "gap-1.5")
             .gap(1.5)
             .from(LYRA, 1300, "rounded-none")
@@ -170,6 +173,8 @@ pub(crate) fn dark(s: &mut Sheet) {
     });
     s.replace(Trigger, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(LYRA, 1300, "gap-1.5")
             .gap(1.5)
             .from(LYRA, 1300, "rounded-none")

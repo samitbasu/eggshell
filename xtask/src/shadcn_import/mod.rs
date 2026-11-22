@@ -23,14 +23,18 @@ use classes::{Classifier, Fate, Gap, Radius, TwTable};
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 10] = [
+const COMPONENTS: [&str; 14] = [
     "button",
     "badge",
+    "checkbox",
     "combobox",
     "dropdown-menu",
+    "field",
     "input",
     "input-group",
+    "radio-group",
     "select",
+    "switch",
     "tabs",
     "textarea",
     "tooltip",
@@ -39,7 +43,7 @@ const COMPONENTS: [&str; 10] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 8] = [
+const WIDGETS: [emit::Widget; 12] = [
     emit::Widget {
         component: "button",
         checked_in: true,
@@ -165,6 +169,95 @@ const WIDGETS: [emit::Widget; 8] = [
         )],
     },
     emit::Widget {
+        component: "checkbox",
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[
+            // A card holds its one control, so the card has a focused
+            // control when this one is focused.
+            (
+                "group-has-[:focus-visible]/field-label",
+                "data-[card=true]:focus-visible",
+            ),
+            ("group-has-disabled/field", "disabled"),
+        ],
+        absent: &[],
+    },
+    emit::Widget {
+        component: "radio-group",
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[
+            // A card holds its one control, so the card has a focused
+            // control when this one is focused.
+            (
+                "group-has-[:focus-visible]/field-label",
+                "data-[card=true]:focus-visible",
+            ),
+        ],
+        absent: &[],
+    },
+    emit::Widget {
+        component: "switch",
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[
+            // A card holds its one control, so the card has a focused
+            // control when this one is focused.
+            (
+                "group-has-[:focus-visible]/field-label",
+                "data-[card=true]:focus-visible",
+            ),
+            ("group-data-[size=default]/switch", "data-[size=default]"),
+            ("group-data-[size=sm]/switch", "data-[size=sm]"),
+        ],
+        absent: &[],
+    },
+    emit::Widget {
+        component: "field",
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[
+            ("group-data-[disabled=true]/field", "disabled"),
+            // A label that holds its field is a choice card, which eggshell
+            // knows as it builds it.
+            ("has-[>[data-slot=field]]", "data-[card=true]"),
+            (
+                "not-has-[:disabled,[data-disabled]]",
+                "not-data-[disabled-control=true]",
+            ),
+        ],
+        absent: &FIELD_ABSENT,
+    },
+    emit::Widget {
         component: "tabs",
         checked_in: true,
         variants: &[("line", &[])],
@@ -179,6 +272,20 @@ const WIDGETS: [emit::Widget; 8] = [
         absent: &[],
     },
 ];
+
+/// The parts of shadcn's field that eggshell does not draw: its choice
+/// controls stand alone or in a card, not in sets and groups.
+const FIELD_ABSENT: [(&str, &str); 6] = {
+    const UNGROUPED: &str = "eggshell's choice fields are not set in groups";
+    [
+        ("field-set", UNGROUPED),
+        ("field-legend", UNGROUPED),
+        ("field-group", UNGROUPED),
+        ("field-separator", UNGROUPED),
+        ("field-separator-content", UNGROUPED),
+        ("field-error", "eggshell's choice fields show no error"),
+    ]
+};
 
 /// eggshell draws an open menu only: a closed one is gone.
 const MENU: [emit::Assumed; 1] = [emit::Assumed {

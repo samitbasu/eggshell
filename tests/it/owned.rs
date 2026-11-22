@@ -327,17 +327,25 @@ fn sizes_are_what_the_classes_imply() {
 }
 
 #[test]
-fn checkbox_box_and_glyph_are_the_styles() {
+fn checkbox_box_and_glyph_are_shadcns() {
+    // style-vega.css `.cn-checkbox`, `.cn-checkbox-indicator`.
     for theme in [Theme::Light, Theme::Dark] {
         let mut d = harness(theme);
-        let style = style(theme);
+        let t = Tokens::for_theme(theme);
         let node = "/(\"check\", Enabled)/Box";
         let rect = d.rect(Target::suffix(node));
         let shape = box_at(&d, rect);
-        let unchecked = style.checkbox().off.states.rest;
-        assert_eq!(shape.fill, unchecked.fill, "{theme:?} unchecked");
-        assert_eq!(shape.stroke.color, unchecked.border);
-        assert_eq!(shape.corner_radius, egui::CornerRadius::same(4));
+        let fill = match theme {
+            Theme::Light => Color32::TRANSPARENT,
+            Theme::Dark => t.input.gamma_multiply(0.3),
+        };
+        assert_eq!(shape.fill, fill, "{theme:?} unchecked: dark:bg-input/30");
+        assert_eq!(shape.stroke.color, t.input, "border-input");
+        assert_eq!(
+            shape.corner_radius,
+            egui::CornerRadius::same(4),
+            "rounded-[4px]"
+        );
         assert!(
             !shapes(&d)
                 .iter()
@@ -347,10 +355,9 @@ fn checkbox_box_and_glyph_are_the_styles() {
         );
         d.click(Target::suffix(node)).frames(12);
         assert!(d.app().checked);
-        let checked = style.checkbox().on.states.rest;
         let shape = box_at(&d, rect);
-        assert_eq!(shape.fill, checked.fill, "{theme:?} checked");
-        assert_eq!(shape.stroke.color, checked.border);
+        assert_eq!(shape.fill, t.primary, "{theme:?} checked: bg-primary");
+        assert_eq!(shape.stroke.color, t.primary, "border-primary");
         let glyphs: Vec<_> = support::textured(&d)
             .into_iter()
             .filter(|mesh| rect.contains_rect(mesh.calc_bounds()))
@@ -361,13 +368,11 @@ fn checkbox_box_and_glyph_are_the_styles() {
             glyph
                 .vertices
                 .iter()
-                .all(|vertex| vertex.color == checked.text)
+                .all(|vertex| vertex.color == t.primary_foreground),
+            "text-primary-foreground"
         );
-        assert_eq!(
-            glyph.calc_bounds().size(),
-            vec2(14.0, 14.0),
-            "a 14 point icon"
-        );
+        assert_eq!(glyph.calc_bounds().size(), vec2(14.0, 14.0), "size-3.5");
+        assert_eq!(glyph.calc_bounds().center(), rect.center(), "centred");
     }
 }
 

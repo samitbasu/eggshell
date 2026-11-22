@@ -28,7 +28,7 @@ use super::{Enablement, Mark, centered};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FieldPart {
     /// TODO(prose): the field, holding a control and its label or content.
-    Field,
+    Root,
     /// TODO(prose): the label, which names the control and toggles it; a card when it holds the field.
     Label,
     /// TODO(prose): a card's title and description.
@@ -44,7 +44,7 @@ impl Part for FieldPart {
 
     fn slot(self) -> &'static str {
         match self {
-            Self::Field => "field",
+            Self::Root => "field",
             Self::Label => "field-label",
             Self::Content => "field-content",
             Self::Title => "field-title",
@@ -55,6 +55,18 @@ impl Part for FieldPart {
 
 /// The attribute of a field that lays its control and label out in a row.
 const HORIZONTAL: (&str, &str) = ("orientation", "horizontal");
+
+/// The attribute of a label that holds its field, a choice card, and of the
+/// control in it: shadcn asks `has-[>[data-slot=field]]` of the label and
+/// `group-has-[…]/field-label` of the control, which eggshell knows as it
+/// builds the card.
+pub(crate) const CARD: (&str, &str) = ("card", "true");
+
+/// The attribute of a card whose control is disabled: shadcn asks
+/// `not-has-[:disabled,[data-disabled]]` of the card's label, which holds
+/// the field and is not inside it, so the field's own disabled state does
+/// not fade it.
+const DISABLED_CONTROL: (&str, &str) = ("disabled-control", "true");
 
 impl FieldPart {
     /// TODO(prose): the keys of a horizontal field and its label, for [`Builder::part`](crate::Builder::part).
@@ -68,6 +80,16 @@ impl FieldPart {
         let mut keys = vec![Key::Attr(HORIZONTAL.0, HORIZONTAL.1)];
         if enablement == Enablement::Disabled {
             keys.push(Key::Aria(Aria::Disabled));
+        }
+        keys
+    }
+
+    /// The keys of a choice card's label, which holds a field of
+    /// `enablement`.
+    pub(crate) fn card_keys(enablement: Enablement) -> Vec<Key> {
+        let mut keys = vec![Key::Attr(CARD.0, CARD.1)];
+        if enablement == Enablement::Disabled {
+            keys.push(Key::Attr(DISABLED_CONTROL.0, DISABLED_CONTROL.1));
         }
         keys
     }
@@ -123,8 +145,11 @@ pub enum RadioGroupPart {
     Root,
     /// TODO(prose): one option's circle.
     Item,
-    /// TODO(prose): the dot in the chosen circle.
+    /// TODO(prose): what the chosen circle holds: the room its dot is
+    /// centred in.
     Indicator,
+    /// TODO(prose): the dot in the chosen circle.
+    IndicatorIcon,
 }
 
 impl Part for RadioGroupPart {
@@ -135,6 +160,7 @@ impl Part for RadioGroupPart {
             Self::Root => "radio-group",
             Self::Item => "radio-group-item",
             Self::Indicator => "radio-group-indicator",
+            Self::IndicatorIcon => "radio-group-indicator-icon",
         }
     }
 }
@@ -259,7 +285,7 @@ const CONTROLS: [&str; 3] = ["checkbox", "radio-group-item", "switch"];
 /// and a choice card, at the sheet's current layer.
 pub(crate) fn write_field_rules(sheet: &mut Sheet, label: States) {
     let horizontal = When::always().attr(HORIZONTAL.0, HORIZONTAL.1);
-    sheet.rule_when(FieldPart::Field, horizontal, |t, _| {
+    sheet.rule_when(FieldPart::Root, horizontal, |t, _| {
         t.flex()
             .items_center()
             .whitespace_nowrap()
@@ -268,7 +294,7 @@ pub(crate) fn write_field_rules(sheet: &mut Sheet, label: States) {
     });
     write_card_rules(sheet);
     sheet.rule_when(
-        FieldPart::Field,
+        FieldPart::Root,
         When::always().aria(Aria::Disabled),
         |t, k| Enablement::Disabled.apply_in(t, k.disabled),
     );
@@ -289,7 +315,7 @@ pub(crate) fn write_field_rules(sheet: &mut Sheet, label: States) {
 ///
 /// TODO(#446): written from the tokens until the importer generates them.
 fn write_card_rules(sheet: &mut Sheet) {
-    let field = Match::slot(FieldPart::Field.slot());
+    let field = Match::slot(FieldPart::Root.slot());
     sheet.rule(FieldPart::Label, move |t, k| {
         let radius = f32::from(k.radius.saturating_sub(2));
         let mut card = t
@@ -362,7 +388,9 @@ pub(crate) fn write_checkbox_rules(sheet: &mut Sheet, checkbox: &CheckboxStyle) 
         sheet.rule_when(
             CheckboxPart::Indicator,
             When::always().size(size),
-            move |t, _| t.size_px(metrics.glyph),
+            move |t, _| {
+                centered(t.size_full()).children(Match::glyph(), |g| g.size_px(metrics.glyph))
+            },
         );
         for (mark, enablement) in STATES {
             let painted = painted.clone();
@@ -387,12 +415,23 @@ pub(crate) fn write_radio_rules(sheet: &mut Sheet, radio: &RadioStyle) {
         transition: radio.transition,
     });
     sheet.rule(RadioGroupPart::Root, |t, _| t.flex().flex_col().gap(3.0));
+    sheet.rule(RadioGroupPart::Indicator, |t, _| centered(t.size_full()));
+    for enablement in [Enablement::Enabled, Enablement::Disabled] {
+        let when = match enablement {
+            Enablement::Enabled => When::always().not_aria(Aria::Disabled),
+            Enablement::Disabled => When::always().aria(Aria::Disabled),
+        };
+        let on = radio.on.states;
+        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, k| {
+            t.bg(enablement.colors_in(on, k.disabled).text)
+        });
+    }
     for size in radio.sizes.keys() {
         let metrics = *radio.sizes.get(size);
         sheet.rule_when(
-            RadioGroupPart::Indicator,
+            RadioGroupPart::IndicatorIcon,
             When::always().size(size),
-            move |t, _| t.size_px(metrics.dot),
+            move |t, _| t.size_px(metrics.dot).rounded_full(),
         );
         for (mark, enablement) in STATES {
             let painted = painted.clone();
@@ -441,6 +480,83 @@ pub(crate) fn write_switch_rules(sheet: &mut Sheet, switch: &SwitchStyle) {
                 t.size_px(diameter)
                     .bg(enablement.colors_in(paint.states, k.disabled).text)
             });
+        }
+    }
+}
+
+/// Writes the choice controls' recorded exceptions over the rules at the
+/// sheet's current layer.
+///
+/// A radio's dot is centred in its circle, as shadcn's `absolute left-1/2
+/// top-1/2 -translate-1/2` places it: the indicator fills the circle and
+/// centres the dot in its flow. A checkbox's indicator fills its box and
+/// centres the check, as its `grid place-content-center` does, and is drawn
+/// unchecked too, so checking moves no node. A card's checkbox or radio sits a point
+/// down beside the card's content, field.tsx's
+/// `has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px`,
+/// whose selector list the importer does not split. A size the controls' rules leave out keeps
+/// its section's metrics: shadcn's checkbox and radio have one size, and
+/// its switch two.
+pub(crate) fn write_exceptions(
+    sheet: &mut Sheet,
+    (checkbox, radio, switch): (&CheckboxStyle, &RadioStyle, &SwitchStyle),
+) {
+    sheet.rule(RadioGroupPart::Indicator, |t, _| t.size_full());
+    sheet.rule(CheckboxPart::Indicator, |t, _| centered(t.size_full()));
+    let card = When::always().attr(CARD.0, CARD.1);
+    sheet.rule_when(FieldPart::Label, card, |t, _| {
+        ["checkbox", "radio-group-item"]
+            .into_iter()
+            .fold(t, |t, control| {
+                t.descendants(Match::slot(control), |c| c.mt(0.25))
+            })
+    });
+    sheet.rule(RadioGroupPart::IndicatorIcon, |t, _| t.relative());
+    let default = checkbox.sizes.default_key();
+    // The default size keeps the generated look; naming it says so.
+    for part in [CheckboxPart::Root, CheckboxPart::Indicator] {
+        sheet.rule_when(part, When::always().size(default), |t, _| t);
+    }
+    for size in checkbox.sizes.keys().filter(|size| *size != default) {
+        let m = *checkbox.sizes.get(size);
+        let when = When::always().size(size);
+        sheet.rule_when(CheckboxPart::Root, when, move |t, _| {
+            t.size_px(m.size).rounded_px(f32::from(m.radius))
+        });
+        sheet.rule_when(CheckboxPart::Indicator, when, move |t, _| {
+            t.children(Match::glyph(), |g| g.size_px(m.glyph))
+        });
+    }
+    let default = radio.sizes.default_key();
+    for part in [RadioGroupPart::Item, RadioGroupPart::IndicatorIcon] {
+        sheet.rule_when(part, When::always().size(default), |t, _| t);
+    }
+    for size in radio.sizes.keys().filter(|size| *size != default) {
+        let m = *radio.sizes.get(size);
+        let when = When::always().size(size);
+        sheet.rule_when(RadioGroupPart::Item, when, move |t, _| t.size_px(m.size));
+        sheet.rule_when(RadioGroupPart::IndicatorIcon, when, move |t, _| {
+            t.size_px(m.dot)
+        });
+    }
+    for size in switch.sizes.keys() {
+        if sheet
+            .unnamed(SwitchPart::Root, &[Key::Size(size)])
+            .is_none()
+        {
+            continue;
+        }
+        let m = *switch.sizes.get(size);
+        let when = When::always().size(size);
+        sheet.rule_when(SwitchPart::Root, when, move |t, _| {
+            t.w_px(m.track.x).h_px(m.track.y)
+        });
+        for (mark, diameter) in [(Mark::Off, m.thumb_off), (Mark::On, m.thumb_on)] {
+            let when = match mark {
+                Mark::Off => when.not_aria(Aria::Checked),
+                Mark::On => when.aria(Aria::Checked),
+            };
+            sheet.rule_when(SwitchPart::Thumb, when, move |t, _| t.size_px(diameter));
         }
     }
 }

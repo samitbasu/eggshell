@@ -10,6 +10,7 @@ use eggshell_ui::{Aria, Match, Opacity};
 
 const INPUT: &str = "registry/bases/radix/ui/input.tsx";
 const INPUT_GROUP: &str = "registry/bases/radix/ui/input-group.tsx";
+const REGISTRY: &str = "registry/bases/radix/registry.ts";
 const TEXTAREA: &str = "registry/bases/radix/ui/textarea.tsx";
 const VEGA: &str = "registry/styles/style-vega.css";
 
@@ -18,6 +19,8 @@ pub(crate) fn light(s: &mut Sheet) {
     use InputGroupPart::*;
     s.replace(Input, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 678, "border-input")
             .border_color(k.input)
             .from(VEGA, 678, "focus-visible:border-ring")
@@ -86,6 +89,8 @@ pub(crate) fn light(s: &mut Sheet) {
     });
     s.replace(Textarea, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 1338, "border-input")
             .border_color(k.input)
             .from(VEGA, 1338, "focus-visible:border-ring")
@@ -248,6 +253,8 @@ pub(crate) fn light(s: &mut Sheet) {
     });
     s.replace(Root, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 1398, "border-input")
             .border_color(k.input)
             .from(VEGA, 1398, "has-[[data-slot=input-group-control]:focus-visible]:border-ring")
@@ -351,6 +358,8 @@ pub(crate) fn dark(s: &mut Sheet) {
     use InputGroupPart::*;
     s.replace(Input, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 678, "border-input")
             .border_color(k.input)
             .from(VEGA, 678, "focus-visible:border-ring")
@@ -425,6 +434,8 @@ pub(crate) fn dark(s: &mut Sheet) {
     });
     s.replace(Textarea, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 1338, "border-input")
             .border_color(k.input)
             .from(VEGA, 1338, "focus-visible:border-ring")
@@ -593,6 +604,8 @@ pub(crate) fn dark(s: &mut Sheet) {
     });
     s.replace(Root, |t, k| {
         t
+            .from(REGISTRY, 24, "border-border")
+            .border_color(k.border)
             .from(VEGA, 1398, "border-input")
             .border_color(k.input)
             .from(VEGA, 1398, "has-[[data-slot=input-group-control]:focus-visible]:border-ring")

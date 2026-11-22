@@ -116,6 +116,25 @@ fn circle_in(d: &Driver<App>, rect: Rect) -> Option<CircleShape> {
         .next_back()
 }
 
+/// The radio's dot drawn inside `rect`: a filled, fully rounded box smaller
+/// than it.
+fn dot_in(d: &Driver<App>, rect: Rect) -> Option<egui::epaint::RectShape> {
+    shapes(d)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Rect(r)
+                if rect.expand(0.5).contains_rect(r.rect)
+                    && r.rect.width() < rect.width() - 2.0
+                    && r.fill.a() > 0
+                    && r.corner_radius == egui::CornerRadius::same(u8::MAX) =>
+            {
+                Some(r.clone())
+            }
+            _ => None,
+        })
+        .next_back()
+}
+
 fn tab_to(d: &mut Driver<App>, path: &str) {
     for _ in 0..16 {
         if focused_path(d).as_deref() == Some(path) {
@@ -131,25 +150,30 @@ fn circle_path(unit: Unit) -> String {
 }
 
 #[test]
-fn radio_circles_and_dots_are_the_styles() {
+fn radio_circles_and_dots_are_shadcns() {
+    // style-vega.css `.cn-radio-group-item`, `.cn-radio-group-indicator-icon`.
     for theme in [Theme::Light, Theme::Dark] {
         let d = harness(theme);
-        let radio = style(theme).radio().clone();
+        let t = Tokens::for_theme(theme);
         for (unit, _) in UNITS {
             let rect = d.rect(Target::suffix(&circle_path(unit)));
             assert_eq!(rect.size(), vec2(16.0, 16.0), "size-4");
             let shape = box_at(&d, rect);
             let chosen = unit == Unit::Metric;
-            let look = if chosen { radio.on } else { radio.off };
-            assert_eq!(shape.fill, look.states.rest.fill, "{theme:?} {unit:?}");
-            assert_eq!(shape.stroke.color, look.states.rest.border);
+            let (fill, border) = match (chosen, theme) {
+                (true, _) => (t.primary, t.primary),
+                (false, Theme::Light) => (egui::Color32::TRANSPARENT, t.input),
+                (false, Theme::Dark) => (t.input.gamma_multiply(0.3), t.input),
+            };
+            assert_eq!(shape.fill, fill, "{theme:?} {unit:?}");
+            assert_eq!(shape.stroke.color, border, "{theme:?} {unit:?}");
             assert_eq!(shape.stroke.width, 1.0);
             assert_eq!(shape.corner_radius, egui::CornerRadius::same(u8::MAX));
-            match (chosen, circle_in(&d, rect)) {
+            match (chosen, dot_in(&d, rect)) {
                 (true, Some(dot)) => {
-                    assert_eq!(dot.radius, 4.0, "size-2 dot");
-                    assert_eq!(dot.fill, look.states.rest.text);
-                    assert_eq!(dot.center, rect.center());
+                    assert_eq!(dot.rect.size(), vec2(8.0, 8.0), "size-2");
+                    assert_eq!(dot.fill, t.primary_foreground, "bg-primary-foreground");
+                    assert_eq!(dot.rect.center(), rect.center(), "centred");
                 }
                 (false, None) => {}
                 (chosen, dot) => panic!("{unit:?} chosen {chosen}: dot {dot:?}"),
@@ -166,7 +190,7 @@ fn clicking_a_circle_or_its_label_chooses_it() {
     d.click(Target::suffix("/\"units\"/Label(2)")).frames(3);
     assert_eq!(d.app().unit, Unit::Nautical, "the label forwards");
     let rect = d.rect(Target::suffix(&circle_path(Unit::Nautical)));
-    assert!(circle_in(&d, rect).is_some(), "and the dot follows");
+    assert!(dot_in(&d, rect).is_some(), "and the dot follows");
 }
 
 #[test]
@@ -437,7 +461,8 @@ fn segmented_has_a_tab_stop_per_cell_and_enter_chooses() {
 
 #[test]
 fn a_modified_style_changes_every_owned_widget() {
-    let mut style = style(Theme::Light);
+    // The sections draw the widgets where no preset's look is over them.
+    let mut style = support::sections_of(style(Theme::Light));
     let red = egui::Color32::from_rgb(200, 30, 30);
     let mut switch = style.switch().clone();
     switch.on.states.rest.fill = red;
@@ -564,27 +589,22 @@ fn the_switch_thumb_keeps_its_rest_colour_when_hovered_or_pressed() {
 }
 
 #[test]
-fn the_tokens_ring_is_drawn_over_the_preset_by_the_slider_and_by_the_mechanisms_cells() {
+fn the_tokens_ring_is_the_mechanisms_on_a_switch_and_a_cell() {
     let ring = Focus {
         width: 5.0,
         color: egui::Color32::from_rgb(200, 30, 30),
     };
-    let mut style = style(Theme::Light);
+    // The preset's switch and cells take shadcn's
+    // `focus-visible:ring-[3px]`; the tokens' ring is the mechanism's.
+    let mut style = support::sections_of(style(Theme::Light));
     assert_ne!(
         style.tokens.focus, ring,
         "precondition: the preset's ring is another"
     );
     style.tokens.focus = ring;
-    // The preset's cells take shadcn's `focus-visible:ring-[3px]`; the
-    // tokens' ring is the mechanism's.
-    let mut bare = Style::default();
-    bare.tokens.focus = ring;
-    for (style, path) in [
-        (style, "/\"air\"/Track".to_owned()),
-        (bare, cell_path(Unit::Metric)),
-    ] {
+    for path in ["/\"air\"/Track".to_owned(), cell_path(Unit::Metric)] {
         let mut d = harness(Theme::Light);
-        d.set_style(Themed::both(Arc::new(style)));
+        d.set_style(Themed::both(Arc::new(style.clone())));
         d.frames(4);
         tab_to(&mut d, &path);
         d.frames(12);
@@ -731,7 +751,7 @@ mod app_rules {
             .as_app()
             .rule_when(CheckboxPart::Root, checked, |t, _| t.bg(RED))
             .rule_when(RadioGroupPart::Item, checked, |t, _| t.bg(RED))
-            .rule(RadioGroupPart::Indicator, |t, _| t.size_px(12.0))
+            .rule(RadioGroupPart::IndicatorIcon, |t, _| t.size_px(12.0))
             .rule_when(SwitchPart::Root, checked, |t, _| t.bg(RED))
             .rule_when(SwitchPart::Thumb, checked, |t, _| t.bg(BLUE))
             .rule(FieldPart::Label, |t, _| t.text(GREEN));
@@ -756,8 +776,8 @@ mod app_rules {
         assert_eq!(box_at(&d, tick).fill, RED, "the ticked box");
         let chosen = d.rect(Target::suffix(&circle_path(Unit::Metric)));
         assert_eq!(box_at(&d, chosen).fill, RED, "the chosen circle");
-        let dot = circle_in(&d, chosen).expect("a dot");
-        assert_eq!(dot.radius, 6.0, "the dot");
+        let dot = dot_in(&d, chosen).expect("a dot");
+        assert_eq!(dot.rect.width(), 12.0, "the dot");
         let unchosen = d.rect(Target::suffix(&circle_path(Unit::Imperial)));
         assert_ne!(
             box_at(&d, unchosen).fill,
@@ -769,5 +789,43 @@ mod app_rules {
         assert_eq!(thumb.fill, BLUE, "the thumb");
         let label = d.rect(Target::suffix("/\"tick\"/Label"));
         assert_eq!(text_color(&d, label, "Tick"), GREEN, "the label");
+    }
+}
+
+/// style-vega.css `.cn-switch`, `.cn-switch-thumb`: `h-[18.4px] w-[32px]`,
+/// `data-checked:bg-primary data-unchecked:bg-input`, and a `size-4` thumb
+/// in `bg-background`, `dark:data-unchecked:bg-foreground`,
+/// `dark:data-checked:bg-primary-foreground`.
+#[test]
+fn a_switch_is_shadcns() {
+    for theme in [Theme::Light, Theme::Dark] {
+        let mut d = harness(theme);
+        let t = Tokens::for_theme(theme);
+        let (track, knob) = thumb(&d, "/\"air\"/Track");
+        assert!(
+            (track.size() - vec2(32.0, 18.4)).length() < 0.01,
+            "{theme:?}: {:?}",
+            track.size()
+        );
+        let off = match theme {
+            Theme::Light => t.input,
+            Theme::Dark => t.input.gamma_multiply(0.8),
+        };
+        assert_eq!(box_at(&d, track).fill, off, "{theme:?} bg-input");
+        assert_eq!(knob.radius, 8.0, "size-4");
+        let knob_off = match theme {
+            Theme::Light => t.background,
+            Theme::Dark => t.foreground,
+        };
+        assert_eq!(knob.fill, knob_off, "{theme:?} unchecked thumb");
+        d.click(Target::suffix("/\"air\"/Track")).frames(30);
+        assert!(d.app().on, "precondition: it turned on");
+        let (track, knob) = thumb(&d, "/\"air\"/Track");
+        assert_eq!(box_at(&d, track).fill, t.primary, "{theme:?} bg-primary");
+        let knob_on = match theme {
+            Theme::Light => t.background,
+            Theme::Dark => t.primary_foreground,
+        };
+        assert_eq!(knob.fill, knob_on, "{theme:?} checked thumb");
     }
 }

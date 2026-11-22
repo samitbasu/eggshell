@@ -208,8 +208,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
 
                 let group_tip = group_tip.clone();
                 let chosen = value == current;
-                let keys = RadioGroupPart::item_keys(size, Mark::from(chosen), enablement);
-                let circle = b.part(RadioGroupPart::Item, &keys, tw());
+                let keys = form.keys(RadioGroupPart::item_keys(
+                    size,
+                    Mark::from(chosen),
+                    enablement,
+                ));
+                let circle = b.part(RadioGroupPart::Item, &keys, enablement.senses());
                 let on_response = on_response.clone();
                 let (on_circle, on_label) = (select.clone(), select.clone());
                 let row = choice_row(
@@ -226,12 +230,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                 };
                 let build_circle = move |b: &mut Builder<'_, '_, A>| {
                     b.div_id(Part::Circle(index), circle, |b| {
-                        if chosen {
-                            let dot = b.part(RadioGroupPart::Indicator, &keys, tw());
-                            b.paint(dot, |painter, rect, color| {
-                                painter.circle_filled(rect.center(), rect.width() / 2.0, color);
-                            });
-                        }
+                        // The dot of an unchosen circle is there, unseen, so
+                        // choosing moves no node.
+                        let shown = if chosen { tw() } else { tw().invisible() };
+                        let indicator = b.part(RadioGroupPart::Indicator, &keys, tw());
+                        let icon = b.part(RadioGroupPart::IndicatorIcon, &keys, shown);
+                        b.div(indicator, |b| b.div(icon, |_| {}));
                     })
                     .role(Role::RadioButton)
                     .open_focus(autofocus.open_focus())

@@ -178,3 +178,23 @@ fn a_cards_title_names_its_control() {
     d.harness().get_by_role_and_label(Role::CheckBox, "Backups");
     d.harness().get_by_role_and_label(Role::Switch, "Shared");
 }
+
+/// A disabled card keeps its border, as shadcn's label holds the field and
+/// is not inside it; its title, inside the field, fades once
+/// (`group-data-[disabled=true]/field:opacity-50`).
+#[test]
+fn a_disabled_cards_title_fades_once_and_its_box_does_not() {
+    let d = driver(Theme::Light);
+    let t = Tokens::for_theme(Theme::Light);
+    let (pro, closed) = (d.rect(Target::suffix(PRO)), d.rect(Target::suffix(CLOSED)));
+    assert_eq!(
+        box_at(&d, closed).stroke.color,
+        box_at(&d, pro).stroke.color,
+        "the box as an enabled card's"
+    );
+    assert_eq!(
+        support::text_color(&d, closed, "Closed"),
+        t.foreground.gamma_multiply(0.5),
+        "the title at half"
+    );
+}

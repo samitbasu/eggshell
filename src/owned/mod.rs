@@ -82,7 +82,8 @@ pub use checkbox::CheckboxChain;
 pub use choice::{Choice, IntoChoice};
 pub use choices_sheet::{CheckboxPart, FieldPart, RadioGroupPart, SwitchPart};
 pub(crate) use choices_sheet::{
-    write_checkbox_rules, write_field_rules, write_radio_rules, write_switch_rules,
+    write_checkbox_rules, write_exceptions as write_choice_exceptions, write_field_rules,
+    write_radio_rules, write_switch_rules,
 };
 pub use custom::CustomChain;
 pub use field_box::FieldBoxChain;
@@ -191,6 +192,16 @@ impl From<bool> for Enablement {
 }
 
 impl Enablement {
+    /// What a control's own node senses: a click, or nothing at all while
+    /// disabled. A generated look sets paint only, so the control says this
+    /// at its call site.
+    pub(crate) fn senses(self) -> Tw {
+        match self {
+            Self::Enabled => tw().sense_click(),
+            Self::Disabled => tw().inert(),
+        }
+    }
+
     /// `classes`, inert when disabled and, if the style fades disabled
     /// controls, faded. Apply it to the root of a control: what is inside
     /// follows the root's opacity.
@@ -717,7 +728,11 @@ fn choice_row<A>(
         line_height: text.size,
         ..text.clone()
     });
-    b.part(FieldPart::Field, &FieldPart::keys(enablement), own)
+    let own = match enablement {
+        Enablement::Enabled => own,
+        Enablement::Disabled => own.inert(),
+    };
+    b.part(FieldPart::Root, &FieldPart::keys(enablement), own)
 }
 
 /// The visible label of the control `control`: clicking it runs `on_click`,
@@ -754,6 +769,19 @@ enum Form {
     Card,
 }
 
+impl Form {
+    /// `keys` with the card's, for a control in a card.
+    fn keys(self, mut keys: Vec<crate::sheet::Key>) -> Vec<crate::sheet::Key> {
+        if self == Self::Card {
+            keys.push(crate::sheet::Key::Attr(
+                choices_sheet::CARD.0,
+                choices_sheet::CARD.1,
+            ));
+        }
+        keys
+    }
+}
+
 /// What a choice card says of the control it holds.
 struct Card {
     /// The control the card names and toggles.
@@ -783,21 +811,19 @@ fn choice_card<A: 'static, K: crate::Key>(
         enablement,
         classes,
     } = card;
-    let keys = FieldPart::keys(enablement);
-    let own = match enablement {
-        Enablement::Enabled => tw().sense_click(),
-        Enablement::Disabled => tw().inert(),
-    };
+    let keys = FieldPart::card_keys(enablement);
+    let own = enablement.senses();
     let label = b.part(FieldPart::Label, &keys, own.focusable_none().merge(classes));
     let name = title.clone();
     b.div_id(key, label, |b| {
         b.div(row, |b| {
             let content = b.part(FieldPart::Content, &[], tw());
+            let keys = FieldPart::keys(enablement);
             b.div(content, |b| {
-                let title_classes = b.part(FieldPart::Title, &[], tw());
+                let title_classes = b.part(FieldPart::Title, &keys, tw());
                 b.text(title_classes, title);
                 if let Some(description) = description {
-                    let classes = b.part(FieldPart::Description, &[], tw());
+                    let classes = b.part(FieldPart::Description, &keys, tw());
                     b.text(classes, description);
                 }
             });
