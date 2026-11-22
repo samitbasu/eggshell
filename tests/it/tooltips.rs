@@ -1537,3 +1537,62 @@ fn a_truncated_span_keeps_its_whole_text_as_its_name_and_no_description() {
     let node = d.harness().get_by_label(LONG_NOTE);
     assert_eq!(node.accesskit_node().description(), None);
 }
+
+/// shadcn's tooltip content (`style-vega.css` `.cn-tooltip-content`,
+/// tooltip.tsx): `bg-foreground text-background px-3 py-1.5 rounded-md`, and
+/// `has-data-[slot=kbd]:pr-1.5` with `**:data-[slot=kbd]:rounded-sm`.
+#[test]
+fn the_tooltip_is_shadcns_and_reaches_its_kbd_chip() {
+    // Not `harness_of`: `set_tooltip` there rewrites the section's rules over
+    // the preset's.
+    let mut d = harness_styled(
+        |b, _| {
+            b.div(
+                tw().pt(10.0).gap(4.0).flex().flex_col().items_start(),
+                |b| {
+                    b.button("plain", "Plain").tooltip("Plain words").add();
+                    b.button("keyed", "Keyed")
+                        .tooltip_with(|s| {
+                            s.text(tw(), "Save");
+                            s.kbd("Ctrl+S");
+                        })
+                        .add();
+                },
+            );
+        },
+        |_| {},
+    );
+    let wait = {
+        let tooltip = d.shell().style().tooltip().clone();
+        tooltip.delay + tooltip.grace
+    };
+    let t = Tokens::for_theme(d.ctx().theme());
+    d.hover(Target::suffix("/\"plain\""));
+    d.advance(wait);
+    let tip = tip_box(&d).expect("shown");
+    let shape = support::box_at(&d, tip);
+    assert_eq!(shape.fill, t.foreground, "bg-foreground");
+    assert_eq!(
+        shape.corner_radius,
+        egui::CornerRadius::same(8),
+        "rounded-md"
+    );
+    let text = support::text_left(&d, tip, "Plain words");
+    assert_eq!(text - tip.left(), 12.0, "px-3");
+
+    d.hover(Target::suffix("/\"keyed\""));
+    d.advance(wait);
+    let tip = tip_box(&d).expect("shown");
+    let chip = tooltip_nodes(&d)
+        .into_iter()
+        .filter(|(_, rect)| rect.width() < tip.width() && rect.height() < tip.height())
+        .max_by(|(_, a), (_, b)| a.right().total_cmp(&b.right()))
+        .map(|(_, rect)| rect)
+        .expect("the kbd chip");
+    assert_eq!(tip.right() - chip.right(), 6.0, "has-[kbd]:pr-1.5");
+    assert_eq!(
+        support::box_at(&d, chip).corner_radius,
+        egui::CornerRadius::same(6),
+        "rounded-sm"
+    );
+}

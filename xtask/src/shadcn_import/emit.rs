@@ -227,8 +227,10 @@ fn has(variant: &str) -> Option<(&'static str, String)> {
         return aria(name).and_then(|a| any(format!("Match::aria({a})")));
     }
     if let Some(attr) = rest.strip_prefix("data-[") {
-        let (name, value) = attr.strip_suffix(']')?.split_once('=')?;
-        return any(format!("Match::any().attr({name:?}, {value:?})"));
+        return any(format!(
+            "Match::any(){}",
+            attribute(&format!("[data-{attr}"))?
+        ));
     }
     let inner = rest.strip_prefix('[')?.strip_suffix(']')?;
     let (method, inner) = match inner.strip_prefix('>') {
@@ -331,6 +333,7 @@ fn equivalent(utility: &str) -> Option<(Option<&'static str>, Kind)> {
         "pointer-events-none" => (Some(".pointer_events_none()"), Kind::Equivalent),
         "translate-y-px" => (Some(".translate_y(1.0)"), Kind::Equivalent),
         "shadow-none" => (Some(".shadow(Shadow::NONE)"), Kind::Equivalent),
+        "max-w-xs" => (Some(".max_w_px(320.0)"), Kind::Equivalent),
         "tracking-widest" => (Some(".tracking(Tracking::em(0.1))"), Kind::Equivalent),
         "outline-none" | "outline-hidden" => (None, Kind::NoOp),
         _ => return None,
@@ -1158,7 +1161,11 @@ pub fn emit(
         );
     }
     let _ = writeln!(rust, "use eggshell_ui::owned::{};", widget.part_enum());
-    let _ = writeln!(rust, "use eggshell_ui::sheet::{{Sheet, When}};");
+    let sheet = match body.contains("When::") {
+        true => "{Sheet, When}",
+        false => "Sheet",
+    };
+    let _ = writeln!(rust, "use eggshell_ui::sheet::{sheet};");
     if !core.is_empty() {
         let _ = writeln!(rust, "use eggshell_ui::{{{}}};", core.join(", "));
     }
@@ -1276,6 +1283,7 @@ mod tests {
             assert_eq!(one(c, "shadow-xs"), ".shadow(k.shadow_xs)");
             assert!(c.translate("shadow-2xl").is_err());
             assert_eq!(one(c, "-mx-1"), ".mx(-1.0)", "a negative margin");
+            assert_eq!(one(c, "max-w-xs"), ".max_w_px(320.0)", "20rem");
             assert!(c.translate("-px-1").is_err(), "padding is never negative");
             assert_eq!(one(c, "tracking-widest"), ".tracking(Tracking::em(0.1))");
         });
@@ -1309,6 +1317,10 @@ mod tests {
             assert_eq!(
                 one(c, "has-data-[icon=inline-start]:pl-2"),
                 ".has(Match::any().attr(\"icon\", \"inline-start\"), |b| b.pl(2.0))"
+            );
+            assert_eq!(
+                one(c, "has-data-[slot=kbd]:pl-2"),
+                ".has(Match::any().with_slot(\"kbd\"), |b| b.pl(2.0))"
             );
             assert_eq!(
                 one(c, "has-aria-invalid:border-destructive"),
