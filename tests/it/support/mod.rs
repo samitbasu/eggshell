@@ -690,7 +690,13 @@ pub fn text_color<S: Seen>(seen: &S, inside: Rect, text: &str) -> Color32 {
         .into_iter()
         .find_map(|shape| match shape {
             Shape::Text(t) if t.galley.text() == text && inside.contains(t.pos) => {
-                Some(t.override_text_color.unwrap_or(t.fallback_color))
+                // A section with its own colour, as egui's hint text has,
+                // paints in it; the rest paint in the shape's.
+                let section = t.galley.job.sections.first().map(|s| s.format.color);
+                Some(match section {
+                    Some(color) if color != Color32::PLACEHOLDER => color,
+                    _ => t.override_text_color.unwrap_or(t.fallback_color),
+                })
             }
             _ => None,
         })
