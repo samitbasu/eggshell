@@ -276,6 +276,18 @@ pub fn ci_steps() -> Vec<Step> {
     ]
 }
 
+/// CI's steps an integration leaves to CI, for their time.
+const LEFT_TO_CI: [&str; 2] = ["wasm", "fuzz"];
+
+/// What `cargo xtask integrate` runs: CI's steps but the slowest, in CI's
+/// order, so an item is checked as CI checks it.
+pub fn integrate_steps() -> Vec<Step> {
+    ci_steps()
+        .into_iter()
+        .filter(|step| !LEFT_TO_CI.contains(&step.name))
+        .collect()
+}
+
 /// The CI steps without those named in `skip`, so a runner can split them
 /// across parallel jobs; a name that is not a step is an error.
 pub fn ci_steps_skipping(skip: &[String]) -> Result<Vec<Step>> {
@@ -408,6 +420,19 @@ mod tests {
     fn the_release_and_fuzz_steps_fail_when_their_filters_match_no_test() {
         assert_eq!(release().expect, Expect::SomeTestPassed);
         assert_eq!(fuzz(FUZZ_CASES).expect, Expect::SomeTestPassed);
+    }
+
+    #[test]
+    fn integrate_runs_cis_steps_but_the_slowest_in_cis_order() {
+        let skip = LEFT_TO_CI.map(str::to_owned);
+        assert_eq!(
+            commands(&integrate_steps()),
+            commands(&ci_steps_skipping(&skip).unwrap())
+        );
+        assert!(
+            integrate_steps().iter().any(|step| step.name == "release"),
+            "the release gates are built"
+        );
     }
 
     #[test]
