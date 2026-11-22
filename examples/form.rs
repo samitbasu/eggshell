@@ -329,15 +329,23 @@ fn profile(s: &mut S<'_, '_>, state: &State) {
     section(s, "Profile", |b| {
         row(b, "Name", |b| {
             let one = Field::singleline(&state.name).hint("Your name");
-            common::text_box(b, Profile::Name, ("Name", Role::TextInput), one, |s| {
-                &mut s.name
-            });
+            common::text_box(
+                b,
+                Profile::Name,
+                ("Name", Role::TextInput),
+                (one, None),
+                |s| &mut s.name,
+            );
         });
         row(b, "Email", |b| {
             let one = Field::singleline(&state.email).hint("you@example.com");
-            common::text_box(b, Profile::Email, ("Email", Role::TextInput), one, |s| {
-                &mut s.email
-            });
+            common::text_box(
+                b,
+                Profile::Email,
+                ("Email", Role::TextInput),
+                (one, None),
+                |s| &mut s.email,
+            );
         });
         row(b, "Bio", |b| {
             let many = Field::multiline(&state.bio, 3)
@@ -347,7 +355,7 @@ fn profile(s: &mut S<'_, '_>, state: &State) {
                 b,
                 Profile::Bio,
                 ("Bio", Role::MultilineTextInput),
-                many,
+                (many, None),
                 |s| &mut s.bio,
             );
         });

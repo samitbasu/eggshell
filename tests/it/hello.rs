@@ -262,6 +262,83 @@ mod signup {
         parts
     }
 
+    /// The golden `signup_form_rejected`'s state: Submit pressed with a short
+    /// name, a malformed email, a short password, an underage age and no
+    /// consent.
+    fn rejected() -> State {
+        State {
+            fields: signup_form::Fields {
+                first_name: "A".into(),
+                email: "ada@example".into(),
+                password: "hunter2".into(),
+                age: 17.0,
+                ..Default::default()
+            },
+            progress: Progress::Rejected,
+        }
+    }
+
+    /// `d` in the light theme, as the golden is.
+    fn light(mut d: Driver<State>) -> Driver<State> {
+        d.ctx().set_theme(egui::Theme::Light);
+        d.frames(3);
+        d
+    }
+
+    /// The box whose border shows `part`'s validity: a text box, the
+    /// stepper's group, the checkbox's box.
+    fn look_of(part: Part) -> String {
+        match part {
+            Part::Age => format!("/Form/{part:?}/Box"),
+            Part::Terms | Part::Newsletter => format!("/Form/{part:?}/Box"),
+            _ => format!("/Form/{part:?}"),
+        }
+    }
+
+    #[test]
+    fn a_rejected_forms_boxes_turn_destructive_only_where_a_field_is_invalid() {
+        let state = rejected();
+        let shown: Vec<_> = all_parts()
+            .into_iter()
+            .map(|part| (part, state.visible_error(part).is_some()))
+            .collect();
+        assert!(
+            shown.iter().any(|(_, invalid)| *invalid) && shown.iter().any(|(_, invalid)| !invalid),
+            "precondition: some fields are invalid and some are not: {shown:?}"
+        );
+        let d = light(harness(vec2(640.0, 900.0), state, signup_form::layout));
+        let destructive = common::tokens(d.ctx()).destructive;
+        for (part, invalid) in shown {
+            let border = support::box_at(&d, d.rect(Target::suffix(&look_of(part))))
+                .stroke
+                .color;
+            assert_eq!(
+                border == destructive,
+                invalid,
+                "{part:?}: border {border:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_rejected_forms_labels_turn_destructive_only_where_a_field_is_invalid() {
+        let state = rejected();
+        let d = light(harness(vec2(640.0, 900.0), rejected(), signup_form::layout));
+        let destructive = common::tokens(d.ctx()).destructive;
+        let page = d.ctx().content_rect();
+        for (part, label) in [
+            (Part::FirstName, "First Name"),
+            (Part::LastName, "Last Name"),
+            (Part::Email, "Email"),
+            (Part::Age, "Age"),
+            (Part::Terms, "I agree to the terms"),
+        ] {
+            let invalid = state.visible_error(part).is_some();
+            let color = support::text_color(&d, page, label);
+            assert_eq!(color == destructive, invalid, "{part:?}: label {color:?}");
+        }
+    }
+
     /// How far down the form the Submit button is.
     fn height(d: &Driver<State>) -> f32 {
         d.rect(Target::suffix("/Form/Submit")).min.y

@@ -134,7 +134,7 @@ fn dialog(b: &mut Builder<'_, '_, State>, state: &State) {
                             s,
                             Part::Name,
                             ("Name", Role::TextInput),
-                            Field::singleline(&state.name).hint("Your name"),
+                            (Field::singleline(&state.name).hint("Your name"), None),
                             |state: &mut State| &mut state.name,
                         );
                     });

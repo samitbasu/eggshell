@@ -207,19 +207,39 @@ fn labelled<'f>(
     label: &str,
     control: impl FnOnce(&mut B<'_, 'f>),
 ) {
-    b.div(
-        tw().flex()
-            .flex_col()
-            .gap(1.0)
-            .grow()
-            .basis_px(180.0)
-            .min_w_0(),
-        |b| {
-            b.text(tw(), label);
-            control(b);
-            error_line(b, state.visible_error(part));
-        },
-    );
+    let column = tw().grow().basis_px(180.0).min_w_0();
+    field(b, state.visible_error(part), column, |b| {
+        b.text(tw(), label);
+        control(b);
+    });
+}
+
+/// shadcn's `Field` around a label, a control and its error line: while
+/// `error` is `Some` it is `data-invalid`, and its label turns destructive.
+///
+/// ```html
+/// <div data-slot="field" data-invalid="true" class="flex flex-col gap-1 data-[invalid=true]:text-destructive">
+///   <label>Age</label> <input aria-invalid="true"> <p>Enter an age</p>
+/// </div>
+/// ```
+fn field<'f>(
+    b: &mut B<'_, 'f>,
+    error: Option<&'static str>,
+    classes: eggshell_ui::Tw,
+    body: impl FnOnce(&mut B<'_, 'f>),
+) {
+    use eggshell_ui::owned::FieldPart;
+    use eggshell_ui::sheet::Key;
+    let keys: &[Key] = match error {
+        Some(_) => &[Key::Attr("invalid", "true")],
+        None => &[],
+    };
+    let own = tw().flex().flex_col().gap(1.0).merge(classes);
+    let classes = b.part(FieldPart::Root, keys, own);
+    b.div(classes, |b| {
+        body(b);
+        error_line(b, error);
+    });
 }
 
 fn text(
@@ -235,7 +255,7 @@ fn text(
             b,
             part,
             (label, Role::TextInput),
-            field(state).hint(hint),
+            (field(state).hint(hint), state.visible_error(part)),
             lens,
         );
     });
@@ -261,6 +281,7 @@ fn check(
 ) {
     b.div(tw().flex().flex_col().gap(1.0), |b| {
         b.checkbox(part, label, checked)
+            .invalid(state.visible_error(part))
             .on_change(move |s, checked| *lens(s) = checked);
         error_line(b, state.visible_error(part));
     });
@@ -331,13 +352,13 @@ fn form(s: &mut S<'_, '_>, state: &State) {
             |s| Field::singleline(&s.fields.repeat).masked(),
         );
     });
-    s.div(tw().flex().flex_col().gap(1.0), |b| {
+    field(s, state.visible_error(Part::Age), tw(), |b| {
         b.text(tw(), "Age");
         b.stepper(Part::Age, state.fields.age, 0.0..=150.0)
             .named("Age")
             .classes(tw().w_px(112.0).self_start())
+            .invalid(state.visible_error(Part::Age))
             .on_change(|state: &mut State, age| state.fields.age = age);
-        error_line(b, state.visible_error(Part::Age));
     });
     let fields = &state.fields;
     check(

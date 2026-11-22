@@ -8,8 +8,8 @@ use std::rc::Rc;
 use egui::Role;
 
 use super::{
-    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, check, choice_card, choice_label,
-    choice_row, described, flip, options,
+    Card, Enablement, Form, Gate, IntoTip, OnResponse, Unset, Validity, check, choice_card,
+    choice_label, choice_row, described, flip, options,
 };
 use super::{CheckboxPart, Mark};
 use crate::builder::Slot;
@@ -53,6 +53,7 @@ pub struct CheckboxChain<'a, 'f, A, T, V = Unset> {
     form: Form,
     name: Option<String>,
     gate: Gate,
+    validity: Validity,
     current: T,
     values: V,
     classes: Tw,
@@ -84,6 +85,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             size: None,
             on_response: OnResponse::default(),
             autofocus: Autofocus::Never,
+            validity: Validity::Valid,
         }
     }
 
@@ -105,11 +107,20 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             size: self.size,
             on_response: self.on_response,
             autofocus: self.autofocus,
+            validity: self.validity,
         }
     }
 }
 
 impl<'a, 'f, A: 'static, T, V> CheckboxChain<'a, 'f, A, T, V> {
+    /// TODO(prose): marks the checkbox invalid while `error` is `Some`, as
+    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// does: its box's border and ring turn destructive, and so does its field's label.
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.validity = Validity::of(error);
+        self
+    }
+
     /// The accessible name, when it is not the label.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
@@ -238,6 +249,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             size,
             on_response,
             autofocus,
+            validity,
         } = self;
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let (mark, toggled) = flip([off, on], current);
@@ -246,11 +258,12 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
         let checkbox = &style.checkbox();
         let size = b.size_of(size);
         let metrics = *checkbox.sizes.lookup(b.ctx(), size);
-        let keys = form.keys(CheckboxPart::keys(
+        let mut keys = form.keys(CheckboxPart::keys(
             checkbox.sizes.key_for(size),
             mark,
             enablement,
         ));
+        keys.extend(validity.key(enablement));
         let box_classes = b.part(CheckboxPart::Root, &keys, enablement.senses());
         // A card's label is drawn before the control it holds, so the
         // control names itself by the card's title.
@@ -264,10 +277,11 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
             let row = choice_row(
                 b,
                 &style.role_sized(&checkbox.text, metrics.text),
-                enablement,
+                (enablement, &validity),
                 metrics.gap,
             );
             let on_press = on_toggle.clone();
+            let validity = validity.clone();
             let build_box = move |b: &mut Builder<'_, '_, A>| {
                 b.div_id(Part::Box, box_classes, |b| {
                     let indicator = b.part(CheckboxPart::Indicator, &keys, tw());
@@ -280,6 +294,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> CheckboxChain<'a, 'f, A,
                 .open_focus(autofocus.open_focus())
                 .draw(move |app, ui| {
                     let response = described(ui, Role::CheckBox, Some(mark), &name, &tooltip);
+                    validity.describe(ui.ctx(), response.id);
                     autofocus.apply(ui.ctx(), &response);
                     if response.clicked() {
                         on_press(app);

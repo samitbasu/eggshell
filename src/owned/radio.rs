@@ -6,8 +6,8 @@ use egui::Role;
 
 use super::choice::{self, Choice, IntoChoice};
 use super::{
-    Card, Enablement, Form, Gate, IntoTip, OnResponse, announce_group, choice_card, choice_label,
-    choice_row, described, options, tip_describes, tipped_whole,
+    Card, Enablement, Form, Gate, IntoTip, OnResponse, Validity, announce_group, choice_card,
+    choice_label, choice_row, described, options, tip_describes, tipped_whole,
 };
 use super::{Mark, RadioGroupPart};
 use crate::builder::Slot;
@@ -40,6 +40,7 @@ pub struct RadioGroupChain<'a, 'f, A, T> {
     classes: Tw,
     enablement: Enablement,
     gate: Gate,
+    validity: Validity,
     name: Option<String>,
     size: Option<Size>,
     on_response: OnResponse<A>,
@@ -67,6 +68,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             size: None,
             on_response: OnResponse::default(),
             autofocus: Autofocus::Never,
+            validity: Validity::Valid,
         }
     }
 
@@ -80,6 +82,14 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
     /// width or placement; the later class wins ([`Tw::merge`]).
     pub fn classes(mut self, classes: Tw) -> Self {
         self.classes = self.classes.merge(classes);
+        self
+    }
+
+    /// TODO(prose): marks the radio group invalid while `error` is `Some`, as
+    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// does: its circles' borders and rings turn destructive, and so do their fields' labels.
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.validity = Validity::of(error);
         self
     }
 
@@ -175,6 +185,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
             size,
             on_response,
             autofocus,
+            validity,
         } = self;
         let refused = gate.refused();
         let (enablement, group_tip) = gate.resolve(&mut b, slot.id, enablement);
@@ -208,18 +219,19 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
 
                 let group_tip = group_tip.clone();
                 let chosen = value == current;
-                let keys = form.keys(RadioGroupPart::item_keys(
+                let mut keys = form.keys(RadioGroupPart::item_keys(
                     size,
                     Mark::from(chosen),
                     enablement,
                 ));
+                keys.extend(validity.key(enablement));
                 let circle = b.part(RadioGroupPart::Item, &keys, enablement.senses());
                 let on_response = on_response.clone();
                 let (on_circle, on_label) = (select.clone(), select.clone());
                 let row = choice_row(
                     b,
                     &style.role_sized(&radio.text, metrics.text),
-                    enablement,
+                    (enablement, &validity),
                     metrics.gap,
                 );
                 // A card's label is drawn before the circle it holds, so the
@@ -228,6 +240,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                     Form::Row => String::new(),
                     Form::Card => label.clone(),
                 };
+                let validity = validity.clone();
                 let build_circle = move |b: &mut Builder<'_, '_, A>| {
                     b.div_id(Part::Circle(index), circle, |b| {
                         // The dot of an unchosen circle is there, unseen, so
@@ -242,6 +255,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> RadioGroupChain<'a, 'f, 
                     .draw(move |app, ui| {
                         let response =
                             described(ui, Role::RadioButton, None, &circle_name, &tooltip);
+                        validity.describe(ui.ctx(), response.id);
                         autofocus.apply(ui.ctx(), &response);
                         if tooltip.is_none() {
                             tip_describes(ui, &response, &group_tip);

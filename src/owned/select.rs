@@ -12,7 +12,8 @@ use super::menu::Tone;
 use super::number::{hold_arrows, pressed};
 use super::options::Refused;
 use super::{
-    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, check, describe, options, tipped,
+    Chevron, Enablement, Gate, IntoTip, Mark, OnResponse, Validity, check, describe, options,
+    tipped,
 };
 use crate::Aria;
 use crate::builder::Slot;
@@ -238,6 +239,7 @@ pub struct SelectChain<'a, 'f, A, T> {
     size: Option<Size>,
     on_response: OnResponse<A>,
     autofocus: Autofocus,
+    validity: Validity,
 }
 
 impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T> {
@@ -262,12 +264,21 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             size: None,
             on_response: OnResponse::default(),
             autofocus: Autofocus::Never,
+            validity: Validity::Valid,
         }
     }
 
     /// The accessible name, the equivalent of `aria-label`.
     pub fn named(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// TODO(prose): marks the select invalid while `error` is `Some`, as
+    /// [`TextFieldChain::invalid`](crate::prim::text_field::TextFieldChain::invalid)
+    /// does: its trigger's border and ring turn destructive.
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.validity = Validity::of(error);
         self
     }
 
@@ -384,6 +395,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             size,
             on_response,
             autofocus,
+            validity,
         } = self;
         let (enablement, tooltip) = gate.resolve(&mut b, slot.id, enablement);
         let ctx = b.ctx().clone();
@@ -397,6 +409,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         if enablement == Enablement::Disabled {
             keys.push(SheetKey::Aria(Aria::Disabled));
         }
+        keys.extend(validity.key(enablement));
         let own = tw().sense_click();
         let own = match enablement {
             Enablement::Enabled => own,
@@ -419,6 +432,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         .open_focus(autofocus.open_focus())
         .draw(move |app, ui| {
             let response = tipped(ui, ui.node_response(), &tooltip);
+            validity.describe(ui.ctx(), response.id);
             autofocus.apply(ui.ctx(), &response);
             let ctx = ui.ctx();
             hold_arrows(ui);

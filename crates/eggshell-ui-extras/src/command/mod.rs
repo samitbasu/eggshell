@@ -131,6 +131,7 @@ struct Options<'f, A> {
     on_query: Option<Heard<A>>,
     empty: Option<Empty<'f, A>>,
     classes: Tw,
+    error: Option<String>,
 }
 
 impl<A> Default for Options<'_, A> {
@@ -143,6 +144,7 @@ impl<A> Default for Options<'_, A> {
             on_query: None,
             empty: None,
             classes: tw(),
+            error: None,
         }
     }
 }
@@ -386,6 +388,15 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
         self
     }
 
+    /// TODO(prose): marks the combobox invalid while `error` is `Some`, as
+    /// [`TextFieldChain::invalid`](eggshell_ui::prim::text_field::TextFieldChain::invalid)
+    /// does: its box's border and ring turn destructive, because its field
+    /// is invalid.
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.options.error = error.map(Into::into);
+        self
+    }
+
     /// TODO(prose): a clear button in place of the chevron while there is a
     /// value; it runs `on_clear`.
     pub fn on_clear(mut self, on_clear: impl Fn(&mut A) + 'static) -> Self {
@@ -423,6 +434,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
             caller,
         );
         let (placeholder, name) = (options.placeholder.clone(), options.name.clone());
+        let error = options.error.take();
         let open = state.open;
         let clearing = clear.filter(|_| value.is_some());
         b.div_id((key, Part::Group), group_classes, |s| {
@@ -431,6 +443,7 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 .text_field((key, Part::Field), text.clone())
                 .bare()
                 .role(Role::ComboBox)
+                .invalid(error)
                 .classes(tw().grow().min_w_0());
             if let Some(placeholder) = placeholder {
                 field = field.hint(placeholder);

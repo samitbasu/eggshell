@@ -15,7 +15,7 @@ pub use crate::focus::Select;
 use crate::focus::{Autofocus, Token};
 use crate::overlay_input::Blur;
 use crate::owned::FieldHooks;
-use crate::owned::options::{self, Gate};
+use crate::owned::options::{self, Gate, Validity};
 use crate::owned::{Enablement, FieldBoxChain, InputGroupPart, IntoTip, text_sized, tipped};
 use crate::owned::{INLINE_END, INLINE_START};
 use crate::sheet::{Key as SheetKey, Part as _};
@@ -148,6 +148,7 @@ impl<'b, 'f, A: 'static> Builder<'b, 'f, A> {
             size: None,
             leading: None,
             trailing: None,
+            validity: Validity::Valid,
         }
     }
 }
@@ -175,6 +176,7 @@ pub struct TextFieldChain<'a, 'f, A> {
     size: Option<ControlSize>,
     leading: Option<Icon>,
     trailing: Option<Icon>,
+    validity: Validity,
 }
 
 impl<A: 'static> TextFieldChain<'_, '_, A> {
@@ -383,6 +385,28 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
         self
     }
 
+    /// TODO(prose): marks the field invalid while `error` is `Some`: shadcn's
+    /// `aria-invalid` look, a destructive border and ring, which an input
+    /// group around the field takes too, and the error as its accessible
+    /// description. `None` clears it; the last call wins. A disabled or
+    /// refused field keeps its disabled look, and is still reported invalid.
+    ///
+    /// ```
+    /// use eggshell_ui::Builder;
+    ///
+    /// fn email(b: &mut Builder<'_, '_, String>, text: &String) {
+    ///     let error: Option<&str> = (!text.contains('@')).then_some("Enter an email address");
+    ///     b.text_field("email", text.clone())
+    ///         .named("Email")
+    ///         .invalid(error)
+    ///         .on_change(|text: &mut String, new| *text = new);
+    /// }
+    /// ```
+    pub fn invalid(mut self, error: Option<impl Into<String>>) -> Self {
+        self.validity = Validity::of(error);
+        self
+    }
+
     /// TODO(prose): the chain through `then`, when `condition` holds.
     pub fn when(self, condition: bool, then: impl FnOnce(Self) -> Self) -> Self {
         options::when(self, condition, then)
@@ -431,6 +455,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             size,
             leading,
             trailing,
+            validity,
         } = self;
         // shadcn's Input: `min-w-0`, so a field shrinks below egui's
         // text-edit width rather than out of a narrow row.
@@ -458,6 +483,8 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 control_keys.push(SheetKey::Attr("addon", side));
             }
         }
+        control_keys.extend(validity.key(enablement));
+        let invalid = validity.aria(enablement);
         let disabled_frame = enablement == Enablement::Disabled && !field.is_bare();
         // A disabled field takes the input look's disabled colours through the
         // field box, as the stepper's does; egui's own frame has none.
@@ -476,6 +503,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             let field = field.bare();
             let measured = field.clone();
             let tip = tooltip.clone();
+            let validity = validity.clone();
             FieldBoxChain::new(b, slot)
                 .size(size)
                 .enablement(enablement)
@@ -493,6 +521,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                                 let mut edited = text;
                                 let shown = show(ui, &mut edited, &field);
                                 let response = tipped(ui, shown, &tip);
+                                validity.describe(ui.ctx(), response.id);
                                 if let Some(select) = autofocus.apply(ui.ctx(), &response) {
                                     Opening::from(select).open(ui, &response, &edited);
                                 }
@@ -517,10 +546,14 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
             };
             b.part(control, &control_keys, classes)
         } else if field.is_bare() {
-            classes
+            match invalid {
+                Some(aria) => classes.aria(aria),
+                None => classes,
+            }
         } else {
-            crate::owned::text_field_classes(&mut b, size).merge(classes)
+            crate::owned::text_field_classes(&mut b, size, invalid).merge(classes)
         };
+        let field = field.aria(invalid);
         let classes = enablement.apply(classes, &style);
         b.leaf_with(&slot, classes, move |m| measure(m, &measured))
             .open_focus(autofocus.open_focus())
@@ -528,6 +561,7 @@ impl<A: 'static> TextFieldChain<'_, '_, A> {
                 let mut edited = text;
                 let shown = show(ui, &mut edited, &field);
                 let response = tipped(ui, shown, &tooltip);
+                validity.describe(ui.ctx(), response.id);
                 if let Some(select) = autofocus.apply(ui.ctx(), &response) {
                     Opening::from(select).open(ui, &response, &edited);
                 }
