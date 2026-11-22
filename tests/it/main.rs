@@ -54,6 +54,7 @@ mod duplicate_key;
 mod edits;
 mod egui_look;
 mod escape_field;
+mod expanded;
 mod field_box;
 mod field_focus;
 mod field_focus_example;

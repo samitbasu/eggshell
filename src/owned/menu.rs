@@ -469,14 +469,16 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             (Lead::Dot(_), _) => MenuPart::RadioItem,
             _ => MenuPart::Item,
         };
+        let (root, depth, id) = (shared.root, self.depth, slot.id);
+        let expanded = shared.kept.with(|kept| kept.menus.submenu(root, depth)) == Some(id);
         let mut keys = MenuPart::item_keys(tone, enablement);
         if matches!(lead, Lead::Inset) {
             keys.push(Key::Attr(INSET.0, INSET.1));
         }
+        keys.extend(super::expanded_key(expanded));
         let own = enablement.senses();
         let classes = self.b.part(part, &keys, own);
         let shown = label.clone();
-        let (root, depth, id) = (shared.root, self.depth, slot.id);
         let owns = match reaction {
             Reaction::Run(_) => Owns::Nothing,
             Reaction::OpenSubmenu => Owns::Submenu,
@@ -485,7 +487,6 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             Lead::Nothing | Lead::Inset | Lead::Icon(_) => None,
             Lead::Check(mark) | Lead::Dot(mark) => Some(*mark),
         };
-        let expanded = shared.kept.with(|kept| kept.menus.submenu(root, depth)) == Some(id);
         self.b
             .div_id_with(&slot, classes, |b| {
                 match lead {
@@ -1015,6 +1016,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
         let button = ButtonChain::new(b.reborrow(), key, face)
             .with_options(options)
             .opens_popup()
+            .expanded(open)
             .enablement(enablement)
             .autofocus(autofocus);
         let button = match (children, trail) {

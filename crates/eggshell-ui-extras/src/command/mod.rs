@@ -12,7 +12,7 @@ use eggshell_ui::overlay::{Anchor, Focus, MatchWidth, Modal, Placement};
 use eggshell_ui::owned::Mark;
 use eggshell_ui::prim::text_field::Select;
 use eggshell_ui::sheet::Defaults;
-use eggshell_ui::{Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
+use eggshell_ui::{Aria, Builder, CommandState, Icon, Key, Scope, Tw, icons, tw};
 use egui::{Id, Role};
 
 pub use filter::{Candidate, Score, word_prefix};
@@ -444,7 +444,10 @@ impl<'f, A: 'static, V: Key + Copy + PartialEq> ComboboxChain<'_, '_, 'f, A, V> 
                 .bare()
                 .role(Role::ComboBox)
                 .invalid(error)
-                .classes(tw().grow().min_w_0());
+                .classes(match open {
+                    true => tw().grow().min_w_0().aria(Aria::Expanded),
+                    false => tw().grow().min_w_0(),
+                });
             if let Some(placeholder) = placeholder {
                 field = field.hint(placeholder);
             }
