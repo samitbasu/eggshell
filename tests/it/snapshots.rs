@@ -2943,7 +2943,7 @@ mod child_rules {
             Tokens::for_theme(theme).muted_foreground,
             "text-muted-foreground"
         );
-        h.snapshot(&format!("accordion_open_{}", suffix(theme)));
+        h.snapshot(format!("accordion_open_{}", suffix(theme)));
     }
 
     #[test]
@@ -2981,7 +2981,7 @@ mod child_rules {
         let search = support::rect_of(&h, r#"/"Page"/("menu", Menu)/Box/"search""#);
         assert_eq!(support::glyph_color(&h, delete), tokens.destructive);
         assert_ne!(support::glyph_color(&h, search), tokens.destructive);
-        h.snapshot(&format!("menu_destructive_icon_{}", suffix(theme)));
+        h.snapshot(format!("menu_destructive_icon_{}", suffix(theme)));
     }
 
     #[test]
@@ -3014,7 +3014,7 @@ mod child_rules {
         assert_eq!(icon.size(), Vec2::splat(12.0), "size-3");
         assert_eq!(plain_text.min.x - plain.min.x, 9.0, "px-2 and the border");
         assert_eq!(icon.min.x - badge.min.x, 7.0, "pl-1.5 and the border");
-        h.snapshot(&format!("badge_icon_{}", suffix(theme)));
+        h.snapshot(format!("badge_icon_{}", suffix(theme)));
     }
 
     #[test]
@@ -3049,7 +3049,7 @@ mod child_rules {
             !rings[0].contains("Circle") && !rings[0].ends_with("/Box"),
             "the card is ringed, not the control in it: {rings:?}"
         );
-        h.snapshot(&format!("choice_card_focused_{}", suffix(theme)));
+        h.snapshot(format!("choice_card_focused_{}", suffix(theme)));
     }
 
     #[test]
@@ -3123,7 +3123,7 @@ mod child_rules {
             .map(|(_, rect)| *rect)
             .expect("the combobox's box");
         assert_eq!(support::box_at(&h, combobox).stroke.color, destructive);
-        h.snapshot(&format!("invalid_controls_{}", suffix(theme)));
+        h.snapshot(format!("invalid_controls_{}", suffix(theme)));
     }
 
     #[test]
