@@ -1473,7 +1473,8 @@ impl<'b, 'f, A> Builder<'b, 'f, A> {
             .rounded_px(f32::from(kbd.radius))
             .bg(colors.fill)
             .text(colors.text)
-            .whitespace_nowrap();
+            .whitespace_nowrap()
+            .slot("kbd");
         let classes = match kbd.text.clone() {
             Some(spec) => classes.role(spec),
             None => classes,

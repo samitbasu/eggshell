@@ -23,7 +23,7 @@ use classes::{Classifier, Fate, Gap, Radius, TwTable};
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 9] = [
+const COMPONENTS: [&str; 10] = [
     "button",
     "badge",
     "combobox",
@@ -33,12 +33,13 @@ const COMPONENTS: [&str; 9] = [
     "select",
     "tabs",
     "textarea",
+    "tooltip",
 ];
 
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 7] = [
+const WIDGETS: [emit::Widget; 8] = [
     emit::Widget {
         component: "button",
         checked_in: true,
@@ -145,6 +146,23 @@ const WIDGETS: [emit::Widget; 7] = [
         slot_aliases: &[],
         inherited: &[],
         absent: &MENU_ABSENT,
+    },
+    emit::Widget {
+        component: "tooltip",
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &[(
+            "tooltip-arrow",
+            "the overlay draws the arrow, filled like the content",
+        )],
     },
     emit::Widget {
         component: "tabs",
