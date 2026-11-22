@@ -843,6 +843,7 @@ impl<A> Walk<'_, A> {
                     group == Some(Hovering::Over)
                 }
                 State::Hover => hovering == Some(Hovering::Over),
+                State::Highlighted => node.is_item() && hovering == Some(Hovering::Over),
                 State::Focus => response.is_some_and(Response::has_focus),
                 State::FocusWithin => node.id().is_some_and(|id| self.shell.focus_within(id)),
                 State::Active => {
@@ -869,6 +870,7 @@ impl<A> Walk<'_, A> {
             hover: progress(State::Hover),
             focus_within: progress(State::FocusWithin),
             focus: progress(State::Focus),
+            highlighted: progress(State::Highlighted),
             active: progress(State::Active),
             drag_accepts: progress(State::DragAccepts),
             drag_over: progress(State::DragOver),
@@ -1022,7 +1024,8 @@ impl<A> Walk<'_, A> {
             dnd::show_grab(self.shell, nodes, index, response);
         }
         let needs_hovering = interaction.grouping == Grouping::Group
-            || interaction.variants.get(State::Hover).is_some();
+            || interaction.variants.get(State::Hover).is_some()
+            || interaction.variants.get(State::Highlighted).is_some();
         let hovering = response
             .as_ref()
             .filter(|_| needs_hovering)

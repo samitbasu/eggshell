@@ -382,6 +382,7 @@ pub(crate) enum State {
     Hover,
     FocusWithin,
     Focus,
+    Highlighted,
     Active,
     DragAccepts,
     DragOver,
@@ -389,11 +390,12 @@ pub(crate) enum State {
 }
 
 impl State {
-    pub(crate) const ALL: [Self; 8] = [
+    pub(crate) const ALL: [Self; 9] = [
         Self::GroupHover,
         Self::Hover,
         Self::FocusWithin,
         Self::Focus,
+        Self::Highlighted,
         Self::Active,
         Self::DragAccepts,
         Self::DragOver,
@@ -408,6 +410,7 @@ pub(crate) struct Presence {
     pub hover: Progress,
     pub focus_within: Progress,
     pub focus: Progress,
+    pub highlighted: Progress,
     pub active: Progress,
     pub drag_accepts: Progress,
     pub drag_over: Progress,
@@ -422,6 +425,7 @@ impl Presence {
         hover: Progress::START,
         focus_within: Progress::START,
         focus: Progress::START,
+        highlighted: Progress::START,
         active: Progress::START,
         drag_accepts: Progress::START,
         drag_over: Progress::START,
@@ -434,6 +438,7 @@ impl Presence {
             State::Hover => self.hover,
             State::FocusWithin => self.focus_within,
             State::Focus => self.focus,
+            State::Highlighted => self.highlighted,
             State::Active => self.active,
             State::DragAccepts => self.drag_accepts,
             State::DragOver => self.drag_over,
@@ -525,6 +530,7 @@ struct VariantData {
     group_hover: Option<Paint>,
     focus: Option<Paint>,
     focus_within: Option<Paint>,
+    highlighted: Option<Paint>,
     drag_accepts: Option<Paint>,
     drag_over: Option<Paint>,
     drag_lifted: Option<Paint>,
@@ -551,6 +557,7 @@ impl VariantData {
             group_hover: both(self.group_hover, other.group_hover),
             focus: both(self.focus, other.focus),
             focus_within: both(self.focus_within, other.focus_within),
+            highlighted: both(self.highlighted, other.highlighted),
             drag_accepts: both(self.drag_accepts, other.drag_accepts),
             drag_over: both(self.drag_over, other.drag_over),
             drag_lifted: both(self.drag_lifted, other.drag_lifted),
@@ -570,6 +577,7 @@ impl VariantData {
             State::Hover => self.hover.as_ref(),
             State::FocusWithin => self.focus_within.as_ref(),
             State::Focus => self.focus.as_ref(),
+            State::Highlighted => self.highlighted.as_ref(),
             State::Active => self.active.as_ref(),
             State::DragAccepts => self.drag_accepts.as_ref(),
             State::DragOver => self.drag_over.as_ref(),
@@ -697,6 +705,19 @@ impl Tw {
         tw.sensing = tw.sensing.pressable();
         #[cfg(debug_assertions)]
         tw.note(super::Property::VariantFocus);
+        tw
+    }
+
+    /// TODO(prose): `data-highlighted:`. The node is the current item of
+    /// a menu or listbox, whether the keyboard or the pointer made it
+    /// current; never true of a node that is not an item. Implies
+    /// [`sense_hover`](Self::sense_hover).
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn highlighted(self, style: impl FnOnce(Paint) -> Paint) -> Self {
+        let mut tw = self.variant(|variants| &mut variants.highlighted, style);
+        tw.sensing = tw.sensing.or(Sensing::Hover);
+        #[cfg(debug_assertions)]
+        tw.note(super::Property::VariantHighlighted);
         tw
     }
 
@@ -947,6 +968,7 @@ impl Tw {
             || self.variants.get(State::Active).is_some()
             || self.variants.get(State::Focus).is_some()
             || self.variants.get(State::FocusWithin).is_some()
+            || self.variants.get(State::Highlighted).is_some()
             || self.variants.get(State::DragAccepts).is_some()
             || self.variants.get(State::DragOver).is_some()
             || self.variants.get(State::DragLifted).is_some()

@@ -17,13 +17,13 @@ use super::{
 };
 use crate::Aria;
 use crate::builder::Slot;
-use crate::contract::{Disabled, Size};
+use crate::contract::{Disabled, SelectStyle, Size};
 use crate::focus::{Autofocus, Select};
 use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::pipeline::Room;
 use crate::scroll::{Axis, Focusable};
-use crate::sheet::{Key as SheetKey, Part as SheetPart, When};
+use crate::sheet::{Key as SheetKey, Part as SheetPart, Sheet, When};
 use crate::{Builder, NodeUi as _, Scope, Style, Tw, nav, tw};
 
 /// The parts of a select's list.
@@ -32,6 +32,7 @@ enum Part {
     List,
     Box,
     Rows,
+    Group,
     Option(usize),
 }
 
@@ -41,14 +42,20 @@ enum Part {
 pub enum SelectPart {
     /// TODO(prose): the box that shows the chosen option.
     Trigger,
+    /// TODO(prose): the chosen option's label in the trigger.
+    Value,
     /// TODO(prose): the chevron in the trigger.
     TriggerIcon,
     /// TODO(prose): the box of the open list.
     Content,
+    /// TODO(prose): the options of the list, together.
+    Group,
     /// TODO(prose): one option of the list.
     Item,
     /// TODO(prose): the room an option keeps for its check mark.
     ItemIndicator,
+    /// TODO(prose): the check mark of the chosen option.
+    ItemIndicatorIcon,
 }
 
 impl SheetPart for SelectPart {
@@ -57,10 +64,13 @@ impl SheetPart for SelectPart {
     fn slot(self) -> &'static str {
         match self {
             Self::Trigger => "select-trigger",
+            Self::Value => "select-value",
             Self::TriggerIcon => "select-trigger-icon",
             Self::Content => "select-content",
+            Self::Group => "select-group",
             Self::Item => "select-item",
             Self::ItemIndicator => "select-item-indicator",
+            Self::ItemIndicatorIcon => "select-item-indicator-icon",
         }
     }
 }
@@ -139,6 +149,38 @@ pub(crate) fn write_select_rules(style: &mut Style) {
     sheet.replace(SelectPart::ItemIndicator, move |t, _| {
         t.size_px(chevron).shrink_0()
     });
+    sheet.replace(SelectPart::ItemIndicatorIcon, move |t, _| {
+        t.size_px(chevron)
+    });
+}
+
+/// Writes the select's recorded exception over the rules at the sheet's
+/// current layer: a size the trigger's rules leave out keeps its metrics.
+pub(crate) fn write_select_exceptions(sheet: &mut Sheet, select: &SelectStyle) {
+    for size in select.sizes.keys() {
+        if sheet
+            .unnamed(SelectPart::Trigger, &[SheetKey::Size(size)])
+            .is_none()
+        {
+            continue;
+        }
+        let m = *select.sizes.get(size);
+        sheet.rule_when(
+            SelectPart::Trigger,
+            When::always().size(size),
+            move |t, _| {
+                let t = t
+                    .h_px(m.height)
+                    .px(m.padding_x / 4.0)
+                    .gap(m.gap / 4.0)
+                    .rounded_px(f32::from(m.radius));
+                match m.text {
+                    Some(text) => t.text_size(text.size, text.line_height),
+                    None => t,
+                }
+            },
+        );
+    }
 }
 
 /// Whether the list is shown.
@@ -363,6 +405,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
             Enablement::Disabled => own.inert(),
         };
         let classes = b.part(SelectPart::Trigger, &keys, own.merge(caller));
+        let value_classes = b.part(SelectPart::Value, &[], tw());
         let icon = b.part(SelectPart::TriggerIcon, &[], tw());
         let current = options.iter().position(|option| option.value == chosen);
         let shown = current
@@ -372,7 +415,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
         let value = shown.clone();
         let label = name.clone();
         b.div_id_with(&slot, classes, |b| {
-            b.text(tw(), shown);
+            b.text(value_classes, shown);
             b.glyph(icon, Chevron::Down.icon());
         })
         .open_focus(autofocus.open_focus())
@@ -460,15 +503,20 @@ impl<T: Copy + 'static> List<T> {
         let chrome = 2.0 * (menu.padding + menu.popup.border_width);
         let natural = vec2(0.0, rows + chrome);
         let room = s.room_for(self.trigger, &self.placement(), natural);
-        let content = s.part(SelectPart::Content, &[], tw());
+        let content = s.part(SelectPart::Content, &[], tw().flex().flex_col().min_h_0());
+        let group = s.part(SelectPart::Group, &[], tw().flex().flex_col());
         s.div_id(Part::Box, content, |s| match room {
-            Room::Enough => self.rows(s, choose),
+            Room::Enough => {
+                s.div_id(Part::Group, group, |s| self.rows(s, choose));
+            }
             Room::Short => {
                 let scroller = tw().flex().flex_col().h_px(rows).min_h_0().focusable_none();
                 s.scroll(Part::Rows, scroller)
                     .axis(Axis::Y)
                     .focusable(Focusable::Auto)
-                    .children(|s| self.rows(s, choose));
+                    .children(|s| {
+                        s.div_id(Part::Group, group, |s| self.rows(s, choose));
+                    });
             }
         });
     }
@@ -496,16 +544,21 @@ impl<T: Copy + 'static> List<T> {
                 Enablement::Enabled => &[],
                 Enablement::Disabled => &[SheetKey::Aria(Aria::Disabled)],
             };
-            let item = s.part(SelectPart::Item, keys, tw());
+            let own = match enablement {
+                Enablement::Enabled => tw().sense_click(),
+                Enablement::Disabled => tw().inert(),
+            };
+            let item = s.part(SelectPart::Item, keys, own.focusable_none());
             let indicator = s.part(SelectPart::ItemIndicator, &[], tw());
+            let mark = s.part(SelectPart::ItemIndicatorIcon, &[], tw());
             let row = s
                 .div_id(Part::Option(index), item, |s| {
                     s.text(tw(), label.clone());
-                    if marked {
-                        s.glyph(indicator, check());
-                    } else {
-                        s.div(indicator, |_| {});
-                    }
+                    s.div(indicator, |s| {
+                        if marked {
+                            s.glyph(mark, check());
+                        }
+                    });
                 })
                 .role(Role::ListBoxOption)
                 .named(label.clone());

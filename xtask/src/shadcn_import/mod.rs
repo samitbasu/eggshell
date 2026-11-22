@@ -53,6 +53,7 @@ const WIDGETS: [emit::Widget; 6] = [
         relations: &[],
         slot_aliases: &[],
         inherited: &[],
+        absent: &[],
     },
     emit::Widget {
         component: "input",
@@ -66,6 +67,7 @@ const WIDGETS: [emit::Widget; 6] = [
         relations: &[],
         slot_aliases: &[],
         inherited: &[],
+        absent: &[],
     },
     emit::Widget {
         component: "input-group",
@@ -99,19 +101,21 @@ const WIDGETS: [emit::Widget; 6] = [
         ],
         slot_aliases: &[("input-group-control", &["input-group-textarea"])],
         inherited: &[("group-data-[disabled=true]/input-group", "disabled")],
+        absent: &[],
     },
     emit::Widget {
         component: "select",
-        checked_in: false,
+        checked_in: true,
         variants: &[],
         sizes: &[],
-        facts: &[],
+        facts: &SELECT,
         parts: None,
         bases: &[],
         aliases: &[],
         relations: &[],
         slot_aliases: &[],
         inherited: &[],
+        absent: &SELECT_ABSENT,
     },
     emit::Widget {
         component: "combobox",
@@ -125,6 +129,7 @@ const WIDGETS: [emit::Widget; 6] = [
         relations: &[],
         slot_aliases: &[],
         inherited: &[],
+        absent: &[],
     },
     emit::Widget {
         component: "tabs",
@@ -138,8 +143,59 @@ const WIDGETS: [emit::Widget; 6] = [
         relations: &[],
         slot_aliases: &[],
         inherited: &[],
+        absent: &[],
     },
 ];
+
+/// eggshell's select opens its list below the trigger and keeps it off the
+/// trigger by the menu's offset, as Radix's `popper` position does.
+const SELECT: [emit::Assumed; 5] = {
+    use emit::{Assumed, Fact::*};
+    const BELOW: &str =
+        "eggshell's select opens its list below the trigger, as Radix's `popper` position does";
+    const OFFSET: &str = "the overlay keeps the list off its trigger by `MenuStyle::offset`";
+    [
+        Assumed {
+            variant: "data-[align-trigger=true]",
+            fact: Never,
+            why: BELOW,
+        },
+        Assumed {
+            variant: "data-[side=bottom]",
+            fact: Never,
+            why: OFFSET,
+        },
+        Assumed {
+            variant: "data-[side=top]",
+            fact: Never,
+            why: OFFSET,
+        },
+        Assumed {
+            variant: "data-[side=left]",
+            fact: Never,
+            why: OFFSET,
+        },
+        Assumed {
+            variant: "data-[side=right]",
+            fact: Never,
+            why: OFFSET,
+        },
+    ]
+};
+
+/// The parts of shadcn's select that eggshell's does not draw. Its options
+/// are one group, `select-group`.
+const SELECT_ABSENT: [(&str, &str); 5] = {
+    const UNGROUPED: &str = "eggshell's select lists its options without groups";
+    const SCROLLS: &str = "a list taller than its room scrolls in the overlay's own scroller";
+    [
+        ("select-label", UNGROUPED),
+        ("select-separator", UNGROUPED),
+        ("select-viewport", SCROLLS),
+        ("select-scroll-up-button", SCROLLS),
+        ("select-scroll-down-button", SCROLLS),
+    ]
+};
 
 /// eggshell's tabs are horizontal, and their list has only the default look.
 const TABS: [emit::Assumed; 6] = {
@@ -352,6 +408,11 @@ fn theme_radius(themes: &str) -> Option<f32> {
         .map(|r| r * 16.0)
 }
 
+/// `cn-*` rules that only a theme setting other than the default applies:
+/// `menuColor` defaults to `"default"` (`registry/config.ts:186`), and
+/// `cn-menu-translucent` styles the `*-translucent` menu colours.
+const OFF_BY_DEFAULT: [&str; 1] = ["cn-menu-translucent"];
+
 /// The styles the preset has, as shadcn names their CSS.
 const STYLES: [&str; 2] = ["vega", "lyra"];
 
@@ -372,6 +433,9 @@ fn extract(
         let file = sources.add(format!("registry/bases/radix/ui/{name}.tsx"), text.clone());
         for (origin, slot, classes) in source::component(&text, file).parts {
             for class in classes {
+                if OFF_BY_DEFAULT.contains(&class.text.as_str()) {
+                    continue;
+                }
                 match rules.get(&class.text) {
                     Some(applied) => rows.extend(applied.iter().map(|inner| Row {
                         component: name,

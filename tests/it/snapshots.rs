@@ -1119,7 +1119,7 @@ fn select_open(name: &str, theme: egui::Theme) {
             .state()
             .nodes
             .iter()
-            .any(|(path, _)| path.contains("List") && path.ends_with("/Box/Option(0)"));
+            .any(|(path, _)| path.contains("List") && path.ends_with("/Box/Group/Option(0)"));
         assert!(first, "the list is open");
     });
 }

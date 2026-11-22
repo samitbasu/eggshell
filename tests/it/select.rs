@@ -140,11 +140,11 @@ fn open(d: &Driver<App>) -> bool {
 }
 
 fn row(list: &str, index: usize) -> String {
-    format!("{list}/Box/Option({index})")
+    format!("{list}/Box/Group/Option({index})")
 }
 
 fn tall_row(index: usize) -> String {
-    format!("{MANY_LIST}/Box/Rows/Option({index})")
+    format!("{MANY_LIST}/Box/Rows/Group/Option({index})")
 }
 
 fn tab_to(d: &mut Driver<App>, path: &str) {
@@ -572,4 +572,26 @@ fn the_list_pops_in_with_the_styles_menu_motion_and_leaves_the_same_way() {
             .all(|(path, _)| !path.starts_with(LIST)),
         "gone once the exit has run"
     );
+}
+
+#[test]
+fn a_highlighted_look_never_shows_on_a_node_that_is_not_an_item() {
+    fn view(b: &mut Builder<'_, '_, ()>, _: &()) {
+        let red = |p: eggshell_ui::Paint| p.bg(Color32::RED);
+        b.div(tw().flex().gap(4.0), |b| {
+            b.div_id("hovers", tw().size_px(40.0).hover(red), |_| {});
+            b.div_id("highlights", tw().size_px(40.0).highlighted(red), |_| {});
+        });
+    }
+    let mut d = support::driver(SCREEN, base_text(), (), view).build();
+    d.frames(2);
+    for (key, look) in [("hovers", Some(Color32::RED)), ("highlights", None)] {
+        let path = support::nodes(&d)
+            .into_iter()
+            .map(|(path, _)| path)
+            .find(|path| path.ends_with(&format!("\"{key}\"")))
+            .expect("the box");
+        d.hover(Target::suffix(&path)).frames(3);
+        assert_eq!(support::fill_of(&d, &path), look, "{key}");
+    }
 }
