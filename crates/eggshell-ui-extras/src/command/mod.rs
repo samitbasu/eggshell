@@ -17,7 +17,7 @@ use egui::{Id, Role};
 
 pub use filter::{Candidate, Score, word_prefix};
 pub use list::{ItemChain, Items};
-pub use parts::ComboboxPart;
+pub use parts::{ComboboxPart, CommandPart};
 pub use style::CommandStyle;
 
 use list::{First, ListOptions, Query};
@@ -218,7 +218,13 @@ impl<'f, A: 'static> CommandList<'_, '_, 'f, A> {
                     .named(name)
                     .on_dismiss(move |app| dismiss(app))
                     .children(|s| {
-                        let classes = list::dialog_classes(s.style());
+                        let style = Arc::clone(s.style());
+                        let classes = s.part_over(
+                            CommandPart::Dialog,
+                            &[],
+                            Defaults(list::dialog_classes(&style)),
+                            tw(),
+                        );
                         s.div_id(Part::Box, classes, |s| {
                             list::show(s, key, given, options, ListOptions::palette(Some(close)));
                         });

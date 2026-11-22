@@ -24,7 +24,7 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 24] = [
+const COMPONENTS: [&str; 25] = [
     "accordion",
     "alert-dialog",
     "button",
@@ -32,6 +32,7 @@ const COMPONENTS: [&str; 24] = [
     "card",
     "checkbox",
     "combobox",
+    "command",
     "dialog",
     "dropdown-menu",
     "field",
@@ -54,7 +55,7 @@ const COMPONENTS: [&str; 24] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 23] = [
+const WIDGETS: [emit::Widget; 24] = [
     emit::Widget {
         component: "button",
         home: Home::Core,
@@ -160,6 +161,30 @@ const WIDGETS: [emit::Widget; 23] = [
         inherited: &[],
         absent: &COMBOBOX_ABSENT,
         copies: &[],
+    },
+    emit::Widget {
+        component: "command",
+        home: Home::Extension("eggshell_ui_extras::command"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &COMMAND,
+        parts: None,
+        bases: &[emit::Base {
+            part: "InputGroup",
+            component: "input-group",
+        }],
+        aliases: &[("cmdk-group-heading", "command-group-heading")],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[(
+            "group-data-[checked=true]/command-item",
+            "data-[checked=true]",
+        )],
+        absent: &[],
+        // A palette's list is flat, with no element for a group: the list is
+        // its one group, whose `p-1` sits inside the scrolling list as shadcn's.
+        copies: &[("Group", &["List"])],
     },
     emit::Widget {
         component: "dropdown-menu",
@@ -635,6 +660,14 @@ const SLIDER: [emit::Assumed; 3] = {
         },
     ]
 };
+
+/// A checked command shows its mark, its shortcut too (#345): shadcn's
+/// palette hides the mark beside a shortcut.
+const COMMAND: [emit::Assumed; 1] = [emit::Assumed {
+    variant: "group-has-data-[slot=command-shortcut]/command-item",
+    fact: emit::Fact::Never,
+    why: "a checked command shows its mark beside its shortcut (#345)",
+}];
 
 /// eggshell turns the accordion's one chevron rather than hiding it.
 const ACCORDION: [emit::Assumed; 1] = [emit::Assumed {
