@@ -51,3 +51,61 @@ impl Part for ComboboxPart {
         }
     }
 }
+
+/// TODO(prose): a command palette's anatomy for the style's sheet, as
+/// shadcn's `command.tsx` names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CommandPart {
+    /// TODO(prose): the palette's panel.
+    Root,
+    /// TODO(prose): the room around the search field.
+    InputWrapper,
+    /// TODO(prose): the search field's group: its icon and its input.
+    InputGroup,
+    /// TODO(prose): the search field's text.
+    Input,
+    /// TODO(prose): the search field's icon.
+    InputIcon,
+    /// TODO(prose): the list of commands.
+    List,
+    /// TODO(prose): what the list says when nothing matches.
+    Empty,
+    /// TODO(prose): a group of commands, with its heading. A palette's list
+    /// is flat: the list draws as its group too.
+    Group,
+    /// TODO(prose): a group's heading.
+    GroupHeading,
+    /// TODO(prose): the palette in its dialog.
+    Dialog,
+    /// TODO(prose): the rule between groups.
+    Separator,
+    /// TODO(prose): a command's row.
+    Item,
+    /// TODO(prose): a checked command's mark.
+    ItemIndicator,
+    /// TODO(prose): a command's shortcut.
+    Shortcut,
+}
+
+impl Part for CommandPart {
+    const SOURCE: &'static str = "command.tsx";
+
+    fn slot(self) -> &'static str {
+        match self {
+            Self::Root => "command",
+            Self::InputWrapper => "command-input-wrapper",
+            Self::InputGroup => "command-input-group",
+            Self::Input => "command-input",
+            Self::InputIcon => "command-input-icon",
+            Self::List => "command-list",
+            Self::Empty => "command-empty",
+            Self::Group => "command-group",
+            Self::GroupHeading => "command-group-heading",
+            Self::Dialog => "command-dialog",
+            Self::Separator => "command-separator",
+            Self::Item => "command-item",
+            Self::ItemIndicator => "command-item-indicator",
+            Self::Shortcut => "command-shortcut",
+        }
+    }
+}

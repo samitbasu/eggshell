@@ -2820,3 +2820,40 @@ fn combobox_open_light() {
 fn combobox_open_dark() {
     combobox_open("combobox_open_dark", egui::Theme::Dark);
 }
+
+/// The command palette example's palette, open with its first command
+/// current: the palette's parts, shadcn's under the preset.
+fn palette_open(name: &str, theme: egui::Theme) {
+    report_renderer();
+    let style = ShadcnStyle::Vega;
+    let mut harness = support::harness(
+        Vec2::new(800.0, 700.0),
+        common::base_text_styled(theme, style),
+        command_palette::State::default(),
+        command_palette::layout,
+    );
+    common::set_style(&harness.ctx, style);
+    harness.state_mut().page = support::Page::Themed;
+    harness.state_mut().companion = support::Companion::Alone;
+    harness.ctx.set_theme(theme);
+    harness.run_steps(12);
+    harness.state_mut().app.palette = true;
+    harness.run_steps(20);
+    let open = harness
+        .state()
+        .nodes
+        .iter()
+        .any(|(path, _)| path.contains("Dialog)/Box/") && path.ends_with("/Results"));
+    assert!(open, "the palette is open");
+    harness.snapshot(name);
+}
+
+#[test]
+fn palette_open_light() {
+    palette_open("palette_open_light", egui::Theme::Light);
+}
+
+#[test]
+fn palette_open_dark() {
+    palette_open("palette_open_dark", egui::Theme::Dark);
+}

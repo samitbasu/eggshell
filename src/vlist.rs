@@ -179,6 +179,7 @@ pub struct ListChain<'a, 'f, A, R: Clone> {
     keys: Keys,
     first: FirstRow,
     enablement: Option<RowEnablement<R>>,
+    kinds: Option<RowKinds<R>>,
     mark: Option<RowMark<R>>,
 }
 
@@ -197,6 +198,19 @@ impl<'a, 'f, A, R: Clone> ListChain<'a, 'f, A, R> {
 type Activate<A, R> = std::rc::Rc<dyn Fn(&mut A, R)>;
 type RowPart<'f, A, R> = Box<dyn FnMut(&mut Builder<'_, 'f, A>, R) -> Tw + 'f>;
 type RowEnablement<R> = std::rc::Rc<dyn Fn(R) -> Enablement>;
+type RowKinds<R> = std::rc::Rc<dyn Fn(R) -> RowKind>;
+
+/// TODO(prose): what a row of a listbox is: one of its options, or a heading
+/// over the options after it, which is not an option: it is not announced as
+/// one or counted among them, and the keys, the pointer and activation pass
+/// it by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowKind {
+    /// TODO(prose): an option.
+    Option,
+    /// TODO(prose): a heading.
+    Heading,
+}
 type RowMark<R> = std::rc::Rc<dyn Fn(R) -> Option<Mark>>;
 
 /// Whether a listbox highlights its first row as its rows change.
@@ -222,6 +236,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             keys: Keys::Own,
             first: FirstRow::Left,
             enablement: None,
+            kinds: None,
             mark: None,
         }
     }
@@ -260,6 +275,12 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
     /// TODO(prose): whether each row of a listbox is enabled: a disabled row is announced disabled, and the keys, the pointer and activation pass it by.
     pub fn row_enablement(mut self, enablement: impl Fn(R) -> Enablement + 'static) -> Self {
         self.enablement = Some(std::rc::Rc::new(enablement));
+        self
+    }
+
+    /// TODO(prose): what each row of a listbox is: an option, or a heading.
+    pub fn row_kind(mut self, kind: impl Fn(R) -> RowKind + 'static) -> Self {
+        self.kinds = Some(std::rc::Rc::new(kind));
         self
     }
 
@@ -397,6 +418,7 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             keys,
             first,
             enablement,
+            kinds,
             mark,
         } = self;
         let listbox = (nav == ListNav::Listbox).then_some(keys);
@@ -436,12 +458,14 @@ impl<'a, 'f, A: 'static, R: Key + Copy> ListChain<'a, 'f, A, R> {
             row_name,
             keys,
             enablement: enablement.clone(),
+            kinds: kinds.clone(),
             mark,
         });
         if first == FirstRow::Highlighted
             && let Some(keys) = listbox
         {
-            highlight_first(&kept, list, &rows, keys, enablement.as_deref());
+            let selectable = |row: R| selectable(enablement.as_deref(), kinds.as_deref(), row);
+            highlight_first(&kept, list, &rows, keys, &selectable);
         }
         b.list_region(
             leaf,
@@ -638,6 +662,7 @@ pub(crate) struct Listbox<A, R> {
     row_name: Option<std::rc::Rc<dyn Fn(R) -> String>>,
     keys: Keys,
     enablement: Option<RowEnablement<R>>,
+    kinds: Option<RowKinds<R>>,
     mark: Option<RowMark<R>>,
 }
 
@@ -647,6 +672,23 @@ impl<A, R: Copy> Listbox<A, R> {
             .as_ref()
             .map_or(Enablement::Enabled, |enablement| enablement(row))
     }
+
+    fn kind(&self, row: R) -> RowKind {
+        self.kinds
+            .as_ref()
+            .map_or(RowKind::Option, |kind| kind(row))
+    }
+}
+
+/// Whether `row` is an enabled option, which the keys, the pointer and
+/// activation reach.
+fn selectable<R: Copy>(
+    enablement: Option<&dyn Fn(R) -> Enablement>,
+    kinds: Option<&dyn Fn(R) -> RowKind>,
+    row: R,
+) -> bool {
+    kinds.is_none_or(|kind| kind(row) == RowKind::Option)
+        && enablement.is_none_or(|of| of(row) == Enablement::Enabled)
 }
 
 pub(crate) struct Items<'f, A, R: Clone, F> {
@@ -691,7 +733,9 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
 
     fn enabled(&self, at: usize) -> bool {
         match (&self.listbox, self.rows.get(at)) {
-            (Some(listbox), Some(&row)) => listbox.enablement(row) == Enablement::Enabled,
+            (Some(listbox), Some(&row)) => {
+                selectable(listbox.enablement.as_deref(), listbox.kinds.as_deref(), row)
+            }
             (None, Some(_)) => true,
             (_, None) => false,
         }
@@ -715,6 +759,23 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
             return Some((handle.id(), handle.node()));
         };
         let (list, kept, keys) = (listbox.list, listbox.kept.clone(), listbox.keys);
+        if listbox.kind(row) == RowKind::Heading {
+            let handle = b
+                .div_id(row, classes.sense_click().focusable_none(), |s| {
+                    item(s, row)
+                })
+                .role(Role::Heading);
+            let handle = match &listbox.row_name {
+                Some(name) => handle.named(name(row)),
+                None => handle,
+            };
+            let handle = handle.draw(move |_, ui| {
+                if ui.node_response().clicked() {
+                    keep_focus(ui, &kept, list, keys);
+                }
+            });
+            return Some((handle.id(), handle.node()));
+        }
         let on_activate = listbox.on_activate.clone();
         let enablement = listbox.enablement(row);
         let mark = listbox.mark.as_ref().and_then(|mark| mark(row));
@@ -750,13 +811,7 @@ impl<'f, A: 'static, R: Key + Copy, F: FnMut(&mut Scope<'_, 'f, A>, R)> Rows<'f,
             }
             if response.clicked() {
                 select(&kept, list, row_key(&row), id, keys);
-                let focus = match keys {
-                    Keys::Own => Some(list),
-                    Keys::From(_) => kept.with(|kept| kept.lists.0.get(&list)?.typing),
-                };
-                if let Some(focus) = focus {
-                    ui.ctx().memory_mut(|memory| memory.request_focus(focus));
-                }
+                keep_focus(ui, &kept, list, keys);
             }
             if (response.clicked() || crate::nav::take_activation(ui, id))
                 && let Some(on_activate) = &on_activate
@@ -781,6 +836,18 @@ pub(crate) struct Plan {
     listbox: Option<Keys>,
 }
 
+/// Gives the focus back to where the listbox `list` takes its keys from,
+/// after a click on one of its rows.
+fn keep_focus(ui: &egui::Ui, kept: &Handle, list: Id, keys: Keys) {
+    let focus = match keys {
+        Keys::Own => Some(list),
+        Keys::From(_) => kept.with(|kept| kept.lists.0.get(&list)?.typing),
+    };
+    if let Some(focus) = focus {
+        ui.ctx().memory_mut(|memory| memory.request_focus(focus));
+    }
+}
+
 /// Highlights the row `key`, built as `id`, of the listbox `list`.
 fn select(kept: &Handle, list: Id, key: IdSalt, id: Id, keys: Keys) {
     crate::nav::highlight_row(kept, list, id, keys);
@@ -799,7 +866,7 @@ fn highlight_first<R: Key + Copy>(
     list: Id,
     rows: &[R],
     keys: Keys,
-    enablement: Option<&dyn Fn(R) -> Enablement>,
+    selectable: &dyn Fn(R) -> bool,
 ) {
     let digest = {
         let mut hasher = std::hash::DefaultHasher::new();
@@ -815,8 +882,7 @@ fn highlight_first<R: Key + Copy>(
     if changed != Some(true) {
         return;
     }
-    let enabled = |row: &&R| enablement.is_none_or(|of| of(**row) == Enablement::Enabled);
-    match rows.iter().find(enabled) {
+    match rows.iter().find(|row| selectable(**row)) {
         Some(first) => {
             let key = row_key(first);
             select(kept, list, key, child_id(list, first), keys);

@@ -310,19 +310,28 @@ fn own_key(variant: &str) -> Option<String> {
 /// Base UI marks it highlighted); eggshell marks the current item the same
 /// way whether the keyboard or the pointer made it current. shadcn picks
 /// items out the same way, by a `data-slot` ending in `-item`, and a
-/// submenu's trigger is an item of its menu.
+/// submenu's trigger is an item of its menu. cmdk marks its current item
+/// `data-selected` (`CMDK_ITEMS`), which is the same state.
 fn highlighted_on_items(slot: &str, class: &str) -> String {
     if !(slot.ends_with("-item") || slot.ends_with("-sub-trigger")) {
         return class.to_owned();
     }
+    let cmdk = CMDK_ITEMS.contains(&slot);
     let (variants, utility) = split_variants(class);
     variants
         .into_iter()
-        .map(|v| if v == "focus" { "data-highlighted" } else { v })
+        .map(|v| match v {
+            "focus" => "data-highlighted",
+            "data-selected" if cmdk => "data-highlighted",
+            v => v,
+        })
         .chain([utility])
         .collect::<Vec<_>>()
         .join(":")
 }
+
+/// The items cmdk lists, whose `data-selected` is the list's current item.
+const CMDK_ITEMS: [&str; 1] = ["command-item"];
 
 /// `p-[3px]` as `p` and 0.75: padding or a gap in pixels, in the spacing
 /// scale's units of 4 px.
@@ -440,9 +449,6 @@ impl Classifier<'_> {
                 return Err(format!("variant `{variant}:`"));
             }
         }
-        if important && !t.wraps.iter().any(|w| matches!(w, Wrap::Rule { .. })) {
-            return Err("`!` outside a rule".to_owned());
-        }
         t.leaf = self.leaf(utility, &mut t.kinds)?;
         let in_has = t.wraps.iter().any(|w| {
             matches!(
@@ -508,7 +514,10 @@ impl Classifier<'_> {
             .and_then(|n| n.parse::<f32>().ok())
         {
             kinds.insert(Kind::TwCall);
-            return Ok(Leaf::Call(format!(".opacity(Opacity::new({}))", n / 100.0)));
+            return Ok(Leaf::Call(format!(
+                ".opacity(Opacity::new({:?}))",
+                n / 100.0
+            )));
         }
         if let Some((name, units)) = spacing_px(utility)
             && let Fate::Tw { call } = self.utility(&format!("{name}-1"))
@@ -728,6 +737,17 @@ fn when_of(origin: &Origin, widget: &Widget) -> Vec<String> {
 /// over its defaults, not a replace of them.
 const OVER_A_LIBRARY: [&str; 1] = ["sonner"];
 
+/// Parts whose element is another component's, which their classes style
+/// over: `CommandDialog`'s box is a `DialogContent`, drawn here as the
+/// palette's own dialog box.
+const OVER_ANOTHER_PART: [(&str, &str); 1] = [("command", "Dialog")];
+
+/// Whether `part`'s classes are rules over the widget's own look, not a
+/// replace of it.
+fn styles_over(component: &str, part: &str) -> bool {
+    OVER_A_LIBRARY.contains(&component) || OVER_ANOTHER_PART.contains(&(component, part))
+}
+
 /// How eggshell names a widget's shadcn variants and sizes, where it names
 /// them otherwise: each shadcn name, and the eggshell names its rules are
 /// written under.
@@ -884,14 +904,18 @@ impl Widget {
                 continue;
             }
             if let Some(slot) = self.alias(variant) {
-                kept.push(
-                    if variant.starts_with("[&>") {
-                        "*"
-                    } else {
-                        "**"
-                    }
-                    .to_owned(),
-                );
+                // `[[attr]]` names the element itself, under the `*:` or
+                // `**:` already written before it.
+                if !variant.starts_with("[[") {
+                    kept.push(
+                        if variant.starts_with("[&>") {
+                            "*"
+                        } else {
+                            "**"
+                        }
+                        .to_owned(),
+                    );
+                }
                 kept.push(format!("data-[slot={slot}]"));
                 continue;
             }
@@ -939,8 +963,10 @@ impl Widget {
     fn alias(&self, variant: &str) -> Option<&'static str> {
         let name = variant
             .strip_prefix("[&>")
-            .or_else(|| variant.strip_prefix("[&_"))?
+            .or_else(|| variant.strip_prefix("[&_"))
+            .or_else(|| variant.strip_prefix("[["))?
             .strip_suffix(']')?;
+        let name = name.strip_suffix(']').unwrap_or(name);
         self.aliases
             .iter()
             .find_map(|(element, slot)| (*element == name).then_some(*slot))
@@ -1238,12 +1264,13 @@ pub fn emit(
             if !calls_text.contains(".from(") {
                 continue;
             }
+            // Only the part's first rule is its base: a copied part's rules
+            // (`copies`) come after the part's own, as rules over it.
             let first_base = rule.when == "When::always()"
                 && rules
                     .iter()
                     .find(|r| r.part == rule.part)
-                    .map(|r| r.when.as_str())
-                    == Some("When::always()");
+                    .is_some_and(|first| std::ptr::eq(first, rule));
             if first_base && draws_a_border(&rules, &rule.part, half) {
                 let constant = file_constant(BORDER_BASE.0);
                 calls_text.insert_str(
@@ -1256,7 +1283,7 @@ pub fn emit(
                 constants.insert(constant, BORDER_BASE.0.to_owned());
             }
             let k = if calls_text.contains("k.") { "k" } else { "_" };
-            let replaces = first_base && !OVER_A_LIBRARY.contains(&widget.component);
+            let replaces = first_base && !styles_over(widget.component, &rule.part);
             let (method, when) = match (replaces, rule.when.as_str()) {
                 (true, _) => ("replace".to_owned(), String::new()),
                 (false, "When::always()") => ("rule".to_owned(), String::new()),
@@ -1349,6 +1376,26 @@ mod tests {
         assert_eq!(
             highlighted_on_items("select-item", "focus:bg-accent"),
             "data-highlighted:bg-accent"
+        );
+        with(|c| {
+            for (class, call) in [
+                ("opacity-0", ".opacity(Opacity::new(0.0))"),
+                ("opacity-100", ".opacity(Opacity::new(1.0))"),
+                ("opacity-50", ".opacity(Opacity::new(0.5))"),
+            ] {
+                let t = c.translate(class).unwrap();
+                assert!(matches!(&t.leaf, Leaf::Call(got) if got == call), "{class}");
+            }
+        });
+        assert_eq!(
+            highlighted_on_items("command-item", "data-selected:bg-muted"),
+            "data-highlighted:bg-muted",
+            "cmdk's current item"
+        );
+        assert_eq!(
+            highlighted_on_items("select-item", "data-selected:bg-muted"),
+            "data-selected:bg-muted",
+            "not cmdk's"
         );
         assert_eq!(
             highlighted_on_items("select-item", "dark:focus:text-x!"),
@@ -1726,7 +1773,10 @@ mod tests {
                 c.translate("has-data-[icon=inline-start]:text-primary"),
                 Err("`has-` sets box classes only, not inherited text".to_owned())
             );
-            assert_eq!(c.translate("size-3!"), Err("`!` outside a rule".to_owned()));
+            // `!` on a node's own class beats the element's other classes,
+            // which come before it in its rule; it does not beat the
+            // caller's, which eggshell merges over the sheet.
+            assert!(c.translate("size-3!").is_ok());
             for class in [
                 "group-data-[size=sm]/switch:h-4",
                 "not-last:border-b",

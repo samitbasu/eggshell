@@ -4,6 +4,7 @@
 //! the list and the highlighted row.
 
 use eggshell_ui::owned::{Enablement, Mark};
+use eggshell_ui::vlist::RowKind;
 use eggshell_ui::{Builder, TextSpec, TextStyle, Weight, tw};
 use egui::accesskit::Role as AccessRole;
 use egui::{Color32, FontFamily, Key, Role, vec2};
@@ -24,6 +25,8 @@ struct App {
     picked: Vec<u32>,
     /// Rows that are disabled.
     disabled: Vec<u32>,
+    /// Rows that are headings.
+    headings: Vec<u32>,
 }
 
 fn base_text() -> TextStyle {
@@ -56,6 +59,7 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .on_change(|app: &mut App, query| app.query = query);
         let field = s.id_of("query");
         let disabled = app.disabled.clone();
+        let headings = app.headings.clone();
         s.virtual_list("results", tw().h_px(200.0), matching(&app.query))
             .keys_from(field)
             .highlight_first()
@@ -64,6 +68,10 @@ fn view(b: &mut Builder<'_, '_, App>, app: &App) {
             .row_name(|row: Row| format!("Row {}", row.0))
             .row_enablement(move |row: Row| Enablement::from(!disabled.contains(&row.0)))
             .row_mark(|row: Row| (row.0 == 5).then_some(Mark::On))
+            .row_kind(move |row: Row| match headings.contains(&row.0) {
+                true => RowKind::Heading,
+                false => RowKind::Option,
+            })
             .on_activate(|app: &mut App, row: Row| app.picked.push(row.0))
             .items(|s, row| s.text(tw().h_px(20.0), format!("Row {}", row.0)));
     });
@@ -195,6 +203,61 @@ fn the_arrows_pass_disabled_rows_by() {
     assert_eq!(active(&harness).as_deref(), Some("Row 1"));
     let row = harness.get_by_label("Row 2");
     assert!(row.accesskit_node().is_disabled(), "a disabled row says so");
+}
+
+#[test]
+fn the_arrows_pass_headings_by() {
+    let mut harness = harness_with(App {
+        headings: vec![0, 2],
+        ..App::default()
+    });
+    assert_eq!(
+        active(&harness).as_deref(),
+        Some("Row 1"),
+        "the first option is highlighted, not the heading over it"
+    );
+    press(&mut harness, Key::ArrowDown);
+    assert_eq!(active(&harness).as_deref(), Some("Row 3"));
+    press(&mut harness, Key::ArrowUp);
+    assert_eq!(active(&harness).as_deref(), Some("Row 1"));
+}
+
+#[test]
+fn a_heading_is_not_an_option() {
+    let harness = harness_with(App {
+        headings: vec![2],
+        ..App::default()
+    });
+    let options: Vec<String> = harness
+        .query_all_by_role(AccessRole::ListBoxOption)
+        .filter_map(|node| node.accesskit_node().label())
+        .collect();
+    assert!(
+        options.iter().any(|o| o == "Row 1") && options.iter().any(|o| o == "Row 3"),
+        "precondition: the rows around it are options: {options:?}"
+    );
+    assert!(
+        !options.iter().any(|o| o == "Row 2"),
+        "the heading is not one of the options, so not in their count: {options:?}"
+    );
+    assert_eq!(
+        harness.get_by_label("Row 2").accesskit_node().role(),
+        AccessRole::Heading,
+        "the heading is announced as one"
+    );
+}
+
+#[test]
+fn a_click_on_a_heading_picks_and_highlights_nothing() {
+    let mut harness = harness_with(App {
+        headings: vec![2],
+        ..App::default()
+    });
+    let before = active(&harness);
+    harness.get_by_label("Row 2").click();
+    harness.run_steps(6);
+    assert!(harness.state().app.picked.is_empty(), "nothing is picked");
+    assert_eq!(active(&harness), before, "the highlight stays");
 }
 
 #[test]

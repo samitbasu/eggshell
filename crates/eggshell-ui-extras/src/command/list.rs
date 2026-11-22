@@ -5,16 +5,16 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use eggshell_ui::owned::{Enablement, Mark};
+use eggshell_ui::owned::{Enablement, InputGroupPart, Mark};
 use eggshell_ui::sheet::{Defaults, Key as SheetKey};
-use eggshell_ui::vlist::ListNav;
+use eggshell_ui::vlist::{ListNav, RowKind};
 use eggshell_ui::{
     Builder, Command, CommandState, Commands, Icon, Key, Match, Scope, Shell, Style, Tw, child_id,
     icons, tw,
 };
 use egui::{Context, Id, Role};
 
-use super::ComboboxPart;
+use super::{ComboboxPart, CommandPart};
 
 use super::{Filter, Filtering, Options, Pending, filter};
 
@@ -192,27 +192,75 @@ pub(crate) struct ListOptions<A> {
     pub(crate) field: Field,
 }
 
-/// Whose parts a list draws: a combobox's, from the style's sheet with its
-/// own look as their defaults, or the command list's own.
+/// Whose parts a list draws: a combobox's or a command palette's, from the
+/// style's sheet with the list's own look as their defaults, or the list's
+/// own look alone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Looks {
     Combobox,
+    Command,
     Own,
+}
+
+/// The parts a combobox's list and a command palette's list share.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ListPart {
+    List,
+    Item,
+    Empty,
+    Heading,
+}
+
+impl ListPart {
+    fn combobox(self) -> ComboboxPart {
+        match self {
+            Self::List => ComboboxPart::List,
+            Self::Item => ComboboxPart::Item,
+            Self::Empty => ComboboxPart::Empty,
+            Self::Heading => ComboboxPart::Label,
+        }
+    }
+
+    fn command(self) -> CommandPart {
+        match self {
+            Self::List => CommandPart::List,
+            Self::Item => CommandPart::Item,
+            Self::Empty => CommandPart::Empty,
+            Self::Heading => CommandPart::GroupHeading,
+        }
+    }
 }
 
 impl Looks {
     /// The classes of `part` for a node with `keys`: `own` as the part's
-    /// defaults, under the sheet, for a combobox; `own` alone otherwise.
+    /// defaults, under the sheet, for a combobox or a palette; `own` alone
+    /// otherwise.
     pub(crate) fn part<A>(
         self,
         b: &mut Builder<'_, '_, A>,
-        (part, keys): (ComboboxPart, &[SheetKey]),
+        (part, keys): (ListPart, &[SheetKey]),
         own: Tw,
         call_site: Tw,
     ) -> Tw {
         match self {
-            Self::Combobox => b.part_over(part, keys, Defaults(own), call_site),
+            Self::Combobox => b.part_over(part.combobox(), keys, Defaults(own), call_site),
+            Self::Command => b.part_over(part.command(), keys, Defaults(own), call_site),
             Self::Own => own.merge(call_site),
+        }
+    }
+
+    /// The classes of a part only a palette has: `own` under the sheet for
+    /// a palette, `own` alone otherwise.
+    fn command_part<A>(
+        self,
+        b: &mut Builder<'_, '_, A>,
+        (part, keys): (CommandPart, &[SheetKey]),
+        own: Tw,
+        call_site: Tw,
+    ) -> Tw {
+        match self {
+            Self::Command => b.part_over(part, keys, Defaults(own), call_site),
+            Self::Combobox | Self::Own => own.merge(call_site),
         }
     }
 }
@@ -228,7 +276,7 @@ pub(crate) enum Field {
 impl<A> ListOptions<A> {
     pub(crate) fn palette(after: Option<Pick<A>>) -> Self {
         Self {
-            looks: Looks::Own,
+            looks: Looks::Command,
             first: First::Highlighted,
             after,
             field: Field::Own,
@@ -283,7 +331,16 @@ impl<A> Items<A> {
 pub(crate) struct Listing<A> {
     rows: Vec<Row>,
     entries: HashMap<Row, Entry<A>>,
-    groups: Vec<Option<String>>,
+    /// The heading rows, each before its group's items: the group's heading
+    /// and whether it is the list's first row.
+    headings: HashMap<Row, (String, Place)>,
+}
+
+/// Where a group's heading is: first in the list, or after another group.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Place {
+    First,
+    After,
 }
 
 impl<A> Listing<A> {
@@ -308,8 +365,19 @@ impl<A> Listing<A> {
         }
         let mut rows = Vec::new();
         let mut kept = HashMap::new();
-        for group in by_group {
-            for entry in filter::ranked(group) {
+        let mut headings = HashMap::new();
+        for (at, group) in by_group.into_iter().enumerate() {
+            let ranked = filter::ranked(group);
+            if let (Some(Some(heading)), false) = (groups.get(at), ranked.is_empty()) {
+                let row = Row(Id::NULL.with(("heading", at)));
+                let place = match rows.is_empty() {
+                    true => Place::First,
+                    false => Place::After,
+                };
+                headings.insert(row, (heading.clone(), place));
+                rows.push(row);
+            }
+            for entry in ranked {
                 rows.push(entry.row);
                 kept.insert(entry.row, entry);
             }
@@ -317,21 +385,15 @@ impl<A> Listing<A> {
         Self {
             rows,
             entries: kept,
-            groups,
+            headings,
         }
     }
 
-    /// Whether `row` is the first of its group, which shows the heading.
-    fn heading(&self, at: usize) -> Option<&str> {
-        let row = self.rows.get(at)?;
-        let group = self.entries.get(row)?.group;
-        let first = at == 0
-            || self
-                .rows
-                .get(at - 1)
-                .and_then(|before| self.entries.get(before))
-                .is_some_and(|before| before.group != group);
-        first.then(|| self.groups.get(group)?.as_deref()).flatten()
+    fn kind(&self, row: Row) -> RowKind {
+        match self.headings.contains_key(&row) {
+            true => RowKind::Heading,
+            false => RowKind::Option,
+        }
     }
 }
 
@@ -451,7 +513,13 @@ pub(crate) fn show<'f, A: 'static>(
     } = options;
     let listing = Rc::new(Listing::filtered(items, &query, filter.as_ref(), filtering));
     let looks = shape.looks;
-    b.div_id(key, tw().flex().flex_col().min_h_0().merge(classes), |s| {
+    let root = looks.command_part(
+        b,
+        (CommandPart::Root, &[]),
+        tw(),
+        tw().flex().flex_col().min_h_0().merge(classes),
+    );
+    b.div_id(key, root, |s| {
         let field = match field {
             Some(field) => field,
             None => search_field(s, &style, key, &query, placeholder, name.clone(), on_query),
@@ -465,8 +533,7 @@ pub(crate) fn show<'f, A: 'static>(
                     });
                 }
                 Filtering::App(Pending::Settled) | Filtering::Ours => {
-                    let classes =
-                        looks.part(s, (ComboboxPart::Empty, &[]), note_classes(&style), tw());
+                    let classes = looks.part(s, (ListPart::Empty, &[]), note_classes(&style), tw());
                     s.div_id(Part::Empty, classes, |s| match empty {
                         Some(empty) => empty(s),
                         None => s.text(tw(), "No results found."),
@@ -479,11 +546,15 @@ pub(crate) fn show<'f, A: 'static>(
         let row_height = style.menu().row_height(&text);
         let list_classes = looks.part(
             s,
-            (ComboboxPart::List, &[]),
+            (ListPart::List, &[]),
             tw().p(style.menu().padding / 4.0)
                 .scroll_py(1.0)
                 .scrollbar_none(),
-            tw().max_h_px(command.list_height),
+            match looks {
+                // `scroll-py-1`, which the importer does not map.
+                Looks::Command => tw().max_h_px(command.list_height).scroll_py(1.0),
+                Looks::Combobox | Looks::Own => tw().max_h_px(command.list_height),
+            },
         );
         let mut list = s
             .virtual_list(Part::Results, list_classes, rows)
@@ -493,9 +564,13 @@ pub(crate) fn show<'f, A: 'static>(
         if shape.first == First::Highlighted {
             list = list.highlight_first();
         }
-        if looks == Looks::Combobox {
+        if looks != Looks::Own {
             let (rows_of, style_of) = (Rc::clone(&listing), Arc::clone(&style));
+            let command_of = Arc::clone(&command);
             list = list.row_part(move |b, row| {
+                if rows_of.kind(row) == RowKind::Heading {
+                    return tw();
+                }
                 let enablement = rows_of
                     .entries
                     .get(&row)
@@ -504,12 +579,11 @@ pub(crate) fn show<'f, A: 'static>(
                     Enablement::Enabled => &[],
                     Enablement::Disabled => &[SheetKey::Aria(eggshell_ui::Aria::Disabled)],
                 };
-                b.part_over(
-                    ComboboxPart::Item,
-                    keys,
-                    Defaults(item_look(&style_of, enablement)),
-                    tw(),
-                )
+                let own = match looks {
+                    Looks::Command => palette_item_look(&style_of, &command_of, enablement),
+                    Looks::Combobox | Looks::Own => item_look(&style_of, enablement),
+                };
+                looks.part(b, (ListPart::Item, keys), own, tw())
             });
         }
         if let Some(name) = name {
@@ -525,57 +599,70 @@ pub(crate) fn show<'f, A: 'static>(
         let rows_of = Rc::clone(&listing);
         let style_of = Arc::clone(&style);
         let command_of = Arc::clone(&command);
-        list.row_name(move |row| {
-            labels
-                .entries
-                .get(&row)
-                .map(|entry| entry.label.clone())
-                .unwrap_or_default()
-        })
-        .row_mark(move |row| {
-            marks.entries.get(&row).and_then(|entry| match entry.state {
-                CommandState::Plain => None,
-                CommandState::Checked(mark) | CommandState::Chosen(mark) => Some(mark),
+        let kinds = Rc::clone(&listing);
+        list.row_kind(move |row| kinds.kind(row))
+            .row_name(move |row| {
+                labels
+                    .entries
+                    .get(&row)
+                    .map(|entry| entry.label.clone())
+                    .or_else(|| {
+                        labels
+                            .headings
+                            .get(&row)
+                            .map(|(heading, _)| heading.clone())
+                    })
+                    .unwrap_or_default()
             })
-        })
-        .row_enablement(move |row| {
-            enabled
-                .entries
-                .get(&row)
-                .map_or(Enablement::Disabled, |entry| entry.enablement)
-        })
-        .on_activate(move |app, row| {
-            let Some(entry) = picks.entries.get(&row) else {
-                return;
-            };
-            if entry.enablement == Enablement::Disabled {
-                return;
-            }
-            if let Some(pick) = &entry.pick {
-                pick(app);
-            }
-            if let Some(after) = &after {
-                after(app);
-            }
-        })
-        .items(move |s, row| {
-            let at = rows_of.rows.iter().position(|&r| r == row).unwrap_or(0);
-            if let Some(heading) = rows_of.heading(at) {
-                let classes = looks.part(
-                    s,
-                    (ComboboxPart::Label, &[]),
-                    heading_classes(&style_of, at),
-                    tw(),
-                );
-                s.div(classes, |s| s.text(tw(), heading.to_owned()));
-            }
-            if let Some(entry) = rows_of.entries.get(&row) {
-                match looks {
-                    Looks::Combobox => combobox_item(s, entry),
-                    Looks::Own => item(s, &style_of, &command_of, entry),
+            .row_mark(move |row| {
+                marks.entries.get(&row).and_then(|entry| match entry.state {
+                    CommandState::Plain => None,
+                    CommandState::Checked(mark) | CommandState::Chosen(mark) => Some(mark),
+                })
+            })
+            .row_enablement(move |row| {
+                enabled
+                    .entries
+                    .get(&row)
+                    .map_or(Enablement::Disabled, |entry| entry.enablement)
+            })
+            .on_activate(move |app, row| {
+                let Some(entry) = picks.entries.get(&row) else {
+                    return;
+                };
+                if entry.enablement == Enablement::Disabled {
+                    return;
                 }
-            }
-        });
+                if let Some(pick) = &entry.pick {
+                    pick(app);
+                }
+                if let Some(after) = &after {
+                    after(app);
+                }
+            })
+            .items(move |s, row| {
+                if let Some((heading, place)) = rows_of.headings.get(&row) {
+                    match looks {
+                        Looks::Command => palette_heading(s, &style_of, *place, heading),
+                        Looks::Combobox | Looks::Own => {
+                            let classes = looks.part(
+                                s,
+                                (ListPart::Heading, &[]),
+                                heading_classes(&style_of, *place),
+                                tw(),
+                            );
+                            s.div(classes, |s| s.text(tw(), heading.clone()));
+                        }
+                    }
+                }
+                if let Some(entry) = rows_of.entries.get(&row) {
+                    match looks {
+                        Looks::Combobox => combobox_item(s, entry),
+                        Looks::Command => palette_item(s, &style_of, entry),
+                        Looks::Own => item(s, &style_of, &command_of, entry),
+                    }
+                }
+            });
     });
 }
 
@@ -598,10 +685,13 @@ fn search_field<A: 'static>(
         .rest
         .border
         .gamma_multiply(0.3);
-    let wrapper = tw().p(1.0).pb(0.0);
-    let classes = tw()
-        .flex()
-        .items_center()
+    let wrapper = s.part_over(
+        CommandPart::InputWrapper,
+        &[],
+        Defaults(tw().p(1.0).pb(0.0)),
+        tw(),
+    );
+    let look = tw()
         .gap(2.0)
         .pl(2.0)
         .pr(2.5)
@@ -610,23 +700,54 @@ fn search_field<A: 'static>(
         .border(1.0)
         .border_color(tint)
         .bg(tint);
+    let classes = s.part_over(
+        CommandPart::InputGroup,
+        &[],
+        Defaults(look),
+        tw().flex().items_center(),
+    );
+    let icon = s.part_over(
+        CommandPart::InputIcon,
+        &[],
+        Defaults(
+            tw().size_px(16.0)
+                .shrink_0()
+                .text(rest.text.gamma_multiply(0.5)),
+        ),
+        tw(),
+    );
+    // shadcn's `CommandInput` is an `InputGroup` holding its icon in an
+    // `InputGroupAddon` and its field as the group's input: core's parts.
+    let start = SheetKey::Attr("align", "inline-start");
+    let addon = s.part_over(
+        InputGroupPart::Addon,
+        &[start],
+        Defaults(tw()),
+        tw().attr("align", "inline-start"),
+    );
+    let input = s
+        .part_over(
+            InputGroupPart::Input,
+            &[SheetKey::Attr("addon", "inline-start")],
+            Defaults(tw()),
+            // The text edit inside is the stop; the look's focus ring would
+            // make the wrapper one.
+            tw().grow().min_w_0().focusable_none(),
+        )
+        .merge(s.part_over(CommandPart::Input, &[], Defaults(tw()), tw()));
     let ctx = s.ctx().clone();
     let mut field = Id::NULL;
     s.div_id(Part::Wrapper, wrapper, |s| {
         s.div_id(Part::Search, classes, |s| {
             field = s.id_of(Part::Query);
-            s.icon(
-                "icon",
-                tw().size_px(16.0)
-                    .shrink_0()
-                    .text(rest.text.gamma_multiply(0.5)),
-                Icon::new(icons::SEARCH),
-            );
+            s.div(addon, |s| {
+                s.icon("icon", icon, Icon::new(icons::SEARCH));
+            });
             let mut chain = s
                 .text_field(Part::Query, query)
                 .bare()
                 .role(Role::ComboBox)
-                .classes(tw().grow().min_w_0());
+                .classes(input);
             if let Some(placeholder) = placeholder {
                 chain = chain.hint(placeholder);
             }
@@ -648,7 +769,7 @@ fn note_classes(style: &Style) -> Tw {
     tw().py(6.0).text_center().text(style.menu().shortcut)
 }
 
-fn heading_classes(style: &Style, at: usize) -> Tw {
+fn heading_classes(style: &Style, place: Place) -> Tw {
     let menu = style.menu();
     let classes = tw()
         .px(menu.item_padding.x / 4.0)
@@ -656,10 +777,74 @@ fn heading_classes(style: &Style, at: usize) -> Tw {
         .role(style.role(&Some(menu.shortcut_text.clone())).clone())
         .font_weight(menu.heading_weight)
         .text(menu.shortcut);
-    if at == 0 {
-        classes
-    } else {
-        classes.mt(1.0).border_t(1.0).border_color(menu.separator)
+    match place {
+        Place::First => classes,
+        Place::After => classes.mt(1.0).border_t(1.0).border_color(menu.separator),
+    }
+}
+
+/// A palette's group heading, with a `CommandSeparator` before every group
+/// but the first.
+fn palette_heading<A: 'static>(
+    s: &mut Scope<'_, '_, A>,
+    style: &Style,
+    place: Place,
+    heading: &str,
+) {
+    let menu = style.menu();
+    if place == Place::After {
+        let separator = s.part_over(
+            CommandPart::Separator,
+            &[],
+            Defaults(tw().h_px(1.0).bg(menu.separator).my(1.0)),
+            tw(),
+        );
+        s.div(separator, |_| {});
+    }
+    let classes = s.part_over(
+        CommandPart::GroupHeading,
+        &[],
+        Defaults(heading_classes(style, Place::First)),
+        tw(),
+    );
+    s.div(classes, |s| s.text(tw(), heading.to_owned()));
+}
+
+/// A palette's command, in a row that is its `CommandPart::Item`: its
+/// label, its shortcut and its check.
+fn palette_item<A: 'static>(s: &mut Scope<'_, '_, A>, style: &Style, entry: &Entry<A>) {
+    let menu = style.menu();
+    s.div(tw().grow().min_w_0(), |s| s.text(tw(), entry.label.clone()));
+    if let Some(shortcut) = &entry.shortcut {
+        let classes = s.part_over(
+            CommandPart::Shortcut,
+            &[],
+            Defaults(tw().text(menu.shortcut).ml_auto()),
+            tw(),
+        );
+        s.text(classes, shortcut.clone());
+    }
+    if let CommandState::Checked(Mark::On) | CommandState::Chosen(Mark::On) = entry.state {
+        let indicator = s.part_over(
+            CommandPart::ItemIndicator,
+            &[SheetKey::Attr(CHECKED.0, CHECKED.1)],
+            Defaults(tw().size_px(menu.indicator).shrink_0()),
+            tw(),
+        );
+        s.glyph(indicator, Icon::new(icons::CHECK));
+    }
+}
+
+/// The key a checked command's mark carries, as shadcn's item does.
+const CHECKED: (&str, &str) = ("checked", "true");
+
+/// The look of a palette's command row in `enablement`, the widget's own:
+/// the menu item's, highlighted in the palette's selection colours.
+fn palette_item_look(style: &Style, command: &super::CommandStyle, enablement: Enablement) -> Tw {
+    let (fill, text) = (command.selected_fill, command.selected_text);
+    match enablement {
+        Enablement::Disabled => item_look(style, enablement),
+        Enablement::Enabled => item_look(style, enablement).highlighted(|p| p.bg(fill).text(text)),
     }
 }
 
