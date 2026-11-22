@@ -374,3 +374,42 @@ fn the_disclosure_button_is_a_square_with_an_accent_tint_under_the_pointer() {
     harness.run_steps(40);
     assert!(tinted(&harness), "the accent tint under the pointer");
 }
+
+fn driver_with(edit: impl Fn(&mut eggshell_ui::Style)) -> eggshell_ui::testing::Driver<App> {
+    let mut d = support::driver(
+        vec2(400.0, 400.0),
+        common::base_text(egui::Theme::Light),
+        App::default(),
+        view,
+    )
+    .style(support::shadcn_with(edit))
+    .build();
+    d.frames(4);
+    d
+}
+
+/// A section's header is shadcn's accordion trigger (accordion.tsx, vega):
+/// `border` (transparent) and `py-4` around a `text-sm` line.
+#[test]
+fn a_sections_header_is_shadcns_accordion_trigger() {
+    let d = driver_with(|_| {});
+    let header = d.rect(Target::suffix(HEADER));
+    assert_eq!(
+        header.height(),
+        1.0 + 16.0 + 20.0 + 16.0 + 1.0,
+        "{header:?}"
+    );
+}
+
+/// The section draws from the style's sheet: an App rule restyles its header.
+#[test]
+fn an_app_rule_restyles_a_sections_header() {
+    let d = driver_with(|style| {
+        style.sheet.as_app().rule(
+            eggshell_ui_extras::disclosure::AccordionPart::Trigger,
+            |t, _| t.bg(egui::Color32::RED),
+        );
+    });
+    let header = d.rect(Target::suffix(HEADER));
+    assert_eq!(support::box_at(&d, header).fill, egui::Color32::RED);
+}

@@ -32,6 +32,7 @@ mod vega_table;
 #[cfg(feature = "extras")] mod vega_badge;
 #[cfg(feature = "extras")] mod vega_card;
 mod vega_slider;
+#[cfg(feature = "extras")] mod vega_accordion;
 mod vega_tabs;
 mod lyra_button;
 mod lyra_input;
@@ -53,6 +54,7 @@ mod lyra_table;
 #[cfg(feature = "extras")] mod lyra_badge;
 #[cfg(feature = "extras")] mod lyra_card;
 mod lyra_slider;
+#[cfg(feature = "extras")] mod lyra_accordion;
 mod lyra_tabs;
 
 /// Writes the rules of `style` for `theme` into `sheet`. Their colours are
@@ -80,6 +82,7 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             #[cfg(feature = "extras")] (vega_badge::light, vega_badge::dark),
             #[cfg(feature = "extras")] (vega_card::light, vega_card::dark),
             (vega_slider::light, vega_slider::dark),
+            #[cfg(feature = "extras")] (vega_accordion::light, vega_accordion::dark),
             (vega_tabs::light, vega_tabs::dark),
         ],
         ShadcnStyle::Lyra => &[
@@ -103,6 +106,7 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             #[cfg(feature = "extras")] (lyra_badge::light, lyra_badge::dark),
             #[cfg(feature = "extras")] (lyra_card::light, lyra_card::dark),
             (lyra_slider::light, lyra_slider::dark),
+            #[cfg(feature = "extras")] (lyra_accordion::light, lyra_accordion::dark),
             (lyra_tabs::light, lyra_tabs::dark),
         ],
     };
