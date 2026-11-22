@@ -133,8 +133,8 @@ const WIDGETS: [emit::Widget; 6] = [
     },
     emit::Widget {
         component: "tabs",
-        checked_in: false,
-        variants: &[],
+        checked_in: true,
+        variants: &[("line", &[])],
         sizes: &[],
         facts: &TABS,
         parts: None,
@@ -197,8 +197,9 @@ const SELECT_ABSENT: [(&str, &str); 5] = {
     ]
 };
 
-/// eggshell's tabs are horizontal, and their list has only the default look.
-const TABS: [emit::Assumed; 6] = {
+/// eggshell's tabs are horizontal, and their list has only the default look:
+/// the `line` variant names no eggshell variant.
+const TABS: [emit::Assumed; 7] = {
     use emit::{Assumed, Fact::*};
     const HORIZONTAL: &str = "eggshell's tabs are horizontal only";
     const DEFAULT: &str = "eggshell's tab list has only the default look";
@@ -230,6 +231,11 @@ const TABS: [emit::Assumed; 6] = {
         },
         Assumed {
             variant: "group-data-[variant=line]/tabs-list",
+            fact: Never,
+            why: DEFAULT,
+        },
+        Assumed {
+            variant: "data-[variant=line]",
             fact: Never,
             why: DEFAULT,
         },

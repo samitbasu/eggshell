@@ -297,7 +297,11 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SegmentedChain<'a, 'f, A
         );
         let mut trigger = |cell: Cell, enablement| {
             let keys = TabsPart::trigger_keys(size, rows, cell, enablement);
-            b.part(TabsPart::Trigger, &keys, caller.clone())
+            let own = match enablement {
+                Enablement::Enabled => tw().text_center(),
+                Enablement::Disabled => tw().text_center().inert(),
+            };
+            b.part(TabsPart::Trigger, &keys, own.merge(caller.clone()))
         };
         let (released, pressed) = (
             trigger(Cell::Released, Enablement::Enabled),

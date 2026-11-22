@@ -116,7 +116,9 @@ pub use table::{
 pub use table_sheet::TablePart;
 pub(crate) use table_sheet::write_rules as write_table_rules;
 pub use tabs_sheet::TabsPart;
-pub(crate) use tabs_sheet::{Roles as TabsRoles, write_rules as write_tabs_rules};
+pub(crate) use tabs_sheet::{
+    Roles as TabsRoles, write_exceptions as write_tabs_exceptions, write_rules as write_tabs_rules,
+};
 pub use toggle::{ToggleChain, ToggleItemChain};
 pub use toggle_group::{Member, ToggleGroup};
 pub use tooltip_sheet::TooltipPart;
