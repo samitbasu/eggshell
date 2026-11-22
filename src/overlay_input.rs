@@ -257,8 +257,9 @@ fn layers_of(
                 lookup: overlay.lookup,
                 focus_now,
                 seen: match (overlay.anchored, overlay.showing) {
+                    (Anchored::Detached, _) => Seen::Hidden,
+                    (Anchored::Attached, Showing::Measuring) => Seen::Measured,
                     (Anchored::Attached, Showing::Drawn) => Seen::Drawn,
-                    (Anchored::Detached, _) | (_, Showing::Measuring) => Seen::Hidden,
                 },
                 window_focus,
                 closer: closer_of(nodes, roots.get(open.root), closers),
