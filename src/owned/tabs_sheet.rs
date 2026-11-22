@@ -203,7 +203,8 @@ pub(crate) fn write_rules(sheet: &mut Sheet, segmented: &SegmentedStyle, roles: 
 /// would lose on a muted panel (#346); a trigger's `h-[calc(100%-1px)]` is
 /// the list's full height inside a list padded half a point more, with the
 /// point its `text-sm` would overflow taken out of its own padding; the sizes other than the default keep their metrics;
-/// and wrapping lists, eggshell's own, keep their rows.
+/// and wrapping lists, eggshell's own, keep their rows, with each trigger
+/// growing from its content's width where `flex-1` would share a row equally.
 pub(crate) fn write_exceptions(sheet: &mut Sheet, segmented: &SegmentedStyle) {
     let fill = segmented.track_fill;
     sheet.rule(TabsPart::List, move |t, _| t.bg(fill));
@@ -240,5 +241,5 @@ pub(crate) fn write_exceptions(sheet: &mut Sheet, segmented: &SegmentedStyle) {
         });
     }
     sheet.rule_when(TabsPart::Trigger, one_row, |t, _| t.h_full());
-    sheet.rule_when(TabsPart::Trigger, wrapping, |t, _| t.h_auto());
+    sheet.rule_when(TabsPart::Trigger, wrapping, |t, _| t.h_auto().basis_auto());
 }
