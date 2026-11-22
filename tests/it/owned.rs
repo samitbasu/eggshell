@@ -372,7 +372,9 @@ fn checkbox_box_and_glyph_are_shadcns() {
             "text-primary-foreground"
         );
         assert_eq!(glyph.calc_bounds().size(), vec2(14.0, 14.0), "size-3.5");
-        assert_eq!(glyph.calc_bounds().center(), rect.center(), "centred");
+        // The glyph snaps to the pixel grid; the box need not sit on it.
+        let off = glyph.calc_bounds().center() - rect.center();
+        assert!(off.x.abs() <= 0.5 && off.y.abs() <= 0.5, "centred: {off:?}");
     }
 }
 

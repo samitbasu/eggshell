@@ -26,7 +26,7 @@ fn changed_text(before: &TextClasses, after: &TextClasses) -> Vec<Property> {
     [
         (before.size != after.size, Property::TextSize),
         (
-            before.line_height != after.line_height,
+            before.line_height != after.line_height || before.leading != after.leading,
             Property::TextLineHeight,
         ),
         (before.family != after.family, Property::TextFamily),
@@ -64,7 +64,7 @@ impl Tw {
         #[cfg(debug_assertions)]
         let changed = changed_text(&before, &after);
         self.text = self.lengths.keep(before, after, |text| {
-            [text.size, text.line_height]
+            [text.size, text.line_height, text.leading]
                 .into_iter()
                 .flatten()
                 .all(f32::is_finite)
@@ -148,6 +148,11 @@ impl Tw {
         normal_case, "`normal-case`.", |t| t.case = Some(TextCase::Normal);
         select_text, "`select-text`: selectable even inside a node that senses the pointer.", |t| t.select = Some(UserSelect::Text);
         select_none, "`select-none`.", |t| t.select = Some(UserSelect::None);
+        leading_none, "`leading-none`: a line as tall as the text's size.", |t| t.leading = Some(1.0);
+        leading_tight, "`leading-tight`: lines 1.25 times the size.", |t| t.leading = Some(1.25);
+        leading_snug, "`leading-snug`: lines 1.375 times the size.", |t| t.leading = Some(1.375);
+        leading_normal, "`leading-normal`: lines 1.5 times the size.", |t| t.leading = Some(1.5);
+        leading_relaxed, "`leading-relaxed`: lines 1.625 times the size.", |t| t.leading = Some(1.625);
         tabular_nums, "`tabular-nums`: every digit as wide as the widest, so a number's width does not depend on its digits.", |t| t.numerals = Some(Numerals::Tabular);
         proportional_nums, "`proportional-nums`.", |t| t.numerals = Some(Numerals::Proportional);
     }
@@ -259,6 +264,14 @@ mod tests {
         assert_eq!((got.spec.size, got.spec.line_height), (12.0, 16.0));
         assert_eq!(got.spec.family, base().spec.family);
         assert_eq!(got.spec.weight, Weight::Bold);
+    }
+
+    #[test]
+    fn leading_is_the_line_height_as_a_multiple_of_the_size() {
+        let got = resolved(tw().text_size(14.0, 20.0).leading_none());
+        assert_eq!(got.spec.line_height, 14.0, "leading-none over text-sm");
+        let got = resolved(tw().leading_normal().text_size(12.0, 16.0));
+        assert_eq!(got.spec.line_height, 18.0, "it wins whatever the order");
     }
 
     #[test]

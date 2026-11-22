@@ -25,6 +25,10 @@ mod vega_switch;
 mod vega_field;
 mod vega_table;
 #[cfg(feature = "extras")] mod vega_hover_card;
+#[cfg(feature = "extras")] mod vega_dialog;
+#[cfg(feature = "extras")] mod vega_alert_dialog;
+#[cfg(feature = "extras")] mod vega_sheet;
+#[cfg(feature = "extras")] mod vega_popover;
 mod vega_tabs;
 mod lyra_button;
 mod lyra_input;
@@ -39,6 +43,10 @@ mod lyra_switch;
 mod lyra_field;
 mod lyra_table;
 #[cfg(feature = "extras")] mod lyra_hover_card;
+#[cfg(feature = "extras")] mod lyra_dialog;
+#[cfg(feature = "extras")] mod lyra_alert_dialog;
+#[cfg(feature = "extras")] mod lyra_sheet;
+#[cfg(feature = "extras")] mod lyra_popover;
 mod lyra_tabs;
 
 /// Writes the rules of `style` for `theme` into `sheet`. Their colours are
@@ -59,6 +67,10 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             (vega_field::light, vega_field::dark),
             (vega_table::light, vega_table::dark),
             #[cfg(feature = "extras")] (vega_hover_card::light, vega_hover_card::dark),
+            #[cfg(feature = "extras")] (vega_dialog::light, vega_dialog::dark),
+            #[cfg(feature = "extras")] (vega_alert_dialog::light, vega_alert_dialog::dark),
+            #[cfg(feature = "extras")] (vega_sheet::light, vega_sheet::dark),
+            #[cfg(feature = "extras")] (vega_popover::light, vega_popover::dark),
             (vega_tabs::light, vega_tabs::dark),
         ],
         ShadcnStyle::Lyra => &[
@@ -75,6 +87,10 @@ pub(crate) fn write(sheet: &mut Sheet, style: ShadcnStyle, theme: Theme) {
             (lyra_field::light, lyra_field::dark),
             (lyra_table::light, lyra_table::dark),
             #[cfg(feature = "extras")] (lyra_hover_card::light, lyra_hover_card::dark),
+            #[cfg(feature = "extras")] (lyra_dialog::light, lyra_dialog::dark),
+            #[cfg(feature = "extras")] (lyra_alert_dialog::light, lyra_alert_dialog::dark),
+            #[cfg(feature = "extras")] (lyra_sheet::light, lyra_sheet::dark),
+            #[cfg(feature = "extras")] (lyra_popover::light, lyra_popover::dark),
             (lyra_tabs::light, lyra_tabs::dark),
         ],
     };

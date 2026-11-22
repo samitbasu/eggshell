@@ -173,7 +173,9 @@ fn radio_circles_and_dots_are_shadcns() {
                 (true, Some(dot)) => {
                     assert_eq!(dot.rect.size(), vec2(8.0, 8.0), "size-2");
                     assert_eq!(dot.fill, t.primary_foreground, "bg-primary-foreground");
-                    assert_eq!(dot.rect.center(), rect.center(), "centred");
+                    // The dot snaps to the pixel grid; the circle need not.
+                    let off = dot.rect.center() - rect.center();
+                    assert!(off.x.abs() <= 0.5 && off.y.abs() <= 0.5, "centred: {off:?}");
                 }
                 (false, None) => {}
                 (chosen, dot) => panic!("{unit:?} chosen {chosen}: dot {dot:?}"),

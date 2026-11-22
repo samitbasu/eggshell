@@ -31,19 +31,22 @@
 //! }
 //! ```
 
+mod parts;
 mod style;
 
+pub use parts::{AlertDialogPart, DialogPart, PopoverPart, SheetPart};
 pub use style::{DialogStyle, Surface, shadow_lg};
 
 use eggshell_ui::overlay::{DismissOn, Floating, Modal, Modally, OverlayChain, Side};
 use eggshell_ui::owned::{ButtonChain, Face};
-use eggshell_ui::{Icon, Scope, TextSpec, Tw, icons, tw};
+use eggshell_ui::sheet::{Defaults, Key as SheetKey};
+use eggshell_ui::{Builder, Icon, Scope, TextSpec, Tw, icons, tw};
 use egui::Role;
 
 /// The keys of a dialog's parts, under the overlay's key: tests and
 /// [`focus_on_open`](eggshell_ui::NodeHandle::focus_on_open) name them.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub enum DialogPart {
+pub enum DialogKey {
     /// The box: the dialog, the sheet or the popover.
     Box,
     /// The title and the description.
@@ -277,27 +280,40 @@ fn surface<'c, 'f, A: 'static, M>(
     chain.children(move |s| {
         let style = s.style().extension::<DialogStyle>();
         let shape = Shape::of(modal, kind);
-        let classes = shape.box_classes(&style).merge(dialog.classes.clone());
-        s.div_id(DialogPart::Box, classes, |s| {
+        let classes = shape.part(
+            s,
+            Slot::Content,
+            shape.box_classes(&style),
+            tw().relative().merge(dialog.classes.clone()),
+        );
+        s.div_id(DialogKey::Box, classes, |s| {
             header(s, &style, shape, &dialog);
             if let Some(body) = parts.body {
-                s.div_id(DialogPart::Body, shape.body_classes(), body);
+                s.div_id(DialogKey::Body, shape.body_classes(), body);
             }
             if let Some(footer) = parts.footer {
                 buttons(s, &style, shape, footer);
             }
             if dialog.close == CloseButton::Shown {
-                s.button(DialogPart::Close, Icon::new(icons::CLOSE))
-                    .named("Close")
-                    .variant(style.close)
-                    .size(style.close_size)
-                    .dismisses()
-                    .classes(
-                        tw().absolute()
-                            .top(style.close_inset)
-                            .right(style.close_inset),
-                    )
-                    .add();
+                // shadcn's close is the button itself; here a box in the
+                // close's place holds it, as the button says `relative`
+                // over what its caller gives it.
+                let place = shape.part(
+                    s,
+                    Slot::Close,
+                    tw().absolute()
+                        .top(style.close_inset)
+                        .right(style.close_inset),
+                    tw(),
+                );
+                s.div(place, |s| {
+                    s.button(DialogKey::Close, Icon::new(icons::CLOSE))
+                        .named("Close")
+                        .variant(style.close)
+                        .size(style.close_size)
+                        .dismisses()
+                        .add();
+                });
             }
         });
     });
@@ -413,15 +429,81 @@ impl Shape {
     }
 }
 
+/// A part of the surface, as each of shadcn's components names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Slot {
+    Content,
+    Close,
+    Header,
+    Footer,
+    Title,
+    Description,
+}
+
+impl Shape {
+    /// The classes of `slot` as the shadcn component that draws this shape
+    /// names it, with `defaults`, the surface's own look, under the sheet,
+    /// and `own` over it: a centred dialog is shadcn's dialog, an alert
+    /// dialog its alert dialog, and an edge's its sheet, which says its side.
+    fn part<A>(self, b: &mut Builder<'_, '_, A>, slot: Slot, defaults: Tw, own: Tw) -> Tw {
+        let defaults = Defaults(defaults);
+        match self {
+            Self::Centered(Kind::Alert) if slot != Slot::Close => {
+                let part = match slot {
+                    Slot::Header => AlertDialogPart::Header,
+                    Slot::Footer => AlertDialogPart::Footer,
+                    Slot::Title => AlertDialogPart::Title,
+                    Slot::Description => AlertDialogPart::Description,
+                    Slot::Content | Slot::Close => AlertDialogPart::Content,
+                };
+                b.part_over(part, &[], defaults, own)
+            }
+            Self::Centered(_) => {
+                let part = match slot {
+                    Slot::Content => DialogPart::Content,
+                    Slot::Close => DialogPart::Close,
+                    Slot::Header => DialogPart::Header,
+                    Slot::Footer => DialogPart::Footer,
+                    Slot::Title => DialogPart::Title,
+                    Slot::Description => DialogPart::Description,
+                };
+                b.part_over(part, &[], defaults, own)
+            }
+            Self::Sheet(side) => {
+                let part = match slot {
+                    Slot::Content => SheetPart::Content,
+                    Slot::Close => SheetPart::Close,
+                    Slot::Header => SheetPart::Header,
+                    Slot::Footer => SheetPart::Footer,
+                    Slot::Title => SheetPart::Title,
+                    Slot::Description => SheetPart::Description,
+                };
+                let side = match side {
+                    Side::Top => "top",
+                    Side::Bottom => "bottom",
+                    Side::Left => "left",
+                    Side::Right => "right",
+                };
+                b.part_over(part, &[SheetKey::Attr("side", side)], defaults, own)
+            }
+        }
+    }
+}
+
 fn header<A>(s: &mut Scope<'_, '_, A>, style: &DialogStyle, shape: Shape, dialog: &Dialog) {
-    s.div_id(DialogPart::Header, shape.header_classes(), |s| {
-        s.text(tw().role(shape.title_role(style)), dialog.title.as_str());
-        if let Some(description) = &dialog.description {
-            s.text(
-                tw().role(style.description.clone())
-                    .text(style.description_color),
-                description.as_str(),
-            );
+    let classes = shape.part(s, Slot::Header, shape.header_classes(), tw());
+    let title = shape.part(s, Slot::Title, tw().role(shape.title_role(style)), tw());
+    let description = shape.part(
+        s,
+        Slot::Description,
+        tw().role(style.description.clone())
+            .text(style.description_color),
+        tw(),
+    );
+    s.div_id(DialogKey::Header, classes, |s| {
+        s.text(title, dialog.title.as_str());
+        if let Some(text) = &dialog.description {
+            s.text(description, text.as_str());
         }
     });
 }
@@ -437,17 +519,18 @@ fn buttons<'f, A: 'static>(
         cancel,
         default,
     } = footer;
-    s.div_id(DialogPart::Footer, shape.footer_classes(), |s| {
+    let classes = shape.part(s, Slot::Footer, shape.footer_classes(), tw());
+    s.div_id(DialogKey::Footer, classes, |s| {
         if let Some(Button { face, then }) = leading {
             let push = match shape {
                 Shape::Centered(_) => tw().mr_auto(),
                 Shape::Sheet(_) => tw(),
             };
-            then(s.button(DialogPart::Leading, face).classes(push));
+            then(s.button(DialogKey::Leading, face).classes(push));
         }
         if let Some(Button { face, then }) = cancel {
             then(
-                s.button(DialogPart::Cancel, face)
+                s.button(DialogKey::Cancel, face)
                     .variant(style.cancel)
                     .cancel_action()
                     .dismisses(),
@@ -455,7 +538,7 @@ fn buttons<'f, A: 'static>(
         }
         if let Some(Button { face, then }) = default {
             then(
-                s.button(DialogPart::Default, face)
+                s.button(DialogKey::Default, face)
                     .variant(style.default)
                     .default_action(),
             );
@@ -475,15 +558,19 @@ impl<'f, A, M> PopoverExt<'f, A> for OverlayChain<'_, 'f, A, Floating, M> {
     fn popover(self, body: impl FnOnce(&mut Scope<'_, 'f, A>)) {
         self.children(|s| {
             let style = s.style().extension::<DialogStyle>();
-            let classes = style
+            let own = style
                 .popover
                 .classes()
-                .flex()
-                .flex_col()
                 .gap(units::HEADER_GAP)
                 .w_px(units::POPOVER_W)
                 .p(units::POPOVER_PADDING);
-            s.div_id(DialogPart::Box, classes, body);
+            let classes = s.part_over(
+                PopoverPart::Content,
+                &[],
+                Defaults(own),
+                tw().flex().flex_col(),
+            );
+            s.div_id(DialogKey::Box, classes, body);
         });
     }
 }

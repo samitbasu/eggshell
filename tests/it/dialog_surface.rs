@@ -232,11 +232,9 @@ fn the_close_button_runs_on_dismiss_once_and_sits_top_right() {
     let mut harness = opened(App::default());
     let (close, boxed) = (rect_of(&harness, CLOSE), rect_of(&harness, "/Dlg/Box"));
     assert!(boxed.contains_rect(close), "{close:?} in {boxed:?}");
-    assert!(close.min.y - boxed.min.y < 16.0, "near the top: {close:?}");
-    assert!(
-        boxed.max.x - close.max.x < 16.0,
-        "near the right: {close:?}"
-    );
+    // The decided look (#411, 2026-11-20): shadcn's `top-4 right-4`.
+    assert_eq!(close.min.y - boxed.min.y, 16.0, "top-4: {close:?}");
+    assert_eq!(boxed.max.x - close.max.x, 16.0, "right-4: {close:?}");
     click_node(&mut harness, CLOSE);
     settle(&mut harness);
     assert_eq!(log(&harness), ["dismissed"]);
@@ -376,4 +374,34 @@ fn a_popovers_field_stays_inside_its_box() {
             "{path} {rect:?} is inside the box's padding, {popover:?}"
         );
     }
+}
+
+/// The decided looks (#411, 2026-11-20: current shadcn everywhere), as the
+/// preset's generated sheets draw them in Vega: the dialog `sm:max-w-md`
+/// with a ring, not a border, `p-6`, its title `leading-none`; the alert
+/// dialog `sm:max-w-lg`; a side's sheet `w-3/4 sm:max-w-sm`.
+#[test]
+fn the_surfaces_are_current_shadcns() {
+    let dialog = opened(App::default());
+    let boxed = rect_of(&dialog, "/Dlg/Box");
+    assert_eq!(boxed.width(), 448.0, "sm:max-w-md");
+    assert_eq!(support::box_at(&dialog, boxed).stroke.width, 0.0, "a ring");
+    let header = rect_of(&dialog, "/Dlg/Box/Header");
+    assert_eq!(header.min.x - boxed.min.x, 24.0, "p-6");
+    let title = support::nodes(&dialog)
+        .into_iter()
+        .find(|(path, _)| path.starts_with("/Dlg/Box/Header/"))
+        .map(|(_, rect)| rect)
+        .expect("the title");
+    assert_eq!(title.height(), 14.0, "text-sm leading-none");
+    let alert = opened(App {
+        kind: Kind::Alert,
+        ..App::default()
+    });
+    assert_eq!(rect_of(&alert, "/Dlg/Box").width(), 512.0, "sm:max-w-lg");
+    let sheet = opened(App {
+        kind: Kind::Sheet(Side::Right),
+        ..App::default()
+    });
+    assert_eq!(rect_of(&sheet, "/Dlg/Box").width(), 384.0, "sm:max-w-sm");
 }

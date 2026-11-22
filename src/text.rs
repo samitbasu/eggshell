@@ -506,6 +506,10 @@ impl TextStyle {
 pub struct TextClasses {
     pub(crate) size: Option<f32>,
     pub(crate) line_height: Option<f32>,
+    /// Line height as a multiple of the size, Tailwind's `leading-*`: it
+    /// wins over `line_height`, as `leading-*` follows `text-*` in
+    /// Tailwind's order.
+    pub(crate) leading: Option<f32>,
     pub(crate) family: Option<FontFamily>,
     pub(crate) weight: Option<Weight>,
     pub(crate) color: Option<Color32>,
@@ -526,6 +530,7 @@ impl TextClasses {
         Self {
             size: other.size.or(self.size),
             line_height: other.line_height.or(self.line_height),
+            leading: other.leading.or(self.leading),
             family: other.family.or(self.family),
             weight: other.weight.or(self.weight),
             color: other.color.or(self.color),
@@ -542,10 +547,15 @@ impl TextClasses {
 
     /// These classes merged over `inherited`, field by field.
     pub fn over(&self, inherited: &TextStyle) -> TextStyle {
+        let size = self.size.unwrap_or(inherited.spec.size);
         TextStyle {
             spec: TextSpec {
-                size: self.size.unwrap_or(inherited.spec.size),
-                line_height: self.line_height.unwrap_or(inherited.spec.line_height),
+                size,
+                line_height: self
+                    .leading
+                    .map(|leading| leading * size)
+                    .or(self.line_height)
+                    .unwrap_or(inherited.spec.line_height),
                 family: self
                     .family
                     .clone()

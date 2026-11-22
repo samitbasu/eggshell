@@ -24,18 +24,22 @@ use emit::Home;
 use source::{Class, Origin, Sources};
 
 /// The components of the spike, by their registry file name.
-const COMPONENTS: [&str; 16] = [
+const COMPONENTS: [&str; 20] = [
+    "alert-dialog",
     "button",
     "badge",
     "checkbox",
     "combobox",
+    "dialog",
     "dropdown-menu",
     "field",
     "hover-card",
     "input",
     "input-group",
+    "popover",
     "radio-group",
     "select",
+    "sheet",
     "switch",
     "table",
     "tabs",
@@ -46,7 +50,7 @@ const COMPONENTS: [&str; 16] = [
 /// The widgets whose `Sheet` rules are emitted, and how eggshell names
 /// their shadcn variants and sizes: shadcn's `default` button is eggshell's
 /// `primary`, and a button that names no variant is `secondary`.
-const WIDGETS: [emit::Widget; 14] = [
+const WIDGETS: [emit::Widget; 18] = [
     emit::Widget {
         component: "button",
         home: Home::Core,
@@ -321,6 +325,70 @@ const WIDGETS: [emit::Widget; 14] = [
         copies: &[],
     },
     emit::Widget {
+        component: "dialog",
+        home: Home::Extension("eggshell_ui_extras::dialog"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &DIALOG_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
+        component: "alert-dialog",
+        home: Home::Extension("eggshell_ui_extras::dialog"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &ALERT_DIALOG,
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &ALERT_DIALOG_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
+        component: "sheet",
+        home: Home::Extension("eggshell_ui_extras::dialog"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &SHEET_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
+        component: "popover",
+        home: Home::Extension("eggshell_ui_extras::dialog"),
+        checked_in: true,
+        variants: &[],
+        sizes: &[],
+        facts: &[],
+        parts: None,
+        bases: &[],
+        aliases: &[],
+        relations: &[],
+        slot_aliases: &[],
+        inherited: &[],
+        absent: &POPOVER_ABSENT,
+        copies: &[],
+    },
+    emit::Widget {
         component: "tabs",
         home: Home::Core,
         checked_in: true,
@@ -383,6 +451,65 @@ const COMBOBOX_ABSENT: [(&str, &str); 12] = {
             "eggshell's combobox lists its options in one run",
         ),
         ("combobox-collection", "a list of the options, not drawn"),
+    ]
+};
+
+/// The scrim behind a modal surface is the overlay's.
+const SCRIM: &str = "the overlay draws the scrim behind a modal surface";
+
+/// The parts of shadcn's dialog that eggshell's surface does not draw.
+const DIALOG_ABSENT: [(&str, &str); 1] = [("dialog-overlay", SCRIM)];
+
+/// eggshell's alert dialog has shadcn's default size only.
+const ALERT_DIALOG: [emit::Assumed; 4] = {
+    use emit::{Assumed, Fact::*};
+    const DEFAULT: &str = "eggshell's alert dialog has the default size only";
+    [
+        Assumed {
+            variant: "data-[size=default]",
+            fact: Holds,
+            why: DEFAULT,
+        },
+        Assumed {
+            variant: "data-[size=sm]",
+            fact: Never,
+            why: DEFAULT,
+        },
+        Assumed {
+            variant: "group-data-[size=default]/alert-dialog-content",
+            fact: Holds,
+            why: DEFAULT,
+        },
+        Assumed {
+            variant: "group-data-[size=sm]/alert-dialog-content",
+            fact: Never,
+            why: DEFAULT,
+        },
+    ]
+};
+
+/// The parts of shadcn's alert dialog that eggshell's surface does not draw.
+const ALERT_DIALOG_ABSENT: [(&str, &str); 4] = {
+    const BUTTON: &str = "the footer's buttons are core buttons, in the style's variants";
+    [
+        ("alert-dialog-overlay", SCRIM),
+        ("alert-dialog-media", "eggshell's alert dialog has no media"),
+        ("alert-dialog-action", BUTTON),
+        ("alert-dialog-cancel", BUTTON),
+    ]
+};
+
+/// The parts of shadcn's sheet that eggshell's surface does not draw.
+const SHEET_ABSENT: [(&str, &str); 1] = [("sheet-overlay", SCRIM)];
+
+/// The parts of shadcn's popover that eggshell's does not draw: it holds
+/// what the app builds.
+const POPOVER_ABSENT: [(&str, &str); 3] = {
+    const BODY: &str = "eggshell's popover holds what the app builds";
+    [
+        ("popover-header", BODY),
+        ("popover-title", BODY),
+        ("popover-description", BODY),
     ]
 };
 
