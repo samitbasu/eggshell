@@ -17,6 +17,7 @@ use eggshell_ui::owned::{Enablement, Mark};
 use eggshell_ui::scroll::Axis;
 use eggshell_ui::testing::{Points, leaves_bounds};
 use eggshell_ui::{Builder, LayoutState, Placed, Scope, TextStyle, tw};
+use eggshell_ui_extras::dialog::{Dialog, DialogExt, PopoverExt};
 use egui::{Color32, Event, Id, Key, LayerId, Modifiers, PointerButton, Pos2, Rect, Role, vec2};
 use egui_kittest::Harness;
 use proptest::prelude::*;
@@ -57,31 +58,6 @@ struct App {
     chosen: u32,
 }
 
-fn dialog_box() -> eggshell_ui::Tw {
-    tw().flex()
-        .flex_col()
-        .gap(3.0)
-        .p(4.0)
-        .w_full()
-        .max_w_px(300.0)
-        .bg(Color32::WHITE)
-        .border(1.0)
-        .border_color(Color32::GRAY)
-        .rounded_px(8.0)
-}
-
-fn popover_box() -> eggshell_ui::Tw {
-    tw().flex()
-        .flex_col()
-        .gap(2.0)
-        .p(3.0)
-        .w_px(150.0)
-        .bg(Color32::WHITE)
-        .border(1.0)
-        .border_color(Color32::GRAY)
-        .rounded_px(6.0)
-}
-
 fn popover<'f>(
     s: &mut Scope<'_, 'f, App>,
     key: &'static str,
@@ -95,12 +71,10 @@ fn popover<'f>(
         .role(Role::Dialog)
         .named("Popover")
         .on_dismiss(move |app: &mut App| *open(app) = false)
-        .children(|s| {
-            s.div_id("box", popover_box(), |s| {
-                s.text(tw(), "A popover with a field and a button.");
-                s.button("popover-button", "Choose")
-                    .on_click(|app: &mut App| app.chosen += 1);
-            });
+        .popover(|s| {
+            s.text(tw(), "A popover with a field and a button.");
+            s.button("popover-button", "Choose")
+                .on_click(|app: &mut App| app.chosen += 1);
         });
 }
 
@@ -204,26 +178,22 @@ fn dialog(b: &mut Builder<'_, '_, App>, app: &App) {
     b.overlay("dialog-overlay")
         .modal(Modal::Center)
         .shown(app.dialog)
-        .role(Role::Dialog)
-        .named("Dialog")
         .on_dismiss(|app: &mut App| app.dialog = Shown::Closed)
-        .children(|s| {
-            s.div_id("box", dialog_box(), |s| {
-                s.text(tw(), "A dialog");
+        .dialog(Dialog::new("Dialog").classes(tw().max_w_px(300.0)), |d| {
+            d.body(|s| {
                 s.select("inner", app.inner, (0..4).map(|n| (n, format!("Role {n}"))))
                     .named("Inner")
                     .on_change(|app: &mut App, value| app.inner = value);
-                s.div(tw().flex().justify_between(), |s| {
-                    s.button("delete", "Delete")
-                        .on_click(|app: &mut App| app.confirm = Shown::Open);
-                    s.button("cancel", "Cancel")
-                        .cancel_action()
-                        .on_click(|app: &mut App| app.dialog = Shown::Closed);
-                    s.button("save", "Save")
-                        .default_action()
-                        .on_click(|app: &mut App| app.dialog = Shown::Closed);
-                });
                 confirm(s, app);
+            });
+            d.footer(|f| {
+                f.leading("Delete", |button| {
+                    button.on_click(|app: &mut App| app.confirm = Shown::Open);
+                })
+                .cancel("Cancel", |button| button.add())
+                .default("Save", |button| {
+                    button.on_click(|app: &mut App| app.dialog = Shown::Closed);
+                })
             });
         });
 }
@@ -232,24 +202,16 @@ fn confirm(s: &mut Scope<'_, '_, App>, app: &App) {
     s.overlay("confirm-overlay")
         .modal(Modal::Center)
         .shown(app.confirm)
-        .role(Role::AlertDialog)
-        .named("Sure?")
-        .dismiss_on(eggshell_ui::overlay::DismissOn::EscOnly)
         .on_dismiss(|app: &mut App| app.confirm = Shown::Closed)
-        .children(|s| {
-            s.div_id("box", dialog_box().max_w_px(240.0), |s| {
-                s.text(tw(), "Are you sure?");
-                s.div(tw().flex().justify_end().gap(2.0), |s| {
-                    s.button("no", "Cancel")
-                        .cancel_action()
-                        .on_click(|app: &mut App| app.confirm = Shown::Closed);
-                    s.button("yes", "Continue")
-                        .default_action()
-                        .on_click(|app: &mut App| {
+        .alert_dialog(Dialog::new("Sure?").classes(tw().max_w_px(240.0)), |d| {
+            d.footer(|f| {
+                f.cancel("Cancel", |button| button.add())
+                    .default("Continue", |button| {
+                        button.on_click(|app: &mut App| {
                             app.confirm = Shown::Closed;
                             app.dialog = Shown::Closed;
                         });
-                });
+                    })
             });
         });
 }
@@ -772,7 +734,7 @@ impl Desk {
             Action::OpenPopover => self.click_node("\"popover\""),
             Action::OpenAnchorPopover => self.click_node("\"anchor\""),
             Action::OpenModal => self.click_node("\"dialog\""),
-            Action::OpenConfirm => self.click_node("\"delete\""),
+            Action::OpenConfirm => self.click_node("Leading"),
             Action::OpenSubmenu => {
                 let more = if self.seen().node("\"context-more\"").is_some() {
                     "\"context-more\""

@@ -152,12 +152,14 @@ impl Shadcn {
             // keep sorted
             let badge = self.badge(&core);
             let command = self.command(&core);
+            let dialog = self.dialog(&core);
             let disclosure = self.disclosure(&core);
             let form = self.form(&core);
             let notify = self.notify(&core);
             let skeleton = self.skeleton(&core);
             core.set_extension(badge);
             core.set_extension(command);
+            core.set_extension(dialog);
             core.set_extension(disclosure);
             core.set_extension(form);
             core.set_extension(self.hover_card());
@@ -1258,6 +1260,26 @@ impl Shadcn {
     #[cfg(feature = "extras")]
     pub fn markdown(&self) -> eggshell_ui_extras::markdown::MarkdownStyle {
         eggshell_ui_extras::markdown::Typeset::default().markdown_style(&self.typeset_ink())
+    }
+
+    /// TODO(prose): the look of the dialog surface, the sheet and the
+    /// popover: shadcn's `DialogContent`, `SheetContent` and
+    /// `PopoverContent`. Placeholder values until the render round.
+    #[cfg(feature = "extras")]
+    pub fn dialog(&self, style: &contract::Style) -> eggshell_ui_extras::dialog::DialogStyle {
+        use eggshell_ui_extras::dialog::{DialogStyle, Surface, shadow_lg};
+        let t = &self.tokens;
+        let mut dialog = DialogStyle::from_style(style);
+        dialog.surface = Surface::new(t.background, t.foreground, t.border)
+            .rounded(t.radius)
+            .shadow(shadow_lg());
+        dialog.description_color = t.muted_foreground;
+        dialog.cancel = variant::OUTLINE;
+        dialog.default = variant::PRIMARY;
+        dialog.close = variant::GHOST;
+        dialog.close_size = size::ICON_SM;
+        dialog.close_inset = 2.0;
+        dialog
     }
 
     /// TODO(prose): the theme colours a [`Typeset`] takes, from this preset's
