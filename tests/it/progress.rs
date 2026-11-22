@@ -46,8 +46,11 @@ fn the_bar_is_the_styles_track_and_range_filled_to_the_fraction() {
     let d = harness(Progress::new(0.4));
     let progress = style().progress;
     let bar = d.rect(Target::suffix("/\"upload\""));
-    assert_eq!(progress.height, 8.0, "shadcn h-2");
-    assert_ne!(progress.track.fill.a(), u8::MAX, "the track is translucent");
+    let tokens = eggshell_ui_shadcn::Tokens::for_theme(Theme::Light);
+    assert_eq!(progress.height, 6.0, "vega h-1.5");
+    // Recorded exception (#132): the tracks are the input token, not `bg-muted`.
+    assert_eq!(progress.track.fill, tokens.input);
+    assert_eq!(progress.range.fill, tokens.primary, "bg-primary");
     assert_eq!(bar.width(), 200.0);
     assert_eq!(bar.height(), progress.height);
     assert_eq!(box_at(&d, bar).fill, progress.track.fill);
@@ -74,4 +77,31 @@ fn it_is_a_progress_indicator_with_the_percentage_as_its_value() {
             .get_by_role_and_label(Role::ProgressIndicator, "Upload");
         assert_eq!(node.accesskit_node().numeric_value(), Some(percent));
     }
+}
+
+/// The bar draws from the style's sheet: an App rule restyles its track.
+#[test]
+fn an_app_rule_restyles_the_track() {
+    let tokens = Tokens::for_theme(Theme::Light);
+    let mut d = support::driver(
+        vec2(400.0, 100.0),
+        TextStyle::new(tokens.text_role(), tokens.foreground),
+        App {
+            progress: Progress::new(0.4),
+        },
+        view,
+    )
+    .style(support::shadcn_with(|style| {
+        style
+            .sheet
+            .as_app()
+            .rule(eggshell_ui::owned::ProgressPart::Root, |t, _| {
+                t.bg(egui::Color32::RED)
+            });
+    }))
+    .build();
+    d.ctx().set_theme(Theme::Light);
+    d.frames(6);
+    let bar = d.rect(Target::suffix("/\"upload\""));
+    assert_eq!(box_at(&d, bar).fill, egui::Color32::RED);
 }

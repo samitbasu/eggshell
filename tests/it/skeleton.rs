@@ -127,3 +127,30 @@ fn a_skeleton_is_not_announced() {
     let id = support::id_of(&d, "/\"sk\"");
     assert!(!d.ctx().has_accesskit_node(id));
 }
+
+/// A skeleton draws from the style's sheet: an App rule restyles it.
+#[test]
+fn an_app_rule_restyles_a_skeleton() {
+    let mut d = support::driver(vec2(300.0, 200.0), base(), App, view)
+        .step(FRAME)
+        .theme(Theme::Light)
+        .motion(Animation::Reduced)
+        .style(support::shadcn_with(|style| {
+            style
+                .sheet
+                .as_app()
+                .rule(eggshell_ui_extras::skeleton::SkeletonPart::Root, |t, _| {
+                    t.bg(Color32::RED)
+                });
+        }))
+        .build();
+    d.frames(4);
+    let skeleton = d.rect(Target::suffix("/\"sk\""));
+    let fill = support::shapes(&d)
+        .into_iter()
+        .find_map(|shape| match shape {
+            Shape::Rect(rect) if support::same(rect.rect, skeleton) => Some(rect.fill),
+            _ => None,
+        });
+    assert_eq!(fill, Some(Color32::RED));
+}

@@ -329,3 +329,23 @@ fn a_chip_rings_while_its_x_has_the_focus() {
     let chip = d.rect(Target::suffix("/\"removable\""));
     assert!(support::ring_at(&d, chip).is_some(), "the chip is ringed");
 }
+
+/// A spinner draws from the style's sheet: an App rule restyles it, and its
+/// size stays its size's entry over the sheet's `size-4`.
+#[test]
+fn an_app_rule_restyles_a_spinner() {
+    let mut d = builder(spinners, App::default())
+        .style(support::shadcn_with(|style| {
+            style
+                .sheet
+                .as_app()
+                .rule(eggshell_ui_extras::spinner::SpinnerPart::Root, |t, _| {
+                    t.bg(egui::Color32::RED).size(10.0)
+                });
+        }))
+        .build();
+    d.frames(4);
+    let spinner = d.rect(Target::suffix("/\"spinner\""));
+    assert_eq!(box_at(&d, spinner).fill, egui::Color32::RED);
+    assert_eq!(spinner.width(), 16.0, "the size is the widget's");
+}

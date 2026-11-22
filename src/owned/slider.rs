@@ -153,16 +153,12 @@ impl crate::sheet::Part for SliderPart {
     }
 }
 
-/// Writes the slider's recorded exceptions over a preset's look:
-/// - its track is the style's, not `bg-muted`, which vanishes on a muted
-///   panel (#132);
-/// - a disabled slider does not fade at its root, as eggshell fades shape by
-///   shape (#479) and the thumb would show the track through it; its parts
-///   draw opaque blends instead (#40).
+/// Writes the slider's recorded exception over a preset's look: a disabled
+/// slider does not fade at its root, as eggshell fades shape by shape (#479)
+/// and the thumb would show the track through it; its parts draw opaque
+/// blends instead (#40).
 pub(crate) fn write_exceptions(sheet: &mut crate::sheet::Sheet, slider: &SliderStyle) {
     use crate::sheet::When;
-    let rest = slider.track.rest;
-    sheet.rule(SliderPart::Track, move |t, _| t.bg(rest.fill));
     let disabled = || When::always().aria(crate::Aria::Disabled);
     let (track, range) = (slider.track.disabled, slider.range.disabled);
     let thumb = slider.thumb.paint.states.disabled;

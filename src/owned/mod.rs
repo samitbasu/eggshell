@@ -109,6 +109,23 @@ pub use segmented::{Cell, SegmentedChain, SegmentedRows};
 pub use select::{SelectChain, SelectPart};
 pub(crate) use select::{write_select_exceptions, write_select_rules};
 pub(crate) use slider::write_exceptions as write_slider_exceptions;
+
+/// Writes the recorded exception of the tracks over a preset's look (#132):
+/// a slider's and a progress bar's track are the style's fill (the input
+/// token), not shadcn's `bg-muted`, which vanishes on a muted panel; the
+/// segmented control's is written with the tabs'.
+pub(crate) fn write_track_exceptions(
+    sheet: &mut crate::sheet::Sheet,
+    (slider, progress): (
+        &crate::contract::SliderStyle,
+        &crate::contract::ProgressStyle,
+    ),
+) {
+    let (slider, progress) = (slider.track.rest.fill, progress.track.fill);
+    sheet.rule(SliderPart::Track, move |t, _| t.bg(slider));
+    sheet.rule(ProgressPart::Root, move |t, _| t.bg(progress));
+}
+pub use progress::ProgressPart;
 pub use slider::{SliderChain, SliderPart};
 pub(crate) use splitter::Side;
 pub use splitter::{PaneSize, SplitterChain, SplitterStart};
