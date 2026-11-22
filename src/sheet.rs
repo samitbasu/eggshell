@@ -168,6 +168,13 @@ impl When {
     }
 }
 
+/// TODO(prose): a widget's own look for a part, given at its call site:
+/// [`Builder::part_over`](crate::Builder::part_over) puts it under every
+/// layer of the sheet, as the widgets' defaults, for a widget whose looks
+/// no style's sections write, such as an extension crate's.
+#[derive(Clone, Debug)]
+pub struct Defaults(pub Tw);
+
 /// What a part is named by: its widget's parts, and its slot.
 type PartKey = (TypeId, &'static str);
 
@@ -383,6 +390,16 @@ impl Sheet {
             .rposition(|rule| rule.replace && rule.when == When::always())
             .unwrap_or(0);
         rules.into_iter().skip(from)
+    }
+
+    /// Whether a rule that holds for a node of `part` with `keys` replaces
+    /// what is under it.
+    pub(crate) fn replaces<P: Part>(&self, part: P, keys: &[Key]) -> bool {
+        self.rules
+            .get(&part_key(part))
+            .into_iter()
+            .flatten()
+            .any(|rule| rule.replace && rule.when.holds(keys))
     }
 
     /// TODO(prose): the classes of `part` for a node with `keys`: the rules that hold, the lowest layer's first, each over the last, their bodies given `tokens`. The node's `data-slot` is the part's.
