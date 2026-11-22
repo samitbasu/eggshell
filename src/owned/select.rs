@@ -3,10 +3,9 @@
 //! it is open: in egui's temp data, keyed by the trigger.
 
 use std::rc::Rc;
-use std::sync::Arc;
 
 use egui::accesskit::HasPopup;
-use egui::{Context, Id, Key, Role, WidgetInfo, vec2};
+use egui::{Context, Id, Key, Role, WidgetInfo};
 
 use super::choice::{self, Choice, IntoChoice};
 use super::menu::Tone;
@@ -19,10 +18,9 @@ use crate::Aria;
 use crate::builder::Slot;
 use crate::contract::{Disabled, SelectStyle, Size};
 use crate::focus::{Autofocus, Select};
+use crate::overlay::Fit;
 use crate::overlay::{Anchor, Distance, Focus, MatchWidth, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
-use crate::pipeline::Room;
-use crate::scroll::{Axis, Focusable};
 use crate::sheet::{Key as SheetKey, Part as SheetPart, Sheet, When};
 use crate::{Builder, NodeUi as _, Scope, Style, Tw, nav, tw};
 
@@ -448,7 +446,6 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
                 Listing::Closed => Shown::Closed,
             };
             let options = List {
-                style,
                 options,
                 current,
                 trigger,
@@ -468,7 +465,7 @@ impl<'a, 'f, A: 'static, T: Copy + PartialEq + 'static> SelectChain<'a, 'f, A, T
                 .role(Role::ListBox)
                 .named(name)
                 .on_dismiss(move |_| Listing::Closed.store(&close, trigger))
-                .children(|s| options.show(s, &choose));
+                .children_fitted(|s, fit| options.show(s, &choose, fit));
         }
     }
 }
@@ -477,7 +474,6 @@ type Choose<A, T> = Rc<dyn Fn(&mut A, &Context, T)>;
 
 /// The options of an open list.
 struct List<T> {
-    style: Arc<Style>,
     options: Vec<Choice<T>>,
     current: Option<usize>,
     trigger: Id,
@@ -486,38 +482,16 @@ struct List<T> {
 }
 
 impl<T: Copy + 'static> List<T> {
-    fn row_height(&self) -> f32 {
-        self.style
-            .menu()
-            .row_height(self.style.role(&self.style.menu().text))
-    }
-
     /// Where the list goes: under the trigger, flipping above it for want of room.
     fn placement(&self) -> Placement {
         Placement::below().gap(self.offset)
     }
 
-    fn show<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>) {
-        let menu = &self.style.menu();
-        let rows = self.options.len() as f32 * self.row_height();
-        let chrome = 2.0 * (menu.padding + menu.popup.border_width);
-        let natural = vec2(0.0, rows + chrome);
-        let room = s.room_for(self.trigger, &self.placement(), natural);
+    fn show<'f, A: 'static>(&self, s: &mut Scope<'_, 'f, A>, choose: &Choose<A, T>, fit: Fit) {
         let content = s.part(SelectPart::Content, &[], tw().flex().flex_col().min_h_0());
         let group = s.part(SelectPart::Group, &[], tw().flex().flex_col());
-        s.div_id(Part::Box, content, |s| match room {
-            Room::Enough => {
-                s.div_id(Part::Group, group, |s| self.rows(s, choose));
-            }
-            Room::Short => {
-                let scroller = tw().flex().flex_col().h_px(rows).min_h_0().focusable_none();
-                s.scroll(Part::Rows, scroller)
-                    .axis(Axis::Y)
-                    .focusable(Focusable::Auto)
-                    .children(|s| {
-                        s.div_id(Part::Group, group, |s| self.rows(s, choose));
-                    });
-            }
+        super::fitted_box(s, fit, (Part::Box, Part::Rows), content, |s| {
+            s.div_id(Part::Group, group, |s| self.rows(s, choose));
         });
     }
 

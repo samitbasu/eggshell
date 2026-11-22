@@ -92,6 +92,7 @@ mod listbox_anchor;
 mod long_list_example;
 mod markdown;
 mod menu;
+mod menu_fit;
 mod menu_offset;
 mod menu_sheet;
 mod modal;

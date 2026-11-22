@@ -21,7 +21,7 @@ use crate::commands::Bound;
 use crate::contract::{MenuStyle, Style, Variant};
 use crate::focus::{Autofocus, Select};
 use crate::kept::Handle;
-use crate::overlay::{Anchor, Distance, Nav, Outside, Placement, Shown, Wrap};
+use crate::overlay::{Anchor, Distance, Fit, Nav, Outside, Placement, Shown, Wrap};
 use crate::overlay_chain::OverlayChain;
 use crate::pipeline::OpenFocus;
 use crate::sheet::Key;
@@ -32,6 +32,7 @@ use crate::{Builder, CommandState, Icon, NodeUi as _, TextSpec, Tw, nav, tw};
 enum Part {
     Menu,
     Box,
+    Rows,
     Submenu,
     Context,
 }
@@ -444,7 +445,7 @@ impl<'f, A: 'static> Menu<'_, 'f, A> {
             .role(Role::Menu)
             .named(label)
             .on_dismiss(move |_| close.change(|menus| menus.close_submenu(root, depth)))
-            .children(|s| menu_box(s, &shared, (depth + 1, tw()), items));
+            .children_fitted(|s, fit| menu_box(s, &shared, ((depth + 1, tw()), fit), items));
     }
 
     fn add_row(&mut self, row: Row<A>) {
@@ -568,7 +569,7 @@ impl Shared {
 fn menu_box<'f, A: 'static>(
     s: &mut Scope<'_, 'f, A>,
     shared: &Shared,
-    (depth, caller): (usize, Tw),
+    ((depth, caller), fit): ((usize, Tw), Fit),
     items: impl for<'m> FnOnce(&mut Menu<'m, 'f, A>),
 ) {
     let part = if depth == 0 {
@@ -578,7 +579,7 @@ fn menu_box<'f, A: 'static>(
     };
     let classes = s.reborrow().part(part, &[], caller);
     let shared = shared.clone();
-    s.div_id(Part::Box, classes, |s| {
+    super::fitted_box(s, fit, (Part::Box, Part::Rows), classes, |s| {
         items(&mut Menu {
             b: s.reborrow(),
             shared,
@@ -1060,7 +1061,7 @@ impl<'a, 'f, A: 'static, K: crate::Key + Clone> DropdownChain<'a, 'f, A, K> {
             .role(Role::Menu)
             .named(name)
             .on_dismiss(move |_| close.close())
-            .children(|s| menu_box(s, &shared, (0, menu_classes), items));
+            .children_fitted(|s, fit| menu_box(s, &shared, ((0, menu_classes), fit), items));
     }
 }
 
@@ -1099,7 +1100,7 @@ pub(crate) fn context<'f, A: 'static>(
         .role(Role::Menu)
         .named("Context menu")
         .on_dismiss(move |_| close.close())
-        .children(|s| menu_box(s, &shared, (0, tw()), items));
+        .children_fitted(|s, fit| menu_box(s, &shared, ((0, tw()), fit), items));
 }
 
 /// Opens the context menu of `owner` at the pointer on a secondary click.

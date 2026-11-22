@@ -722,6 +722,27 @@ impl Spot {
 
 /// Where an overlay of `size` goes.
 ///
+/// What the last layout found of the room an open floating overlay had,
+/// for content that scrolls only when it is cut short.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Fit {
+    /// Not laid out yet: it is measured in this frame and shown in the next.
+    Measuring,
+    /// It had the room it wanted.
+    Fits,
+    /// The room cut it short of `natural`, the size it wanted.
+    Short { natural: Vec2 },
+}
+
+/// Whether an overlay is drawn, or only laid out and measured, as egui's
+/// sizing pass is: nothing of it is painted or takes input.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Showing {
+    #[default]
+    Drawn,
+    Measuring,
+}
+
 /// `size` is the overlay's natural, unclamped size: the choice of side
 /// depends on it alone, so clamping the overlay to [`Spot::available`] cannot
 /// change the side next frame. `anchor` is already resolved to a rect (a
