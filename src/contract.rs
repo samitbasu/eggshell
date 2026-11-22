@@ -1523,6 +1523,14 @@ impl Extension for Fonts {
     }
 }
 
+/// Where a section's setter writes its look: the widgets' defaults layer,
+/// or, inside [`Style::at_current_layer`], the sheet's current one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Writes {
+    Defaults,
+    CurrentLayer,
+}
+
 /// The look of every widget eggshell draws.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -1585,6 +1593,8 @@ pub struct Style {
     pub sheet: crate::sheet::Sheet,
     /// The widgets' own looks, beside the core-painted fields.
     extensions: Extensions,
+    /// Where a section's setter writes its look.
+    writes: Writes,
 }
 
 #[derive(Clone)]
@@ -2142,6 +2152,7 @@ impl Style {
             tokens,
             sheet,
             extensions: Extensions::default(),
+            writes: Writes::Defaults,
         };
         style.rewrite_rules();
         style
@@ -2165,6 +2176,10 @@ impl Style {
     /// preset's look, if a preset wrote one, so a changed section reaches
     /// them. The sheet's layer is as it was after.
     fn restyle(&mut self, write: impl FnOnce(&mut Self)) {
+        if self.writes == Writes::CurrentLayer {
+            write(self);
+            return;
+        }
         let layer = self.sheet.layer();
         self.sheet.set_layer(crate::sheet::Layer::Defaults);
         write(self);
@@ -2298,14 +2313,25 @@ impl Style {
         self.restyle(Self::write_table_rules);
     }
 
-    /// TODO(prose): sets the table section and writes the rules that draw it
-    /// at the sheet's current layer, a scope's or the application's, over a
-    /// preset's look: how a scope restyles its tables from a section, as a
-    /// document's typesetting does. [`set_table`](Self::set_table) writes
-    /// the widgets' defaults, under a preset's look.
-    pub fn set_table_over(&mut self, table: TableStyle) {
-        self.table = table;
-        self.write_table_rules();
+    /// TODO(prose): runs `set`, whose section setters write the sections'
+    /// looks at the sheet's current layer, a scope's or the application's,
+    /// over a preset's look, where they would write the widgets' defaults,
+    /// under it: how a scope restyles its widgets from their sections, as a
+    /// document's typesetting does its tables.
+    ///
+    /// ```
+    /// use eggshell_ui::Style;
+    ///
+    /// let mut style = Style::default();
+    /// style.sheet.as_app();
+    /// let mut table = style.table().clone();
+    /// table.cell_padding = 12.0;
+    /// style.at_current_layer(|style| style.set_table(table));
+    /// ```
+    pub fn at_current_layer(&mut self, set: impl FnOnce(&mut Self)) {
+        let writes = std::mem::replace(&mut self.writes, Writes::CurrentLayer);
+        set(self);
+        self.writes = writes;
     }
 
     fn write_table_rules(&mut self) {

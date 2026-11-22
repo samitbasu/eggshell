@@ -803,7 +803,7 @@ mod spacing {
         let d = harness(|style| {
             let mut table = style.table().clone();
             table.cell_padding_y = Some(3.0);
-            style.set_table_over(table);
+            style.at_current_layer(|style| style.set_table(table));
         });
         let padding = table(&d).cell_padding;
         assert_ne!(padding, 3.0, "precondition");
@@ -819,7 +819,7 @@ mod spacing {
         let d = harness(|style| {
             let mut table = style.table().clone();
             table.header_padding_y = Some(5.0);
-            style.set_table_over(table);
+            style.at_current_layer(|style| style.set_table(table));
         });
         assert_ne!(table(&d).header_height, LINE + 10.0, "precondition");
         let header = cell(&d, "Header", 0);
@@ -831,7 +831,7 @@ mod spacing {
         let d = harness(|style| {
             let mut table = style.table().clone();
             table.first_column_inset = Some(0.0);
-            style.set_table_over(table);
+            style.at_current_layer(|style| style.set_table(table));
         });
         let padding = table(&d).cell_padding;
         let (first, second) = (cell(&d, "Row(1)", 0), cell(&d, "Row(1)", 1));
@@ -870,7 +870,7 @@ mod spacing {
         assert!(rule(&harness(|style| {
             let mut table = style.table().clone();
             table.rule_below_last = true;
-            style.set_table_over(table);
+            style.at_current_layer(|style| style.set_table(table));
         })));
     }
 }
