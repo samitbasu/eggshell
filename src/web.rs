@@ -1,5 +1,8 @@
-//! The web build's keyboard: keeping the browser off the chords the
-//! application's commands take.
+//! The web build's input: keeping the browser off the chords the
+//! application's commands take, and letting a tap bring back the window's
+//! focus.
+//!
+//! ## Chords
 //!
 //! eframe 0.37 asks its `WebOptions::should_prevent_default` hook about
 //! text, but never about a key press, so a browser shortcut on a chord a
@@ -21,6 +24,30 @@
 //! # }));
 //! # }
 //! ```
+//!
+//! ## Window focus
+//!
+//! TODO(prose): why a page that has lost the window's focus (Safari's address
+//! bar, for one) stays without a keyboard: eframe cancels every touch on the
+//! canvas, and Safari returns the window's focus only for a tap it handles
+//! itself. `should_prevent_default` (wasm32 only) leaves a touch to the
+//! browser while the page lacks the window's focus, so the first tap brings
+//! the focus back and the next one the keyboard.
+//!
+//! An app installs it in the options it gives the runner:
+//!
+//! ```no_run
+//! # #[cfg(target_arch = "wasm32")]
+//! # fn options() -> eframe::WebOptions {
+//! eframe::WebOptions {
+//!     should_prevent_default: Box::new(eggshell_ui::web::should_prevent_default),
+//!     ..Default::default()
+//! }
+//! # }
+//! ```
+//!
+//! TODO(prose): an app with its own rule combines it with
+//! [`PageFocus::prevents_default`].
 
 use std::sync::{Arc, Mutex};
 
@@ -171,11 +198,58 @@ pub fn prevent_claimed_chords(
     Ok(())
 }
 
+/// TODO(prose): whether the page has the window's focus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageFocus {
+    /// TODO(prose): the page has the window's focus.
+    Focused,
+    /// TODO(prose): something outside the page has the window's focus.
+    Unfocused,
+}
+
+impl PageFocus {
+    /// TODO(prose): the page's focus as `document.hasFocus()` reports it;
+    /// [`Focused`](Self::Focused) where the browser cannot say.
+    #[cfg(target_arch = "wasm32")]
+    pub fn now() -> Self {
+        let has_focus = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.has_focus().ok());
+        match has_focus {
+            Some(false) => Self::Unfocused,
+            Some(true) | None => Self::Focused,
+        }
+    }
+
+    /// TODO(prose): whether an input event on the canvas should have the
+    /// browser's own action prevented, as eframe does by default.
+    pub fn prevents_default(self) -> bool {
+        match self {
+            Self::Focused => true,
+            Self::Unfocused => false,
+        }
+    }
+}
+
+/// TODO(prose): eframe's `WebOptions::should_prevent_default`: prevents the
+/// browser's own action for every input event, as eframe's default does,
+/// except while the page lacks the window's focus.
+#[cfg(target_arch = "wasm32")]
+pub fn should_prevent_default(_: &egui::Event) -> bool {
+    PageFocus::now().prevents_default()
+}
+
 #[cfg(test)]
 mod tests {
     use egui::{Key, Modifiers};
 
     use super::*;
+
+    #[test]
+    fn a_focused_page_prevents_as_eframe_does_and_an_unfocused_one_lets_the_browser_act() {
+        assert!(PageFocus::Focused.prevents_default());
+        assert!(!PageFocus::Unfocused.prevents_default());
+    }
 
     fn down<'e>(key: &'e str, code: &'e str, [alt, ctrl, shift, meta]: [bool; 4]) -> KeyDown<'e> {
         KeyDown {

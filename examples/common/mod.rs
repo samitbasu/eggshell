@@ -344,7 +344,10 @@ mod web {
             let started = eframe::WebRunner::new()
                 .start(
                     canvas.clone(),
-                    eframe::WebOptions::default(),
+                    eframe::WebOptions {
+                        should_prevent_default: Box::new(eggshell_ui::web::should_prevent_default),
+                        ..eframe::WebOptions::default()
+                    },
                     Box::new(move |cc| {
                         let claimed = eggshell_ui::web::ClaimedChords::of(&cc.egui_ctx);
                         if let Err(error) =
